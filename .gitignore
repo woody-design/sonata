@@ -1,0 +1,19 @@
+.DS_Store
+
+# Dependencies / build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Local env / logs
+.env
+.env.*
+!.env.example
+*.log
+
+# Provider/runtime diagnostic captures should be opt-in artifacts, not default source.
+spikes/**/sample-output/last-run.*
+spikes/**/sample-output/*.raw.jsonl
+spikes/**/hardening-output/last-run.*
+spikes/**/hardening-output/*.raw.jsonl
