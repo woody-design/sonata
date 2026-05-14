@@ -5,6 +5,8 @@ node_modules/
 dist/
 build/
 coverage/
+__pycache__/
+*.pyc
 
 # Local env / logs
 .env
@@ -14,7 +16,9 @@ coverage/
 
 # Provider/runtime diagnostic captures should be opt-in artifacts, not default source.
 spikes/**/sample-output/last-run.*
+spikes/**/sample-output/latest-*-summary.json
 spikes/**/sample-output/*.raw.jsonl
+spikes/**/sample-output/*.raw.txt
 spikes/**/hardening-output/last-run.*
 spikes/**/hardening-output/*.raw.jsonl
 spikes/**/hardening-output/latest-summary.json
