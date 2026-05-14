@@ -17,3 +17,4 @@ spikes/**/sample-output/last-run.*
 spikes/**/sample-output/*.raw.jsonl
 spikes/**/hardening-output/last-run.*
 spikes/**/hardening-output/*.raw.jsonl
+spikes/**/hardening-output/latest-summary.json
