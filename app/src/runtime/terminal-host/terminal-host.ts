@@ -27,6 +27,8 @@ const DEFAULT_ROWS = 36;
 const DEFAULT_COLS = 120;
 const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
+const DEFAULT_TASK_READY_MIN_AGE_MS = 8000;
+const DEFAULT_TASK_READY_QUIET_MS = 900;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 
 const FILE_EDIT_APPROVAL_HINTS = [
@@ -119,7 +121,9 @@ export class TerminalHost extends EventEmitter {
   private activeRun: ActiveRun | null = null;
   private runSeq = 0;
   private completionTimer: NodeJS.Timeout | null = null;
+  private taskReadyTimer: NodeJS.Timeout | null = null;
   private lastPtyDataAt = 0;
+  private taskReady = false;
   private recentAttributionRun: RecentAttributionRun | null = null;
   private activeRunRaw = "";
 
@@ -152,7 +156,9 @@ export class TerminalHost extends EventEmitter {
     this.activeRun = null;
     this.recentAttributionRun = null;
     this.activeRunRaw = "";
+    this.taskReady = false;
     this.clearCompletionTimer();
+    this.clearTaskReadyTimer();
     this.startFileWatcher(cwd);
 
     const command = options.command ?? "codex";
@@ -299,7 +305,10 @@ export class TerminalHost extends EventEmitter {
 
     await delay(Number(options.inspectDelayMs) || 900);
 
-    const shouldSubmitSlashStop = Boolean(options.forceSlashStop) || this.hasBackgroundTerminalHint();
+    const shouldSubmitSlashStop =
+      Boolean(options.forceSlashStop) ||
+      this.hasBackgroundTerminalHint() ||
+      this.activeRun?.approvalKind === "command";
     if (shouldSubmitSlashStop && this.ptyProcess) {
       this.submitPrompt("/stop", { createRun: false });
     }
@@ -310,7 +319,7 @@ export class TerminalHost extends EventEmitter {
       interruptSent: true,
       slashStopSent: shouldSubmitSlashStop,
       slashStopReason: shouldSubmitSlashStop
-        ? "background terminal hint detected or forceSlashStop requested"
+        ? "background terminal hint detected, command approval was active, or forceSlashStop requested"
         : "no background terminal hint detected in recent terminal output",
     });
     this.finishActiveRun("stopped", shouldSubmitSlashStop ? "Esc + /stop" : "Esc", {
@@ -334,6 +343,7 @@ export class TerminalHost extends EventEmitter {
   }
 
   dispose(): void {
+    this.clearTaskReadyTimer();
     this.disposeProcess();
     this.stopFileWatcher();
     this.clearCompletionTimer();
@@ -355,6 +365,7 @@ export class TerminalHost extends EventEmitter {
     } catch {
       // Ignore shutdown races.
     }
+    this.clearTaskReadyTimer();
   }
 
   private handlePtyData(data: string): void {
@@ -365,21 +376,68 @@ export class TerminalHost extends EventEmitter {
     }
     this.emitEvent("pty:data", { taskId: this.taskId, data });
     this.detectApproval();
+    this.scheduleTaskReadyCheck();
     this.scheduleCompletionCheck();
   }
 
+  private scheduleTaskReadyCheck(): void {
+    if (this.taskReady || this.activeRun || this.approvalActive || !this.ptyProcess) {
+      return;
+    }
+
+    this.clearTaskReadyTimer();
+    this.taskReadyTimer = setTimeout(() => this.checkTaskReady(), DEFAULT_TASK_READY_QUIET_MS);
+  }
+
+  private checkTaskReady(): void {
+    this.taskReadyTimer = null;
+    if (this.taskReady || this.activeRun || this.approvalActive || !this.ptyProcess) {
+      return;
+    }
+    const taskAgeMs = this.startedAt ? Date.now() - this.startedAt : DEFAULT_TASK_READY_MIN_AGE_MS;
+    if (taskAgeMs < DEFAULT_TASK_READY_MIN_AGE_MS) {
+      this.taskReadyTimer = setTimeout(
+        () => this.checkTaskReady(),
+        DEFAULT_TASK_READY_MIN_AGE_MS - taskAgeMs,
+      );
+      return;
+    }
+    if (Date.now() - this.lastPtyDataAt < DEFAULT_TASK_READY_QUIET_MS - 50) {
+      this.scheduleTaskReadyCheck();
+      return;
+    }
+
+    const hint = detectIdlePrompt(this.rawTail);
+    if (!hint.ready) {
+      return;
+    }
+
+    this.taskReady = true;
+    this.emitEvent("task:ready", {
+      taskId: this.taskId,
+      source: "terminal-idle-composer-heuristic",
+      confidence: hint.confidence,
+    });
+  }
+
   private detectApproval(): void {
-    const recent = cleanTerminal(this.rawTail).toLowerCase();
+    const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
+    const recent = cleanTerminal(approvalSource).toLowerCase();
     const compactRecent = compactText(recent);
-    const fileEdit = FILE_EDIT_APPROVAL_HINTS.every((hint) =>
-      compactRecent.includes(compactText(hint)),
-    );
-    const command = COMMAND_APPROVAL_HINTS.every((hint) =>
-      compactRecent.includes(compactText(hint)),
-    );
-    const workspaceTrust = WORKSPACE_TRUST_APPROVAL_HINTS.every((hint) =>
-      compactRecent.includes(compactText(hint)),
-    );
+    const hasConfirmPrompt = compactRecent.includes(compactText("press enter to confirm"));
+    const hasContinuePrompt = compactRecent.includes(compactText("press enter to continue"));
+    const fileEdit =
+      hasConfirmPrompt &&
+      (compactRecent.includes(compactText("would you like to make the following edits")) ||
+        compactRecent.includes(compactText("don't ask again for these files")));
+    const command =
+      hasConfirmPrompt &&
+      (compactRecent.includes(compactText("would you like to run the following command")) ||
+        compactRecent.includes(compactText("don't ask again for commands that start with")));
+    const workspaceTrust =
+      hasContinuePrompt &&
+      (compactRecent.includes(compactText("do you trust the contents of this directory")) ||
+        compactRecent.includes(compactText("trusting the directory")));
 
     if (!fileEdit && !command && !workspaceTrust) {
       return;
@@ -698,6 +756,14 @@ export class TerminalHost extends EventEmitter {
     this.completionTimer = null;
   }
 
+  private clearTaskReadyTimer(): void {
+    if (!this.taskReadyTimer) {
+      return;
+    }
+    clearTimeout(this.taskReadyTimer);
+    this.taskReadyTimer = null;
+  }
+
   private attributionRunId(): RunId | null {
     if (this.activeRun) {
       return this.activeRun.id;
@@ -852,53 +918,91 @@ function detectIdleComposer(rawText: string): {
     hasModelOrCwdHint: boolean;
   };
 } {
+  const hint = detectIdlePrompt(rawText);
+  const recent = cleanTerminal(rawText).slice(-8000);
+  const lowered = recent.toLowerCase();
+  const lastWorking = Math.max(lowered.lastIndexOf("working"), lowered.lastIndexOf("esc to interrupt"));
+  const completed =
+    hint.lastPromptIndex >= 0 &&
+    lastWorking >= 0 &&
+    hint.lastPromptIndex > lastWorking &&
+    hint.ready;
+
+  return {
+    completed,
+    source: "terminal-idle-heuristic",
+    confidence: completed && hint.confidence === "medium" ? "medium" : "low",
+    signals: {
+      promptAfterWorking: hint.lastPromptIndex >= 0 && hint.lastPromptIndex > lastWorking,
+      promptAfterApproval: hint.promptAfterApproval,
+      hasModelOrCwdHint: hint.hasModelOrCwdHint,
+    },
+  };
+}
+
+function detectIdlePrompt(rawText: string): {
+  ready: boolean;
+  confidence: CompletionConfidence;
+  lastPromptIndex: number;
+  promptAfterApproval: boolean;
+  hasModelOrCwdHint: boolean;
+} {
   const recent = cleanTerminal(rawText).slice(-8000);
   const lowered = recent.toLowerCase();
   const lastPrompt = recent.lastIndexOf(">");
   const lastCodexPrompt = recent.lastIndexOf("›");
   const lastAnyPrompt = Math.max(lastPrompt, lastCodexPrompt);
-  const lastWorking = Math.max(lowered.lastIndexOf("working"), lowered.lastIndexOf("esc to interrupt"));
   const lastApproval = Math.max(
     lowered.lastIndexOf("would you like to make the following edits"),
     lowered.lastIndexOf("would you like to run the following command"),
+    lowered.lastIndexOf("do you trust the contents of this directory"),
     lowered.lastIndexOf("press enter to confirm"),
+    lowered.lastIndexOf("press enter to continue"),
   );
-  const promptTail = lastAnyPrompt >= 0 ? recent.slice(lastAnyPrompt, lastAnyPrompt + 500) : "";
+  const promptTail = lastAnyPrompt >= 0 ? recent.slice(lastAnyPrompt, lastAnyPrompt + 700) : "";
   const hasModelOrCwdHint = /gpt[-\w.]*|xhigh|high|medium|low|~/i.test(promptTail);
-  const completed =
-    lastAnyPrompt >= 0 &&
-    lastWorking >= 0 &&
-    lastAnyPrompt > lastWorking &&
-    lastAnyPrompt > lastApproval &&
-    !lowered.slice(Math.max(0, lastAnyPrompt - 400)).includes("press enter to confirm");
+  const ready = lastAnyPrompt >= 0 && lastAnyPrompt > lastApproval;
 
   return {
-    completed,
-    source: "terminal-idle-heuristic",
-    confidence: completed && hasModelOrCwdHint ? "medium" : completed ? "low" : "low",
-    signals: {
-      promptAfterWorking: lastAnyPrompt >= 0 && lastAnyPrompt > lastWorking,
-      promptAfterApproval: lastAnyPrompt >= 0 && lastAnyPrompt > lastApproval,
-      hasModelOrCwdHint,
-    },
+    ready,
+    confidence: ready && hasModelOrCwdHint ? "medium" : "low",
+    lastPromptIndex: lastAnyPrompt,
+    promptAfterApproval: lastAnyPrompt >= 0 && lastAnyPrompt > lastApproval,
+    hasModelOrCwdHint,
   };
 }
 
 function approvalFingerprint(kind: ApprovalKind, compactRecent: string): string | null {
-  const startNeedle =
+  const startNeedles =
     kind === "command"
-      ? compactText("would you like to run the following command")
+      ? [
+          compactText("would you like to run the following command"),
+          compactText("don't ask again for commands that start with"),
+        ]
       : kind === "workspace-trust"
-        ? compactText("do you trust the contents of this directory")
-      : compactText("would you like to make the following edits");
-  const endNeedle = compactText("press enter to confirm");
-  const startIndex = compactRecent.lastIndexOf(startNeedle);
+        ? [
+            compactText("do you trust the contents of this directory"),
+            compactText("trusting the directory"),
+          ]
+        : [
+            compactText("would you like to make the following edits"),
+            compactText("don't ask again for these files"),
+          ];
+  const endNeedle =
+    kind === "workspace-trust"
+      ? compactText("press enter to continue")
+      : compactText("press enter to confirm");
+  const startIndex = maxLastIndexOf(compactRecent, startNeedles);
   if (startIndex < 0) {
     return null;
   }
   const endIndex = compactRecent.indexOf(endNeedle, startIndex);
   const stableEnd = endIndex >= 0 ? endIndex + endNeedle.length : startIndex + 1600;
   return `${kind}:${compactRecent.slice(startIndex, stableEnd)}`;
+}
+
+function maxLastIndexOf(value: string, needles: string[]): number {
+  return Math.max(...needles.map((needle) => value.lastIndexOf(needle)));
 }
 
 function completionSourceForStatus(status: RunStatus): CompletionSource {

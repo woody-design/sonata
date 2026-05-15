@@ -17,6 +17,8 @@ interface RendererState {
   previewError: string | null;
   selectedArtifactPath: string | null;
   pendingApproval: ApprovalDetectedEvent["payload"] | null;
+  runtimeReady: boolean;
+  composerObserved: boolean;
   sideView: SideView;
   busy: boolean;
   status: string;
@@ -30,6 +32,8 @@ const state: RendererState = {
   previewError: null,
   selectedArtifactPath: null,
   pendingApproval: null,
+  runtimeReady: false,
+  composerObserved: false,
   sideView: "preview",
   busy: false,
   status: "Idle",
@@ -198,6 +202,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   if (event.type === "approval:detected") {
     state.pendingApproval = event.payload;
+    state.runtimeReady = false;
     state.status = "Waiting for approval";
     render();
     return;
@@ -210,7 +215,16 @@ window.duetRuntime.onRuntimeEvent((event) => {
     return;
   }
 
+  if (event.type === "task:ready") {
+    state.runtimeReady = true;
+    state.composerObserved = true;
+    state.status = hasActiveRun() ? state.status : "Ready";
+    render();
+    return;
+  }
+
   if (event.type === "run:stopped") {
+    state.runtimeReady = true;
     state.status = "Stopped";
     render();
   }
@@ -234,8 +248,6 @@ async function createTask(): Promise<void> {
       title: "Walking Skeleton Task",
       approval: "on-request",
       sandbox: "read-only",
-      rows: terminal.rows,
-      cols: terminal.cols,
     });
     state.task = response.task;
     state.report = null;
@@ -244,8 +256,9 @@ async function createTask(): Promise<void> {
     state.previewError = null;
     state.selectedArtifactPath = null;
     state.pendingApproval = null;
+    state.runtimeReady = false;
+    state.composerObserved = false;
     state.status = `Codex PTY ${response.runtime.pid}`;
-    await resizeTerminal();
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
@@ -269,6 +282,7 @@ async function submitPrompt(): Promise<void> {
   render();
 
   try {
+    state.runtimeReady = false;
     await window.duetRuntime.submitPrompt({ taskId: state.task.id, text });
     elements.promptInput.value = "";
   } catch (error) {
@@ -305,7 +319,7 @@ async function stopRun(): Promise<void> {
   state.status = "Stopping";
   render();
   try {
-    await window.duetRuntime.stopRun({ taskId: state.task.id });
+    await window.duetRuntime.stopRun({ taskId: state.task.id, inspectDelayMs: 6000 });
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
@@ -321,6 +335,9 @@ async function refreshReport(): Promise<void> {
 
   state.report = await window.duetRuntime.readReport({ taskId: state.task.id });
   state.artifacts = await window.duetRuntime.listArtifacts({ taskId: state.task.id });
+  if (state.composerObserved && !state.pendingApproval && !hasActiveRun()) {
+    state.runtimeReady = true;
+  }
   if (
     state.selectedArtifactPath &&
     !state.artifacts.some((artifact) => artifact.path === state.selectedArtifactPath)
@@ -347,9 +364,11 @@ function render(): void {
   elements.taskTitle.textContent = state.task?.title ?? "No active Task";
   elements.runtimeStatus.textContent = state.status;
   elements.newTask.disabled = state.busy;
-  elements.sendPrompt.disabled = !state.task || state.busy;
-  elements.stopRun.disabled = !state.task || state.busy;
-  elements.promptInput.disabled = !state.task || state.busy;
+  const activeRun = hasActiveRun();
+  const pendingApproval = Boolean(state.pendingApproval);
+  elements.sendPrompt.disabled = !state.task || state.busy || !state.runtimeReady || pendingApproval || activeRun;
+  elements.stopRun.disabled = !state.task || state.busy || !activeRun;
+  elements.promptInput.disabled = !state.task || pendingApproval;
 
   renderApproval();
   renderRuns();
@@ -357,6 +376,13 @@ function render(): void {
   renderPreview();
   renderInspector();
   renderSideView();
+}
+
+function hasActiveRun(): boolean {
+  const latestRun = state.report?.runs.at(-1);
+  return ["active", "waiting-for-approval", "resumed-after-approval", "stopping"].includes(
+    latestRun?.status ?? "",
+  );
 }
 
 function renderApproval(): void {
@@ -605,7 +631,10 @@ function renderSideView(): void {
   elements.inspectorTab.classList.toggle("active", state.sideView === "inspector");
   elements.terminalTab.classList.toggle("active", state.sideView === "terminal");
   if (state.sideView === "terminal") {
-    queueMicrotask(() => fitTerminal());
+    queueMicrotask(() => {
+      fitTerminal();
+      void resizeTerminal();
+    });
   }
 }
 

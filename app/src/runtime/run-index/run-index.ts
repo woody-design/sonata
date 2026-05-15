@@ -154,6 +154,7 @@ export class RunIndex {
         this.appendChangedFile(event);
         break;
       case "pty:exit":
+      case "task:ready":
       case "prompt:submitted":
       case "file:watching":
       case "file:watch-error":

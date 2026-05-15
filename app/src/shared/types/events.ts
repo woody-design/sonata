@@ -48,6 +48,15 @@ export type TaskStartedEvent = BaseRuntimeEvent<
   }
 >;
 
+export type TaskReadyEvent = BaseRuntimeEvent<
+  "task:ready",
+  {
+    taskId: TaskId;
+    source: "terminal-idle-composer-heuristic";
+    confidence: CompletionConfidence;
+  }
+>;
+
 export type PromptSubmittedEvent = BaseRuntimeEvent<
   "prompt:submitted",
   {
@@ -180,6 +189,7 @@ export type RuntimeReportUpdatedEvent = BaseRuntimeEvent<
 export type ProductRuntimeEvent =
   | PtyExitEvent
   | TaskStartedEvent
+  | TaskReadyEvent
   | PromptSubmittedEvent
   | RunStartedEvent
   | RunUpdatedEvent
