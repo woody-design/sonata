@@ -50,10 +50,17 @@ npm install
 npm run typecheck
 npm run build
 npm run rebuild:electron
+npm run smoke:runtime-modules
+npm run smoke:codex-terminalhost
+npm run e2e:gui-walking-skeleton
 npm start
 ```
 
 The first app skeleton compiles main/runtime TypeScript with `tsc`, bundles the
 preload bridge with Vite so it can run under Electron's sandboxed preload
 constraints, and bundles the renderer with Vite. Runtime handlers are present
-as semantic IPC stubs until `TerminalHost` is lifted into `src/runtime/`.
+as semantic IPC actions owned by the main process.
+
+`smoke:codex-terminalhost` and `e2e:gui-walking-skeleton` launch a nested
+authenticated Codex PTY. On this machine they need to run outside Codex's normal
+sandbox so the nested Codex process can access its local provider state.

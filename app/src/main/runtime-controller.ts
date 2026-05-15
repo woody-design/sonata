@@ -197,6 +197,7 @@ export class RuntimeController {
   }
 
   private defaultWorkspacePath(taskId: TaskId): string {
-    return path.join(app.getPath("documents"), "Duet Projects", taskId);
+    const projectRoot = process.env.DUET_PROJECTS_DIR || path.join(app.getPath("documents"), "Duet Projects");
+    return path.join(projectRoot, taskId);
   }
 }

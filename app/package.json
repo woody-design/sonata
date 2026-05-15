@@ -13,6 +13,7 @@
     "build": "npm run clean && npm run typecheck && npm run build:main && npm run build:preload && npm run build:renderer",
     "start": "npm run build && electron dist/main/main.js",
     "dev": "npm run start",
+    "e2e:gui-walking-skeleton": "npm run build && node tests/e2e/gui-walking-skeleton.mjs",
     "smoke:runtime-modules": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/runtime-modules.mjs",
     "smoke:codex-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-terminalhost.mjs",
     "rebuild:electron": "electron-rebuild -f -w node-pty"
@@ -26,6 +27,7 @@
     "@electron/rebuild": "^4.0.4",
     "@types/node": "^24.0.0",
     "electron": "^42.1.0",
+    "playwright-core": "^1.60.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   }
