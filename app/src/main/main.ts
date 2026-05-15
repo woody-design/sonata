@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { app, BrowserWindow, screen, shell, type Rectangle } from "electron";
 import {
@@ -10,6 +11,8 @@ import {
   type PreviewWindowState,
   type RuntimeEvent,
   type TaskId,
+  type WorkspaceOpenExternalRequest,
+  type WorkspaceOpenExternalResponse,
   type WorkspaceOpenFolderRequest,
 } from "../shared/types";
 import { registerIpcHandlers } from "./ipc";
@@ -368,14 +371,84 @@ function sendInspectorState(): void {
   }
 }
 
-async function openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void> {
+async function openWorkspaceExternal(
+  request: WorkspaceOpenExternalRequest,
+): Promise<WorkspaceOpenExternalResponse> {
   if (!runtimeController) {
     throw new Error("Runtime controller is not ready.");
   }
-  const result = await shell.openPath(runtimeController.workspacePath(request.taskId));
+  const workspaceRoot = runtimeController.workspacePath(request.taskId);
+  const targetPath = resolveWorkspaceExternalPath(workspaceRoot, request.relativePath);
+
+  if (request.target === "folder") {
+    await openFolderTarget(targetPath, Boolean(request.relativePath));
+  } else {
+    await openCursorTarget(targetPath);
+  }
+
+  return {
+    target: request.target,
+    path: targetPath,
+  };
+}
+
+async function openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void> {
+  await openWorkspaceExternal({
+    taskId: request.taskId,
+    target: "folder",
+  });
+}
+
+async function openFolderTarget(targetPath: string, revealTarget: boolean): Promise<void> {
+  if (revealTarget && fs.statSync(targetPath).isFile()) {
+    shell.showItemInFolder(targetPath);
+    return;
+  }
+
+  const result = await shell.openPath(targetPath);
   if (result) {
     throw new Error(result);
   }
+}
+
+async function openCursorTarget(targetPath: string): Promise<void> {
+  await shell.openExternal(cursorFileUrl(targetPath));
+}
+
+function resolveWorkspaceExternalPath(workspaceRoot: string, relativePath?: string): string {
+  const resolvedRoot = path.resolve(workspaceRoot);
+  if (!relativePath) {
+    return resolvedRoot;
+  }
+
+  if (path.isAbsolute(relativePath)) {
+    throw new Error("Workspace path must be relative to the workspace.");
+  }
+
+  const targetPath = path.resolve(resolvedRoot, relativePath);
+  const rootWithSep = `${resolvedRoot}${path.sep}`;
+  if (targetPath !== resolvedRoot && !targetPath.startsWith(rootWithSep)) {
+    throw new Error("Workspace path escapes the workspace.");
+  }
+
+  const realRoot = safeRealpath(resolvedRoot);
+  const realTarget = safeRealpath(targetPath);
+  const realRootWithSep = `${realRoot}${path.sep}`;
+  if (realTarget !== realRoot && !realTarget.startsWith(realRootWithSep)) {
+    throw new Error("Workspace path escapes the workspace through a symlink.");
+  }
+
+  return targetPath;
+}
+
+function safeRealpath(filePath: string): string {
+  return fs.realpathSync.native ? fs.realpathSync.native(filePath) : fs.realpathSync(filePath);
+}
+
+function cursorFileUrl(filePath: string): string {
+  const normalizedPath = filePath.split(path.sep).join("/");
+  const encodedPath = normalizedPath.split("/").map(encodeURIComponent).join("/");
+  return `cursor://file${encodedPath.startsWith("/") ? "" : "/"}${encodedPath}`;
 }
 
 app.whenReady().then(() => {
@@ -396,6 +469,7 @@ app.whenReady().then(() => {
     focusArtifactInMain,
     openInspector,
     readInspectorState,
+    openWorkspaceExternal,
     openWorkspaceFolder,
     closeTaskSurfaces,
   });

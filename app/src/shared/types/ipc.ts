@@ -31,6 +31,7 @@ export const IPC_CHANNELS = {
   inspectorState: "inspector:state",
   workspaceTreeRead: "workspace:tree:read",
   workspaceFileRead: "workspace:file:read",
+  workspaceOpenExternal: "workspace:open-external",
   workspaceOpenFolder: "workspace:open-folder",
   runtimeEvent: "runtime:event",
 } as const;
@@ -195,6 +196,19 @@ export interface WorkspaceOpenFolderRequest {
   taskId: TaskId;
 }
 
+export type WorkspaceExternalOpenTarget = "folder" | "cursor";
+
+export interface WorkspaceOpenExternalRequest {
+  taskId: TaskId;
+  target: WorkspaceExternalOpenTarget;
+  relativePath?: string;
+}
+
+export interface WorkspaceOpenExternalResponse {
+  target: WorkspaceExternalOpenTarget;
+  path: string;
+}
+
 export interface DuetRuntimeBridge {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
   openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
@@ -217,6 +231,7 @@ export interface DuetRuntimeBridge {
   readInspectorState(): Promise<InspectorWindowState>;
   readWorkspaceTree(request: WorkspaceTreeRequest): Promise<WorkspaceTreeEntry[]>;
   readWorkspaceFile(request: WorkspaceFileReadRequest): Promise<WorkspaceFilePreviewResponse>;
+  openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   onInspectorState(callback: (state: InspectorWindowState) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;

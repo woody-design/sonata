@@ -22,6 +22,7 @@
     "e2e:approval-surface": "npm run build && node tests/e2e/approval-surface.mjs",
     "e2e:artifact-review-actions": "npm run build && node tests/e2e/artifact-review-actions.mjs",
     "e2e:inspector-review-linkage": "npm run build && node tests/e2e/inspector-review-linkage.mjs",
+    "e2e:inspector-folder-external": "npm run build && node tests/e2e/inspector-folder-external.mjs",
     "e2e:stop-continue": "npm run build && node tests/e2e/stop-continue.mjs",
     "e2e:open-task": "npm run build && node tests/e2e/open-task.mjs",
     "smoke:runtime-modules": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/runtime-modules.mjs",

@@ -127,6 +127,12 @@ h2 {
   gap: 8px;
 }
 
+.floating-window-topbar .topbar-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .status {
   flex: 0 0 auto;
   max-width: 280px;
@@ -1444,6 +1450,16 @@ textarea {
   min-height: 0;
   overflow: auto;
   padding: 10px;
+}
+
+.workspace-file-preview .preview-header {
+  align-items: flex-start;
+}
+
+.workspace-file-title {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
 }
 
 .workspace-file-preview .html-preview,

@@ -2,6 +2,7 @@ import "./styles.css";
 import type { ArtifactCandidate, InspectorLens, Task } from "../shared/types";
 import type {
   InspectorWindowState,
+  WorkspaceExternalOpenTarget,
   WorkspaceFilePreviewResponse,
   WorkspaceTreeEntry,
 } from "../shared/types/ipc";
@@ -59,6 +60,7 @@ appElement.innerHTML = `
       </div>
       <div class="topbar-actions">
         <span id="inspector-window-status" class="status">Idle</span>
+        <button id="open-workspace-cursor" class="secondary" type="button">Open in Cursor</button>
         <button id="open-workspace-folder" class="secondary" type="button">Open Folder</button>
       </div>
     </header>
@@ -71,14 +73,19 @@ appElement.innerHTML = `
 const elements = {
   title: getElement<HTMLHeadingElement>("inspector-window-title"),
   status: getElement<HTMLSpanElement>("inspector-window-status"),
+  openCursor: getElement<HTMLButtonElement>("open-workspace-cursor"),
   openFolder: getElement<HTMLButtonElement>("open-workspace-folder"),
   taskTabs: getElement<HTMLElement>("inspector-task-tabs"),
   tabs: getElement<HTMLElement>("inspector-window-tabs"),
   content: getElement<HTMLElement>("inspector-window-content"),
 };
 
+elements.openCursor.addEventListener("click", () => {
+  void openWorkspaceExternal("cursor");
+});
+
 elements.openFolder.addEventListener("click", () => {
-  void openWorkspaceFolder();
+  void openWorkspaceExternal("folder");
 });
 
 window.duetRuntime.onInspectorState((nextState) => {
@@ -150,6 +157,7 @@ async function refreshData(): Promise<void> {
 function render(): void {
   elements.title.textContent = state.taskId ? `Task ${shortId(state.taskId)}` : "No active Task";
   elements.status.textContent = state.status;
+  elements.openCursor.disabled = !state.taskId;
   elements.openFolder.disabled = !state.taskId;
   renderTaskTabs();
   renderTabs();
@@ -500,13 +508,26 @@ function renderFilePreview(): HTMLElement {
 
   const header = document.createElement("div");
   header.className = "preview-header";
+  const titleBlock = document.createElement("div");
+  titleBlock.className = "workspace-file-title";
   const title = document.createElement("strong");
   title.textContent = state.filePreview.path;
   const meta = document.createElement("span");
   meta.textContent = `${state.filePreview.previewKind} / ${formatBytes(state.filePreview.size)}${
     state.filePreview.truncated ? " / truncated" : ""
   }`;
-  header.append(title, meta);
+  titleBlock.append(title, meta);
+  header.append(
+    titleBlock,
+    inspectorInlineActions([
+      inspectorAction("Open File in Cursor", () => {
+        void openWorkspaceExternal("cursor", state.filePreview?.path);
+      }),
+      inspectorAction("Reveal in Folder", () => {
+        void openWorkspaceExternal("folder", state.filePreview?.path);
+      }),
+    ]),
+  );
   wrapper.append(header);
 
   if (state.filePreview.previewKind === "html") {
@@ -590,19 +611,40 @@ async function focusMainRun(runId: string): Promise<void> {
   });
 }
 
-async function openWorkspaceFolder(): Promise<void> {
+async function openWorkspaceExternal(
+  target: WorkspaceExternalOpenTarget,
+  relativePath?: string,
+): Promise<void> {
   if (!state.taskId) {
     return;
   }
-  state.status = "Opening folder";
+  state.status = externalOpenPendingLabel(target, relativePath);
   render();
   try {
-    await window.duetRuntime.openWorkspaceFolder({ taskId: state.taskId });
-    state.status = "Ready";
+    await window.duetRuntime.openWorkspaceExternal({
+      taskId: state.taskId,
+      target,
+      ...(relativePath ? { relativePath } : {}),
+    });
+    state.status = externalOpenDoneLabel(target, relativePath);
   } catch (error) {
     state.status = errorMessage(error);
   }
   render();
+}
+
+function externalOpenPendingLabel(target: WorkspaceExternalOpenTarget, relativePath?: string): string {
+  if (target === "cursor") {
+    return relativePath ? "Opening file in Cursor" : "Opening workspace in Cursor";
+  }
+  return relativePath ? "Revealing file" : "Opening folder";
+}
+
+function externalOpenDoneLabel(target: WorkspaceExternalOpenTarget, relativePath?: string): string {
+  if (target === "cursor") {
+    return relativePath ? "Opened file in Cursor" : "Opened workspace in Cursor";
+  }
+  return relativePath ? "Revealed in folder" : "Opened folder";
 }
 
 function changeReviewList(files: RuntimeFileChangeReport[]): HTMLElement {

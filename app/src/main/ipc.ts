@@ -8,6 +8,8 @@ import {
   type OpenPreviewRequest,
   type PreviewWindowState,
   type TaskId,
+  type WorkspaceOpenExternalRequest,
+  type WorkspaceOpenExternalResponse,
   type WorkspaceOpenFolderRequest,
 } from "../shared/types";
 import type { RuntimeController } from "./runtime-controller";
@@ -19,6 +21,7 @@ export interface WindowIpcController {
   focusArtifactInMain(request: FocusArtifactInMainRequest): void;
   openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
   readInspectorState(): InspectorWindowState;
+  openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   closeTaskSurfaces(taskId: TaskId): void;
 }
@@ -81,6 +84,9 @@ export function registerIpcHandlers(
   );
   ipcMain.handle(IPC_CHANNELS.workspaceFileRead, (_event, request) =>
     runtimeController.readWorkspaceFile(request.taskId, request.relativePath),
+  );
+  ipcMain.handle(IPC_CHANNELS.workspaceOpenExternal, (_event, request) =>
+    windowController.openWorkspaceExternal(request),
   );
   ipcMain.handle(IPC_CHANNELS.workspaceOpenFolder, (_event, request) =>
     windowController.openWorkspaceFolder(request),
