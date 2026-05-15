@@ -56,20 +56,21 @@ try {
   });
   await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({ state: "visible" });
   await page.locator("#send-prompt", { hasText: "Continue" }).waitFor({ state: "visible" });
+  const previewWindowPromise = electronApp.waitForEvent("window");
   await page.locator(".artifact-item", { hasText: "open_original.md" }).click();
-  await page.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
+  const previewPage = await previewWindowPromise;
+  previewPage.setDefaultTimeout(240000);
+  await previewPage.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
     state: "visible",
   });
-  await page.locator(".artifact-review", { hasText: "Report-listed" }).waitFor({
+  await previewPage.locator(".artifact-review", { hasText: "Floating Preview" }).waitFor({
     state: "visible",
   });
-  await page.locator(".artifact-review", { hasText: ".duet/runtime-report.json" }).waitFor({
+  await previewPage.locator(".artifact-review", { hasText: ".duet/runtime-report.json" }).waitFor({
     state: "visible",
   });
-  await page.locator(".artifact-review-action", { hasText: "Source Run" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review-action", { hasText: "Continue" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review", { hasText: "Markdown" }).waitFor({ state: "visible" });
-  await page.locator(".text-preview", { hasText: "before reopening the Task" }).waitFor({
+  await previewPage.locator(".artifact-review", { hasText: "markdown" }).waitFor({ state: "visible" });
+  await previewPage.locator(".text-preview", { hasText: "before reopening the Task" }).waitFor({
     state: "visible",
   });
   await waitForRuntimeReady(page, 240000);

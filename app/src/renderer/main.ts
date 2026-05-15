@@ -3,11 +3,8 @@ import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 import type { ArtifactCandidate, Task } from "../shared/types";
-import type { ArtifactPreviewResponse } from "../shared/types/ipc";
 import type { ApprovalDetectedEvent } from "../shared/types/events";
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
-
-type SideView = "preview" | "inspector" | "terminal";
 
 interface RunTranscript {
   runId: string;
@@ -19,8 +16,6 @@ interface TaskViewState {
   task: Task | null;
   report: RuntimeReportV1 | null;
   artifacts: ArtifactCandidate[];
-  preview: ArtifactPreviewResponse | null;
-  previewError: string | null;
   selectedArtifactPath: string | null;
   pendingApproval: ApprovalDetectedEvent["payload"] | null;
   highlightedRunId: string | null;
@@ -36,7 +31,7 @@ interface TaskViewState {
 interface RendererState {
   taskViews: TaskViewState[];
   activeTaskId: string | null;
-  sideView: SideView;
+  terminalOpen: boolean;
   busy: boolean;
   status: string;
 }
@@ -44,7 +39,7 @@ interface RendererState {
 const state: RendererState = {
   taskViews: [],
   activeTaskId: null,
-  sideView: "preview",
+  terminalOpen: false,
   busy: false,
   status: "Idle",
 };
@@ -66,6 +61,7 @@ appElement.innerHTML = `
         <span id="runtime-status" class="status">Idle</span>
         <button id="open-preview-window" class="secondary" type="button">Preview</button>
         <button id="open-inspector-window" class="secondary" type="button">Inspector</button>
+        <button id="toggle-terminal" class="secondary" type="button">Terminal</button>
         <button id="open-task" class="secondary" type="button">Open Task</button>
         <button id="new-task" class="secondary" type="button">New Task</button>
       </div>
@@ -94,6 +90,17 @@ appElement.innerHTML = `
           <div id="workflow-facts" class="workflow-facts"></div>
         </section>
 
+        <section id="artifact-strip" class="artifact-strip hidden" aria-label="Artifact candidates">
+          <div class="artifact-strip-header">
+            <div>
+              <p class="eyebrow">Artifacts</p>
+              <strong>Review in Preview</strong>
+            </div>
+            <button id="open-selected-preview" class="secondary" type="button">Open Preview</button>
+          </div>
+          <div id="artifact-list" class="artifact-list"></div>
+        </section>
+
         <div id="run-list" class="run-list"></div>
 
         <form id="composer" class="composer">
@@ -103,39 +110,18 @@ appElement.innerHTML = `
             <button id="send-prompt" class="primary" type="submit" disabled>Send</button>
           </div>
         </form>
-      </section>
 
-      <aside class="side-column" aria-label="Runtime surfaces">
-        <nav class="surface-tabs" aria-label="Surface tabs">
-          <button id="preview-tab" class="surface-tab" type="button">Preview</button>
-          <button id="inspector-tab" class="surface-tab" type="button">Inspector</button>
-          <button id="terminal-tab" class="surface-tab" type="button">Terminal</button>
-        </nav>
-
-        <section id="preview-panel" class="panel preview-panel">
-          <div class="panel-header split">
-            <p class="eyebrow">Preview</p>
-          </div>
-          <div class="preview-layout">
-            <div id="artifact-list" class="artifact-list"></div>
-            <div id="preview-content" class="preview-content"></div>
-          </div>
-        </section>
-
-        <section id="inspector-panel" class="panel inspector-panel hidden">
-          <div class="panel-header">
-            <p class="eyebrow">Inspector</p>
-          </div>
-          <div id="inspector-content" class="inspector-content"></div>
-        </section>
-
-        <section id="terminal-panel" class="panel terminal-panel hidden">
-          <div class="panel-header">
-            <p class="eyebrow">Terminal</p>
+        <section id="terminal-drawer" class="terminal-drawer hidden" aria-label="Terminal trust layer">
+          <div class="terminal-drawer-header">
+            <div>
+              <p class="eyebrow">Terminal</p>
+              <strong>Trust / debug mirror</strong>
+            </div>
+            <button id="close-terminal" class="secondary" type="button">Close</button>
           </div>
           <div id="terminal"></div>
         </section>
-      </aside>
+      </section>
     </section>
   </section>
 `;
@@ -145,6 +131,7 @@ const elements = {
   runtimeStatus: getElement<HTMLSpanElement>("runtime-status"),
   openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
   openInspectorWindow: getElement<HTMLButtonElement>("open-inspector-window"),
+  toggleTerminal: getElement<HTMLButtonElement>("toggle-terminal"),
   openTask: getElement<HTMLButtonElement>("open-task"),
   newTask: getElement<HTMLButtonElement>("new-task"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
@@ -155,19 +142,15 @@ const elements = {
   workflowFacts: getElement<HTMLDivElement>("workflow-facts"),
   taskTabs: getElement<HTMLElement>("task-tabs"),
   runList: getElement<HTMLDivElement>("run-list"),
+  artifactStrip: getElement<HTMLElement>("artifact-strip"),
   artifactList: getElement<HTMLDivElement>("artifact-list"),
+  openSelectedPreview: getElement<HTMLButtonElement>("open-selected-preview"),
   composer: getElement<HTMLFormElement>("composer"),
   promptInput: getElement<HTMLTextAreaElement>("prompt-input"),
   stopRun: getElement<HTMLButtonElement>("stop-run"),
   sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
-  previewTab: getElement<HTMLButtonElement>("preview-tab"),
-  inspectorTab: getElement<HTMLButtonElement>("inspector-tab"),
-  terminalTab: getElement<HTMLButtonElement>("terminal-tab"),
-  previewPanel: getElement<HTMLElement>("preview-panel"),
-  inspectorPanel: getElement<HTMLElement>("inspector-panel"),
-  terminalPanel: getElement<HTMLElement>("terminal-panel"),
-  previewContent: getElement<HTMLDivElement>("preview-content"),
-  inspectorContent: getElement<HTMLDivElement>("inspector-content"),
+  terminalDrawer: getElement<HTMLElement>("terminal-drawer"),
+  closeTerminal: getElement<HTMLButtonElement>("close-terminal"),
   terminal: getElement<HTMLDivElement>("terminal"),
 };
 
@@ -209,6 +192,18 @@ elements.openInspectorWindow.addEventListener("click", () => {
   void openFloatingInspector();
 });
 
+elements.toggleTerminal.addEventListener("click", () => {
+  setTerminalOpen(!state.terminalOpen);
+});
+
+elements.closeTerminal.addEventListener("click", () => {
+  setTerminalOpen(false);
+});
+
+elements.openSelectedPreview.addEventListener("click", () => {
+  void openFloatingPreview();
+});
+
 elements.composer.addEventListener("submit", (event) => {
   event.preventDefault();
   void submitPrompt();
@@ -224,18 +219,6 @@ elements.approveApproval.addEventListener("click", () => {
 
 elements.denyApproval.addEventListener("click", () => {
   void decideApproval("deny");
-});
-
-elements.previewTab.addEventListener("click", () => {
-  setSideView("preview");
-});
-
-elements.inspectorTab.addEventListener("click", () => {
-  setSideView("inspector");
-});
-
-elements.terminalTab.addEventListener("click", () => {
-  setSideView("terminal");
 });
 
 window.addEventListener("resize", () => {
@@ -320,8 +303,6 @@ function createTaskView(task: Task, status: string): TaskViewState {
     task,
     report: null,
     artifacts: [],
-    preview: null,
-    previewError: null,
     selectedArtifactPath: null,
     pendingApproval: null,
     highlightedRunId: null,
@@ -613,7 +594,6 @@ async function refreshReport(taskId = state.activeTaskId): Promise<void> {
     view.selectedArtifactPath &&
     !view.artifacts.some((artifact) => artifact.path === view.selectedArtifactPath)
   ) {
-    view.preview = null;
     view.selectedArtifactPath = null;
   }
   markViewChanged(view);
@@ -638,6 +618,7 @@ function render(): void {
   elements.runtimeStatus.textContent = view?.status ?? state.status;
   elements.openPreviewWindow.disabled = !view?.task || state.busy;
   elements.openInspectorWindow.disabled = !view?.task || state.busy;
+  elements.toggleTerminal.disabled = !view?.task || state.busy;
   elements.openTask.disabled = state.busy;
   elements.newTask.disabled = state.busy;
   const activeRun = hasActiveRun(view);
@@ -653,9 +634,7 @@ function render(): void {
   renderWorkflow();
   renderRuns();
   renderArtifacts();
-  renderPreview();
-  renderInspector();
-  renderSideView();
+  renderTerminalDrawer();
 }
 
 function hasActiveRun(view = activeTaskView()): boolean {
@@ -939,12 +918,10 @@ function renderArtifacts(): void {
   elements.artifactList.replaceChildren();
   const view = activeTaskView();
   const artifacts = view?.artifacts ?? [];
+  elements.artifactStrip.classList.toggle("hidden", artifacts.length === 0);
+  elements.openSelectedPreview.disabled = !view?.task || artifacts.length === 0;
 
   if (artifacts.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "empty-state compact";
-    empty.textContent = "No artifacts";
-    elements.artifactList.append(empty);
     return;
   }
 
@@ -964,287 +941,6 @@ function renderArtifacts(): void {
       void openArtifact(artifact.path);
     });
     elements.artifactList.append(item);
-  }
-}
-
-function renderPreview(): void {
-  elements.previewContent.replaceChildren();
-  const view = activeTaskView();
-
-  if (view?.previewError) {
-    const error = document.createElement("div");
-    error.className = "empty-state compact";
-    error.textContent = view.previewError;
-    elements.previewContent.append(error);
-    return;
-  }
-
-  if (!view?.preview) {
-    const empty = document.createElement("div");
-    empty.className = "empty-state compact";
-    empty.textContent = "No artifact selected";
-    elements.previewContent.append(empty);
-    return;
-  }
-
-  const header = document.createElement("div");
-  header.className = "preview-header";
-  const title = document.createElement("strong");
-  title.textContent = view.preview.path;
-  const meta = document.createElement("span");
-  meta.textContent = `${view.preview.previewKind} / ${formatBytes(view.preview.size)}${
-    view.preview.truncated ? " / truncated" : ""
-  }`;
-  header.append(title, meta);
-  elements.previewContent.append(header);
-
-  elements.previewContent.append(renderArtifactReview());
-
-  if (view.preview.previewKind === "html") {
-    const frame = document.createElement("iframe");
-    frame.className = "html-preview";
-    frame.sandbox.value = "";
-    frame.srcdoc = view.preview.content ?? "";
-    elements.previewContent.append(frame);
-    return;
-  }
-
-  if (view.preview.previewKind === "image" && view.preview.dataUrl) {
-    const image = document.createElement("img");
-    image.className = "image-preview";
-    image.src = view.preview.dataUrl;
-    image.alt = view.preview.path;
-    elements.previewContent.append(image);
-    return;
-  }
-
-  const pre = document.createElement("pre");
-  pre.className = "text-preview";
-  pre.textContent = view.preview.content ?? "";
-  elements.previewContent.append(pre);
-}
-
-function renderArtifactReview(): HTMLElement {
-  const section = document.createElement("section");
-  section.className = "artifact-review";
-  const view = activeTaskView();
-
-  const artifact = selectedArtifact();
-  const run = artifact ? runForArtifact(artifact) : null;
-
-  const header = document.createElement("div");
-  header.className = "artifact-review-header";
-  const title = document.createElement("div");
-  title.className = "artifact-review-title";
-  title.textContent = "Review candidate";
-  const badge = document.createElement("span");
-  badge.className = "review-badge";
-  badge.textContent = "Report-listed";
-  header.append(title, badge);
-  section.append(header);
-
-  section.append(
-    reviewRow("State", "Candidate"),
-    reviewRow("Candidate", artifact?.path ?? view?.preview?.path ?? "unknown"),
-    reviewRow("Kind", artifact ? artifactKindLabel(artifact.kind) : view?.preview?.previewKind ?? "unknown"),
-    reviewRow("Change", artifact?.changeKind ?? "unknown"),
-    reviewRow("Source Run", run?.title ?? artifact?.runId ?? "unknown"),
-    reviewRow("Run outcome", run ? runOutcome(run) : "unknown"),
-    reviewRow("Preview", view?.preview ? previewEvidenceLabel(view.preview) : "not loaded"),
-    reviewRow("Report source", ".duet/runtime-report.json"),
-    reviewRow("Raw terminal", "not persisted"),
-  );
-
-  const actions = document.createElement("div");
-  actions.className = "artifact-review-actions";
-  actions.append(
-    reviewAction("Source Run", () => {
-      if (run) {
-        focusRun(run.runId);
-      }
-    }, !run),
-    reviewAction("Continue", () => {
-      focusComposer();
-    }, !view?.task),
-    reviewAction("Inspector", () => {
-      setSideView("inspector");
-    }, !view?.report),
-    reviewAction("Terminal", () => {
-      setSideView("terminal");
-    }, !view?.task),
-  );
-  section.append(actions);
-
-  return section;
-}
-
-function renderInspector(): void {
-  elements.inspectorContent.replaceChildren();
-
-  const view = activeTaskView();
-  const report = view?.report;
-  if (!report) {
-    const empty = document.createElement("div");
-    empty.className = "empty-state compact";
-    empty.textContent = "No runtime report";
-    elements.inspectorContent.append(empty);
-    return;
-  }
-
-  const summary = document.createElement("section");
-  summary.className = "inspector-section";
-  summary.append(inspectorTitle("Runtime report summary"));
-  summary.append(
-    inspectorRow("Schema", `${report.schemaId} / ${report.version}`),
-    inspectorRow("Task", report.taskId),
-    inspectorRow("Runs", String(report.runs.length)),
-    inspectorRow("Generated", formatTimestamp(report.generatedAt)),
-    inspectorRow("Workspace", view?.task?.workingDirectory ?? report.runtime?.cwd ?? "unknown"),
-    inspectorRow("Report", ".duet/runtime-report.json"),
-    inspectorRow("Raw terminal", report.rawTerminalPointer === null ? "not persisted" : "linked"),
-    inspectorRow("Raw policy", report.rawTerminalPolicy),
-    inspectorRow("Provider session", view?.task?.providerSessionRef ?? "not claimed"),
-  );
-  elements.inspectorContent.append(summary);
-
-  const runtime = document.createElement("section");
-  runtime.className = "inspector-section";
-  runtime.append(inspectorTitle("Runtime launch"));
-  if (report.runtime) {
-    runtime.append(
-      inspectorRow("Provider", report.runtime.provider),
-      inspectorRow("Command", `${report.runtime.command} ${report.runtime.args.join(" ")}`.trim()),
-      inspectorRow("Cwd", report.runtime.cwd),
-      inspectorRow("Terminal", `${report.runtime.cols} cols / ${report.runtime.rows} rows`),
-      inspectorRow("Started", formatTimestamp(report.runtime.startedAt)),
-    );
-  } else {
-    runtime.append(inspectorEmpty("No runtime launch recorded"));
-  }
-  elements.inspectorContent.append(runtime);
-
-  for (const run of report.runs) {
-    const section = document.createElement("section");
-    section.className = "inspector-section";
-
-    const title = inspectorTitle(run.title || "(empty prompt)");
-    const subtitle = document.createElement("p");
-    subtitle.className = "inspector-subtitle";
-    subtitle.textContent = run.runId;
-    section.append(
-      title,
-      subtitle,
-      inspectorRow("Run ID", run.runId),
-      inspectorRow("Kind", run.kind),
-      inspectorRow("Status", run.status),
-      inspectorRow("Lifecycle", run.lifecyclePhase),
-      inspectorRow("Completion", completionLabel(run)),
-      inspectorRow("Started", formatTimestamp(run.startedAt)),
-      inspectorRow("Ended", formatTimestamp(run.endedAt)),
-      inspectorRow("Elapsed", formatElapsed(run.elapsedMs)),
-      inspectorRow("Status reason", run.statusReason ?? "none"),
-      inspectorRow("Approvals", approvalSummary(run)),
-      inspectorRow("Stops", stopSummary(run)),
-      inspectorRow("Changed files", String(run.changedFiles.length)),
-      inspectorRow("Artifact candidates", String(run.artifactCandidates.length)),
-    );
-
-    if (run.approvalEvents.length > 0 || run.stopEvents.length > 0) {
-      section.append(inspectorGroupTitle("Approval / Stop history"));
-      const history = document.createElement("ul");
-      history.className = "inspector-event-list";
-      for (const approval of run.approvalEvents) {
-        const item = document.createElement("li");
-        item.textContent =
-          approval.action === "detected"
-            ? `${formatTimestamp(approval.ts)} approval detected / ${approval.kind ?? "unknown"} / ${
-                approval.source ?? "native screen"
-              }`
-            : `${formatTimestamp(approval.ts)} approval decision / ${
-                approvalDecisionLabel(approval.decision)
-              } / ${approval.encodedAs ?? "native control"}`;
-        history.append(item);
-      }
-      for (const stop of run.stopEvents) {
-        const item = document.createElement("li");
-        item.textContent =
-          stop.action === "interrupt"
-            ? `${formatTimestamp(stop.ts)} stop interrupt / ${stop.encodedAs ?? "native control"}`
-            : `${formatTimestamp(stop.ts)} stop completed / slashStop ${
-                stop.slashStopSent ? "sent" : "not sent"
-              } / ${stop.slashStopReason ?? "no reason"}`;
-        history.append(item);
-      }
-      section.append(history);
-    }
-
-    if (run.changedFiles.length > 0) {
-      section.append(inspectorGroupTitle("Changed files"));
-      const files = document.createElement("ul");
-      files.className = "inspector-file-list";
-      for (const file of run.changedFiles) {
-        const item = document.createElement("li");
-        item.append(
-          inspectorFileValue(file.path),
-          inspectorFileMeta(
-            `${file.changeKind} / ${file.type} / ${file.eventType} / ${formatMaybeBytes(file.size)}`,
-          ),
-          inspectorFileMeta(file.sha256 ? `sha256 ${shortHash(file.sha256)}` : "sha256 unavailable"),
-        );
-        files.append(item);
-      }
-      section.append(files);
-    }
-
-    if (run.artifactCandidates.length > 0) {
-      section.append(inspectorGroupTitle("Artifact candidates"));
-      const artifacts = document.createElement("ul");
-      artifacts.className = "inspector-file-list";
-      for (const artifact of run.artifactCandidates) {
-        const item = document.createElement("li");
-        item.append(
-          inspectorFileValue(artifact.path),
-          inspectorFileMeta(`${artifact.type} / ${artifact.changeKind}`),
-        );
-        artifacts.append(item);
-      }
-      section.append(artifacts);
-    }
-
-    elements.inspectorContent.append(section);
-  }
-
-  if (report.unassignedChanges.length > 0) {
-    const section = document.createElement("section");
-    section.className = "inspector-section";
-    section.append(inspectorTitle("Unassigned changes"));
-    const files = document.createElement("ul");
-    files.className = "inspector-file-list";
-    for (const file of report.unassignedChanges) {
-      const item = document.createElement("li");
-      item.append(
-        inspectorFileValue(file.path),
-        inspectorFileMeta(`${file.changeKind} / ${file.type} / ${file.eventType}`),
-      );
-      files.append(item);
-    }
-    section.append(files);
-    elements.inspectorContent.append(section);
-  }
-}
-
-function renderSideView(): void {
-  elements.previewPanel.classList.toggle("hidden", state.sideView !== "preview");
-  elements.inspectorPanel.classList.toggle("hidden", state.sideView !== "inspector");
-  elements.terminalPanel.classList.toggle("hidden", state.sideView !== "terminal");
-  elements.previewTab.classList.toggle("active", state.sideView === "preview");
-  elements.inspectorTab.classList.toggle("active", state.sideView === "inspector");
-  elements.terminalTab.classList.toggle("active", state.sideView === "terminal");
-  if (state.sideView === "terminal") {
-    queueMicrotask(() => {
-      fitTerminal();
-      void resizeTerminal();
-    });
   }
 }
 
@@ -1307,26 +1003,12 @@ async function openArtifact(relativePath: string): Promise<void> {
     return;
   }
 
+  view.selectedArtifactPath = relativePath;
+  render();
   await window.duetRuntime.openPreview({
     taskId: view.task.id,
     relativePath,
   });
-
-  state.sideView = "preview";
-  view.selectedArtifactPath = relativePath;
-  view.previewError = null;
-  render();
-
-  try {
-    view.preview = await window.duetRuntime.readArtifact({
-      taskId: view.task.id,
-      relativePath,
-    });
-  } catch (error) {
-    view.preview = null;
-    view.previewError = errorMessage(error);
-  }
-  render();
 }
 
 async function openFloatingPreview(): Promise<void> {
@@ -1334,10 +1016,11 @@ async function openFloatingPreview(): Promise<void> {
   if (!view?.task) {
     return;
   }
+  const relativePath = view.selectedArtifactPath ?? view.artifacts[0]?.path;
 
   await window.duetRuntime.openPreview({
     taskId: view.task.id,
-    ...(view.selectedArtifactPath ? { relativePath: view.selectedArtifactPath } : {}),
+    ...(relativePath ? { relativePath } : {}),
   });
 }
 
@@ -1353,9 +1036,20 @@ async function openFloatingInspector(): Promise<void> {
   });
 }
 
-function setSideView(view: SideView): void {
-  state.sideView = view;
+function setTerminalOpen(open: boolean): void {
+  state.terminalOpen = open;
   render();
+  if (open) {
+    queueMicrotask(() => {
+      fitTerminal();
+      void resizeTerminal();
+    });
+  }
+}
+
+function renderTerminalDrawer(): void {
+  elements.terminalDrawer.classList.toggle("hidden", !state.terminalOpen);
+  elements.toggleTerminal.classList.toggle("active", state.terminalOpen);
 }
 
 function focusRun(runId: string): void {
@@ -1424,27 +1118,6 @@ function evidencePill(label: string, value: string): HTMLElement {
   const item = document.createElement("span");
   item.textContent = `${label}: ${value}`;
   return item;
-}
-
-function reviewRow(label: string, value: string): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "artifact-review-row";
-  const key = document.createElement("span");
-  key.textContent = label;
-  const val = document.createElement("strong");
-  val.textContent = value;
-  row.append(key, val);
-  return row;
-}
-
-function reviewAction(label: string, onClick: () => void, disabled = false): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.className = "secondary artifact-review-action";
-  button.type = "button";
-  button.textContent = label;
-  button.disabled = disabled;
-  button.addEventListener("click", onClick);
-  return button;
 }
 
 function completionLabel(run: RuntimeRunReport): string {
@@ -1609,18 +1282,6 @@ function formatElapsed(value: number | null): string {
   return `${(value / 1000).toFixed(1)} s`;
 }
 
-function selectedArtifact(): ArtifactCandidate | null {
-  const view = activeTaskView();
-  if (!view?.selectedArtifactPath) {
-    return null;
-  }
-  return view.artifacts.find((artifact) => artifact.path === view.selectedArtifactPath) ?? null;
-}
-
-function runForArtifact(artifact: ArtifactCandidate): RuntimeRunReport | null {
-  return activeTaskView()?.report?.runs.find((run) => run.runId === artifact.runId) ?? null;
-}
-
 function artifactKindLabel(kind: ArtifactCandidate["kind"]): string {
   if (kind === "html") {
     return "HTML";
@@ -1649,104 +1310,8 @@ function artifactKindLabel(kind: ArtifactCandidate["kind"]): string {
   return "Unknown";
 }
 
-function previewEvidenceLabel(preview: ArtifactPreviewResponse): string {
-  return `${preview.previewKind} / ${formatBytes(preview.size)}${
-    preview.truncated ? " / truncated" : ""
-  }`;
-}
-
-function inspectorRow(label: string, value: string): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "inspector-row";
-  const key = document.createElement("span");
-  key.textContent = label;
-  const val = document.createElement("strong");
-  val.textContent = value;
-  row.append(key, val);
-  return row;
-}
-
-function inspectorTitle(value: string): HTMLElement {
-  const title = document.createElement("h3");
-  title.textContent = value;
-  return title;
-}
-
-function inspectorGroupTitle(value: string): HTMLElement {
-  const title = document.createElement("div");
-  title.className = "inspector-group-title";
-  title.textContent = value;
-  return title;
-}
-
-function inspectorEmpty(value: string): HTMLElement {
-  const empty = document.createElement("div");
-  empty.className = "empty-state compact";
-  empty.textContent = value;
-  return empty;
-}
-
-function inspectorFileValue(value: string): HTMLElement {
-  const element = document.createElement("strong");
-  element.className = "inspector-file-value";
-  element.textContent = value;
-  return element;
-}
-
-function inspectorFileMeta(value: string): HTMLElement {
-  const element = document.createElement("span");
-  element.className = "inspector-file-meta";
-  element.textContent = value;
-  return element;
-}
-
-function approvalSummary(run: RuntimeRunReport): string {
-  if (run.approvalEvents.length === 0) {
-    return "none";
-  }
-  const decisions = run.approvalEvents.filter((event) => event.action === "decision").length;
-  return `${run.approvalEvents.length} events / ${decisions} decisions`;
-}
-
-function stopSummary(run: RuntimeRunReport): string {
-  if (run.stopEvents.length === 0) {
-    return "none";
-  }
-  const completed = run.stopEvents.some((event) => event.action === "stopped");
-  return `${run.stopEvents.length} events / ${completed ? "completed" : "pending"}`;
-}
-
-function formatTimestamp(value: string | null): string {
-  if (!value) {
-    return "none";
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString();
-}
-
-function formatMaybeBytes(value: number | null): string {
-  return value === null ? "size unknown" : formatBytes(value);
-}
-
-function shortHash(value: string): string {
-  return value.length > 12 ? value.slice(0, 12) : value;
-}
-
 function shortId(value: string): string {
   return value.length > 18 ? `${value.slice(0, 18)}...` : value;
-}
-
-function formatBytes(value: number): string {
-  if (value < 1024) {
-    return `${value} B`;
-  }
-  if (value < 1024 * 1024) {
-    return `${Math.round(value / 1024)} KB`;
-  }
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function fitTerminal(): void {

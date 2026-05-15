@@ -99,47 +99,13 @@ try {
   await previewPage.locator(".text-preview", { hasText: "Markdown artifact ready." }).waitFor({
     state: "visible",
   });
-  await page.locator(".preview-header", { hasText: "report.md" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".artifact-review", { hasText: "Report-listed" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".artifact-review", { hasText: "State" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review", { hasText: "Candidate" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review", { hasText: "Markdown" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review", { hasText: "added" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review", { hasText: "Run outcome" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review", { hasText: "Completed by terminal idle heuristic" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".artifact-review", { hasText: ".duet/runtime-report.json" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".artifact-review", { hasText: "not persisted" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review-action", { hasText: "Source Run" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review-action", { hasText: "Continue" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review-action", { hasText: "Inspector" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review-action", { hasText: "Terminal" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review-action", { hasText: "Source Run" }).click();
-  await page.locator(".run-card.highlighted", { hasText: "2 artifacts ready" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review-action", { hasText: "Continue" }).click();
-  const composerFocused = await page
-    .locator("#prompt-input")
-    .evaluate((element) => document.activeElement === element);
-  if (!composerFocused) {
-    throw new Error("Artifact Continue action did not focus the composer.");
-  }
-  await page.locator(".artifact-review-action", { hasText: "Inspector" }).click();
-  await page.locator("#inspector-panel").waitFor({ state: "visible" });
-  await page.locator("#preview-tab").click();
-  await page.locator(".artifact-review-action", { hasText: "Terminal" }).click();
+  await page.locator(".side-column").waitFor({ state: "hidden" });
+  await page.locator("#terminal-drawer").waitFor({ state: "hidden" });
+  await page.locator("#toggle-terminal").click();
+  await page.locator("#terminal-drawer").waitFor({ state: "visible" });
   await page.locator("#terminal").waitFor({ state: "visible" });
-  await page.locator("#preview-tab").click();
-  await page.locator(".text-preview", { hasText: "Markdown artifact ready." }).waitFor({
-    state: "visible",
-  });
+  await page.locator("#close-terminal").click();
+  await page.locator("#terminal-drawer").waitFor({ state: "hidden" });
 
   await page.locator(".artifact-item", { hasText: "page.html" }).click();
   await previewPage.locator(".preview-window-tab", { hasText: "page.html" }).waitFor({
@@ -149,38 +115,6 @@ try {
     state: "visible",
   });
   await previewPage.locator(".html-preview").waitFor({ state: "visible" });
-  await page.locator(".preview-header", { hasText: "page.html" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-review", { hasText: "HTML" }).waitFor({ state: "visible" });
-  await page.locator(".html-preview").waitFor({ state: "visible" });
-
-  await page.locator("#inspector-tab").click();
-  await page.locator(".inspector-content", { hasText: "Runtime report summary" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".inspector-content", { hasText: "duet.runtime-report.v1" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".inspector-content", { hasText: "Runtime launch" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".inspector-content", { hasText: "Changed files" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".inspector-content", { hasText: "Approvals" }).waitFor({ state: "visible" });
-  await page.locator(".inspector-content", { hasText: "approval detected / file-edit" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".inspector-content", { hasText: "approval decision / approved" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".inspector-content", { hasText: "Artifact candidates" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".inspector-content", { hasText: "raw-terminal-not-persisted-by-default" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".inspector-content", { hasText: "report.md" }).waitFor({ state: "visible" });
-  await page.locator(".inspector-content", { hasText: "page.html" }).waitFor({ state: "visible" });
 
   const inspectorWindowPromise = electronApp.waitForEvent("window");
   await page.locator("#open-inspector-window").click();
@@ -257,7 +191,8 @@ try {
     state: "visible",
   });
 
-  await page.locator("#terminal-tab").click();
+  await page.locator("#toggle-terminal").click();
+  await page.locator("#terminal-drawer").waitFor({ state: "visible" });
   await page.locator("#terminal").waitFor({ state: "visible" });
 
   const workspaceEntries = fs.readdirSync(workspaceRoot, { withFileTypes: true });
