@@ -250,6 +250,19 @@ h2 {
   gap: 12px;
 }
 
+.run-title-block {
+  min-width: 0;
+}
+
+.run-chapter {
+  display: block;
+  margin-bottom: 3px;
+  color: #69665f;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .run-status {
   flex: 0 0 auto;
   border-radius: 999px;
@@ -259,8 +272,20 @@ h2 {
   font-size: 12px;
 }
 
+.run-rhythm-section {
+  margin-top: 12px;
+}
+
+.run-rhythm-label {
+  margin-bottom: 5px;
+  color: #69665f;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .prompt-text {
-  margin: 12px 0;
+  margin: 0;
   color: #403d37;
   font-size: 14px;
   line-height: 1.55;
@@ -268,7 +293,7 @@ h2 {
 }
 
 .run-reading {
-  margin: 12px 0;
+  margin: 12px 0 0;
   border-top: 1px solid #e2ddd3;
   border-bottom: 1px solid #e2ddd3;
   padding: 10px 0;
@@ -352,11 +377,29 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 12px;
 }
 
 .path-list {
   margin: 12px 0 0;
   padding-left: 18px;
+}
+
+.run-review {
+  border-bottom: 1px solid #e2ddd3;
+  padding-bottom: 12px;
+}
+
+.run-review-summary,
+.run-next-step strong {
+  color: #2d2924;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.run-next-step {
+  border-left: 3px solid #d5d1c7;
+  padding-left: 10px;
 }
 
 .composer {

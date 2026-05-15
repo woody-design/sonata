@@ -83,6 +83,10 @@ try {
   await page.locator(".run-timeline", { hasText: "/stop sent for native cleanup" }).waitFor({
     state: "visible",
   });
+  await page.locator(".run-card", { hasText: "Run 1" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Stopped. Continue from here when ready." }).waitFor({
+    state: "visible",
+  });
 
   const commandStopped = await waitUntil(() => !pidAlive(commandPid), 45000).then(
     () => true,

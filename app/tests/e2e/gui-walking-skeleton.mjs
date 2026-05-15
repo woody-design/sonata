@@ -51,6 +51,17 @@ try {
   });
   await page.locator(".run-timeline", { hasText: "2 files changed" }).waitFor({ state: "visible" });
   await page.locator(".run-timeline", { hasText: "2 artifacts ready" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Run 1" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Request" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Outcome" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Review" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "2 artifacts ready for review" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".run-card", { hasText: "Next" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Review artifacts, then continue or redirect." }).waitFor({
+    state: "visible",
+  });
   await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({
     state: "visible",
   });

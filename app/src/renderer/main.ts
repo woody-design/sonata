@@ -548,12 +548,12 @@ function renderRuns(): void {
     return;
   }
 
-  for (const run of runs) {
-    elements.runList.append(renderRun(run));
+  for (const [index, run] of runs.entries()) {
+    elements.runList.append(renderRun(run, index));
   }
 }
 
-function renderRun(run: RuntimeRunReport): HTMLElement {
+function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
   const card = document.createElement("article");
   card.className = "run-card";
   card.dataset.runId = run.runId;
@@ -562,21 +562,32 @@ function renderRun(run: RuntimeRunReport): HTMLElement {
   const header = document.createElement("div");
   header.className = "run-card-header";
 
+  const titleBlock = document.createElement("div");
+  titleBlock.className = "run-title-block";
+  const chapter = document.createElement("span");
+  chapter.className = "run-chapter";
+  chapter.textContent = `Run ${index + 1}`;
   const title = document.createElement("h2");
   title.textContent = run.title || "(empty prompt)";
-  header.append(title);
+  titleBlock.append(chapter, title);
+  header.append(titleBlock);
 
   const status = document.createElement("span");
   status.className = "run-status";
   status.textContent = run.status;
   header.append(status);
 
+  const request = document.createElement("section");
+  request.className = "run-rhythm-section run-request";
+  request.append(runSectionLabel("Request"));
   const prompt = document.createElement("p");
   prompt.className = "prompt-text";
   prompt.textContent = run.prompt;
+  request.append(prompt);
 
   const reading = document.createElement("section");
   reading.className = "run-reading";
+  reading.append(runSectionLabel("Outcome"));
 
   const outcome = document.createElement("div");
   outcome.className = `run-outcome ${runTone(run)}`;
@@ -604,27 +615,13 @@ function renderRun(run: RuntimeRunReport): HTMLElement {
     reading.append(list);
   }
 
-  const metadata = document.createElement("div");
-  metadata.className = "run-metadata";
-  metadata.append(
-    metadataItem("Completion", completionLabel(run)),
-    metadataItem("Changes", String(run.changedFiles.length)),
-    metadataItem("Artifacts", String(run.artifactCandidates.length)),
-  );
-
-  card.append(header, prompt, reading, metadata);
-
-  if (run.changedFiles.length > 0) {
-    const list = document.createElement("ul");
-    list.className = "path-list";
-    for (const file of run.changedFiles) {
-      const item = document.createElement("li");
-      item.textContent = `${file.changeKind} ${file.path}`;
-      list.append(item);
-    }
-    card.append(list);
-  }
-
+  const review = document.createElement("section");
+  review.className = "run-rhythm-section run-review";
+  review.append(runSectionLabel("Review"));
+  const reviewSummary = document.createElement("div");
+  reviewSummary.className = "run-review-summary";
+  reviewSummary.textContent = runReviewSummary(run);
+  review.append(reviewSummary);
   if (run.artifactCandidates.length > 0) {
     const artifacts = document.createElement("div");
     artifacts.className = "run-artifacts";
@@ -638,7 +635,35 @@ function renderRun(run: RuntimeRunReport): HTMLElement {
       });
       artifacts.append(button);
     }
-    card.append(artifacts);
+    review.append(artifacts);
+  }
+
+  const next = document.createElement("section");
+  next.className = "run-rhythm-section run-next-step";
+  next.append(runSectionLabel("Next"));
+  const nextText = document.createElement("strong");
+  nextText.textContent = runNextStep(run);
+  next.append(nextText);
+
+  const metadata = document.createElement("div");
+  metadata.className = "run-metadata";
+  metadata.append(
+    metadataItem("Completion", completionLabel(run)),
+    metadataItem("Changes", String(run.changedFiles.length)),
+    metadataItem("Artifacts", String(run.artifactCandidates.length)),
+  );
+
+  card.append(header, request, reading, review, next, metadata);
+
+  if (run.changedFiles.length > 0) {
+    const list = document.createElement("ul");
+    list.className = "path-list";
+    for (const file of run.changedFiles) {
+      const item = document.createElement("li");
+      item.textContent = `${file.changeKind} ${file.path}`;
+      list.append(item);
+    }
+    card.append(list);
   }
 
   return card;
@@ -1023,6 +1048,13 @@ function sendButtonLabel(activeRun: boolean): string {
   return "Continue";
 }
 
+function runSectionLabel(value: string): HTMLElement {
+  const label = document.createElement("div");
+  label.className = "run-rhythm-label";
+  label.textContent = value;
+  return label;
+}
+
 function metadataItem(label: string, value: string): HTMLElement {
   const item = document.createElement("span");
   item.textContent = `${label}: ${value}`;
@@ -1138,6 +1170,47 @@ function runTimeline(run: RuntimeRunReport): string[] {
   }
 
   return entries;
+}
+
+function runReviewSummary(run: RuntimeRunReport): string {
+  if (run.artifactCandidates.length > 0) {
+    return `${pluralize(run.artifactCandidates.length, "artifact")} ready for review`;
+  }
+  if (run.changedFiles.length > 0) {
+    return `${pluralize(run.changedFiles.length, "file")} changed`;
+  }
+  if (run.status === "waiting-for-approval") {
+    return `${approvalKindLabel(run.approvalKind)} approval pending`;
+  }
+  return "No review items yet";
+}
+
+function runNextStep(run: RuntimeRunReport): string {
+  if (run.status === "waiting-for-approval") {
+    return `${approvalKindLabel(run.approvalKind)} approval is needed.`;
+  }
+  if (isActiveRunStatus(run.status)) {
+    return "Wait for Codex to finish this Run.";
+  }
+  if (run.status === "stopped") {
+    return "Stopped. Continue from here when ready.";
+  }
+  if (run.status === "approval-denied") {
+    return "Approval was denied. Continue with a revised instruction.";
+  }
+  if (run.artifactCandidates.length > 0) {
+    return "Review artifacts, then continue or redirect.";
+  }
+  if (run.changedFiles.length > 0) {
+    return "Review changed files, then continue or redirect.";
+  }
+  if (run.status === "pty-exited") {
+    return "PTY exited. Open or start a Task to continue.";
+  }
+  if (run.status === "failed") {
+    return "Run failed. Inspect details before continuing.";
+  }
+  return "Continue when ready.";
 }
 
 function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
