@@ -73,9 +73,14 @@ appElement.innerHTML = `
     <section class="workspace">
       <section class="run-column" aria-label="Run reading surface">
         <div id="approval-banner" class="approval-banner hidden">
-          <div>
-            <p class="eyebrow">Approval</p>
+          <div class="approval-copy">
+            <div class="approval-heading">
+              <p class="eyebrow">Native Approval</p>
+              <span id="approval-kind-badge" class="approval-kind-badge">Unknown</span>
+            </div>
             <strong id="approval-title">Native approval requested</strong>
+            <p id="approval-summary" class="approval-summary"></p>
+            <div id="approval-context" class="approval-context"></div>
           </div>
           <div class="approval-actions">
             <button id="deny-approval" class="secondary" type="button">Deny</button>
@@ -136,7 +141,10 @@ const elements = {
   openTask: getElement<HTMLButtonElement>("open-task"),
   newTask: getElement<HTMLButtonElement>("new-task"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
+  approvalKindBadge: getElement<HTMLSpanElement>("approval-kind-badge"),
   approvalTitle: getElement<HTMLElement>("approval-title"),
+  approvalSummary: getElement<HTMLParagraphElement>("approval-summary"),
+  approvalContext: getElement<HTMLDivElement>("approval-context"),
   denyApproval: getElement<HTMLButtonElement>("deny-approval"),
   approveApproval: getElement<HTMLButtonElement>("approve-approval"),
   workflowHeadline: getElement<HTMLElement>("workflow-headline"),
@@ -651,14 +659,22 @@ function renderApproval(): void {
   const approval = activeTaskView()?.pendingApproval ?? null;
   elements.approvalBanner.classList.toggle("hidden", !approval);
   if (!approval) {
+    elements.approvalBanner.removeAttribute("data-approval-kind");
+    elements.approvalContext.replaceChildren();
     return;
   }
-  elements.approvalTitle.textContent =
-    approval.kind === "command"
-      ? "Command approval requested"
-      : approval.kind === "workspace-trust"
-        ? "Workspace trust requested"
-        : "File edit approval requested";
+
+  elements.approvalBanner.dataset.approvalKind = approval.kind;
+  elements.approvalKindBadge.textContent = approvalKindLabel(approval.kind);
+  elements.approvalTitle.textContent = approvalTitle(approval.kind);
+  elements.approvalSummary.textContent = approvalSummary(approval.kind);
+  elements.approvalContext.replaceChildren(
+    approvalContextItem("Source", approval.source),
+    approvalContextItem("Scope", approvalScope(approval.kind)),
+    approvalContextItem("Run", approval.runId ? shortId(approval.runId) : "session setup"),
+    approvalContextItem("Approve", "send native Enter"),
+    approvalContextItem("Deny", "send native Esc"),
+  );
 }
 
 interface WorkflowState {
@@ -882,6 +898,10 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
   reading.append(evidence);
 
   const timeline = runTimeline(run);
+  const approvalHistory = renderApprovalHistory(run);
+  if (approvalHistory) {
+    reading.append(approvalHistory);
+  }
   if (timeline.length > 0) {
     const list = document.createElement("ul");
     list.className = "run-timeline";
@@ -1220,6 +1240,12 @@ function evidencePill(label: string, value: string): HTMLElement {
   return item;
 }
 
+function approvalContextItem(label: string, value: string): HTMLElement {
+  const item = document.createElement("span");
+  item.textContent = `${label}: ${value}`;
+  return item;
+}
+
 function completionLabel(run: RuntimeRunReport): string {
   if (!run.completionSource) {
     return "pending";
@@ -1268,6 +1294,38 @@ function runTone(run: RuntimeRunReport): string {
     return "waiting";
   }
   return "active";
+}
+
+function renderApprovalHistory(run: RuntimeRunReport): HTMLElement | null {
+  if (run.approvalEvents.length === 0) {
+    return null;
+  }
+
+  const section = document.createElement("section");
+  section.className = "run-approval-history";
+  section.append(runSectionLabel("Approval history"));
+
+  const list = document.createElement("div");
+  list.className = "approval-history-list";
+  for (const event of run.approvalEvents) {
+    const item = document.createElement("div");
+    item.className = "approval-history-item";
+    const title = document.createElement("strong");
+    const meta = document.createElement("span");
+    if (event.action === "detected") {
+      title.textContent = `${approvalKindLabel(event.kind)} approval requested`;
+      meta.textContent = "native Codex PTY approval screen";
+    } else {
+      title.textContent = `${approvalKindLabel(event.previousKind)} approval ${approvalDecisionLabel(
+        event.decision,
+      )}`;
+      meta.textContent = `${event.encodedAs ?? "native control"} / ${formatTime(event.ts)}`;
+    }
+    item.append(title, meta);
+    list.append(item);
+  }
+  section.append(list);
+  return section;
 }
 
 function runTimeline(run: RuntimeRunReport): string[] {
@@ -1345,6 +1403,45 @@ function runNextStep(run: RuntimeRunReport): string {
   return "Continue when ready.";
 }
 
+function approvalTitle(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
+  if (kind === "workspace-trust") {
+    return "Workspace trust requested";
+  }
+  if (kind === "file-edit") {
+    return "File edit approval requested";
+  }
+  if (kind === "command") {
+    return "Command approval requested";
+  }
+  return "Native approval requested";
+}
+
+function approvalSummary(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
+  if (kind === "workspace-trust") {
+    return "Codex is asking whether this Task workspace should be trusted before it continues.";
+  }
+  if (kind === "file-edit") {
+    return "Codex wants to write files in this Task workspace. Review the Run context before approving.";
+  }
+  if (kind === "command") {
+    return "Codex wants to run a command through the native CLI session. Approve only when the command matches the Task.";
+  }
+  return "Codex is waiting on a native approval screen in the PTY session.";
+}
+
+function approvalScope(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
+  if (kind === "workspace-trust") {
+    return "Task workspace trust";
+  }
+  if (kind === "file-edit") {
+    return "workspace file write";
+  }
+  if (kind === "command") {
+    return "terminal command execution";
+  }
+  return "native Codex session";
+}
+
 function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
   if (kind === "workspace-trust") {
     return "Workspace trust";
@@ -1380,6 +1477,18 @@ function formatElapsed(value: number | null): string {
     return `${value} ms`;
   }
   return `${(value / 1000).toFixed(1)} s`;
+}
+
+function formatTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function formatCompactNumber(value: number): string {

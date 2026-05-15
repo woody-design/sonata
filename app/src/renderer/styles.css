@@ -284,7 +284,7 @@ h2 {
 
 .approval-banner {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin: 16px 18px 0;
@@ -292,6 +292,76 @@ h2 {
   border-radius: 8px;
   padding: 12px;
   background: #fff7d8;
+}
+
+.approval-copy {
+  min-width: 0;
+}
+
+.approval-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.approval-heading .eyebrow {
+  margin-bottom: 0;
+}
+
+.approval-kind-badge {
+  flex: 0 0 auto;
+  border: 1px solid #d8bf69;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #4e3e13;
+  background: #fffefa;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.approval-banner[data-approval-kind="command"] {
+  border-color: #9a6a3b;
+  background: #fff0dd;
+}
+
+.approval-banner[data-approval-kind="file-edit"] {
+  border-color: #c8a94d;
+  background: #fff7d8;
+}
+
+.approval-banner[data-approval-kind="workspace-trust"] {
+  border-color: #4d668f;
+  background: #edf3ff;
+}
+
+.approval-summary {
+  max-width: 760px;
+  margin: 5px 0 0;
+  color: #4f4a41;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.approval-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.approval-context span {
+  border: 1px solid rgb(0 0 0 / 10%);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #4f4a41;
+  background: rgb(255 255 255 / 48%);
+  font-size: 12px;
+}
+
+.approval-actions {
+  flex: 0 0 auto;
+  padding-top: 2px;
 }
 
 .workflow-strip {
@@ -573,6 +643,37 @@ h2 {
   padding: 4px 8px;
   color: #4f4a41;
   background: #f4f1eb;
+  font-size: 12px;
+}
+
+.run-approval-history {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.approval-history-list {
+  display: grid;
+  gap: 6px;
+}
+
+.approval-history-item {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #ded9ce;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #fffefa;
+}
+
+.approval-history-item strong {
+  color: #2d2924;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.approval-history-item span {
+  color: #625d54;
   font-size: 12px;
 }
 
@@ -1359,6 +1460,15 @@ textarea {
 
   .task-entry-actions {
     flex-wrap: wrap;
+  }
+
+  .approval-banner {
+    flex-direction: column;
+  }
+
+  .approval-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .side-column {
