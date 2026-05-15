@@ -27,6 +27,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.taskOpen, (_event, request) =>
     runtimeController.openTask(request),
   );
+  ipcMain.handle(IPC_CHANNELS.taskClose, (_event, request) => {
+    runtimeController.closeTask(request.taskId);
+  });
   ipcMain.handle(IPC_CHANNELS.promptSubmit, (_event, request) => {
     runtimeController.submitPrompt(request.taskId, request.text);
   });

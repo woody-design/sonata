@@ -15,7 +15,7 @@ interface RunTranscript {
   truncated: boolean;
 }
 
-interface RendererState {
+interface TaskViewState {
   task: Task | null;
   report: RuntimeReportV1 | null;
   artifacts: ArtifactCandidate[];
@@ -26,26 +26,24 @@ interface RendererState {
   highlightedRunId: string | null;
   liveTranscriptRunId: string | null;
   runTranscripts: RunTranscript[];
+  terminalBuffer: string;
   runtimeReady: boolean;
   composerObserved: boolean;
+  status: string;
+  unread: boolean;
+}
+
+interface RendererState {
+  taskViews: TaskViewState[];
+  activeTaskId: string | null;
   sideView: SideView;
   busy: boolean;
   status: string;
 }
 
 const state: RendererState = {
-  task: null,
-  report: null,
-  artifacts: [],
-  preview: null,
-  previewError: null,
-  selectedArtifactPath: null,
-  pendingApproval: null,
-  highlightedRunId: null,
-  liveTranscriptRunId: null,
-  runTranscripts: [],
-  runtimeReady: false,
-  composerObserved: false,
+  taskViews: [],
+  activeTaskId: null,
   sideView: "preview",
   busy: false,
   status: "Idle",
@@ -72,6 +70,8 @@ appElement.innerHTML = `
         <button id="new-task" class="secondary" type="button">New Task</button>
       </div>
     </header>
+
+    <nav id="task-tabs" class="task-tabs" aria-label="Task tabs"></nav>
 
     <section class="workspace">
       <section class="run-column" aria-label="Run reading surface">
@@ -153,6 +153,7 @@ const elements = {
   approveApproval: getElement<HTMLButtonElement>("approve-approval"),
   workflowHeadline: getElement<HTMLElement>("workflow-headline"),
   workflowFacts: getElement<HTMLDivElement>("workflow-facts"),
+  taskTabs: getElement<HTMLElement>("task-tabs"),
   runList: getElement<HTMLDivElement>("run-list"),
   artifactList: getElement<HTMLDivElement>("artifact-list"),
   composer: getElement<HTMLFormElement>("composer"),
@@ -187,6 +188,7 @@ fitTerminal();
 
 let transcriptRenderTimer: number | null = null;
 const MAX_TRANSCRIPT_CHARS = 40_000;
+const MAX_TERMINAL_BUFFER_CHARS = 80_000;
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
 const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 
@@ -241,69 +243,239 @@ window.addEventListener("resize", () => {
 
 window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type === "pty:data") {
-    terminal.write(event.payload.data);
-    if (state.task && event.payload.taskId === state.task.id) {
-      appendLiveTranscript(event.payload.data);
+    const view = taskViewForId(event.payload.taskId);
+    if (!view) {
+      return;
     }
+    appendTerminalBuffer(view, event.payload.data);
+    if (isActiveView(view)) {
+      terminal.write(event.payload.data);
+    }
+    appendLiveTranscript(view, event.payload.data);
     return;
   }
 
-  if (event.type === "run:started" && state.task && event.payload.taskId === state.task.id) {
-    state.liveTranscriptRunId = event.payload.id;
-    ensureRunTranscript(event.payload.id);
-    render();
+  const view = taskViewForId(event.payload.taskId);
+  if (!view) {
     return;
   }
 
-  if (event.type === "run:updated" && state.task && event.payload.taskId === state.task.id) {
-    if (!isActiveRunStatus(event.payload.status) && state.liveTranscriptRunId === event.payload.id) {
-      state.liveTranscriptRunId = null;
+  if (event.type === "run:started") {
+    view.liveTranscriptRunId = event.payload.id;
+    view.runtimeReady = false;
+    view.status = "Running";
+    ensureRunTranscript(view, event.payload.id);
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "run:updated") {
+    if (!isActiveRunStatus(event.payload.status) && view.liveTranscriptRunId === event.payload.id) {
+      view.liveTranscriptRunId = null;
     }
+    markViewChanged(view);
     return;
   }
 
   if (event.type === "approval:detected") {
-    state.pendingApproval = event.payload;
-    state.runtimeReady = false;
-    state.status = "Waiting for approval";
-    render();
+    view.pendingApproval = event.payload;
+    view.runtimeReady = false;
+    view.status = "Waiting for approval";
+    markViewChanged(view);
     return;
   }
 
   if (event.type === "approval:decision") {
-    state.pendingApproval = null;
-    state.status = event.payload.decision === "approve" ? "Approval sent" : "Approval denied";
-    render();
+    view.pendingApproval = null;
+    view.status = event.payload.decision === "approve" ? "Approval sent" : "Approval denied";
+    markViewChanged(view);
     return;
   }
 
   if (event.type === "task:ready") {
-    state.runtimeReady = true;
-    state.composerObserved = true;
-    state.status = hasActiveRun() ? state.status : "Ready";
-    render();
+    view.runtimeReady = true;
+    view.composerObserved = true;
+    view.status = hasActiveRun(view) ? view.status : "Ready";
+    markViewChanged(view);
     return;
   }
 
   if (event.type === "run:stopped") {
-    state.runtimeReady = true;
-    state.status = "Stopped";
-    render();
+    view.runtimeReady = true;
+    view.status = "Stopped";
+    markViewChanged(view);
   }
 
-  if (event.type === "report:updated" && state.task && event.payload.taskId === state.task.id) {
-    void refreshReport();
+  if (event.type === "report:updated") {
+    void refreshReport(event.payload.taskId);
   }
 });
 
 render();
 
+function createTaskView(task: Task, status: string): TaskViewState {
+  return {
+    task,
+    report: null,
+    artifacts: [],
+    preview: null,
+    previewError: null,
+    selectedArtifactPath: null,
+    pendingApproval: null,
+    highlightedRunId: null,
+    liveTranscriptRunId: null,
+    runTranscripts: [],
+    terminalBuffer: "",
+    runtimeReady: false,
+    composerObserved: false,
+    status,
+    unread: false,
+  };
+}
+
+function upsertTaskView(view: TaskViewState): void {
+  const index = state.taskViews.findIndex((item) => item.task?.id === view.task?.id);
+  if (index === -1) {
+    state.taskViews = [...state.taskViews, view];
+    return;
+  }
+  state.taskViews = state.taskViews.map((item, itemIndex) => (itemIndex === index ? view : item));
+}
+
+function activeTaskView(): TaskViewState | null {
+  if (!state.activeTaskId) {
+    return null;
+  }
+  return taskViewForId(state.activeTaskId);
+}
+
+function taskViewForId(taskId: string): TaskViewState | null {
+  return state.taskViews.find((view) => view.task?.id === taskId) ?? null;
+}
+
+function activateTask(taskId: string): void {
+  const view = taskViewForId(taskId);
+  if (!view) {
+    return;
+  }
+  state.activeTaskId = taskId;
+  view.unread = false;
+  terminal.clear();
+  if (view.terminalBuffer) {
+    terminal.write(view.terminalBuffer);
+  }
+  render();
+}
+
+async function closeTaskTab(taskId: string): Promise<void> {
+  const view = taskViewForId(taskId);
+  if (!view?.task) {
+    return;
+  }
+  state.busy = true;
+  view.status = "Closing";
+  render();
+  try {
+    await window.duetRuntime.closeTask({ taskId });
+    const index = state.taskViews.findIndex((item) => item.task?.id === taskId);
+    state.taskViews = state.taskViews.filter((item) => item.task?.id !== taskId);
+    if (state.activeTaskId === taskId) {
+      const next = state.taskViews[Math.max(0, index - 1)] ?? state.taskViews[0] ?? null;
+      state.activeTaskId = next?.task?.id ?? null;
+      terminal.clear();
+      if (next?.terminalBuffer) {
+        terminal.write(next.terminalBuffer);
+      }
+    }
+  } catch (error) {
+    view.status = errorMessage(error);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+function renderTaskTabs(): void {
+  elements.taskTabs.replaceChildren();
+
+  if (state.taskViews.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "task-tab-empty";
+    empty.textContent = "No Task tabs";
+    elements.taskTabs.append(empty);
+    return;
+  }
+
+  for (const view of state.taskViews) {
+    if (!view.task) {
+      continue;
+    }
+    const task = view.task;
+
+    const item = document.createElement("div");
+    item.className = "task-tab-item";
+    item.classList.toggle("active", task.id === state.activeTaskId);
+
+    const button = document.createElement("button");
+    button.className = "task-tab";
+    button.type = "button";
+    button.dataset.taskId = task.id;
+    button.addEventListener("click", () => {
+      activateTask(task.id);
+    });
+
+    const label = document.createElement("span");
+    label.className = "task-tab-label";
+    label.textContent = task.title;
+    const meta = document.createElement("span");
+    meta.className = "task-tab-meta";
+    meta.textContent = `${shortId(task.id)} / ${view.status}`;
+    button.append(label, meta);
+    if (view.unread) {
+      const dot = document.createElement("span");
+      dot.className = "task-tab-dot";
+      dot.title = "Updated";
+      button.append(dot);
+    }
+
+    const close = document.createElement("button");
+    close.className = "task-tab-close";
+    close.type = "button";
+    close.textContent = "x";
+    close.ariaLabel = `Close ${task.title}`;
+    close.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void closeTaskTab(task.id);
+    });
+
+    item.append(button, close);
+    elements.taskTabs.append(item);
+  }
+}
+
+function markViewChanged(view: TaskViewState): void {
+  if (isActiveView(view)) {
+    render();
+    return;
+  }
+  view.unread = true;
+  renderTaskTabs();
+}
+
+function isActiveView(view: TaskViewState): boolean {
+  return Boolean(view.task && view.task.id === state.activeTaskId);
+}
+
+function appendTerminalBuffer(view: TaskViewState, data: string): void {
+  view.terminalBuffer = `${view.terminalBuffer}${data}`.slice(-MAX_TERMINAL_BUFFER_CHARS);
+  if (!isActiveView(view)) {
+    view.unread = true;
+  }
+}
+
 async function createTask(): Promise<void> {
   state.busy = true;
   state.status = "Starting Codex";
-  state.liveTranscriptRunId = null;
-  state.runTranscripts = [];
-  terminal.clear();
   render();
 
   try {
@@ -313,19 +485,9 @@ async function createTask(): Promise<void> {
       approval: "on-request",
       sandbox: "read-only",
     });
-    state.task = response.task;
-    state.report = null;
-    state.artifacts = [];
-    state.preview = null;
-    state.previewError = null;
-    state.selectedArtifactPath = null;
-    state.pendingApproval = null;
-    state.highlightedRunId = null;
-    state.liveTranscriptRunId = null;
-    state.runTranscripts = [];
-    state.runtimeReady = false;
-    state.composerObserved = false;
-    state.status = `Codex PTY ${response.runtime.pid}`;
+    const view = createTaskView(response.task, `Codex PTY ${response.runtime.pid}`);
+    upsertTaskView(view);
+    activateTask(response.task.id);
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
@@ -337,27 +499,17 @@ async function createTask(): Promise<void> {
 async function openTask(): Promise<void> {
   state.busy = true;
   state.status = "Opening Task";
-  state.liveTranscriptRunId = null;
-  state.runTranscripts = [];
-  terminal.clear();
   render();
 
   try {
     const response = await window.duetRuntime.openTask({});
-    state.task = response.task;
-    state.report = null;
-    state.artifacts = [];
-    state.preview = null;
-    state.previewError = null;
-    state.selectedArtifactPath = null;
-    state.pendingApproval = null;
-    state.highlightedRunId = null;
-    state.liveTranscriptRunId = null;
-    state.runTranscripts = [];
-    state.runtimeReady = false;
-    state.composerObserved = false;
-    state.status = `Opened Codex PTY ${response.runtime.pid}`;
-    await refreshReport();
+    const existing = taskViewForId(response.task.id);
+    const view = existing ?? createTaskView(response.task, `Opened Codex PTY ${response.runtime.pid}`);
+    view.task = response.task;
+    view.status = existing ? "Task already open" : `Opened Codex PTY ${response.runtime.pid}`;
+    upsertTaskView(view);
+    activateTask(response.task.id);
+    await refreshReport(response.task.id);
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
@@ -367,7 +519,8 @@ async function openTask(): Promise<void> {
 }
 
 async function submitPrompt(): Promise<void> {
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return;
   }
 
@@ -377,15 +530,15 @@ async function submitPrompt(): Promise<void> {
   }
 
   state.busy = true;
-  state.status = "Submitted";
+  view.status = "Submitted";
   render();
 
   try {
-    state.runtimeReady = false;
-    await window.duetRuntime.submitPrompt({ taskId: state.task.id, text });
+    view.runtimeReady = false;
+    await window.duetRuntime.submitPrompt({ taskId: view.task.id, text });
     elements.promptInput.value = "";
   } catch (error) {
-    state.status = errorMessage(error);
+    view.status = errorMessage(error);
   } finally {
     state.busy = false;
     render();
@@ -393,16 +546,17 @@ async function submitPrompt(): Promise<void> {
 }
 
 async function decideApproval(decision: "approve" | "deny"): Promise<void> {
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return;
   }
 
   state.busy = true;
   render();
   try {
-    await window.duetRuntime.decideApproval({ taskId: state.task.id, decision });
+    await window.duetRuntime.decideApproval({ taskId: view.task.id, decision });
   } catch (error) {
-    state.status = errorMessage(error);
+    view.status = errorMessage(error);
   } finally {
     state.busy = false;
     render();
@@ -410,70 +564,78 @@ async function decideApproval(decision: "approve" | "deny"): Promise<void> {
 }
 
 async function stopRun(): Promise<void> {
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return;
   }
 
   state.busy = true;
-  state.status = "Stopping";
+  view.status = "Stopping";
   render();
   try {
-    await window.duetRuntime.stopRun({ taskId: state.task.id, inspectDelayMs: 6000 });
+    await window.duetRuntime.stopRun({ taskId: view.task.id, inspectDelayMs: 6000 });
   } catch (error) {
-    state.status = errorMessage(error);
+    view.status = errorMessage(error);
   } finally {
     state.busy = false;
     render();
   }
 }
 
-async function refreshReport(): Promise<void> {
-  if (!state.task) {
+async function refreshReport(taskId = state.activeTaskId): Promise<void> {
+  if (!taskId) {
+    return;
+  }
+  const view = taskViewForId(taskId);
+  if (!view?.task) {
     return;
   }
 
-  state.report = await window.duetRuntime.readReport({ taskId: state.task.id });
-  state.artifacts = await window.duetRuntime.listArtifacts({ taskId: state.task.id });
-  if (state.composerObserved && !state.pendingApproval && !hasActiveRun()) {
-    state.runtimeReady = true;
+  view.report = await window.duetRuntime.readReport({ taskId: view.task.id });
+  view.artifacts = await window.duetRuntime.listArtifacts({ taskId: view.task.id });
+  if (view.composerObserved && !view.pendingApproval && !hasActiveRun(view)) {
+    view.runtimeReady = true;
   }
   if (
-    state.selectedArtifactPath &&
-    !state.artifacts.some((artifact) => artifact.path === state.selectedArtifactPath)
+    view.selectedArtifactPath &&
+    !view.artifacts.some((artifact) => artifact.path === view.selectedArtifactPath)
   ) {
-    state.preview = null;
-    state.selectedArtifactPath = null;
+    view.preview = null;
+    view.selectedArtifactPath = null;
   }
-  render();
+  markViewChanged(view);
 }
 
 async function resizeTerminal(): Promise<void> {
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return;
   }
   fitTerminal();
   await window.duetRuntime.resizeTerminal({
-    taskId: state.task.id,
+    taskId: view.task.id,
     cols: terminal.cols,
     rows: terminal.rows,
   });
 }
 
 function render(): void {
-  elements.taskTitle.textContent = state.task?.title ?? "No active Task";
-  elements.runtimeStatus.textContent = state.status;
-  elements.openPreviewWindow.disabled = !state.task || state.busy;
-  elements.openInspectorWindow.disabled = !state.task || state.busy;
+  const view = activeTaskView();
+  elements.taskTitle.textContent = view?.task?.title ?? "No active Task";
+  elements.runtimeStatus.textContent = view?.status ?? state.status;
+  elements.openPreviewWindow.disabled = !view?.task || state.busy;
+  elements.openInspectorWindow.disabled = !view?.task || state.busy;
   elements.openTask.disabled = state.busy;
   elements.newTask.disabled = state.busy;
-  const activeRun = hasActiveRun();
-  const pendingApproval = Boolean(state.pendingApproval);
-  elements.sendPrompt.disabled = !state.task || state.busy || !state.runtimeReady || pendingApproval || activeRun;
-  elements.stopRun.disabled = !state.task || state.busy || !activeRun;
-  elements.promptInput.disabled = !state.task || pendingApproval;
+  const activeRun = hasActiveRun(view);
+  const pendingApproval = Boolean(view?.pendingApproval);
+  elements.sendPrompt.disabled = !view?.task || state.busy || !view.runtimeReady || pendingApproval || activeRun;
+  elements.stopRun.disabled = !view?.task || state.busy || !activeRun;
+  elements.promptInput.disabled = !view?.task || pendingApproval;
   elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
   elements.sendPrompt.textContent = sendButtonLabel(activeRun);
 
+  renderTaskTabs();
   renderApproval();
   renderWorkflow();
   renderRuns();
@@ -483,8 +645,8 @@ function render(): void {
   renderSideView();
 }
 
-function hasActiveRun(): boolean {
-  const latestRun = state.report?.runs.at(-1);
+function hasActiveRun(view = activeTaskView()): boolean {
+  const latestRun = view?.report?.runs.at(-1);
   return isActiveRunStatus(latestRun?.status ?? "");
 }
 
@@ -493,7 +655,7 @@ function isActiveRunStatus(status: string): boolean {
 }
 
 function renderApproval(): void {
-  const approval = state.pendingApproval;
+  const approval = activeTaskView()?.pendingApproval ?? null;
   elements.approvalBanner.classList.toggle("hidden", !approval);
   if (!approval) {
     return;
@@ -512,17 +674,18 @@ interface WorkflowState {
 }
 
 function workflowState(): WorkflowState {
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return {
       headline: "Start or open a Task",
       facts: ["Codex idle"],
     };
   }
 
-  const runs = state.report?.runs ?? [];
+  const runs = view.report?.runs ?? [];
   const latestRun = runs.at(-1) ?? null;
   const changedFiles = latestRun?.changedFiles.length ?? 0;
-  const artifactCount = state.artifacts.length;
+  const artifactCount = view.artifacts.length;
   const baseFacts = [
     pluralize(runs.length, "Run"),
     pluralize(changedFiles, "change"),
@@ -530,9 +693,9 @@ function workflowState(): WorkflowState {
     "Terminal available",
   ];
 
-  if (state.pendingApproval) {
+  if (view.pendingApproval) {
     return {
-      headline: `${approvalKindLabel(state.pendingApproval.kind)} approval needed`,
+      headline: `${approvalKindLabel(view.pendingApproval.kind)} approval needed`,
       facts: baseFacts,
     };
   }
@@ -565,7 +728,7 @@ function workflowState(): WorkflowState {
     };
   }
 
-  if (state.runtimeReady) {
+  if (view.runtimeReady) {
     return {
       headline: "Ready for first Run",
       facts: baseFacts,
@@ -592,12 +755,13 @@ function renderWorkflow(): void {
 
 function renderRuns(): void {
   elements.runList.replaceChildren();
-  const runs = state.report?.runs ?? [];
+  const view = activeTaskView();
+  const runs = view?.report?.runs ?? [];
 
   if (runs.length === 0) {
     const empty = document.createElement("article");
     empty.className = "empty-state";
-    empty.textContent = state.task ? "No Runs yet" : "Create a Task to start";
+    empty.textContent = view?.task ? "No Runs yet" : "Create a Task to start";
     elements.runList.append(empty);
     return;
   }
@@ -608,10 +772,11 @@ function renderRuns(): void {
 }
 
 function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
+  const view = activeTaskView();
   const card = document.createElement("article");
   card.className = "run-card";
   card.dataset.runId = run.runId;
-  card.classList.toggle("highlighted", run.runId === state.highlightedRunId);
+  card.classList.toggle("highlighted", run.runId === view?.highlightedRunId);
 
   const header = document.createElement("div");
   header.className = "run-card-header";
@@ -729,8 +894,9 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
 }
 
 function renderRunTranscript(run: RuntimeRunReport): HTMLElement | null {
-  const transcript = transcriptForRun(run.runId);
-  const live = state.liveTranscriptRunId === run.runId;
+  const view = activeTaskView();
+  const transcript = view ? transcriptForRun(view, run.runId) : null;
+  const live = view?.liveTranscriptRunId === run.runId;
   if (!transcript && !live) {
     return null;
   }
@@ -758,8 +924,10 @@ function renderRunTranscript(run: RuntimeRunReport): HTMLElement | null {
 
 function renderArtifacts(): void {
   elements.artifactList.replaceChildren();
+  const view = activeTaskView();
+  const artifacts = view?.artifacts ?? [];
 
-  if (state.artifacts.length === 0) {
+  if (artifacts.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state compact";
     empty.textContent = "No artifacts";
@@ -767,11 +935,11 @@ function renderArtifacts(): void {
     return;
   }
 
-  for (const artifact of state.artifacts) {
+  for (const artifact of artifacts) {
     const item = document.createElement("button");
     item.className = "artifact-item";
     item.type = "button";
-    item.classList.toggle("selected", artifact.path === state.selectedArtifactPath);
+    item.classList.toggle("selected", artifact.path === view?.selectedArtifactPath);
     const title = document.createElement("span");
     title.className = "artifact-item-title";
     title.textContent = artifact.path;
@@ -788,16 +956,17 @@ function renderArtifacts(): void {
 
 function renderPreview(): void {
   elements.previewContent.replaceChildren();
+  const view = activeTaskView();
 
-  if (state.previewError) {
+  if (view?.previewError) {
     const error = document.createElement("div");
     error.className = "empty-state compact";
-    error.textContent = state.previewError;
+    error.textContent = view.previewError;
     elements.previewContent.append(error);
     return;
   }
 
-  if (!state.preview) {
+  if (!view?.preview) {
     const empty = document.createElement("div");
     empty.className = "empty-state compact";
     empty.textContent = "No artifact selected";
@@ -808,43 +977,44 @@ function renderPreview(): void {
   const header = document.createElement("div");
   header.className = "preview-header";
   const title = document.createElement("strong");
-  title.textContent = state.preview.path;
+  title.textContent = view.preview.path;
   const meta = document.createElement("span");
-  meta.textContent = `${state.preview.previewKind} / ${formatBytes(state.preview.size)}${
-    state.preview.truncated ? " / truncated" : ""
+  meta.textContent = `${view.preview.previewKind} / ${formatBytes(view.preview.size)}${
+    view.preview.truncated ? " / truncated" : ""
   }`;
   header.append(title, meta);
   elements.previewContent.append(header);
 
   elements.previewContent.append(renderArtifactReview());
 
-  if (state.preview.previewKind === "html") {
+  if (view.preview.previewKind === "html") {
     const frame = document.createElement("iframe");
     frame.className = "html-preview";
     frame.sandbox.value = "";
-    frame.srcdoc = state.preview.content ?? "";
+    frame.srcdoc = view.preview.content ?? "";
     elements.previewContent.append(frame);
     return;
   }
 
-  if (state.preview.previewKind === "image" && state.preview.dataUrl) {
+  if (view.preview.previewKind === "image" && view.preview.dataUrl) {
     const image = document.createElement("img");
     image.className = "image-preview";
-    image.src = state.preview.dataUrl;
-    image.alt = state.preview.path;
+    image.src = view.preview.dataUrl;
+    image.alt = view.preview.path;
     elements.previewContent.append(image);
     return;
   }
 
   const pre = document.createElement("pre");
   pre.className = "text-preview";
-  pre.textContent = state.preview.content ?? "";
+  pre.textContent = view.preview.content ?? "";
   elements.previewContent.append(pre);
 }
 
 function renderArtifactReview(): HTMLElement {
   const section = document.createElement("section");
   section.className = "artifact-review";
+  const view = activeTaskView();
 
   const artifact = selectedArtifact();
   const run = artifact ? runForArtifact(artifact) : null;
@@ -862,12 +1032,12 @@ function renderArtifactReview(): HTMLElement {
 
   section.append(
     reviewRow("State", "Candidate"),
-    reviewRow("Candidate", artifact?.path ?? state.preview?.path ?? "unknown"),
-    reviewRow("Kind", artifact ? artifactKindLabel(artifact.kind) : state.preview?.previewKind ?? "unknown"),
+    reviewRow("Candidate", artifact?.path ?? view?.preview?.path ?? "unknown"),
+    reviewRow("Kind", artifact ? artifactKindLabel(artifact.kind) : view?.preview?.previewKind ?? "unknown"),
     reviewRow("Change", artifact?.changeKind ?? "unknown"),
     reviewRow("Source Run", run?.title ?? artifact?.runId ?? "unknown"),
     reviewRow("Run outcome", run ? runOutcome(run) : "unknown"),
-    reviewRow("Preview", state.preview ? previewEvidenceLabel(state.preview) : "not loaded"),
+    reviewRow("Preview", view?.preview ? previewEvidenceLabel(view.preview) : "not loaded"),
     reviewRow("Report source", ".duet/runtime-report.json"),
     reviewRow("Raw terminal", "not persisted"),
   );
@@ -882,13 +1052,13 @@ function renderArtifactReview(): HTMLElement {
     }, !run),
     reviewAction("Continue", () => {
       focusComposer();
-    }, !state.task),
+    }, !view?.task),
     reviewAction("Inspector", () => {
       setSideView("inspector");
-    }, !state.report),
+    }, !view?.report),
     reviewAction("Terminal", () => {
       setSideView("terminal");
-    }, !state.task),
+    }, !view?.task),
   );
   section.append(actions);
 
@@ -898,7 +1068,8 @@ function renderArtifactReview(): HTMLElement {
 function renderInspector(): void {
   elements.inspectorContent.replaceChildren();
 
-  const report = state.report;
+  const view = activeTaskView();
+  const report = view?.report;
   if (!report) {
     const empty = document.createElement("div");
     empty.className = "empty-state compact";
@@ -915,11 +1086,11 @@ function renderInspector(): void {
     inspectorRow("Task", report.taskId),
     inspectorRow("Runs", String(report.runs.length)),
     inspectorRow("Generated", formatTimestamp(report.generatedAt)),
-    inspectorRow("Workspace", state.task?.workingDirectory ?? report.runtime?.cwd ?? "unknown"),
+    inspectorRow("Workspace", view?.task?.workingDirectory ?? report.runtime?.cwd ?? "unknown"),
     inspectorRow("Report", ".duet/runtime-report.json"),
     inspectorRow("Raw terminal", report.rawTerminalPointer === null ? "not persisted" : "linked"),
     inspectorRow("Raw policy", report.rawTerminalPolicy),
-    inspectorRow("Provider session", state.task?.providerSessionRef ?? "not claimed"),
+    inspectorRow("Provider session", view?.task?.providerSessionRef ?? "not claimed"),
   );
   elements.inspectorContent.append(summary);
 
@@ -1064,8 +1235,8 @@ function renderSideView(): void {
   }
 }
 
-function appendLiveTranscript(data: string): void {
-  if (!state.liveTranscriptRunId) {
+function appendLiveTranscript(view: TaskViewState, data: string): void {
+  if (!view.liveTranscriptRunId) {
     return;
   }
 
@@ -1074,28 +1245,28 @@ function appendLiveTranscript(data: string): void {
     return;
   }
 
-  const transcript = ensureRunTranscript(state.liveTranscriptRunId);
+  const transcript = ensureRunTranscript(view, view.liveTranscriptRunId);
   const nextText = `${transcript.text}${text}`;
   transcript.truncated = transcript.truncated || nextText.length > MAX_TRANSCRIPT_CHARS;
   transcript.text = nextText.slice(-MAX_TRANSCRIPT_CHARS);
   scheduleTranscriptRender();
 }
 
-function ensureRunTranscript(runId: string): RunTranscript {
-  let transcript = state.runTranscripts.find((item) => item.runId === runId);
+function ensureRunTranscript(view: TaskViewState, runId: string): RunTranscript {
+  let transcript = view.runTranscripts.find((item) => item.runId === runId);
   if (!transcript) {
     transcript = {
       runId,
       text: "",
       truncated: false,
     };
-    state.runTranscripts = [...state.runTranscripts, transcript];
+    view.runTranscripts = [...view.runTranscripts, transcript];
   }
   return transcript;
 }
 
-function transcriptForRun(runId: string): RunTranscript | null {
-  return state.runTranscripts.find((item) => item.runId === runId) ?? null;
+function transcriptForRun(view: TaskViewState, runId: string): RunTranscript | null {
+  return view.runTranscripts.find((item) => item.runId === runId) ?? null;
 }
 
 function scheduleTranscriptRender(): void {
@@ -1118,50 +1289,53 @@ function cleanTerminalText(data: string): string {
 }
 
 async function openArtifact(relativePath: string): Promise<void> {
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return;
   }
 
   await window.duetRuntime.openPreview({
-    taskId: state.task.id,
+    taskId: view.task.id,
     relativePath,
   });
 
   state.sideView = "preview";
-  state.selectedArtifactPath = relativePath;
-  state.previewError = null;
+  view.selectedArtifactPath = relativePath;
+  view.previewError = null;
   render();
 
   try {
-    state.preview = await window.duetRuntime.readArtifact({
-      taskId: state.task.id,
+    view.preview = await window.duetRuntime.readArtifact({
+      taskId: view.task.id,
       relativePath,
     });
   } catch (error) {
-    state.preview = null;
-    state.previewError = errorMessage(error);
+    view.preview = null;
+    view.previewError = errorMessage(error);
   }
   render();
 }
 
 async function openFloatingPreview(): Promise<void> {
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return;
   }
 
   await window.duetRuntime.openPreview({
-    taskId: state.task.id,
-    ...(state.selectedArtifactPath ? { relativePath: state.selectedArtifactPath } : {}),
+    taskId: view.task.id,
+    ...(view.selectedArtifactPath ? { relativePath: view.selectedArtifactPath } : {}),
   });
 }
 
 async function openFloatingInspector(): Promise<void> {
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return;
   }
 
   await window.duetRuntime.openInspector({
-    taskId: state.task.id,
+    taskId: view.task.id,
     lens: "run",
   });
 }
@@ -1172,7 +1346,10 @@ function setSideView(view: SideView): void {
 }
 
 function focusRun(runId: string): void {
-  state.highlightedRunId = runId;
+  const view = activeTaskView();
+  if (view) {
+    view.highlightedRunId = runId;
+  }
   render();
   queueMicrotask(() => {
     const runCard = Array.from(elements.runList.querySelectorAll<HTMLElement>(".run-card")).find(
@@ -1187,7 +1364,8 @@ function focusComposer(): void {
 }
 
 function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): string {
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return "Start or open a Task";
   }
   if (pendingApproval) {
@@ -1196,7 +1374,7 @@ function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): stri
   if (activeRun) {
     return "Codex is working";
   }
-  if ((state.report?.runs.length ?? 0) === 0) {
+  if ((view.report?.runs.length ?? 0) === 0) {
     return "Describe the first Run";
   }
   return "Continue, correct, or redirect this Task";
@@ -1206,10 +1384,11 @@ function sendButtonLabel(activeRun: boolean): string {
   if (activeRun) {
     return "Working";
   }
-  if (!state.task) {
+  const view = activeTaskView();
+  if (!view?.task) {
     return "Send";
   }
-  if ((state.report?.runs.length ?? 0) === 0) {
+  if ((view.report?.runs.length ?? 0) === 0) {
     return "Start Run";
   }
   return "Continue";
@@ -1418,14 +1597,15 @@ function formatElapsed(value: number | null): string {
 }
 
 function selectedArtifact(): ArtifactCandidate | null {
-  if (!state.selectedArtifactPath) {
+  const view = activeTaskView();
+  if (!view?.selectedArtifactPath) {
     return null;
   }
-  return state.artifacts.find((artifact) => artifact.path === state.selectedArtifactPath) ?? null;
+  return view.artifacts.find((artifact) => artifact.path === view.selectedArtifactPath) ?? null;
 }
 
 function runForArtifact(artifact: ArtifactCandidate): RuntimeRunReport | null {
-  return state.report?.runs.find((run) => run.runId === artifact.runId) ?? null;
+  return activeTaskView()?.report?.runs.find((run) => run.runId === artifact.runId) ?? null;
 }
 
 function artifactKindLabel(kind: ArtifactCandidate["kind"]): string {
@@ -1540,6 +1720,10 @@ function formatMaybeBytes(value: number | null): string {
 
 function shortHash(value: string): string {
   return value.length > 12 ? value.slice(0, 12) : value;
+}
+
+function shortId(value: string): string {
+  return value.length > 18 ? `${value.slice(0, 18)}...` : value;
 }
 
 function formatBytes(value: number): string {

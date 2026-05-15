@@ -32,11 +32,12 @@ interface ActiveTaskRuntime {
   terminalHost: TerminalHost;
   runIndex: RunIndex;
   reportPath: string;
+  runtime: ReturnType<TerminalHost["startTask"]>;
 }
 
 export class RuntimeController {
   private readonly sendEvent: (event: RuntimeEvent) => void;
-  private activeTask: ActiveTaskRuntime | null = null;
+  private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private taskSeq = 0;
 
   constructor(options: RuntimeControllerOptions) {
@@ -47,8 +48,6 @@ export class RuntimeController {
     if (request.provider !== "codex") {
       throw new Error("Only Codex is supported in the walking skeleton.");
     }
-
-    this.disposeActiveTask();
 
     const now = new Date().toISOString();
     const taskId = this.nextTaskId();
@@ -87,27 +86,40 @@ export class RuntimeController {
       ...(request.cols !== undefined ? { cols: request.cols } : {}),
     });
 
-    this.activeTask = {
-      task: { ...task, status: "running", updatedAt: new Date().toISOString() },
+    const runningTask: Task = {
+      ...task,
+      status: "running",
+      updatedAt: new Date().toISOString(),
+    };
+    const activeTask: ActiveTaskRuntime = {
+      task: runningTask,
       terminalHost,
       runIndex,
       reportPath,
+      runtime,
     };
-    this.persistTaskManifest(this.activeTask.task);
+    this.taskRuntimes.set(activeTask.task.id, activeTask);
+    this.persistTaskManifest(activeTask.task);
 
     return {
-      task: this.activeTask.task,
+      task: activeTask.task,
       runtime,
     };
   }
 
   openTask(request: OpenTaskRequest): CreateTaskResponse {
-    this.disposeActiveTask();
-
     const cwd = this.resolveOpenTaskWorkspace(request);
     const manifest = this.readTaskManifest(cwd);
     if (request.taskId && manifest.task.id !== request.taskId) {
       throw new Error("Task manifest does not match the requested taskId.");
+    }
+    const existing = this.taskRuntimes.get(manifest.task.id);
+    if (existing) {
+      this.emitReportUpdated(existing.runIndex);
+      return {
+        task: existing.task,
+        runtime: existing.runtime,
+      };
     }
 
     const task = {
@@ -133,27 +145,17 @@ export class RuntimeController {
       ...(request.cols !== undefined ? { cols: request.cols } : {}),
     });
 
-    this.activeTask = {
+    const activeTask = {
       task,
       terminalHost,
       runIndex,
       reportPath,
+      runtime,
     };
+    this.taskRuntimes.set(task.id, activeTask);
     this.persistTaskManifest(task);
 
-    const summary = runIndex.summary();
-    this.sendEvent({
-      type: "report:updated",
-      payload: {
-        taskId: summary.taskId,
-        reportPath: summary.reportPath,
-        runCount: summary.runCount,
-        latestRunId: summary.latestRun?.runId ?? null,
-        rawTerminalPersisted: false,
-        rawTerminalPointer: null,
-      },
-      ts: new Date().toISOString(),
-    });
+    this.emitReportUpdated(runIndex);
 
     return {
       task,
@@ -161,13 +163,19 @@ export class RuntimeController {
     };
   }
 
+  closeTask(taskId: TaskId): void {
+    const active = this.requireTaskRuntime(taskId);
+    this.disposeTaskRuntime(active);
+    this.taskRuntimes.delete(taskId);
+  }
+
   submitPrompt(taskId: TaskId, text: string): void {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     active.terminalHost.submitPrompt(text);
   }
 
   decideApproval(taskId: TaskId, decision: "approve" | "deny"): void {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     if (decision === "approve") {
       active.terminalHost.sendApprove();
       return;
@@ -176,47 +184,50 @@ export class RuntimeController {
   }
 
   async stopRun(taskId: TaskId, options: { inspectDelayMs?: number; forceSlashStop?: boolean }): Promise<void> {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     await active.terminalHost.stopRun(options);
   }
 
   resizeTerminal(taskId: TaskId, cols: number, rows: number): void {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     active.terminalHost.resize(cols, rows);
   }
 
   readReport(taskId: TaskId): RuntimeReportV1 {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     return active.runIndex.read();
   }
 
   listArtifacts(taskId: TaskId): ArtifactCandidate[] {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     return this.currentArtifactPreview(active).listArtifacts();
   }
 
   readArtifact(taskId: TaskId, relativePath: string): ReturnType<ArtifactPreview["readArtifact"]> {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     return this.currentArtifactPreview(active).readArtifact(relativePath);
   }
 
   readWorkspaceTree(taskId: TaskId): WorkspaceTreeEntry[] {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     return this.currentWorkspacePreview(active).readTree();
   }
 
   readWorkspaceFile(taskId: TaskId, relativePath: string): WorkspaceFilePreviewResponse {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     return this.currentWorkspacePreview(active).readFile(relativePath);
   }
 
   workspacePath(taskId: TaskId): string {
-    const active = this.requireActiveTask(taskId);
+    const active = this.requireTaskRuntime(taskId);
     return this.workspaceRoot(active);
   }
 
   dispose(): void {
-    this.disposeActiveTask();
+    for (const active of this.taskRuntimes.values()) {
+      this.disposeTaskRuntime(active);
+    }
+    this.taskRuntimes.clear();
   }
 
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
@@ -231,6 +242,11 @@ export class RuntimeController {
       return;
     }
 
+    this.emitReportUpdated(runIndex);
+  }
+
+  private emitReportUpdated(runIndex: RunIndex): void {
+    const summary = runIndex.summary();
     const reportEvent: RuntimeReportUpdatedEvent = {
       type: "report:updated",
       payload: {
@@ -264,24 +280,21 @@ export class RuntimeController {
     return active.terminalHost.workspace ?? active.task.workingDirectory;
   }
 
-  private requireActiveTask(taskId: TaskId): ActiveTaskRuntime {
-    if (!this.activeTask || this.activeTask.task.id !== taskId) {
-      throw new Error("No active runtime task matches the requested taskId.");
+  private requireTaskRuntime(taskId: TaskId): ActiveTaskRuntime {
+    const active = this.taskRuntimes.get(taskId);
+    if (!active) {
+      throw new Error("No runtime task matches the requested taskId.");
     }
-    return this.activeTask;
+    return active;
   }
 
-  private disposeActiveTask(): void {
-    if (!this.activeTask) {
-      return;
-    }
+  private disposeTaskRuntime(active: ActiveTaskRuntime): void {
     this.persistTaskManifest({
-      ...this.activeTask.task,
+      ...active.task,
       status: "idle",
       updatedAt: new Date().toISOString(),
     });
-    this.activeTask.terminalHost.dispose();
-    this.activeTask = null;
+    active.terminalHost.dispose();
   }
 
   private nextTaskId(): TaskId {

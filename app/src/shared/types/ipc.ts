@@ -11,6 +11,7 @@ import type { RuntimeReportSummaryV1, RuntimeReportV1 } from "../schemas/runtime
 export const IPC_CHANNELS = {
   taskCreate: "task:create",
   taskOpen: "task:open",
+  taskClose: "task:close",
   promptSubmit: "prompt:submit",
   approvalDecide: "approval:decide",
   runStop: "run:stop",
@@ -60,6 +61,10 @@ export interface OpenTaskRequest {
 }
 
 export type OpenTaskResponse = CreateTaskResponse;
+
+export interface CloseTaskRequest {
+  taskId: TaskId;
+}
 
 export interface SubmitPromptRequest {
   taskId: TaskId;
@@ -171,6 +176,7 @@ export interface WorkspaceOpenFolderRequest {
 export interface DuetRuntimeBridge {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
   openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
+  closeTask(request: CloseTaskRequest): Promise<void>;
   submitPrompt(request: SubmitPromptRequest): Promise<void>;
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;
   stopRun(request: StopRunRequest): Promise<void>;

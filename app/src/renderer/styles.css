@@ -171,6 +171,97 @@ h2 {
   grid-template-columns: minmax(0, 1fr) minmax(420px, 520px);
 }
 
+.task-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  border-bottom: 1px solid #d5d1c7;
+  padding: 8px 12px;
+  background: #eeebe3;
+}
+
+.task-tab-empty {
+  color: #625d54;
+  font-size: 12px;
+  line-height: 32px;
+}
+
+.task-tab-item {
+  display: flex;
+  align-items: stretch;
+  min-width: 190px;
+  max-width: 280px;
+  overflow: hidden;
+  border: 1px solid #d5d1c7;
+  border-radius: 7px;
+  background: #fffefa;
+}
+
+.task-tab-item.active {
+  border-color: #2f5d50;
+  background: #e5efe9;
+}
+
+.task-tab {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 7px;
+  min-height: 36px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  padding: 6px 8px;
+  color: #302d28;
+  background: transparent;
+  text-align: left;
+}
+
+.task-tab-label,
+.task-tab-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-tab-label {
+  grid-column: 1 / 2;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.task-tab-meta {
+  grid-column: 1 / 2;
+  color: #6f695f;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
+.task-tab-dot {
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #2f8f5b;
+}
+
+.task-tab-close {
+  flex: 0 0 30px;
+  min-height: 0;
+  border: 0;
+  border-left: 1px solid #e2ddd3;
+  border-radius: 0;
+  padding: 0;
+  color: #6f695f;
+  background: transparent;
+  font-size: 13px;
+}
+
 .run-column {
   min-width: 0;
   min-height: 0;
