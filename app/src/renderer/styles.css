@@ -367,6 +367,7 @@ h2 {
 
 .run-card,
 .empty-state,
+.task-entry-panel,
 .panel {
   border: 1px solid #d5d1c7;
   border-radius: 8px;
@@ -384,6 +385,67 @@ h2 {
 
 .run-card + .run-card {
   margin-top: 12px;
+}
+
+.task-entry-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  max-width: 760px;
+  padding: 18px;
+}
+
+.task-entry-copy {
+  min-width: 0;
+}
+
+.task-entry-copy h2 {
+  font-size: 18px;
+}
+
+.task-entry-body {
+  max-width: 560px;
+  margin: 9px 0 0;
+  color: #4f4a41;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.task-entry-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.task-entry-facts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.task-entry-fact {
+  display: grid;
+  gap: 2px;
+  min-width: 130px;
+  border: 1px solid #ded9ce;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #f8f6ef;
+}
+
+.task-entry-fact span {
+  color: #69665f;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.task-entry-fact strong {
+  color: #302d28;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .run-card-header {
@@ -1289,6 +1351,14 @@ textarea {
 @media (max-width: 980px) {
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .task-entry-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .task-entry-actions {
+    flex-wrap: wrap;
   }
 
   .side-column {

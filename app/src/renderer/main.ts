@@ -749,12 +749,17 @@ function renderWorkflow(): void {
 function renderRuns(): void {
   elements.runList.replaceChildren();
   const view = activeTaskView();
+  if (!view?.task) {
+    elements.runList.append(renderTaskEntryPanel());
+    return;
+  }
+
   const runs = view?.report?.runs ?? [];
 
   if (runs.length === 0) {
     const empty = document.createElement("article");
     empty.className = "empty-state";
-    empty.textContent = view?.task ? "No Runs yet" : "Create a Task to start";
+    empty.textContent = "No Runs yet";
     elements.runList.append(empty);
     return;
   }
@@ -762,6 +767,67 @@ function renderRuns(): void {
   for (const [index, run] of runs.entries()) {
     elements.runList.append(renderRun(run, index));
   }
+}
+
+function renderTaskEntryPanel(): HTMLElement {
+  const panel = document.createElement("article");
+  panel.className = "task-entry-panel";
+
+  const copy = document.createElement("div");
+  copy.className = "task-entry-copy";
+  const eyebrow = document.createElement("p");
+  eyebrow.className = "eyebrow";
+  eyebrow.textContent = "Task Entry";
+  const title = document.createElement("h2");
+  title.textContent = "Start or open a Task";
+  const body = document.createElement("p");
+  body.className = "task-entry-body";
+  body.textContent = "One Task owns one native Codex session. Runs, changes, and artifacts stay attached to that Task.";
+  copy.append(eyebrow, title, body);
+
+  const actions = document.createElement("div");
+  actions.className = "task-entry-actions";
+  const newTask = document.createElement("button");
+  newTask.id = "entry-new-task";
+  newTask.className = "primary";
+  newTask.type = "button";
+  newTask.disabled = state.busy;
+  newTask.textContent = "New Task";
+  newTask.addEventListener("click", () => {
+    void createTask();
+  });
+  const openTaskButton = document.createElement("button");
+  openTaskButton.id = "entry-open-task";
+  openTaskButton.className = "secondary";
+  openTaskButton.type = "button";
+  openTaskButton.disabled = state.busy;
+  openTaskButton.textContent = "Open Latest Task";
+  openTaskButton.addEventListener("click", () => {
+    void openTask();
+  });
+  actions.append(newTask, openTaskButton);
+
+  const facts = document.createElement("div");
+  facts.className = "task-entry-facts";
+  facts.append(
+    taskEntryFact("Runtime", "Codex PTY"),
+    taskEntryFact("Reading", "Run transcript"),
+    taskEntryFact("Preview", "artifact candidates"),
+  );
+
+  panel.append(copy, actions, facts);
+  return panel;
+}
+
+function taskEntryFact(label: string, value: string): HTMLElement {
+  const fact = document.createElement("div");
+  fact.className = "task-entry-fact";
+  const key = document.createElement("span");
+  key.textContent = label;
+  const val = document.createElement("strong");
+  val.textContent = value;
+  fact.append(key, val);
+  return fact;
 }
 
 function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
