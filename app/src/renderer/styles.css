@@ -216,6 +216,81 @@ h2 {
   white-space: pre-wrap;
 }
 
+.run-reading {
+  margin: 12px 0;
+  border-top: 1px solid #e2ddd3;
+  border-bottom: 1px solid #e2ddd3;
+  padding: 10px 0;
+}
+
+.run-outcome {
+  border-left: 3px solid #8f887b;
+  padding-left: 10px;
+  color: #2d2924;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.run-outcome.complete {
+  border-left-color: #2f5d50;
+}
+
+.run-outcome.waiting {
+  border-left-color: #c8a94d;
+}
+
+.run-outcome.attention {
+  border-left-color: #9a4d3f;
+}
+
+.run-outcome.active {
+  border-left-color: #4d668f;
+}
+
+.run-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.run-evidence span {
+  border: 1px solid #ded9ce;
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #4f4a41;
+  background: #f4f1eb;
+  font-size: 12px;
+}
+
+.run-timeline {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0 0;
+  padding: 0;
+  color: #575147;
+  font-size: 12px;
+  list-style: none;
+}
+
+.run-timeline li {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.run-timeline li::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: #8f887b;
+}
+
 .run-metadata,
 .path-list {
   color: #625d54;

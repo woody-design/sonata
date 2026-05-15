@@ -36,6 +36,14 @@ try {
 
   await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
   await page.locator(".artifact-item", { hasText: "page.html" }).waitFor({ state: "visible" });
+  await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".run-evidence", { hasText: "terminal-idle-heuristic" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".run-timeline", { hasText: "2 files changed" }).waitFor({ state: "visible" });
+  await page.locator(".run-timeline", { hasText: "2 artifacts ready" }).waitFor({ state: "visible" });
 
   await page.locator(".artifact-item", { hasText: "report.md" }).click();
   await page.locator(".preview-header", { hasText: "report.md" }).waitFor({ state: "visible" });

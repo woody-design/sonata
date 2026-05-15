@@ -58,6 +58,21 @@ try {
 
   await page.locator("#stop-run").click();
   await page.locator("#runtime-status", { hasText: "Stopped" }).waitFor({ timeout: 90000 });
+  await page.locator(".run-outcome", { hasText: "Stopped by Esc + /stop" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".run-evidence", { hasText: "native-control / high" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".run-timeline", { hasText: "Command approval requested" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".run-timeline", { hasText: "Command approval approved" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".run-timeline", { hasText: "/stop sent for native cleanup" }).waitFor({
+    state: "visible",
+  });
 
   const commandStopped = await waitUntil(() => !pidAlive(commandPid), 45000).then(
     () => true,

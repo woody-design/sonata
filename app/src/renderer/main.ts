@@ -436,6 +436,35 @@ function renderRun(run: RuntimeRunReport): HTMLElement {
   prompt.className = "prompt-text";
   prompt.textContent = run.prompt;
 
+  const reading = document.createElement("section");
+  reading.className = "run-reading";
+
+  const outcome = document.createElement("div");
+  outcome.className = `run-outcome ${runTone(run)}`;
+  outcome.textContent = runOutcome(run);
+  reading.append(outcome);
+
+  const evidence = document.createElement("div");
+  evidence.className = "run-evidence";
+  evidence.append(
+    evidencePill("Evidence", completionLabel(run)),
+    evidencePill("Lifecycle", run.lifecyclePhase),
+    evidencePill("Elapsed", formatElapsed(run.elapsedMs)),
+  );
+  reading.append(evidence);
+
+  const timeline = runTimeline(run);
+  if (timeline.length > 0) {
+    const list = document.createElement("ul");
+    list.className = "run-timeline";
+    for (const entry of timeline) {
+      const item = document.createElement("li");
+      item.textContent = entry;
+      list.append(item);
+    }
+    reading.append(list);
+  }
+
   const metadata = document.createElement("div");
   metadata.className = "run-metadata";
   metadata.append(
@@ -444,7 +473,7 @@ function renderRun(run: RuntimeRunReport): HTMLElement {
     metadataItem("Artifacts", String(run.artifactCandidates.length)),
   );
 
-  card.append(header, prompt, metadata);
+  card.append(header, prompt, reading, metadata);
 
   if (run.changedFiles.length > 0) {
     const list = document.createElement("ul");
@@ -671,11 +700,131 @@ function metadataItem(label: string, value: string): HTMLElement {
   return item;
 }
 
+function evidencePill(label: string, value: string): HTMLElement {
+  const item = document.createElement("span");
+  item.textContent = `${label}: ${value}`;
+  return item;
+}
+
 function completionLabel(run: RuntimeRunReport): string {
   if (!run.completionSource) {
     return "pending";
   }
   return `${run.completionSource} / ${run.completionConfidence ?? "low"}`;
+}
+
+function runOutcome(run: RuntimeRunReport): string {
+  if (run.status === "waiting-for-approval") {
+    return `Waiting for ${approvalKindLabel(run.approvalKind)} approval`;
+  }
+  if (run.status === "resumed-after-approval") {
+    return `Resumed after ${approvalKindLabel(run.approvalKind)} approval`;
+  }
+  if (run.status === "stopped") {
+    return run.stopEvents.some((event) => event.action === "stopped" && event.slashStopSent)
+      ? "Stopped by Esc + /stop"
+      : "Stopped by Esc";
+  }
+  if (run.status === "approval-denied") {
+    return `${approvalKindLabel(run.approvalKind)} approval denied`;
+  }
+  if (run.status === "completed" && run.completionSource === "terminal-idle-heuristic") {
+    return "Completed by terminal idle heuristic";
+  }
+  if (run.status === "completed") {
+    return "Completed";
+  }
+  if (run.status === "pty-exited") {
+    return "PTY exited";
+  }
+  if (run.status === "failed") {
+    return "Failed";
+  }
+  return "Codex is working";
+}
+
+function runTone(run: RuntimeRunReport): string {
+  if (run.status === "stopped" || run.status === "approval-denied" || run.status === "failed") {
+    return "attention";
+  }
+  if (run.status === "completed") {
+    return "complete";
+  }
+  if (run.status === "waiting-for-approval") {
+    return "waiting";
+  }
+  return "active";
+}
+
+function runTimeline(run: RuntimeRunReport): string[] {
+  const entries: string[] = [];
+
+  for (const approval of run.approvalEvents) {
+    if (approval.action === "detected") {
+      entries.push(`${approvalKindLabel(approval.kind)} approval requested`);
+      continue;
+    }
+    entries.push(
+      `${approvalKindLabel(approval.previousKind)} approval ${approvalDecisionLabel(approval.decision)} via ${
+        approval.encodedAs ?? "native control"
+      }`,
+    );
+  }
+
+  for (const stop of run.stopEvents) {
+    if (stop.action === "interrupt") {
+      entries.push(`Interrupt sent via ${stop.encodedAs ?? "native control"}`);
+      continue;
+    }
+    entries.push(stop.slashStopSent ? "/stop sent for native cleanup" : "Stopped without /stop");
+  }
+
+  if (run.changedFiles.length > 0) {
+    entries.push(`${pluralize(run.changedFiles.length, "file")} changed`);
+  }
+
+  if (run.artifactCandidates.length > 0) {
+    entries.push(`${pluralize(run.artifactCandidates.length, "artifact")} ready`);
+  }
+
+  return entries;
+}
+
+function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
+  if (kind === "workspace-trust") {
+    return "Workspace trust";
+  }
+  if (kind === "file-edit") {
+    return "File edit";
+  }
+  if (kind === "command") {
+    return "Command";
+  }
+  return "Native";
+}
+
+function approvalDecisionLabel(decision: "approve" | "deny" | undefined): string {
+  if (decision === "approve") {
+    return "approved";
+  }
+  if (decision === "deny") {
+    return "denied";
+  }
+  return "decided";
+}
+
+function pluralize(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function formatElapsed(value: number | null): string {
+  if (value === null) {
+    return "running";
+  }
+  if (value < 1000) {
+    return `${value} ms`;
+  }
+  return `${(value / 1000).toFixed(1)} s`;
 }
 
 function inspectorRow(label: string, value: string): HTMLElement {
