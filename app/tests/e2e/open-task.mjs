@@ -23,6 +23,7 @@ try {
     "This artifact existed before reopening the Task.",
     "Do not modify any other files.",
   ].join("\n");
+  const expectedTaskTitle = originalPrompt.split("\n", 1)[0];
 
   await page.locator("#prompt-input").fill(originalPrompt);
   await page.locator("#send-prompt").click();
@@ -32,6 +33,8 @@ try {
   await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
+  await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
+  await page.locator(".task-tab-label", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
   await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({ state: "visible" });
 
   const manifestPath = path.join(workspace, ".duet", "task.json");
@@ -45,6 +48,8 @@ try {
 
   page = await launchApp("reopen");
   await page.locator("#open-task").click();
+  await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
+  await page.locator(".task-tab-label", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
   await page.locator(".artifact-item", { hasText: "open_original.md" }).waitFor({ state: "visible" });
   await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
@@ -98,6 +103,7 @@ try {
   const success =
     manifest.schemaId === "duet.task-manifest.v1" &&
     manifest.task.id === report.taskId &&
+    manifest.task.title === expectedTaskTitle &&
     Boolean(originalRun) &&
     Boolean(followupRun) &&
     report.runs.length >= 2 &&
@@ -112,6 +118,7 @@ try {
         reportPath,
         manifestSchema: manifest.schemaId,
         manifestTaskId: manifest.task.id,
+        manifestTaskTitle: manifest.task.title,
         reportTaskId: report.taskId,
         runCount: report.runs.length,
         originalRestored: Boolean(originalRun),

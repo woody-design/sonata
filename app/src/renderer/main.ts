@@ -189,6 +189,7 @@ fitTerminal();
 let transcriptRenderTimer: number | null = null;
 const MAX_TRANSCRIPT_CHARS = 40_000;
 const MAX_TERMINAL_BUFFER_CHARS = 80_000;
+const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
 const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 
@@ -261,6 +262,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 
   if (event.type === "run:started") {
+    updateTaskTitleFromRun(view, event.payload.title);
     view.liveTranscriptRunId = event.payload.id;
     view.runtimeReady = false;
     view.status = "Running";
@@ -473,6 +475,18 @@ function appendTerminalBuffer(view: TaskViewState, data: string): void {
   }
 }
 
+function updateTaskTitleFromRun(view: TaskViewState, title: string): void {
+  const nextTitle = title.trim();
+  if (!view.task || !nextTitle || !AUTO_TITLE_PLACEHOLDERS.has(view.task.title)) {
+    return;
+  }
+  view.task = {
+    ...view.task,
+    title: nextTitle,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 async function createTask(): Promise<void> {
   state.busy = true;
   state.status = "Starting Codex";
@@ -481,7 +495,6 @@ async function createTask(): Promise<void> {
   try {
     const response = await window.duetRuntime.createTask({
       provider: "codex",
-      title: "Walking Skeleton Task",
       approval: "on-request",
       sandbox: "read-only",
     });

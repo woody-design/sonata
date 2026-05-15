@@ -23,6 +23,9 @@ import {
 } from "../shared/schemas";
 import { ArtifactPreview, RunIndex, TerminalHost, WorkspacePreview } from "../runtime";
 
+const DEFAULT_TASK_TITLE = "New Task";
+const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
+
 interface RuntimeControllerOptions {
   sendEvent: (event: RuntimeEvent) => void;
 }
@@ -57,7 +60,7 @@ export class RuntimeController {
 
     const task: Task = {
       id: taskId,
-      title: request.title?.trim() || "Walking Skeleton Task",
+      title: request.title?.trim() || DEFAULT_TASK_TITLE,
       provider: "codex",
       runtimeSessionId: `runtime-${taskId}`,
       providerSessionRef: null,
@@ -235,6 +238,10 @@ export class RuntimeController {
   }
 
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
+    if (event.type === "run:started") {
+      this.updateTaskTitleFromRun(event.payload.taskId, event.payload.title);
+    }
+
     this.sendEvent(event);
 
     if (event.type === "pty:data" || event.type === "report:updated") {
@@ -247,6 +254,21 @@ export class RuntimeController {
     }
 
     this.emitReportUpdated(runIndex);
+  }
+
+  private updateTaskTitleFromRun(taskId: TaskId, title: string): void {
+    const active = this.taskRuntimes.get(taskId);
+    const nextTitle = title.trim();
+    if (!active || !nextTitle || !AUTO_TITLE_PLACEHOLDERS.has(active.task.title)) {
+      return;
+    }
+
+    active.task = {
+      ...active.task,
+      title: nextTitle,
+      updatedAt: new Date().toISOString(),
+    };
+    this.persistTaskManifest(active.task);
   }
 
   private emitReportUpdated(runIndex: RunIndex): void {
