@@ -9,6 +9,12 @@ import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
 
 type SideView = "preview" | "inspector" | "terminal";
 
+interface RunTranscript {
+  runId: string;
+  text: string;
+  truncated: boolean;
+}
+
 interface RendererState {
   task: Task | null;
   report: RuntimeReportV1 | null;
@@ -18,6 +24,8 @@ interface RendererState {
   selectedArtifactPath: string | null;
   pendingApproval: ApprovalDetectedEvent["payload"] | null;
   highlightedRunId: string | null;
+  liveTranscriptRunId: string | null;
+  runTranscripts: RunTranscript[];
   runtimeReady: boolean;
   composerObserved: boolean;
   sideView: SideView;
@@ -34,6 +42,8 @@ const state: RendererState = {
   selectedArtifactPath: null,
   pendingApproval: null,
   highlightedRunId: null,
+  liveTranscriptRunId: null,
+  runTranscripts: [],
   runtimeReady: false,
   composerObserved: false,
   sideView: "preview",
@@ -175,6 +185,11 @@ terminal.loadAddon(fitAddon);
 terminal.open(elements.terminal);
 fitTerminal();
 
+let transcriptRenderTimer: number | null = null;
+const MAX_TRANSCRIPT_CHARS = 40_000;
+const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
+const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
+
 elements.newTask.addEventListener("click", () => {
   void createTask();
 });
@@ -227,6 +242,23 @@ window.addEventListener("resize", () => {
 window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type === "pty:data") {
     terminal.write(event.payload.data);
+    if (state.task && event.payload.taskId === state.task.id) {
+      appendLiveTranscript(event.payload.data);
+    }
+    return;
+  }
+
+  if (event.type === "run:started" && state.task && event.payload.taskId === state.task.id) {
+    state.liveTranscriptRunId = event.payload.id;
+    ensureRunTranscript(event.payload.id);
+    render();
+    return;
+  }
+
+  if (event.type === "run:updated" && state.task && event.payload.taskId === state.task.id) {
+    if (!isActiveRunStatus(event.payload.status) && state.liveTranscriptRunId === event.payload.id) {
+      state.liveTranscriptRunId = null;
+    }
     return;
   }
 
@@ -269,6 +301,8 @@ render();
 async function createTask(): Promise<void> {
   state.busy = true;
   state.status = "Starting Codex";
+  state.liveTranscriptRunId = null;
+  state.runTranscripts = [];
   terminal.clear();
   render();
 
@@ -287,6 +321,8 @@ async function createTask(): Promise<void> {
     state.selectedArtifactPath = null;
     state.pendingApproval = null;
     state.highlightedRunId = null;
+    state.liveTranscriptRunId = null;
+    state.runTranscripts = [];
     state.runtimeReady = false;
     state.composerObserved = false;
     state.status = `Codex PTY ${response.runtime.pid}`;
@@ -301,6 +337,8 @@ async function createTask(): Promise<void> {
 async function openTask(): Promise<void> {
   state.busy = true;
   state.status = "Opening Task";
+  state.liveTranscriptRunId = null;
+  state.runTranscripts = [];
   terminal.clear();
   render();
 
@@ -314,6 +352,8 @@ async function openTask(): Promise<void> {
     state.selectedArtifactPath = null;
     state.pendingApproval = null;
     state.highlightedRunId = null;
+    state.liveTranscriptRunId = null;
+    state.runTranscripts = [];
     state.runtimeReady = false;
     state.composerObserved = false;
     state.status = `Opened Codex PTY ${response.runtime.pid}`;
@@ -629,6 +669,11 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
     reading.append(list);
   }
 
+  const transcript = renderRunTranscript(run);
+  if (transcript) {
+    reading.append(transcript);
+  }
+
   const review = document.createElement("section");
   review.className = "run-rhythm-section run-review";
   review.append(runSectionLabel("Review"));
@@ -681,6 +726,34 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
   }
 
   return card;
+}
+
+function renderRunTranscript(run: RuntimeRunReport): HTMLElement | null {
+  const transcript = transcriptForRun(run.runId);
+  const live = state.liveTranscriptRunId === run.runId;
+  if (!transcript && !live) {
+    return null;
+  }
+
+  const section = document.createElement("section");
+  section.className = "run-rhythm-section run-transcript";
+
+  const header = document.createElement("div");
+  header.className = "run-transcript-header";
+  header.append(runSectionLabel("Transcript"));
+
+  const stateLabel = document.createElement("span");
+  stateLabel.className = "run-transcript-state";
+  stateLabel.textContent = live ? "Live" : transcript?.truncated ? "Memory tail" : "Memory";
+  header.append(stateLabel);
+  section.append(header);
+
+  const pre = document.createElement("pre");
+  pre.className = "run-transcript-text";
+  pre.textContent = transcript?.text.trimEnd() || "Waiting for Codex output";
+  section.append(pre);
+
+  return section;
 }
 
 function renderArtifacts(): void {
@@ -989,6 +1062,59 @@ function renderSideView(): void {
       void resizeTerminal();
     });
   }
+}
+
+function appendLiveTranscript(data: string): void {
+  if (!state.liveTranscriptRunId) {
+    return;
+  }
+
+  const text = cleanTerminalText(data);
+  if (!text.trim()) {
+    return;
+  }
+
+  const transcript = ensureRunTranscript(state.liveTranscriptRunId);
+  const nextText = `${transcript.text}${text}`;
+  transcript.truncated = transcript.truncated || nextText.length > MAX_TRANSCRIPT_CHARS;
+  transcript.text = nextText.slice(-MAX_TRANSCRIPT_CHARS);
+  scheduleTranscriptRender();
+}
+
+function ensureRunTranscript(runId: string): RunTranscript {
+  let transcript = state.runTranscripts.find((item) => item.runId === runId);
+  if (!transcript) {
+    transcript = {
+      runId,
+      text: "",
+      truncated: false,
+    };
+    state.runTranscripts = [...state.runTranscripts, transcript];
+  }
+  return transcript;
+}
+
+function transcriptForRun(runId: string): RunTranscript | null {
+  return state.runTranscripts.find((item) => item.runId === runId) ?? null;
+}
+
+function scheduleTranscriptRender(): void {
+  if (transcriptRenderTimer !== null) {
+    return;
+  }
+  transcriptRenderTimer = window.setTimeout(() => {
+    transcriptRenderTimer = null;
+    render();
+  }, 160);
+}
+
+function cleanTerminalText(data: string): string {
+  return data
+    .replace(ANSI_RE, "")
+    .replace(CONTROL_RE, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n{4,}/g, "\n\n\n");
 }
 
 async function openArtifact(relativePath: string): Promise<void> {

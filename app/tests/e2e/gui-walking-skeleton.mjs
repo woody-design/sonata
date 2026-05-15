@@ -54,6 +54,13 @@ try {
   await page.locator(".run-card", { hasText: "Run 1" }).waitFor({ state: "visible" });
   await page.locator(".run-card", { hasText: "Request" }).waitFor({ state: "visible" });
   await page.locator(".run-card", { hasText: "Outcome" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Transcript" }).waitFor({ state: "visible" });
+  const transcriptText = await page.locator(".run-transcript-text").first().textContent();
+  const transcriptObserved =
+    Boolean(transcriptText) && transcriptText.trim().length > 40 && !transcriptText.includes("\u001b");
+  if (!transcriptObserved) {
+    throw new Error("Main Chat live transcript was not captured cleanly.");
+  }
   await page.locator(".run-card", { hasText: "Review" }).waitFor({ state: "visible" });
   await page.locator(".run-card", { hasText: "2 artifacts ready for review" }).waitFor({
     state: "visible",
@@ -272,6 +279,7 @@ try {
     latestRun?.changedFiles?.some((file) => file.path === "page.html") &&
     latestRun?.artifactCandidates?.some((artifact) => artifact.path === "report.md") &&
     latestRun?.artifactCandidates?.some((artifact) => artifact.path === "page.html") &&
+    transcriptObserved &&
     !rawTerminalPersisted;
 
   console.log(
@@ -283,6 +291,7 @@ try {
         runCount: report?.runs?.length ?? 0,
         changedFiles: latestRun?.changedFiles?.map((file) => `${file.changeKind}:${file.path}`) ?? [],
         artifactCandidates: latestRun?.artifactCandidates?.map((artifact) => artifact.path) ?? [],
+        transcriptObserved,
         rawTerminalPersisted,
         success,
       },

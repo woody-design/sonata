@@ -392,6 +392,52 @@ h2 {
   background: #8f887b;
 }
 
+.run-transcript {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  border: 1px solid #ded9ce;
+  border-radius: 6px;
+  padding: 10px;
+  background: #fffefa;
+}
+
+.run-transcript-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.run-transcript-header .run-rhythm-label {
+  margin-bottom: 0;
+}
+
+.run-transcript-state {
+  flex: 0 0 auto;
+  border: 1px solid #d5d1c7;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #4f4a41;
+  background: #f8f6ef;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.run-transcript-text {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid #e2ddd3;
+  border-radius: 5px;
+  padding: 10px;
+  color: #2b2823;
+  background: #fbfaf7;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .run-metadata,
 .path-list {
   color: #625d54;
