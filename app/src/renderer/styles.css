@@ -395,7 +395,8 @@ textarea {
 }
 
 .artifact-item {
-  display: block;
+  display: grid;
+  gap: 3px;
   width: 100%;
   min-height: 0;
   overflow: hidden;
@@ -406,8 +407,23 @@ textarea {
   background: #fffefa;
   font-size: 13px;
   text-align: left;
+}
+
+.artifact-item-title,
+.artifact-item-meta {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.artifact-item-title {
+  color: #302d28;
+  font-weight: 620;
+}
+
+.artifact-item-meta {
+  color: #6f695f;
+  font-size: 11px;
 }
 
 .artifact-item.selected {
@@ -438,6 +454,38 @@ textarea {
 .preview-header strong,
 .preview-header span {
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-review {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 10px;
+  border: 1px solid #ded9ce;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f8f6ef;
+}
+
+.artifact-review-title {
+  color: #302d28;
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.artifact-review-row {
+  display: grid;
+  grid-template-columns: minmax(82px, 120px) minmax(0, 1fr);
+  gap: 8px;
+  color: #625d54;
+  font-size: 12px;
+}
+
+.artifact-review-row strong {
+  overflow: hidden;
+  color: #332f29;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

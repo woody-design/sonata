@@ -95,6 +95,12 @@ try {
   await page.locator(".artifact-item", { hasText: "stop_recovery.md" }).waitFor({
     state: "visible",
   });
+  await page.locator(".artifact-item", { hasText: "stop_recovery.md" }).click();
+  await page.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".artifact-review", { hasText: "Markdown" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review", { hasText: "not persisted" }).waitFor({ state: "visible" });
 
   const reportPath = path.join(workspace, ".duet", "runtime-report.json");
   const report = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, "utf8")) : null;

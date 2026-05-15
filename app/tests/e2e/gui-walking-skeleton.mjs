@@ -47,12 +47,19 @@ try {
 
   await page.locator(".artifact-item", { hasText: "report.md" }).click();
   await page.locator(".preview-header", { hasText: "report.md" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".artifact-review", { hasText: "Markdown" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review", { hasText: "added" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review", { hasText: "not persisted" }).waitFor({ state: "visible" });
   await page.locator(".text-preview", { hasText: "Markdown artifact ready." }).waitFor({
     state: "visible",
   });
 
   await page.locator(".artifact-item", { hasText: "page.html" }).click();
   await page.locator(".preview-header", { hasText: "page.html" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review", { hasText: "HTML" }).waitFor({ state: "visible" });
   await page.locator(".html-preview").waitFor({ state: "visible" });
 
   await page.locator("#inspector-tab").click();

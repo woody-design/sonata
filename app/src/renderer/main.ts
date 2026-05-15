@@ -520,8 +520,14 @@ function renderArtifacts(): void {
     const item = document.createElement("button");
     item.className = "artifact-item";
     item.type = "button";
-    item.textContent = artifact.path;
     item.classList.toggle("selected", artifact.path === state.selectedArtifactPath);
+    const title = document.createElement("span");
+    title.className = "artifact-item-title";
+    title.textContent = artifact.path;
+    const meta = document.createElement("span");
+    meta.className = "artifact-item-meta";
+    meta.textContent = `${artifactKindLabel(artifact.kind)} / ${artifact.changeKind}`;
+    item.append(title, meta);
     item.addEventListener("click", () => {
       void openArtifact(artifact.path);
     });
@@ -559,6 +565,8 @@ function renderPreview(): void {
   header.append(title, meta);
   elements.previewContent.append(header);
 
+  elements.previewContent.append(renderArtifactReview());
+
   if (state.preview.previewKind === "html") {
     const frame = document.createElement("iframe");
     frame.className = "html-preview";
@@ -581,6 +589,30 @@ function renderPreview(): void {
   pre.className = "text-preview";
   pre.textContent = state.preview.content ?? "";
   elements.previewContent.append(pre);
+}
+
+function renderArtifactReview(): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "artifact-review";
+
+  const artifact = selectedArtifact();
+  const run = artifact ? runForArtifact(artifact) : null;
+
+  const title = document.createElement("div");
+  title.className = "artifact-review-title";
+  title.textContent = "Review candidate";
+  section.append(title);
+
+  section.append(
+    reviewRow("Candidate", artifact?.path ?? state.preview?.path ?? "unknown"),
+    reviewRow("Kind", artifact ? artifactKindLabel(artifact.kind) : state.preview?.previewKind ?? "unknown"),
+    reviewRow("Change", artifact?.changeKind ?? "unknown"),
+    reviewRow("Source Run", run?.title ?? artifact?.runId ?? "unknown"),
+    reviewRow("Preview", state.preview ? previewEvidenceLabel(state.preview) : "not loaded"),
+    reviewRow("Raw terminal", "not persisted"),
+  );
+
+  return section;
 }
 
 function renderInspector(): void {
@@ -706,6 +738,17 @@ function evidencePill(label: string, value: string): HTMLElement {
   return item;
 }
 
+function reviewRow(label: string, value: string): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "artifact-review-row";
+  const key = document.createElement("span");
+  key.textContent = label;
+  const val = document.createElement("strong");
+  val.textContent = value;
+  row.append(key, val);
+  return row;
+}
+
 function completionLabel(run: RuntimeRunReport): string {
   if (!run.completionSource) {
     return "pending";
@@ -825,6 +868,51 @@ function formatElapsed(value: number | null): string {
     return `${value} ms`;
   }
   return `${(value / 1000).toFixed(1)} s`;
+}
+
+function selectedArtifact(): ArtifactCandidate | null {
+  if (!state.selectedArtifactPath) {
+    return null;
+  }
+  return state.artifacts.find((artifact) => artifact.path === state.selectedArtifactPath) ?? null;
+}
+
+function runForArtifact(artifact: ArtifactCandidate): RuntimeRunReport | null {
+  return state.report?.runs.find((run) => run.runId === artifact.runId) ?? null;
+}
+
+function artifactKindLabel(kind: ArtifactCandidate["kind"]): string {
+  if (kind === "html") {
+    return "HTML";
+  }
+  if (kind === "markdown") {
+    return "Markdown";
+  }
+  if (kind === "pdf") {
+    return "PDF";
+  }
+  if (kind === "image") {
+    return "Image";
+  }
+  if (kind === "spreadsheet") {
+    return "Spreadsheet";
+  }
+  if (kind === "document") {
+    return "Document";
+  }
+  if (kind === "presentation") {
+    return "Presentation";
+  }
+  if (kind === "text") {
+    return "Text";
+  }
+  return "Unknown";
+}
+
+function previewEvidenceLabel(preview: ArtifactPreviewResponse): string {
+  return `${preview.previewKind} / ${formatBytes(preview.size)}${
+    preview.truncated ? " / truncated" : ""
+  }`;
 }
 
 function inspectorRow(label: string, value: string): HTMLElement {
