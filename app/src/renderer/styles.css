@@ -46,6 +46,13 @@ pre {
   flex-direction: column;
 }
 
+.floating-preview-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #eeebe3;
+}
+
 .topbar {
   min-height: 72px;
   display: flex;
@@ -54,6 +61,17 @@ pre {
   gap: 18px;
   padding: 12px 22px;
   border-bottom: 1px solid #d5d1c7;
+  background: #fbfaf7;
+}
+
+.floating-window-topbar {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid #d5d1c7;
+  padding: 10px 14px;
   background: #fbfaf7;
 }
 
@@ -455,6 +473,54 @@ textarea {
   background: #2f5d50;
 }
 
+.preview-window-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid #d5d1c7;
+  padding: 8px;
+  background: #f8f6ef;
+}
+
+.preview-window-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 240px;
+  min-height: 32px;
+  overflow: hidden;
+  border: 1px solid #ded9ce;
+  color: #403d37;
+  background: #fffefa;
+  font-size: 12px;
+}
+
+.preview-window-tab span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-window-tab.selected {
+  border-color: #2f5d50;
+  background: #e5efe9;
+}
+
+.preview-dirty-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #2f8f5b;
+}
+
+.preview-window-empty-tab {
+  color: #625d54;
+  font-size: 12px;
+  line-height: 32px;
+}
+
 .panel {
   flex: 1;
   min-height: 0;
@@ -530,9 +596,15 @@ textarea {
 }
 
 .preview-content,
-.inspector-content {
+.inspector-content,
+.preview-window-content {
   overflow: auto;
   padding: 10px;
+}
+
+.preview-window-content {
+  flex: 1;
+  min-height: 0;
 }
 
 .preview-header {

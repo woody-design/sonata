@@ -73,7 +73,25 @@ try {
   });
   await page.locator("#send-prompt", { hasText: "Continue" }).waitFor({ state: "visible" });
 
+  const previewWindowPromise = electronApp.waitForEvent("window");
   await page.locator(".artifact-item", { hasText: "report.md" }).click();
+  const previewPage = await previewWindowPromise;
+  previewPage.setDefaultTimeout(180000);
+  await previewPage.locator(".floating-preview-shell", { hasText: "report.md" }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".preview-window-tab", { hasText: "report.md" }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".artifact-review", { hasText: "Floating Preview" }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".artifact-review", { hasText: ".duet/runtime-report.json" }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".text-preview", { hasText: "Markdown artifact ready." }).waitFor({
+    state: "visible",
+  });
   await page.locator(".preview-header", { hasText: "report.md" }).waitFor({ state: "visible" });
   await page.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
     state: "visible",
@@ -117,6 +135,13 @@ try {
   });
 
   await page.locator(".artifact-item", { hasText: "page.html" }).click();
+  await previewPage.locator(".preview-window-tab", { hasText: "page.html" }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".floating-preview-shell", { hasText: "page.html" }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".html-preview").waitFor({ state: "visible" });
   await page.locator(".preview-header", { hasText: "page.html" }).waitFor({ state: "visible" });
   await page.locator(".artifact-review", { hasText: "HTML" }).waitFor({ state: "visible" });
   await page.locator(".html-preview").waitFor({ state: "visible" });

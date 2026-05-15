@@ -56,6 +56,7 @@ appElement.innerHTML = `
       </div>
       <div class="topbar-actions">
         <span id="runtime-status" class="status">Idle</span>
+        <button id="open-preview-window" class="secondary" type="button">Preview</button>
         <button id="open-task" class="secondary" type="button">Open Task</button>
         <button id="new-task" class="secondary" type="button">New Task</button>
       </div>
@@ -131,6 +132,7 @@ appElement.innerHTML = `
 const elements = {
   taskTitle: getElement<HTMLHeadingElement>("task-title"),
   runtimeStatus: getElement<HTMLSpanElement>("runtime-status"),
+  openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
   openTask: getElement<HTMLButtonElement>("open-task"),
   newTask: getElement<HTMLButtonElement>("new-task"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
@@ -177,6 +179,10 @@ elements.newTask.addEventListener("click", () => {
 
 elements.openTask.addEventListener("click", () => {
   void openTask();
+});
+
+elements.openPreviewWindow.addEventListener("click", () => {
+  void openFloatingPreview();
 });
 
 elements.composer.addEventListener("submit", (event) => {
@@ -410,6 +416,7 @@ async function resizeTerminal(): Promise<void> {
 function render(): void {
   elements.taskTitle.textContent = state.task?.title ?? "No active Task";
   elements.runtimeStatus.textContent = state.status;
+  elements.openPreviewWindow.disabled = !state.task || state.busy;
   elements.openTask.disabled = state.busy;
   elements.newTask.disabled = state.busy;
   const activeRun = hasActiveRun();
@@ -982,6 +989,11 @@ async function openArtifact(relativePath: string): Promise<void> {
     return;
   }
 
+  await window.duetRuntime.openPreview({
+    taskId: state.task.id,
+    relativePath,
+  });
+
   state.sideView = "preview";
   state.selectedArtifactPath = relativePath;
   state.previewError = null;
@@ -997,6 +1009,17 @@ async function openArtifact(relativePath: string): Promise<void> {
     state.previewError = errorMessage(error);
   }
   render();
+}
+
+async function openFloatingPreview(): Promise<void> {
+  if (!state.task) {
+    return;
+  }
+
+  await window.duetRuntime.openPreview({
+    taskId: state.task.id,
+    ...(state.selectedArtifactPath ? { relativePath: state.selectedArtifactPath } : {}),
+  });
 }
 
 function setSideView(view: SideView): void {

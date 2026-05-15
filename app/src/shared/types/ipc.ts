@@ -18,6 +18,9 @@ export const IPC_CHANNELS = {
   reportRead: "report:read",
   artifactList: "artifact:list",
   artifactRead: "artifact:read",
+  previewOpen: "preview:open",
+  previewStateRead: "preview:state:read",
+  previewState: "preview:state",
   runtimeEvent: "runtime:event",
 } as const;
 
@@ -100,6 +103,22 @@ export interface ArtifactPreviewResponse {
   rawTerminalPointer: null;
 }
 
+export interface OpenPreviewRequest {
+  taskId: TaskId;
+  relativePath?: string;
+}
+
+export interface PreviewWindowTab {
+  path: string;
+  dirty: boolean;
+}
+
+export interface PreviewWindowState {
+  taskId: TaskId | null;
+  tabs: PreviewWindowTab[];
+  selectedPath: string | null;
+}
+
 export interface DuetRuntimeBridge {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
   openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
@@ -110,6 +129,9 @@ export interface DuetRuntimeBridge {
   readReport(request: ReadReportRequest): Promise<RuntimeReportV1 | null>;
   listArtifacts(request: ListArtifactsRequest): Promise<ArtifactCandidate[]>;
   readArtifact(request: ReadArtifactRequest): Promise<ArtifactPreviewResponse>;
+  openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;
+  readPreviewState(): Promise<PreviewWindowState>;
+  onPreviewState(callback: (state: PreviewWindowState) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;
 }
 

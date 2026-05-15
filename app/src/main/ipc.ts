@@ -1,8 +1,16 @@
 import { ipcMain } from "electron";
-import { IPC_CHANNELS } from "../shared/types";
+import { IPC_CHANNELS, type OpenPreviewRequest, type PreviewWindowState } from "../shared/types";
 import type { RuntimeController } from "./runtime-controller";
 
-export function registerIpcHandlers(runtimeController: RuntimeController): void {
+export interface WindowIpcController {
+  openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;
+  readPreviewState(): PreviewWindowState;
+}
+
+export function registerIpcHandlers(
+  runtimeController: RuntimeController,
+  windowController: WindowIpcController,
+): void {
   ipcMain.handle(IPC_CHANNELS.taskCreate, (_event, request) =>
     runtimeController.createTask(request),
   );
@@ -33,4 +41,8 @@ export function registerIpcHandlers(runtimeController: RuntimeController): void 
   ipcMain.handle(IPC_CHANNELS.artifactRead, (_event, request) =>
     runtimeController.readArtifact(request.taskId, request.relativePath),
   );
+  ipcMain.handle(IPC_CHANNELS.previewOpen, (_event, request) =>
+    windowController.openPreview(request),
+  );
+  ipcMain.handle(IPC_CHANNELS.previewStateRead, () => windowController.readPreviewState());
 }

@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { IPC_CHANNELS, type DuetRuntimeBridge, type RuntimeEvent } from "../shared/types";
+import {
+  IPC_CHANNELS,
+  type DuetRuntimeBridge,
+  type PreviewWindowState,
+  type RuntimeEvent,
+} from "../shared/types";
 
 const duetRuntime: DuetRuntimeBridge = {
   createTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskCreate, request),
@@ -11,6 +16,15 @@ const duetRuntime: DuetRuntimeBridge = {
   readReport: (request) => ipcRenderer.invoke(IPC_CHANNELS.reportRead, request),
   listArtifacts: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactList, request),
   readArtifact: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactRead, request),
+  openPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewOpen, request),
+  readPreviewState: () => ipcRenderer.invoke(IPC_CHANNELS.previewStateRead),
+  onPreviewState: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, previewState: PreviewWindowState) => {
+      callback(previewState);
+    };
+    ipcRenderer.on(IPC_CHANNELS.previewState, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.previewState, listener);
+  },
   onRuntimeEvent: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, runtimeEvent: RuntimeEvent) => {
       callback(runtimeEvent);
