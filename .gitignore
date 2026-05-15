@@ -15,6 +15,9 @@ __pycache__/
 *.log
 
 # Provider/runtime diagnostic captures should be opt-in artifacts, not default source.
+spikes/**/control-workspace/**
+!spikes/**/control-workspace/
+!spikes/**/control-workspace/README.md
 spikes/**/sample-output/last-run.*
 spikes/**/sample-output/latest-*-summary.json
 spikes/**/sample-output/*.raw.jsonl
