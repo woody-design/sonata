@@ -13,6 +13,7 @@
     "build": "npm run clean && npm run typecheck && npm run build:main && npm run build:preload && npm run build:renderer",
     "start": "npm run build && electron dist/main/main.js",
     "dev": "npm run start",
+    "smoke:runtime-modules": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/runtime-modules.mjs",
     "rebuild:electron": "electron-rebuild -f -w node-pty"
   },
   "dependencies": {
