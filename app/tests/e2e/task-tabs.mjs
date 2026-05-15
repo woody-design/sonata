@@ -93,6 +93,37 @@ try {
     state: "visible",
   });
 
+  await page.locator(`.task-tab[data-task-id="${firstTaskId}"]`).click();
+  const inspectorWindowPromise = electronApp.waitForEvent("window");
+  await page.locator("#open-inspector-window").click();
+  const inspectorPage = await inspectorWindowPromise;
+  inspectorPage.setDefaultTimeout(180000);
+  await inspectorPage.locator("#inspector-window-title", { hasText: shortId(firstTaskId) }).waitFor({
+    state: "visible",
+  });
+  await page
+    .locator(".task-tab-item", { has: page.locator(`.task-tab[data-task-id="${firstTaskId}"]`) })
+    .locator(".task-tab-close")
+    .click();
+  await inspectorPage.locator("#inspector-window-title", { hasText: "No active Task" }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".preview-window-tab", { hasText: shortId(firstTaskId) }).waitFor({
+    state: "hidden",
+  });
+  await previewPage.locator(".preview-window-tab", { hasText: shortId(secondTaskId) }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".text-preview", { hasText: "Beta artifact ready." }).waitFor({
+    state: "visible",
+  });
+  const remainingReportTabCount = await previewPage
+    .locator(".preview-window-tab", { hasText: "report.md" })
+    .count();
+  if (remainingReportTabCount !== 1) {
+    throw new Error(`Expected one report.md Preview tab after closing Task A; found ${remainingReportTabCount}.`);
+  }
+
   const reports = readReports(workspaceRoot);
   const alphaReport = reports.find((report) =>
     report.runs?.some((run) => run.prompt?.includes("Alpha artifact ready.")),
@@ -117,6 +148,7 @@ try {
       run.artifactCandidates?.some((artifact) => artifact.path === "report.md"),
     ) &&
     reportTabCount === 2 &&
+    remainingReportTabCount === 1 &&
     reports.length === 2 &&
     !rawTerminalPersisted;
 
@@ -130,6 +162,7 @@ try {
         alphaRunCount: alphaReport?.runs?.length ?? 0,
         betaRunCount: betaReport?.runs?.length ?? 0,
         reportPreviewTabs: reportTabCount,
+        reportPreviewTabsAfterClose: remainingReportTabCount,
         rawTerminalPersisted,
         success,
       },

@@ -5,6 +5,7 @@ import {
   type OpenInspectorRequest,
   type OpenPreviewRequest,
   type PreviewWindowState,
+  type TaskId,
   type WorkspaceOpenFolderRequest,
 } from "../shared/types";
 import type { RuntimeController } from "./runtime-controller";
@@ -15,6 +16,7 @@ export interface WindowIpcController {
   openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
   readInspectorState(): InspectorWindowState;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
+  closeTaskSurfaces(taskId: TaskId): void;
 }
 
 export function registerIpcHandlers(
@@ -29,6 +31,7 @@ export function registerIpcHandlers(
   );
   ipcMain.handle(IPC_CHANNELS.taskClose, (_event, request) => {
     runtimeController.closeTask(request.taskId);
+    windowController.closeTaskSurfaces(request.taskId);
   });
   ipcMain.handle(IPC_CHANNELS.promptSubmit, (_event, request) => {
     runtimeController.submitPrompt(request.taskId, request.text);

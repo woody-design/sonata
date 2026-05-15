@@ -6,6 +6,7 @@ import {
   type OpenInspectorRequest,
   type OpenPreviewRequest,
   type PreviewWindowState,
+  type TaskId,
   type WorkspaceOpenFolderRequest,
 } from "../shared/types";
 import { registerIpcHandlers } from "./ipc";
@@ -169,6 +170,25 @@ function samePreviewRef(
   return left.taskId === right.taskId && left.path === right.path;
 }
 
+function closeTaskSurfaces(taskId: TaskId): void {
+  const tabs = previewState.tabs.filter((tab) => tab.taskId !== taskId);
+  const selected =
+    previewState.selected?.taskId === taskId ? tabs.at(-1) ?? null : previewState.selected;
+  previewState = {
+    tabs,
+    selected,
+  };
+  sendPreviewState();
+
+  if (inspectorState.taskId === taskId) {
+    inspectorState = {
+      ...inspectorState,
+      taskId: null,
+    };
+    sendInspectorState();
+  }
+}
+
 async function openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState> {
   updateInspectorState(request);
   if (!inspectorWindow || inspectorWindow.isDestroyed()) {
@@ -227,6 +247,7 @@ app.whenReady().then(() => {
     openInspector,
     readInspectorState,
     openWorkspaceFolder,
+    closeTaskSurfaces,
   });
   mainWindow = createMainWindow();
 

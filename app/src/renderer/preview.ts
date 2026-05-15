@@ -91,6 +91,8 @@ async function applyPreviewState(nextState: PreviewWindowState): Promise<void> {
     await openTab(state.selected);
     return;
   }
+  state.preview = null;
+  state.previewError = null;
   render();
 }
 
@@ -256,11 +258,10 @@ function mergeTabs(existing: PreviewWindowTab[], incoming: PreviewWindowTab[]): 
   for (const tab of existing) {
     byKey.set(tabKey(tab), tab);
   }
-  for (const tab of incoming) {
+  return incoming.map((tab) => {
     const current = byKey.get(tabKey(tab));
-    byKey.set(tabKey(tab), current ? { ...tab, dirty: current.dirty || tab.dirty } : tab);
-  }
-  return [...byKey.values()];
+    return current ? { ...tab, dirty: current.dirty || tab.dirty } : tab;
+  });
 }
 
 function reviewRow(label: string, value: string): HTMLElement {
