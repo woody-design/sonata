@@ -17,6 +17,7 @@ interface RendererState {
   previewError: string | null;
   selectedArtifactPath: string | null;
   pendingApproval: ApprovalDetectedEvent["payload"] | null;
+  highlightedRunId: string | null;
   runtimeReady: boolean;
   composerObserved: boolean;
   sideView: SideView;
@@ -32,6 +33,7 @@ const state: RendererState = {
   previewError: null,
   selectedArtifactPath: null,
   pendingApproval: null,
+  highlightedRunId: null,
   runtimeReady: false,
   composerObserved: false,
   sideView: "preview",
@@ -272,6 +274,7 @@ async function createTask(): Promise<void> {
     state.previewError = null;
     state.selectedArtifactPath = null;
     state.pendingApproval = null;
+    state.highlightedRunId = null;
     state.runtimeReady = false;
     state.composerObserved = false;
     state.status = `Codex PTY ${response.runtime.pid}`;
@@ -298,6 +301,7 @@ async function openTask(): Promise<void> {
     state.previewError = null;
     state.selectedArtifactPath = null;
     state.pendingApproval = null;
+    state.highlightedRunId = null;
     state.runtimeReady = false;
     state.composerObserved = false;
     state.status = `Opened Codex PTY ${response.runtime.pid}`;
@@ -552,6 +556,8 @@ function renderRuns(): void {
 function renderRun(run: RuntimeRunReport): HTMLElement {
   const card = document.createElement("article");
   card.className = "run-card";
+  card.dataset.runId = run.runId;
+  card.classList.toggle("highlighted", run.runId === state.highlightedRunId);
 
   const header = document.createElement("div");
   header.className = "run-card-header";
@@ -731,19 +737,48 @@ function renderArtifactReview(): HTMLElement {
   const artifact = selectedArtifact();
   const run = artifact ? runForArtifact(artifact) : null;
 
+  const header = document.createElement("div");
+  header.className = "artifact-review-header";
   const title = document.createElement("div");
   title.className = "artifact-review-title";
   title.textContent = "Review candidate";
-  section.append(title);
+  const badge = document.createElement("span");
+  badge.className = "review-badge";
+  badge.textContent = "Report-listed";
+  header.append(title, badge);
+  section.append(header);
 
   section.append(
+    reviewRow("State", "Candidate"),
     reviewRow("Candidate", artifact?.path ?? state.preview?.path ?? "unknown"),
     reviewRow("Kind", artifact ? artifactKindLabel(artifact.kind) : state.preview?.previewKind ?? "unknown"),
     reviewRow("Change", artifact?.changeKind ?? "unknown"),
     reviewRow("Source Run", run?.title ?? artifact?.runId ?? "unknown"),
+    reviewRow("Run outcome", run ? runOutcome(run) : "unknown"),
     reviewRow("Preview", state.preview ? previewEvidenceLabel(state.preview) : "not loaded"),
+    reviewRow("Report source", ".duet/runtime-report.json"),
     reviewRow("Raw terminal", "not persisted"),
   );
+
+  const actions = document.createElement("div");
+  actions.className = "artifact-review-actions";
+  actions.append(
+    reviewAction("Source Run", () => {
+      if (run) {
+        focusRun(run.runId);
+      }
+    }, !run),
+    reviewAction("Continue", () => {
+      focusComposer();
+    }, !state.task),
+    reviewAction("Inspector", () => {
+      setSideView("inspector");
+    }, !state.report),
+    reviewAction("Terminal", () => {
+      setSideView("terminal");
+    }, !state.task),
+  );
+  section.append(actions);
 
   return section;
 }
@@ -944,6 +979,21 @@ function setSideView(view: SideView): void {
   render();
 }
 
+function focusRun(runId: string): void {
+  state.highlightedRunId = runId;
+  render();
+  queueMicrotask(() => {
+    const runCard = Array.from(elements.runList.querySelectorAll<HTMLElement>(".run-card")).find(
+      (item) => item.dataset.runId === runId,
+    );
+    runCard?.scrollIntoView({ block: "center" });
+  });
+}
+
+function focusComposer(): void {
+  elements.promptInput.focus();
+}
+
 function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): string {
   if (!state.task) {
     return "Start or open a Task";
@@ -994,6 +1044,16 @@ function reviewRow(label: string, value: string): HTMLElement {
   val.textContent = value;
   row.append(key, val);
   return row;
+}
+
+function reviewAction(label: string, onClick: () => void, disabled = false): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "secondary artifact-review-action";
+  button.type = "button";
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener("click", onClick);
+  return button;
 }
 
 function completionLabel(run: RuntimeRunReport): string {

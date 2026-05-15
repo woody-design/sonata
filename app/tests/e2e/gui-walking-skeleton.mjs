@@ -67,9 +67,40 @@ try {
   await page.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
     state: "visible",
   });
+  await page.locator(".artifact-review", { hasText: "Report-listed" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".artifact-review", { hasText: "State" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review", { hasText: "Candidate" }).waitFor({ state: "visible" });
   await page.locator(".artifact-review", { hasText: "Markdown" }).waitFor({ state: "visible" });
   await page.locator(".artifact-review", { hasText: "added" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review", { hasText: "Run outcome" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".artifact-review", { hasText: ".duet/runtime-report.json" }).waitFor({
+    state: "visible",
+  });
   await page.locator(".artifact-review", { hasText: "not persisted" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review-action", { hasText: "Source Run" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review-action", { hasText: "Continue" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review-action", { hasText: "Inspector" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review-action", { hasText: "Terminal" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review-action", { hasText: "Source Run" }).click();
+  await page.locator(".run-card.highlighted", { hasText: "2 artifacts ready" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review-action", { hasText: "Continue" }).click();
+  const composerFocused = await page
+    .locator("#prompt-input")
+    .evaluate((element) => document.activeElement === element);
+  if (!composerFocused) {
+    throw new Error("Artifact Continue action did not focus the composer.");
+  }
+  await page.locator(".artifact-review-action", { hasText: "Inspector" }).click();
+  await page.locator("#inspector-panel").waitFor({ state: "visible" });
+  await page.locator("#preview-tab").click();
+  await page.locator(".artifact-review-action", { hasText: "Terminal" }).click();
+  await page.locator("#terminal").waitFor({ state: "visible" });
+  await page.locator("#preview-tab").click();
   await page.locator(".text-preview", { hasText: "Markdown artifact ready." }).waitFor({
     state: "visible",
   });

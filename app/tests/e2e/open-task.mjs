@@ -55,6 +55,14 @@ try {
   await page.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
     state: "visible",
   });
+  await page.locator(".artifact-review", { hasText: "Report-listed" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".artifact-review", { hasText: ".duet/runtime-report.json" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".artifact-review-action", { hasText: "Source Run" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-review-action", { hasText: "Continue" }).waitFor({ state: "visible" });
   await page.locator(".artifact-review", { hasText: "Markdown" }).waitFor({ state: "visible" });
   await page.locator(".text-preview", { hasText: "before reopening the Task" }).waitFor({
     state: "visible",

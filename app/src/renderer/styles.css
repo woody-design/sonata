@@ -234,6 +234,11 @@ h2 {
   padding: 16px;
 }
 
+.run-card.highlighted {
+  border-color: #2f5d50;
+  box-shadow: inset 3px 0 0 #2f5d50;
+}
+
 .run-card + .run-card {
   margin-top: 12px;
 }
@@ -514,10 +519,32 @@ textarea {
   background: #f8f6ef;
 }
 
+.artifact-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
 .artifact-review-title {
+  min-width: 0;
+  overflow: hidden;
   color: #302d28;
   font-size: 13px;
   font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-badge {
+  flex: 0 0 auto;
+  border: 1px solid #d5d1c7;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #4f4a41;
+  background: #fffefa;
+  font-size: 11px;
 }
 
 .artifact-review-row {
@@ -534,6 +561,18 @@ textarea {
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.artifact-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.artifact-review-action {
+  min-height: 30px;
+  font-size: 12px;
 }
 
 .html-preview {
