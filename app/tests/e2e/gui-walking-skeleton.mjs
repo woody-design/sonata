@@ -63,10 +63,33 @@ try {
   await page.locator(".html-preview").waitFor({ state: "visible" });
 
   await page.locator("#inspector-tab").click();
+  await page.locator(".inspector-content", { hasText: "Runtime report summary" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".inspector-content", { hasText: "duet.runtime-report.v1" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".inspector-content", { hasText: "Runtime launch" }).waitFor({
+    state: "visible",
+  });
   await page.locator(".inspector-content", { hasText: "Changed files" }).waitFor({
     state: "visible",
   });
   await page.locator(".inspector-content", { hasText: "Approvals" }).waitFor({ state: "visible" });
+  await page.locator(".inspector-content", { hasText: "approval detected / file-edit" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".inspector-content", { hasText: "approval decision / approved" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".inspector-content", { hasText: "Artifact candidates" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".inspector-content", { hasText: "raw-terminal-not-persisted-by-default" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".inspector-content", { hasText: "report.md" }).waitFor({ state: "visible" });
+  await page.locator(".inspector-content", { hasText: "page.html" }).waitFor({ state: "visible" });
 
   await page.locator("#terminal-tab").click();
   await page.locator("#terminal").waitFor({ state: "visible" });

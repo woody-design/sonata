@@ -663,57 +663,142 @@ function renderInspector(): void {
 
   const summary = document.createElement("section");
   summary.className = "inspector-section";
+  summary.append(inspectorTitle("Runtime report summary"));
   summary.append(
     inspectorRow("Schema", `${report.schemaId} / ${report.version}`),
+    inspectorRow("Task", report.taskId),
     inspectorRow("Runs", String(report.runs.length)),
+    inspectorRow("Generated", formatTimestamp(report.generatedAt)),
+    inspectorRow("Workspace", state.task?.workingDirectory ?? report.runtime?.cwd ?? "unknown"),
+    inspectorRow("Report", ".duet/runtime-report.json"),
     inspectorRow("Raw terminal", report.rawTerminalPointer === null ? "not persisted" : "linked"),
-    inspectorRow("Report", report.runtime?.cwd ?? report.taskId),
+    inspectorRow("Raw policy", report.rawTerminalPolicy),
+    inspectorRow("Provider session", state.task?.providerSessionRef ?? "not claimed"),
   );
   elements.inspectorContent.append(summary);
+
+  const runtime = document.createElement("section");
+  runtime.className = "inspector-section";
+  runtime.append(inspectorTitle("Runtime launch"));
+  if (report.runtime) {
+    runtime.append(
+      inspectorRow("Provider", report.runtime.provider),
+      inspectorRow("Command", `${report.runtime.command} ${report.runtime.args.join(" ")}`.trim()),
+      inspectorRow("Cwd", report.runtime.cwd),
+      inspectorRow("Terminal", `${report.runtime.cols} cols / ${report.runtime.rows} rows`),
+      inspectorRow("Started", formatTimestamp(report.runtime.startedAt)),
+    );
+  } else {
+    runtime.append(inspectorEmpty("No runtime launch recorded"));
+  }
+  elements.inspectorContent.append(runtime);
 
   for (const run of report.runs) {
     const section = document.createElement("section");
     section.className = "inspector-section";
 
-    const title = document.createElement("h3");
-    title.textContent = run.title || run.runId;
+    const title = inspectorTitle(run.title || "(empty prompt)");
+    const subtitle = document.createElement("p");
+    subtitle.className = "inspector-subtitle";
+    subtitle.textContent = run.runId;
     section.append(
       title,
+      subtitle,
+      inspectorRow("Run ID", run.runId),
+      inspectorRow("Kind", run.kind),
       inspectorRow("Status", run.status),
       inspectorRow("Lifecycle", run.lifecyclePhase),
       inspectorRow("Completion", completionLabel(run)),
-      inspectorRow("Approvals", String(run.approvalEvents.length)),
-      inspectorRow("Stops", String(run.stopEvents.length)),
+      inspectorRow("Started", formatTimestamp(run.startedAt)),
+      inspectorRow("Ended", formatTimestamp(run.endedAt)),
+      inspectorRow("Elapsed", formatElapsed(run.elapsedMs)),
+      inspectorRow("Status reason", run.statusReason ?? "none"),
+      inspectorRow("Approvals", approvalSummary(run)),
+      inspectorRow("Stops", stopSummary(run)),
       inspectorRow("Changed files", String(run.changedFiles.length)),
+      inspectorRow("Artifact candidates", String(run.artifactCandidates.length)),
     );
 
     if (run.approvalEvents.length > 0 || run.stopEvents.length > 0) {
+      section.append(inspectorGroupTitle("Approval / Stop history"));
       const history = document.createElement("ul");
-      history.className = "inspector-list";
+      history.className = "inspector-event-list";
       for (const approval of run.approvalEvents) {
         const item = document.createElement("li");
-        item.textContent = `approval ${approval.action} ${approval.kind ?? approval.decision ?? ""}`;
+        item.textContent =
+          approval.action === "detected"
+            ? `${formatTimestamp(approval.ts)} approval detected / ${approval.kind ?? "unknown"} / ${
+                approval.source ?? "native screen"
+              }`
+            : `${formatTimestamp(approval.ts)} approval decision / ${
+                approvalDecisionLabel(approval.decision)
+              } / ${approval.encodedAs ?? "native control"}`;
         history.append(item);
       }
       for (const stop of run.stopEvents) {
         const item = document.createElement("li");
-        item.textContent = `stop ${stop.action}`;
+        item.textContent =
+          stop.action === "interrupt"
+            ? `${formatTimestamp(stop.ts)} stop interrupt / ${stop.encodedAs ?? "native control"}`
+            : `${formatTimestamp(stop.ts)} stop completed / slashStop ${
+                stop.slashStopSent ? "sent" : "not sent"
+              } / ${stop.slashStopReason ?? "no reason"}`;
         history.append(item);
       }
       section.append(history);
     }
 
     if (run.changedFiles.length > 0) {
+      section.append(inspectorGroupTitle("Changed files"));
       const files = document.createElement("ul");
-      files.className = "inspector-list";
+      files.className = "inspector-file-list";
       for (const file of run.changedFiles) {
         const item = document.createElement("li");
-        item.textContent = `${file.changeKind} ${file.path}`;
+        item.append(
+          inspectorFileValue(file.path),
+          inspectorFileMeta(
+            `${file.changeKind} / ${file.type} / ${file.eventType} / ${formatMaybeBytes(file.size)}`,
+          ),
+          inspectorFileMeta(file.sha256 ? `sha256 ${shortHash(file.sha256)}` : "sha256 unavailable"),
+        );
         files.append(item);
       }
       section.append(files);
     }
 
+    if (run.artifactCandidates.length > 0) {
+      section.append(inspectorGroupTitle("Artifact candidates"));
+      const artifacts = document.createElement("ul");
+      artifacts.className = "inspector-file-list";
+      for (const artifact of run.artifactCandidates) {
+        const item = document.createElement("li");
+        item.append(
+          inspectorFileValue(artifact.path),
+          inspectorFileMeta(`${artifact.type} / ${artifact.changeKind}`),
+        );
+        artifacts.append(item);
+      }
+      section.append(artifacts);
+    }
+
+    elements.inspectorContent.append(section);
+  }
+
+  if (report.unassignedChanges.length > 0) {
+    const section = document.createElement("section");
+    section.className = "inspector-section";
+    section.append(inspectorTitle("Unassigned changes"));
+    const files = document.createElement("ul");
+    files.className = "inspector-file-list";
+    for (const file of report.unassignedChanges) {
+      const item = document.createElement("li");
+      item.append(
+        inspectorFileValue(file.path),
+        inspectorFileMeta(`${file.changeKind} / ${file.type} / ${file.eventType}`),
+      );
+      files.append(item);
+    }
+    section.append(files);
     elements.inspectorContent.append(section);
   }
 }
@@ -958,6 +1043,75 @@ function inspectorRow(label: string, value: string): HTMLElement {
   val.textContent = value;
   row.append(key, val);
   return row;
+}
+
+function inspectorTitle(value: string): HTMLElement {
+  const title = document.createElement("h3");
+  title.textContent = value;
+  return title;
+}
+
+function inspectorGroupTitle(value: string): HTMLElement {
+  const title = document.createElement("div");
+  title.className = "inspector-group-title";
+  title.textContent = value;
+  return title;
+}
+
+function inspectorEmpty(value: string): HTMLElement {
+  const empty = document.createElement("div");
+  empty.className = "empty-state compact";
+  empty.textContent = value;
+  return empty;
+}
+
+function inspectorFileValue(value: string): HTMLElement {
+  const element = document.createElement("strong");
+  element.className = "inspector-file-value";
+  element.textContent = value;
+  return element;
+}
+
+function inspectorFileMeta(value: string): HTMLElement {
+  const element = document.createElement("span");
+  element.className = "inspector-file-meta";
+  element.textContent = value;
+  return element;
+}
+
+function approvalSummary(run: RuntimeRunReport): string {
+  if (run.approvalEvents.length === 0) {
+    return "none";
+  }
+  const decisions = run.approvalEvents.filter((event) => event.action === "decision").length;
+  return `${run.approvalEvents.length} events / ${decisions} decisions`;
+}
+
+function stopSummary(run: RuntimeRunReport): string {
+  if (run.stopEvents.length === 0) {
+    return "none";
+  }
+  const completed = run.stopEvents.some((event) => event.action === "stopped");
+  return `${run.stopEvents.length} events / ${completed ? "completed" : "pending"}`;
+}
+
+function formatTimestamp(value: string | null): string {
+  if (!value) {
+    return "none";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
+}
+
+function formatMaybeBytes(value: number | null): string {
+  return value === null ? "size unknown" : formatBytes(value);
+}
+
+function shortHash(value: string): string {
+  return value.length > 12 ? value.slice(0, 12) : value;
 }
 
 function formatBytes(value: number): string {

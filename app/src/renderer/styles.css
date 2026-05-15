@@ -561,6 +561,16 @@ textarea {
   white-space: nowrap;
 }
 
+.inspector-subtitle {
+  margin: -4px 0 10px;
+  overflow: hidden;
+  color: #777169;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inspector-row {
   display: grid;
   grid-template-columns: minmax(90px, 130px) minmax(0, 1fr);
@@ -581,11 +591,65 @@ textarea {
   white-space: nowrap;
 }
 
-.inspector-list {
+.inspector-group-title {
+  margin: 12px 0 6px;
+  color: #302d28;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.inspector-event-list,
+.inspector-file-list {
   margin: 10px 0 0;
-  padding-left: 18px;
+  padding: 0;
   color: #625d54;
   font-size: 12px;
+  list-style: none;
+}
+
+.inspector-event-list {
+  display: grid;
+  gap: 5px;
+}
+
+.inspector-event-list li {
+  border-left: 3px solid #ded9ce;
+  padding-left: 8px;
+  line-height: 1.45;
+}
+
+.inspector-file-list {
+  display: grid;
+  gap: 6px;
+}
+
+.inspector-file-list li {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border: 1px solid #e2ddd3;
+  border-radius: 6px;
+  padding: 8px;
+  background: #f8f6ef;
+}
+
+.inspector-file-value,
+.inspector-file-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-file-value {
+  color: #302d28;
+  font-weight: 620;
+}
+
+.inspector-file-meta {
+  color: #6f695f;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
 }
 
 .terminal-panel {
