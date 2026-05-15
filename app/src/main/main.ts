@@ -1,5 +1,5 @@
 import path from "node:path";
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, screen, shell, type Rectangle } from "electron";
 import {
   IPC_CHANNELS,
   type InspectorWindowState,
@@ -23,6 +23,29 @@ let previewState: PreviewWindowState = {
 let inspectorState: InspectorWindowState = {
   taskId: null,
   lens: "run",
+};
+let previewWindowBounds: Rectangle | null = null;
+let inspectorWindowBounds: Rectangle | null = null;
+
+interface FloatingWindowDefaults {
+  width: number;
+  height: number;
+  minWidth: number;
+  minHeight: number;
+}
+
+const MIN_RESTORED_VISIBLE_EDGE = 80;
+const PREVIEW_WINDOW_DEFAULTS: FloatingWindowDefaults = {
+  width: 980,
+  height: 760,
+  minWidth: 560,
+  minHeight: 420,
+};
+const INSPECTOR_WINDOW_DEFAULTS: FloatingWindowDefaults = {
+  width: 1080,
+  height: 760,
+  minWidth: 620,
+  minHeight: 460,
 };
 
 function createMainWindow(): BrowserWindow {
@@ -58,10 +81,9 @@ function createMainWindow(): BrowserWindow {
 
 function createPreviewWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 980,
-    height: 760,
-    minWidth: 560,
-    minHeight: 420,
+    ...restoredFloatingWindowBounds(previewWindowBounds, PREVIEW_WINDOW_DEFAULTS),
+    minWidth: PREVIEW_WINDOW_DEFAULTS.minWidth,
+    minHeight: PREVIEW_WINDOW_DEFAULTS.minHeight,
     title: "Duet Preview",
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
@@ -77,6 +99,9 @@ function createPreviewWindow(): BrowserWindow {
   });
 
   window.loadFile(path.join(__dirname, "../renderer/preview.html"));
+  trackFloatingWindowBounds(window, (bounds) => {
+    previewWindowBounds = bounds;
+  });
 
   window.on("closed", () => {
     if (previewWindow === window) {
@@ -89,10 +114,9 @@ function createPreviewWindow(): BrowserWindow {
 
 function createInspectorWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1080,
-    height: 760,
-    minWidth: 620,
-    minHeight: 460,
+    ...restoredFloatingWindowBounds(inspectorWindowBounds, INSPECTOR_WINDOW_DEFAULTS),
+    minWidth: INSPECTOR_WINDOW_DEFAULTS.minWidth,
+    minHeight: INSPECTOR_WINDOW_DEFAULTS.minHeight,
     title: "Duet Inspector",
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
@@ -108,6 +132,9 @@ function createInspectorWindow(): BrowserWindow {
   });
 
   window.loadFile(path.join(__dirname, "../renderer/inspector.html"));
+  trackFloatingWindowBounds(window, (bounds) => {
+    inspectorWindowBounds = bounds;
+  });
 
   window.on("closed", () => {
     if (inspectorWindow === window) {
@@ -116,6 +143,62 @@ function createInspectorWindow(): BrowserWindow {
   });
 
   return window;
+}
+
+function restoredFloatingWindowBounds(
+  savedBounds: Rectangle | null,
+  defaults: FloatingWindowDefaults,
+): Pick<Rectangle, "x" | "y" | "width" | "height"> | Pick<Rectangle, "width" | "height"> {
+  if (!savedBounds) {
+    return {
+      width: defaults.width,
+      height: defaults.height,
+    };
+  }
+
+  const bounds = {
+    x: savedBounds.x,
+    y: savedBounds.y,
+    width: Math.max(savedBounds.width, defaults.minWidth),
+    height: Math.max(savedBounds.height, defaults.minHeight),
+  };
+
+  if (!isWindowVisibleOnAnyDisplay(bounds)) {
+    return {
+      width: defaults.width,
+      height: defaults.height,
+    };
+  }
+
+  return bounds;
+}
+
+function isWindowVisibleOnAnyDisplay(bounds: Pick<Rectangle, "x" | "y" | "width" | "height">): boolean {
+  return screen.getAllDisplays().some((display) => {
+    const visibleWidth =
+      Math.min(bounds.x + bounds.width, display.workArea.x + display.workArea.width) -
+      Math.max(bounds.x, display.workArea.x);
+    const visibleHeight =
+      Math.min(bounds.y + bounds.height, display.workArea.y + display.workArea.height) -
+      Math.max(bounds.y, display.workArea.y);
+    return visibleWidth >= MIN_RESTORED_VISIBLE_EDGE && visibleHeight >= MIN_RESTORED_VISIBLE_EDGE;
+  });
+}
+
+function trackFloatingWindowBounds(
+  window: BrowserWindow,
+  saveBounds: (bounds: Rectangle) => void,
+): void {
+  const rememberBounds = (): void => {
+    if (window.isDestroyed() || window.isMinimized()) {
+      return;
+    }
+    saveBounds(window.getBounds());
+  };
+
+  window.on("move", rememberBounds);
+  window.on("resize", rememberBounds);
+  window.on("close", rememberBounds);
 }
 
 async function openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState> {

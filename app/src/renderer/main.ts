@@ -1032,7 +1032,6 @@ async function openFloatingInspector(): Promise<void> {
 
   await window.duetRuntime.openInspector({
     taskId: view.task.id,
-    lens: "run",
   });
 }
 
