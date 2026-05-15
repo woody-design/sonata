@@ -35,6 +35,11 @@ button:disabled {
   cursor: default;
 }
 
+pre {
+  margin: 0;
+  font: inherit;
+}
+
 .shell {
   min-height: 100vh;
   display: flex;
@@ -138,7 +143,7 @@ h2 {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 520px);
 }
 
 .run-column {
@@ -253,16 +258,36 @@ textarea {
 .side-column {
   min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(150px, 220px) minmax(260px, 1fr);
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   overflow: hidden;
   border-left: 1px solid #d5d1c7;
   padding: 12px;
   background: #eeebe3;
 }
 
+.surface-tabs {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.surface-tab {
+  border: 1px solid #b8b0a2;
+  color: #403d37;
+  background: #f8f6ef;
+}
+
+.surface-tab.active {
+  border-color: #2f5d50;
+  color: #f8f6ef;
+  background: #2f5d50;
+}
+
 .panel {
+  flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -275,12 +300,29 @@ textarea {
   padding: 10px 12px 6px;
 }
 
+.panel-header.split {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.preview-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(110px, 180px) minmax(0, 1fr);
+}
+
 .artifact-list {
   overflow: auto;
   padding: 10px;
+  border-bottom: 1px solid #d5d1c7;
 }
 
 .artifact-item {
+  display: block;
+  width: 100%;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid #ded9ce;
   border-radius: 6px;
@@ -288,12 +330,139 @@ textarea {
   color: #403d37;
   background: #fffefa;
   font-size: 13px;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.artifact-item.selected {
+  border-color: #2f5d50;
+  background: #e5efe9;
+}
+
 .artifact-item + .artifact-item {
   margin-top: 8px;
+}
+
+.preview-content,
+.inspector-content {
+  overflow: auto;
+  padding: 10px;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: #403d37;
+  font-size: 12px;
+}
+
+.preview-header strong,
+.preview-header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.html-preview {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  border: 1px solid #d5d1c7;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.text-preview {
+  overflow: auto;
+  min-height: 320px;
+  border: 1px solid #d5d1c7;
+  border-radius: 6px;
+  padding: 12px;
+  color: #26231f;
+  background: #fffefa;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.image-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 520px;
+  border: 1px solid #d5d1c7;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.run-artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.artifact-link {
+  min-height: 28px;
+  overflow: hidden;
+  border: 1px solid #b8b0a2;
+  color: #2f5d50;
+  background: #f8f6ef;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-section {
+  border: 1px solid #d5d1c7;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fffefa;
+}
+
+.inspector-section + .inspector-section {
+  margin-top: 10px;
+}
+
+.inspector-section h3 {
+  margin: 0 0 10px;
+  overflow: hidden;
+  color: #20201d;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 130px) minmax(0, 1fr);
+  gap: 8px;
+  color: #625d54;
+  font-size: 12px;
+}
+
+.inspector-row + .inspector-row {
+  margin-top: 6px;
+}
+
+.inspector-row strong {
+  overflow: hidden;
+  color: #332f29;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #625d54;
+  font-size: 12px;
 }
 
 .terminal-panel {
@@ -333,7 +502,7 @@ textarea {
   }
 
   .side-column {
-    grid-template-rows: 180px 320px;
+    min-height: 520px;
     border-left: 0;
     border-top: 1px solid #d5d1c7;
   }
