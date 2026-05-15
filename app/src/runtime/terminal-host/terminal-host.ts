@@ -5,6 +5,7 @@ import path from "node:path";
 import { EventEmitter } from "node:events";
 import * as pty from "node-pty";
 import type {
+  ApprovalDecision,
   ApprovalKind,
   CompletionConfidence,
   CompletionSource,
@@ -30,6 +31,7 @@ const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_TASK_READY_MIN_AGE_MS = 8000;
 const DEFAULT_TASK_READY_QUIET_MS = 900;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
+const DEFAULT_APPROVAL_SETTLE_MS = 1200;
 
 const FILE_EDIT_APPROVAL_HINTS = [
   "would you like to make the following edits",
@@ -98,6 +100,13 @@ interface RecentAttributionRun {
   expiresAt: number;
 }
 
+interface ApprovalCandidate {
+  kind: ApprovalKind;
+  fingerprint: string | null;
+  fingerprintHash: string | null;
+  promptAfterApproval: boolean;
+}
+
 type ActiveRun = RunUpdatedEvent["payload"];
 
 export class TerminalHost extends EventEmitter {
@@ -117,10 +126,13 @@ export class TerminalHost extends EventEmitter {
   private approvalActive = false;
   private lastApprovalKind: ApprovalKind | null = null;
   private lastApprovalFingerprint: string | null = null;
+  private lastApprovalDecision: ApprovalDecision | null = null;
+  private lastApprovalDecisionAt: number | null = null;
   private startedAt: number | null = null;
   private activeRun: ActiveRun | null = null;
   private runSeq = 0;
   private completionTimer: NodeJS.Timeout | null = null;
+  private approvalSettleTimer: NodeJS.Timeout | null = null;
   private taskReadyTimer: NodeJS.Timeout | null = null;
   private lastPtyDataAt = 0;
   private taskReady = false;
@@ -153,11 +165,14 @@ export class TerminalHost extends EventEmitter {
     this.approvalActive = false;
     this.lastApprovalKind = null;
     this.lastApprovalFingerprint = null;
+    this.lastApprovalDecision = null;
+    this.lastApprovalDecisionAt = null;
     this.activeRun = null;
     this.recentAttributionRun = null;
     this.activeRunRaw = "";
     this.taskReady = false;
     this.clearCompletionTimer();
+    this.clearApprovalSettleTimer();
     this.clearTaskReadyTimer();
     this.startFileWatcher(cwd);
 
@@ -239,6 +254,9 @@ export class TerminalHost extends EventEmitter {
 
     this.approvalActive = false;
     this.lastApprovalKind = null;
+    this.lastApprovalDecision = null;
+    this.lastApprovalDecisionAt = null;
+    this.clearApprovalSettleTimer();
     this.ptyProcess.write(`${BRACKETED_PASTE_START}${text}${BRACKETED_PASTE_END}`);
     setTimeout(() => {
       if (this.ptyProcess) {
@@ -254,43 +272,52 @@ export class TerminalHost extends EventEmitter {
   }
 
   sendApprove(): void {
+    const decisionAt = Date.now();
+    const previousKind = this.lastApprovalKind;
     this.writeRaw(CSI_U_ENTER);
     this.emitEvent("approval:decision", {
       taskId: this.taskId,
       runId: this.activeRun ? this.activeRun.id : null,
       decision: "approve",
       encodedAs: "CSI-u Enter",
-      previousKind: this.lastApprovalKind,
+      previousKind,
     });
     this.updateActiveRun({
       status: "active",
       lifecyclePhase: "resumed-after-approval",
       approvalDecision: "approve",
-      approvalKind: this.lastApprovalKind ?? "unknown",
+      approvalKind: previousKind ?? "unknown",
     });
     this.approvalActive = false;
+    this.lastApprovalDecision = "approve";
+    this.lastApprovalDecisionAt = decisionAt;
+    this.scheduleApprovalSettleCheck(decisionAt);
   }
 
   sendDeny(): void {
+    const previousKind = this.lastApprovalKind;
     this.writeRaw(ESC);
     this.emitEvent("approval:decision", {
       taskId: this.taskId,
       runId: this.activeRun ? this.activeRun.id : null,
       decision: "deny",
       encodedAs: "Esc",
-      previousKind: this.lastApprovalKind,
+      previousKind,
     });
     this.updateActiveRun({
       status: "approval-denied",
       lifecyclePhase: "approval-denied",
       approvalDecision: "deny",
-      approvalKind: this.lastApprovalKind ?? "unknown",
+      approvalKind: previousKind ?? "unknown",
     });
     this.finishActiveRun("approval-denied", "Esc denied native approval", {
       completionSource: "native-control",
       completionConfidence: "high",
     });
     this.approvalActive = false;
+    this.lastApprovalDecision = "deny";
+    this.lastApprovalDecisionAt = Date.now();
+    this.clearApprovalSettleTimer();
   }
 
   async stopRun(options: { inspectDelayMs?: number; forceSlashStop?: boolean } = {}): Promise<void> {
@@ -347,6 +374,7 @@ export class TerminalHost extends EventEmitter {
     this.disposeProcess();
     this.stopFileWatcher();
     this.clearCompletionTimer();
+    this.clearApprovalSettleTimer();
   }
 
   private disposeProcess(): void {
@@ -366,6 +394,7 @@ export class TerminalHost extends EventEmitter {
       // Ignore shutdown races.
     }
     this.clearTaskReadyTimer();
+    this.clearApprovalSettleTimer();
   }
 
   private handlePtyData(data: string): void {
@@ -422,50 +451,92 @@ export class TerminalHost extends EventEmitter {
 
   private detectApproval(): void {
     const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
-    const recent = cleanTerminal(approvalSource).toLowerCase();
-    const compactRecent = compactText(recent);
-    const hasConfirmPrompt = compactRecent.includes(compactText("press enter to confirm"));
-    const hasContinuePrompt = compactRecent.includes(compactText("press enter to continue"));
-    const fileEdit =
-      hasConfirmPrompt &&
-      (compactRecent.includes(compactText("would you like to make the following edits")) ||
-        compactRecent.includes(compactText("don't ask again for these files")));
-    const command =
-      hasConfirmPrompt &&
-      (compactRecent.includes(compactText("would you like to run the following command")) ||
-        compactRecent.includes(compactText("don't ask again for commands that start with")));
-    const workspaceTrust =
-      hasContinuePrompt &&
-      (compactRecent.includes(compactText("do you trust the contents of this directory")) ||
-        compactRecent.includes(compactText("trusting the directory")));
-
-    if (!fileEdit && !command && !workspaceTrust) {
+    const candidate = detectApprovalCandidate(approvalSource);
+    if (!candidate || candidate.promptAfterApproval) {
       return;
     }
 
-    const kind: ApprovalKind = command ? "command" : fileEdit ? "file-edit" : "workspace-trust";
-    if (this.approvalActive && this.lastApprovalKind === kind) {
+    if (this.approvalActive && this.lastApprovalKind === candidate.kind) {
       return;
     }
 
-    const fingerprint = approvalFingerprint(kind, compactRecent);
-    if (fingerprint && fingerprint === this.lastApprovalFingerprint) {
+    const decisionAgeMs = this.lastApprovalDecisionAt ? Date.now() - this.lastApprovalDecisionAt : null;
+    const resurfacedAfterDecision =
+      Boolean(this.lastApprovalDecisionAt) &&
+      Boolean(candidate.fingerprint) &&
+      candidate.fingerprint === this.lastApprovalFingerprint &&
+      (decisionAgeMs ?? 0) >= DEFAULT_APPROVAL_SETTLE_MS;
+    if (candidate.fingerprint && candidate.fingerprint === this.lastApprovalFingerprint && !resurfacedAfterDecision) {
       return;
     }
 
+    this.surfaceApproval(
+      candidate,
+      resurfacedAfterDecision
+        ? {
+            resurfacedAfterDecision,
+            decisionAgeMs,
+          }
+        : {},
+    );
+  }
+
+  private surfaceApproval(
+    candidate: ApprovalCandidate,
+    evidence: { resurfacedAfterDecision?: boolean; decisionAgeMs?: number | null } = {},
+  ): void {
     this.approvalActive = true;
-    this.lastApprovalKind = kind;
-    this.lastApprovalFingerprint = fingerprint;
+    this.lastApprovalKind = candidate.kind;
+    this.lastApprovalFingerprint = candidate.fingerprint;
     this.updateActiveRun({
       status: "waiting-for-approval",
       lifecyclePhase: "waiting-for-approval",
-      approvalKind: kind,
+      approvalKind: candidate.kind,
     });
-    this.emitEvent("approval:detected", {
+    const payload: Extract<RuntimeEvent, { type: "approval:detected" }>["payload"] = {
       taskId: this.taskId,
       runId: this.activeRun ? this.activeRun.id : null,
-      kind,
+      kind: candidate.kind,
       source: "native Codex PTY approval screen",
+      fingerprintHash: candidate.fingerprintHash,
+    };
+    if (evidence.resurfacedAfterDecision) {
+      payload.resurfacedAfterDecision = true;
+      payload.previousDecision = this.lastApprovalDecision;
+    }
+    if (evidence.decisionAgeMs !== undefined) {
+      payload.decisionAgeMs = evidence.decisionAgeMs;
+    }
+    this.emitEvent("approval:detected", payload);
+  }
+
+  private scheduleApprovalSettleCheck(decisionAt: number): void {
+    this.clearApprovalSettleTimer();
+    this.approvalSettleTimer = setTimeout(
+      () => this.checkApprovalSettled(decisionAt),
+      DEFAULT_APPROVAL_SETTLE_MS,
+    );
+  }
+
+  private checkApprovalSettled(decisionAt: number): void {
+    this.approvalSettleTimer = null;
+    if (!this.ptyProcess || !this.lastApprovalDecisionAt || this.lastApprovalDecisionAt !== decisionAt) {
+      return;
+    }
+    if (this.approvalActive || Date.now() - this.lastPtyDataAt < DEFAULT_APPROVAL_SETTLE_MS - 50) {
+      return;
+    }
+
+    const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
+    const candidate = detectApprovalCandidate(approvalSource);
+    if (!candidate || candidate.promptAfterApproval) {
+      return;
+    }
+
+    const decisionAgeMs = Date.now() - decisionAt;
+    this.surfaceApproval(candidate, {
+      resurfacedAfterDecision: true,
+      decisionAgeMs,
     });
   }
 
@@ -756,6 +827,14 @@ export class TerminalHost extends EventEmitter {
     this.completionTimer = null;
   }
 
+  private clearApprovalSettleTimer(): void {
+    if (!this.approvalSettleTimer) {
+      return;
+    }
+    clearTimeout(this.approvalSettleTimer);
+    this.approvalSettleTimer = null;
+  }
+
   private clearTaskReadyTimer(): void {
     if (!this.taskReadyTimer) {
       return;
@@ -887,6 +966,10 @@ function hashSmallFile(filePath: string, size: number): string | null {
   }
 }
 
+function sha256(value: string): string {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
 function classifyChange(before: SnapshotEntry, after: SnapshotEntry): "added" | "modified" | "deleted" | "unchanged" {
   if (!before.exists && after.exists) {
     return "added";
@@ -969,6 +1052,38 @@ function detectIdlePrompt(rawText: string): {
     lastPromptIndex: lastAnyPrompt,
     promptAfterApproval: lastAnyPrompt >= 0 && lastAnyPrompt > lastApproval,
     hasModelOrCwdHint,
+  };
+}
+
+function detectApprovalCandidate(rawText: string): ApprovalCandidate | null {
+  const recent = cleanTerminal(rawText).toLowerCase();
+  const compactRecent = compactText(recent);
+  const hasConfirmPrompt = compactRecent.includes(compactText("press enter to confirm"));
+  const hasContinuePrompt = compactRecent.includes(compactText("press enter to continue"));
+  const fileEdit =
+    hasConfirmPrompt &&
+    (compactRecent.includes(compactText("would you like to make the following edits")) ||
+      compactRecent.includes(compactText("don't ask again for these files")));
+  const command =
+    hasConfirmPrompt &&
+    (compactRecent.includes(compactText("would you like to run the following command")) ||
+      compactRecent.includes(compactText("don't ask again for commands that start with")));
+  const workspaceTrust =
+    hasContinuePrompt &&
+    (compactRecent.includes(compactText("do you trust the contents of this directory")) ||
+      compactRecent.includes(compactText("trusting the directory")));
+
+  if (!fileEdit && !command && !workspaceTrust) {
+    return null;
+  }
+
+  const kind: ApprovalKind = command ? "command" : fileEdit ? "file-edit" : "workspace-trust";
+  const fingerprint = approvalFingerprint(kind, compactRecent);
+  return {
+    kind,
+    fingerprint,
+    fingerprintHash: fingerprint ? sha256(fingerprint).slice(0, 16) : null,
+    promptAfterApproval: detectIdlePrompt(rawText).promptAfterApproval,
   };
 }
 

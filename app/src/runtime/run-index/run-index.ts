@@ -7,6 +7,7 @@ import {
   freshRuntimeReportV1,
   RUNTIME_REPORT_SCHEMA_ID,
   RUNTIME_REPORT_SCHEMA_VERSION,
+  type RuntimeApprovalReport,
   type RuntimeArtifactCandidateReport,
   type RuntimeFileChangeReport,
   type RuntimeReportSummaryV1,
@@ -122,12 +123,27 @@ export class RunIndex {
         }
         break;
       case "approval:detected":
-        this.appendRunEvent(event.payload.runId, "approvalEvents", {
-          ts: event.ts,
-          action: "detected",
-          kind: event.payload.kind,
-          source: event.payload.source,
-        });
+        {
+          const approvalEvent: RuntimeApprovalReport = {
+            ts: event.ts,
+            action: "detected",
+            kind: event.payload.kind,
+            source: event.payload.source,
+          };
+          if (event.payload.resurfacedAfterDecision !== undefined) {
+            approvalEvent.resurfacedAfterDecision = event.payload.resurfacedAfterDecision;
+          }
+          if (event.payload.previousDecision !== undefined) {
+            approvalEvent.previousDecision = event.payload.previousDecision;
+          }
+          if (event.payload.decisionAgeMs !== undefined) {
+            approvalEvent.decisionAgeMs = event.payload.decisionAgeMs;
+          }
+          if (event.payload.fingerprintHash !== undefined) {
+            approvalEvent.fingerprintHash = event.payload.fingerprintHash;
+          }
+          this.appendRunEvent(event.payload.runId, "approvalEvents", approvalEvent);
+        }
         break;
       case "approval:decision":
         this.appendRunEvent(event.payload.runId, "approvalEvents", {

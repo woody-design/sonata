@@ -66,6 +66,10 @@ export interface RuntimeApprovalReport {
   action: "detected" | "decision";
   kind?: ApprovalKind;
   source?: string;
+  resurfacedAfterDecision?: boolean;
+  previousDecision?: ApprovalDecision | null;
+  decisionAgeMs?: number | null;
+  fingerprintHash?: string | null;
   decision?: ApprovalDecision;
   encodedAs?: "CSI-u Enter" | "Esc";
   previousKind?: ApprovalKind | null;

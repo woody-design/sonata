@@ -2,9 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { approveIfVisible } from "./helpers/approval.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-change-summary-e2e-"));
 let electronApp = null;
+let page = null;
+let inspectorPage = null;
+let taskId = null;
 
 try {
   electronApp = await electron.launch({
@@ -15,7 +19,7 @@ try {
     },
   });
 
-  const page = await electronApp.firstWindow();
+  page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);
 
   await page.locator("#entry-new-task").click();
@@ -24,7 +28,7 @@ try {
     state: "visible",
   });
 
-  const taskId = await page.locator(".task-tab").first().getAttribute("data-task-id");
+  taskId = await page.locator(".task-tab").first().getAttribute("data-task-id");
   if (!taskId) {
     throw new Error("Task tab did not expose a task id.");
   }
@@ -38,10 +42,11 @@ try {
   await page.locator(".artifact-item", { hasText: "change_summary.md" }).waitFor({
     state: "visible",
   });
+  await waitForReportChangedFiles(["change_summary.md", "change_notes.txt"], 30000);
 
   const inspectorWindowPromise = electronApp.waitForEvent("window");
   await page.locator("#open-inspector-window").click();
-  const inspectorPage = await inspectorWindowPromise;
+  inspectorPage = await inspectorWindowPromise;
   inspectorPage.setDefaultTimeout(180000);
 
   await inspectorPage.locator(".inspector-window-tab", { hasText: "Change" }).click();
@@ -117,6 +122,25 @@ try {
   );
 
   process.exitCode = success ? 0 : 1;
+} catch (error) {
+  console.error(
+    JSON.stringify(
+      {
+        workspaceRoot,
+        taskId,
+        error: error instanceof Error ? error.message : String(error),
+        headline: page ? await safeText(page.locator("#workflow-headline")) : "",
+        runtimeStatus: page ? await safeText(page.locator("#runtime-status")) : "",
+        approvalTitle: page ? await safeText(page.locator("#approval-title")) : "",
+        changeSummary: inspectorPage ? await safeText(inspectorPage.locator(".change-summary")) : "",
+        reviewList: inspectorPage ? await safeText(inspectorPage.locator(".inspector-review-list")) : "",
+        reports: summarizeReports(workspaceRoot),
+      },
+      null,
+      2,
+    ),
+  );
+  throw error;
 } finally {
   if (electronApp) {
     await electronApp.close();
@@ -156,17 +180,18 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
   );
 }
 
-async function approveIfVisible(page, title, timeoutMs) {
-  const banner = page.locator("#approval-banner", { hasText: title });
-  try {
-    await banner.waitFor({ state: "visible", timeout: timeoutMs });
-  } catch {
-    return false;
+async function waitForReportChangedFiles(paths, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const latestRun = readReports(workspaceRoot).at(-1)?.runs?.at(-1) ?? null;
+    const changedPaths = new Set(latestRun?.changedFiles?.map((file) => file.path) ?? []);
+    if (paths.every((filePath) => changedPaths.has(filePath))) {
+      return;
+    }
+    await delay(500);
   }
 
-  await page.locator("#approve-approval").click();
-  await banner.waitFor({ state: "hidden", timeout: 30000 }).catch(() => {});
-  return true;
+  throw new Error(`Timed out waiting for runtime report changed files: ${paths.join(", ")}`);
 }
 
 function readReports(root) {
@@ -178,10 +203,28 @@ function readReports(root) {
     .map((reportPath) => JSON.parse(fs.readFileSync(reportPath, "utf8")));
 }
 
+function summarizeReports(root) {
+  return readReports(root).map((report) => ({
+    taskId: report.taskId,
+    runs: (report.runs ?? []).map((run) => ({
+      runId: run.runId,
+      status: run.status,
+      changedFiles: run.changedFiles?.map((file) => `${file.changeKind}:${file.path}`) ?? [],
+      artifactCandidates: run.artifactCandidates?.map((artifact) => artifact.path) ?? [],
+      approvalEvents: run.approvalEvents ?? [],
+    })),
+    unassignedChanges: report.unassignedChanges?.map((file) => `${file.changeKind}:${file.path}`) ?? [],
+  }));
+}
+
 async function safeText(locator) {
   try {
     return (await locator.textContent({ timeout: 1000 })) ?? "";
   } catch {
     return "";
   }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

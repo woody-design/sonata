@@ -124,6 +124,10 @@ export type ApprovalDetectedEvent = BaseRuntimeEvent<
     runId: RunId | null;
     kind: ApprovalKind;
     source: "native Codex PTY approval screen";
+    resurfacedAfterDecision?: boolean;
+    previousDecision?: ApprovalDecision | null;
+    decisionAgeMs?: number | null;
+    fingerprintHash?: string | null;
   }
 >;
 

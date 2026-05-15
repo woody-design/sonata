@@ -689,6 +689,14 @@ function renderApproval(): void {
     approvalContextItem("Source", approval.source),
     approvalContextItem("Scope", approvalScope(approval.kind)),
     approvalContextItem("Run", approval.runId ? shortId(approval.runId) : "session setup"),
+    ...(approval.resurfacedAfterDecision
+      ? [
+          approvalContextItem(
+            "Retry",
+            `${approval.previousDecision ?? "decision"} did not advance native screen`,
+          ),
+        ]
+      : []),
     approvalContextItem("Approve", "send native Enter"),
     approvalContextItem("Deny", "send native Esc"),
   );
@@ -1549,8 +1557,12 @@ function renderApprovalHistory(run: RuntimeRunReport): HTMLElement | null {
     const title = document.createElement("strong");
     const meta = document.createElement("span");
     if (event.action === "detected") {
-      title.textContent = `${approvalKindLabel(event.kind)} approval requested`;
-      meta.textContent = "native Codex PTY approval screen";
+      title.textContent = event.resurfacedAfterDecision
+        ? `${approvalKindLabel(event.kind)} approval still pending`
+        : `${approvalKindLabel(event.kind)} approval requested`;
+      meta.textContent = event.resurfacedAfterDecision
+        ? `${event.previousDecision ?? "decision"} sent, native screen still present`
+        : "native Codex PTY approval screen";
     } else {
       title.textContent = `${approvalKindLabel(event.previousKind)} approval ${approvalDecisionLabel(
         event.decision,
