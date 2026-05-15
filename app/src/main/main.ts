@@ -1,8 +1,11 @@
 import path from "node:path";
 import { app, BrowserWindow, shell } from "electron";
+import { IPC_CHANNELS } from "../shared/types";
 import { registerIpcHandlers } from "./ipc";
+import { RuntimeController } from "./runtime-controller";
 
 let mainWindow: BrowserWindow | null = null;
+let runtimeController: RuntimeController | null = null;
 
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -36,7 +39,14 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
-  registerIpcHandlers();
+  runtimeController = new RuntimeController({
+    sendEvent: (event) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.runtimeEvent, event);
+      }
+    },
+  });
+  registerIpcHandlers(runtimeController);
   mainWindow = createMainWindow();
 
   app.on("activate", () => {
@@ -47,7 +57,14 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  runtimeController?.dispose();
+  runtimeController = null;
+
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  runtimeController?.dispose();
 });

@@ -24,7 +24,7 @@ export const IPC_CHANNELS = {
 export interface CreateTaskRequest {
   title?: string;
   provider: RuntimeProvider;
-  cwd: string;
+  cwd?: string;
   sandbox?: "read-only" | "workspace-write";
   approval?: "never" | "on-request";
   rows?: number;
