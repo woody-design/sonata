@@ -69,12 +69,15 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 
   if (state.selected && sameRef(state.selected, tab)) {
+    state.tabs = state.tabs.map((item) =>
+      sameRef(item, tab) ? { ...item, dirty: false, reviewed: false } : item,
+    );
     void openTab(tab);
     return;
   }
 
   state.tabs = state.tabs.map((item) =>
-    sameRef(item, tab) ? { ...item, dirty: true } : item,
+    sameRef(item, tab) ? { ...item, dirty: true, reviewed: false } : item,
   );
   render();
 });
@@ -160,6 +163,11 @@ function renderTabs(): void {
       dot.className = "preview-dirty-dot";
       dot.title = "Updated";
       button.append(dot);
+    } else if (tab.reviewed) {
+      const reviewed = document.createElement("span");
+      reviewed.className = "preview-reviewed-mark";
+      reviewed.textContent = "Reviewed";
+      button.append(reviewed);
     }
     button.addEventListener("click", () => {
       void openTab(tab);
@@ -225,13 +233,14 @@ function renderFloatingReview(): HTMLElement {
   title.textContent = "Review candidate";
   const badge = document.createElement("span");
   badge.className = "review-badge";
-  badge.textContent = "Floating Preview";
+  badge.textContent = reviewStatusLabel(selectedTab());
   header.append(title, badge);
   section.append(header);
 
   section.append(
     reviewRow("Task", state.selected ? shortId(state.selected.taskId) : "unknown"),
     reviewRow("Candidate", state.preview?.path ?? "unknown"),
+    reviewRow("Surface", "Floating Preview"),
     reviewRow("Kind", artifact ? artifact.kind : state.preview?.previewKind ?? "unknown"),
     reviewRow("Change", artifact?.changeKind ?? "unknown"),
     reviewRow("Preview", state.preview ? previewEvidenceLabel(state.preview) : "not loaded"),
@@ -239,7 +248,73 @@ function renderFloatingReview(): HTMLElement {
     reviewRow("Raw terminal", "not persisted"),
   );
 
+  const actions = document.createElement("div");
+  actions.className = "artifact-review-actions";
+  actions.append(
+    reviewAction("Back to Main Chat", () => {
+      void focusCurrentArtifact("artifact");
+    }),
+    reviewAction("Show Run", () => {
+      void focusCurrentArtifact("run");
+    }),
+    reviewAction(selectedTab()?.reviewed ? "Reviewed" : "Mark Reviewed", () => {
+      void markCurrentReviewed();
+    }, selectedTab()?.reviewed ?? false),
+  );
+  section.append(actions);
+
   return section;
+}
+
+function reviewAction(label: string, action: () => void, disabled = false): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "artifact-review-action secondary";
+  button.type = "button";
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener("click", action);
+  return button;
+}
+
+async function focusCurrentArtifact(mode: "artifact" | "run"): Promise<void> {
+  if (!state.selected) {
+    return;
+  }
+  const artifact = selectedArtifact();
+  await window.duetRuntime.focusArtifactInMain({
+    taskId: state.selected.taskId,
+    relativePath: state.selected.path,
+    mode,
+    ...(artifact?.runId ? { runId: artifact.runId } : {}),
+  });
+}
+
+async function markCurrentReviewed(): Promise<void> {
+  if (!state.selected) {
+    return;
+  }
+  const nextState = await window.duetRuntime.markPreviewReviewed({
+    taskId: state.selected.taskId,
+    relativePath: state.selected.path,
+  });
+  await applyPreviewState(nextState);
+}
+
+function selectedTab(): PreviewWindowTab | null {
+  if (!state.selected) {
+    return null;
+  }
+  return state.tabs.find((tab) => sameRef(tab, state.selected as PreviewArtifactRef)) ?? null;
+}
+
+function reviewStatusLabel(tab: PreviewWindowTab | null): string {
+  if (tab?.dirty) {
+    return "Updated";
+  }
+  if (tab?.reviewed) {
+    return "Reviewed";
+  }
+  return "Needs review";
 }
 
 function selectedArtifact(): ArtifactCandidate | null {

@@ -4,6 +4,7 @@ import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 import type { ArtifactCandidate, Task } from "../shared/types";
 import type { ApprovalDetectedEvent } from "../shared/types/events";
+import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
 
 interface RunTranscript {
@@ -32,6 +33,7 @@ interface TaskViewState {
 interface RendererState {
   taskViews: TaskViewState[];
   activeTaskId: string | null;
+  previewTabs: PreviewWindowTab[];
   terminalOpen: boolean;
   busy: boolean;
   status: string;
@@ -40,6 +42,7 @@ interface RendererState {
 const state: RendererState = {
   taskViews: [],
   activeTaskId: null,
+  previewTabs: [],
   terminalOpen: false,
   busy: false,
   status: "Idle",
@@ -303,6 +306,20 @@ window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type === "report:updated") {
     void refreshReport(event.payload.taskId);
   }
+});
+
+window.duetRuntime.onPreviewState((previewState) => {
+  state.previewTabs = previewState.tabs;
+  render();
+});
+
+window.duetRuntime.onMainArtifactFocus((request) => {
+  focusArtifactFromPreview(request);
+});
+
+void window.duetRuntime.readPreviewState().then((previewState) => {
+  state.previewTabs = previewState.tabs;
+  render();
 });
 
 render();
@@ -924,10 +941,14 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
     const artifacts = document.createElement("div");
     artifacts.className = "run-artifacts";
     for (const artifact of run.artifactCandidates) {
+      const reviewState = artifactPreviewTab(run.taskId, artifact.path);
       const button = document.createElement("button");
       button.className = "artifact-link";
+      button.classList.toggle("reviewed", Boolean(reviewState?.reviewed && !reviewState.dirty));
+      button.classList.toggle("dirty", Boolean(reviewState?.dirty));
       button.type = "button";
       button.textContent = artifact.path;
+      button.title = artifactReviewLabel(reviewState);
       button.addEventListener("click", () => {
         void openArtifact(artifact.path);
       });
@@ -1045,22 +1066,41 @@ function renderArtifacts(): void {
   }
 
   for (const artifact of artifacts) {
+    const reviewState = artifactPreviewTab(artifact.taskId, artifact.path);
     const item = document.createElement("button");
     item.className = "artifact-item";
     item.type = "button";
     item.classList.toggle("selected", artifact.path === view?.selectedArtifactPath);
+    item.classList.toggle("reviewed", Boolean(reviewState?.reviewed && !reviewState.dirty));
+    item.classList.toggle("dirty", Boolean(reviewState?.dirty));
     const title = document.createElement("span");
     title.className = "artifact-item-title";
     title.textContent = artifact.path;
     const meta = document.createElement("span");
     meta.className = "artifact-item-meta";
-    meta.textContent = `${artifactKindLabel(artifact.kind)} / ${artifact.changeKind}`;
+    meta.textContent = `${artifactKindLabel(artifact.kind)} / ${artifact.changeKind} / ${artifactReviewLabel(
+      reviewState,
+    )}`;
     item.append(title, meta);
     item.addEventListener("click", () => {
       void openArtifact(artifact.path);
     });
     elements.artifactList.append(item);
   }
+}
+
+function artifactPreviewTab(taskId: string, relativePath: string): PreviewWindowTab | null {
+  return state.previewTabs.find((tab) => tab.taskId === taskId && tab.path === relativePath) ?? null;
+}
+
+function artifactReviewLabel(tab: PreviewWindowTab | null): string {
+  if (tab?.dirty) {
+    return "Updated";
+  }
+  if (tab?.reviewed) {
+    return "Reviewed";
+  }
+  return "Needs review";
 }
 
 function appendLiveTranscript(view: TaskViewState, data: string): void {
@@ -1172,6 +1212,36 @@ function renderTerminalDrawer(): void {
   elements.toggleTerminal.classList.toggle("active", state.terminalOpen);
 }
 
+function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
+  const view = taskViewForId(request.taskId);
+  if (!view?.task) {
+    return;
+  }
+
+  state.activeTaskId = request.taskId;
+  view.unread = false;
+  view.selectedArtifactPath = request.relativePath;
+  if (request.runId) {
+    view.highlightedRunId = request.runId;
+  }
+  terminal.clear();
+  if (view.terminalBuffer) {
+    terminal.write(view.terminalBuffer);
+  }
+  render();
+
+  queueMicrotask(() => {
+    if (request.mode === "run" && request.runId) {
+      scrollRunIntoView(request.runId);
+      return;
+    }
+    const artifact = Array.from(elements.artifactList.querySelectorAll<HTMLElement>(".artifact-item")).find(
+      (item) => item.textContent?.includes(request.relativePath),
+    );
+    artifact?.scrollIntoView({ block: "nearest", inline: "center" });
+  });
+}
+
 function focusRun(runId: string): void {
   const view = activeTaskView();
   if (view) {
@@ -1179,11 +1249,15 @@ function focusRun(runId: string): void {
   }
   render();
   queueMicrotask(() => {
-    const runCard = Array.from(elements.runList.querySelectorAll<HTMLElement>(".run-card")).find(
-      (item) => item.dataset.runId === runId,
-    );
-    runCard?.scrollIntoView({ block: "center" });
+    scrollRunIntoView(runId);
   });
+}
+
+function scrollRunIntoView(runId: string): void {
+  const runCard = Array.from(elements.runList.querySelectorAll<HTMLElement>(".run-card")).find(
+    (item) => item.dataset.runId === runId,
+  );
+  runCard?.scrollIntoView({ block: "center" });
 }
 
 function focusComposer(): void {

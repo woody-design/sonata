@@ -21,8 +21,11 @@ export const IPC_CHANNELS = {
   artifactList: "artifact:list",
   artifactRead: "artifact:read",
   previewOpen: "preview:open",
+  previewReviewedMark: "preview:reviewed:mark",
   previewStateRead: "preview:state:read",
   previewState: "preview:state",
+  mainArtifactFocusRequest: "main:artifact:focus:request",
+  mainArtifactFocus: "main:artifact:focus",
   inspectorOpen: "inspector:open",
   inspectorStateRead: "inspector:state:read",
   inspectorState: "inspector:state",
@@ -129,11 +132,24 @@ export interface PreviewArtifactRef {
 
 export interface PreviewWindowTab extends PreviewArtifactRef {
   dirty: boolean;
+  reviewed: boolean;
 }
 
 export interface PreviewWindowState {
   tabs: PreviewWindowTab[];
   selected: PreviewArtifactRef | null;
+}
+
+export interface MarkPreviewReviewedRequest {
+  taskId: TaskId;
+  relativePath: string;
+}
+
+export interface FocusArtifactInMainRequest {
+  taskId: TaskId;
+  relativePath: string;
+  runId?: string;
+  mode: "artifact" | "run";
 }
 
 export type InspectorLens = "run" | "change" | "artifact" | "folder";
@@ -192,8 +208,11 @@ export interface DuetRuntimeBridge {
   listArtifacts(request: ListArtifactsRequest): Promise<ArtifactCandidate[]>;
   readArtifact(request: ReadArtifactRequest): Promise<ArtifactPreviewResponse>;
   openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;
+  markPreviewReviewed(request: MarkPreviewReviewedRequest): Promise<PreviewWindowState>;
   readPreviewState(): Promise<PreviewWindowState>;
   onPreviewState(callback: (state: PreviewWindowState) => void): () => void;
+  focusArtifactInMain(request: FocusArtifactInMainRequest): Promise<void>;
+  onMainArtifactFocus(callback: (request: FocusArtifactInMainRequest) => void): () => void;
   openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
   readInspectorState(): Promise<InspectorWindowState>;
   readWorkspaceTree(request: WorkspaceTreeRequest): Promise<WorkspaceTreeEntry[]>;

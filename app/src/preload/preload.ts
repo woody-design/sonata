@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import {
   IPC_CHANNELS,
   type DuetRuntimeBridge,
+  type FocusArtifactInMainRequest,
   type InspectorWindowState,
   type PreviewWindowState,
   type RuntimeEvent,
@@ -20,7 +21,9 @@ const duetRuntime: DuetRuntimeBridge = {
   listArtifacts: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactList, request),
   readArtifact: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactRead, request),
   openPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewOpen, request),
+  markPreviewReviewed: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewReviewedMark, request),
   readPreviewState: () => ipcRenderer.invoke(IPC_CHANNELS.previewStateRead),
+  focusArtifactInMain: (request) => ipcRenderer.invoke(IPC_CHANNELS.mainArtifactFocusRequest, request),
   openInspector: (request) => ipcRenderer.invoke(IPC_CHANNELS.inspectorOpen, request),
   readInspectorState: () => ipcRenderer.invoke(IPC_CHANNELS.inspectorStateRead),
   readWorkspaceTree: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceTreeRead, request),
@@ -32,6 +35,13 @@ const duetRuntime: DuetRuntimeBridge = {
     };
     ipcRenderer.on(IPC_CHANNELS.previewState, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.previewState, listener);
+  },
+  onMainArtifactFocus: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: FocusArtifactInMainRequest) => {
+      callback(request);
+    };
+    ipcRenderer.on(IPC_CHANNELS.mainArtifactFocus, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.mainArtifactFocus, listener);
   },
   onInspectorState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, inspectorState: InspectorWindowState) => {

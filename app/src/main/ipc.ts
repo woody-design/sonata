@@ -1,7 +1,9 @@
 import { ipcMain } from "electron";
 import {
   IPC_CHANNELS,
+  type FocusArtifactInMainRequest,
   type InspectorWindowState,
+  type MarkPreviewReviewedRequest,
   type OpenInspectorRequest,
   type OpenPreviewRequest,
   type PreviewWindowState,
@@ -12,7 +14,9 @@ import type { RuntimeController } from "./runtime-controller";
 
 export interface WindowIpcController {
   openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;
+  markPreviewReviewed(request: MarkPreviewReviewedRequest): PreviewWindowState;
   readPreviewState(): PreviewWindowState;
+  focusArtifactInMain(request: FocusArtifactInMainRequest): void;
   openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
   readInspectorState(): InspectorWindowState;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
@@ -61,7 +65,13 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.previewOpen, (_event, request) =>
     windowController.openPreview(request),
   );
+  ipcMain.handle(IPC_CHANNELS.previewReviewedMark, (_event, request) =>
+    windowController.markPreviewReviewed(request),
+  );
   ipcMain.handle(IPC_CHANNELS.previewStateRead, () => windowController.readPreviewState());
+  ipcMain.handle(IPC_CHANNELS.mainArtifactFocusRequest, (_event, request) => {
+    windowController.focusArtifactInMain(request);
+  });
   ipcMain.handle(IPC_CHANNELS.inspectorOpen, (_event, request) =>
     windowController.openInspector(request),
   );

@@ -2,10 +2,13 @@ import path from "node:path";
 import { app, BrowserWindow, screen, shell, type Rectangle } from "electron";
 import {
   IPC_CHANNELS,
+  type FocusArtifactInMainRequest,
   type InspectorWindowState,
+  type MarkPreviewReviewedRequest,
   type OpenInspectorRequest,
   type OpenPreviewRequest,
   type PreviewWindowState,
+  type RuntimeEvent,
   type TaskId,
   type WorkspaceOpenFolderRequest,
 } from "../shared/types";
@@ -235,14 +238,75 @@ function updatePreviewState(request: OpenPreviewRequest): void {
       ? previewState.tabs.map((tab) =>
           samePreviewRef(tab, ref) ? { ...tab, dirty: false } : tab,
         )
-      : [...previewState.tabs, { ...ref, dirty: false }],
+      : [...previewState.tabs, { ...ref, dirty: false, reviewed: false }],
     selected: ref,
   };
 }
 
 function sendPreviewState(): void {
-  if (previewWindow && !previewWindow.isDestroyed()) {
-    previewWindow.webContents.send(IPC_CHANNELS.previewState, previewState);
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.previewState, previewState);
+    }
+  }
+}
+
+function markPreviewReviewed(request: MarkPreviewReviewedRequest): PreviewWindowState {
+  const ref = {
+    taskId: request.taskId,
+    path: request.relativePath,
+  };
+  const existing = previewState.tabs.find((tab) => samePreviewRef(tab, ref));
+  previewState = {
+    tabs: existing
+      ? previewState.tabs.map((tab) =>
+          samePreviewRef(tab, ref) ? { ...tab, dirty: false, reviewed: true } : tab,
+        )
+      : [...previewState.tabs, { ...ref, dirty: false, reviewed: true }],
+    selected: ref,
+  };
+  sendPreviewState();
+  return previewState;
+}
+
+function focusArtifactInMain(request: FocusArtifactInMainRequest): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send(IPC_CHANNELS.mainArtifactFocus, request);
+}
+
+function handlePreviewRuntimeEvent(event: RuntimeEvent): void {
+  if (event.type !== "file:changed") {
+    return;
+  }
+
+  const ref = {
+    taskId: event.payload.taskId,
+    path: event.payload.path,
+  };
+  const selected = previewState.selected ? samePreviewRef(previewState.selected, ref) : false;
+  let changed = false;
+  const tabs = previewState.tabs.map((tab) => {
+    if (!samePreviewRef(tab, ref)) {
+      return tab;
+    }
+    changed = true;
+    return {
+      ...tab,
+      dirty: !selected,
+      reviewed: false,
+    };
+  });
+
+  if (changed) {
+    previewState = {
+      ...previewState,
+      tabs,
+    };
+    sendPreviewState();
   }
 }
 
@@ -317,6 +381,7 @@ async function openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise
 app.whenReady().then(() => {
   runtimeController = new RuntimeController({
     sendEvent: (event) => {
+      handlePreviewRuntimeEvent(event);
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) {
           window.webContents.send(IPC_CHANNELS.runtimeEvent, event);
@@ -326,7 +391,9 @@ app.whenReady().then(() => {
   });
   registerIpcHandlers(runtimeController, {
     openPreview,
+    markPreviewReviewed,
     readPreviewState,
+    focusArtifactInMain,
     openInspector,
     readInspectorState,
     openWorkspaceFolder,
