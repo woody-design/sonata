@@ -41,6 +41,12 @@ const COMMAND_APPROVAL_HINTS = [
   "press enter to confirm",
 ];
 
+const WORKSPACE_TRUST_APPROVAL_HINTS = [
+  "do you trust the contents of this directory",
+  "trusting the directory",
+  "press enter to continue",
+];
+
 const BACKGROUND_TERMINAL_HINTS = [
   "background terminal",
   "background terminals",
@@ -371,12 +377,15 @@ export class TerminalHost extends EventEmitter {
     const command = COMMAND_APPROVAL_HINTS.every((hint) =>
       compactRecent.includes(compactText(hint)),
     );
+    const workspaceTrust = WORKSPACE_TRUST_APPROVAL_HINTS.every((hint) =>
+      compactRecent.includes(compactText(hint)),
+    );
 
-    if (!fileEdit && !command) {
+    if (!fileEdit && !command && !workspaceTrust) {
       return;
     }
 
-    const kind: ApprovalKind = command ? "command" : "file-edit";
+    const kind: ApprovalKind = command ? "command" : fileEdit ? "file-edit" : "workspace-trust";
     if (this.approvalActive && this.lastApprovalKind === kind) {
       return;
     }
@@ -879,6 +888,8 @@ function approvalFingerprint(kind: ApprovalKind, compactRecent: string): string 
   const startNeedle =
     kind === "command"
       ? compactText("would you like to run the following command")
+      : kind === "workspace-trust"
+        ? compactText("do you trust the contents of this directory")
       : compactText("would you like to make the following edits");
   const endNeedle = compactText("press enter to confirm");
   const startIndex = compactRecent.lastIndexOf(startNeedle);

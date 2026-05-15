@@ -96,7 +96,7 @@ export interface Run {
   rawTerminalPointer: null;
 }
 
-export type ApprovalKind = "file-edit" | "command" | "unknown";
+export type ApprovalKind = "workspace-trust" | "file-edit" | "command" | "unknown";
 export type ApprovalRisk = "file-write" | "network" | "mixed" | "unknown";
 export type ApprovalDecision = "approve" | "deny";
 

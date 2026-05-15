@@ -366,7 +366,11 @@ function renderApproval(): void {
     return;
   }
   elements.approvalTitle.textContent =
-    approval.kind === "command" ? "Command approval requested" : "File edit approval requested";
+    approval.kind === "command"
+      ? "Command approval requested"
+      : approval.kind === "workspace-trust"
+        ? "Workspace trust requested"
+        : "File edit approval requested";
 }
 
 function renderRuns(): void {
