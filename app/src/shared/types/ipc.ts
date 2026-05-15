@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
   taskCreate: "task:create",
   taskOpen: "task:open",
   taskClose: "task:close",
+  taskList: "task:list",
   promptSubmit: "prompt:submit",
   approvalDecide: "approval:decide",
   runStop: "run:stop",
@@ -65,6 +66,8 @@ export type OpenTaskResponse = CreateTaskResponse;
 export interface CloseTaskRequest {
   taskId: TaskId;
 }
+
+export type ListTasksResponse = Task[];
 
 export interface SubmitPromptRequest {
   taskId: TaskId;
@@ -180,6 +183,7 @@ export interface DuetRuntimeBridge {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
   openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
   closeTask(request: CloseTaskRequest): Promise<void>;
+  listTasks(): Promise<ListTasksResponse>;
   submitPrompt(request: SubmitPromptRequest): Promise<void>;
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;
   stopRun(request: StopRunRequest): Promise<void>;

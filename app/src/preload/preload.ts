@@ -11,6 +11,7 @@ const duetRuntime: DuetRuntimeBridge = {
   createTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskCreate, request),
   openTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskOpen, request),
   closeTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskClose, request),
+  listTasks: () => ipcRenderer.invoke(IPC_CHANNELS.taskList),
   submitPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.promptSubmit, request),
   decideApproval: (request) => ipcRenderer.invoke(IPC_CHANNELS.approvalDecide, request),
   stopRun: (request) => ipcRenderer.invoke(IPC_CHANNELS.runStop, request),

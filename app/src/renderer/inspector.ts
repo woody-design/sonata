@@ -1,5 +1,5 @@
 import "./styles.css";
-import type { ArtifactCandidate, InspectorLens } from "../shared/types";
+import type { ArtifactCandidate, InspectorLens, Task } from "../shared/types";
 import type {
   InspectorWindowState,
   WorkspaceFilePreviewResponse,
@@ -14,6 +14,7 @@ import type {
 interface FloatingInspectorState {
   taskId: string | null;
   lens: InspectorLens;
+  tasks: Task[];
   report: RuntimeReportV1 | null;
   artifacts: ArtifactCandidate[];
   tree: WorkspaceTreeEntry[];
@@ -33,6 +34,7 @@ const lenses: Array<{ id: InspectorLens; label: string }> = [
 const state: FloatingInspectorState = {
   taskId: null,
   lens: "run",
+  tasks: [],
   report: null,
   artifacts: [],
   tree: [],
@@ -60,6 +62,7 @@ appElement.innerHTML = `
         <button id="open-workspace-folder" class="secondary" type="button">Open Folder</button>
       </div>
     </header>
+    <nav id="inspector-task-tabs" class="inspector-task-tabs" aria-label="Inspector Task tabs"></nav>
     <nav id="inspector-window-tabs" class="inspector-window-tabs" aria-label="Inspector lenses"></nav>
     <section id="inspector-window-content" class="inspector-window-content"></section>
   </section>
@@ -69,6 +72,7 @@ const elements = {
   title: getElement<HTMLHeadingElement>("inspector-window-title"),
   status: getElement<HTMLSpanElement>("inspector-window-status"),
   openFolder: getElement<HTMLButtonElement>("open-workspace-folder"),
+  taskTabs: getElement<HTMLElement>("inspector-task-tabs"),
   tabs: getElement<HTMLElement>("inspector-window-tabs"),
   content: getElement<HTMLElement>("inspector-window-content"),
 };
@@ -82,7 +86,15 @@ window.duetRuntime.onInspectorState((nextState) => {
 });
 
 window.duetRuntime.onRuntimeEvent((event) => {
-  if (!state.taskId || event.type === "pty:data" || event.payload.taskId !== state.taskId) {
+  if (event.type === "pty:data") {
+    return;
+  }
+
+  if (event.type === "task:started") {
+    void refreshTasks();
+  }
+
+  if (!state.taskId || event.payload.taskId !== state.taskId) {
     return;
   }
 
@@ -98,6 +110,7 @@ async function applyInspectorState(nextState: InspectorWindowState): Promise<voi
   state.taskId = nextState.taskId;
   state.lens = nextState.lens;
   state.status = nextState.taskId ? "Loading" : "No active Task";
+  await refreshTasks();
   if (taskChanged) {
     state.selectedFilePath = null;
     state.filePreview = null;
@@ -138,8 +151,39 @@ function render(): void {
   elements.title.textContent = state.taskId ? `Task ${shortId(state.taskId)}` : "No active Task";
   elements.status.textContent = state.status;
   elements.openFolder.disabled = !state.taskId;
+  renderTaskTabs();
   renderTabs();
   renderContent();
+}
+
+function renderTaskTabs(): void {
+  elements.taskTabs.replaceChildren();
+
+  if (state.tasks.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "inspector-task-empty";
+    empty.textContent = "No open Tasks";
+    elements.taskTabs.append(empty);
+    return;
+  }
+
+  for (const task of state.tasks) {
+    const button = document.createElement("button");
+    button.className = "inspector-task-tab";
+    button.classList.toggle("selected", task.id === state.taskId);
+    button.type = "button";
+    const title = document.createElement("span");
+    title.className = "inspector-task-title";
+    title.textContent = task.title;
+    const meta = document.createElement("span");
+    meta.className = "inspector-task-meta";
+    meta.textContent = `${shortId(task.id)} / ${task.status}`;
+    button.append(title, meta);
+    button.addEventListener("click", () => {
+      void switchTask(task.id);
+    });
+    elements.taskTabs.append(button);
+  }
 }
 
 function renderTabs(): void {
@@ -162,7 +206,9 @@ function renderContent(): void {
   elements.content.replaceChildren();
 
   if (!state.taskId) {
-    elements.content.append(emptyState("Open Inspector from an active Task"));
+    elements.content.append(
+      emptyState(state.tasks.length > 0 ? "Choose a Task to inspect" : "Open Inspector from an active Task"),
+    );
     return;
   }
 
@@ -194,6 +240,35 @@ async function switchLens(lens: InspectorLens): Promise<void> {
     await window.duetRuntime.openInspector({ taskId: state.taskId, lens });
   }
   await refreshData();
+}
+
+async function switchTask(taskId: string): Promise<void> {
+  if (taskId === state.taskId) {
+    return;
+  }
+  state.taskId = taskId;
+  state.selectedFilePath = null;
+  state.filePreview = null;
+  state.fileError = null;
+  state.status = "Loading";
+  render();
+  const nextState = await window.duetRuntime.openInspector({ taskId, lens: state.lens });
+  await applyInspectorState(nextState);
+}
+
+async function refreshTasks(): Promise<void> {
+  state.tasks = await window.duetRuntime.listTasks();
+  if (state.taskId && !state.tasks.some((task) => task.id === state.taskId)) {
+    state.taskId = null;
+    state.report = null;
+    state.artifacts = [];
+    state.tree = [];
+    state.selectedFilePath = null;
+    state.filePreview = null;
+    state.fileError = null;
+    state.status = "No active Task";
+  }
+  renderTaskTabs();
 }
 
 function renderRunLens(): void {

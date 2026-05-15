@@ -169,6 +169,10 @@ export class RuntimeController {
     this.taskRuntimes.delete(taskId);
   }
 
+  listTasks(): Task[] {
+    return [...this.taskRuntimes.values()].map((active) => active.task);
+  }
+
   submitPrompt(taskId: TaskId, text: string): void {
     const active = this.requireTaskRuntime(taskId);
     active.terminalHost.submitPrompt(text);

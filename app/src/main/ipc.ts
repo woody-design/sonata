@@ -33,6 +33,7 @@ export function registerIpcHandlers(
     runtimeController.closeTask(request.taskId);
     windowController.closeTaskSurfaces(request.taskId);
   });
+  ipcMain.handle(IPC_CHANNELS.taskList, () => runtimeController.listTasks());
   ipcMain.handle(IPC_CHANNELS.promptSubmit, (_event, request) => {
     runtimeController.submitPrompt(request.taskId, request.text);
   });

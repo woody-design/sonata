@@ -678,6 +678,58 @@ textarea {
   line-height: 32px;
 }
 
+.inspector-task-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid #d5d1c7;
+  padding: 8px;
+  background: #eeebe3;
+}
+
+.inspector-task-tab {
+  min-width: 190px;
+  max-width: 280px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  border: 1px solid #d5d1c7;
+  color: #302d28;
+  background: #fffefa;
+  text-align: left;
+}
+
+.inspector-task-tab.selected {
+  border-color: #2f5d50;
+  background: #e5efe9;
+}
+
+.inspector-task-title,
+.inspector-task-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-task-title {
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.inspector-task-meta {
+  color: #6f695f;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
+.inspector-task-empty {
+  color: #625d54;
+  font-size: 12px;
+  line-height: 32px;
+}
+
 .inspector-window-tabs {
   flex: 0 0 auto;
   display: grid;

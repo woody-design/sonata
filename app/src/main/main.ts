@@ -185,8 +185,8 @@ function closeTaskSurfaces(taskId: TaskId): void {
       ...inspectorState,
       taskId: null,
     };
-    sendInspectorState();
   }
+  sendInspectorState();
 }
 
 async function openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState> {

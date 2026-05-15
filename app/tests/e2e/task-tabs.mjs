@@ -101,11 +101,34 @@ try {
   await inspectorPage.locator("#inspector-window-title", { hasText: shortId(firstTaskId) }).waitFor({
     state: "visible",
   });
+  await inspectorPage.locator(".inspector-task-tab", { hasText: shortId(firstTaskId) }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-task-tab", { hasText: shortId(secondTaskId) }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-task-tab", { hasText: shortId(secondTaskId) }).click();
+  await inspectorPage.locator("#inspector-window-title", { hasText: shortId(secondTaskId) }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-task-tab.selected", { hasText: shortId(secondTaskId) }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-task-tab", { hasText: shortId(firstTaskId) }).click();
+  await inspectorPage.locator("#inspector-window-title", { hasText: shortId(firstTaskId) }).waitFor({
+    state: "visible",
+  });
   await page
     .locator(".task-tab-item", { has: page.locator(`.task-tab[data-task-id="${firstTaskId}"]`) })
     .locator(".task-tab-close")
     .click();
   await inspectorPage.locator("#inspector-window-title", { hasText: "No active Task" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-task-tab", { hasText: shortId(firstTaskId) }).waitFor({
+    state: "hidden",
+  });
+  await inspectorPage.locator(".inspector-task-tab", { hasText: shortId(secondTaskId) }).waitFor({
     state: "visible",
   });
   await previewPage.locator(".preview-window-tab", { hasText: shortId(firstTaskId) }).waitFor({
