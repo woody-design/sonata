@@ -17,6 +17,7 @@
     "e2e:task-tabs": "npm run build && node tests/e2e/task-tabs.mjs",
     "e2e:preview-dirty": "npm run build && node tests/e2e/preview-dirty.mjs",
     "e2e:floating-window-lifecycle": "npm run build && node tests/e2e/floating-window-lifecycle.mjs",
+    "e2e:run-chat-transcript": "npm run build && node tests/e2e/run-chat-transcript.mjs",
     "e2e:stop-continue": "npm run build && node tests/e2e/stop-continue.mjs",
     "e2e:open-task": "npm run build && node tests/e2e/open-task.mjs",
     "smoke:runtime-modules": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/runtime-modules.mjs",

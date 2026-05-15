@@ -10,6 +10,7 @@ interface RunTranscript {
   runId: string;
   text: string;
   truncated: boolean;
+  receivedChars: number;
 }
 
 interface TaskViewState {
@@ -170,7 +171,7 @@ terminal.open(elements.terminal);
 fitTerminal();
 
 let transcriptRenderTimer: number | null = null;
-const MAX_TRANSCRIPT_CHARS = 40_000;
+const MAX_TRANSCRIPT_CHARS = 120_000;
 const MAX_TERMINAL_BUFFER_CHARS = 80_000;
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
@@ -788,13 +789,13 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
   status.textContent = run.status;
   header.append(status);
 
-  const request = document.createElement("section");
-  request.className = "run-rhythm-section run-request";
-  request.append(runSectionLabel("Request"));
-  const prompt = document.createElement("p");
-  prompt.className = "prompt-text";
-  prompt.textContent = run.prompt;
-  request.append(prompt);
+  const dialogue = document.createElement("section");
+  dialogue.className = "run-dialogue";
+  dialogue.append(renderUserMessage(run));
+  const assistantMessage = renderAssistantMessage(run);
+  if (assistantMessage) {
+    dialogue.append(assistantMessage);
+  }
 
   const reading = document.createElement("section");
   reading.className = "run-reading";
@@ -824,11 +825,6 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
       list.append(item);
     }
     reading.append(list);
-  }
-
-  const transcript = renderRunTranscript(run);
-  if (transcript) {
-    reading.append(transcript);
   }
 
   const review = document.createElement("section");
@@ -869,7 +865,7 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
     metadataItem("Artifacts", String(run.artifactCandidates.length)),
   );
 
-  card.append(header, request, reading, review, next, metadata);
+  card.append(header, dialogue, reading, review, next, metadata);
 
   if (run.changedFiles.length > 0) {
     const list = document.createElement("ul");
@@ -885,7 +881,14 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
   return card;
 }
 
-function renderRunTranscript(run: RuntimeRunReport): HTMLElement | null {
+function renderUserMessage(run: RuntimeRunReport): HTMLElement {
+  const message = document.createElement("section");
+  message.className = "run-chat-message run-user-message";
+  message.append(chatRole("You"), chatBody("Request", run.prompt || "(empty prompt)", "prompt-text"));
+  return message;
+}
+
+function renderAssistantMessage(run: RuntimeRunReport): HTMLElement | null {
   const view = activeTaskView();
   const transcript = view ? transcriptForRun(view, run.runId) : null;
   const live = view?.liveTranscriptRunId === run.runId;
@@ -893,25 +896,55 @@ function renderRunTranscript(run: RuntimeRunReport): HTMLElement | null {
     return null;
   }
 
-  const section = document.createElement("section");
-  section.className = "run-rhythm-section run-transcript";
+  const message = document.createElement("section");
+  message.className = "run-chat-message run-assistant-message run-transcript";
+  message.append(chatRole("Codex"));
 
+  const body = document.createElement("div");
+  body.className = "run-chat-body";
   const header = document.createElement("div");
   header.className = "run-transcript-header";
   header.append(runSectionLabel("Transcript"));
 
   const stateLabel = document.createElement("span");
   stateLabel.className = "run-transcript-state";
-  stateLabel.textContent = live ? "Live" : transcript?.truncated ? "Memory tail" : "Memory";
+  stateLabel.textContent = transcriptStateLabel(transcript, live);
   header.append(stateLabel);
-  section.append(header);
+  body.append(header);
 
   const pre = document.createElement("pre");
-  pre.className = "run-transcript-text";
+  pre.className = "run-chat-text run-transcript-text";
   pre.textContent = transcript?.text.trimEnd() || "Waiting for Codex output";
-  section.append(pre);
+  body.append(pre);
+  message.append(body);
 
-  return section;
+  return message;
+}
+
+function chatRole(label: string): HTMLElement {
+  const role = document.createElement("div");
+  role.className = "run-chat-role";
+  role.textContent = label;
+  return role;
+}
+
+function chatBody(label: string, text: string, textClassName: string): HTMLElement {
+  const body = document.createElement("div");
+  body.className = "run-chat-body";
+  body.append(runSectionLabel(label));
+  const pre = document.createElement("pre");
+  pre.className = `run-chat-text ${textClassName}`;
+  pre.textContent = text;
+  body.append(pre);
+  return body;
+}
+
+function transcriptStateLabel(transcript: RunTranscript | null, live: boolean): string {
+  const source = live ? "Live" : transcript?.truncated ? "Memory tail" : "Memory";
+  if (!transcript) {
+    return `${source} / 0 chars`;
+  }
+  return `${source} / ${formatCompactNumber(transcript.receivedChars)} chars`;
 }
 
 function renderArtifacts(): void {
@@ -955,6 +988,7 @@ function appendLiveTranscript(view: TaskViewState, data: string): void {
   }
 
   const transcript = ensureRunTranscript(view, view.liveTranscriptRunId);
+  transcript.receivedChars += text.length;
   const nextText = `${transcript.text}${text}`;
   transcript.truncated = transcript.truncated || nextText.length > MAX_TRANSCRIPT_CHARS;
   transcript.text = nextText.slice(-MAX_TRANSCRIPT_CHARS);
@@ -968,6 +1002,7 @@ function ensureRunTranscript(view: TaskViewState, runId: string): RunTranscript 
       runId,
       text: "",
       truncated: false,
+      receivedChars: 0,
     };
     view.runTranscripts = [...view.runTranscripts, transcript];
   }
@@ -1279,6 +1314,16 @@ function formatElapsed(value: number | null): string {
     return `${value} ms`;
   }
   return `${(value / 1000).toFixed(1)} s`;
+}
+
+function formatCompactNumber(value: number): string {
+  if (value < 1000) {
+    return String(value);
+  }
+  if (value < 1_000_000) {
+    return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)}k`;
+  }
+  return `${(value / 1_000_000).toFixed(1)}m`;
 }
 
 function artifactKindLabel(kind: ArtifactCandidate["kind"]): string {
