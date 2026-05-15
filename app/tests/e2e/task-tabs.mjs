@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { approveIfVisible } from "./helpers/approval.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-tabs-e2e-"));
 let electronApp = null;
@@ -219,19 +220,6 @@ async function runFilePrompt(page, options) {
   await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
-}
-
-async function approveIfVisible(page, title, timeoutMs) {
-  const banner = page.locator("#approval-banner", { hasText: title });
-  try {
-    await banner.waitFor({ state: "visible", timeout: timeoutMs });
-  } catch {
-    return false;
-  }
-
-  await page.locator("#approve-approval").click();
-  await banner.waitFor({ state: "hidden", timeout: 30000 }).catch(() => {});
-  return true;
 }
 
 function readReports(root) {

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { approveVisibleBanner } from "./helpers/approval.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-surface-e2e-"));
 let electronApp = null;
@@ -137,8 +138,7 @@ async function approveWithSurface(page, expected) {
   await banner.locator("#approval-context", { hasText: "Deny: send native Esc" }).waitFor({
     state: "visible",
   });
-  await page.locator("#approve-approval").click();
-  await banner.waitFor({ state: "hidden", timeout: 30000 }).catch(() => {});
+  await approveVisibleBanner(page, banner);
 }
 
 function readReports(root) {

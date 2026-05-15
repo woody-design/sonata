@@ -10,7 +10,7 @@ export async function approveIfVisible(page, title, timeoutMs) {
   return true;
 }
 
-async function approveVisibleBanner(page, banner) {
+export async function approveVisibleBanner(page, banner) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     await page.locator("#approve-approval").click();
     try {

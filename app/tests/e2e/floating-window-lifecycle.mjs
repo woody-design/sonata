@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { approveIfVisible } from "./helpers/approval.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-floating-window-e2e-"));
 const previewTargetBounds = { x: 120, y: 120, width: 840, height: 620 };
@@ -217,19 +218,6 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     `Timed out waiting for ${expectedCompletedRuns} completed Runs. ` +
       `headline=${headline} status=${status} approval=${approval}`,
   );
-}
-
-async function approveIfVisible(page, title, timeoutMs) {
-  const banner = page.locator("#approval-banner", { hasText: title });
-  try {
-    await banner.waitFor({ state: "visible", timeout: timeoutMs });
-  } catch {
-    return false;
-  }
-
-  await page.locator("#approve-approval").click();
-  await banner.waitFor({ state: "hidden", timeout: 30000 }).catch(() => {});
-  return true;
 }
 
 async function setWindowBounds(electronApp, title, bounds) {

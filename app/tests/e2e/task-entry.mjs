@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { approveIfVisible } from "./helpers/approval.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-task-entry-e2e-"));
 let electronApp = null;
@@ -139,19 +140,6 @@ async function waitForRuntimeReady(page, timeoutMs) {
     await delay(250);
   }
   throw new Error("Timed out waiting for runtime ready.");
-}
-
-async function approveIfVisible(page, title, timeoutMs) {
-  const banner = page.locator("#approval-banner", { hasText: title });
-  try {
-    await banner.waitFor({ state: "visible", timeout: timeoutMs });
-  } catch {
-    return false;
-  }
-
-  await page.locator("#approve-approval").click();
-  await banner.waitFor({ state: "hidden", timeout: 30000 }).catch(() => {});
-  return true;
 }
 
 async function waitForTaskDirectory(root, timeoutMs) {
