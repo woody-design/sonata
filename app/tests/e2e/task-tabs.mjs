@@ -29,10 +29,20 @@ try {
   }
 
   await runFilePrompt(page, {
-    fileName: "alpha.md",
+    fileName: "report.md",
     body: "Alpha artifact ready.",
   });
-  await page.locator(".artifact-item", { hasText: "alpha.md" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
+  const previewWindowPromise = electronApp.waitForEvent("window");
+  await page.locator(".artifact-item", { hasText: "report.md" }).click();
+  const previewPage = await previewWindowPromise;
+  previewPage.setDefaultTimeout(180000);
+  await previewPage.locator(".text-preview", { hasText: "Alpha artifact ready." }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".preview-window-tab", { hasText: shortId(firstTaskId) }).waitFor({
+    state: "visible",
+  });
 
   await page.locator("#new-task").click();
   await approveIfVisible(page, "Workspace trust requested", 45000);
@@ -45,31 +55,50 @@ try {
     throw new Error("Second Task tab did not create an independent task id.");
   }
   await page.locator(".empty-state", { hasText: "No Runs yet" }).waitFor({ state: "visible" });
-  await expectArtifactAbsent(page, "alpha.md");
+  await page.locator(".run-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "hidden" });
 
   await runFilePrompt(page, {
-    fileName: "beta.md",
+    fileName: "report.md",
     body: "Beta artifact ready.",
   });
-  await page.locator(".artifact-item", { hasText: "beta.md" }).waitFor({ state: "visible" });
-  await expectArtifactAbsent(page, "alpha.md");
+  await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
+  await page.locator(".artifact-item", { hasText: "report.md" }).click();
+  await previewPage.locator(".text-preview", { hasText: "Beta artifact ready." }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".preview-window-tab", { hasText: shortId(secondTaskId) }).waitFor({
+    state: "visible",
+  });
+  const reportTabCount = await previewPage.locator(".preview-window-tab", { hasText: "report.md" }).count();
+  if (reportTabCount !== 2) {
+    throw new Error(`Expected two task-scoped report.md Preview tabs; found ${reportTabCount}.`);
+  }
 
   await page.locator(`.task-tab[data-task-id="${firstTaskId}"]`).click();
-  await page.locator(".artifact-item", { hasText: "alpha.md" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "alpha.md" }).waitFor({ state: "visible" });
-  await expectArtifactAbsent(page, "beta.md");
+  await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Beta artifact ready." }).waitFor({ state: "hidden" });
 
   await page.locator(`.task-tab[data-task-id="${secondTaskId}"]`).click();
-  await page.locator(".artifact-item", { hasText: "beta.md" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "beta.md" }).waitFor({ state: "visible" });
-  await expectArtifactAbsent(page, "alpha.md");
+  await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Beta artifact ready." }).waitFor({ state: "visible" });
+  await page.locator(".run-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "hidden" });
+
+  await previewPage.locator(".preview-window-tab", { hasText: shortId(firstTaskId) }).click();
+  await previewPage.locator(".text-preview", { hasText: "Alpha artifact ready." }).waitFor({
+    state: "visible",
+  });
+  await previewPage.locator(".preview-window-tab", { hasText: shortId(secondTaskId) }).click();
+  await previewPage.locator(".text-preview", { hasText: "Beta artifact ready." }).waitFor({
+    state: "visible",
+  });
 
   const reports = readReports(workspaceRoot);
   const alphaReport = reports.find((report) =>
-    report.runs?.some((run) => run.artifactCandidates?.some((artifact) => artifact.path === "alpha.md")),
+    report.runs?.some((run) => run.prompt?.includes("Alpha artifact ready.")),
   );
   const betaReport = reports.find((report) =>
-    report.runs?.some((run) => run.artifactCandidates?.some((artifact) => artifact.path === "beta.md")),
+    report.runs?.some((run) => run.prompt?.includes("Beta artifact ready.")),
   );
   const reportText = JSON.stringify(reports);
   const rawTerminalPersisted =
@@ -81,6 +110,13 @@ try {
     Boolean(alphaReport) &&
     Boolean(betaReport) &&
     alphaReport?.taskId !== betaReport?.taskId &&
+    alphaReport?.runs?.some((run) =>
+      run.artifactCandidates?.some((artifact) => artifact.path === "report.md"),
+    ) &&
+    betaReport?.runs?.some((run) =>
+      run.artifactCandidates?.some((artifact) => artifact.path === "report.md"),
+    ) &&
+    reportTabCount === 2 &&
     reports.length === 2 &&
     !rawTerminalPersisted;
 
@@ -93,6 +129,7 @@ try {
         reportTaskIds: reports.map((report) => report.taskId),
         alphaRunCount: alphaReport?.runs?.length ?? 0,
         betaRunCount: betaReport?.runs?.length ?? 0,
+        reportPreviewTabs: reportTabCount,
         rawTerminalPersisted,
         success,
       },
@@ -141,13 +178,6 @@ async function approveIfVisible(page, title, timeoutMs) {
   return true;
 }
 
-async function expectArtifactAbsent(page, name) {
-  const count = await page.locator(".artifact-item", { hasText: name }).count();
-  if (count > 0) {
-    throw new Error(`Unexpected artifact visible in active Task: ${name}`);
-  }
-}
-
 function readReports(root) {
   return fs
     .readdirSync(root, { withFileTypes: true })
@@ -155,4 +185,8 @@ function readReports(root) {
     .map((entry) => path.join(root, entry.name, ".duet", "runtime-report.json"))
     .filter((reportPath) => fs.existsSync(reportPath))
     .map((reportPath) => JSON.parse(fs.readFileSync(reportPath, "utf8")));
+}
+
+function shortId(value) {
+  return value.length > 18 ? `${value.slice(0, 18)}...` : value;
 }

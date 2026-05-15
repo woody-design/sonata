@@ -16,9 +16,8 @@ let previewWindow: BrowserWindow | null = null;
 let inspectorWindow: BrowserWindow | null = null;
 let runtimeController: RuntimeController | null = null;
 let previewState: PreviewWindowState = {
-  taskId: null,
   tabs: [],
-  selectedPath: null,
+  selected: null,
 };
 let inspectorState: InspectorWindowState = {
   taskId: null,
@@ -138,27 +137,22 @@ function readPreviewState(): PreviewWindowState {
 }
 
 function updatePreviewState(request: OpenPreviewRequest): void {
-  if (previewState.taskId !== request.taskId) {
-    previewState = {
-      taskId: request.taskId,
-      tabs: [],
-      selectedPath: null,
-    };
-  }
-
   if (!request.relativePath) {
     return;
   }
 
-  const existing = previewState.tabs.find((tab) => tab.path === request.relativePath);
-  previewState = {
+  const ref = {
     taskId: request.taskId,
+    path: request.relativePath,
+  };
+  const existing = previewState.tabs.find((tab) => samePreviewRef(tab, ref));
+  previewState = {
     tabs: existing
       ? previewState.tabs.map((tab) =>
-          tab.path === request.relativePath ? { ...tab, dirty: false } : tab,
+          samePreviewRef(tab, ref) ? { ...tab, dirty: false } : tab,
         )
-      : [...previewState.tabs, { path: request.relativePath, dirty: false }],
-    selectedPath: request.relativePath,
+      : [...previewState.tabs, { ...ref, dirty: false }],
+    selected: ref,
   };
 }
 
@@ -166,6 +160,13 @@ function sendPreviewState(): void {
   if (previewWindow && !previewWindow.isDestroyed()) {
     previewWindow.webContents.send(IPC_CHANNELS.previewState, previewState);
   }
+}
+
+function samePreviewRef(
+  left: { taskId: string; path: string },
+  right: { taskId: string; path: string },
+): boolean {
+  return left.taskId === right.taskId && left.path === right.path;
 }
 
 async function openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState> {

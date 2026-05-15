@@ -119,15 +119,18 @@ export interface OpenPreviewRequest {
   relativePath?: string;
 }
 
-export interface PreviewWindowTab {
+export interface PreviewArtifactRef {
+  taskId: TaskId;
   path: string;
+}
+
+export interface PreviewWindowTab extends PreviewArtifactRef {
   dirty: boolean;
 }
 
 export interface PreviewWindowState {
-  taskId: TaskId | null;
   tabs: PreviewWindowTab[];
-  selectedPath: string | null;
+  selected: PreviewArtifactRef | null;
 }
 
 export type InspectorLens = "run" | "change" | "artifact" | "folder";

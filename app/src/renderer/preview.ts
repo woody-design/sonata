@@ -2,14 +2,14 @@ import "./styles.css";
 import type { ArtifactCandidate } from "../shared/types";
 import type {
   ArtifactPreviewResponse,
+  PreviewArtifactRef,
   PreviewWindowState,
   PreviewWindowTab,
 } from "../shared/types/ipc";
 
 interface FloatingPreviewState {
-  taskId: string | null;
   tabs: PreviewWindowTab[];
-  selectedPath: string | null;
+  selected: PreviewArtifactRef | null;
   artifacts: ArtifactCandidate[];
   preview: ArtifactPreviewResponse | null;
   previewError: string | null;
@@ -17,9 +17,8 @@ interface FloatingPreviewState {
 }
 
 const state: FloatingPreviewState = {
-  taskId: null,
   tabs: [],
-  selectedPath: null,
+  selected: null,
   artifacts: [],
   preview: null,
   previewError: null,
@@ -58,22 +57,24 @@ window.duetRuntime.onPreviewState((nextState) => {
 });
 
 window.duetRuntime.onRuntimeEvent((event) => {
-  if (event.type !== "file:changed" || event.payload.taskId !== state.taskId) {
+  if (event.type !== "file:changed") {
     return;
   }
 
-  const tab = state.tabs.find((item) => item.path === event.payload.path);
+  const tab = state.tabs.find(
+    (item) => item.taskId === event.payload.taskId && item.path === event.payload.path,
+  );
   if (!tab) {
     return;
   }
 
-  if (event.payload.path === state.selectedPath) {
-    void openTab(event.payload.path);
+  if (state.selected && sameRef(state.selected, tab)) {
+    void openTab(tab);
     return;
   }
 
   state.tabs = state.tabs.map((item) =>
-    item.path === event.payload.path ? { ...item, dirty: true } : item,
+    sameRef(item, tab) ? { ...item, dirty: true } : item,
   );
   render();
 });
@@ -81,44 +82,37 @@ window.duetRuntime.onRuntimeEvent((event) => {
 void window.duetRuntime.readPreviewState().then((nextState) => applyPreviewState(nextState));
 
 async function applyPreviewState(nextState: PreviewWindowState): Promise<void> {
-  const taskChanged = state.taskId !== nextState.taskId;
-  state.taskId = nextState.taskId;
-  state.tabs = taskChanged ? nextState.tabs : mergeTabs(state.tabs, nextState.tabs);
-  state.selectedPath = nextState.selectedPath;
-  state.status = nextState.taskId ? "Ready" : "No active Task";
+  state.tabs = mergeTabs(state.tabs, nextState.tabs);
+  state.selected = nextState.selected;
+  state.status = nextState.selected ? "Ready" : "No artifact selected";
 
   await refreshArtifacts();
-  if (state.selectedPath) {
-    await openTab(state.selectedPath);
+  if (state.selected) {
+    await openTab(state.selected);
     return;
   }
   render();
 }
 
 async function refreshArtifacts(): Promise<void> {
-  if (!state.taskId) {
+  if (!state.selected) {
     state.artifacts = [];
     return;
   }
-  state.artifacts = await window.duetRuntime.listArtifacts({ taskId: state.taskId });
+  state.artifacts = await window.duetRuntime.listArtifacts({ taskId: state.selected.taskId });
 }
 
-async function openTab(relativePath: string): Promise<void> {
-  if (!state.taskId) {
-    return;
-  }
-
-  state.selectedPath = relativePath;
-  state.tabs = state.tabs.map((tab) =>
-    tab.path === relativePath ? { ...tab, dirty: false } : tab,
-  );
+async function openTab(ref: PreviewArtifactRef): Promise<void> {
+  state.selected = ref;
+  state.tabs = state.tabs.map((tab) => (sameRef(tab, ref) ? { ...tab, dirty: false } : tab));
   state.status = "Loading";
   render();
 
   try {
+    state.artifacts = await window.duetRuntime.listArtifacts({ taskId: ref.taskId });
     state.preview = await window.duetRuntime.readArtifact({
-      taskId: state.taskId,
-      relativePath,
+      taskId: ref.taskId,
+      relativePath: ref.path,
     });
     state.previewError = null;
     state.status = "Ready";
@@ -131,7 +125,7 @@ async function openTab(relativePath: string): Promise<void> {
 }
 
 function render(): void {
-  elements.title.textContent = state.selectedPath ?? "No artifact selected";
+  elements.title.textContent = state.selected ? `${state.selected.path} / ${shortId(state.selected.taskId)}` : "No artifact selected";
   elements.status.textContent = state.status;
   renderTabs();
   renderContent();
@@ -151,11 +145,14 @@ function renderTabs(): void {
   for (const tab of state.tabs) {
     const button = document.createElement("button");
     button.className = "preview-window-tab";
-    button.classList.toggle("selected", tab.path === state.selectedPath);
+    button.classList.toggle("selected", Boolean(state.selected && sameRef(tab, state.selected)));
     button.type = "button";
     const label = document.createElement("span");
     label.textContent = tab.path;
-    button.append(label);
+    const meta = document.createElement("span");
+    meta.className = "preview-window-tab-meta";
+    meta.textContent = shortId(tab.taskId);
+    button.append(label, meta);
     if (tab.dirty) {
       const dot = document.createElement("span");
       dot.className = "preview-dirty-dot";
@@ -163,7 +160,7 @@ function renderTabs(): void {
       button.append(dot);
     }
     button.addEventListener("click", () => {
-      void openTab(tab.path);
+      void openTab(tab);
     });
     elements.tabs.append(button);
   }
@@ -231,6 +228,7 @@ function renderFloatingReview(): HTMLElement {
   section.append(header);
 
   section.append(
+    reviewRow("Task", state.selected ? shortId(state.selected.taskId) : "unknown"),
     reviewRow("Candidate", state.preview?.path ?? "unknown"),
     reviewRow("Kind", artifact ? artifact.kind : state.preview?.previewKind ?? "unknown"),
     reviewRow("Change", artifact?.changeKind ?? "unknown"),
@@ -243,22 +241,26 @@ function renderFloatingReview(): HTMLElement {
 }
 
 function selectedArtifact(): ArtifactCandidate | null {
-  if (!state.selectedPath) {
+  if (!state.selected) {
     return null;
   }
-  return state.artifacts.find((artifact) => artifact.path === state.selectedPath) ?? null;
+  return (
+    state.artifacts.find(
+      (artifact) => artifact.taskId === state.selected?.taskId && artifact.path === state.selected.path,
+    ) ?? null
+  );
 }
 
 function mergeTabs(existing: PreviewWindowTab[], incoming: PreviewWindowTab[]): PreviewWindowTab[] {
-  const byPath = new Map<string, PreviewWindowTab>();
+  const byKey = new Map<string, PreviewWindowTab>();
   for (const tab of existing) {
-    byPath.set(tab.path, tab);
+    byKey.set(tabKey(tab), tab);
   }
   for (const tab of incoming) {
-    const current = byPath.get(tab.path);
-    byPath.set(tab.path, current ? { ...tab, dirty: current.dirty || tab.dirty } : tab);
+    const current = byKey.get(tabKey(tab));
+    byKey.set(tabKey(tab), current ? { ...tab, dirty: current.dirty || tab.dirty } : tab);
   }
-  return [...byPath.values()];
+  return [...byKey.values()];
 }
 
 function reviewRow(label: string, value: string): HTMLElement {
@@ -276,6 +278,18 @@ function previewEvidenceLabel(preview: ArtifactPreviewResponse): string {
   return `${preview.previewKind} / ${formatBytes(preview.size)}${
     preview.truncated ? " / truncated" : ""
   }`;
+}
+
+function sameRef(left: PreviewArtifactRef, right: PreviewArtifactRef): boolean {
+  return left.taskId === right.taskId && left.path === right.path;
+}
+
+function tabKey(ref: PreviewArtifactRef): string {
+  return `${ref.taskId}:${ref.path}`;
+}
+
+function shortId(value: string): string {
+  return value.length > 18 ? `${value.slice(0, 18)}...` : value;
 }
 
 function formatBytes(value: number): string {

@@ -628,9 +628,9 @@ textarea {
 }
 
 .preview-window-tab {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 7px;
   max-width: 240px;
   min-height: 32px;
   overflow: hidden;
@@ -646,12 +646,25 @@ textarea {
   white-space: nowrap;
 }
 
+.preview-window-tab-meta {
+  grid-column: 1 / 2;
+  overflow: hidden;
+  color: #6f695f;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .preview-window-tab.selected {
   border-color: #2f5d50;
   background: #e5efe9;
 }
 
 .preview-dirty-dot {
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+  align-self: center;
   flex: 0 0 auto;
   width: 7px;
   height: 7px;
