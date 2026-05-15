@@ -72,6 +72,14 @@ appElement.innerHTML = `
           </div>
         </div>
 
+        <section class="workflow-strip" aria-label="Task workflow state">
+          <div class="workflow-copy">
+            <p class="eyebrow">Task</p>
+            <strong id="workflow-headline">Start or open a Task</strong>
+          </div>
+          <div id="workflow-facts" class="workflow-facts"></div>
+        </section>
+
         <div id="run-list" class="run-list"></div>
 
         <form id="composer" class="composer">
@@ -127,6 +135,8 @@ const elements = {
   approvalTitle: getElement<HTMLElement>("approval-title"),
   denyApproval: getElement<HTMLButtonElement>("deny-approval"),
   approveApproval: getElement<HTMLButtonElement>("approve-approval"),
+  workflowHeadline: getElement<HTMLElement>("workflow-headline"),
+  workflowFacts: getElement<HTMLDivElement>("workflow-facts"),
   runList: getElement<HTMLDivElement>("run-list"),
   artifactList: getElement<HTMLDivElement>("artifact-list"),
   composer: getElement<HTMLFormElement>("composer"),
@@ -403,8 +413,11 @@ function render(): void {
   elements.sendPrompt.disabled = !state.task || state.busy || !state.runtimeReady || pendingApproval || activeRun;
   elements.stopRun.disabled = !state.task || state.busy || !activeRun;
   elements.promptInput.disabled = !state.task || pendingApproval;
+  elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
+  elements.sendPrompt.textContent = sendButtonLabel(activeRun);
 
   renderApproval();
+  renderWorkflow();
   renderRuns();
   renderArtifacts();
   renderPreview();
@@ -414,9 +427,11 @@ function render(): void {
 
 function hasActiveRun(): boolean {
   const latestRun = state.report?.runs.at(-1);
-  return ["active", "waiting-for-approval", "resumed-after-approval", "stopping"].includes(
-    latestRun?.status ?? "",
-  );
+  return isActiveRunStatus(latestRun?.status ?? "");
+}
+
+function isActiveRunStatus(status: string): boolean {
+  return ["active", "waiting-for-approval", "resumed-after-approval", "stopping"].includes(status);
 }
 
 function renderApproval(): void {
@@ -431,6 +446,90 @@ function renderApproval(): void {
       : approval.kind === "workspace-trust"
         ? "Workspace trust requested"
         : "File edit approval requested";
+}
+
+interface WorkflowState {
+  headline: string;
+  facts: string[];
+}
+
+function workflowState(): WorkflowState {
+  if (!state.task) {
+    return {
+      headline: "Start or open a Task",
+      facts: ["Codex idle"],
+    };
+  }
+
+  const runs = state.report?.runs ?? [];
+  const latestRun = runs.at(-1) ?? null;
+  const changedFiles = latestRun?.changedFiles.length ?? 0;
+  const artifactCount = state.artifacts.length;
+  const baseFacts = [
+    pluralize(runs.length, "Run"),
+    pluralize(changedFiles, "change"),
+    pluralize(artifactCount, "artifact"),
+    "Terminal available",
+  ];
+
+  if (state.pendingApproval) {
+    return {
+      headline: `${approvalKindLabel(state.pendingApproval.kind)} approval needed`,
+      facts: baseFacts,
+    };
+  }
+
+  if (latestRun && isActiveRunStatus(latestRun.status)) {
+    return {
+      headline: "Codex is working",
+      facts: baseFacts,
+    };
+  }
+
+  if (latestRun?.status === "stopped") {
+    return {
+      headline: "Stopped. Ready to continue",
+      facts: baseFacts,
+    };
+  }
+
+  if (artifactCount > 0) {
+    return {
+      headline: "Review ready",
+      facts: baseFacts,
+    };
+  }
+
+  if (runs.length > 0) {
+    return {
+      headline: "Ready to continue",
+      facts: baseFacts,
+    };
+  }
+
+  if (state.runtimeReady) {
+    return {
+      headline: "Ready for first Run",
+      facts: baseFacts,
+    };
+  }
+
+  return {
+    headline: "Starting Codex",
+    facts: baseFacts,
+  };
+}
+
+function workflowFact(value: string): HTMLElement {
+  const fact = document.createElement("span");
+  fact.textContent = value;
+  return fact;
+}
+
+function renderWorkflow(): void {
+  const workflow = workflowState();
+  elements.workflowHeadline.textContent = workflow.headline;
+  elements.workflowFacts.replaceChildren(...workflow.facts.map(workflowFact));
 }
 
 function renderRuns(): void {
@@ -843,6 +942,35 @@ async function openArtifact(relativePath: string): Promise<void> {
 function setSideView(view: SideView): void {
   state.sideView = view;
   render();
+}
+
+function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): string {
+  if (!state.task) {
+    return "Start or open a Task";
+  }
+  if (pendingApproval) {
+    return "Approval is waiting";
+  }
+  if (activeRun) {
+    return "Codex is working";
+  }
+  if ((state.report?.runs.length ?? 0) === 0) {
+    return "Describe the first Run";
+  }
+  return "Continue, correct, or redirect this Task";
+}
+
+function sendButtonLabel(activeRun: boolean): string {
+  if (activeRun) {
+    return "Working";
+  }
+  if (!state.task) {
+    return "Send";
+  }
+  if ((state.report?.runs.length ?? 0) === 0) {
+    return "Start Run";
+  }
+  return "Continue";
 }
 
 function metadataItem(label: string, value: string): HTMLElement {

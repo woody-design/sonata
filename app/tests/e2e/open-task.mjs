@@ -13,6 +13,9 @@ try {
   const taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
   const workspace = path.join(workspaceRoot, taskDirectory);
   await waitForRuntimeReady(page, 240000);
+  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
+    state: "visible",
+  });
 
   const originalPrompt = [
     "Create a Markdown file named open_original.md with exactly this content:",
@@ -29,6 +32,7 @@ try {
   await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
+  await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({ state: "visible" });
 
   const manifestPath = path.join(workspace, ".duet", "task.json");
   const reportPath = path.join(workspace, ".duet", "runtime-report.json");
@@ -45,6 +49,8 @@ try {
   await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
+  await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({ state: "visible" });
+  await page.locator("#send-prompt", { hasText: "Continue" }).waitFor({ state: "visible" });
   await page.locator(".artifact-item", { hasText: "open_original.md" }).click();
   await page.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
     state: "visible",

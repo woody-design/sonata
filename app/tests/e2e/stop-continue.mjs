@@ -25,6 +25,9 @@ try {
   taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
   workspace = path.join(workspaceRoot, taskDirectory);
   await waitForRuntimeReady(page, 240000);
+  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
+    state: "visible",
+  });
 
   const paths = {
     start: path.join(workspace, "stop_start.flag"),
@@ -50,6 +53,9 @@ try {
   await page.locator("#prompt-input").fill(longCommand);
   await page.locator("#send-prompt").click();
   const commandApprovalSeen = await approveIfVisible(page, "Command approval requested", 180000);
+  await page.locator("#workflow-headline", { hasText: /Codex is working|Command approval needed/ }).waitFor({
+    state: "visible",
+  });
 
   await waitUntil(() => fs.existsSync(paths.start), 180000, "long command start file");
   await waitUntil(() => fs.existsSync(paths.pid), 15000, "long command pid file");
@@ -58,6 +64,10 @@ try {
 
   await page.locator("#stop-run").click();
   await page.locator("#runtime-status", { hasText: "Stopped" }).waitFor({ timeout: 90000 });
+  await page.locator("#workflow-headline", { hasText: "Stopped. Ready to continue" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#send-prompt", { hasText: "Continue" }).waitFor({ state: "visible" });
   await page.locator(".run-outcome", { hasText: "Stopped by Esc + /stop" }).waitFor({
     state: "visible",
   });

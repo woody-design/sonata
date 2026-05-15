@@ -20,6 +20,10 @@ try {
 
   await page.locator("#new-task").click();
   await approveIfVisible(page, "Workspace trust requested", 45000);
+  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#send-prompt", { hasText: "Start Run" }).waitFor({ state: "visible" });
 
   const prompt = [
     "Create exactly two files in this workspace:",
@@ -30,6 +34,9 @@ try {
 
   await page.locator("#prompt-input").fill(prompt);
   await page.locator("#send-prompt").click();
+  await page.locator("#workflow-headline", { hasText: /Codex is working|File edit approval needed/ }).waitFor({
+    state: "visible",
+  });
 
   await approveIfVisible(page, "File edit approval requested", 180000);
   await approveIfVisible(page, "Command approval requested", 15000);
@@ -44,6 +51,16 @@ try {
   });
   await page.locator(".run-timeline", { hasText: "2 files changed" }).waitFor({ state: "visible" });
   await page.locator(".run-timeline", { hasText: "2 artifacts ready" }).waitFor({ state: "visible" });
+  await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#workflow-facts", { hasText: "1 Run" }).waitFor({ state: "visible" });
+  await page.locator("#workflow-facts", { hasText: "2 changes" }).waitFor({ state: "visible" });
+  await page.locator("#workflow-facts", { hasText: "2 artifacts" }).waitFor({ state: "visible" });
+  await page.locator("#workflow-facts", { hasText: "Terminal available" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#send-prompt", { hasText: "Continue" }).waitFor({ state: "visible" });
 
   await page.locator(".artifact-item", { hasText: "report.md" }).click();
   await page.locator(".preview-header", { hasText: "report.md" }).waitFor({ state: "visible" });
