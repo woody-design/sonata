@@ -175,6 +175,81 @@ try {
   await page.locator(".inspector-content", { hasText: "report.md" }).waitFor({ state: "visible" });
   await page.locator(".inspector-content", { hasText: "page.html" }).waitFor({ state: "visible" });
 
+  const inspectorWindowPromise = electronApp.waitForEvent("window");
+  await page.locator("#open-inspector-window").click();
+  const inspectorPage = await inspectorWindowPromise;
+  inspectorPage.setDefaultTimeout(180000);
+  await inspectorPage.locator(".floating-inspector-shell", { hasText: "Inspector" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-window-tab", { hasText: "Run" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-window-tab", { hasText: "Change" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-window-tab", { hasText: "Artifact" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-window-tab", { hasText: "Folder" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-section", { hasText: "Runtime report summary" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-section", { hasText: "Run 1" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-section", { hasText: "report.md" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-section", { hasText: "page.html" }).waitFor({
+    state: "visible",
+  });
+
+  await inspectorPage.locator(".inspector-window-tab", { hasText: "Change" }).click();
+  await inspectorPage.locator(".change-summary", { hasText: "Changed files summary" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".change-summary", { hasText: "2 changed files" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".change-summary", { hasText: "not used in MVP" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-file-list", { hasText: "report.md" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-file-list", { hasText: "page.html" }).waitFor({
+    state: "visible",
+  });
+
+  await inspectorPage.locator(".inspector-window-tab", { hasText: "Artifact" }).click();
+  await inspectorPage.locator(".inspector-section", { hasText: "Artifact candidates" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-section", { hasText: "report-listed candidates only" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".artifact-item", { hasText: "report.md" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".artifact-item", { hasText: "page.html" }).waitFor({
+    state: "visible",
+  });
+
+  await inspectorPage.locator(".inspector-window-tab", { hasText: "Folder" }).click();
+  await inspectorPage.locator(".workspace-tree-item", { hasText: "report.md" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".workspace-tree-item", { hasText: "page.html" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".workspace-tree-item", { hasText: "report.md" }).click();
+  await inspectorPage.locator(".workspace-file-preview", { hasText: "Markdown artifact ready." }).waitFor({
+    state: "visible",
+  });
+
   await page.locator("#terminal-tab").click();
   await page.locator("#terminal").waitFor({ state: "visible" });
 

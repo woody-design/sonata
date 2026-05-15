@@ -1,10 +1,20 @@
 import { ipcMain } from "electron";
-import { IPC_CHANNELS, type OpenPreviewRequest, type PreviewWindowState } from "../shared/types";
+import {
+  IPC_CHANNELS,
+  type InspectorWindowState,
+  type OpenInspectorRequest,
+  type OpenPreviewRequest,
+  type PreviewWindowState,
+  type WorkspaceOpenFolderRequest,
+} from "../shared/types";
 import type { RuntimeController } from "./runtime-controller";
 
 export interface WindowIpcController {
   openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;
   readPreviewState(): PreviewWindowState;
+  openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
+  readInspectorState(): InspectorWindowState;
+  openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
 }
 
 export function registerIpcHandlers(
@@ -45,4 +55,17 @@ export function registerIpcHandlers(
     windowController.openPreview(request),
   );
   ipcMain.handle(IPC_CHANNELS.previewStateRead, () => windowController.readPreviewState());
+  ipcMain.handle(IPC_CHANNELS.inspectorOpen, (_event, request) =>
+    windowController.openInspector(request),
+  );
+  ipcMain.handle(IPC_CHANNELS.inspectorStateRead, () => windowController.readInspectorState());
+  ipcMain.handle(IPC_CHANNELS.workspaceTreeRead, (_event, request) =>
+    runtimeController.readWorkspaceTree(request.taskId),
+  );
+  ipcMain.handle(IPC_CHANNELS.workspaceFileRead, (_event, request) =>
+    runtimeController.readWorkspaceFile(request.taskId, request.relativePath),
+  );
+  ipcMain.handle(IPC_CHANNELS.workspaceOpenFolder, (_event, request) =>
+    windowController.openWorkspaceFolder(request),
+  );
 }

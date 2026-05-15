@@ -10,6 +10,8 @@ import type {
   RuntimeReportUpdatedEvent,
   Task,
   TaskId,
+  WorkspaceFilePreviewResponse,
+  WorkspaceTreeEntry,
 } from "../shared/types";
 import type { RunIndexEvent } from "../shared/types/events";
 import {
@@ -19,7 +21,7 @@ import {
   type RuntimeReportV1,
   type TaskManifestV1,
 } from "../shared/schemas";
-import { ArtifactPreview, RunIndex, TerminalHost } from "../runtime";
+import { ArtifactPreview, RunIndex, TerminalHost, WorkspacePreview } from "../runtime";
 
 interface RuntimeControllerOptions {
   sendEvent: (event: RuntimeEvent) => void;
@@ -198,6 +200,21 @@ export class RuntimeController {
     return this.currentArtifactPreview(active).readArtifact(relativePath);
   }
 
+  readWorkspaceTree(taskId: TaskId): WorkspaceTreeEntry[] {
+    const active = this.requireActiveTask(taskId);
+    return this.currentWorkspacePreview(active).readTree();
+  }
+
+  readWorkspaceFile(taskId: TaskId, relativePath: string): WorkspaceFilePreviewResponse {
+    const active = this.requireActiveTask(taskId);
+    return this.currentWorkspacePreview(active).readFile(relativePath);
+  }
+
+  workspacePath(taskId: TaskId): string {
+    const active = this.requireActiveTask(taskId);
+    return this.workspaceRoot(active);
+  }
+
   dispose(): void {
     this.disposeActiveTask();
   }
@@ -230,12 +247,21 @@ export class RuntimeController {
   }
 
   private currentArtifactPreview(active: ActiveTaskRuntime): ArtifactPreview {
-    const workspaceRoot = active.terminalHost.workspace ?? active.task.workingDirectory;
     return new ArtifactPreview({
       taskId: active.task.id,
-      workspaceRoot,
+      workspaceRoot: this.workspaceRoot(active),
       report: active.runIndex.read(),
     });
+  }
+
+  private currentWorkspacePreview(active: ActiveTaskRuntime): WorkspacePreview {
+    return new WorkspacePreview({
+      workspaceRoot: this.workspaceRoot(active),
+    });
+  }
+
+  private workspaceRoot(active: ActiveTaskRuntime): string {
+    return active.terminalHost.workspace ?? active.task.workingDirectory;
   }
 
   private requireActiveTask(taskId: TaskId): ActiveTaskRuntime {

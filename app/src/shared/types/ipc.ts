@@ -21,6 +21,12 @@ export const IPC_CHANNELS = {
   previewOpen: "preview:open",
   previewStateRead: "preview:state:read",
   previewState: "preview:state",
+  inspectorOpen: "inspector:open",
+  inspectorStateRead: "inspector:state:read",
+  inspectorState: "inspector:state",
+  workspaceTreeRead: "workspace:tree:read",
+  workspaceFileRead: "workspace:file:read",
+  workspaceOpenFolder: "workspace:open-folder",
   runtimeEvent: "runtime:event",
 } as const;
 
@@ -119,6 +125,49 @@ export interface PreviewWindowState {
   selectedPath: string | null;
 }
 
+export type InspectorLens = "run" | "change" | "artifact" | "folder";
+
+export interface OpenInspectorRequest {
+  taskId: TaskId;
+  lens?: InspectorLens;
+}
+
+export interface InspectorWindowState {
+  taskId: TaskId | null;
+  lens: InspectorLens;
+}
+
+export interface WorkspaceTreeRequest {
+  taskId: TaskId;
+}
+
+export interface WorkspaceTreeEntry {
+  path: string;
+  name: string;
+  type: "file" | "directory";
+  depth: number;
+  children?: WorkspaceTreeEntry[];
+}
+
+export interface WorkspaceFileReadRequest {
+  taskId: TaskId;
+  relativePath: string;
+}
+
+export interface WorkspaceFilePreviewResponse {
+  path: string;
+  extension: string;
+  size: number;
+  truncated: boolean;
+  previewKind: PreviewKind;
+  content?: string;
+  dataUrl?: string;
+}
+
+export interface WorkspaceOpenFolderRequest {
+  taskId: TaskId;
+}
+
 export interface DuetRuntimeBridge {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
   openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
@@ -132,6 +181,12 @@ export interface DuetRuntimeBridge {
   openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;
   readPreviewState(): Promise<PreviewWindowState>;
   onPreviewState(callback: (state: PreviewWindowState) => void): () => void;
+  openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
+  readInspectorState(): Promise<InspectorWindowState>;
+  readWorkspaceTree(request: WorkspaceTreeRequest): Promise<WorkspaceTreeEntry[]>;
+  readWorkspaceFile(request: WorkspaceFileReadRequest): Promise<WorkspaceFilePreviewResponse>;
+  openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
+  onInspectorState(callback: (state: InspectorWindowState) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;
 }
 

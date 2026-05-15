@@ -4,7 +4,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { ArtifactPreview, RunIndex, TerminalHost } = require("../../dist/runtime");
+const { ArtifactPreview, RunIndex, TerminalHost, WorkspacePreview } = require("../../dist/runtime");
 
 const taskId = "task-runtime-smoke";
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-runtime-smoke-"));
@@ -70,6 +70,16 @@ try {
     unknownBlocked = true;
   }
 
+  const workspacePreview = new WorkspacePreview({ workspaceRoot: workspace });
+  const workspaceTree = workspacePreview.readTree();
+  const workspaceNotes = workspacePreview.readFile("notes.txt");
+  let workspaceEscapeBlocked = false;
+  try {
+    workspacePreview.readFile("../outside.txt");
+  } catch {
+    workspaceEscapeBlocked = true;
+  }
+
   const success =
     Boolean(runId) &&
     fileAttributedToRun &&
@@ -82,6 +92,11 @@ try {
     artifact.content.includes("Artifact candidate content.") &&
     artifact.rawTerminalPointer === null &&
     unknownBlocked &&
+    workspaceTree.some((entry) => entry.path === artifactName) &&
+    workspaceTree.some((entry) => entry.path === "notes.txt") &&
+    workspaceNotes.previewKind === "text" &&
+    workspaceNotes.content.includes("Not report-listed.") &&
+    workspaceEscapeBlocked &&
     !JSON.stringify(report).includes("pty:data");
 
   console.log(
@@ -97,6 +112,9 @@ try {
         previewKind: artifact.previewKind,
         rawTerminalPointer: artifact.rawTerminalPointer,
         unknownBlocked,
+        workspaceTreeEntries: workspaceTree.map((entry) => entry.path),
+        workspacePreviewKind: workspaceNotes.previewKind,
+        workspaceEscapeBlocked,
         eventTypes: [...new Set(eventTypes)],
       },
       null,

@@ -57,6 +57,7 @@ appElement.innerHTML = `
       <div class="topbar-actions">
         <span id="runtime-status" class="status">Idle</span>
         <button id="open-preview-window" class="secondary" type="button">Preview</button>
+        <button id="open-inspector-window" class="secondary" type="button">Inspector</button>
         <button id="open-task" class="secondary" type="button">Open Task</button>
         <button id="new-task" class="secondary" type="button">New Task</button>
       </div>
@@ -133,6 +134,7 @@ const elements = {
   taskTitle: getElement<HTMLHeadingElement>("task-title"),
   runtimeStatus: getElement<HTMLSpanElement>("runtime-status"),
   openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
+  openInspectorWindow: getElement<HTMLButtonElement>("open-inspector-window"),
   openTask: getElement<HTMLButtonElement>("open-task"),
   newTask: getElement<HTMLButtonElement>("new-task"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
@@ -183,6 +185,10 @@ elements.openTask.addEventListener("click", () => {
 
 elements.openPreviewWindow.addEventListener("click", () => {
   void openFloatingPreview();
+});
+
+elements.openInspectorWindow.addEventListener("click", () => {
+  void openFloatingInspector();
 });
 
 elements.composer.addEventListener("submit", (event) => {
@@ -417,6 +423,7 @@ function render(): void {
   elements.taskTitle.textContent = state.task?.title ?? "No active Task";
   elements.runtimeStatus.textContent = state.status;
   elements.openPreviewWindow.disabled = !state.task || state.busy;
+  elements.openInspectorWindow.disabled = !state.task || state.busy;
   elements.openTask.disabled = state.busy;
   elements.newTask.disabled = state.busy;
   const activeRun = hasActiveRun();
@@ -1019,6 +1026,17 @@ async function openFloatingPreview(): Promise<void> {
   await window.duetRuntime.openPreview({
     taskId: state.task.id,
     ...(state.selectedArtifactPath ? { relativePath: state.selectedArtifactPath } : {}),
+  });
+}
+
+async function openFloatingInspector(): Promise<void> {
+  if (!state.task) {
+    return;
+  }
+
+  await window.duetRuntime.openInspector({
+    taskId: state.task.id,
+    lens: "run",
   });
 }
 
