@@ -147,7 +147,7 @@ export interface MarkPreviewReviewedRequest {
 
 export interface FocusArtifactInMainRequest {
   taskId: TaskId;
-  relativePath: string;
+  relativePath?: string;
   runId?: string;
   mode: "artifact" | "run";
 }

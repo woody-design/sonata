@@ -1220,7 +1220,9 @@ function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
 
   state.activeTaskId = request.taskId;
   view.unread = false;
-  view.selectedArtifactPath = request.relativePath;
+  if (request.relativePath) {
+    view.selectedArtifactPath = request.relativePath;
+  }
   if (request.runId) {
     view.highlightedRunId = request.runId;
   }
@@ -1235,8 +1237,12 @@ function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
       scrollRunIntoView(request.runId);
       return;
     }
+    if (!request.relativePath) {
+      return;
+    }
+    const relativePath = request.relativePath;
     const artifact = Array.from(elements.artifactList.querySelectorAll<HTMLElement>(".artifact-item")).find(
-      (item) => item.textContent?.includes(request.relativePath),
+      (item) => item.textContent?.includes(relativePath),
     );
     artifact?.scrollIntoView({ block: "nearest", inline: "center" });
   });

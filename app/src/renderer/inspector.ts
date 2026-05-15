@@ -320,10 +320,15 @@ function renderRunSection(run: RuntimeRunReport, index: number): HTMLElement {
     inspectorRow("Changed files", String(run.changedFiles.length)),
     inspectorRow("Artifacts", String(run.artifactCandidates.length)),
   );
+  section.append(inspectorActionRow([
+    inspectorAction("Show in Main Chat", () => {
+      void focusMainRun(run.runId);
+    }),
+  ]));
 
   if (run.changedFiles.length > 0) {
     section.append(inspectorGroupTitle("Changed files"));
-    section.append(fileList(run.changedFiles));
+    section.append(changeReviewList(run.changedFiles));
   }
 
   if (run.artifactCandidates.length > 0) {
@@ -335,6 +340,14 @@ function renderRunSection(run: RuntimeRunReport, index: number): HTMLElement {
       item.append(
         inspectorFileValue(artifact.path),
         inspectorFileMeta(`${artifact.type} / ${artifact.changeKind}`),
+        inspectorInlineActions([
+          inspectorAction("Open Preview", () => {
+            void openPreviewArtifact(artifact.path);
+          }),
+          inspectorAction("Show in Main Chat", () => {
+            void focusMainArtifact(artifact.path, run.runId);
+          }),
+        ]),
       );
       list.append(item);
     }
@@ -365,7 +378,7 @@ function renderChangeLens(): void {
   const listSection = document.createElement("section");
   listSection.className = "inspector-section";
   listSection.append(inspectorTitle("Files"));
-  listSection.append(fileList(changes));
+  listSection.append(changeReviewList(changes));
   elements.content.append(listSection);
 }
 
@@ -387,24 +400,34 @@ function renderArtifactLens(): void {
 
   const list = document.createElement("section");
   list.className = "inspector-section";
-  list.append(inspectorTitle("Open in Preview"));
+  list.append(inspectorTitle("Review actions"));
   const items = document.createElement("div");
   items.className = "artifact-list standalone";
   for (const artifact of state.artifacts) {
-    const button = document.createElement("button");
-    button.className = "artifact-item";
-    button.type = "button";
+    const item = document.createElement("article");
+    item.className = "artifact-item inspector-artifact-item";
     const title = document.createElement("span");
     title.className = "artifact-item-title";
     title.textContent = artifact.path;
     const meta = document.createElement("span");
     meta.className = "artifact-item-meta";
     meta.textContent = `${artifact.kind} / ${artifact.changeKind} / ${artifact.runId}`;
-    button.append(title, meta);
-    button.addEventListener("click", () => {
-      void openPreviewArtifact(artifact.path);
-    });
-    items.append(button);
+    item.append(
+      title,
+      meta,
+      inspectorInlineActions([
+        inspectorAction("Open Preview", () => {
+          void openPreviewArtifact(artifact.path);
+        }),
+        inspectorAction("Show in Main Chat", () => {
+          void focusMainArtifact(artifact.path, artifact.runId);
+        }),
+        inspectorAction("Show Run", () => {
+          void focusMainRun(artifact.runId);
+        }),
+      ]),
+    );
+    items.append(item);
   }
   list.append(items);
   elements.content.append(list);
@@ -544,6 +567,29 @@ async function openPreviewArtifact(relativePath: string): Promise<void> {
   });
 }
 
+async function focusMainArtifact(relativePath: string, runId?: string): Promise<void> {
+  if (!state.taskId) {
+    return;
+  }
+  await window.duetRuntime.focusArtifactInMain({
+    taskId: state.taskId,
+    relativePath,
+    mode: "artifact",
+    ...(runId ? { runId } : {}),
+  });
+}
+
+async function focusMainRun(runId: string): Promise<void> {
+  if (!state.taskId) {
+    return;
+  }
+  await window.duetRuntime.focusArtifactInMain({
+    taskId: state.taskId,
+    runId,
+    mode: "run",
+  });
+}
+
 async function openWorkspaceFolder(): Promise<void> {
   if (!state.taskId) {
     return;
@@ -559,6 +605,45 @@ async function openWorkspaceFolder(): Promise<void> {
   render();
 }
 
+function changeReviewList(files: RuntimeFileChangeReport[]): HTMLElement {
+  const list = document.createElement("ul");
+  list.className = "inspector-file-list inspector-review-list";
+  for (const file of files) {
+    const run = runForChangedPath(file.path);
+    const artifact = artifactForPath(file.path);
+    const actions = [
+      ...(run
+        ? [
+            inspectorAction("Show Run", () => {
+              void focusMainRun(run.runId);
+            }),
+          ]
+        : []),
+      ...(artifact
+        ? [
+            inspectorAction("Open Preview", () => {
+              void openPreviewArtifact(artifact.path);
+            }),
+            inspectorAction("Show in Main Chat", () => {
+              void focusMainArtifact(artifact.path, artifact.runId);
+            }),
+          ]
+        : []),
+    ];
+    const item = document.createElement("li");
+    item.append(
+      inspectorFileValue(file.path),
+      inspectorFileMeta(`${file.changeKind} / ${file.type} / ${file.eventType}`),
+      inspectorFileMeta(
+        `${formatMaybeBytes(file.size)} / ${file.sha256 ? shortHash(file.sha256) : "sha256 unavailable"}`,
+      ),
+      ...(actions.length > 0 ? [inspectorInlineActions(actions)] : []),
+    );
+    list.append(item);
+  }
+  return list;
+}
+
 function uniqueChanges(): RuntimeFileChangeReport[] {
   const byPath = new Map<string, RuntimeFileChangeReport>();
   for (const run of state.report?.runs ?? []) {
@@ -572,19 +657,18 @@ function uniqueChanges(): RuntimeFileChangeReport[] {
   return [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
 }
 
-function fileList(files: RuntimeFileChangeReport[]): HTMLElement {
-  const list = document.createElement("ul");
-  list.className = "inspector-file-list";
-  for (const file of files) {
-    const item = document.createElement("li");
-    item.append(
-      inspectorFileValue(file.path),
-      inspectorFileMeta(`${file.changeKind} / ${file.type} / ${file.eventType}`),
-      inspectorFileMeta(`${formatMaybeBytes(file.size)} / ${file.sha256 ? shortHash(file.sha256) : "sha256 unavailable"}`),
-    );
-    list.append(item);
+function runForChangedPath(relativePath: string): RuntimeRunReport | null {
+  const runs = state.report?.runs ?? [];
+  for (const run of [...runs].reverse()) {
+    if (run.changedFiles.some((file) => file.path === relativePath)) {
+      return run;
+    }
   }
-  return list;
+  return null;
+}
+
+function artifactForPath(relativePath: string): ArtifactCandidate | null {
+  return state.artifacts.find((artifact) => artifact.path === relativePath) ?? null;
 }
 
 function inspectorTitle(value: string): HTMLHeadingElement {
@@ -616,6 +700,29 @@ function inspectorRow(label: string, value: string): HTMLElement {
   val.textContent = value;
   row.append(key, val);
   return row;
+}
+
+function inspectorActionRow(actions: HTMLButtonElement[]): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "inspector-action-row";
+  row.append(...actions);
+  return row;
+}
+
+function inspectorInlineActions(actions: HTMLButtonElement[]): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "inspector-inline-actions";
+  row.append(...actions);
+  return row;
+}
+
+function inspectorAction(label: string, action: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "inspector-action secondary";
+  button.type = "button";
+  button.textContent = label;
+  button.addEventListener("click", action);
+  return button;
 }
 
 function inspectorFileValue(value: string): HTMLElement {

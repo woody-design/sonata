@@ -1289,6 +1289,26 @@ textarea {
   white-space: nowrap;
 }
 
+.inspector-action-row,
+.inspector-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inspector-action-row {
+  margin-top: 10px;
+}
+
+.inspector-inline-actions {
+  margin-top: 5px;
+}
+
+.inspector-action {
+  min-height: 28px;
+  font-size: 12px;
+}
+
 .inspector-group-title {
   margin: 12px 0 6px;
   color: #302d28;
