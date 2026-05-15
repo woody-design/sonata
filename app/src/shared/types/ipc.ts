@@ -42,8 +42,15 @@ export interface CreateTaskResponse {
 }
 
 export interface OpenTaskRequest {
-  taskId: TaskId;
+  taskId?: TaskId;
+  cwd?: string;
+  sandbox?: "read-only" | "workspace-write";
+  approval?: "never" | "on-request";
+  rows?: number;
+  cols?: number;
 }
+
+export type OpenTaskResponse = CreateTaskResponse;
 
 export interface SubmitPromptRequest {
   taskId: TaskId;
@@ -95,7 +102,7 @@ export interface ArtifactPreviewResponse {
 
 export interface DuetRuntimeBridge {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
-  openTask(request: OpenTaskRequest): Promise<Task>;
+  openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
   submitPrompt(request: SubmitPromptRequest): Promise<void>;
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;
   stopRun(request: StopRunRequest): Promise<void>;

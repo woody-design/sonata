@@ -54,6 +54,7 @@ appElement.innerHTML = `
       </div>
       <div class="topbar-actions">
         <span id="runtime-status" class="status">Idle</span>
+        <button id="open-task" class="secondary" type="button">Open Task</button>
         <button id="new-task" class="secondary" type="button">New Task</button>
       </div>
     </header>
@@ -120,6 +121,7 @@ appElement.innerHTML = `
 const elements = {
   taskTitle: getElement<HTMLHeadingElement>("task-title"),
   runtimeStatus: getElement<HTMLSpanElement>("runtime-status"),
+  openTask: getElement<HTMLButtonElement>("open-task"),
   newTask: getElement<HTMLButtonElement>("new-task"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
   approvalTitle: getElement<HTMLElement>("approval-title"),
@@ -159,6 +161,10 @@ fitTerminal();
 
 elements.newTask.addEventListener("click", () => {
   void createTask();
+});
+
+elements.openTask.addEventListener("click", () => {
+  void openTask();
 });
 
 elements.composer.addEventListener("submit", (event) => {
@@ -267,6 +273,33 @@ async function createTask(): Promise<void> {
   }
 }
 
+async function openTask(): Promise<void> {
+  state.busy = true;
+  state.status = "Opening Task";
+  terminal.clear();
+  render();
+
+  try {
+    const response = await window.duetRuntime.openTask({});
+    state.task = response.task;
+    state.report = null;
+    state.artifacts = [];
+    state.preview = null;
+    state.previewError = null;
+    state.selectedArtifactPath = null;
+    state.pendingApproval = null;
+    state.runtimeReady = false;
+    state.composerObserved = false;
+    state.status = `Opened Codex PTY ${response.runtime.pid}`;
+    await refreshReport();
+  } catch (error) {
+    state.status = errorMessage(error);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
 async function submitPrompt(): Promise<void> {
   if (!state.task) {
     return;
@@ -363,6 +396,7 @@ async function resizeTerminal(): Promise<void> {
 function render(): void {
   elements.taskTitle.textContent = state.task?.title ?? "No active Task";
   elements.runtimeStatus.textContent = state.status;
+  elements.openTask.disabled = state.busy;
   elements.newTask.disabled = state.busy;
   const activeRun = hasActiveRun();
   const pendingApproval = Boolean(state.pendingApproval);

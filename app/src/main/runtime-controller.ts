@@ -5,13 +5,20 @@ import type {
   ArtifactCandidate,
   CreateTaskRequest,
   CreateTaskResponse,
+  OpenTaskRequest,
   RuntimeEvent,
   RuntimeReportUpdatedEvent,
   Task,
   TaskId,
 } from "../shared/types";
 import type { RunIndexEvent } from "../shared/types/events";
-import type { RuntimeReportV1 } from "../shared/schemas";
+import {
+  freshTaskManifestV1,
+  TASK_MANIFEST_SCHEMA_ID,
+  TASK_MANIFEST_SCHEMA_VERSION,
+  type RuntimeReportV1,
+  type TaskManifestV1,
+} from "../shared/schemas";
 import { ArtifactPreview, RunIndex, TerminalHost } from "../runtime";
 
 interface RuntimeControllerOptions {
@@ -45,7 +52,7 @@ export class RuntimeController {
     const taskId = this.nextTaskId();
     const cwd = path.resolve(request.cwd ?? this.defaultWorkspacePath(taskId));
     const reportPath = path.join(cwd, ".duet", "runtime-report.json");
-    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+    fs.mkdirSync(duetDirectory(cwd), { recursive: true });
 
     const task: Task = {
       id: taskId,
@@ -84,6 +91,7 @@ export class RuntimeController {
       runIndex,
       reportPath,
     };
+    this.persistTaskManifest(this.activeTask.task);
 
     return {
       task: this.activeTask.task,
@@ -91,11 +99,64 @@ export class RuntimeController {
     };
   }
 
-  openTask(taskId: TaskId): Task {
-    if (!this.activeTask || this.activeTask.task.id !== taskId) {
-      throw new Error("Only the active in-memory task can be opened in the walking skeleton.");
+  openTask(request: OpenTaskRequest): CreateTaskResponse {
+    this.disposeActiveTask();
+
+    const cwd = this.resolveOpenTaskWorkspace(request);
+    const manifest = this.readTaskManifest(cwd);
+    if (request.taskId && manifest.task.id !== request.taskId) {
+      throw new Error("Task manifest does not match the requested taskId.");
     }
-    return this.activeTask.task;
+
+    const task = {
+      ...manifest.task,
+      workingDirectory: cwd,
+      providerCwd: cwd,
+      status: "running" as const,
+      updatedAt: new Date().toISOString(),
+    };
+    const reportPath = path.join(cwd, ".duet", "runtime-report.json");
+    const runIndex = new RunIndex({ taskId: task.id, reportPath, loadExisting: true });
+    const terminalHost = new TerminalHost({
+      taskId: task.id,
+      defaultWorkspace: cwd,
+      eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
+    });
+
+    const runtime = terminalHost.startTask({
+      cwd,
+      sandbox: request.sandbox ?? "read-only",
+      approval: request.approval ?? "on-request",
+      ...(request.rows !== undefined ? { rows: request.rows } : {}),
+      ...(request.cols !== undefined ? { cols: request.cols } : {}),
+    });
+
+    this.activeTask = {
+      task,
+      terminalHost,
+      runIndex,
+      reportPath,
+    };
+    this.persistTaskManifest(task);
+
+    const summary = runIndex.summary();
+    this.sendEvent({
+      type: "report:updated",
+      payload: {
+        taskId: summary.taskId,
+        reportPath: summary.reportPath,
+        runCount: summary.runCount,
+        latestRunId: summary.latestRun?.runId ?? null,
+        rawTerminalPersisted: false,
+        rawTerminalPointer: null,
+      },
+      ts: new Date().toISOString(),
+    });
+
+    return {
+      task,
+      runtime,
+    };
   }
 
   submitPrompt(taskId: TaskId, text: string): void {
@@ -188,6 +249,11 @@ export class RuntimeController {
     if (!this.activeTask) {
       return;
     }
+    this.persistTaskManifest({
+      ...this.activeTask.task,
+      status: "idle",
+      updatedAt: new Date().toISOString(),
+    });
     this.activeTask.terminalHost.dispose();
     this.activeTask = null;
   }
@@ -200,4 +266,73 @@ export class RuntimeController {
     const projectRoot = process.env.DUET_PROJECTS_DIR || path.join(app.getPath("documents"), "Duet Projects");
     return path.join(projectRoot, taskId);
   }
+
+  private resolveOpenTaskWorkspace(request: OpenTaskRequest): string {
+    if (request.cwd) {
+      return path.resolve(request.cwd);
+    }
+    if (request.taskId) {
+      const candidate = this.defaultWorkspacePath(request.taskId);
+      if (fs.existsSync(taskManifestPath(candidate))) {
+        return candidate;
+      }
+    }
+    return this.latestTaskWorkspace();
+  }
+
+  private latestTaskWorkspace(): string {
+    const projectRoot = process.env.DUET_PROJECTS_DIR || path.join(app.getPath("documents"), "Duet Projects");
+    const entries = fs.existsSync(projectRoot)
+      ? fs.readdirSync(projectRoot, { withFileTypes: true })
+      : [];
+    const candidates = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(projectRoot, entry.name))
+      .filter((workspace) => fs.existsSync(taskManifestPath(workspace)))
+      .map((workspace) => ({
+        workspace,
+        mtimeMs: fs.statSync(taskManifestPath(workspace)).mtimeMs,
+      }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    const latest = candidates[0]?.workspace;
+    if (!latest) {
+      throw new Error("No persisted Duet Task was found.");
+    }
+    return latest;
+  }
+
+  private readTaskManifest(cwd: string): TaskManifestV1 {
+    const manifestPath = taskManifestPath(cwd);
+    if (!fs.existsSync(manifestPath)) {
+      throw new Error("Task manifest was not found.");
+    }
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as TaskManifestV1;
+    if (
+      manifest.schemaId !== TASK_MANIFEST_SCHEMA_ID ||
+      manifest.version !== TASK_MANIFEST_SCHEMA_VERSION ||
+      manifest.task.provider !== "codex"
+    ) {
+      throw new Error("Task manifest is not supported by this walking skeleton.");
+    }
+    return manifest;
+  }
+
+  private persistTaskManifest(task: Task): void {
+    const manifest = freshTaskManifestV1(task);
+    const manifestPath = taskManifestPath(task.workingDirectory);
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    const tmpPath = `${manifestPath}.tmp`;
+    fs.writeFileSync(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    fs.renameSync(tmpPath, manifestPath);
+  }
+}
+
+function duetDirectory(cwd: string): string {
+  return path.join(cwd, ".duet");
+}
+
+function taskManifestPath(cwd: string): string {
+  return path.join(duetDirectory(cwd), "task.json");
 }

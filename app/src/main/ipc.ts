@@ -7,7 +7,7 @@ export function registerIpcHandlers(runtimeController: RuntimeController): void 
     runtimeController.createTask(request),
   );
   ipcMain.handle(IPC_CHANNELS.taskOpen, (_event, request) =>
-    runtimeController.openTask(request.taskId),
+    runtimeController.openTask(request),
   );
   ipcMain.handle(IPC_CHANNELS.promptSubmit, (_event, request) => {
     runtimeController.submitPrompt(request.taskId, request.text);

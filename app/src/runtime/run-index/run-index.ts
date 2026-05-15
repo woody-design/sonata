@@ -5,6 +5,8 @@ import type { TaskId } from "../../shared/types/domain";
 import type { RunIndexEvent } from "../../shared/types/events";
 import {
   freshRuntimeReportV1,
+  RUNTIME_REPORT_SCHEMA_ID,
+  RUNTIME_REPORT_SCHEMA_VERSION,
   type RuntimeArtifactCandidateReport,
   type RuntimeFileChangeReport,
   type RuntimeReportSummaryV1,
@@ -34,6 +36,7 @@ const ARTIFACT_EXTENSIONS = new Set([
 export interface RunIndexOptions {
   taskId: TaskId;
   reportPath: string;
+  loadExisting?: boolean;
 }
 
 export class RunIndex {
@@ -44,7 +47,9 @@ export class RunIndex {
   constructor(options: RunIndexOptions) {
     this.taskId = options.taskId;
     this.reportPath = options.reportPath;
-    this.report = freshRuntimeReportV1(options.taskId);
+    this.report = options.loadExisting
+      ? readExistingReport(options.reportPath, options.taskId)
+      : freshRuntimeReportV1(options.taskId);
     this.persist();
   }
 
@@ -301,6 +306,30 @@ function redactHome(value: string): string {
 
 function assertNever(value: never): never {
   throw new Error(`Unhandled RunIndex event: ${JSON.stringify(value)}`);
+}
+
+function readExistingReport(reportPath: string, taskId: TaskId): RuntimeReportV1 {
+  if (!fs.existsSync(reportPath)) {
+    return freshRuntimeReportV1(taskId);
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(reportPath, "utf8")) as RuntimeReportV1;
+    if (
+      parsed.schemaId !== RUNTIME_REPORT_SCHEMA_ID ||
+      parsed.version !== RUNTIME_REPORT_SCHEMA_VERSION
+    ) {
+      return freshRuntimeReportV1(taskId);
+    }
+    return {
+      ...parsed,
+      taskId,
+      rawTerminalPointer: null,
+      runs: parsed.runs.map((run) => ({ ...run, taskId, rawTerminalPointer: null })),
+    };
+  } catch {
+    return freshRuntimeReportV1(taskId);
+  }
 }
 
 export type { RuntimeArtifactCandidateReport, RuntimeReportV1 };

@@ -15,6 +15,7 @@
     "dev": "npm run start",
     "e2e:gui-walking-skeleton": "npm run build && node tests/e2e/gui-walking-skeleton.mjs",
     "e2e:stop-continue": "npm run build && node tests/e2e/stop-continue.mjs",
+    "e2e:open-task": "npm run build && node tests/e2e/open-task.mjs",
     "smoke:runtime-modules": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/runtime-modules.mjs",
     "smoke:codex-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-terminalhost.mjs",
     "smoke:command-approval": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/command-approval.mjs",
