@@ -42,3 +42,18 @@ copy the spike renderer as product design.
 
 The directories here are placeholders. Module names and the TypeScript
 toolchain should be finalized when the walking skeleton implementation starts.
+
+## Current Skeleton Commands
+
+```bash
+npm install
+npm run typecheck
+npm run build
+npm run rebuild:electron
+npm start
+```
+
+The first app skeleton compiles main/runtime TypeScript with `tsc`, bundles the
+preload bridge with Vite so it can run under Electron's sandboxed preload
+constraints, and bundles the renderer with Vite. Runtime handlers are present
+as semantic IPC stubs until `TerminalHost` is lifted into `src/runtime/`.
