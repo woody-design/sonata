@@ -367,14 +367,25 @@ function renderRunSection(run: RuntimeRunReport, index: number): HTMLElement {
 
 function renderChangeLens(): void {
   const changes = uniqueChanges();
+  const summary = changeSummary(changes);
   const section = document.createElement("section");
   section.className = "inspector-section change-summary";
   section.append(inspectorTitle("Changed files summary"));
   section.append(
+    changeMetricGrid([
+      { label: "Changed", value: String(changes.length), detail: "unique paths" },
+      { label: "Added", value: String(summary.added), detail: "new paths" },
+      { label: "Modified", value: String(summary.modified), detail: "updated paths" },
+      { label: "Deleted", value: String(summary.deleted), detail: "missing paths" },
+      { label: "Artifacts", value: String(summary.artifacts), detail: "preview candidates" },
+    ]),
+  );
+  section.append(
     inspectorRow("Scope", "active Task workspace"),
     inspectorRow("Source", ".duet/runtime-report.json"),
-    inspectorRow("Git dependency", "not used in MVP"),
-    inspectorRow("Changed files", pluralize(changes.length, "changed file")),
+    inspectorRow("Review model", "current file snapshots, not Git diffs"),
+    inspectorRow("Runs with changes", String(summary.runsWithChanges)),
+    inspectorRow("Latest change", formatTimestamp(summary.latestChangeAt)),
   );
   elements.content.append(section);
 
@@ -383,11 +394,28 @@ function renderChangeLens(): void {
     return;
   }
 
-  const listSection = document.createElement("section");
-  listSection.className = "inspector-section";
-  listSection.append(inspectorTitle("Files"));
-  listSection.append(changeReviewList(changes));
-  elements.content.append(listSection);
+  const layout = document.createElement("section");
+  layout.className = "inspector-change-layout";
+
+  const listPane = document.createElement("div");
+  listPane.className = "inspector-change-list";
+  const listHeader = document.createElement("div");
+  listHeader.className = "inspector-pane-header";
+  listHeader.textContent = "Review queue";
+  listPane.append(listHeader, changeReviewList(changes, { includeSnapshotAction: true }));
+
+  const detailPane = document.createElement("div");
+  detailPane.className = "inspector-change-detail";
+  const detailHeader = document.createElement("div");
+  detailHeader.className = "inspector-pane-header";
+  detailHeader.textContent =
+    state.selectedFilePath && changes.some((change) => change.path === state.selectedFilePath)
+      ? `Snapshot: ${state.selectedFilePath}`
+      : "Snapshot review";
+  detailPane.append(detailHeader, renderChangeSnapshot(changes));
+
+  layout.append(listPane, detailPane);
+  elements.content.append(layout);
 }
 
 function renderArtifactLens(): void {
@@ -494,13 +522,13 @@ function appendTreeEntries(container: HTMLElement, entries: WorkspaceTreeEntry[]
   }
 }
 
-function renderFilePreview(): HTMLElement {
+function renderFilePreview(options: { emptyMessage?: string } = {}): HTMLElement {
   if (state.fileError) {
     return emptyState(state.fileError);
   }
 
   if (!state.filePreview) {
-    return emptyState("Select a file from the folder tree");
+    return emptyState(options.emptyMessage ?? "Select a file from the folder tree");
   }
 
   const wrapper = document.createElement("div");
@@ -553,6 +581,18 @@ function renderFilePreview(): HTMLElement {
   pre.textContent = state.filePreview.content ?? "";
   wrapper.append(pre);
   return wrapper;
+}
+
+function renderChangeSnapshot(changes: RuntimeFileChangeReport[]): HTMLElement {
+  if (!state.selectedFilePath || !changes.some((change) => change.path === state.selectedFilePath)) {
+    return emptyState("Select a changed file to inspect its current snapshot");
+  }
+
+  if (state.filePreview && state.filePreview.path !== state.selectedFilePath) {
+    return emptyState("Loading snapshot");
+  }
+
+  return renderFilePreview({ emptyMessage: "Loading snapshot" });
 }
 
 async function selectWorkspaceFile(relativePath: string): Promise<void> {
@@ -647,13 +687,23 @@ function externalOpenDoneLabel(target: WorkspaceExternalOpenTarget, relativePath
   return relativePath ? "Revealed in folder" : "Opened folder";
 }
 
-function changeReviewList(files: RuntimeFileChangeReport[]): HTMLElement {
+function changeReviewList(
+  files: RuntimeFileChangeReport[],
+  options: { includeSnapshotAction?: boolean } = {},
+): HTMLElement {
   const list = document.createElement("ul");
   list.className = "inspector-file-list inspector-review-list";
   for (const file of files) {
     const run = runForChangedPath(file.path);
     const artifact = artifactForPath(file.path);
     const actions = [
+      ...(options.includeSnapshotAction && file.type === "file"
+        ? [
+            inspectorAction("Review Snapshot", () => {
+              void selectWorkspaceFile(file.path);
+            }),
+          ]
+        : []),
       ...(run
         ? [
             inspectorAction("Show Run", () => {
@@ -673,11 +723,15 @@ function changeReviewList(files: RuntimeFileChangeReport[]): HTMLElement {
         : []),
     ];
     const item = document.createElement("li");
+    item.classList.toggle("selected", options.includeSnapshotAction && file.path === state.selectedFilePath);
     item.append(
       inspectorFileValue(file.path),
       inspectorFileMeta(`${file.changeKind} / ${file.type} / ${file.eventType}`),
       inspectorFileMeta(
         `${formatMaybeBytes(file.size)} / ${file.sha256 ? shortHash(file.sha256) : "sha256 unavailable"}`,
+      ),
+      inspectorFileMeta(
+        `${run ? runLabel(run) : "unassigned"} / ${artifact ? `${artifact.kind} artifact` : "not an artifact"}`,
       ),
       ...(actions.length > 0 ? [inspectorInlineActions(actions)] : []),
     );
@@ -713,6 +767,36 @@ function artifactForPath(relativePath: string): ArtifactCandidate | null {
   return state.artifacts.find((artifact) => artifact.path === relativePath) ?? null;
 }
 
+function changeSummary(changes: RuntimeFileChangeReport[]): {
+  added: number;
+  modified: number;
+  deleted: number;
+  artifacts: number;
+  runsWithChanges: number;
+  latestChangeAt: string | null;
+} {
+  const runIds = new Set<string>();
+  let latestChangeAt: string | null = null;
+  for (const change of changes) {
+    const run = runForChangedPath(change.path);
+    if (run) {
+      runIds.add(run.runId);
+    }
+    if (!latestChangeAt || new Date(change.ts).getTime() > new Date(latestChangeAt).getTime()) {
+      latestChangeAt = change.ts;
+    }
+  }
+
+  return {
+    added: changes.filter((change) => change.changeKind === "added").length,
+    modified: changes.filter((change) => change.changeKind === "modified").length,
+    deleted: changes.filter((change) => change.changeKind === "deleted").length,
+    artifacts: changes.filter((change) => Boolean(artifactForPath(change.path))).length,
+    runsWithChanges: runIds.size,
+    latestChangeAt,
+  };
+}
+
 function inspectorTitle(value: string): HTMLHeadingElement {
   const title = document.createElement("h3");
   title.textContent = value;
@@ -742,6 +826,24 @@ function inspectorRow(label: string, value: string): HTMLElement {
   val.textContent = value;
   row.append(key, val);
   return row;
+}
+
+function changeMetricGrid(metrics: Array<{ label: string; value: string; detail: string }>): HTMLElement {
+  const grid = document.createElement("div");
+  grid.className = "change-metric-grid";
+  for (const metric of metrics) {
+    const item = document.createElement("div");
+    item.className = "change-metric";
+    const value = document.createElement("strong");
+    value.textContent = metric.value;
+    const label = document.createElement("span");
+    label.textContent = metric.label;
+    const detail = document.createElement("small");
+    detail.textContent = metric.detail;
+    item.append(value, label, detail);
+    grid.append(item);
+  }
+  return grid;
 }
 
 function inspectorActionRow(actions: HTMLButtonElement[]): HTMLElement {
@@ -823,8 +925,10 @@ function stopSummary(run: RuntimeRunReport): string {
     .join("; ");
 }
 
-function pluralize(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+function runLabel(run: RuntimeRunReport): string {
+  const index = state.report?.runs.findIndex((candidate) => candidate.runId === run.runId) ?? -1;
+  const label = index >= 0 ? `Run ${index + 1}` : "Run";
+  return `${label} / ${shortId(run.runId)}`;
 }
 
 function formatElapsed(value: number | null): string {

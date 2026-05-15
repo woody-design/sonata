@@ -152,16 +152,19 @@ try {
   await inspectorPage.locator(".change-summary", { hasText: "Changed files summary" }).waitFor({
     state: "visible",
   });
-  await inspectorPage.locator(".change-summary", { hasText: "2 changed files" }).waitFor({
+  await inspectorPage.locator(".change-summary", { hasText: "current file snapshots, not Git diffs" }).waitFor({
     state: "visible",
   });
-  await inspectorPage.locator(".change-summary", { hasText: "not used in MVP" }).waitFor({
+  await inspectorPage.locator(".change-metric", { hasText: "Changed" }).locator("strong", { hasText: "2" }).waitFor({
     state: "visible",
   });
-  await inspectorPage.locator(".inspector-file-list", { hasText: "report.md" }).waitFor({
+  await inspectorPage.locator(".change-metric", { hasText: "Artifacts" }).locator("strong", { hasText: "2" }).waitFor({
     state: "visible",
   });
-  await inspectorPage.locator(".inspector-file-list", { hasText: "page.html" }).waitFor({
+  await inspectorPage.locator(".inspector-review-list", { hasText: "report.md" }).waitFor({
+    state: "visible",
+  });
+  await inspectorPage.locator(".inspector-review-list", { hasText: "page.html" }).waitFor({
     state: "visible",
   });
 
