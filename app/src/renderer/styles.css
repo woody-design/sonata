@@ -553,6 +553,73 @@ h2 {
   font-size: 12px;
 }
 
+.run-stage-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.run-stage {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  border: 1px solid #ded9ce;
+  border-top-width: 3px;
+  border-radius: 7px;
+  padding: 8px;
+  background: #fffefa;
+}
+
+.run-stage span,
+.run-stage small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-stage span {
+  color: #69665f;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.run-stage strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #302d28;
+  font-size: 14px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-stage small {
+  color: #6f695f;
+  font-size: 11px;
+}
+
+.run-stage.complete {
+  border-top-color: #2f5d50;
+}
+
+.run-stage.waiting {
+  border-top-color: #c8a94d;
+}
+
+.run-stage.attention {
+  border-top-color: #9a4d3f;
+}
+
+.run-stage.active {
+  border-top-color: #4d668f;
+}
+
+.run-stage.idle {
+  border-top-color: #c9c2b6;
+}
+
 .run-rhythm-section {
   margin-top: 12px;
 }
@@ -741,8 +808,7 @@ h2 {
   line-height: 1.45;
 }
 
-.run-metadata,
-.path-list {
+.run-metadata {
   color: #625d54;
   font-size: 12px;
 }
@@ -754,14 +820,59 @@ h2 {
   margin-top: 12px;
 }
 
-.path-list {
-  margin: 12px 0 0;
-  padding-left: 18px;
-}
-
 .run-review {
   border-bottom: 1px solid #e2ddd3;
   padding-bottom: 12px;
+}
+
+.run-changes {
+  margin-top: 12px;
+}
+
+.run-change-list {
+  display: grid;
+  gap: 7px;
+}
+
+.run-change-item {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border: 1px solid #ded9ce;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #fffefa;
+}
+
+.run-change-item.artifact {
+  border-color: #c7d8c8;
+  background: #f4f8f3;
+}
+
+.run-change-item strong,
+.run-change-item span,
+.run-change-item small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-change-item strong {
+  color: #2d2924;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.run-change-item span {
+  color: #625d54;
+  font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.run-change-item small {
+  color: #6f695f;
+  font-size: 12px;
 }
 
 .run-review-summary,
@@ -1232,6 +1343,11 @@ textarea {
   white-space: nowrap;
 }
 
+.artifact-link.compact {
+  justify-self: start;
+  margin-top: 4px;
+}
+
 .artifact-link.reviewed {
   border-color: #b7d6c2;
   color: #276043;
@@ -1599,6 +1715,10 @@ textarea {
   .approval-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .run-stage-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .side-column {

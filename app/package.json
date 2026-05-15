@@ -18,6 +18,7 @@
     "e2e:preview-dirty": "npm run build && node tests/e2e/preview-dirty.mjs",
     "e2e:floating-window-lifecycle": "npm run build && node tests/e2e/floating-window-lifecycle.mjs",
     "e2e:run-chat-transcript": "npm run build && node tests/e2e/run-chat-transcript.mjs",
+    "e2e:run-reading-surface": "npm run build && node tests/e2e/run-reading-surface.mjs",
     "e2e:task-entry": "npm run build && node tests/e2e/task-entry.mjs",
     "e2e:approval-surface": "npm run build && node tests/e2e/approval-surface.mjs",
     "e2e:artifact-review-actions": "npm run build && node tests/e2e/artifact-review-actions.mjs",

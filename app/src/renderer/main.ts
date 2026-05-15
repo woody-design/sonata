@@ -888,6 +888,8 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
   status.textContent = run.status;
   header.append(status);
 
+  const stageStrip = renderRunStageStrip(run);
+
   const dialogue = document.createElement("section");
   dialogue.className = "run-dialogue";
   dialogue.append(renderUserMessage(run));
@@ -937,6 +939,10 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
   reviewSummary.className = "run-review-summary";
   reviewSummary.textContent = runReviewSummary(run);
   review.append(reviewSummary);
+  const changes = renderRunChangedFiles(run);
+  if (changes) {
+    review.append(changes);
+  }
   if (run.artifactCandidates.length > 0) {
     const artifacts = document.createElement("div");
     artifacts.className = "run-artifacts";
@@ -970,22 +976,103 @@ function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
     metadataItem("Completion", completionLabel(run)),
     metadataItem("Changes", String(run.changedFiles.length)),
     metadataItem("Artifacts", String(run.artifactCandidates.length)),
+    metadataItem("Run ID", shortId(run.runId)),
   );
 
-  card.append(header, dialogue, reading, review, next, metadata);
-
-  if (run.changedFiles.length > 0) {
-    const list = document.createElement("ul");
-    list.className = "path-list";
-    for (const file of run.changedFiles) {
-      const item = document.createElement("li");
-      item.textContent = `${file.changeKind} ${file.path}`;
-      list.append(item);
-    }
-    card.append(list);
-  }
+  card.append(header, stageStrip, dialogue, reading, review, next, metadata);
 
   return card;
+}
+
+function renderRunStageStrip(run: RuntimeRunReport): HTMLElement {
+  const strip = document.createElement("section");
+  strip.className = "run-stage-strip";
+  strip.setAttribute("aria-label", "Run stages");
+  strip.append(
+    runStage("Request", "Submitted", formatTime(run.startedAt), "complete"),
+    runStage(
+      "Approval",
+      approvalStageValue(run),
+      approvalStageDetail(run),
+      approvalStageTone(run),
+    ),
+    runStage(
+      "Changes",
+      String(run.changedFiles.length),
+      pluralize(run.changedFiles.length, "file"),
+      run.changedFiles.length > 0 ? "complete" : "idle",
+    ),
+    runStage(
+      "Artifacts",
+      String(run.artifactCandidates.length),
+      pluralize(run.artifactCandidates.length, "candidate"),
+      run.artifactCandidates.length > 0 ? "complete" : "idle",
+    ),
+    runStage("Completion", completionStageValue(run), completionLabel(run), completionStageTone(run)),
+  );
+  return strip;
+}
+
+function runStage(
+  label: string,
+  value: string,
+  detail: string,
+  tone: "active" | "attention" | "complete" | "idle" | "waiting",
+): HTMLElement {
+  const item = document.createElement("div");
+  item.className = `run-stage ${tone}`;
+  const key = document.createElement("span");
+  key.textContent = label;
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  const small = document.createElement("small");
+  small.textContent = detail;
+  item.append(key, strong, small);
+  return item;
+}
+
+function renderRunChangedFiles(run: RuntimeRunReport): HTMLElement | null {
+  if (run.changedFiles.length === 0) {
+    return null;
+  }
+
+  const section = document.createElement("section");
+  section.className = "run-changes";
+  section.append(runSectionLabel("Changed files"));
+
+  const list = document.createElement("div");
+  list.className = "run-change-list";
+  for (const file of run.changedFiles) {
+    const artifact = run.artifactCandidates.find((candidate) => candidate.path === file.path);
+    const item = document.createElement("article");
+    item.className = "run-change-item";
+    item.classList.toggle("artifact", Boolean(artifact));
+
+    const title = document.createElement("strong");
+    title.textContent = file.path;
+    const meta = document.createElement("span");
+    meta.textContent = `${file.changeKind} / ${file.type} / ${formatMaybeBytes(file.size)}${
+      file.sha256 ? ` / ${shortHash(file.sha256)}` : ""
+    }`;
+    const tag = document.createElement("small");
+    tag.textContent = artifact ? `${artifact.type} artifact candidate` : "snapshot review in Inspector";
+    item.append(title, meta, tag);
+
+    if (artifact) {
+      const action = document.createElement("button");
+      action.className = "artifact-link compact";
+      action.type = "button";
+      action.textContent = "Open Preview";
+      action.addEventListener("click", () => {
+        void openArtifact(artifact.path);
+      });
+      item.append(action);
+    }
+
+    list.append(item);
+  }
+  section.append(list);
+  return section;
 }
 
 function renderUserMessage(run: RuntimeRunReport): HTMLElement {
@@ -1376,6 +1463,75 @@ function runTone(run: RuntimeRunReport): string {
   return "active";
 }
 
+function approvalStageValue(run: RuntimeRunReport): string {
+  if (run.status === "waiting-for-approval") {
+    return "Pending";
+  }
+  if (run.status === "approval-denied") {
+    return "Denied";
+  }
+  if (run.approvalEvents.length === 0) {
+    return "None";
+  }
+  return pluralize(run.approvalEvents.length, "event");
+}
+
+function approvalStageDetail(run: RuntimeRunReport): string {
+  if (run.status === "waiting-for-approval" || run.status === "approval-denied") {
+    return approvalKindLabel(run.approvalKind);
+  }
+  const decisions = run.approvalEvents.filter((event) => event.action === "decision");
+  if (decisions.length > 0) {
+    return decisions.at(-1)?.decision === "deny" ? "latest denied" : "latest approved";
+  }
+  return run.approvalEvents.length > 0 ? "native PTY approval" : "no native approval";
+}
+
+function approvalStageTone(run: RuntimeRunReport): "attention" | "complete" | "idle" | "waiting" {
+  if (run.status === "waiting-for-approval") {
+    return "waiting";
+  }
+  if (run.status === "approval-denied") {
+    return "attention";
+  }
+  return run.approvalEvents.length > 0 ? "complete" : "idle";
+}
+
+function completionStageValue(run: RuntimeRunReport): string {
+  if (run.status === "completed") {
+    return "Done";
+  }
+  if (run.status === "waiting-for-approval") {
+    return "Blocked";
+  }
+  if (isActiveRunStatus(run.status)) {
+    return "Working";
+  }
+  if (run.status === "stopped") {
+    return "Stopped";
+  }
+  if (run.status === "failed") {
+    return "Failed";
+  }
+  if (run.status === "pty-exited") {
+    return "PTY exited";
+  }
+  return run.status;
+}
+
+function completionStageTone(run: RuntimeRunReport): "active" | "attention" | "complete" | "waiting" {
+  if (run.status === "completed") {
+    return "complete";
+  }
+  if (run.status === "waiting-for-approval") {
+    return "waiting";
+  }
+  if (run.status === "stopped" || run.status === "approval-denied" || run.status === "failed") {
+    return "attention";
+  }
+  return "active";
+}
+
 function renderApprovalHistory(run: RuntimeRunReport): HTMLElement | null {
   if (run.approvalEvents.length === 0) {
     return null;
@@ -1559,6 +1715,20 @@ function formatElapsed(value: number | null): string {
   return `${(value / 1000).toFixed(1)} s`;
 }
 
+function formatMaybeBytes(value: number | null): string {
+  return value === null ? "unknown size" : formatBytes(value);
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${Math.round(value / 1024)} KB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function formatTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -1569,6 +1739,10 @@ function formatTime(value: string): string {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+function shortHash(value: string): string {
+  return value.slice(0, 10);
 }
 
 function formatCompactNumber(value: number): string {
