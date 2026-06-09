@@ -8,31 +8,87 @@ IDE, and not a new agent runtime.
 
 ## Current Phase
 
-Status: ready to start the formal walking skeleton.
+Status: formal walking skeleton accepted; ready for guided product walkthroughs.
 
-The Codex runtime substrate has been proven by:
+Duet is no longer in isolated spike mode. The Codex runtime substrate was
+proven by:
 
 ```text
 spikes/electron-pty-terminalhost/
 ```
 
-The next phase is a TypeScript Electron app skeleton that lifts that runtime
-truth into Duet's Task / Run / Preview / Terminal model.
+That runtime truth has now been lifted into a formal TypeScript Electron app in
+`app/`. The current walking skeleton proves:
+
+```text
+New/Open Task
+  -> native Codex PTY through TerminalHost
+  -> prompt submission
+  -> Run creation and reading surface
+  -> native approval surfaced as Duet product controls
+  -> Stop / continue
+  -> changed files and artifact candidates
+  -> floating Preview for report-listed artifacts
+  -> floating Inspector for Run / Change / Artifact / Folder truth
+  -> raw Terminal as trust/debug layer
+```
+
+The current app is not beta-quality and does not claim final UX, Home/project
+browser, Git workflow, Claude parity, provider abstraction, or production
+packaging.
 
 Start here:
 
 ```text
-product-thinking/2026-05-15-duet-walking-skeleton-handoff.md
+product-thinking/2026-05-16-acceptance-checkpoint-refresh-v1.md
+product-thinking/2026-05-16-woody-testing-script-v0.md
+product-thinking/2026-05-15-three-surface-ux-architecture.md
 product-thinking/2026-05-15-terminalhost-runtime-contract.md
 product-thinking/2026-05-14-duet-mvp-product-architecture.md
 ```
+
+## Local Run
+
+From the app directory:
+
+```bash
+cd app
+npm run dev
+```
+
+For a clean guided walkthrough with isolated Task data:
+
+```bash
+cd app
+DUET_PROJECTS_DIR="$(mktemp -d /tmp/duet-woody-test-XXXXXX)" npm run dev
+```
+
+## Verification
+
+Core health check:
+
+```bash
+cd app
+npm run build
+```
+
+Representative walking-skeleton gate:
+
+```bash
+cd app
+npm run e2e:gui-walking-skeleton
+```
+
+The app has additional E2E and smoke gates in `app/package.json` for Task
+entry, approval, Stop/continue, Open Task, Preview, Inspector, Task tabs, Run
+reading, and runtime report behavior.
 
 ## Repository Map
 
 ```text
 app/
-  Formal TypeScript Electron app skeleton placeholder. The directory boundaries
-  exist; implementation starts in the walking skeleton phase.
+  Formal TypeScript Electron walking skeleton. Main owns runtime; renderer
+  owns Main Chat, floating Preview, floating Inspector, and Terminal surfaces.
 
 product-thinking/
   Current product architecture, runtime contracts, and phase handoffs.
