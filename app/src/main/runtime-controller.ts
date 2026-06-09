@@ -3,6 +3,7 @@ import path from "node:path";
 import { app } from "electron";
 import type {
   ArtifactCandidate,
+  ApprovalDecision,
   CreateTaskRequest,
   CreateTaskResponse,
   LaunchSpeedMode,
@@ -207,10 +208,14 @@ export class RuntimeController {
     active.terminalHost.submitPrompt(text);
   }
 
-  decideApproval(taskId: TaskId, decision: "approve" | "deny"): void {
+  decideApproval(taskId: TaskId, decision: ApprovalDecision): void {
     const active = this.requireTaskRuntime(taskId);
     if (decision === "approve") {
       active.terminalHost.sendApprove();
+      return;
+    }
+    if (decision === "approve-for-session") {
+      active.terminalHost.sendApproveForSession();
       return;
     }
     active.terminalHost.sendDeny();

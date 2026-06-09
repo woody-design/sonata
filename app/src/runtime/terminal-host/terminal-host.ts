@@ -5,7 +5,9 @@ import path from "node:path";
 import { EventEmitter } from "node:events";
 import * as pty from "node-pty";
 import type {
+  ApprovalChoice,
   ApprovalDecision,
+  ApprovalDecisionEncoding,
   ApprovalKind,
   CompletionConfidence,
   CompletionSource,
@@ -22,6 +24,7 @@ import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
 export const BRACKETED_PASTE_START = "\x1b[200~";
 export const BRACKETED_PASTE_END = "\x1b[201~";
 export const CSI_U_ENTER = "\x1b[13u";
+export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
 
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
@@ -61,6 +64,8 @@ const CLAUDE_FILE_EDIT_APPROVAL_HINTS = [
   "allow edits",
   "enter to confirm",
 ];
+
+const CLAUDE_FILE_READ_APPROVAL_HINTS = ["read(", "allow reading from", "during this session"];
 
 const CLAUDE_COMMAND_APPROVAL_HINTS = [
   "do you want to proceed",
@@ -136,6 +141,7 @@ interface ApprovalCandidate {
   fingerprint: string | null;
   fingerprintHash: string | null;
   promptAfterApproval: boolean;
+  choices: ApprovalChoice[];
 }
 
 type ActiveRun = RunUpdatedEvent["payload"];
@@ -158,6 +164,7 @@ interface TerminalProviderProfile {
   idlePromptModelHints: RegExp;
   buildArgs: (options: StartTaskOptions & { cwd: string }) => string[];
   approvalHints: {
+    fileRead: string[];
     fileEdit: string[];
     command: string[];
     workspaceTrust: string[];
@@ -327,24 +334,40 @@ export class TerminalHost extends EventEmitter {
   }
 
   sendApprove(): void {
+    this.sendPositiveApproval("approve", CSI_U_ENTER, "CSI-u Enter");
+  }
+
+  sendApproveForSession(): void {
+    this.sendPositiveApproval(
+      "approve-for-session",
+      `${ARROW_DOWN}${CSI_U_ENTER}`,
+      "ArrowDown + CSI-u Enter",
+    );
+  }
+
+  private sendPositiveApproval(
+    decision: Extract<ApprovalDecision, "approve" | "approve-for-session">,
+    keySequence: string,
+    encodedAs: ApprovalDecisionEncoding,
+  ): void {
     const decisionAt = Date.now();
     const previousKind = this.lastApprovalKind;
-    this.writeRaw(CSI_U_ENTER);
+    this.writeRaw(keySequence);
     this.emitEvent("approval:decision", {
       taskId: this.taskId,
       runId: this.activeRun ? this.activeRun.id : null,
-      decision: "approve",
-      encodedAs: "CSI-u Enter",
+      decision,
+      encodedAs,
       previousKind,
     });
     this.updateActiveRun({
       status: "active",
       lifecyclePhase: "resumed-after-approval",
-      approvalDecision: "approve",
+      approvalDecision: decision,
       approvalKind: previousKind ?? "unknown",
     });
     this.approvalActive = false;
-    this.lastApprovalDecision = "approve";
+    this.lastApprovalDecision = decision;
     this.lastApprovalDecisionAt = decisionAt;
     this.scheduleApprovalSettleCheck(decisionAt);
   }
@@ -555,6 +578,7 @@ export class TerminalHost extends EventEmitter {
       kind: candidate.kind,
       source: this.profile.approvalSource,
       fingerprintHash: candidate.fingerprintHash,
+      choices: candidate.choices,
     };
     if (evidence.resurfacedAfterDecision) {
       payload.resurfacedAfterDecision = true;
@@ -994,6 +1018,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           reasoningEffort: options.reasoningEffort,
         }),
       approvalHints: {
+        fileRead: CLAUDE_FILE_READ_APPROVAL_HINTS,
         fileEdit: CLAUDE_FILE_EDIT_APPROVAL_HINTS,
         command: CLAUDE_COMMAND_APPROVAL_HINTS,
         workspaceTrust: CLAUDE_WORKSPACE_TRUST_APPROVAL_HINTS,
@@ -1021,6 +1046,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         resumeLast: Boolean(options.resumeLast),
       }),
     approvalHints: {
+      fileRead: [],
       fileEdit: CODEX_FILE_EDIT_APPROVAL_HINTS,
       command: CODEX_COMMAND_APPROVAL_HINTS,
       workspaceTrust: CODEX_WORKSPACE_TRUST_APPROVAL_HINTS,
@@ -1193,6 +1219,7 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
   const lastClaudePrompt = recent.lastIndexOf("❯");
   const lastAnyPrompt = Math.max(lastPrompt, lastCodexPrompt, lastClaudePrompt);
   const approvalNeedles = [
+    ...profile.approvalHints.fileRead,
     ...profile.approvalHints.fileEdit,
     ...profile.approvalHints.command,
     ...profile.approvalHints.workspaceTrust,
@@ -1215,21 +1242,29 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
 function detectApprovalCandidate(rawText: string, profile: TerminalProviderProfile): ApprovalCandidate | null {
   const recent = cleanTerminal(rawText).toLowerCase();
   const compactRecent = compactText(recent);
+  const fileRead = includesApprovalHints(compactRecent, profile.approvalHints.fileRead);
   const fileEdit = includesApprovalHints(compactRecent, profile.approvalHints.fileEdit);
   const command = includesApprovalHints(compactRecent, profile.approvalHints.command);
   const workspaceTrust = includesApprovalHints(compactRecent, profile.approvalHints.workspaceTrust);
 
-  if (!fileEdit && !command && !workspaceTrust) {
+  if (!fileRead && !fileEdit && !command && !workspaceTrust) {
     return null;
   }
 
-  const kind: ApprovalKind = command ? "command" : fileEdit ? "file-edit" : "workspace-trust";
+  const kind: ApprovalKind = fileRead
+    ? "file-read"
+    : command
+      ? "command"
+      : fileEdit
+        ? "file-edit"
+        : "workspace-trust";
   const fingerprint = approvalFingerprint(kind, compactRecent, profile);
   return {
     kind,
     fingerprint,
     fingerprintHash: fingerprint ? sha256(fingerprint).slice(0, 16) : null,
     promptAfterApproval: detectIdlePrompt(rawText, profile).promptAfterApproval,
+    choices: approvalChoices(rawText, profile),
   };
 }
 
@@ -1239,7 +1274,9 @@ function approvalFingerprint(
   profile: TerminalProviderProfile,
 ): string | null {
   const hints =
-    kind === "command"
+    kind === "file-read"
+      ? profile.approvalHints.fileRead
+      : kind === "command"
       ? profile.approvalHints.command
       : kind === "workspace-trust"
         ? profile.approvalHints.workspaceTrust
@@ -1253,6 +1290,46 @@ function approvalFingerprint(
   const endIndex = compactRecent.indexOf(endNeedle, startIndex);
   const stableEnd = endIndex >= 0 ? endIndex + endNeedle.length : startIndex + 1600;
   return `${kind}:${compactRecent.slice(startIndex, stableEnd)}`;
+}
+
+function approvalChoices(rawText: string, profile: TerminalProviderProfile): ApprovalChoice[] {
+  const choices: ApprovalChoice[] = [
+    {
+      decision: "approve",
+      label: "Approve once",
+      description: "Choose the native yes option for this approval only.",
+      encodedAs: "CSI-u Enter",
+    },
+    {
+      decision: "deny",
+      label: "Deny",
+      description: "Dismiss the native approval screen.",
+      encodedAs: "Esc",
+    },
+  ];
+
+  if (hasClaudeSessionApprovalOption(rawText, profile)) {
+    choices.splice(1, 0, {
+      decision: "approve-for-session",
+      label: "Allow Session",
+      description: "Choose Claude's native session-scoped yes option.",
+      encodedAs: "ArrowDown + CSI-u Enter",
+    });
+  }
+
+  return choices;
+}
+
+function hasClaudeSessionApprovalOption(rawText: string, profile: TerminalProviderProfile): boolean {
+  if (profile.provider !== "claude") {
+    return false;
+  }
+  const compactRecent = compactText(cleanTerminal(rawText).slice(-8000));
+  return (
+    compactRecent.includes("2yes") &&
+    compactRecent.includes("allow") &&
+    compactRecent.includes("duringthissession")
+  );
 }
 
 function maxLastIndexOf(value: string, needles: string[]): number {

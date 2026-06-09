@@ -337,6 +337,11 @@ h2 {
   background: #fff7d8;
 }
 
+.approval-banner[data-approval-kind="file-read"] {
+  border-color: #5c7c7b;
+  background: #edf8f7;
+}
+
 .approval-banner[data-approval-kind="workspace-trust"] {
   border-color: #4d668f;
   background: #edf3ff;
@@ -524,6 +529,23 @@ h2 {
 
 .task-entry-actions .primary {
   flex: 1;
+}
+
+.task-entry-message {
+  grid-column: 1 / -1;
+  border: 1px solid #d5d1c7;
+  border-radius: 7px;
+  padding: 9px 10px;
+  color: #403b32;
+  background: #f4f0e6;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.task-entry-message.error {
+  border-color: #bb7665;
+  color: #5a261d;
+  background: #fff0ea;
 }
 
 .task-settings-wrap {

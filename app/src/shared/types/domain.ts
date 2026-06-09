@@ -101,9 +101,17 @@ export interface Run {
   rawTerminalPointer: null;
 }
 
-export type ApprovalKind = "workspace-trust" | "file-edit" | "command" | "unknown";
-export type ApprovalRisk = "file-write" | "network" | "mixed" | "unknown";
-export type ApprovalDecision = "approve" | "deny";
+export type ApprovalKind = "workspace-trust" | "file-read" | "file-edit" | "command" | "unknown";
+export type ApprovalRisk = "file-read" | "file-write" | "network" | "mixed" | "unknown";
+export type ApprovalDecision = "approve" | "approve-for-session" | "deny";
+export type ApprovalDecisionEncoding = "CSI-u Enter" | "ArrowDown + CSI-u Enter" | "Esc";
+
+export interface ApprovalChoice {
+  decision: ApprovalDecision;
+  label: string;
+  description: string;
+  encodedAs: ApprovalDecisionEncoding;
+}
 
 export interface ApprovalState {
   id: ApprovalId;

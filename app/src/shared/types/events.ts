@@ -1,5 +1,7 @@
 import type {
+  ApprovalChoice,
   ApprovalDecision,
+  ApprovalDecisionEncoding,
   ApprovalKind,
   ChangeKind,
   CompletionConfidence,
@@ -135,6 +137,7 @@ export type ApprovalDetectedEvent = BaseRuntimeEvent<
     previousDecision?: ApprovalDecision | null;
     decisionAgeMs?: number | null;
     fingerprintHash?: string | null;
+    choices?: ApprovalChoice[];
   }
 >;
 
@@ -144,7 +147,7 @@ export type ApprovalDecisionEvent = BaseRuntimeEvent<
     taskId: TaskId;
     runId: RunId | null;
     decision: ApprovalDecision;
-    encodedAs: "CSI-u Enter" | "Esc";
+    encodedAs: ApprovalDecisionEncoding;
     previousKind: ApprovalKind | null;
   }
 >;

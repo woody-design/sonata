@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 import type {
+  ApprovalDecision,
   ArtifactCandidate,
   LaunchSpeedMode,
   ReasoningEffort,
@@ -12,6 +13,7 @@ import type {
 import type { ApprovalDetectedEvent } from "../shared/types/events";
 import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
+import { cleanTerminalTranscript } from "../shared/terminal-transcript";
 
 interface RunTranscript {
   runId: string;
@@ -51,9 +53,15 @@ interface TaskLaunchDraft {
   cwd: string | null;
   settingsOpen: boolean;
   settingsAnchor: { left: number; top: number; width: number } | null;
+  message: TaskEntryMessage | null;
   model: Record<RuntimeProvider, string | null>;
   reasoningEffort: Record<RuntimeProvider, ReasoningEffort | null>;
   speedMode: Record<RuntimeProvider, LaunchSpeedMode | null>;
+}
+
+interface TaskEntryMessage {
+  tone: "info" | "error";
+  text: string;
 }
 
 const state: RendererState = {
@@ -65,6 +73,7 @@ const state: RendererState = {
     cwd: null,
     settingsOpen: false,
     settingsAnchor: null,
+    message: null,
     model: {
       codex: "gpt-5.5",
       claude: "opus",
@@ -123,6 +132,7 @@ appElement.innerHTML = `
           </div>
           <div class="approval-actions">
             <button id="deny-approval" class="secondary" type="button">Deny</button>
+            <button id="approve-session-approval" class="secondary hidden" type="button">Allow Session</button>
             <button id="approve-approval" class="primary" type="button">Approve</button>
           </div>
         </div>
@@ -186,6 +196,7 @@ const elements = {
   approvalSummary: getElement<HTMLParagraphElement>("approval-summary"),
   approvalContext: getElement<HTMLDivElement>("approval-context"),
   denyApproval: getElement<HTMLButtonElement>("deny-approval"),
+  approveSessionApproval: getElement<HTMLButtonElement>("approve-session-approval"),
   approveApproval: getElement<HTMLButtonElement>("approve-approval"),
   workflowHeadline: getElement<HTMLElement>("workflow-headline"),
   workflowFacts: getElement<HTMLDivElement>("workflow-facts"),
@@ -222,8 +233,6 @@ let transcriptRenderTimer: number | null = null;
 const MAX_TRANSCRIPT_CHARS = 120_000;
 const MAX_TERMINAL_BUFFER_CHARS = 80_000;
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
-const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
-const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 const MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: string | null }>> = {
   codex: [
     { label: "GPT-5.5", value: "gpt-5.5" },
@@ -298,6 +307,10 @@ elements.approveApproval.addEventListener("click", () => {
   void decideApproval("approve");
 });
 
+elements.approveSessionApproval.addEventListener("click", () => {
+  void decideApproval("approve-for-session");
+});
+
 elements.denyApproval.addEventListener("click", () => {
   void decideApproval("deny");
 });
@@ -365,7 +378,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   if (event.type === "approval:decision") {
     view.pendingApproval = null;
-    view.status = event.payload.decision === "approve" ? "Approval sent" : "Approval denied";
+    view.status = event.payload.decision === "deny" ? "Approval denied" : "Approval sent";
     markViewChanged(view);
     return;
   }
@@ -584,6 +597,10 @@ async function createTask(
   state.status = `Starting ${providerName}`;
   state.taskDraft.settingsOpen = false;
   state.taskDraft.settingsAnchor = null;
+  state.taskDraft.message = {
+    tone: "info",
+    text: `Starting ${providerName} Task...`,
+  };
   render();
 
   try {
@@ -601,7 +618,12 @@ async function createTask(
     upsertTaskView(view);
     activateTask(response.task.id);
   } catch (error) {
-    state.status = errorMessage(error);
+    const message = errorMessage(error);
+    state.status = message;
+    state.taskDraft.message = {
+      tone: "error",
+      text: message,
+    };
   } finally {
     state.busy = false;
     render();
@@ -613,6 +635,10 @@ async function openTask(cwd?: string | null): Promise<void> {
   state.status = cwd ? "Opening Folder Task" : "Opening Task";
   state.taskDraft.settingsOpen = false;
   state.taskDraft.settingsAnchor = null;
+  state.taskDraft.message = {
+    tone: "info",
+    text: cwd ? "Opening the selected Task folder..." : "Opening the latest Task...",
+  };
   render();
 
   try {
@@ -626,7 +652,12 @@ async function openTask(cwd?: string | null): Promise<void> {
     activateTask(response.task.id);
     await refreshReport(response.task.id);
   } catch (error) {
-    state.status = errorMessage(error);
+    const message = errorMessage(error);
+    state.status = message;
+    state.taskDraft.message = {
+      tone: "error",
+      text: message,
+    };
   } finally {
     state.busy = false;
     render();
@@ -660,7 +691,7 @@ async function submitPrompt(): Promise<void> {
   }
 }
 
-async function decideApproval(decision: "approve" | "deny"): Promise<void> {
+async function decideApproval(decision: ApprovalDecision): Promise<void> {
   const view = activeTaskView();
   if (!view?.task) {
     return;
@@ -774,13 +805,21 @@ function renderApproval(): void {
   if (!approval) {
     elements.approvalBanner.removeAttribute("data-approval-kind");
     elements.approvalContext.replaceChildren();
+    elements.approveSessionApproval.classList.add("hidden");
     return;
   }
 
+  const sessionChoice =
+    approval.choices?.find((choice) => choice.decision === "approve-for-session") ?? null;
   elements.approvalBanner.dataset.approvalKind = approval.kind;
   elements.approvalKindBadge.textContent = approvalKindLabel(approval.kind);
   elements.approvalTitle.textContent = approvalTitle(approval.kind);
   elements.approvalSummary.textContent = approvalSummary(approval.kind);
+  elements.approveSessionApproval.classList.toggle("hidden", !sessionChoice);
+  elements.approveSessionApproval.disabled = !sessionChoice;
+  if (sessionChoice) {
+    elements.approveSessionApproval.textContent = sessionChoice.label;
+  }
   elements.approvalContext.replaceChildren(
     approvalContextItem("Source", approval.source),
     approvalContextItem("Scope", approvalScope(approval.kind)),
@@ -794,6 +833,9 @@ function renderApproval(): void {
         ]
       : []),
     approvalContextItem("Approve", "send native Enter"),
+    ...(sessionChoice
+      ? [approvalContextItem(sessionChoice.label, `send native ${sessionChoice.encodedAs}`)]
+      : []),
     approvalContextItem("Deny", "send native Esc"),
   );
 }
@@ -949,6 +991,7 @@ function renderTaskEntryPanel(): HTMLElement {
   });
   actions.append(startTask, openTaskButton);
 
+  const message = renderTaskEntryMessage();
   const facts = document.createElement("div");
   facts.className = "task-entry-facts";
   facts.append(
@@ -957,7 +1000,11 @@ function renderTaskEntryPanel(): HTMLElement {
     taskEntryFact("Folder", folderSummaryLabel()),
   );
 
-  panel.append(copy, controls, actions, facts);
+  panel.append(copy, controls, actions);
+  if (message) {
+    panel.append(message);
+  }
+  panel.append(facts);
   return panel;
 }
 
@@ -978,6 +1025,7 @@ function renderProviderSegment(): HTMLElement {
     button.textContent = providerLabel(provider);
     button.addEventListener("click", () => {
       state.taskDraft.provider = provider;
+      state.taskDraft.message = null;
       render();
     });
     segment.append(button);
@@ -1013,6 +1061,10 @@ function renderFolderPicker(): HTMLElement {
     clear.textContent = "Default Workspace";
     clear.addEventListener("click", () => {
       state.taskDraft.cwd = null;
+      state.taskDraft.message = {
+        tone: "info",
+        text: "Using the default Duet workspace for new Tasks.",
+      };
       render();
     });
     row.append(clear);
@@ -1169,6 +1221,10 @@ async function pickTaskFolder(): Promise<void> {
   state.status = "Choosing Task Folder";
   state.taskDraft.settingsOpen = false;
   state.taskDraft.settingsAnchor = null;
+  state.taskDraft.message = {
+    tone: "info",
+    text: "Choose the folder where this Task should run.",
+  };
   render();
 
   try {
@@ -1176,13 +1232,33 @@ async function pickTaskFolder(): Promise<void> {
     if (response.path) {
       state.taskDraft.cwd = response.path;
       state.status = `Selected ${folderName(response.path)}`;
+      state.taskDraft.message = {
+        tone: "info",
+        text: `Selected ${folderName(response.path)}.`,
+      };
     }
   } catch (error) {
-    state.status = errorMessage(error);
+    const message = errorMessage(error);
+    state.status = message;
+    state.taskDraft.message = {
+      tone: "error",
+      text: message,
+    };
   } finally {
     state.busy = false;
     render();
   }
+}
+
+function renderTaskEntryMessage(): HTMLElement | null {
+  if (!state.taskDraft.message) {
+    return null;
+  }
+
+  const message = document.createElement("div");
+  message.className = `task-entry-message ${state.taskDraft.message.tone}`;
+  message.textContent = state.taskDraft.message.text;
+  return message;
 }
 
 function taskLaunchSettings(provider: RuntimeProvider): {
@@ -1559,14 +1635,14 @@ function appendLiveTranscript(view: TaskViewState, data: string): void {
     return;
   }
 
-  const text = cleanTerminalText(data);
+  const text = cleanTerminalTranscript(data, view.task?.provider);
   if (!text.trim()) {
     return;
   }
 
   const transcript = ensureRunTranscript(view, view.liveTranscriptRunId);
   transcript.receivedChars += text.length;
-  const nextText = `${transcript.text}${text}`;
+  const nextText = joinTranscriptText(transcript.text, text);
   transcript.truncated = transcript.truncated || nextText.length > MAX_TRANSCRIPT_CHARS;
   transcript.text = nextText.slice(-MAX_TRANSCRIPT_CHARS);
   scheduleTranscriptRender();
@@ -1600,13 +1676,11 @@ function scheduleTranscriptRender(): void {
   }, 160);
 }
 
-function cleanTerminalText(data: string): string {
-  return data
-    .replace(ANSI_RE, "")
-    .replace(CONTROL_RE, "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/\n{4,}/g, "\n\n\n");
+function joinTranscriptText(current: string, next: string): string {
+  if (!current || current.endsWith("\n") || next.startsWith("\n")) {
+    return `${current}${next}`;
+  }
+  return `${current}\n${next}`;
 }
 
 async function openArtifact(relativePath: string): Promise<void> {
@@ -2017,6 +2091,9 @@ function approvalTitle(kind: RuntimeRunReport["approvalKind"] | null | undefined
   if (kind === "file-edit") {
     return "File edit approval requested";
   }
+  if (kind === "file-read") {
+    return "File read approval requested";
+  }
   if (kind === "command") {
     return "Command approval requested";
   }
@@ -2031,6 +2108,9 @@ function approvalSummary(kind: RuntimeRunReport["approvalKind"] | null | undefin
   if (kind === "file-edit") {
     return `${providerName} wants to write files in this Task workspace. Review the Run context before approving.`;
   }
+  if (kind === "file-read") {
+    return `${providerName} wants to read a file path through the native CLI session. Approve only when that access matches the Task.`;
+  }
   if (kind === "command") {
     return `${providerName} wants to run a command through the native CLI session. Approve only when the command matches the Task.`;
   }
@@ -2043,6 +2123,9 @@ function approvalScope(kind: RuntimeRunReport["approvalKind"] | null | undefined
   }
   if (kind === "file-edit") {
     return "workspace file write";
+  }
+  if (kind === "file-read") {
+    return "native file read";
   }
   if (kind === "command") {
     return "terminal command execution";
@@ -2058,15 +2141,21 @@ function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undef
   if (kind === "file-edit") {
     return "File edit";
   }
+  if (kind === "file-read") {
+    return "File read";
+  }
   if (kind === "command") {
     return "Command";
   }
   return "Native";
 }
 
-function approvalDecisionLabel(decision: "approve" | "deny" | undefined): string {
+function approvalDecisionLabel(decision: ApprovalDecision | undefined): string {
   if (decision === "approve") {
     return "approved";
+  }
+  if (decision === "approve-for-session") {
+    return "approved for session";
   }
   if (decision === "deny") {
     return "denied";

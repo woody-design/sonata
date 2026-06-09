@@ -58,6 +58,8 @@ product-thinking/2026-05-16-acceptance-checkpoint-refresh-v1.md
 product-thinking/2026-05-16-woody-testing-script-v0.md
 product-thinking/2026-06-09-claude-runtime-validation-v0.md
 product-thinking/2026-06-09-task-folder-launch-settings-v0.md
+product-thinking/2026-06-09-main-transcript-tui-noise-gate-v0.md
+product-thinking/2026-06-09-claude-session-approval-control-v0.md
 product-thinking/2026-05-15-three-surface-ux-architecture.md
 product-thinking/2026-05-15-terminalhost-runtime-contract.md
 product-thinking/2026-05-14-duet-mvp-product-architecture.md
@@ -128,6 +130,8 @@ Provider validation gates:
 ```bash
 cd app
 npm run smoke:provider-launch-settings
+npm run smoke:terminal-transcript
+npm run smoke:approval-session-choice
 npm run e2e:task-folder-cwd
 npm run smoke:claude-terminalhost
 npm run e2e:provider-locked-task

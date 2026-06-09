@@ -1,5 +1,7 @@
 import type {
+  ApprovalChoice,
   ApprovalDecision,
+  ApprovalDecisionEncoding,
   ApprovalKind,
   ChangeKind,
   CompletionConfidence,
@@ -76,8 +78,9 @@ export interface RuntimeApprovalReport {
   previousDecision?: ApprovalDecision | null;
   decisionAgeMs?: number | null;
   fingerprintHash?: string | null;
+  choices?: ApprovalChoice[];
   decision?: ApprovalDecision;
-  encodedAs?: "CSI-u Enter" | "Esc";
+  encodedAs?: ApprovalDecisionEncoding;
   previousKind?: ApprovalKind | null;
 }
 

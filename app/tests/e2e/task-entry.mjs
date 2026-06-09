@@ -5,9 +5,13 @@ import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-task-entry-e2e-"));
+const existingTaskFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-existing-task-folder-e2e-"));
 let electronApp = null;
 
 try {
+  fs.mkdirSync(path.join(existingTaskFolder, ".duet"), { recursive: true });
+  fs.writeFileSync(path.join(existingTaskFolder, ".duet", "task.json"), "{}", "utf8");
+
   let page = await launchApp();
   await assertEntryVisible(page);
   await page.locator("#prompt-input").waitFor({ state: "visible" });
@@ -19,6 +23,26 @@ try {
     state: "visible",
   });
   await assertEntryVisible(page);
+
+  await page.evaluate((folder) => {
+    window.duetRuntime.pickFolder = async () => ({ path: folder });
+  }, existingTaskFolder);
+  await page.locator("#entry-choose-folder").click();
+  await page.locator("#entry-open-task", { hasText: "Open Folder Task" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#entry-provider-claude", { hasText: "Claude" }).click();
+  await page.locator("#entry-new-task", { hasText: "Start Claude Task" }).click();
+  await page
+    .locator(".task-entry-message.error", {
+      hasText: "Selected folder already contains a Duet Task. Open it instead.",
+    })
+    .waitFor({ state: "visible" });
+  await page.locator(".task-entry-panel", { hasText: "Start Claude Task" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#entry-clear-folder", { hasText: "Default Workspace" }).click();
+  await page.locator("#entry-provider-codex", { hasText: "Codex" }).click();
 
   await page.locator("#entry-launch-settings").click();
   await page.locator(".task-settings-popover", { hasText: "Reasoning" }).waitFor({
@@ -116,6 +140,7 @@ try {
     await electronApp.close();
   }
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  fs.rmSync(existingTaskFolder, { recursive: true, force: true });
 }
 
 async function launchApp() {

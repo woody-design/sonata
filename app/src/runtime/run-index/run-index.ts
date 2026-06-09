@@ -145,6 +145,9 @@ export class RunIndex {
           if (event.payload.fingerprintHash !== undefined) {
             approvalEvent.fingerprintHash = event.payload.fingerprintHash;
           }
+          if (event.payload.choices !== undefined) {
+            approvalEvent.choices = event.payload.choices;
+          }
           this.appendRunEvent(event.payload.runId, "approvalEvents", approvalEvent);
         }
         break;
