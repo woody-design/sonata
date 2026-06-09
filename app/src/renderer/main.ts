@@ -178,14 +178,6 @@ appElement.innerHTML = `
 
         <div id="run-list" class="run-list"></div>
 
-        <form id="composer" class="composer">
-          <textarea id="prompt-input" rows="4" placeholder="Send a prompt to the active provider"></textarea>
-          <div class="composer-actions">
-            <button id="stop-run" class="secondary" type="button" disabled>Stop</button>
-            <button id="send-prompt" class="primary" type="submit" disabled>Send</button>
-          </div>
-        </form>
-
         <section id="terminal-drawer" class="terminal-drawer hidden" aria-label="Terminal trust layer">
           <div class="terminal-drawer-header">
             <div>
@@ -196,6 +188,26 @@ appElement.innerHTML = `
           </div>
           <div id="terminal"></div>
         </section>
+
+        <form id="composer" class="composer">
+          <textarea id="prompt-input" rows="4" placeholder="Send a prompt to the active provider"></textarea>
+          <div class="composer-control-row">
+            <div class="composer-control-left">
+              <span id="permission-chip" class="composer-chip hidden"></span>
+            </div>
+            <div class="composer-actions">
+              <span id="model-chip" class="composer-chip hidden"></span>
+              <button id="stop-run" class="secondary" type="button" disabled>Stop</button>
+              <button
+                id="send-prompt"
+                class="primary send-button"
+                type="submit"
+                disabled
+                aria-label="Send prompt"
+              >↑</button>
+            </div>
+          </div>
+        </form>
       </section>
     </section>
   </section>
@@ -227,6 +239,8 @@ const elements = {
   openSelectedPreview: getElement<HTMLButtonElement>("open-selected-preview"),
   composer: getElement<HTMLFormElement>("composer"),
   promptInput: getElement<HTMLTextAreaElement>("prompt-input"),
+  permissionChip: getElement<HTMLSpanElement>("permission-chip"),
+  modelChip: getElement<HTMLSpanElement>("model-chip"),
   stopRun: getElement<HTMLButtonElement>("stop-run"),
   sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
   terminalDrawer: getElement<HTMLElement>("terminal-drawer"),
@@ -323,6 +337,17 @@ elements.composer.addEventListener("submit", (event) => {
 
 elements.promptInput.addEventListener("input", () => {
   renderComposerControls();
+});
+
+elements.promptInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey) {
+    return;
+  }
+  if (elements.sendPrompt.disabled) {
+    return;
+  }
+  event.preventDefault();
+  elements.composer.requestSubmit();
 });
 
 elements.stopRun.addEventListener("click", () => {
@@ -913,13 +938,55 @@ function renderComposerControls(view = activeTaskView()): void {
   const activeRun = hasActiveRun(view);
   const pendingApproval = Boolean(view?.pendingApproval);
   const promptHasText = elements.promptInput.value.trim().length > 0;
+  renderComposerChip(elements.permissionChip, sessionPermissionLabel(view?.task ?? null));
+  renderComposerChip(elements.modelChip, sessionModelSummaryLabel(view?.task ?? null));
   elements.sendPrompt.disabled =
     !view?.task || state.busy || !view.runtimeReady || pendingApproval || activeRun || !promptHasText;
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText);
+  elements.sendPrompt.textContent = "↑";
   elements.stopRun.disabled = !view?.task || state.busy || !activeRun;
   elements.promptInput.disabled = !view?.task || pendingApproval;
   elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
-  elements.sendPrompt.textContent = sendButtonLabel(activeRun);
+  elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
+}
+
+function renderComposerChip(element: HTMLElement, label: string | null): void {
+  element.classList.toggle("hidden", !label);
+  element.textContent = label ?? "";
+  if (label) {
+    element.title = label;
+  } else {
+    element.removeAttribute("title");
+  }
+}
+
+function sessionPermissionLabel(task: Task | null): string | null {
+  if (!task) {
+    return null;
+  }
+  if (task.provider === "claude") {
+    return task.permissionMode ?? null;
+  }
+
+  const parts: string[] = [];
+  if (task.approval) {
+    parts.push(task.approval);
+  }
+  if (task.sandbox) {
+    parts.push(task.sandbox);
+  }
+  return parts.length > 0 ? parts.join(" / ") : null;
+}
+
+function sessionModelSummaryLabel(task: Task | null): string | null {
+  if (!task) {
+    return null;
+  }
+  const parts = [
+    modelValueLabel(task.provider, task.model),
+    reasoningValueLabel(task.reasoningEffort),
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" ") : null;
 }
 
 function hasActiveRun(view = activeTaskView()): boolean {
@@ -1711,16 +1778,32 @@ function launchSettingsSummary(provider: RuntimeProvider): string {
 }
 
 function modelSummaryLabel(provider: RuntimeProvider): string {
-  const value = state.taskDraft.model[provider];
-  if (provider === "codex" && value === "gpt-5.5") {
-    return "5.5";
-  }
-  return MODEL_OPTIONS[provider].find((option) => option.value === value)?.label ?? "Default";
+  return modelValueLabel(provider, state.taskDraft.model[provider]) ?? "Default";
 }
 
 function reasoningSummaryLabel(provider: RuntimeProvider): string {
-  const value = state.taskDraft.reasoningEffort[provider];
-  return REASONING_OPTIONS[provider].find((option) => option.value === value)?.label ?? "Default";
+  return reasoningValueLabel(state.taskDraft.reasoningEffort[provider]) ?? "Default";
+}
+
+function modelValueLabel(provider: RuntimeProvider, value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  if (provider === "codex" && value === "gpt-5.5") {
+    return "5.5";
+  }
+  return MODEL_OPTIONS[provider].find((option) => option.value === value)?.label ?? value;
+}
+
+function reasoningValueLabel(value: ReasoningEffort | null): string | null {
+  if (!value) {
+    return null;
+  }
+  return (
+    [...REASONING_OPTIONS.codex, ...REASONING_OPTIONS.claude].find(
+      (option) => option.value === value,
+    )?.label ?? value
+  );
 }
 
 function folderSummaryLabel(): string {

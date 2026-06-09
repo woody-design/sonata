@@ -34,6 +34,7 @@
     "smoke:terminal-transcript": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-transcript.mjs",
     "smoke:provider-transcript": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/provider-transcript.mjs",
     "smoke:approval-session-choice": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-session-choice.mjs",
+    "smoke:submit-approval-guard": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/submit-approval-guard.mjs",
     "smoke:codex-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-terminalhost.mjs",
     "smoke:claude-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-terminalhost.mjs",
     "smoke:command-approval": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/command-approval.mjs",

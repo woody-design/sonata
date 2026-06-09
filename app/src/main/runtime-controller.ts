@@ -4,6 +4,9 @@ import { app } from "electron";
 import type {
   ArtifactCandidate,
   ApprovalDecision,
+  ClaudePermissionMode,
+  CodexApprovalMode,
+  CodexSandboxMode,
   CreateTaskRequest,
   CreateTaskResponse,
   LaunchSpeedMode,
@@ -46,6 +49,16 @@ const DEFAULT_TASK_TITLE = "New Task";
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
 const REASONING_EFFORTS = new Set<ReasoningEffort>(["low", "medium", "high", "xhigh", "max"]);
+const CODEX_SANDBOX_MODES = new Set<CodexSandboxMode>(["read-only", "workspace-write"]);
+const CODEX_APPROVAL_MODES = new Set<CodexApprovalMode>(["never", "on-request"]);
+const CLAUDE_PERMISSION_MODES = new Set<ClaudePermissionMode>([
+  "acceptEdits",
+  "auto",
+  "bypassPermissions",
+  "default",
+  "dontAsk",
+  "plan",
+]);
 
 interface RuntimeControllerOptions {
   sendEvent: (event: RuntimeEvent) => void;
@@ -80,6 +93,7 @@ export class RuntimeController {
     const reportPath = runtimeReportPath(storageRoot);
     fs.mkdirSync(duetDirectory(storageRoot), { recursive: true });
     const launchSettings = normalizeLaunchSettings(request.provider, request);
+    const permissionSettings = normalizePermissionSettings(request.provider, request);
 
     const task: Task = {
       id: taskId,
@@ -88,6 +102,9 @@ export class RuntimeController {
       model: launchSettings.model,
       reasoningEffort: launchSettings.reasoningEffort,
       speedMode: launchSettings.speedMode,
+      sandbox: permissionSettings.sandbox,
+      approval: permissionSettings.approval,
+      permissionMode: permissionSettings.permissionMode,
       runtimeSessionId: `runtime-${taskId}`,
       providerSessionRef: null,
       providerCwd,
@@ -113,12 +130,14 @@ export class RuntimeController {
 
     const startOptions = {
       cwd: providerCwd,
-      sandbox: request.sandbox ?? "read-only",
-      approval: request.approval ?? "on-request",
+      sandbox: permissionSettings.sandbox ?? "read-only",
+      approval: permissionSettings.approval ?? "on-request",
       model: launchSettings.model,
       reasoningEffort: launchSettings.reasoningEffort,
       speedMode: launchSettings.speedMode,
-      ...(request.provider === "claude" ? { permissionMode: "default" as const } : {}),
+      ...(request.provider === "claude"
+        ? { permissionMode: permissionSettings.permissionMode ?? "default" }
+        : {}),
     };
     const ptyStartedAt = new Date().toISOString();
     const runtime = terminalHost.startTask({
@@ -168,9 +187,16 @@ export class RuntimeController {
 
     const providerCwd = taskProviderCwd(manifest.task, storageRoot);
     const task = normalizeTaskForProviderCwd(manifest.task, providerCwd);
+    const permissionSettings = normalizePermissionSettings(task.provider, {
+      sandbox: request.sandbox ?? task.sandbox,
+      approval: request.approval ?? task.approval,
+      permissionMode: request.permissionMode ?? task.permissionMode,
+    });
     const runningTask = {
-      ...manifest.task,
       ...task,
+      sandbox: permissionSettings.sandbox,
+      approval: permissionSettings.approval,
+      permissionMode: permissionSettings.permissionMode,
       status: "running" as const,
       updatedAt: new Date().toISOString(),
     };
@@ -196,12 +222,14 @@ export class RuntimeController {
     const ptyStartedAt = new Date().toISOString();
     const runtime = terminalHost.startTask({
       cwd: providerCwd,
-      sandbox: request.sandbox ?? "read-only",
-      approval: request.approval ?? "on-request",
+      sandbox: permissionSettings.sandbox ?? "read-only",
+      approval: permissionSettings.approval ?? "on-request",
       model: runningTask.model,
       reasoningEffort: runningTask.reasoningEffort,
       speedMode: runningTask.speedMode,
-      ...(runningTask.provider === "claude" ? { permissionMode: "default" as const } : {}),
+      ...(runningTask.provider === "claude"
+        ? { permissionMode: permissionSettings.permissionMode ?? "default" }
+        : {}),
       ...(request.rows !== undefined ? { rows: request.rows } : {}),
       ...(request.cols !== undefined ? { cols: request.cols } : {}),
     });
@@ -651,11 +679,15 @@ function assertSupportedProvider(provider: RuntimeProvider): void {
 
 function normalizeTaskForProviderCwd(task: Task, providerCwd: string): Task {
   const launchSettings = normalizeLaunchSettings(task.provider, task);
+  const permissionSettings = normalizePermissionSettings(task.provider, task);
   return {
     ...task,
     model: launchSettings.model,
     reasoningEffort: launchSettings.reasoningEffort,
     speedMode: launchSettings.speedMode,
+    sandbox: permissionSettings.sandbox,
+    approval: permissionSettings.approval,
+    permissionMode: permissionSettings.permissionMode,
     providerCwd,
     workingDirectory: providerCwd,
   };
@@ -691,5 +723,43 @@ function normalizeLaunchSettings(
     model,
     reasoningEffort,
     speedMode,
+  };
+}
+
+function normalizePermissionSettings(
+  provider: RuntimeProvider,
+  request: {
+    sandbox?: CodexSandboxMode | null;
+    approval?: CodexApprovalMode | null;
+    permissionMode?: ClaudePermissionMode | null;
+  },
+): {
+  sandbox: CodexSandboxMode | null;
+  approval: CodexApprovalMode | null;
+  permissionMode: ClaudePermissionMode | null;
+} {
+  if (provider === "claude") {
+    const permissionMode = CLAUDE_PERMISSION_MODES.has(
+      request.permissionMode as ClaudePermissionMode,
+    )
+      ? (request.permissionMode as ClaudePermissionMode)
+      : "default";
+    return {
+      sandbox: null,
+      approval: null,
+      permissionMode,
+    };
+  }
+
+  const sandbox = CODEX_SANDBOX_MODES.has(request.sandbox as CodexSandboxMode)
+    ? (request.sandbox as CodexSandboxMode)
+    : "read-only";
+  const approval = CODEX_APPROVAL_MODES.has(request.approval as CodexApprovalMode)
+    ? (request.approval as CodexApprovalMode)
+    : "on-request";
+  return {
+    sandbox,
+    approval,
+    permissionMode: null,
   };
 }

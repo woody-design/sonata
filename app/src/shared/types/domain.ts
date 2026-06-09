@@ -8,6 +8,15 @@ export type ApprovalId = string;
 export type RuntimeProvider = "codex" | "claude";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type LaunchSpeedMode = "default" | "fast";
+export type CodexSandboxMode = "read-only" | "workspace-write";
+export type CodexApprovalMode = "never" | "on-request";
+export type ClaudePermissionMode =
+  | "acceptEdits"
+  | "auto"
+  | "bypassPermissions"
+  | "default"
+  | "dontAsk"
+  | "plan";
 
 export type TaskStatus =
   | "new"
@@ -26,6 +35,9 @@ export interface Task {
   model: string | null;
   reasoningEffort: ReasoningEffort | null;
   speedMode: LaunchSpeedMode | null;
+  sandbox: CodexSandboxMode | null;
+  approval: CodexApprovalMode | null;
+  permissionMode: ClaudePermissionMode | null;
   runtimeSessionId: RuntimeSessionId;
   providerSessionRef: ProviderSessionRef | null;
   providerCwd: string;

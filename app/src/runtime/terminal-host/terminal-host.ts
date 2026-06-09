@@ -9,6 +9,9 @@ import type {
   ApprovalDecision,
   ApprovalDecisionEncoding,
   ApprovalKind,
+  ClaudePermissionMode,
+  CodexApprovalMode,
+  CodexSandboxMode,
   CompletionConfidence,
   CompletionSource,
   LaunchSpeedMode,
@@ -104,8 +107,8 @@ export interface StartTaskOptions {
   cwd?: string;
   command?: string;
   args?: string[];
-  sandbox?: "read-only" | "workspace-write";
-  approval?: "never" | "on-request";
+  sandbox?: CodexSandboxMode;
+  approval?: CodexApprovalMode;
   permissionMode?: ClaudePermissionMode;
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
@@ -145,14 +148,6 @@ interface ApprovalCandidate {
 }
 
 type ActiveRun = RunUpdatedEvent["payload"];
-export type ClaudePermissionMode =
-  | "acceptEdits"
-  | "auto"
-  | "bypassPermissions"
-  | "default"
-  | "dontAsk"
-  | "plan";
-
 interface TerminalProviderProfile {
   provider: RuntimeProvider;
   defaultCommand: string;
@@ -310,6 +305,9 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess) {
       throw new Error("No PTY process is running.");
     }
+    if (this.approvalActive) {
+      throw new Error("Cannot submit a prompt while a native approval screen is active.");
+    }
 
     const kind: RunKind = text.trim().startsWith("/") ? "slash" : "prompt";
     const run = options.createRun === false ? null : this.beginRun(text, kind);
@@ -415,20 +413,24 @@ export class TerminalHost extends EventEmitter {
       (Boolean(options.forceSlashStop) ||
         this.hasBackgroundTerminalHint() ||
         this.activeRun?.approvalKind === "command");
-    if (shouldSubmitSlashStop && this.ptyProcess) {
+    const approvalGuardBlockedSlashStop = shouldSubmitSlashStop && this.approvalActive;
+    if (shouldSubmitSlashStop && !approvalGuardBlockedSlashStop && this.ptyProcess) {
       this.submitPrompt("/stop", { createRun: false });
     }
 
+    const slashStopSent = shouldSubmitSlashStop && !approvalGuardBlockedSlashStop;
     this.emitEvent("run:stopped", {
       taskId: this.taskId,
       runId: this.activeRun ? this.activeRun.id : null,
       interruptSent: true,
-      slashStopSent: shouldSubmitSlashStop,
-      slashStopReason: shouldSubmitSlashStop
-        ? "background terminal hint detected, command approval was active, or forceSlashStop requested"
-        : "no background terminal hint detected in recent terminal output",
+      slashStopSent,
+      slashStopReason: approvalGuardBlockedSlashStop
+        ? "slash stop was not sent because a native approval screen was still active"
+        : shouldSubmitSlashStop
+          ? "background terminal hint detected, command approval was active, or forceSlashStop requested"
+          : "no background terminal hint detected in recent terminal output",
     });
-    this.finishActiveRun("stopped", shouldSubmitSlashStop ? "Esc + /stop" : "Esc", {
+    this.finishActiveRun("stopped", slashStopSent ? "Esc + /stop" : "Esc", {
       completionSource: "native-control",
       completionConfidence: "high",
     });
@@ -951,8 +953,8 @@ export class TerminalHost extends EventEmitter {
 
 export function codexArgs(options: {
   cwd: string;
-  sandbox: "read-only" | "workspace-write";
-  approval: "never" | "on-request";
+  sandbox: CodexSandboxMode;
+  approval: CodexApprovalMode;
   model?: string | null | undefined;
   reasoningEffort?: ReasoningEffort | null | undefined;
   speedMode?: LaunchSpeedMode | null | undefined;

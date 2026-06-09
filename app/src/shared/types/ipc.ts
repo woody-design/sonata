@@ -1,6 +1,9 @@
 import type {
   ArtifactCandidate,
   ApprovalDecision,
+  ClaudePermissionMode,
+  CodexApprovalMode,
+  CodexSandboxMode,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
@@ -48,8 +51,9 @@ export interface CreateTaskRequest {
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
   speedMode?: LaunchSpeedMode | null;
-  sandbox?: "read-only" | "workspace-write";
-  approval?: "never" | "on-request";
+  sandbox?: CodexSandboxMode;
+  approval?: CodexApprovalMode;
+  permissionMode?: ClaudePermissionMode;
   rows?: number;
   cols?: number;
 }
@@ -67,8 +71,9 @@ export interface CreateTaskResponse {
 export interface OpenTaskRequest {
   taskId?: TaskId;
   cwd?: string;
-  sandbox?: "read-only" | "workspace-write";
-  approval?: "never" | "on-request";
+  sandbox?: CodexSandboxMode;
+  approval?: CodexApprovalMode;
+  permissionMode?: ClaudePermissionMode;
   rows?: number;
   cols?: number;
 }

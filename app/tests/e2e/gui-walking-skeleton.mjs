@@ -24,7 +24,7 @@ try {
   await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
     state: "visible",
   });
-  await page.locator("#send-prompt", { hasText: "Start Run" }).waitFor({ state: "visible" });
+  await page.locator("#send-prompt").waitFor({ state: "visible" });
 
   const prompt = [
     "Create exactly two files in this workspace:",
@@ -75,7 +75,7 @@ try {
   await page.locator("#workflow-facts", { hasText: "Terminal available" }).waitFor({
     state: "visible",
   });
-  await page.locator("#send-prompt", { hasText: "Continue" }).waitFor({ state: "visible" });
+  await page.locator("#send-prompt").waitFor({ state: "visible" });
 
   const previewWindowPromise = electronApp.waitForEvent("window");
   await page.locator(".artifact-item", { hasText: "report.md" }).click();

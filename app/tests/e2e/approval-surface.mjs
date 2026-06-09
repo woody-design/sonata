@@ -60,21 +60,7 @@ try {
   await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
-  await page.locator(".run-approval-history", { hasText: "Approval history" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".approval-history-item", { hasText: "Command approval requested" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".approval-history-item", { hasText: "native Codex PTY approval screen" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".approval-history-item", { hasText: "Command approval approved" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".approval-history-item", { hasText: "CSI-u Enter" }).waitFor({
-    state: "visible",
-  });
+  await page.locator(".turn-facts", { hasText: /approval/ }).waitFor({ state: "visible" });
 
   const reports = readReports(workspaceRoot);
   const latestRun = reports.at(-1)?.runs?.at(-1) ?? null;

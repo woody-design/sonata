@@ -11,10 +11,17 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#app {
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100%;
+  overflow: hidden;
   background: #f5f5f2;
 }
 
@@ -41,9 +48,11 @@ pre {
 }
 
 .shell {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .floating-preview-shell {
@@ -181,6 +190,7 @@ h2 {
   flex: 1;
   min-height: 0;
   display: flex;
+  overflow: hidden;
 }
 
 .task-tabs {
@@ -280,10 +290,12 @@ h2 {
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  background: #eeebe3;
 }
 
 .run-list {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   padding: 18px;
@@ -636,25 +648,94 @@ h2 {
 }
 
 .composer {
-  border-top: 1px solid #d5d1c7;
-  padding: 14px;
-  background: #eeebe3;
+  flex: 0 0 auto;
+  display: grid;
+  gap: 8px;
+  margin: 12px 18px 14px;
+  border: 1px solid #c8c2b6;
+  border-radius: 24px;
+  padding: 10px 10px 10px 14px;
+  background: #fffefa;
+  box-shadow: 0 12px 30px rgb(55 50 41 / 10%);
 }
 
-textarea {
+#prompt-input {
   width: 100%;
-  resize: vertical;
-  border: 1px solid #b8b0a2;
-  border-radius: 8px;
-  padding: 10px;
+  min-height: 58px;
+  max-height: 172px;
+  resize: none;
+  border: 0;
+  border-radius: 16px;
+  padding: 4px 4px 2px;
   color: #20201d;
-  background: #fffefa;
+  background: transparent;
   line-height: 1.45;
 }
 
+#prompt-input:focus {
+  outline: 0;
+}
+
+#prompt-input:disabled {
+  color: #777169;
+  -webkit-text-fill-color: #777169;
+}
+
+.composer:focus-within {
+  border-color: #7d9b8e;
+  box-shadow:
+    0 0 0 3px rgb(47 93 80 / 12%),
+    0 12px 30px rgb(55 50 41 / 10%);
+}
+
+.composer-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+}
+
+.composer-control-left,
 .composer-actions {
+  min-width: 0;
+}
+
+.composer-control-left {
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.composer-actions {
+  flex: 0 1 auto;
   justify-content: flex-end;
-  margin-top: 10px;
+}
+
+.composer-chip {
+  min-width: 0;
+  max-width: 210px;
+  overflow: hidden;
+  border: 1px solid #ded9ce;
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #4f4a41;
+  background: #f4f0e8;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.send-button {
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .side-column {
@@ -1385,8 +1466,8 @@ textarea {
 }
 
 .terminal-drawer {
-  flex: 0 0 280px;
-  min-height: 220px;
+  flex: 0 1 clamp(150px, 28vh, 280px);
+  min-height: 140px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1472,6 +1553,27 @@ textarea {
   .inspector-change-layout,
   .inspector-folder-layout {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .composer {
+    margin: 10px 12px 12px;
+    border-radius: 20px;
+  }
+
+  .composer-control-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .composer-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .composer-chip {
+    max-width: 100%;
   }
 }
 

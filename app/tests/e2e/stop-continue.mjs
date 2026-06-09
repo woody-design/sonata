@@ -68,7 +68,7 @@ try {
   await page.locator("#workflow-headline", { hasText: "Stopped. Ready to continue" }).waitFor({
     state: "visible",
   });
-  await page.locator("#send-prompt", { hasText: "Continue" }).waitFor({ state: "visible" });
+  await page.locator("#send-prompt").waitFor({ state: "visible" });
   await page.locator(".turn-outcome", { hasText: "Stopped by Esc + /stop" }).waitFor({
     state: "visible",
   });

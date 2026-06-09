@@ -44,7 +44,7 @@ try {
   await page.locator(".task-entry-panel").waitFor({ state: "hidden" });
   await page.locator(".task-tab-label", { hasText: "New Task" }).waitFor({ state: "visible" });
   await page.locator(".empty-state", { hasText: "No Runs yet" }).waitFor({ state: "visible" });
-  await page.locator("#send-prompt", { hasText: "Start Run" }).waitFor({ state: "visible" });
+  await page.locator("#send-prompt").waitFor({ state: "visible" });
   await page.locator("#prompt-input").fill("");
   const sendDisabledAfterTaskWithoutPrompt = await page.locator("#send-prompt").isDisabled();
   await page.locator("#prompt-input").fill("Draft prompt for send button readiness.");
@@ -77,7 +77,7 @@ try {
     state: "visible",
   });
   await page.locator(".empty-state", { hasText: "No Runs yet" }).waitFor({ state: "visible" });
-  await page.locator("#send-prompt", { hasText: "Start Run" }).waitFor({ state: "visible" });
+  await page.locator("#send-prompt").waitFor({ state: "visible" });
 
   const reopenedManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const reportPath = path.join(workspace, ".duet", "runtime-report.json");
@@ -97,6 +97,9 @@ try {
     createdManifest.task.model === "gpt-5.5" &&
     createdManifest.task.reasoningEffort === "xhigh" &&
     createdManifest.task.speedMode === "fast" &&
+    createdManifest.task.sandbox === "read-only" &&
+    createdManifest.task.approval === "on-request" &&
+    createdManifest.task.permissionMode === null &&
     createdManifest.task.providerCwd === selectedFolder &&
     createdManifest.task.workingDirectory === selectedFolder &&
     createdReport?.runtime?.model === "gpt-5.5" &&
@@ -109,6 +112,9 @@ try {
     reopenedManifest.task.model === "gpt-5.5" &&
     reopenedManifest.task.reasoningEffort === "xhigh" &&
     reopenedManifest.task.speedMode === "fast" &&
+    reopenedManifest.task.sandbox === "read-only" &&
+    reopenedManifest.task.approval === "on-request" &&
+    reopenedManifest.task.permissionMode === null &&
     reopenedManifest.task.title === createdManifest.task.title &&
     !rawTerminalPersisted;
 
@@ -123,6 +129,9 @@ try {
         model: createdManifest.task.model,
         reasoningEffort: createdManifest.task.reasoningEffort,
         speedMode: createdManifest.task.speedMode,
+        sandbox: createdManifest.task.sandbox,
+        approval: createdManifest.task.approval,
+        permissionMode: createdManifest.task.permissionMode,
         composerDisabledBeforeTask,
         sendDisabledBeforeTask,
         sendDisabledAfterTaskWithoutPrompt,
