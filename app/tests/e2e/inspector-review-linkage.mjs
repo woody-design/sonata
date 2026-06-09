@@ -47,7 +47,7 @@ try {
   const runSection = inspectorPage.locator(".inspector-section", { hasText: "Run 1" });
   await runSection.waitFor({ state: "visible" });
   await runSection.locator(".inspector-action", { hasText: "Show in Main Chat" }).first().click();
-  await page.locator(".run-card.highlighted", { hasText: "inspector_link.md" }).waitFor({
+  await page.locator(".turn-card.highlighted", { hasText: "inspector_link.md" }).waitFor({
     state: "visible",
   });
 
@@ -64,7 +64,7 @@ try {
     state: "visible",
   });
   await artifactItem.locator(".inspector-action", { hasText: "Show Run" }).click();
-  await page.locator(".run-card.highlighted", { hasText: "inspector_link.md" }).waitFor({
+  await page.locator(".turn-card.highlighted", { hasText: "inspector_link.md" }).waitFor({
     state: "visible",
   });
 
@@ -74,7 +74,7 @@ try {
   });
   await changeItem.waitFor({ state: "visible" });
   await changeItem.locator(".inspector-action", { hasText: "Show Run" }).click();
-  await page.locator(".run-card.highlighted", { hasText: "inspector_link.md" }).waitFor({
+  await page.locator(".turn-card.highlighted", { hasText: "inspector_link.md" }).waitFor({
     state: "visible",
   });
   await changeItem.locator(".inspector-action", { hasText: "Open Preview" }).click();
@@ -134,7 +134,7 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     await approveIfVisible(page, "File edit approval requested", 1000);
     await approveIfVisible(page, "Command approval requested", 1000);
     const completed = await page
-      .locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" })
+      .locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" })
       .count();
     if (completed >= expectedCompletedRuns) {
       return;

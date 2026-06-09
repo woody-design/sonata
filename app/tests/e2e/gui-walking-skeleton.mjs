@@ -44,32 +44,28 @@ try {
 
   await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
   await page.locator(".artifact-item", { hasText: "page.html" }).waitFor({ state: "visible" });
-  await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
-  await page.locator(".run-evidence", { hasText: "terminal-idle-heuristic" }).waitFor({
+  await page.locator(".turn-facts", { hasText: "terminal-idle-heuristic" }).waitFor({
     state: "visible",
   });
-  await page.locator(".run-timeline", { hasText: "2 files changed" }).waitFor({ state: "visible" });
-  await page.locator(".run-timeline", { hasText: "2 artifacts ready" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Run 1" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Request" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Outcome" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Transcript" }).waitFor({ state: "visible" });
-  const transcriptText = await page.locator(".run-transcript-text").first().textContent();
+  await page.locator(".turn-facts", { hasText: "2 changes" }).waitFor({ state: "visible" });
+  const turnCard = page.locator(".turn-card", { hasText: "Create exactly two files" }).first();
+  await turnCard.locator(".turn-user", { hasText: "You" }).waitFor({ state: "visible" });
+  await turnCard.locator(".turn-artifacts .artifact-link", { hasText: "report.md" }).waitFor({
+    state: "visible",
+  });
+  await turnCard.locator(".turn-artifacts .artifact-link", { hasText: "page.html" }).waitFor({
+    state: "visible",
+  });
+  await turnCard.locator(".turn-provenance").waitFor({ state: "visible" });
+  const transcriptText = await turnCard.locator(".turn-body").textContent();
   const transcriptObserved =
     Boolean(transcriptText) && transcriptText.trim().length > 40 && !transcriptText.includes("\u001b");
   if (!transcriptObserved) {
-    throw new Error("Main Chat live transcript was not captured cleanly.");
+    throw new Error("Main Chat reading flow did not show readable assistant content.");
   }
-  await page.locator(".run-card", { hasText: "Review" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "2 artifacts ready for review" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".run-card", { hasText: "Next" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Review artifacts, then continue or redirect." }).waitFor({
-    state: "visible",
-  });
   await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({
     state: "visible",
   });

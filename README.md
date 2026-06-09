@@ -51,9 +51,21 @@ New Claude Task
 This is not same-Task provider switching and not full Claude parity. A Task
 keeps the provider chosen when it is created.
 
+The Main Chat reading surface is now driven by a semantic transcript channel:
+
+```text
+provider session files (Claude session JSONL / Codex rollout JSONL)
+  -> located by provider cwd + launch time, tailed incrementally
+  -> normalized into provider-neutral transcript blocks
+  -> turn cards: markdown text, folded tool calls, run attribution
+  -> PTY remains the control + liveness channel and the raw trust layer
+  -> sanitized PTY text remains only as a labeled fallback
+```
+
 Start here:
 
 ```text
+product-thinking/2026-06-09-semantic-transcript-contract-v0.md
 product-thinking/2026-05-16-acceptance-checkpoint-refresh-v1.md
 product-thinking/2026-05-16-woody-testing-script-v0.md
 product-thinking/2026-06-09-claude-runtime-validation-v0.md

@@ -56,7 +56,7 @@ try {
     throw new Error("Second Task tab did not create an independent task id.");
   }
   await page.locator(".empty-state", { hasText: "No Runs yet" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "hidden" });
+  await page.locator(".turn-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "hidden" });
 
   await runFilePrompt(page, {
     fileName: "report.md",
@@ -77,13 +77,13 @@ try {
 
   await page.locator(`.task-tab[data-task-id="${firstTaskId}"]`).click();
   await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Beta artifact ready." }).waitFor({ state: "hidden" });
+  await page.locator(".turn-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "visible" });
+  await page.locator(".turn-card", { hasText: "Beta artifact ready." }).waitFor({ state: "hidden" });
 
   await page.locator(`.task-tab[data-task-id="${secondTaskId}"]`).click();
   await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Beta artifact ready." }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "hidden" });
+  await page.locator(".turn-card", { hasText: "Beta artifact ready." }).waitFor({ state: "visible" });
+  await page.locator(".turn-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "hidden" });
 
   await previewPage.locator(".preview-window-tab", { hasText: shortId(firstTaskId) }).click();
   await previewPage.locator(".text-preview", { hasText: "Alpha artifact ready." }).waitFor({
@@ -217,7 +217,7 @@ async function runFilePrompt(page, options) {
   });
   await approveIfVisible(page, "File edit approval requested", 180000);
   await approveIfVisible(page, "Command approval requested", 15000);
-  await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
 }

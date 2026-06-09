@@ -31,7 +31,7 @@ try {
   await approveIfVisible(page, "File edit approval requested", 180000);
   await waitUntil(() => fs.existsSync(path.join(workspace, "open_original.md")), 180000, "original artifact");
   await page.locator(".artifact-item", { hasText: "open_original.md" }).waitFor({ state: "visible" });
-  await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
   await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
@@ -52,7 +52,7 @@ try {
   await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
   await page.locator(".task-tab-label", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
   await page.locator(".artifact-item", { hasText: "open_original.md" }).waitFor({ state: "visible" });
-  await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
   await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({ state: "visible" });

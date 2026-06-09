@@ -75,7 +75,7 @@ try {
   });
 
   await previewPage.locator(".artifact-review-action", { hasText: "Show Run" }).click();
-  await page.locator(".run-card.highlighted", { hasText: "artifact_review.md" }).waitFor({
+  await page.locator(".turn-card.highlighted", { hasText: "artifact_review.md" }).waitFor({
     state: "visible",
   });
 
@@ -129,7 +129,7 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     await approveIfVisible(page, "File edit approval requested", 1000);
     await approveIfVisible(page, "Command approval requested", 1000);
     const completed = await page
-      .locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" })
+      .locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" })
       .count();
     if (completed >= expectedCompletedRuns) {
       return;

@@ -14,6 +14,7 @@ import type {
   TaskId,
   RuntimeProvider,
 } from "./domain";
+import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
 
 export interface BaseRuntimeEvent<TType extends string, TPayload> {
   type: TType;
@@ -200,6 +201,25 @@ export type RuntimeReportUpdatedEvent = BaseRuntimeEvent<
   }
 >;
 
+export type TranscriptLocatedEvent = BaseRuntimeEvent<
+  "transcript:located",
+  {
+    taskId: TaskId;
+    source: TranscriptSourceRef;
+  }
+>;
+
+export type TranscriptBlocksEvent = BaseRuntimeEvent<
+  "transcript:blocks",
+  {
+    taskId: TaskId;
+    sourceId: string;
+    upserts: TranscriptBlock[];
+    /** True when existing blocks of this source must be dropped before applying. */
+    reset: boolean;
+  }
+>;
+
 export type ProductRuntimeEvent =
   | PtyExitEvent
   | TaskStartedEvent
@@ -214,8 +234,13 @@ export type ProductRuntimeEvent =
   | FileWatchingEvent
   | FileWatchErrorEvent
   | FileChangedEvent
-  | RuntimeReportUpdatedEvent;
+  | RuntimeReportUpdatedEvent
+  | TranscriptLocatedEvent
+  | TranscriptBlocksEvent;
 
 export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
 
-export type RunIndexEvent = Exclude<ProductRuntimeEvent, RuntimeReportUpdatedEvent>;
+export type RunIndexEvent = Exclude<
+  ProductRuntimeEvent,
+  RuntimeReportUpdatedEvent | TranscriptLocatedEvent | TranscriptBlocksEvent
+>;

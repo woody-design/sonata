@@ -57,7 +57,7 @@ try {
   await page.locator(".artifact-item", { hasText: "approval_command.md" }).waitFor({
     state: "visible",
   });
-  await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
   await page.locator(".run-approval-history", { hasText: "Approval history" }).waitFor({

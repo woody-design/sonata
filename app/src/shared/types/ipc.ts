@@ -8,6 +8,7 @@ import type {
   TaskId,
 } from "./domain";
 import type { RuntimeEvent } from "./events";
+import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
 import type { RuntimeReportSummaryV1, RuntimeReportV1 } from "../schemas/runtime-report";
 
 export const IPC_CHANNELS = {
@@ -20,6 +21,7 @@ export const IPC_CHANNELS = {
   runStop: "run:stop",
   terminalResize: "terminal:resize",
   reportRead: "report:read",
+  transcriptRead: "transcript:read",
   artifactList: "artifact:list",
   artifactRead: "artifact:read",
   previewOpen: "preview:open",
@@ -103,6 +105,15 @@ export interface ResizeTerminalRequest {
 
 export interface ReadReportRequest {
   taskId: TaskId;
+}
+
+export interface ReadTranscriptRequest {
+  taskId: TaskId;
+}
+
+export interface ReadTranscriptResponse {
+  sources: TranscriptSourceRef[];
+  blocks: TranscriptBlock[];
 }
 
 export interface ListArtifactsRequest {
@@ -229,6 +240,7 @@ export interface DuetRuntimeBridge {
   stopRun(request: StopRunRequest): Promise<void>;
   resizeTerminal(request: ResizeTerminalRequest): Promise<void>;
   readReport(request: ReadReportRequest): Promise<RuntimeReportV1 | null>;
+  readTranscript(request: ReadTranscriptRequest): Promise<ReadTranscriptResponse>;
   listArtifacts(request: ListArtifactsRequest): Promise<ArtifactCandidate[]>;
   readArtifact(request: ReadArtifactRequest): Promise<ArtifactPreviewResponse>;
   openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;

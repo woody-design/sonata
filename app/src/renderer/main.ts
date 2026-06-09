@@ -1,5 +1,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 import type {
@@ -10,8 +12,13 @@ import type {
   RuntimeProvider,
   Task,
 } from "../shared/types";
-import type { ApprovalDetectedEvent } from "../shared/types/events";
+import type { ApprovalDetectedEvent, TranscriptBlocksEvent } from "../shared/types/events";
 import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
+import type {
+  ToolCallBlock,
+  TranscriptBlock,
+  TranscriptSourceRef,
+} from "../shared/types/transcript";
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
 import { cleanTerminalTranscript } from "../shared/terminal-transcript";
 
@@ -32,11 +39,23 @@ interface TaskViewState {
   highlightedRunId: string | null;
   liveTranscriptRunId: string | null;
   runTranscripts: RunTranscript[];
+  transcriptBlocks: Map<string, TranscriptBlock>;
+  transcriptBlockOrder: string[];
+  transcriptSources: TranscriptSourceRef[];
   terminalBuffer: string;
   runtimeReady: boolean;
   composerObserved: boolean;
   status: string;
   unread: boolean;
+}
+
+interface ReadingTurn {
+  key: string;
+  runId: string | null;
+  run: RuntimeRunReport | null;
+  blocks: TranscriptBlock[];
+  fallbackText: string | null;
+  tsMs: number;
 }
 
 interface RendererState {
@@ -303,11 +322,27 @@ elements.composer.addEventListener("submit", (event) => {
 });
 
 elements.promptInput.addEventListener("input", () => {
-  render();
+  renderComposerControls();
 });
 
 elements.stopRun.addEventListener("click", () => {
   void stopRun();
+});
+
+elements.runList.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  const anchor = target.closest("a[href]");
+  if (!anchor) {
+    return;
+  }
+  event.preventDefault();
+  const href = anchor.getAttribute("href") ?? "";
+  if (/^https?:\/\//i.test(href)) {
+    window.open(href);
+  }
 });
 
 elements.approveApproval.addEventListener("click", () => {
@@ -407,6 +442,28 @@ window.duetRuntime.onRuntimeEvent((event) => {
     markViewChanged(view);
   }
 
+  if (event.type === "transcript:located") {
+    view.transcriptSources = [
+      ...view.transcriptSources.filter(
+        (source) => source.sourceId !== event.payload.source.sourceId,
+      ),
+      event.payload.source,
+    ];
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "transcript:blocks") {
+    applyTranscriptUpserts(view, event.payload);
+    if (isActiveView(view)) {
+      scheduleTranscriptRender();
+    } else {
+      view.unread = true;
+      renderTaskTabs();
+    }
+    return;
+  }
+
   if (event.type === "report:updated") {
     void refreshReport(event.payload.taskId);
   }
@@ -438,6 +495,9 @@ function createTaskView(task: Task, status: string): TaskViewState {
     highlightedRunId: null,
     liveTranscriptRunId: null,
     runTranscripts: [],
+    transcriptBlocks: new Map(),
+    transcriptBlockOrder: [],
+    transcriptSources: [],
     terminalBuffer: "",
     runtimeReady: false,
     composerObserved: false,
@@ -446,6 +506,45 @@ function createTaskView(task: Task, status: string): TaskViewState {
   };
   applyPendingRuntimeState(view);
   return view;
+}
+
+function applyTranscriptUpserts(
+  view: TaskViewState,
+  payload: TranscriptBlocksEvent["payload"],
+): void {
+  if (payload.reset) {
+    for (const [id, block] of view.transcriptBlocks) {
+      if (block.sourceId === payload.sourceId) {
+        view.transcriptBlocks.delete(id);
+      }
+    }
+    view.transcriptBlockOrder = view.transcriptBlockOrder.filter((id) =>
+      view.transcriptBlocks.has(id),
+    );
+  }
+
+  for (const block of payload.upserts) {
+    if (!view.transcriptBlocks.has(block.id)) {
+      view.transcriptBlockOrder.push(block.id);
+    }
+    view.transcriptBlocks.set(block.id, block);
+  }
+}
+
+async function hydrateTranscript(taskId: string): Promise<void> {
+  const view = taskViewForId(taskId);
+  if (!view?.task) {
+    return;
+  }
+  const response = await window.duetRuntime.readTranscript({ taskId });
+  view.transcriptSources = response.sources;
+  view.transcriptBlocks = new Map();
+  view.transcriptBlockOrder = [];
+  for (const block of response.blocks) {
+    view.transcriptBlockOrder.push(block.id);
+    view.transcriptBlocks.set(block.id, block);
+  }
+  markViewChanged(view);
 }
 
 function applyPendingRuntimeState(view: TaskViewState): void {
@@ -638,6 +737,7 @@ async function createTask(
     const view = createTaskView(response.task, `${providerName} PTY ${response.runtime.pid}`);
     upsertTaskView(view);
     activateTask(response.task.id);
+    void hydrateTranscript(response.task.id);
   } catch (error) {
     const message = errorMessage(error);
     state.status = message;
@@ -673,6 +773,7 @@ async function openTask(cwd?: string | null): Promise<void> {
     upsertTaskView(view);
     activateTask(response.task.id);
     await refreshReport(response.task.id);
+    await hydrateTranscript(response.task.id);
   } catch (error) {
     const message = errorMessage(error);
     state.status = message;
@@ -798,6 +899,17 @@ function render(): void {
   elements.openTask.disabled = state.busy;
   elements.newTask.disabled = state.busy;
   elements.newClaudeTask.disabled = state.busy;
+  renderComposerControls(view);
+
+  renderTaskTabs();
+  renderApproval();
+  renderWorkflow();
+  renderRuns();
+  renderArtifacts();
+  renderTerminalDrawer();
+}
+
+function renderComposerControls(view = activeTaskView()): void {
   const activeRun = hasActiveRun(view);
   const pendingApproval = Boolean(view?.pendingApproval);
   const promptHasText = elements.promptInput.value.trim().length > 0;
@@ -808,13 +920,6 @@ function render(): void {
   elements.promptInput.disabled = !view?.task || pendingApproval;
   elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
   elements.sendPrompt.textContent = sendButtonLabel(activeRun);
-
-  renderTaskTabs();
-  renderApproval();
-  renderWorkflow();
-  renderRuns();
-  renderArtifacts();
-  renderTerminalDrawer();
 }
 
 function hasActiveRun(view = activeTaskView()): boolean {
@@ -978,26 +1083,299 @@ function renderWorkflow(): void {
 }
 
 function renderRuns(): void {
-  elements.runList.replaceChildren();
+  const runList = elements.runList;
+  const nearBottom = runList.scrollHeight - runList.scrollTop - runList.clientHeight < 64;
+  const previousScrollTop = runList.scrollTop;
+  runList.replaceChildren();
+
   const view = activeTaskView();
   if (!view?.task) {
-    elements.runList.append(renderTaskEntryPanel());
+    runList.append(renderTaskEntryPanel());
     return;
   }
 
-  const runs = view?.report?.runs ?? [];
-
-  if (runs.length === 0) {
+  const turns = buildReadingTurns(view);
+  if (turns.length === 0) {
     const empty = document.createElement("article");
     empty.className = "empty-state";
     empty.textContent = "No Runs yet";
-    elements.runList.append(empty);
+    runList.append(empty);
     return;
   }
 
-  for (const [index, run] of runs.entries()) {
-    elements.runList.append(renderRun(run, index));
+  for (const turn of turns) {
+    runList.append(renderTurn(view, turn));
   }
+
+  runList.scrollTop = nearBottom ? runList.scrollHeight : previousScrollTop;
+}
+
+function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
+  const runs = view.report?.runs ?? [];
+  const runById = new Map(runs.map((run) => [run.runId, run]));
+
+  const groups = new Map<string, TranscriptBlock[]>();
+  for (const id of view.transcriptBlockOrder) {
+    const block = view.transcriptBlocks.get(id);
+    if (!block) {
+      continue;
+    }
+    const key = `${block.sourceId}:${block.turnKey}`;
+    const group = groups.get(key);
+    if (group) {
+      group.push(block);
+    } else {
+      groups.set(key, [block]);
+    }
+  }
+
+  const turns: ReadingTurn[] = [];
+  const matchedRunIds = new Set<string>();
+  for (const [key, blocks] of groups) {
+    const runId = blocks.find((block) => block.runId)?.runId ?? null;
+    if (runId) {
+      matchedRunIds.add(runId);
+    }
+    turns.push({
+      key,
+      runId,
+      run: runId ? (runById.get(runId) ?? null) : null,
+      blocks,
+      fallbackText: null,
+      tsMs: Date.parse(blocks[0]?.ts ?? "") || 0,
+    });
+  }
+
+  for (const run of runs) {
+    if (matchedRunIds.has(run.runId)) {
+      continue;
+    }
+    turns.push({
+      key: `run:${run.runId}`,
+      runId: run.runId,
+      run,
+      blocks: [],
+      fallbackText: transcriptForRun(view, run.runId)?.text.trimEnd() || null,
+      tsMs: Date.parse(run.startedAt) || 0,
+    });
+  }
+
+  return turns.sort((a, b) => a.tsMs - b.tsMs);
+}
+
+function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
+  const card = document.createElement("article");
+  card.className = "turn-card";
+  if (turn.runId) {
+    card.dataset.runId = turn.runId;
+    card.classList.toggle("highlighted", turn.runId === view.highlightedRunId);
+  }
+
+  card.append(renderTurnUser(turn));
+
+  const body = document.createElement("div");
+  body.className = "turn-body";
+  for (const block of turn.blocks) {
+    if (block.kind === "user-message") {
+      continue;
+    }
+    body.append(renderTranscriptBlock(block));
+  }
+  if (turn.blocks.length === 0 && turn.fallbackText) {
+    body.append(renderTurnFallback(turn.fallbackText));
+  }
+  if (turn.run && isActiveRunStatus(turn.run.status)) {
+    body.append(renderTurnWorking());
+  }
+  card.append(body);
+
+  if (turn.run) {
+    card.append(renderTurnFooter(turn.run, turn.blocks.length > 0));
+  }
+  return card;
+}
+
+function renderTurnUser(turn: ReadingTurn): HTMLElement {
+  const header = document.createElement("header");
+  header.className = "turn-user";
+
+  const role = document.createElement("span");
+  role.className = "turn-role";
+  role.textContent = "You";
+  header.append(role);
+
+  const userBlock = turn.blocks.find(
+    (block): block is Extract<TranscriptBlock, { kind: "user-message" }> =>
+      block.kind === "user-message",
+  );
+  const text = userBlock?.text ?? turn.run?.prompt ?? "";
+
+  if (userBlock?.command) {
+    const chip = document.createElement("span");
+    chip.className = "turn-command-chip";
+    chip.textContent = text || userBlock.command;
+    header.append(chip);
+  } else {
+    const prompt = document.createElement("div");
+    prompt.className = "turn-user-text";
+    prompt.textContent = text || "(empty prompt)";
+    header.append(prompt);
+  }
+  return header;
+}
+
+function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
+  if (block.kind === "assistant-text") {
+    return markdownBody(block.markdown);
+  }
+  if (block.kind === "tool-call") {
+    return renderToolCallBlock(block);
+  }
+  if (block.kind === "thinking") {
+    const details = document.createElement("details");
+    details.className = "turn-thinking";
+    const summary = document.createElement("summary");
+    summary.textContent = "Thinking";
+    const pre = document.createElement("pre");
+    pre.className = "turn-thinking-text";
+    pre.textContent = block.text;
+    details.append(summary, pre);
+    return details;
+  }
+  const note = document.createElement("div");
+  note.className = "turn-system-note";
+  note.textContent = block.kind === "system-note" ? block.text : "";
+  return note;
+}
+
+function renderToolCallBlock(block: ToolCallBlock): HTMLElement {
+  const details = document.createElement("details");
+  details.className = `turn-tool ${block.status}`;
+
+  const summary = document.createElement("summary");
+  const status = document.createElement("span");
+  status.className = "turn-tool-status";
+  status.textContent = block.status === "running" ? "…" : block.status === "ok" ? "✓" : "✕";
+  const name = document.createElement("strong");
+  name.className = "turn-tool-name";
+  name.textContent = block.toolName;
+  summary.append(status, name);
+  if (block.summary) {
+    const hint = document.createElement("span");
+    hint.className = "turn-tool-hint";
+    hint.textContent = block.summary;
+    summary.append(hint);
+  }
+  if (block.durationMs !== null) {
+    const duration = document.createElement("span");
+    duration.className = "turn-tool-duration";
+    duration.textContent = formatElapsed(block.durationMs);
+    summary.append(duration);
+  }
+  details.append(summary);
+
+  const body = document.createElement("div");
+  body.className = "turn-tool-body";
+  body.append(
+    toolDetailSection("Input", block.inputPreview, block.inputTruncated),
+  );
+  if (block.resultPreview !== null) {
+    body.append(toolDetailSection("Result", block.resultPreview, block.resultTruncated));
+  }
+  details.append(body);
+  return details;
+}
+
+function toolDetailSection(label: string, text: string, truncated: boolean): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "turn-tool-section";
+  section.append(runSectionLabel(truncated ? `${label} (truncated)` : label));
+  const pre = document.createElement("pre");
+  pre.className = "turn-tool-text";
+  pre.textContent = text;
+  section.append(pre);
+  return section;
+}
+
+function renderTurnFallback(text: string): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "turn-fallback";
+  wrap.append(runSectionLabel("Terminal approximation"));
+  const pre = document.createElement("pre");
+  pre.className = "turn-fallback-text";
+  pre.textContent = text;
+  wrap.append(pre);
+  return wrap;
+}
+
+function renderTurnWorking(): HTMLElement {
+  const working = document.createElement("div");
+  working.className = "turn-working";
+  working.textContent = `${activeProviderLabel()} is working…`;
+  return working;
+}
+
+function renderTurnFooter(run: RuntimeRunReport, hasSemanticBlocks: boolean): HTMLElement {
+  const footer = document.createElement("footer");
+  footer.className = `turn-footer ${runTone(run)}`;
+
+  const outcome = document.createElement("span");
+  outcome.className = "turn-outcome";
+  outcome.textContent = runOutcome(run);
+  footer.append(outcome);
+
+  const facts = document.createElement("span");
+  facts.className = "turn-facts";
+  const factItems = [
+    formatElapsed(run.elapsedMs),
+    run.changedFiles.length > 0 ? pluralize(run.changedFiles.length, "change") : null,
+    run.approvalEvents.length > 0 ? pluralize(run.approvalEvents.length, "approval") : null,
+    completionLabel(run),
+  ].filter((item): item is string => Boolean(item));
+  facts.textContent = factItems.join(" · ");
+  footer.append(facts);
+
+  if (run.artifactCandidates.length > 0) {
+    const artifacts = document.createElement("span");
+    artifacts.className = "turn-artifacts";
+    for (const artifact of run.artifactCandidates) {
+      const button = document.createElement("button");
+      button.className = "artifact-link compact";
+      button.type = "button";
+      button.textContent = artifact.path;
+      button.addEventListener("click", () => {
+        void openArtifact(artifact.path);
+      });
+      artifacts.append(button);
+    }
+    footer.append(artifacts);
+  }
+
+  const provenance = document.createElement("span");
+  provenance.className = "turn-provenance";
+  provenance.textContent = hasSemanticBlocks ? "provider transcript" : "terminal approximation";
+  footer.append(provenance);
+
+  return footer;
+}
+
+const markdownSanitizerConfig = {
+  USE_PROFILES: { html: true },
+  FORBID_TAGS: ["style", "form", "input", "button"],
+};
+
+const markdownHtmlCache = new Map<string, string>();
+
+function markdownBody(markdown: string): HTMLElement {
+  const body = document.createElement("div");
+  body.className = "md-body";
+  let html = markdownHtmlCache.get(markdown);
+  if (html === undefined) {
+    html = DOMPurify.sanitize(marked.parse(markdown, { async: false }), markdownSanitizerConfig);
+    markdownHtmlCache.set(markdown, html);
+  }
+  body.innerHTML = html;
+  return body;
 }
 
 function renderTaskEntryPanel(): HTMLElement {
@@ -1353,285 +1731,6 @@ function folderName(folderPath: string): string {
   return folderPath.split(/[\\/]/).filter(Boolean).at(-1) ?? folderPath;
 }
 
-function renderRun(run: RuntimeRunReport, index: number): HTMLElement {
-  const view = activeTaskView();
-  const card = document.createElement("article");
-  card.className = "run-card";
-  card.dataset.runId = run.runId;
-  card.classList.toggle("highlighted", run.runId === view?.highlightedRunId);
-
-  const header = document.createElement("div");
-  header.className = "run-card-header";
-
-  const titleBlock = document.createElement("div");
-  titleBlock.className = "run-title-block";
-  const chapter = document.createElement("span");
-  chapter.className = "run-chapter";
-  chapter.textContent = `Run ${index + 1}`;
-  const title = document.createElement("h2");
-  title.textContent = run.title || "(empty prompt)";
-  titleBlock.append(chapter, title);
-  header.append(titleBlock);
-
-  const status = document.createElement("span");
-  status.className = "run-status";
-  status.textContent = run.status;
-  header.append(status);
-
-  const stageStrip = renderRunStageStrip(run);
-
-  const dialogue = document.createElement("section");
-  dialogue.className = "run-dialogue";
-  dialogue.append(renderUserMessage(run));
-  const assistantMessage = renderAssistantMessage(run);
-  if (assistantMessage) {
-    dialogue.append(assistantMessage);
-  }
-
-  const reading = document.createElement("section");
-  reading.className = "run-reading";
-  reading.append(runSectionLabel("Outcome"));
-
-  const outcome = document.createElement("div");
-  outcome.className = `run-outcome ${runTone(run)}`;
-  outcome.textContent = runOutcome(run);
-  reading.append(outcome);
-
-  const evidence = document.createElement("div");
-  evidence.className = "run-evidence";
-  evidence.append(
-    evidencePill("Evidence", completionLabel(run)),
-    evidencePill("Lifecycle", run.lifecyclePhase),
-    evidencePill("Elapsed", formatElapsed(run.elapsedMs)),
-  );
-  reading.append(evidence);
-
-  const timeline = runTimeline(run);
-  const approvalHistory = renderApprovalHistory(run);
-  if (approvalHistory) {
-    reading.append(approvalHistory);
-  }
-  if (timeline.length > 0) {
-    const list = document.createElement("ul");
-    list.className = "run-timeline";
-    for (const entry of timeline) {
-      const item = document.createElement("li");
-      item.textContent = entry;
-      list.append(item);
-    }
-    reading.append(list);
-  }
-
-  const review = document.createElement("section");
-  review.className = "run-rhythm-section run-review";
-  review.append(runSectionLabel("Review"));
-  const reviewSummary = document.createElement("div");
-  reviewSummary.className = "run-review-summary";
-  reviewSummary.textContent = runReviewSummary(run);
-  review.append(reviewSummary);
-  const changes = renderRunChangedFiles(run);
-  if (changes) {
-    review.append(changes);
-  }
-  if (run.artifactCandidates.length > 0) {
-    const artifacts = document.createElement("div");
-    artifacts.className = "run-artifacts";
-    for (const artifact of run.artifactCandidates) {
-      const reviewState = artifactPreviewTab(run.taskId, artifact.path);
-      const button = document.createElement("button");
-      button.className = "artifact-link";
-      button.classList.toggle("reviewed", Boolean(reviewState?.reviewed && !reviewState.dirty));
-      button.classList.toggle("dirty", Boolean(reviewState?.dirty));
-      button.type = "button";
-      button.textContent = artifact.path;
-      button.title = artifactReviewLabel(reviewState);
-      button.addEventListener("click", () => {
-        void openArtifact(artifact.path);
-      });
-      artifacts.append(button);
-    }
-    review.append(artifacts);
-  }
-
-  const next = document.createElement("section");
-  next.className = "run-rhythm-section run-next-step";
-  next.append(runSectionLabel("Next"));
-  const nextText = document.createElement("strong");
-  nextText.textContent = runNextStep(run);
-  next.append(nextText);
-
-  const metadata = document.createElement("div");
-  metadata.className = "run-metadata";
-  metadata.append(
-    metadataItem("Completion", completionLabel(run)),
-    metadataItem("Changes", String(run.changedFiles.length)),
-    metadataItem("Artifacts", String(run.artifactCandidates.length)),
-    metadataItem("Run ID", shortId(run.runId)),
-  );
-
-  card.append(header, stageStrip, dialogue, reading, review, next, metadata);
-
-  return card;
-}
-
-function renderRunStageStrip(run: RuntimeRunReport): HTMLElement {
-  const strip = document.createElement("section");
-  strip.className = "run-stage-strip";
-  strip.setAttribute("aria-label", "Run stages");
-  strip.append(
-    runStage("Request", "Submitted", formatTime(run.startedAt), "complete"),
-    runStage(
-      "Approval",
-      approvalStageValue(run),
-      approvalStageDetail(run),
-      approvalStageTone(run),
-    ),
-    runStage(
-      "Changes",
-      String(run.changedFiles.length),
-      pluralize(run.changedFiles.length, "file"),
-      run.changedFiles.length > 0 ? "complete" : "idle",
-    ),
-    runStage(
-      "Artifacts",
-      String(run.artifactCandidates.length),
-      pluralize(run.artifactCandidates.length, "candidate"),
-      run.artifactCandidates.length > 0 ? "complete" : "idle",
-    ),
-    runStage("Completion", completionStageValue(run), completionLabel(run), completionStageTone(run)),
-  );
-  return strip;
-}
-
-function runStage(
-  label: string,
-  value: string,
-  detail: string,
-  tone: "active" | "attention" | "complete" | "idle" | "waiting",
-): HTMLElement {
-  const item = document.createElement("div");
-  item.className = `run-stage ${tone}`;
-  const key = document.createElement("span");
-  key.textContent = label;
-  const strong = document.createElement("strong");
-  strong.textContent = value;
-  const small = document.createElement("small");
-  small.textContent = detail;
-  item.append(key, strong, small);
-  return item;
-}
-
-function renderRunChangedFiles(run: RuntimeRunReport): HTMLElement | null {
-  if (run.changedFiles.length === 0) {
-    return null;
-  }
-
-  const section = document.createElement("section");
-  section.className = "run-changes";
-  section.append(runSectionLabel("Changed files"));
-
-  const list = document.createElement("div");
-  list.className = "run-change-list";
-  for (const file of run.changedFiles) {
-    const artifact = run.artifactCandidates.find((candidate) => candidate.path === file.path);
-    const item = document.createElement("article");
-    item.className = "run-change-item";
-    item.classList.toggle("artifact", Boolean(artifact));
-
-    const title = document.createElement("strong");
-    title.textContent = file.path;
-    const meta = document.createElement("span");
-    meta.textContent = `${file.changeKind} / ${file.type} / ${formatMaybeBytes(file.size)}${
-      file.sha256 ? ` / ${shortHash(file.sha256)}` : ""
-    }`;
-    const tag = document.createElement("small");
-    tag.textContent = artifact ? `${artifact.type} artifact candidate` : "snapshot review in Inspector";
-    item.append(title, meta, tag);
-
-    if (artifact) {
-      const action = document.createElement("button");
-      action.className = "artifact-link compact";
-      action.type = "button";
-      action.textContent = "Open Preview";
-      action.addEventListener("click", () => {
-        void openArtifact(artifact.path);
-      });
-      item.append(action);
-    }
-
-    list.append(item);
-  }
-  section.append(list);
-  return section;
-}
-
-function renderUserMessage(run: RuntimeRunReport): HTMLElement {
-  const message = document.createElement("section");
-  message.className = "run-chat-message run-user-message";
-  message.append(chatRole("You"), chatBody("Request", run.prompt || "(empty prompt)", "prompt-text"));
-  return message;
-}
-
-function renderAssistantMessage(run: RuntimeRunReport): HTMLElement | null {
-  const view = activeTaskView();
-  const providerName = view?.task ? providerLabel(view.task.provider) : "Agent";
-  const transcript = view ? transcriptForRun(view, run.runId) : null;
-  const live = view?.liveTranscriptRunId === run.runId;
-  if (!transcript && !live) {
-    return null;
-  }
-
-  const message = document.createElement("section");
-  message.className = "run-chat-message run-assistant-message run-transcript";
-  message.append(chatRole(providerName));
-
-  const body = document.createElement("div");
-  body.className = "run-chat-body";
-  const header = document.createElement("div");
-  header.className = "run-transcript-header";
-  header.append(runSectionLabel("Transcript"));
-
-  const stateLabel = document.createElement("span");
-  stateLabel.className = "run-transcript-state";
-  stateLabel.textContent = transcriptStateLabel(transcript, live);
-  header.append(stateLabel);
-  body.append(header);
-
-  const pre = document.createElement("pre");
-  pre.className = "run-chat-text run-transcript-text";
-  pre.textContent = transcript?.text.trimEnd() || `Waiting for ${providerName} output`;
-  body.append(pre);
-  message.append(body);
-
-  return message;
-}
-
-function chatRole(label: string): HTMLElement {
-  const role = document.createElement("div");
-  role.className = "run-chat-role";
-  role.textContent = label;
-  return role;
-}
-
-function chatBody(label: string, text: string, textClassName: string): HTMLElement {
-  const body = document.createElement("div");
-  body.className = "run-chat-body";
-  body.append(runSectionLabel(label));
-  const pre = document.createElement("pre");
-  pre.className = `run-chat-text ${textClassName}`;
-  pre.textContent = text;
-  body.append(pre);
-  return body;
-}
-
-function transcriptStateLabel(transcript: RunTranscript | null, live: boolean): string {
-  const source = live ? "Live" : transcript?.truncated ? "Memory tail" : "Memory";
-  if (!transcript) {
-    return `${source} / 0 chars`;
-  }
-  return `${source} / ${formatCompactNumber(transcript.receivedChars)} chars`;
-}
-
 function renderArtifacts(): void {
   elements.artifactList.replaceChildren();
   const view = activeTaskView();
@@ -1833,7 +1932,7 @@ function focusRun(runId: string): void {
 }
 
 function scrollRunIntoView(runId: string): void {
-  const runCard = Array.from(elements.runList.querySelectorAll<HTMLElement>(".run-card")).find(
+  const runCard = Array.from(elements.runList.querySelectorAll<HTMLElement>(".turn-card")).find(
     (item) => item.dataset.runId === runId,
   );
   runCard?.scrollIntoView({ block: "center" });
@@ -1880,18 +1979,6 @@ function runSectionLabel(value: string): HTMLElement {
   label.className = "run-rhythm-label";
   label.textContent = value;
   return label;
-}
-
-function metadataItem(label: string, value: string): HTMLElement {
-  const item = document.createElement("span");
-  item.textContent = `${label}: ${value}`;
-  return item;
-}
-
-function evidencePill(label: string, value: string): HTMLElement {
-  const item = document.createElement("span");
-  item.textContent = `${label}: ${value}`;
-  return item;
 }
 
 function approvalContextItem(label: string, value: string): HTMLElement {
@@ -1949,187 +2036,6 @@ function runTone(run: RuntimeRunReport): string {
     return "waiting";
   }
   return "active";
-}
-
-function approvalStageValue(run: RuntimeRunReport): string {
-  if (run.status === "waiting-for-approval") {
-    return "Pending";
-  }
-  if (run.status === "approval-denied") {
-    return "Denied";
-  }
-  if (run.approvalEvents.length === 0) {
-    return "None";
-  }
-  return pluralize(run.approvalEvents.length, "event");
-}
-
-function approvalStageDetail(run: RuntimeRunReport): string {
-  if (run.status === "waiting-for-approval" || run.status === "approval-denied") {
-    return approvalKindLabel(run.approvalKind);
-  }
-  const decisions = run.approvalEvents.filter((event) => event.action === "decision");
-  if (decisions.length > 0) {
-    return decisions.at(-1)?.decision === "deny" ? "latest denied" : "latest approved";
-  }
-  return run.approvalEvents.length > 0 ? "native PTY approval" : "no native approval";
-}
-
-function approvalStageTone(run: RuntimeRunReport): "attention" | "complete" | "idle" | "waiting" {
-  if (run.status === "waiting-for-approval") {
-    return "waiting";
-  }
-  if (run.status === "approval-denied") {
-    return "attention";
-  }
-  return run.approvalEvents.length > 0 ? "complete" : "idle";
-}
-
-function completionStageValue(run: RuntimeRunReport): string {
-  if (run.status === "completed") {
-    return "Done";
-  }
-  if (run.status === "waiting-for-approval") {
-    return "Blocked";
-  }
-  if (isActiveRunStatus(run.status)) {
-    return "Working";
-  }
-  if (run.status === "stopped") {
-    return "Stopped";
-  }
-  if (run.status === "failed") {
-    return "Failed";
-  }
-  if (run.status === "pty-exited") {
-    return "PTY exited";
-  }
-  return run.status;
-}
-
-function completionStageTone(run: RuntimeRunReport): "active" | "attention" | "complete" | "waiting" {
-  if (run.status === "completed") {
-    return "complete";
-  }
-  if (run.status === "waiting-for-approval") {
-    return "waiting";
-  }
-  if (run.status === "stopped" || run.status === "approval-denied" || run.status === "failed") {
-    return "attention";
-  }
-  return "active";
-}
-
-function renderApprovalHistory(run: RuntimeRunReport): HTMLElement | null {
-  if (run.approvalEvents.length === 0) {
-    return null;
-  }
-
-  const section = document.createElement("section");
-  section.className = "run-approval-history";
-  section.append(runSectionLabel("Approval history"));
-
-  const list = document.createElement("div");
-  list.className = "approval-history-list";
-  for (const event of run.approvalEvents) {
-    const item = document.createElement("div");
-    item.className = "approval-history-item";
-    const title = document.createElement("strong");
-    const meta = document.createElement("span");
-    if (event.action === "detected") {
-      title.textContent = event.resurfacedAfterDecision
-        ? `${approvalKindLabel(event.kind)} approval still pending`
-        : `${approvalKindLabel(event.kind)} approval requested`;
-      meta.textContent = event.resurfacedAfterDecision
-        ? `${event.previousDecision ?? "decision"} sent, native screen still present`
-        : event.source ?? "native PTY approval screen";
-    } else {
-      title.textContent = `${approvalKindLabel(event.previousKind)} approval ${approvalDecisionLabel(
-        event.decision,
-      )}`;
-      meta.textContent = `${event.encodedAs ?? "native control"} / ${formatTime(event.ts)}`;
-    }
-    item.append(title, meta);
-    list.append(item);
-  }
-  section.append(list);
-  return section;
-}
-
-function runTimeline(run: RuntimeRunReport): string[] {
-  const entries: string[] = [];
-
-  for (const approval of run.approvalEvents) {
-    if (approval.action === "detected") {
-      entries.push(`${approvalKindLabel(approval.kind)} approval requested`);
-      continue;
-    }
-    entries.push(
-      `${approvalKindLabel(approval.previousKind)} approval ${approvalDecisionLabel(approval.decision)} via ${
-        approval.encodedAs ?? "native control"
-      }`,
-    );
-  }
-
-  for (const stop of run.stopEvents) {
-    if (stop.action === "interrupt") {
-      entries.push(`Interrupt sent via ${stop.encodedAs ?? "native control"}`);
-      continue;
-    }
-    entries.push(stop.slashStopSent ? "/stop sent for native cleanup" : "Stopped without /stop");
-  }
-
-  if (run.changedFiles.length > 0) {
-    entries.push(`${pluralize(run.changedFiles.length, "file")} changed`);
-  }
-
-  if (run.artifactCandidates.length > 0) {
-    entries.push(`${pluralize(run.artifactCandidates.length, "artifact")} ready`);
-  }
-
-  return entries;
-}
-
-function runReviewSummary(run: RuntimeRunReport): string {
-  if (run.artifactCandidates.length > 0) {
-    return `${pluralize(run.artifactCandidates.length, "artifact")} ready for review`;
-  }
-  if (run.changedFiles.length > 0) {
-    return `${pluralize(run.changedFiles.length, "file")} changed`;
-  }
-  if (run.status === "waiting-for-approval") {
-    return `${approvalKindLabel(run.approvalKind)} approval pending`;
-  }
-  return "No review items yet";
-}
-
-function runNextStep(run: RuntimeRunReport): string {
-  const providerName = activeProviderLabel();
-  if (run.status === "waiting-for-approval") {
-    return `${approvalKindLabel(run.approvalKind)} approval is needed.`;
-  }
-  if (isActiveRunStatus(run.status)) {
-    return `Wait for ${providerName} to finish this Run.`;
-  }
-  if (run.status === "stopped") {
-    return "Stopped. Continue from here when ready.";
-  }
-  if (run.status === "approval-denied") {
-    return "Approval was denied. Continue with a revised instruction.";
-  }
-  if (run.artifactCandidates.length > 0) {
-    return "Review artifacts, then continue or redirect.";
-  }
-  if (run.changedFiles.length > 0) {
-    return "Review changed files, then continue or redirect.";
-  }
-  if (run.status === "pty-exited") {
-    return "PTY exited. Open or start a Task to continue.";
-  }
-  if (run.status === "failed") {
-    return "Run failed. Inspect details before continuing.";
-  }
-  return "Continue when ready.";
 }
 
 function approvalTitle(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
@@ -2198,19 +2104,6 @@ function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undef
   return "Native";
 }
 
-function approvalDecisionLabel(decision: ApprovalDecision | undefined): string {
-  if (decision === "approve") {
-    return "approved";
-  }
-  if (decision === "approve-for-session") {
-    return "approved for session";
-  }
-  if (decision === "deny") {
-    return "denied";
-  }
-  return "decided";
-}
-
 function pluralize(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
@@ -2223,46 +2116,6 @@ function formatElapsed(value: number | null): string {
     return `${value} ms`;
   }
   return `${(value / 1000).toFixed(1)} s`;
-}
-
-function formatMaybeBytes(value: number | null): string {
-  return value === null ? "unknown size" : formatBytes(value);
-}
-
-function formatBytes(value: number): string {
-  if (value < 1024) {
-    return `${value} B`;
-  }
-  if (value < 1024 * 1024) {
-    return `${Math.round(value / 1024)} KB`;
-  }
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function shortHash(value: string): string {
-  return value.slice(0, 10);
-}
-
-function formatCompactNumber(value: number): string {
-  if (value < 1000) {
-    return String(value);
-  }
-  if (value < 1_000_000) {
-    return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)}k`;
-  }
-  return `${(value / 1_000_000).toFixed(1)}m`;
 }
 
 function artifactKindLabel(kind: ArtifactCandidate["kind"]): string {

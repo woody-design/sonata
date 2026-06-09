@@ -37,37 +37,19 @@ try {
     "Do not modify any other files.",
   ]);
 
-  const runCard = page.locator(".run-card").first();
-  await runCard.locator(".run-stage-strip").waitFor({ state: "visible" });
-  await runCard.locator(".run-stage", { hasText: "Request" }).locator("strong", { hasText: "Submitted" }).waitFor({
-    state: "visible",
-  });
-  await runCard.locator(".run-stage", { hasText: "Changes" }).locator("strong", { hasText: "2" }).waitFor({
-    state: "visible",
-  });
-  await runCard.locator(".run-stage", { hasText: "Artifacts" }).locator("strong", { hasText: "1" }).waitFor({
-    state: "visible",
-  });
-  await runCard.locator(".run-stage", { hasText: "Completion" }).locator("strong", { hasText: "Done" }).waitFor({
-    state: "visible",
-  });
-  await runCard.locator(".run-stage", { hasText: "Approval" }).waitFor({ state: "visible" });
+  const runCard = page.locator(".turn-card").first();
+  await runCard.locator(".turn-user", { hasText: "You" }).waitFor({ state: "visible" });
+  await runCard.locator(".turn-facts", { hasText: "2 changes" }).waitFor({ state: "visible" });
+  await runCard.locator(".turn-outcome", { hasText: "Completed" }).waitFor({ state: "visible" });
 
-  const artifactChange = runCard.locator(".run-change-item", { hasText: "run_reading.md" });
-  const snapshotChange = runCard.locator(".run-change-item", { hasText: "run_notes.txt" });
-  await artifactChange.locator("small", { hasText: "md artifact candidate" }).waitFor({
-    state: "visible",
-  });
-  await snapshotChange.locator("small", { hasText: "snapshot review in Inspector" }).waitFor({
-    state: "visible",
-  });
-  await artifactChange.locator(".artifact-link", { hasText: "Open Preview" }).waitFor({
-    state: "visible",
-  });
-  const ordinaryPreviewActions = await snapshotChange.locator(".artifact-link", { hasText: "Open Preview" }).count();
+  const artifactChip = runCard.locator(".turn-artifacts .artifact-link", { hasText: "run_reading.md" });
+  await artifactChip.waitFor({ state: "visible" });
+  const ordinaryPreviewActions = await runCard
+    .locator(".turn-artifacts .artifact-link", { hasText: "run_notes.txt" })
+    .count();
 
   const previewWindowPromise = electronApp.waitForEvent("window");
-  await artifactChange.locator(".artifact-link", { hasText: "Open Preview" }).click();
+  await artifactChip.click();
   const previewPage = await previewWindowPromise;
   previewPage.setDefaultTimeout(180000);
   await previewPage.locator(".text-preview", { hasText: "Run reading artifact ready." }).waitFor({
@@ -130,7 +112,7 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     await approveIfVisible(page, "File edit approval requested", 1000);
     await approveIfVisible(page, "Command approval requested", 1000);
     const completed = await page
-      .locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" })
+      .locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" })
       .count();
     if (completed >= expectedCompletedRuns) {
       return;

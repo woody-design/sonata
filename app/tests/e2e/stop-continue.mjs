@@ -69,23 +69,14 @@ try {
     state: "visible",
   });
   await page.locator("#send-prompt", { hasText: "Continue" }).waitFor({ state: "visible" });
-  await page.locator(".run-outcome", { hasText: "Stopped by Esc + /stop" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: "Stopped by Esc + /stop" }).waitFor({
     state: "visible",
   });
-  await page.locator(".run-evidence", { hasText: "native-control / high" }).waitFor({
+  await page.locator(".turn-facts", { hasText: "native-control / high" }).waitFor({
     state: "visible",
   });
-  await page.locator(".run-timeline", { hasText: "Command approval requested" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".run-timeline", { hasText: "Command approval approved" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".run-timeline", { hasText: "/stop sent for native cleanup" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".run-card", { hasText: "Run 1" }).waitFor({ state: "visible" });
-  await page.locator(".run-card", { hasText: "Stopped. Continue from here when ready." }).waitFor({
+  await page.locator(".turn-facts", { hasText: /approval/ }).waitFor({ state: "visible" });
+  await page.locator(".turn-card", { hasText: "Run exactly this shell command" }).waitFor({
     state: "visible",
   });
 

@@ -8,7 +8,9 @@ import type {
   CreateTaskResponse,
   LaunchSpeedMode,
   OpenTaskRequest,
+  ReadTranscriptResponse,
   ReasoningEffort,
+  RunId,
   RuntimeEvent,
   RuntimeProvider,
   RuntimeReportUpdatedEvent,
@@ -19,13 +21,26 @@ import type {
 } from "../shared/types";
 import type { RunIndexEvent } from "../shared/types/events";
 import {
+  TRANSCRIPT_SOURCES_SCHEMA_ID,
+  TRANSCRIPT_SOURCES_SCHEMA_VERSION,
+  type TranscriptSourceRef,
+  type TranscriptSourcesFileV1,
+} from "../shared/types/transcript";
+import {
   freshTaskManifestV1,
   TASK_MANIFEST_SCHEMA_ID,
   TASK_MANIFEST_SCHEMA_VERSION,
   type RuntimeReportV1,
   type TaskManifestV1,
 } from "../shared/schemas";
-import { ArtifactPreview, RunIndex, TerminalHost, WorkspacePreview } from "../runtime";
+import {
+  ArtifactPreview,
+  ProviderTranscript,
+  RunIndex,
+  TerminalHost,
+  WorkspacePreview,
+  type ResolveRunIdInput,
+} from "../runtime";
 
 const DEFAULT_TASK_TITLE = "New Task";
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
@@ -43,6 +58,7 @@ interface ActiveTaskRuntime {
   runIndex: RunIndex;
   reportPath: string;
   runtime: ReturnType<TerminalHost["startTask"]>;
+  providerTranscript: ProviderTranscript;
 }
 
 export class RuntimeController {
@@ -82,6 +98,12 @@ export class RuntimeController {
     };
 
     const runIndex = new RunIndex({ taskId, reportPath });
+    const providerTranscript = this.createProviderTranscript(
+      taskId,
+      request.provider,
+      providerCwd,
+      runIndex,
+    );
     const terminalHost = new TerminalHost({
       taskId,
       provider: request.provider,
@@ -98,6 +120,7 @@ export class RuntimeController {
       speedMode: launchSettings.speedMode,
       ...(request.provider === "claude" ? { permissionMode: "default" as const } : {}),
     };
+    const ptyStartedAt = new Date().toISOString();
     const runtime = terminalHost.startTask({
       ...startOptions,
       ...(request.rows !== undefined ? { rows: request.rows } : {}),
@@ -116,9 +139,11 @@ export class RuntimeController {
       runIndex,
       reportPath,
       runtime,
+      providerTranscript,
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
     this.persistTaskManifest(activeTask.task, activeTask.storageRoot);
+    providerTranscript.startDiscovery(ptyStartedAt);
 
     return {
       task: activeTask.task,
@@ -155,6 +180,12 @@ export class RuntimeController {
       reportPath,
       loadExisting: true,
     });
+    const providerTranscript = this.createProviderTranscript(
+      runningTask.id,
+      runningTask.provider,
+      providerCwd,
+      runIndex,
+    );
     const terminalHost = new TerminalHost({
       taskId: runningTask.id,
       provider: runningTask.provider,
@@ -162,6 +193,7 @@ export class RuntimeController {
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
     });
 
+    const ptyStartedAt = new Date().toISOString();
     const runtime = terminalHost.startTask({
       cwd: providerCwd,
       sandbox: request.sandbox ?? "read-only",
@@ -181,9 +213,15 @@ export class RuntimeController {
       runIndex,
       reportPath,
       runtime,
+      providerTranscript,
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
     this.persistTaskManifest(runningTask, storageRoot);
+
+    for (const source of this.readTranscriptSources(storageRoot)) {
+      providerTranscript.attachExistingSource(source);
+    }
+    providerTranscript.startDiscovery(ptyStartedAt);
 
     this.emitReportUpdated(runIndex);
 
@@ -236,6 +274,14 @@ export class RuntimeController {
     return active.runIndex.read();
   }
 
+  readTranscript(taskId: TaskId): ReadTranscriptResponse {
+    const active = this.requireTaskRuntime(taskId);
+    return {
+      sources: active.providerTranscript.sources(),
+      blocks: active.providerTranscript.blocks(),
+    };
+  }
+
   listArtifacts(taskId: TaskId): ArtifactCandidate[] {
     const active = this.requireTaskRuntime(taskId);
     return this.currentArtifactPreview(active).listArtifacts();
@@ -271,11 +317,24 @@ export class RuntimeController {
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
     if (event.type === "run:started") {
       this.updateTaskTitleFromRun(event.payload.taskId, event.payload.title);
+      this.taskRuntimes.get(event.payload.taskId)?.providerTranscript.ensureDiscovery();
     }
 
     this.sendEvent(event);
 
-    if (event.type === "pty:data" || event.type === "report:updated") {
+    if (event.type === "transcript:located") {
+      const active = this.taskRuntimes.get(event.payload.taskId);
+      if (active) {
+        this.persistTranscriptSources(active);
+      }
+      return;
+    }
+
+    if (
+      event.type === "pty:data" ||
+      event.type === "report:updated" ||
+      event.type === "transcript:blocks"
+    ) {
       return;
     }
 
@@ -351,7 +410,78 @@ export class RuntimeController {
       status: "idle",
       updatedAt: new Date().toISOString(),
     }, active.storageRoot);
+    active.providerTranscript.dispose();
     active.terminalHost.dispose();
+  }
+
+  private createProviderTranscript(
+    taskId: TaskId,
+    provider: RuntimeProvider,
+    providerCwd: string,
+    runIndex: RunIndex,
+  ): ProviderTranscript {
+    return new ProviderTranscript({
+      taskId,
+      provider,
+      providerCwd,
+      eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
+      resolveRunId: (input) => resolveRunForTurn(runIndex, input),
+      externallyClaimedPaths: () => {
+        const claimed = new Set<string>();
+        for (const runtime of this.taskRuntimes.values()) {
+          if (runtime.task.id === taskId) {
+            continue;
+          }
+          for (const source of runtime.providerTranscript.sources()) {
+            claimed.add(source.path);
+          }
+        }
+        return claimed;
+      },
+    });
+  }
+
+  private persistTranscriptSources(active: ActiveTaskRuntime): void {
+    const file: TranscriptSourcesFileV1 = {
+      schemaId: TRANSCRIPT_SOURCES_SCHEMA_ID,
+      version: TRANSCRIPT_SOURCES_SCHEMA_VERSION,
+      taskId: active.task.id,
+      sources: active.providerTranscript.sources(),
+    };
+    const filePath = transcriptSourcesPath(active.storageRoot);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const tmpPath = `${filePath}.tmp`;
+    fs.writeFileSync(tmpPath, `${JSON.stringify(file, null, 2)}\n`);
+    fs.renameSync(tmpPath, filePath);
+
+    const latest = active.providerTranscript.sources().at(-1);
+    if (latest && active.task.providerSessionRef !== latest.providerSessionId) {
+      active.task = {
+        ...active.task,
+        providerSessionRef: latest.providerSessionId,
+        updatedAt: new Date().toISOString(),
+      };
+      this.persistTaskManifest(active.task, active.storageRoot);
+    }
+  }
+
+  private readTranscriptSources(storageRoot: string): TranscriptSourceRef[] {
+    const filePath = transcriptSourcesPath(storageRoot);
+    if (!fs.existsSync(filePath)) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as TranscriptSourcesFileV1;
+      if (
+        parsed.schemaId !== TRANSCRIPT_SOURCES_SCHEMA_ID ||
+        parsed.version !== TRANSCRIPT_SOURCES_SCHEMA_VERSION
+      ) {
+        return [];
+      }
+      return parsed.sources.filter((source) => fs.existsSync(source.path));
+    } catch {
+      return [];
+    }
   }
 
   private nextTaskId(): TaskId {
@@ -479,6 +609,38 @@ function taskManifestPath(cwd: string): string {
 
 function runtimeReportPath(cwd: string): string {
   return path.join(duetDirectory(cwd), "runtime-report.json");
+}
+
+function transcriptSourcesPath(cwd: string): string {
+  return path.join(duetDirectory(cwd), "transcript-sources.json");
+}
+
+function resolveRunForTurn(runIndex: RunIndex, input: ResolveRunIdInput): RunId | null {
+  const text = input.text.trim();
+  let best: { runId: RunId; distance: number } | null = null;
+  for (const run of runIndex.read().runs) {
+    if (input.assigned.has(run.runId)) {
+      continue;
+    }
+    const prompt = run.prompt.trim();
+    const matches =
+      prompt === text || (input.command !== null && prompt.startsWith(input.command));
+    if (!matches) {
+      continue;
+    }
+    const startedMs = Date.parse(run.startedAt);
+    if (Number.isNaN(startedMs) || Number.isNaN(input.tsMs)) {
+      continue;
+    }
+    const distance = Math.abs(startedMs - input.tsMs);
+    if (distance > 15 * 60_000) {
+      continue;
+    }
+    if (!best || distance < best.distance) {
+      best = { runId: run.runId, distance };
+    }
+  }
+  return best?.runId ?? null;
 }
 
 function assertSupportedProvider(provider: RuntimeProvider): void {

@@ -39,29 +39,25 @@ try {
 
   await runPrompt(page, 1, prompt);
 
-  const runCard = page.locator(".run-card").first();
-  await runCard.locator(".run-chat-message.run-user-message", { hasText: "You" }).waitFor({
+  const runCard = page.locator(".turn-card").first();
+  await runCard.locator(".turn-user", { hasText: "You" }).waitFor({
     state: "visible",
   });
-  await runCard.locator(".run-chat-message.run-user-message", { hasText: "DUET_TRANSCRIPT_VISIBLE" }).waitFor({
+  await runCard.locator(".turn-user", { hasText: "DUET_TRANSCRIPT_VISIBLE" }).waitFor({
     state: "visible",
   });
-  await runCard.locator(".run-chat-message.run-assistant-message", { hasText: "Codex" }).waitFor({
-    state: "visible",
-  });
-  await runCard.locator(".run-transcript-header", { hasText: "Transcript" }).waitFor({
-    state: "visible",
-  });
-  await runCard.locator(".run-transcript-state", { hasText: /Memory|Memory tail|Live/ }).waitFor({
+  await runCard.locator(".turn-provenance", { hasText: /provider transcript|terminal approximation/ }).waitFor({
     state: "visible",
   });
 
-  const userText = await runCard.locator(".run-user-message .prompt-text").textContent();
-  const assistantText = await runCard.locator(".run-transcript-text").textContent();
-  const transcriptMaxHeight = await runCard.locator(".run-transcript-text").evaluate((element) =>
+  const assistantBody = runCard.locator(".turn-body .md-body, .turn-body .turn-fallback-text").first();
+  await assistantBody.waitFor({ state: "visible" });
+  const userText = await runCard.locator(".turn-user-text").textContent();
+  const assistantText = await runCard.locator(".turn-body").textContent();
+  const transcriptMaxHeight = await assistantBody.evaluate((element) =>
     getComputedStyle(element).maxHeight,
   );
-  const transcriptOverflow = await runCard.locator(".run-transcript-text").evaluate((element) =>
+  const transcriptOverflow = await assistantBody.evaluate((element) =>
     getComputedStyle(element).overflowY,
   );
   const transcriptClean =
@@ -73,10 +69,10 @@ try {
   const transcriptUsesMainScroll = transcriptMaxHeight === "none" && transcriptOverflow === "visible";
 
   await page.locator(".artifact-item", { hasText: "transcript.md" }).waitFor({ state: "visible" });
-  await page.locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
-  await page.locator(".run-card", { hasText: "Review artifacts, then continue or redirect." }).waitFor({
+  await page.locator(".turn-artifacts .artifact-link", { hasText: "transcript.md" }).waitFor({
     state: "visible",
   });
 
@@ -138,7 +134,7 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     await approveIfVisible(page, "File edit approval requested", 1000);
     await approveIfVisible(page, "Command approval requested", 1000);
     const completed = await page
-      .locator(".run-outcome", { hasText: "Completed by terminal idle heuristic" })
+      .locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" })
       .count();
     if (completed >= expectedCompletedRuns) {
       return;
