@@ -8,6 +8,7 @@ import type {
   RunKind,
   RunStatus,
   TaskId,
+  RuntimeProvider,
 } from "./domain";
 
 export interface BaseRuntimeEvent<TType extends string, TPayload> {
@@ -39,6 +40,7 @@ export type TaskStartedEvent = BaseRuntimeEvent<
   "task:started",
   {
     taskId: TaskId;
+    provider: RuntimeProvider;
     command: string;
     args: string[];
     cwd: string;
@@ -123,7 +125,7 @@ export type ApprovalDetectedEvent = BaseRuntimeEvent<
     taskId: TaskId;
     runId: RunId | null;
     kind: ApprovalKind;
-    source: "native Codex PTY approval screen";
+    source: string;
     resurfacedAfterDecision?: boolean;
     previousDecision?: ApprovalDecision | null;
     decisionAgeMs?: number | null;

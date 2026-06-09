@@ -58,7 +58,7 @@ export class RunIndex {
     switch (event.type) {
       case "task:started":
         this.report.runtime = {
-          provider: "codex",
+          provider: event.payload.provider,
           command: event.payload.command,
           args: event.payload.args,
           cwd: event.payload.cwd,

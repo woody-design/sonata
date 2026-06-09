@@ -5,7 +5,7 @@ export type ProviderSessionRef = string;
 export type ArtifactId = string;
 export type ApprovalId = string;
 
-export type RuntimeProvider = "codex";
+export type RuntimeProvider = "codex" | "claude";
 
 export type TaskStatus =
   | "new"

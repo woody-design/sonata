@@ -64,7 +64,9 @@ try {
     composerDisabledBeforeTask &&
     sendDisabledBeforeTask &&
     createdManifest.schemaId === "duet.task-manifest.v1" &&
+    createdManifest.task.provider === "codex" &&
     reopenedManifest.task.id === createdManifest.task.id &&
+    reopenedManifest.task.provider === "codex" &&
     reopenedManifest.task.title === createdManifest.task.title &&
     !rawTerminalPersisted;
 
@@ -112,11 +114,19 @@ async function assertEntryVisible(page) {
   await page.locator(".task-entry-panel", { hasText: "Start or open a Task" }).waitFor({
     state: "visible",
   });
-  await page.locator("#entry-new-task", { hasText: "New Task" }).waitFor({ state: "visible" });
+  await page.locator(".task-entry-panel", { hasText: "Choose Codex or Claude" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#entry-new-task", { hasText: "New Codex Task" }).waitFor({ state: "visible" });
+  await page.locator("#entry-new-claude-task", { hasText: "New Claude Task" }).waitFor({
+    state: "visible",
+  });
   await page.locator("#entry-open-task", { hasText: "Open Latest Task" }).waitFor({
     state: "visible",
   });
-  await page.locator(".task-entry-fact", { hasText: "Codex PTY" }).waitFor({ state: "visible" });
+  await page.locator(".task-entry-fact", { hasText: "Codex PTY / Claude PTY" }).waitFor({
+    state: "visible",
+  });
   await page.locator(".task-entry-fact", { hasText: "Run transcript" }).waitFor({
     state: "visible",
   });

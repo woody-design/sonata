@@ -37,11 +37,24 @@ The current app is not beta-quality and does not claim final UX, Home/project
 browser, Git workflow, Claude parity, provider abstraction, or production
 packaging.
 
+Claude Code now has an experimental provider-locked validation path:
+
+```text
+New Claude Task
+  -> native Claude Code PTY through TerminalHost
+  -> provider-owned workspace trust and slash-command behavior
+  -> Task / Run / Preview / Inspector surfaces remain Duet-owned
+```
+
+This is not same-Task provider switching and not full Claude parity. A Task
+keeps the provider chosen when it is created.
+
 Start here:
 
 ```text
 product-thinking/2026-05-16-acceptance-checkpoint-refresh-v1.md
 product-thinking/2026-05-16-woody-testing-script-v0.md
+product-thinking/2026-06-09-claude-runtime-validation-v0.md
 product-thinking/2026-05-15-three-surface-ux-architecture.md
 product-thinking/2026-05-15-terminalhost-runtime-contract.md
 product-thinking/2026-05-14-duet-mvp-product-architecture.md
@@ -105,6 +118,14 @@ Representative walking-skeleton gate:
 ```bash
 cd app
 npm run e2e:gui-walking-skeleton
+```
+
+Provider validation gates:
+
+```bash
+cd app
+npm run smoke:claude-terminalhost
+npm run e2e:provider-locked-task
 ```
 
 The app has additional E2E and smoke gates in `app/package.json` for Task

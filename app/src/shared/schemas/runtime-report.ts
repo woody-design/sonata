@@ -8,6 +8,7 @@ import type {
   RunKind,
   RunStatus,
   TaskId,
+  RuntimeProvider,
 } from "../types/domain";
 
 export const RUNTIME_REPORT_SCHEMA_VERSION = 1 as const;
@@ -27,7 +28,7 @@ export interface RuntimeReportV1 {
 }
 
 export interface RuntimeLaunchReport {
-  provider: "codex";
+  provider: RuntimeProvider;
   command: string;
   args: string[];
   cwd: string;

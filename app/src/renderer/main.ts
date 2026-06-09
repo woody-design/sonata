@@ -2,7 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
-import type { ArtifactCandidate, Task } from "../shared/types";
+import type { ArtifactCandidate, RuntimeProvider, Task } from "../shared/types";
 import type { ApprovalDetectedEvent } from "../shared/types/events";
 import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
@@ -67,7 +67,8 @@ appElement.innerHTML = `
         <button id="open-inspector-window" class="secondary" type="button">Inspector</button>
         <button id="toggle-terminal" class="secondary" type="button">Terminal</button>
         <button id="open-task" class="secondary" type="button">Open Task</button>
-        <button id="new-task" class="secondary" type="button">New Task</button>
+        <button id="new-task" class="secondary" type="button">New Codex Task</button>
+        <button id="new-claude-task" class="secondary" type="button">New Claude Task</button>
       </div>
     </header>
 
@@ -113,7 +114,7 @@ appElement.innerHTML = `
         <div id="run-list" class="run-list"></div>
 
         <form id="composer" class="composer">
-          <textarea id="prompt-input" rows="4" placeholder="Send a prompt to Codex"></textarea>
+          <textarea id="prompt-input" rows="4" placeholder="Send a prompt to the active provider"></textarea>
           <div class="composer-actions">
             <button id="stop-run" class="secondary" type="button" disabled>Stop</button>
             <button id="send-prompt" class="primary" type="submit" disabled>Send</button>
@@ -143,6 +144,7 @@ const elements = {
   toggleTerminal: getElement<HTMLButtonElement>("toggle-terminal"),
   openTask: getElement<HTMLButtonElement>("open-task"),
   newTask: getElement<HTMLButtonElement>("new-task"),
+  newClaudeTask: getElement<HTMLButtonElement>("new-claude-task"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
   approvalKindBadge: getElement<HTMLSpanElement>("approval-kind-badge"),
   approvalTitle: getElement<HTMLElement>("approval-title"),
@@ -189,7 +191,11 @@ const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]
 const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 
 elements.newTask.addEventListener("click", () => {
-  void createTask();
+  void createTask("codex");
+});
+
+elements.newClaudeTask.addEventListener("click", () => {
+  void createTask("claude");
 });
 
 elements.openTask.addEventListener("click", () => {
@@ -438,7 +444,7 @@ function renderTaskTabs(): void {
     label.textContent = task.title;
     const meta = document.createElement("span");
     meta.className = "task-tab-meta";
-    meta.textContent = `${shortId(task.id)} / ${view.status}`;
+    meta.textContent = `${providerLabel(task.provider)} / ${shortId(task.id)} / ${view.status}`;
     button.append(label, meta);
     if (view.unread) {
       const dot = document.createElement("span");
@@ -494,18 +500,19 @@ function updateTaskTitleFromRun(view: TaskViewState, title: string): void {
   };
 }
 
-async function createTask(): Promise<void> {
+async function createTask(provider: RuntimeProvider): Promise<void> {
+  const providerName = providerLabel(provider);
   state.busy = true;
-  state.status = "Starting Codex";
+  state.status = `Starting ${providerName}`;
   render();
 
   try {
     const response = await window.duetRuntime.createTask({
-      provider: "codex",
+      provider,
       approval: "on-request",
       sandbox: "read-only",
     });
-    const view = createTaskView(response.task, `Codex PTY ${response.runtime.pid}`);
+    const view = createTaskView(response.task, `${providerName} PTY ${response.runtime.pid}`);
     upsertTaskView(view);
     activateTask(response.task.id);
   } catch (error) {
@@ -524,9 +531,10 @@ async function openTask(): Promise<void> {
   try {
     const response = await window.duetRuntime.openTask({});
     const existing = taskViewForId(response.task.id);
-    const view = existing ?? createTaskView(response.task, `Opened Codex PTY ${response.runtime.pid}`);
+    const providerName = providerLabel(response.task.provider);
+    const view = existing ?? createTaskView(response.task, `Opened ${providerName} PTY ${response.runtime.pid}`);
     view.task = response.task;
-    view.status = existing ? "Task already open" : `Opened Codex PTY ${response.runtime.pid}`;
+    view.status = existing ? "Task already open" : `Opened ${providerName} PTY ${response.runtime.pid}`;
     upsertTaskView(view);
     activateTask(response.task.id);
     await refreshReport(response.task.id);
@@ -647,6 +655,7 @@ function render(): void {
   elements.toggleTerminal.disabled = !view?.task || state.busy;
   elements.openTask.disabled = state.busy;
   elements.newTask.disabled = state.busy;
+  elements.newClaudeTask.disabled = state.busy;
   const activeRun = hasActiveRun(view);
   const pendingApproval = Boolean(view?.pendingApproval);
   elements.sendPrompt.disabled = !view?.task || state.busy || !view.runtimeReady || pendingApproval || activeRun;
@@ -712,10 +721,11 @@ function workflowState(): WorkflowState {
   if (!view?.task) {
     return {
       headline: "Start or open a Task",
-      facts: ["Codex idle"],
+      facts: ["No provider selected"],
     };
   }
 
+  const providerName = providerLabel(view.task.provider);
   const runs = view.report?.runs ?? [];
   const latestRun = runs.at(-1) ?? null;
   const changedFiles = latestRun?.changedFiles.length ?? 0;
@@ -736,7 +746,7 @@ function workflowState(): WorkflowState {
 
   if (latestRun && isActiveRunStatus(latestRun.status)) {
     return {
-      headline: "Codex is working",
+      headline: `${providerName} is working`,
       facts: baseFacts,
     };
   }
@@ -770,7 +780,7 @@ function workflowState(): WorkflowState {
   }
 
   return {
-    headline: "Starting Codex",
+    headline: `Starting ${providerName}`,
     facts: baseFacts,
   };
 }
@@ -823,7 +833,8 @@ function renderTaskEntryPanel(): HTMLElement {
   title.textContent = "Start or open a Task";
   const body = document.createElement("p");
   body.className = "task-entry-body";
-  body.textContent = "One Task owns one native Codex session. Runs, changes, and artifacts stay attached to that Task.";
+  body.textContent =
+    "One Task owns one native provider session. Choose Codex or Claude when starting; that Task stays on that provider path.";
   copy.append(eyebrow, title, body);
 
   const actions = document.createElement("div");
@@ -833,9 +844,18 @@ function renderTaskEntryPanel(): HTMLElement {
   newTask.className = "primary";
   newTask.type = "button";
   newTask.disabled = state.busy;
-  newTask.textContent = "New Task";
+  newTask.textContent = "New Codex Task";
   newTask.addEventListener("click", () => {
-    void createTask();
+    void createTask("codex");
+  });
+  const newClaudeTask = document.createElement("button");
+  newClaudeTask.id = "entry-new-claude-task";
+  newClaudeTask.className = "secondary";
+  newClaudeTask.type = "button";
+  newClaudeTask.disabled = state.busy;
+  newClaudeTask.textContent = "New Claude Task";
+  newClaudeTask.addEventListener("click", () => {
+    void createTask("claude");
   });
   const openTaskButton = document.createElement("button");
   openTaskButton.id = "entry-open-task";
@@ -846,12 +866,12 @@ function renderTaskEntryPanel(): HTMLElement {
   openTaskButton.addEventListener("click", () => {
     void openTask();
   });
-  actions.append(newTask, openTaskButton);
+  actions.append(newTask, newClaudeTask, openTaskButton);
 
   const facts = document.createElement("div");
   facts.className = "task-entry-facts";
   facts.append(
-    taskEntryFact("Runtime", "Codex PTY"),
+    taskEntryFact("Providers", "Codex PTY / Claude PTY"),
     taskEntryFact("Reading", "Run transcript"),
     taskEntryFact("Preview", "artifact candidates"),
   );
@@ -1092,6 +1112,7 @@ function renderUserMessage(run: RuntimeRunReport): HTMLElement {
 
 function renderAssistantMessage(run: RuntimeRunReport): HTMLElement | null {
   const view = activeTaskView();
+  const providerName = view?.task ? providerLabel(view.task.provider) : "Agent";
   const transcript = view ? transcriptForRun(view, run.runId) : null;
   const live = view?.liveTranscriptRunId === run.runId;
   if (!transcript && !live) {
@@ -1100,7 +1121,7 @@ function renderAssistantMessage(run: RuntimeRunReport): HTMLElement | null {
 
   const message = document.createElement("section");
   message.className = "run-chat-message run-assistant-message run-transcript";
-  message.append(chatRole("Codex"));
+  message.append(chatRole(providerName));
 
   const body = document.createElement("div");
   body.className = "run-chat-body";
@@ -1116,7 +1137,7 @@ function renderAssistantMessage(run: RuntimeRunReport): HTMLElement | null {
 
   const pre = document.createElement("pre");
   pre.className = "run-chat-text run-transcript-text";
-  pre.textContent = transcript?.text.trimEnd() || "Waiting for Codex output";
+  pre.textContent = transcript?.text.trimEnd() || `Waiting for ${providerName} output`;
   body.append(pre);
   message.append(body);
 
@@ -1370,11 +1391,12 @@ function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): stri
   if (!view?.task) {
     return "Start or open a Task";
   }
+  const providerName = providerLabel(view.task.provider);
   if (pendingApproval) {
     return "Approval is waiting";
   }
   if (activeRun) {
-    return "Codex is working";
+    return `${providerName} is working`;
   }
   if ((view.report?.runs.length ?? 0) === 0) {
     return "Describe the first Run";
@@ -1429,6 +1451,7 @@ function completionLabel(run: RuntimeRunReport): string {
 }
 
 function runOutcome(run: RuntimeRunReport): string {
+  const providerName = activeProviderLabel();
   if (run.status === "waiting-for-approval") {
     return `Waiting for ${approvalKindLabel(run.approvalKind)} approval`;
   }
@@ -1455,7 +1478,7 @@ function runOutcome(run: RuntimeRunReport): string {
   if (run.status === "failed") {
     return "Failed";
   }
-  return "Codex is working";
+  return `${providerName} is working`;
 }
 
 function runTone(run: RuntimeRunReport): string {
@@ -1562,7 +1585,7 @@ function renderApprovalHistory(run: RuntimeRunReport): HTMLElement | null {
         : `${approvalKindLabel(event.kind)} approval requested`;
       meta.textContent = event.resurfacedAfterDecision
         ? `${event.previousDecision ?? "decision"} sent, native screen still present`
-        : "native Codex PTY approval screen";
+        : event.source ?? "native PTY approval screen";
     } else {
       title.textContent = `${approvalKindLabel(event.previousKind)} approval ${approvalDecisionLabel(
         event.decision,
@@ -1624,11 +1647,12 @@ function runReviewSummary(run: RuntimeRunReport): string {
 }
 
 function runNextStep(run: RuntimeRunReport): string {
+  const providerName = activeProviderLabel();
   if (run.status === "waiting-for-approval") {
     return `${approvalKindLabel(run.approvalKind)} approval is needed.`;
   }
   if (isActiveRunStatus(run.status)) {
-    return "Wait for Codex to finish this Run.";
+    return `Wait for ${providerName} to finish this Run.`;
   }
   if (run.status === "stopped") {
     return "Stopped. Continue from here when ready.";
@@ -1665,16 +1689,17 @@ function approvalTitle(kind: RuntimeRunReport["approvalKind"] | null | undefined
 }
 
 function approvalSummary(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
+  const providerName = activeProviderLabel();
   if (kind === "workspace-trust") {
-    return "Codex is asking whether this Task workspace should be trusted before it continues.";
+    return `${providerName} is asking whether this Task workspace should be trusted before it continues.`;
   }
   if (kind === "file-edit") {
-    return "Codex wants to write files in this Task workspace. Review the Run context before approving.";
+    return `${providerName} wants to write files in this Task workspace. Review the Run context before approving.`;
   }
   if (kind === "command") {
-    return "Codex wants to run a command through the native CLI session. Approve only when the command matches the Task.";
+    return `${providerName} wants to run a command through the native CLI session. Approve only when the command matches the Task.`;
   }
-  return "Codex is waiting on a native approval screen in the PTY session.";
+  return `${providerName} is waiting on a native approval screen in the PTY session.`;
 }
 
 function approvalScope(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
@@ -1687,7 +1712,8 @@ function approvalScope(kind: RuntimeRunReport["approvalKind"] | null | undefined
   if (kind === "command") {
     return "terminal command execution";
   }
-  return "native Codex session";
+  const providerName = activeProviderLabel();
+  return `native ${providerName} session`;
 }
 
 function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
@@ -1793,6 +1819,18 @@ function artifactKindLabel(kind: ArtifactCandidate["kind"]): string {
     return "Text";
   }
   return "Unknown";
+}
+
+function providerLabel(provider: RuntimeProvider): string {
+  if (provider === "claude") {
+    return "Claude";
+  }
+  return "Codex";
+}
+
+function activeProviderLabel(): string {
+  const provider = activeTaskView()?.task?.provider;
+  return provider ? providerLabel(provider) : "Provider";
 }
 
 function shortId(value: string): string {

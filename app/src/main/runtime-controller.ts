@@ -7,6 +7,7 @@ import type {
   CreateTaskResponse,
   OpenTaskRequest,
   RuntimeEvent,
+  RuntimeProvider,
   RuntimeReportUpdatedEvent,
   Task,
   TaskId,
@@ -25,6 +26,7 @@ import { ArtifactPreview, RunIndex, TerminalHost, WorkspacePreview } from "../ru
 
 const DEFAULT_TASK_TITLE = "New Task";
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
+const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
 
 interface RuntimeControllerOptions {
   sendEvent: (event: RuntimeEvent) => void;
@@ -48,9 +50,7 @@ export class RuntimeController {
   }
 
   createTask(request: CreateTaskRequest): CreateTaskResponse {
-    if (request.provider !== "codex") {
-      throw new Error("Only Codex is supported in the walking skeleton.");
-    }
+    assertSupportedProvider(request.provider);
 
     const now = new Date().toISOString();
     const taskId = this.nextTaskId();
@@ -61,7 +61,7 @@ export class RuntimeController {
     const task: Task = {
       id: taskId,
       title: request.title?.trim() || DEFAULT_TASK_TITLE,
-      provider: "codex",
+      provider: request.provider,
       runtimeSessionId: `runtime-${taskId}`,
       providerSessionRef: null,
       providerCwd: cwd,
@@ -74,6 +74,7 @@ export class RuntimeController {
     const runIndex = new RunIndex({ taskId, reportPath });
     const terminalHost = new TerminalHost({
       taskId,
+      provider: request.provider,
       defaultWorkspace: cwd,
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
     });
@@ -82,6 +83,7 @@ export class RuntimeController {
       cwd,
       sandbox: request.sandbox ?? "read-only",
       approval: request.approval ?? "on-request",
+      ...(request.provider === "claude" ? { permissionMode: "default" as const } : {}),
     };
     const runtime = terminalHost.startTask({
       ...startOptions,
@@ -133,9 +135,14 @@ export class RuntimeController {
       updatedAt: new Date().toISOString(),
     };
     const reportPath = path.join(cwd, ".duet", "runtime-report.json");
-    const runIndex = new RunIndex({ taskId: task.id, reportPath, loadExisting: true });
+    const runIndex = new RunIndex({
+      taskId: task.id,
+      reportPath,
+      loadExisting: true,
+    });
     const terminalHost = new TerminalHost({
       taskId: task.id,
+      provider: task.provider,
       defaultWorkspace: cwd,
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
     });
@@ -144,6 +151,7 @@ export class RuntimeController {
       cwd,
       sandbox: request.sandbox ?? "read-only",
       approval: request.approval ?? "on-request",
+      ...(task.provider === "claude" ? { permissionMode: "default" as const } : {}),
       ...(request.rows !== undefined ? { rows: request.rows } : {}),
       ...(request.cols !== undefined ? { cols: request.cols } : {}),
     });
@@ -377,7 +385,7 @@ export class RuntimeController {
     if (
       manifest.schemaId !== TASK_MANIFEST_SCHEMA_ID ||
       manifest.version !== TASK_MANIFEST_SCHEMA_VERSION ||
-      manifest.task.provider !== "codex"
+      !SUPPORTED_PROVIDERS.has(manifest.task.provider)
     ) {
       throw new Error("Task manifest is not supported by this walking skeleton.");
     }
@@ -400,4 +408,10 @@ function duetDirectory(cwd: string): string {
 
 function taskManifestPath(cwd: string): string {
   return path.join(duetDirectory(cwd), "task.json");
+}
+
+function assertSupportedProvider(provider: RuntimeProvider): void {
+  if (!SUPPORTED_PROVIDERS.has(provider)) {
+    throw new Error(`Unsupported Task provider: ${provider}`);
+  }
 }

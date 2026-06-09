@@ -9,6 +9,7 @@ import type {
   ApprovalKind,
   CompletionConfidence,
   CompletionSource,
+  RuntimeProvider,
   RunId,
   RunKind,
   RunStatus,
@@ -33,22 +34,45 @@ const DEFAULT_TASK_READY_QUIET_MS = 900;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
 
-const FILE_EDIT_APPROVAL_HINTS = [
+const CODEX_FILE_EDIT_APPROVAL_HINTS = [
   "would you like to make the following edits",
   "don't ask again for these files",
   "press enter to confirm",
 ];
 
-const COMMAND_APPROVAL_HINTS = [
+const CODEX_COMMAND_APPROVAL_HINTS = [
   "would you like to run the following command",
   "don't ask again for commands that start with",
   "press enter to confirm",
 ];
 
-const WORKSPACE_TRUST_APPROVAL_HINTS = [
+const CODEX_WORKSPACE_TRUST_APPROVAL_HINTS = [
   "do you trust the contents of this directory",
   "trusting the directory",
   "press enter to continue",
+];
+
+const CLAUDE_FILE_EDIT_APPROVAL_HINTS = [
+  "do you want to make this edit",
+  "do you want to make these edits",
+  "allow this edit",
+  "allow edits",
+  "enter to confirm",
+];
+
+const CLAUDE_COMMAND_APPROVAL_HINTS = [
+  "do you want to proceed",
+  "allow command",
+  "allow this command",
+  "run this command",
+  "enter to confirm",
+];
+
+const CLAUDE_WORKSPACE_TRUST_APPROVAL_HINTS = [
+  "quick safety check",
+  "is this a project you created or one you trust",
+  "yes, i trust this folder",
+  "enter to confirm",
 ];
 
 const BACKGROUND_TERMINAL_HINTS = [
@@ -62,6 +86,7 @@ const BACKGROUND_TERMINAL_HINTS = [
 export interface TerminalHostOptions {
   taskId: TaskId;
   defaultWorkspace: string;
+  provider?: RuntimeProvider;
   eventSink?: (event: RuntimeEvent) => void;
   scrollbackLimit?: number;
   completionQuietMs?: number;
@@ -74,6 +99,7 @@ export interface StartTaskOptions {
   args?: string[];
   sandbox?: "read-only" | "workspace-write";
   approval?: "never" | "on-request";
+  permissionMode?: ClaudePermissionMode;
   resumeLast?: boolean;
   cols?: number;
   rows?: number;
@@ -108,9 +134,34 @@ interface ApprovalCandidate {
 }
 
 type ActiveRun = RunUpdatedEvent["payload"];
+export type ClaudePermissionMode =
+  | "acceptEdits"
+  | "auto"
+  | "bypassPermissions"
+  | "default"
+  | "dontAsk"
+  | "plan";
+
+interface TerminalProviderProfile {
+  provider: RuntimeProvider;
+  defaultCommand: string;
+  approvalSource: string;
+  supportsSlashStop: boolean;
+  taskReadyMinAgeMs: number;
+  taskReadyQuietMs: number;
+  activityHints: string[];
+  idlePromptModelHints: RegExp;
+  buildArgs: (options: StartTaskOptions & { cwd: string }) => string[];
+  approvalHints: {
+    fileEdit: string[];
+    command: string[];
+    workspaceTrust: string[];
+  };
+}
 
 export class TerminalHost extends EventEmitter {
   private readonly taskId: TaskId;
+  private readonly profile: TerminalProviderProfile;
   private readonly defaultWorkspace: string;
   private readonly eventSink: ((event: RuntimeEvent) => void) | null;
   private readonly scrollbackLimit: number;
@@ -142,6 +193,7 @@ export class TerminalHost extends EventEmitter {
   constructor(options: TerminalHostOptions) {
     super();
     this.taskId = options.taskId;
+    this.profile = terminalProviderProfile(options.provider ?? "codex");
     this.defaultWorkspace = options.defaultWorkspace;
     this.eventSink = options.eventSink ?? null;
     this.scrollbackLimit = options.scrollbackLimit ?? DEFAULT_SCROLLBACK_LIMIT;
@@ -176,14 +228,12 @@ export class TerminalHost extends EventEmitter {
     this.clearTaskReadyTimer();
     this.startFileWatcher(cwd);
 
-    const command = options.command ?? "codex";
+    const command = options.command ?? this.profile.defaultCommand;
     const args = Array.isArray(options.args)
       ? options.args
-      : codexArgs({
+      : this.profile.buildArgs({
+          ...options,
           cwd,
-          sandbox: options.sandbox ?? "read-only",
-          approval: options.approval ?? "on-request",
-          resumeLast: Boolean(options.resumeLast),
         });
     const cols = Number(options.cols) || DEFAULT_COLS;
     const rows = Number(options.rows) || DEFAULT_ROWS;
@@ -193,11 +243,7 @@ export class TerminalHost extends EventEmitter {
       cols,
       rows,
       cwd,
-      env: {
-        ...process.env,
-        TERM: "xterm-256color",
-        COLORTERM: "truecolor",
-      },
+      env: ptyEnvironment(),
     });
 
     this.ptyProcess.onData((data) => this.handlePtyData(data));
@@ -218,6 +264,7 @@ export class TerminalHost extends EventEmitter {
 
     this.emitEvent("task:started", {
       taskId: this.taskId,
+      provider: this.profile.provider,
       command,
       args,
       cwd: redactPath(cwd),
@@ -333,9 +380,10 @@ export class TerminalHost extends EventEmitter {
     await delay(Number(options.inspectDelayMs) || 900);
 
     const shouldSubmitSlashStop =
-      Boolean(options.forceSlashStop) ||
-      this.hasBackgroundTerminalHint() ||
-      this.activeRun?.approvalKind === "command";
+      this.profile.supportsSlashStop &&
+      (Boolean(options.forceSlashStop) ||
+        this.hasBackgroundTerminalHint() ||
+        this.activeRun?.approvalKind === "command");
     if (shouldSubmitSlashStop && this.ptyProcess) {
       this.submitPrompt("/stop", { createRun: false });
     }
@@ -415,7 +463,7 @@ export class TerminalHost extends EventEmitter {
     }
 
     this.clearTaskReadyTimer();
-    this.taskReadyTimer = setTimeout(() => this.checkTaskReady(), DEFAULT_TASK_READY_QUIET_MS);
+    this.taskReadyTimer = setTimeout(() => this.checkTaskReady(), this.profile.taskReadyQuietMs);
   }
 
   private checkTaskReady(): void {
@@ -423,20 +471,20 @@ export class TerminalHost extends EventEmitter {
     if (this.taskReady || this.activeRun || this.approvalActive || !this.ptyProcess) {
       return;
     }
-    const taskAgeMs = this.startedAt ? Date.now() - this.startedAt : DEFAULT_TASK_READY_MIN_AGE_MS;
-    if (taskAgeMs < DEFAULT_TASK_READY_MIN_AGE_MS) {
+    const taskAgeMs = this.startedAt ? Date.now() - this.startedAt : this.profile.taskReadyMinAgeMs;
+    if (taskAgeMs < this.profile.taskReadyMinAgeMs) {
       this.taskReadyTimer = setTimeout(
         () => this.checkTaskReady(),
-        DEFAULT_TASK_READY_MIN_AGE_MS - taskAgeMs,
+        this.profile.taskReadyMinAgeMs - taskAgeMs,
       );
       return;
     }
-    if (Date.now() - this.lastPtyDataAt < DEFAULT_TASK_READY_QUIET_MS - 50) {
+    if (Date.now() - this.lastPtyDataAt < this.profile.taskReadyQuietMs - 50) {
       this.scheduleTaskReadyCheck();
       return;
     }
 
-    const hint = detectIdlePrompt(this.rawTail);
+    const hint = detectIdlePrompt(this.rawTail, this.profile);
     if (!hint.ready) {
       return;
     }
@@ -451,7 +499,7 @@ export class TerminalHost extends EventEmitter {
 
   private detectApproval(): void {
     const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
-    const candidate = detectApprovalCandidate(approvalSource);
+    const candidate = detectApprovalCandidate(approvalSource, this.profile);
     if (!candidate || candidate.promptAfterApproval) {
       return;
     }
@@ -497,7 +545,7 @@ export class TerminalHost extends EventEmitter {
       taskId: this.taskId,
       runId: this.activeRun ? this.activeRun.id : null,
       kind: candidate.kind,
-      source: "native Codex PTY approval screen",
+      source: this.profile.approvalSource,
       fingerprintHash: candidate.fingerprintHash,
     };
     if (evidence.resurfacedAfterDecision) {
@@ -528,7 +576,7 @@ export class TerminalHost extends EventEmitter {
     }
 
     const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
-    const candidate = detectApprovalCandidate(approvalSource);
+    const candidate = detectApprovalCandidate(approvalSource, this.profile);
     if (!candidate || candidate.promptAfterApproval) {
       return;
     }
@@ -803,7 +851,7 @@ export class TerminalHost extends EventEmitter {
       return;
     }
 
-    const hint = detectIdleComposer(this.activeRunRaw);
+    const hint = detectIdleComposer(this.activeRunRaw, this.profile);
     if (!hint.completed) {
       this.updateActiveRun({
         lifecyclePhase: "active",
@@ -888,12 +936,78 @@ export function codexArgs(options: {
   ];
 }
 
+export function claudeArgs(options: { permissionMode?: ClaudePermissionMode }): string[] {
+  return ["--permission-mode", options.permissionMode ?? "default"];
+}
+
+function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderProfile {
+  if (provider === "claude") {
+    return {
+      provider,
+      defaultCommand: "claude",
+      approvalSource: "native Claude PTY approval screen",
+      supportsSlashStop: false,
+      taskReadyMinAgeMs: 14000,
+      taskReadyQuietMs: 2500,
+      activityHints: [
+        "esc to interrupt",
+        "esctointerrupt",
+        "thinking with",
+        "thinkingwith",
+        "cerebrating",
+        "accomplishing",
+      ],
+      idlePromptModelHints: /opus|sonnet|haiku|xhigh|high|medium|low|effort|~/i,
+      buildArgs: (options) =>
+        claudeArgs(options.permissionMode ? { permissionMode: options.permissionMode } : {}),
+      approvalHints: {
+        fileEdit: CLAUDE_FILE_EDIT_APPROVAL_HINTS,
+        command: CLAUDE_COMMAND_APPROVAL_HINTS,
+        workspaceTrust: CLAUDE_WORKSPACE_TRUST_APPROVAL_HINTS,
+      },
+    };
+  }
+
+  return {
+    provider,
+    defaultCommand: "codex",
+    approvalSource: "native Codex PTY approval screen",
+    supportsSlashStop: true,
+    taskReadyMinAgeMs: DEFAULT_TASK_READY_MIN_AGE_MS,
+    taskReadyQuietMs: DEFAULT_TASK_READY_QUIET_MS,
+    activityHints: ["working", "esc to interrupt"],
+    idlePromptModelHints: /gpt[-\w.]*|xhigh|high|medium|low|~/i,
+    buildArgs: (options) =>
+      codexArgs({
+        cwd: options.cwd,
+        sandbox: options.sandbox ?? "read-only",
+        approval: options.approval ?? "on-request",
+        resumeLast: Boolean(options.resumeLast),
+      }),
+    approvalHints: {
+      fileEdit: CODEX_FILE_EDIT_APPROVAL_HINTS,
+      command: CODEX_COMMAND_APPROVAL_HINTS,
+      workspaceTrust: CODEX_WORKSPACE_TRUST_APPROVAL_HINTS,
+    },
+  };
+}
+
 export function cleanTerminal(text: string): string {
   return text
     .replace(ANSI_RE, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     .replace(CONTROL_RE, "");
+}
+
+function ptyEnvironment(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  return {
+    ...env,
+    TERM: "xterm-256color",
+    COLORTERM: "truecolor",
+  };
 }
 
 function snapshotWorkspace(cwd: string): Map<string, SnapshotEntry> {
@@ -991,7 +1105,7 @@ function classifyChange(before: SnapshotEntry, after: SnapshotEntry): "added" | 
   return "unchanged";
 }
 
-function detectIdleComposer(rawText: string): {
+function detectIdleComposer(rawText: string, profile: TerminalProviderProfile): {
   completed: boolean;
   source: "terminal-idle-heuristic";
   confidence: CompletionConfidence;
@@ -1001,15 +1115,17 @@ function detectIdleComposer(rawText: string): {
     hasModelOrCwdHint: boolean;
   };
 } {
-  const hint = detectIdlePrompt(rawText);
+  const hint = detectIdlePrompt(rawText, profile);
   const recent = cleanTerminal(rawText).slice(-8000);
   const lowered = recent.toLowerCase();
-  const lastWorking = Math.max(lowered.lastIndexOf("working"), lowered.lastIndexOf("esc to interrupt"));
+  const lastWorking = maxLastIndexOf(lowered, profile.activityHints);
   const completed =
-    hint.lastPromptIndex >= 0 &&
-    lastWorking >= 0 &&
-    hint.lastPromptIndex > lastWorking &&
-    hint.ready;
+    profile.provider === "claude"
+      ? hint.ready && lastWorking >= 0
+      : hint.lastPromptIndex >= 0 &&
+        lastWorking >= 0 &&
+        hint.lastPromptIndex > lastWorking &&
+        hint.ready;
 
   return {
     completed,
@@ -1023,7 +1139,7 @@ function detectIdleComposer(rawText: string): {
   };
 }
 
-function detectIdlePrompt(rawText: string): {
+function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
   ready: boolean;
   confidence: CompletionConfidence;
   lastPromptIndex: number;
@@ -1034,17 +1150,18 @@ function detectIdlePrompt(rawText: string): {
   const lowered = recent.toLowerCase();
   const lastPrompt = recent.lastIndexOf(">");
   const lastCodexPrompt = recent.lastIndexOf("›");
-  const lastAnyPrompt = Math.max(lastPrompt, lastCodexPrompt);
-  const lastApproval = Math.max(
-    lowered.lastIndexOf("would you like to make the following edits"),
-    lowered.lastIndexOf("would you like to run the following command"),
-    lowered.lastIndexOf("do you trust the contents of this directory"),
-    lowered.lastIndexOf("press enter to confirm"),
-    lowered.lastIndexOf("press enter to continue"),
-  );
+  const lastClaudePrompt = recent.lastIndexOf("❯");
+  const lastAnyPrompt = Math.max(lastPrompt, lastCodexPrompt, lastClaudePrompt);
+  const approvalNeedles = [
+    ...profile.approvalHints.fileEdit,
+    ...profile.approvalHints.command,
+    ...profile.approvalHints.workspaceTrust,
+  ].flatMap((hint) => [hint, compactText(hint)]);
+  const lastApproval = maxLastIndexOf(lowered, approvalNeedles);
   const promptTail = lastAnyPrompt >= 0 ? recent.slice(lastAnyPrompt, lastAnyPrompt + 700) : "";
-  const hasModelOrCwdHint = /gpt[-\w.]*|xhigh|high|medium|low|~/i.test(promptTail);
-  const ready = lastAnyPrompt >= 0 && lastAnyPrompt > lastApproval;
+  const claudeSuggestionPrompt = profile.provider === "claude" && /^\s*❯\s*try/i.test(promptTail);
+  const hasModelOrCwdHint = profile.idlePromptModelHints.test(promptTail);
+  const ready = lastAnyPrompt >= 0 && lastAnyPrompt > lastApproval && !claudeSuggestionPrompt;
 
   return {
     ready,
@@ -1055,58 +1172,40 @@ function detectIdlePrompt(rawText: string): {
   };
 }
 
-function detectApprovalCandidate(rawText: string): ApprovalCandidate | null {
+function detectApprovalCandidate(rawText: string, profile: TerminalProviderProfile): ApprovalCandidate | null {
   const recent = cleanTerminal(rawText).toLowerCase();
   const compactRecent = compactText(recent);
-  const hasConfirmPrompt = compactRecent.includes(compactText("press enter to confirm"));
-  const hasContinuePrompt = compactRecent.includes(compactText("press enter to continue"));
-  const fileEdit =
-    hasConfirmPrompt &&
-    (compactRecent.includes(compactText("would you like to make the following edits")) ||
-      compactRecent.includes(compactText("don't ask again for these files")));
-  const command =
-    hasConfirmPrompt &&
-    (compactRecent.includes(compactText("would you like to run the following command")) ||
-      compactRecent.includes(compactText("don't ask again for commands that start with")));
-  const workspaceTrust =
-    hasContinuePrompt &&
-    (compactRecent.includes(compactText("do you trust the contents of this directory")) ||
-      compactRecent.includes(compactText("trusting the directory")));
+  const fileEdit = includesApprovalHints(compactRecent, profile.approvalHints.fileEdit);
+  const command = includesApprovalHints(compactRecent, profile.approvalHints.command);
+  const workspaceTrust = includesApprovalHints(compactRecent, profile.approvalHints.workspaceTrust);
 
   if (!fileEdit && !command && !workspaceTrust) {
     return null;
   }
 
   const kind: ApprovalKind = command ? "command" : fileEdit ? "file-edit" : "workspace-trust";
-  const fingerprint = approvalFingerprint(kind, compactRecent);
+  const fingerprint = approvalFingerprint(kind, compactRecent, profile);
   return {
     kind,
     fingerprint,
     fingerprintHash: fingerprint ? sha256(fingerprint).slice(0, 16) : null,
-    promptAfterApproval: detectIdlePrompt(rawText).promptAfterApproval,
+    promptAfterApproval: detectIdlePrompt(rawText, profile).promptAfterApproval,
   };
 }
 
-function approvalFingerprint(kind: ApprovalKind, compactRecent: string): string | null {
-  const startNeedles =
+function approvalFingerprint(
+  kind: ApprovalKind,
+  compactRecent: string,
+  profile: TerminalProviderProfile,
+): string | null {
+  const hints =
     kind === "command"
-      ? [
-          compactText("would you like to run the following command"),
-          compactText("don't ask again for commands that start with"),
-        ]
+      ? profile.approvalHints.command
       : kind === "workspace-trust"
-        ? [
-            compactText("do you trust the contents of this directory"),
-            compactText("trusting the directory"),
-          ]
-        : [
-            compactText("would you like to make the following edits"),
-            compactText("don't ask again for these files"),
-          ];
-  const endNeedle =
-    kind === "workspace-trust"
-      ? compactText("press enter to continue")
-      : compactText("press enter to confirm");
+        ? profile.approvalHints.workspaceTrust
+        : profile.approvalHints.fileEdit;
+  const startNeedles = hints.slice(0, -1).map(compactText);
+  const endNeedle = compactText(hints[hints.length - 1] ?? "enter to confirm");
   const startIndex = maxLastIndexOf(compactRecent, startNeedles);
   if (startIndex < 0) {
     return null;
@@ -1117,6 +1216,9 @@ function approvalFingerprint(kind: ApprovalKind, compactRecent: string): string 
 }
 
 function maxLastIndexOf(value: string, needles: string[]): number {
+  if (needles.length === 0) {
+    return -1;
+  }
   return Math.max(...needles.map((needle) => value.lastIndexOf(needle)));
 }
 
@@ -1158,6 +1260,16 @@ function shouldIgnorePath(relativePath: string): boolean {
 
 function compactText(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function includesApprovalHints(compactRecent: string, hints: string[]): boolean {
+  if (hints.length === 0) {
+    return false;
+  }
+  const compactHints = hints.map(compactText);
+  const endNeedle = compactHints[compactHints.length - 1] ?? "";
+  const triggers = compactHints.slice(0, -1);
+  return compactRecent.includes(endNeedle) && triggers.some((hint) => compactRecent.includes(hint));
 }
 
 function redactPath(value: string): string {

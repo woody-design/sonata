@@ -20,6 +20,7 @@
     "e2e:run-chat-transcript": "npm run build && node tests/e2e/run-chat-transcript.mjs",
     "e2e:run-reading-surface": "npm run build && node tests/e2e/run-reading-surface.mjs",
     "e2e:task-entry": "npm run build && node tests/e2e/task-entry.mjs",
+    "e2e:provider-locked-task": "npm run build && node tests/e2e/provider-locked-task.mjs",
     "e2e:approval-surface": "npm run build && node tests/e2e/approval-surface.mjs",
     "e2e:artifact-review-actions": "npm run build && node tests/e2e/artifact-review-actions.mjs",
     "e2e:inspector-review-linkage": "npm run build && node tests/e2e/inspector-review-linkage.mjs",
@@ -29,6 +30,7 @@
     "e2e:open-task": "npm run build && node tests/e2e/open-task.mjs",
     "smoke:runtime-modules": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/runtime-modules.mjs",
     "smoke:codex-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-terminalhost.mjs",
+    "smoke:claude-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-terminalhost.mjs",
     "smoke:command-approval": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/command-approval.mjs",
     "smoke:approval-reliability": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-reliability.mjs",
     "rebuild:electron": "electron-rebuild -f -w node-pty"
