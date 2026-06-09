@@ -5,7 +5,9 @@ import type {
   ArtifactCandidate,
   CreateTaskRequest,
   CreateTaskResponse,
+  LaunchSpeedMode,
   OpenTaskRequest,
+  ReasoningEffort,
   RuntimeEvent,
   RuntimeProvider,
   RuntimeReportUpdatedEvent,
@@ -27,6 +29,7 @@ import { ArtifactPreview, RunIndex, TerminalHost, WorkspacePreview } from "../ru
 const DEFAULT_TASK_TITLE = "New Task";
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
+const REASONING_EFFORTS = new Set<ReasoningEffort>(["low", "medium", "high", "xhigh", "max"]);
 
 interface RuntimeControllerOptions {
   sendEvent: (event: RuntimeEvent) => void;
@@ -55,13 +58,20 @@ export class RuntimeController {
     const now = new Date().toISOString();
     const taskId = this.nextTaskId();
     const cwd = path.resolve(request.cwd ?? this.defaultWorkspacePath(taskId));
+    if (request.cwd && fs.existsSync(taskManifestPath(cwd))) {
+      throw new Error("Selected folder already contains a Duet Task. Open it instead.");
+    }
     const reportPath = path.join(cwd, ".duet", "runtime-report.json");
     fs.mkdirSync(duetDirectory(cwd), { recursive: true });
+    const launchSettings = normalizeLaunchSettings(request.provider, request);
 
     const task: Task = {
       id: taskId,
       title: request.title?.trim() || DEFAULT_TASK_TITLE,
       provider: request.provider,
+      model: launchSettings.model,
+      reasoningEffort: launchSettings.reasoningEffort,
+      speedMode: launchSettings.speedMode,
       runtimeSessionId: `runtime-${taskId}`,
       providerSessionRef: null,
       providerCwd: cwd,
@@ -83,6 +93,9 @@ export class RuntimeController {
       cwd,
       sandbox: request.sandbox ?? "read-only",
       approval: request.approval ?? "on-request",
+      model: launchSettings.model,
+      reasoningEffort: launchSettings.reasoningEffort,
+      speedMode: launchSettings.speedMode,
       ...(request.provider === "claude" ? { permissionMode: "default" as const } : {}),
     };
     const runtime = terminalHost.startTask({
@@ -127,8 +140,10 @@ export class RuntimeController {
       };
     }
 
-    const task = {
+    const task = normalizeTaskForWorkspace(manifest.task, cwd);
+    const runningTask = {
       ...manifest.task,
+      ...task,
       workingDirectory: cwd,
       providerCwd: cwd,
       status: "running" as const,
@@ -136,13 +151,13 @@ export class RuntimeController {
     };
     const reportPath = path.join(cwd, ".duet", "runtime-report.json");
     const runIndex = new RunIndex({
-      taskId: task.id,
+      taskId: runningTask.id,
       reportPath,
       loadExisting: true,
     });
     const terminalHost = new TerminalHost({
-      taskId: task.id,
-      provider: task.provider,
+      taskId: runningTask.id,
+      provider: runningTask.provider,
       defaultWorkspace: cwd,
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
     });
@@ -151,25 +166,28 @@ export class RuntimeController {
       cwd,
       sandbox: request.sandbox ?? "read-only",
       approval: request.approval ?? "on-request",
-      ...(task.provider === "claude" ? { permissionMode: "default" as const } : {}),
+      model: runningTask.model,
+      reasoningEffort: runningTask.reasoningEffort,
+      speedMode: runningTask.speedMode,
+      ...(runningTask.provider === "claude" ? { permissionMode: "default" as const } : {}),
       ...(request.rows !== undefined ? { rows: request.rows } : {}),
       ...(request.cols !== undefined ? { cols: request.cols } : {}),
     });
 
     const activeTask = {
-      task,
+      task: runningTask,
       terminalHost,
       runIndex,
       reportPath,
       runtime,
     };
-    this.taskRuntimes.set(task.id, activeTask);
-    this.persistTaskManifest(task);
+    this.taskRuntimes.set(runningTask.id, activeTask);
+    this.persistTaskManifest(runningTask);
 
     this.emitReportUpdated(runIndex);
 
     return {
-      task,
+      task: runningTask,
       runtime,
     };
   }
@@ -414,4 +432,41 @@ function assertSupportedProvider(provider: RuntimeProvider): void {
   if (!SUPPORTED_PROVIDERS.has(provider)) {
     throw new Error(`Unsupported Task provider: ${provider}`);
   }
+}
+
+function normalizeTaskForWorkspace(task: Task, cwd: string): Task {
+  const launchSettings = normalizeLaunchSettings(task.provider, task);
+  return {
+    ...task,
+    model: launchSettings.model,
+    reasoningEffort: launchSettings.reasoningEffort,
+    speedMode: launchSettings.speedMode,
+    providerCwd: cwd,
+    workingDirectory: cwd,
+  };
+}
+
+function normalizeLaunchSettings(
+  provider: RuntimeProvider,
+  request: {
+    model?: string | null;
+    reasoningEffort?: ReasoningEffort | null;
+    speedMode?: LaunchSpeedMode | null;
+  },
+): { model: string | null; reasoningEffort: ReasoningEffort | null; speedMode: LaunchSpeedMode | null } {
+  const model = request.model?.trim() || null;
+  const requestedReasoningEffort = request.reasoningEffort ?? null;
+  const reasoningEffort = REASONING_EFFORTS.has(requestedReasoningEffort as ReasoningEffort)
+    ? (requestedReasoningEffort as ReasoningEffort)
+    : null;
+  const speedMode =
+    provider === "codex" && (request.speedMode === "default" || request.speedMode === "fast")
+      ? request.speedMode
+      : null;
+
+  return {
+    model,
+    reasoningEffort,
+    speedMode,
+  };
 }

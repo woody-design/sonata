@@ -30,6 +30,7 @@ const duetRuntime: DuetRuntimeBridge = {
   readWorkspaceFile: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceFileRead, request),
   openWorkspaceExternal: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceOpenExternal, request),
   openWorkspaceFolder: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceOpenFolder, request),
+  pickFolder: () => ipcRenderer.invoke(IPC_CHANNELS.folderPick),
   onPreviewState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, previewState: PreviewWindowState) => {
       callback(previewState);

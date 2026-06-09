@@ -23,6 +23,8 @@ That runtime truth has now been lifted into a formal TypeScript Electron app in
 ```text
 New/Open Task
   -> native Codex PTY through TerminalHost
+  -> optional selected folder cwd
+  -> provider-native model / reasoning / speed launch settings
   -> prompt submission
   -> Run creation and reading surface
   -> native approval surfaced as Duet product controls
@@ -55,6 +57,7 @@ Start here:
 product-thinking/2026-05-16-acceptance-checkpoint-refresh-v1.md
 product-thinking/2026-05-16-woody-testing-script-v0.md
 product-thinking/2026-06-09-claude-runtime-validation-v0.md
+product-thinking/2026-06-09-task-folder-launch-settings-v0.md
 product-thinking/2026-05-15-three-surface-ux-architecture.md
 product-thinking/2026-05-15-terminalhost-runtime-contract.md
 product-thinking/2026-05-14-duet-mvp-product-architecture.md
@@ -124,6 +127,8 @@ Provider validation gates:
 
 ```bash
 cd app
+npm run smoke:provider-launch-settings
+npm run e2e:task-folder-cwd
 npm run smoke:claude-terminalhost
 npm run e2e:provider-locked-task
 ```

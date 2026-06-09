@@ -9,10 +9,14 @@ let electronApp = null;
 
 try {
   const page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "Choose Codex or Claude" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "Provider and launch settings" }).waitFor({
     state: "visible",
   });
-  await page.locator("#entry-new-claude-task", { hasText: "New Claude Task" }).click();
+  await page.locator("#entry-provider-claude", { hasText: "Claude" }).click();
+  await page.locator("#entry-launch-settings", { hasText: "Opus Extra High" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#entry-new-task", { hasText: "Start Claude Task" }).click();
 
   const taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
   const workspace = path.join(workspaceRoot, taskDirectory);
@@ -35,7 +39,13 @@ try {
 
   const success =
     manifest.task.provider === "claude" &&
+    manifest.task.model === "opus" &&
+    manifest.task.reasoningEffort === "xhigh" &&
+    manifest.task.speedMode === null &&
     report.runtime?.provider === "claude" &&
+    report.runtime?.model === "opus" &&
+    report.runtime?.reasoningEffort === "xhigh" &&
+    report.runtime?.speedMode === null &&
     report.rawTerminalPointer === null &&
     !rawTerminalPersisted;
 
@@ -46,6 +56,9 @@ try {
         taskDirectory,
         taskId: manifest.task.id,
         provider: manifest.task.provider,
+        model: manifest.task.model,
+        reasoningEffort: manifest.task.reasoningEffort,
+        speedMode: manifest.task.speedMode,
         reportProvider: report.runtime?.provider ?? null,
         rawTerminalPersisted,
         success,

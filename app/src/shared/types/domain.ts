@@ -6,6 +6,8 @@ export type ArtifactId = string;
 export type ApprovalId = string;
 
 export type RuntimeProvider = "codex" | "claude";
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
+export type LaunchSpeedMode = "default" | "fast";
 
 export type TaskStatus =
   | "new"
@@ -21,6 +23,9 @@ export interface Task {
   id: TaskId;
   title: string;
   provider: RuntimeProvider;
+  model: string | null;
+  reasoningEffort: ReasoningEffort | null;
+  speedMode: LaunchSpeedMode | null;
   runtimeSessionId: RuntimeSessionId;
   providerSessionRef: ProviderSessionRef | null;
   providerCwd: string;

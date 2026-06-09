@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 import {
   IPC_CHANNELS,
+  type FolderPickResponse,
   type FocusArtifactInMainRequest,
   type InspectorWindowState,
   type MarkPreviewReviewedRequest,
@@ -23,6 +24,7 @@ export interface WindowIpcController {
   readInspectorState(): InspectorWindowState;
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
+  pickFolder(): Promise<FolderPickResponse>;
   closeTaskSurfaces(taskId: TaskId): void;
 }
 
@@ -91,4 +93,5 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.workspaceOpenFolder, (_event, request) =>
     windowController.openWorkspaceFolder(request),
   );
+  ipcMain.handle(IPC_CHANNELS.folderPick, () => windowController.pickFolder());
 }

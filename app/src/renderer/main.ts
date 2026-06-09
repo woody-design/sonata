@@ -2,7 +2,13 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
-import type { ArtifactCandidate, RuntimeProvider, Task } from "../shared/types";
+import type {
+  ArtifactCandidate,
+  LaunchSpeedMode,
+  ReasoningEffort,
+  RuntimeProvider,
+  Task,
+} from "../shared/types";
 import type { ApprovalDetectedEvent } from "../shared/types/events";
 import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
@@ -34,15 +40,44 @@ interface RendererState {
   taskViews: TaskViewState[];
   activeTaskId: string | null;
   previewTabs: PreviewWindowTab[];
+  taskDraft: TaskLaunchDraft;
   terminalOpen: boolean;
   busy: boolean;
   status: string;
+}
+
+interface TaskLaunchDraft {
+  provider: RuntimeProvider;
+  cwd: string | null;
+  settingsOpen: boolean;
+  settingsAnchor: { left: number; top: number; width: number } | null;
+  model: Record<RuntimeProvider, string | null>;
+  reasoningEffort: Record<RuntimeProvider, ReasoningEffort | null>;
+  speedMode: Record<RuntimeProvider, LaunchSpeedMode | null>;
 }
 
 const state: RendererState = {
   taskViews: [],
   activeTaskId: null,
   previewTabs: [],
+  taskDraft: {
+    provider: "codex",
+    cwd: null,
+    settingsOpen: false,
+    settingsAnchor: null,
+    model: {
+      codex: "gpt-5.5",
+      claude: "opus",
+    },
+    reasoningEffort: {
+      codex: "xhigh",
+      claude: "xhigh",
+    },
+    speedMode: {
+      codex: "default",
+      claude: null,
+    },
+  },
   terminalOpen: false,
   busy: false,
   status: "Idle",
@@ -189,6 +224,34 @@ const MAX_TERMINAL_BUFFER_CHARS = 80_000;
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
 const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
+const MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: string | null }>> = {
+  codex: [
+    { label: "GPT-5.5", value: "gpt-5.5" },
+    { label: "Native Default", value: null },
+  ],
+  claude: [
+    { label: "Opus", value: "opus" },
+    { label: "Sonnet", value: "sonnet" },
+    { label: "Native Default", value: null },
+  ],
+};
+const REASONING_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: ReasoningEffort | null }>> = {
+  codex: [
+    { label: "Low", value: "low" },
+    { label: "Medium", value: "medium" },
+    { label: "High", value: "high" },
+    { label: "Extra High", value: "xhigh" },
+    { label: "Native Default", value: null },
+  ],
+  claude: [
+    { label: "Low", value: "low" },
+    { label: "Medium", value: "medium" },
+    { label: "High", value: "high" },
+    { label: "Extra High", value: "xhigh" },
+    { label: "Max", value: "max" },
+    { label: "Native Default", value: null },
+  ],
+};
 
 elements.newTask.addEventListener("click", () => {
   void createTask("codex");
@@ -241,6 +304,18 @@ elements.denyApproval.addEventListener("click", () => {
 
 window.addEventListener("resize", () => {
   fitTerminal();
+});
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element) || target.closest(".task-settings-wrap")) {
+    return;
+  }
+  if (state.taskDraft.settingsOpen) {
+    state.taskDraft.settingsOpen = false;
+    state.taskDraft.settingsAnchor = null;
+    render();
+  }
 });
 
 window.duetRuntime.onRuntimeEvent((event) => {
@@ -500,15 +575,25 @@ function updateTaskTitleFromRun(view: TaskViewState, title: string): void {
   };
 }
 
-async function createTask(provider: RuntimeProvider): Promise<void> {
+async function createTask(
+  provider: RuntimeProvider,
+  options: { cwd?: string | null } = {},
+): Promise<void> {
   const providerName = providerLabel(provider);
   state.busy = true;
   state.status = `Starting ${providerName}`;
+  state.taskDraft.settingsOpen = false;
+  state.taskDraft.settingsAnchor = null;
   render();
 
   try {
+    const launchSettings = taskLaunchSettings(provider);
     const response = await window.duetRuntime.createTask({
       provider,
+      ...(options.cwd ? { cwd: options.cwd } : {}),
+      model: launchSettings.model,
+      reasoningEffort: launchSettings.reasoningEffort,
+      speedMode: launchSettings.speedMode,
       approval: "on-request",
       sandbox: "read-only",
     });
@@ -523,13 +608,15 @@ async function createTask(provider: RuntimeProvider): Promise<void> {
   }
 }
 
-async function openTask(): Promise<void> {
+async function openTask(cwd?: string | null): Promise<void> {
   state.busy = true;
-  state.status = "Opening Task";
+  state.status = cwd ? "Opening Folder Task" : "Opening Task";
+  state.taskDraft.settingsOpen = false;
+  state.taskDraft.settingsAnchor = null;
   render();
 
   try {
-    const response = await window.duetRuntime.openTask({});
+    const response = await window.duetRuntime.openTask(cwd ? { cwd } : {});
     const existing = taskViewForId(response.task.id);
     const providerName = providerLabel(response.task.provider);
     const view = existing ?? createTaskView(response.task, `Opened ${providerName} PTY ${response.runtime.pid}`);
@@ -830,54 +917,240 @@ function renderTaskEntryPanel(): HTMLElement {
   eyebrow.className = "eyebrow";
   eyebrow.textContent = "Task Entry";
   const title = document.createElement("h2");
-  title.textContent = "Start or open a Task";
+  title.textContent = "Start a Task";
   const body = document.createElement("p");
   body.className = "task-entry-body";
-  body.textContent =
-    "One Task owns one native provider session. Choose Codex or Claude when starting; that Task stays on that provider path.";
+  body.textContent = "Provider and launch settings are locked when the Task is created.";
   copy.append(eyebrow, title, body);
+
+  const controls = document.createElement("div");
+  controls.className = "task-entry-controls";
+  controls.append(renderProviderSegment(), renderFolderPicker(), renderLaunchSettingsControl());
 
   const actions = document.createElement("div");
   actions.className = "task-entry-actions";
-  const newTask = document.createElement("button");
-  newTask.id = "entry-new-task";
-  newTask.className = "primary";
-  newTask.type = "button";
-  newTask.disabled = state.busy;
-  newTask.textContent = "New Codex Task";
-  newTask.addEventListener("click", () => {
-    void createTask("codex");
-  });
-  const newClaudeTask = document.createElement("button");
-  newClaudeTask.id = "entry-new-claude-task";
-  newClaudeTask.className = "secondary";
-  newClaudeTask.type = "button";
-  newClaudeTask.disabled = state.busy;
-  newClaudeTask.textContent = "New Claude Task";
-  newClaudeTask.addEventListener("click", () => {
-    void createTask("claude");
+  const startTask = document.createElement("button");
+  startTask.id = "entry-new-task";
+  startTask.className = "primary";
+  startTask.type = "button";
+  startTask.disabled = state.busy;
+  startTask.textContent = `Start ${providerLabel(state.taskDraft.provider)} Task`;
+  startTask.addEventListener("click", () => {
+    void createTask(state.taskDraft.provider, { cwd: state.taskDraft.cwd });
   });
   const openTaskButton = document.createElement("button");
   openTaskButton.id = "entry-open-task";
   openTaskButton.className = "secondary";
   openTaskButton.type = "button";
   openTaskButton.disabled = state.busy;
-  openTaskButton.textContent = "Open Latest Task";
+  openTaskButton.textContent = state.taskDraft.cwd ? "Open Folder Task" : "Open Latest Task";
   openTaskButton.addEventListener("click", () => {
-    void openTask();
+    void openTask(state.taskDraft.cwd);
   });
-  actions.append(newTask, newClaudeTask, openTaskButton);
+  actions.append(startTask, openTaskButton);
 
   const facts = document.createElement("div");
   facts.className = "task-entry-facts";
   facts.append(
-    taskEntryFact("Providers", "Codex PTY / Claude PTY"),
-    taskEntryFact("Reading", "Run transcript"),
-    taskEntryFact("Preview", "artifact candidates"),
+    taskEntryFact("Provider", providerLabel(state.taskDraft.provider)),
+    taskEntryFact("Model", modelSummaryLabel(state.taskDraft.provider)),
+    taskEntryFact("Folder", folderSummaryLabel()),
   );
 
-  panel.append(copy, actions, facts);
+  panel.append(copy, controls, actions, facts);
   return panel;
+}
+
+function renderProviderSegment(): HTMLElement {
+  const segment = document.createElement("div");
+  segment.className = "task-provider-segment";
+  segment.setAttribute("role", "group");
+  segment.ariaLabel = "Task provider";
+
+  for (const provider of ["codex", "claude"] as const) {
+    const button = document.createElement("button");
+    button.id = `entry-provider-${provider}`;
+    button.className = "secondary";
+    button.classList.toggle("active", provider === state.taskDraft.provider);
+    button.type = "button";
+    button.disabled = state.busy;
+    button.ariaPressed = String(provider === state.taskDraft.provider);
+    button.textContent = providerLabel(provider);
+    button.addEventListener("click", () => {
+      state.taskDraft.provider = provider;
+      render();
+    });
+    segment.append(button);
+  }
+
+  return segment;
+}
+
+function renderFolderPicker(): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "task-folder-row";
+
+  const choose = document.createElement("button");
+  choose.id = "entry-choose-folder";
+  choose.className = "secondary";
+  choose.type = "button";
+  choose.disabled = state.busy;
+  choose.textContent = state.taskDraft.cwd ? folderName(state.taskDraft.cwd) : "Choose Folder";
+  if (state.taskDraft.cwd) {
+    choose.title = state.taskDraft.cwd;
+  }
+  choose.addEventListener("click", () => {
+    void pickTaskFolder();
+  });
+  row.append(choose);
+
+  if (state.taskDraft.cwd) {
+    const clear = document.createElement("button");
+    clear.id = "entry-clear-folder";
+    clear.className = "secondary";
+    clear.type = "button";
+    clear.disabled = state.busy;
+    clear.textContent = "Default Workspace";
+    clear.addEventListener("click", () => {
+      state.taskDraft.cwd = null;
+      render();
+    });
+    row.append(clear);
+  }
+
+  return row;
+}
+
+function renderLaunchSettingsControl(): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "task-settings-wrap";
+
+  const button = document.createElement("button");
+  button.id = "entry-launch-settings";
+  button.className = "secondary task-settings-trigger";
+  button.type = "button";
+  button.disabled = state.busy;
+  button.ariaExpanded = String(state.taskDraft.settingsOpen);
+  button.textContent = `${launchSettingsSummary(state.taskDraft.provider)} v`;
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const willOpen = !state.taskDraft.settingsOpen;
+    state.taskDraft.settingsOpen = willOpen;
+    state.taskDraft.settingsAnchor = willOpen
+      ? {
+          left: rect.left,
+          top: rect.bottom + 8,
+          width: rect.width,
+        }
+      : null;
+    render();
+  });
+  wrap.append(button);
+
+  if (state.taskDraft.settingsOpen) {
+    wrap.append(renderLaunchSettingsPopover(state.taskDraft.provider));
+  }
+
+  return wrap;
+}
+
+function renderLaunchSettingsPopover(provider: RuntimeProvider): HTMLElement {
+  const popover = document.createElement("div");
+  popover.className = "task-settings-popover";
+  popover.setAttribute("role", "menu");
+  positionLaunchSettingsPopover(popover);
+  popover.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  popover.append(
+    renderSettingSection("Reasoning", REASONING_OPTIONS[provider], state.taskDraft.reasoningEffort[provider], (value) => {
+      state.taskDraft.reasoningEffort[provider] = value as ReasoningEffort | null;
+      render();
+    }),
+    renderSettingSection("Model", MODEL_OPTIONS[provider], state.taskDraft.model[provider], (value) => {
+      state.taskDraft.model[provider] = value;
+      render();
+    }),
+  );
+
+  if (provider === "codex") {
+    popover.append(
+      renderSettingSection(
+        "Speed",
+        [
+          { label: "Default", value: "default" },
+          { label: "Fast", value: "fast" },
+        ],
+        state.taskDraft.speedMode.codex,
+        (value) => {
+          state.taskDraft.speedMode.codex = value as LaunchSpeedMode;
+          render();
+        },
+      ),
+    );
+  }
+
+  return popover;
+}
+
+function positionLaunchSettingsPopover(popover: HTMLElement): void {
+  const anchor = state.taskDraft.settingsAnchor;
+  const viewportPadding = 14;
+  const width = Math.min(360, window.innerWidth - viewportPadding * 2);
+  const top = anchor?.top ?? viewportPadding;
+  const canOpenLeft = Boolean(anchor && anchor.left - width - 12 >= viewportPadding);
+  const left =
+    anchor && canOpenLeft
+      ? anchor.left - width - 12
+      : anchor
+        ? Math.min(
+            window.innerWidth - width - viewportPadding,
+            Math.max(viewportPadding, anchor.left + anchor.width - width),
+          )
+        : viewportPadding;
+
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+  popover.style.width = `${width}px`;
+  popover.style.maxHeight = `${Math.max(220, window.innerHeight - top - viewportPadding)}px`;
+}
+
+function renderSettingSection<T extends string | null>(
+  label: string,
+  options: Array<{ label: string; value: T }>,
+  selected: T,
+  onSelect: (value: T) => void,
+): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "task-setting-section";
+
+  const title = document.createElement("p");
+  title.className = "task-setting-heading";
+  title.textContent = label;
+  section.append(title);
+
+  for (const option of options) {
+    const button = document.createElement("button");
+    button.className = "task-setting-option";
+    button.classList.toggle("selected", option.value === selected);
+    button.type = "button";
+    button.setAttribute("role", "menuitemradio");
+    button.ariaChecked = String(option.value === selected);
+    button.textContent = option.label;
+    if (option.value === selected) {
+      const selectedLabel = document.createElement("span");
+      selectedLabel.textContent = "selected";
+      button.append(selectedLabel);
+    }
+    button.addEventListener("click", () => {
+      onSelect(option.value);
+    });
+    section.append(button);
+  }
+
+  return section;
 }
 
 function taskEntryFact(label: string, value: string): HTMLElement {
@@ -889,6 +1162,68 @@ function taskEntryFact(label: string, value: string): HTMLElement {
   val.textContent = value;
   fact.append(key, val);
   return fact;
+}
+
+async function pickTaskFolder(): Promise<void> {
+  state.busy = true;
+  state.status = "Choosing Task Folder";
+  state.taskDraft.settingsOpen = false;
+  state.taskDraft.settingsAnchor = null;
+  render();
+
+  try {
+    const response = await window.duetRuntime.pickFolder();
+    if (response.path) {
+      state.taskDraft.cwd = response.path;
+      state.status = `Selected ${folderName(response.path)}`;
+    }
+  } catch (error) {
+    state.status = errorMessage(error);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+function taskLaunchSettings(provider: RuntimeProvider): {
+  model: string | null;
+  reasoningEffort: ReasoningEffort | null;
+  speedMode: LaunchSpeedMode | null;
+} {
+  return {
+    model: state.taskDraft.model[provider],
+    reasoningEffort: state.taskDraft.reasoningEffort[provider],
+    speedMode: state.taskDraft.speedMode[provider],
+  };
+}
+
+function launchSettingsSummary(provider: RuntimeProvider): string {
+  const parts = [modelSummaryLabel(provider), reasoningSummaryLabel(provider)];
+  if (provider === "codex" && state.taskDraft.speedMode.codex === "fast") {
+    parts.push("Fast");
+  }
+  return parts.filter(Boolean).join(" ");
+}
+
+function modelSummaryLabel(provider: RuntimeProvider): string {
+  const value = state.taskDraft.model[provider];
+  if (provider === "codex" && value === "gpt-5.5") {
+    return "5.5";
+  }
+  return MODEL_OPTIONS[provider].find((option) => option.value === value)?.label ?? "Default";
+}
+
+function reasoningSummaryLabel(provider: RuntimeProvider): string {
+  const value = state.taskDraft.reasoningEffort[provider];
+  return REASONING_OPTIONS[provider].find((option) => option.value === value)?.label ?? "Default";
+}
+
+function folderSummaryLabel(): string {
+  return state.taskDraft.cwd ? folderName(state.taskDraft.cwd) : "Duet workspace";
+}
+
+function folderName(folderPath: string): string {
+  return folderPath.split(/[\\/]/).filter(Boolean).at(-1) ?? folderPath;
 }
 
 function renderRun(run: RuntimeRunReport, index: number): HTMLElement {

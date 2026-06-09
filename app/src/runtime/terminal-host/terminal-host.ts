@@ -9,6 +9,8 @@ import type {
   ApprovalKind,
   CompletionConfidence,
   CompletionSource,
+  LaunchSpeedMode,
+  ReasoningEffort,
   RuntimeProvider,
   RunId,
   RunKind,
@@ -100,6 +102,9 @@ export interface StartTaskOptions {
   sandbox?: "read-only" | "workspace-write";
   approval?: "never" | "on-request";
   permissionMode?: ClaudePermissionMode;
+  model?: string | null;
+  reasoningEffort?: ReasoningEffort | null;
+  speedMode?: LaunchSpeedMode | null;
   resumeLast?: boolean;
   cols?: number;
   rows?: number;
@@ -265,6 +270,9 @@ export class TerminalHost extends EventEmitter {
     this.emitEvent("task:started", {
       taskId: this.taskId,
       provider: this.profile.provider,
+      model: options.model?.trim() || null,
+      reasoningEffort: options.reasoningEffort ?? null,
+      speedMode: options.speedMode ?? null,
       command,
       args,
       cwd: redactPath(cwd),
@@ -921,12 +929,24 @@ export function codexArgs(options: {
   cwd: string;
   sandbox: "read-only" | "workspace-write";
   approval: "never" | "on-request";
+  model?: string | null | undefined;
+  reasoningEffort?: ReasoningEffort | null | undefined;
+  speedMode?: LaunchSpeedMode | null | undefined;
   resumeLast?: boolean;
 }): string[] {
   const base = options.resumeLast ? ["resume", "--last"] : [];
+  const configOverrides: string[] = [];
+  if (options.reasoningEffort) {
+    configOverrides.push("-c", `model_reasoning_effort=${tomlString(options.reasoningEffort)}`);
+  }
+  if (options.speedMode === "fast") {
+    configOverrides.push("-c", `service_tier=${tomlString("priority")}`);
+  }
   return [
     ...base,
     "--no-alt-screen",
+    ...(options.model?.trim() ? ["-m", options.model.trim()] : []),
+    ...configOverrides,
     "-C",
     options.cwd,
     "-s",
@@ -936,8 +956,17 @@ export function codexArgs(options: {
   ];
 }
 
-export function claudeArgs(options: { permissionMode?: ClaudePermissionMode }): string[] {
-  return ["--permission-mode", options.permissionMode ?? "default"];
+export function claudeArgs(options: {
+  permissionMode?: ClaudePermissionMode | undefined;
+  model?: string | null | undefined;
+  reasoningEffort?: ReasoningEffort | null | undefined;
+}): string[] {
+  return [
+    "--permission-mode",
+    options.permissionMode ?? "default",
+    ...(options.model?.trim() ? ["--model", options.model.trim()] : []),
+    ...(options.reasoningEffort ? ["--effort", options.reasoningEffort] : []),
+  ];
 }
 
 function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderProfile {
@@ -959,7 +988,11 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       ],
       idlePromptModelHints: /opus|sonnet|haiku|xhigh|high|medium|low|effort|~/i,
       buildArgs: (options) =>
-        claudeArgs(options.permissionMode ? { permissionMode: options.permissionMode } : {}),
+        claudeArgs({
+          permissionMode: options.permissionMode,
+          model: options.model,
+          reasoningEffort: options.reasoningEffort,
+        }),
       approvalHints: {
         fileEdit: CLAUDE_FILE_EDIT_APPROVAL_HINTS,
         command: CLAUDE_COMMAND_APPROVAL_HINTS,
@@ -982,6 +1015,9 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         cwd: options.cwd,
         sandbox: options.sandbox ?? "read-only",
         approval: options.approval ?? "on-request",
+        model: options.model,
+        reasoningEffort: options.reasoningEffort,
+        speedMode: options.speedMode,
         resumeLast: Boolean(options.resumeLast),
       }),
     approvalHints: {
@@ -990,6 +1026,10 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       workspaceTrust: CODEX_WORKSPACE_TRUST_APPROVAL_HINTS,
     },
   };
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
 }
 
 export function cleanTerminal(text: string): string {

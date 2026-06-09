@@ -20,7 +20,12 @@ try {
   });
   await assertEntryVisible(page);
 
-  await page.locator("#entry-new-task").click();
+  await page.locator("#entry-launch-settings").click();
+  await page.locator(".task-settings-popover", { hasText: "Reasoning" }).waitFor({
+    state: "visible",
+  });
+  await page.locator(".task-setting-section", { hasText: "Speed" }).locator("button", { hasText: "Fast" }).click();
+  await page.locator("#entry-new-task", { hasText: "Start Codex Task" }).click();
   const taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
   const workspace = path.join(workspaceRoot, taskDirectory);
   await waitForRuntimeReady(page, 240000);
@@ -34,6 +39,10 @@ try {
     throw new Error("Task manifest was not persisted after entry New Task.");
   }
   const createdManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const createdReportPath = path.join(workspace, ".duet", "runtime-report.json");
+  const createdReport = fs.existsSync(createdReportPath)
+    ? JSON.parse(fs.readFileSync(createdReportPath, "utf8"))
+    : null;
 
   await electronApp.close();
   electronApp = null;
@@ -65,8 +74,17 @@ try {
     sendDisabledBeforeTask &&
     createdManifest.schemaId === "duet.task-manifest.v1" &&
     createdManifest.task.provider === "codex" &&
+    createdManifest.task.model === "gpt-5.5" &&
+    createdManifest.task.reasoningEffort === "xhigh" &&
+    createdManifest.task.speedMode === "fast" &&
+    createdReport?.runtime?.model === "gpt-5.5" &&
+    createdReport?.runtime?.reasoningEffort === "xhigh" &&
+    createdReport?.runtime?.speedMode === "fast" &&
     reopenedManifest.task.id === createdManifest.task.id &&
     reopenedManifest.task.provider === "codex" &&
+    reopenedManifest.task.model === "gpt-5.5" &&
+    reopenedManifest.task.reasoningEffort === "xhigh" &&
+    reopenedManifest.task.speedMode === "fast" &&
     reopenedManifest.task.title === createdManifest.task.title &&
     !rawTerminalPersisted;
 
@@ -78,6 +96,9 @@ try {
         manifestPath,
         taskId: createdManifest.task.id,
         taskTitle: createdManifest.task.title,
+        model: createdManifest.task.model,
+        reasoningEffort: createdManifest.task.reasoningEffort,
+        speedMode: createdManifest.task.speedMode,
         composerDisabledBeforeTask,
         sendDisabledBeforeTask,
         reportPath,
@@ -111,26 +132,33 @@ async function launchApp() {
 }
 
 async function assertEntryVisible(page) {
-  await page.locator(".task-entry-panel", { hasText: "Start or open a Task" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "Start a Task" }).waitFor({
     state: "visible",
   });
-  await page.locator(".task-entry-panel", { hasText: "Choose Codex or Claude" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "Provider and launch settings" }).waitFor({
     state: "visible",
   });
-  await page.locator("#entry-new-task", { hasText: "New Codex Task" }).waitFor({ state: "visible" });
-  await page.locator("#entry-new-claude-task", { hasText: "New Claude Task" }).waitFor({
+  await page.locator("#entry-provider-codex", { hasText: "Codex" }).waitFor({ state: "visible" });
+  await page.locator("#entry-provider-claude", { hasText: "Claude" }).waitFor({
     state: "visible",
   });
+  await page.locator("#entry-choose-folder", { hasText: "Choose Folder" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#entry-launch-settings", { hasText: "5.5 Extra High" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#entry-new-task", { hasText: "Start Codex Task" }).waitFor({ state: "visible" });
   await page.locator("#entry-open-task", { hasText: "Open Latest Task" }).waitFor({
     state: "visible",
   });
-  await page.locator(".task-entry-fact", { hasText: "Codex PTY / Claude PTY" }).waitFor({
+  await page.locator(".task-entry-fact", { hasText: "Codex" }).waitFor({
     state: "visible",
   });
-  await page.locator(".task-entry-fact", { hasText: "Run transcript" }).waitFor({
+  await page.locator(".task-entry-fact", { hasText: "5.5" }).waitFor({
     state: "visible",
   });
-  await page.locator(".task-entry-fact", { hasText: "artifact candidates" }).waitFor({
+  await page.locator(".task-entry-fact", { hasText: "Duet workspace" }).waitFor({
     state: "visible",
   });
 }

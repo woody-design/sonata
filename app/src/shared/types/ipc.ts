@@ -1,6 +1,8 @@
 import type {
   ArtifactCandidate,
   ApprovalDecision,
+  LaunchSpeedMode,
+  ReasoningEffort,
   RuntimeProvider,
   Task,
   TaskId,
@@ -33,6 +35,7 @@ export const IPC_CHANNELS = {
   workspaceFileRead: "workspace:file:read",
   workspaceOpenExternal: "workspace:open-external",
   workspaceOpenFolder: "workspace:open-folder",
+  folderPick: "folder:pick",
   runtimeEvent: "runtime:event",
 } as const;
 
@@ -40,6 +43,9 @@ export interface CreateTaskRequest {
   title?: string;
   provider: RuntimeProvider;
   cwd?: string;
+  model?: string | null;
+  reasoningEffort?: ReasoningEffort | null;
+  speedMode?: LaunchSpeedMode | null;
   sandbox?: "read-only" | "workspace-write";
   approval?: "never" | "on-request";
   rows?: number;
@@ -209,6 +215,10 @@ export interface WorkspaceOpenExternalResponse {
   path: string;
 }
 
+export interface FolderPickResponse {
+  path: string | null;
+}
+
 export interface DuetRuntimeBridge {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
   openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
@@ -233,6 +243,7 @@ export interface DuetRuntimeBridge {
   readWorkspaceFile(request: WorkspaceFileReadRequest): Promise<WorkspaceFilePreviewResponse>;
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
+  pickFolder(): Promise<FolderPickResponse>;
   onInspectorState(callback: (state: InspectorWindowState) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;
 }

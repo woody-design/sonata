@@ -59,6 +59,9 @@ export class RunIndex {
       case "task:started":
         this.report.runtime = {
           provider: event.payload.provider,
+          model: event.payload.model,
+          reasoningEffort: event.payload.reasoningEffort,
+          speedMode: event.payload.speedMode,
           command: event.payload.command,
           args: event.payload.args,
           cwd: event.payload.cwd,

@@ -1,8 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, screen, shell, type Rectangle } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  screen,
+  shell,
+  type OpenDialogOptions,
+  type Rectangle,
+} from "electron";
 import {
   IPC_CHANNELS,
+  type FolderPickResponse,
   type FocusArtifactInMainRequest,
   type InspectorWindowState,
   type MarkPreviewReviewedRequest,
@@ -399,6 +408,18 @@ async function openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise
   });
 }
 
+async function pickFolder(): Promise<FolderPickResponse> {
+  const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+  const options: OpenDialogOptions = {
+    title: "Choose Task Folder",
+    properties: ["openDirectory", "createDirectory"],
+  };
+  const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+  return {
+    path: result.canceled ? null : result.filePaths[0] ?? null,
+  };
+}
+
 async function openFolderTarget(targetPath: string, revealTarget: boolean): Promise<void> {
   if (revealTarget && fs.statSync(targetPath).isFile()) {
     shell.showItemInFolder(targetPath);
@@ -471,6 +492,7 @@ app.whenReady().then(() => {
     readInspectorState,
     openWorkspaceExternal,
     openWorkspaceFolder,
+    pickFolder,
     closeTaskSurfaces,
   });
   mainWindow = createMainWindow();

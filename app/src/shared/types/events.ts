@@ -4,6 +4,8 @@ import type {
   ChangeKind,
   CompletionConfidence,
   CompletionSource,
+  LaunchSpeedMode,
+  ReasoningEffort,
   RunId,
   RunKind,
   RunStatus,
@@ -41,6 +43,9 @@ export type TaskStartedEvent = BaseRuntimeEvent<
   {
     taskId: TaskId;
     provider: RuntimeProvider;
+    model: string | null;
+    reasoningEffort: ReasoningEffort | null;
+    speedMode: LaunchSpeedMode | null;
     command: string;
     args: string[];
     cwd: string;

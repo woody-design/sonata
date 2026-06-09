@@ -466,9 +466,9 @@ h2 {
 
 .task-entry-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   gap: 18px;
-  max-width: 760px;
+  max-width: 860px;
   padding: 18px;
 }
 
@@ -488,10 +488,104 @@ h2 {
   line-height: 1.5;
 }
 
+.task-entry-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-provider-segment,
+.task-folder-row,
 .task-entry-actions {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 8px;
+}
+
+.task-provider-segment button {
+  flex: 1;
+}
+
+.task-folder-row button,
+.task-entry-actions button {
+  min-width: 0;
+}
+
+.task-folder-row button:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-entry-actions {
+  grid-column: 2 / 3;
+}
+
+.task-entry-actions .primary {
+  flex: 1;
+}
+
+.task-settings-wrap {
+  position: relative;
+}
+
+.task-settings-trigger {
+  width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-settings-popover {
+  position: fixed;
+  z-index: 20;
+  display: grid;
+  overflow-y: auto;
+  border: 1px solid #4a4741;
+  border-radius: 8px;
+  padding: 12px;
+  background: #2b2a27;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 22%);
+}
+
+.task-setting-section + .task-setting-section {
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  margin-top: 9px;
+  padding-top: 9px;
+}
+
+.task-setting-heading {
+  margin: 0 0 5px;
+  color: #aaa49a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.task-setting-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 9px;
+  color: #f7f3ea;
+  background: transparent;
+  text-align: left;
+}
+
+.task-setting-option:hover,
+.task-setting-option.selected {
+  background: rgb(255 255 255 / 9%);
+}
+
+.task-setting-option span {
+  flex: 0 0 auto;
+  margin-left: 12px;
+  color: #aaa49a;
+  font-size: 11px;
 }
 
 .task-entry-facts {
@@ -1706,6 +1800,7 @@ textarea {
   }
 
   .task-entry-actions {
+    grid-column: 1 / -1;
     flex-wrap: wrap;
   }
 
