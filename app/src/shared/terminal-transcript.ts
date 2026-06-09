@@ -33,7 +33,7 @@ const CHROME_LINE_PATTERNS = [
 
 export function cleanTerminalTranscript(data: string, provider?: RuntimeProvider): string {
   const lines = data
-    .replace(ANSI_RE, "\n")
+    .replace(ANSI_RE, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     .replace(CONTROL_RE, "")

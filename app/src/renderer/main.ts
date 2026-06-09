@@ -17,6 +17,7 @@ import { cleanTerminalTranscript } from "../shared/terminal-transcript";
 
 interface RunTranscript {
   runId: string;
+  rawText: string;
   text: string;
   truncated: boolean;
   receivedChars: number;
@@ -232,6 +233,7 @@ fitTerminal();
 const pendingReadyTaskIds = new Set<string>();
 let transcriptRenderTimer: number | null = null;
 const MAX_TRANSCRIPT_CHARS = 120_000;
+const MAX_TRANSCRIPT_RAW_CHARS = 260_000;
 const MAX_TERMINAL_BUFFER_CHARS = 80_000;
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: string | null }>> = {
@@ -1684,16 +1686,19 @@ function appendLiveTranscript(view: TaskViewState, data: string): void {
     return;
   }
 
-  const text = cleanTerminalTranscript(data, view.task?.provider);
-  if (!text.trim()) {
+  const transcript = ensureRunTranscript(view, view.liveTranscriptRunId);
+  transcript.receivedChars += data.length;
+  const nextRawText = `${transcript.rawText}${data}`;
+  transcript.truncated = transcript.truncated || nextRawText.length > MAX_TRANSCRIPT_RAW_CHARS;
+  transcript.rawText = nextRawText.slice(-MAX_TRANSCRIPT_RAW_CHARS);
+
+  const text = cleanTerminalTranscript(transcript.rawText, view.task?.provider);
+  transcript.truncated = transcript.truncated || text.length > MAX_TRANSCRIPT_CHARS;
+  transcript.text = text.slice(-MAX_TRANSCRIPT_CHARS);
+
+  if (!transcript.text.trim()) {
     return;
   }
-
-  const transcript = ensureRunTranscript(view, view.liveTranscriptRunId);
-  transcript.receivedChars += text.length;
-  const nextText = joinTranscriptText(transcript.text, text);
-  transcript.truncated = transcript.truncated || nextText.length > MAX_TRANSCRIPT_CHARS;
-  transcript.text = nextText.slice(-MAX_TRANSCRIPT_CHARS);
   scheduleTranscriptRender();
 }
 
@@ -1702,6 +1707,7 @@ function ensureRunTranscript(view: TaskViewState, runId: string): RunTranscript 
   if (!transcript) {
     transcript = {
       runId,
+      rawText: "",
       text: "",
       truncated: false,
       receivedChars: 0,
@@ -1723,13 +1729,6 @@ function scheduleTranscriptRender(): void {
     transcriptRenderTimer = null;
     render();
   }, 160);
-}
-
-function joinTranscriptText(current: string, next: string): string {
-  if (!current || current.endsWith("\n") || next.startsWith("\n")) {
-    return `${current}${next}`;
-  }
-  return `${current}\n${next}`;
 }
 
 async function openArtifact(relativePath: string): Promise<void> {
