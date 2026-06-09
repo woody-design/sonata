@@ -38,6 +38,7 @@ interface RuntimeControllerOptions {
 
 interface ActiveTaskRuntime {
   task: Task;
+  storageRoot: string;
   terminalHost: TerminalHost;
   runIndex: RunIndex;
   reportPath: string;
@@ -58,12 +59,10 @@ export class RuntimeController {
 
     const now = new Date().toISOString();
     const taskId = this.nextTaskId();
-    const cwd = path.resolve(request.cwd ?? this.defaultWorkspacePath(taskId));
-    if (request.cwd && fs.existsSync(taskManifestPath(cwd))) {
-      throw new Error("Selected folder already contains a Duet Task. Open it instead.");
-    }
-    const reportPath = path.join(cwd, ".duet", "runtime-report.json");
-    fs.mkdirSync(duetDirectory(cwd), { recursive: true });
+    const storageRoot = this.defaultWorkspacePath(taskId);
+    const providerCwd = path.resolve(request.cwd ?? storageRoot);
+    const reportPath = runtimeReportPath(storageRoot);
+    fs.mkdirSync(duetDirectory(storageRoot), { recursive: true });
     const launchSettings = normalizeLaunchSettings(request.provider, request);
 
     const task: Task = {
@@ -75,8 +74,8 @@ export class RuntimeController {
       speedMode: launchSettings.speedMode,
       runtimeSessionId: `runtime-${taskId}`,
       providerSessionRef: null,
-      providerCwd: cwd,
-      workingDirectory: cwd,
+      providerCwd,
+      workingDirectory: providerCwd,
       status: "starting",
       createdAt: now,
       updatedAt: now,
@@ -86,12 +85,12 @@ export class RuntimeController {
     const terminalHost = new TerminalHost({
       taskId,
       provider: request.provider,
-      defaultWorkspace: cwd,
+      defaultWorkspace: providerCwd,
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
     });
 
     const startOptions = {
-      cwd,
+      cwd: providerCwd,
       sandbox: request.sandbox ?? "read-only",
       approval: request.approval ?? "on-request",
       model: launchSettings.model,
@@ -112,13 +111,14 @@ export class RuntimeController {
     };
     const activeTask: ActiveTaskRuntime = {
       task: runningTask,
+      storageRoot,
       terminalHost,
       runIndex,
       reportPath,
       runtime,
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
-    this.persistTaskManifest(activeTask.task);
+    this.persistTaskManifest(activeTask.task, activeTask.storageRoot);
 
     return {
       task: activeTask.task,
@@ -127,8 +127,8 @@ export class RuntimeController {
   }
 
   openTask(request: OpenTaskRequest): CreateTaskResponse {
-    const cwd = this.resolveOpenTaskWorkspace(request);
-    const manifest = this.readTaskManifest(cwd);
+    const storageRoot = this.resolveOpenTaskStorageRoot(request);
+    const manifest = this.readTaskManifest(storageRoot);
     if (request.taskId && manifest.task.id !== request.taskId) {
       throw new Error("Task manifest does not match the requested taskId.");
     }
@@ -141,16 +141,15 @@ export class RuntimeController {
       };
     }
 
-    const task = normalizeTaskForWorkspace(manifest.task, cwd);
+    const providerCwd = taskProviderCwd(manifest.task, storageRoot);
+    const task = normalizeTaskForProviderCwd(manifest.task, providerCwd);
     const runningTask = {
       ...manifest.task,
       ...task,
-      workingDirectory: cwd,
-      providerCwd: cwd,
       status: "running" as const,
       updatedAt: new Date().toISOString(),
     };
-    const reportPath = path.join(cwd, ".duet", "runtime-report.json");
+    const reportPath = runtimeReportPath(storageRoot);
     const runIndex = new RunIndex({
       taskId: runningTask.id,
       reportPath,
@@ -159,12 +158,12 @@ export class RuntimeController {
     const terminalHost = new TerminalHost({
       taskId: runningTask.id,
       provider: runningTask.provider,
-      defaultWorkspace: cwd,
+      defaultWorkspace: providerCwd,
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
     });
 
     const runtime = terminalHost.startTask({
-      cwd,
+      cwd: providerCwd,
       sandbox: request.sandbox ?? "read-only",
       approval: request.approval ?? "on-request",
       model: runningTask.model,
@@ -177,13 +176,14 @@ export class RuntimeController {
 
     const activeTask = {
       task: runningTask,
+      storageRoot,
       terminalHost,
       runIndex,
       reportPath,
       runtime,
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
-    this.persistTaskManifest(runningTask);
+    this.persistTaskManifest(runningTask, storageRoot);
 
     this.emitReportUpdated(runIndex);
 
@@ -299,7 +299,7 @@ export class RuntimeController {
       title: nextTitle,
       updatedAt: new Date().toISOString(),
     };
-    this.persistTaskManifest(active.task);
+    this.persistTaskManifest(active.task, active.storageRoot);
   }
 
   private emitReportUpdated(runIndex: RunIndex): void {
@@ -350,7 +350,7 @@ export class RuntimeController {
       ...active.task,
       status: "idle",
       updatedAt: new Date().toISOString(),
-    });
+    }, active.storageRoot);
     active.terminalHost.dispose();
   }
 
@@ -359,43 +359,87 @@ export class RuntimeController {
   }
 
   private defaultWorkspacePath(taskId: TaskId): string {
-    const projectRoot = process.env.DUET_PROJECTS_DIR || path.join(app.getPath("documents"), "Duet Projects");
-    return path.join(projectRoot, taskId);
+    return path.join(this.taskStorageRoot(), taskId);
   }
 
-  private resolveOpenTaskWorkspace(request: OpenTaskRequest): string {
-    if (request.cwd) {
-      return path.resolve(request.cwd);
-    }
+  private taskStorageRoot(): string {
+    return process.env.DUET_PROJECTS_DIR || path.join(app.getPath("documents"), "Duet Projects");
+  }
+
+  private resolveOpenTaskStorageRoot(request: OpenTaskRequest): string {
     if (request.taskId) {
       const candidate = this.defaultWorkspacePath(request.taskId);
       if (fs.existsSync(taskManifestPath(candidate))) {
         return candidate;
       }
     }
-    return this.latestTaskWorkspace();
+    if (request.cwd) {
+      const cwd = path.resolve(request.cwd);
+      const matchingTaskStorageRoot = this.findLatestTaskStorageRootForProviderCwd(cwd);
+      if (matchingTaskStorageRoot) {
+        return matchingTaskStorageRoot;
+      }
+      if (fs.existsSync(taskManifestPath(cwd))) {
+        return cwd;
+      }
+      throw new Error("No persisted Duet Task was found for the selected folder.");
+    }
+    return this.latestTaskStorageRoot();
   }
 
-  private latestTaskWorkspace(): string {
-    const projectRoot = process.env.DUET_PROJECTS_DIR || path.join(app.getPath("documents"), "Duet Projects");
-    const entries = fs.existsSync(projectRoot)
-      ? fs.readdirSync(projectRoot, { withFileTypes: true })
-      : [];
-    const candidates = entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(projectRoot, entry.name))
-      .filter((workspace) => fs.existsSync(taskManifestPath(workspace)))
-      .map((workspace) => ({
-        workspace,
-        mtimeMs: fs.statSync(taskManifestPath(workspace)).mtimeMs,
-      }))
+  private latestTaskStorageRoot(): string {
+    const candidates = this.taskManifestCandidates()
       .sort((a, b) => b.mtimeMs - a.mtimeMs);
 
-    const latest = candidates[0]?.workspace;
+    const latest = candidates[0]?.storageRoot;
     if (!latest) {
       throw new Error("No persisted Duet Task was found.");
     }
     return latest;
+  }
+
+  private findLatestTaskStorageRootForProviderCwd(cwd: string): string | null {
+    const candidates = this.taskManifestCandidates()
+      .filter((candidate) => {
+        const providerCwd = taskProviderCwd(candidate.manifest.task, candidate.storageRoot);
+        return pathsEqual(providerCwd, cwd);
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    const latest = candidates[0]?.storageRoot;
+    return latest ?? null;
+  }
+
+  private taskManifestCandidates(): Array<{
+    storageRoot: string;
+    manifest: TaskManifestV1;
+    mtimeMs: number;
+  }> {
+    const projectRoot = this.taskStorageRoot();
+    const entries = fs.existsSync(projectRoot)
+      ? fs.readdirSync(projectRoot, { withFileTypes: true })
+      : [];
+    const candidates: Array<{ storageRoot: string; manifest: TaskManifestV1; mtimeMs: number }> = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const storageRoot = path.join(projectRoot, entry.name);
+      const manifestPath = taskManifestPath(storageRoot);
+      if (!fs.existsSync(manifestPath)) {
+        continue;
+      }
+      try {
+        candidates.push({
+          storageRoot,
+          manifest: this.readTaskManifest(storageRoot),
+          mtimeMs: fs.statSync(manifestPath).mtimeMs,
+        });
+      } catch {
+        // Ignore unsupported records while scanning for open candidates.
+      }
+    }
+    return candidates;
   }
 
   private readTaskManifest(cwd: string): TaskManifestV1 {
@@ -415,9 +459,9 @@ export class RuntimeController {
     return manifest;
   }
 
-  private persistTaskManifest(task: Task): void {
+  private persistTaskManifest(task: Task, storageRoot: string): void {
     const manifest = freshTaskManifestV1(task);
-    const manifestPath = taskManifestPath(task.workingDirectory);
+    const manifestPath = taskManifestPath(storageRoot);
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
     const tmpPath = `${manifestPath}.tmp`;
     fs.writeFileSync(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -433,22 +477,34 @@ function taskManifestPath(cwd: string): string {
   return path.join(duetDirectory(cwd), "task.json");
 }
 
+function runtimeReportPath(cwd: string): string {
+  return path.join(duetDirectory(cwd), "runtime-report.json");
+}
+
 function assertSupportedProvider(provider: RuntimeProvider): void {
   if (!SUPPORTED_PROVIDERS.has(provider)) {
     throw new Error(`Unsupported Task provider: ${provider}`);
   }
 }
 
-function normalizeTaskForWorkspace(task: Task, cwd: string): Task {
+function normalizeTaskForProviderCwd(task: Task, providerCwd: string): Task {
   const launchSettings = normalizeLaunchSettings(task.provider, task);
   return {
     ...task,
     model: launchSettings.model,
     reasoningEffort: launchSettings.reasoningEffort,
     speedMode: launchSettings.speedMode,
-    providerCwd: cwd,
-    workingDirectory: cwd,
+    providerCwd,
+    workingDirectory: providerCwd,
   };
+}
+
+function taskProviderCwd(task: Task, storageRoot: string): string {
+  return path.resolve(task.providerCwd || task.workingDirectory || storageRoot);
+}
+
+function pathsEqual(left: string, right: string): boolean {
+  return path.resolve(left) === path.resolve(right);
 }
 
 function normalizeLaunchSettings(

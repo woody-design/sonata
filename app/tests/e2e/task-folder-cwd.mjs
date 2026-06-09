@@ -25,29 +25,33 @@ try {
     });
   }, selectedFolder);
 
-  let duplicateBlocked = false;
-  try {
-    await page.evaluate(async (cwd) => {
-      return window.duetRuntime.createTask({
-        provider: "claude",
-        cwd,
-        model: "opus",
-        reasoningEffort: "xhigh",
-        approval: "on-request",
-        sandbox: "read-only",
-      });
-    }, selectedFolder);
-  } catch {
-    duplicateBlocked = true;
-  }
+  const second = await page.evaluate(async (cwd) => {
+    return window.duetRuntime.createTask({
+      provider: "claude",
+      cwd,
+      model: "opus",
+      reasoningEffort: "xhigh",
+      approval: "on-request",
+      sandbox: "read-only",
+    });
+  }, selectedFolder);
 
-  const manifestPath = path.join(selectedFolder, ".duet", "task.json");
-  const reportPath = path.join(selectedFolder, ".duet", "runtime-report.json");
+  const opened = await page.evaluate(async (cwd) => {
+    return window.duetRuntime.openTask({ cwd });
+  }, selectedFolder);
+
+  const firstStorageRoot = path.join(workspaceRoot, created.task.id);
+  const secondStorageRoot = path.join(workspaceRoot, second.task.id);
+  const manifestPath = path.join(firstStorageRoot, ".duet", "task.json");
+  const secondManifestPath = path.join(secondStorageRoot, ".duet", "task.json");
+  const reportPath = path.join(firstStorageRoot, ".duet", "runtime-report.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const secondManifest = JSON.parse(fs.readFileSync(secondManifestPath, "utf8"));
   const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
   const defaultRootEntries = fs.existsSync(workspaceRoot)
     ? fs.readdirSync(workspaceRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory())
     : [];
+  const selectedFolderManifestExists = fs.existsSync(path.join(selectedFolder, ".duet", "task.json"));
   const reportText = JSON.stringify(report);
   const rawTerminalPersisted =
     reportText.includes("pty:data") ||
@@ -60,13 +64,21 @@ try {
     manifest.task.id === created.task.id &&
     manifest.task.provider === "codex" &&
     manifest.task.workingDirectory === selectedFolder &&
+    manifest.task.providerCwd === selectedFolder &&
     manifest.task.model === "gpt-5.5" &&
     manifest.task.reasoningEffort === "xhigh" &&
     manifest.task.speedMode === "default" &&
+    second.task.workingDirectory === selectedFolder &&
+    second.runtime.cwd === selectedFolder &&
+    secondManifest.task.id === second.task.id &&
+    secondManifest.task.provider === "claude" &&
+    secondManifest.task.workingDirectory === selectedFolder &&
+    secondManifest.task.providerCwd === selectedFolder &&
+    opened.task.id === second.task.id &&
     report.runtime?.provider === "codex" &&
     report.runtime?.cwd === selectedFolder.replace(os.homedir(), "~") &&
-    duplicateBlocked &&
-    defaultRootEntries.length === 0 &&
+    !selectedFolderManifestExists &&
+    defaultRootEntries.length === 2 &&
     !rawTerminalPersisted;
 
   console.log(
@@ -79,7 +91,9 @@ try {
         model: manifest.task.model,
         reasoningEffort: manifest.task.reasoningEffort,
         speedMode: manifest.task.speedMode,
-        duplicateBlocked,
+        secondTaskId: secondManifest.task.id,
+        openedTaskId: opened.task.id,
+        selectedFolderManifestExists,
         defaultRootEntries: defaultRootEntries.map((entry) => entry.name),
         rawTerminalPersisted,
         success,

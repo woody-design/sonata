@@ -299,6 +299,10 @@ elements.composer.addEventListener("submit", (event) => {
   void submitPrompt();
 });
 
+elements.promptInput.addEventListener("input", () => {
+  render();
+});
+
 elements.stopRun.addEventListener("click", () => {
   void stopRun();
 });
@@ -672,6 +676,8 @@ async function submitPrompt(): Promise<void> {
 
   const text = elements.promptInput.value.trim();
   if (!text) {
+    view.status = "Type a prompt before starting a Run";
+    render();
     return;
   }
 
@@ -776,7 +782,13 @@ function render(): void {
   elements.newClaudeTask.disabled = state.busy;
   const activeRun = hasActiveRun(view);
   const pendingApproval = Boolean(view?.pendingApproval);
-  elements.sendPrompt.disabled = !view?.task || state.busy || !view.runtimeReady || pendingApproval || activeRun;
+  const promptHasText = elements.promptInput.value.trim().length > 0;
+  elements.sendPrompt.disabled =
+    !view?.task || state.busy || !view.runtimeReady || pendingApproval || activeRun || !promptHasText;
+  elements.sendPrompt.title =
+    view?.task && !promptHasText && !activeRun && !pendingApproval
+      ? "Type a prompt before starting a Run."
+      : "";
   elements.stopRun.disabled = !view?.task || state.busy || !activeRun;
   elements.promptInput.disabled = !view?.task || pendingApproval;
   elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
@@ -2278,5 +2290,6 @@ function getElement<T extends HTMLElement>(id: string): T {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/, "");
 }
