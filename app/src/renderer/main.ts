@@ -7,6 +7,8 @@ import "./styles.css";
 import type {
   ApprovalDecision,
   ArtifactCandidate,
+  DeliveryQueueItem,
+  DeliveryTaskState,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
@@ -45,6 +47,7 @@ interface TaskViewState {
   terminalBuffer: string;
   runtimeReady: boolean;
   composerObserved: boolean;
+  deliveryState: DeliveryTaskState | null;
   status: string;
   unread: boolean;
 }
@@ -189,19 +192,20 @@ appElement.innerHTML = `
           <div id="terminal"></div>
         </section>
 
+        <section id="delivery-queue" class="delivery-queue hidden" aria-label="Queued messages"></section>
+
         <form id="composer" class="composer">
-          <textarea id="prompt-input" rows="4" placeholder="Send a prompt to the active provider"></textarea>
+          <textarea id="prompt-input" rows="4" placeholder="Start or open a Task"></textarea>
           <div class="composer-control-row">
             <div class="composer-control-left">
               <span id="permission-chip" class="composer-chip hidden"></span>
             </div>
             <div class="composer-actions">
               <span id="model-chip" class="composer-chip hidden"></span>
-              <button id="stop-run" class="secondary" type="button" disabled>Stop</button>
               <button
                 id="send-prompt"
                 class="primary send-button"
-                type="submit"
+                type="button"
                 disabled
                 aria-label="Send prompt"
               >↑</button>
@@ -237,11 +241,11 @@ const elements = {
   artifactStrip: getElement<HTMLElement>("artifact-strip"),
   artifactList: getElement<HTMLDivElement>("artifact-list"),
   openSelectedPreview: getElement<HTMLButtonElement>("open-selected-preview"),
+  deliveryQueue: getElement<HTMLElement>("delivery-queue"),
   composer: getElement<HTMLFormElement>("composer"),
   promptInput: getElement<HTMLTextAreaElement>("prompt-input"),
   permissionChip: getElement<HTMLSpanElement>("permission-chip"),
   modelChip: getElement<HTMLSpanElement>("model-chip"),
-  stopRun: getElement<HTMLButtonElement>("stop-run"),
   sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
   terminalDrawer: getElement<HTMLElement>("terminal-drawer"),
   closeTerminal: getElement<HTMLButtonElement>("close-terminal"),
@@ -340,18 +344,28 @@ elements.promptInput.addEventListener("input", () => {
 });
 
 elements.promptInput.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && elements.promptInput.value.trim().length === 0 && hasActiveRun()) {
+    event.preventDefault();
+    void stopRun();
+    return;
+  }
+
   if (event.key !== "Enter" || event.shiftKey) {
     return;
   }
-  if (elements.sendPrompt.disabled) {
+  if (elements.promptInput.value.trim().length === 0) {
     return;
   }
   event.preventDefault();
   elements.composer.requestSubmit();
 });
 
-elements.stopRun.addEventListener("click", () => {
-  void stopRun();
+elements.sendPrompt.addEventListener("click", () => {
+  if (hasActiveRun()) {
+    void stopRun();
+    return;
+  }
+  void submitPrompt();
 });
 
 elements.runList.addEventListener("click", (event) => {
@@ -453,6 +467,19 @@ window.duetRuntime.onRuntimeEvent((event) => {
     return;
   }
 
+  if (event.type === "delivery:state") {
+    view.deliveryState = event.payload;
+    view.status = deliveryStatusLabel(view, event.payload);
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "delivery:receipt") {
+    view.status = event.payload.receipt.backfilled ? "Receipt backfilled" : "Delivered";
+    markViewChanged(view);
+    return;
+  }
+
   if (event.type === "task:ready") {
     view.runtimeReady = true;
     view.composerObserved = true;
@@ -526,6 +553,7 @@ function createTaskView(task: Task, status: string): TaskViewState {
     terminalBuffer: "",
     runtimeReady: false,
     composerObserved: false,
+    deliveryState: null,
     status,
     unread: false,
   };
@@ -820,23 +848,20 @@ async function submitPrompt(): Promise<void> {
 
   const text = elements.promptInput.value.trim();
   if (!text) {
-    view.status = "Type a prompt before starting a Run";
+    view.status = "Type a message before sending";
     render();
     return;
   }
 
-  state.busy = true;
-  view.status = "Submitted";
+  view.status = "Queued";
   render();
 
   try {
-    view.runtimeReady = false;
     await window.duetRuntime.submitPrompt({ taskId: view.task.id, text });
     elements.promptInput.value = "";
   } catch (error) {
     view.status = errorMessage(error);
   } finally {
-    state.busy = false;
     render();
   }
 }
@@ -865,15 +890,13 @@ async function stopRun(): Promise<void> {
     return;
   }
 
-  state.busy = true;
-  view.status = "Stopping";
+  view.status = "Stopped";
   render();
   try {
     await window.duetRuntime.stopRun({ taskId: view.task.id, inspectDelayMs: 6000 });
   } catch (error) {
     view.status = errorMessage(error);
   } finally {
-    state.busy = false;
     render();
   }
 }
@@ -932,20 +955,20 @@ function render(): void {
   renderRuns();
   renderArtifacts();
   renderTerminalDrawer();
+  renderDeliveryQueue();
 }
 
 function renderComposerControls(view = activeTaskView()): void {
-  const activeRun = hasActiveRun(view);
+  const activeRun = hasActiveRun(view) || Boolean(view?.deliveryState?.activeRun);
   const pendingApproval = Boolean(view?.pendingApproval);
   const promptHasText = elements.promptInput.value.trim().length > 0;
   renderComposerChip(elements.permissionChip, sessionPermissionLabel(view?.task ?? null));
   renderComposerChip(elements.modelChip, sessionModelSummaryLabel(view?.task ?? null));
-  elements.sendPrompt.disabled =
-    !view?.task || state.busy || !view.runtimeReady || pendingApproval || activeRun || !promptHasText;
+  elements.sendPrompt.disabled = !view?.task || (!activeRun && !promptHasText);
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText);
-  elements.sendPrompt.textContent = "↑";
-  elements.stopRun.disabled = !view?.task || state.busy || !activeRun;
-  elements.promptInput.disabled = !view?.task || pendingApproval;
+  elements.sendPrompt.textContent = activeRun ? "■" : "↑";
+  elements.sendPrompt.classList.toggle("stop-mode", activeRun);
+  elements.promptInput.disabled = !view?.task;
   elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
 }
@@ -1003,19 +1026,23 @@ function sendPromptTitle(
   if (!view?.task) {
     return "";
   }
-  if (pendingApproval) {
-    return "Resolve the pending approval before continuing.";
-  }
+  const providerName = providerLabel(view.task.provider);
   if (activeRun) {
-    return "Wait for the active Run to finish.";
-  }
-  if (!view.runtimeReady) {
-    return "Wait for the provider session to become ready.";
+    return `Stop ${providerName}`;
   }
   if (!promptHasText) {
-    return "Type a prompt before starting a Run.";
+    return "Type a message before sending.";
   }
-  return "";
+  if (pendingApproval) {
+    return `Queued — delivers after ${providerName} approval is resolved.`;
+  }
+  if (!view.runtimeReady) {
+    return `${providerName} is starting — your message will send when it's ready.`;
+  }
+  if (view.deliveryState && !view.deliveryState.deliverable) {
+    return `Queued — delivers when ${providerName} is ready.`;
+  }
+  return `Send to ${providerName}`;
 }
 
 function isActiveRunStatus(status: string): boolean {
@@ -1088,6 +1115,29 @@ function workflowState(): WorkflowState {
     pluralize(artifactCount, "artifact"),
     "Terminal available",
   ];
+  const deliveryItems = view.deliveryState?.queue ?? [];
+  const firstDeliveryItem = deliveryItems[0] ?? null;
+
+  if (firstDeliveryItem?.status === "undelivered") {
+    return {
+      headline: "Message needs attention",
+      facts: [`No ${providerName} receipt`, ...baseFacts],
+    };
+  }
+
+  if (firstDeliveryItem?.status === "delivering") {
+    return {
+      headline: `Delivering to ${providerName}`,
+      facts: ["Waiting for receipt", ...baseFacts],
+    };
+  }
+
+  if (deliveryItems.some((item) => item.status === "queued")) {
+    return {
+      headline: `Queued for ${providerName}`,
+      facts: [`${deliveryItems.length} waiting`, ...baseFacts],
+    };
+  }
 
   if (view.pendingApproval) {
     return {
@@ -1967,6 +2017,150 @@ function renderTerminalDrawer(): void {
   elements.toggleTerminal.classList.toggle("active", state.terminalOpen);
 }
 
+function renderDeliveryQueue(): void {
+  elements.deliveryQueue.replaceChildren();
+  const view = activeTaskView();
+  const items = view?.deliveryState?.queue ?? [];
+  const visibleItems = items.filter((item) => item.status !== "delivered");
+  elements.deliveryQueue.classList.toggle("hidden", visibleItems.length === 0);
+  if (!view?.task || visibleItems.length === 0) {
+    return;
+  }
+
+  for (const item of visibleItems) {
+    elements.deliveryQueue.append(renderDeliveryItem(view, item));
+  }
+}
+
+function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLElement {
+  const providerName = providerLabel(view.task?.provider ?? "codex");
+  const row = document.createElement("article");
+  row.className = `delivery-item ${item.status}`;
+  row.dataset.deliveryId = item.id;
+
+  const copy = document.createElement("div");
+  copy.className = "delivery-copy";
+  const status = document.createElement("strong");
+  status.textContent = deliveryItemStatusLabel(providerName, item);
+  const text = document.createElement("p");
+  text.textContent = item.text;
+  copy.append(status, text);
+  if (item.failureReason) {
+    const reason = document.createElement("span");
+    reason.className = "delivery-reason";
+    reason.textContent = item.failureReason;
+    copy.append(reason);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "delivery-actions";
+  if (item.status === "queued") {
+    actions.append(
+      deliveryAction("Edit", () => {
+        void editQueuedPrompt(item);
+      }),
+      deliveryAction("Cancel", () => {
+        void cancelQueuedPrompt(item.id);
+      }),
+    );
+  } else if (item.status === "undelivered") {
+    actions.append(
+      deliveryAction("Retry", () => {
+        void retryQueuedPrompt(item.id);
+      }),
+      deliveryAction("Edit", () => {
+        void editQueuedPrompt(item);
+      }),
+      deliveryAction("Terminal", () => {
+        setTerminalOpen(true);
+      }),
+    );
+  } else {
+    const waiting = document.createElement("span");
+    waiting.textContent = "Waiting for receipt";
+    actions.append(waiting);
+  }
+
+  row.append(copy, actions);
+  return row;
+}
+
+function deliveryAction(label: string, onClick: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "secondary compact-action";
+  button.type = "button";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+async function editQueuedPrompt(item: DeliveryQueueItem): Promise<void> {
+  elements.promptInput.value = item.text;
+  await cancelQueuedPrompt(item.id);
+  focusComposer();
+  render();
+}
+
+async function cancelQueuedPrompt(itemId: string): Promise<void> {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  try {
+    await window.duetRuntime.cancelQueuedPrompt({ taskId: view.task.id, itemId });
+  } catch (error) {
+    view.status = errorMessage(error);
+    render();
+  }
+}
+
+async function retryQueuedPrompt(itemId: string): Promise<void> {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  try {
+    await window.duetRuntime.retryQueuedPrompt({ taskId: view.task.id, itemId });
+  } catch (error) {
+    view.status = errorMessage(error);
+    render();
+  }
+}
+
+function deliveryItemStatusLabel(providerName: string, item: DeliveryQueueItem): string {
+  if (item.status === "delivering") {
+    return `Delivering to ${providerName}`;
+  }
+  if (item.status === "undelivered") {
+    return `Undelivered — no ${providerName} receipt`;
+  }
+  return `Queued — delivers when ${providerName} is ready`;
+}
+
+function deliveryStatusLabel(view: TaskViewState, deliveryState: DeliveryTaskState): string {
+  const providerName = providerLabel(deliveryState.provider);
+  const first = deliveryState.queue[0] ?? null;
+  if (first?.status === "delivering") {
+    return `Delivering to ${providerName}`;
+  }
+  if (first?.status === "undelivered") {
+    return "Undelivered";
+  }
+  if (deliveryState.queue.some((item) => item.status === "queued")) {
+    return "Queued";
+  }
+  if (deliveryState.approvalActive) {
+    return `Waiting for ${providerName} approval`;
+  }
+  if (deliveryState.activeRun) {
+    return `${providerName} is working`;
+  }
+  if (deliveryState.idleComposer || view.runtimeReady) {
+    return "Ready";
+  }
+  return `Starting ${providerName}`;
+}
+
 function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
   const view = taskViewForId(request.taskId);
   if (!view?.task) {
@@ -2032,29 +2226,29 @@ function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): stri
   }
   const providerName = providerLabel(view.task.provider);
   if (pendingApproval) {
-    return "Approval is waiting";
+    return `${providerName} approval is waiting — Enter queues your message`;
   }
   if (activeRun) {
-    return `${providerName} is working`;
+    return `${providerName} is working — Enter queues your message`;
+  }
+  if (!view.runtimeReady) {
+    return `${providerName} is starting — your message will send when it's ready`;
   }
   if ((view.report?.runs.length ?? 0) === 0) {
-    return "Describe the first Run";
+    return `Message ${providerName}`;
   }
   return "Continue, correct, or redirect this Task";
 }
 
 function sendButtonLabel(activeRun: boolean): string {
   if (activeRun) {
-    return "Working";
+    return "Stop";
   }
   const view = activeTaskView();
   if (!view?.task) {
     return "Send";
   }
-  if ((view.report?.runs.length ?? 0) === 0) {
-    return "Start Run";
-  }
-  return "Continue";
+  return "Send";
 }
 
 function runSectionLabel(value: string): HTMLElement {
@@ -2238,7 +2432,7 @@ function providerLabel(provider: RuntimeProvider): string {
 
 function activeProviderLabel(): string {
   const provider = activeTaskView()?.task?.provider;
-  return provider ? providerLabel(provider) : "Provider";
+  return provider ? providerLabel(provider) : "Codex";
 }
 
 function shortId(value: string): string {

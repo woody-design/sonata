@@ -1,5 +1,6 @@
 export type TaskId = string;
 export type RunId = string;
+export type DeliveryItemId = string;
 export type RuntimeSessionId = string;
 export type ProviderSessionRef = string;
 export type ArtifactId = string;
@@ -89,6 +90,40 @@ export type CompletionSource =
   | "unknown";
 
 export type CompletionConfidence = "high" | "medium" | "low";
+
+export type DeliveryItemStatus = "queued" | "delivering" | "delivered" | "undelivered";
+export type DeliveryReceiptSource = "provider-transcript" | "pty-composer-echo";
+
+export interface DeliveryReceipt {
+  source: DeliveryReceiptSource;
+  receivedAt: string;
+  runId: RunId | null;
+  sourceId: string | null;
+  blockId: string | null;
+  backfilled: boolean;
+}
+
+export interface DeliveryQueueItem {
+  id: DeliveryItemId;
+  taskId: TaskId;
+  text: string;
+  status: DeliveryItemStatus;
+  enqueuedAt: string;
+  deliveringAt: string | null;
+  runId: RunId | null;
+  receipt: DeliveryReceipt | null;
+  failureReason: string | null;
+}
+
+export interface DeliveryTaskState {
+  taskId: TaskId;
+  provider: RuntimeProvider;
+  deliverable: boolean;
+  activeRun: boolean;
+  approvalActive: boolean;
+  idleComposer: boolean;
+  queue: DeliveryQueueItem[];
+}
 
 export interface CompletionEvidence {
   source: CompletionSource;

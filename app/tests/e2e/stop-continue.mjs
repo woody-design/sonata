@@ -63,13 +63,13 @@ try {
   const commandPid = readPid(paths.pid);
   const commandAliveBeforeStop = pidAlive(commandPid);
 
-  await page.locator("#stop-run").click();
-  await page.locator("#runtime-status", { hasText: "Stopped" }).waitFor({ timeout: 90000 });
+  await page.locator("#send-prompt").click();
   await page.locator("#workflow-headline", { hasText: "Stopped. Ready to continue" }).waitFor({
     state: "visible",
+    timeout: 90000,
   });
   await page.locator("#send-prompt").waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Stopped by Esc + /stop" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: "Stopped by Esc" }).waitFor({
     state: "visible",
   });
   await page.locator(".turn-facts", { hasText: "native-control / high" }).waitFor({

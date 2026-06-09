@@ -38,6 +38,7 @@ import {
 } from "../shared/schemas";
 import {
   ArtifactPreview,
+  DeliveryController,
   ProviderTranscript,
   RunIndex,
   TerminalHost,
@@ -72,6 +73,7 @@ interface ActiveTaskRuntime {
   reportPath: string;
   runtime: ReturnType<TerminalHost["startTask"]>;
   providerTranscript: ProviderTranscript;
+  deliveryController: DeliveryController;
 }
 
 export class RuntimeController {
@@ -127,6 +129,13 @@ export class RuntimeController {
       defaultWorkspace: providerCwd,
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
     });
+    const deliveryController = new DeliveryController({
+      taskId,
+      provider: request.provider,
+      terminalHost,
+      eventSink: (event) => this.sendEvent(event),
+      hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
+    });
 
     const startOptions = {
       cwd: providerCwd,
@@ -159,6 +168,7 @@ export class RuntimeController {
       reportPath,
       runtime,
       providerTranscript,
+      deliveryController,
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
     this.persistTaskManifest(activeTask.task, activeTask.storageRoot);
@@ -218,6 +228,13 @@ export class RuntimeController {
       defaultWorkspace: providerCwd,
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
     });
+    const deliveryController = new DeliveryController({
+      taskId: runningTask.id,
+      provider: runningTask.provider,
+      terminalHost,
+      eventSink: (event) => this.sendEvent(event),
+      hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
+    });
 
     const ptyStartedAt = new Date().toISOString();
     const runtime = terminalHost.startTask({
@@ -242,6 +259,7 @@ export class RuntimeController {
       reportPath,
       runtime,
       providerTranscript,
+      deliveryController,
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
     this.persistTaskManifest(runningTask, storageRoot);
@@ -271,7 +289,17 @@ export class RuntimeController {
 
   submitPrompt(taskId: TaskId, text: string): void {
     const active = this.requireTaskRuntime(taskId);
-    active.terminalHost.submitPrompt(text);
+    active.deliveryController.enqueue(text);
+  }
+
+  cancelQueuedPrompt(taskId: TaskId, itemId: string): void {
+    const active = this.requireTaskRuntime(taskId);
+    active.deliveryController.cancel(itemId);
+  }
+
+  retryQueuedPrompt(taskId: TaskId, itemId: string): void {
+    const active = this.requireTaskRuntime(taskId);
+    active.deliveryController.retry(itemId);
   }
 
   decideApproval(taskId: TaskId, decision: ApprovalDecision): void {
@@ -343,6 +371,8 @@ export class RuntimeController {
   }
 
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
+    this.taskRuntimes.get(event.payload.taskId)?.deliveryController.handleRuntimeEvent(event);
+
     if (event.type === "run:started") {
       this.updateTaskTitleFromRun(event.payload.taskId, event.payload.title);
       this.taskRuntimes.get(event.payload.taskId)?.providerTranscript.ensureDiscovery();
@@ -361,7 +391,9 @@ export class RuntimeController {
     if (
       event.type === "pty:data" ||
       event.type === "report:updated" ||
-      event.type === "transcript:blocks"
+      event.type === "transcript:blocks" ||
+      event.type === "delivery:state" ||
+      event.type === "delivery:receipt"
     ) {
       return;
     }
@@ -439,6 +471,7 @@ export class RuntimeController {
       updatedAt: new Date().toISOString(),
     }, active.storageRoot);
     active.providerTranscript.dispose();
+    active.deliveryController.dispose();
     active.terminalHost.dispose();
   }
 

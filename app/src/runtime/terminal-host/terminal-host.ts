@@ -125,6 +125,13 @@ export interface StartedPty {
   args: string[];
 }
 
+export interface PromptSubmission {
+  taskId: TaskId;
+  runId: RunId | null;
+  kind: RunKind;
+  submittedAt: string;
+}
+
 interface SnapshotEntry {
   exists: boolean;
   type: "file" | "directory" | "other" | "missing" | "error";
@@ -213,6 +220,21 @@ export class TerminalHost extends EventEmitter {
     return this.cwd;
   }
 
+  hasActiveRun(): boolean {
+    return Boolean(this.activeRun);
+  }
+
+  isApprovalActive(): boolean {
+    return this.approvalActive;
+  }
+
+  isIdleComposerReady(): boolean {
+    if (!this.ptyProcess || this.activeRun || this.approvalActive || !this.taskReady) {
+      return false;
+    }
+    return detectIdlePrompt(this.rawTail, this.profile).ready;
+  }
+
   startTask(options: StartTaskOptions = {}): StartedPty {
     this.disposeProcess();
 
@@ -298,9 +320,9 @@ export class TerminalHost extends EventEmitter {
     this.ptyProcess.write(data);
   }
 
-  submitPrompt(text: string, options: { createRun?: boolean } = {}): void {
+  submitPrompt(text: string, options: { createRun?: boolean } = {}): PromptSubmission | null {
     if (!text.trim()) {
-      return;
+      return null;
     }
     if (!this.ptyProcess) {
       throw new Error("No PTY process is running.");
@@ -311,7 +333,9 @@ export class TerminalHost extends EventEmitter {
 
     const kind: RunKind = text.trim().startsWith("/") ? "slash" : "prompt";
     const run = options.createRun === false ? null : this.beginRun(text, kind);
+    const submittedAt = new Date().toISOString();
 
+    this.taskReady = false;
     this.approvalActive = false;
     this.lastApprovalKind = null;
     this.lastApprovalDecision = null;
@@ -329,6 +353,12 @@ export class TerminalHost extends EventEmitter {
       kind,
       chars: text.length,
     });
+    return {
+      taskId: this.taskId,
+      runId: run ? run.id : this.activeRun ? this.activeRun.id : null,
+      kind,
+      submittedAt,
+    };
   }
 
   sendApprove(): void {
@@ -364,6 +394,7 @@ export class TerminalHost extends EventEmitter {
       approvalDecision: decision,
       approvalKind: previousKind ?? "unknown",
     });
+    this.taskReady = false;
     this.approvalActive = false;
     this.lastApprovalDecision = decision;
     this.lastApprovalDecisionAt = decisionAt;
@@ -386,6 +417,7 @@ export class TerminalHost extends EventEmitter {
       approvalDecision: "deny",
       approvalKind: previousKind ?? "unknown",
     });
+    this.taskReady = false;
     this.finishActiveRun("approval-denied", "Esc denied native approval", {
       completionSource: "native-control",
       completionConfidence: "high",
@@ -397,43 +429,35 @@ export class TerminalHost extends EventEmitter {
   }
 
   async stopRun(options: { inspectDelayMs?: number; forceSlashStop?: boolean } = {}): Promise<void> {
+    const stoppedRunId = this.activeRun ? this.activeRun.id : null;
+    const stoppedCommandApprovalRun = this.activeRun?.approvalKind === "command";
     this.writeRaw(ESC);
-    this.updateActiveRun({ status: "stopping", lifecyclePhase: "stopping" });
+    this.taskReady = false;
     this.emitEvent("run:stop-requested", {
       taskId: this.taskId,
-      runId: this.activeRun ? this.activeRun.id : null,
+      runId: stoppedRunId,
       phase: "interrupt",
       encodedAs: "Esc",
     });
-
-    await delay(Number(options.inspectDelayMs) || 900);
-
-    const shouldSubmitSlashStop =
-      this.profile.supportsSlashStop &&
-      (Boolean(options.forceSlashStop) ||
-        this.hasBackgroundTerminalHint() ||
-        this.activeRun?.approvalKind === "command");
-    const approvalGuardBlockedSlashStop = shouldSubmitSlashStop && this.approvalActive;
-    if (shouldSubmitSlashStop && !approvalGuardBlockedSlashStop && this.ptyProcess) {
-      this.submitPrompt("/stop", { createRun: false });
-    }
-
-    const slashStopSent = shouldSubmitSlashStop && !approvalGuardBlockedSlashStop;
     this.emitEvent("run:stopped", {
       taskId: this.taskId,
-      runId: this.activeRun ? this.activeRun.id : null,
+      runId: stoppedRunId,
       interruptSent: true,
-      slashStopSent,
-      slashStopReason: approvalGuardBlockedSlashStop
-        ? "slash stop was not sent because a native approval screen was still active"
-        : shouldSubmitSlashStop
-          ? "background terminal hint detected, command approval was active, or forceSlashStop requested"
-          : "no background terminal hint detected in recent terminal output",
+      slashStopSent: false,
+      slashStopReason: "Esc sent immediately; /stop inspection is running in the background",
     });
-    this.finishActiveRun("stopped", slashStopSent ? "Esc + /stop" : "Esc", {
+    this.finishActiveRun("stopped", "Esc interrupt sent", {
       completionSource: "native-control",
       completionConfidence: "high",
     });
+    const inspectDelayMs = Number(options.inspectDelayMs) || 900;
+    setTimeout(
+      () => this.inspectSlashStop(stoppedRunId, {
+        ...options,
+        stoppedCommandApprovalRun,
+      }),
+      inspectDelayMs,
+    );
   }
 
   completeActiveRun(reason = "manual"): ActiveRun | null {
@@ -522,12 +546,7 @@ export class TerminalHost extends EventEmitter {
       return;
     }
 
-    this.taskReady = true;
-    this.emitEvent("task:ready", {
-      taskId: this.taskId,
-      source: "terminal-idle-composer-heuristic",
-      confidence: hint.confidence,
-    });
+    this.markTaskReady(hint.confidence);
   }
 
   private detectApproval(): void {
@@ -566,6 +585,7 @@ export class TerminalHost extends EventEmitter {
     candidate: ApprovalCandidate,
     evidence: { resurfacedAfterDecision?: boolean; decisionAgeMs?: number | null } = {},
   ): void {
+    this.taskReady = false;
     this.approvalActive = true;
     this.lastApprovalKind = candidate.kind;
     this.lastApprovalFingerprint = candidate.fingerprint;
@@ -625,6 +645,41 @@ export class TerminalHost extends EventEmitter {
   private hasBackgroundTerminalHint(): boolean {
     const recent = cleanTerminal(this.rawTail).toLowerCase();
     return BACKGROUND_TERMINAL_HINTS.some((hint) => recent.includes(hint));
+  }
+
+  private inspectSlashStop(
+    stoppedRunId: RunId | null,
+    options: { forceSlashStop?: boolean; stoppedCommandApprovalRun?: boolean },
+  ): void {
+    const shouldSubmitSlashStop =
+      this.profile.supportsSlashStop &&
+      (Boolean(options.forceSlashStop) ||
+        Boolean(options.stoppedCommandApprovalRun) ||
+        this.hasBackgroundTerminalHint());
+    const approvalGuardBlockedSlashStop = shouldSubmitSlashStop && this.approvalActive;
+    if (shouldSubmitSlashStop && !approvalGuardBlockedSlashStop && this.ptyProcess) {
+      try {
+        this.submitPrompt("/stop", { createRun: false });
+      } catch {
+        // A stopped run should not be reopened by cleanup failure.
+      }
+    }
+
+    const slashStopSent = shouldSubmitSlashStop && !approvalGuardBlockedSlashStop;
+    if (!shouldSubmitSlashStop && !approvalGuardBlockedSlashStop) {
+      return;
+    }
+    this.emitEvent("run:stopped", {
+      taskId: this.taskId,
+      runId: stoppedRunId,
+      interruptSent: true,
+      slashStopSent,
+      slashStopReason: approvalGuardBlockedSlashStop
+        ? "slash stop was not sent because a native approval screen was still active"
+        : options.stoppedCommandApprovalRun
+          ? "stopped run had an active command approval"
+          : "background terminal hint detected or forceSlashStop requested",
+    });
   }
 
   private startFileWatcher(cwd: string): void {
@@ -857,6 +912,9 @@ export class TerminalHost extends EventEmitter {
     };
     this.clearCompletionTimer();
     this.emitEvent("run:updated", finished);
+    if (metadata.completionSource === "terminal-idle-heuristic") {
+      this.markTaskReady(metadata.completionConfidence ?? "low");
+    }
     return finished;
   }
 
@@ -923,6 +981,18 @@ export class TerminalHost extends EventEmitter {
     }
     clearTimeout(this.taskReadyTimer);
     this.taskReadyTimer = null;
+  }
+
+  private markTaskReady(confidence: CompletionConfidence): void {
+    if (this.taskReady) {
+      return;
+    }
+    this.taskReady = true;
+    this.emitEvent("task:ready", {
+      taskId: this.taskId,
+      source: "terminal-idle-composer-heuristic",
+      confidence,
+    });
   }
 
   private attributionRunId(): RunId | null {
@@ -1397,8 +1467,4 @@ function redactPath(value: string): string {
 
 function removeUndefined<T extends object>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -4,7 +4,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { RunIndex, TerminalHost } = require("../../dist/runtime");
+const { DeliveryController, RunIndex, TerminalHost } = require("../../dist/runtime");
 
 const taskId = "task-submit-approval-guard-smoke";
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-submit-approval-guard-"));
@@ -45,8 +45,19 @@ const host = new TerminalHost({
       return;
     }
     events.push(event);
-    runIndex.consume(event);
+    if (event.type !== "delivery:state" && event.type !== "delivery:receipt") {
+      runIndex.consume(event);
+    }
   },
+});
+const delivery = new DeliveryController({
+  taskId,
+  provider: "codex",
+  terminalHost: host,
+  eventSink: (event) => {
+    events.push(event);
+  },
+  hasLiveTranscriptSource: () => false,
 });
 
 try {
@@ -64,6 +75,10 @@ try {
     "active approval detection",
   );
 
+  const queued = delivery.enqueue(blockedPrompt);
+  await delay(250);
+  const queuedState = delivery.state().queue.find((item) => item.id === queued.id) ?? null;
+
   let rejected = false;
   let rejectionMessage = "";
   try {
@@ -77,6 +92,7 @@ try {
   const stdinLog = fs.existsSync(inputLogPath) ? fs.readFileSync(inputLogPath, "utf8") : "";
   const report = runIndex.read();
   const success =
+    queuedState?.status === "queued" &&
     rejected &&
     rejectionMessage.includes("native approval screen") &&
     !stdinLog.includes(blockedPrompt) &&
@@ -89,6 +105,7 @@ try {
     JSON.stringify(
       {
         workspace,
+        queuedStatus: queuedState?.status ?? null,
         rejected,
         rejectionMessage,
         stdinChars: stdinLog.length,

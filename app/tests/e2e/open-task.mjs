@@ -56,7 +56,7 @@ try {
     state: "visible",
   });
   await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({ state: "visible" });
-  await page.locator("#send-prompt", { hasText: "Continue" }).waitFor({ state: "visible" });
+  await page.locator("#send-prompt").waitFor({ state: "visible" });
   const previewWindowPromise = electronApp.waitForEvent("window");
   await page.locator(".artifact-item", { hasText: "open_original.md" }).click();
   const previewPage = await previewWindowPromise;

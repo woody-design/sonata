@@ -20,6 +20,8 @@ export const IPC_CHANNELS = {
   taskClose: "task:close",
   taskList: "task:list",
   promptSubmit: "prompt:submit",
+  promptQueueCancel: "prompt-queue:cancel",
+  promptQueueRetry: "prompt-queue:retry",
   approvalDecide: "approval:decide",
   runStop: "run:stop",
   terminalResize: "terminal:resize",
@@ -89,6 +91,11 @@ export type ListTasksResponse = Task[];
 export interface SubmitPromptRequest {
   taskId: TaskId;
   text: string;
+}
+
+export interface PromptQueueItemRequest {
+  taskId: TaskId;
+  itemId: string;
 }
 
 export interface ApprovalDecisionRequest {
@@ -241,6 +248,8 @@ export interface DuetRuntimeBridge {
   closeTask(request: CloseTaskRequest): Promise<void>;
   listTasks(): Promise<ListTasksResponse>;
   submitPrompt(request: SubmitPromptRequest): Promise<void>;
+  cancelQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
+  retryQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;
   stopRun(request: StopRunRequest): Promise<void>;
   resizeTerminal(request: ResizeTerminalRequest): Promise<void>;

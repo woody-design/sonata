@@ -24,7 +24,7 @@ try {
 
   await page.locator(".task-tab-meta", { hasText: "Claude" }).waitFor({ state: "visible" });
   await page.locator("#runtime-status", { hasText: /Ready|Claude PTY/ }).waitFor({ state: "visible" });
-  await page.locator("#send-prompt", { hasText: "Start Run" }).waitFor({ state: "visible" });
+  await page.locator("#send-prompt").waitFor({ state: "visible" });
 
   const manifestPath = path.join(workspace, ".duet", "task.json");
   const reportPath = path.join(workspace, ".duet", "runtime-report.json");

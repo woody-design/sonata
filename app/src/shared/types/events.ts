@@ -6,6 +6,10 @@ import type {
   ChangeKind,
   CompletionConfidence,
   CompletionSource,
+  DeliveryItemId,
+  DeliveryQueueItem,
+  DeliveryReceipt,
+  DeliveryTaskState,
   LaunchSpeedMode,
   ReasoningEffort,
   RunId,
@@ -74,6 +78,18 @@ export type PromptSubmittedEvent = BaseRuntimeEvent<
     runId: RunId | null;
     kind: RunKind;
     chars: number;
+  }
+>;
+
+export type DeliveryStateEvent = BaseRuntimeEvent<"delivery:state", DeliveryTaskState>;
+
+export type DeliveryReceiptEvent = BaseRuntimeEvent<
+  "delivery:receipt",
+  {
+    taskId: TaskId;
+    itemId: DeliveryItemId;
+    item: DeliveryQueueItem;
+    receipt: DeliveryReceipt;
   }
 >;
 
@@ -225,6 +241,8 @@ export type ProductRuntimeEvent =
   | TaskStartedEvent
   | TaskReadyEvent
   | PromptSubmittedEvent
+  | DeliveryStateEvent
+  | DeliveryReceiptEvent
   | RunStartedEvent
   | RunUpdatedEvent
   | RunStopRequestedEvent
@@ -242,5 +260,5 @@ export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
 
 export type RunIndexEvent = Exclude<
   ProductRuntimeEvent,
-  RuntimeReportUpdatedEvent | TranscriptLocatedEvent | TranscriptBlocksEvent
+  RuntimeReportUpdatedEvent | TranscriptLocatedEvent | TranscriptBlocksEvent | DeliveryStateEvent | DeliveryReceiptEvent
 >;
