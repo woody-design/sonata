@@ -229,6 +229,7 @@ terminal.loadAddon(fitAddon);
 terminal.open(elements.terminal);
 fitTerminal();
 
+const pendingReadyTaskIds = new Set<string>();
 let transcriptRenderTimer: number | null = null;
 const MAX_TRANSCRIPT_CHARS = 120_000;
 const MAX_TERMINAL_BUFFER_CHARS = 80_000;
@@ -351,6 +352,9 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   const view = taskViewForId(event.payload.taskId);
   if (!view) {
+    if (event.type === "task:ready") {
+      pendingReadyTaskIds.add(event.payload.taskId);
+    }
     return;
   }
 
@@ -423,7 +427,7 @@ void window.duetRuntime.readPreviewState().then((previewState) => {
 render();
 
 function createTaskView(task: Task, status: string): TaskViewState {
-  return {
+  const view: TaskViewState = {
     task,
     report: null,
     artifacts: [],
@@ -438,6 +442,17 @@ function createTaskView(task: Task, status: string): TaskViewState {
     status,
     unread: false,
   };
+  applyPendingRuntimeState(view);
+  return view;
+}
+
+function applyPendingRuntimeState(view: TaskViewState): void {
+  if (!view.task || !pendingReadyTaskIds.delete(view.task.id)) {
+    return;
+  }
+  view.runtimeReady = true;
+  view.composerObserved = true;
+  view.status = hasActiveRun(view) ? view.status : "Ready";
 }
 
 function upsertTaskView(view: TaskViewState): void {
@@ -652,6 +667,7 @@ async function openTask(cwd?: string | null): Promise<void> {
     const view = existing ?? createTaskView(response.task, `Opened ${providerName} PTY ${response.runtime.pid}`);
     view.task = response.task;
     view.status = existing ? "Task already open" : `Opened ${providerName} PTY ${response.runtime.pid}`;
+    applyPendingRuntimeState(view);
     upsertTaskView(view);
     activateTask(response.task.id);
     await refreshReport(response.task.id);
@@ -785,10 +801,7 @@ function render(): void {
   const promptHasText = elements.promptInput.value.trim().length > 0;
   elements.sendPrompt.disabled =
     !view?.task || state.busy || !view.runtimeReady || pendingApproval || activeRun || !promptHasText;
-  elements.sendPrompt.title =
-    view?.task && !promptHasText && !activeRun && !pendingApproval
-      ? "Type a prompt before starting a Run."
-      : "";
+  elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText);
   elements.stopRun.disabled = !view?.task || state.busy || !activeRun;
   elements.promptInput.disabled = !view?.task || pendingApproval;
   elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
@@ -805,6 +818,30 @@ function render(): void {
 function hasActiveRun(view = activeTaskView()): boolean {
   const latestRun = view?.report?.runs.at(-1);
   return isActiveRunStatus(latestRun?.status ?? "");
+}
+
+function sendPromptTitle(
+  view: TaskViewState | null,
+  activeRun: boolean,
+  pendingApproval: boolean,
+  promptHasText: boolean,
+): string {
+  if (!view?.task) {
+    return "";
+  }
+  if (pendingApproval) {
+    return "Resolve the pending approval before continuing.";
+  }
+  if (activeRun) {
+    return "Wait for the active Run to finish.";
+  }
+  if (!view.runtimeReady) {
+    return "Wait for the provider session to become ready.";
+  }
+  if (!promptHasText) {
+    return "Type a prompt before starting a Run.";
+  }
+  return "";
 }
 
 function isActiveRunStatus(status: string): boolean {

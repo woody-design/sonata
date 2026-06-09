@@ -5,6 +5,7 @@ import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-task-entry-e2e-"));
+const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-task-entry-selected-folder-"));
 let electronApp = null;
 
 try {
@@ -25,6 +26,11 @@ try {
     throw new Error(`Unexpected no-task error text: ${noTaskErrorText}`);
   }
   await assertEntryVisible(page);
+
+  await page.locator("#entry-choose-folder").click();
+  await page.locator("#entry-open-task", { hasText: "Open Folder Task" }).waitFor({
+    state: "visible",
+  });
 
   await page.locator("#entry-launch-settings").click();
   await page.locator(".task-settings-popover", { hasText: "Reasoning" }).waitFor({
@@ -54,6 +60,7 @@ try {
   const createdReport = fs.existsSync(createdReportPath)
     ? JSON.parse(fs.readFileSync(createdReportPath, "utf8"))
     : null;
+  const selectedFolderManifestExists = fs.existsSync(path.join(selectedFolder, ".duet", "task.json"));
 
   await electronApp.close();
   electronApp = null;
@@ -90,9 +97,13 @@ try {
     createdManifest.task.model === "gpt-5.5" &&
     createdManifest.task.reasoningEffort === "xhigh" &&
     createdManifest.task.speedMode === "fast" &&
+    createdManifest.task.providerCwd === selectedFolder &&
+    createdManifest.task.workingDirectory === selectedFolder &&
     createdReport?.runtime?.model === "gpt-5.5" &&
     createdReport?.runtime?.reasoningEffort === "xhigh" &&
     createdReport?.runtime?.speedMode === "fast" &&
+    createdReport?.runtime?.cwd === selectedFolder.replace(os.homedir(), "~") &&
+    !selectedFolderManifestExists &&
     reopenedManifest.task.id === createdManifest.task.id &&
     reopenedManifest.task.provider === "codex" &&
     reopenedManifest.task.model === "gpt-5.5" &&
@@ -116,6 +127,8 @@ try {
         sendDisabledBeforeTask,
         sendDisabledAfterTaskWithoutPrompt,
         sendEnabledWithPrompt,
+        selectedFolder,
+        selectedFolderManifestExists,
         reportPath,
         rawTerminalPersisted,
         success,
@@ -131,6 +144,7 @@ try {
     await electronApp.close();
   }
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  fs.rmSync(selectedFolder, { recursive: true, force: true });
 }
 
 async function launchApp() {
@@ -139,6 +153,7 @@ async function launchApp() {
     env: {
       ...process.env,
       DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_TEST_PICK_FOLDER: selectedFolder,
     },
   });
   const page = await electronApp.firstWindow();

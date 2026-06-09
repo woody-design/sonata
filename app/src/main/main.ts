@@ -409,6 +409,11 @@ async function openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise
 }
 
 async function pickFolder(): Promise<FolderPickResponse> {
+  if (process.env.DUET_TEST_PICK_FOLDER) {
+    return {
+      path: process.env.DUET_TEST_PICK_FOLDER,
+    };
+  }
   const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
   const options: OpenDialogOptions = {
     title: "Choose Task Folder",
