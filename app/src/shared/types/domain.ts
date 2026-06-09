@@ -9,8 +9,9 @@ export type ApprovalId = string;
 export type RuntimeProvider = "codex" | "claude";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type LaunchSpeedMode = "default" | "fast";
-export type CodexSandboxMode = "read-only" | "workspace-write";
+export type CodexSandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 export type CodexApprovalMode = "never" | "on-request";
+export type CodexPermissionPreset = "askForApproval" | "approveForMe" | "fullAccess";
 export type ClaudePermissionMode =
   | "acceptEdits"
   | "auto"
@@ -92,7 +93,28 @@ export type CompletionSource =
 export type CompletionConfidence = "high" | "medium" | "low";
 
 export type DeliveryItemStatus = "queued" | "delivering" | "delivered" | "undelivered";
-export type DeliveryReceiptSource = "provider-transcript" | "pty-composer-echo";
+export type DeliveryItemKind = "prompt" | "control";
+export type DeliveryReceiptSource = "provider-transcript" | "pty-composer-echo" | "native-control";
+
+export type DeliveryControlChange =
+  | {
+      kind: "permission";
+      label: string;
+      codex: {
+        preset: CodexPermissionPreset;
+        sandbox: CodexSandboxMode;
+        approval: CodexApprovalMode;
+      } | null;
+      claude: {
+        permissionMode: ClaudePermissionMode;
+      } | null;
+    }
+  | {
+      kind: "model";
+      label: string;
+      model: string | null;
+      reasoningEffort: ReasoningEffort | null;
+    };
 
 export interface DeliveryReceipt {
   source: DeliveryReceiptSource;
@@ -106,7 +128,9 @@ export interface DeliveryReceipt {
 export interface DeliveryQueueItem {
   id: DeliveryItemId;
   taskId: TaskId;
+  kind: DeliveryItemKind;
   text: string;
+  control: DeliveryControlChange | null;
   status: DeliveryItemStatus;
   enqueuedAt: string;
   deliveringAt: string | null;

@@ -46,6 +46,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.promptSubmit, (_event, request) => {
     runtimeController.submitPrompt(request.taskId, request.text);
   });
+  ipcMain.handle(IPC_CHANNELS.controlSet, (_event, request) => {
+    runtimeController.setControl(request.taskId, request.change);
+  });
   ipcMain.handle(IPC_CHANNELS.promptQueueCancel, (_event, request) => {
     runtimeController.cancelQueuedPrompt(request.taskId, request.itemId);
   });

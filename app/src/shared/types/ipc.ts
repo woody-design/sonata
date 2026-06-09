@@ -4,6 +4,7 @@ import type {
   ClaudePermissionMode,
   CodexApprovalMode,
   CodexSandboxMode,
+  DeliveryControlChange,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
@@ -20,6 +21,7 @@ export const IPC_CHANNELS = {
   taskClose: "task:close",
   taskList: "task:list",
   promptSubmit: "prompt:submit",
+  controlSet: "control:set",
   promptQueueCancel: "prompt-queue:cancel",
   promptQueueRetry: "prompt-queue:retry",
   approvalDecide: "approval:decide",
@@ -91,6 +93,11 @@ export type ListTasksResponse = Task[];
 export interface SubmitPromptRequest {
   taskId: TaskId;
   text: string;
+}
+
+export interface SetControlRequest {
+  taskId: TaskId;
+  change: DeliveryControlChange;
 }
 
 export interface PromptQueueItemRequest {
@@ -248,6 +255,7 @@ export interface DuetRuntimeBridge {
   closeTask(request: CloseTaskRequest): Promise<void>;
   listTasks(): Promise<ListTasksResponse>;
   submitPrompt(request: SubmitPromptRequest): Promise<void>;
+  setControl(request: SetControlRequest): Promise<void>;
   cancelQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   retryQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;

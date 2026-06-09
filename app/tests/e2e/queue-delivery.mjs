@@ -70,8 +70,11 @@ try {
   });
 
   await waitUntil(() => fs.existsSync(paths.firstDone), 180000, "first command done");
-  await approveIfVisible(page, "File edit approval requested", 180000);
-  await waitUntil(() => fs.existsSync(paths.second), 180000, "queued prompt artifact");
+  await waitUntil(async () => {
+    await approveIfVisible(page, "Command approval requested", 1000);
+    await approveIfVisible(page, "File edit approval requested", 1000);
+    return fs.existsSync(paths.second);
+  }, 180000, "queued prompt artifact");
   await page.locator(".delivery-item.undelivered").waitFor({ state: "hidden", timeout: 30000 });
   await page.locator(".delivery-item", { hasText: "queue_second.md" }).waitFor({
     state: "hidden",
@@ -171,7 +174,7 @@ async function waitForTaskDirectory(root, timeoutMs) {
 async function waitUntil(predicate, timeoutMs, label = "condition") {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (predicate()) {
+    if (await predicate()) {
       return true;
     }
     await delay(250);

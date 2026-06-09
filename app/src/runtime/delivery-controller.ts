@@ -1,4 +1,5 @@
 import type {
+  DeliveryControlChange,
   DeliveryItemId,
   DeliveryQueueItem,
   DeliveryReceipt,
@@ -20,11 +21,13 @@ export interface DeliveryControllerOptions {
   terminalHost: TerminalHost;
   eventSink: (event: RuntimeEvent) => void;
   hasLiveTranscriptSource: () => boolean;
+  applyControlChange?: (change: DeliveryControlChange) => Promise<void>;
   receiptTimeoutMs?: number;
 }
 
 interface InFlightDelivery {
   itemId: DeliveryItemId;
+  kind: "prompt" | "control";
   submittedAtMs: number;
   allowPtyEchoReceipt: boolean;
   ptyEchoTail: string;
@@ -44,6 +47,7 @@ export class DeliveryController {
   private readonly terminalHost: TerminalHost;
   private readonly eventSink: (event: RuntimeEvent) => void;
   private readonly hasLiveTranscriptSource: () => boolean;
+  private readonly applyControlChange: ((change: DeliveryControlChange) => Promise<void>) | null;
   private readonly receiptTimeoutMs: number;
   private readonly items: DeliveryQueueItem[] = [];
   private readonly ptyEchoBackfills: PtyEchoBackfill[] = [];
@@ -57,6 +61,7 @@ export class DeliveryController {
     this.terminalHost = options.terminalHost;
     this.eventSink = options.eventSink;
     this.hasLiveTranscriptSource = options.hasLiveTranscriptSource;
+    this.applyControlChange = options.applyControlChange ?? null;
     this.receiptTimeoutMs = options.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS;
   }
 
@@ -69,7 +74,34 @@ export class DeliveryController {
     const item: DeliveryQueueItem = {
       id: `delivery-${Date.now()}-${++this.seq}`,
       taskId: this.taskId,
+      kind: "prompt",
       text: trimmed,
+      control: null,
+      status: "queued",
+      enqueuedAt: new Date().toISOString(),
+      deliveringAt: null,
+      runId: null,
+      receipt: null,
+      failureReason: null,
+    };
+    this.items.push(item);
+    this.emitState();
+    this.pump();
+    return item;
+  }
+
+  enqueueControl(change: DeliveryControlChange): DeliveryQueueItem {
+    const label = change.label.trim();
+    if (!label) {
+      throw new Error("Cannot queue an unlabeled control change.");
+    }
+
+    const item: DeliveryQueueItem = {
+      id: `delivery-${Date.now()}-${++this.seq}`,
+      taskId: this.taskId,
+      kind: "control",
+      text: label,
+      control: change,
       status: "queued",
       enqueuedAt: new Date().toISOString(),
       deliveringAt: null,
@@ -89,7 +121,7 @@ export class DeliveryController {
       return;
     }
     if (this.items[index]?.status === "delivering") {
-      throw new Error("Cannot cancel a message while it is being delivered.");
+      throw new Error("Cannot cancel an item while it is being delivered.");
     }
     this.items.splice(index, 1);
     this.emitState();
@@ -102,7 +134,7 @@ export class DeliveryController {
       return;
     }
     if (item.status !== "undelivered") {
-      throw new Error("Only undelivered messages can be retried.");
+      throw new Error("Only undelivered items can be retried.");
     }
     item.status = "queued";
     item.failureReason = null;
@@ -187,6 +219,11 @@ export class DeliveryController {
     item.failureReason = null;
     this.emitState();
 
+    if (item.kind === "control") {
+      void this.deliverControl(item);
+      return;
+    }
+
     let submission: PromptSubmission | null = null;
     try {
       submission = this.terminalHost.submitPrompt(item.text);
@@ -214,6 +251,7 @@ export class DeliveryController {
     item.runId = submission.runId;
     this.inFlight = {
       itemId: item.id,
+      kind: "prompt",
       submittedAtMs: Date.parse(submission.submittedAt),
       allowPtyEchoReceipt: this.provider === "claude" && !this.hasLiveTranscriptSource(),
       ptyEchoTail: "",
@@ -222,8 +260,53 @@ export class DeliveryController {
     this.emitState();
   }
 
+  private async deliverControl(item: DeliveryQueueItem): Promise<void> {
+    if (!item.control) {
+      item.status = "undelivered";
+      item.deliveringAt = null;
+      item.failureReason = "Control change was missing its target.";
+      this.emitState();
+      return;
+    }
+    if (!this.applyControlChange) {
+      item.status = "undelivered";
+      item.deliveringAt = null;
+      item.failureReason = "No native control driver is available for this Task.";
+      this.emitState();
+      return;
+    }
+
+    this.inFlight = {
+      itemId: item.id,
+      kind: "control",
+      submittedAtMs: Date.now(),
+      allowPtyEchoReceipt: false,
+      ptyEchoTail: "",
+    };
+    this.emitState();
+
+    try {
+      await this.applyControlChange(item.control);
+      const receipt: DeliveryReceipt = {
+        source: "native-control",
+        receivedAt: new Date().toISOString(),
+        runId: null,
+        sourceId: null,
+        blockId: null,
+        backfilled: false,
+      };
+      this.completeDelivery(item, receipt);
+    } catch (error) {
+      item.status = "undelivered";
+      item.deliveringAt = null;
+      item.failureReason = error instanceof Error ? error.message : String(error);
+      this.inFlight = null;
+      this.emitState();
+    }
+  }
+
   private handlePtyData(data: string): void {
-    if (!this.inFlight?.allowPtyEchoReceipt) {
+    if (this.inFlight?.kind !== "prompt" || !this.inFlight.allowPtyEchoReceipt) {
       return;
     }
     const item = this.items.find((candidate) => candidate.id === this.inFlight?.itemId);
@@ -268,7 +351,7 @@ export class DeliveryController {
   }
 
   private receiptFromUserBlock(block: Extract<TranscriptBlock, { kind: "user-message" }>): void {
-    if (!this.inFlight) {
+    if (!this.inFlight || this.inFlight.kind !== "prompt") {
       return;
     }
     const item = this.items.find((candidate) => candidate.id === this.inFlight?.itemId);
@@ -309,7 +392,9 @@ export class DeliveryController {
     this.emitReceipt(backfill.itemId, {
       id: backfill.itemId,
       taskId: this.taskId,
+      kind: "prompt",
       text: backfill.text,
+      control: null,
       status: "delivered",
       enqueuedAt: new Date(backfill.submittedAtMs).toISOString(),
       deliveringAt: new Date(backfill.submittedAtMs).toISOString(),
@@ -382,7 +467,9 @@ export class DeliveryController {
       item: item ? { ...item } : {
         id: itemId,
         taskId: this.taskId,
+        kind: "prompt",
         text: "",
+        control: null,
         status: "delivered",
         enqueuedAt: receipt.receivedAt,
         deliveringAt: receipt.receivedAt,

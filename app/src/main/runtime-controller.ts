@@ -6,9 +6,11 @@ import type {
   ApprovalDecision,
   ClaudePermissionMode,
   CodexApprovalMode,
+  CodexPermissionPreset,
   CodexSandboxMode,
   CreateTaskRequest,
   CreateTaskResponse,
+  DeliveryControlChange,
   LaunchSpeedMode,
   OpenTaskRequest,
   ReadTranscriptResponse,
@@ -50,7 +52,11 @@ const DEFAULT_TASK_TITLE = "New Task";
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
 const REASONING_EFFORTS = new Set<ReasoningEffort>(["low", "medium", "high", "xhigh", "max"]);
-const CODEX_SANDBOX_MODES = new Set<CodexSandboxMode>(["read-only", "workspace-write"]);
+const CODEX_SANDBOX_MODES = new Set<CodexSandboxMode>([
+  "read-only",
+  "workspace-write",
+  "danger-full-access",
+]);
 const CODEX_APPROVAL_MODES = new Set<CodexApprovalMode>(["never", "on-request"]);
 const CLAUDE_PERMISSION_MODES = new Set<ClaudePermissionMode>([
   "acceptEdits",
@@ -135,6 +141,7 @@ export class RuntimeController {
       terminalHost,
       eventSink: (event) => this.sendEvent(event),
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
+      applyControlChange: (change) => this.applyControlChange(taskId, change),
     });
 
     const startOptions = {
@@ -234,6 +241,7 @@ export class RuntimeController {
       terminalHost,
       eventSink: (event) => this.sendEvent(event),
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
+      applyControlChange: (change) => this.applyControlChange(runningTask.id, change),
     });
 
     const ptyStartedAt = new Date().toISOString();
@@ -290,6 +298,11 @@ export class RuntimeController {
   submitPrompt(taskId: TaskId, text: string): void {
     const active = this.requireTaskRuntime(taskId);
     active.deliveryController.enqueue(text);
+  }
+
+  setControl(taskId: TaskId, change: DeliveryControlChange): void {
+    const active = this.requireTaskRuntime(taskId);
+    active.deliveryController.enqueueControl(normalizeControlChange(active.task.provider, change));
   }
 
   cancelQueuedPrompt(taskId: TaskId, itemId: string): void {
@@ -368,6 +381,24 @@ export class RuntimeController {
       this.disposeTaskRuntime(active);
     }
     this.taskRuntimes.clear();
+  }
+
+  private async applyControlChange(taskId: TaskId, change: DeliveryControlChange): Promise<void> {
+    const active = this.requireTaskRuntime(taskId);
+    const normalized = normalizeControlChange(active.task.provider, change);
+    await active.terminalHost.applyControlChange(normalized);
+
+    active.task = applyVerifiedControlToTask(active.task, normalized);
+    this.persistTaskManifest(active.task, active.storageRoot);
+    this.sendEvent({
+      type: "task:updated",
+      payload: {
+        taskId,
+        task: active.task,
+        reason: "verified-native-control",
+      },
+      ts: new Date().toISOString(),
+    });
   }
 
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
@@ -795,4 +826,101 @@ function normalizePermissionSettings(
     approval,
     permissionMode: null,
   };
+}
+
+function normalizeControlChange(
+  provider: RuntimeProvider,
+  change: DeliveryControlChange,
+): DeliveryControlChange {
+  if (change.kind === "model") {
+    const launchSettings = normalizeLaunchSettings(provider, {
+      model: change.model,
+      reasoningEffort: change.reasoningEffort,
+      speedMode: null,
+    });
+    if (!launchSettings.model && !launchSettings.reasoningEffort) {
+      throw new Error("Choose a model or reasoning value before applying a model control.");
+    }
+    return {
+      kind: "model",
+      label: change.label.trim() || "Model",
+      model: launchSettings.model,
+      reasoningEffort: launchSettings.reasoningEffort,
+    };
+  }
+
+  if (provider === "claude") {
+    const permissionMode = change.claude?.permissionMode;
+    if (permissionMode === "bypassPermissions" || permissionMode === "dontAsk") {
+      throw new Error(`Claude permission mode ${permissionMode} is not available mid-session.`);
+    }
+    if (!permissionMode || !CLAUDE_PERMISSION_MODES.has(permissionMode)) {
+      throw new Error("Choose a supported Claude permission mode.");
+    }
+    return {
+      kind: "permission",
+      label: change.label.trim() || claudePermissionLabel(permissionMode),
+      codex: null,
+      claude: { permissionMode },
+    };
+  }
+
+  const codex = change.codex;
+  if (!codex || !CODEX_SANDBOX_MODES.has(codex.sandbox) || !CODEX_APPROVAL_MODES.has(codex.approval)) {
+    throw new Error("Choose a supported Codex permission preset.");
+  }
+  return {
+    kind: "permission",
+    label: change.label.trim() || codexPermissionLabel(codex.preset),
+    codex,
+    claude: null,
+  };
+}
+
+function applyVerifiedControlToTask(task: Task, change: DeliveryControlChange): Task {
+  const now = new Date().toISOString();
+  if (change.kind === "model") {
+    return {
+      ...task,
+      model: change.model,
+      reasoningEffort: change.reasoningEffort,
+      updatedAt: now,
+    };
+  }
+
+  if (task.provider === "claude" && change.claude) {
+    return {
+      ...task,
+      permissionMode: change.claude.permissionMode,
+      updatedAt: now,
+    };
+  }
+
+  if (task.provider === "codex" && change.codex) {
+    return {
+      ...task,
+      sandbox: change.codex.sandbox,
+      approval: change.codex.approval,
+      updatedAt: now,
+    };
+  }
+
+  return task;
+}
+
+function codexPermissionLabel(preset: CodexPermissionPreset): string {
+  if (preset === "approveForMe") {
+    return "Approve for me";
+  }
+  if (preset === "fullAccess") {
+    return "Full Access";
+  }
+  return "Ask for approval";
+}
+
+function claudePermissionLabel(mode: ClaudePermissionMode): string {
+  if (mode === "acceptEdits") {
+    return "acceptEdits";
+  }
+  return mode;
 }

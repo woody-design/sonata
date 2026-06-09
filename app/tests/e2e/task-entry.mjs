@@ -174,7 +174,7 @@ async function assertEntryVisible(page) {
   await page.locator(".task-entry-panel", { hasText: "Start a Task" }).waitFor({
     state: "visible",
   });
-  await page.locator(".task-entry-panel", { hasText: "Provider and launch settings" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "model and permission can be changed" }).waitFor({
     state: "visible",
   });
   await page.locator("#entry-provider-codex", { hasText: "Codex" }).waitFor({ state: "visible" });

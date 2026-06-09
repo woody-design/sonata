@@ -16,6 +16,7 @@ import type {
   RunKind,
   RunStatus,
   TaskId,
+  Task,
   RuntimeProvider,
 } from "./domain";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
@@ -68,6 +69,15 @@ export type TaskReadyEvent = BaseRuntimeEvent<
     taskId: TaskId;
     source: "terminal-idle-composer-heuristic";
     confidence: CompletionConfidence;
+  }
+>;
+
+export type TaskUpdatedEvent = BaseRuntimeEvent<
+  "task:updated",
+  {
+    taskId: TaskId;
+    task: Task;
+    reason: "verified-native-control";
   }
 >;
 
@@ -240,6 +250,7 @@ export type ProductRuntimeEvent =
   | PtyExitEvent
   | TaskStartedEvent
   | TaskReadyEvent
+  | TaskUpdatedEvent
   | PromptSubmittedEvent
   | DeliveryStateEvent
   | DeliveryReceiptEvent
@@ -260,5 +271,10 @@ export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
 
 export type RunIndexEvent = Exclude<
   ProductRuntimeEvent,
-  RuntimeReportUpdatedEvent | TranscriptLocatedEvent | TranscriptBlocksEvent | DeliveryStateEvent | DeliveryReceiptEvent
+  | RuntimeReportUpdatedEvent
+  | TranscriptLocatedEvent
+  | TranscriptBlocksEvent
+  | DeliveryStateEvent
+  | DeliveryReceiptEvent
+  | TaskUpdatedEvent
 >;

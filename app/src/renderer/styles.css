@@ -784,6 +784,9 @@ h2 {
 }
 
 .composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 0 1 auto;
   justify-content: flex-end;
 }
@@ -802,6 +805,68 @@ h2 {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.composer-chip:hover,
+.composer-chip.active {
+  border-color: #7d9b8e;
+  background: #eef7f2;
+}
+
+.composer-chip:disabled {
+  color: #8b857c;
+  cursor: default;
+}
+
+.composer-menu {
+  position: fixed;
+  z-index: 25;
+  display: grid;
+  overflow-y: auto;
+  border: 1px solid #4a4741;
+  border-radius: 8px;
+  padding: 10px;
+  background: #2b2a27;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 22%);
+}
+
+.composer-menu-heading,
+.composer-menu-section-heading {
+  margin: 0 0 6px;
+  color: #aaa49a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.composer-menu-section + .composer-menu-section {
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  margin-top: 9px;
+  padding-top: 9px;
+}
+
+.composer-menu-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 9px;
+  color: #f7f3ea;
+  background: transparent;
+  text-align: left;
+}
+
+.composer-menu-option:hover,
+.composer-menu-option.selected {
+  background: rgb(255 255 255 / 9%);
+}
+
+.composer-menu-option span {
+  flex: 0 0 auto;
+  margin-left: 12px;
+  color: #aaa49a;
+  font-size: 11px;
 }
 
 .send-button {

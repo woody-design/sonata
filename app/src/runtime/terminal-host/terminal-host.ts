@@ -11,9 +11,11 @@ import type {
   ApprovalKind,
   ClaudePermissionMode,
   CodexApprovalMode,
+  CodexPermissionPreset,
   CodexSandboxMode,
   CompletionConfidence,
   CompletionSource,
+  DeliveryControlChange,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
@@ -29,6 +31,7 @@ export const BRACKETED_PASTE_END = "\x1b[201~";
 export const CSI_U_ENTER = "\x1b[13u";
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
+export const SHIFT_TAB = "\x1b[Z";
 
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
 const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
@@ -41,6 +44,8 @@ const DEFAULT_TASK_READY_MIN_AGE_MS = 8000;
 const DEFAULT_TASK_READY_QUIET_MS = 900;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
+const DEFAULT_CONTROL_WAIT_MS = 15_000;
+const CONTROL_CONTEXT_CHARS = 6000;
 
 const CODEX_FILE_EDIT_APPROVAL_HINTS = [
   "would you like to make the following edits",
@@ -130,6 +135,13 @@ export interface PromptSubmission {
   runId: RunId | null;
   kind: RunKind;
   submittedAt: string;
+}
+
+export interface NativeControlResult {
+  provider: RuntimeProvider;
+  change: DeliveryControlChange;
+  verifiedAt: string;
+  evidence: string;
 }
 
 interface SnapshotEntry {
@@ -359,6 +371,193 @@ export class TerminalHost extends EventEmitter {
       kind,
       submittedAt,
     };
+  }
+
+  async applyControlChange(change: DeliveryControlChange): Promise<NativeControlResult> {
+    if (!this.ptyProcess) {
+      throw new Error("No PTY process is running.");
+    }
+    if (this.approvalActive) {
+      throw new Error("Cannot change controls while a native approval screen is active.");
+    }
+    if (this.activeRun) {
+      throw new Error("Cannot change controls while a provider run is active.");
+    }
+
+    const evidence =
+      this.profile.provider === "codex"
+        ? await this.applyCodexControlChange(change)
+        : await this.applyClaudeControlChange(change);
+    this.taskReady = false;
+    this.scheduleTaskReadyCheck();
+    return {
+      provider: this.profile.provider,
+      change,
+      verifiedAt: new Date().toISOString(),
+      evidence,
+    };
+  }
+
+  private async applyCodexControlChange(change: DeliveryControlChange): Promise<string> {
+    if (change.kind === "permission") {
+      if (!change.codex) {
+        throw new Error("Codex permission change was missing its native preset.");
+      }
+      return this.driveCodexPermissions(change.codex.preset);
+    }
+    return this.driveCodexModel(change.model, change.reasoningEffort);
+  }
+
+  private async driveCodexPermissions(preset: CodexPermissionPreset): Promise<string> {
+    const label = codexPermissionPresetLabel(preset);
+    this.typeSlashCommand("/permissions");
+    await this.waitForClean(
+      /Update Model Permissions|Ask for approval|Approve for me|Full Access/i,
+      DEFAULT_CONTROL_WAIT_MS,
+      "Codex permissions picker",
+    );
+    await this.selectCodexPickerItem(label, "Codex permissions option");
+    const confirmation = await this.waitForClean(
+      new RegExp(`Permissions updated to\\s+${escapeRegExp(label)}`, "i"),
+      DEFAULT_CONTROL_WAIT_MS,
+      "Codex permissions confirmation",
+    );
+    return confirmation;
+  }
+
+  private async driveCodexModel(
+    model: string | null,
+    reasoningEffort: ReasoningEffort | null,
+  ): Promise<string> {
+    if (!model) {
+      throw new Error("Codex model picker cannot verify a Native Default selection mid-session.");
+    }
+    this.typeSlashCommand("/model");
+    await this.waitForClean(/Select Model|Select Model and Effort/i, DEFAULT_CONTROL_WAIT_MS, "Codex model picker");
+    await this.selectCodexPickerItem(model, "Codex model option");
+
+    if (reasoningEffort) {
+      await this.waitForClean(/effort|reasoning|Low|Medium|High|Extra High/i, DEFAULT_CONTROL_WAIT_MS, "Codex effort picker");
+      await this.selectCodexPickerItem(reasoningEffortPickerLabel(reasoningEffort), "Codex reasoning effort");
+    }
+
+    const confirmation = await this.waitForClean(
+      new RegExp(`${escapeRegExp(model)}|model|effort|reasoning`, "i"),
+      DEFAULT_CONTROL_WAIT_MS,
+      "Codex model confirmation",
+    );
+    return confirmation;
+  }
+
+  private async selectCodexPickerItem(targetLabel: string, label: string): Promise<void> {
+    const clean = this.cleanTail(CONTROL_CONTEXT_CHARS);
+    const digit = pickerDigitForLabel(clean, targetLabel);
+    if (!digit) {
+      throw new Error(`${label} "${targetLabel}" was not found in the native picker.\n\n${clean.slice(-2200)}`);
+    }
+    this.writeRaw(digit);
+    await delay(120);
+    this.writeRaw(CSI_U_ENTER);
+  }
+
+  private async applyClaudeControlChange(change: DeliveryControlChange): Promise<string> {
+    if (change.kind === "permission") {
+      if (!change.claude) {
+        throw new Error("Claude permission change was missing its native mode.");
+      }
+      return this.driveClaudePermission(change.claude.permissionMode);
+    }
+    return this.driveClaudeModel(change.model, change.reasoningEffort);
+  }
+
+  private async driveClaudePermission(mode: ClaudePermissionMode): Promise<string> {
+    if (!["default", "acceptEdits", "plan", "auto"].includes(mode)) {
+      throw new Error(`Claude permission mode ${mode} is not available mid-session.`);
+    }
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const current = detectClaudePermissionMode(this.cleanTail(CONTROL_CONTEXT_CHARS));
+      if (current === mode) {
+        return this.cleanTail(CONTROL_CONTEXT_CHARS);
+      }
+      this.writeRaw(SHIFT_TAB);
+      await delay(1800);
+      const landed = detectClaudePermissionMode(this.cleanTail(CONTROL_CONTEXT_CHARS));
+      if (landed === mode) {
+        return this.cleanTail(CONTROL_CONTEXT_CHARS);
+      }
+    }
+
+    throw new Error(
+      `Claude permission mode ${mode} was not verified after bounded Shift+Tab cycling.\n\n${this.cleanTail(CONTROL_CONTEXT_CHARS).slice(-2200)}`,
+    );
+  }
+
+  private async driveClaudeModel(
+    model: string | null,
+    reasoningEffort: ReasoningEffort | null,
+  ): Promise<string> {
+    if (model) {
+      await this.submitNativeSlashSingleShot(`/model ${model}`);
+      await this.waitForClean(new RegExp(escapeRegExp(model), "i"), 30_000, "Claude model confirmation");
+      await this.waitForIdleComposer(DEFAULT_CONTROL_WAIT_MS);
+    }
+    if (reasoningEffort) {
+      await this.submitNativeSlashSingleShot(`/effort ${reasoningEffort}`);
+      await this.waitForClean(
+        new RegExp(escapeRegExp(reasoningEffort), "i"),
+        30_000,
+        "Claude effort confirmation",
+      );
+      await this.waitForIdleComposer(DEFAULT_CONTROL_WAIT_MS);
+    }
+    return this.cleanTail(CONTROL_CONTEXT_CHARS);
+  }
+
+  private typeSlashCommand(text: string): void {
+    this.taskReady = false;
+    this.writeRaw(text);
+    setTimeout(() => {
+      if (this.ptyProcess) {
+        this.ptyProcess.write(CSI_U_ENTER);
+      }
+    }, 120);
+  }
+
+  private async submitNativeSlashSingleShot(text: string): Promise<void> {
+    this.taskReady = false;
+    this.writeRaw(`${BRACKETED_PASTE_START}${text}${BRACKETED_PASTE_END}`);
+    await delay(160);
+    if (this.ptyProcess) {
+      this.ptyProcess.write(CSI_U_ENTER);
+    }
+    await delay(500);
+  }
+
+  private async waitForClean(pattern: RegExp, timeoutMs: number, label: string): Promise<string> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const clean = this.cleanTail(CONTROL_CONTEXT_CHARS);
+      if (pattern.test(clean)) {
+        return clean;
+      }
+      await delay(100);
+    }
+    throw new Error(`Timed out waiting for ${label}.\n\n${this.cleanTail(CONTROL_CONTEXT_CHARS).slice(-2200)}`);
+  }
+
+  private async waitForIdleComposer(timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (!this.approvalActive && !this.activeRun && detectIdlePrompt(this.rawTail, this.profile).ready) {
+        return;
+      }
+      await delay(100);
+    }
+  }
+
+  private cleanTail(chars: number): string {
+    return cleanTerminal(this.rawTail).slice(-chars);
   }
 
   sendApprove(): void {
@@ -1128,6 +1327,105 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
 
 function tomlString(value: string): string {
   return JSON.stringify(value);
+}
+
+function codexPermissionPresetLabel(preset: CodexPermissionPreset): string {
+  if (preset === "approveForMe") {
+    return "Approve for me";
+  }
+  if (preset === "fullAccess") {
+    return "Full Access";
+  }
+  return "Ask for approval";
+}
+
+function reasoningEffortPickerLabel(effort: ReasoningEffort): string {
+  if (effort === "xhigh") {
+    return "Extra High";
+  }
+  return effort;
+}
+
+function pickerDigitForLabel(cleanText: string, targetLabel: string): string | null {
+  const targetTokens = normalizedTokens(targetLabel);
+  const lines = cleanText.split(/\n/).map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    const segments = numberedPickerSegments(line);
+    for (const segment of segments) {
+      if (tokensContain(normalizedTokens(segment.text), targetTokens)) {
+        return segment.digit;
+      }
+    }
+  }
+  return null;
+}
+
+function numberedPickerSegments(line: string): Array<{ digit: string; text: string }> {
+  const matches = [...line.matchAll(/([1-9])[\).\s-]*(?=[A-Za-z])/g)];
+  const segments: Array<{ digit: string; text: string }> = [];
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index];
+    if (!match) {
+      continue;
+    }
+    const digit = match[1];
+    if (!digit || match.index === undefined) {
+      continue;
+    }
+    const start = match.index + match[0].length;
+    const end = matches[index + 1]?.index ?? line.length;
+    segments.push({
+      digit,
+      text: line.slice(start, end),
+    });
+  }
+  return segments;
+}
+
+function detectClaudePermissionMode(cleanText: string): ClaudePermissionMode | null {
+  const tail = cleanText.toLowerCase().slice(-1800);
+  const compact = tail.replace(/[^a-z]+/g, "");
+  if (compact.includes("accepted") || (compact.includes("accept") && compact.includes("edi"))) {
+    return "acceptEdits";
+  }
+  if (compact.includes("planmod") || compact.includes("planmode") || compact.includes("plan")) {
+    return "plan";
+  }
+  if (compact.includes("automode") || compact.includes("autoon")) {
+    return "auto";
+  }
+  if (compact.includes("default")) {
+    return "default";
+  }
+  if ((compact.includes("shifttab") || compact.includes("cycle")) && !compact.includes("accept") && !compact.includes("plan") && !compact.includes("auto")) {
+    return "default";
+  }
+  return null;
+}
+
+function normalizedTokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/gpt[-\s]?/g, "gpt")
+    .split(/[^a-z0-9.]+/)
+    .filter(Boolean);
+}
+
+function tokensContain(haystack: string[], needle: string[]): boolean {
+  if (needle.length === 0) {
+    return false;
+  }
+  return needle.every((token) =>
+    haystack.some((candidate) => candidate === token || candidate.includes(token) || token.includes(candidate)),
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function cleanTerminal(text: string): string {

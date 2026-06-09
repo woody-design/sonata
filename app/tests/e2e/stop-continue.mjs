@@ -95,9 +95,14 @@ try {
 
   await page.locator("#prompt-input").fill(recoveryPrompt);
   await page.locator("#send-prompt").click();
-  const recoveryApprovalSeen = await approveIfVisible(page, "File edit approval requested", 180000);
-
-  await waitUntil(() => fs.existsSync(paths.recovery), 180000, "recovery file");
+  let recoveryApprovalSeen = false;
+  await waitUntil(async () => {
+    recoveryApprovalSeen =
+      (await approveIfVisible(page, "Command approval requested", 1000)) ||
+      (await approveIfVisible(page, "File edit approval requested", 1000)) ||
+      recoveryApprovalSeen;
+    return fs.existsSync(paths.recovery);
+  }, 180000, "recovery file");
   await page.locator(".artifact-item", { hasText: "stop_recovery.md" }).waitFor({
     state: "visible",
   });
@@ -238,7 +243,7 @@ function pidAlive(pid) {
 async function waitUntil(predicate, timeoutMs, label = "condition") {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (predicate()) {
+    if (await predicate()) {
       return true;
     }
     await delay(250);

@@ -7,6 +7,11 @@ import "./styles.css";
 import type {
   ApprovalDecision,
   ArtifactCandidate,
+  ClaudePermissionMode,
+  CodexApprovalMode,
+  CodexPermissionPreset,
+  CodexSandboxMode,
+  DeliveryControlChange,
   DeliveryQueueItem,
   DeliveryTaskState,
   LaunchSpeedMode,
@@ -67,8 +72,14 @@ interface RendererState {
   previewTabs: PreviewWindowTab[];
   taskDraft: TaskLaunchDraft;
   terminalOpen: boolean;
+  composerMenu: ComposerMenuState | null;
   busy: boolean;
   status: string;
+}
+
+interface ComposerMenuState {
+  type: "permission" | "model";
+  anchor: { left: number; top: number; width: number };
 }
 
 interface TaskLaunchDraft {
@@ -111,6 +122,7 @@ const state: RendererState = {
     },
   },
   terminalOpen: false,
+  composerMenu: null,
   busy: false,
   status: "Idle",
 };
@@ -198,10 +210,10 @@ appElement.innerHTML = `
           <textarea id="prompt-input" rows="4" placeholder="Start or open a Task"></textarea>
           <div class="composer-control-row">
             <div class="composer-control-left">
-              <span id="permission-chip" class="composer-chip hidden"></span>
+              <button id="permission-chip" class="composer-chip hidden" type="button"></button>
             </div>
             <div class="composer-actions">
-              <span id="model-chip" class="composer-chip hidden"></span>
+              <button id="model-chip" class="composer-chip hidden" type="button"></button>
               <button
                 id="send-prompt"
                 class="primary send-button"
@@ -211,6 +223,7 @@ appElement.innerHTML = `
               >↑</button>
             </div>
           </div>
+          <div id="composer-popover-root"></div>
         </form>
       </section>
     </section>
@@ -244,8 +257,9 @@ const elements = {
   deliveryQueue: getElement<HTMLElement>("delivery-queue"),
   composer: getElement<HTMLFormElement>("composer"),
   promptInput: getElement<HTMLTextAreaElement>("prompt-input"),
-  permissionChip: getElement<HTMLSpanElement>("permission-chip"),
-  modelChip: getElement<HTMLSpanElement>("model-chip"),
+  permissionChip: getElement<HTMLButtonElement>("permission-chip"),
+  modelChip: getElement<HTMLButtonElement>("model-chip"),
+  composerPopoverRoot: getElement<HTMLDivElement>("composer-popover-root"),
   sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
   terminalDrawer: getElement<HTMLElement>("terminal-drawer"),
   closeTerminal: getElement<HTMLButtonElement>("close-terminal"),
@@ -301,6 +315,21 @@ const REASONING_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: R
     { label: "Native Default", value: null },
   ],
 };
+const CODEX_PERMISSION_OPTIONS: Array<{
+  label: string;
+  preset: CodexPermissionPreset;
+  sandbox: CodexSandboxMode;
+  approval: CodexApprovalMode;
+}> = [
+  { label: "Ask for approval", preset: "askForApproval", sandbox: "workspace-write", approval: "on-request" },
+  { label: "Approve for me", preset: "approveForMe", sandbox: "workspace-write", approval: "never" },
+  { label: "Full Access", preset: "fullAccess", sandbox: "danger-full-access", approval: "never" },
+];
+const CLAUDE_PERMISSION_OPTIONS: Array<{ label: string; value: ClaudePermissionMode }> = [
+  { label: "default", value: "default" },
+  { label: "acceptEdits", value: "acceptEdits" },
+  { label: "plan", value: "plan" },
+];
 
 elements.newTask.addEventListener("click", () => {
   void createTask("codex");
@@ -341,6 +370,14 @@ elements.composer.addEventListener("submit", (event) => {
 
 elements.promptInput.addEventListener("input", () => {
   renderComposerControls();
+});
+
+elements.permissionChip.addEventListener("click", (event) => {
+  toggleComposerMenu("permission", event.currentTarget as HTMLElement);
+});
+
+elements.modelChip.addEventListener("click", (event) => {
+  toggleComposerMenu("model", event.currentTarget as HTMLElement);
 });
 
 elements.promptInput.addEventListener("keydown", (event) => {
@@ -402,8 +439,17 @@ window.addEventListener("resize", () => {
 
 document.addEventListener("click", (event) => {
   const target = event.target;
-  if (!(target instanceof Element) || target.closest(".task-settings-wrap")) {
+  if (
+    !(target instanceof Element) ||
+    target.closest(".task-settings-wrap") ||
+    target.closest(".composer-chip") ||
+    target.closest(".composer-menu")
+  ) {
     return;
+  }
+  if (state.composerMenu) {
+    state.composerMenu = null;
+    render();
   }
   if (state.taskDraft.settingsOpen) {
     state.taskDraft.settingsOpen = false;
@@ -484,6 +530,13 @@ window.duetRuntime.onRuntimeEvent((event) => {
     view.runtimeReady = true;
     view.composerObserved = true;
     view.status = hasActiveRun(view) ? view.status : "Ready";
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "task:updated") {
+    view.task = event.payload.task;
+    view.status = "Settings updated";
     markViewChanged(view);
     return;
   }
@@ -948,6 +1001,7 @@ function render(): void {
   elements.newTask.disabled = state.busy;
   elements.newClaudeTask.disabled = state.busy;
   renderComposerControls(view);
+  renderComposerMenu(view);
 
   renderTaskTabs();
   renderApproval();
@@ -962,8 +1016,18 @@ function renderComposerControls(view = activeTaskView()): void {
   const activeRun = hasActiveRun(view) || Boolean(view?.deliveryState?.activeRun);
   const pendingApproval = Boolean(view?.pendingApproval);
   const promptHasText = elements.promptInput.value.trim().length > 0;
-  renderComposerChip(elements.permissionChip, sessionPermissionLabel(view?.task ?? null));
-  renderComposerChip(elements.modelChip, sessionModelSummaryLabel(view?.task ?? null));
+  renderComposerChip(
+    elements.permissionChip,
+    composerChipLabel(view, "permission"),
+    "permission",
+    Boolean(view?.task),
+  );
+  renderComposerChip(
+    elements.modelChip,
+    composerChipLabel(view, "model"),
+    "model",
+    Boolean(view?.task),
+  );
   elements.sendPrompt.disabled = !view?.task || (!activeRun && !promptHasText);
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText);
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";
@@ -973,13 +1037,229 @@ function renderComposerControls(view = activeTaskView()): void {
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
 }
 
-function renderComposerChip(element: HTMLElement, label: string | null): void {
+function renderComposerChip(
+  element: HTMLButtonElement,
+  label: string | null,
+  type: "permission" | "model",
+  enabled: boolean,
+): void {
   element.classList.toggle("hidden", !label);
+  element.classList.toggle("active", state.composerMenu?.type === type);
   element.textContent = label ?? "";
+  element.disabled = !enabled || !label;
+  element.ariaExpanded = String(state.composerMenu?.type === type);
   if (label) {
     element.title = label;
   } else {
     element.removeAttribute("title");
+  }
+}
+
+function composerChipLabel(view: TaskViewState | null, type: "permission" | "model"): string | null {
+  const task = view?.task ?? null;
+  const confirmed = type === "permission" ? sessionPermissionLabel(task) : sessionModelSummaryLabel(task);
+  const pending = firstControlItem(view, type);
+  if (!pending) {
+    return confirmed;
+  }
+  if (pending.status === "undelivered") {
+    return confirmed ? `${confirmed} (failed)` : "Failed";
+  }
+  return `${confirmed ?? "Default"} -> ${pending.text}`;
+}
+
+function toggleComposerMenu(type: "permission" | "model", anchor: HTMLElement): void {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  const rect = anchor.getBoundingClientRect();
+  const current = state.composerMenu;
+  state.composerMenu =
+    current?.type === type
+      ? null
+      : {
+          type,
+          anchor: {
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+          },
+        };
+  render();
+}
+
+function renderComposerMenu(view = activeTaskView()): void {
+  elements.composerPopoverRoot.replaceChildren();
+  if (!view?.task || !state.composerMenu) {
+    return;
+  }
+  const menu =
+    state.composerMenu.type === "permission"
+      ? renderPermissionMenu(view.task)
+      : renderModelMenu(view.task);
+  positionComposerMenu(menu);
+  elements.composerPopoverRoot.append(menu);
+}
+
+function renderPermissionMenu(task: Task): HTMLElement {
+  const menu = composerMenu("Permission");
+  if (task.provider === "codex") {
+    for (const option of CODEX_PERMISSION_OPTIONS) {
+      menu.append(
+        composerMenuOption(option.label, sessionPermissionLabel(task) === option.label, () => {
+          void queueControlChange({
+            kind: "permission",
+            label: option.label,
+            codex: {
+              preset: option.preset,
+              sandbox: option.sandbox,
+              approval: option.approval,
+            },
+            claude: null,
+          });
+        }),
+      );
+    }
+    return menu;
+  }
+
+  for (const option of CLAUDE_PERMISSION_OPTIONS) {
+    menu.append(
+      composerMenuOption(option.label, task.permissionMode === option.value, () => {
+        void queueControlChange({
+          kind: "permission",
+          label: option.label,
+          codex: null,
+          claude: {
+            permissionMode: option.value,
+          },
+        });
+      }),
+    );
+  }
+  return menu;
+}
+
+function renderModelMenu(task: Task): HTMLElement {
+  const menu = composerMenu("Model");
+  menu.append(
+    renderComposerMenuSection(
+      "Model",
+      MODEL_OPTIONS[task.provider],
+      task.model,
+      (value) => {
+        void queueControlChange(modelControlChange(task, value, task.reasoningEffort));
+      },
+    ),
+    renderComposerMenuSection(
+      "Reasoning",
+      REASONING_OPTIONS[task.provider],
+      task.reasoningEffort,
+      (value) => {
+        void queueControlChange(modelControlChange(task, task.model, value as ReasoningEffort | null));
+      },
+    ),
+  );
+  return menu;
+}
+
+function composerMenu(titleText: string): HTMLElement {
+  const menu = document.createElement("div");
+  menu.className = "composer-menu";
+  menu.setAttribute("role", "menu");
+  const title = document.createElement("p");
+  title.className = "composer-menu-heading";
+  title.textContent = titleText;
+  menu.append(title);
+  return menu;
+}
+
+function renderComposerMenuSection<T extends string | null>(
+  label: string,
+  options: Array<{ label: string; value: T }>,
+  selected: T,
+  onSelect: (value: T) => void,
+): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "composer-menu-section";
+  const heading = document.createElement("p");
+  heading.className = "composer-menu-section-heading";
+  heading.textContent = label;
+  section.append(heading);
+  for (const option of options) {
+    section.append(composerMenuOption(option.label, option.value === selected, () => onSelect(option.value)));
+  }
+  return section;
+}
+
+function composerMenuOption(label: string, selected: boolean, onClick: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "composer-menu-option";
+  button.classList.toggle("selected", selected);
+  button.type = "button";
+  button.setAttribute("role", "menuitemradio");
+  button.ariaChecked = String(selected);
+  button.textContent = label;
+  if (selected) {
+    const badge = document.createElement("span");
+    badge.textContent = "current";
+    button.append(badge);
+  }
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function positionComposerMenu(menu: HTMLElement): void {
+  const anchor = state.composerMenu?.anchor;
+  const viewportPadding = 14;
+  const width = Math.min(320, window.innerWidth - viewportPadding * 2);
+  const left = anchor
+    ? Math.min(
+        window.innerWidth - width - viewportPadding,
+        Math.max(viewportPadding, anchor.left + anchor.width - width),
+      )
+    : viewportPadding;
+  const estimatedHeight = state.composerMenu?.type === "model" ? 360 : 190;
+  const top = anchor
+    ? Math.max(viewportPadding, anchor.top - estimatedHeight - 8)
+    : viewportPadding;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+  menu.style.width = `${width}px`;
+  menu.style.maxHeight = `${Math.max(180, window.innerHeight - viewportPadding * 2)}px`;
+}
+
+function modelControlChange(
+  task: Task,
+  model: string | null,
+  reasoningEffort: ReasoningEffort | null,
+): DeliveryControlChange {
+  return {
+    kind: "model",
+    label: [
+      modelValueLabel(task.provider, model) ?? "Native Default",
+      reasoningValueLabel(reasoningEffort) ?? "Native Default",
+    ].join(" "),
+    model,
+    reasoningEffort,
+  };
+}
+
+async function queueControlChange(change: DeliveryControlChange): Promise<void> {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  state.composerMenu = null;
+  view.status = "Queued";
+  render();
+  try {
+    await window.duetRuntime.setControl({ taskId: view.task.id, change });
+  } catch (error) {
+    view.status = errorMessage(error);
+  } finally {
+    render();
   }
 }
 
@@ -990,15 +1270,13 @@ function sessionPermissionLabel(task: Task | null): string | null {
   if (task.provider === "claude") {
     return task.permissionMode ?? null;
   }
-
-  const parts: string[] = [];
-  if (task.approval) {
-    parts.push(task.approval);
+  if (task.sandbox === "danger-full-access") {
+    return "Full Access";
   }
-  if (task.sandbox) {
-    parts.push(task.sandbox);
+  if (task.approval === "never") {
+    return "Approve for me";
   }
-  return parts.length > 0 ? parts.join(" / ") : null;
+  return "Ask for approval";
 }
 
 function sessionModelSummaryLabel(task: Task | null): string | null {
@@ -1010,6 +1288,17 @@ function sessionModelSummaryLabel(task: Task | null): string | null {
     reasoningValueLabel(task.reasoningEffort),
   ].filter((part): part is string => Boolean(part));
   return parts.length > 0 ? parts.join(" ") : null;
+}
+
+function firstControlItem(
+  view: TaskViewState | null,
+  type: "permission" | "model",
+): DeliveryQueueItem | null {
+  return (
+    view?.deliveryState?.queue.find(
+      (item) => item.kind === "control" && item.control?.kind === type && item.status !== "delivered",
+    ) ?? null
+  );
 }
 
 function hasActiveRun(view = activeTaskView()): boolean {
@@ -1120,8 +1409,11 @@ function workflowState(): WorkflowState {
 
   if (firstDeliveryItem?.status === "undelivered") {
     return {
-      headline: "Message needs attention",
-      facts: [`No ${providerName} receipt`, ...baseFacts],
+      headline: firstDeliveryItem.kind === "control" ? "Setting needs attention" : "Message needs attention",
+      facts: [
+        firstDeliveryItem.kind === "control" ? "Setting failed" : `No ${providerName} receipt`,
+        ...baseFacts,
+      ],
     };
   }
 
@@ -1508,7 +1800,7 @@ function renderTaskEntryPanel(): HTMLElement {
   title.textContent = "Start a Task";
   const body = document.createElement("p");
   body.className = "task-entry-body";
-  body.textContent = "Provider and launch settings are locked when the Task is created.";
+  body.textContent = "Provider sets the native session; model and permission can be changed from the composer.";
   copy.append(eyebrow, title, body);
 
   const controls = document.createElement("div");
@@ -2043,7 +2335,7 @@ function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLE
   const status = document.createElement("strong");
   status.textContent = deliveryItemStatusLabel(providerName, item);
   const text = document.createElement("p");
-  text.textContent = item.text;
+  text.textContent = item.kind === "control" ? controlItemLabel(item) : item.text;
   copy.append(status, text);
   if (item.failureReason) {
     const reason = document.createElement("span");
@@ -2054,7 +2346,7 @@ function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLE
 
   const actions = document.createElement("div");
   actions.className = "delivery-actions";
-  if (item.status === "queued") {
+  if (item.status === "queued" && item.kind === "prompt") {
     actions.append(
       deliveryAction("Edit", () => {
         void editQueuedPrompt(item);
@@ -2063,13 +2355,28 @@ function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLE
         void cancelQueuedPrompt(item.id);
       }),
     );
-  } else if (item.status === "undelivered") {
+  } else if (item.status === "queued") {
+    actions.append(
+      deliveryAction("Cancel", () => {
+        void cancelQueuedPrompt(item.id);
+      }),
+    );
+  } else if (item.status === "undelivered" && item.kind === "prompt") {
     actions.append(
       deliveryAction("Retry", () => {
         void retryQueuedPrompt(item.id);
       }),
       deliveryAction("Edit", () => {
         void editQueuedPrompt(item);
+      }),
+      deliveryAction("Terminal", () => {
+        setTerminalOpen(true);
+      }),
+    );
+  } else if (item.status === "undelivered") {
+    actions.append(
+      deliveryAction("Retry", () => {
+        void retryQueuedPrompt(item.id);
       }),
       deliveryAction("Terminal", () => {
         setTerminalOpen(true);
@@ -2095,6 +2402,9 @@ function deliveryAction(label: string, onClick: () => void): HTMLButtonElement {
 }
 
 async function editQueuedPrompt(item: DeliveryQueueItem): Promise<void> {
+  if (item.kind !== "prompt") {
+    return;
+  }
   elements.promptInput.value = item.text;
   await cancelQueuedPrompt(item.id);
   focusComposer();
@@ -2128,6 +2438,15 @@ async function retryQueuedPrompt(itemId: string): Promise<void> {
 }
 
 function deliveryItemStatusLabel(providerName: string, item: DeliveryQueueItem): string {
+  if (item.kind === "control") {
+    if (item.status === "delivering") {
+      return `Applying ${providerName} setting`;
+    }
+    if (item.status === "undelivered") {
+      return "Setting change failed";
+    }
+    return `Queued ${providerName} setting`;
+  }
   if (item.status === "delivering") {
     return `Delivering to ${providerName}`;
   }
@@ -2137,14 +2456,26 @@ function deliveryItemStatusLabel(providerName: string, item: DeliveryQueueItem):
   return `Queued — delivers when ${providerName} is ready`;
 }
 
+function controlItemLabel(item: DeliveryQueueItem): string {
+  if (!item.control) {
+    return item.text;
+  }
+  return item.control.kind === "permission"
+    ? `Permission: ${item.text}`
+    : `Model: ${item.text}`;
+}
+
 function deliveryStatusLabel(view: TaskViewState, deliveryState: DeliveryTaskState): string {
   const providerName = providerLabel(deliveryState.provider);
   const first = deliveryState.queue[0] ?? null;
   if (first?.status === "delivering") {
+    if (first.kind === "control") {
+      return "Applying setting";
+    }
     return `Delivering to ${providerName}`;
   }
   if (first?.status === "undelivered") {
-    return "Undelivered";
+    return first.kind === "control" ? "Setting failed" : "Undelivered";
   }
   if (deliveryState.queue.some((item) => item.status === "queued")) {
     return "Queued";

@@ -9,7 +9,7 @@ let electronApp = null;
 
 try {
   const page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "Provider and launch settings" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "model and permission can be changed" }).waitFor({
     state: "visible",
   });
   await page.locator("#entry-provider-claude", { hasText: "Claude" }).click();
