@@ -63,6 +63,34 @@ cd app
 DUET_PROJECTS_DIR="$(mktemp -d /tmp/duet-woody-test-XXXXXX)" npm run dev
 ```
 
+## Local Latest Channel
+
+For repeated human testing, use the local latest channel instead of a packaged
+app:
+
+```bash
+scripts/update-latest.sh
+scripts/install-desktop-shortcuts.sh
+```
+
+This installs two Desktop shortcuts:
+
+```text
+Duet Latest.command
+Update Duet Latest.command
+```
+
+`Duet Latest.command` launches the latest built app. `Update Duet Latest.command`
+installs dependencies and rebuilds the app. Both use persistent dev data at:
+
+```text
+~/Library/Application Support/Duet Dev/Projects
+```
+
+Updating the app does not delete previous Task / Run / artifact records. Close
+Duet before updating; live native PTY sessions are not expected to survive a
+rebuild.
+
 ## Verification
 
 Core health check:
