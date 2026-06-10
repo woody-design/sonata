@@ -301,9 +301,12 @@ fitTerminal();
 
 const pendingReadyTaskIds = new Set<string>();
 let transcriptRenderTimer: number | null = null;
+let composerIsComposing = false;
+let lastComposerCompositionEndAt = 0;
 const MAX_TRANSCRIPT_CHARS = 120_000;
 const MAX_TRANSCRIPT_RAW_CHARS = 260_000;
 const MAX_TERMINAL_BUFFER_CHARS = 80_000;
+const COMPOSITION_END_SHORTCUT_GUARD_MS = 80;
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: string | null }>> = {
   codex: [
@@ -397,6 +400,17 @@ elements.promptInput.addEventListener("focus", () => {
 });
 
 elements.promptInput.addEventListener("blur", () => {
+  composerIsComposing = false;
+  renderComposerControls();
+});
+
+elements.promptInput.addEventListener("compositionstart", () => {
+  composerIsComposing = true;
+});
+
+elements.promptInput.addEventListener("compositionend", () => {
+  composerIsComposing = false;
+  lastComposerCompositionEndAt = performance.now();
   renderComposerControls();
 });
 
@@ -443,6 +457,10 @@ elements.modelChip.addEventListener("click", (event) => {
 });
 
 elements.promptInput.addEventListener("keydown", (event) => {
+  if (isComposerCompositionShortcut(event)) {
+    return;
+  }
+
   if (event.key === "Escape" && elements.promptInput.value.trim().length === 0 && hasActiveRun()) {
     event.preventDefault();
     void stopRun();
@@ -2788,6 +2806,16 @@ function scrollRunIntoView(runId: string): void {
 
 function focusComposer(): void {
   elements.promptInput.focus();
+}
+
+function isComposerCompositionShortcut(event: KeyboardEvent): boolean {
+  if (event.key !== "Enter" && event.key !== "Escape") {
+    return false;
+  }
+  if (event.isComposing || composerIsComposing || event.keyCode === 229) {
+    return true;
+  }
+  return performance.now() - lastComposerCompositionEndAt < COMPOSITION_END_SHORTCUT_GUARD_MS;
 }
 
 function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): string {

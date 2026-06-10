@@ -21,6 +21,7 @@
     "e2e:run-reading-surface": "npm run build && node tests/e2e/run-reading-surface.mjs",
     "e2e:task-entry": "npm run build && node tests/e2e/task-entry.mjs",
     "e2e:queue-delivery": "npm run build && node tests/e2e/queue-delivery.mjs",
+    "e2e:composer-ime": "npm run build && node tests/e2e/composer-ime.mjs",
     "e2e:task-folder-cwd": "npm run build && node tests/e2e/task-folder-cwd.mjs",
     "e2e:provider-locked-task": "npm run build && node tests/e2e/provider-locked-task.mjs",
     "e2e:approval-surface": "npm run build && node tests/e2e/approval-surface.mjs",
