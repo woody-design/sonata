@@ -50,6 +50,14 @@ try {
     state: "visible",
   });
 
+  const workTrace = runCard.locator(".turn-work-trace").first();
+  await workTrace.locator(".turn-work-summary", { hasText: /Worked for|Completed/ }).waitFor({
+    state: "visible",
+  });
+  const workTraceCollapsed = await workTrace.evaluate((element) => !element.hasAttribute("open"));
+  await workTrace.locator(".turn-work-summary").click();
+  const workTraceExpandable = await workTrace.evaluate((element) => element.hasAttribute("open"));
+
   const assistantBody = runCard.locator(".turn-body .md-body, .turn-body .turn-fallback-text").first();
   await assistantBody.waitFor({ state: "visible" });
   const userText = await runCard.locator(".turn-user-text").textContent();
@@ -87,6 +95,8 @@ try {
     reports.length === 1 &&
     latestRun?.artifactCandidates?.some((artifact) => artifact.path === "transcript.md") &&
     promptComplete &&
+    workTraceCollapsed &&
+    workTraceExpandable &&
     transcriptClean &&
     transcriptUsesMainScroll &&
     !rawTerminalPersisted;
@@ -97,6 +107,8 @@ try {
         workspaceRoot,
         taskId,
         promptComplete,
+        workTraceCollapsed,
+        workTraceExpandable,
         assistantTranscriptChars: assistantText?.length ?? 0,
         transcriptMaxHeight,
         transcriptOverflow,

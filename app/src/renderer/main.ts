@@ -300,6 +300,7 @@ terminal.open(elements.terminal);
 fitTerminal();
 
 const pendingReadyTaskIds = new Set<string>();
+const workTraceOpenByTurnKey = new Map<string, boolean>();
 let transcriptRenderTimer: number | null = null;
 let composerIsComposing = false;
 let lastComposerCompositionEndAt = 0;
@@ -1830,10 +1831,15 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
 
   card.append(renderTurnUser(turn));
 
+  const workBlocks = turn.blocks.filter(isWorkTraceBlock);
+  if (turn.run) {
+    card.append(renderTurnWorkTrace(turn, workBlocks));
+  }
+
   const body = document.createElement("div");
-  body.className = "turn-body";
+  body.className = "turn-body turn-answer";
   for (const block of turn.blocks) {
-    if (block.kind === "user-message") {
+    if (block.kind === "user-message" || isWorkTraceBlock(block)) {
       continue;
     }
     body.append(renderTranscriptBlock(block));
@@ -1841,10 +1847,9 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   if (turn.blocks.length === 0 && turn.fallbackText) {
     body.append(renderTurnFallback(turn.fallbackText));
   }
-  if (turn.run && isActiveRunStatus(turn.run.status)) {
-    body.append(renderTurnWorking());
+  if (body.childElementCount > 0) {
+    card.append(body);
   }
-  card.append(body);
 
   if (turn.run) {
     card.append(renderTurnFooter(turn.run, turn.blocks.length > 0));
@@ -1881,6 +1886,108 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
   return header;
 }
 
+function isWorkTraceBlock(
+  block: TranscriptBlock,
+): block is Extract<TranscriptBlock, { kind: "thinking" | "tool-call" }> {
+  return block.kind === "thinking" || block.kind === "tool-call";
+}
+
+function renderTurnWorkTrace(
+  turn: ReadingTurn,
+  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" }>>,
+): HTMLElement {
+  const run = turn.run;
+  if (!run) {
+    throw new Error("Cannot render a work trace without a Run.");
+  }
+
+  const details = document.createElement("details");
+  details.className = `turn-work-trace ${runTone(run)}`;
+  const rememberedOpen = workTraceOpenByTurnKey.get(turn.key);
+  details.open = rememberedOpen ?? shouldOpenWorkTraceByDefault(run);
+
+  const summary = document.createElement("summary");
+  summary.className = "turn-work-summary";
+  let userRequestedToggle = false;
+  summary.addEventListener("pointerdown", () => {
+    userRequestedToggle = true;
+  });
+  summary.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      userRequestedToggle = true;
+    }
+  });
+  details.addEventListener("toggle", () => {
+    if (!userRequestedToggle) {
+      return;
+    }
+    workTraceOpenByTurnKey.set(turn.key, details.open);
+    userRequestedToggle = false;
+  });
+
+  const label = document.createElement("span");
+  label.className = "turn-work-label";
+  label.textContent = workTraceLabel(run);
+  summary.append(label);
+
+  const metaItems = workTraceMeta(run, workBlocks);
+  if (metaItems.length > 0) {
+    const meta = document.createElement("span");
+    meta.className = "turn-work-meta";
+    meta.textContent = metaItems.join(" · ");
+    summary.append(meta);
+  }
+
+  details.append(summary);
+
+  const body = document.createElement("div");
+  body.className = "turn-work-body";
+  if (workBlocks.length > 0) {
+    for (const block of workBlocks) {
+      body.append(renderTranscriptBlock(block));
+    }
+  } else if (isActiveRunStatus(run.status)) {
+    body.append(renderTurnWorking());
+  } else {
+    const note = document.createElement("div");
+    note.className = "turn-system-note";
+    note.textContent = "No structured work trace was captured for this Run.";
+    body.append(note);
+  }
+  details.append(body);
+  return details;
+}
+
+function shouldOpenWorkTraceByDefault(run: RuntimeRunReport): boolean {
+  return run.status !== "completed";
+}
+
+function workTraceLabel(run: RuntimeRunReport): string {
+  if (isActiveRunStatus(run.status)) {
+    return `${activeProviderLabel()} is working`;
+  }
+  if (run.status === "completed") {
+    return `Worked for ${formatElapsed(run.elapsedMs)}`;
+  }
+  return runOutcome(run);
+}
+
+function workTraceMeta(
+  run: RuntimeRunReport,
+  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" }>>,
+): string[] {
+  const toolCount = workBlocks.filter((block) => block.kind === "tool-call").length;
+  return [
+    toolCount > 0 ? pluralize(toolCount, "action") : null,
+    run.changedFiles.length > 0 ? changedFilesLabel(run.changedFiles.length) : null,
+    run.approvalEvents.length > 0 ? pluralize(run.approvalEvents.length, "approval") : null,
+  ].filter((item): item is string => Boolean(item));
+}
+
+function changedFilesLabel(count: number): string {
+  return count === 1 ? "1 file changed" : `${count} files changed`;
+}
+
 function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
   if (block.kind === "assistant-text") {
     return markdownBody(block.markdown);
@@ -1889,15 +1996,14 @@ function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
     return renderToolCallBlock(block);
   }
   if (block.kind === "thinking") {
-    const details = document.createElement("details");
-    details.className = "turn-thinking";
-    const summary = document.createElement("summary");
-    summary.textContent = "Thinking";
+    const section = document.createElement("section");
+    section.className = "turn-thinking";
+    section.append(runSectionLabel("Thinking"));
     const pre = document.createElement("pre");
     pre.className = "turn-thinking-text";
     pre.textContent = block.text;
-    details.append(summary, pre);
-    return details;
+    section.append(pre);
+    return section;
   }
   const note = document.createElement("div");
   note.className = "turn-system-note";
@@ -1906,10 +2012,11 @@ function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
 }
 
 function renderToolCallBlock(block: ToolCallBlock): HTMLElement {
-  const details = document.createElement("details");
-  details.className = `turn-tool ${block.status}`;
+  const tool = document.createElement("article");
+  tool.className = `turn-tool ${block.status}`;
 
-  const summary = document.createElement("summary");
+  const summary = document.createElement("div");
+  summary.className = "turn-tool-summary";
   const status = document.createElement("span");
   status.className = "turn-tool-status";
   status.textContent = block.status === "running" ? "…" : block.status === "ok" ? "✓" : "✕";
@@ -1929,7 +2036,7 @@ function renderToolCallBlock(block: ToolCallBlock): HTMLElement {
     duration.textContent = formatElapsed(block.durationMs);
     summary.append(duration);
   }
-  details.append(summary);
+  tool.append(summary);
 
   const body = document.createElement("div");
   body.className = "turn-tool-body";
@@ -1939,8 +2046,8 @@ function renderToolCallBlock(block: ToolCallBlock): HTMLElement {
   if (block.resultPreview !== null) {
     body.append(toolDetailSection("Result", block.resultPreview, block.resultTruncated));
   }
-  details.append(body);
-  return details;
+  tool.append(body);
+  return tool;
 }
 
 function toolDetailSection(label: string, text: string, truncated: boolean): HTMLElement {
