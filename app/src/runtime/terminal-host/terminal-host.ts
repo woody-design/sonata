@@ -848,6 +848,7 @@ export class TerminalHost extends EventEmitter {
 
     const hint = detectIdlePrompt(this.rawTail, this.profile);
     if (!hint.ready) {
+      this.scheduleTaskReadyCheck();
       return;
     }
 
@@ -1764,6 +1765,22 @@ function detectIdleComposer(rawText: string, profile: TerminalProviderProfile): 
   };
 }
 
+export function detectIdleComposerForProvider(
+  rawText: string,
+  provider: RuntimeProvider = "codex",
+): {
+  completed: boolean;
+  source: "terminal-idle-heuristic";
+  confidence: CompletionConfidence;
+  signals: {
+    promptAfterWorking: boolean;
+    promptAfterApproval: boolean;
+    hasModelOrCwdHint: boolean;
+  };
+} {
+  return detectIdleComposer(rawText, terminalProviderProfile(provider));
+}
+
 function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
   ready: boolean;
   confidence: CompletionConfidence;
@@ -1786,13 +1803,11 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
   ].flatMap((hint) => [hint, compactText(hint)]);
   const lastApproval = maxLastIndexOf(lowered, approvalNeedles);
   const promptTail = lastAnyPrompt >= 0 ? recent.slice(lastAnyPrompt, lastAnyPrompt + 700) : "";
-  const claudeSuggestionPrompt = profile.provider === "claude" && /^\s*❯\s*try/i.test(promptTail);
   const hasModelOrCwdHint = profile.idlePromptModelHints.test(promptTail);
   const ready =
     lastAnyPrompt >= 0 &&
     lastAnyPrompt > lastApproval &&
-    lastAnyPrompt > lastActivity &&
-    !claudeSuggestionPrompt;
+    lastAnyPrompt > lastActivity;
 
   return {
     ready,
@@ -1801,6 +1816,19 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
     promptAfterApproval: lastAnyPrompt >= 0 && lastAnyPrompt > lastApproval,
     hasModelOrCwdHint,
   };
+}
+
+export function detectIdlePromptForProvider(
+  rawText: string,
+  provider: RuntimeProvider = "codex",
+): {
+  ready: boolean;
+  confidence: CompletionConfidence;
+  lastPromptIndex: number;
+  promptAfterApproval: boolean;
+  hasModelOrCwdHint: boolean;
+} {
+  return detectIdlePrompt(rawText, terminalProviderProfile(provider));
 }
 
 function detectApprovalCandidate(rawText: string, profile: TerminalProviderProfile): ApprovalCandidate | null {
