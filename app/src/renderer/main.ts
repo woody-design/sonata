@@ -291,7 +291,7 @@ const terminalFontFamily = getComputedStyle(document.documentElement)
 const terminal = new Terminal({
   convertEol: true,
   cursorBlink: false,
-  fontFamily: terminalFontFamily,
+  fontFamily: terminalFontFamily || "SFMono-Regular, Menlo, Consolas, monospace",
   fontSize: 12,
   theme: {
     background: "#141414",

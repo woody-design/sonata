@@ -2075,7 +2075,7 @@ h2 {
 /* Reading flow: conversational turns with collapsible work traces */
 
 .turn-card {
-  width: min(100%, 1040px);
+  width: min(100%, var(--measure-prose));
   margin: 0 auto;
   padding: 4px 0 18px;
 }
@@ -2094,8 +2094,7 @@ h2 {
   justify-items: end;
   gap: 5px;
   margin-left: auto;
-  width: min(760px, 82%);
-  max-width: min(760px, 82%);
+  width: 100%;
 }
 
 .turn-role {
@@ -2106,7 +2105,7 @@ h2 {
 
 .turn-user-text {
   min-width: 0;
-  max-width: 100%;
+  max-width: min(760px, 82%);
   border: 1px solid var(--border-raised);
   border-radius: 8px;
   background: var(--surface-raised);
@@ -2210,12 +2209,6 @@ h2 {
 
 .turn-body:empty {
   padding-top: 0;
-}
-
-.turn-answer {
-  width: min(100%, var(--measure-prose));
-  max-width: var(--measure-prose);
-  margin: 0 auto;
 }
 
 /* Markdown typography */
