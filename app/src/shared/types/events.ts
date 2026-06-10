@@ -21,6 +21,7 @@ import type {
   RuntimeProvider,
 } from "./domain";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
+import type { UsageSnapshot } from "./usage";
 
 export interface BaseRuntimeEvent<TType extends string, TPayload> {
   type: TType;
@@ -248,6 +249,14 @@ export type TranscriptBlocksEvent = BaseRuntimeEvent<
   }
 >;
 
+export type UsageUpdatedEvent = BaseRuntimeEvent<
+  "usage:updated",
+  {
+    taskId: TaskId;
+    snapshot: UsageSnapshot;
+  }
+>;
+
 export type ProductRuntimeEvent =
   | PtyExitEvent
   | TaskStartedEvent
@@ -267,7 +276,8 @@ export type ProductRuntimeEvent =
   | FileChangedEvent
   | RuntimeReportUpdatedEvent
   | TranscriptLocatedEvent
-  | TranscriptBlocksEvent;
+  | TranscriptBlocksEvent
+  | UsageUpdatedEvent;
 
 export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
 
@@ -276,6 +286,7 @@ export type RunIndexEvent = Exclude<
   | RuntimeReportUpdatedEvent
   | TranscriptLocatedEvent
   | TranscriptBlocksEvent
+  | UsageUpdatedEvent
   | DeliveryStateEvent
   | DeliveryReceiptEvent
   | TaskUpdatedEvent

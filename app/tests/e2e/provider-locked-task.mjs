@@ -13,7 +13,7 @@ try {
     state: "visible",
   });
   await page.locator("#entry-provider-claude", { hasText: "Claude" }).click();
-  await page.locator("#entry-launch-settings", { hasText: "Opus Extra High" }).waitFor({
+  await page.locator("#entry-launch-settings", { hasText: "Opus 4.8 Extra High" }).waitFor({
     state: "visible",
   });
   await page.locator("#entry-new-task", { hasText: "Start Claude Task" }).click();

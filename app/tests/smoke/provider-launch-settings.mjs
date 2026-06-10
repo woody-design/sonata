@@ -24,6 +24,12 @@ const claude = claudeArgs({
   model: "opus",
   reasoningEffort: "xhigh",
 });
+const claudeWithSettings = claudeArgs({
+  permissionMode: "dontAsk",
+  model: "fable",
+  reasoningEffort: "high",
+  settingsPath: "/tmp/duet usage/claude-statusline-settings.json",
+});
 
 const success =
   includesSequence(codexFast, ["-m", "gpt-5.5"]) &&
@@ -37,6 +43,12 @@ const success =
   includesSequence(claude, ["--permission-mode", "default"]) &&
   includesSequence(claude, ["--model", "opus"]) &&
   includesSequence(claude, ["--effort", "xhigh"]) &&
+  includesSequence(claudeWithSettings, ["--permission-mode", "dontAsk"]) &&
+  includesSequence(claudeWithSettings, [
+    "--settings",
+    "/tmp/duet usage/claude-statusline-settings.json",
+  ]) &&
+  includesSequence(claudeWithSettings, ["--model", "fable"]) &&
   !claude.includes("service_tier");
 
 console.log(
@@ -45,6 +57,7 @@ console.log(
       codexFast,
       codexDefaultSpeed,
       claude,
+      claudeWithSettings,
       success,
     },
     null,

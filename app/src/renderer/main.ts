@@ -30,6 +30,7 @@ import type {
   ReasoningEffort,
   RuntimeProvider,
   Task,
+  UsageSnapshot,
 } from "../shared/types";
 import type { ApprovalDetectedEvent, TranscriptBlocksEvent } from "../shared/types/events";
 import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
@@ -66,6 +67,7 @@ interface TaskViewState {
   composerObserved: boolean;
   deliveryState: DeliveryTaskState | null;
   pendingAttachments: ComposerAttachment[];
+  usageSnapshot: UsageSnapshot | null;
   status: string;
   unread: boolean;
 }
@@ -86,6 +88,7 @@ interface RendererState {
   taskDraft: TaskLaunchDraft;
   terminalOpen: boolean;
   composerMenu: ComposerMenuState | null;
+  usagePopover: UsagePopoverState | null;
   readingSettings: ReadingSettings;
   readingPopoverOpen: boolean;
   readingPopoverAnchor: PopoverAnchor | null;
@@ -104,6 +107,11 @@ interface PromptNavState {
 interface ComposerMenuState {
   type: "add" | "permission" | "model";
   anchor: PopoverAnchor;
+}
+
+interface UsagePopoverState {
+  anchor: PopoverAnchor;
+  pinned: boolean;
 }
 
 interface PopoverAnchor {
@@ -161,6 +169,7 @@ const state: RendererState = {
   },
   terminalOpen: false,
   composerMenu: null,
+  usagePopover: null,
   readingSettings: bootReadingSettingsFromDom(),
   readingPopoverOpen: false,
   readingPopoverAnchor: null,
@@ -278,6 +287,20 @@ appElement.innerHTML = `
             <div class="composer-actions">
               <button id="model-chip" class="composer-chip hidden" type="button"></button>
               <button
+                id="usage-indicator"
+                class="usage-indicator empty"
+                type="button"
+                aria-label="Usage data"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+                disabled
+              >
+                <svg class="usage-ring" viewBox="0 0 20 20" aria-hidden="true">
+                  <circle class="usage-ring-track" cx="10" cy="10" r="7.5"></circle>
+                  <circle class="usage-ring-fill" cx="10" cy="10" r="7.5" pathLength="100"></circle>
+                </svg>
+              </button>
+              <button
                 id="send-prompt"
                 class="primary send-button"
                 type="button"
@@ -334,6 +357,7 @@ const elements = {
   attachmentPicker: getElement<HTMLInputElement>("attachment-picker"),
   permissionChip: getElement<HTMLButtonElement>("permission-chip"),
   modelChip: getElement<HTMLButtonElement>("model-chip"),
+  usageIndicator: getElement<HTMLButtonElement>("usage-indicator"),
   composerPopoverRoot: getElement<HTMLDivElement>("composer-popover-root"),
   sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
   terminalDrawer: getElement<HTMLElement>("terminal-drawer"),
@@ -344,6 +368,10 @@ const elements = {
 const terminalFontFamily = getComputedStyle(document.documentElement)
   .getPropertyValue("--font-mono")
   .trim();
+
+const USAGE_CONTEXT_HIGH_USED_PERCENT = 80;
+const USAGE_POPOVER_OPEN_DELAY_MS = 150;
+const USAGE_POPOVER_CLOSE_DELAY_MS = 180;
 
 const terminal = new Terminal({
   convertEol: true,
@@ -366,6 +394,8 @@ let transcriptRenderTimer: number | null = null;
 let stickyPromptSyncFrame: number | null = null;
 let composerIsComposing = false;
 let lastComposerCompositionEndAt = 0;
+let usagePopoverOpenTimer: number | null = null;
+let usagePopoverCloseTimer: number | null = null;
 const MAX_TRANSCRIPT_CHARS = 120_000;
 const MAX_TRANSCRIPT_RAW_CHARS = 260_000;
 const MAX_TERMINAL_BUFFER_CHARS = 80_000;
@@ -532,6 +562,26 @@ elements.permissionChip.addEventListener("click", (event) => {
 
 elements.modelChip.addEventListener("click", (event) => {
   toggleComposerMenu("model", event.currentTarget as HTMLElement);
+});
+
+elements.usageIndicator.addEventListener("mouseenter", (event) => {
+  scheduleUsagePopoverOpen(event.currentTarget as HTMLElement);
+});
+
+elements.usageIndicator.addEventListener("mouseleave", () => {
+  scheduleUsagePopoverClose();
+});
+
+elements.usageIndicator.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleUsagePopover(event.currentTarget as HTMLElement);
+});
+
+elements.usageIndicator.addEventListener("focus", (event) => {
+  if (state.usagePopover?.pinned) {
+    return;
+  }
+  scheduleUsagePopoverOpen(event.currentTarget as HTMLElement);
 });
 
 elements.promptInput.addEventListener("keydown", (event) => {
@@ -1227,7 +1277,9 @@ document.addEventListener("click", (event) => {
     target.closest(".reading-settings-popover") ||
     target.closest(".task-settings-wrap") ||
     target.closest(".composer-chip") ||
-    target.closest(".composer-menu")
+    target.closest(".composer-menu") ||
+    target.closest(".usage-indicator") ||
+    target.closest(".usage-popover")
   ) {
     return;
   }
@@ -1243,15 +1295,26 @@ document.addEventListener("click", (event) => {
   if (state.readingPopoverOpen) {
     closeReadingPopover();
   }
+  if (state.usagePopover) {
+    closeUsagePopover();
+  }
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape" || !state.readingPopoverOpen) {
+  if (event.key !== "Escape") {
     return;
   }
-  event.preventDefault();
-  closeReadingPopover();
-  elements.readingSettings.focus();
+  if (state.readingPopoverOpen) {
+    event.preventDefault();
+    closeReadingPopover();
+    elements.readingSettings.focus();
+    return;
+  }
+  if (state.usagePopover) {
+    event.preventDefault();
+    closeUsagePopover();
+    elements.usageIndicator.focus();
+  }
 });
 
 readingModeQuery.addEventListener("change", () => {
@@ -1335,6 +1398,12 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   if (event.type === "delivery:receipt") {
     view.status = event.payload.receipt.backfilled ? "Receipt backfilled" : "Delivered";
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "usage:updated") {
+    view.usageSnapshot = event.payload.snapshot;
     markViewChanged(view);
     return;
   }
@@ -1425,6 +1494,7 @@ function createTaskView(task: Task, status: string): TaskViewState {
     composerObserved: false,
     deliveryState: null,
     pendingAttachments: [],
+    usageSnapshot: null,
     status,
     unread: false,
   };
@@ -1471,6 +1541,15 @@ async function hydrateTranscript(taskId: string): Promise<void> {
   markViewChanged(view);
 }
 
+async function hydrateUsage(taskId: string): Promise<void> {
+  const view = taskViewForId(taskId);
+  if (!view?.task) {
+    return;
+  }
+  view.usageSnapshot = await window.duetRuntime.readUsage({ taskId });
+  markViewChanged(view);
+}
+
 function applyPendingRuntimeState(view: TaskViewState): void {
   if (!view.task || !pendingReadyTaskIds.delete(view.task.id)) {
     return;
@@ -1507,6 +1586,8 @@ function activateTask(taskId: string): void {
   }
   if (state.activeTaskId !== taskId) {
     exitPromptNav({ focusComposer: false });
+    state.usagePopover = null;
+    clearUsagePopoverTimers();
   }
   state.activeTaskId = taskId;
   view.unread = false;
@@ -1530,6 +1611,8 @@ async function closeTaskTab(taskId: string): Promise<void> {
     const index = state.taskViews.findIndex((item) => item.task?.id === taskId);
     state.taskViews = state.taskViews.filter((item) => item.task?.id !== taskId);
     if (state.activeTaskId === taskId) {
+      state.usagePopover = null;
+      clearUsagePopoverTimers();
       const next = state.taskViews[Math.max(0, index - 1)] ?? state.taskViews[0] ?? null;
       state.activeTaskId = next?.task?.id ?? null;
       terminal.clear();
@@ -1665,6 +1748,7 @@ async function createTask(
     upsertTaskView(view);
     activateTask(response.task.id);
     void hydrateTranscript(response.task.id);
+    void hydrateUsage(response.task.id);
   } catch (error) {
     const message = errorMessage(error);
     state.status = message;
@@ -1701,6 +1785,7 @@ async function openTask(cwd?: string | null): Promise<void> {
     activateTask(response.task.id);
     await refreshReport(response.task.id);
     await hydrateTranscript(response.task.id);
+    await hydrateUsage(response.task.id);
   } catch (error) {
     const message = errorMessage(error);
     state.status = message;
@@ -1826,7 +1911,7 @@ function render(): void {
   renderReadingPopover();
   renderAttachmentStrip(view);
   renderComposerControls(view);
-  renderComposerMenu(view);
+  renderComposerPopover(view);
 
   renderTaskTabs();
   renderApproval();
@@ -1889,6 +1974,7 @@ function renderComposerControls(view = activeTaskView()): void {
     "model",
     Boolean(view?.task),
   );
+  renderUsageIndicator(view);
   elements.addAttachment.disabled = !view?.task;
   elements.addAttachment.classList.toggle("active", state.composerMenu?.type === "add");
   elements.sendPrompt.disabled = !view?.task || (!activeRun && !promptHasText && !hasAttachments);
@@ -1902,6 +1988,37 @@ function renderComposerControls(view = activeTaskView()): void {
   elements.composer.classList.toggle("is-drafting", promptHasText || hasAttachments);
   elements.composer.classList.toggle("has-attachments", hasAttachments);
   elements.composer.classList.toggle("is-idle", Boolean(view?.task) && !focused && !promptHasText && !hasAttachments);
+}
+
+function renderUsageIndicator(view: TaskViewState | null): void {
+  const snapshot = view?.usageSnapshot ?? null;
+  const context = snapshot?.context ?? null;
+  const usedPercent = context ? 100 - context.remainingPercent : 0;
+  const hasTask = Boolean(view?.task);
+  const hasContext = Boolean(context);
+  const high = hasContext && usedPercent >= USAGE_CONTEXT_HIGH_USED_PERCENT;
+
+  elements.usageIndicator.disabled = !hasTask;
+  elements.usageIndicator.classList.toggle("empty", !hasContext);
+  elements.usageIndicator.classList.toggle("high", high);
+  elements.usageIndicator.classList.toggle("active", Boolean(state.usagePopover));
+  elements.usageIndicator.style.setProperty("--usage-ring-dashoffset", String(100 - usedPercent));
+  elements.usageIndicator.ariaExpanded = String(Boolean(state.usagePopover));
+
+  if (!hasTask) {
+    elements.usageIndicator.title = "Usage data";
+    elements.usageIndicator.setAttribute("aria-label", "Usage data");
+    return;
+  }
+  if (!context) {
+    elements.usageIndicator.title = "No usage data yet";
+    elements.usageIndicator.setAttribute("aria-label", "No usage data yet");
+    return;
+  }
+
+  const label = `${formatUsagePercent(context.remainingPercent)} context left`;
+  elements.usageIndicator.title = label;
+  elements.usageIndicator.setAttribute("aria-label", label);
 }
 
 function renderComposerChip(
@@ -1940,6 +2057,7 @@ function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement
   if (!view?.task) {
     return;
   }
+  clearUsagePopoverTimers();
   const rect = anchor.getBoundingClientRect();
   const current = state.composerMenu;
   state.composerMenu =
@@ -1953,12 +2071,100 @@ function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement
             width: rect.width,
           },
         };
+  state.usagePopover = null;
   render();
 }
 
-function renderComposerMenu(view = activeTaskView()): void {
+function scheduleUsagePopoverOpen(anchor: HTMLElement): void {
+  clearUsagePopoverCloseTimer();
+  if (usagePopoverOpenTimer !== null) {
+    window.clearTimeout(usagePopoverOpenTimer);
+  }
+  usagePopoverOpenTimer = window.setTimeout(() => {
+    usagePopoverOpenTimer = null;
+    openUsagePopover(anchor, false);
+  }, USAGE_POPOVER_OPEN_DELAY_MS);
+}
+
+function scheduleUsagePopoverClose(): void {
+  clearUsagePopoverOpenTimer();
+  if (state.usagePopover?.pinned) {
+    return;
+  }
+  clearUsagePopoverCloseTimer();
+  usagePopoverCloseTimer = window.setTimeout(() => {
+    usagePopoverCloseTimer = null;
+    closeUsagePopover();
+  }, USAGE_POPOVER_CLOSE_DELAY_MS);
+}
+
+function toggleUsagePopover(anchor: HTMLElement): void {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  clearUsagePopoverTimers();
+  if (state.usagePopover?.pinned) {
+    closeUsagePopover();
+    return;
+  }
+  openUsagePopover(anchor, true);
+}
+
+function openUsagePopover(anchor: HTMLElement, pinned: boolean): void {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  const previousPinned = state.usagePopover?.pinned ?? false;
+  state.composerMenu = null;
+  state.usagePopover = {
+    anchor: popoverAnchorFromElement(anchor),
+    pinned: pinned || previousPinned,
+  };
+  render();
+}
+
+function closeUsagePopover(): void {
+  clearUsagePopoverTimers();
+  if (!state.usagePopover) {
+    return;
+  }
+  state.usagePopover = null;
+  render();
+}
+
+function clearUsagePopoverTimers(): void {
+  clearUsagePopoverOpenTimer();
+  clearUsagePopoverCloseTimer();
+}
+
+function clearUsagePopoverOpenTimer(): void {
+  if (usagePopoverOpenTimer !== null) {
+    window.clearTimeout(usagePopoverOpenTimer);
+    usagePopoverOpenTimer = null;
+  }
+}
+
+function clearUsagePopoverCloseTimer(): void {
+  if (usagePopoverCloseTimer !== null) {
+    window.clearTimeout(usagePopoverCloseTimer);
+    usagePopoverCloseTimer = null;
+  }
+}
+
+function renderComposerPopover(view = activeTaskView()): void {
   elements.composerPopoverRoot.replaceChildren();
-  if (!view?.task || !state.composerMenu) {
+  if (!view?.task) {
+    return;
+  }
+  if (state.usagePopover) {
+    const popover = renderUsagePopover(view);
+    positionUsagePopover(popover);
+    elements.composerPopoverRoot.append(popover);
+    return;
+  }
+  if (!state.composerMenu) {
     return;
   }
   const menu = state.composerMenu.type === "add"
@@ -1968,6 +2174,83 @@ function renderComposerMenu(view = activeTaskView()): void {
       : renderModelMenu(view.task);
   positionComposerMenu(menu);
   elements.composerPopoverRoot.append(menu);
+}
+
+function renderUsagePopover(view: TaskViewState): HTMLElement {
+  const popover = document.createElement("div");
+  popover.className = "usage-popover";
+  popover.setAttribute("role", "dialog");
+  popover.setAttribute("aria-label", "Usage");
+  popover.addEventListener("mouseenter", () => {
+    clearUsagePopoverCloseTimer();
+  });
+  popover.addEventListener("mouseleave", () => {
+    scheduleUsagePopoverClose();
+  });
+
+  const snapshot = view.usageSnapshot;
+  if (!snapshot || (!snapshot.context && snapshot.limits.length === 0)) {
+    const empty = document.createElement("p");
+    empty.className = "usage-popover-empty";
+    empty.textContent = "No usage data yet - appears after the first response";
+    popover.append(empty);
+    return popover;
+  }
+
+  if (snapshot.context) {
+    popover.append(renderUsageContextRow(snapshot));
+  }
+
+  for (const limit of snapshot.limits) {
+    popover.append(renderUsageLimitRow(limit));
+  }
+
+  const footer = document.createElement("p");
+  footer.className = "usage-popover-footer";
+  footer.textContent = `as of ${formatRelativeUsageTime(snapshot.capturedAt)}`;
+  popover.append(footer);
+  return popover;
+}
+
+function renderUsageContextRow(snapshot: UsageSnapshot): HTMLElement {
+  const context = snapshot.context;
+  const row = document.createElement("div");
+  row.className = "usage-context-row";
+  if (!context) {
+    return row;
+  }
+
+  const label = document.createElement("strong");
+  label.textContent = `Context - ${formatUsagePercent(context.remainingPercent)} left`;
+
+  const meta = document.createElement("span");
+  meta.textContent = `${compactTokenCount(context.usedTokens)} / ${compactTokenCount(context.windowTokens)}`;
+
+  row.append(label, meta);
+  return row;
+}
+
+function renderUsageLimitRow(limit: UsageSnapshot["limits"][number]): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "usage-limit-row";
+
+  const heading = document.createElement("div");
+  heading.className = "usage-limit-heading";
+  const label = document.createElement("strong");
+  label.textContent = usageLimitDisplayLabel(limit.label);
+  const value = document.createElement("span");
+  value.textContent = `${formatUsagePercent(limit.remainingPercent)} left · resets ${formatRelativeUsageTime(limit.resetsAt * 1000)}`;
+  heading.append(label, value);
+
+  const bar = document.createElement("div");
+  bar.className = "usage-limit-bar";
+  const fill = document.createElement("div");
+  fill.className = "usage-limit-bar-fill";
+  fill.style.width = `${Math.max(0, Math.min(100, limit.remainingPercent))}%`;
+  bar.append(fill);
+
+  row.append(heading, bar);
+  return row;
 }
 
 function renderAddMenu(): HTMLElement {
@@ -2172,6 +2455,83 @@ function positionComposerMenu(menu: HTMLElement): void {
   menu.style.top = `${top}px`;
   menu.style.width = `${width}px`;
   menu.style.maxHeight = `${Math.max(180, window.innerHeight - viewportPadding * 2)}px`;
+}
+
+function positionUsagePopover(popover: HTMLElement): void {
+  const anchor = state.usagePopover?.anchor;
+  const viewportPadding = 14;
+  const rightSafetyInset = 220;
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+  const width = Math.min(320, viewportWidth - viewportPadding * 2);
+  const preferredLeft = anchor ? anchor.left - width - 8 : viewportPadding;
+  const maxLeft = Math.max(viewportPadding, viewportWidth - width - rightSafetyInset);
+  const left = Math.min(
+    maxLeft,
+    Math.max(viewportPadding, preferredLeft),
+  );
+  const estimatedHeight = 250;
+  const top = anchor
+    ? Math.max(viewportPadding, anchor.top - estimatedHeight - 8)
+    : viewportPadding;
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+  popover.style.width = `${width}px`;
+  popover.style.maxHeight = `${Math.max(180, window.innerHeight - viewportPadding * 2)}px`;
+}
+
+function formatUsagePercent(value: number): string {
+  const clamped = Math.max(0, Math.min(100, value));
+  const rounded = Math.round(clamped * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}%`;
+}
+
+function compactTokenCount(value: number): string {
+  if (value >= 1_000_000) {
+    const rounded = value / 1_000_000;
+    return `${rounded >= 10 ? Math.round(rounded) : trimTrailingZero(rounded.toFixed(1))}m`;
+  }
+  if (value >= 1_000) {
+    return `${Math.round(value / 1_000)}k`;
+  }
+  return String(Math.round(value));
+}
+
+function formatRelativeUsageTime(targetMs: number, nowMs = Date.now()): string {
+  const seconds = Math.max(0, Math.round(Math.abs(nowMs - targetMs) / 1000));
+  if (seconds < 45) {
+    return "now";
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainderMinutes = minutes % 60;
+  if (hours < 24) {
+    return remainderMinutes > 0 ? `${hours}h ${remainderMinutes}m` : `${hours}h`;
+  }
+  const days = Math.round(hours / 24);
+  return `${days}d`;
+}
+
+function usageLimitDisplayLabel(label: string): string {
+  if (label === "5h") {
+    return "5-hour limit";
+  }
+  if (label === "daily") {
+    return "Daily";
+  }
+  if (label === "weekly") {
+    return "Weekly";
+  }
+  if (label === "monthly") {
+    return "Monthly";
+  }
+  return `${label} limit`;
+}
+
+function trimTrailingZero(value: string): string {
+  return value.endsWith(".0") ? value.slice(0, -2) : value;
 }
 
 function modelControlChange(

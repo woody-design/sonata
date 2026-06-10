@@ -26,6 +26,7 @@ import type {
   TaskId,
 } from "../../shared/types/domain";
 import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
+import { ensureClaudeStatuslineSettings } from "../usage";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
 export const BRACKETED_PASTE_END = "\x1b[201~";
@@ -1375,10 +1376,12 @@ export function claudeArgs(options: {
   permissionMode?: ClaudePermissionMode | undefined;
   model?: string | null | undefined;
   reasoningEffort?: ReasoningEffort | null | undefined;
+  settingsPath?: string | null | undefined;
 }): string[] {
   return [
     "--permission-mode",
     options.permissionMode ?? "default",
+    ...(options.settingsPath ? ["--settings", options.settingsPath] : []),
     ...(options.model?.trim() ? ["--model", options.model.trim()] : []),
     ...(options.reasoningEffort ? ["--effort", options.reasoningEffort] : []),
   ];
@@ -1407,6 +1410,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           permissionMode: options.permissionMode,
           model: options.model,
           reasoningEffort: options.reasoningEffort,
+          settingsPath: ensureClaudeStatuslineSettings(options.cwd),
         }),
       approvalHints: {
         fileRead: CLAUDE_FILE_READ_APPROVAL_HINTS,

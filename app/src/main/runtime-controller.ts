@@ -23,6 +23,7 @@ import type {
   RuntimeReportUpdatedEvent,
   Task,
   TaskId,
+  UsageSnapshot,
   WorkspaceFilePreviewResponse,
   WorkspaceTreeEntry,
 } from "../shared/types";
@@ -47,6 +48,8 @@ import {
   RunIndex,
   TerminalHost,
   WorkspacePreview,
+  ClaudeStatuslineUsageWatcher,
+  parseClaudeStatuslinePayload,
   type ResolveRunIdInput,
 } from "../runtime";
 
@@ -86,12 +89,23 @@ interface ActiveTaskRuntime {
 
 export class RuntimeController {
   private readonly sendEvent: (event: RuntimeEvent) => void;
+  private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
+  private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
+  private readonly pendingClaudeUsage = new Map<string, UsageSnapshot>();
   private taskSeq = 0;
   private attachmentSeq = 0;
 
   constructor(options: RuntimeControllerOptions) {
     this.sendEvent = options.sendEvent;
+    this.claudeUsageWatcher = new ClaudeStatuslineUsageWatcher({
+      onPayload: (payload) => this.handleClaudeStatuslinePayload(payload),
+      onError: (error, filePath) => {
+        console.debug(
+          `[usage] skipped Claude statusline payload${filePath ? ` ${filePath}` : ""}: ${error.message}`,
+        );
+      },
+    });
   }
 
   createTask(request: CreateTaskRequest): CreateTaskResponse {
@@ -182,6 +196,7 @@ export class RuntimeController {
       deliveryController,
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
+    this.watchClaudeUsage(activeTask);
     this.persistTaskManifest(activeTask.task, activeTask.storageRoot);
     providerTranscript.startDiscovery(ptyStartedAt);
 
@@ -274,6 +289,7 @@ export class RuntimeController {
       deliveryController,
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
+    this.watchClaudeUsage(activeTask);
     this.persistTaskManifest(runningTask, storageRoot);
 
     for (const source of this.readTranscriptSources(storageRoot)) {
@@ -395,6 +411,11 @@ export class RuntimeController {
     };
   }
 
+  readUsage(taskId: TaskId): UsageSnapshot | null {
+    this.requireTaskRuntime(taskId);
+    return this.usageSnapshots.get(taskId) ?? null;
+  }
+
   listArtifacts(taskId: TaskId): ArtifactCandidate[] {
     const active = this.requireTaskRuntime(taskId);
     return this.currentArtifactPreview(active).listArtifacts();
@@ -425,6 +446,9 @@ export class RuntimeController {
       this.disposeTaskRuntime(active);
     }
     this.taskRuntimes.clear();
+    this.usageSnapshots.clear();
+    this.pendingClaudeUsage.clear();
+    this.claudeUsageWatcher.dispose();
   }
 
   private async applyControlChange(taskId: TaskId, change: DeliveryControlChange): Promise<void> {
@@ -446,6 +470,11 @@ export class RuntimeController {
   }
 
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
+    if (event.type === "usage:updated") {
+      this.publishUsageSnapshot(event.payload.taskId, event.payload.snapshot);
+      return;
+    }
+
     this.taskRuntimes.get(event.payload.taskId)?.deliveryController.handleRuntimeEvent(event);
 
     if (event.type === "run:started") {
@@ -577,6 +606,83 @@ export class RuntimeController {
     active.providerTranscript.dispose();
     active.deliveryController.dispose();
     active.terminalHost.dispose();
+    this.unwatchClaudeUsage(active);
+    this.usageSnapshots.delete(active.task.id);
+  }
+
+  private publishUsageSnapshot(taskId: TaskId, snapshot: UsageSnapshot): void {
+    const active = this.taskRuntimes.get(taskId);
+    if (!active) {
+      return;
+    }
+    const merged = mergeUsageSnapshot(this.usageSnapshots.get(taskId) ?? null, snapshot);
+    if (!hasUsageData(merged)) {
+      return;
+    }
+    this.usageSnapshots.set(taskId, merged);
+    this.sendEvent({
+      type: "usage:updated",
+      payload: {
+        taskId,
+        snapshot: merged,
+      },
+      ts: new Date().toISOString(),
+    });
+  }
+
+  private watchClaudeUsage(active: ActiveTaskRuntime): void {
+    if (active.task.provider === "claude") {
+      this.claudeUsageWatcher.watchWorkspace(active.task.providerCwd);
+    }
+  }
+
+  private unwatchClaudeUsage(active: ActiveTaskRuntime): void {
+    if (active.task.provider === "claude") {
+      this.claudeUsageWatcher.unwatchWorkspace(active.task.providerCwd);
+    }
+  }
+
+  private handleClaudeStatuslinePayload(payload: unknown): void {
+    const result = parseClaudeStatuslinePayload(payload);
+    if (!result) {
+      return;
+    }
+
+    const active = this.activeTaskForProviderSession("claude", result.providerSessionId);
+    if (!active) {
+      this.pendingClaudeUsage.set(result.providerSessionId, result.snapshot);
+      return;
+    }
+
+    this.publishUsageSnapshot(active.task.id, result.snapshot);
+  }
+
+  private activeTaskForProviderSession(
+    provider: RuntimeProvider,
+    providerSessionId: string,
+  ): ActiveTaskRuntime | null {
+    for (const active of this.taskRuntimes.values()) {
+      if (
+        active.task.provider === provider &&
+        active.task.providerSessionRef === providerSessionId
+      ) {
+        return active;
+      }
+    }
+    return null;
+  }
+
+  private flushPendingClaudeUsage(active: ActiveTaskRuntime): void {
+    const providerSessionRef = active.task.providerSessionRef;
+    if (!providerSessionRef) {
+      return;
+    }
+    const pending = this.pendingClaudeUsage.get(providerSessionRef);
+    if (!pending) {
+      return;
+    }
+    this.pendingClaudeUsage.delete(providerSessionRef);
+    this.publishUsageSnapshot(active.task.id, pending);
   }
 
   private createProviderTranscript(
@@ -628,6 +734,7 @@ export class RuntimeController {
       };
       this.persistTaskManifest(active.task, active.storageRoot);
     }
+    this.flushPendingClaudeUsage(active);
   }
 
   private readTranscriptSources(storageRoot: string): TranscriptSourceRef[] {
@@ -918,6 +1025,20 @@ function normalizeTaskForProviderCwd(task: Task, providerCwd: string): Task {
 
 function taskProviderCwd(task: Task, storageRoot: string): string {
   return path.resolve(task.providerCwd || task.workingDirectory || storageRoot);
+}
+
+function mergeUsageSnapshot(previous: UsageSnapshot | null, next: UsageSnapshot): UsageSnapshot {
+  if (!previous || previous.provider !== next.provider) {
+    return next;
+  }
+  return {
+    ...next,
+    context: next.context ?? previous.context,
+  };
+}
+
+function hasUsageData(snapshot: UsageSnapshot): boolean {
+  return Boolean(snapshot.context || snapshot.limits.length > 0);
 }
 
 function pathsEqual(left: string, right: string): boolean {

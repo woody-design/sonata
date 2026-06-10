@@ -1,6 +1,7 @@
 import type { RunId, RuntimeProvider, TaskId } from "../../shared/types/domain";
 import type { RuntimeEvent } from "../../shared/types/events";
 import type { TranscriptBlock, TranscriptSourceRef } from "../../shared/types/transcript";
+import type { UsageSnapshot } from "../../shared/types/usage";
 import { ClaudeSessionNormalizer } from "./claude-normalizer";
 import { CodexRolloutNormalizer } from "./codex-normalizer";
 import { JsonlTailer } from "./jsonl-tailer";
@@ -155,7 +156,11 @@ export class ProviderTranscript {
     const normalizer =
       ref.format === "claude-session-jsonl"
         ? new ClaudeSessionNormalizer({ taskId: this.options.taskId, sourceId: ref.sourceId })
-        : new CodexRolloutNormalizer({ taskId: this.options.taskId, sourceId: ref.sourceId });
+        : new CodexRolloutNormalizer({
+            taskId: this.options.taskId,
+            sourceId: ref.sourceId,
+            onUsageSnapshot: (snapshot) => this.emitUsageSnapshot(snapshot),
+          });
 
     const attached: AttachedSource = {
       ref,
@@ -241,5 +246,16 @@ export class ProviderTranscript {
     if (!this.disposed) {
       this.options.eventSink(event);
     }
+  }
+
+  private emitUsageSnapshot(snapshot: UsageSnapshot): void {
+    this.emitEvent({
+      type: "usage:updated",
+      payload: {
+        taskId: this.options.taskId,
+        snapshot,
+      },
+      ts: new Date().toISOString(),
+    });
   }
 }

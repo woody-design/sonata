@@ -1,5 +1,7 @@
 import type { TaskId } from "../../shared/types/domain";
 import type { ToolCallBlock, TranscriptAttachment, TranscriptBlock } from "../../shared/types/transcript";
+import type { UsageSnapshot } from "../../shared/types/usage";
+import { parseCodexTokenCountPayload } from "../usage";
 import {
   boundText,
   INPUT_PREVIEW_LIMIT,
@@ -20,14 +22,20 @@ import {
 export class CodexRolloutNormalizer {
   private readonly taskId: TaskId;
   private readonly sourceId: string;
+  private readonly onUsageSnapshot: ((snapshot: UsageSnapshot) => void) | null;
   private seq = 0;
   private turnSeq = 0;
   private currentTurnKey: string | null = null;
   private readonly pendingToolCalls = new Map<string, ToolCallBlock>();
 
-  constructor(options: { taskId: TaskId; sourceId: string }) {
+  constructor(options: {
+    taskId: TaskId;
+    sourceId: string;
+    onUsageSnapshot?: (snapshot: UsageSnapshot) => void;
+  }) {
     this.taskId = options.taskId;
     this.sourceId = options.sourceId;
+    this.onUsageSnapshot = options.onUsageSnapshot ?? null;
   }
 
   consumeLine(line: string): TranscriptBlock[] {
@@ -43,6 +51,16 @@ export class CodexRolloutNormalizer {
     }
 
     if (record.type === "event_msg") {
+      if (payload.type === "token_count") {
+        const timestamp = typeof record.timestamp === "string" ? Date.parse(record.timestamp) : NaN;
+        const snapshot = parseCodexTokenCountPayload(payload, {
+          capturedAt: Number.isNaN(timestamp) ? Date.now() : timestamp,
+        });
+        if (snapshot) {
+          this.onUsageSnapshot?.(snapshot);
+        }
+        return [];
+      }
       return this.consumeEventMsg(payload, ts);
     }
     if (record.type === "response_item") {

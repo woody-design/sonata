@@ -41,6 +41,7 @@
     "smoke:approval-session-choice": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-session-choice.mjs",
     "smoke:submit-approval-guard": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/submit-approval-guard.mjs",
     "smoke:delivery-receipts": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-receipts.mjs",
+    "smoke:usage-adapters": "npm run build:main && node tests/smoke/usage-adapters.mjs",
     "smoke:task-ready-detection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/task-ready-detection.mjs",
     "smoke:native-image-attachments": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/native-image-attachments.mjs",
     "smoke:codex-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-terminalhost.mjs",

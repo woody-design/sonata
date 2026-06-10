@@ -99,6 +99,7 @@ const duetRuntime: DuetRuntimeBridge = {
   resizeTerminal: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalResize, request),
   readReport: (request) => ipcRenderer.invoke(IPC_CHANNELS.reportRead, request),
   readTranscript: (request) => ipcRenderer.invoke(IPC_CHANNELS.transcriptRead, request),
+  readUsage: (request) => ipcRenderer.invoke(IPC_CHANNELS.usageRead, request),
   listArtifacts: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactList, request),
   readArtifact: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactRead, request),
   openPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewOpen, request),

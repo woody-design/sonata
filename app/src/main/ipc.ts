@@ -85,6 +85,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.transcriptRead, (_event, request) =>
     runtimeController.readTranscript(request.taskId),
   );
+  ipcMain.handle(IPC_CHANNELS.usageRead, (_event, request) =>
+    runtimeController.readUsage(request.taskId),
+  );
   ipcMain.handle(IPC_CHANNELS.artifactList, (_event, request) =>
     runtimeController.listArtifacts(request.taskId),
   );
