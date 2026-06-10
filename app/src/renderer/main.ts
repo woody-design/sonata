@@ -312,13 +312,22 @@ const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: string | null }>> = {
   codex: [
     { label: "GPT-5.5", value: "gpt-5.5" },
+    { label: "GPT-5.4", value: "gpt-5.4" },
+    { label: "GPT-5.4-Mini", value: "gpt-5.4-mini" },
+    { label: "GPT-5.3-Codex-Spark", value: "gpt-5.3-codex-spark" },
     { label: "Native Default", value: null },
   ],
   claude: [
-    { label: "Opus", value: "opus" },
-    { label: "Sonnet", value: "sonnet" },
+    { label: "Fable 5", value: "fable" },
+    { label: "Opus 4.8", value: "opus" },
+    { label: "Sonnet 4.6", value: "sonnet" },
+    { label: "Haiku 4.5", value: "haiku" },
     { label: "Native Default", value: null },
   ],
+};
+const SESSION_MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: string }>> = {
+  codex: MODEL_OPTIONS.codex.filter((option): option is { label: string; value: string } => Boolean(option.value)),
+  claude: MODEL_OPTIONS.claude.filter((option): option is { label: string; value: string } => Boolean(option.value)),
 };
 const REASONING_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: ReasoningEffort | null }>> = {
   codex: [
@@ -1295,19 +1304,19 @@ function renderModelMenu(task: Task): HTMLElement {
   const menu = composerMenu("Model");
   menu.append(
     renderComposerMenuSection(
-      "Model",
-      MODEL_OPTIONS[task.provider],
-      task.model,
-      (value) => {
-        void queueControlChange(modelControlChange(task, value, task.reasoningEffort));
-      },
-    ),
-    renderComposerMenuSection(
       "Reasoning",
       REASONING_OPTIONS[task.provider],
       task.reasoningEffort,
       (value) => {
         void queueControlChange(modelControlChange(task, task.model, value as ReasoningEffort | null));
+      },
+    ),
+    renderComposerSubmenuSection(
+      "Model",
+      SESSION_MODEL_OPTIONS[task.provider],
+      task.model,
+      (value) => {
+        void queueControlChange(modelControlChange(task, value, task.reasoningEffort));
       },
     ),
   );
@@ -1343,6 +1352,53 @@ function renderComposerMenuSection<T extends string | null>(
   return section;
 }
 
+function renderComposerSubmenuSection<T extends string>(
+  label: string,
+  options: Array<{ label: string; value: T }>,
+  selected: T | null,
+  onSelect: (value: T) => void,
+): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "composer-menu-section composer-submenu-section";
+
+  const trigger = document.createElement("button");
+  trigger.className = "composer-menu-option composer-submenu-trigger";
+  trigger.type = "button";
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.textContent = label;
+  const current = modelOptionLabel(options, selected) ?? "Choose";
+  const meta = document.createElement("span");
+  meta.textContent = `${current} >`;
+  trigger.append(meta);
+  trigger.addEventListener("click", (event) => {
+    event.preventDefault();
+  });
+
+  const submenu = document.createElement("div");
+  submenu.className = "composer-submenu";
+  submenu.setAttribute("role", "menu");
+  for (const option of options) {
+    submenu.append(composerMenuOption(option.label, option.value === selected, () => onSelect(option.value)));
+  }
+
+  section.addEventListener("mouseenter", () => {
+    trigger.setAttribute("aria-expanded", "true");
+  });
+  section.addEventListener("mouseleave", () => {
+    trigger.setAttribute("aria-expanded", "false");
+  });
+  section.addEventListener("focusin", () => {
+    trigger.setAttribute("aria-expanded", "true");
+  });
+  section.addEventListener("focusout", () => {
+    trigger.setAttribute("aria-expanded", String(section.matches(":focus-within")));
+  });
+
+  section.append(trigger, submenu);
+  return section;
+}
+
 function composerMenuOption(label: string, selected: boolean, onClick: () => void): HTMLButtonElement {
   const button = document.createElement("button");
   button.className = "composer-menu-option";
@@ -1358,6 +1414,13 @@ function composerMenuOption(label: string, selected: boolean, onClick: () => voi
   }
   button.addEventListener("click", onClick);
   return button;
+}
+
+function modelOptionLabel<T extends string>(
+  options: Array<{ label: string; value: T }>,
+  selected: T | null,
+): string | null {
+  return options.find((option) => option.value === selected)?.label ?? null;
 }
 
 function positionComposerMenu(menu: HTMLElement): void {
@@ -2486,8 +2549,19 @@ function modelValueLabel(provider: RuntimeProvider, value: string | null): strin
   if (!value) {
     return null;
   }
-  if (provider === "codex" && value === "gpt-5.5") {
-    return "5.5";
+  if (provider === "codex") {
+    if (value === "gpt-5.5") {
+      return "5.5";
+    }
+    if (value === "gpt-5.4") {
+      return "5.4";
+    }
+    if (value === "gpt-5.4-mini") {
+      return "5.4 Mini";
+    }
+    if (value === "gpt-5.3-codex-spark") {
+      return "5.3 Spark";
+    }
   }
   return MODEL_OPTIONS[provider].find((option) => option.value === value)?.label ?? value;
 }

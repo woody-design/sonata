@@ -29,6 +29,7 @@ try {
   await page.locator("#permission-chip").click();
 
   await page.locator("#model-chip").click();
+  await page.locator(".composer-submenu-section", { hasText: "Model" }).hover();
   await page.screenshot({ path: path.join(screenshotRoot, "02-model-menu.png"), fullPage: true });
   await page.locator("#model-chip").click();
 
@@ -59,12 +60,8 @@ try {
   });
 
   await page.locator("#model-chip").click();
-  await page.locator(".composer-menu-section", { hasText: "Model" }).locator(".composer-menu-option", { hasText: "Native Default" }).click();
-  await page.locator(".delivery-item.undelivered", { hasText: "Setting change failed" }).waitFor({
-    state: "visible",
-    timeout: 30000,
-  });
-  await page.screenshot({ path: path.join(screenshotRoot, "04-failed-control.png"), fullPage: true });
+  await page.locator(".composer-submenu-section", { hasText: "Model" }).hover();
+  await page.screenshot({ path: path.join(screenshotRoot, "04-model-submenu.png"), fullPage: true });
 
   console.log(JSON.stringify({ screenshotRoot, success: true }, null, 2));
 } finally {
