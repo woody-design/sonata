@@ -142,30 +142,29 @@ if (!appElement) {
 
 appElement.innerHTML = `
   <section class="shell" aria-label="Duet">
-    <header class="topbar">
-      <div class="title-block">
-        <p class="eyebrow">Duet</p>
-        <h1 id="task-title">No active Task</h1>
+    <header class="task-chrome">
+      <h1 id="task-title" class="visually-hidden">No active Task</h1>
+      <div class="chrome-left">
+        <span class="chrome-mark">Duet</span>
+        <nav id="task-tabs" class="task-tabs" aria-label="Task tabs"></nav>
       </div>
-      <div class="topbar-actions">
+      <div class="topbar-actions chrome-actions">
         <span id="runtime-status" class="status">Idle</span>
-        <button id="open-preview-window" class="secondary" type="button">Preview</button>
-        <button id="open-inspector-window" class="secondary" type="button">Inspector</button>
-        <button id="toggle-terminal" class="secondary" type="button">Terminal</button>
-        <button id="open-task" class="secondary" type="button">Open Task</button>
-        <button id="new-task" class="secondary" type="button">New Codex Task</button>
-        <button id="new-claude-task" class="secondary" type="button">New Claude Task</button>
+        <button id="new-task" class="secondary" type="button" title="New Codex Task">+ Codex</button>
+        <button id="new-claude-task" class="secondary" type="button" title="New Claude Task">+ Claude</button>
+        <button id="open-task" class="secondary" type="button" title="Open Task">Open</button>
+        <button id="open-preview-window" class="secondary" type="button" title="Open Preview">View</button>
+        <button id="open-inspector-window" class="secondary" type="button" title="Open Inspector">Inspect</button>
+        <button id="toggle-terminal" class="secondary" type="button" title="Toggle Terminal">Term</button>
       </div>
     </header>
-
-    <nav id="task-tabs" class="task-tabs" aria-label="Task tabs"></nav>
 
     <section class="workspace">
       <section class="run-column" aria-label="Run reading surface">
         <div id="approval-banner" class="approval-banner hidden">
           <div class="approval-copy">
             <div class="approval-heading">
-              <p class="eyebrow">Native Approval</p>
+              <p class="eyebrow">Approval</p>
               <span id="approval-kind-badge" class="approval-kind-badge">Unknown</span>
             </div>
             <strong id="approval-title">Native approval requested</strong>
@@ -214,7 +213,7 @@ appElement.innerHTML = `
         <section id="delivery-queue" class="delivery-queue hidden" aria-label="Queued messages"></section>
 
         <form id="composer" class="composer">
-          <textarea id="prompt-input" rows="4" placeholder="Start or open a Task"></textarea>
+          <textarea id="prompt-input" rows="1" placeholder="Start or open a Task"></textarea>
           <div id="attachment-strip" class="attachment-strip hidden" aria-label="Image attachments"></div>
           <div class="composer-control-row">
             <div class="composer-control-left">
@@ -390,6 +389,14 @@ elements.composer.addEventListener("submit", (event) => {
 });
 
 elements.promptInput.addEventListener("input", () => {
+  renderComposerControls();
+});
+
+elements.promptInput.addEventListener("focus", () => {
+  renderComposerControls();
+});
+
+elements.promptInput.addEventListener("blur", () => {
   renderComposerControls();
 });
 
@@ -1110,6 +1117,7 @@ function renderComposerControls(view = activeTaskView()): void {
   const pendingApproval = Boolean(view?.pendingApproval);
   const promptHasText = elements.promptInput.value.trim().length > 0;
   const hasAttachments = (view?.pendingAttachments.length ?? 0) > 0;
+  const focused = document.activeElement === elements.promptInput;
   renderComposerChip(
     elements.permissionChip,
     composerChipLabel(view, "permission"),
@@ -1131,6 +1139,10 @@ function renderComposerControls(view = activeTaskView()): void {
   elements.promptInput.disabled = !view?.task;
   elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
+  elements.composer.classList.toggle("is-focused", focused);
+  elements.composer.classList.toggle("is-drafting", promptHasText || hasAttachments);
+  elements.composer.classList.toggle("has-attachments", hasAttachments);
+  elements.composer.classList.toggle("is-idle", Boolean(view?.task) && !focused && !promptHasText && !hasAttachments);
 }
 
 function renderComposerChip(
@@ -1574,6 +1586,7 @@ function renderApproval(): void {
 interface WorkflowState {
   headline: string;
   facts: string[];
+  tone: "quiet" | "attention" | "action";
 }
 
 function workflowState(): WorkflowState {
@@ -1582,6 +1595,7 @@ function workflowState(): WorkflowState {
     return {
       headline: "Start or open a Task",
       facts: ["No provider selected"],
+      tone: "action",
     };
   }
 
@@ -1606,6 +1620,7 @@ function workflowState(): WorkflowState {
         firstDeliveryItem.kind === "control" ? "Setting failed" : `No ${providerName} receipt`,
         ...baseFacts,
       ],
+      tone: "action",
     };
   }
 
@@ -1613,6 +1628,7 @@ function workflowState(): WorkflowState {
     return {
       headline: `Delivering to ${providerName}`,
       facts: ["Waiting for receipt", ...baseFacts],
+      tone: "attention",
     };
   }
 
@@ -1620,6 +1636,7 @@ function workflowState(): WorkflowState {
     return {
       headline: `Queued for ${providerName}`,
       facts: [`${deliveryItems.length} waiting`, ...baseFacts],
+      tone: "attention",
     };
   }
 
@@ -1627,6 +1644,7 @@ function workflowState(): WorkflowState {
     return {
       headline: `${approvalKindLabel(view.pendingApproval.kind)} approval needed`,
       facts: baseFacts,
+      tone: "action",
     };
   }
 
@@ -1634,6 +1652,7 @@ function workflowState(): WorkflowState {
     return {
       headline: `${providerName} is working`,
       facts: baseFacts,
+      tone: "attention",
     };
   }
 
@@ -1641,6 +1660,7 @@ function workflowState(): WorkflowState {
     return {
       headline: "Stopped. Ready to continue",
       facts: baseFacts,
+      tone: "action",
     };
   }
 
@@ -1648,6 +1668,7 @@ function workflowState(): WorkflowState {
     return {
       headline: "Review ready",
       facts: baseFacts,
+      tone: "action",
     };
   }
 
@@ -1655,6 +1676,7 @@ function workflowState(): WorkflowState {
     return {
       headline: "Ready to continue",
       facts: baseFacts,
+      tone: "quiet",
     };
   }
 
@@ -1662,12 +1684,14 @@ function workflowState(): WorkflowState {
     return {
       headline: "Ready for first Run",
       facts: baseFacts,
+      tone: "quiet",
     };
   }
 
   return {
     headline: `Starting ${providerName}`,
     facts: baseFacts,
+    tone: "attention",
   };
 }
 
@@ -1681,6 +1705,10 @@ function renderWorkflow(): void {
   const workflow = workflowState();
   elements.workflowHeadline.textContent = workflow.headline;
   elements.workflowFacts.replaceChildren(...workflow.facts.map(workflowFact));
+  const strip = elements.workflowHeadline.closest<HTMLElement>(".workflow-strip");
+  strip?.classList.toggle("quiet", workflow.tone === "quiet");
+  strip?.classList.toggle("attention", workflow.tone === "attention");
+  strip?.classList.toggle("action", workflow.tone === "action");
 }
 
 function renderRuns(): void {
@@ -2793,6 +2821,7 @@ function runSectionLabel(value: string): HTMLElement {
 
 function approvalContextItem(label: string, value: string): HTMLElement {
   const item = document.createElement("span");
+  item.dataset.approvalLabel = label;
   item.textContent = `${label}: ${value}`;
   return item;
 }
