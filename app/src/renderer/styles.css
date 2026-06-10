@@ -1,9 +1,35 @@
+@font-face {
+  font-family: "Literata";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Literata-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Literata";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/Literata-Italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Literata";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/Literata-SemiBold.woff2") format("woff2");
+}
+
 :root {
+  color-scheme: light;
+
   --surface: #f5f5f2;
   --surface-shell: #eeebe3;
   --surface-raised: #fbfaf7;
   --surface-panel: #fffefa;
-  --surface-white: #fff;
+  --surface-white: #fffefa;
   --surface-control: #f8f6ef;
   --surface-control-soft: #f4f0e8;
   --surface-strip: #f4f1ea;
@@ -23,6 +49,8 @@
   --surface-attention-hover: #eaded7;
   --surface-waiting-quiet: #f7f1df;
   --surface-waiting-action: #f8efd2;
+  --surface-menu: #fffefa;
+  --surface-menu-hover: #f0ece3;
 
   --ink-strong: #20201d;
   --ink: #34312b;
@@ -46,10 +74,13 @@
   --ink-blockquote: #5d574b;
   --ink-work: #736d62;
   --ink-trace: #9a9387;
+  --ink-menu: #2f2c27;
+  --ink-menu-muted: #6f695f;
 
   --accent: #2f5d50;
   --accent-strong: #21483f;
   --accent-soft-border: #7d9b8e;
+  --ink-on-accent: #fffefa;
 
   --code-bg: #f4f2ec;
 
@@ -70,6 +101,8 @@
   --border-waiting: #d8c9a3;
   --border-waiting-quiet: #d8c9a5;
   --border-waiting-action: #c6b489;
+  --border-menu: #d3cec2;
+  --border-menu-divider: rgb(52 49 43 / 12%);
 
   --status-complete: #2f5d50;
   --status-complete-strong: #2f8f5b;
@@ -89,6 +122,32 @@
   --status-waiting: #8a6d1f;
   --status-waiting-label: #826b25;
 
+  --approval-file-edit-surface: color-mix(in srgb, var(--surface) 82%, #d3a72b 18%);
+  --approval-file-edit-border: color-mix(in srgb, var(--surface) 48%, #a17d15 52%);
+  --approval-file-edit-ink: #554214;
+  --approval-command-surface: color-mix(in srgb, var(--surface) 82%, #c97736 18%);
+  --approval-command-border: color-mix(in srgb, var(--surface) 48%, #9a5c30 52%);
+  --approval-command-ink: #603719;
+  --approval-file-read-surface: color-mix(in srgb, var(--surface) 82%, #4c928e 18%);
+  --approval-file-read-border: color-mix(in srgb, var(--surface) 48%, #44706d 52%);
+  --approval-file-read-ink: #244f4d;
+  --approval-workspace-trust-surface: color-mix(in srgb, var(--surface) 82%, #5f7fb5 18%);
+  --approval-workspace-trust-border: color-mix(in srgb, var(--surface) 48%, #4e6590 52%);
+  --approval-workspace-trust-ink: #2d4268;
+  --approval-surface: var(--approval-file-edit-surface);
+  --approval-border: var(--approval-file-edit-border);
+  --approval-ink: var(--approval-file-edit-ink);
+  --approval-badge-bg: color-mix(in srgb, var(--surface-panel) 88%, var(--approval-surface) 12%);
+  --approval-context-bg: color-mix(in srgb, var(--surface-panel) 74%, var(--approval-surface) 26%);
+  --approval-context-border: color-mix(in srgb, var(--approval-border) 50%, transparent);
+
+  --shadow-composer: 0 12px 30px rgb(55 50 41 / 10%);
+  --shadow-composer-focus:
+    0 0 0 3px rgb(47 93 80 / 12%),
+    0 12px 30px rgb(55 50 41 / 10%);
+  --shadow-popover: 0 18px 44px rgb(52 49 43 / 18%);
+  --shadow-bubble: 0 1px 0 rgb(52 49 43 / 4%);
+
   --font-reading: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC",
     sans-serif;
   --font-ui: var(--font-reading);
@@ -96,7 +155,7 @@
   --text-body: 16px;
   --text-code-inline: 0.85em;
   --text-code-block: 13px;
-  --leading-body: 1.62;
+  --leading-body: 1.6;
   --leading-code: 1.55;
   --measure-prose: 660px;
 
@@ -105,6 +164,518 @@
   font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="paper"],
+:root[data-theme="calm"],
+:root[data-theme="focus"] {
+  --surface-white: var(--surface-panel);
+  --surface-control: color-mix(in srgb, var(--surface-raised) 76%, var(--surface-shell));
+  --surface-control-soft: color-mix(in srgb, var(--surface-raised) 62%, var(--surface-shell));
+  --surface-strip: color-mix(in srgb, var(--surface) 72%, var(--surface-shell));
+  --surface-selected: color-mix(in srgb, var(--surface) 78%, var(--accent) 22%);
+  --surface-pill: color-mix(in srgb, var(--surface-raised) 72%, var(--surface-shell));
+  --surface-code-inline: color-mix(in srgb, var(--surface) 92%, var(--ink) 8%);
+  --surface-input: color-mix(in srgb, var(--surface-raised) 58%, var(--surface));
+  --surface-tool: color-mix(in srgb, var(--surface-raised) 74%, var(--surface));
+  --surface-disabled: color-mix(in srgb, var(--surface) 80%, var(--ink) 20%);
+  --surface-disabled-strong: color-mix(in srgb, var(--surface) 70%, var(--ink) 30%);
+  --surface-complete-soft: color-mix(in srgb, var(--surface) 88%, var(--status-complete) 12%);
+  --surface-complete-active: color-mix(in srgb, var(--surface-raised) 84%, var(--status-complete) 16%);
+  --surface-complete-summary: color-mix(in srgb, var(--surface-raised) 90%, var(--status-complete) 10%);
+  --surface-complete-metric: color-mix(in srgb, var(--surface-panel) 92%, var(--status-complete) 8%);
+  --surface-attention: color-mix(in srgb, var(--surface) 84%, var(--status-attention) 16%);
+  --surface-attention-soft: color-mix(in srgb, var(--surface-panel) 88%, var(--status-attention) 12%);
+  --surface-attention-hover: color-mix(in srgb, var(--surface-raised) 78%, var(--status-attention) 22%);
+  --surface-waiting-quiet: color-mix(in srgb, var(--surface) 86%, var(--status-waiting) 14%);
+  --surface-waiting-action: color-mix(in srgb, var(--surface-raised) 78%, var(--status-waiting) 22%);
+  --surface-menu: var(--surface-panel);
+  --surface-menu-hover: color-mix(in srgb, var(--surface-panel) 80%, var(--surface-shell));
+
+  --ink-reading-prompt: var(--ink-strong);
+  --ink-ui: color-mix(in srgb, var(--ink) 88%, var(--ink-strong));
+  --ink-ui-strong: var(--ink-strong);
+  --ink-subtle: color-mix(in srgb, var(--ink) 86%, var(--surface-shell));
+  --ink-message: var(--ink-subtle);
+  --ink-pill: color-mix(in srgb, var(--ink) 82%, var(--surface-shell));
+  --ink-status: color-mix(in srgb, var(--ink) 78%, var(--surface-shell));
+  --ink-muted: color-mix(in srgb, var(--ink) 64%, var(--surface));
+  --ink-muted-warm: color-mix(in srgb, var(--ink) 68%, var(--surface));
+  --ink-label: color-mix(in srgb, var(--ink) 56%, var(--surface));
+  --ink-meta: color-mix(in srgb, var(--ink) 54%, var(--surface));
+  --ink-faint: color-mix(in srgb, var(--ink) 42%, var(--surface));
+  --ink-fainter: color-mix(in srgb, var(--ink) 32%, var(--surface));
+  --ink-disabled: color-mix(in srgb, var(--ink) 50%, var(--surface));
+  --ink-disabled-soft: color-mix(in srgb, var(--ink) 42%, var(--surface));
+  --ink-disabled-faint: color-mix(in srgb, var(--ink) 38%, var(--surface));
+  --ink-role: color-mix(in srgb, var(--ink) 46%, var(--surface));
+  --ink-blockquote: color-mix(in srgb, var(--ink) 72%, var(--surface));
+  --ink-work: color-mix(in srgb, var(--ink) 58%, var(--surface));
+  --ink-trace: color-mix(in srgb, var(--ink) 38%, var(--surface));
+  --ink-menu: var(--ink-ui);
+  --ink-menu-muted: var(--ink-label);
+  --ink-on-accent: var(--surface-panel);
+
+  --border: color-mix(in srgb, var(--surface) 82%, var(--ink) 18%);
+  --border-soft: color-mix(in srgb, var(--surface) 88%, var(--ink) 12%);
+  --border-subtle: color-mix(in srgb, var(--surface) 86%, var(--ink) 14%);
+  --border-strong: color-mix(in srgb, var(--surface) 72%, var(--ink) 28%);
+  --border-control: color-mix(in srgb, var(--surface) 66%, var(--ink) 34%);
+  --border-raised: color-mix(in srgb, var(--surface-raised) 74%, var(--ink) 26%);
+  --border-disabled: color-mix(in srgb, var(--surface) 62%, var(--ink) 38%);
+  --border-footer: color-mix(in srgb, var(--surface) 84%, var(--ink) 16%);
+  --border-complete: color-mix(in srgb, var(--surface) 58%, var(--status-complete) 42%);
+  --border-complete-soft: color-mix(in srgb, var(--surface) 70%, var(--status-complete) 30%);
+  --border-complete-metric: color-mix(in srgb, var(--surface) 78%, var(--status-complete) 22%);
+  --border-attention: color-mix(in srgb, var(--surface) 48%, var(--status-attention) 52%);
+  --border-attention-soft: color-mix(in srgb, var(--surface) 68%, var(--status-attention) 32%);
+  --border-attention-muted: color-mix(in srgb, var(--surface) 62%, var(--status-attention) 38%);
+  --border-waiting: color-mix(in srgb, var(--surface) 58%, var(--status-waiting) 42%);
+  --border-waiting-quiet: color-mix(in srgb, var(--surface) 68%, var(--status-waiting) 32%);
+  --border-waiting-action: color-mix(in srgb, var(--surface) 56%, var(--status-waiting) 44%);
+  --border-menu: color-mix(in srgb, var(--surface-menu) 74%, var(--ink) 26%);
+  --border-menu-divider: color-mix(in srgb, var(--surface-menu) 86%, var(--ink) 14%);
+}
+
+:root[data-theme="paper"] {
+  --surface: #eeeded;
+  --surface-shell: #e2e1de;
+  --surface-raised: #f6f5f2;
+  --surface-panel: #fbfaf7;
+  --ink-strong: #1d1a1a;
+  --ink: #262222;
+  --accent: #2d5c52;
+  --accent-strong: #214a43;
+  --accent-soft-border: #789b91;
+  --code-bg: #e8e6e1;
+  --font-reading: Charter, "Bitstream Charter", "PingFang SC", serif;
+  --leading-body: 1.62;
+}
+
+:root[data-theme="calm"] {
+  --surface: #eee2cc;
+  --surface-shell: #e2d2b5;
+  --surface-raised: #f7eddc;
+  --surface-panel: #fbf3e6;
+  --ink-strong: #32281e;
+  --ink: #3a2f23;
+  --accent: #42685d;
+  --accent-strong: #2e5047;
+  --accent-soft-border: #869c8d;
+  --code-bg: #eadcc4;
+  --font-reading: "Literata", "PingFang SC", serif;
+  --leading-body: 1.7;
+}
+
+:root[data-theme="focus"] {
+  --surface: #fefcf5;
+  --surface-shell: #f1eee2;
+  --surface-raised: #fffdf6;
+  --surface-panel: #fffefa;
+  --ink-strong: #1a1812;
+  --ink: #26231a;
+  --accent: #28594e;
+  --accent-strong: #1c443c;
+  --accent-soft-border: #6f9489;
+  --code-bg: #f2eee2;
+  --font-reading: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC",
+    sans-serif;
+  --leading-body: 1.55;
+}
+
+:root[data-mode="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="duet"][data-mode="dark"],
+:root:not([data-theme])[data-mode="dark"] {
+  --surface: #1e1d1a;
+  --surface-shell: #191814;
+  --surface-raised: #26241f;
+  --surface-panel: #2d2a24;
+  --ink-strong: #f0eadf;
+  --ink: #e8e3d9;
+  --ink-muted: #a49f95;
+  --ink-faint: #6c685f;
+  --accent: #79b7a5;
+  --accent-strong: #a0d6c6;
+  --accent-soft-border: #5f9384;
+  --ink-on-accent: #191814;
+  --code-bg: #24221d;
+  --status-complete: #82bfa8;
+  --status-complete-strong: #9bd9bd;
+  --status-attention: #d58b78;
+  --status-attention-strong: #e7a18d;
+  --status-waiting: #d5bd75;
+}
+
+:root[data-theme="paper"][data-mode="dark"] {
+  --surface: #1c1c1d;
+  --surface-shell: #171718;
+  --surface-raised: #242426;
+  --surface-panel: #2c2c2e;
+  --ink-strong: #f6f5f1;
+  --ink: #f2f2f0;
+  --ink-muted: #aaa9a5;
+  --ink-faint: #6d6c69;
+  --accent: #82b8aa;
+  --accent-strong: #a7d8ce;
+  --accent-soft-border: #628e84;
+  --ink-on-accent: #171718;
+  --code-bg: #242426;
+  --font-reading: Charter, "Bitstream Charter", "PingFang SC", serif;
+  --leading-body: 1.62;
+  --status-complete: #86bfae;
+  --status-complete-strong: #a7d9c9;
+  --status-attention: #d89886;
+  --status-attention-strong: #e9aa98;
+  --status-waiting: #d6c47f;
+}
+
+:root[data-theme="calm"][data-mode="dark"] {
+  --surface: #403b31;
+  --surface-shell: #312d25;
+  --surface-raised: #4a4438;
+  --surface-panel: #554e40;
+  --ink-strong: #fff2df;
+  --ink: #f7ecdd;
+  --ink-muted: #b8ad9c;
+  --ink-faint: #7a7061;
+  --accent: #9dc0a7;
+  --accent-strong: #c0dec5;
+  --accent-soft-border: #7d9c83;
+  --ink-on-accent: #312d25;
+  --code-bg: #393429;
+  --font-reading: "Literata", "PingFang SC", serif;
+  --leading-body: 1.7;
+  --status-complete: #a6c59b;
+  --status-complete-strong: #c9e2b8;
+  --status-attention: #e0a084;
+  --status-attention-strong: #f0b295;
+  --status-waiting: #dbc67d;
+}
+
+:root[data-theme="focus"][data-mode="dark"] {
+  --surface: #17160d;
+  --surface-shell: #11100a;
+  --surface-raised: #212014;
+  --surface-panel: #292719;
+  --ink-strong: #fff6e6;
+  --ink: #fef9ec;
+  --ink-muted: #b2aea1;
+  --ink-faint: #706c5e;
+  --accent: #7cb5a6;
+  --accent-strong: #a1d6c8;
+  --accent-soft-border: #5f9085;
+  --ink-on-accent: #11100a;
+  --code-bg: #201f13;
+  --font-reading: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC",
+    sans-serif;
+  --leading-body: 1.55;
+  --status-complete: #7ebda7;
+  --status-complete-strong: #9bd7c1;
+  --status-attention: #d6907a;
+  --status-attention-strong: #eba58f;
+  --status-waiting: #d8c36f;
+}
+
+:root[data-mode="dark"],
+:root[data-theme][data-mode="dark"] {
+  --surface-white: var(--surface-panel);
+  --surface-control: color-mix(in srgb, var(--surface-raised) 68%, var(--surface-panel));
+  --surface-control-soft: color-mix(in srgb, var(--surface-raised) 74%, var(--surface));
+  --surface-strip: var(--surface-shell);
+  --surface-selected: color-mix(in srgb, var(--surface) 72%, var(--accent) 28%);
+  --surface-pill: color-mix(in srgb, var(--surface-raised) 70%, var(--surface-panel));
+  --surface-code-inline: color-mix(in srgb, var(--surface) 82%, var(--ink) 8%);
+  --surface-input: color-mix(in srgb, var(--surface-panel) 78%, var(--surface-raised));
+  --surface-tool: color-mix(in srgb, var(--surface-raised) 82%, var(--surface));
+  --surface-disabled: color-mix(in srgb, var(--surface) 76%, var(--ink) 8%);
+  --surface-disabled-strong: color-mix(in srgb, var(--surface) 70%, var(--ink) 12%);
+  --surface-complete-soft: color-mix(in srgb, var(--surface) 84%, var(--status-complete) 16%);
+  --surface-complete-active: color-mix(in srgb, var(--surface-raised) 78%, var(--status-complete) 22%);
+  --surface-complete-summary: color-mix(in srgb, var(--surface-raised) 86%, var(--status-complete) 14%);
+  --surface-complete-metric: color-mix(in srgb, var(--surface-panel) 88%, var(--status-complete) 12%);
+  --surface-attention: color-mix(in srgb, var(--surface) 80%, var(--status-attention) 20%);
+  --surface-attention-soft: color-mix(in srgb, var(--surface-raised) 84%, var(--status-attention) 16%);
+  --surface-attention-hover: color-mix(in srgb, var(--surface-raised) 72%, var(--status-attention) 28%);
+  --surface-waiting-quiet: color-mix(in srgb, var(--surface) 82%, var(--status-waiting) 18%);
+  --surface-waiting-action: color-mix(in srgb, var(--surface-raised) 74%, var(--status-waiting) 26%);
+  --surface-menu: var(--surface-panel);
+  --surface-menu-hover: color-mix(in srgb, var(--surface-panel) 78%, var(--ink) 10%);
+
+  --ink-reading-prompt: var(--ink-strong);
+  --ink-ui: var(--ink);
+  --ink-ui-strong: var(--ink-strong);
+  --ink-subtle: color-mix(in srgb, var(--ink) 84%, var(--surface));
+  --ink-message: var(--ink-subtle);
+  --ink-pill: color-mix(in srgb, var(--ink) 76%, var(--surface));
+  --ink-status: color-mix(in srgb, var(--ink) 72%, var(--surface));
+  --ink-muted-warm: color-mix(in srgb, var(--ink) 62%, var(--surface));
+  --ink-label: color-mix(in srgb, var(--ink) 54%, var(--surface));
+  --ink-meta: color-mix(in srgb, var(--ink) 50%, var(--surface));
+  --ink-fainter: color-mix(in srgb, var(--ink) 30%, var(--surface));
+  --ink-disabled: color-mix(in srgb, var(--ink) 44%, var(--surface));
+  --ink-disabled-soft: color-mix(in srgb, var(--ink) 38%, var(--surface));
+  --ink-disabled-faint: color-mix(in srgb, var(--ink) 34%, var(--surface));
+  --ink-role: color-mix(in srgb, var(--ink) 46%, var(--surface));
+  --ink-blockquote: color-mix(in srgb, var(--ink) 68%, var(--surface));
+  --ink-work: color-mix(in srgb, var(--ink) 56%, var(--surface));
+  --ink-trace: color-mix(in srgb, var(--ink) 34%, var(--surface));
+  --ink-menu: var(--ink);
+  --ink-menu-muted: var(--ink-label);
+  --ink-on-accent: var(--surface-shell);
+
+  --border: color-mix(in srgb, var(--surface) 76%, var(--ink) 18%);
+  --border-soft: color-mix(in srgb, var(--surface) 82%, var(--ink) 12%);
+  --border-subtle: color-mix(in srgb, var(--surface) 80%, var(--ink) 14%);
+  --border-strong: color-mix(in srgb, var(--surface) 66%, var(--ink) 24%);
+  --border-control: color-mix(in srgb, var(--surface) 58%, var(--ink) 32%);
+  --border-raised: color-mix(in srgb, var(--surface-raised) 70%, var(--ink) 18%);
+  --border-disabled: color-mix(in srgb, var(--surface) 66%, var(--ink) 14%);
+  --border-footer: color-mix(in srgb, var(--surface) 82%, var(--ink) 10%);
+  --border-complete: color-mix(in srgb, var(--surface) 54%, var(--status-complete) 46%);
+  --border-complete-soft: color-mix(in srgb, var(--surface) 66%, var(--status-complete) 34%);
+  --border-complete-metric: color-mix(in srgb, var(--surface) 74%, var(--status-complete) 26%);
+  --border-attention: color-mix(in srgb, var(--surface) 48%, var(--status-attention) 52%);
+  --border-attention-soft: color-mix(in srgb, var(--surface) 64%, var(--status-attention) 36%);
+  --border-attention-muted: color-mix(in srgb, var(--surface) 58%, var(--status-attention) 42%);
+  --border-waiting: color-mix(in srgb, var(--surface) 56%, var(--status-waiting) 44%);
+  --border-waiting-quiet: color-mix(in srgb, var(--surface) 68%, var(--status-waiting) 32%);
+  --border-waiting-action: color-mix(in srgb, var(--surface) 54%, var(--status-waiting) 46%);
+  --border-menu: color-mix(in srgb, var(--surface-menu) 70%, var(--ink) 22%);
+  --border-menu-divider: color-mix(in srgb, var(--surface-menu) 78%, var(--ink) 16%);
+
+  --status-complete-ink: color-mix(in srgb, var(--status-complete) 82%, var(--ink));
+  --status-complete-deep: var(--status-complete-strong);
+  --status-complete-link: var(--status-complete-strong);
+  --status-complete-muted: color-mix(in srgb, var(--status-complete) 58%, var(--ink-muted));
+  --status-complete-label: color-mix(in srgb, var(--status-complete) 72%, var(--ink));
+  --status-attention-deep: var(--status-attention-strong);
+  --status-attention-label: color-mix(in srgb, var(--status-attention) 76%, var(--ink));
+  --status-attention-button: color-mix(in srgb, var(--status-attention) 82%, var(--surface-panel));
+  --status-attention-ink: color-mix(in srgb, var(--status-attention) 78%, var(--ink));
+  --status-attention-text: color-mix(in srgb, var(--status-attention) 68%, var(--ink));
+  --status-attention-code: color-mix(in srgb, var(--status-attention) 72%, var(--ink));
+  --status-waiting-label: color-mix(in srgb, var(--status-waiting) 72%, var(--ink));
+
+  --approval-file-edit-surface: color-mix(in srgb, var(--surface) 82%, #d6b65d 18%);
+  --approval-file-edit-border: color-mix(in srgb, var(--surface) 42%, #b99b4e 58%);
+  --approval-file-edit-ink: color-mix(in srgb, var(--ink) 82%, #d6b65d);
+  --approval-command-surface: color-mix(in srgb, var(--surface) 82%, #d08f5e 18%);
+  --approval-command-border: color-mix(in srgb, var(--surface) 42%, #b57548 58%);
+  --approval-command-ink: color-mix(in srgb, var(--ink) 82%, #d08f5e);
+  --approval-file-read-surface: color-mix(in srgb, var(--surface) 82%, #78b7b0 18%);
+  --approval-file-read-border: color-mix(in srgb, var(--surface) 42%, #5f9992 58%);
+  --approval-file-read-ink: color-mix(in srgb, var(--ink) 82%, #78b7b0);
+  --approval-workspace-trust-surface: color-mix(in srgb, var(--surface) 82%, #8ba8d4 18%);
+  --approval-workspace-trust-border: color-mix(in srgb, var(--surface) 42%, #708db8 58%);
+  --approval-workspace-trust-ink: color-mix(in srgb, var(--ink) 82%, #8ba8d4);
+  --approval-badge-bg: color-mix(in srgb, var(--surface-panel) 88%, var(--approval-surface) 12%);
+  --approval-context-bg: color-mix(in srgb, var(--surface-panel) 76%, var(--approval-surface) 24%);
+  --approval-context-border: color-mix(in srgb, var(--approval-border) 62%, transparent);
+
+  --shadow-composer: 0 1px 0 rgb(255 255 255 / 4%);
+  --shadow-composer-focus:
+    0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent),
+    0 1px 0 rgb(255 255 255 / 5%);
+  --shadow-popover: 0 14px 34px rgb(0 0 0 / 18%);
+  --shadow-bubble: 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode]) {
+    color-scheme: dark;
+  }
+
+  :root[data-theme="duet"]:not([data-mode]),
+  :root:not([data-theme]):not([data-mode]) {
+    --surface: #1e1d1a;
+    --surface-shell: #191814;
+    --surface-raised: #26241f;
+    --surface-panel: #2d2a24;
+    --ink-strong: #f0eadf;
+    --ink: #e8e3d9;
+    --ink-muted: #a49f95;
+    --ink-faint: #6c685f;
+    --accent: #79b7a5;
+    --accent-strong: #a0d6c6;
+    --accent-soft-border: #5f9384;
+    --ink-on-accent: #191814;
+    --code-bg: #24221d;
+    --status-complete: #82bfa8;
+    --status-complete-strong: #9bd9bd;
+    --status-attention: #d58b78;
+    --status-attention-strong: #e7a18d;
+    --status-waiting: #d5bd75;
+  }
+
+  :root[data-theme="paper"]:not([data-mode]) {
+    --surface: #1c1c1d;
+    --surface-shell: #171718;
+    --surface-raised: #242426;
+    --surface-panel: #2c2c2e;
+    --ink-strong: #f6f5f1;
+    --ink: #f2f2f0;
+    --ink-muted: #aaa9a5;
+    --ink-faint: #6d6c69;
+    --accent: #82b8aa;
+    --accent-strong: #a7d8ce;
+    --accent-soft-border: #628e84;
+    --ink-on-accent: #171718;
+    --code-bg: #242426;
+    --status-complete: #86bfae;
+    --status-complete-strong: #a7d9c9;
+    --status-attention: #d89886;
+    --status-attention-strong: #e9aa98;
+    --status-waiting: #d6c47f;
+  }
+
+  :root[data-theme="calm"]:not([data-mode]) {
+    --surface: #403b31;
+    --surface-shell: #312d25;
+    --surface-raised: #4a4438;
+    --surface-panel: #554e40;
+    --ink-strong: #fff2df;
+    --ink: #f7ecdd;
+    --ink-muted: #b8ad9c;
+    --ink-faint: #7a7061;
+    --accent: #9dc0a7;
+    --accent-strong: #c0dec5;
+    --accent-soft-border: #7d9c83;
+    --ink-on-accent: #312d25;
+    --code-bg: #393429;
+    --status-complete: #a6c59b;
+    --status-complete-strong: #c9e2b8;
+    --status-attention: #e0a084;
+    --status-attention-strong: #f0b295;
+    --status-waiting: #dbc67d;
+  }
+
+  :root[data-theme="focus"]:not([data-mode]) {
+    --surface: #17160d;
+    --surface-shell: #11100a;
+    --surface-raised: #212014;
+    --surface-panel: #292719;
+    --ink-strong: #fff6e6;
+    --ink: #fef9ec;
+    --ink-muted: #b2aea1;
+    --ink-faint: #706c5e;
+    --accent: #7cb5a6;
+    --accent-strong: #a1d6c8;
+    --accent-soft-border: #5f9085;
+    --ink-on-accent: #11100a;
+    --code-bg: #201f13;
+    --status-complete: #7ebda7;
+    --status-complete-strong: #9bd7c1;
+    --status-attention: #d6907a;
+    --status-attention-strong: #eba58f;
+    --status-waiting: #d8c36f;
+  }
+
+  :root[data-theme]:not([data-mode]),
+  :root:not([data-theme]):not([data-mode]) {
+    --surface-white: var(--surface-panel);
+    --surface-control: color-mix(in srgb, var(--surface-raised) 68%, var(--surface-panel));
+    --surface-control-soft: color-mix(in srgb, var(--surface-raised) 74%, var(--surface));
+    --surface-strip: var(--surface-shell);
+    --surface-selected: color-mix(in srgb, var(--surface) 72%, var(--accent) 28%);
+    --surface-pill: color-mix(in srgb, var(--surface-raised) 70%, var(--surface-panel));
+    --surface-code-inline: color-mix(in srgb, var(--surface) 82%, var(--ink) 8%);
+    --surface-input: color-mix(in srgb, var(--surface-panel) 78%, var(--surface-raised));
+    --surface-tool: color-mix(in srgb, var(--surface-raised) 82%, var(--surface));
+    --surface-disabled: color-mix(in srgb, var(--surface) 76%, var(--ink) 8%);
+    --surface-disabled-strong: color-mix(in srgb, var(--surface) 70%, var(--ink) 12%);
+    --surface-complete-soft: color-mix(in srgb, var(--surface) 84%, var(--status-complete) 16%);
+    --surface-complete-active: color-mix(in srgb, var(--surface-raised) 78%, var(--status-complete) 22%);
+    --surface-complete-summary: color-mix(in srgb, var(--surface-raised) 86%, var(--status-complete) 14%);
+    --surface-complete-metric: color-mix(in srgb, var(--surface-panel) 88%, var(--status-complete) 12%);
+    --surface-attention: color-mix(in srgb, var(--surface) 80%, var(--status-attention) 20%);
+    --surface-attention-soft: color-mix(in srgb, var(--surface-raised) 84%, var(--status-attention) 16%);
+    --surface-attention-hover: color-mix(in srgb, var(--surface-raised) 72%, var(--status-attention) 28%);
+    --surface-waiting-quiet: color-mix(in srgb, var(--surface) 82%, var(--status-waiting) 18%);
+    --surface-waiting-action: color-mix(in srgb, var(--surface-raised) 74%, var(--status-waiting) 26%);
+    --surface-menu: var(--surface-panel);
+    --surface-menu-hover: color-mix(in srgb, var(--surface-panel) 78%, var(--ink) 10%);
+
+    --ink-reading-prompt: var(--ink-strong);
+    --ink-ui: var(--ink);
+    --ink-ui-strong: var(--ink-strong);
+    --ink-subtle: color-mix(in srgb, var(--ink) 84%, var(--surface));
+    --ink-message: var(--ink-subtle);
+    --ink-pill: color-mix(in srgb, var(--ink) 76%, var(--surface));
+    --ink-status: color-mix(in srgb, var(--ink) 72%, var(--surface));
+    --ink-muted-warm: color-mix(in srgb, var(--ink) 62%, var(--surface));
+    --ink-label: color-mix(in srgb, var(--ink) 54%, var(--surface));
+    --ink-meta: color-mix(in srgb, var(--ink) 50%, var(--surface));
+    --ink-fainter: color-mix(in srgb, var(--ink) 30%, var(--surface));
+    --ink-disabled: color-mix(in srgb, var(--ink) 44%, var(--surface));
+    --ink-disabled-soft: color-mix(in srgb, var(--ink) 38%, var(--surface));
+    --ink-disabled-faint: color-mix(in srgb, var(--ink) 34%, var(--surface));
+    --ink-role: color-mix(in srgb, var(--ink) 46%, var(--surface));
+    --ink-blockquote: color-mix(in srgb, var(--ink) 68%, var(--surface));
+    --ink-work: color-mix(in srgb, var(--ink) 56%, var(--surface));
+    --ink-trace: color-mix(in srgb, var(--ink) 34%, var(--surface));
+    --ink-menu: var(--ink);
+    --ink-menu-muted: var(--ink-label);
+    --ink-on-accent: var(--surface-shell);
+
+    --border: color-mix(in srgb, var(--surface) 76%, var(--ink) 18%);
+    --border-soft: color-mix(in srgb, var(--surface) 82%, var(--ink) 12%);
+    --border-subtle: color-mix(in srgb, var(--surface) 80%, var(--ink) 14%);
+    --border-strong: color-mix(in srgb, var(--surface) 66%, var(--ink) 24%);
+    --border-control: color-mix(in srgb, var(--surface) 58%, var(--ink) 32%);
+    --border-raised: color-mix(in srgb, var(--surface-raised) 70%, var(--ink) 18%);
+    --border-disabled: color-mix(in srgb, var(--surface) 66%, var(--ink) 14%);
+    --border-footer: color-mix(in srgb, var(--surface) 82%, var(--ink) 10%);
+    --border-complete: color-mix(in srgb, var(--surface) 54%, var(--status-complete) 46%);
+    --border-complete-soft: color-mix(in srgb, var(--surface) 66%, var(--status-complete) 34%);
+    --border-complete-metric: color-mix(in srgb, var(--surface) 74%, var(--status-complete) 26%);
+    --border-attention: color-mix(in srgb, var(--surface) 48%, var(--status-attention) 52%);
+    --border-attention-soft: color-mix(in srgb, var(--surface) 64%, var(--status-attention) 36%);
+    --border-attention-muted: color-mix(in srgb, var(--surface) 58%, var(--status-attention) 42%);
+    --border-waiting: color-mix(in srgb, var(--surface) 56%, var(--status-waiting) 44%);
+    --border-waiting-quiet: color-mix(in srgb, var(--surface) 68%, var(--status-waiting) 32%);
+    --border-waiting-action: color-mix(in srgb, var(--surface) 54%, var(--status-waiting) 46%);
+    --border-menu: color-mix(in srgb, var(--surface-menu) 70%, var(--ink) 22%);
+    --border-menu-divider: color-mix(in srgb, var(--surface-menu) 78%, var(--ink) 16%);
+
+    --status-complete-ink: color-mix(in srgb, var(--status-complete) 82%, var(--ink));
+    --status-complete-deep: var(--status-complete-strong);
+    --status-complete-link: var(--status-complete-strong);
+    --status-complete-muted: color-mix(in srgb, var(--status-complete) 58%, var(--ink-muted));
+    --status-complete-label: color-mix(in srgb, var(--status-complete) 72%, var(--ink));
+    --status-attention-deep: var(--status-attention-strong);
+    --status-attention-label: color-mix(in srgb, var(--status-attention) 76%, var(--ink));
+    --status-attention-button: color-mix(in srgb, var(--status-attention) 82%, var(--surface-panel));
+    --status-attention-ink: color-mix(in srgb, var(--status-attention) 78%, var(--ink));
+    --status-attention-text: color-mix(in srgb, var(--status-attention) 68%, var(--ink));
+    --status-attention-code: color-mix(in srgb, var(--status-attention) 72%, var(--ink));
+    --status-waiting-label: color-mix(in srgb, var(--status-waiting) 72%, var(--ink));
+
+    --approval-file-edit-surface: color-mix(in srgb, var(--surface) 82%, #d6b65d 18%);
+    --approval-file-edit-border: color-mix(in srgb, var(--surface) 42%, #b99b4e 58%);
+    --approval-file-edit-ink: color-mix(in srgb, var(--ink) 82%, #d6b65d);
+    --approval-command-surface: color-mix(in srgb, var(--surface) 82%, #d08f5e 18%);
+    --approval-command-border: color-mix(in srgb, var(--surface) 42%, #b57548 58%);
+    --approval-command-ink: color-mix(in srgb, var(--ink) 82%, #d08f5e);
+    --approval-file-read-surface: color-mix(in srgb, var(--surface) 82%, #78b7b0 18%);
+    --approval-file-read-border: color-mix(in srgb, var(--surface) 42%, #5f9992 58%);
+    --approval-file-read-ink: color-mix(in srgb, var(--ink) 82%, #78b7b0);
+    --approval-workspace-trust-surface: color-mix(in srgb, var(--surface) 82%, #8ba8d4 18%);
+    --approval-workspace-trust-border: color-mix(in srgb, var(--surface) 42%, #708db8 58%);
+    --approval-workspace-trust-ink: color-mix(in srgb, var(--ink) 82%, #8ba8d4);
+    --approval-badge-bg: color-mix(in srgb, var(--surface-panel) 88%, var(--approval-surface) 12%);
+    --approval-context-bg: color-mix(in srgb, var(--surface-panel) 76%, var(--approval-surface) 24%);
+    --approval-context-border: color-mix(in srgb, var(--approval-border) 62%, transparent);
+
+    --shadow-composer: 0 1px 0 rgb(255 255 255 / 4%);
+    --shadow-composer-focus:
+      0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent),
+      0 1px 0 rgb(255 255 255 / 5%);
+    --shadow-popover: 0 14px 34px rgb(0 0 0 / 18%);
+    --shadow-bubble: 0 1px 0 rgb(255 255 255 / 4%);
+  }
 }
 
 * {
@@ -321,7 +892,7 @@ h2 {
 
 .primary {
   border: 1px solid var(--accent-strong);
-  color: var(--surface-raised);
+  color: var(--ink-on-accent);
   background: var(--accent);
 }
 
@@ -344,7 +915,7 @@ h2 {
 
 .secondary.active {
   border-color: var(--accent);
-  color: var(--surface-control);
+  color: var(--ink-on-accent);
   background: var(--accent);
 }
 
@@ -471,16 +1042,21 @@ h2 {
 }
 
 .approval-banner {
+  --approval-surface: var(--approval-file-edit-surface);
+  --approval-border: var(--approval-file-edit-border);
+  --approval-ink: var(--approval-file-edit-ink);
+
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin: 10px 18px 0;
-  border: 1px solid #c8a94d;
+  border: 1px solid var(--approval-border);
   border-radius: 8px;
   padding: 10px 12px;
-  background: #fff7d8;
+  color: var(--approval-ink);
+  background: var(--approval-surface);
 }
 
 .approval-copy {
@@ -500,39 +1076,43 @@ h2 {
 
 .approval-kind-badge {
   flex: 0 0 auto;
-  border: 1px solid #d8bf69;
+  border: 1px solid var(--approval-border);
   border-radius: 999px;
   padding: 3px 7px;
-  color: #4e3e13;
-  background: #fffefa;
+  color: var(--approval-ink);
+  background: var(--approval-badge-bg);
   font-size: 11px;
   font-weight: 700;
 }
 
 .approval-banner[data-approval-kind="command"] {
-  border-color: #9a6a3b;
-  background: #fff0dd;
+  --approval-surface: var(--approval-command-surface);
+  --approval-border: var(--approval-command-border);
+  --approval-ink: var(--approval-command-ink);
 }
 
 .approval-banner[data-approval-kind="file-edit"] {
-  border-color: #c8a94d;
-  background: #fff7d8;
+  --approval-surface: var(--approval-file-edit-surface);
+  --approval-border: var(--approval-file-edit-border);
+  --approval-ink: var(--approval-file-edit-ink);
 }
 
 .approval-banner[data-approval-kind="file-read"] {
-  border-color: #5c7c7b;
-  background: #edf8f7;
+  --approval-surface: var(--approval-file-read-surface);
+  --approval-border: var(--approval-file-read-border);
+  --approval-ink: var(--approval-file-read-ink);
 }
 
 .approval-banner[data-approval-kind="workspace-trust"] {
-  border-color: #4d668f;
-  background: #edf3ff;
+  --approval-surface: var(--approval-workspace-trust-surface);
+  --approval-border: var(--approval-workspace-trust-border);
+  --approval-ink: var(--approval-workspace-trust-ink);
 }
 
 .approval-summary {
   max-width: 760px;
   margin: 4px 0 0;
-  color: #4f4a41;
+  color: var(--approval-ink);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -545,11 +1125,11 @@ h2 {
 }
 
 .approval-context span {
-  border: 1px solid rgb(0 0 0 / 10%);
+  border: 1px solid var(--approval-context-border);
   border-radius: 999px;
   padding: 4px 8px;
-  color: #4f4a41;
-  background: rgb(255 255 255 / 48%);
+  color: var(--approval-ink);
+  background: var(--approval-context-bg);
   font-size: 12px;
 }
 
@@ -761,22 +1341,23 @@ h2 {
   z-index: 20;
   display: grid;
   overflow-y: auto;
-  border: 1px solid #4a4741;
+  border: 1px solid var(--border-menu);
   border-radius: 8px;
   padding: 12px;
-  background: #2b2a27;
-  box-shadow: 0 18px 44px rgb(0 0 0 / 22%);
+  color: var(--ink-menu);
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
 }
 
 .task-setting-section + .task-setting-section {
-  border-top: 1px solid rgb(255 255 255 / 12%);
+  border-top: 1px solid var(--border-menu-divider);
   margin-top: 9px;
   padding-top: 9px;
 }
 
 .task-setting-heading {
   margin: 0 0 5px;
-  color: #aaa49a;
+  color: var(--ink-menu-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -789,20 +1370,20 @@ h2 {
   border: 0;
   border-radius: 6px;
   padding: 8px 9px;
-  color: #f7f3ea;
+  color: var(--ink-menu);
   background: transparent;
   text-align: left;
 }
 
 .task-setting-option:hover,
 .task-setting-option.selected {
-  background: rgb(255 255 255 / 9%);
+  background: var(--surface-menu-hover);
 }
 
 .task-setting-option span {
   flex: 0 0 auto;
   margin-left: 12px;
-  color: #aaa49a;
+  color: var(--ink-menu-muted);
   font-size: 11px;
 }
 
@@ -931,7 +1512,7 @@ h2 {
   border-radius: 22px;
   padding: 8px 9px 8px 13px;
   background: var(--surface-panel);
-  box-shadow: 0 12px 30px rgb(55 50 41 / 10%);
+  box-shadow: var(--shadow-composer);
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease,
@@ -974,9 +1555,7 @@ h2 {
 
 .composer:focus-within {
   border-color: var(--accent-soft-border);
-  box-shadow:
-    0 0 0 3px rgb(47 93 80 / 12%),
-    0 12px 30px rgb(55 50 41 / 10%);
+  box-shadow: var(--shadow-composer-focus);
 }
 
 .composer-control-row {
@@ -1120,23 +1699,24 @@ h2 {
   z-index: 25;
   display: grid;
   overflow: visible;
-  border: 1px solid #4a4741;
+  border: 1px solid var(--border-menu);
   border-radius: 8px;
   padding: 10px;
-  background: #2b2a27;
-  box-shadow: 0 18px 44px rgb(0 0 0 / 22%);
+  color: var(--ink-menu);
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
 }
 
 .composer-menu-heading,
 .composer-menu-section-heading {
   margin: 0 0 6px;
-  color: #aaa49a;
+  color: var(--ink-menu-muted);
   font-size: 12px;
   font-weight: 700;
 }
 
 .composer-menu-section + .composer-menu-section {
-  border-top: 1px solid rgb(255 255 255 / 12%);
+  border-top: 1px solid var(--border-menu-divider);
   margin-top: 9px;
   padding-top: 9px;
 }
@@ -1149,14 +1729,14 @@ h2 {
   border: 0;
   border-radius: 6px;
   padding: 8px 9px;
-  color: #f7f3ea;
+  color: var(--ink-menu);
   background: transparent;
   text-align: left;
 }
 
 .composer-menu-option:hover,
 .composer-menu-option.selected {
-  background: rgb(255 255 255 / 9%);
+  background: var(--surface-menu-hover);
 }
 
 .composer-submenu-section {
@@ -1169,7 +1749,7 @@ h2 {
 
 .composer-submenu-section:hover > .composer-submenu-trigger,
 .composer-submenu-section:focus-within > .composer-submenu-trigger {
-  background: rgb(255 255 255 / 9%);
+  background: var(--surface-menu-hover);
 }
 
 .composer-submenu {
@@ -1180,11 +1760,11 @@ h2 {
   max-height: min(320px, calc(100vh - 28px));
   display: none;
   overflow-y: auto;
-  border: 1px solid #4a4741;
+  border: 1px solid var(--border-menu);
   border-radius: 8px;
   padding: 10px;
-  background: #2b2a27;
-  box-shadow: 0 18px 44px rgb(0 0 0 / 22%);
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
 }
 
 .composer-submenu-section:hover > .composer-submenu,
@@ -1195,7 +1775,7 @@ h2 {
 .composer-menu-option span {
   flex: 0 0 auto;
   margin-left: 12px;
-  color: #aaa49a;
+  color: var(--ink-menu-muted);
   font-size: 11px;
 }
 
@@ -1249,7 +1829,7 @@ h2 {
 
 .surface-tab.active {
   border-color: var(--accent);
-  color: var(--surface-control);
+  color: var(--ink-on-accent);
   background: var(--accent);
 }
 
@@ -1398,7 +1978,7 @@ h2 {
 
 .inspector-window-tab.selected {
   border-color: var(--accent);
-  color: var(--surface-control);
+  color: var(--ink-on-accent);
   background: var(--accent);
 }
 
@@ -2115,9 +2695,10 @@ h2 {
   font-size: var(--text-body);
   font-weight: 560;
   line-height: var(--leading-body);
+  text-autospace: normal;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  box-shadow: 0 1px 0 rgb(0 0 0 / 3%);
+  box-shadow: var(--shadow-bubble);
 }
 
 .turn-command-chip {
@@ -2219,6 +2800,7 @@ h2 {
   font-family: var(--font-reading);
   font-size: var(--text-body);
   line-height: var(--leading-body);
+  text-autospace: normal;
   overflow-wrap: anywhere;
 }
 

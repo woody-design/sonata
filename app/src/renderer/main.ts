@@ -105,6 +105,11 @@ interface TaskEntryMessage {
   text: string;
 }
 
+const READING_THEME_IDS = ["duet", "paper", "calm", "focus"] as const;
+type ReadingThemeId = (typeof READING_THEME_IDS)[number];
+const READING_MODE_IDS = ["light", "dark"] as const;
+type ReadingModeId = (typeof READING_MODE_IDS)[number];
+
 const state: RendererState = {
   taskViews: [],
   activeTaskId: null,
@@ -139,6 +144,8 @@ const appElement = document.querySelector<HTMLDivElement>("#app");
 if (!appElement) {
   throw new Error("Renderer mount point was not found.");
 }
+
+initializeTemporaryReadingThemeHook();
 
 appElement.innerHTML = `
   <section class="shell" aria-label="Duet">
@@ -498,6 +505,58 @@ elements.sendPrompt.addEventListener("click", () => {
   }
   void submitPrompt();
 });
+
+function initializeTemporaryReadingThemeHook(): void {
+  const root = document.documentElement;
+  if (!isReadingThemeId(root.dataset.theme)) {
+    root.dataset.theme = "duet";
+  }
+
+  window.addEventListener("keydown", (event) => {
+    if (!event.metaKey || !event.shiftKey || event.altKey || event.ctrlKey) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+    if (key === "t") {
+      event.preventDefault();
+      const currentTheme = isReadingThemeId(root.dataset.theme) ? root.dataset.theme : "duet";
+      const currentIndex = READING_THEME_IDS.indexOf(currentTheme);
+      const nextTheme = READING_THEME_IDS[(currentIndex + 1) % READING_THEME_IDS.length] ?? "duet";
+      root.dataset.theme = nextTheme;
+      logTemporaryReadingTheme("theme", nextTheme, root.dataset.mode);
+      return;
+    }
+
+    if (key === "d") {
+      event.preventDefault();
+      const explicitMode = isReadingModeId(root.dataset.mode) ? root.dataset.mode : null;
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const effectiveDark = explicitMode === "dark" || (!explicitMode && systemDark);
+      const nextMode: ReadingModeId = effectiveDark ? "light" : "dark";
+      root.dataset.mode = nextMode;
+      logTemporaryReadingTheme("mode", root.dataset.theme ?? "duet", nextMode);
+    }
+  });
+
+  console.info(
+    "[temporary reading theme hook] Cmd+Shift+T cycles data-theme; Cmd+Shift+D toggles data-mode. Real UI arrives in slice 3.",
+  );
+}
+
+function isReadingThemeId(value: string | undefined): value is ReadingThemeId {
+  return READING_THEME_IDS.includes(value as ReadingThemeId);
+}
+
+function isReadingModeId(value: string | undefined): value is ReadingModeId {
+  return READING_MODE_IDS.includes(value as ReadingModeId);
+}
+
+function logTemporaryReadingTheme(changed: "theme" | "mode", theme: string, mode: string | undefined): void {
+  console.info(
+    `[temporary reading theme hook] ${changed} changed: data-theme="${theme}" data-mode="${mode ?? "auto"}"`,
+  );
+}
 
 elements.runList.addEventListener("click", (event) => {
   const target = event.target;
