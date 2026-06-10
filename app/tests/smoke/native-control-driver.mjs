@@ -40,17 +40,17 @@ async function runCodexPermissions() {
   try {
     const result = await controller.host.applyControlChange({
       kind: "permission",
-      label: "Ask for approval",
+      label: "Full Access",
       codex: {
-        preset: "askForApproval",
-        sandbox: "workspace-write",
-        approval: "on-request",
+        preset: "fullAccess",
+        sandbox: "danger-full-access",
+        approval: "never",
       },
       claude: null,
     });
     return {
       name: "codex permission switch",
-      verified: /Permissions updated to\s+Ask for approval/i.test(result.evidence),
+      verified: /Permissions updated to\s+Full Access/i.test(result.evidence),
       evidenceTail: redact(result.evidence.slice(-1200)),
     };
   } finally {
@@ -141,6 +141,7 @@ async function startHost(provider, name, options) {
   let ready = false;
   let exited = false;
   let raw = "";
+  let workspaceTrustApproved = false;
   const host = new TerminalHost({
     taskId: `native-control-${name}`,
     provider,
@@ -155,7 +156,12 @@ async function startHost(provider, name, options) {
       if (event.type === "pty:exit") {
         exited = true;
       }
-      if (event.type === "approval:detected" && event.payload.kind === "workspace-trust") {
+      if (
+        event.type === "approval:detected" &&
+        event.payload.kind === "workspace-trust" &&
+        !workspaceTrustApproved
+      ) {
+        workspaceTrustApproved = true;
         host.sendApprove();
       }
     },

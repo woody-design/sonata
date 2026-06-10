@@ -1229,6 +1229,11 @@ function renderPermissionMenu(task: Task): HTMLElement {
     for (const option of CODEX_PERMISSION_OPTIONS) {
       menu.append(
         composerMenuOption(option.label, sessionPermissionLabel(task) === option.label, () => {
+          if (sessionPermissionLabel(task) === option.label) {
+            state.composerMenu = null;
+            render();
+            return;
+          }
           void queueControlChange({
             kind: "permission",
             label: option.label,
@@ -1248,6 +1253,11 @@ function renderPermissionMenu(task: Task): HTMLElement {
   for (const option of CLAUDE_PERMISSION_OPTIONS) {
     menu.append(
       composerMenuOption(option.label, task.permissionMode === option.value, () => {
+        if (task.permissionMode === option.value) {
+          state.composerMenu = null;
+          render();
+          return;
+        }
         void queueControlChange({
           kind: "permission",
           label: option.label,

@@ -53,7 +53,7 @@ export function registerIpcHandlers(
     runtimeController.deleteAttachment(request.taskId, request.attachmentId);
   });
   ipcMain.handle(IPC_CHANNELS.controlSet, (_event, request) => {
-    runtimeController.setControl(request.taskId, request.change);
+    return runtimeController.setControl(request.taskId, request.change);
   });
   ipcMain.handle(IPC_CHANNELS.promptQueueCancel, (_event, request) => {
     runtimeController.cancelQueuedPrompt(request.taskId, request.itemId);

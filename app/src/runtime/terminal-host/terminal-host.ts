@@ -32,6 +32,8 @@ export const CSI_U_ENTER = "\x1b[13u";
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
 export const SHIFT_TAB = "\x1b[Z";
+const CTRL_U = "\x15";
+const ENTER = "\r";
 
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
 const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
@@ -41,6 +43,7 @@ const DEFAULT_COLS = 120;
 const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_TASK_READY_MIN_AGE_MS = 8000;
+const CODEX_TASK_READY_MIN_AGE_MS = 14_000;
 const DEFAULT_TASK_READY_QUIET_MS = 900;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
@@ -248,6 +251,9 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess || this.activeRun || this.approvalActive || !this.taskReady) {
       return false;
     }
+    if (Date.now() - this.lastPtyDataAt < this.profile.taskReadyQuietMs) {
+      return false;
+    }
     return detectIdlePrompt(this.rawTail, this.profile).ready;
   }
 
@@ -403,6 +409,12 @@ export class TerminalHost extends EventEmitter {
     if (this.activeRun) {
       throw new Error("Cannot change controls while a provider run is active.");
     }
+    if (!this.isIdleComposerReady()) {
+      await this.waitForIdleComposer(DEFAULT_CONTROL_WAIT_MS);
+    }
+    if (!this.isIdleComposerReady()) {
+      throw new Error("Cannot change controls until the provider composer is idle.");
+    }
 
     const evidence =
       this.profile.provider === "codex"
@@ -430,17 +442,45 @@ export class TerminalHost extends EventEmitter {
 
   private async driveCodexPermissions(preset: CodexPermissionPreset): Promise<string> {
     const label = codexPermissionPresetLabel(preset);
-    this.typeSlashCommand("/permissions");
-    await this.waitForClean(
-      /Update Model Permissions|Ask for approval|Approve for me|Full Access/i,
+    const pickerOutput = await this.submitNativeSlashCommandAndWait(
+      "/permissions",
+      /Full\s*Access|FullAccess/i,
       DEFAULT_CONTROL_WAIT_MS,
       "Codex permissions picker",
     );
-    await this.selectCodexPickerItem(label, "Codex permissions option");
+    const confirmationSnapshot = await this.selectCodexPickerItem(
+      label,
+      "Codex permissions option",
+      pickerOutput,
+      codexPermissionPresetIndex(preset),
+    );
+    if (preset === "fullAccess") {
+      const fullAccessConfirmation = await this.waitForClean(
+        /Permissions updated to\s+Full Access|Enable\s*full\s*access|Yes,\s*continue\s*anyway/i,
+        DEFAULT_CONTROL_WAIT_MS,
+        "Codex full access confirmation",
+        confirmationSnapshot,
+      );
+      if (/Permissions updated to\s+Full Access/i.test(fullAccessConfirmation)) {
+        return fullAccessConfirmation;
+      }
+      const finalConfirmationSnapshot = await this.selectCodexPickerItem(
+        "Yes, continue anyway",
+        "Codex full access confirmation option",
+        fullAccessConfirmation,
+      );
+      return this.waitForClean(
+        /Permissions updated to\s+Full Access/i,
+        DEFAULT_CONTROL_WAIT_MS,
+        "Codex permissions confirmation",
+        finalConfirmationSnapshot,
+      );
+    }
     const confirmation = await this.waitForClean(
       new RegExp(`Permissions updated to\\s+${escapeRegExp(label)}`, "i"),
       DEFAULT_CONTROL_WAIT_MS,
       "Codex permissions confirmation",
+      confirmationSnapshot,
     );
     return confirmation;
   }
@@ -452,32 +492,56 @@ export class TerminalHost extends EventEmitter {
     if (!model) {
       throw new Error("Codex model picker cannot verify a Native Default selection mid-session.");
     }
-    this.typeSlashCommand("/model");
-    await this.waitForClean(/Select Model|Select Model and Effort/i, DEFAULT_CONTROL_WAIT_MS, "Codex model picker");
-    await this.selectCodexPickerItem(model, "Codex model option");
+    const modelPickerOutput = await this.submitNativeSlashCommandAndWait(
+      "/model",
+      /Select Model|Select Model and Effort/i,
+      DEFAULT_CONTROL_WAIT_MS,
+      "Codex model picker",
+    );
+    let confirmationSnapshot = await this.selectCodexPickerItem(model, "Codex model option", modelPickerOutput);
 
     if (reasoningEffort) {
-      await this.waitForClean(/effort|reasoning|Low|Medium|High|Extra High/i, DEFAULT_CONTROL_WAIT_MS, "Codex effort picker");
-      await this.selectCodexPickerItem(reasoningEffortPickerLabel(reasoningEffort), "Codex reasoning effort");
+      const effortPickerOutput = await this.waitForClean(
+        /effort|reasoning|Low|Medium|High|Extra High/i,
+        DEFAULT_CONTROL_WAIT_MS,
+        "Codex effort picker",
+        confirmationSnapshot,
+      );
+      confirmationSnapshot = await this.selectCodexPickerItem(
+        reasoningEffortPickerLabel(reasoningEffort),
+        "Codex reasoning effort",
+        effortPickerOutput,
+      );
     }
 
     const confirmation = await this.waitForClean(
       new RegExp(`${escapeRegExp(model)}|model|effort|reasoning`, "i"),
       DEFAULT_CONTROL_WAIT_MS,
       "Codex model confirmation",
+      confirmationSnapshot,
     );
     return confirmation;
   }
 
-  private async selectCodexPickerItem(targetLabel: string, label: string): Promise<void> {
-    const clean = this.cleanTail(CONTROL_CONTEXT_CHARS);
-    const digit = pickerDigitForLabel(clean, targetLabel);
-    if (!digit) {
-      throw new Error(`${label} "${targetLabel}" was not found in the native picker.\n\n${clean.slice(-2200)}`);
+  private async selectCodexPickerItem(
+    targetLabel: string,
+    label: string,
+    pickerOutput: string,
+    targetIndexOverride?: number,
+  ): Promise<string> {
+    const targetDigit =
+      targetIndexOverride === undefined
+        ? pickerDigitForLabel(pickerOutput, targetLabel)
+        : String(targetIndexOverride + 1);
+    if (!targetDigit) {
+      throw new Error(`${label} "${targetLabel}" was not found in the native picker.\n\n${pickerOutput.slice(-2200)}`);
     }
-    this.writeRaw(digit);
-    await delay(120);
-    this.writeRaw(CSI_U_ENTER);
+    const snapshot = this.rawTail;
+    await delay(2000);
+    this.writeRaw(targetDigit);
+    await delay(180);
+    this.writeRaw(ENTER);
+    return snapshot;
   }
 
   private async applyClaudeControlChange(change: DeliveryControlChange): Promise<string> {
@@ -534,14 +598,22 @@ export class TerminalHost extends EventEmitter {
     return this.cleanTail(CONTROL_CONTEXT_CHARS);
   }
 
-  private typeSlashCommand(text: string): void {
+  private async submitNativeSlashCommandAndWait(
+    text: string,
+    pattern: RegExp,
+    timeoutMs: number,
+    label: string,
+  ): Promise<string> {
     this.taskReady = false;
-    this.writeRaw(text);
-    setTimeout(() => {
-      if (this.ptyProcess) {
-        this.ptyProcess.write(CSI_U_ENTER);
-      }
-    }, 120);
+    const snapshot = this.rawTail;
+    this.writeRaw(CTRL_U);
+    await delay(40);
+    this.writeRaw(`${BRACKETED_PASTE_START}${text}${BRACKETED_PASTE_END}`);
+    await delay(160);
+    if (this.ptyProcess) {
+      this.ptyProcess.write(ENTER);
+    }
+    return this.waitForClean(pattern, timeoutMs, label, snapshot);
   }
 
   private async submitNativeSlashSingleShot(text: string): Promise<void> {
@@ -554,16 +626,26 @@ export class TerminalHost extends EventEmitter {
     await delay(500);
   }
 
-  private async waitForClean(pattern: RegExp, timeoutMs: number, label: string): Promise<string> {
+  private async waitForClean(
+    pattern: RegExp,
+    timeoutMs: number,
+    label: string,
+    snapshot?: string,
+  ): Promise<string> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      const clean = this.cleanTail(CONTROL_CONTEXT_CHARS);
+      const clean = snapshot
+        ? cleanTerminal(rawTailSince(snapshot, this.rawTail)).slice(-CONTROL_CONTEXT_CHARS)
+        : this.cleanTail(CONTROL_CONTEXT_CHARS);
       if (pattern.test(clean)) {
         return clean;
       }
       await delay(100);
     }
-    throw new Error(`Timed out waiting for ${label}.\n\n${this.cleanTail(CONTROL_CONTEXT_CHARS).slice(-2200)}`);
+    const context = snapshot
+      ? cleanTerminal(rawTailSince(snapshot, this.rawTail)).slice(-2200)
+      : this.cleanTail(CONTROL_CONTEXT_CHARS).slice(-2200);
+    throw new Error(`Timed out waiting for ${label}.\n\n${context}`);
   }
 
   private async waitForIdleComposer(timeoutMs: number): Promise<void> {
@@ -1322,7 +1404,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
     defaultCommand: "codex",
     approvalSource: "native Codex PTY approval screen",
     supportsSlashStop: true,
-    taskReadyMinAgeMs: DEFAULT_TASK_READY_MIN_AGE_MS,
+    taskReadyMinAgeMs: CODEX_TASK_READY_MIN_AGE_MS,
     taskReadyQuietMs: DEFAULT_TASK_READY_QUIET_MS,
     activityHints: ["working", "esc to interrupt"],
     idlePromptModelHints: /gpt[-\w.]*|xhigh|high|medium|low|~/i,
@@ -1359,6 +1441,16 @@ function codexPermissionPresetLabel(preset: CodexPermissionPreset): string {
   return "Ask for approval";
 }
 
+function codexPermissionPresetIndex(preset: CodexPermissionPreset): number {
+  if (preset === "approveForMe") {
+    return 1;
+  }
+  if (preset === "fullAccess") {
+    return 2;
+  }
+  return 0;
+}
+
 function reasoningEffortPickerLabel(effort: ReasoningEffort): string {
   if (effort === "xhigh") {
     return "Extra High";
@@ -1381,7 +1473,7 @@ function pickerDigitForLabel(cleanText: string, targetLabel: string): string | n
 }
 
 function numberedPickerSegments(line: string): Array<{ digit: string; text: string }> {
-  const matches = [...line.matchAll(/([1-9])[\).\s-]*(?=[A-Za-z])/g)];
+  const matches = [...line.matchAll(/([1-9])[\).]\s*(?=[A-Za-z])/g)];
   const segments: Array<{ digit: string; text: string }> = [];
   for (let index = 0; index < matches.length; index += 1) {
     const match = matches[index];
@@ -1446,6 +1538,19 @@ function escapeRegExp(value: string): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function rawTailSince(snapshot: string, current: string): string {
+  if (current.startsWith(snapshot)) {
+    return current.slice(snapshot.length);
+  }
+  const maxOverlap = Math.min(snapshot.length, current.length);
+  for (let length = maxOverlap; length > 0; length -= 1) {
+    if (snapshot.slice(-length) === current.slice(0, length)) {
+      return current.slice(length);
+    }
+  }
+  return current;
 }
 
 function attachmentPromptTitle(count: number): string {
@@ -1612,6 +1717,7 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
   const lastCodexPrompt = recent.lastIndexOf("›");
   const lastClaudePrompt = recent.lastIndexOf("❯");
   const lastAnyPrompt = Math.max(lastPrompt, lastCodexPrompt, lastClaudePrompt);
+  const lastActivity = maxLastIndexOf(lowered, profile.activityHints);
   const approvalNeedles = [
     ...profile.approvalHints.fileRead,
     ...profile.approvalHints.fileEdit,
@@ -1622,7 +1728,11 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
   const promptTail = lastAnyPrompt >= 0 ? recent.slice(lastAnyPrompt, lastAnyPrompt + 700) : "";
   const claudeSuggestionPrompt = profile.provider === "claude" && /^\s*❯\s*try/i.test(promptTail);
   const hasModelOrCwdHint = profile.idlePromptModelHints.test(promptTail);
-  const ready = lastAnyPrompt >= 0 && lastAnyPrompt > lastApproval && !claudeSuggestionPrompt;
+  const ready =
+    lastAnyPrompt >= 0 &&
+    lastAnyPrompt > lastApproval &&
+    lastAnyPrompt > lastActivity &&
+    !claudeSuggestionPrompt;
 
   return {
     ready,
