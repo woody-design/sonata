@@ -89,8 +89,16 @@ interface RendererState {
   readingSettings: ReadingSettings;
   readingPopoverOpen: boolean;
   readingPopoverAnchor: PopoverAnchor | null;
+  promptNav: PromptNavState | null;
   busy: boolean;
   status: string;
+}
+
+interface PromptNavState {
+  taskId: string;
+  turnKey: string;
+  composerSelectionStart: number;
+  composerSelectionEnd: number;
 }
 
 interface ComposerMenuState {
@@ -156,6 +164,7 @@ const state: RendererState = {
   readingSettings: bootReadingSettingsFromDom(),
   readingPopoverOpen: false,
   readingPopoverAnchor: null,
+  promptNav: null,
   busy: false,
   status: "Idle",
 };
@@ -354,6 +363,7 @@ fitTerminal();
 const pendingReadyTaskIds = new Set<string>();
 const workTraceOpenByTurnKey = new Map<string, boolean>();
 let transcriptRenderTimer: number | null = null;
+let stickyPromptSyncFrame: number | null = null;
 let composerIsComposing = false;
 let lastComposerCompositionEndAt = 0;
 const MAX_TRANSCRIPT_CHARS = 120_000;
@@ -381,6 +391,7 @@ const SESSION_MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; valu
   codex: MODEL_OPTIONS.codex.filter((option): option is { label: string; value: string } => Boolean(option.value)),
   claude: MODEL_OPTIONS.claude.filter((option): option is { label: string; value: string } => Boolean(option.value)),
 };
+const PROMPT_NAV_DOM_TASK_ID = "__active-transcript-dom__";
 const REASONING_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: ReasoningEffort | null }>> = {
   codex: [
     { label: "Low", value: "low" },
@@ -827,6 +838,325 @@ function readingModeLabel(mode: ReadingModeSetting): string {
   return "Auto";
 }
 
+function handlePromptNavigationKeydown(event: KeyboardEvent): void {
+  if (event.isComposing || composerIsComposing || event.keyCode === 229) {
+    return;
+  }
+
+  if (state.promptNav) {
+    if (hasStackedUiOpen()) {
+      return;
+    }
+    if (isPromptNavArrow(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      movePromptNav(event.key === "ArrowUp" ? -1 : 1);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      exitPromptNav({ focusComposer: true });
+      return;
+    }
+    if (isPrintablePromptNavTyping(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      exitPromptNav({ focusComposer: true, insertText: event.key });
+    }
+    return;
+  }
+
+  if (!isPromptNavEntryShortcut(event) || hasStackedUiOpen() || !isPromptNavEntryContext(event.target)) {
+    return;
+  }
+  if (enterPromptNav()) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
+
+function isPromptNavEntryShortcut(event: KeyboardEvent): boolean {
+  return (
+    event.key === "ArrowUp" &&
+    event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !event.shiftKey
+  );
+}
+
+function isPromptNavArrow(event: KeyboardEvent): boolean {
+  const arrow = event.key === "ArrowUp" || event.key === "ArrowDown";
+  if (!arrow || event.ctrlKey || event.altKey || event.shiftKey) {
+    return false;
+  }
+  return true;
+}
+
+function isPrintablePromptNavTyping(event: KeyboardEvent): boolean {
+  return event.key.length === 1 && !event.metaKey && !event.ctrlKey;
+}
+
+function isPromptNavEntryContext(target: EventTarget | null): boolean {
+  const node = target instanceof Node ? target : null;
+  if (!node) {
+    return false;
+  }
+  return (
+    elements.composer.contains(node) ||
+    elements.runList.contains(node) ||
+    document.activeElement === document.body
+  );
+}
+
+function hasStackedUiOpen(): boolean {
+  return Boolean(state.readingPopoverOpen || state.composerMenu || state.taskDraft.settingsOpen);
+}
+
+function enterPromptNav(): boolean {
+  const targets = promptNavTargets();
+  const target = targets.at(-1) ?? null;
+  if (!target) {
+    return false;
+  }
+  const selection = composerSelectionSnapshot();
+  state.promptNav = {
+    taskId: activePromptNavTaskId(),
+    turnKey: target.dataset.turnKey ?? "",
+    composerSelectionStart: selection.start,
+    composerSelectionEnd: selection.end,
+  };
+  return selectPromptNavTarget(target, { scroll: true });
+}
+
+function movePromptNav(delta: -1 | 1): void {
+  const targets = promptNavTargets();
+  if (targets.length === 0 || !state.promptNav) {
+    exitPromptNav({ focusComposer: false });
+    return;
+  }
+
+  const currentIndex = targets.findIndex((target) => target.dataset.turnKey === state.promptNav?.turnKey);
+  const index = currentIndex === -1 ? targets.length - 1 : currentIndex;
+  const nextIndex = index + delta;
+  if (nextIndex < 0) {
+    selectPromptNavTarget(targets[0], { scroll: false });
+    return;
+  }
+  if (nextIndex >= targets.length) {
+    exitPromptNav({ focusComposer: true });
+    return;
+  }
+  selectPromptNavTarget(targets[nextIndex], { scroll: true });
+}
+
+function selectPromptNavTarget(
+  target: HTMLElement | undefined,
+  options: { scroll: boolean },
+): boolean {
+  if (!target) {
+    return false;
+  }
+  const turnKey = target.dataset.turnKey;
+  if (!turnKey) {
+    return false;
+  }
+  const previous = state.promptNav;
+  const selection = previous ?? {
+    composerSelectionStart: elements.promptInput.selectionStart ?? elements.promptInput.value.length,
+    composerSelectionEnd: elements.promptInput.selectionEnd ?? elements.promptInput.value.length,
+  };
+  state.promptNav = {
+    taskId: activePromptNavTaskId(),
+    turnKey,
+    composerSelectionStart: selection.composerSelectionStart,
+    composerSelectionEnd: selection.composerSelectionEnd,
+  };
+  syncPromptNavDomSelection();
+  if (options.scroll) {
+    target.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+  }
+  target.focus({ preventScroll: true });
+  return true;
+}
+
+function exitPromptNav(options: { focusComposer: boolean; insertText?: string }): void {
+  const previous = state.promptNav;
+  if (!previous) {
+    return;
+  }
+  state.promptNav = null;
+  syncPromptNavDomSelection();
+  if (!options.focusComposer) {
+    return;
+  }
+  focusComposerFromPromptNav(previous);
+  if (options.insertText !== undefined) {
+    insertTextIntoComposer(options.insertText);
+  }
+}
+
+function focusComposerFromPromptNav(nav: PromptNavState): void {
+  if (elements.promptInput.disabled) {
+    return;
+  }
+  elements.promptInput.focus({ preventScroll: true });
+  const start = clamp(nav.composerSelectionStart, 0, elements.promptInput.value.length);
+  const end = clamp(nav.composerSelectionEnd, start, elements.promptInput.value.length);
+  elements.promptInput.setSelectionRange(start, end);
+}
+
+function insertTextIntoComposer(text: string): void {
+  if (elements.promptInput.disabled) {
+    return;
+  }
+  const start = elements.promptInput.selectionStart ?? elements.promptInput.value.length;
+  const end = elements.promptInput.selectionEnd ?? start;
+  elements.promptInput.setRangeText(text, start, end, "end");
+  elements.promptInput.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function restorePromptNavAfterRender(): void {
+  const nav = state.promptNav;
+  if (!nav) {
+    return;
+  }
+  if (nav.taskId !== activePromptNavTaskId()) {
+    state.promptNav = null;
+    return;
+  }
+  const target = findPromptNavTarget(nav.turnKey);
+  if (!target) {
+    state.promptNav = null;
+    return;
+  }
+  syncPromptNavDomSelection();
+  target.focus({ preventScroll: true });
+}
+
+function syncPromptNavDomSelection(): void {
+  const nav = state.promptNav;
+  for (const target of promptNavTargets()) {
+    const selected =
+      nav !== null &&
+      nav.taskId === activePromptNavTaskId() &&
+      target.dataset.turnKey === nav.turnKey;
+    target.classList.toggle("prompt-nav-selected", selected);
+    if (selected) {
+      target.setAttribute("aria-current", "true");
+    } else {
+      target.removeAttribute("aria-current");
+    }
+  }
+}
+
+function promptNavTargets(): HTMLElement[] {
+  return Array.from(elements.runList.querySelectorAll<HTMLElement>(".turn-prompt"));
+}
+
+function findPromptNavTarget(turnKey: string): HTMLElement | null {
+  return promptNavTargets().find((target) => target.dataset.turnKey === turnKey) ?? null;
+}
+
+function activePromptNavTaskId(): string {
+  return state.activeTaskId ?? PROMPT_NAV_DOM_TASK_ID;
+}
+
+function composerSelectionSnapshot(): { start: number; end: number } {
+  const fallback = elements.promptInput.value.length;
+  return {
+    start: elements.promptInput.selectionStart ?? fallback,
+    end: elements.promptInput.selectionEnd ?? fallback,
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function scheduleStickyPromptSync(): void {
+  if (stickyPromptSyncFrame !== null) {
+    return;
+  }
+  stickyPromptSyncFrame = window.requestAnimationFrame(() => {
+    stickyPromptSyncFrame = null;
+    syncStickyPromptHeader();
+  });
+}
+
+function syncStickyPromptHeader(): void {
+  const header = elements.runList.querySelector<HTMLButtonElement>(".sticky-prompt-header");
+  if (!header) {
+    return;
+  }
+  const candidate = stickyPromptCandidate();
+  if (!candidate) {
+    hideStickyPromptHeader(header);
+    return;
+  }
+
+  const listRect = elements.runList.getBoundingClientRect();
+  const promptRect = candidate.prompt.getBoundingClientRect();
+  if (promptRect.bottom > listRect.top) {
+    hideStickyPromptHeader(header);
+    return;
+  }
+
+  const text = condensedPromptText(candidate.prompt.textContent ?? "");
+  header.textContent = text;
+  header.title = text;
+  header.dataset.turnKey = candidate.card.dataset.turnKey ?? "";
+  header.classList.remove("hidden");
+}
+
+function hideStickyPromptHeader(header: HTMLButtonElement): void {
+  header.classList.add("hidden");
+  header.textContent = "";
+  header.title = "";
+  delete header.dataset.turnKey;
+}
+
+function stickyPromptCandidate(): { card: HTMLElement; prompt: HTMLElement } | null {
+  const listRect = elements.runList.getBoundingClientRect();
+  if (listRect.height <= 0) {
+    return null;
+  }
+  const eyeY = listRect.top + Math.min(96, listRect.height * 0.28);
+  const cards = Array.from(elements.runList.querySelectorAll<HTMLElement>(".turn-card"));
+
+  for (const card of cards) {
+    const rect = card.getBoundingClientRect();
+    if (rect.top <= eyeY && rect.bottom > eyeY) {
+      const prompt = card.querySelector<HTMLElement>(".turn-prompt");
+      return prompt ? { card, prompt } : null;
+    }
+  }
+
+  for (const card of cards) {
+    const rect = card.getBoundingClientRect();
+    if (rect.top < listRect.bottom && rect.bottom > listRect.top) {
+      const prompt = card.querySelector<HTMLElement>(".turn-prompt");
+      if (prompt && prompt.getBoundingClientRect().bottom <= listRect.top) {
+        return { card, prompt };
+      }
+    }
+  }
+
+  return null;
+}
+
+function scrollToPromptTurn(turnKey: string): void {
+  const target = findPromptNavTarget(turnKey);
+  target?.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+  scheduleStickyPromptSync();
+}
+
+function condensedPromptText(text: string): string {
+  const trimmed = text.replace(/\s+/g, " ").trim();
+  return trimmed || "(empty prompt)";
+}
+
 elements.runList.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) {
@@ -842,6 +1172,18 @@ elements.runList.addEventListener("click", (event) => {
     window.open(href);
   }
 });
+
+elements.runList.addEventListener("scroll", () => {
+  scheduleStickyPromptSync();
+});
+
+elements.runList.addEventListener(
+  "toggle",
+  () => {
+    scheduleStickyPromptSync();
+  },
+  true,
+);
 
 elements.approveApproval.addEventListener("click", () => {
   void decideApproval("approve");
@@ -861,7 +1203,21 @@ window.addEventListener("resize", () => {
     syncReadingPopoverAnchor();
     renderReadingPopover();
   }
+  scheduleStickyPromptSync();
 });
+
+document.addEventListener("keydown", handlePromptNavigationKeydown, true);
+
+document.addEventListener(
+  "mousedown",
+  () => {
+    if (!state.promptNav) {
+      return;
+    }
+    exitPromptNav({ focusComposer: false });
+  },
+  true,
+);
 
 document.addEventListener("click", (event) => {
   const target = event.target;
@@ -1148,6 +1504,9 @@ function activateTask(taskId: string): void {
   const view = taskViewForId(taskId);
   if (!view) {
     return;
+  }
+  if (state.activeTaskId !== taskId) {
+    exitPromptNav({ focusComposer: false });
   }
   state.activeTaskId = taskId;
   view.unread = false;
@@ -2179,11 +2538,12 @@ function renderRuns(): void {
   const runList = elements.runList;
   const nearBottom = runList.scrollHeight - runList.scrollTop - runList.clientHeight < 64;
   const previousScrollTop = runList.scrollTop;
-  runList.replaceChildren();
+  runList.replaceChildren(renderStickyPromptRail());
 
   const view = activeTaskView();
   if (!view?.task) {
     runList.append(renderTaskEntryPanel());
+    finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
     return;
   }
 
@@ -2193,6 +2553,7 @@ function renderRuns(): void {
     empty.className = "empty-state";
     empty.textContent = "No Runs yet";
     runList.append(empty);
+    finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
     return;
   }
 
@@ -2200,7 +2561,14 @@ function renderRuns(): void {
     runList.append(renderTurn(view, turn));
   }
 
+  finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
+}
+
+function finalizeReadingSurfaceRender(nearBottom: boolean, previousScrollTop: number): void {
+  const runList = elements.runList;
   runList.scrollTop = nearBottom ? runList.scrollHeight : previousScrollTop;
+  restorePromptNavAfterRender();
+  scheduleStickyPromptSync();
 }
 
 function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
@@ -2256,9 +2624,31 @@ function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
   return turns.sort((a, b) => a.tsMs - b.tsMs);
 }
 
+function renderStickyPromptRail(): HTMLElement {
+  const rail = document.createElement("div");
+  rail.className = "sticky-prompt-rail";
+
+  const header = document.createElement("button");
+  header.id = "sticky-prompt-header";
+  header.className = "sticky-prompt-header hidden";
+  header.type = "button";
+  header.setAttribute("aria-label", "Scroll to the prompt for this reply");
+  header.addEventListener("click", () => {
+    const turnKey = header.dataset.turnKey;
+    if (!turnKey) {
+      return;
+    }
+    scrollToPromptTurn(turnKey);
+  });
+
+  rail.append(header);
+  return rail;
+}
+
 function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   const card = document.createElement("article");
   card.className = "turn-card";
+  card.dataset.turnKey = turn.key;
   if (turn.runId) {
     card.dataset.runId = turn.runId;
     card.classList.toggle("highlighted", turn.runId === view.highlightedRunId);
@@ -2301,6 +2691,7 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
 function renderTurnUser(turn: ReadingTurn): HTMLElement {
   const header = document.createElement("header");
   header.className = "turn-user";
+  header.dataset.turnKey = turn.key;
 
   const role = document.createElement("span");
   role.className = "turn-role";
@@ -2315,13 +2706,19 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
 
   if (userBlock?.command) {
     const chip = document.createElement("span");
-    chip.className = "turn-command-chip";
+    chip.className = "turn-command-chip turn-prompt";
+    chip.tabIndex = -1;
+    chip.dataset.turnKey = turn.key;
     chip.textContent = text || userBlock.command;
+    chip.setAttribute("aria-label", `Prompt: ${chip.textContent}`);
     header.append(chip);
   } else {
     const prompt = document.createElement("div");
-    prompt.className = "turn-user-text";
+    prompt.className = "turn-user-text turn-prompt";
+    prompt.tabIndex = -1;
+    prompt.dataset.turnKey = turn.key;
     prompt.textContent = text || "(empty prompt)";
+    prompt.setAttribute("aria-label", `Prompt: ${prompt.textContent}`);
     header.append(prompt);
   }
   return header;

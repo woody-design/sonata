@@ -1035,10 +1035,52 @@ h2 {
 }
 
 .run-list {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   padding: 16px 18px 10px;
+}
+
+.sticky-prompt-rail {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  height: 0;
+  pointer-events: none;
+}
+
+.sticky-prompt-header {
+  pointer-events: auto;
+  width: min(100%, var(--measure-prose));
+  min-height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--border-raised);
+  border-radius: 8px;
+  padding: 7px 12px;
+  color: var(--ink-muted-warm);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-bubble);
+  font-family: var(--font-reading);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticky-prompt-header:hover {
+  border-color: var(--accent-soft-border);
+  color: var(--ink-reading-prompt);
+  background: var(--surface-selected);
+}
+
+.sticky-prompt-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .approval-banner {
@@ -2699,6 +2741,21 @@ h2 {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   box-shadow: var(--shadow-bubble);
+}
+
+.turn-prompt {
+  scroll-margin-top: 16px;
+}
+
+.turn-prompt:focus {
+  outline: 0;
+}
+
+.turn-prompt:focus-visible,
+.turn-prompt.prompt-nav-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: var(--shadow-composer-focus);
 }
 
 .turn-command-chip {

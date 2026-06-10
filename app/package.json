@@ -31,6 +31,7 @@
     "e2e:change-summary": "npm run build && node tests/e2e/change-summary.mjs",
     "e2e:stop-continue": "npm run build && node tests/e2e/stop-continue.mjs",
     "e2e:reading-settings": "npm run build && node tests/e2e/reading-settings.mjs",
+    "e2e:reading-navigation": "npm run build && node tests/e2e/reading-navigation.mjs",
     "e2e:open-task": "npm run build && node tests/e2e/open-task.mjs",
     "e2e:composer-attachment-screenshots": "npm run build && node tests/e2e/composer-attachment-screenshots.mjs",
     "smoke:runtime-modules": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/runtime-modules.mjs",
