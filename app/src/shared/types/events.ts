@@ -88,6 +88,7 @@ export type PromptSubmittedEvent = BaseRuntimeEvent<
     runId: RunId | null;
     kind: RunKind;
     chars: number;
+    attachments: number;
   }
 >;
 

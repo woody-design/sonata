@@ -137,6 +137,10 @@ export interface PromptSubmission {
   submittedAt: string;
 }
 
+export interface PromptAttachmentSubmission {
+  path: string;
+}
+
 export interface NativeControlResult {
   provider: RuntimeProvider;
   change: DeliveryControlChange;
@@ -332,8 +336,13 @@ export class TerminalHost extends EventEmitter {
     this.ptyProcess.write(data);
   }
 
-  submitPrompt(text: string, options: { createRun?: boolean } = {}): PromptSubmission | null {
-    if (!text.trim()) {
+  submitPrompt(
+    text: string,
+    options: { createRun?: boolean; attachments?: PromptAttachmentSubmission[] } = {},
+  ): PromptSubmission | null {
+    const attachments = options.attachments ?? [];
+    const trimmed = text.trim();
+    if (!trimmed && attachments.length === 0) {
       return null;
     }
     if (!this.ptyProcess) {
@@ -343,8 +352,9 @@ export class TerminalHost extends EventEmitter {
       throw new Error("Cannot submit a prompt while a native approval screen is active.");
     }
 
-    const kind: RunKind = text.trim().startsWith("/") ? "slash" : "prompt";
-    const run = options.createRun === false ? null : this.beginRun(text, kind);
+    const kind: RunKind = trimmed.startsWith("/") && attachments.length === 0 ? "slash" : "prompt";
+    const runText = trimmed || attachmentPromptTitle(attachments.length);
+    const run = options.createRun === false ? null : this.beginRun(runText, kind);
     const submittedAt = new Date().toISOString();
 
     this.taskReady = false;
@@ -353,17 +363,27 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalDecision = null;
     this.lastApprovalDecisionAt = null;
     this.clearApprovalSettleTimer();
-    this.ptyProcess.write(`${BRACKETED_PASTE_START}${text}${BRACKETED_PASTE_END}`);
+    for (const attachment of attachments) {
+      this.ptyProcess.write(`${BRACKETED_PASTE_START}${attachment.path}${BRACKETED_PASTE_END}`);
+    }
+    const textDelayMs = attachments.length > 0 ? 120 : 0;
+    const enterDelayMs = attachments.length > 0 ? 260 : 120;
+    setTimeout(() => {
+      if (this.ptyProcess && trimmed) {
+        this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
+      }
+    }, textDelayMs);
     setTimeout(() => {
       if (this.ptyProcess) {
         this.ptyProcess.write(CSI_U_ENTER);
       }
-    }, 120);
+    }, enterDelayMs);
     this.emitEvent("prompt:submitted", {
       taskId: this.taskId,
       runId: run ? run.id : this.activeRun ? this.activeRun.id : null,
       kind,
-      chars: text.length,
+      chars: trimmed.length,
+      attachments: attachments.length,
     });
     return {
       taskId: this.taskId,
@@ -1426,6 +1446,10 @@ function escapeRegExp(value: string): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function attachmentPromptTitle(count: number): string {
+  return count === 1 ? "[Image attachment]" : `[${count} image attachments]`;
 }
 
 export function cleanTerminal(text: string): string {

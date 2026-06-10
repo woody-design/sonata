@@ -44,7 +44,13 @@ export function registerIpcHandlers(
   });
   ipcMain.handle(IPC_CHANNELS.taskList, () => runtimeController.listTasks());
   ipcMain.handle(IPC_CHANNELS.promptSubmit, (_event, request) => {
-    runtimeController.submitPrompt(request.taskId, request.text);
+    runtimeController.submitPrompt(request.taskId, request.text, request.attachments ?? []);
+  });
+  ipcMain.handle(IPC_CHANNELS.attachmentCreate, (_event, request) => {
+    return runtimeController.createAttachment(request.taskId, request);
+  });
+  ipcMain.handle(IPC_CHANNELS.attachmentDelete, (_event, request) => {
+    runtimeController.deleteAttachment(request.taskId, request.attachmentId);
   });
   ipcMain.handle(IPC_CHANNELS.controlSet, (_event, request) => {
     runtimeController.setControl(request.taskId, request.change);

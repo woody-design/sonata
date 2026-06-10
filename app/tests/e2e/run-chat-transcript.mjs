@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveIfVisible } from "./helpers/approval.mjs";
+import { approveIfVisible, approveVisibleBanner } from "./helpers/approval.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-run-chat-e2e-"));
 let electronApp = null;
@@ -133,6 +133,7 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
   while (Date.now() < deadline) {
     await approveIfVisible(page, "File edit approval requested", 1000);
     await approveIfVisible(page, "Command approval requested", 1000);
+    await approveAnyVisibleApproval(page);
     const completed = await page
       .locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" })
       .count();
@@ -149,6 +150,14 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     `Timed out waiting for ${expectedCompletedRuns} completed Runs. ` +
       `headline=${headline} status=${status} approval=${approval}`,
   );
+}
+
+async function approveAnyVisibleApproval(page) {
+  const banner = page.locator("#approval-banner:not(.hidden)");
+  const visible = await banner.isVisible({ timeout: 500 }).catch(() => false);
+  if (visible) {
+    await approveVisibleBanner(page, banner);
+  }
 }
 
 function readReports(root) {

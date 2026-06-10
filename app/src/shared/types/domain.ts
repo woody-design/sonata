@@ -96,6 +96,14 @@ export type DeliveryItemStatus = "queued" | "delivering" | "delivered" | "undeli
 export type DeliveryItemKind = "prompt" | "control";
 export type DeliveryReceiptSource = "provider-transcript" | "pty-composer-echo" | "native-control";
 
+export interface DeliveryAttachment {
+  id: string;
+  path: string;
+  originalName: string;
+  mediaType: string;
+  size: number;
+}
+
 export type DeliveryControlChange =
   | {
       kind: "permission";
@@ -131,6 +139,7 @@ export interface DeliveryQueueItem {
   kind: DeliveryItemKind;
   text: string;
   control: DeliveryControlChange | null;
+  attachments: DeliveryAttachment[];
   status: DeliveryItemStatus;
   enqueuedAt: string;
   deliveringAt: string | null;

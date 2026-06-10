@@ -12,6 +12,7 @@ import type {
   CodexPermissionPreset,
   CodexSandboxMode,
   DeliveryControlChange,
+  DeliveryAttachment,
   DeliveryQueueItem,
   DeliveryTaskState,
   LaunchSpeedMode,
@@ -53,6 +54,7 @@ interface TaskViewState {
   runtimeReady: boolean;
   composerObserved: boolean;
   deliveryState: DeliveryTaskState | null;
+  pendingAttachments: ComposerAttachment[];
   status: string;
   unread: boolean;
 }
@@ -78,8 +80,13 @@ interface RendererState {
 }
 
 interface ComposerMenuState {
-  type: "permission" | "model";
+  type: "add" | "permission" | "model";
   anchor: { left: number; top: number; width: number };
+}
+
+interface ComposerAttachment {
+  attachment: DeliveryAttachment;
+  previewUrl: string;
 }
 
 interface TaskLaunchDraft {
@@ -208,8 +215,10 @@ appElement.innerHTML = `
 
         <form id="composer" class="composer">
           <textarea id="prompt-input" rows="4" placeholder="Start or open a Task"></textarea>
+          <div id="attachment-strip" class="attachment-strip hidden" aria-label="Image attachments"></div>
           <div class="composer-control-row">
             <div class="composer-control-left">
+              <button id="add-attachment" class="composer-icon-button" type="button" aria-label="Add photos & files">+</button>
               <button id="permission-chip" class="composer-chip hidden" type="button"></button>
             </div>
             <div class="composer-actions">
@@ -224,6 +233,13 @@ appElement.innerHTML = `
             </div>
           </div>
           <div id="composer-popover-root"></div>
+          <input
+            id="attachment-picker"
+            class="hidden"
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            multiple
+          />
         </form>
       </section>
     </section>
@@ -257,6 +273,9 @@ const elements = {
   deliveryQueue: getElement<HTMLElement>("delivery-queue"),
   composer: getElement<HTMLFormElement>("composer"),
   promptInput: getElement<HTMLTextAreaElement>("prompt-input"),
+  attachmentStrip: getElement<HTMLDivElement>("attachment-strip"),
+  addAttachment: getElement<HTMLButtonElement>("add-attachment"),
+  attachmentPicker: getElement<HTMLInputElement>("attachment-picker"),
   permissionChip: getElement<HTMLButtonElement>("permission-chip"),
   modelChip: getElement<HTMLButtonElement>("model-chip"),
   composerPopoverRoot: getElement<HTMLDivElement>("composer-popover-root"),
@@ -330,6 +349,8 @@ const CLAUDE_PERMISSION_OPTIONS: Array<{ label: string; value: ClaudePermissionM
   { label: "acceptEdits", value: "acceptEdits" },
   { label: "plan", value: "plan" },
 ];
+const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
 elements.newTask.addEventListener("click", () => {
   void createTask("codex");
@@ -372,6 +393,40 @@ elements.promptInput.addEventListener("input", () => {
   renderComposerControls();
 });
 
+elements.addAttachment.addEventListener("click", (event) => {
+  toggleComposerMenu("add", event.currentTarget as HTMLElement);
+});
+
+elements.attachmentPicker.addEventListener("change", () => {
+  const files = Array.from(elements.attachmentPicker.files ?? []);
+  elements.attachmentPicker.value = "";
+  void addAttachmentFiles(files);
+});
+
+elements.composer.addEventListener("paste", (event) => {
+  const files = Array.from(event.clipboardData?.files ?? []).filter(isSupportedImageFile);
+  if (files.length === 0) {
+    return;
+  }
+  event.preventDefault();
+  void addAttachmentFiles(files);
+});
+
+elements.composer.addEventListener("dragover", (event) => {
+  if (hasImageTransfer(event.dataTransfer)) {
+    event.preventDefault();
+  }
+});
+
+elements.composer.addEventListener("drop", (event) => {
+  const files = Array.from(event.dataTransfer?.files ?? []).filter(isSupportedImageFile);
+  if (files.length === 0) {
+    return;
+  }
+  event.preventDefault();
+  void addAttachmentFiles(files);
+});
+
 elements.permissionChip.addEventListener("click", (event) => {
   toggleComposerMenu("permission", event.currentTarget as HTMLElement);
 });
@@ -390,7 +445,7 @@ elements.promptInput.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.shiftKey) {
     return;
   }
-  if (elements.promptInput.value.trim().length === 0) {
+  if (elements.promptInput.value.trim().length === 0 && (activeTaskView()?.pendingAttachments.length ?? 0) === 0) {
     return;
   }
   event.preventDefault();
@@ -607,6 +662,7 @@ function createTaskView(task: Task, status: string): TaskViewState {
     runtimeReady: false,
     composerObserved: false,
     deliveryState: null,
+    pendingAttachments: [],
     status,
     unread: false,
   };
@@ -900,7 +956,8 @@ async function submitPrompt(): Promise<void> {
   }
 
   const text = elements.promptInput.value.trim();
-  if (!text) {
+  const attachments = view.pendingAttachments.map((item) => item.attachment);
+  if (!text && attachments.length === 0) {
     view.status = "Type a message before sending";
     render();
     return;
@@ -910,8 +967,9 @@ async function submitPrompt(): Promise<void> {
   render();
 
   try {
-    await window.duetRuntime.submitPrompt({ taskId: view.task.id, text });
+    await window.duetRuntime.submitPrompt({ taskId: view.task.id, text, attachments });
     elements.promptInput.value = "";
+    clearPendingAttachments(view);
   } catch (error) {
     view.status = errorMessage(error);
   } finally {
@@ -1000,6 +1058,7 @@ function render(): void {
   elements.openTask.disabled = state.busy;
   elements.newTask.disabled = state.busy;
   elements.newClaudeTask.disabled = state.busy;
+  renderAttachmentStrip(view);
   renderComposerControls(view);
   renderComposerMenu(view);
 
@@ -1012,10 +1071,45 @@ function render(): void {
   renderDeliveryQueue();
 }
 
+function renderAttachmentStrip(view = activeTaskView()): void {
+  elements.attachmentStrip.replaceChildren();
+  const attachments = view?.pendingAttachments ?? [];
+  elements.attachmentStrip.classList.toggle("hidden", attachments.length === 0);
+  if (attachments.length === 0) {
+    return;
+  }
+
+  for (const item of attachments) {
+    const chip = document.createElement("div");
+    chip.className = "attachment-chip";
+    chip.title = item.attachment.originalName;
+
+    const image = document.createElement("img");
+    image.src = item.previewUrl;
+    image.alt = item.attachment.originalName;
+
+    const label = document.createElement("span");
+    label.textContent = item.attachment.originalName;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "attachment-remove";
+    remove.setAttribute("aria-label", `Remove ${item.attachment.originalName}`);
+    remove.textContent = "x";
+    remove.addEventListener("click", () => {
+      void removePendingAttachment(item.attachment.id);
+    });
+
+    chip.append(image, label, remove);
+    elements.attachmentStrip.append(chip);
+  }
+}
+
 function renderComposerControls(view = activeTaskView()): void {
   const activeRun = hasActiveRun(view) || Boolean(view?.deliveryState?.activeRun);
   const pendingApproval = Boolean(view?.pendingApproval);
   const promptHasText = elements.promptInput.value.trim().length > 0;
+  const hasAttachments = (view?.pendingAttachments.length ?? 0) > 0;
   renderComposerChip(
     elements.permissionChip,
     composerChipLabel(view, "permission"),
@@ -1028,8 +1122,10 @@ function renderComposerControls(view = activeTaskView()): void {
     "model",
     Boolean(view?.task),
   );
-  elements.sendPrompt.disabled = !view?.task || (!activeRun && !promptHasText);
-  elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText);
+  elements.addAttachment.disabled = !view?.task;
+  elements.addAttachment.classList.toggle("active", state.composerMenu?.type === "add");
+  elements.sendPrompt.disabled = !view?.task || (!activeRun && !promptHasText && !hasAttachments);
+  elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText || hasAttachments);
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";
   elements.sendPrompt.classList.toggle("stop-mode", activeRun);
   elements.promptInput.disabled = !view?.task;
@@ -1068,7 +1164,7 @@ function composerChipLabel(view: TaskViewState | null, type: "permission" | "mod
   return `${confirmed ?? "Default"} -> ${pending.text}`;
 }
 
-function toggleComposerMenu(type: "permission" | "model", anchor: HTMLElement): void {
+function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement): void {
   const view = activeTaskView();
   if (!view?.task) {
     return;
@@ -1094,12 +1190,25 @@ function renderComposerMenu(view = activeTaskView()): void {
   if (!view?.task || !state.composerMenu) {
     return;
   }
-  const menu =
-    state.composerMenu.type === "permission"
+  const menu = state.composerMenu.type === "add"
+    ? renderAddMenu()
+    : state.composerMenu.type === "permission"
       ? renderPermissionMenu(view.task)
       : renderModelMenu(view.task);
   positionComposerMenu(menu);
   elements.composerPopoverRoot.append(menu);
+}
+
+function renderAddMenu(): HTMLElement {
+  const menu = composerMenu("Add");
+  menu.append(
+    composerMenuOption("Add photos & files", false, () => {
+      state.composerMenu = null;
+      elements.attachmentPicker.click();
+      render();
+    }),
+  );
+  return menu;
 }
 
 function renderPermissionMenu(task: Task): HTMLElement {
@@ -1261,6 +1370,89 @@ async function queueControlChange(change: DeliveryControlChange): Promise<void> 
   } finally {
     render();
   }
+}
+
+async function addAttachmentFiles(files: File[]): Promise<void> {
+  const view = activeTaskView();
+  if (!view?.task || files.length === 0) {
+    return;
+  }
+
+  const imageFiles = files.filter(isSupportedImageFile);
+  if (imageFiles.length === 0) {
+    view.status = "Only PNG, JPEG, GIF, and WebP images can be attached";
+    render();
+    return;
+  }
+
+  for (const file of imageFiles) {
+    try {
+      const bytes = await file.arrayBuffer();
+      const attachment = await window.duetRuntime.createAttachment({
+        taskId: view.task.id,
+        originalName: file.name,
+        mediaType: file.type,
+        bytes,
+      });
+      view.pendingAttachments.push({
+        attachment,
+        previewUrl: URL.createObjectURL(file),
+      });
+      view.status = "Image attached";
+    } catch (error) {
+      view.status = errorMessage(error);
+    }
+  }
+  render();
+}
+
+async function removePendingAttachment(attachmentId: string): Promise<void> {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  const index = view.pendingAttachments.findIndex((item) => item.attachment.id === attachmentId);
+  if (index === -1) {
+    return;
+  }
+  const [removed] = view.pendingAttachments.splice(index, 1);
+  if (!removed) {
+    return;
+  }
+  URL.revokeObjectURL(removed.previewUrl);
+  try {
+    await window.duetRuntime.deleteAttachment({
+      taskId: view.task.id,
+      attachmentId: removed.attachment.id,
+    });
+    view.status = "Image removed";
+  } catch (error) {
+    view.status = errorMessage(error);
+  } finally {
+    render();
+  }
+}
+
+function clearPendingAttachments(view: TaskViewState): void {
+  for (const item of view.pendingAttachments) {
+    URL.revokeObjectURL(item.previewUrl);
+  }
+  view.pendingAttachments = [];
+}
+
+function isSupportedImageFile(file: File): boolean {
+  return SUPPORTED_IMAGE_MIME_TYPES.has(file.type) || SUPPORTED_IMAGE_EXTENSIONS.has(fileExtension(file.name));
+}
+
+function hasImageTransfer(dataTransfer: DataTransfer | null): boolean {
+  return Array.from(dataTransfer?.items ?? []).some(
+    (item) => item.kind === "file" && SUPPORTED_IMAGE_MIME_TYPES.has(item.type),
+  );
+}
+
+function fileExtension(name: string): string {
+  const index = name.lastIndexOf(".");
+  return index >= 0 ? name.slice(index).toLowerCase() : "";
 }
 
 function sessionPermissionLabel(task: Task | null): string | null {
@@ -2335,7 +2527,7 @@ function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLE
   const status = document.createElement("strong");
   status.textContent = deliveryItemStatusLabel(providerName, item);
   const text = document.createElement("p");
-  text.textContent = item.kind === "control" ? controlItemLabel(item) : item.text;
+  text.textContent = item.kind === "control" ? controlItemLabel(item) : promptItemLabel(item);
   copy.append(status, text);
   if (item.failureReason) {
     const reason = document.createElement("span");
@@ -2454,6 +2646,16 @@ function deliveryItemStatusLabel(providerName: string, item: DeliveryQueueItem):
     return `Undelivered — no ${providerName} receipt`;
   }
   return `Queued — delivers when ${providerName} is ready`;
+}
+
+function promptItemLabel(item: DeliveryQueueItem): string {
+  const attachmentLabel =
+    item.attachments.length === 0
+      ? null
+      : item.attachments.length === 1
+        ? "1 image"
+        : `${item.attachments.length} images`;
+  return [attachmentLabel, item.text].filter((part): part is string => Boolean(part)).join(" - ");
 }
 
 function controlItemLabel(item: DeliveryQueueItem): string {

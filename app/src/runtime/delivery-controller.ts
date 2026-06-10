@@ -1,5 +1,6 @@
 import type {
   DeliveryControlChange,
+  DeliveryAttachment,
   DeliveryItemId,
   DeliveryQueueItem,
   DeliveryReceipt,
@@ -22,6 +23,7 @@ export interface DeliveryControllerOptions {
   eventSink: (event: RuntimeEvent) => void;
   hasLiveTranscriptSource: () => boolean;
   applyControlChange?: (change: DeliveryControlChange) => Promise<void>;
+  cleanupAttachments?: (attachments: DeliveryAttachment[]) => void;
   receiptTimeoutMs?: number;
 }
 
@@ -36,6 +38,7 @@ interface InFlightDelivery {
 interface PtyEchoBackfill {
   itemId: DeliveryItemId;
   text: string;
+  attachments: DeliveryAttachment[];
   runId: RunId | null;
   submittedAtMs: number;
   expiresAtMs: number;
@@ -48,6 +51,7 @@ export class DeliveryController {
   private readonly eventSink: (event: RuntimeEvent) => void;
   private readonly hasLiveTranscriptSource: () => boolean;
   private readonly applyControlChange: ((change: DeliveryControlChange) => Promise<void>) | null;
+  private readonly cleanupAttachments: ((attachments: DeliveryAttachment[]) => void) | null;
   private readonly receiptTimeoutMs: number;
   private readonly items: DeliveryQueueItem[] = [];
   private readonly ptyEchoBackfills: PtyEchoBackfill[] = [];
@@ -62,13 +66,14 @@ export class DeliveryController {
     this.eventSink = options.eventSink;
     this.hasLiveTranscriptSource = options.hasLiveTranscriptSource;
     this.applyControlChange = options.applyControlChange ?? null;
+    this.cleanupAttachments = options.cleanupAttachments ?? null;
     this.receiptTimeoutMs = options.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS;
   }
 
-  enqueue(text: string): DeliveryQueueItem {
+  enqueue(text: string, attachments: DeliveryAttachment[] = []): DeliveryQueueItem {
     const trimmed = text.trim();
-    if (!trimmed) {
-      throw new Error("Cannot queue an empty prompt.");
+    if (!trimmed && attachments.length === 0) {
+      throw new Error("Cannot queue an empty prompt without attachments.");
     }
 
     const item: DeliveryQueueItem = {
@@ -77,6 +82,7 @@ export class DeliveryController {
       kind: "prompt",
       text: trimmed,
       control: null,
+      attachments: attachments.map((attachment) => ({ ...attachment })),
       status: "queued",
       enqueuedAt: new Date().toISOString(),
       deliveringAt: null,
@@ -102,6 +108,7 @@ export class DeliveryController {
       kind: "control",
       text: label,
       control: change,
+      attachments: [],
       status: "queued",
       enqueuedAt: new Date().toISOString(),
       deliveringAt: null,
@@ -123,7 +130,10 @@ export class DeliveryController {
     if (this.items[index]?.status === "delivering") {
       throw new Error("Cannot cancel an item while it is being delivered.");
     }
-    this.items.splice(index, 1);
+    const [item] = this.items.splice(index, 1);
+    if (item?.attachments.length) {
+      this.cleanupAttachments?.(item.attachments);
+    }
     this.emitState();
     this.pump();
   }
@@ -226,7 +236,9 @@ export class DeliveryController {
 
     let submission: PromptSubmission | null = null;
     try {
-      submission = this.terminalHost.submitPrompt(item.text);
+      submission = this.terminalHost.submitPrompt(item.text, {
+        attachments: item.attachments.map((attachment) => ({ path: attachment.path })),
+      });
     } catch (error) {
       item.status = isApprovalGuardError(error) ? "queued" : "undelivered";
       item.deliveringAt = null;
@@ -253,7 +265,8 @@ export class DeliveryController {
       itemId: item.id,
       kind: "prompt",
       submittedAtMs: Date.parse(submission.submittedAt),
-      allowPtyEchoReceipt: this.provider === "claude" && !this.hasLiveTranscriptSource(),
+      allowPtyEchoReceipt:
+        item.attachments.length === 0 && this.provider === "claude" && !this.hasLiveTranscriptSource(),
       ptyEchoTail: "",
     };
     this.armReceiptTimer(item.id);
@@ -332,6 +345,7 @@ export class DeliveryController {
     this.ptyEchoBackfills.push({
       itemId: item.id,
       text: item.text,
+      attachments: item.attachments.map((attachment) => ({ ...attachment })),
       runId: item.runId,
       submittedAtMs,
       expiresAtMs: Date.now() + BACKFILL_RECEIPT_WINDOW_MS,
@@ -355,7 +369,7 @@ export class DeliveryController {
       return;
     }
     const item = this.items.find((candidate) => candidate.id === this.inFlight?.itemId);
-    if (!item || item.status !== "delivering" || !matchesReceiptText(item.text, block)) {
+    if (!item || item.status !== "delivering" || !matchesReceipt(item, block)) {
       return;
     }
 
@@ -374,7 +388,7 @@ export class DeliveryController {
     const backfill = this.ptyEchoBackfills.find(
       (candidate) =>
         candidate.expiresAtMs > Date.now() &&
-        matchesReceiptText(candidate.text, block) &&
+        matchesReceipt(candidate, block) &&
         Math.abs(Date.parse(block.ts) - candidate.submittedAtMs) <= BACKFILL_RECEIPT_WINDOW_MS,
     );
     if (!backfill) {
@@ -395,6 +409,7 @@ export class DeliveryController {
       kind: "prompt",
       text: backfill.text,
       control: null,
+      attachments: backfill.attachments.map((attachment) => ({ ...attachment })),
       status: "delivered",
       enqueuedAt: new Date(backfill.submittedAtMs).toISOString(),
       deliveringAt: new Date(backfill.submittedAtMs).toISOString(),
@@ -470,6 +485,7 @@ export class DeliveryController {
         kind: "prompt",
         text: "",
         control: null,
+        attachments: [],
         status: "delivered",
         enqueuedAt: receipt.receivedAt,
         deliveringAt: receipt.receivedAt,
@@ -493,13 +509,26 @@ export class DeliveryController {
   }
 }
 
-function matchesReceiptText(
-  text: string,
+function matchesReceipt(
+  item: { text: string; attachments: DeliveryAttachment[] },
   block: Extract<TranscriptBlock, { kind: "user-message" }>,
 ): boolean {
-  const prompt = text.trim();
-  const received = block.text.trim();
-  return prompt === received || (block.command !== null && prompt.startsWith(block.command));
+  const prompt = normalizeReceiptText(item.text);
+  const received = normalizeReceiptText(block.text);
+  const textMatches =
+    prompt.length === 0 ||
+    prompt === received ||
+    (block.command !== null && prompt.startsWith(block.command));
+  if (!textMatches) {
+    return false;
+  }
+
+  const expectedImages = item.attachments.length;
+  if (expectedImages === 0) {
+    return true;
+  }
+  const receivedImages = (block.attachments ?? []).filter((attachment) => attachment.kind === "image").length;
+  return receivedImages >= expectedImages || imageMarkerCount(block.text) >= expectedImages;
 }
 
 function containsPromptEcho(rawText: string, text: string): boolean {
@@ -509,6 +538,14 @@ function containsPromptEcho(rawText: string, text: string): boolean {
 
 function normalizeText(value: string): string {
   return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+}
+
+function normalizeReceiptText(value: string): string {
+  return normalizeText(value).replace(/\[Image\s+#\d+\]/gi, "").replace(/[ \t]+/g, " ").trim();
+}
+
+function imageMarkerCount(value: string): number {
+  return value.match(/\[Image\s+#\d+\]/gi)?.length ?? 0;
 }
 
 function isApprovalGuardError(error: unknown): boolean {

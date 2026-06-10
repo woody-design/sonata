@@ -5,6 +5,7 @@ import type {
   CodexApprovalMode,
   CodexSandboxMode,
   DeliveryControlChange,
+  DeliveryAttachment,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
@@ -21,6 +22,8 @@ export const IPC_CHANNELS = {
   taskClose: "task:close",
   taskList: "task:list",
   promptSubmit: "prompt:submit",
+  attachmentCreate: "attachment:create",
+  attachmentDelete: "attachment:delete",
   controlSet: "control:set",
   promptQueueCancel: "prompt-queue:cancel",
   promptQueueRetry: "prompt-queue:retry",
@@ -93,6 +96,19 @@ export type ListTasksResponse = Task[];
 export interface SubmitPromptRequest {
   taskId: TaskId;
   text: string;
+  attachments?: DeliveryAttachment[];
+}
+
+export interface CreateAttachmentRequest {
+  taskId: TaskId;
+  originalName: string;
+  mediaType: string;
+  bytes: ArrayBuffer;
+}
+
+export interface DeleteAttachmentRequest {
+  taskId: TaskId;
+  attachmentId: string;
 }
 
 export interface SetControlRequest {
@@ -255,6 +271,8 @@ export interface DuetRuntimeBridge {
   closeTask(request: CloseTaskRequest): Promise<void>;
   listTasks(): Promise<ListTasksResponse>;
   submitPrompt(request: SubmitPromptRequest): Promise<void>;
+  createAttachment(request: CreateAttachmentRequest): Promise<DeliveryAttachment>;
+  deleteAttachment(request: DeleteAttachmentRequest): Promise<void>;
   setControl(request: SetControlRequest): Promise<void>;
   cancelQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   retryQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;

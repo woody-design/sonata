@@ -1,5 +1,5 @@
 import type { TaskId } from "../../shared/types/domain";
-import type { ToolCallBlock, TranscriptBlock } from "../../shared/types/transcript";
+import type { ToolCallBlock, TranscriptAttachment, TranscriptBlock } from "../../shared/types/transcript";
 import {
   boundText,
   INPUT_PREVIEW_LIMIT,
@@ -57,6 +57,7 @@ export class ClaudeSessionNormalizer {
     const upserts: TranscriptBlock[] = [];
 
     const textParts: string[] = [];
+    const attachments: TranscriptAttachment[] = [];
     if (typeof content === "string") {
       textParts.push(content);
     } else if (Array.isArray(content)) {
@@ -69,12 +70,20 @@ export class ClaudeSessionNormalizer {
           }
         } else if (block.type === "text" && typeof block.text === "string") {
           textParts.push(block.text);
+        } else if (block.type === "image") {
+          const source = block.source as Record<string, unknown> | undefined;
+          attachments.push({
+            kind: "image" as const,
+            source: "provider-content" as const,
+            path: null,
+            mediaType: typeof source?.media_type === "string" ? source.media_type : null,
+          });
         }
       }
     }
 
     const userText = cleanUserText(textParts.join("\n"));
-    if (!userText) {
+    if (!userText && attachments.length === 0) {
       return upserts;
     }
 
@@ -101,6 +110,7 @@ export class ClaudeSessionNormalizer {
       seq: ++this.seq,
       text: command ? command.display : userText,
       command: command ? command.name : null,
+      attachments,
     });
     return upserts;
   }

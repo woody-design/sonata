@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 import type {
+  DeliveryAttachment,
   ArtifactCandidate,
   ApprovalDecision,
   ClaudePermissionMode,
@@ -86,6 +87,7 @@ export class RuntimeController {
   private readonly sendEvent: (event: RuntimeEvent) => void;
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private taskSeq = 0;
+  private attachmentSeq = 0;
 
   constructor(options: RuntimeControllerOptions) {
     this.sendEvent = options.sendEvent;
@@ -142,6 +144,7 @@ export class RuntimeController {
       eventSink: (event) => this.sendEvent(event),
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
       applyControlChange: (change) => this.applyControlChange(taskId, change),
+      cleanupAttachments: (attachments) => this.cleanupAttachments(taskId, attachments),
     });
 
     const startOptions = {
@@ -295,9 +298,49 @@ export class RuntimeController {
     return [...this.taskRuntimes.values()].map((active) => active.task);
   }
 
-  submitPrompt(taskId: TaskId, text: string): void {
+  submitPrompt(taskId: TaskId, text: string, attachments: DeliveryAttachment[] = []): void {
     const active = this.requireTaskRuntime(taskId);
-    active.deliveryController.enqueue(text);
+    active.deliveryController.enqueue(text, this.normalizeDeliveryAttachments(active, attachments));
+  }
+
+  createAttachment(
+    taskId: TaskId,
+    input: { originalName: string; mediaType: string; bytes: ArrayBuffer },
+  ): DeliveryAttachment {
+    const active = this.requireTaskRuntime(taskId);
+    const bytes = Buffer.from(new Uint8Array(input.bytes));
+    const mediaType = normalizeImageMediaType(input.mediaType, input.originalName, bytes);
+    if (!mediaType) {
+      throw new Error("Only PNG, JPEG, GIF, and WebP images can be attached.");
+    }
+    if (bytes.length === 0) {
+      throw new Error("Cannot attach an empty image.");
+    }
+
+    const id = `attachment-${Date.now()}-${++this.attachmentSeq}`;
+    const filename = `${id}${imageExtension(mediaType)}`;
+    const attachmentDirectory = attachmentsDirectory(active.storageRoot);
+    fs.mkdirSync(attachmentDirectory, { recursive: true });
+    const attachmentPath = path.join(attachmentDirectory, filename);
+    fs.writeFileSync(attachmentPath, bytes, { flag: "wx" });
+    return {
+      id,
+      path: attachmentPath,
+      originalName: input.originalName.trim() || filename,
+      mediaType,
+      size: bytes.length,
+    };
+  }
+
+  deleteAttachment(taskId: TaskId, attachmentId: string): void {
+    const active = this.requireTaskRuntime(taskId);
+    const attachmentDirectory = attachmentsDirectory(active.storageRoot);
+    const files = fs.existsSync(attachmentDirectory) ? fs.readdirSync(attachmentDirectory) : [];
+    for (const file of files) {
+      if (file.startsWith(`${attachmentId}.`)) {
+        fs.rmSync(path.join(attachmentDirectory, file), { force: true });
+      }
+    }
   }
 
   setControl(taskId: TaskId, change: DeliveryControlChange): void {
@@ -588,6 +631,35 @@ export class RuntimeController {
     return process.env.DUET_PROJECTS_DIR || path.join(app.getPath("documents"), "Duet Projects");
   }
 
+  private normalizeDeliveryAttachments(
+    active: ActiveTaskRuntime,
+    attachments: DeliveryAttachment[],
+  ): DeliveryAttachment[] {
+    const attachmentDirectory = `${attachmentsDirectory(active.storageRoot)}${path.sep}`;
+    return attachments.map((attachment) => {
+      const resolved = path.resolve(attachment.path);
+      if (!resolved.startsWith(attachmentDirectory) || resolved.includes(" ")) {
+        throw new Error("Attachment path was not a generated Duet attachment path.");
+      }
+      if (!fs.existsSync(resolved)) {
+        throw new Error(`Attachment file is missing: ${attachment.originalName}`);
+      }
+      if (!normalizeImageMediaType(attachment.mediaType, attachment.originalName, fs.readFileSync(resolved))) {
+        throw new Error(`Attachment is not a supported image: ${attachment.originalName}`);
+      }
+      return {
+        ...attachment,
+        path: resolved,
+      };
+    });
+  }
+
+  private cleanupAttachments(_taskId: TaskId, attachments: DeliveryAttachment[]): void {
+    for (const attachment of attachments) {
+      fs.rmSync(attachment.path, { force: true });
+    }
+  }
+
   private resolveOpenTaskStorageRoot(request: OpenTaskRequest): string {
     if (request.taskId) {
       const candidate = this.defaultWorkspacePath(request.taskId);
@@ -706,6 +778,63 @@ function runtimeReportPath(cwd: string): string {
 function transcriptSourcesPath(cwd: string): string {
   return path.join(duetDirectory(cwd), "transcript-sources.json");
 }
+
+function attachmentsDirectory(cwd: string): string {
+  return path.join(duetDirectory(cwd), "attachments");
+}
+
+function normalizeImageMediaType(mediaType: string, originalName: string, bytes: Buffer): string | null {
+  const sniffed = sniffImageMediaType(bytes);
+  if (sniffed) {
+    return sniffed;
+  }
+  const loweredMediaType = mediaType.toLowerCase();
+  if (SUPPORTED_IMAGE_MEDIA_TYPES.has(loweredMediaType)) {
+    return loweredMediaType;
+  }
+  const ext = path.extname(originalName).toLowerCase();
+  return IMAGE_EXTENSION_MEDIA_TYPES.get(ext) ?? null;
+}
+
+function sniffImageMediaType(bytes: Buffer): string | null {
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return "image/png";
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    bytes.length >= 6 &&
+    (bytes.subarray(0, 6).toString("ascii") === "GIF87a" ||
+      bytes.subarray(0, 6).toString("ascii") === "GIF89a")
+  ) {
+    return "image/gif";
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
+    bytes.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  return null;
+}
+
+function imageExtension(mediaType: string): string {
+  if (mediaType === "image/jpeg") {
+    return ".jpg";
+  }
+  return `.${mediaType.replace("image/", "")}`;
+}
+
+const SUPPORTED_IMAGE_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const IMAGE_EXTENSION_MEDIA_TYPES = new Map([
+  [".png", "image/png"],
+  [".jpg", "image/jpeg"],
+  [".jpeg", "image/jpeg"],
+  [".gif", "image/gif"],
+  [".webp", "image/webp"],
+]);
 
 function resolveRunForTurn(runIndex: RunIndex, input: ResolveRunIdInput): RunId | null {
   const text = input.text.trim();

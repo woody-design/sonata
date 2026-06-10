@@ -1,5 +1,5 @@
 import type { TaskId } from "../../shared/types/domain";
-import type { ToolCallBlock, TranscriptBlock } from "../../shared/types/transcript";
+import type { ToolCallBlock, TranscriptAttachment, TranscriptBlock } from "../../shared/types/transcript";
 import {
   boundText,
   INPUT_PREVIEW_LIMIT,
@@ -57,7 +57,8 @@ export class CodexRolloutNormalizer {
   private consumeEventMsg(payload: Record<string, unknown>, ts: string): TranscriptBlock[] {
     if (payload.type === "user_message" && typeof payload.message === "string") {
       const text = payload.message.trim();
-      if (!text) {
+      const attachments = codexImageAttachments(payload);
+      if (!text && attachments.length === 0) {
         return [];
       }
       this.currentTurnKey = `turn-${++this.turnSeq}`;
@@ -74,6 +75,7 @@ export class CodexRolloutNormalizer {
           seq: ++this.seq,
           text,
           command: text.startsWith("/") ? text.split(/\s/, 1)[0] ?? null : null,
+          attachments,
         },
       ];
     }
@@ -232,6 +234,21 @@ export class CodexRolloutNormalizer {
   private nextBlockId(suffix: string): string {
     return `${this.sourceId}:${suffix}-${this.seq + 1}`;
   }
+}
+
+function codexImageAttachments(payload: Record<string, unknown>): TranscriptAttachment[] {
+  const images = payload.local_images;
+  if (!Array.isArray(images)) {
+    return [];
+  }
+  return images
+    .filter((image): image is string => typeof image === "string" && image.trim().length > 0)
+    .map((image) => ({
+      kind: "image" as const,
+      source: "local-path" as const,
+      path: image,
+      mediaType: null,
+    }));
 }
 
 function parseToolArguments(payload: Record<string, unknown>): unknown {

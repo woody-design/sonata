@@ -48,6 +48,14 @@ export interface UserMessageBlock extends TranscriptBlockBase {
   text: string;
   /** Slash command name when the message is a command invocation. */
   command: string | null;
+  attachments: TranscriptAttachment[];
+}
+
+export interface TranscriptAttachment {
+  kind: "image";
+  source: "local-path" | "provider-content";
+  path: string | null;
+  mediaType: string | null;
 }
 
 export interface AssistantTextBlock extends TranscriptBlockBase {

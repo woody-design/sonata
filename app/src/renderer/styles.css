@@ -780,6 +780,8 @@ h2 {
 
 .composer-control-left {
   display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 1 1 auto;
 }
 
@@ -816,6 +818,79 @@ h2 {
 .composer-chip:disabled {
   color: #8b857c;
   cursor: default;
+}
+
+.composer-icon-button {
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  border: 1px solid #ded9ce;
+  border-radius: 50%;
+  padding: 0;
+  color: #4f4a41;
+  background: #f4f0e8;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.composer-icon-button:hover,
+.composer-icon-button.active {
+  border-color: #7d9b8e;
+  background: #eef7f2;
+}
+
+.attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.attachment-chip {
+  max-width: 190px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #ded9ce;
+  border-radius: 8px;
+  padding: 4px;
+  background: #f8f6ef;
+}
+
+.attachment-chip img {
+  width: 30px;
+  height: 30px;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.attachment-chip span {
+  overflow: hidden;
+  color: #403d37;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-remove {
+  width: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  color: #6f695f;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.attachment-remove:hover {
+  color: #7b3326;
+  background: #eaded7;
 }
 
 .composer-menu {

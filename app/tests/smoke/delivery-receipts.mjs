@@ -41,6 +41,7 @@ await check("provider transcript user message receipts complete delivery", async
           seq: 1,
           text: "Receipt smoke prompt",
           command: null,
+          attachments: [],
         },
       ],
     },
@@ -105,6 +106,7 @@ await check("Claude first message can receipt from PTY echo and later backfill",
           seq: 1,
           text: "Claude first message",
           command: null,
+          attachments: [],
         },
       ],
     },
@@ -120,6 +122,70 @@ await check("Claude first message can receipt from PTY echo and later backfill",
   assert.ok(backfillReceipt, "expected provider transcript backfill receipt");
   assert.equal(backfillReceipt.payload.receipt.source, "provider-transcript");
   assert.equal(backfillReceipt.payload.receipt.runId, "run-claude-1");
+  controller.dispose();
+});
+
+await check("attachment markers and image evidence complete delivery", async () => {
+  const events = [];
+  const host = fakeHost();
+  const controller = new DeliveryController({
+    taskId: "task-attachment-receipt-smoke",
+    provider: "codex",
+    terminalHost: host,
+    eventSink: (event) => events.push(event),
+    hasLiveTranscriptSource: () => true,
+    receiptTimeoutMs: 500,
+  });
+
+  const attachment = {
+    id: "attachment-smoke-1",
+    path: "/tmp/duet-attachment-smoke/red.png",
+    originalName: "red.png",
+    mediaType: "image/png",
+    size: 68,
+  };
+  const item = controller.enqueue("Attachment receipt prompt", [attachment]);
+  assert.deepEqual(host.submissions[0]?.attachments, [{ path: attachment.path }]);
+
+  controller.handleRuntimeEvent({
+    type: "transcript:blocks",
+    payload: {
+      taskId: "task-attachment-receipt-smoke",
+      sourceId: "source-attachment-1",
+      reset: false,
+      upserts: [
+        {
+          kind: "user-message",
+          id: "source-attachment-1:user-1",
+          taskId: "task-attachment-receipt-smoke",
+          sourceId: "source-attachment-1",
+          provider: "codex",
+          turnKey: "turn-1",
+          runId: "run-attachment-1",
+          ts: new Date().toISOString(),
+          seq: 1,
+          text: "[Image #1] Attachment receipt prompt",
+          command: null,
+          attachments: [
+            {
+              kind: "image",
+              source: "local-path",
+              path: attachment.path,
+              mediaType: "image/png",
+            },
+          ],
+        },
+      ],
+    },
+    ts: new Date().toISOString(),
+  });
+
+  const receipt = events.find(
+    (event) => event.type === "delivery:receipt" && event.payload.itemId === item.id,
+  );
+  assert.ok(receipt, "expected attachment delivery receipt event");
+  assert.equal(receipt.payload.receipt.source, "provider-transcript");
+  assert.equal(controller.state().queue.length, 0);
   controller.dispose();
 });
 
@@ -142,9 +208,9 @@ function fakeHost() {
     isIdleComposerReady() {
       return this.idleComposer;
     },
-    submitPrompt(text) {
+    submitPrompt(text, options = {}) {
       const runId = `run-${this.submissions.length + 1}`;
-      this.submissions.push({ text, runId });
+      this.submissions.push({ text, runId, attachments: options.attachments ?? [] });
       this.activeRun = true;
       return {
         taskId: "task",
