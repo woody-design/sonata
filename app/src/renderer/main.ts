@@ -4,6 +4,17 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
+import {
+  READING_MODE_IDS,
+  READING_TEXT_STEPS,
+  READING_THEME_IDS,
+  isReadingTextStep,
+  normalizeReadingSettings,
+  type ReadingModeSetting,
+  type ReadingSettings,
+  type ReadingThemeId,
+  type ResolvedReadingMode,
+} from "../shared/types";
 import type {
   ApprovalDecision,
   ArtifactCandidate,
@@ -75,13 +86,22 @@ interface RendererState {
   taskDraft: TaskLaunchDraft;
   terminalOpen: boolean;
   composerMenu: ComposerMenuState | null;
+  readingSettings: ReadingSettings;
+  readingPopoverOpen: boolean;
+  readingPopoverAnchor: PopoverAnchor | null;
   busy: boolean;
   status: string;
 }
 
 interface ComposerMenuState {
   type: "add" | "permission" | "model";
-  anchor: { left: number; top: number; width: number };
+  anchor: PopoverAnchor;
+}
+
+interface PopoverAnchor {
+  left: number;
+  top: number;
+  width: number;
 }
 
 interface ComposerAttachment {
@@ -105,10 +125,8 @@ interface TaskEntryMessage {
   text: string;
 }
 
-const READING_THEME_IDS = ["duet", "paper", "calm", "focus"] as const;
-type ReadingThemeId = (typeof READING_THEME_IDS)[number];
-const READING_MODE_IDS = ["light", "dark"] as const;
-type ReadingModeId = (typeof READING_MODE_IDS)[number];
+const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "dark" : "light";
 
 const state: RendererState = {
   taskViews: [],
@@ -135,9 +153,21 @@ const state: RendererState = {
   },
   terminalOpen: false,
   composerMenu: null,
+  readingSettings: bootReadingSettingsFromDom(),
+  readingPopoverOpen: false,
+  readingPopoverAnchor: null,
   busy: false,
   status: "Idle",
 };
+
+function bootReadingSettingsFromDom(): ReadingSettings {
+  const root = document.documentElement;
+  return normalizeReadingSettings({
+    theme: root.dataset.theme,
+    mode: root.dataset.readingModeSetting,
+    textStep: Number(root.dataset.textStep),
+  });
+}
 
 const appElement = document.querySelector<HTMLDivElement>("#app");
 
@@ -145,7 +175,7 @@ if (!appElement) {
   throw new Error("Renderer mount point was not found.");
 }
 
-initializeTemporaryReadingThemeHook();
+applyReadingSettings(state.readingSettings);
 
 appElement.innerHTML = `
   <section class="shell" aria-label="Duet">
@@ -157,6 +187,14 @@ appElement.innerHTML = `
       </div>
       <div class="topbar-actions chrome-actions">
         <span id="runtime-status" class="status">Idle</span>
+        <button
+          id="reading-settings"
+          class="secondary reading-settings-trigger"
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          title="Reading Controls"
+        >Aa</button>
         <button id="new-task" class="secondary" type="button" title="New Codex Task">+ Codex</button>
         <button id="new-claude-task" class="secondary" type="button" title="New Claude Task">+ Claude</button>
         <button id="open-task" class="secondary" type="button" title="Open Task">Open</button>
@@ -165,6 +203,7 @@ appElement.innerHTML = `
         <button id="toggle-terminal" class="secondary" type="button" title="Toggle Terminal">Term</button>
       </div>
     </header>
+    <div id="reading-popover-root"></div>
 
     <section class="workspace">
       <section class="run-column" aria-label="Run reading surface">
@@ -255,6 +294,8 @@ appElement.innerHTML = `
 const elements = {
   taskTitle: getElement<HTMLHeadingElement>("task-title"),
   runtimeStatus: getElement<HTMLSpanElement>("runtime-status"),
+  readingSettings: getElement<HTMLButtonElement>("reading-settings"),
+  readingPopoverRoot: getElement<HTMLDivElement>("reading-popover-root"),
   openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
   openInspectorWindow: getElement<HTMLButtonElement>("open-inspector-window"),
   toggleTerminal: getElement<HTMLButtonElement>("toggle-terminal"),
@@ -399,6 +440,11 @@ elements.toggleTerminal.addEventListener("click", () => {
   setTerminalOpen(!state.terminalOpen);
 });
 
+elements.readingSettings.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleReadingPopover(event.currentTarget as HTMLElement);
+});
+
 elements.closeTerminal.addEventListener("click", () => {
   setTerminalOpen(false);
 });
@@ -506,56 +552,279 @@ elements.sendPrompt.addEventListener("click", () => {
   void submitPrompt();
 });
 
-function initializeTemporaryReadingThemeHook(): void {
+async function hydrateReadingSettings(): Promise<void> {
+  try {
+    const settings = normalizeReadingSettings(await window.duetRuntime.readReadingSettings());
+    state.readingSettings = settings;
+    applyReadingSettings(settings);
+    renderReadingPopover();
+  } catch (error) {
+    state.status = errorMessage(error);
+    render();
+  }
+}
+
+function applyReadingSettings(nextSettings: ReadingSettings): void {
+  const settings = normalizeReadingSettings(nextSettings);
   const root = document.documentElement;
-  if (!isReadingThemeId(root.dataset.theme)) {
-    root.dataset.theme = "duet";
+  root.dataset.theme = settings.theme;
+  root.dataset.mode = resolvedReadingMode(settings);
+  root.dataset.readingModeSetting = settings.mode;
+  root.dataset.textStep = String(settings.textStep);
+}
+
+function resolvedReadingMode(settings = state.readingSettings): ResolvedReadingMode {
+  if (settings.mode === "light" || settings.mode === "dark") {
+    return settings.mode;
+  }
+  return currentSystemReadingMode;
+}
+
+function toggleReadingPopover(anchor: HTMLElement): void {
+  const willOpen = !state.readingPopoverOpen;
+  state.readingPopoverOpen = willOpen;
+  state.readingPopoverAnchor = willOpen ? popoverAnchorFromElement(anchor) : null;
+  if (willOpen) {
+    state.composerMenu = null;
+    state.taskDraft.settingsOpen = false;
+    state.taskDraft.settingsAnchor = null;
+  }
+  render();
+}
+
+function closeReadingPopover(): void {
+  state.readingPopoverOpen = false;
+  state.readingPopoverAnchor = null;
+  renderReadingPopover();
+}
+
+function syncReadingPopoverAnchor(): void {
+  state.readingPopoverAnchor = popoverAnchorFromElement(elements.readingSettings);
+}
+
+function popoverAnchorFromElement(anchor: HTMLElement): PopoverAnchor {
+  const rect = anchor.getBoundingClientRect();
+  return {
+    left: rect.left,
+    top: rect.bottom + 8,
+    width: rect.width,
+  };
+}
+
+function renderReadingPopover(): void {
+  elements.readingSettings.classList.toggle("active", state.readingPopoverOpen);
+  elements.readingSettings.setAttribute("aria-expanded", String(state.readingPopoverOpen));
+  elements.readingPopoverRoot.replaceChildren();
+  if (!state.readingPopoverOpen) {
+    return;
+  }
+  elements.readingPopoverRoot.append(renderReadingSettingsPopover());
+}
+
+function renderReadingSettingsPopover(): HTMLElement {
+  const popover = document.createElement("div");
+  popover.className = "reading-settings-popover";
+  popover.setAttribute("role", "dialog");
+  popover.setAttribute("aria-label", "Reading Controls");
+  positionReadingPopover(popover);
+  popover.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  popover.append(
+    renderReadingThemeSection(),
+    renderReadingModeSection(),
+    renderReadingSizeSection(),
+  );
+  return popover;
+}
+
+function positionReadingPopover(popover: HTMLElement): void {
+  const anchor = state.readingPopoverAnchor;
+  const viewportPadding = 14;
+  const width = Math.min(360, window.innerWidth - viewportPadding * 2);
+  const top = anchor?.top ?? viewportPadding;
+  const left = anchor
+    ? Math.min(
+        window.innerWidth - width - viewportPadding,
+        Math.max(viewportPadding, anchor.left + anchor.width - width),
+      )
+    : viewportPadding;
+
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+  popover.style.width = `${width}px`;
+  popover.style.maxHeight = `${Math.max(260, window.innerHeight - top - viewportPadding)}px`;
+}
+
+function renderReadingThemeSection(): HTMLElement {
+  const grid = document.createElement("div");
+  grid.className = "reading-theme-grid";
+  for (const theme of READING_THEME_IDS) {
+    grid.append(renderReadingThemeCard(theme));
+  }
+  return readingSettingSection("Theme", grid);
+}
+
+function renderReadingThemeCard(theme: ReadingThemeId): HTMLElement {
+  const selected = state.readingSettings.theme === theme;
+  const button = document.createElement("button");
+  button.className = "reading-theme-card";
+  button.classList.toggle("selected", selected);
+  button.type = "button";
+  button.dataset.theme = theme;
+  button.dataset.mode = resolvedReadingMode();
+  button.setAttribute("aria-label", `${readingThemeLabel(theme)} theme`);
+  button.setAttribute("aria-pressed", String(selected));
+  button.addEventListener("click", () => {
+    void persistReadingSettings({
+      ...state.readingSettings,
+      theme,
+    });
+  });
+
+  const name = document.createElement("span");
+  name.className = "reading-theme-name";
+  name.textContent = readingThemeLabel(theme);
+
+  const sample = document.createElement("span");
+  sample.className = "reading-theme-sample";
+  sample.textContent = "Aa";
+
+  const lines = document.createElement("span");
+  lines.className = "reading-theme-lines";
+  lines.append(document.createElement("i"), document.createElement("i"));
+
+  const current = document.createElement("span");
+  current.className = "reading-theme-current";
+  current.textContent = selected ? "current" : "";
+
+  button.append(name, sample, lines, current);
+  return button;
+}
+
+function renderReadingModeSection(): HTMLElement {
+  const group = document.createElement("div");
+  group.className = "reading-segmented";
+  group.setAttribute("role", "radiogroup");
+  group.setAttribute("aria-label", "Mode");
+
+  for (const mode of READING_MODE_IDS) {
+    const selected = state.readingSettings.mode === mode;
+    const button = document.createElement("button");
+    button.className = "reading-segment";
+    button.classList.toggle("selected", selected);
+    button.type = "button";
+    button.setAttribute("role", "radio");
+    button.setAttribute("aria-checked", String(selected));
+    button.textContent = readingModeLabel(mode);
+    button.addEventListener("click", () => {
+      void persistReadingSettings({
+        ...state.readingSettings,
+        mode,
+      });
+    });
+    group.append(button);
   }
 
-  window.addEventListener("keydown", (event) => {
-    if (!event.metaKey || !event.shiftKey || event.altKey || event.ctrlKey) {
-      return;
-    }
+  return readingSettingSection("Mode", group);
+}
 
-    const key = event.key.toLowerCase();
-    if (key === "t") {
-      event.preventDefault();
-      const currentTheme = isReadingThemeId(root.dataset.theme) ? root.dataset.theme : "duet";
-      const currentIndex = READING_THEME_IDS.indexOf(currentTheme);
-      const nextTheme = READING_THEME_IDS[(currentIndex + 1) % READING_THEME_IDS.length] ?? "duet";
-      root.dataset.theme = nextTheme;
-      logTemporaryReadingTheme("theme", nextTheme, root.dataset.mode);
-      return;
-    }
+function renderReadingSizeSection(): HTMLElement {
+  const stepper = document.createElement("div");
+  stepper.className = "reading-size-stepper";
+  const currentIndex = READING_TEXT_STEPS.indexOf(state.readingSettings.textStep);
+  const previous = currentIndex > 0 ? READING_TEXT_STEPS[currentIndex - 1] : undefined;
+  const next = currentIndex >= 0 && currentIndex < READING_TEXT_STEPS.length - 1
+    ? READING_TEXT_STEPS[currentIndex + 1]
+    : undefined;
 
-    if (key === "d") {
-      event.preventDefault();
-      const explicitMode = isReadingModeId(root.dataset.mode) ? root.dataset.mode : null;
-      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const effectiveDark = explicitMode === "dark" || (!explicitMode && systemDark);
-      const nextMode: ReadingModeId = effectiveDark ? "light" : "dark";
-      root.dataset.mode = nextMode;
-      logTemporaryReadingTheme("mode", root.dataset.theme ?? "duet", nextMode);
+  const decrease = document.createElement("button");
+  decrease.className = "reading-size-button";
+  decrease.type = "button";
+  decrease.disabled = previous === undefined;
+  decrease.setAttribute("aria-label", "Decrease text size");
+  decrease.textContent = "A-";
+  decrease.addEventListener("click", () => {
+    if (isReadingTextStep(previous)) {
+      void persistReadingSettings({
+        ...state.readingSettings,
+        textStep: previous,
+      });
     }
   });
 
-  console.info(
-    "[temporary reading theme hook] Cmd+Shift+T cycles data-theme; Cmd+Shift+D toggles data-mode. Real UI arrives in slice 3.",
-  );
+  const value = document.createElement("strong");
+  value.className = "reading-size-value";
+  value.textContent = String(state.readingSettings.textStep);
+
+  const increase = document.createElement("button");
+  increase.className = "reading-size-button";
+  increase.type = "button";
+  increase.disabled = next === undefined;
+  increase.setAttribute("aria-label", "Increase text size");
+  increase.textContent = "A+";
+  increase.addEventListener("click", () => {
+    if (isReadingTextStep(next)) {
+      void persistReadingSettings({
+        ...state.readingSettings,
+        textStep: next,
+      });
+    }
+  });
+
+  stepper.append(decrease, value, increase);
+  return readingSettingSection("Size", stepper);
 }
 
-function isReadingThemeId(value: string | undefined): value is ReadingThemeId {
-  return READING_THEME_IDS.includes(value as ReadingThemeId);
+function readingSettingSection(label: string, content: HTMLElement): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "reading-setting-section";
+  const heading = document.createElement("p");
+  heading.className = "reading-setting-heading";
+  heading.textContent = label;
+  section.append(heading, content);
+  return section;
 }
 
-function isReadingModeId(value: string | undefined): value is ReadingModeId {
-  return READING_MODE_IDS.includes(value as ReadingModeId);
+async function persistReadingSettings(nextSettings: ReadingSettings): Promise<void> {
+  const settings = normalizeReadingSettings(nextSettings);
+  state.readingSettings = settings;
+  applyReadingSettings(settings);
+  renderReadingPopover();
+
+  try {
+    const persisted = normalizeReadingSettings(await window.duetRuntime.writeReadingSettings(settings));
+    state.readingSettings = persisted;
+    applyReadingSettings(persisted);
+  } catch (error) {
+    state.status = errorMessage(error);
+  } finally {
+    render();
+  }
 }
 
-function logTemporaryReadingTheme(changed: "theme" | "mode", theme: string, mode: string | undefined): void {
-  console.info(
-    `[temporary reading theme hook] ${changed} changed: data-theme="${theme}" data-mode="${mode ?? "auto"}"`,
-  );
+function readingThemeLabel(theme: ReadingThemeId): string {
+  if (theme === "paper") {
+    return "Paper";
+  }
+  if (theme === "calm") {
+    return "Calm";
+  }
+  if (theme === "focus") {
+    return "Focus";
+  }
+  return "Duet";
+}
+
+function readingModeLabel(mode: ReadingModeSetting): string {
+  if (mode === "light") {
+    return "Light";
+  }
+  if (mode === "dark") {
+    return "Dark";
+  }
+  return "Auto";
 }
 
 elements.runList.addEventListener("click", (event) => {
@@ -588,12 +857,18 @@ elements.denyApproval.addEventListener("click", () => {
 
 window.addEventListener("resize", () => {
   fitTerminal();
+  if (state.readingPopoverOpen) {
+    syncReadingPopoverAnchor();
+    renderReadingPopover();
+  }
 });
 
 document.addEventListener("click", (event) => {
   const target = event.target;
   if (
     !(target instanceof Element) ||
+    target.closest(".reading-settings-trigger") ||
+    target.closest(".reading-settings-popover") ||
     target.closest(".task-settings-wrap") ||
     target.closest(".composer-chip") ||
     target.closest(".composer-menu")
@@ -609,7 +884,36 @@ document.addEventListener("click", (event) => {
     state.taskDraft.settingsAnchor = null;
     render();
   }
+  if (state.readingPopoverOpen) {
+    closeReadingPopover();
+  }
 });
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || !state.readingPopoverOpen) {
+    return;
+  }
+  event.preventDefault();
+  closeReadingPopover();
+  elements.readingSettings.focus();
+});
+
+readingModeQuery.addEventListener("change", () => {
+  applySystemReadingMode(readingModeQuery.matches ? "dark" : "light");
+});
+
+window.duetRuntime.onReadingSystemModeChanged((mode) => {
+  applySystemReadingMode(mode);
+});
+
+function applySystemReadingMode(mode: ResolvedReadingMode): void {
+  currentSystemReadingMode = mode;
+  if (state.readingSettings.mode !== "auto") {
+    return;
+  }
+  applyReadingSettings(state.readingSettings);
+  renderReadingPopover();
+}
 
 window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type === "pty:data") {
@@ -742,6 +1046,8 @@ void window.duetRuntime.readPreviewState().then((previewState) => {
   state.previewTabs = previewState.tabs;
   render();
 });
+
+void hydrateReadingSettings();
 
 render();
 
@@ -1158,6 +1464,7 @@ function render(): void {
   elements.openTask.disabled = state.busy;
   elements.newTask.disabled = state.busy;
   elements.newClaudeTask.disabled = state.busy;
+  renderReadingPopover();
   renderAttachmentStrip(view);
   renderComposerControls(view);
   renderComposerMenu(view);

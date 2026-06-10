@@ -22,7 +22,8 @@
   src: url("./assets/fonts/Literata-SemiBold.woff2") format("woff2");
 }
 
-:root {
+:root,
+[data-theme="duet"] {
   color-scheme: light;
 
   --surface: #f5f5f2;
@@ -166,9 +167,29 @@
   text-rendering: optimizeLegibility;
 }
 
-:root[data-theme="paper"],
-:root[data-theme="calm"],
-:root[data-theme="focus"] {
+[data-text-step="14"] {
+  --text-body: 14px;
+}
+
+[data-text-step="15"] {
+  --text-body: 15px;
+}
+
+[data-text-step="16"] {
+  --text-body: 16px;
+}
+
+[data-text-step="18"] {
+  --text-body: 18px;
+}
+
+[data-text-step="20"] {
+  --text-body: 20px;
+}
+
+[data-theme="paper"],
+[data-theme="calm"],
+[data-theme="focus"] {
   --surface-white: var(--surface-panel);
   --surface-control: color-mix(in srgb, var(--surface-raised) 76%, var(--surface-shell));
   --surface-control-soft: color-mix(in srgb, var(--surface-raised) 62%, var(--surface-shell));
@@ -237,7 +258,7 @@
   --border-menu-divider: color-mix(in srgb, var(--surface-menu) 86%, var(--ink) 14%);
 }
 
-:root[data-theme="paper"] {
+[data-theme="paper"] {
   --surface: #eeeded;
   --surface-shell: #e2e1de;
   --surface-raised: #f6f5f2;
@@ -252,7 +273,7 @@
   --leading-body: 1.62;
 }
 
-:root[data-theme="calm"] {
+[data-theme="calm"] {
   --surface: #eee2cc;
   --surface-shell: #e2d2b5;
   --surface-raised: #f7eddc;
@@ -267,7 +288,7 @@
   --leading-body: 1.7;
 }
 
-:root[data-theme="focus"] {
+[data-theme="focus"] {
   --surface: #fefcf5;
   --surface-shell: #f1eee2;
   --surface-raised: #fffdf6;
@@ -283,11 +304,11 @@
   --leading-body: 1.55;
 }
 
-:root[data-mode="dark"] {
+[data-mode="dark"] {
   color-scheme: dark;
 }
 
-:root[data-theme="duet"][data-mode="dark"],
+[data-theme="duet"][data-mode="dark"],
 :root:not([data-theme])[data-mode="dark"] {
   --surface: #1e1d1a;
   --surface-shell: #191814;
@@ -309,7 +330,7 @@
   --status-waiting: #d5bd75;
 }
 
-:root[data-theme="paper"][data-mode="dark"] {
+[data-theme="paper"][data-mode="dark"] {
   --surface: #1c1c1d;
   --surface-shell: #171718;
   --surface-raised: #242426;
@@ -323,8 +344,6 @@
   --accent-soft-border: #628e84;
   --ink-on-accent: #171718;
   --code-bg: #242426;
-  --font-reading: Charter, "Bitstream Charter", "PingFang SC", serif;
-  --leading-body: 1.62;
   --status-complete: #86bfae;
   --status-complete-strong: #a7d9c9;
   --status-attention: #d89886;
@@ -332,7 +351,7 @@
   --status-waiting: #d6c47f;
 }
 
-:root[data-theme="calm"][data-mode="dark"] {
+[data-theme="calm"][data-mode="dark"] {
   --surface: #403b31;
   --surface-shell: #312d25;
   --surface-raised: #4a4438;
@@ -346,8 +365,6 @@
   --accent-soft-border: #7d9c83;
   --ink-on-accent: #312d25;
   --code-bg: #393429;
-  --font-reading: "Literata", "PingFang SC", serif;
-  --leading-body: 1.7;
   --status-complete: #a6c59b;
   --status-complete-strong: #c9e2b8;
   --status-attention: #e0a084;
@@ -355,7 +372,7 @@
   --status-waiting: #dbc67d;
 }
 
-:root[data-theme="focus"][data-mode="dark"] {
+[data-theme="focus"][data-mode="dark"] {
   --surface: #17160d;
   --surface-shell: #11100a;
   --surface-raised: #212014;
@@ -369,9 +386,6 @@
   --accent-soft-border: #5f9085;
   --ink-on-accent: #11100a;
   --code-bg: #201f13;
-  --font-reading: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC",
-    sans-serif;
-  --leading-body: 1.55;
   --status-complete: #7ebda7;
   --status-complete-strong: #9bd7c1;
   --status-attention: #d6907a;
@@ -379,8 +393,7 @@
   --status-waiting: #d8c36f;
 }
 
-:root[data-mode="dark"],
-:root[data-theme][data-mode="dark"] {
+[data-mode="dark"] {
   --surface-white: var(--surface-panel);
   --surface-control: color-mix(in srgb, var(--surface-raised) 68%, var(--surface-panel));
   --surface-control-soft: color-mix(in srgb, var(--surface-raised) 74%, var(--surface));
@@ -481,201 +494,6 @@
     0 1px 0 rgb(255 255 255 / 5%);
   --shadow-popover: 0 14px 34px rgb(0 0 0 / 18%);
   --shadow-bubble: 0 1px 0 rgb(255 255 255 / 4%);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-mode]) {
-    color-scheme: dark;
-  }
-
-  :root[data-theme="duet"]:not([data-mode]),
-  :root:not([data-theme]):not([data-mode]) {
-    --surface: #1e1d1a;
-    --surface-shell: #191814;
-    --surface-raised: #26241f;
-    --surface-panel: #2d2a24;
-    --ink-strong: #f0eadf;
-    --ink: #e8e3d9;
-    --ink-muted: #a49f95;
-    --ink-faint: #6c685f;
-    --accent: #79b7a5;
-    --accent-strong: #a0d6c6;
-    --accent-soft-border: #5f9384;
-    --ink-on-accent: #191814;
-    --code-bg: #24221d;
-    --status-complete: #82bfa8;
-    --status-complete-strong: #9bd9bd;
-    --status-attention: #d58b78;
-    --status-attention-strong: #e7a18d;
-    --status-waiting: #d5bd75;
-  }
-
-  :root[data-theme="paper"]:not([data-mode]) {
-    --surface: #1c1c1d;
-    --surface-shell: #171718;
-    --surface-raised: #242426;
-    --surface-panel: #2c2c2e;
-    --ink-strong: #f6f5f1;
-    --ink: #f2f2f0;
-    --ink-muted: #aaa9a5;
-    --ink-faint: #6d6c69;
-    --accent: #82b8aa;
-    --accent-strong: #a7d8ce;
-    --accent-soft-border: #628e84;
-    --ink-on-accent: #171718;
-    --code-bg: #242426;
-    --status-complete: #86bfae;
-    --status-complete-strong: #a7d9c9;
-    --status-attention: #d89886;
-    --status-attention-strong: #e9aa98;
-    --status-waiting: #d6c47f;
-  }
-
-  :root[data-theme="calm"]:not([data-mode]) {
-    --surface: #403b31;
-    --surface-shell: #312d25;
-    --surface-raised: #4a4438;
-    --surface-panel: #554e40;
-    --ink-strong: #fff2df;
-    --ink: #f7ecdd;
-    --ink-muted: #b8ad9c;
-    --ink-faint: #7a7061;
-    --accent: #9dc0a7;
-    --accent-strong: #c0dec5;
-    --accent-soft-border: #7d9c83;
-    --ink-on-accent: #312d25;
-    --code-bg: #393429;
-    --status-complete: #a6c59b;
-    --status-complete-strong: #c9e2b8;
-    --status-attention: #e0a084;
-    --status-attention-strong: #f0b295;
-    --status-waiting: #dbc67d;
-  }
-
-  :root[data-theme="focus"]:not([data-mode]) {
-    --surface: #17160d;
-    --surface-shell: #11100a;
-    --surface-raised: #212014;
-    --surface-panel: #292719;
-    --ink-strong: #fff6e6;
-    --ink: #fef9ec;
-    --ink-muted: #b2aea1;
-    --ink-faint: #706c5e;
-    --accent: #7cb5a6;
-    --accent-strong: #a1d6c8;
-    --accent-soft-border: #5f9085;
-    --ink-on-accent: #11100a;
-    --code-bg: #201f13;
-    --status-complete: #7ebda7;
-    --status-complete-strong: #9bd7c1;
-    --status-attention: #d6907a;
-    --status-attention-strong: #eba58f;
-    --status-waiting: #d8c36f;
-  }
-
-  :root[data-theme]:not([data-mode]),
-  :root:not([data-theme]):not([data-mode]) {
-    --surface-white: var(--surface-panel);
-    --surface-control: color-mix(in srgb, var(--surface-raised) 68%, var(--surface-panel));
-    --surface-control-soft: color-mix(in srgb, var(--surface-raised) 74%, var(--surface));
-    --surface-strip: var(--surface-shell);
-    --surface-selected: color-mix(in srgb, var(--surface) 72%, var(--accent) 28%);
-    --surface-pill: color-mix(in srgb, var(--surface-raised) 70%, var(--surface-panel));
-    --surface-code-inline: color-mix(in srgb, var(--surface) 82%, var(--ink) 8%);
-    --surface-input: color-mix(in srgb, var(--surface-panel) 78%, var(--surface-raised));
-    --surface-tool: color-mix(in srgb, var(--surface-raised) 82%, var(--surface));
-    --surface-disabled: color-mix(in srgb, var(--surface) 76%, var(--ink) 8%);
-    --surface-disabled-strong: color-mix(in srgb, var(--surface) 70%, var(--ink) 12%);
-    --surface-complete-soft: color-mix(in srgb, var(--surface) 84%, var(--status-complete) 16%);
-    --surface-complete-active: color-mix(in srgb, var(--surface-raised) 78%, var(--status-complete) 22%);
-    --surface-complete-summary: color-mix(in srgb, var(--surface-raised) 86%, var(--status-complete) 14%);
-    --surface-complete-metric: color-mix(in srgb, var(--surface-panel) 88%, var(--status-complete) 12%);
-    --surface-attention: color-mix(in srgb, var(--surface) 80%, var(--status-attention) 20%);
-    --surface-attention-soft: color-mix(in srgb, var(--surface-raised) 84%, var(--status-attention) 16%);
-    --surface-attention-hover: color-mix(in srgb, var(--surface-raised) 72%, var(--status-attention) 28%);
-    --surface-waiting-quiet: color-mix(in srgb, var(--surface) 82%, var(--status-waiting) 18%);
-    --surface-waiting-action: color-mix(in srgb, var(--surface-raised) 74%, var(--status-waiting) 26%);
-    --surface-menu: var(--surface-panel);
-    --surface-menu-hover: color-mix(in srgb, var(--surface-panel) 78%, var(--ink) 10%);
-
-    --ink-reading-prompt: var(--ink-strong);
-    --ink-ui: var(--ink);
-    --ink-ui-strong: var(--ink-strong);
-    --ink-subtle: color-mix(in srgb, var(--ink) 84%, var(--surface));
-    --ink-message: var(--ink-subtle);
-    --ink-pill: color-mix(in srgb, var(--ink) 76%, var(--surface));
-    --ink-status: color-mix(in srgb, var(--ink) 72%, var(--surface));
-    --ink-muted-warm: color-mix(in srgb, var(--ink) 62%, var(--surface));
-    --ink-label: color-mix(in srgb, var(--ink) 54%, var(--surface));
-    --ink-meta: color-mix(in srgb, var(--ink) 50%, var(--surface));
-    --ink-fainter: color-mix(in srgb, var(--ink) 30%, var(--surface));
-    --ink-disabled: color-mix(in srgb, var(--ink) 44%, var(--surface));
-    --ink-disabled-soft: color-mix(in srgb, var(--ink) 38%, var(--surface));
-    --ink-disabled-faint: color-mix(in srgb, var(--ink) 34%, var(--surface));
-    --ink-role: color-mix(in srgb, var(--ink) 46%, var(--surface));
-    --ink-blockquote: color-mix(in srgb, var(--ink) 68%, var(--surface));
-    --ink-work: color-mix(in srgb, var(--ink) 56%, var(--surface));
-    --ink-trace: color-mix(in srgb, var(--ink) 34%, var(--surface));
-    --ink-menu: var(--ink);
-    --ink-menu-muted: var(--ink-label);
-    --ink-on-accent: var(--surface-shell);
-
-    --border: color-mix(in srgb, var(--surface) 76%, var(--ink) 18%);
-    --border-soft: color-mix(in srgb, var(--surface) 82%, var(--ink) 12%);
-    --border-subtle: color-mix(in srgb, var(--surface) 80%, var(--ink) 14%);
-    --border-strong: color-mix(in srgb, var(--surface) 66%, var(--ink) 24%);
-    --border-control: color-mix(in srgb, var(--surface) 58%, var(--ink) 32%);
-    --border-raised: color-mix(in srgb, var(--surface-raised) 70%, var(--ink) 18%);
-    --border-disabled: color-mix(in srgb, var(--surface) 66%, var(--ink) 14%);
-    --border-footer: color-mix(in srgb, var(--surface) 82%, var(--ink) 10%);
-    --border-complete: color-mix(in srgb, var(--surface) 54%, var(--status-complete) 46%);
-    --border-complete-soft: color-mix(in srgb, var(--surface) 66%, var(--status-complete) 34%);
-    --border-complete-metric: color-mix(in srgb, var(--surface) 74%, var(--status-complete) 26%);
-    --border-attention: color-mix(in srgb, var(--surface) 48%, var(--status-attention) 52%);
-    --border-attention-soft: color-mix(in srgb, var(--surface) 64%, var(--status-attention) 36%);
-    --border-attention-muted: color-mix(in srgb, var(--surface) 58%, var(--status-attention) 42%);
-    --border-waiting: color-mix(in srgb, var(--surface) 56%, var(--status-waiting) 44%);
-    --border-waiting-quiet: color-mix(in srgb, var(--surface) 68%, var(--status-waiting) 32%);
-    --border-waiting-action: color-mix(in srgb, var(--surface) 54%, var(--status-waiting) 46%);
-    --border-menu: color-mix(in srgb, var(--surface-menu) 70%, var(--ink) 22%);
-    --border-menu-divider: color-mix(in srgb, var(--surface-menu) 78%, var(--ink) 16%);
-
-    --status-complete-ink: color-mix(in srgb, var(--status-complete) 82%, var(--ink));
-    --status-complete-deep: var(--status-complete-strong);
-    --status-complete-link: var(--status-complete-strong);
-    --status-complete-muted: color-mix(in srgb, var(--status-complete) 58%, var(--ink-muted));
-    --status-complete-label: color-mix(in srgb, var(--status-complete) 72%, var(--ink));
-    --status-attention-deep: var(--status-attention-strong);
-    --status-attention-label: color-mix(in srgb, var(--status-attention) 76%, var(--ink));
-    --status-attention-button: color-mix(in srgb, var(--status-attention) 82%, var(--surface-panel));
-    --status-attention-ink: color-mix(in srgb, var(--status-attention) 78%, var(--ink));
-    --status-attention-text: color-mix(in srgb, var(--status-attention) 68%, var(--ink));
-    --status-attention-code: color-mix(in srgb, var(--status-attention) 72%, var(--ink));
-    --status-waiting-label: color-mix(in srgb, var(--status-waiting) 72%, var(--ink));
-
-    --approval-file-edit-surface: color-mix(in srgb, var(--surface) 82%, #d6b65d 18%);
-    --approval-file-edit-border: color-mix(in srgb, var(--surface) 42%, #b99b4e 58%);
-    --approval-file-edit-ink: color-mix(in srgb, var(--ink) 82%, #d6b65d);
-    --approval-command-surface: color-mix(in srgb, var(--surface) 82%, #d08f5e 18%);
-    --approval-command-border: color-mix(in srgb, var(--surface) 42%, #b57548 58%);
-    --approval-command-ink: color-mix(in srgb, var(--ink) 82%, #d08f5e);
-    --approval-file-read-surface: color-mix(in srgb, var(--surface) 82%, #78b7b0 18%);
-    --approval-file-read-border: color-mix(in srgb, var(--surface) 42%, #5f9992 58%);
-    --approval-file-read-ink: color-mix(in srgb, var(--ink) 82%, #78b7b0);
-    --approval-workspace-trust-surface: color-mix(in srgb, var(--surface) 82%, #8ba8d4 18%);
-    --approval-workspace-trust-border: color-mix(in srgb, var(--surface) 42%, #708db8 58%);
-    --approval-workspace-trust-ink: color-mix(in srgb, var(--ink) 82%, #8ba8d4);
-    --approval-badge-bg: color-mix(in srgb, var(--surface-panel) 88%, var(--approval-surface) 12%);
-    --approval-context-bg: color-mix(in srgb, var(--surface-panel) 76%, var(--approval-surface) 24%);
-    --approval-context-border: color-mix(in srgb, var(--approval-border) 62%, transparent);
-
-    --shadow-composer: 0 1px 0 rgb(255 255 255 / 4%);
-    --shadow-composer-focus:
-      0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent),
-      0 1px 0 rgb(255 255 255 / 5%);
-    --shadow-popover: 0 14px 34px rgb(0 0 0 / 18%);
-    --shadow-bubble: 0 1px 0 rgb(255 255 255 / 4%);
-  }
 }
 
 * {
@@ -813,6 +631,12 @@ pre {
   font-size: 13px;
 }
 
+.reading-settings-trigger {
+  min-width: 40px;
+  font-weight: 720;
+  letter-spacing: 0;
+}
+
 .floating-window-topbar {
   min-height: 62px;
   display: flex;
@@ -917,6 +741,182 @@ h2 {
   border-color: var(--accent);
   color: var(--ink-on-accent);
   background: var(--accent);
+}
+
+#reading-popover-root {
+  display: contents;
+}
+
+.reading-settings-popover {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  overflow-y: auto;
+  border: 1px solid var(--border-menu);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--ink-menu);
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
+}
+
+.reading-setting-section + .reading-setting-section {
+  border-top: 1px solid var(--border-menu-divider);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.reading-setting-heading {
+  margin: 0 0 7px;
+  color: var(--ink-menu-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reading-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reading-theme-card {
+  min-width: 0;
+  min-height: 104px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--ink);
+  background: var(--surface);
+  text-align: left;
+}
+
+.reading-theme-card:hover,
+.reading-theme-card.selected {
+  border-color: var(--accent);
+}
+
+.reading-theme-card.selected {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.reading-theme-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-strong);
+  font-family: var(--font-reading);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reading-theme-sample {
+  color: var(--ink-strong);
+  font-family: var(--font-reading);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.reading-theme-lines {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 5px;
+}
+
+.reading-theme-lines i {
+  display: block;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--ink-muted);
+  opacity: 0.42;
+}
+
+.reading-theme-lines i + i {
+  width: 72%;
+}
+
+.reading-theme-current {
+  grid-column: 1 / -1;
+  min-height: 12px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.reading-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  border: 1px solid var(--border-menu);
+  border-radius: 8px;
+  padding: 2px;
+  background: var(--surface-control-soft);
+}
+
+.reading-segment {
+  min-width: 0;
+  min-height: 30px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 8px;
+  color: var(--ink-menu);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.reading-segment:hover {
+  background: var(--surface-menu-hover);
+}
+
+.reading-segment.selected {
+  color: var(--ink-on-accent);
+  background: var(--accent);
+}
+
+.reading-size-stepper {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 8px;
+}
+
+.reading-size-button {
+  min-width: 52px;
+  min-height: 32px;
+  border: 1px solid var(--border-control);
+  border-radius: 7px;
+  padding: 0;
+  color: var(--ink-ui);
+  background: var(--surface-control);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.reading-size-button:disabled {
+  color: var(--ink-disabled-soft);
+  background: var(--surface-disabled);
+}
+
+.reading-size-value {
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-menu);
+  border-radius: 7px;
+  color: var(--ink-menu);
+  background: var(--surface-control-soft);
+  font-size: 13px;
+  font-weight: 720;
 }
 
 .workspace {

@@ -13,6 +13,7 @@ import {
   type WorkspaceOpenExternalResponse,
   type WorkspaceOpenFolderRequest,
 } from "../shared/types";
+import type { ReadingSettingsStore } from "./settings-store";
 import type { RuntimeController } from "./runtime-controller";
 
 export interface WindowIpcController {
@@ -31,7 +32,12 @@ export interface WindowIpcController {
 export function registerIpcHandlers(
   runtimeController: RuntimeController,
   windowController: WindowIpcController,
+  readingSettingsStore: ReadingSettingsStore,
 ): void {
+  ipcMain.on(IPC_CHANNELS.readingSettingsReadSync, (event) => {
+    event.returnValue = readingSettingsStore.read();
+  });
+
   ipcMain.handle(IPC_CHANNELS.taskCreate, (_event, request) =>
     runtimeController.createTask(request),
   );
@@ -112,4 +118,8 @@ export function registerIpcHandlers(
     windowController.openWorkspaceFolder(request),
   );
   ipcMain.handle(IPC_CHANNELS.folderPick, () => windowController.pickFolder());
+  ipcMain.handle(IPC_CHANNELS.readingSettingsRead, () => readingSettingsStore.read());
+  ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) =>
+    readingSettingsStore.write(request),
+  );
 }

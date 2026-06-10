@@ -13,6 +13,7 @@ import type {
   TaskId,
 } from "./domain";
 import type { RuntimeEvent } from "./events";
+import type { ReadingSettings, ResolvedReadingMode } from "./reading-settings";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
 import type { RuntimeReportSummaryV1, RuntimeReportV1 } from "../schemas/runtime-report";
 
@@ -48,6 +49,10 @@ export const IPC_CHANNELS = {
   workspaceOpenExternal: "workspace:open-external",
   workspaceOpenFolder: "workspace:open-folder",
   folderPick: "folder:pick",
+  readingSettingsRead: "reading-settings:read",
+  readingSettingsWrite: "reading-settings:write",
+  readingSettingsReadSync: "reading-settings:read-sync",
+  readingSystemModeChanged: "reading-settings:system-mode-changed",
   runtimeEvent: "runtime:event",
 } as const;
 
@@ -296,6 +301,9 @@ export interface DuetRuntimeBridge {
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   pickFolder(): Promise<FolderPickResponse>;
+  readReadingSettings(): Promise<ReadingSettings>;
+  writeReadingSettings(settings: ReadingSettings): Promise<ReadingSettings>;
+  onReadingSystemModeChanged(callback: (mode: ResolvedReadingMode) => void): () => void;
   onInspectorState(callback: (state: InspectorWindowState) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;
 }

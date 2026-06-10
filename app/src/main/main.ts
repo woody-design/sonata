@@ -4,6 +4,7 @@ import {
   app,
   BrowserWindow,
   dialog,
+  nativeTheme,
   screen,
   shell,
   type OpenDialogOptions,
@@ -26,11 +27,13 @@ import {
 } from "../shared/types";
 import { registerIpcHandlers } from "./ipc";
 import { RuntimeController } from "./runtime-controller";
+import { ReadingSettingsStore, readingSettingsPath } from "./settings-store";
 
 let mainWindow: BrowserWindow | null = null;
 let previewWindow: BrowserWindow | null = null;
 let inspectorWindow: BrowserWindow | null = null;
 let runtimeController: RuntimeController | null = null;
+let readingSettingsStore: ReadingSettingsStore | null = null;
 let previewState: PreviewWindowState = {
   tabs: [],
   selected: null,
@@ -480,7 +483,17 @@ function cursorFileUrl(filePath: string): string {
   return `cursor://file${encodedPath.startsWith("/") ? "" : "/"}${encodedPath}`;
 }
 
+function sendReadingSystemMode(): void {
+  const mode = nativeTheme.shouldUseDarkColors ? "dark" : "light";
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.readingSystemModeChanged, mode);
+    }
+  }
+}
+
 app.whenReady().then(() => {
+  readingSettingsStore = new ReadingSettingsStore(readingSettingsPath(app.getPath("userData")));
   runtimeController = new RuntimeController({
     sendEvent: (event) => {
       handlePreviewRuntimeEvent(event);
@@ -491,6 +504,10 @@ app.whenReady().then(() => {
       }
     },
   });
+  if (!readingSettingsStore) {
+    throw new Error("Reading settings store is not ready.");
+  }
+  nativeTheme.on("updated", sendReadingSystemMode);
   registerIpcHandlers(runtimeController, {
     openPreview,
     markPreviewReviewed,
@@ -502,7 +519,7 @@ app.whenReady().then(() => {
     openWorkspaceFolder,
     pickFolder,
     closeTaskSurfaces,
-  });
+  }, readingSettingsStore);
   mainWindow = createMainWindow();
 
   app.on("activate", () => {

@@ -1,12 +1,87 @@
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  DEFAULT_READING_SETTINGS,
   IPC_CHANNELS,
   type DuetRuntimeBridge,
   type FocusArtifactInMainRequest,
   type InspectorWindowState,
   type PreviewWindowState,
+  type ReadingSettings,
+  type ResolvedReadingMode,
   type RuntimeEvent,
+  normalizeReadingSettings,
 } from "../shared/types";
+
+const MAIN_WINDOW_ENTRY = "/index.html";
+
+function isMainWindowDocument(): boolean {
+  return (
+    window.location.pathname.endsWith(MAIN_WINDOW_ENTRY) ||
+    document.documentElement?.dataset.theme === DEFAULT_READING_SETTINGS.theme
+  );
+}
+
+function readBootReadingSettings(): ReadingSettings {
+  try {
+    return normalizeReadingSettings(ipcRenderer.sendSync(IPC_CHANNELS.readingSettingsReadSync));
+  } catch {
+    return { ...DEFAULT_READING_SETTINGS };
+  }
+}
+
+function resolvedMode(settings: ReadingSettings): "light" | "dark" {
+  if (settings.mode !== "auto") {
+    return settings.mode;
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function stampReadingSettings(settings: ReadingSettings): void {
+  const root = document.documentElement;
+  if (!root) {
+    return;
+  }
+  root.dataset.theme = settings.theme;
+  root.dataset.mode = resolvedMode(settings);
+  root.dataset.readingModeSetting = settings.mode;
+  root.dataset.textStep = String(settings.textStep);
+}
+
+function captureFirstReadingFrame(): void {
+  window.requestAnimationFrame(() => {
+    const root = document.documentElement;
+    if (!root) {
+      return;
+    }
+    const textBody = window.getComputedStyle(root).getPropertyValue("--text-body").trim();
+    root.dataset.readingFirstFrame = [
+      root.dataset.theme ?? "",
+      root.dataset.mode ?? "",
+      textBody,
+    ].join("/");
+  });
+}
+
+if (isMainWindowDocument()) {
+  const bootReadingSettings = readBootReadingSettings();
+  const stampBootSettings = (): void => {
+    stampReadingSettings(bootReadingSettings);
+    captureFirstReadingFrame();
+  };
+
+  if (document.documentElement) {
+    stampBootSettings();
+  } else {
+    const observer = new MutationObserver(() => {
+      if (!document.documentElement) {
+        return;
+      }
+      observer.disconnect();
+      stampBootSettings();
+    });
+    observer.observe(document, { childList: true });
+  }
+}
 
 const duetRuntime: DuetRuntimeBridge = {
   createTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskCreate, request),
@@ -37,6 +112,15 @@ const duetRuntime: DuetRuntimeBridge = {
   openWorkspaceExternal: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceOpenExternal, request),
   openWorkspaceFolder: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceOpenFolder, request),
   pickFolder: () => ipcRenderer.invoke(IPC_CHANNELS.folderPick),
+  readReadingSettings: () => ipcRenderer.invoke(IPC_CHANNELS.readingSettingsRead),
+  writeReadingSettings: (settings) => ipcRenderer.invoke(IPC_CHANNELS.readingSettingsWrite, settings),
+  onReadingSystemModeChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, mode: ResolvedReadingMode) => {
+      callback(mode);
+    };
+    ipcRenderer.on(IPC_CHANNELS.readingSystemModeChanged, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.readingSystemModeChanged, listener);
+  },
   onPreviewState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, previewState: PreviewWindowState) => {
       callback(previewState);
