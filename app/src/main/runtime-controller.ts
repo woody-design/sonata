@@ -17,6 +17,7 @@ import type {
   ReadTranscriptResponse,
   ReasoningEffort,
   RunId,
+  RunStatus,
   RuntimeEvent,
   RuntimeProvider,
   RuntimeReportUpdatedEvent,
@@ -478,6 +479,35 @@ export class RuntimeController {
     }
 
     this.emitReportUpdated(runIndex);
+    if (event.type === "run:started" || event.type === "run:updated") {
+      this.syncTaskStatusFromRunEvent(event);
+    }
+  }
+
+  private syncTaskStatusFromRunEvent(event: Extract<RuntimeEvent, { type: "run:started" | "run:updated" }>): void {
+    const active = this.taskRuntimes.get(event.payload.taskId);
+    if (!active) {
+      return;
+    }
+    const status = taskStatusFromRunStatus(event.payload.status);
+    if (active.task.status === status) {
+      return;
+    }
+    active.task = {
+      ...active.task,
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+    this.persistTaskManifest(active.task, active.storageRoot);
+    this.sendEvent({
+      type: "task:updated",
+      payload: {
+        taskId: active.task.id,
+        task: active.task,
+        reason: "runtime-status",
+      },
+      ts: new Date().toISOString(),
+    });
   }
 
   private updateTaskTitleFromRun(taskId: TaskId, title: string): void {
@@ -1035,6 +1065,25 @@ function applyVerifiedControlToTask(task: Task, change: DeliveryControlChange): 
   }
 
   return task;
+}
+
+function taskStatusFromRunStatus(status: RunStatus): Task["status"] {
+  if (status === "active" || status === "resumed-after-approval") {
+    return "running";
+  }
+  if (status === "waiting-for-approval") {
+    return "waiting-for-approval";
+  }
+  if (status === "stopping") {
+    return "stopping";
+  }
+  if (status === "stopped") {
+    return "stopped";
+  }
+  if (status === "failed" || status === "pty-exited") {
+    return "failed";
+  }
+  return "idle";
 }
 
 function codexPermissionLabel(preset: CodexPermissionPreset): string {

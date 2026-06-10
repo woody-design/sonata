@@ -77,7 +77,7 @@ export type TaskUpdatedEvent = BaseRuntimeEvent<
   {
     taskId: TaskId;
     task: Task;
-    reason: "verified-native-control";
+    reason: "verified-native-control" | "runtime-status";
   }
 >;
 

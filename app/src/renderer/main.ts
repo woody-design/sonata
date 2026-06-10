@@ -626,7 +626,9 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   if (event.type === "task:updated") {
     view.task = event.payload.task;
-    view.status = "Settings updated";
+    view.status = event.payload.reason === "verified-native-control"
+      ? "Settings updated"
+      : taskStatusLabel(event.payload.task);
     markViewChanged(view);
     return;
   }
@@ -1895,27 +1897,29 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   card.append(renderTurnUser(turn));
 
   const workBlocks = turn.blocks.filter(isWorkTraceBlock);
+  const answerBlocks = turn.blocks.filter(isAnswerBlock);
+  const noAssistantOutput = turnCompletedWithoutAssistantOutput(turn);
   if (turn.run) {
-    card.append(renderTurnWorkTrace(turn, workBlocks));
+    card.append(renderTurnWorkTrace(turn, workBlocks, noAssistantOutput));
   }
 
   const body = document.createElement("div");
   body.className = "turn-body turn-answer";
-  for (const block of turn.blocks) {
-    if (block.kind === "user-message" || isWorkTraceBlock(block)) {
-      continue;
-    }
+  for (const block of answerBlocks) {
     body.append(renderTranscriptBlock(block));
   }
   if (turn.blocks.length === 0 && turn.fallbackText) {
     body.append(renderTurnFallback(turn.fallbackText));
+  }
+  if (body.childElementCount === 0 && noAssistantOutput) {
+    body.append(renderNoAssistantOutput(turn.run));
   }
   if (body.childElementCount > 0) {
     card.append(body);
   }
 
   if (turn.run) {
-    card.append(renderTurnFooter(turn.run, turn.blocks.length > 0));
+    card.append(renderTurnFooter(turn.run, turn.blocks.length > 0, noAssistantOutput));
   }
   return card;
 }
@@ -1955,9 +1959,25 @@ function isWorkTraceBlock(
   return block.kind === "thinking" || block.kind === "tool-call";
 }
 
+function isAnswerBlock(
+  block: TranscriptBlock,
+): block is Extract<TranscriptBlock, { kind: "assistant-text" | "system-note" }> {
+  return block.kind === "assistant-text" || block.kind === "system-note";
+}
+
+function turnCompletedWithoutAssistantOutput(turn: ReadingTurn): boolean {
+  return Boolean(
+    turn.run?.status === "completed" &&
+      turn.run.completionSource === "terminal-idle-heuristic" &&
+      turn.blocks.length > 0 &&
+      !turn.blocks.some((block) => block.kind !== "user-message"),
+  );
+}
+
 function renderTurnWorkTrace(
   turn: ReadingTurn,
   workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" }>>,
+  noAssistantOutput: boolean,
 ): HTMLElement {
   const run = turn.run;
   if (!run) {
@@ -1965,7 +1985,7 @@ function renderTurnWorkTrace(
   }
 
   const details = document.createElement("details");
-  details.className = `turn-work-trace ${runTone(run)}`;
+  details.className = `turn-work-trace ${runTone(run, { noAssistantOutput })}`;
   const rememberedOpen = workTraceOpenByTurnKey.get(turn.key);
   details.open = rememberedOpen ?? shouldOpenWorkTraceByDefault(run);
 
@@ -1990,7 +2010,7 @@ function renderTurnWorkTrace(
 
   const label = document.createElement("span");
   label.className = "turn-work-label";
-  label.textContent = workTraceLabel(run);
+  label.textContent = workTraceLabel(run, noAssistantOutput);
   summary.append(label);
 
   const metaItems = workTraceMeta(run, workBlocks);
@@ -2011,6 +2031,11 @@ function renderTurnWorkTrace(
     }
   } else if (isActiveRunStatus(run.status)) {
     body.append(renderTurnWorking());
+  } else if (noAssistantOutput) {
+    const note = document.createElement("div");
+    note.className = "turn-system-note";
+    note.textContent = `${providerLabelForRun(run)} returned to the prompt without emitting an assistant response or tool trace.`;
+    body.append(note);
   } else {
     const note = document.createElement("div");
     note.className = "turn-system-note";
@@ -2025,9 +2050,12 @@ function shouldOpenWorkTraceByDefault(run: RuntimeRunReport): boolean {
   return run.status !== "completed";
 }
 
-function workTraceLabel(run: RuntimeRunReport): string {
+function workTraceLabel(run: RuntimeRunReport, noAssistantOutput = false): string {
   if (isActiveRunStatus(run.status)) {
     return `${activeProviderLabel()} is working`;
+  }
+  if (noAssistantOutput) {
+    return `No assistant reply after ${formatElapsed(run.elapsedMs)}`;
   }
   if (run.status === "completed") {
     return `Worked for ${formatElapsed(run.elapsedMs)}`;
@@ -2142,13 +2170,24 @@ function renderTurnWorking(): HTMLElement {
   return working;
 }
 
-function renderTurnFooter(run: RuntimeRunReport, hasSemanticBlocks: boolean): HTMLElement {
+function renderNoAssistantOutput(run: RuntimeRunReport | null): HTMLElement {
+  const note = document.createElement("div");
+  note.className = "turn-system-note";
+  note.textContent = `${providerLabelForRun(run)} completed the native command without producing an assistant reply.`;
+  return note;
+}
+
+function renderTurnFooter(
+  run: RuntimeRunReport,
+  hasSemanticBlocks: boolean,
+  noAssistantOutput: boolean,
+): HTMLElement {
   const footer = document.createElement("footer");
-  footer.className = `turn-footer ${runTone(run)}`;
+  footer.className = `turn-footer ${runTone(run, { noAssistantOutput })}`;
 
   const outcome = document.createElement("span");
   outcome.className = "turn-outcome";
-  outcome.textContent = runOutcome(run);
+  outcome.textContent = runOutcome(run, { noAssistantOutput });
   footer.append(outcome);
 
   const facts = document.createElement("span");
@@ -2180,7 +2219,11 @@ function renderTurnFooter(run: RuntimeRunReport, hasSemanticBlocks: boolean): HT
 
   const provenance = document.createElement("span");
   provenance.className = "turn-provenance";
-  provenance.textContent = hasSemanticBlocks ? "provider transcript" : "terminal approximation";
+  provenance.textContent = noAssistantOutput
+    ? "provider transcript (no assistant output)"
+    : hasSemanticBlocks
+      ? "provider transcript"
+      : "terminal approximation";
   footer.append(provenance);
 
   return footer;
@@ -3052,7 +3095,10 @@ function completionLabel(run: RuntimeRunReport): string {
   return `${run.completionSource} / ${run.completionConfidence ?? "low"}`;
 }
 
-function runOutcome(run: RuntimeRunReport): string {
+function runOutcome(
+  run: RuntimeRunReport,
+  options: { noAssistantOutput?: boolean } = {},
+): string {
   const providerName = activeProviderLabel();
   if (run.status === "waiting-for-approval") {
     return `Waiting for ${approvalKindLabel(run.approvalKind)} approval`;
@@ -3067,6 +3113,9 @@ function runOutcome(run: RuntimeRunReport): string {
   }
   if (run.status === "approval-denied") {
     return `${approvalKindLabel(run.approvalKind)} approval denied`;
+  }
+  if (run.status === "completed" && options.noAssistantOutput) {
+    return `${providerName} completed without an assistant reply`;
   }
   if (run.status === "completed" && run.completionSource === "terminal-idle-heuristic") {
     return "Completed by terminal idle heuristic";
@@ -3083,7 +3132,17 @@ function runOutcome(run: RuntimeRunReport): string {
   return `${providerName} is working`;
 }
 
-function runTone(run: RuntimeRunReport): string {
+function providerLabelForRun(_run: RuntimeRunReport | null): string {
+  return activeProviderLabel();
+}
+
+function runTone(
+  run: RuntimeRunReport,
+  options: { noAssistantOutput?: boolean } = {},
+): string {
+  if (options.noAssistantOutput) {
+    return "attention";
+  }
   if (run.status === "stopped" || run.status === "approval-denied" || run.status === "failed") {
     return "attention";
   }
@@ -3214,6 +3273,29 @@ function providerLabel(provider: RuntimeProvider): string {
 function activeProviderLabel(): string {
   const provider = activeTaskView()?.task?.provider;
   return provider ? providerLabel(provider) : "Codex";
+}
+
+function taskStatusLabel(task: Task): string {
+  const providerName = providerLabel(task.provider);
+  if (task.status === "running") {
+    return `${providerName} is working`;
+  }
+  if (task.status === "waiting-for-approval") {
+    return "Waiting for approval";
+  }
+  if (task.status === "stopping") {
+    return "Stopping";
+  }
+  if (task.status === "stopped") {
+    return "Stopped";
+  }
+  if (task.status === "failed") {
+    return "Failed";
+  }
+  if (task.status === "starting" || task.status === "new") {
+    return `${providerName} is starting`;
+  }
+  return "Ready";
 }
 
 function shortId(value: string): string {
