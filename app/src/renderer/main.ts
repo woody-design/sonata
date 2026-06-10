@@ -284,10 +284,14 @@ const elements = {
   terminal: getElement<HTMLDivElement>("terminal"),
 };
 
+const terminalFontFamily = getComputedStyle(document.documentElement)
+  .getPropertyValue("--font-mono")
+  .trim();
+
 const terminal = new Terminal({
   convertEol: true,
   cursorBlink: false,
-  fontFamily: "SFMono-Regular, Menlo, Consolas, monospace",
+  fontFamily: terminalFontFamily,
   fontSize: 12,
   theme: {
     background: "#141414",
