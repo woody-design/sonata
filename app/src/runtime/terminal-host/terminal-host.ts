@@ -14,6 +14,7 @@ import type {
   CodexPermissionPreset,
   CodexSandboxMode,
   CompletionConfidence,
+  CompletionHint,
   CompletionSource,
   DeliveryControlChange,
   LaunchSpeedMode,
@@ -100,6 +101,9 @@ const BACKGROUND_TERMINAL_HINTS = [
   "running in the background",
   "use /stop",
 ];
+
+const PROVIDER_ERROR_LINE_RE =
+  /api error|overloaded|rate limit|retrying|invalid request|internal server error/i;
 
 export interface TerminalHostOptions {
   taskId: TaskId;
@@ -1186,21 +1190,34 @@ export class TerminalHost extends EventEmitter {
   private finishActiveRun(
     status: RunStatus,
     reason: string,
-    metadata: { completionSource?: CompletionSource; completionConfidence?: CompletionConfidence; completionHint?: unknown } = {},
+    metadata: {
+      completionSource?: CompletionSource;
+      completionConfidence?: CompletionConfidence;
+      completionHint?: CompletionHint;
+    } = {},
   ): ActiveRun | null {
     if (!this.activeRun) {
       return null;
     }
 
     const endedAt = new Date();
+    const completionSource = metadata.completionSource ?? completionSourceForStatus(status);
+    const completionConfidence = metadata.completionConfidence ?? completionConfidenceForStatus(status);
+    const errorExcerpt =
+      completionSource === "terminal-idle-heuristic"
+        ? extractProviderErrorExcerpt(this.activeRunRaw, this.profile.provider)
+        : null;
+    const completionHint = errorExcerpt
+      ? withCompletionErrorExcerpt(metadata.completionHint, errorExcerpt)
+      : metadata.completionHint;
     const finished: ActiveRun = removeUndefined({
       ...this.activeRun,
       status,
       statusReason: reason,
       lifecyclePhase: status,
-      completionSource: metadata.completionSource ?? completionSourceForStatus(status),
-      completionConfidence: metadata.completionConfidence ?? completionConfidenceForStatus(status),
-      completionHint: metadata.completionHint,
+      completionSource,
+      completionConfidence,
+      ...(completionHint !== undefined ? { completionHint } : {}),
       endedAt: endedAt.toISOString(),
       elapsedMs: endedAt.getTime() - Date.parse(this.activeRun.startedAt),
     });
@@ -1563,6 +1580,49 @@ export function cleanTerminal(text: string): string {
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     .replace(CONTROL_RE, "");
+}
+
+export function extractProviderErrorExcerpt(rawText: string, provider?: RuntimeProvider): string | null {
+  const matches = cleanTerminal(rawText)
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line && !isTerminalChromeLine(line, provider) && PROVIDER_ERROR_LINE_RE.test(line))
+    .slice(-3);
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const excerpt = matches.join("\n");
+  return excerpt.length <= 500 ? excerpt : `...${excerpt.slice(-497)}`;
+}
+
+function withCompletionErrorExcerpt(
+  hint: CompletionHint | undefined,
+  errorExcerpt: string,
+): CompletionHint {
+  return {
+    ...(hint ?? {}),
+    errorExcerpt,
+  };
+}
+
+function isTerminalChromeLine(line: string, provider?: RuntimeProvider): boolean {
+  if (!line) {
+    return true;
+  }
+  const compact = line.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  if (provider === "claude" && compact.length <= 2) {
+    return true;
+  }
+  return (
+    /^esc\b/i.test(line) ||
+    /^press\b/i.test(line) ||
+    /^paste again\b/i.test(line) ||
+    /^thinking\b/i.test(line) ||
+    /^tokens?\b/i.test(line) ||
+    /^context\b/i.test(line) ||
+    /^[>*+~._-]{1,8}$/.test(line)
+  );
 }
 
 function ptyEnvironment(): NodeJS.ProcessEnv {

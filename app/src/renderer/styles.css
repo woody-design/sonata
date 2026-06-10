@@ -2336,6 +2336,35 @@ h2 {
   font-style: italic;
 }
 
+.turn-system-note.attention {
+  display: grid;
+  gap: 9px;
+  border-left: 3px solid #b65d4d;
+  padding-left: 10px;
+  color: #704036;
+  font-style: normal;
+}
+
+.turn-error-excerpt {
+  margin: 0;
+  border: 1px solid #e0b3aa;
+  border-radius: 6px;
+  background: #fff7f4;
+  padding: 8px 10px;
+  color: #4a211b;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.turn-terminal-action {
+  justify-self: start;
+  min-height: 28px;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
 .turn-fallback {
   border-left: 3px solid #d8c9a3;
   padding-left: 10px;

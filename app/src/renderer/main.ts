@@ -1908,7 +1908,11 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   for (const block of answerBlocks) {
     body.append(renderTranscriptBlock(block));
   }
-  if (turn.blocks.length === 0 && turn.fallbackText) {
+  const noAssistantErrorExcerpt = completionErrorExcerpt(turn.run);
+  if (body.childElementCount === 0 && noAssistantOutput && noAssistantErrorExcerpt) {
+    body.append(renderNoAssistantOutput(turn.run));
+  }
+  if (body.childElementCount === 0 && turn.blocks.length === 0 && turn.fallbackText) {
     body.append(renderTurnFallback(turn.fallbackText));
   }
   if (body.childElementCount === 0 && noAssistantOutput) {
@@ -1969,7 +1973,6 @@ function turnCompletedWithoutAssistantOutput(turn: ReadingTurn): boolean {
   return Boolean(
     turn.run?.status === "completed" &&
       turn.run.completionSource === "terminal-idle-heuristic" &&
-      turn.blocks.length > 0 &&
       !turn.blocks.some((block) => block.kind !== "user-message"),
   );
 }
@@ -2171,9 +2174,28 @@ function renderTurnWorking(): HTMLElement {
 }
 
 function renderNoAssistantOutput(run: RuntimeRunReport | null): HTMLElement {
+  const errorExcerpt = completionErrorExcerpt(run);
   const note = document.createElement("div");
-  note.className = "turn-system-note";
-  note.textContent = `${providerLabelForRun(run)} completed the native command without producing an assistant reply.`;
+  note.className = errorExcerpt ? "turn-system-note attention" : "turn-system-note";
+  if (!errorExcerpt) {
+    const action = run?.kind === "slash" ? "completed the native command" : "returned to the prompt";
+    note.textContent = `${providerLabelForRun(run)} ${action} without producing an assistant reply.`;
+    return note;
+  }
+
+  const copy = document.createElement("div");
+  copy.textContent = `${providerLabelForRun(run)} returned to the prompt without a reply. A provider/API error likely occurred.`;
+  const excerpt = document.createElement("pre");
+  excerpt.className = "turn-error-excerpt";
+  excerpt.textContent = errorExcerpt;
+  const action = document.createElement("button");
+  action.className = "secondary turn-terminal-action";
+  action.type = "button";
+  action.textContent = "Open terminal";
+  action.addEventListener("click", () => {
+    setTerminalOpen(true);
+  });
+  note.append(copy, excerpt, action);
   return note;
 }
 
@@ -3134,6 +3156,15 @@ function runOutcome(
 
 function providerLabelForRun(_run: RuntimeRunReport | null): string {
   return activeProviderLabel();
+}
+
+function completionErrorExcerpt(run: RuntimeRunReport | null): string | null {
+  const hint = run?.completionHint;
+  if (!hint || typeof hint !== "object" || Array.isArray(hint)) {
+    return null;
+  }
+  const excerpt = hint.errorExcerpt;
+  return typeof excerpt === "string" && excerpt.trim() ? excerpt.trim() : null;
 }
 
 function runTone(

@@ -13,9 +13,10 @@ import {
  * Normalizes Claude Code session JSONL records into transcript blocks.
  *
  * Turn rules:
- * - A user record carrying real text starts a new turn once the previous turn
- *   has assistant content. Consecutive user-text records inside a fresh turn
- *   (skill bodies, command expansions) are context injection and are skipped.
+ * - Meta user records are context injection and are skipped.
+ * - A typed prompt or command invocation always starts a new turn.
+ * - Legacy user records without promptSource keep the older fallback heuristic:
+ *   real text starts a turn once the previous turn has assistant content.
  * - Records that only carry tool_result blocks are plumbing: they resolve
  *   pending tool calls and never affect turn state.
  * - Sidechain (subagent) records are skipped entirely.
@@ -51,6 +52,10 @@ export class ClaudeSessionNormalizer {
   }
 
   private consumeUserRecord(record: Record<string, unknown>): TranscriptBlock[] {
+    if (record.isMeta === true) {
+      return [];
+    }
+
     const message = record.message as Record<string, unknown> | undefined;
     const content = message?.content;
     const ts = recordTimestamp(record);
@@ -88,7 +93,13 @@ export class ClaudeSessionNormalizer {
     }
 
     const command = parseCommandInvocation(userText);
-    const startsTurn = command !== null || this.currentTurnKey === null || this.turnHasAssistant;
+    const promptSource = typeof record.promptSource === "string" ? record.promptSource : null;
+    const startsTurn =
+      promptSource === "typed" ||
+      promptSource === "queued" ||
+      command !== null ||
+      this.currentTurnKey === null ||
+      this.turnHasAssistant;
     if (!startsTurn) {
       // Context injection (skill body, command expansion) inside a fresh turn.
       return upserts;

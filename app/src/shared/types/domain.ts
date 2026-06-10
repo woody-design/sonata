@@ -92,6 +92,14 @@ export type CompletionSource =
 
 export type CompletionConfidence = "high" | "medium" | "low";
 
+export interface CompletionHint {
+  source?: CompletionSource;
+  confidence?: CompletionConfidence;
+  signals?: Record<string, boolean>;
+  errorExcerpt?: string;
+  [key: string]: unknown;
+}
+
 export type DeliveryItemStatus = "queued" | "delivering" | "delivered" | "undelivered";
 export type DeliveryItemKind = "prompt" | "control";
 export type DeliveryReceiptSource = "provider-transcript" | "pty-composer-echo" | "native-control";

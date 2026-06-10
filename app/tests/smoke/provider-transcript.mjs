@@ -149,6 +149,171 @@ check("claude: command invocation, context injection, and sidechain are handled"
   assert.notEqual(upserts[0].turnKey, upserts[2].turnKey);
 });
 
+check("claude: local command turn followed by typed prompt attributes reply to prompt turn", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s2b" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      timestamp: "2026-06-09T10:00:00.000Z",
+      message: {
+        role: "user",
+        content: "<command-message>model</command-message>\n<command-name>/model</command-name>",
+      },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptId: "p-typed",
+      promptSource: "typed",
+      timestamp: "2026-06-09T10:00:10.000Z",
+      message: { role: "user", content: "Now answer normally" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p-typed",
+      timestamp: "2026-06-09T10:00:12.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Normal answer." }] },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  assert.deepEqual(
+    upserts.map((block) => block.kind),
+    ["user-message", "user-message", "assistant-text"],
+  );
+  assert.equal(upserts[0].command, "/model");
+  assert.equal(upserts[1].text, "Now answer normally");
+  assert.equal(upserts[1].turnKey, "p-typed");
+  assert.equal(upserts[2].turnKey, "p-typed");
+});
+
+check("claude: local command turn followed by queued prompt attributes reply to prompt turn", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s2q" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      timestamp: "2026-06-09T10:00:00.000Z",
+      message: {
+        role: "user",
+        content: "<command-message>model</command-message>\n<command-name>/model</command-name>",
+      },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptId: "p-queued",
+      promptSource: "queued",
+      timestamp: "2026-06-09T10:00:10.000Z",
+      message: { role: "user", content: "Queued prompt" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p-queued",
+      timestamp: "2026-06-09T10:00:12.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Queued answer." }] },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  assert.deepEqual(
+    upserts.map((block) => block.kind),
+    ["user-message", "user-message", "assistant-text"],
+  );
+  assert.equal(upserts[1].turnKey, "p-queued");
+  assert.equal(upserts[2].turnKey, "p-queued");
+});
+
+check("claude: isMeta user records are skipped", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s2c" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      promptSource: "typed",
+      timestamp: "2026-06-09T10:00:00.000Z",
+      message: { role: "user", content: "Real prompt" },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      isMeta: true,
+      timestamp: "2026-06-09T10:00:00.100Z",
+      message: { role: "user", content: "Injected caveat" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-06-09T10:00:02.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Reply." }] },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  assert.deepEqual(
+    upserts.map((block) => block.kind),
+    ["user-message", "assistant-text"],
+  );
+  assert.equal(upserts[0].text, "Real prompt");
+  assert.equal(upserts[1].turnKey, "p1");
+});
+
+check("claude: legacy user records without promptSource keep fallback heuristic", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s2d" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      timestamp: "2026-06-09T10:00:00.000Z",
+      message: { role: "user", content: "Legacy prompt" },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      timestamp: "2026-06-09T10:00:00.100Z",
+      message: { role: "user", content: "Legacy injected context" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      timestamp: "2026-06-09T10:00:01.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Legacy reply." }] },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u3",
+      timestamp: "2026-06-09T10:00:02.000Z",
+      message: { role: "user", content: "Legacy next prompt" },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  assert.deepEqual(
+    upserts.map((block) => block.kind),
+    ["user-message", "assistant-text", "user-message"],
+  );
+  assert.equal(upserts[0].text, "Legacy prompt");
+  assert.equal(upserts[2].text, "Legacy next prompt");
+  assert.notEqual(upserts[0].turnKey, upserts[2].turnKey);
+});
+
 // --- Codex normalizer --------------------------------------------------------
 
 check("codex: event text, tool pairing, exit-code status, no duplication", () => {

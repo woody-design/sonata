@@ -5,6 +5,7 @@ import type {
   ApprovalKind,
   ChangeKind,
   CompletionConfidence,
+  CompletionHint,
   CompletionSource,
   DeliveryItemId,
   DeliveryQueueItem,
@@ -126,7 +127,7 @@ export type RunUpdatedEvent = BaseRuntimeEvent<
   "run:updated",
   RunStartedEvent["payload"] & {
     statusReason?: string;
-    completionHint?: unknown;
+    completionHint?: CompletionHint;
     lastLifecycleHint?: unknown;
     approvalKind?: ApprovalKind;
     approvalDecision?: ApprovalDecision;

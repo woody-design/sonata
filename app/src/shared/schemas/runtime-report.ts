@@ -5,6 +5,7 @@ import type {
   ApprovalKind,
   ChangeKind,
   CompletionConfidence,
+  CompletionHint,
   CompletionSource,
   LaunchSpeedMode,
   ReasoningEffort,
@@ -58,7 +59,7 @@ export interface RuntimeRunReport {
   elapsedMs: number | null;
   completionSource: CompletionSource | null;
   completionConfidence: CompletionConfidence | null;
-  completionHint?: unknown;
+  completionHint?: CompletionHint;
   lastLifecycleHint?: unknown;
   approvalKind?: ApprovalKind;
   approvalDecision?: ApprovalDecision;

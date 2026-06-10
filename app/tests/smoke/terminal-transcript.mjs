@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { cleanTerminalTranscript } = require("../../dist/shared/terminal-transcript");
+const { extractProviderErrorExcerpt } = require("../../dist/runtime/terminal-host/index");
 
 const claudeChrome = [
   "\x1b[?25l\x1b[2J\x1b[1;1H❯",
@@ -63,6 +64,19 @@ const cleanNormal = cleanTerminalTranscript(normalAnswer, "claude");
 const cleanMixed = cleanTerminalTranscript(mixed, "claude");
 const cleanCodexShort = cleanTerminalTranscript("OK\nNo\n", "codex");
 const cleanCjkCursorOutput = cleanTerminalTranscript(cjkCursorOutput, "claude");
+const providerErrorExcerpt = extractProviderErrorExcerpt(
+  [
+    "\x1b[31mAPI Error (Internal server error) · Retrying in 8 seconds…\x1b[0m",
+    "API Error (Internal server error) · Retrying in 16 seconds…",
+    "API Error (Internal server error) · Retrying in 32 seconds…",
+    "❯",
+  ].join("\n"),
+  "claude",
+);
+const cleanProviderErrorExcerpt = extractProviderErrorExcerpt(
+  ["Here is the result:", "Created transcript.md in the selected folder.", "❯"].join("\n"),
+  "claude",
+);
 
 const success =
   cleanChrome.trim() === "" &&
@@ -77,7 +91,14 @@ const success =
   cleanCodexShort.includes("No") &&
   cleanCjkCursorOutput.includes("批准不能把claude.ai登录/订阅额度作为产品入口，应该用API key。Business Insider") &&
   !cleanCjkCursorOutput.includes("25;69H") &&
-  cleanCjkCursorOutput.split("\n").length <= 2;
+  cleanCjkCursorOutput.split("\n").length <= 2 &&
+  providerErrorExcerpt ===
+    [
+      "API Error (Internal server error) · Retrying in 8 seconds…",
+      "API Error (Internal server error) · Retrying in 16 seconds…",
+      "API Error (Internal server error) · Retrying in 32 seconds…",
+    ].join("\n") &&
+  cleanProviderErrorExcerpt === null;
 
 console.log(
   JSON.stringify(
@@ -87,6 +108,8 @@ console.log(
       cleanMixed,
       cleanCodexShort,
       cleanCjkCursorOutput,
+      providerErrorExcerpt,
+      cleanProviderErrorExcerpt,
       success,
     },
     null,
