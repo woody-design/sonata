@@ -6,7 +6,7 @@ const DEFAULT_POLL_MS = 600;
 
 export interface ClaudeStatuslineUsageWatcherOptions {
   pollMs?: number;
-  onPayload: (payload: unknown, filePath: string) => void;
+  onPayload: (payload: unknown, filePath: string, mtimeMs: number) => void;
   onError?: (error: Error, filePath?: string) => void;
 }
 
@@ -119,7 +119,11 @@ export class ClaudeStatuslineUsageWatcher {
     });
 
     try {
-      this.options.onPayload(JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown, filePath);
+      this.options.onPayload(
+        JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown,
+        filePath,
+        stat.mtimeMs,
+      );
     } catch (error) {
       this.options.onError?.(toError(error), filePath);
     }

@@ -99,7 +99,8 @@ export class RuntimeController {
   constructor(options: RuntimeControllerOptions) {
     this.sendEvent = options.sendEvent;
     this.claudeUsageWatcher = new ClaudeStatuslineUsageWatcher({
-      onPayload: (payload) => this.handleClaudeStatuslinePayload(payload),
+      onPayload: (payload, _filePath, mtimeMs) =>
+        this.handleClaudeStatuslinePayload(payload, mtimeMs),
       onError: (error, filePath) => {
         console.debug(
           `[usage] skipped Claude statusline payload${filePath ? ` ${filePath}` : ""}: ${error.message}`,
@@ -642,8 +643,10 @@ export class RuntimeController {
     }
   }
 
-  private handleClaudeStatuslinePayload(payload: unknown): void {
-    const result = parseClaudeStatuslinePayload(payload);
+  private handleClaudeStatuslinePayload(payload: unknown, mtimeMs: number): void {
+    // The sink file survives app restarts; its mtime — not parse time — is
+    // the honest capturedAt for the popover's "as of" line.
+    const result = parseClaudeStatuslinePayload(payload, { capturedAt: Math.round(mtimeMs) });
     if (!result) {
       return;
     }
@@ -1031,9 +1034,12 @@ function mergeUsageSnapshot(previous: UsageSnapshot | null, next: UsageSnapshot)
   if (!previous || previous.provider !== next.provider) {
     return next;
   }
+  // A partial snapshot (context-only or limits-only) refines, never erases:
+  // an absent section means "not in this payload", not "gone".
   return {
     ...next,
     context: next.context ?? previous.context,
+    limits: next.limits.length > 0 ? next.limits : previous.limits,
   };
 }
 

@@ -110,7 +110,6 @@ interface ComposerMenuState {
 }
 
 interface UsagePopoverState {
-  anchor: PopoverAnchor;
   pinned: boolean;
 }
 
@@ -564,8 +563,8 @@ elements.modelChip.addEventListener("click", (event) => {
   toggleComposerMenu("model", event.currentTarget as HTMLElement);
 });
 
-elements.usageIndicator.addEventListener("mouseenter", (event) => {
-  scheduleUsagePopoverOpen(event.currentTarget as HTMLElement);
+elements.usageIndicator.addEventListener("mouseenter", () => {
+  scheduleUsagePopoverOpen();
 });
 
 elements.usageIndicator.addEventListener("mouseleave", () => {
@@ -574,14 +573,18 @@ elements.usageIndicator.addEventListener("mouseleave", () => {
 
 elements.usageIndicator.addEventListener("click", (event) => {
   event.stopPropagation();
-  toggleUsagePopover(event.currentTarget as HTMLElement);
+  toggleUsagePopover();
 });
 
-elements.usageIndicator.addEventListener("focus", (event) => {
+elements.usageIndicator.addEventListener("focus", () => {
   if (state.usagePopover?.pinned) {
     return;
   }
-  scheduleUsagePopoverOpen(event.currentTarget as HTMLElement);
+  scheduleUsagePopoverOpen();
+});
+
+elements.usageIndicator.addEventListener("blur", () => {
+  scheduleUsagePopoverClose();
 });
 
 elements.promptInput.addEventListener("keydown", (event) => {
@@ -2075,14 +2078,14 @@ function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement
   render();
 }
 
-function scheduleUsagePopoverOpen(anchor: HTMLElement): void {
+function scheduleUsagePopoverOpen(): void {
   clearUsagePopoverCloseTimer();
   if (usagePopoverOpenTimer !== null) {
     window.clearTimeout(usagePopoverOpenTimer);
   }
   usagePopoverOpenTimer = window.setTimeout(() => {
     usagePopoverOpenTimer = null;
-    openUsagePopover(anchor, false);
+    openUsagePopover(false);
   }, USAGE_POPOVER_OPEN_DELAY_MS);
 }
 
@@ -2098,7 +2101,7 @@ function scheduleUsagePopoverClose(): void {
   }, USAGE_POPOVER_CLOSE_DELAY_MS);
 }
 
-function toggleUsagePopover(anchor: HTMLElement): void {
+function toggleUsagePopover(): void {
   const view = activeTaskView();
   if (!view?.task) {
     return;
@@ -2108,10 +2111,10 @@ function toggleUsagePopover(anchor: HTMLElement): void {
     closeUsagePopover();
     return;
   }
-  openUsagePopover(anchor, true);
+  openUsagePopover(true);
 }
 
-function openUsagePopover(anchor: HTMLElement, pinned: boolean): void {
+function openUsagePopover(pinned: boolean): void {
   const view = activeTaskView();
   if (!view?.task) {
     return;
@@ -2119,7 +2122,6 @@ function openUsagePopover(anchor: HTMLElement, pinned: boolean): void {
   const previousPinned = state.usagePopover?.pinned ?? false;
   state.composerMenu = null;
   state.usagePopover = {
-    anchor: popoverAnchorFromElement(anchor),
     pinned: pinned || previousPinned,
   };
   render();
@@ -2160,8 +2162,8 @@ function renderComposerPopover(view = activeTaskView()): void {
   }
   if (state.usagePopover) {
     const popover = renderUsagePopover(view);
-    positionUsagePopover(popover);
     elements.composerPopoverRoot.append(popover);
+    positionUsagePopover(popover);
     return;
   }
   if (!state.composerMenu) {
@@ -2192,7 +2194,7 @@ function renderUsagePopover(view: TaskViewState): HTMLElement {
   if (!snapshot || (!snapshot.context && snapshot.limits.length === 0)) {
     const empty = document.createElement("p");
     empty.className = "usage-popover-empty";
-    empty.textContent = "No usage data yet - appears after the first response";
+    empty.textContent = "No usage data yet — appears after the first response";
     popover.append(empty);
     return popover;
   }
@@ -2221,7 +2223,7 @@ function renderUsageContextRow(snapshot: UsageSnapshot): HTMLElement {
   }
 
   const label = document.createElement("strong");
-  label.textContent = `Context - ${formatUsagePercent(context.remainingPercent)} left`;
+  label.textContent = `Context — ${formatUsagePercent(context.remainingPercent)} left`;
 
   const meta = document.createElement("span");
   meta.textContent = `${compactTokenCount(context.usedTokens)} / ${compactTokenCount(context.windowTokens)}`;
@@ -2458,25 +2460,21 @@ function positionComposerMenu(menu: HTMLElement): void {
 }
 
 function positionUsagePopover(popover: HTMLElement): void {
-  const anchor = state.usagePopover?.anchor;
+  // Anchor geometry is read live on every render: the composer collapses and
+  // expands around focus changes, so a stored anchor snapshot goes stale and
+  // can drop the popover onto the indicator itself.
+  const anchor = elements.usageIndicator.getBoundingClientRect();
   const viewportPadding = 14;
-  const rightSafetyInset = 220;
-  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
-  const width = Math.min(320, viewportWidth - viewportPadding * 2);
-  const preferredLeft = anchor ? anchor.left - width - 8 : viewportPadding;
-  const maxLeft = Math.max(viewportPadding, viewportWidth - width - rightSafetyInset);
-  const left = Math.min(
-    maxLeft,
-    Math.max(viewportPadding, preferredLeft),
-  );
-  const estimatedHeight = 250;
-  const top = anchor
-    ? Math.max(viewportPadding, anchor.top - estimatedHeight - 8)
-    : viewportPadding;
-  popover.style.left = `${left}px`;
-  popover.style.top = `${top}px`;
+  const width = Math.min(320, window.innerWidth - viewportPadding * 2);
   popover.style.width = `${width}px`;
   popover.style.maxHeight = `${Math.max(180, window.innerHeight - viewportPadding * 2)}px`;
+  const left = Math.min(
+    window.innerWidth - width - viewportPadding,
+    Math.max(viewportPadding, anchor.right - width),
+  );
+  const top = Math.max(viewportPadding, anchor.top - popover.offsetHeight - 8);
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
 }
 
 function formatUsagePercent(value: number): string {
