@@ -1330,6 +1330,7 @@ appElement.innerHTML = `
         <div id="sidebar-list"></div>
       </nav>
     </aside>
+    <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" title="Drag to resize · double-click to reset"></div>
     <div class="main-pane">
     <header class="task-chrome">
       <div class="chrome-left">
@@ -1465,6 +1466,7 @@ const elements = {
   openInspectorWindow: getElement<HTMLButtonElement>("open-inspector-window"),
   toggleTerminal: getElement<HTMLButtonElement>("toggle-terminal"),
   sidebar: getElement<HTMLElement>("sidebar"),
+  sidebarResizer: getElement<HTMLDivElement>("sidebar-resizer"),
   sidebarNewChat: getElement<HTMLButtonElement>("sidebar-new-chat"),
   sidebarList: getElement<HTMLDivElement>("sidebar-list"),
   sidebarToggle: getElement<HTMLButtonElement>("sidebar-toggle"),
@@ -1611,6 +1613,7 @@ const SIDEBAR_COLLAPSED_KEY = "duet.sidebar.collapsed";
 
 function setSidebarCollapsed(collapsed: boolean): void {
   elements.sidebar.classList.toggle("collapsed", collapsed);
+  elements.sidebarResizer.classList.toggle("hidden", collapsed);
   try {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
   } catch {
@@ -1618,6 +1621,89 @@ function setSidebarCollapsed(collapsed: boolean): void {
   }
   window.requestAnimationFrame(fitTerminal);
 }
+
+const SIDEBAR_WIDTH_KEY = "duet.sidebar.width";
+const SIDEBAR_WIDTH_DEFAULT = 236;
+const SIDEBAR_WIDTH_MIN = 180;
+const SIDEBAR_WIDTH_MAX = 420;
+
+function applySidebarWidth(width: number | null): void {
+  if (width === null) {
+    elements.sidebar.style.removeProperty("width");
+    elements.sidebar.style.removeProperty("flex-basis");
+    return;
+  }
+  const clamped = Math.round(clamp(width, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX));
+  elements.sidebar.style.width = `${clamped}px`;
+  elements.sidebar.style.flexBasis = `${clamped}px`;
+}
+
+function persistSidebarWidth(width: number | null): void {
+  try {
+    if (width === null) {
+      localStorage.removeItem(SIDEBAR_WIDTH_KEY);
+    } else {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(Math.round(width)));
+    }
+  } catch {
+    // View preference only.
+  }
+}
+
+try {
+  const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  if (Number.isFinite(stored) && stored > 0) {
+    applySidebarWidth(stored);
+  }
+} catch {
+  // Default width stays.
+}
+
+elements.sidebarResizer.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) {
+    return;
+  }
+  event.preventDefault();
+  const resizer = event.currentTarget as HTMLElement;
+  resizer.setPointerCapture(event.pointerId);
+  document.body.classList.add("sidebar-resizing");
+  let frame = 0;
+  let lastWidth = elements.sidebar.getBoundingClientRect().width;
+
+  const onMove = (moveEvent: PointerEvent): void => {
+    lastWidth = moveEvent.clientX;
+    if (frame) {
+      return;
+    }
+    frame = window.requestAnimationFrame(() => {
+      frame = 0;
+      applySidebarWidth(lastWidth);
+      fitTerminal();
+    });
+  };
+  const onUp = (): void => {
+    resizer.removeEventListener("pointermove", onMove);
+    resizer.removeEventListener("pointerup", onUp);
+    resizer.removeEventListener("pointercancel", onUp);
+    document.body.classList.remove("sidebar-resizing");
+    if (frame) {
+      window.cancelAnimationFrame(frame);
+      frame = 0;
+    }
+    applySidebarWidth(lastWidth);
+    persistSidebarWidth(clamp(lastWidth, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX));
+    window.requestAnimationFrame(fitTerminal);
+  };
+  resizer.addEventListener("pointermove", onMove);
+  resizer.addEventListener("pointerup", onUp);
+  resizer.addEventListener("pointercancel", onUp);
+});
+
+elements.sidebarResizer.addEventListener("dblclick", () => {
+  applySidebarWidth(null);
+  persistSidebarWidth(null);
+  window.requestAnimationFrame(fitTerminal);
+});
 
 try {
   setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1");

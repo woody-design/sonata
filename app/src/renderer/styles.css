@@ -580,6 +580,35 @@ pre {
   display: none;
 }
 
+.sidebar-resizer {
+  flex: 0 0 5px;
+  margin-left: -3px;
+  z-index: 5;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.sidebar-resizer:hover,
+body.sidebar-resizing .sidebar-resizer {
+  background: linear-gradient(
+    to right,
+    transparent 0,
+    transparent 1px,
+    var(--accent-soft-border) 1px,
+    var(--accent-soft-border) 3px,
+    transparent 3px
+  );
+}
+
+.sidebar-resizer.hidden {
+  display: none;
+}
+
+body.sidebar-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .sidebar-top {
   flex: 0 0 auto;
   display: flex;
