@@ -60,6 +60,19 @@ try {
     await page.waitForTimeout(200);
   }
 
+  // 10 — collapse a project via its header (chevron area).
+  const projectLabel = page.locator(".sidebar-project-label").first();
+  if (await projectLabel.isVisible().catch(() => false)) {
+    await projectLabel.hover();
+    await page.waitForTimeout(150);
+    await shoot(page, "10a-project-chevron-hover");
+    await projectLabel.click();
+    await page.waitForTimeout(250);
+    await shoot(page, "10b-project-collapsed");
+    await projectLabel.click();
+    await page.waitForTimeout(200);
+  }
+
   // 5 — back to New Chat via sidebar button.
   await page.locator("#sidebar-new-chat").click();
   await page.waitForTimeout(400);

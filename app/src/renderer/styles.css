@@ -797,6 +797,24 @@ pre {
   white-space: nowrap;
 }
 
+.sidebar-project-chevron {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-muted);
+  /* Space-reserved; paint-only on hover (no layout shift). */
+  visibility: hidden;
+  transition: transform 0.12s ease;
+}
+
+.sidebar-project-header:hover .sidebar-project-chevron {
+  visibility: visible;
+}
+
+.sidebar-project-chevron.expanded {
+  transform: rotate(90deg);
+}
+
 .sidebar-row-actions {
   flex: 0 0 auto;
   display: inline-flex;

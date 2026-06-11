@@ -3,9 +3,11 @@ import { Terminal } from "@xterm/xterm";
 import DOMPurify from "dompurify";
 import {
   createElement as createLucideIcon,
+  ChevronRight,
   Ellipsis,
   Eye,
   Folder,
+  FolderOpen,
   ListFilter,
   LoaderCircle,
   PanelLeft,
@@ -576,6 +578,33 @@ function sidebarSectionLabel(text: string): HTMLElement {
   return label;
 }
 
+const COLLAPSED_PROJECTS_KEY = "duet.sidebar.collapsed-projects";
+
+const collapsedProjects = new Set<string>(loadCollapsedProjects());
+
+function loadCollapsedProjects(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(COLLAPSED_PROJECTS_KEY) ?? "[]");
+    return Array.isArray(raw) ? raw.filter((path) => typeof path === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function toggleProjectCollapsed(path: string): void {
+  if (collapsedProjects.has(path)) {
+    collapsedProjects.delete(path);
+  } else {
+    collapsedProjects.add(path);
+  }
+  try {
+    localStorage.setItem(COLLAPSED_PROJECTS_KEY, JSON.stringify([...collapsedProjects]));
+  } catch {
+    // View preference only.
+  }
+  renderSidebar();
+}
+
 function renderSidebarProject(project: ProjectGroup): HTMLElement {
   const container = document.createElement("div");
   container.className = "sidebar-project";
@@ -589,15 +618,26 @@ function renderSidebarProject(project: ProjectGroup): HTMLElement {
     return container;
   }
 
+  const expanded = !collapsedProjects.has(project.path);
+
   const labelButton = document.createElement("button");
   labelButton.type = "button";
   labelButton.className = "sidebar-project-label";
   labelButton.title = project.path;
-  labelButton.append(lucideIcon(Folder, 14));
+  labelButton.setAttribute("aria-expanded", String(expanded));
+  labelButton.append(lucideIcon(expanded ? FolderOpen : Folder, 14));
   const name = document.createElement("span");
   name.className = "sidebar-project-name";
   name.textContent = project.name;
   labelButton.append(name);
+  const chevron = document.createElement("span");
+  chevron.className = "sidebar-project-chevron";
+  chevron.classList.toggle("expanded", expanded);
+  chevron.append(lucideIcon(ChevronRight, 12));
+  labelButton.append(chevron);
+  labelButton.addEventListener("click", () => {
+    toggleProjectCollapsed(project.path);
+  });
   labelButton.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     openSidebarMenuForProject(project, event.currentTarget as HTMLElement);
@@ -616,12 +656,14 @@ function renderSidebarProject(project: ProjectGroup): HTMLElement {
   header.append(labelButton, actions);
   container.append(header);
 
-  const list = document.createElement("div");
-  list.className = "sidebar-project-sessions";
-  for (const session of project.sessions) {
-    list.append(renderSidebarSessionRow(session));
+  if (expanded) {
+    const list = document.createElement("div");
+    list.className = "sidebar-project-sessions";
+    for (const session of project.sessions) {
+      list.append(renderSidebarSessionRow(session));
+    }
+    container.append(list);
   }
-  container.append(list);
   return container;
 }
 
