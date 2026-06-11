@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { _electron as electron } from "playwright-core";
-import { approveIfVisible } from "./helpers/approval.mjs";
+import { sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-reading-navigation-workspace-"));
 const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-reading-navigation-store-"));
@@ -66,7 +66,7 @@ async function launchApp(options = {}) {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(60000);
   await page.setViewportSize({ width: 1280, height: 820 });
-  await page.locator(".task-entry-panel", { hasText: "Start a Task" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
     state: "visible",
   });
   await page.waitForFunction(() => Boolean(document.documentElement.dataset.readingFirstFrame));
@@ -170,11 +170,15 @@ async function injectReadingFixture(page, options = {}) {
 }
 
 async function startFixtureTask(page) {
-  await page.locator("#entry-new-task").click();
-  await approveIfVisible(page, "Workspace trust requested", 45000);
-  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
-    state: "visible",
-  });
+  // Sessions are born from the first composer message (deferred creation);
+  // the fixture only needs the run list and composer in their task state, so
+  // start the session with a no-op prompt and let the run settle before the
+  // fixture replaces the run list contents.
+  await sendFirstPrompt(page, [
+    "Reply exactly DUET_READING_NAV_READY.",
+    "Do not create or modify any files.",
+  ]);
+  await waitForCompletedTurns(page, 1);
   await page.locator("#send-prompt").waitFor({ state: "visible" });
 }
 

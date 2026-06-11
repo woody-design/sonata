@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
+import { sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-control-shots-"));
 const screenshotRoot = path.resolve("..", "product-thinking", "composer-slice-3-screenshots");
@@ -21,8 +22,11 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
 
-  await page.locator("#new-task").click();
-  await waitForRuntimeReady(page, 240000);
+  // Sessions are born from the first composer message, and the permission and
+  // model chips only render for a live session — so start one with a no-op
+  // prompt before staging the idle-state menu screenshots.
+  await sendFirstPrompt(page, "Reply exactly DUET_CONTROL_SESSION_READY. Do not create or modify any files.");
+  await waitForCompletedTurns(page, 1);
 
   await page.locator("#permission-chip").click();
   await page.screenshot({ path: path.join(screenshotRoot, "01-permission-menu.png"), fullPage: true });
@@ -69,21 +73,4 @@ try {
     await electronApp.close();
   }
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
-}
-
-async function waitForRuntimeReady(page, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const ready = await page
-      .locator("#runtime-status", { hasText: "Ready" })
-      .isVisible({ timeout: 500 })
-      .catch(() => false);
-    if (ready) {
-      return;
-    }
-
-    await approveIfVisible(page, "Workspace trust requested", 500);
-    await page.waitForTimeout(250);
-  }
-  throw new Error("Timed out waiting for runtime ready.");
 }

@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
 import {
   IPC_CHANNELS,
   type FolderPickResponse,
@@ -49,6 +49,38 @@ export function registerIpcHandlers(
     windowController.closeTaskSurfaces(request.taskId);
   });
   ipcMain.handle(IPC_CHANNELS.taskList, () => runtimeController.listTasks());
+  ipcMain.handle(IPC_CHANNELS.sessionIndexRead, (_event, request) =>
+    runtimeController.readSessionIndex(request ?? {}),
+  );
+  ipcMain.handle(IPC_CHANNELS.sessionRead, (_event, request) =>
+    runtimeController.readSessionSnapshot(request.taskId),
+  );
+  ipcMain.handle(IPC_CHANNELS.sessionRename, (_event, request) => {
+    runtimeController.renameSession(request.taskId, request.title);
+  });
+  ipcMain.handle(IPC_CHANNELS.sessionArchive, (_event, request) => {
+    runtimeController.archiveSession(request.taskId, request.archived);
+    if (request.archived) {
+      windowController.closeTaskSurfaces(request.taskId);
+    }
+  });
+  ipcMain.handle(IPC_CHANNELS.sessionDelete, (_event, request) => {
+    runtimeController.deleteSession(request.taskId);
+    windowController.closeTaskSurfaces(request.taskId);
+  });
+  ipcMain.handle(IPC_CHANNELS.sessionReveal, (_event, request) => {
+    const folder = runtimeController.sessionWorkingDirectory(request.taskId);
+    return shell.openPath(folder);
+  });
+  ipcMain.handle(IPC_CHANNELS.projectRename, (_event, request) => {
+    runtimeController.renameProject(request.path, request.displayName);
+  });
+  ipcMain.handle(IPC_CHANNELS.projectArchive, (_event, request) => {
+    runtimeController.archiveProject(request.path, request.archived);
+  });
+  ipcMain.handle(IPC_CHANNELS.projectReveal, (_event, request) => {
+    return shell.openPath(request.path);
+  });
   ipcMain.handle(IPC_CHANNELS.promptSubmit, (_event, request) => {
     runtimeController.submitPrompt(request.taskId, request.text, request.attachments ?? []);
   });

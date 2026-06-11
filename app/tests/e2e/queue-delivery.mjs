@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
+import { sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-queue-delivery-e2e-"));
 let electronApp = null;
@@ -22,19 +23,6 @@ try {
   page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
 
-  await page.locator("#new-task").click();
-  taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
-  workspace = path.join(workspaceRoot, taskDirectory);
-  await waitForRuntimeReady(page, 240000);
-  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
-    state: "visible",
-  });
-
-  const paths = {
-    firstStart: path.join(workspace, "queue_first_start.flag"),
-    firstDone: path.join(workspace, "queue_first_done.flag"),
-    second: path.join(workspace, "queue_second.md"),
-  };
   const firstCommand = [
     "python3 -c \"from pathlib import Path; import time;",
     "Path('queue_first_start.flag').write_text('start');",
@@ -54,8 +42,16 @@ try {
     "Do not modify any other files.",
   ].join("\n");
 
-  await page.locator("#prompt-input").fill(firstPrompt);
-  await page.locator("#send-prompt").click();
+  // The first prompt creates the session (deferred creation) and answers the
+  // workspace-trust approval that surfaces during the provider cold start.
+  await sendFirstPrompt(page, firstPrompt);
+  taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
+  workspace = path.join(workspaceRoot, taskDirectory);
+  const paths = {
+    firstStart: path.join(workspace, "queue_first_start.flag"),
+    firstDone: path.join(workspace, "queue_first_done.flag"),
+    second: path.join(workspace, "queue_second.md"),
+  };
   await approveIfVisible(page, "Command approval requested", 180000);
   await waitUntil(() => fs.existsSync(paths.firstStart), 180000, "first command start");
   await page.locator("#workflow-headline", { hasText: /Codex is working|Delivering to Codex/ }).waitFor({
@@ -142,23 +138,6 @@ try {
     await electronApp.close();
   }
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
-}
-
-async function waitForRuntimeReady(page, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const ready = await page
-      .locator("#runtime-status", { hasText: "Ready" })
-      .isVisible({ timeout: 500 })
-      .catch(() => false);
-    if (ready) {
-      return true;
-    }
-
-    await approveIfVisible(page, "Workspace trust requested", 500);
-    await delay(250);
-  }
-  throw new Error("Timed out waiting for runtime ready.");
 }
 
 async function waitForTaskDirectory(root, timeoutMs) {

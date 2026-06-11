@@ -28,6 +28,7 @@ import {
 import { registerIpcHandlers } from "./ipc";
 import { RuntimeController } from "./runtime-controller";
 import { ReadingSettingsStore, readingSettingsPath } from "./settings-store";
+import { ProjectsStore, projectsStorePath } from "./projects-store";
 
 let mainWindow: BrowserWindow | null = null;
 let previewWindow: BrowserWindow | null = null;
@@ -495,6 +496,7 @@ function sendReadingSystemMode(): void {
 app.whenReady().then(() => {
   readingSettingsStore = new ReadingSettingsStore(readingSettingsPath(app.getPath("userData")));
   runtimeController = new RuntimeController({
+    projectsStore: new ProjectsStore(projectsStorePath(app.getPath("userData"))),
     sendEvent: (event) => {
       handlePreviewRuntimeEvent(event);
       for (const window of BrowserWindow.getAllWindows()) {

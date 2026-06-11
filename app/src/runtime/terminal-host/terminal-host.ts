@@ -127,6 +127,8 @@ export interface StartTaskOptions {
   reasoningEffort?: ReasoningEffort | null;
   speedMode?: LaunchSpeedMode | null;
   resumeLast?: boolean;
+  /** Provider session id to resume natively (claude --resume / codex resume). */
+  resumeRef?: string;
   cols?: number;
   rows?: number;
 }
@@ -1349,8 +1351,13 @@ export function codexArgs(options: {
   reasoningEffort?: ReasoningEffort | null | undefined;
   speedMode?: LaunchSpeedMode | null | undefined;
   resumeLast?: boolean;
+  resumeRef?: string | undefined;
 }): string[] {
-  const base = options.resumeLast ? ["resume", "--last"] : [];
+  const base = options.resumeRef
+    ? ["resume", options.resumeRef]
+    : options.resumeLast
+      ? ["resume", "--last"]
+      : [];
   const configOverrides: string[] = [];
   if (options.reasoningEffort) {
     configOverrides.push("-c", `model_reasoning_effort=${tomlString(options.reasoningEffort)}`);
@@ -1377,8 +1384,10 @@ export function claudeArgs(options: {
   model?: string | null | undefined;
   reasoningEffort?: ReasoningEffort | null | undefined;
   settingsPath?: string | null | undefined;
+  resumeRef?: string | undefined;
 }): string[] {
   return [
+    ...(options.resumeRef ? ["--resume", options.resumeRef] : []),
     "--permission-mode",
     options.permissionMode ?? "default",
     ...(options.settingsPath ? ["--settings", options.settingsPath] : []),
@@ -1403,6 +1412,16 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         "thinkingwith",
         "cerebrating",
         "accomplishing",
+        // Claude 2.x spinner/summary glyphs ("✶ Levitating…", "✻ Baked for 2s").
+        // Resumed sessions never repaint the welcome banner, so these glyphs
+        // are the only working-activity signal they emit. Safe against
+        // premature completion: the spinner animates while working, so the
+        // completion quiet-window cannot elapse mid-run.
+        "✢",
+        "✳",
+        "✶",
+        "✻",
+        "✽",
       ],
       idlePromptModelHints: /opus|sonnet|haiku|xhigh|high|medium|low|effort|~/i,
       buildArgs: (options) =>
@@ -1411,6 +1430,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           model: options.model,
           reasoningEffort: options.reasoningEffort,
           settingsPath: ensureClaudeStatuslineSettings(options.cwd),
+          resumeRef: options.resumeRef,
         }),
       approvalHints: {
         fileRead: CLAUDE_FILE_READ_APPROVAL_HINTS,
@@ -1439,6 +1459,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         reasoningEffort: options.reasoningEffort,
         speedMode: options.speedMode,
         resumeLast: Boolean(options.resumeLast),
+        resumeRef: options.resumeRef,
       }),
     approvalHints: {
       fileRead: [],

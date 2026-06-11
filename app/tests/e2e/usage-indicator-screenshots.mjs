@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveIfVisible } from "./helpers/approval.mjs";
+import { chooseDraftProvider, openNewChat, sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-usage-shots-"));
 const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-usage-settings-"));
@@ -29,8 +29,10 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
 
-  await page.locator("#new-task").click();
-  await waitForRuntimeReady(page, 240000);
+  // Sessions are born from the first composer message; the indicator is
+  // disabled until the session exists, so the degraded (no usage data yet)
+  // state is captured between session creation and the first usage snapshot.
+  await sendFirstPrompt(page, "Reply exactly DUET_USAGE_CODEX.");
   await stageComposerForScreenshot(page);
   await page.locator("#usage-indicator").click();
   await page.locator(".usage-popover", { hasText: "No usage data yet" }).waitFor({
@@ -39,7 +41,10 @@ try {
   await page.screenshot({ path: path.join(screenshotRoot, "06-degraded-no-data.png") });
   await page.locator("#usage-indicator").click();
 
-  await runPrompt(page, "Reply exactly DUET_USAGE_CODEX.");
+  await page.locator(".turn-card", { hasText: "Reply exactly DUET_USAGE_CODEX." }).first().waitFor({
+    state: "visible",
+    timeout: 180000,
+  });
   await waitForUsageSnapshot(page, 180000);
   await stageComposerForScreenshot(page);
   await page.screenshot({ path: path.join(screenshotRoot, "01-low-light.png") });
@@ -61,8 +66,8 @@ try {
   await page.screenshot({ path: path.join(screenshotRoot, "04-popover-codex-live.png") });
   await page.locator("#usage-indicator").click();
 
-  await page.locator("#new-claude-task").click();
-  await waitForRuntimeReady(page, 240000);
+  await openNewChat(page);
+  await chooseDraftProvider(page, "claude");
   await runPrompt(page, "Reply exactly DUET_USAGE_CLAUDE.");
   await waitForUsageSnapshot(page, 240000);
   await stageComposerForScreenshot(page);
@@ -82,30 +87,13 @@ try {
 }
 
 async function runPrompt(page, prompt) {
-  await page.locator("#prompt-input").fill(prompt);
-  await page.locator("#send-prompt").click();
-  await approveIfVisible(page, "Workspace trust requested", 1000);
+  // The first prompt of a fresh chat creates the session (deferred creation)
+  // and answers the workspace-trust approval during the provider cold start.
+  await sendFirstPrompt(page, prompt);
   await page.locator(".turn-card", { hasText: prompt }).first().waitFor({
     state: "visible",
     timeout: 180000,
   });
-}
-
-async function waitForRuntimeReady(page, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const ready = await page
-      .locator("#runtime-status", { hasText: "Ready" })
-      .isVisible({ timeout: 500 })
-      .catch(() => false);
-    if (ready) {
-      return;
-    }
-
-    await approveIfVisible(page, "Workspace trust requested", 500);
-    await page.waitForTimeout(250);
-  }
-  throw new Error("Timed out waiting for runtime ready.");
 }
 
 async function waitForUsageSnapshot(page, timeoutMs) {

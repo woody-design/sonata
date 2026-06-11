@@ -550,9 +550,380 @@ pre {
   height: 100vh;
   height: 100dvh;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   overflow: hidden;
   background: var(--surface-shell);
+}
+
+.main-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------- sidebar */
+
+.sidebar {
+  flex: 0 0 236px;
+  width: 236px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border-raised);
+  background: var(--surface-shell);
+}
+
+.sidebar.collapsed {
+  display: none;
+}
+
+.sidebar-top {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 10px 6px;
+}
+
+.sidebar-top .chrome-mark {
+  padding-left: 4px;
+}
+
+.sidebar-new-chat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-new-chat:hover {
+  background: var(--surface-menu-hover);
+}
+
+.sidebar-new-chat-icon {
+  display: inline-flex;
+  color: var(--ink-muted);
+}
+
+.sidebar-sections {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-section-label {
+  margin: 12px 0 4px;
+  padding-left: 4px;
+  color: var(--ink-label);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.sidebar-empty {
+  margin: 10px 0 0;
+  padding-left: 4px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.sidebar-project {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-project-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Fixed row height: hover/edit states must never change the box. */
+  height: 28px;
+  border-radius: 7px;
+}
+
+.sidebar-project-header:hover {
+  background: var(--surface-menu-hover);
+}
+
+.sidebar-project-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px 0 6px;
+  min-height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 620;
+  cursor: default;
+  text-align: left;
+}
+
+.sidebar-project-label svg {
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+}
+
+.sidebar-project-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-row-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+  /* Space is reserved; only paint toggles on hover. The project name
+     truncates the same with or without the pointer on the row. */
+  visibility: hidden;
+}
+
+.sidebar-project-header:hover .sidebar-row-actions {
+  visibility: visible;
+}
+
+.sidebar-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.sidebar-icon-button:hover {
+  background: var(--surface-control-soft);
+  color: var(--ink);
+}
+
+.sidebar-project-sessions {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-session {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.sidebar-session:hover {
+  background: var(--surface-menu-hover);
+}
+
+.sidebar-session.active {
+  background: var(--surface-selected);
+}
+
+.sidebar-session-button {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 4px 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-project-sessions .sidebar-session-button {
+  padding-left: 27px;
+}
+
+.sidebar-session-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-session-trailing {
+  flex: 0 0 auto;
+  /* Time/indicator and the menu button overlap in ONE grid cell, so the
+     hover swap changes paint (visibility), never layout. */
+  display: grid;
+  align-items: center;
+  justify-items: end;
+  min-width: 28px;
+  padding-right: 6px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebar-session-trailing > * {
+  grid-area: 1 / 1;
+}
+
+.sidebar-session .sidebar-row-hover-action {
+  visibility: hidden;
+}
+
+.sidebar-session:hover .sidebar-row-hover-action {
+  visibility: visible;
+}
+
+.sidebar-session:hover .sidebar-session-time,
+.sidebar-session:hover .sidebar-session-spinner,
+.sidebar-session:hover .sidebar-session-attention {
+  visibility: hidden;
+}
+
+.sidebar-session-spinner {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.sidebar-session-spinner svg {
+  animation: sidebar-spin 0.9s linear infinite;
+}
+
+@keyframes sidebar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sidebar-session-attention {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-attention);
+}
+
+.sidebar-rename-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Fits the fixed 28px row exactly: 24px box + 2px vertical margins. */
+  height: 24px;
+  margin: 2px 4px;
+  padding: 0 6px;
+  border: 1px solid var(--accent-soft-border);
+  border-radius: 6px;
+  background: var(--surface-input);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.sidebar-menu {
+  z-index: 60;
+  min-width: 178px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-menu);
+  box-shadow: 0 10px 28px rgba(20, 18, 12, 0.18);
+}
+
+.sidebar-menu-item {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-menu-item:hover {
+  background: var(--surface-menu-hover);
+}
+
+.sidebar-menu-item.danger {
+  color: var(--status-attention-label);
+}
+
+/* ------------------------------------------------------------ main header */
+
+.header-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.chrome-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.chrome-icon-button:hover:not(:disabled) {
+  background: var(--surface-control-soft);
+  color: var(--ink);
+}
+
+.chrome-icon-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.session-menu-trigger {
+  width: 26px;
+  min-height: 26px;
+}
+
+.task-folder-quick {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-folder-selected {
+  border-color: var(--accent-soft-border);
+  color: var(--accent-strong);
 }
 
 .floating-preview-shell {
@@ -924,104 +1295,6 @@ h2 {
   min-height: 0;
   display: flex;
   overflow: hidden;
-}
-
-.task-tabs {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  border-bottom: 0;
-  padding: 0;
-  background: transparent;
-  scrollbar-width: none;
-}
-
-.task-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.task-tab-empty {
-  color: var(--ink-muted-warm);
-  font-size: 12px;
-  line-height: 30px;
-  white-space: nowrap;
-}
-
-.task-tab-item {
-  display: flex;
-  align-items: stretch;
-  min-width: 168px;
-  max-width: 260px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-panel);
-}
-
-.task-tab-item.active {
-  border-color: var(--accent);
-  background: var(--surface-selected);
-}
-
-.task-tab {
-  min-width: 0;
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 7px;
-  min-height: 30px;
-  overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  padding: 4px 8px;
-  color: var(--ink-ui);
-  background: transparent;
-  text-align: left;
-}
-
-.task-tab-label,
-.task-tab-meta {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.task-tab-label {
-  grid-column: 1 / 2;
-  font-size: 12px;
-  font-weight: 680;
-}
-
-.task-tab-meta {
-  grid-column: 1 / 2;
-  color: var(--ink-meta);
-  font-family: var(--font-mono);
-  font-size: 10px;
-}
-
-.task-tab-dot {
-  grid-column: 2 / 3;
-  grid-row: 1 / 3;
-  align-self: center;
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--status-complete-strong);
-}
-
-.task-tab-close {
-  flex: 0 0 26px;
-  min-height: 0;
-  border: 0;
-  border-left: 1px solid var(--border-soft);
-  border-radius: 0;
-  padding: 0;
-  color: var(--ink-meta);
-  background: transparent;
-  font-size: 13px;
 }
 
 .run-column {

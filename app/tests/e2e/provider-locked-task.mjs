@@ -3,26 +3,34 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
+import { chooseDraftProvider, sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-provider-locked-e2e-"));
 let electronApp = null;
 
 try {
   const page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "model and permission can be changed" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "your first message starts the session" }).waitFor({
     state: "visible",
   });
-  await page.locator("#entry-provider-claude", { hasText: "Claude" }).click();
+  await chooseDraftProvider(page, "claude");
   await page.locator("#entry-launch-settings", { hasText: "Opus 4.8 Extra High" }).waitFor({
     state: "visible",
   });
-  await page.locator("#entry-new-task", { hasText: "Start Claude Task" }).click();
+  // Draft state surfaces the chosen provider in the composer placeholder.
+  await page
+    .locator('#prompt-input[placeholder="Message Claude — starts the session"]')
+    .waitFor({ state: "visible" });
+
+  // The first composer message creates the provider-locked session.
+  await sendFirstPrompt(page, "Reply exactly DUET_PROVIDER_LOCKED. Do not create or modify any files.");
 
   const taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
   const workspace = path.join(workspaceRoot, taskDirectory);
   await waitForRuntimeReady(page, 240000);
 
-  await page.locator(".task-tab-meta", { hasText: "Claude" }).waitFor({ state: "visible" });
+  // TODO(sidebar): .task-tab-meta provider label removed with task tabs; the
+  // placeholder assertion above and #runtime-status cover the provider lock.
   await page.locator("#runtime-status", { hasText: /Ready|Claude PTY/ }).waitFor({ state: "visible" });
   await page.locator("#send-prompt").waitFor({ state: "visible" });
 

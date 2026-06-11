@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
+import { sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-gui-e2e-"));
 let electronApp = null;
@@ -19,13 +20,6 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);
 
-  await page.locator("#new-task").click();
-  await approveIfVisible(page, "Workspace trust requested", 45000);
-  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
-    state: "visible",
-  });
-  await page.locator("#send-prompt").waitFor({ state: "visible" });
-
   const prompt = [
     "Create exactly two files in this workspace:",
     "1. report.md with the heading '# Duet GUI Gate' and one sentence saying 'Markdown artifact ready.'",
@@ -33,11 +27,13 @@ try {
     "Do not modify any other files.",
   ].join("\n");
 
-  await page.locator("#prompt-input").fill(prompt);
-  await page.locator("#send-prompt").click();
-  await page.locator("#workflow-headline", { hasText: /Codex is working|File edit approval needed/ }).waitFor({
-    state: "visible",
-  });
+  // The first message creates the session (deferred creation).
+  await sendFirstPrompt(page, prompt);
+  await page
+    .locator("#workflow-headline", {
+      hasText: /Codex is working|File edit approval needed|Starting Codex|Queued for Codex|Delivering to Codex/,
+    })
+    .waitFor({ state: "visible" });
 
   await approveIfVisible(page, "File edit approval requested", 180000);
   await approveIfVisible(page, "Command approval requested", 15000);

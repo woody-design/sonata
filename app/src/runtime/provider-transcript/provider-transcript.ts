@@ -59,13 +59,20 @@ export class ProviderTranscript {
     this.locate = options.locate ?? locateSessionFile;
   }
 
-  /** Re-attach a source persisted by a previous app run. Reads it fully. */
-  attachExistingSource(ref: TranscriptSourceRef): void {
+  /**
+   * Re-attach a source persisted by a previous app run. Reads it fully.
+   * Pass `tail: true` when the provider keeps appending to this file —
+   * native resume continues the SAME session file for both providers.
+   */
+  attachExistingSource(ref: TranscriptSourceRef, options: { tail?: boolean } = {}): void {
     if (this.disposed || this.sourcesById.has(ref.sourceId)) {
       return;
     }
     const attached = this.attachSource(ref);
     attached.tailer.drain();
+    if (options.tail) {
+      attached.tailer.start();
+    }
   }
 
   /** Start looking for the session file created by the current PTY launch. */

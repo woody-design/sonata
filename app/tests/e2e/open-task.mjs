@@ -1,33 +1,33 @@
+// Sidebar resume e2e: a session created in one app launch is listed in the
+// sidebar after a relaunch, its transcript renders WITHOUT spawning a PTY,
+// and the first new message lazily spawns a NATIVE RESUME — verified by the
+// agent recalling a codeword planted before the restart.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
+import { activeSessionTaskId, selectSidebarSession, sendFirstPrompt, sendPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-open-task-e2e-"));
+const CODEWORD = "OPENTASK-99";
 let electronApp = null;
 
 try {
   let page = await launchApp("initial");
 
-  await page.locator("#new-task").click();
-  const taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
-  const workspace = path.join(workspaceRoot, taskDirectory);
-  await waitForRuntimeReady(page, 240000);
-  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
-    state: "visible",
-  });
-
   const originalPrompt = [
     "Create a Markdown file named open_original.md with exactly this content:",
     "# Open Task Original",
-    "This artifact existed before reopening the Task.",
+    "This artifact existed before reopening the session.",
+    `Also remember this codeword for later: ${CODEWORD}.`,
     "Do not modify any other files.",
   ].join("\n");
   const expectedTaskTitle = originalPrompt.split("\n", 1)[0];
 
-  await page.locator("#prompt-input").fill(originalPrompt);
-  await page.locator("#send-prompt").click();
+  await sendFirstPrompt(page, originalPrompt);
+  const taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
+  const workspace = path.join(workspaceRoot, taskDirectory);
   await approveIfVisible(page, "File edit approval requested", 180000);
   await waitUntil(() => fs.existsSync(path.join(workspace, "open_original.md")), 180000, "original artifact");
   await page.locator(".artifact-item", { hasText: "open_original.md" }).waitFor({ state: "visible" });
@@ -35,9 +35,11 @@ try {
     state: "visible",
   });
   await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
-  await page.locator(".task-tab-label", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
-  await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({ state: "visible" });
+  await page
+    .locator(".sidebar-session-title", { hasText: expectedTaskTitle })
+    .waitFor({ state: "visible" });
 
+  const taskId = await activeSessionTaskId(page);
   const manifestPath = path.join(workspace, ".duet", "task.json");
   const reportPath = path.join(workspace, ".duet", "runtime-report.json");
   if (!fs.existsSync(manifestPath)) {
@@ -48,46 +50,38 @@ try {
   electronApp = null;
 
   page = await launchApp("reopen");
-  await page.locator("#open-task").click();
+
+  // The relaunched sidebar lists the session from disk.
+  await page
+    .locator(".sidebar-session-title", { hasText: expectedTaskTitle })
+    .waitFor({ state: "visible" });
+
+  // Clicking renders the transcript read-only — no PTY yet.
+  await selectSidebarSession(page, taskId);
   await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
-  await page.locator(".task-tab-label", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
-  await page.locator(".artifact-item", { hasText: "open_original.md" }).waitFor({ state: "visible" });
   await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
     state: "visible",
   });
-  await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({ state: "visible" });
-  await page.locator("#send-prompt").waitFor({ state: "visible" });
-  const previewWindowPromise = electronApp.waitForEvent("window");
-  await page.locator(".artifact-item", { hasText: "open_original.md" }).click();
-  const previewPage = await previewWindowPromise;
-  previewPage.setDefaultTimeout(240000);
-  await previewPage.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".artifact-review", { hasText: "Floating Preview" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".artifact-review", { hasText: ".duet/runtime-report.json" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".artifact-review", { hasText: "markdown" }).waitFor({ state: "visible" });
-  await previewPage.locator(".text-preview", { hasText: "before reopening the Task" }).waitFor({
-    state: "visible",
-  });
-  await waitForRuntimeReady(page, 240000);
+  const dormantPlaceholder = await page.locator("#prompt-input").getAttribute("placeholder");
+  if (!dormantPlaceholder?.includes("resumes this session")) {
+    throw new Error(`Dormant composer placeholder unexpected: ${dormantPlaceholder}`);
+  }
 
+  // First new message lazily spawns a native resume.
   const followupPrompt = [
-    "Create a Markdown file named open_followup.md with exactly this content:",
-    "# Open Task Followup",
-    "The reopened Task accepted a new prompt.",
+    `Reply with the codeword I asked you to remember, then create a Markdown`,
+    `file named open_followup.md containing exactly that codeword.`,
     "Do not modify any other files.",
   ].join("\n");
-
-  await page.locator("#prompt-input").fill(followupPrompt);
-  await page.locator("#send-prompt").click();
-  await approveIfVisible(page, "File edit approval requested", 180000);
-  await waitUntil(() => fs.existsSync(path.join(workspace, "open_followup.md")), 180000, "followup artifact");
+  await sendPrompt(page, followupPrompt);
+  await waitForResumeSpawn(page, 240000);
+  await approveIfVisible(page, "File edit approval requested", 240000);
+  await waitUntil(() => fs.existsSync(path.join(workspace, "open_followup.md")), 240000, "followup artifact");
   await page.locator(".artifact-item", { hasText: "open_followup.md" }).waitFor({ state: "visible" });
+
+  // Memory continuity: the resumed agent recalled the planted codeword.
+  const followupContent = fs.readFileSync(path.join(workspace, "open_followup.md"), "utf8");
+  const codewordRecalled = followupContent.includes(CODEWORD);
 
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
@@ -105,9 +99,11 @@ try {
   const success =
     manifest.schemaId === "duet.task-manifest.v1" &&
     manifest.task.id === report.taskId &&
+    manifest.task.id === taskId &&
     manifest.task.title === expectedTaskTitle &&
     Boolean(originalRun) &&
     Boolean(followupRun) &&
+    codewordRecalled &&
     report.runs.length >= 2 &&
     !rawTerminalPersisted;
 
@@ -116,15 +112,12 @@ try {
       {
         workspaceRoot,
         taskDirectory,
-        manifestPath,
-        reportPath,
-        manifestSchema: manifest.schemaId,
-        manifestTaskId: manifest.task.id,
+        taskId,
         manifestTaskTitle: manifest.task.title,
-        reportTaskId: report.taskId,
         runCount: report.runs.length,
         originalRestored: Boolean(originalRun),
         followupCreated: Boolean(followupRun),
+        codewordRecalled,
         rawTerminalPersisted,
         success,
       },
@@ -169,21 +162,21 @@ async function launchApp(label) {
   return page;
 }
 
-async function waitForRuntimeReady(page, timeoutMs) {
+async function waitForResumeSpawn(page, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const ready = await page
-      .locator("#runtime-status", { hasText: "Ready" })
+    const working = await page
+      .locator(".sidebar-session-spinner, .turn-outcome")
+      .first()
       .isVisible({ timeout: 500 })
       .catch(() => false);
-    if (ready) {
-      return true;
+    if (working) {
+      return;
     }
-
     await approveIfVisible(page, "Workspace trust requested", 500);
     await delay(250);
   }
-  throw new Error("Timed out waiting for runtime ready.");
+  throw new Error("Timed out waiting for the resumed session to spawn.");
 }
 
 async function waitForTaskDirectory(root, timeoutMs) {

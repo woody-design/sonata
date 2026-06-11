@@ -14,6 +14,7 @@ import type {
   DeliveryControlChange,
   LaunchSpeedMode,
   OpenTaskRequest,
+  ReadSessionIndexRequest,
   ReadTranscriptResponse,
   ReasoningEffort,
   RunId,
@@ -21,6 +22,8 @@ import type {
   RuntimeEvent,
   RuntimeProvider,
   RuntimeReportUpdatedEvent,
+  SessionIndexResponse,
+  SessionSnapshotResponse,
   Task,
   TaskId,
   UsageSnapshot,
@@ -52,6 +55,8 @@ import {
   parseClaudeStatuslinePayload,
   type ResolveRunIdInput,
 } from "../runtime";
+import { buildSessionIndex } from "./session-index";
+import type { ProjectsStore } from "./projects-store";
 
 const DEFAULT_TASK_TITLE = "New Task";
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
@@ -74,6 +79,7 @@ const CLAUDE_PERMISSION_MODES = new Set<ClaudePermissionMode>([
 
 interface RuntimeControllerOptions {
   sendEvent: (event: RuntimeEvent) => void;
+  projectsStore: ProjectsStore;
 }
 
 interface ActiveTaskRuntime {
@@ -89,6 +95,7 @@ interface ActiveTaskRuntime {
 
 export class RuntimeController {
   private readonly sendEvent: (event: RuntimeEvent) => void;
+  private readonly projectsStore: ProjectsStore;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
@@ -98,6 +105,7 @@ export class RuntimeController {
 
   constructor(options: RuntimeControllerOptions) {
     this.sendEvent = options.sendEvent;
+    this.projectsStore = options.projectsStore;
     this.claudeUsageWatcher = new ClaudeStatuslineUsageWatcher({
       onPayload: (payload, _filePath, mtimeMs) =>
         this.handleClaudeStatuslinePayload(payload, mtimeMs),
@@ -120,6 +128,10 @@ export class RuntimeController {
     fs.mkdirSync(duetDirectory(storageRoot), { recursive: true });
     const launchSettings = normalizeLaunchSettings(request.provider, request);
     const permissionSettings = normalizePermissionSettings(request.provider, request);
+
+    if (request.cwd) {
+      this.projectsStore.noteFolderUsed(providerCwd);
+    }
 
     const task: Task = {
       id: taskId,
@@ -222,6 +234,15 @@ export class RuntimeController {
       };
     }
 
+    // Native resume by default: the chain tip is the latest persisted
+    // source whose file still exists (readTranscriptSources filters
+    // missing files). When the provider session is gone we fall back to
+    // a fresh spawn in the same folder — history stays readable, and the
+    // caller is told via resumedProviderSession so it can say so.
+    const persistedSources = this.readTranscriptSources(storageRoot);
+    const resumeRef =
+      request.resume === false ? null : (persistedSources.at(-1)?.providerSessionId ?? null);
+
     const providerCwd = taskProviderCwd(manifest.task, storageRoot);
     const task = normalizeTaskForProviderCwd(manifest.task, providerCwd);
     const permissionSettings = normalizePermissionSettings(task.provider, {
@@ -275,6 +296,7 @@ export class RuntimeController {
       ...(runningTask.provider === "claude"
         ? { permissionMode: permissionSettings.permissionMode ?? "default" }
         : {}),
+      ...(resumeRef ? { resumeRef } : {}),
       ...(request.rows !== undefined ? { rows: request.rows } : {}),
       ...(request.cols !== undefined ? { cols: request.cols } : {}),
     });
@@ -293,8 +315,10 @@ export class RuntimeController {
     this.watchClaudeUsage(activeTask);
     this.persistTaskManifest(runningTask, storageRoot);
 
-    for (const source of this.readTranscriptSources(storageRoot)) {
-      providerTranscript.attachExistingSource(source);
+    for (const source of persistedSources) {
+      // Both CLIs append to the same session file on resume — the
+      // re-attached chain tip must stay tailed for live updates.
+      providerTranscript.attachExistingSource(source, { tail: Boolean(resumeRef) });
     }
     providerTranscript.startDiscovery(ptyStartedAt);
 
@@ -303,6 +327,7 @@ export class RuntimeController {
     return {
       task: runningTask,
       runtime,
+      resumedProviderSession: Boolean(resumeRef),
     };
   }
 
@@ -314,6 +339,170 @@ export class RuntimeController {
 
   listTasks(): Task[] {
     return [...this.taskRuntimes.values()].map((active) => active.task);
+  }
+
+  readSessionSnapshot(taskId: TaskId): SessionSnapshotResponse {
+    const live = this.taskRuntimes.get(taskId);
+    if (live) {
+      return {
+        task: live.task,
+        live: true,
+        report: live.runIndex.read(),
+        sources: live.providerTranscript.sources(),
+        blocks: live.providerTranscript.blocks(),
+      };
+    }
+
+    // Dormant session: rebuild the reading surface straight from disk.
+    // No PTY, no tailing — attach the persisted sources, drain once, done.
+    const record = this.requirePersistedSession(taskId);
+    const task = record.manifest.task;
+    const providerCwd = taskProviderCwd(task, record.storageRoot);
+    const runIndex = new RunIndex({
+      taskId,
+      reportPath: runtimeReportPath(record.storageRoot),
+      loadExisting: true,
+    });
+    const transcript = new ProviderTranscript({
+      taskId,
+      provider: task.provider,
+      providerCwd,
+      eventSink: () => {
+        // One-shot read; the snapshot response carries everything.
+      },
+      resolveRunId: (input) => resolveRunForTurn(runIndex, input),
+    });
+    try {
+      for (const source of this.readTranscriptSources(record.storageRoot)) {
+        transcript.attachExistingSource(source);
+      }
+      return {
+        task,
+        live: false,
+        report: runIndex.read(),
+        sources: transcript.sources(),
+        blocks: transcript.blocks(),
+      };
+    } finally {
+      transcript.dispose();
+    }
+  }
+
+  readSessionIndex(request: ReadSessionIndexRequest = {}): SessionIndexResponse {
+    const liveTasks = new Map<TaskId, Task>();
+    for (const active of this.taskRuntimes.values()) {
+      liveTasks.set(active.task.id, active.task);
+    }
+    return buildSessionIndex({
+      candidates: this.taskManifestCandidates(),
+      liveTasks,
+      overlay: this.projectsStore.read(),
+      taskStorageRoot: this.taskStorageRoot(),
+      ...(request.includeArchived !== undefined
+        ? { includeArchived: request.includeArchived }
+        : {}),
+    });
+  }
+
+  renameSession(taskId: TaskId, title: string): void {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      throw new Error("Session title must not be empty.");
+    }
+    // Renaming is metadata, not activity — leave updatedAt alone so the
+    // session keeps its place in the sidebar ordering.
+    const live = this.taskRuntimes.get(taskId);
+    if (live) {
+      live.task = { ...live.task, title: trimmed };
+      this.persistTaskManifest(live.task, live.storageRoot);
+      this.sendEvent({
+        type: "task:updated",
+        payload: { taskId, task: live.task, reason: "runtime-status" },
+        ts: new Date().toISOString(),
+      });
+      return;
+    }
+    const record = this.requirePersistedSession(taskId);
+    this.persistTaskManifest({ ...record.manifest.task, title: trimmed }, record.storageRoot);
+  }
+
+  archiveSession(taskId: TaskId, archived: boolean): void {
+    // Like rename, the archive flag is metadata — updatedAt stays put.
+    const live = this.taskRuntimes.get(taskId);
+    if (live) {
+      // Archiving a running session stops its PTY first; disposeTaskRuntime
+      // persists the manifest with the flag already applied.
+      live.task = { ...live.task, archived };
+      if (archived) {
+        this.disposeTaskRuntime(live);
+        this.taskRuntimes.delete(taskId);
+      } else {
+        this.persistTaskManifest(live.task, live.storageRoot);
+      }
+      return;
+    }
+    const record = this.requirePersistedSession(taskId);
+    this.persistTaskManifest({ ...record.manifest.task, archived }, record.storageRoot);
+  }
+
+  deleteSession(taskId: TaskId): void {
+    const live = this.taskRuntimes.get(taskId);
+    if (live) {
+      this.disposeTaskRuntime(live);
+      this.taskRuntimes.delete(taskId);
+    }
+    const record = this.persistedSessionRecord(taskId);
+    if (record) {
+      const providerCwd = taskProviderCwd(record.manifest.task, record.storageRoot);
+      const insideCentralRoot = isPathInside(this.taskStorageRoot(), record.storageRoot);
+      if (pathsEqual(providerCwd, record.storageRoot)) {
+        // Auto-workspace session: the storage root doubles as the working
+        // folder and may hold agent-created artifacts. Keep any content
+        // beyond .duet; never silently destroy work products.
+        if (insideCentralRoot && !hasContentBesidesDuet(record.storageRoot)) {
+          fs.rmSync(record.storageRoot, { recursive: true, force: true });
+        } else {
+          fs.rmSync(duetDirectory(record.storageRoot), { recursive: true, force: true });
+        }
+      } else if (insideCentralRoot) {
+        // User-picked folder: the storage root holds only Duet records.
+        // The user's working folder and the provider transcript stay.
+        fs.rmSync(record.storageRoot, { recursive: true, force: true });
+      } else {
+        // Legacy manifest living inside a user folder: remove only .duet.
+        fs.rmSync(duetDirectory(record.storageRoot), { recursive: true, force: true });
+      }
+    }
+    this.emitSessionsUpdated("session-deleted");
+  }
+
+  sessionWorkingDirectory(taskId: TaskId): string {
+    const live = this.taskRuntimes.get(taskId);
+    if (live) {
+      return taskProviderCwd(live.task, live.storageRoot);
+    }
+    const record = this.requirePersistedSession(taskId);
+    return taskProviderCwd(record.manifest.task, record.storageRoot);
+  }
+
+  renameProject(folderPath: string, displayName: string | null): void {
+    this.projectsStore.setDisplayName(path.resolve(folderPath), displayName);
+    this.emitSessionsUpdated("project-updated");
+  }
+
+  archiveProject(folderPath: string, archived: boolean): void {
+    const resolved = path.resolve(folderPath);
+    if (archived) {
+      // Stop any live sessions working in this folder before hiding it.
+      for (const active of [...this.taskRuntimes.values()]) {
+        if (pathsEqual(taskProviderCwd(active.task, active.storageRoot), resolved)) {
+          this.disposeTaskRuntime(active);
+          this.taskRuntimes.delete(active.task.id);
+        }
+      }
+    }
+    this.projectsStore.setArchived(resolved, archived);
+    this.emitSessionsUpdated("project-updated");
   }
 
   submitPrompt(taskId: TaskId, text: string, attachments: DeliveryAttachment[] = []): void {
@@ -473,6 +662,10 @@ export class RuntimeController {
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
     if (event.type === "usage:updated") {
       this.publishUsageSnapshot(event.payload.taskId, event.payload.snapshot);
+      return;
+    }
+    if (event.type === "sessions:updated") {
+      this.sendEvent(event);
       return;
     }
 
@@ -900,6 +1093,53 @@ export class RuntimeController {
     const tmpPath = `${manifestPath}.tmp`;
     fs.writeFileSync(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`);
     fs.renameSync(tmpPath, manifestPath);
+    this.emitSessionsUpdated("session-updated");
+  }
+
+  private emitSessionsUpdated(
+    reason:
+      | "session-created"
+      | "session-updated"
+      | "session-renamed"
+      | "session-archived"
+      | "session-deleted"
+      | "project-updated",
+  ): void {
+    this.sendEvent({
+      type: "sessions:updated",
+      payload: { reason },
+      ts: new Date().toISOString(),
+    });
+  }
+
+  private persistedSessionRecord(
+    taskId: TaskId,
+  ): { storageRoot: string; manifest: TaskManifestV1 } | null {
+    const direct = this.defaultWorkspacePath(taskId);
+    if (fs.existsSync(taskManifestPath(direct))) {
+      try {
+        return { storageRoot: direct, manifest: this.readTaskManifest(direct) };
+      } catch {
+        // Fall through to the scan for unreadable direct manifests.
+      }
+    }
+    const candidate = this.taskManifestCandidates().find(
+      (entry) => entry.manifest.task.id === taskId,
+    );
+    return candidate
+      ? { storageRoot: candidate.storageRoot, manifest: candidate.manifest }
+      : null;
+  }
+
+  private requirePersistedSession(taskId: TaskId): {
+    storageRoot: string;
+    manifest: TaskManifestV1;
+  } {
+    const record = this.persistedSessionRecord(taskId);
+    if (!record) {
+      throw new Error("No persisted session matches the requested taskId.");
+    }
+    return record;
   }
 }
 
@@ -1049,6 +1289,21 @@ function hasUsageData(snapshot: UsageSnapshot): boolean {
 
 function pathsEqual(left: string, right: string): boolean {
   return path.resolve(left) === path.resolve(right);
+}
+
+function isPathInside(parent: string, child: string): boolean {
+  const relative = path.relative(path.resolve(parent), path.resolve(child));
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function hasContentBesidesDuet(folder: string): boolean {
+  try {
+    return fs
+      .readdirSync(folder)
+      .some((entry) => entry !== ".duet" && entry !== ".DS_Store");
+  } catch {
+    return false;
+  }
 }
 
 function normalizeLaunchSettings(

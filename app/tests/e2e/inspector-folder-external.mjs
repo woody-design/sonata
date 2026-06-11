@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveIfVisible } from "./helpers/approval.mjs";
+import { activeSessionTaskId, sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-inspector-folder-e2e-"));
 let electronApp = null;
@@ -20,16 +20,17 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);
 
-  await page.locator("#entry-new-task").click();
-  await approveIfVisible(page, "Workspace trust requested", 45000);
-  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
-    state: "visible",
-  });
-
-  const taskId = await page.locator(".task-tab").first().getAttribute("data-task-id");
+  // Sessions are born from the first composer message (deferred creation);
+  // this suite only needs a live session workspace, so use a no-op prompt.
+  await sendFirstPrompt(page, [
+    "Reply exactly DUET_FOLDER_SESSION_READY.",
+    "Do not create or modify any files.",
+  ]);
+  const taskId = await activeSessionTaskId(page);
   if (!taskId) {
-    throw new Error("Task tab did not expose a task id.");
+    throw new Error("Sidebar session did not expose a task id.");
   }
+  await waitForCompletedTurns(page, 1);
 
   const taskWorkspace = path.join(workspaceRoot, taskId);
   const reviewFilePath = path.join(taskWorkspace, "folder_review.md");

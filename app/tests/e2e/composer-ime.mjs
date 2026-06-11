@@ -18,8 +18,9 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(30000);
 
-  await page.locator("#new-task").click();
-  await page.locator(".task-tab-item").first().waitFor({ state: "visible" });
+  // No session needed: the New Chat composer handles IME exactly like the
+  // task composer, and the submit listener below blocks session creation.
+  await page.locator("#prompt-input").waitFor({ state: "visible" });
   await page.locator("#prompt-input").fill("G4");
 
   await page.evaluate(() => {

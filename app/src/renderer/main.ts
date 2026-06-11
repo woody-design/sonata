@@ -1,6 +1,19 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import DOMPurify from "dompurify";
+import {
+  createElement as createLucideIcon,
+  Ellipsis,
+  Eye,
+  Folder,
+  LoaderCircle,
+  PanelLeft,
+  Plus,
+  SearchCode,
+  SquarePen,
+  SquareTerminal,
+  type IconNode,
+} from "lucide";
 import { marked } from "marked";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
@@ -28,7 +41,10 @@ import type {
   DeliveryTaskState,
   LaunchSpeedMode,
   ReasoningEffort,
+  ProjectGroup,
   RuntimeProvider,
+  SessionIndexResponse,
+  SessionSummary,
   Task,
   UsageSnapshot,
 } from "../shared/types";
@@ -52,6 +68,8 @@ interface RunTranscript {
 
 interface TaskViewState {
   task: Task | null;
+  /** A PTY runtime backs this view; dormant views are read-only until resumed. */
+  live: boolean;
   report: RuntimeReportV1 | null;
   artifacts: ArtifactCandidate[];
   selectedArtifactPath: string | null;
@@ -177,6 +195,587 @@ const state: RendererState = {
   status: "Idle",
 };
 
+let sessionIndex: SessionIndexResponse | null = null;
+let sessionIndexRefreshTimer: number | null = null;
+
+function scheduleSessionIndexRefresh(): void {
+  if (sessionIndexRefreshTimer !== null) {
+    return;
+  }
+  sessionIndexRefreshTimer = window.setTimeout(() => {
+    sessionIndexRefreshTimer = null;
+    void refreshSessionIndex();
+  }, 150);
+}
+
+/** The user explicitly chose (or cleared) the New Chat folder this session. */
+let taskDraftFolderTouched = false;
+
+async function refreshSessionIndex(): Promise<void> {
+  try {
+    sessionIndex = await window.duetRuntime.readSessionIndex();
+    // The boot screen IS a New Chat entry: preselect the last-used
+    // folder until the user picks one themselves.
+    if (
+      !state.activeTaskId &&
+      !taskDraftFolderTouched &&
+      state.taskDraft.cwd === null &&
+      sessionIndex.lastUsedFolder
+    ) {
+      state.taskDraft.cwd = sessionIndex.lastUsedFolder;
+      render();
+      return;
+    }
+    if (syncTaskViewsFromIndex(sessionIndex)) {
+      render();
+      return;
+    }
+    renderSidebar();
+  } catch (error) {
+    console.debug("session index read failed", error);
+  }
+}
+
+/**
+ * The index is the authoritative session record (live runtimes for live
+ * sessions, manifests for dormant ones). Open views must follow it, or
+ * a dormant rename updates the sidebar while the header keeps the old
+ * title. Returns true when the ACTIVE view changed and needs a full
+ * re-render.
+ */
+function syncTaskViewsFromIndex(index: SessionIndexResponse): boolean {
+  const summaries = new Map<string, SessionSummary>();
+  for (const project of index.projects) {
+    for (const session of project.sessions) {
+      summaries.set(session.task.id, session);
+    }
+  }
+  for (const session of index.chats) {
+    summaries.set(session.task.id, session);
+  }
+
+  let activeViewChanged = false;
+  for (const view of state.taskViews) {
+    if (!view.task) {
+      continue;
+    }
+    const summary = summaries.get(view.task.id);
+    if (!summary) {
+      continue;
+    }
+    const incoming = summary.task;
+    if (
+      incoming.title !== view.task.title ||
+      Boolean(incoming.archived) !== Boolean(view.task.archived)
+    ) {
+      view.task = { ...view.task, title: incoming.title, archived: incoming.archived ?? false };
+      if (isActiveView(view)) {
+        activeViewChanged = true;
+      }
+    }
+  }
+  return activeViewChanged;
+}
+
+type SidebarMenuState =
+  | { kind: "session"; taskId: string; title: string; anchor: DOMRect }
+  | { kind: "project"; path: string; name: string; anchor: DOMRect };
+
+let sidebarMenu: SidebarMenuState | null = null;
+let renamingSessionId: string | null = null;
+
+function renderSidebar(): void {
+  renderSidebarSections();
+  renderSidebarMenu();
+}
+
+function renderSidebarSections(): void {
+  elements.sidebarProjects.replaceChildren();
+  elements.sidebarChats.replaceChildren();
+  const index = sessionIndex;
+  if (!index) {
+    return;
+  }
+
+  if (index.projects.length > 0) {
+    elements.sidebarProjects.append(sidebarSectionLabel("Projects"));
+    for (const project of index.projects) {
+      elements.sidebarProjects.append(renderSidebarProject(project));
+    }
+  }
+
+  if (index.chats.length > 0) {
+    elements.sidebarChats.append(sidebarSectionLabel("Chats"));
+    for (const session of index.chats) {
+      elements.sidebarChats.append(renderSidebarSessionRow(session));
+    }
+  }
+
+  if (index.projects.length === 0 && index.chats.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "sidebar-empty";
+    empty.textContent = "No sessions yet";
+    elements.sidebarProjects.append(empty);
+  }
+}
+
+function sidebarSectionLabel(text: string): HTMLElement {
+  const label = document.createElement("p");
+  label.className = "sidebar-section-label";
+  label.textContent = text;
+  return label;
+}
+
+function renderSidebarProject(project: ProjectGroup): HTMLElement {
+  const container = document.createElement("div");
+  container.className = "sidebar-project";
+
+  const header = document.createElement("div");
+  header.className = "sidebar-project-header";
+
+  if (projectRenaming?.path === project.path) {
+    header.append(renderProjectRenameInput(project.path, project.name));
+    container.append(header);
+    return container;
+  }
+
+  const labelButton = document.createElement("button");
+  labelButton.type = "button";
+  labelButton.className = "sidebar-project-label";
+  labelButton.title = project.path;
+  labelButton.append(lucideIcon(Folder, 14));
+  const name = document.createElement("span");
+  name.className = "sidebar-project-name";
+  name.textContent = project.name;
+  labelButton.append(name);
+  labelButton.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    openSidebarMenuForProject(project, event.currentTarget as HTMLElement);
+  });
+
+  const actions = document.createElement("span");
+  actions.className = "sidebar-row-actions";
+  const menuButton = sidebarIconButton(Ellipsis, `${project.name} actions`, (anchorElement) => {
+    openSidebarMenuForProject(project, anchorElement);
+  });
+  const newChatButton = sidebarIconButton(Plus, `New chat in ${project.name}`, () => {
+    startNewChat(project.path);
+  });
+  actions.append(menuButton, newChatButton);
+
+  header.append(labelButton, actions);
+  container.append(header);
+
+  const list = document.createElement("div");
+  list.className = "sidebar-project-sessions";
+  for (const session of project.sessions) {
+    list.append(renderSidebarSessionRow(session));
+  }
+  container.append(list);
+  return container;
+}
+
+function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
+  const task = session.task;
+  const row = document.createElement("div");
+  row.className = "sidebar-session";
+  row.dataset.taskId = task.id;
+  row.classList.toggle("active", task.id === state.activeTaskId);
+
+  if (renamingSessionId === task.id) {
+    row.append(renderSidebarRenameInput(task.id, task.title));
+    return row;
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "sidebar-session-button";
+  button.title = task.title;
+  const title = document.createElement("span");
+  title.className = "sidebar-session-title";
+  title.textContent = task.title;
+  button.append(title);
+  button.addEventListener("click", () => {
+    void selectSession(task.id);
+  });
+  button.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    openSidebarMenuForSession(task.id, task.title, event.currentTarget as HTMLElement);
+  });
+
+  const trailing = document.createElement("span");
+  trailing.className = "sidebar-session-trailing";
+  const indicator = sessionStatusIndicator(session);
+  if (indicator) {
+    trailing.append(indicator);
+  } else {
+    const time = document.createElement("span");
+    time.className = "sidebar-session-time";
+    time.textContent = formatRelativeAge(session.lastActivityAt);
+    trailing.append(time);
+  }
+  const menuButton = sidebarIconButton(Ellipsis, `${task.title} actions`, (anchorElement) => {
+    openSidebarMenuForSession(task.id, task.title, anchorElement);
+  });
+  menuButton.classList.add("sidebar-row-hover-action");
+  trailing.append(menuButton);
+
+  row.append(button, trailing);
+  return row;
+}
+
+function renderSidebarRenameInput(taskId: string, currentTitle: string): HTMLElement {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "sidebar-rename-input";
+  input.value = currentTitle;
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const title = input.value.trim();
+      renamingSessionId = null;
+      if (title && title !== currentTitle) {
+        void window.duetRuntime
+          .renameSession({ taskId, title })
+          .catch((error) => {
+            state.status = errorMessage(error);
+            render();
+          });
+      } else {
+        renderSidebar();
+      }
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      renamingSessionId = null;
+      renderSidebar();
+    }
+  });
+  input.addEventListener("blur", () => {
+    if (renamingSessionId === taskId) {
+      renamingSessionId = null;
+      renderSidebar();
+    }
+  });
+  window.requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+  return input;
+}
+
+function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
+  if (!session.live || !session.liveStatus) {
+    return null;
+  }
+  if (session.liveStatus === "waiting-for-approval") {
+    const dot = document.createElement("span");
+    dot.className = "sidebar-session-attention";
+    dot.title = "Waiting for approval";
+    return dot;
+  }
+  if (["running", "starting", "stopping"].includes(session.liveStatus)) {
+    const spinner = document.createElement("span");
+    spinner.className = "sidebar-session-spinner";
+    spinner.title = "Working";
+    spinner.append(lucideIcon(LoaderCircle, 14));
+    return spinner;
+  }
+  return null;
+}
+
+function sidebarIconButton(
+  iconNode: IconNode,
+  label: string,
+  onClick: (anchorElement: HTMLElement) => void,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "sidebar-icon-button";
+  button.setAttribute("aria-label", label);
+  button.title = label;
+  button.append(lucideIcon(iconNode, 14));
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onClick(event.currentTarget as HTMLElement);
+  });
+  return button;
+}
+
+function openSidebarMenuForSession(taskId: string, title: string, anchorElement: HTMLElement): void {
+  sidebarMenu = { kind: "session", taskId, title, anchor: anchorElement.getBoundingClientRect() };
+  renderSidebarMenu();
+}
+
+function openSidebarMenuForProject(project: ProjectGroup, anchorElement: HTMLElement): void {
+  sidebarMenu = {
+    kind: "project",
+    path: project.path,
+    name: project.name,
+    anchor: anchorElement.getBoundingClientRect(),
+  };
+  renderSidebarMenu();
+}
+
+function closeSidebarMenu(): void {
+  if (sidebarMenu) {
+    sidebarMenu = null;
+    renderSidebarMenu();
+  }
+}
+
+function renderSidebarMenu(): void {
+  elements.sidebarMenuRoot.replaceChildren();
+  const menu = sidebarMenu;
+  if (!menu) {
+    return;
+  }
+
+  const panel = document.createElement("div");
+  panel.className = "sidebar-menu";
+  panel.setAttribute("role", "menu");
+
+  if (menu.kind === "session") {
+    panel.append(
+      sidebarMenuItem("Rename", () => {
+        renamingSessionId = menu.taskId;
+        renderSidebar();
+      }),
+      sidebarMenuItem("Reveal in Finder", () => {
+        void window.duetRuntime.revealSession({ taskId: menu.taskId });
+      }),
+      sidebarMenuItem("Archive", () => {
+        void archiveSessionFromSidebar(menu.taskId);
+      }),
+      sidebarMenuItem("Delete", () => {
+        void deleteSessionFromSidebar(menu.taskId, menu.title);
+      }, "danger"),
+    );
+  } else {
+    panel.append(
+      sidebarMenuItem("New chat here", () => {
+        startNewChat(menu.path);
+      }),
+      sidebarMenuItem("Rename project", () => {
+        startProjectRename(menu.path, menu.name);
+      }),
+      sidebarMenuItem("Reveal in Finder", () => {
+        void window.duetRuntime.revealProject({ path: menu.path });
+      }),
+      sidebarMenuItem("Archive project", () => {
+        void window.duetRuntime
+          .archiveProject({ path: menu.path, archived: true })
+          .catch((error) => {
+            state.status = errorMessage(error);
+            render();
+          });
+      }, "danger"),
+    );
+  }
+
+  positionSidebarMenu(panel, menu.anchor);
+  elements.sidebarMenuRoot.append(panel);
+}
+
+function sidebarMenuItem(
+  label: string,
+  onSelect: () => void,
+  tone: "default" | "danger" = "default",
+): HTMLButtonElement {
+  const item = document.createElement("button");
+  item.type = "button";
+  item.className = "sidebar-menu-item";
+  item.classList.toggle("danger", tone === "danger");
+  item.setAttribute("role", "menuitem");
+  item.textContent = label;
+  item.addEventListener("click", () => {
+    closeSidebarMenu();
+    onSelect();
+  });
+  return item;
+}
+
+function positionSidebarMenu(panel: HTMLElement, anchor: DOMRect): void {
+  panel.style.position = "fixed";
+  panel.style.left = `${Math.round(anchor.left)}px`;
+  panel.style.top = `${Math.round(anchor.bottom + 4)}px`;
+  window.requestAnimationFrame(() => {
+    const rect = panel.getBoundingClientRect();
+    const overflowX = rect.right - (window.innerWidth - 8);
+    if (overflowX > 0) {
+      panel.style.left = `${Math.round(rect.left - overflowX)}px`;
+    }
+    const overflowY = rect.bottom - (window.innerHeight - 8);
+    if (overflowY > 0) {
+      panel.style.top = `${Math.round(anchor.top - rect.height - 4)}px`;
+    }
+  });
+}
+
+let projectRenaming: { path: string; currentName: string } | null = null;
+
+function startProjectRename(path: string, currentName: string): void {
+  projectRenaming = { path, currentName };
+  renderSidebar();
+}
+
+function renderProjectRenameInput(path: string, currentName: string): HTMLElement {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "sidebar-rename-input";
+  input.value = currentName;
+  const finish = (commit: boolean): void => {
+    const nextName = input.value.trim();
+    projectRenaming = null;
+    if (commit && nextName && nextName !== currentName) {
+      void window.duetRuntime
+        .renameProject({ path, displayName: nextName })
+        .catch((error) => {
+          state.status = errorMessage(error);
+          render();
+        });
+    } else {
+      renderSidebar();
+    }
+  };
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      finish(true);
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finish(false);
+    }
+  });
+  input.addEventListener("blur", () => {
+    if (projectRenaming?.path === path) {
+      finish(false);
+    }
+  });
+  window.requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+  return input;
+}
+
+async function archiveSessionFromSidebar(taskId: string): Promise<void> {
+  try {
+    await window.duetRuntime.archiveSession({ taskId, archived: true });
+    // The main process stopped the PTY; drop the local view either way.
+    removeTaskViewLocally(taskId);
+  } catch (error) {
+    state.status = errorMessage(error);
+    render();
+  }
+}
+
+async function deleteSessionFromSidebar(taskId: string, title: string): Promise<void> {
+  const confirmed = window.confirm(
+    `Delete "${title}"?\n\nThis removes the session from Duet. The provider transcript and your working folder are kept.`,
+  );
+  if (!confirmed) {
+    return;
+  }
+  try {
+    await window.duetRuntime.deleteSession({ taskId });
+    removeTaskViewLocally(taskId);
+  } catch (error) {
+    state.status = errorMessage(error);
+    render();
+  }
+}
+
+function removeTaskViewLocally(taskId: string): void {
+  state.taskViews = state.taskViews.filter((item) => item.task?.id !== taskId);
+  if (state.activeTaskId === taskId) {
+    state.activeTaskId = null;
+    state.usagePopover = null;
+    terminal.clear();
+  }
+  render();
+}
+
+async function selectSession(taskId: string): Promise<void> {
+  closeSidebarMenu();
+  if (taskViewForId(taskId)) {
+    activateTask(taskId);
+    return;
+  }
+
+  // Dormant session: the read path is pure file reads — render the
+  // transcript immediately, never spawn a PTY for browsing.
+  state.busy = true;
+  state.status = "Opening session";
+  render();
+  try {
+    const snapshot = await window.duetRuntime.readSession({ taskId });
+    const view = createTaskView(snapshot.task, snapshot.live ? "Ready" : "Idle", snapshot.live);
+    view.report = snapshot.report;
+    view.transcriptSources = snapshot.sources;
+    for (const block of snapshot.blocks) {
+      view.transcriptBlockOrder.push(block.id);
+      view.transcriptBlocks.set(block.id, block);
+    }
+    upsertTaskView(view);
+    activateTask(taskId);
+  } catch (error) {
+    state.status = errorMessage(error);
+  } finally {
+    state.busy = false;
+    render();
+  }
+}
+
+function startNewChat(folder?: string | null): void {
+  closeSidebarMenu();
+  exitPromptNav({ focusComposer: false });
+  state.activeTaskId = null;
+  state.usagePopover = null;
+  if (folder) {
+    state.taskDraft.cwd = folder;
+    taskDraftFolderTouched = true;
+  } else if (!taskDraftFolderTouched) {
+    state.taskDraft.cwd = sessionIndex?.lastUsedFolder ?? state.taskDraft.cwd;
+  }
+  state.taskDraft.message = null;
+  render();
+  elements.promptInput.focus();
+}
+
+function formatRelativeAge(iso: string): string {
+  const thenMs = Date.parse(iso);
+  if (!Number.isFinite(thenMs)) {
+    return "";
+  }
+  const deltaMs = Math.max(0, Date.now() - thenMs);
+  const minutes = Math.floor(deltaMs / 60_000);
+  if (minutes < 1) {
+    return "now";
+  }
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return `${days}d`;
+  }
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) {
+    return `${weeks}w`;
+  }
+  const months = Math.floor(days / 30);
+  if (months < 12) {
+    return `${months}mo`;
+  }
+  return `${Math.floor(days / 365)}y`;
+}
+
 function bootReadingSettingsFromDom(): ReadingSettings {
   const root = document.documentElement;
   return normalizeReadingSettings({
@@ -196,11 +795,24 @@ applyReadingSettings(state.readingSettings);
 
 appElement.innerHTML = `
   <section class="shell" aria-label="Duet">
-    <header class="task-chrome">
-      <h1 id="task-title" class="visually-hidden">No active Task</h1>
-      <div class="chrome-left">
+    <aside id="sidebar" class="sidebar" aria-label="Sessions">
+      <div class="sidebar-top">
         <span class="chrome-mark">Duet</span>
-        <nav id="task-tabs" class="task-tabs" aria-label="Task tabs"></nav>
+        <button id="sidebar-new-chat" class="sidebar-new-chat" type="button" title="New chat">
+          <span class="sidebar-new-chat-icon"></span><span>New chat</span>
+        </button>
+      </div>
+      <nav id="sidebar-sections" class="sidebar-sections" aria-label="Session list">
+        <div id="sidebar-projects"></div>
+        <div id="sidebar-chats"></div>
+      </nav>
+    </aside>
+    <div class="main-pane">
+    <header class="task-chrome">
+      <div class="chrome-left">
+        <button id="sidebar-toggle" class="chrome-icon-button" type="button" title="Toggle sidebar" aria-label="Toggle sidebar"></button>
+        <h1 id="task-title" class="header-title">No active session</h1>
+        <button id="session-menu-trigger" class="chrome-icon-button session-menu-trigger hidden" type="button" title="Session actions" aria-haspopup="menu" aria-label="Session actions"></button>
       </div>
       <div class="topbar-actions chrome-actions">
         <span id="runtime-status" class="status">Idle</span>
@@ -212,12 +824,9 @@ appElement.innerHTML = `
           aria-expanded="false"
           title="Reading Controls"
         >Aa</button>
-        <button id="new-task" class="secondary" type="button" title="New Codex Task">+ Codex</button>
-        <button id="new-claude-task" class="secondary" type="button" title="New Claude Task">+ Claude</button>
-        <button id="open-task" class="secondary" type="button" title="Open Task">Open</button>
-        <button id="open-preview-window" class="secondary" type="button" title="Open Preview">View</button>
-        <button id="open-inspector-window" class="secondary" type="button" title="Open Inspector">Inspect</button>
-        <button id="toggle-terminal" class="secondary" type="button" title="Toggle Terminal">Term</button>
+        <button id="open-preview-window" class="chrome-icon-button" type="button" title="Preview" aria-label="Open Preview"></button>
+        <button id="open-inspector-window" class="chrome-icon-button" type="button" title="Inspector" aria-label="Open Inspector"></button>
+        <button id="toggle-terminal" class="chrome-icon-button" type="button" title="Terminal" aria-label="Toggle Terminal"></button>
       </div>
     </header>
     <div id="reading-popover-root"></div>
@@ -319,6 +928,8 @@ appElement.innerHTML = `
         </form>
       </section>
     </section>
+    </div>
+    <div id="sidebar-menu-root"></div>
   </section>
 `;
 
@@ -330,9 +941,13 @@ const elements = {
   openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
   openInspectorWindow: getElement<HTMLButtonElement>("open-inspector-window"),
   toggleTerminal: getElement<HTMLButtonElement>("toggle-terminal"),
-  openTask: getElement<HTMLButtonElement>("open-task"),
-  newTask: getElement<HTMLButtonElement>("new-task"),
-  newClaudeTask: getElement<HTMLButtonElement>("new-claude-task"),
+  sidebar: getElement<HTMLElement>("sidebar"),
+  sidebarNewChat: getElement<HTMLButtonElement>("sidebar-new-chat"),
+  sidebarProjects: getElement<HTMLDivElement>("sidebar-projects"),
+  sidebarChats: getElement<HTMLDivElement>("sidebar-chats"),
+  sidebarToggle: getElement<HTMLButtonElement>("sidebar-toggle"),
+  sidebarMenuRoot: getElement<HTMLDivElement>("sidebar-menu-root"),
+  sessionMenuTrigger: getElement<HTMLButtonElement>("session-menu-trigger"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
   approvalKindBadge: getElement<HTMLSpanElement>("approval-kind-badge"),
   approvalTitle: getElement<HTMLElement>("approval-title"),
@@ -343,7 +958,6 @@ const elements = {
   approveApproval: getElement<HTMLButtonElement>("approve-approval"),
   workflowHeadline: getElement<HTMLElement>("workflow-headline"),
   workflowFacts: getElement<HTMLDivElement>("workflow-facts"),
-  taskTabs: getElement<HTMLElement>("task-tabs"),
   runList: getElement<HTMLDivElement>("run-list"),
   artifactStrip: getElement<HTMLElement>("artifact-strip"),
   artifactList: getElement<HTMLDivElement>("artifact-list"),
@@ -456,16 +1070,53 @@ const CLAUDE_PERMISSION_OPTIONS: Array<{ label: string; value: ClaudePermissionM
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
-elements.newTask.addEventListener("click", () => {
-  void createTask("codex");
+function lucideIcon(node: IconNode, size = 16): SVGElement {
+  const svg = createLucideIcon(node);
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+  svg.setAttribute("aria-hidden", "true");
+  return svg;
+}
+
+elements.sidebarToggle.append(lucideIcon(PanelLeft));
+elements.sessionMenuTrigger.append(lucideIcon(Ellipsis));
+elements.openPreviewWindow.append(lucideIcon(Eye));
+elements.openInspectorWindow.append(lucideIcon(SearchCode));
+elements.toggleTerminal.append(lucideIcon(SquareTerminal));
+elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIcon(SquarePen));
+
+const SIDEBAR_COLLAPSED_KEY = "duet.sidebar.collapsed";
+
+function setSidebarCollapsed(collapsed: boolean): void {
+  elements.sidebar.classList.toggle("collapsed", collapsed);
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
+  } catch {
+    // Cosmetic state only.
+  }
+  window.requestAnimationFrame(fitTerminal);
+}
+
+try {
+  setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1");
+} catch {
+  // Default stays expanded.
+}
+
+elements.sidebarToggle.addEventListener("click", () => {
+  setSidebarCollapsed(!elements.sidebar.classList.contains("collapsed"));
 });
 
-elements.newClaudeTask.addEventListener("click", () => {
-  void createTask("claude");
+elements.sidebarNewChat.addEventListener("click", () => {
+  startNewChat();
 });
 
-elements.openTask.addEventListener("click", () => {
-  void openTask();
+elements.sessionMenuTrigger.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const view = activeTaskView();
+  if (view?.task) {
+    openSidebarMenuForSession(view.task.id, view.task.title, event.currentTarget as HTMLElement);
+  }
 });
 
 elements.openPreviewWindow.addEventListener("click", () => {
@@ -1301,6 +1952,9 @@ document.addEventListener("click", (event) => {
   if (state.usagePopover) {
     closeUsagePopover();
   }
+  if (sidebarMenu && !target.closest(".sidebar-menu")) {
+    closeSidebarMenu();
+  }
 });
 
 document.addEventListener("keydown", (event) => {
@@ -1348,6 +2002,11 @@ window.duetRuntime.onRuntimeEvent((event) => {
       terminal.write(event.payload.data);
     }
     appendLiveTranscript(view, event.payload.data);
+    return;
+  }
+
+  if (event.type === "sessions:updated") {
+    scheduleSessionIndexRefresh();
     return;
   }
 
@@ -1451,7 +2110,6 @@ window.duetRuntime.onRuntimeEvent((event) => {
       scheduleTranscriptRender();
     } else {
       view.unread = true;
-      renderTaskTabs();
     }
     return;
   }
@@ -1476,12 +2134,14 @@ void window.duetRuntime.readPreviewState().then((previewState) => {
 });
 
 void hydrateReadingSettings();
+void refreshSessionIndex();
 
 render();
 
-function createTaskView(task: Task, status: string): TaskViewState {
+function createTaskView(task: Task, status: string, live = true): TaskViewState {
   const view: TaskViewState = {
     task,
+    live,
     report: null,
     artifacts: [],
     selectedArtifactPath: null,
@@ -1601,101 +2261,12 @@ function activateTask(taskId: string): void {
   render();
 }
 
-async function closeTaskTab(taskId: string): Promise<void> {
-  const view = taskViewForId(taskId);
-  if (!view?.task) {
-    return;
-  }
-  state.busy = true;
-  view.status = "Closing";
-  render();
-  try {
-    await window.duetRuntime.closeTask({ taskId });
-    const index = state.taskViews.findIndex((item) => item.task?.id === taskId);
-    state.taskViews = state.taskViews.filter((item) => item.task?.id !== taskId);
-    if (state.activeTaskId === taskId) {
-      state.usagePopover = null;
-      clearUsagePopoverTimers();
-      const next = state.taskViews[Math.max(0, index - 1)] ?? state.taskViews[0] ?? null;
-      state.activeTaskId = next?.task?.id ?? null;
-      terminal.clear();
-      if (next?.terminalBuffer) {
-        terminal.write(next.terminalBuffer);
-      }
-    }
-  } catch (error) {
-    view.status = errorMessage(error);
-  } finally {
-    state.busy = false;
-    render();
-  }
-}
-
-function renderTaskTabs(): void {
-  elements.taskTabs.replaceChildren();
-
-  if (state.taskViews.length === 0) {
-    const empty = document.createElement("span");
-    empty.className = "task-tab-empty";
-    empty.textContent = "No Task tabs";
-    elements.taskTabs.append(empty);
-    return;
-  }
-
-  for (const view of state.taskViews) {
-    if (!view.task) {
-      continue;
-    }
-    const task = view.task;
-
-    const item = document.createElement("div");
-    item.className = "task-tab-item";
-    item.classList.toggle("active", task.id === state.activeTaskId);
-
-    const button = document.createElement("button");
-    button.className = "task-tab";
-    button.type = "button";
-    button.dataset.taskId = task.id;
-    button.addEventListener("click", () => {
-      activateTask(task.id);
-    });
-
-    const label = document.createElement("span");
-    label.className = "task-tab-label";
-    label.textContent = task.title;
-    const meta = document.createElement("span");
-    meta.className = "task-tab-meta";
-    meta.textContent = `${providerLabel(task.provider)} / ${shortId(task.id)} / ${view.status}`;
-    button.append(label, meta);
-    if (view.unread) {
-      const dot = document.createElement("span");
-      dot.className = "task-tab-dot";
-      dot.title = "Updated";
-      button.append(dot);
-    }
-
-    const close = document.createElement("button");
-    close.className = "task-tab-close";
-    close.type = "button";
-    close.textContent = "x";
-    close.ariaLabel = `Close ${task.title}`;
-    close.addEventListener("click", (event) => {
-      event.stopPropagation();
-      void closeTaskTab(task.id);
-    });
-
-    item.append(button, close);
-    elements.taskTabs.append(item);
-  }
-}
-
 function markViewChanged(view: TaskViewState): void {
   if (isActiveView(view)) {
     render();
     return;
   }
   view.unread = true;
-  renderTaskTabs();
 }
 
 function isActiveView(view: TaskViewState): boolean {
@@ -1765,54 +2336,31 @@ async function createTask(
   }
 }
 
-async function openTask(cwd?: string | null): Promise<void> {
-  state.busy = true;
-  state.status = cwd ? "Opening Folder Task" : "Opening Task";
-  state.taskDraft.settingsOpen = false;
-  state.taskDraft.settingsAnchor = null;
-  state.taskDraft.message = {
-    tone: "info",
-    text: cwd ? "Opening the selected Task folder..." : "Opening the latest Task...",
-  };
-  render();
-
-  try {
-    const response = await window.duetRuntime.openTask(cwd ? { cwd } : {});
-    const existing = taskViewForId(response.task.id);
-    const providerName = providerLabel(response.task.provider);
-    const view = existing ?? createTaskView(response.task, `Opened ${providerName} PTY ${response.runtime.pid}`);
-    view.task = response.task;
-    view.status = existing ? "Task already open" : `Opened ${providerName} PTY ${response.runtime.pid}`;
-    applyPendingRuntimeState(view);
-    upsertTaskView(view);
-    activateTask(response.task.id);
-    await refreshReport(response.task.id);
-    await hydrateTranscript(response.task.id);
-    await hydrateUsage(response.task.id);
-  } catch (error) {
-    const message = errorMessage(error);
-    state.status = message;
-    state.taskDraft.message = {
-      tone: "error",
-      text: message,
-    };
-  } finally {
-    state.busy = false;
-    render();
-  }
-}
-
 async function submitPrompt(): Promise<void> {
   const view = activeTaskView();
-  if (!view?.task) {
+  const text = elements.promptInput.value.trim();
+
+  if (!view) {
+    // New chat: the first message creates the session.
+    if (text) {
+      await createSessionFromComposer(text);
+    }
+    return;
+  }
+  if (!view.task) {
     return;
   }
 
-  const text = elements.promptInput.value.trim();
   const attachments = view.pendingAttachments.map((item) => item.attachment);
   if (!text && attachments.length === 0) {
     view.status = "Type a message before sending";
     render();
+    return;
+  }
+
+  if (!view.live) {
+    // Dormant session: lazy spawn + native resume, then queue the message.
+    await resumeSessionAndSend(view, text, attachments);
     return;
   }
 
@@ -1826,6 +2374,55 @@ async function submitPrompt(): Promise<void> {
   } catch (error) {
     view.status = errorMessage(error);
   } finally {
+    render();
+  }
+}
+
+async function createSessionFromComposer(text: string): Promise<void> {
+  await createTask(state.taskDraft.provider, { cwd: state.taskDraft.cwd });
+  const view = activeTaskView();
+  if (!view?.task) {
+    // Creation failed; createTask already surfaced the error.
+    return;
+  }
+  try {
+    await window.duetRuntime.submitPrompt({ taskId: view.task.id, text, attachments: [] });
+    elements.promptInput.value = "";
+  } catch (error) {
+    view.status = errorMessage(error);
+  } finally {
+    render();
+  }
+}
+
+async function resumeSessionAndSend(
+  view: TaskViewState,
+  text: string,
+  attachments: DeliveryAttachment[],
+): Promise<void> {
+  if (!view.task) {
+    return;
+  }
+  const taskId = view.task.id;
+  state.busy = true;
+  view.status = "Resuming session";
+  render();
+  try {
+    const response = await window.duetRuntime.openTask({ taskId });
+    view.task = response.task;
+    view.live = true;
+    view.status = response.resumedProviderSession
+      ? "Resumed — your message will send when the agent is ready"
+      : "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable";
+    applyPendingRuntimeState(view);
+    await window.duetRuntime.submitPrompt({ taskId, text, attachments });
+    elements.promptInput.value = "";
+    clearPendingAttachments(view);
+    void hydrateUsage(taskId);
+  } catch (error) {
+    view.status = errorMessage(error);
+  } finally {
+    state.busy = false;
     render();
   }
 }
@@ -1903,20 +2500,19 @@ async function resizeTerminal(): Promise<void> {
 
 function render(): void {
   const view = activeTaskView();
-  elements.taskTitle.textContent = view?.task?.title ?? "No active Task";
+  elements.taskTitle.textContent = view?.task?.title ?? "New chat";
   elements.runtimeStatus.textContent = view?.status ?? state.status;
   elements.openPreviewWindow.disabled = !view?.task || state.busy;
   elements.openInspectorWindow.disabled = !view?.task || state.busy;
   elements.toggleTerminal.disabled = !view?.task || state.busy;
-  elements.openTask.disabled = state.busy;
-  elements.newTask.disabled = state.busy;
-  elements.newClaudeTask.disabled = state.busy;
+  elements.sessionMenuTrigger.classList.toggle("hidden", !view?.task);
+  elements.sidebarNewChat.disabled = state.busy;
   renderReadingPopover();
   renderAttachmentStrip(view);
   renderComposerControls(view);
   renderComposerPopover(view);
 
-  renderTaskTabs();
+  renderSidebar();
   renderApproval();
   renderWorkflow();
   renderRuns();
@@ -1978,19 +2574,22 @@ function renderComposerControls(view = activeTaskView()): void {
     Boolean(view?.task),
   );
   renderUsageIndicator(view);
-  elements.addAttachment.disabled = !view?.task;
+  // New-chat state (no view): the composer IS the create action — the
+  // session is born from the first message, never from an empty spawn.
+  const newChat = !view;
+  elements.addAttachment.disabled = !view?.task || !view.live;
   elements.addAttachment.classList.toggle("active", state.composerMenu?.type === "add");
-  elements.sendPrompt.disabled = !view?.task || (!activeRun && !promptHasText && !hasAttachments);
+  elements.sendPrompt.disabled = state.busy || (!activeRun && !promptHasText && !hasAttachments);
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText || hasAttachments);
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";
   elements.sendPrompt.classList.toggle("stop-mode", activeRun);
-  elements.promptInput.disabled = !view?.task;
+  elements.promptInput.disabled = state.busy && !newChat;
   elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
   elements.composer.classList.toggle("is-focused", focused);
   elements.composer.classList.toggle("is-drafting", promptHasText || hasAttachments);
   elements.composer.classList.toggle("has-attachments", hasAttachments);
-  elements.composer.classList.toggle("is-idle", Boolean(view?.task) && !focused && !promptHasText && !hasAttachments);
+  elements.composer.classList.toggle("is-idle", !newChat && !focused && !promptHasText && !hasAttachments);
 }
 
 function renderUsageIndicator(view: TaskViewState | null): void {
@@ -2869,6 +3468,15 @@ function workflowState(): WorkflowState {
     };
   }
 
+  if (!view.live) {
+    // Dormant session: nothing is starting until the user sends a message.
+    return {
+      headline: "Ready to continue",
+      facts: baseFacts,
+      tone: "quiet",
+    };
+  }
+
   return {
     headline: `Starting ${providerName}`,
     facts: baseFacts,
@@ -2883,10 +3491,13 @@ function workflowFact(value: string): HTMLElement {
 }
 
 function renderWorkflow(): void {
+  const strip = elements.workflowHeadline.closest<HTMLElement>(".workflow-strip");
+  // The New Chat surface speaks for itself; the workflow strip would
+  // only repeat it.
+  strip?.classList.toggle("hidden", !activeTaskView()?.task);
   const workflow = workflowState();
   elements.workflowHeadline.textContent = workflow.headline;
   elements.workflowFacts.replaceChildren(...workflow.facts.map(workflowFact));
-  const strip = elements.workflowHeadline.closest<HTMLElement>(".workflow-strip");
   strip?.classList.toggle("quiet", workflow.tone === "quiet");
   strip?.classList.toggle("attention", workflow.tone === "attention");
   strip?.classList.toggle("action", workflow.tone === "action");
@@ -3403,39 +4014,18 @@ function renderTaskEntryPanel(): HTMLElement {
   copy.className = "task-entry-copy";
   const eyebrow = document.createElement("p");
   eyebrow.className = "eyebrow";
-  eyebrow.textContent = "Task Entry";
+  eyebrow.textContent = "New chat";
   const title = document.createElement("h2");
-  title.textContent = "Start a Task";
+  title.textContent = "What should we work on?";
   const body = document.createElement("p");
   body.className = "task-entry-body";
-  body.textContent = "Provider sets the native session; model and permission can be changed from the composer.";
+  body.textContent =
+    "Pick the agent and folder, then type below — your first message starts the session.";
   copy.append(eyebrow, title, body);
 
   const controls = document.createElement("div");
   controls.className = "task-entry-controls";
   controls.append(renderProviderSegment(), renderFolderPicker(), renderLaunchSettingsControl());
-
-  const actions = document.createElement("div");
-  actions.className = "task-entry-actions";
-  const startTask = document.createElement("button");
-  startTask.id = "entry-new-task";
-  startTask.className = "primary";
-  startTask.type = "button";
-  startTask.disabled = state.busy;
-  startTask.textContent = `Start ${providerLabel(state.taskDraft.provider)} Task`;
-  startTask.addEventListener("click", () => {
-    void createTask(state.taskDraft.provider, { cwd: state.taskDraft.cwd });
-  });
-  const openTaskButton = document.createElement("button");
-  openTaskButton.id = "entry-open-task";
-  openTaskButton.className = "secondary";
-  openTaskButton.type = "button";
-  openTaskButton.disabled = state.busy;
-  openTaskButton.textContent = state.taskDraft.cwd ? "Open Folder Task" : "Open Latest Task";
-  openTaskButton.addEventListener("click", () => {
-    void openTask(state.taskDraft.cwd);
-  });
-  actions.append(startTask, openTaskButton);
 
   const message = renderTaskEntryMessage();
   const facts = document.createElement("div");
@@ -3446,7 +4036,7 @@ function renderTaskEntryPanel(): HTMLElement {
     taskEntryFact("Folder", folderSummaryLabel()),
   );
 
-  panel.append(copy, controls, actions);
+  panel.append(copy, controls);
   if (message) {
     panel.append(message);
   }
@@ -3484,6 +4074,27 @@ function renderFolderPicker(): HTMLElement {
   const row = document.createElement("div");
   row.className = "task-folder-row";
 
+  // Known projects are one click away; the file dialog is the fallback.
+  const projects = sessionIndex?.projects ?? [];
+  for (const project of projects.slice(0, 4)) {
+    if (state.taskDraft.cwd === project.path) {
+      continue;
+    }
+    const quick = document.createElement("button");
+    quick.className = "secondary task-folder-quick";
+    quick.type = "button";
+    quick.disabled = state.busy;
+    quick.title = project.path;
+    quick.textContent = project.name;
+    quick.addEventListener("click", () => {
+      state.taskDraft.cwd = project.path;
+      taskDraftFolderTouched = true;
+      state.taskDraft.message = null;
+      render();
+    });
+    row.append(quick);
+  }
+
   const choose = document.createElement("button");
   choose.id = "entry-choose-folder";
   choose.className = "secondary";
@@ -3492,6 +4103,7 @@ function renderFolderPicker(): HTMLElement {
   choose.textContent = state.taskDraft.cwd ? folderName(state.taskDraft.cwd) : "Choose Folder";
   if (state.taskDraft.cwd) {
     choose.title = state.taskDraft.cwd;
+    choose.classList.add("task-folder-selected");
   }
   choose.addEventListener("click", () => {
     void pickTaskFolder();
@@ -3507,6 +4119,7 @@ function renderFolderPicker(): HTMLElement {
     clear.textContent = "Default Workspace";
     clear.addEventListener("click", () => {
       state.taskDraft.cwd = null;
+      taskDraftFolderTouched = true;
       state.taskDraft.message = {
         tone: "info",
         text: "Using the default Duet workspace for new Tasks.",
@@ -3677,6 +4290,7 @@ async function pickTaskFolder(): Promise<void> {
     const response = await window.duetRuntime.pickFolder();
     if (response.path) {
       state.taskDraft.cwd = response.path;
+      taskDraftFolderTouched = true;
       state.status = `Selected ${folderName(response.path)}`;
       state.taskDraft.message = {
         tone: "info",
@@ -4192,7 +4806,7 @@ function isComposerCompositionShortcut(event: KeyboardEvent): boolean {
 function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): string {
   const view = activeTaskView();
   if (!view?.task) {
-    return "Start or open a Task";
+    return `Message ${providerLabel(state.taskDraft.provider)} — starts the session`;
   }
   const providerName = providerLabel(view.task.provider);
   if (pendingApproval) {
@@ -4200,6 +4814,9 @@ function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): stri
   }
   if (activeRun) {
     return `${providerName} is working — Enter queues your message`;
+  }
+  if (!view.live) {
+    return `Message ${providerName} — resumes this session`;
   }
   if (!view.runtimeReady) {
     return `${providerName} is starting — your message will send when it's ready`;

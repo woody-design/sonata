@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveIfVisible, approveVisibleBanner } from "./helpers/approval.mjs";
+import { activeSessionTaskId, sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-run-chat-e2e-"));
 let electronApp = null;
@@ -19,17 +20,6 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);
 
-  await page.locator("#new-task").click();
-  await approveIfVisible(page, "Workspace trust requested", 45000);
-  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
-    state: "visible",
-  });
-
-  const taskId = await page.locator(".task-tab").first().getAttribute("data-task-id");
-  if (!taskId) {
-    throw new Error("Task tab did not expose a task id.");
-  }
-
   const prompt = [
     "Create exactly one file named transcript.md.",
     "The file must contain exactly this sentence: DUET_TRANSCRIPT_VISIBLE artifact ready.",
@@ -38,6 +28,11 @@ try {
   ].join("\n");
 
   await runPrompt(page, 1, prompt);
+
+  const taskId = await activeSessionTaskId(page);
+  if (!taskId) {
+    throw new Error("Sidebar session did not expose a task id.");
+  }
 
   const runCard = page.locator(".turn-card").first();
   await runCard.locator(".turn-user", { hasText: "You" }).waitFor({
@@ -132,8 +127,9 @@ try {
 }
 
 async function runPrompt(page, expectedCompletedRuns, prompt) {
-  await page.locator("#prompt-input").fill(prompt);
-  await page.locator("#send-prompt").click();
+  // The first prompt creates the session (deferred creation) and answers the
+  // workspace-trust approval that surfaces during the provider cold start.
+  await sendFirstPrompt(page, prompt);
   await page.locator("#workflow-headline", { hasText: /Codex is working|File edit approval needed/ }).waitFor({
     state: "visible",
   });

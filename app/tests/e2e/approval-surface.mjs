@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveVisibleBanner } from "./helpers/approval.mjs";
+import { activeSessionTaskId, sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-surface-e2e-"));
 let electronApp = null;
@@ -19,22 +20,6 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);
 
-  await page.locator("#entry-new-task").click();
-  await approveWithSurface(page, {
-    title: "Workspace trust requested",
-    badge: "Workspace trust",
-    scope: "Task workspace trust",
-    run: "session setup",
-  });
-  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
-    state: "visible",
-  });
-
-  const taskId = await page.locator(".task-tab").first().getAttribute("data-task-id");
-  if (!taskId) {
-    throw new Error("Task tab did not expose a task id.");
-  }
-
   const commandText = [
     "python3 -c \"from pathlib import Path;",
     "Path('approval_command.md').write_text('# Approval Command\\\\nCommand approval surface ready.\\\\n')\"",
@@ -45,8 +30,21 @@ try {
     "Do not edit files directly.",
     `Command: ${commandText}`,
   ].join("\n");
-  await page.locator("#prompt-input").fill(prompt);
-  await page.locator("#send-prompt").click();
+  // The first prompt creates the session; the workspace-trust approval
+  // surfaces during the cold start and is asserted in full here.
+  await sendFirstPrompt(page, prompt, { approveTrust: false });
+  await approveWithSurface(page, {
+    title: "Workspace trust requested",
+    badge: "Workspace trust",
+    scope: "Task workspace trust",
+    run: "session setup",
+  });
+
+  const taskId = await activeSessionTaskId(page);
+  if (!taskId) {
+    throw new Error("Sidebar session did not expose a task id.");
+  }
+
   await approveWithSurface(page, {
     title: "Command approval requested",
     badge: "Command",

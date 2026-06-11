@@ -14,6 +14,12 @@ import type {
 } from "./domain";
 import type { RuntimeEvent } from "./events";
 import type { ReadingSettings, ResolvedReadingMode } from "./reading-settings";
+import type {
+  ReadSessionIndexRequest,
+  ReadSessionSnapshotRequest,
+  SessionIndexResponse,
+  SessionSnapshotResponse,
+} from "./sessions";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
 import type { UsageSnapshot } from "./usage";
 import type { RuntimeReportSummaryV1, RuntimeReportV1 } from "../schemas/runtime-report";
@@ -23,6 +29,15 @@ export const IPC_CHANNELS = {
   taskOpen: "task:open",
   taskClose: "task:close",
   taskList: "task:list",
+  sessionIndexRead: "session:index:read",
+  sessionRead: "session:read",
+  sessionRename: "session:rename",
+  sessionArchive: "session:archive",
+  sessionDelete: "session:delete",
+  sessionReveal: "session:reveal",
+  projectRename: "project:rename",
+  projectArchive: "project:archive",
+  projectReveal: "project:reveal",
   promptSubmit: "prompt:submit",
   attachmentCreate: "attachment:create",
   attachmentDelete: "attachment:delete",
@@ -80,6 +95,12 @@ export interface CreateTaskResponse {
     args: string[];
     cwd: string;
   };
+  /**
+   * The provider session was natively resumed (claude --resume /
+   * codex resume) — the agent's memory continues. False on a fresh
+   * spawn, including the fallback when the provider session is gone.
+   */
+  resumedProviderSession?: boolean;
 }
 
 export interface OpenTaskRequest {
@@ -88,6 +109,11 @@ export interface OpenTaskRequest {
   sandbox?: CodexSandboxMode;
   approval?: CodexApprovalMode;
   permissionMode?: ClaudePermissionMode;
+  /**
+   * Natively resume the provider session when its file still exists
+   * (default). Pass false to force a fresh provider session.
+   */
+  resume?: boolean;
   rows?: number;
   cols?: number;
 }
@@ -99,6 +125,38 @@ export interface CloseTaskRequest {
 }
 
 export type ListTasksResponse = Task[];
+
+export interface RenameSessionRequest {
+  taskId: TaskId;
+  title: string;
+}
+
+export interface ArchiveSessionRequest {
+  taskId: TaskId;
+  archived: boolean;
+}
+
+export interface DeleteSessionRequest {
+  taskId: TaskId;
+}
+
+export interface RevealSessionRequest {
+  taskId: TaskId;
+}
+
+export interface RenameProjectRequest {
+  path: string;
+  displayName: string | null;
+}
+
+export interface ArchiveProjectRequest {
+  path: string;
+  archived: boolean;
+}
+
+export interface RevealProjectRequest {
+  path: string;
+}
 
 export interface SubmitPromptRequest {
   taskId: TaskId;
@@ -283,6 +341,15 @@ export interface DuetRuntimeBridge {
   openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
   closeTask(request: CloseTaskRequest): Promise<void>;
   listTasks(): Promise<ListTasksResponse>;
+  readSessionIndex(request?: ReadSessionIndexRequest): Promise<SessionIndexResponse>;
+  readSession(request: ReadSessionSnapshotRequest): Promise<SessionSnapshotResponse>;
+  renameSession(request: RenameSessionRequest): Promise<void>;
+  archiveSession(request: ArchiveSessionRequest): Promise<void>;
+  deleteSession(request: DeleteSessionRequest): Promise<void>;
+  revealSession(request: RevealSessionRequest): Promise<void>;
+  renameProject(request: RenameProjectRequest): Promise<void>;
+  archiveProject(request: ArchiveProjectRequest): Promise<void>;
+  revealProject(request: RevealProjectRequest): Promise<void>;
   submitPrompt(request: SubmitPromptRequest): Promise<void>;
   createAttachment(request: CreateAttachmentRequest): Promise<DeliveryAttachment>;
   deleteAttachment(request: DeleteAttachmentRequest): Promise<void>;

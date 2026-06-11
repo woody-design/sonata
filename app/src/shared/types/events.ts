@@ -257,6 +257,24 @@ export type UsageUpdatedEvent = BaseRuntimeEvent<
   }
 >;
 
+/**
+ * The persisted session index changed (session created, renamed, archived,
+ * deleted, or a project overlay edit). Carries no data — listeners re-read
+ * the index via session:index:read.
+ */
+export type SessionsUpdatedEvent = BaseRuntimeEvent<
+  "sessions:updated",
+  {
+    reason:
+      | "session-created"
+      | "session-updated"
+      | "session-renamed"
+      | "session-archived"
+      | "session-deleted"
+      | "project-updated";
+  }
+>;
+
 export type ProductRuntimeEvent =
   | PtyExitEvent
   | TaskStartedEvent
@@ -277,7 +295,8 @@ export type ProductRuntimeEvent =
   | RuntimeReportUpdatedEvent
   | TranscriptLocatedEvent
   | TranscriptBlocksEvent
-  | UsageUpdatedEvent;
+  | UsageUpdatedEvent
+  | SessionsUpdatedEvent;
 
 export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
 
@@ -287,6 +306,7 @@ export type RunIndexEvent = Exclude<
   | TranscriptLocatedEvent
   | TranscriptBlocksEvent
   | UsageUpdatedEvent
+  | SessionsUpdatedEvent
   | DeliveryStateEvent
   | DeliveryReceiptEvent
   | TaskUpdatedEvent

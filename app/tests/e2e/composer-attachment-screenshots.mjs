@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
+import { sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-attachment-shots-"));
 const screenshotRoot = path.resolve("..", "product-thinking", "composer-slice-4-screenshots");
@@ -26,10 +27,12 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
 
-  await page.locator("#new-task").click();
+  // Sessions are born from the first composer message, and attachments only
+  // work for a live session — so create the session with a no-op prompt first.
+  await sendFirstPrompt(page, "Reply exactly DUET_ATTACHMENT_SESSION_READY. Do not create or modify any files.");
   taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
   workspace = path.join(workspaceRoot, taskDirectory);
-  await waitForRuntimeReady(page, 240000);
+  await waitForCompletedTurns(page, 1);
 
   await attachImage(page, imagePath);
   await page.locator("#prompt-input").fill("Reply exactly DUET_ATTACHMENT_CHIP_SCREENSHOT.");
@@ -78,23 +81,6 @@ try {
 async function attachImage(page, imagePath) {
   await page.locator("#attachment-picker").setInputFiles(imagePath);
   await page.locator(".attachment-chip", { hasText: "red.png" }).waitFor({ state: "visible" });
-}
-
-async function waitForRuntimeReady(page, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const ready = await page
-      .locator("#runtime-status", { hasText: "Ready" })
-      .isVisible({ timeout: 500 })
-      .catch(() => false);
-    if (ready) {
-      return true;
-    }
-
-    await approveIfVisible(page, "Workspace trust requested", 500);
-    await page.waitForTimeout(250);
-  }
-  throw new Error("Timed out waiting for runtime ready.");
 }
 
 async function waitForTaskDirectory(root, timeoutMs) {

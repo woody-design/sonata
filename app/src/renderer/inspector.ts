@@ -101,6 +101,10 @@ window.duetRuntime.onRuntimeEvent((event) => {
     void refreshTasks();
   }
 
+  if (event.type === "sessions:updated") {
+    return;
+  }
+
   if (!state.taskId || event.payload.taskId !== state.taskId) {
     return;
   }

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
+import { activeSessionTaskId, sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-inspector-linkage-e2e-"));
 let electronApp = null;
@@ -19,22 +20,16 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);
 
-  await page.locator("#entry-new-task").click();
-  await approveIfVisible(page, "Workspace trust requested", 45000);
-  await page.locator("#workflow-headline", { hasText: "Ready for first Run" }).waitFor({
-    state: "visible",
-  });
-
-  const taskId = await page.locator(".task-tab").first().getAttribute("data-task-id");
-  if (!taskId) {
-    throw new Error("Task tab did not expose a task id.");
-  }
-
   await runPrompt(page, 1, [
     "Create exactly one Markdown file named inspector_link.md.",
     "The file must contain exactly this sentence: Inspector review linkage ready.",
     "Do not modify any other files.",
   ]);
+
+  const taskId = await activeSessionTaskId(page);
+  if (!taskId) {
+    throw new Error("Sidebar session did not expose a task id.");
+  }
   await page.locator(".artifact-item", { hasText: "inspector_link.md" }).waitFor({
     state: "visible",
   });
@@ -120,8 +115,9 @@ try {
 }
 
 async function runPrompt(page, expectedCompletedRuns, lines) {
-  await page.locator("#prompt-input").fill(lines.join("\n"));
-  await page.locator("#send-prompt").click();
+  // The first prompt creates the session (deferred creation) and answers the
+  // workspace-trust approval that surfaces during the provider cold start.
+  await sendFirstPrompt(page, lines);
   await page.locator("#workflow-headline", { hasText: /Codex is working|File edit approval needed/ }).waitFor({
     state: "visible",
   });

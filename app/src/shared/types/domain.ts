@@ -45,6 +45,8 @@ export interface Task {
   providerCwd: string;
   workingDirectory: string;
   status: TaskStatus;
+  /** Session is hidden from the default sidebar list. Absent on old manifests. */
+  archived?: boolean;
   createdAt: string;
   updatedAt: string;
 }
