@@ -22,6 +22,10 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(60000);
 
+  // localStorage is shared with the real app's userData — start clean and
+  // restore at the end so screenshot runs never pollute real view prefs.
+  await page.evaluate(() => localStorage.removeItem("duet.sidebar.prefs"));
+
   // 1 — boot state: sidebar + New Chat surface.
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
   await page.waitForTimeout(1200); // session index + relative times settle
@@ -61,6 +65,38 @@ try {
   await page.waitForTimeout(400);
   await shoot(page, "05-new-chat-preselected");
 
+  // 7 — filter menu with a submenu open.
+  const filterButton = page.locator("#sidebar-filter");
+  if (await filterButton.isVisible().catch(() => false)) {
+    await filterButton.click();
+    await page.waitForTimeout(250);
+    await page.locator(".sidebar-filter-row", { hasText: "Status" }).click();
+    await page.waitForTimeout(250);
+    await shoot(page, "07-filter-menu-status");
+
+    // 8 — group by date view (8a: non-default row highlighted in the
+    // still-open menu; 8b: the resulting list).
+    await page.locator(".sidebar-filter-row", { hasText: "Group by" }).click();
+    await page.waitForTimeout(200);
+    await page.locator(".sidebar-filter-option", { hasText: "Date" }).click();
+    await page.waitForTimeout(300);
+    await shoot(page, "08a-filter-menu-nondefault");
+    await page.mouse.click(900, 600);
+    await page.waitForTimeout(250);
+    await shoot(page, "08-group-by-date");
+
+    // 9 — archived filter view (Unarchive path visible).
+    await filterButton.click();
+    await page.waitForTimeout(200);
+    await page.locator(".sidebar-filter-row", { hasText: "Status" }).click();
+    await page.waitForTimeout(200);
+    await page.locator(".sidebar-filter-option", { hasText: "Archived" }).click();
+    await page.waitForTimeout(300);
+    await page.mouse.click(900, 600);
+    await page.waitForTimeout(250);
+    await shoot(page, "09-filter-archived");
+  }
+
   // 6 — collapsed sidebar.
   await page.locator("#sidebar-toggle").click();
   await page.waitForTimeout(300);
@@ -70,6 +106,12 @@ try {
   console.log(JSON.stringify({ outputDir, success: true }, null, 2));
 } finally {
   if (electronApp) {
+    try {
+      const page = await electronApp.firstWindow();
+      await page.evaluate(() => localStorage.removeItem("duet.sidebar.prefs"));
+    } catch {
+      // Window already gone; nothing to clean.
+    }
     await electronApp.close();
   }
 }
