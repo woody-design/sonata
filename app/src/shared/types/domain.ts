@@ -164,8 +164,15 @@ export interface DeliveryTaskState {
   deliverable: boolean;
   activeRun: boolean;
   approvalActive: boolean;
+  /** A native interactive panel owns the screen — delivery is blocked by
+   *  state, not by the idle-prompt heuristic (P1b 2026-06-12). */
+  modalActive: boolean;
   idleComposer: boolean;
   acceptsInput: boolean;
+  /** Set when queued items have been blocked ≥ the wedge threshold with no
+   *  understandable reason (no run, no approval, no take-over) — the
+   *  honest "no movement" signal for whatever detection missed. */
+  wedgedSince: string | null;
   queue: DeliveryQueueItem[];
 }
 

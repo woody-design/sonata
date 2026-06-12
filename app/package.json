@@ -56,7 +56,8 @@
     "e2e:composer-slash-picker": "npm run build && node tests/e2e/composer-slash-picker.mjs",
     "smoke:terminal-takeover-guard": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-takeover-guard.mjs",
     "smoke:pty-env-scrub": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/pty-env-scrub.mjs",
-    "e2e:terminal-takeover": "npm run build && node tests/e2e/terminal-takeover.mjs"
+    "e2e:terminal-takeover": "npm run build && node tests/e2e/terminal-takeover.mjs",
+    "smoke:modal-ambient-detection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/modal-ambient-detection.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

@@ -208,6 +208,9 @@ function fakeHost() {
     isUserControlActive() {
       return false;
     },
+    isModalActive() {
+      return false;
+    },
     isIdleComposerReady() {
       return this.idleComposer;
     },

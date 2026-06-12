@@ -193,6 +193,11 @@ export type ModalStateEvent = BaseRuntimeEvent<
     excerpt: string | null;
     /** The footer-hint signature that triggered detection. */
     signature: string | null;
+    /** "slash": opened by a passthrough slash command (Esc verified safe).
+     *  "ambient": startup/idle interstitial — Esc semantics UNKNOWN and
+     *  potentially destructive; the only safe affordances are take-over
+     *  and registry-verified answers. */
+    origin: "slash" | "ambient" | null;
   }
 >;
 

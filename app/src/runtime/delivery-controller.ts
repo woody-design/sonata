@@ -15,6 +15,11 @@ import { cleanTerminal, type PromptSubmission, type TerminalHost } from "./termi
 
 const DEFAULT_RECEIPT_TIMEOUT_MS = 45_000;
 const BACKFILL_RECEIPT_WINDOW_MS = 15 * 60_000;
+// Anthropic's own background-job infra treats "wedged on a dialog" as a
+// timeout-detected state (~45s). Same stance here: a queued message blocked
+// this long with no understandable reason gets an honest signal, not silence.
+const DEFAULT_WEDGE_AFTER_MS = 45_000;
+const DEFAULT_WEDGE_CHECK_INTERVAL_MS = 5_000;
 
 export interface DeliveryControllerOptions {
   taskId: TaskId;
@@ -25,6 +30,9 @@ export interface DeliveryControllerOptions {
   applyControlChange?: (change: DeliveryControlChange) => Promise<void>;
   cleanupAttachments?: (attachments: DeliveryAttachment[]) => void;
   receiptTimeoutMs?: number;
+  /** Test injection points; production uses the 45s/5s defaults. */
+  wedgeAfterMs?: number;
+  wedgeCheckIntervalMs?: number;
 }
 
 interface InFlightDelivery {
@@ -58,6 +66,10 @@ export class DeliveryController {
   private seq = 0;
   private inFlight: InFlightDelivery | null = null;
   private receiptTimer: NodeJS.Timeout | null = null;
+  private readonly wedgeAfterMs: number;
+  private wedgeTimer: NodeJS.Timeout | null = null;
+  private blockedSinceMs: number | null = null;
+  private wedgedSince: string | null = null;
 
   constructor(options: DeliveryControllerOptions) {
     this.taskId = options.taskId;
@@ -68,6 +80,13 @@ export class DeliveryController {
     this.applyControlChange = options.applyControlChange ?? null;
     this.cleanupAttachments = options.cleanupAttachments ?? null;
     this.receiptTimeoutMs = options.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS;
+    this.wedgeAfterMs = options.wedgeAfterMs ?? DEFAULT_WEDGE_AFTER_MS;
+    this.wedgeTimer = setInterval(
+      () => this.evaluateWedge(),
+      options.wedgeCheckIntervalMs ?? DEFAULT_WEDGE_CHECK_INTERVAL_MS,
+    );
+    // Never keep a process alive just to watch for wedges.
+    this.wedgeTimer.unref?.();
   }
 
   enqueue(text: string, attachments: DeliveryAttachment[] = []): DeliveryQueueItem {
@@ -157,6 +176,38 @@ export class DeliveryController {
 
   dispose(): void {
     this.clearReceiptTimer();
+    if (this.wedgeTimer) {
+      clearInterval(this.wedgeTimer);
+      this.wedgeTimer = null;
+    }
+  }
+
+  /**
+   * A static panel emits no events (P1), so the wedge check needs its own
+   * clock. "Wedged" = queued items blocked with no understandable reason:
+   * a run, an approval, or the human holding the keys all explain
+   * themselves elsewhere.
+   */
+  private evaluateWedge(): void {
+    const hasQueued = this.items.some((item) => item.status === "queued");
+    const understandablyBusy =
+      this.terminalHost.hasActiveRun() ||
+      this.terminalHost.isApprovalActive() ||
+      this.terminalHost.isUserControlActive();
+    const blocked = hasQueued && !this.inFlight && !understandablyBusy && !this.canDeliver();
+    if (!blocked) {
+      this.blockedSinceMs = null;
+      if (this.wedgedSince !== null) {
+        this.wedgedSince = null;
+        this.emitState();
+      }
+      return;
+    }
+    this.blockedSinceMs ??= Date.now();
+    if (this.wedgedSince === null && Date.now() - this.blockedSinceMs >= this.wedgeAfterMs) {
+      this.wedgedSince = new Date().toISOString();
+      this.emitState();
+    }
   }
 
   handleRuntimeEvent(event: RuntimeEvent): void {
@@ -178,8 +229,10 @@ export class DeliveryController {
       deliverable: this.canDeliver(),
       activeRun: this.terminalHost.hasActiveRun(),
       approvalActive: this.terminalHost.isApprovalActive(),
+      modalActive: this.terminalHost.isModalActive(),
       idleComposer: this.terminalHost.isIdleComposerReady(),
       acceptsInput: this.terminalHost.acceptsPromptInput(),
+      wedgedSince: this.wedgedSince,
       queue: this.items.map((item) => ({ ...item })),
     };
   }
@@ -220,6 +273,9 @@ export class DeliveryController {
       !this.inFlight &&
       !this.terminalHost.hasActiveRun() &&
       !this.terminalHost.isApprovalActive() &&
+      // A detected panel blocks delivery as STATE — the idle-prompt
+      // heuristic alone is one arrow keypress away from lying (P1b).
+      !this.terminalHost.isModalActive() &&
       // Single writer: while the human holds the keys, the queue holds the
       // messages (P1b: a navigating human can flip the idle heuristic —
       // delivery during take-over is a safety hazard, not a race).

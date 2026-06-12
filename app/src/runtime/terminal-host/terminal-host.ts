@@ -47,6 +47,11 @@ const DEFAULT_COLS = 120;
 // patterns tolerate collapsed whitespace.
 const MODAL_DETECT_WINDOW_MS = 45_000;
 const MODAL_SCAN_CHARS = 4000;
+// Ambient (startup/idle) panels must survive a quiescence window before
+// arming: real panels are static (P1 2026-06-12: 65s+ without a byte),
+// transient repaint frames are not.
+const AMBIENT_MODAL_CONFIRM_MS = 1200;
+const AMBIENT_MODAL_QUIET_MS = 600;
 export const CLAUDE_MODAL_FOOTER_RE = /Esc\s*to\s*(cancel|clear)/gi;
 export const CODEX_MODAL_FOOTER_RE = /esc\s*to\s*(go\s*back|close)|space\s*to\s*select/gi;
 // What the composer looks like when it is back: Claude prints a dismissal
@@ -261,6 +266,12 @@ export class TerminalHost extends EventEmitter {
   private activeRunRaw = "";
   private modalActive = false;
   private modalSignature: string | null = null;
+  /** How the panel was armed: slash panels have probe-verified Esc
+   *  semantics; ambient (startup/idle) panels do NOT — Esc on the resume
+   *  panel silently resumes full, Esc on Codex trust quits the process. */
+  private modalOrigin: "slash" | "ambient" | null = null;
+  private ambientModalCandidate: { signature: string; sinceMs: number } | null = null;
+  private ambientModalTimer: NodeJS.Timeout | null = null;
   /** Arms the modal detector for a window after a slash passthrough. */
   private lastSlashSubmitAt = 0;
   /**
@@ -343,6 +354,8 @@ export class TerminalHost extends EventEmitter {
     this.activeRunRaw = "";
     this.taskReady = false;
     this.acceptsInputAnnounced = false;
+    this.clearModalPanel();
+    this.resetAmbientModalCandidate();
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
     this.clearTaskReadyTimer();
@@ -974,6 +987,7 @@ export class TerminalHost extends EventEmitter {
 
   dispose(): void {
     this.clearTaskReadyTimer();
+    this.resetAmbientModalCandidate();
     this.disposeProcess();
     this.stopFileWatcher();
     this.clearCompletionTimer();
@@ -1067,22 +1081,84 @@ export class TerminalHost extends EventEmitter {
       }
       return;
     }
-    const armedMs = Date.now() - this.lastSlashSubmitAt;
-    if (this.lastSlashSubmitAt === 0 || armedMs > MODAL_DETECT_WINDOW_MS) {
-      return;
-    }
     // A slash submit records its own run (kind "slash"), so an active slash
     // run is exactly the state in which a panel can appear — only a real
     // prompt run disarms the detector.
     if ((this.activeRun && this.activeRun.kind !== "slash") || this.approvalActive) {
+      this.resetAmbientModalCandidate();
       return;
     }
     const signature = this.modalFooterSignature();
     if (!signature) {
+      this.resetAmbientModalCandidate();
       return;
     }
+    const armedMs = Date.now() - this.lastSlashSubmitAt;
+    if (this.lastSlashSubmitAt !== 0 && armedMs <= MODAL_DETECT_WINDOW_MS) {
+      this.armModalPanel(signature, "slash");
+      return;
+    }
+    // Ambient arming (startup/idle interstitials — the incident class):
+    // same positional signature, but it must survive a quiescence window.
+    if (
+      this.ambientModalCandidate === null ||
+      this.ambientModalCandidate.signature !== signature
+    ) {
+      this.ambientModalCandidate = { signature, sinceMs: Date.now() };
+    }
+    this.scheduleAmbientModalConfirm();
+  }
+
+  /** Static panels emit no further bytes (P1) — confirmation needs its own
+   *  timer, re-checking the same screen rather than waiting for data. */
+  private scheduleAmbientModalConfirm(): void {
+    if (this.ambientModalTimer) {
+      return;
+    }
+    this.ambientModalTimer = setTimeout(() => {
+      this.ambientModalTimer = null;
+      const candidate = this.ambientModalCandidate;
+      if (!candidate || this.modalActive || !this.ptyProcess) {
+        return;
+      }
+      if ((this.activeRun && this.activeRun.kind !== "slash") || this.approvalActive) {
+        return;
+      }
+      if (Date.now() - this.lastPtyDataAt < AMBIENT_MODAL_QUIET_MS) {
+        this.scheduleAmbientModalConfirm();
+        return;
+      }
+      if (Date.now() - candidate.sinceMs < AMBIENT_MODAL_CONFIRM_MS) {
+        this.scheduleAmbientModalConfirm();
+        return;
+      }
+      const signature = this.modalFooterSignature();
+      if (signature !== candidate.signature) {
+        this.ambientModalCandidate = signature
+          ? { signature, sinceMs: Date.now() }
+          : null;
+        if (signature) {
+          this.scheduleAmbientModalConfirm();
+        }
+        return;
+      }
+      this.armModalPanel(signature, "ambient");
+    }, AMBIENT_MODAL_CONFIRM_MS);
+  }
+
+  private resetAmbientModalCandidate(): void {
+    this.ambientModalCandidate = null;
+    if (this.ambientModalTimer) {
+      clearTimeout(this.ambientModalTimer);
+      this.ambientModalTimer = null;
+    }
+  }
+
+  private armModalPanel(signature: string, origin: "slash" | "ambient"): void {
     this.modalActive = true;
     this.modalSignature = signature;
+    this.modalOrigin = origin;
+    this.resetAmbientModalCandidate();
     if (this.activeRun && this.activeRun.kind === "slash") {
       // The "run" ended in a panel, not output — settle it so the session
       // does not look busy while the panel waits for a human.
@@ -1096,6 +1172,7 @@ export class TerminalHost extends EventEmitter {
       active: true,
       excerpt: this.cleanTail(600),
       signature,
+      origin,
     });
   }
 
@@ -1105,12 +1182,15 @@ export class TerminalHost extends EventEmitter {
     }
     this.modalActive = false;
     this.modalSignature = null;
+    this.modalOrigin = null;
     this.lastSlashSubmitAt = 0;
+    this.resetAmbientModalCandidate();
     this.emitEvent("modal:state", {
       taskId: this.taskId,
       active: false,
       excerpt: null,
       signature: null,
+      origin: null,
     });
   }
 
@@ -1120,6 +1200,12 @@ export class TerminalHost extends EventEmitter {
    * verified structurally — the idle composer must come back.
    */
   async dismissModal(): Promise<boolean> {
+    if (this.modalActive && this.modalOrigin !== "slash") {
+      // Esc is only probe-verified for slash-opened panels. On ambient
+      // interstitials it has side effects (resume panel: silently resumes
+      // full; Codex trust: quits the process). Never offered, never sent.
+      return false;
+    }
     for (let attempt = 0; attempt < 3; attempt += 1) {
       if (this.userControlActive) {
         // Single writer: the human is on the panel — never race their keys.

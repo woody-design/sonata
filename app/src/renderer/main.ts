@@ -95,8 +95,9 @@ interface TaskViewState {
   pendingAttachments: ComposerAttachment[];
   usageSnapshot: UsageSnapshot | null;
   workingStatus: WorkingStatusState | null;
-  /** A passthrough slash command left a TUI panel open in the hidden PTY. */
-  modalPanel: { signature: string | null } | null;
+  /** A native TUI panel owns the provider screen — slash-opened (Esc
+   *  verified) or ambient (startup/idle interstitial; Esc hazardous). */
+  modalPanel: { signature: string | null; origin: "slash" | "ambient" | null } | null;
   status: string;
   unread: boolean;
   /** A run finished while this session was not the focused view. */
@@ -782,6 +783,17 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
   if (!session.live || !session.liveStatus) {
     return null;
   }
+  const liveView = taskViewForId(session.task.id);
+  // Needs-you grammar (same dot as approvals): a native panel is asking,
+  // or queued messages have sat blocked past the wedge threshold.
+  if (liveView?.modalPanel || liveView?.deliveryState?.wedgedSince) {
+    const dot = document.createElement("span");
+    dot.className = "sidebar-session-attention";
+    dot.title = liveView.modalPanel
+      ? "The agent is asking something — open the terminal"
+      : "Queued message with no movement — check the terminal";
+    return dot;
+  }
   if (session.liveStatus === "waiting-for-approval") {
     const dot = document.createElement("span");
     dot.className = "sidebar-session-attention";
@@ -1413,12 +1425,13 @@ appElement.innerHTML = `
 
         <div id="modal-banner" class="modal-banner hidden">
           <div class="modal-banner-copy">
-            <strong>The agent opened an interactive panel</strong>
-            <p>A slash command opened a dialog inside the provider terminal. Close it to keep sending messages, or open the terminal to look at it.</p>
+            <strong id="modal-title">The agent opened an interactive panel</strong>
+            <p id="modal-body">A panel is waiting for input in the provider terminal.</p>
           </div>
           <div class="modal-banner-actions">
             <button id="modal-open-terminal" class="secondary" type="button">Open Terminal</button>
-            <button id="modal-dismiss" class="primary" type="button">Close Panel (Esc)</button>
+            <button id="modal-dismiss" class="secondary" type="button">Close Panel (Esc)</button>
+            <button id="modal-take-over" class="primary" type="button">Open &amp; take over</button>
           </div>
         </div>
 
@@ -1525,8 +1538,11 @@ const elements = {
   sessionMenuTrigger: getElement<HTMLButtonElement>("session-menu-trigger"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
   modalBanner: getElement<HTMLDivElement>("modal-banner"),
+  modalTitle: getElement<HTMLElement>("modal-title"),
+  modalBody: getElement<HTMLParagraphElement>("modal-body"),
   modalOpenTerminal: getElement<HTMLButtonElement>("modal-open-terminal"),
   modalDismiss: getElement<HTMLButtonElement>("modal-dismiss"),
+  modalTakeOver: getElement<HTMLButtonElement>("modal-take-over"),
   approvalKindBadge: getElement<HTMLSpanElement>("approval-kind-badge"),
   approvalTitle: getElement<HTMLElement>("approval-title"),
   approvalSummary: getElement<HTMLParagraphElement>("approval-summary"),
@@ -2678,8 +2694,15 @@ elements.denyApproval.addEventListener("click", () => {
 });
 
 elements.modalOpenTerminal.addEventListener("click", () => {
-  state.terminalOpen = true;
-  render();
+  setTerminalOpen(true);
+});
+
+elements.modalTakeOver.addEventListener("click", () => {
+  const view = activeTaskView();
+  if (!view?.task || view.userControl) {
+    return;
+  }
+  void toggleTakeover();
 });
 
 elements.modalDismiss.addEventListener("click", () => {
@@ -2861,8 +2884,17 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 
   if (event.type === "modal:state") {
-    view.modalPanel = event.payload.active ? { signature: event.payload.signature } : null;
-    view.status = event.payload.active ? "Interactive panel open" : "Ready";
+    view.modalPanel = event.payload.active
+      ? { signature: event.payload.signature, origin: event.payload.origin }
+      : null;
+    view.status = event.payload.active
+      ? `${providerLabel(view.task?.provider ?? "codex")} is asking something`
+      : "Ready";
+    if (!isActiveView(view)) {
+      // Background sessions surface the needs-you dot immediately —
+      // notify, don't steal focus.
+      renderSidebar();
+    }
     markViewChanged(view);
     return;
   }
@@ -2887,8 +2919,12 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 
   if (event.type === "delivery:state") {
+    const wedgeChanged = (view.deliveryState?.wedgedSince ?? null) !== event.payload.wedgedSince;
     view.deliveryState = event.payload;
     view.status = deliveryStatusLabel(view, event.payload);
+    if (wedgeChanged && !isActiveView(view)) {
+      renderSidebar();
+    }
     markViewChanged(view);
     return;
   }
@@ -4628,9 +4664,23 @@ function renderModalBanner(): void {
   const view = activeTaskView();
   const modal = view?.modalPanel ?? null;
   elements.modalBanner.classList.toggle("hidden", !modal);
+  if (!modal) {
+    return;
+  }
+  const providerName = providerLabel(view?.task?.provider ?? "codex");
+  const ambient = modal.origin !== "slash";
+  // Provenance first: WHO is asking. Ambient panels never get an Esc
+  // affordance — Esc semantics are unverified and can be destructive
+  // (resume panel: silently resumes full; Codex trust: quits).
+  elements.modalTitle.textContent = `${providerName} is asking something in the terminal`;
+  elements.modalBody.textContent = ambient
+    ? "A native panel is waiting for input. Your messages stay queued until it is answered — take over to answer it with your keyboard."
+    : "A slash command opened a dialog inside the provider terminal. Close it to keep sending messages, or open the terminal to look at it.";
+  elements.modalDismiss.classList.toggle("hidden", ambient);
   // Single writer: while the human holds the keys, Duet's answer buttons
   // disable — typing in the terminal IS the answer surface.
   elements.modalDismiss.disabled = Boolean(view?.userControl);
+  elements.modalTakeOver.disabled = Boolean(view?.userControl);
 }
 
 function renderApproval(): void {
@@ -6251,6 +6301,12 @@ function deliveryItemStatusLabel(
   if (item.status === "undelivered") {
     return `Undelivered — no ${providerName} receipt`;
   }
+  if (view.deliveryState?.modalActive) {
+    return `Queued behind a prompt — ${providerName} is asking something in the terminal`;
+  }
+  if (view.deliveryState?.wedgedSince) {
+    return `Queued — no movement; ${providerName} may be waiting in the terminal`;
+  }
   const launchWait =
     !view.runtimeReady &&
     !view.deliveryState?.activeRun &&
@@ -6293,7 +6349,16 @@ function deliveryStatusLabel(view: TaskViewState, deliveryState: DeliveryTaskSta
     return first.kind === "control" ? "Setting failed" : "Undelivered";
   }
   if (deliveryState.queue.some((item) => item.status === "queued")) {
+    if (deliveryState.modalActive) {
+      return `Queued — ${providerName} is asking something`;
+    }
+    if (deliveryState.wedgedSince) {
+      return "Queued — no movement; check the terminal";
+    }
     return "Queued";
+  }
+  if (deliveryState.modalActive) {
+    return `${providerName} is asking something`;
   }
   if (deliveryState.approvalActive) {
     return `Waiting for ${providerName} approval`;
