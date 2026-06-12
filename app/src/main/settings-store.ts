@@ -13,29 +13,43 @@ import {
   normalizeResumeSettings,
 } from "../shared/types/resume-settings";
 
-export class ReadingSettingsStore {
+/**
+ * A settings file backed by JSON: read-with-normalize-fallback and
+ * atomic temp-file write. The three concrete stores differ only in
+ * their type and normalize function, so the invariant lives here
+ * (project heuristic: three instances with a shared concept → extract).
+ */
+export class JsonSettingsStore<T> {
   readonly filePath: string;
+  private readonly normalize: (value: unknown) => T;
 
-  constructor(filePath: string) {
+  constructor(filePath: string, normalize: (value: unknown) => T) {
     this.filePath = filePath;
+    this.normalize = normalize;
   }
 
-  read(): ReadingSettings {
+  read(): T {
     try {
       const raw = fs.readFileSync(this.filePath, "utf8");
-      return normalizeReadingSettings(JSON.parse(raw));
+      return this.normalize(JSON.parse(raw));
     } catch {
-      return normalizeReadingSettings(null);
+      return this.normalize(null);
     }
   }
 
-  write(nextSettings: unknown): ReadingSettings {
-    const settings = normalizeReadingSettings(nextSettings);
+  write(nextSettings: unknown): T {
+    const settings = this.normalize(nextSettings);
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     const tempPath = `${this.filePath}.tmp`;
     fs.writeFileSync(tempPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
     fs.renameSync(tempPath, this.filePath);
     return settings;
+  }
+}
+
+export class ReadingSettingsStore extends JsonSettingsStore<ReadingSettings> {
+  constructor(filePath: string) {
+    super(filePath, normalizeReadingSettings);
   }
 }
 
@@ -43,29 +57,9 @@ export function readingSettingsPath(userDataPath: string): string {
   return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "reading-settings.json");
 }
 
-export class ResumeSettingsStore {
-  readonly filePath: string;
-
+export class ResumeSettingsStore extends JsonSettingsStore<ResumeSettings> {
   constructor(filePath: string) {
-    this.filePath = filePath;
-  }
-
-  read(): ResumeSettings {
-    try {
-      const raw = fs.readFileSync(this.filePath, "utf8");
-      return normalizeResumeSettings(JSON.parse(raw));
-    } catch {
-      return normalizeResumeSettings(null);
-    }
-  }
-
-  write(nextSettings: unknown): ResumeSettings {
-    const settings = normalizeResumeSettings(nextSettings);
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const tempPath = `${this.filePath}.tmp`;
-    fs.writeFileSync(tempPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
-    fs.renameSync(tempPath, this.filePath);
-    return settings;
+    super(filePath, normalizeResumeSettings);
   }
 }
 
@@ -73,29 +67,9 @@ export function resumeSettingsPath(userDataPath: string): string {
   return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "resume-settings.json");
 }
 
-export class LocalApiSettingsStore {
-  readonly filePath: string;
-
+export class LocalApiSettingsStore extends JsonSettingsStore<LocalApiSettings> {
   constructor(filePath: string) {
-    this.filePath = filePath;
-  }
-
-  read(): LocalApiSettings {
-    try {
-      const raw = fs.readFileSync(this.filePath, "utf8");
-      return normalizeLocalApiSettings(JSON.parse(raw));
-    } catch {
-      return normalizeLocalApiSettings(null);
-    }
-  }
-
-  write(nextSettings: unknown): LocalApiSettings {
-    const settings = normalizeLocalApiSettings(nextSettings);
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const tempPath = `${this.filePath}.tmp`;
-    fs.writeFileSync(tempPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
-    fs.renameSync(tempPath, this.filePath);
-    return settings;
+    super(filePath, normalizeLocalApiSettings);
   }
 }
 
