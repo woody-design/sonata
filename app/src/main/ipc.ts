@@ -165,6 +165,14 @@ export function registerIpcHandlers(
     windowController.openWorkspaceFolder(request),
   );
   ipcMain.handle(IPC_CHANNELS.folderPick, () => windowController.pickFolder());
+  ipcMain.handle(IPC_CHANNELS.resumePrepare, (_event, request) =>
+    runtimeController.prepareResume(request.taskId),
+  );
+  ipcMain.handle(IPC_CHANNELS.resumeSettingsRead, () => runtimeController.readResumeSettings());
+  ipcMain.handle(IPC_CHANNELS.resumeSettingsWrite, (_event, request) =>
+    runtimeController.writeResumeSettings(request),
+  );
+  ipcMain.handle(IPC_CHANNELS.resumeBridgeRevert, () => runtimeController.revertResumeBridge());
   ipcMain.handle(IPC_CHANNELS.readingSettingsRead, () => readingSettingsStore.read());
   ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) =>
     readingSettingsStore.write(request),

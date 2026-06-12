@@ -3324,6 +3324,67 @@ h2 {
   height: 100%;
 }
 
+/* The resume moment (slice C) — inline, on the intent path, above the
+   composer. Proposal visuals; Woody calibrates. */
+.resume-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 16px 8px;
+  padding: 12px 14px;
+  border: 1px solid #4a4234;
+  border-radius: 10px;
+  background: #1f1c16;
+}
+
+.resume-choice.hidden {
+  display: none;
+}
+
+.resume-choice-copy strong {
+  color: #f0eee7;
+  font-size: 13px;
+}
+
+.resume-choice-copy p {
+  margin: 4px 0 0;
+  color: #c8c2b6;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.resume-bridge-note {
+  font-size: 12px;
+  color: #a89f8d;
+}
+
+.resume-choice-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.resume-remember {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #c8c2b6;
+  font-size: 12px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #d97757;
+  cursor: pointer;
+  font-size: inherit;
+  text-decoration: underline;
+}
+
 .terminal-drawer-actions {
   display: flex;
   align-items: center;

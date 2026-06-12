@@ -98,6 +98,8 @@ interface TaskViewState {
   /** A native TUI panel owns the provider screen — slash-opened (Esc
    *  verified) or ambient (startup/idle interstitial; Esc hazardous). */
   modalPanel: { signature: string | null; origin: "slash" | "ambient" | null } | null;
+  /** The pre-spawn resume moment is waiting for the user's choice. */
+  resumeChoice: { idleMs: number | null; totalTokens: number | null; bridgeDismissed: boolean } | null;
   status: string;
   unread: boolean;
   /** A run finished while this session was not the focused view. */
@@ -1472,6 +1474,22 @@ appElement.innerHTML = `
 
         <section id="delivery-queue" class="delivery-queue hidden" aria-label="Queued messages"></section>
 
+        <section id="resume-choice" class="resume-choice hidden" aria-label="Resume choice">
+          <div class="resume-choice-copy">
+            <strong id="resume-choice-title">Resume this session?</strong>
+            <p id="resume-choice-body"></p>
+            <p id="resume-bridge-note" class="resume-bridge-note hidden">
+              Claude's own resume warning is currently turned off (an earlier temporary bridge).
+              <button id="resume-bridge-revert" class="link-button" type="button">Restore it</button>
+            </p>
+          </div>
+          <div class="resume-choice-actions">
+            <label class="resume-remember"><input type="checkbox" id="resume-remember" /> Remember my choice</label>
+            <button id="resume-full" class="secondary" type="button">Resume full session</button>
+            <button id="resume-summary" class="primary" type="button">Resume from summary</button>
+          </div>
+        </section>
+
         <form id="composer" class="composer">
           <textarea id="prompt-input" rows="1" placeholder="Start or open a Task"></textarea>
           <div id="attachment-strip" class="attachment-strip hidden" aria-label="Image attachments"></div>
@@ -1557,6 +1575,13 @@ const elements = {
   artifactList: getElement<HTMLDivElement>("artifact-list"),
   openSelectedPreview: getElement<HTMLButtonElement>("open-selected-preview"),
   deliveryQueue: getElement<HTMLElement>("delivery-queue"),
+  resumeChoice: getElement<HTMLElement>("resume-choice"),
+  resumeChoiceBody: getElement<HTMLParagraphElement>("resume-choice-body"),
+  resumeBridgeNote: getElement<HTMLParagraphElement>("resume-bridge-note"),
+  resumeBridgeRevert: getElement<HTMLButtonElement>("resume-bridge-revert"),
+  resumeRemember: getElement<HTMLInputElement>("resume-remember"),
+  resumeFull: getElement<HTMLButtonElement>("resume-full"),
+  resumeSummary: getElement<HTMLButtonElement>("resume-summary"),
   composer: getElement<HTMLFormElement>("composer"),
   promptInput: getElement<HTMLTextAreaElement>("prompt-input"),
   attachmentStrip: getElement<HTMLDivElement>("attachment-strip"),
@@ -2705,6 +2730,35 @@ elements.modalTakeOver.addEventListener("click", () => {
   void toggleTakeover();
 });
 
+elements.resumeFull.addEventListener("click", () => {
+  void resolveResumeChoice("full");
+});
+
+elements.resumeSummary.addEventListener("click", () => {
+  void resolveResumeChoice("summary");
+});
+
+elements.resumeBridgeRevert.addEventListener("click", () => {
+  elements.resumeBridgeRevert.disabled = true;
+  void window.duetRuntime
+    .revertResumeBridge()
+    .then((result) => {
+      const view = activeTaskView();
+      if (view?.resumeChoice) {
+        view.resumeChoice = { ...view.resumeChoice, bridgeDismissed: !result.cleared };
+      }
+      if (view) {
+        view.status = result.cleared
+          ? "Claude's own resume warning is back on (outside Duet)"
+          : "Couldn't update ~/.claude.json — check it manually";
+      }
+      render();
+    })
+    .finally(() => {
+      elements.resumeBridgeRevert.disabled = false;
+    });
+});
+
 elements.modalDismiss.addEventListener("click", () => {
   const view = activeTaskView();
   if (!view?.task) {
@@ -3059,6 +3113,7 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     usageSnapshot: null,
     workingStatus: null,
     modalPanel: null,
+    resumeChoice: null,
     status,
     unread: false,
     completedUnseen: false,
@@ -3306,20 +3361,71 @@ async function resumeSessionAndSend(
     return;
   }
   const taskId = view.task.id;
+
+  // The resume moment (slice C): for a large dormant Claude session with
+  // policy "ask", the first send CONVERTS into the choice — the message
+  // stays composed and sends right after the user decides.
+  let resumeMode: "full" | "summary" | undefined;
+  try {
+    const preparation = await window.duetRuntime.prepareResume({ taskId });
+    if (preparation.needsChoice) {
+      view.resumeChoice = {
+        idleMs: preparation.idleMs,
+        totalTokens: preparation.totalTokens,
+        bridgeDismissed: preparation.bridgeDismissed,
+      };
+      view.status = "Choose how to resume";
+      render();
+      return;
+    }
+    if (preparation.overThreshold && preparation.policy !== "ask") {
+      resumeMode = preparation.policy;
+      // The applied default stays visible — a receipt, not a silent policy.
+      view.status =
+        preparation.policy === "full"
+          ? `Resuming in full (your default) — ${resumeCostLabel(preparation.idleMs, preparation.totalTokens)}`
+          : `Resuming from summary (your default) — /compact runs first`;
+      render();
+    }
+  } catch {
+    // Preparation is best-effort context; resume itself proceeds.
+  }
+
+  await openDormantSessionAndSend(view, text, attachments, resumeMode);
+}
+
+async function openDormantSessionAndSend(
+  view: TaskViewState,
+  text: string,
+  attachments: DeliveryAttachment[],
+  resumeMode: "full" | "summary" | undefined,
+): Promise<void> {
+  if (!view.task) {
+    return;
+  }
+  const taskId = view.task.id;
   state.busy = true;
-  view.status = "Resuming session";
+  if (!view.status.startsWith("Resuming")) {
+    view.status = "Resuming session";
+  }
   render();
   try {
-    const response = await window.duetRuntime.openTask({ taskId });
+    const response = await window.duetRuntime.openTask({
+      taskId,
+      ...(resumeMode ? { resumeMode } : {}),
+    });
     view.task = response.task;
     view.live = true;
+    view.resumeChoice = null;
     view.status = response.resumedProviderSession
       ? "Resumed — your message will send when the agent is ready"
       : "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable";
     applyPendingRuntimeState(view);
-    await window.duetRuntime.submitPrompt({ taskId, text, attachments });
-    elements.promptInput.value = "";
-    clearPendingAttachments(view);
+    if (text || attachments.length > 0) {
+      await window.duetRuntime.submitPrompt({ taskId, text, attachments });
+      elements.promptInput.value = "";
+      clearPendingAttachments(view);
+    }
     void hydrateUsage(taskId);
   } catch (error) {
     view.status = errorMessage(error);
@@ -3327,6 +3433,58 @@ async function resumeSessionAndSend(
     state.busy = false;
     render();
   }
+}
+
+async function resolveResumeChoice(mode: "full" | "summary"): Promise<void> {
+  const view = activeTaskView();
+  if (!view?.task || !view.resumeChoice) {
+    return;
+  }
+  if (elements.resumeRemember.checked) {
+    // The moment is where the setting is born; the chooser collapses for
+    // future resumes and the policy lives in Duet's own settings store.
+    try {
+      await window.duetRuntime.writeResumeSettings({ policy: mode });
+    } catch {
+      // Remembering is best-effort; the chosen resume still proceeds.
+    }
+  }
+  view.resumeChoice = null;
+  elements.resumeRemember.checked = false;
+  const text = elements.promptInput.value.trim();
+  const attachments = view.pendingAttachments.map((item) => item.attachment);
+  await openDormantSessionAndSend(view, text, attachments, mode);
+}
+
+function resumeCostLabel(idleMs: number | null, totalTokens: number | null): string {
+  const parts: string[] = [];
+  if (idleMs !== null) {
+    parts.push(`idle ${formatIdleDuration(idleMs)}`);
+  }
+  if (totalTokens !== null) {
+    parts.push(`~${formatTokenCount(totalTokens)} tokens`);
+  }
+  return parts.join(" · ") || "size unknown";
+}
+
+function formatIdleDuration(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours < 48) {
+    return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
+  }
+  return `${Math.floor(hours / 24)}d`;
+}
+
+function formatTokenCount(tokens: number): string {
+  if (tokens >= 1000) {
+    return `${(tokens / 1000).toFixed(1)}k`;
+  }
+  return String(tokens);
 }
 
 async function decideApproval(decision: ApprovalDecision): Promise<void> {
@@ -3421,6 +3579,7 @@ function render(): void {
   renderSidebar();
   renderApproval();
   renderModalBanner();
+  renderResumeChoice();
   renderWorkflow();
   renderRuns();
   renderArtifacts();
@@ -4658,6 +4817,21 @@ function sendPromptTitle(
 
 function isActiveRunStatus(status: string): boolean {
   return ["active", "waiting-for-approval", "resumed-after-approval", "stopping"].includes(status);
+}
+
+function renderResumeChoice(): void {
+  const view = activeTaskView();
+  const choice = view?.resumeChoice ?? null;
+  elements.resumeChoice.classList.toggle("hidden", !choice);
+  if (!choice) {
+    return;
+  }
+  elements.resumeChoiceBody.textContent =
+    `This session has been idle for ${choice.idleMs !== null ? formatIdleDuration(choice.idleMs) : "a while"}` +
+    `${choice.totalTokens !== null ? ` and holds ~${formatTokenCount(choice.totalTokens)} tokens` : ""}. ` +
+    "Resuming in full keeps every detail and uses more of your limits; " +
+    "summary compacts the history first to save usage.";
+  elements.resumeBridgeNote.classList.toggle("hidden", !choice.bridgeDismissed);
 }
 
 function renderModalBanner(): void {

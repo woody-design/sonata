@@ -163,6 +163,12 @@ export interface StartTaskOptions {
   resumeLast?: boolean;
   /** Provider session id to resume natively (claude --resume / codex resume). */
   resumeRef?: string;
+  /**
+   * Per-spawn environment overlay — the clean lever for per-session
+   * provider policy (e.g. suppressing the resume interstitial) without
+   * ever mutating user-global state.
+   */
+  extraEnv?: Record<string, string>;
   cols?: number;
   rows?: number;
 }
@@ -376,7 +382,7 @@ export class TerminalHost extends EventEmitter {
       cols,
       rows,
       cwd,
-      env: ptyEnvironment(),
+      env: ptyEnvironment(options.extraEnv),
     });
 
     this.ptyProcess.onData((data) => this.handlePtyData(data));
@@ -2071,7 +2077,7 @@ function isTerminalChromeLine(line: string, provider?: RuntimeProvider): boolean
   );
 }
 
-function ptyEnvironment(): NodeJS.ProcessEnv {
+function ptyEnvironment(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   // Nested-session markers inherited when Duet itself was launched from a
@@ -2089,6 +2095,7 @@ function ptyEnvironment(): NodeJS.ProcessEnv {
     ...env,
     TERM: "xterm-256color",
     COLORTERM: "truecolor",
+    ...(extraEnv ?? {}),
   };
 }
 

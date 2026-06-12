@@ -55,15 +55,37 @@ import {
   WorkspacePreview,
   ClaudeStatuslineUsageWatcher,
   parseClaudeStatuslinePayload,
+  readClaudeResumeStats,
   type ResolveRunIdInput,
   StatusRegionTracker,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
 import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
+import type { ResumeSettingsStore } from "./settings-store";
+import type { ResumeSettings } from "../shared/types/resume-settings";
+import type {
+  PrepareResumeResponse,
+  ResumeSettingsResponse,
+  RevertResumeBridgeResponse,
+} from "../shared/types/ipc";
+import os from "node:os";
 
 const DEFAULT_TASK_TITLE = "New Task";
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
+// Duet's own resume-cost thresholds. They default-mirror the upstream
+// interstitial's (≥70min idle AND ≥100k tokens) but are DUET policy — the
+// choice renders from Duet's own data, so upstream drift cannot break it.
+const RESUME_PROMPT_MIN_IDLE_MS = 70 * 60_000;
+const RESUME_PROMPT_MIN_TOKENS = 100_000;
+// Undocumented but botmux-proven per-process levers (research §2.1). Both
+// force the full-session path, which is exactly what we want: the panel
+// never renders in the hidden PTY; Duet owns the choice. Version-fragile —
+// the ambient modal detector (slice B) remains the net if they drift.
+const RESUME_PANEL_SUPPRESS_ENV: Record<string, string> = {
+  CLAUDE_CODE_RESUME_THRESHOLD_MINUTES: "999999999",
+  CLAUDE_CODE_RESUME_TOKEN_THRESHOLD: "999999999",
+};
 const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
 const REASONING_EFFORTS = new Set<ReasoningEffort>(["low", "medium", "high", "xhigh", "max"]);
 const CODEX_SANDBOX_MODES = new Set<CodexSandboxMode>([
@@ -84,6 +106,7 @@ const CLAUDE_PERMISSION_MODES = new Set<ClaudePermissionMode>([
 interface RuntimeControllerOptions {
   sendEvent: (event: RuntimeEvent) => void;
   projectsStore: ProjectsStore;
+  resumeSettingsStore: ResumeSettingsStore;
 }
 
 interface ActiveTaskRuntime {
@@ -105,6 +128,7 @@ interface ActiveTaskRuntime {
 export class RuntimeController {
   private readonly sendEvent: (event: RuntimeEvent) => void;
   private readonly projectsStore: ProjectsStore;
+  private readonly resumeSettingsStore: ResumeSettingsStore;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
@@ -115,6 +139,7 @@ export class RuntimeController {
   constructor(options: RuntimeControllerOptions) {
     this.sendEvent = options.sendEvent;
     this.projectsStore = options.projectsStore;
+    this.resumeSettingsStore = options.resumeSettingsStore;
     this.claudeUsageWatcher = new ClaudeStatuslineUsageWatcher({
       onPayload: (payload, _filePath, mtimeMs) =>
         this.handleClaudeStatuslinePayload(payload, mtimeMs),
@@ -306,6 +331,11 @@ export class RuntimeController {
       eventSink: (event) => this.sendEvent(event),
     });
 
+    // Duet owns the resume moment (slice C): the interstitial is suppressed
+    // per-spawn for every Claude resume — the choice happened (or the
+    // policy applied) BEFORE the spawn, in Duet's own UI, from Duet's own
+    // numbers. Per-spawn env, never a ~/.claude.json write.
+    const claudeResume = runningTask.provider === "claude" && Boolean(resumeRef);
     const ptyStartedAt = new Date().toISOString();
     const runtime = terminalHost.startTask({
       cwd: providerCwd,
@@ -318,6 +348,7 @@ export class RuntimeController {
         ? { permissionMode: permissionSettings.permissionMode ?? "default" }
         : {}),
       ...(resumeRef ? { resumeRef } : {}),
+      ...(claudeResume ? { extraEnv: RESUME_PANEL_SUPPRESS_ENV } : {}),
       ...(request.rows !== undefined ? { rows: request.rows } : {}),
       ...(request.cols !== undefined ? { cols: request.cols } : {}),
     });
@@ -337,6 +368,13 @@ export class RuntimeController {
     this.taskRuntimes.set(runningTask.id, activeTask);
     this.watchClaudeUsage(activeTask);
     this.persistTaskManifest(runningTask, storageRoot);
+
+    if (claudeResume && request.resumeMode === "summary") {
+      // The panel's option 1, made explicit and receipted: /compact runs
+      // first, ahead of anything the user queued, and shows up in the
+      // delivery queue as its own item.
+      deliveryController.enqueue("/compact");
+    }
 
     for (const source of persistedSources) {
       // Both CLIs append to the same session file on resume — the
@@ -358,6 +396,102 @@ export class RuntimeController {
     const active = this.requireTaskRuntime(taskId);
     this.disposeTaskRuntime(active);
     this.taskRuntimes.delete(taskId);
+  }
+
+  /**
+   * Pre-spawn resume context (slice C): whether the resume moment needs
+   * the inline choice, with the cost numbers the native panel would have
+   * shown — computed from Duet's own data before any PTY exists.
+   */
+  prepareResume(taskId: TaskId): PrepareResumeResponse {
+    const settings = this.resumeSettingsStore.read();
+    const base: PrepareResumeResponse = {
+      needsChoice: false,
+      policy: settings.policy,
+      overThreshold: false,
+      idleMs: null,
+      totalTokens: null,
+      bridgeDismissed: this.readResumeBridgeDismissed(),
+    };
+    if (this.taskRuntimes.has(taskId)) {
+      return base;
+    }
+    let storageRoot: string;
+    try {
+      storageRoot = this.resolveOpenTaskStorageRoot({ taskId });
+    } catch {
+      return base;
+    }
+    const manifest = this.readTaskManifest(storageRoot);
+    if (manifest.task.provider !== "claude") {
+      return base;
+    }
+    const tip = this.readTranscriptSources(storageRoot).at(-1);
+    if (!tip?.providerSessionId || !tip.path) {
+      return base;
+    }
+    const stats = readClaudeResumeStats(tip.path);
+    const idleMs =
+      stats.lastActivityMs === null ? null : Math.max(0, Date.now() - stats.lastActivityMs);
+    const overThreshold =
+      idleMs !== null &&
+      stats.totalTokens !== null &&
+      idleMs >= RESUME_PROMPT_MIN_IDLE_MS &&
+      stats.totalTokens >= RESUME_PROMPT_MIN_TOKENS;
+    return {
+      ...base,
+      idleMs,
+      totalTokens: stats.totalTokens,
+      overThreshold,
+      needsChoice: settings.policy === "ask" && overThreshold,
+    };
+  }
+
+  readResumeSettings(): ResumeSettingsResponse {
+    return {
+      settings: this.resumeSettingsStore.read(),
+      bridgeDismissed: this.readResumeBridgeDismissed(),
+    };
+  }
+
+  writeResumeSettings(settings: unknown): ResumeSettings {
+    return this.resumeSettingsStore.write(settings);
+  }
+
+  /**
+   * Removes the temporary `resumeReturnDismissed: true` bridge from
+   * ~/.claude.json — the ONLY user-global provider write Duet performs,
+   * and only on an explicit click. Inside Duet the panel is suppressed
+   * per-spawn regardless; this restores Claude's own warning for
+   * terminals OUTSIDE Duet. Last-writer-wins with concurrent claude
+   * processes, same as the native option-3 write itself.
+   */
+  revertResumeBridge(): RevertResumeBridgeResponse {
+    const configPath = path.join(os.homedir(), ".claude.json");
+    try {
+      const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
+      if (parsed.resumeReturnDismissed !== true) {
+        return { cleared: true };
+      }
+      delete parsed.resumeReturnDismissed;
+      const tempPath = `${configPath}.duet-tmp`;
+      fs.writeFileSync(tempPath, JSON.stringify(parsed, null, 2), "utf8");
+      fs.renameSync(tempPath, configPath);
+      return { cleared: true };
+    } catch {
+      return { cleared: false };
+    }
+  }
+
+  private readResumeBridgeDismissed(): boolean {
+    try {
+      const parsed = JSON.parse(
+        fs.readFileSync(path.join(os.homedir(), ".claude.json"), "utf8"),
+      ) as Record<string, unknown>;
+      return parsed.resumeReturnDismissed === true;
+    } catch {
+      return false;
+    }
   }
 
   listTasks(): Task[] {

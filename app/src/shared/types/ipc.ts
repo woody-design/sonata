@@ -14,6 +14,7 @@ import type {
 } from "./domain";
 import type { RuntimeEvent } from "./events";
 import type { ReadingSettings, ResolvedReadingMode } from "./reading-settings";
+import type { ResumePolicyId, ResumeSettings } from "./resume-settings";
 import type {
   ReadSessionIndexRequest,
   ReadSessionSnapshotRequest,
@@ -72,6 +73,10 @@ export const IPC_CHANNELS = {
   workspaceOpenFolder: "workspace:open-folder",
   folderPick: "folder:pick",
   readingSettingsRead: "reading-settings:read",
+  resumePrepare: "resume:prepare",
+  resumeSettingsRead: "resume-settings:read",
+  resumeSettingsWrite: "resume-settings:write",
+  resumeBridgeRevert: "resume:bridge:revert",
   readingSettingsWrite: "reading-settings:write",
   readingSettingsReadSync: "reading-settings:read-sync",
   readingSystemModeChanged: "reading-settings:system-mode-changed",
@@ -119,8 +124,42 @@ export interface OpenTaskRequest {
    * (default). Pass false to force a fresh provider session.
    */
   resume?: boolean;
+  /**
+   * How to resume a large dormant Claude session. "summary" auto-runs
+   * /compact as the first delivery (the panel's option 1, made explicit);
+   * absent/"full" resumes as-is — the native no-decision semantic. The
+   * resume interstitial itself is suppressed per-spawn either way.
+   */
+  resumeMode?: "full" | "summary";
   rows?: number;
   cols?: number;
+}
+
+export interface PrepareResumeRequest {
+  taskId: TaskId;
+}
+
+export interface PrepareResumeResponse {
+  /** True ⇒ policy is "ask" and the session crosses the cost thresholds —
+   *  the renderer shows the inline choice before any spawn. */
+  needsChoice: boolean;
+  policy: ResumePolicyId;
+  overThreshold: boolean;
+  /** ms since the transcript's last timestamped entry; null if unknown. */
+  idleMs: number | null;
+  /** Last usage-line token total (the panel's own estimate); null if unknown. */
+  totalTokens: number | null;
+  /** Claude's own resume warning is globally off (the temporary bridge). */
+  bridgeDismissed: boolean;
+}
+
+export interface ResumeSettingsResponse {
+  settings: ResumeSettings;
+  bridgeDismissed: boolean;
+}
+
+export interface RevertResumeBridgeResponse {
+  cleared: boolean;
 }
 
 export type OpenTaskResponse = CreateTaskResponse;
@@ -412,6 +451,10 @@ export interface DuetRuntimeBridge {
   pickFolder(): Promise<FolderPickResponse>;
   readReadingSettings(): Promise<ReadingSettings>;
   writeReadingSettings(settings: ReadingSettings): Promise<ReadingSettings>;
+  prepareResume(request: PrepareResumeRequest): Promise<PrepareResumeResponse>;
+  readResumeSettings(): Promise<ResumeSettingsResponse>;
+  writeResumeSettings(settings: ResumeSettings): Promise<ResumeSettings>;
+  revertResumeBridge(): Promise<RevertResumeBridgeResponse>;
   onReadingSystemModeChanged(callback: (mode: ResolvedReadingMode) => void): () => void;
   onInspectorState(callback: (state: InspectorWindowState) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;
