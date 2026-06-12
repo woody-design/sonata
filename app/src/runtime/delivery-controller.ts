@@ -179,6 +179,7 @@ export class DeliveryController {
       activeRun: this.terminalHost.hasActiveRun(),
       approvalActive: this.terminalHost.isApprovalActive(),
       idleComposer: this.terminalHost.isIdleComposerReady(),
+      acceptsInput: this.terminalHost.acceptsPromptInput(),
       queue: this.items.map((item) => ({ ...item })),
     };
   }
@@ -219,7 +220,9 @@ export class DeliveryController {
       !this.inFlight &&
       !this.terminalHost.hasActiveRun() &&
       !this.terminalHost.isApprovalActive() &&
-      this.terminalHost.isIdleComposerReady()
+      // Structural accepts-input gate: delivers as soon as the provider
+      // composer exists (~3s), without waiting for the task-ready floor.
+      this.terminalHost.acceptsPromptInput()
     );
   }
 

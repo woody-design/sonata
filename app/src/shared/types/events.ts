@@ -74,6 +74,15 @@ export type TaskReadyEvent = BaseRuntimeEvent<
   }
 >;
 
+export type TaskAcceptsInputEvent = BaseRuntimeEvent<
+  "task:accepts-input",
+  {
+    taskId: TaskId;
+    source: "idle-prompt-structural";
+    confidence: CompletionConfidence;
+  }
+>;
+
 export type TaskUpdatedEvent = BaseRuntimeEvent<
   "task:updated",
   {
@@ -279,6 +288,7 @@ export type ProductRuntimeEvent =
   | PtyExitEvent
   | TaskStartedEvent
   | TaskReadyEvent
+  | TaskAcceptsInputEvent
   | TaskUpdatedEvent
   | PromptSubmittedEvent
   | DeliveryStateEvent

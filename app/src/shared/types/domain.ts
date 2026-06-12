@@ -165,6 +165,7 @@ export interface DeliveryTaskState {
   activeRun: boolean;
   approvalActive: boolean;
   idleComposer: boolean;
+  acceptsInput: boolean;
   queue: DeliveryQueueItem[];
 }
 

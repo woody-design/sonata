@@ -182,6 +182,7 @@ export class RunIndex {
         break;
       case "pty:exit":
       case "task:ready":
+      case "task:accepts-input":
       case "prompt:submitted":
       case "file:watching":
       case "file:watch-error":

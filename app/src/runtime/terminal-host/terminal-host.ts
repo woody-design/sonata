@@ -225,6 +225,7 @@ export class TerminalHost extends EventEmitter {
   private completionTimer: NodeJS.Timeout | null = null;
   private approvalSettleTimer: NodeJS.Timeout | null = null;
   private taskReadyTimer: NodeJS.Timeout | null = null;
+  private acceptsInputAnnounced = false;
   private lastPtyDataAt = 0;
   private taskReady = false;
   private recentAttributionRun: RecentAttributionRun | null = null;
@@ -264,6 +265,25 @@ export class TerminalHost extends EventEmitter {
     return detectIdlePrompt(this.rawTail, this.profile).ready;
   }
 
+  /**
+   * Structural "the composer exists and is idle" check WITHOUT the
+   * taskReadyMinAgeMs fuse. Prompt detection already requires the prompt to
+   * render AFTER any approval-screen text, so a pending trust screen blocks
+   * this both via approvalActive and via the prompt-ordering rule. Used by
+   * the delivery gate so a queued first message goes out as soon as the CLI
+   * accepts input (~3s) instead of at the task-ready floor (14s); task:ready
+   * remains the unconditional fallback that pumps delivery at the latest.
+   */
+  acceptsPromptInput(): boolean {
+    if (!this.ptyProcess || this.activeRun || this.approvalActive) {
+      return false;
+    }
+    if (Date.now() - this.lastPtyDataAt < this.profile.taskReadyQuietMs - 50) {
+      return false;
+    }
+    return detectIdlePrompt(this.rawTail, this.profile).ready;
+  }
+
   startTask(options: StartTaskOptions = {}): StartedPty {
     this.disposeProcess();
 
@@ -281,6 +301,7 @@ export class TerminalHost extends EventEmitter {
     this.recentAttributionRun = null;
     this.activeRunRaw = "";
     this.taskReady = false;
+    this.acceptsInputAnnounced = false;
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
     this.clearTaskReadyTimer();
@@ -703,6 +724,7 @@ export class TerminalHost extends EventEmitter {
       approvalKind: previousKind ?? "unknown",
     });
     this.taskReady = false;
+    this.acceptsInputAnnounced = false;
     this.approvalActive = false;
     this.lastApprovalDecision = decision;
     this.lastApprovalDecisionAt = decisionAt;
@@ -726,6 +748,7 @@ export class TerminalHost extends EventEmitter {
       approvalKind: previousKind ?? "unknown",
     });
     this.taskReady = false;
+    this.acceptsInputAnnounced = false;
     this.finishActiveRun("approval-denied", "Esc denied native approval", {
       completionSource: "native-control",
       completionConfidence: "high",
@@ -836,6 +859,7 @@ export class TerminalHost extends EventEmitter {
     if (this.taskReady || this.activeRun || this.approvalActive || !this.ptyProcess) {
       return;
     }
+    this.maybeAnnounceAcceptsInput();
     const taskAgeMs = this.startedAt ? Date.now() - this.startedAt : this.profile.taskReadyMinAgeMs;
     if (taskAgeMs < this.profile.taskReadyMinAgeMs) {
       this.taskReadyTimer = setTimeout(
@@ -1303,6 +1327,22 @@ export class TerminalHost extends EventEmitter {
     }
     clearTimeout(this.taskReadyTimer);
     this.taskReadyTimer = null;
+  }
+
+  private maybeAnnounceAcceptsInput(): void {
+    if (this.acceptsInputAnnounced) {
+      return;
+    }
+    const hint = detectIdlePrompt(this.rawTail, this.profile);
+    if (!hint.ready || !this.acceptsPromptInput()) {
+      return;
+    }
+    this.acceptsInputAnnounced = true;
+    this.emitEvent("task:accepts-input", {
+      taskId: this.taskId,
+      source: "idle-prompt-structural",
+      confidence: hint.confidence,
+    });
   }
 
   private markTaskReady(confidence: CompletionConfidence): void {
