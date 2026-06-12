@@ -27,6 +27,7 @@ export type TranscriptBlockKind =
   | "assistant-text"
   | "thinking"
   | "tool-call"
+  | "plan"
   | "system-note";
 
 interface TranscriptBlockBase {
@@ -84,6 +85,26 @@ export interface ToolCallBlock extends TranscriptBlockBase {
   durationMs: number | null;
 }
 
+export type PlanItemStatus = "pending" | "in_progress" | "completed";
+
+export interface PlanItem {
+  /** Step description: TodoWrite `content` (claude) / `step` (codex). */
+  text: string;
+  /** Present-continuous label while active: TodoWrite `activeForm`. */
+  activeLabel: string | null;
+  status: PlanItemStatus;
+}
+
+/**
+ * The agent's own plan state (claude TodoWrite / codex update_plan).
+ * Both providers send FULL state on every call, so one block per turn is
+ * upserted in place — latest call wins. The id is stable per turn.
+ */
+export interface PlanBlock extends TranscriptBlockBase {
+  kind: "plan";
+  items: PlanItem[];
+}
+
 export interface SystemNoteBlock extends TranscriptBlockBase {
   kind: "system-note";
   text: string;
@@ -94,6 +115,7 @@ export type TranscriptBlock =
   | AssistantTextBlock
   | ThinkingBlock
   | ToolCallBlock
+  | PlanBlock
   | SystemNoteBlock;
 
 export const TRANSCRIPT_SOURCES_SCHEMA_ID = "duet.transcript-sources.v1" as const;

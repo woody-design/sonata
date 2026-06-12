@@ -1,11 +1,18 @@
 import type { TaskId } from "../../shared/types/domain";
-import type { ToolCallBlock, TranscriptAttachment, TranscriptBlock } from "../../shared/types/transcript";
+import type {
+  PlanBlock,
+  PlanItem,
+  ToolCallBlock,
+  TranscriptAttachment,
+  TranscriptBlock,
+} from "../../shared/types/transcript";
 import type { UsageSnapshot } from "../../shared/types/usage";
 import { parseCodexTokenCountPayload } from "../usage";
 import {
   boundText,
   INPUT_PREVIEW_LIMIT,
   parseJsonRecord,
+  parsePlanItems,
   prettyJson,
   RESULT_PREVIEW_LIMIT,
   toolSummary,
@@ -27,6 +34,7 @@ export class CodexRolloutNormalizer {
   private turnSeq = 0;
   private currentTurnKey: string | null = null;
   private readonly pendingToolCalls = new Map<string, ToolCallBlock>();
+  private readonly turnPlans = new Map<string, PlanBlock>();
 
   constructor(options: {
     taskId: TaskId;
@@ -126,6 +134,16 @@ export class CodexRolloutNormalizer {
     if (payload.type === "function_call" || payload.type === "custom_tool_call") {
       const callId = typeof payload.call_id === "string" ? payload.call_id : this.nextBlockId("call");
       const input = parseToolArguments(payload);
+      if (payload.name === "update_plan") {
+        const items = parsePlanItems(input);
+        if (items) {
+          // The agent's own plan state. One upserted block per turn (full
+          // state every call); the orphan function_call_output drops
+          // naturally (no pendingToolCalls entry). Malformed input falls
+          // through to the generic tool-call path below.
+          return [this.upsertPlanBlock(items, ts)];
+        }
+      }
       const inputPreview = boundText(prettyJson(input), INPUT_PREVIEW_LIMIT);
       const toolCall: ToolCallBlock = {
         kind: "tool-call",
@@ -240,6 +258,27 @@ export class CodexRolloutNormalizer {
       seq: ++this.seq,
       text,
     };
+  }
+
+  private upsertPlanBlock(items: PlanItem[], ts: string): PlanBlock {
+    const turnKey = this.ensureTurn();
+    const existing = this.turnPlans.get(turnKey);
+    const updated: PlanBlock = existing
+      ? { ...existing, items, ts }
+      : {
+          kind: "plan",
+          id: `${this.sourceId}:plan:${turnKey}`,
+          taskId: this.taskId,
+          sourceId: this.sourceId,
+          provider: "codex",
+          turnKey,
+          runId: null,
+          ts,
+          seq: ++this.seq,
+          items,
+        };
+    this.turnPlans.set(turnKey, updated);
+    return updated;
   }
 
   private ensureTurn(): string {

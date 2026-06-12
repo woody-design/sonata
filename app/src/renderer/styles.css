@@ -3632,6 +3632,49 @@ h2 {
   padding-left: 10px;
 }
 
+.turn-plan {
+  border-left: 3px solid var(--border-soft);
+  padding-left: 10px;
+}
+
+.turn-plan-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.turn-plan-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.turn-plan-item.in_progress {
+  color: var(--ink);
+}
+
+.turn-plan-item.completed .turn-plan-text {
+  text-decoration: line-through;
+  text-decoration-color: var(--border-soft);
+}
+
+.turn-plan-status {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.turn-plan-item.completed .turn-plan-status {
+  color: var(--accent);
+}
+
 .turn-thinking-text {
   margin: 6px 0 0;
   color: var(--ink-muted);

@@ -1,9 +1,16 @@
 import type { TaskId } from "../../shared/types/domain";
-import type { ToolCallBlock, TranscriptAttachment, TranscriptBlock } from "../../shared/types/transcript";
+import type {
+  PlanBlock,
+  PlanItem,
+  ToolCallBlock,
+  TranscriptAttachment,
+  TranscriptBlock,
+} from "../../shared/types/transcript";
 import {
   boundText,
   INPUT_PREVIEW_LIMIT,
   parseJsonRecord,
+  parsePlanItems,
   prettyJson,
   RESULT_PREVIEW_LIMIT,
   toolSummary,
@@ -29,6 +36,10 @@ export class ClaudeSessionNormalizer {
   private currentTurnKey: string | null = null;
   private turnHasAssistant = false;
   private readonly pendingToolCalls = new Map<string, ToolCallBlock>();
+  private readonly turnPlans = new Map<string, PlanBlock>();
+  /** Session-level task state for the 2.1.17x TaskCreate/TaskUpdate tools. */
+  private readonly sessionTasks = new Map<string, PlanItem>();
+  private readonly pendingPlanCalls = new Map<string, PendingPlanCall>();
 
   constructor(options: { taskId: TaskId; sourceId: string }) {
     this.taskId = options.taskId;
@@ -169,28 +180,49 @@ export class ClaudeSessionNormalizer {
         });
       } else if (block.type === "tool_use" && typeof block.id === "string") {
         this.turnHasAssistant = true;
-        const input = block.input;
-        const inputPreview = boundText(prettyJson(input), INPUT_PREVIEW_LIMIT);
-        const toolCall: ToolCallBlock = {
-          kind: "tool-call",
-          id: `${this.sourceId}:tool:${block.id}`,
-          taskId: this.taskId,
-          sourceId: this.sourceId,
-          provider: "claude",
-          turnKey: this.currentTurnKey ?? this.openImplicitTurn(),
-          runId: null,
-          ts,
-          seq: ++this.seq,
-          callId: block.id,
-          toolName: typeof block.name === "string" ? block.name : "tool",
-          summary: toolSummary(input),
-          inputPreview: inputPreview.text,
-          inputTruncated: inputPreview.truncated,
-          status: "running",
-          resultPreview: null,
-          resultTruncated: false,
-          durationMs: null,
-        };
+        if (block.name === "TodoWrite") {
+          // Legacy full-state plan tool (pre-2.1.17x sessions). One upserted
+          // block per turn; the orphan tool_result drops naturally in
+          // resolveToolResult. Malformed input falls through to the generic
+          // tool-call path below.
+          const items = parsePlanItems(block.input);
+          if (items) {
+            upserts.push(this.upsertPlanBlock(items, ts));
+            continue;
+          }
+        }
+        const toolCall = this.buildToolCall(block, ts);
+        if (block.name === "TaskCreate") {
+          // Current plan tool: the task id exists only in the RESULT text,
+          // so the create is buffered and applied in resolveToolResult. The
+          // pre-built generic block is the evidence fallback if the result
+          // cannot be parsed.
+          const input = block.input as Record<string, unknown> | undefined;
+          const subject =
+            typeof input?.subject === "string" && input.subject.trim() ? input.subject : null;
+          if (subject) {
+            this.pendingPlanCalls.set(block.id, {
+              kind: "create",
+              toolCall,
+              text: subject,
+              activeLabel:
+                typeof input?.activeForm === "string" && input.activeForm.trim()
+                  ? input.activeForm
+                  : null,
+            });
+            continue;
+          }
+        }
+        if (block.name === "TaskUpdate") {
+          // Self-contained delta: applies on use; the result is swallowed.
+          // Unknown task ids stay visible as generic tool calls.
+          const planUpdate = this.applyTaskUpdate(block.input, ts);
+          if (planUpdate) {
+            this.pendingPlanCalls.set(block.id, { kind: "update" });
+            upserts.push(planUpdate);
+            continue;
+          }
+        }
         this.pendingToolCalls.set(block.id, toolCall);
         upserts.push(toolCall);
       }
@@ -198,10 +230,108 @@ export class ClaudeSessionNormalizer {
     return upserts;
   }
 
-  private resolveToolResult(block: Record<string, unknown>, ts: string): ToolCallBlock | null {
+  private buildToolCall(block: Record<string, unknown>, ts: string): ToolCallBlock {
+    const input = block.input;
+    const inputPreview = boundText(prettyJson(input), INPUT_PREVIEW_LIMIT);
+    return {
+      kind: "tool-call",
+      id: `${this.sourceId}:tool:${block.id as string}`,
+      taskId: this.taskId,
+      sourceId: this.sourceId,
+      provider: "claude",
+      turnKey: this.currentTurnKey ?? this.openImplicitTurn(),
+      runId: null,
+      ts,
+      seq: ++this.seq,
+      callId: block.id as string,
+      toolName: typeof block.name === "string" ? block.name : "tool",
+      summary: toolSummary(input),
+      inputPreview: inputPreview.text,
+      inputTruncated: inputPreview.truncated,
+      status: "running",
+      resultPreview: null,
+      resultTruncated: false,
+      durationMs: null,
+    };
+  }
+
+  private applyTaskUpdate(input: unknown, ts: string): PlanBlock | null {
+    const record = (input ?? {}) as Record<string, unknown>;
+    const taskId =
+      typeof record.taskId === "string"
+        ? record.taskId
+        : typeof record.taskId === "number"
+          ? String(record.taskId)
+          : null;
+    if (!taskId || !this.sessionTasks.has(taskId)) {
+      return null;
+    }
+    const item = this.sessionTasks.get(taskId) as PlanItem;
+    const status = record.status;
+    if (status === "deleted") {
+      this.sessionTasks.delete(taskId);
+    } else {
+      if (status === "pending" || status === "in_progress" || status === "completed") {
+        item.status = status;
+      }
+      if (typeof record.subject === "string" && record.subject.trim()) {
+        item.text = record.subject;
+      }
+      if (typeof record.activeForm === "string" && record.activeForm.trim()) {
+        item.activeLabel = record.activeForm;
+      }
+    }
+    return this.upsertPlanBlock(this.sessionTaskItems(), ts);
+  }
+
+  private sessionTaskItems(): PlanItem[] {
+    return [...this.sessionTasks.values()].map((item) => ({ ...item }));
+  }
+
+  private upsertPlanBlock(items: PlanItem[], ts: string): PlanBlock {
+    const turnKey = this.currentTurnKey ?? this.openImplicitTurn();
+    const existing = this.turnPlans.get(turnKey);
+    const updated: PlanBlock = existing
+      ? { ...existing, items, ts }
+      : {
+          kind: "plan",
+          id: `${this.sourceId}:plan:${turnKey}`,
+          taskId: this.taskId,
+          sourceId: this.sourceId,
+          provider: "claude",
+          turnKey,
+          runId: null,
+          ts,
+          seq: ++this.seq,
+          items,
+        };
+    this.turnPlans.set(turnKey, updated);
+    return updated;
+  }
+
+  private resolveToolResult(block: Record<string, unknown>, ts: string): TranscriptBlock | null {
     const callId = block.tool_use_id;
     if (typeof callId !== "string") {
       return null;
+    }
+    const pendingPlan = this.pendingPlanCalls.get(callId);
+    if (pendingPlan) {
+      this.pendingPlanCalls.delete(callId);
+      if (pendingPlan.kind === "update") {
+        return null;
+      }
+      const created = toolResultText(block.content).match(/Task #(\d+) created/i);
+      if (created && block.is_error !== true) {
+        this.sessionTasks.set(created[1] as string, {
+          text: pendingPlan.text,
+          activeLabel: pendingPlan.activeLabel,
+          status: "pending",
+        });
+        return this.upsertPlanBlock(this.sessionTaskItems(), ts);
+      }
+      // Unparseable create result: surface the buffered generic tool call
+      // resolved with this result — never lose evidence to a parser.
+      this.pendingToolCalls.set(callId, pendingPlan.toolCall);
     }
     const pending = this.pendingToolCalls.get(callId);
     if (!pending) {
@@ -241,6 +371,10 @@ export class ClaudeSessionNormalizer {
     return `${this.sourceId}:${uuid}:${suffix}`;
   }
 }
+
+type PendingPlanCall =
+  | { kind: "create"; toolCall: ToolCallBlock; text: string; activeLabel: string | null }
+  | { kind: "update" };
 
 function recordTimestamp(record: Record<string, unknown>): string {
   return typeof record.timestamp === "string" ? record.timestamp : new Date().toISOString();

@@ -565,6 +565,315 @@ await (async () => {
   }
 })();
 
+// --- Plan blocks (slice 2: TodoWrite / update_plan extraction) ---------------
+
+check("claude: TodoWrite upserts one plan block per turn; orphan result drops", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s1" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:00.000Z",
+      message: { role: "user", content: "Plan the work" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:02.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_todo_1",
+            name: "TodoWrite",
+            input: {
+              todos: [
+                { content: "Define Agent data model", activeForm: "Defining Agent data model", status: "in_progress" },
+                { content: "Build VisionDetector", activeForm: "Building VisionDetector", status: "pending" },
+              ],
+            },
+          },
+        ],
+      },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:03.000Z",
+      message: {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "toolu_todo_1", content: "Todos have been modified successfully" },
+        ],
+      },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a2",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:09.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_todo_2",
+            name: "TodoWrite",
+            input: {
+              todos: [
+                { content: "Define Agent data model", activeForm: "Defining Agent data model", status: "completed" },
+                { content: "Build VisionDetector", activeForm: "Building VisionDetector", status: "in_progress" },
+              ],
+            },
+          },
+        ],
+      },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  const planUpserts = upserts.filter((block) => block.kind === "plan");
+  assert.equal(planUpserts.length, 2, "both TodoWrite calls emit the plan");
+  assert.equal(new Set(planUpserts.map((block) => block.id)).size, 1, "same id — upsert in place");
+  assert.equal(planUpserts[0].seq, planUpserts[1].seq, "stable seq keeps transcript position");
+  const final = planUpserts[1];
+  assert.deepEqual(
+    final.items.map((item) => item.status),
+    ["completed", "in_progress"],
+  );
+  assert.equal(final.items[1].activeLabel, "Building VisionDetector");
+  assert.equal(
+    upserts.filter((block) => block.kind === "tool-call").length,
+    0,
+    "no raw TodoWrite tool card, and the orphan tool_result drops",
+  );
+});
+
+check("claude: malformed TodoWrite falls through to the generic tool-call", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s1" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:00.000Z",
+      message: { role: "user", content: "Plan the work" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:02.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_bad",
+            name: "TodoWrite",
+            input: { todos: [{ content: "x", status: "weird-status" }] },
+          },
+        ],
+      },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  assert.equal(upserts.filter((block) => block.kind === "plan").length, 0);
+  const tools = upserts.filter((block) => block.kind === "tool-call");
+  assert.equal(tools.length, 1, "malformed plan input stays visible as a tool call");
+  assert.equal(tools[0].toolName, "TodoWrite");
+});
+
+check("codex: update_plan with stringified args and non-ASCII steps", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const upserts = [];
+  const lines = [
+    JSON.stringify({
+      timestamp: "2026-06-11T10:00:00.000Z",
+      type: "session_meta",
+      payload: { id: "sess-1", cwd: "/tmp/work", timestamp: "2026-06-11T10:00:00.000Z" },
+    }),
+    JSON.stringify({
+      timestamp: "2026-06-11T10:00:01.000Z",
+      type: "event_msg",
+      payload: { type: "user_message", message: "把界面中文化" },
+    }),
+    JSON.stringify({
+      timestamp: "2026-06-11T10:00:02.000Z",
+      type: "response_item",
+      payload: {
+        type: "function_call",
+        name: "update_plan",
+        call_id: "plan-1",
+        arguments: JSON.stringify({
+          plan: [
+            { step: "建立中文化风格准则并定位用户可见英文", status: "in_progress" },
+            { step: "翻译并验证", status: "pending" },
+          ],
+        }),
+      },
+    }),
+    JSON.stringify({
+      timestamp: "2026-06-11T10:00:03.000Z",
+      type: "response_item",
+      payload: { type: "function_call_output", call_id: "plan-1", output: "Plan updated" },
+    }),
+    JSON.stringify({
+      timestamp: "2026-06-11T10:00:09.000Z",
+      type: "response_item",
+      payload: {
+        type: "function_call",
+        name: "update_plan",
+        call_id: "plan-2",
+        arguments: JSON.stringify({
+          plan: [
+            { step: "建立中文化风格准则并定位用户可见英文", status: "completed" },
+            { step: "翻译并验证", status: "in_progress" },
+          ],
+        }),
+      },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  const planUpserts = upserts.filter((block) => block.kind === "plan");
+  assert.equal(planUpserts.length, 2);
+  assert.equal(new Set(planUpserts.map((block) => block.id)).size, 1, "one plan block per turn");
+  const final = planUpserts[1];
+  assert.equal(final.items[0].text, "建立中文化风格准则并定位用户可见英文");
+  assert.deepEqual(
+    final.items.map((item) => item.status),
+    ["completed", "in_progress"],
+  );
+  assert.equal(final.items[0].activeLabel, null, "codex has no activeForm equivalent");
+  assert.equal(
+    upserts.filter((block) => block.kind === "tool-call").length,
+    0,
+    "no raw update_plan card; the orphan output drops",
+  );
+});
+
+check("claude: TaskCreate/TaskUpdate (2.1.17x) accumulate session task state", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s1" });
+  const upserts = [];
+  const use = (id, name, input, t) =>
+    claudeLine({
+      type: "assistant",
+      uuid: `a-${id}`,
+      promptId: "p1",
+      timestamp: t,
+      message: { role: "assistant", content: [{ type: "tool_use", id, name, input }] },
+    });
+  const res = (id, content, t) =>
+    claudeLine({
+      type: "user",
+      uuid: `u-${id}`,
+      promptId: "p1",
+      timestamp: t,
+      message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content }] },
+    });
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:00.000Z",
+      message: { role: "user", content: "Plan and read the files" },
+    }),
+    use("c1", "TaskCreate", { subject: "Read a.txt", description: "d", activeForm: "Reading a.txt" }, "2026-06-11T10:00:02.000Z"),
+    res("c1", "Task #1 created successfully: Read a.txt", "2026-06-11T10:00:02.100Z"),
+    use("c2", "TaskCreate", { subject: "Read b.txt", description: "d", activeForm: "Reading b.txt" }, "2026-06-11T10:00:02.200Z"),
+    res("c2", "Task #2 created successfully: Read b.txt", "2026-06-11T10:00:02.300Z"),
+    use("s1", "TaskUpdate", { taskId: "1", status: "in_progress" }, "2026-06-11T10:00:03.000Z"),
+    res("s1", "Updated task #1 status", "2026-06-11T10:00:03.100Z"),
+    use("s2", "TaskUpdate", { taskId: "1", status: "completed" }, "2026-06-11T10:00:05.000Z"),
+    res("s2", "Updated task #1 status", "2026-06-11T10:00:05.100Z"),
+    use("s3", "TaskUpdate", { taskId: "2", status: "in_progress" }, "2026-06-11T10:00:06.000Z"),
+    res("s3", "Updated task #2 status", "2026-06-11T10:00:06.100Z"),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  const planUpserts = upserts.filter((block) => block.kind === "plan");
+  assert.ok(planUpserts.length >= 5, "every create/update upserts the plan");
+  assert.equal(new Set(planUpserts.map((block) => block.id)).size, 1, "one block per turn");
+  const final = planUpserts[planUpserts.length - 1];
+  assert.deepEqual(
+    final.items.map((item) => [item.text, item.status]),
+    [
+      ["Read a.txt", "completed"],
+      ["Read b.txt", "in_progress"],
+    ],
+  );
+  assert.equal(final.items[1].activeLabel, "Reading b.txt");
+  assert.equal(
+    upserts.filter((block) => block.kind === "tool-call").length,
+    0,
+    "no raw task-tool cards; create applies on result, update on use",
+  );
+  // earlier snapshots must not be mutated by later updates (no aliasing)
+  const second = planUpserts[1];
+  assert.equal(second.items[0].status, "pending", "snapshot isolation holds");
+});
+
+check("claude: unparseable TaskCreate result falls back to a resolved tool call", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s1" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:00.000Z",
+      message: { role: "user", content: "Plan" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:02.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "cX", name: "TaskCreate", input: { subject: "Read a.txt", activeForm: "Reading a.txt" } },
+        ],
+      },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptId: "p1",
+      timestamp: "2026-06-11T10:00:02.500Z",
+      message: {
+        role: "user",
+        content: [{ type: "tool_result", tool_use_id: "cX", content: "Something unexpected", is_error: false }],
+      },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  assert.equal(upserts.filter((block) => block.kind === "plan").length, 0);
+  const tools = upserts.filter((block) => block.kind === "tool-call");
+  assert.equal(tools.length, 1, "buffered tool call surfaces with the result");
+  assert.equal(tools[0].toolName, "TaskCreate");
+  assert.equal(tools[0].status, "ok");
+  assert.ok(tools[0].resultPreview.includes("Something unexpected"));
+});
+
 fs.rmSync(tempRoot, { recursive: true, force: true });
 
 if (failures.length > 0) {

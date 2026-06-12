@@ -54,6 +54,7 @@ import type {
 import type { ApprovalDetectedEvent, TranscriptBlocksEvent } from "../shared/types/events";
 import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
 import type {
+  PlanBlock,
   ToolCallBlock,
   TranscriptBlock,
   TranscriptSourceRef,
@@ -3923,7 +3924,7 @@ function sendPromptTitle(
     return `Queued — delivers after ${providerName} approval is resolved.`;
   }
   if (!view.runtimeReady) {
-    return `${providerName} is starting — your message will send when it's ready.`;
+    return `${providerName} is starting — your message sends as soon as it accepts input.`;
   }
   if (view.deliveryState && !view.deliveryState.deliverable) {
     return `Queued — delivers when ${providerName} is ready.`;
@@ -4308,8 +4309,8 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
 
 function isWorkTraceBlock(
   block: TranscriptBlock,
-): block is Extract<TranscriptBlock, { kind: "thinking" | "tool-call" }> {
-  return block.kind === "thinking" || block.kind === "tool-call";
+): block is Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" }> {
+  return block.kind === "thinking" || block.kind === "tool-call" || block.kind === "plan";
 }
 
 function isAnswerBlock(
@@ -4328,7 +4329,7 @@ function turnCompletedWithoutAssistantOutput(turn: ReadingTurn): boolean {
 
 function renderTurnWorkTrace(
   turn: ReadingTurn,
-  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" }>>,
+  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" }>>,
   noAssistantOutput: boolean,
 ): HTMLElement {
   const run = turn.run;
@@ -4417,7 +4418,7 @@ function workTraceLabel(run: RuntimeRunReport, noAssistantOutput = false): strin
 
 function workTraceMeta(
   run: RuntimeRunReport,
-  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" }>>,
+  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" }>>,
 ): string[] {
   const toolCount = workBlocks.filter((block) => block.kind === "tool-call").length;
   return [
@@ -4438,6 +4439,9 @@ function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
   if (block.kind === "tool-call") {
     return renderToolCallBlock(block);
   }
+  if (block.kind === "plan") {
+    return renderPlanBlock(block);
+  }
   if (block.kind === "thinking") {
     const section = document.createElement("section");
     section.className = "turn-thinking";
@@ -4452,6 +4456,29 @@ function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
   note.className = "turn-system-note";
   note.textContent = block.kind === "system-note" ? block.text : "";
   return note;
+}
+
+function renderPlanBlock(block: PlanBlock): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "turn-plan";
+  section.append(runSectionLabel("Plan"));
+  const list = document.createElement("ul");
+  list.className = "turn-plan-list";
+  for (const item of block.items) {
+    const row = document.createElement("li");
+    row.className = `turn-plan-item ${item.status}`;
+    const status = document.createElement("span");
+    status.className = "turn-plan-status";
+    status.textContent = item.status === "completed" ? "✓" : item.status === "in_progress" ? "…" : "○";
+    const text = document.createElement("span");
+    text.className = "turn-plan-text";
+    text.textContent =
+      item.status === "in_progress" && item.activeLabel ? item.activeLabel : item.text;
+    row.append(status, text);
+    list.append(row);
+  }
+  section.append(list);
+  return section;
 }
 
 function renderToolCallBlock(block: ToolCallBlock): HTMLElement {
@@ -5179,7 +5206,7 @@ function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLE
   const copy = document.createElement("div");
   copy.className = "delivery-copy";
   const status = document.createElement("strong");
-  status.textContent = deliveryItemStatusLabel(providerName, item);
+  status.textContent = deliveryItemStatusLabel(view, providerName, item);
   const text = document.createElement("p");
   text.textContent = item.kind === "control" ? controlItemLabel(item) : promptItemLabel(item);
   copy.append(status, text);
@@ -5283,7 +5310,11 @@ async function retryQueuedPrompt(itemId: string): Promise<void> {
   }
 }
 
-function deliveryItemStatusLabel(providerName: string, item: DeliveryQueueItem): string {
+function deliveryItemStatusLabel(
+  view: TaskViewState,
+  providerName: string,
+  item: DeliveryQueueItem,
+): string {
   if (item.kind === "control") {
     if (item.status === "delivering") {
       return `Applying ${providerName} setting`;
@@ -5298,6 +5329,13 @@ function deliveryItemStatusLabel(providerName: string, item: DeliveryQueueItem):
   }
   if (item.status === "undelivered") {
     return `Undelivered — no ${providerName} receipt`;
+  }
+  const launchWait =
+    !view.runtimeReady &&
+    !view.deliveryState?.activeRun &&
+    !view.deliveryState?.approvalActive;
+  if (launchWait) {
+    return `Starting ${providerName} — sends as soon as it accepts input`;
   }
   return `Queued — delivers when ${providerName} is ready`;
 }
