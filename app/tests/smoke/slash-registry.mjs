@@ -1,0 +1,170 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { createRequire } from "node:module";
+
+// Fake HOME/CODEX_HOME before requiring the modules: os.homedir() reads $HOME
+// on POSIX at call time, so discovery scans the fixture tree, not the real one.
+const fixtureHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-smoke-"));
+process.env.HOME = fixtureHome;
+process.env.CODEX_HOME = path.join(fixtureHome, ".codex");
+
+const require = createRequire(import.meta.url);
+const { builtinSlashCommands } = require("../../dist/shared/slash/builtins");
+const {
+  listSlashCommands,
+  clearSlashCommandCache,
+  parseFrontmatter,
+} = require("../../dist/main/skills-discovery");
+const {
+  CLAUDE_MODAL_FOOTER_RE,
+  CODEX_MODAL_FOOTER_RE,
+  CLAUDE_COMPOSER_REDRAW_RE,
+  CODEX_COMPOSER_REDRAW_RE,
+} = require("../../dist/runtime/terminal-host/terminal-host");
+
+// The runtime regexes carry /g for positional scanning — reset state per use.
+function matches(re, text) {
+  re.lastIndex = 0;
+  const result = re.test(text);
+  re.lastIndex = 0;
+  return result;
+}
+
+function writeSkill(root, name, frontmatterLines, body = "Do the thing.") {
+  const dir = path.join(root, name);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "SKILL.md"),
+    ["---", ...frontmatterLines, "---", "", body, ""].join("\n"),
+  );
+}
+
+// --- frontmatter parsing ---
+{
+  const { frontmatter, body } = parseFrontmatter(
+    ['---', 'name: demo', 'description: "A quoted description"', "argument-hint: [target]", "---", "", "Body line."].join("\n"),
+  );
+  assert.equal(frontmatter.name, "demo");
+  assert.equal(frontmatter.description, "A quoted description");
+  assert.equal(frontmatter["argument-hint"], "[target]");
+  assert.equal(body.trim(), "Body line.");
+}
+{
+  const { frontmatter, body } = parseFrontmatter("No frontmatter here.\n");
+  assert.deepEqual(frontmatter, {});
+  assert.equal(body, "No frontmatter here.\n");
+}
+
+// --- builtin snapshots ---
+for (const provider of ["claude", "codex"]) {
+  const builtins = builtinSlashCommands(provider);
+  const names = builtins.map((entry) => entry.name);
+  assert.equal(new Set(names).size, names.length, `${provider} builtin names must be unique`);
+  const model = builtins.find((entry) => entry.name === "model");
+  assert.equal(model?.nativeMenu, "model", `${provider} /model must redirect to the native menu`);
+  const permissions = builtins.find((entry) => entry.name === "permissions");
+  assert.equal(permissions?.nativeMenu, "permission");
+  assert.ok(builtins.some((entry) => entry.listed), `${provider} must list some builtins`);
+  assert.ok(
+    builtins.some((entry) => !entry.listed),
+    `${provider} must keep unlisted commands known for the submit guard`,
+  );
+}
+
+// --- Claude discovery: personal skill + legacy command + project shadowing ---
+const claudeSkillsRoot = path.join(fixtureHome, ".claude", "skills");
+writeSkill(claudeSkillsRoot, "deploy-docs", ["name: deploy-docs", "description: Deploy the docs site", "argument-hint: [env]"]);
+writeSkill(claudeSkillsRoot, "secret-helper", ["description: Hidden", "user-invocable: false"]);
+const claudeCommandsRoot = path.join(fixtureHome, ".claude", "commands");
+fs.mkdirSync(claudeCommandsRoot, { recursive: true });
+fs.writeFileSync(
+  path.join(claudeCommandsRoot, "ship.md"),
+  "---\ndescription: Legacy ship command\n---\n\nShip it.\n",
+);
+
+const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-project-"));
+fs.mkdirSync(path.join(projectRoot, ".git"), { recursive: true });
+writeSkill(path.join(projectRoot, ".claude", "skills"), "deploy-docs", [
+  "description: Project-local deploy override",
+]);
+
+clearSlashCommandCache();
+const claude = listSlashCommands("claude", projectRoot);
+const claudeByName = new Map(claude.entries.map((entry) => [entry.name, entry]));
+assert.equal(claudeByName.get("deploy-docs")?.scope, "project", "project skill shadows personal");
+assert.equal(claudeByName.get("deploy-docs")?.description, "Project-local deploy override");
+assert.equal(claudeByName.get("deploy-docs")?.invocation, "/deploy-docs");
+assert.equal(claudeByName.get("ship")?.description, "Legacy ship command");
+assert.equal(claudeByName.has("secret-helper"), false, "user-invocable: false stays hidden");
+
+// --- Codex discovery: $ invocation, system scope, .agents project root ---
+writeSkill(path.join(fixtureHome, ".codex", "skills", ".system"), "skill-creator", [
+  "name: skill-creator",
+  "description: Create or update a skill",
+]);
+writeSkill(path.join(fixtureHome, ".agents", "skills"), "publish-changes", [
+  "description: Commit, push, and open a PR",
+]);
+writeSkill(path.join(projectRoot, ".agents", "skills"), "duet-probe-skill", [
+  "name: duet-probe-skill",
+  "description: Probe skill",
+]);
+
+clearSlashCommandCache();
+const codex = listSlashCommands("codex", projectRoot);
+const codexByName = new Map(codex.entries.map((entry) => [entry.name, entry]));
+assert.equal(codexByName.get("duet-probe-skill")?.invocation, "$duet-probe-skill");
+assert.equal(codexByName.get("duet-probe-skill")?.scope, "project");
+assert.equal(codexByName.get("skill-creator")?.scope, "system");
+assert.equal(codexByName.get("publish-changes")?.scope, "personal");
+assert.equal(
+  codexByName.get("publish-changes")?.kind,
+  "skill",
+  "codex skills surface as skill entries",
+);
+
+// --- modal footer signatures against real probe captures (spikes/slash-probes) ---
+const claudeFooters = [
+  "Typetofilter·Enter/↓toselect·↑totabs·Esctoclear",
+  "Space to change · Enter to save · / tosearch · Esc to cancel",
+  "Entertosetasdefault·stousethissessiononly·Esctocancel",
+  "Ctrl+Atoshowallprojects·Typetosearch·Esctocancel",
+];
+for (const footer of claudeFooters) {
+  assert.ok(matches(CLAUDE_MODAL_FOOTER_RE, footer), `claude signature must match: ${footer}`);
+}
+const codexFooters = [
+  "Press enter to confirm or esc to go back",
+  "Press space to select or enter to save for next conversation",
+  "Pressentertoinsertoresctoclose",
+];
+for (const footer of codexFooters) {
+  assert.ok(matches(CODEX_MODAL_FOOTER_RE, footer), `codex signature must match: ${footer}`);
+}
+// Idle composer footers must NOT look modal.
+const idleFooters = [
+  "← for agents ◉ xhigh · /effort",
+  "›Use /skills to list available skillsgpt-5.5 xhigh · /var/folders/x",
+  "(0s • esc to interrupt)",
+];
+for (const footer of idleFooters) {
+  assert.ok(!matches(CLAUDE_MODAL_FOOTER_RE, footer), `claude must not flag idle: ${footer}`);
+  assert.ok(!matches(CODEX_MODAL_FOOTER_RE, footer), `codex must not flag idle: ${footer}`);
+}
+// Composer-redraw markers (the positional "panel closed" side), from probe
+// after-esc captures.
+assert.ok(matches(CLAUDE_COMPOSER_REDRAW_RE, "⎿Configdialogdismissed"));
+assert.ok(matches(CLAUDE_COMPOSER_REDRAW_RE, "←foragents◉xhigh·/effort"));
+assert.ok(
+  matches(CODEX_COMPOSER_REDRAW_RE, "›Use /skills to list available skillsgpt-5.5 xhigh · /var/folders/x"),
+);
+assert.ok(
+  !matches(CODEX_COMPOSER_REDRAW_RE, "› 1. gpt-5.5 (current)    Frontier model for complex coding"),
+  "codex picker rows must not read as composer redraw",
+);
+
+fs.rmSync(fixtureHome, { recursive: true, force: true });
+fs.rmSync(projectRoot, { recursive: true, force: true });
+console.log("slash-registry smoke: all assertions passed");

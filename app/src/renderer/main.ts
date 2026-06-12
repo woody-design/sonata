@@ -48,6 +48,8 @@ import type {
   RuntimeProvider,
   SessionIndexResponse,
   SessionSummary,
+  SlashCommandEntry,
+  SlashCommandsResponse,
   Task,
   UsageSnapshot,
 } from "../shared/types";
@@ -92,6 +94,8 @@ interface TaskViewState {
   pendingAttachments: ComposerAttachment[];
   usageSnapshot: UsageSnapshot | null;
   workingStatus: WorkingStatusState | null;
+  /** A passthrough slash command left a TUI panel open in the hidden PTY. */
+  modalPanel: { signature: string | null } | null;
   status: string;
   unread: boolean;
   /** A run finished while this session was not the focused view. */
@@ -114,6 +118,7 @@ interface RendererState {
   taskDraft: TaskLaunchDraft;
   terminalOpen: boolean;
   composerMenu: ComposerMenuState | null;
+  slashPicker: SlashPickerState | null;
   usagePopover: UsagePopoverState | null;
   readingSettings: ReadingSettings;
   readingPopoverOpen: boolean;
@@ -133,6 +138,14 @@ interface PromptNavState {
 interface ComposerMenuState {
   type: "add" | "permission" | "model";
   anchor: PopoverAnchor;
+}
+
+interface SlashPickerState {
+  provider: RuntimeProvider;
+  /** Listed entries for this provider; refreshed via IPC when the picker opens. */
+  entries: SlashCommandEntry[];
+  query: string;
+  selectedIndex: number;
 }
 
 interface UsagePopoverState {
@@ -194,6 +207,7 @@ const state: RendererState = {
   },
   terminalOpen: false,
   composerMenu: null,
+  slashPicker: null,
   usagePopover: null,
   readingSettings: bootReadingSettingsFromDom(),
   readingPopoverOpen: false,
@@ -1395,6 +1409,17 @@ appElement.innerHTML = `
           </div>
         </div>
 
+        <div id="modal-banner" class="modal-banner hidden">
+          <div class="modal-banner-copy">
+            <strong>The agent opened an interactive panel</strong>
+            <p>A slash command opened a dialog inside the provider terminal. Close it to keep sending messages, or open the terminal to look at it.</p>
+          </div>
+          <div class="modal-banner-actions">
+            <button id="modal-open-terminal" class="secondary" type="button">Open Terminal</button>
+            <button id="modal-dismiss" class="primary" type="button">Close Panel (Esc)</button>
+          </div>
+        </div>
+
         <section class="workflow-strip" aria-label="Task workflow state">
           <div class="workflow-copy">
             <p class="eyebrow">Task</p>
@@ -1494,6 +1519,9 @@ const elements = {
   sidebarMenuRoot: getElement<HTMLDivElement>("sidebar-menu-root"),
   sessionMenuTrigger: getElement<HTMLButtonElement>("session-menu-trigger"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
+  modalBanner: getElement<HTMLDivElement>("modal-banner"),
+  modalOpenTerminal: getElement<HTMLButtonElement>("modal-open-terminal"),
+  modalDismiss: getElement<HTMLButtonElement>("modal-dismiss"),
   approvalKindBadge: getElement<HTMLSpanElement>("approval-kind-badge"),
   approvalTitle: getElement<HTMLElement>("approval-title"),
   approvalSummary: getElement<HTMLParagraphElement>("approval-summary"),
@@ -1798,6 +1826,7 @@ elements.composer.addEventListener("submit", (event) => {
 
 elements.promptInput.addEventListener("input", () => {
   renderComposerControls();
+  syncSlashPicker();
 });
 
 elements.promptInput.addEventListener("focus", () => {
@@ -1817,6 +1846,7 @@ elements.promptInput.addEventListener("compositionend", () => {
   composerIsComposing = false;
   lastComposerCompositionEndAt = performance.now();
   renderComposerControls();
+  syncSlashPicker();
 });
 
 elements.addAttachment.addEventListener("click", (event) => {
@@ -1887,6 +1917,10 @@ elements.usageIndicator.addEventListener("blur", () => {
 
 elements.promptInput.addEventListener("keydown", (event) => {
   if (isComposerCompositionShortcut(event)) {
+    return;
+  }
+
+  if (handleSlashPickerKeydown(event)) {
     return;
   }
 
@@ -2548,6 +2582,34 @@ elements.denyApproval.addEventListener("click", () => {
   void decideApproval("deny");
 });
 
+elements.modalOpenTerminal.addEventListener("click", () => {
+  state.terminalOpen = true;
+  render();
+});
+
+elements.modalDismiss.addEventListener("click", () => {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  elements.modalDismiss.disabled = true;
+  void window.duetRuntime
+    .dismissModal({ taskId: view.task.id })
+    .then((result) => {
+      if (!result.cleared) {
+        view.status = "Could not close the panel — open the terminal to look at it";
+        render();
+      }
+    })
+    .catch((error) => {
+      view.status = errorMessage(error);
+      render();
+    })
+    .finally(() => {
+      elements.modalDismiss.disabled = false;
+    });
+});
+
 window.addEventListener("resize", () => {
   fitTerminal();
   if (state.readingPopoverOpen) {
@@ -2580,13 +2642,18 @@ document.addEventListener("click", (event) => {
     target.closest(".composer-chip") ||
     target.closest(".composer-menu") ||
     target.closest(".usage-indicator") ||
-    target.closest(".usage-popover")
+    target.closest(".usage-popover") ||
+    target.closest(".slash-picker") ||
+    target.closest("#prompt-input")
   ) {
     return;
   }
   if (state.composerMenu) {
     state.composerMenu = null;
     render();
+  }
+  if (state.slashPicker) {
+    closeSlashPicker(true);
   }
   if (state.taskDraft.settingsOpen) {
     state.taskDraft.settingsOpen = false;
@@ -2692,6 +2759,13 @@ window.duetRuntime.onRuntimeEvent((event) => {
     view.pendingApproval = event.payload;
     view.runtimeReady = false;
     view.status = "Waiting for approval";
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "modal:state") {
+    view.modalPanel = event.payload.active ? { signature: event.payload.signature } : null;
+    view.status = event.payload.active ? "Interactive panel open" : "Ready";
     markViewChanged(view);
     return;
   }
@@ -2839,6 +2913,7 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     pendingAttachments: [],
     usageSnapshot: null,
     workingStatus: null,
+    modalPanel: null,
     status,
     unread: false,
     completedUnseen: false,
@@ -3023,6 +3098,10 @@ async function submitPrompt(): Promise<void> {
   const view = activeTaskView();
   const text = elements.promptInput.value.trim();
 
+  if (consumeSlashSubmitGuard(text)) {
+    return;
+  }
+
   if (!view) {
     // New chat: the first message creates the session.
     if (text) {
@@ -3197,6 +3276,7 @@ function render(): void {
 
   renderSidebar();
   renderApproval();
+  renderModalBanner();
   renderWorkflow();
   renderRuns();
   renderArtifacts();
@@ -3337,12 +3417,436 @@ function composerChipLabel(view: TaskViewState | null, type: "permission" | "mod
   return `${confirmed ?? "Default"} -> ${pending.text}`;
 }
 
+// --- Slash command picker -------------------------------------------------
+//
+// Input assistance over a pure passthrough pipe: the picker helps discover
+// and complete commands, but typed text always reaches the PTY verbatim.
+// The only submit-time interventions are safety guards backed by probe
+// evidence (spikes/slash-probes): bare "/" and unmatched prefixes dispatch
+// the CLI's first popup item when blind-injected, so they never leave duet
+// without confirmation; bare native-menu commands (/model, /permissions)
+// open the duet menu instead of an invisible TUI panel.
+
+const SLASH_COMMANDS_CACHE_TTL_MS = 10_000;
+const slashCommandsCache = new Map<string, { at: number; response: SlashCommandsResponse }>();
+let slashPickerDismissedValue: string | null = null;
+let pendingUnknownSlashText: string | null = null;
+
+function composerSlashProvider(): RuntimeProvider {
+  return activeTaskView()?.task?.provider ?? state.taskDraft.provider;
+}
+
+function slashCommandsCacheKey(): string {
+  const view = activeTaskView();
+  if (view?.task) {
+    return `task:${view.task.id}`;
+  }
+  return `draft:${state.taskDraft.provider}:${state.taskDraft.cwd ?? ""}`;
+}
+
+function cachedSlashCommands(): SlashCommandsResponse | null {
+  const cached = slashCommandsCache.get(slashCommandsCacheKey());
+  return cached ? cached.response : null;
+}
+
+function refreshSlashCommands(): void {
+  const key = slashCommandsCacheKey();
+  const cached = slashCommandsCache.get(key);
+  if (cached && Date.now() - cached.at < SLASH_COMMANDS_CACHE_TTL_MS) {
+    return;
+  }
+  const view = activeTaskView();
+  const request = view?.task
+    ? { taskId: view.task.id }
+    : { provider: state.taskDraft.provider, ...(state.taskDraft.cwd ? { cwd: state.taskDraft.cwd } : {}) };
+  void window.duetRuntime
+    .readSlashCommands(request)
+    .then((response) => {
+      slashCommandsCache.set(key, { at: Date.now(), response });
+      if (state.slashPicker && slashCommandsCacheKey() === key) {
+        state.slashPicker.entries = response.entries;
+        clampSlashSelection();
+        renderComposerPopover();
+      }
+    })
+    .catch(() => {
+      // Discovery is assistance, not a gate — typing still works without it.
+    });
+}
+
+function syncSlashPicker(): void {
+  if (composerIsComposing) {
+    return;
+  }
+  const value = elements.promptInput.value;
+  if (value !== slashPickerDismissedValue) {
+    slashPickerDismissedValue = null;
+  }
+  if (value !== pendingUnknownSlashText) {
+    pendingUnknownSlashText = null;
+  }
+  const shouldOpen =
+    /^\/\S*$/.test(value) && slashPickerDismissedValue === null && !elements.promptInput.disabled;
+  if (!shouldOpen) {
+    if (state.slashPicker) {
+      state.slashPicker = null;
+      renderComposerPopover();
+    }
+    return;
+  }
+  const provider = composerSlashProvider();
+  const query = value.slice(1).toLowerCase();
+  const previous = state.slashPicker;
+  state.slashPicker = {
+    provider,
+    entries:
+      previous && previous.provider === provider
+        ? previous.entries
+        : cachedSlashCommands()?.entries ?? [],
+    query,
+    selectedIndex: previous && previous.query === query ? previous.selectedIndex : 0,
+  };
+  state.composerMenu = null;
+  state.usagePopover = null;
+  clampSlashSelection();
+  refreshSlashCommands();
+  renderComposerPopover();
+}
+
+function closeSlashPicker(dismissCurrentValue: boolean): void {
+  if (dismissCurrentValue) {
+    slashPickerDismissedValue = elements.promptInput.value;
+  }
+  if (state.slashPicker) {
+    state.slashPicker = null;
+    renderComposerPopover();
+  }
+}
+
+/** Lower score sorts first; null means no match. */
+function slashFilterScore(entry: SlashCommandEntry, query: string): number | null {
+  if (query.length === 0) {
+    return 0;
+  }
+  const name = entry.name.toLowerCase();
+  if (name === query) {
+    return 0;
+  }
+  if (name.startsWith(query)) {
+    return 1;
+  }
+  if (name.includes(query)) {
+    return 2;
+  }
+  if (entry.description.toLowerCase().includes(query)) {
+    return 3;
+  }
+  return null;
+}
+
+function filteredSlashItems(picker: SlashPickerState): SlashCommandEntry[] {
+  const scored: Array<{ entry: SlashCommandEntry; score: number; order: number }> = [];
+  picker.entries.forEach((entry, order) => {
+    if (!entry.listed) {
+      return;
+    }
+    const score = slashFilterScore(entry, picker.query);
+    if (score !== null) {
+      scored.push({ entry, score, order });
+    }
+  });
+  scored.sort((a, b) => {
+    // Commands before skills, then match quality, then registry order.
+    const kindDelta = Number(a.entry.kind === "skill") - Number(b.entry.kind === "skill");
+    if (kindDelta !== 0) {
+      return kindDelta;
+    }
+    return a.score - b.score || a.order - b.order;
+  });
+  return scored.map((item) => item.entry);
+}
+
+function clampSlashSelection(): void {
+  const picker = state.slashPicker;
+  if (!picker) {
+    return;
+  }
+  const count = filteredSlashItems(picker).length;
+  picker.selectedIndex = count === 0 ? 0 : Math.min(Math.max(picker.selectedIndex, 0), count - 1);
+}
+
+function moveSlashSelection(delta: number): void {
+  const picker = state.slashPicker;
+  if (!picker) {
+    return;
+  }
+  const count = filteredSlashItems(picker).length;
+  if (count === 0) {
+    return;
+  }
+  picker.selectedIndex = (picker.selectedIndex + delta + count) % count;
+  renderComposerPopover();
+}
+
+function selectedSlashEntry(): SlashCommandEntry | null {
+  const picker = state.slashPicker;
+  if (!picker) {
+    return null;
+  }
+  return filteredSlashItems(picker)[picker.selectedIndex] ?? null;
+}
+
+/** Fill the entry's canonical invocation into the composer without executing. */
+function completeSlashEntry(entry: SlashCommandEntry): void {
+  elements.promptInput.value = `${entry.invocation} `;
+  elements.promptInput.focus({ preventScroll: true });
+  elements.promptInput.setSelectionRange(
+    elements.promptInput.value.length,
+    elements.promptInput.value.length,
+  );
+  state.slashPicker = null;
+  renderComposerPopover();
+  renderComposerControls();
+}
+
+function executeSlashEntry(entry: SlashCommandEntry): void {
+  if (entry.nativeMenu) {
+    openNativeMenuForSlashEntry(entry);
+    return;
+  }
+  // Skills complete instead of executing: a premature skill invocation
+  // costs a full model turn, while a second Enter on an args-less skill
+  // costs nothing. Builtins without an argument hint execute directly,
+  // matching the CLIs' own Enter-dispatches semantics.
+  if (entry.argumentHint || entry.kind === "skill") {
+    completeSlashEntry(entry);
+    return;
+  }
+  elements.promptInput.value = entry.invocation;
+  state.slashPicker = null;
+  renderComposerPopover();
+  void submitPrompt();
+}
+
+function openNativeMenuForSlashEntry(entry: SlashCommandEntry): void {
+  elements.promptInput.value = "";
+  state.slashPicker = null;
+  renderComposerControls();
+  if (!activeTaskView()?.task) {
+    // New chat: model and permission live in the launch settings popover.
+    const trigger = document.getElementById("entry-launch-settings");
+    if (trigger) {
+      const rect = trigger.getBoundingClientRect();
+      state.taskDraft.settingsOpen = true;
+      state.taskDraft.settingsAnchor = { left: rect.left, top: rect.bottom + 8, width: rect.width };
+    }
+    render();
+    return;
+  }
+  const anchor = entry.nativeMenu === "model" ? elements.modelChip : elements.permissionChip;
+  toggleComposerMenu(entry.nativeMenu === "model" ? "model" : "permission", anchor);
+}
+
+function handleSlashPickerKeydown(event: KeyboardEvent): boolean {
+  const picker = state.slashPicker;
+  if (!picker || composerIsComposing) {
+    return false;
+  }
+  if (event.key === "ArrowDown" || (event.key === "n" && event.ctrlKey)) {
+    event.preventDefault();
+    moveSlashSelection(1);
+    return true;
+  }
+  if (event.key === "ArrowUp" || (event.key === "p" && event.ctrlKey)) {
+    event.preventDefault();
+    moveSlashSelection(-1);
+    return true;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeSlashPicker(true);
+    return true;
+  }
+  if (event.key === "Tab" && !event.shiftKey) {
+    const entry = selectedSlashEntry();
+    if (entry) {
+      event.preventDefault();
+      completeSlashEntry(entry);
+      return true;
+    }
+    return false;
+  }
+  if (event.key === "Enter" && !event.shiftKey) {
+    const entry = selectedSlashEntry();
+    if (entry) {
+      event.preventDefault();
+      executeSlashEntry(entry);
+      return true;
+    }
+    // No match: fall through to the normal submit path; the submit guard
+    // owns the unknown-command caution.
+  }
+  return false;
+}
+
+/**
+ * Submit-time guard for "/" texts. Returns true when the submit should stop
+ * here. Evidence: bare "/" and prefixes dispatch the first popup item
+ * (probes s2/s2b — "/" ran the architect skill, "/mod" opened the model
+ * panel); unknown commands fail locally and never reach the model, so
+ * forwarding after an explicit confirmation is safe.
+ */
+function consumeSlashSubmitGuard(text: string): boolean {
+  if (!text.startsWith("/")) {
+    pendingUnknownSlashText = null;
+    return false;
+  }
+  if (text === "/") {
+    composerStatusHint("Type a command name after “/” — Esc to dismiss");
+    return true;
+  }
+  const registry = cachedSlashCommands();
+  if (!registry || registry.provider !== composerSlashProvider()) {
+    // No registry yet: stay out of the way. The CLI reports unknown
+    // commands locally without involving the model.
+    refreshSlashCommands();
+    return false;
+  }
+  const token = text.slice(1).split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+  const entry = registry.entries.find((candidate) => candidate.name.toLowerCase() === token);
+  if (entry) {
+    const bare = text === entry.invocation;
+    // Codex's /model and /permissions ignore inline arguments — the panel
+    // opens regardless — so any invocation routes to the duet menu there.
+    if (entry.nativeMenu && (bare || entry.provider === "codex")) {
+      openNativeMenuForSlashEntry(entry);
+      return true;
+    }
+    pendingUnknownSlashText = null;
+    return false;
+  }
+  if (pendingUnknownSlashText === text) {
+    pendingUnknownSlashText = null;
+    return false;
+  }
+  pendingUnknownSlashText = text;
+  composerStatusHint(
+    `Unknown ${providerLabel(composerSlashProvider())} command — press Enter again to send anyway`,
+  );
+  return true;
+}
+
+function composerStatusHint(text: string): void {
+  const view = activeTaskView();
+  if (view) {
+    view.status = text;
+  } else {
+    state.taskDraft.message = { tone: "info", text };
+  }
+  render();
+}
+
+function renderSlashPicker(picker: SlashPickerState): HTMLElement {
+  const root = document.createElement("div");
+  root.className = "slash-picker";
+  root.setAttribute("role", "listbox");
+  root.setAttribute("aria-label", "Commands");
+
+  const items = filteredSlashItems(picker);
+  if (items.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "slash-picker-empty";
+    empty.textContent = "No matching commands";
+    root.append(empty);
+    return root;
+  }
+
+  let lastKind: SlashCommandEntry["kind"] | null = null;
+  items.forEach((entry, index) => {
+    if (entry.kind !== lastKind) {
+      const heading = document.createElement("p");
+      heading.className = "slash-picker-heading";
+      heading.textContent = entry.kind === "skill" ? "Skills" : "Commands";
+      root.append(heading);
+      lastKind = entry.kind;
+    }
+    root.append(renderSlashPickerOption(entry, index, picker));
+  });
+  return root;
+}
+
+function renderSlashPickerOption(
+  entry: SlashCommandEntry,
+  index: number,
+  picker: SlashPickerState,
+): HTMLElement {
+  const option = document.createElement("button");
+  option.type = "button";
+  option.className = "slash-picker-option";
+  option.classList.toggle("selected", index === picker.selectedIndex);
+  option.setAttribute("role", "option");
+  option.ariaSelected = String(index === picker.selectedIndex);
+
+  const name = document.createElement("span");
+  name.className = "slash-picker-name";
+  name.textContent = entry.invocation;
+  option.append(name);
+
+  if (entry.argumentHint) {
+    const hint = document.createElement("span");
+    hint.className = "slash-picker-hint";
+    hint.textContent = entry.argumentHint;
+    option.append(hint);
+  }
+
+  const description = document.createElement("span");
+  description.className = "slash-picker-description";
+  description.textContent = entry.description;
+  option.append(description);
+
+  if (entry.kind === "skill" && entry.scope !== "builtin") {
+    const badge = document.createElement("span");
+    badge.className = "slash-picker-badge";
+    badge.textContent =
+      entry.scope === "project" ? "Project" : entry.scope === "system" ? "System" : "Personal";
+    option.append(badge);
+  }
+
+  // Keep composer focus so a click acts like Enter instead of blurring.
+  option.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+  });
+  option.addEventListener("click", () => {
+    executeSlashEntry(entry);
+  });
+  option.addEventListener("mousemove", () => {
+    if (picker.selectedIndex !== index) {
+      picker.selectedIndex = index;
+      renderComposerPopover();
+    }
+  });
+  return option;
+}
+
+function positionSlashPicker(pickerElement: HTMLElement): void {
+  const rect = elements.composer.getBoundingClientRect();
+  const viewportPadding = 14;
+  const width = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
+  pickerElement.style.width = `${width}px`;
+  pickerElement.style.left = `${Math.max(viewportPadding, rect.left)}px`;
+  const top = rect.top - pickerElement.offsetHeight - 8;
+  pickerElement.style.top = `${Math.max(viewportPadding, top)}px`;
+  const selected = pickerElement.querySelector<HTMLElement>(".slash-picker-option.selected");
+  selected?.scrollIntoView({ block: "nearest" });
+}
+
 function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement): void {
   const view = activeTaskView();
   if (!view?.task) {
     return;
   }
   clearUsagePopoverTimers();
+  state.slashPicker = null;
   const rect = anchor.getBoundingClientRect();
   const current = state.composerMenu;
   state.composerMenu =
@@ -3439,6 +3943,13 @@ function clearUsagePopoverCloseTimer(): void {
 
 function renderComposerPopover(view = activeTaskView()): void {
   elements.composerPopoverRoot.replaceChildren();
+  if (state.slashPicker) {
+    // The picker also serves the new-chat composer, before any task exists.
+    const picker = renderSlashPicker(state.slashPicker);
+    elements.composerPopoverRoot.append(picker);
+    positionSlashPicker(picker);
+    return;
+  }
   if (!view?.task) {
     return;
   }
@@ -4003,6 +4514,11 @@ function sendPromptTitle(
 
 function isActiveRunStatus(status: string): boolean {
   return ["active", "waiting-for-approval", "resumed-after-approval", "stopping"].includes(status);
+}
+
+function renderModalBanner(): void {
+  const modal = activeTaskView()?.modalPanel ?? null;
+  elements.modalBanner.classList.toggle("hidden", !modal);
 }
 
 function renderApproval(): void {

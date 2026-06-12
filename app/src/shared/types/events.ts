@@ -177,6 +177,25 @@ export type RunStoppedEvent = BaseRuntimeEvent<
   }
 >;
 
+/**
+ * The hosted TUI entered (or left) an interactive panel state after a
+ * passthrough slash submit — e.g. /config opened its settings dialog inside
+ * the hidden terminal. Probe evidence (spikes/slash-probes s1): while such a
+ * panel is open, subsequent pasted text is swallowed by the panel, so duet
+ * surfaces the state and blocks submits until it clears.
+ */
+export type ModalStateEvent = BaseRuntimeEvent<
+  "modal:state",
+  {
+    taskId: TaskId;
+    active: boolean;
+    /** Cleaned tail excerpt of the panel for display; null when inactive. */
+    excerpt: string | null;
+    /** The footer-hint signature that triggered detection. */
+    signature: string | null;
+  }
+>;
+
 export type ApprovalDetectedEvent = BaseRuntimeEvent<
   "approval:detected",
   {
@@ -312,6 +331,7 @@ export type ProductRuntimeEvent =
   | RunStoppedEvent
   | ApprovalDetectedEvent
   | ApprovalDecisionEvent
+  | ModalStateEvent
   | FileWatchingEvent
   | FileWatchErrorEvent
   | FileChangedEvent
@@ -333,4 +353,5 @@ export type RunIndexEvent = Exclude<
   | DeliveryStateEvent
   | DeliveryReceiptEvent
   | TaskUpdatedEvent
+  | ModalStateEvent
 >;

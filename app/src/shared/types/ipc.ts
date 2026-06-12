@@ -20,6 +20,7 @@ import type {
   SessionIndexResponse,
   SessionSnapshotResponse,
 } from "./sessions";
+import type { ReadSlashCommandsRequest, SlashCommandsResponse } from "./slash";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
 import type { UsageSnapshot } from "./usage";
 import type { RuntimeReportSummaryV1, RuntimeReportV1 } from "../schemas/runtime-report";
@@ -50,6 +51,8 @@ export const IPC_CHANNELS = {
   reportRead: "report:read",
   transcriptRead: "transcript:read",
   usageRead: "usage:read",
+  slashCommandsRead: "slash:commands:read",
+  modalDismiss: "modal:dismiss",
   artifactList: "artifact:list",
   artifactRead: "artifact:read",
   previewOpen: "preview:open",
@@ -189,6 +192,14 @@ export interface PromptQueueItemRequest {
 export interface ApprovalDecisionRequest {
   taskId: TaskId;
   decision: ApprovalDecision;
+}
+
+export interface DismissModalRequest {
+  taskId: TaskId;
+}
+
+export interface DismissModalResponse {
+  cleared: boolean;
 }
 
 export interface StopRunRequest {
@@ -362,6 +373,8 @@ export interface DuetRuntimeBridge {
   readReport(request: ReadReportRequest): Promise<RuntimeReportV1 | null>;
   readTranscript(request: ReadTranscriptRequest): Promise<ReadTranscriptResponse>;
   readUsage(request: ReadUsageRequest): Promise<ReadUsageResponse>;
+  readSlashCommands(request: ReadSlashCommandsRequest): Promise<SlashCommandsResponse>;
+  dismissModal(request: DismissModalRequest): Promise<DismissModalResponse>;
   listArtifacts(request: ListArtifactsRequest): Promise<ArtifactCandidate[]>;
   readArtifact(request: ReadArtifactRequest): Promise<ArtifactPreviewResponse>;
   openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;

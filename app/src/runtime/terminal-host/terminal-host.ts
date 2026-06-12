@@ -42,6 +42,31 @@ const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 
 const DEFAULT_ROWS = 36;
 const DEFAULT_COLS = 120;
+// Modal-panel detection (probe evidence: spikes/slash-probes, 2026-06-12).
+// cleanTerminal output sometimes loses spaces between rendered cells, so the
+// patterns tolerate collapsed whitespace.
+const MODAL_DETECT_WINDOW_MS = 45_000;
+const MODAL_SCAN_CHARS = 4000;
+export const CLAUDE_MODAL_FOOTER_RE = /Esc\s*to\s*(cancel|clear)/gi;
+export const CODEX_MODAL_FOOTER_RE = /esc\s*to\s*(go\s*back|close)|space\s*to\s*select/gi;
+// What the composer looks like when it is back: Claude prints a dismissal
+// line (⎿ … dismissed / cancelled) and its bottom bar (◉ mode glyph,
+// "← for agents"); Codex repaints its status bar ("gpt-5.5 xhigh · /path").
+// Probe screens: spikes/slash-probes evidence, 2026-06-12.
+export const CLAUDE_COMPOSER_REDRAW_RE = /dismissed|cancelled|◉|←\s*for\s*agents/gi;
+export const CODEX_COMPOSER_REDRAW_RE = /gpt[-\w.]+\s*\w*\s*·\s*[~/]/gi;
+
+function lastMatchIndex(text: string, pattern: RegExp): number {
+  pattern.lastIndex = 0;
+  let last = -1;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    last = match.index;
+    if (match.index === pattern.lastIndex) {
+      pattern.lastIndex += 1;
+    }
+  }
+  return last;
+}
 const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_TASK_READY_MIN_AGE_MS = 8000;
@@ -230,6 +255,10 @@ export class TerminalHost extends EventEmitter {
   private taskReady = false;
   private recentAttributionRun: RecentAttributionRun | null = null;
   private activeRunRaw = "";
+  private modalActive = false;
+  private modalSignature: string | null = null;
+  /** Arms the modal detector for a window after a slash passthrough. */
+  private lastSlashSubmitAt = 0;
 
   constructor(options: TerminalHostOptions) {
     super();
@@ -385,6 +414,11 @@ export class TerminalHost extends EventEmitter {
     if (this.approvalActive) {
       throw new Error("Cannot submit a prompt while a native approval screen is active.");
     }
+    if (this.modalActive) {
+      throw new Error(
+        "The provider is showing an interactive panel — close it (Esc) before sending. Pasted text would be swallowed by the panel.",
+      );
+    }
 
     const kind: RunKind = trimmed.startsWith("/") && attachments.length === 0 ? "slash" : "prompt";
     const runText = trimmed || attachmentPromptTitle(attachments.length);
@@ -400,6 +434,9 @@ export class TerminalHost extends EventEmitter {
     for (const attachment of attachments) {
       this.ptyProcess.write(`${BRACKETED_PASTE_START}${attachment.path}${BRACKETED_PASTE_END}`);
     }
+    if (kind === "slash") {
+      this.lastSlashSubmitAt = Date.now();
+    }
     const textDelayMs = attachments.length > 0 ? 120 : 0;
     const enterDelayMs = attachments.length > 0 ? 260 : 120;
     setTimeout(() => {
@@ -412,6 +449,18 @@ export class TerminalHost extends EventEmitter {
         this.ptyProcess.write(CSI_U_ENTER);
       }
     }, enterDelayMs);
+    // A bare Codex skill mention ("$name") opens the skill-mention popup,
+    // whose "Press enter to insert" consumes the first Enter. The second
+    // Enter submits the inserted mention. Both steps verified by probe
+    // s3b.codexSkillDoubleEnter; with trailing text the popup closes on its
+    // own and the extra Enter never fires.
+    if (this.profile.provider === "codex" && /^\$[A-Za-z0-9][\w.-]*$/.test(trimmed)) {
+      setTimeout(() => {
+        if (this.ptyProcess) {
+          this.ptyProcess.write(CSI_U_ENTER);
+        }
+      }, enterDelayMs + 320);
+    }
     this.emitEvent("prompt:submitted", {
       taskId: this.taskId,
       runId: run ? run.id : this.activeRun ? this.activeRun.id : null,
@@ -841,8 +890,125 @@ export class TerminalHost extends EventEmitter {
     }
     this.emitEvent("pty:data", { taskId: this.taskId, data });
     this.detectApproval();
+    this.detectModalPanel();
     this.scheduleTaskReadyCheck();
     this.scheduleCompletionCheck();
+  }
+
+  isModalActive(): boolean {
+    return this.modalActive;
+  }
+
+  /**
+   * Footer-hint detection for interactive TUI panels left open by a slash
+   * passthrough. Signatures from probe screens (spikes/slash-probes):
+   * Claude panels all end in "Esc to cancel/clear"; Codex panels in
+   * "esc to go back/close" or "space to select". The detector only arms for
+   * a window after a slash submit and never fires while the idle composer,
+   * an approval screen, or an active run is visible — three independent
+   * conditions against false positives from model output quoting these
+   * phrases.
+   */
+  /**
+   * The panel-open signal is positional, not structural: in the append-only
+   * render stream, a panel is visible when its footer hint was rendered
+   * AFTER the last composer redraw marker. detectIdlePrompt cannot serve as
+   * the gate here — Claude panels draw their selection caret as "❯", which
+   * that heuristic reads as an idle prompt.
+   */
+  private modalFooterSignature(): string | null {
+    const clean = cleanTerminal(this.rawTail).slice(-MODAL_SCAN_CHARS);
+    const footerRe =
+      this.profile.provider === "claude" ? CLAUDE_MODAL_FOOTER_RE : CODEX_MODAL_FOOTER_RE;
+    const redrawRe =
+      this.profile.provider === "claude" ? CLAUDE_COMPOSER_REDRAW_RE : CODEX_COMPOSER_REDRAW_RE;
+    const lastFooter = lastMatchIndex(clean, footerRe);
+    if (lastFooter === -1 || lastFooter <= lastMatchIndex(clean, redrawRe)) {
+      return null;
+    }
+    footerRe.lastIndex = lastFooter;
+    const match = footerRe.exec(clean);
+    footerRe.lastIndex = 0;
+    return match ? match[0] : null;
+  }
+
+  private detectModalPanel(): void {
+    if (this.modalActive) {
+      if (
+        (this.activeRun && this.activeRun.kind !== "slash") ||
+        this.approvalActive ||
+        this.modalFooterSignature() === null
+      ) {
+        this.clearModalPanel();
+      }
+      return;
+    }
+    const armedMs = Date.now() - this.lastSlashSubmitAt;
+    if (this.lastSlashSubmitAt === 0 || armedMs > MODAL_DETECT_WINDOW_MS) {
+      return;
+    }
+    // A slash submit records its own run (kind "slash"), so an active slash
+    // run is exactly the state in which a panel can appear — only a real
+    // prompt run disarms the detector.
+    if ((this.activeRun && this.activeRun.kind !== "slash") || this.approvalActive) {
+      return;
+    }
+    const signature = this.modalFooterSignature();
+    if (!signature) {
+      return;
+    }
+    this.modalActive = true;
+    this.modalSignature = signature;
+    if (this.activeRun && this.activeRun.kind === "slash") {
+      // The "run" ended in a panel, not output — settle it so the session
+      // does not look busy while the panel waits for a human.
+      this.finishActiveRun("completed", "slash command opened an interactive panel", {
+        completionSource: "native-control",
+        completionConfidence: "high",
+      });
+    }
+    this.emitEvent("modal:state", {
+      taskId: this.taskId,
+      active: true,
+      excerpt: this.cleanTail(600),
+      signature,
+    });
+  }
+
+  private clearModalPanel(): void {
+    if (!this.modalActive) {
+      return;
+    }
+    this.modalActive = false;
+    this.modalSignature = null;
+    this.lastSlashSubmitAt = 0;
+    this.emitEvent("modal:state", {
+      taskId: this.taskId,
+      active: false,
+      excerpt: null,
+      signature: null,
+    });
+  }
+
+  /**
+   * Bounded Esc retries to close a detected panel. Claude's /config needs
+   * two: the first Esc only clears its search filter (probe s1). Success is
+   * verified structurally — the idle composer must come back.
+   */
+  async dismissModal(): Promise<boolean> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (!this.modalActive || !this.ptyProcess) {
+        return true;
+      }
+      this.writeRaw(ESC);
+      // The dismissal redraw clears modalActive through detectModalPanel
+      // on incoming data; the wait gives the TUI time to repaint.
+      await delay(1400);
+      if (!this.modalActive) {
+        return true;
+      }
+    }
+    return !this.modalActive;
   }
 
   private scheduleTaskReadyCheck(): void {

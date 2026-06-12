@@ -120,6 +120,12 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.usageRead, (_event, request) =>
     runtimeController.readUsage(request.taskId),
   );
+  ipcMain.handle(IPC_CHANNELS.slashCommandsRead, (_event, request) =>
+    runtimeController.listSlashCommands(request ?? {}),
+  );
+  ipcMain.handle(IPC_CHANNELS.modalDismiss, (_event, request) =>
+    runtimeController.dismissModal(request.taskId),
+  );
   ipcMain.handle(IPC_CHANNELS.artifactList, (_event, request) =>
     runtimeController.listArtifacts(request.taskId),
   );

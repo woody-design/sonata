@@ -15,6 +15,7 @@ import type {
   LaunchSpeedMode,
   OpenTaskRequest,
   ReadSessionIndexRequest,
+  ReadSlashCommandsRequest,
   ReadTranscriptResponse,
   ReasoningEffort,
   RunId,
@@ -24,6 +25,7 @@ import type {
   RuntimeReportUpdatedEvent,
   SessionIndexResponse,
   SessionSnapshotResponse,
+  SlashCommandsResponse,
   Task,
   TaskId,
   UsageSnapshot,
@@ -57,6 +59,7 @@ import {
   StatusRegionTracker,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
+import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
 
 const DEFAULT_TASK_TITLE = "New Task";
@@ -494,6 +497,29 @@ export class RuntimeController {
       }
     }
     this.emitSessionsUpdated("session-deleted");
+  }
+
+  async dismissModal(taskId: TaskId): Promise<{ cleared: boolean }> {
+    const active = this.requireTaskRuntime(taskId);
+    const cleared = await active.terminalHost.dismissModal();
+    return { cleared };
+  }
+
+  listSlashCommands(request: ReadSlashCommandsRequest): SlashCommandsResponse {
+    let provider = request.provider ?? null;
+    let cwd = request.cwd ?? null;
+    if (request.taskId) {
+      const taskId = request.taskId as TaskId;
+      const live = this.taskRuntimes.get(taskId);
+      const task = live?.task ?? this.requirePersistedSession(taskId).manifest.task;
+      provider = task.provider;
+      cwd = this.sessionWorkingDirectory(taskId);
+    }
+    if (!provider || !SUPPORTED_PROVIDERS.has(provider)) {
+      throw new Error("listSlashCommands needs a taskId or a provider.");
+    }
+    const { entries, warnings } = discoverSlashCommands(provider, cwd);
+    return { provider, entries, warnings };
   }
 
   sessionWorkingDirectory(taskId: TaskId): string {

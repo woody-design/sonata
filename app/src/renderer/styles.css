@@ -1535,6 +1535,34 @@ h2 {
   outline-offset: 2px;
 }
 
+.modal-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 18px 0;
+  border: 1px solid var(--border-menu);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface-menu);
+}
+
+.modal-banner-copy strong {
+  display: block;
+  font-size: 13px;
+}
+
+.modal-banner-copy p {
+  margin: 2px 0 0;
+  color: var(--ink-menu-muted);
+  font-size: 12px;
+}
+
+.modal-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .approval-banner {
   --approval-surface: var(--approval-file-edit-surface);
   --approval-border: var(--approval-file-edit-border);
@@ -2337,6 +2365,95 @@ h2 {
   margin-left: 12px;
   color: var(--ink-menu-muted);
   font-size: 11px;
+}
+
+.slash-picker {
+  position: fixed;
+  z-index: 25;
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  max-height: min(340px, calc(100vh - 28px));
+  overflow-y: auto;
+  border: 1px solid var(--border-menu);
+  border-radius: 10px;
+  padding: 8px;
+  color: var(--ink-menu);
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
+}
+
+.slash-picker-empty {
+  margin: 0;
+  padding: 8px 9px;
+  color: var(--ink-menu-muted);
+  font-size: 13px;
+}
+
+.slash-picker-heading {
+  margin: 0;
+  padding: 6px 9px 4px;
+  color: var(--ink-menu-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.slash-picker-heading + .slash-picker-heading,
+.slash-picker-option + .slash-picker-heading {
+  margin-top: 6px;
+}
+
+.slash-picker-option {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--ink-menu);
+  background: transparent;
+  text-align: left;
+  cursor: default;
+}
+
+.slash-picker-option.selected {
+  background: var(--surface-menu-hover);
+}
+
+.slash-picker-name {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.slash-picker-hint {
+  flex: 0 0 auto;
+  color: var(--ink-menu-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.slash-picker-description {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-menu-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slash-picker-badge {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-menu-divider);
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: var(--ink-menu-muted);
+  font-size: 10px;
 }
 
 .usage-popover {
