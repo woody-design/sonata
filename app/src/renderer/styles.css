@@ -969,6 +969,16 @@ body.sidebar-resizing {
   animation: sidebar-spin 0.9s linear infinite;
 }
 
+.sidebar-session-spinner.quiet svg {
+  animation-play-state: paused;
+  opacity: 0.55;
+}
+
+.sidebar-session-spinner.silent svg {
+  animation-play-state: paused;
+  color: var(--status-attention);
+}
+
 @keyframes sidebar-spin {
   to {
     transform: rotate(360deg);
@@ -3680,6 +3690,29 @@ h2 {
   font-size: 13px;
   font-style: italic;
   color: var(--ink-muted);
+}
+
+.turn-status-row.quiet .turn-status-line,
+.turn-status-row.quiet .turn-status-sub {
+  opacity: 0.55;
+}
+
+.turn-status-stall {
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--status-attention);
+}
+
+.turn-status-stall:hover {
+  color: var(--status-attention-strong);
+  text-decoration: underline;
 }
 
 .turn-plan-list {

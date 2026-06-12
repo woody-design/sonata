@@ -208,6 +208,9 @@ function fakeHost() {
     isIdleComposerReady() {
       return this.idleComposer;
     },
+    acceptsPromptInput() {
+      return this.idleComposer;
+    },
     submitPrompt(text, options = {}) {
       const runId = `run-${this.submissions.length + 1}`;
       this.submissions.push({ text, runId, attachments: options.attachments ?? [] });

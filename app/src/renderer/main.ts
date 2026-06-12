@@ -775,6 +775,16 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
     const spinner = document.createElement("span");
     spinner.className = "sidebar-session-spinner";
     spinner.title = "Working";
+    // Evidence-driven, not a bare CSS loop: the animation pauses when the
+    // task's PTY goes quiet and turns amber when stall suspicion fires.
+    const liveness = taskViewForId(session.task.id)?.workingStatus?.liveness ?? "fresh";
+    if (liveness === "quiet") {
+      spinner.classList.add("quiet");
+      spinner.title = "No recent activity";
+    } else if (liveness === "silent") {
+      spinner.classList.add("silent");
+      spinner.title = "No sign of activity — check the terminal";
+    }
     spinner.append(lucideIcon(LoaderCircle, 14));
     return spinner;
   }
@@ -1535,6 +1545,11 @@ window.setInterval(() => {
     .querySelectorAll<HTMLElement>(".turn-status-elapsed[data-started-at]")
     .forEach((node) => {
       node.textContent = formatLiveElapsed(node.dataset.startedAt ?? null);
+    });
+  elements.runList
+    .querySelectorAll<HTMLElement>(".turn-status-stall-elapsed[data-silent-since]")
+    .forEach((node) => {
+      node.textContent = formatLiveElapsed(node.dataset.silentSince ?? null);
     });
 }, 1000);
 const workTraceOpenByTurnKey = new Map<string, boolean>();
@@ -2695,7 +2710,24 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 
   if (event.type === "working-status:updated") {
-    view.workingStatus = { native: event.payload.native, capturedAt: event.payload.capturedAt };
+    const previousLiveness = view.workingStatus?.liveness ?? "fresh";
+    view.workingStatus = {
+      native: event.payload.native,
+      liveness: event.payload.liveness,
+      silentSince: event.payload.silentSince,
+      capturedAt: event.payload.capturedAt,
+    };
+    if (event.payload.liveness !== previousLiveness) {
+      // Liveness transitions are rare and the sidebar shows them for
+      // BACKGROUND sessions too. Status ticks are not unread content, so
+      // this never touches the unread flag.
+      if (isActiveView(view)) {
+        render();
+      } else {
+        renderSidebar();
+      }
+      return;
+    }
     // Native relay arrives at ~3Hz — update the live row in place; fall back
     // to a full render only when the row does not exist yet or the content
     // needs turn context (derived mode).
@@ -4288,7 +4320,7 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
     card.append(body);
   }
 
-  if (liveRun) {
+  if (liveRun && turn.run?.status !== "waiting-for-approval") {
     card.append(renderTurnStatusRow(view, turn));
   }
 
@@ -4492,7 +4524,39 @@ function renderTurnStatusRow(view: TaskViewState, turn: ReadingTurn): HTMLElemen
   } else {
     renderDerivedStatusContent(row, turn);
   }
+  applyStatusRowLiveness(row, view);
   return row;
+}
+
+// Duet's stall voice — the one thing the native UIs never say. Appears at
+// "silent", self-heals without residue when evidence resumes.
+function applyStatusRowLiveness(row: HTMLElement, view: TaskViewState): void {
+  const liveness = view.workingStatus?.liveness ?? "fresh";
+  row.classList.toggle("quiet", liveness === "quiet");
+  row.classList.toggle("silent", liveness === "silent");
+  row.querySelector(".turn-status-stall")?.remove();
+  if (liveness !== "silent") {
+    return;
+  }
+  const stall = document.createElement("button");
+  stall.type = "button";
+  stall.className = "turn-status-stall";
+  const silentSince = view.workingStatus?.silentSince ?? null;
+  const seconds = document.createElement("span");
+  seconds.className = "turn-status-stall-elapsed";
+  if (silentSince) {
+    seconds.dataset.silentSince = silentSince;
+  }
+  seconds.textContent = formatLiveElapsed(silentSince);
+  stall.append(
+    document.createTextNode("No sign of activity for "),
+    seconds,
+    document.createTextNode(" — check the terminal"),
+  );
+  stall.addEventListener("click", () => {
+    openTerminalDrawerFromStatus();
+  });
+  row.append(stall);
 }
 
 // The agent's voice: the provider's status region, verbatim. No CSS spinner —
@@ -4537,6 +4601,10 @@ function renderDerivedStatusContent(row: HTMLElement, turn: ReadingTurn): void {
   row.append(line);
 }
 
+function openTerminalDrawerFromStatus(): void {
+  setTerminalOpen(true);
+}
+
 function deriveCurrentStep(turn: ReadingTurn): string | null {
   let planStep: string | null = null;
   let runningTool: string | null = null;
@@ -4568,6 +4636,7 @@ function updateLiveStatusRowInPlace(view: TaskViewState): boolean {
     return false;
   }
   renderNativeStatusContent(row, native);
+  applyStatusRowLiveness(row, view);
   return true;
 }
 

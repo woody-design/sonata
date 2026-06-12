@@ -10,7 +10,7 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function createHarness(provider) {
+function createHarness(provider, options = {}) {
   const emitted = [];
   const tracker = new StatusRegionTracker({
     taskId: "task-1",
@@ -20,13 +20,18 @@ function createHarness(provider) {
         emitted.push(event.payload);
       }
     },
+    ...options,
   });
   const feed = (data) => tracker.handleRuntimeEvent({ type: "pty:data", payload: { taskId: "task-1", data }, ts: "t" });
   const runStarted = () =>
     tracker.handleRuntimeEvent({ type: "run:started", payload: { taskId: "task-1", status: "active" }, ts: "t" });
   const runCompleted = () =>
     tracker.handleRuntimeEvent({ type: "run:updated", payload: { taskId: "task-1", status: "completed" }, ts: "t" });
-  return { tracker, emitted, feed, runStarted, runCompleted };
+  const approvalDetected = () =>
+    tracker.handleRuntimeEvent({ type: "approval:detected", payload: { taskId: "task-1", kind: "command" }, ts: "t" });
+  const approvalDecision = () =>
+    tracker.handleRuntimeEvent({ type: "approval:decision", payload: { taskId: "task-1", decision: "approve" }, ts: "t" });
+  return { tracker, emitted, feed, runStarted, runCompleted, approvalDetected, approvalDecision };
 }
 
 async function check(name, fn) {
@@ -125,6 +130,60 @@ await check("tracker: resize and task restart survive", async () => {
   });
   const final = h.emitted[h.emitted.length - 1];
   assert.equal(final.native, null, "restart resets to null");
+  h.tracker.dispose();
+});
+
+await check("liveness: fresh → quiet → silent on silence, self-heals on data", async () => {
+  // Thresholds sized so the 300ms sample throttle cannot race them.
+  const h = createHarness("claude", { quietAfterMs: 600, silentAfterMs: 1200, livenessCheckMs: 100 });
+  h.runStarted();
+  h.feed("✻ Pondering… (2s)\r\n");
+  await delay(450); // first sample landed, silence still under the quiet bar
+  assert.equal(h.emitted[h.emitted.length - 1]?.liveness, "fresh");
+
+  await delay(550); // ~1.0s of silence — past quiet, before silent
+  let latest = h.emitted[h.emitted.length - 1];
+  assert.equal(latest.liveness, "quiet");
+  assert.ok(latest.silentSince, "silence window start recorded");
+  assert.ok(latest.native, "native region still relayed while quiet");
+
+  await delay(600); // ~1.6s of silence — past silent
+  latest = h.emitted[h.emitted.length - 1];
+  assert.equal(latest.liveness, "silent");
+
+  h.feed("✽ Pondering… (12s)\r\n"); // evidence resumes
+  await delay(100);
+  latest = h.emitted[h.emitted.length - 1];
+  assert.equal(latest.liveness, "fresh", "self-heals immediately on data");
+  assert.equal(latest.silentSince, null);
+  h.tracker.dispose();
+});
+
+await check("liveness: approval pauses the silence clock", async () => {
+  const h = createHarness("claude", { quietAfterMs: 250, silentAfterMs: 600, livenessCheckMs: 60 });
+  h.runStarted();
+  h.feed("✻ Pondering… (2s)\r\n");
+  await delay(100);
+  h.approvalDetected();
+  await delay(500); // would be quiet/silent without the pause
+  const latest = h.emitted[h.emitted.length - 1];
+  assert.equal(latest.liveness, "fresh", "no stall suspicion while waiting for the user");
+  h.approvalDecision();
+  await delay(100);
+  assert.equal(h.emitted[h.emitted.length - 1].liveness, "fresh", "clock restarts after decision");
+  h.tracker.dispose();
+});
+
+await check("liveness: run end resets to fresh/null even from silent", async () => {
+  const h = createHarness("claude", { quietAfterMs: 150, silentAfterMs: 300, livenessCheckMs: 50 });
+  h.runStarted();
+  h.feed("✻ Pondering… (2s)\r\n");
+  await delay(450);
+  assert.equal(h.emitted[h.emitted.length - 1].liveness, "silent");
+  h.runCompleted();
+  const final = h.emitted[h.emitted.length - 1];
+  assert.equal(final.native, null);
+  assert.equal(final.liveness, "fresh");
   h.tracker.dispose();
 });
 

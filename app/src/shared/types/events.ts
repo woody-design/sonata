@@ -1,4 +1,4 @@
-import type { NativeStatusRegion } from "./working-status";
+import type { NativeStatusRegion, WorkingLiveness } from "./working-status";
 import type {
   ApprovalChoice,
   ApprovalDecision,
@@ -89,6 +89,8 @@ export type WorkingStatusUpdatedEvent = BaseRuntimeEvent<
   {
     taskId: TaskId;
     native: NativeStatusRegion | null;
+    liveness: WorkingLiveness;
+    silentSince: string | null;
     capturedAt: string;
   }
 >;

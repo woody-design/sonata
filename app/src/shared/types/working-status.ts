@@ -21,7 +21,19 @@ export interface NativeStatusRegion {
   troubleLines: string[];
 }
 
+/**
+ * Evidence freshness while a run is live. fresh = PTY activity within the
+ * quiet threshold; quiet = motion has stopped (meaningful, not yet alarming);
+ * silent = long enough to voice suspicion. Always "fresh" outside a run and
+ * while a native approval pauses the clock (waiting for the user is not the
+ * agent stalling).
+ */
+export type WorkingLiveness = "fresh" | "quiet" | "silent";
+
 export interface WorkingStatusState {
   native: NativeStatusRegion | null;
+  liveness: WorkingLiveness;
+  /** Start of the current silence window (ISO), null while fresh. */
+  silentSince: string | null;
   capturedAt: string;
 }

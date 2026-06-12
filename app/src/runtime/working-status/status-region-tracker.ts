@@ -1,9 +1,12 @@
 import { Terminal } from "@xterm/headless";
 import type { RuntimeProvider, TaskId } from "../../shared/types/domain";
 import type { RuntimeEvent } from "../../shared/types/events";
-import type { NativeStatusRegion } from "../../shared/types/working-status";
+import type { NativeStatusRegion, WorkingLiveness } from "../../shared/types/working-status";
 
 const SAMPLE_THROTTLE_MS = 300;
+const LIVENESS_CHECK_MS = 5_000;
+const DEFAULT_QUIET_AFTER_MS = 20_000;
+const DEFAULT_SILENT_AFTER_MS = 60_000;
 const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 36;
 const SCROLLBACK_ROWS = 80;
@@ -18,6 +21,10 @@ export interface StatusRegionTrackerOptions {
   taskId: TaskId;
   provider: RuntimeProvider;
   eventSink: (event: RuntimeEvent) => void;
+  /** Test injection points; production uses the 20s/60s defaults. */
+  quietAfterMs?: number;
+  silentAfterMs?: number;
+  livenessCheckMs?: number;
 }
 
 /**
@@ -35,16 +42,27 @@ export class StatusRegionTracker {
   private readonly eventSink: (event: RuntimeEvent) => void;
   private term: Terminal;
   private sampleTimer: NodeJS.Timeout | null = null;
+  private livenessTimer: NodeJS.Timeout | null = null;
+  private readonly quietAfterMs: number;
+  private readonly silentAfterMs: number;
+  private readonly livenessCheckMs: number;
   private runActive = false;
-  // Fingerprint of the last emitted region; "" = null region (the initial
-  // state), so a boot-time sample emits nothing until content appears.
-  private lastEmitted = "";
+  private approvalPending = false;
+  private lastDataAt = 0;
+  private liveness: WorkingLiveness = "fresh";
+  // Fingerprint of the last emitted state ("<liveness>|<region json>");
+  // initialized to the boot state (fresh, null region) so boot-time samples
+  // emit nothing until content appears.
+  private lastEmitted = "fresh|";
   private disposed = false;
 
   constructor(options: StatusRegionTrackerOptions) {
     this.taskId = options.taskId;
     this.provider = options.provider;
     this.eventSink = options.eventSink;
+    this.quietAfterMs = options.quietAfterMs ?? DEFAULT_QUIET_AFTER_MS;
+    this.silentAfterMs = options.silentAfterMs ?? DEFAULT_SILENT_AFTER_MS;
+    this.livenessCheckMs = options.livenessCheckMs ?? LIVENESS_CHECK_MS;
     this.term = createTerminal(DEFAULT_COLS, DEFAULT_ROWS);
   }
 
@@ -57,21 +75,38 @@ export class StatusRegionTracker {
         this.reset(event.payload.cols, event.payload.rows);
         return;
       case "pty:data":
+        this.lastDataAt = Date.now();
+        if (this.liveness !== "fresh") {
+          // Evidence resumed — self-heal without residue.
+          this.setLiveness("fresh");
+        }
         this.term.write(event.payload.data, () => this.scheduleSample());
         return;
       case "pty:exit":
-        this.runActive = false;
-        this.emitIfChanged(null);
+        this.stopRunTracking();
         return;
       case "run:started":
         this.runActive = true;
+        // A run can only start when no approval is pending (delivery is
+        // gated on it) — clears any stale flag from reentrant event order.
+        this.approvalPending = false;
+        this.lastDataAt = Date.now();
         this.scheduleSample();
+        this.startLivenessTimer();
         return;
       case "run:updated":
         if (["completed", "failed", "stopped", "approval-denied", "pty-exited"].includes(event.payload.status)) {
-          this.runActive = false;
-          this.emitIfChanged(null);
+          this.stopRunTracking();
         }
+        return;
+      case "approval:detected":
+        // Waiting for the user is not the agent stalling — pause the clock.
+        this.approvalPending = true;
+        this.setLiveness("fresh");
+        return;
+      case "approval:decision":
+        this.approvalPending = false;
+        this.lastDataAt = Date.now();
         return;
       default:
         return;
@@ -88,6 +123,7 @@ export class StatusRegionTracker {
   dispose(): void {
     this.disposed = true;
     this.clearSampleTimer();
+    this.clearLivenessTimer();
     this.term.dispose();
   }
 
@@ -95,8 +131,55 @@ export class StatusRegionTracker {
     this.clearSampleTimer();
     this.term.dispose();
     this.term = createTerminal(cols || DEFAULT_COLS, rows || DEFAULT_ROWS);
+    this.stopRunTracking();
+  }
+
+  private stopRunTracking(): void {
     this.runActive = false;
+    this.approvalPending = false;
+    this.clearLivenessTimer();
+    this.liveness = "fresh";
     this.emitIfChanged(null);
+  }
+
+  private startLivenessTimer(): void {
+    this.clearLivenessTimer();
+    this.livenessTimer = setInterval(() => this.evaluateLiveness(), this.livenessCheckMs);
+  }
+
+  private clearLivenessTimer(): void {
+    if (this.livenessTimer) {
+      clearInterval(this.livenessTimer);
+      this.livenessTimer = null;
+    }
+  }
+
+  private evaluateLiveness(): void {
+    if (this.disposed || !this.runActive || this.approvalPending) {
+      return;
+    }
+    const silenceMs = Date.now() - this.lastDataAt;
+    const next: WorkingLiveness =
+      silenceMs >= this.silentAfterMs ? "silent" : silenceMs >= this.quietAfterMs ? "quiet" : "fresh";
+    if (next !== this.liveness) {
+      this.setLiveness(next);
+    }
+  }
+
+  private setLiveness(next: WorkingLiveness): void {
+    this.liveness = next;
+    // Force an emission with the current region — liveness changed even if
+    // the native content did not (it cannot: silence means no repaints).
+    this.lastEmitted = "\u0000force";
+    this.emitIfChanged(this.runActive ? this.extractSafe() : null);
+  }
+
+  private extractSafe(): NativeStatusRegion | null {
+    try {
+      return this.extract();
+    } catch {
+      return null;
+    }
   }
 
   private scheduleSample(): void {
@@ -117,7 +200,7 @@ export class StatusRegionTracker {
   }
 
   private emitIfChanged(native: NativeStatusRegion | null): void {
-    const fingerprint = native === null ? "" : JSON.stringify(native);
+    const fingerprint = `${this.liveness}|${native === null ? "" : JSON.stringify(native)}`;
     if (fingerprint === this.lastEmitted) {
       return;
     }
@@ -127,6 +210,8 @@ export class StatusRegionTracker {
       payload: {
         taskId: this.taskId,
         native,
+        liveness: this.liveness,
+        silentSince: this.liveness === "fresh" ? null : new Date(this.lastDataAt).toISOString(),
         capturedAt: new Date().toISOString(),
       },
       ts: new Date().toISOString(),
