@@ -10,7 +10,11 @@ import type {
 import {
   LOCAL_API_ERRORS,
   LOCAL_API_PROTOCOL_VERSION,
+  type LocalApiNotificationFrame,
+  type LocalApiRequestFrame,
+  type LocalApiResponseFrame,
 } from "../../shared/types/local-api";
+import { TaskNotFoundError } from "../errors";
 
 /**
  * The slice of RuntimeController the Local API may touch. Keeping the
@@ -38,6 +42,10 @@ const MAX_WRITABLE_BUFFER = 4 * 1024 * 1024;
 const MAX_LINE_LENGTH = 1 * 1024 * 1024;
 /** Recently executed commandIds, replayed instead of re-executed. */
 const COMMAND_CACHE_CAPACITY = 256;
+/** macOS caps sockaddr_un.sun_path at ~104 bytes; fail loud below it. */
+const MAX_SOCKET_PATH_BYTES = 100;
+/** Probe deadline when checking a leftover socket for a live owner. */
+const STALE_PROBE_TIMEOUT_MS = 1000;
 
 export class LocalApiServer {
   private readonly socketPath: string;
@@ -56,6 +64,12 @@ export class LocalApiServer {
   }
 
   async start(): Promise<void> {
+    const pathBytes = Buffer.byteLength(this.socketPath);
+    if (pathBytes > MAX_SOCKET_PATH_BYTES) {
+      throw new Error(
+        `Local API socket path is too long (${pathBytes} bytes; macOS caps ~104): ${this.socketPath}`,
+      );
+    }
     await this.removeStaleSocket();
     fs.mkdirSync(path.dirname(this.socketPath), { recursive: true, mode: 0o700 });
     const server = net.createServer((socket) => this.handleConnection(socket));
@@ -102,7 +116,11 @@ export class LocalApiServer {
     if (event.type === "pty:data" || this.connections.size === 0) {
       return;
     }
-    const line = `${JSON.stringify({ method: "event", params: { event } })}\n`;
+    const notification: LocalApiNotificationFrame = {
+      method: "event",
+      params: { event },
+    };
+    const line = `${JSON.stringify(notification)}\n`;
     for (const socket of this.connections) {
       if (socket.writableLength > MAX_WRITABLE_BUFFER) {
         socket.destroy();
@@ -127,6 +145,12 @@ export class LocalApiServer {
         resolve(true);
       });
       probe.once("error", () => resolve(false));
+      // A wedged socket file that neither connects nor errors must not
+      // hang start() forever; treat a silent probe as not-alive.
+      probe.setTimeout(STALE_PROBE_TIMEOUT_MS, () => {
+        probe.destroy();
+        resolve(false);
+      });
     });
     if (alive) {
       throw new Error(`Local API socket already in use: ${this.socketPath}`);
@@ -140,10 +164,6 @@ export class LocalApiServer {
     let buffer = "";
     socket.on("data", (chunk: string) => {
       buffer += chunk;
-      if (buffer.length > MAX_LINE_LENGTH) {
-        socket.destroy();
-        return;
-      }
       let newlineIndex = buffer.indexOf("\n");
       while (newlineIndex !== -1) {
         const line = buffer.slice(0, newlineIndex);
@@ -152,6 +172,11 @@ export class LocalApiServer {
           this.handleLine(socket, line);
         }
         newlineIndex = buffer.indexOf("\n");
+      }
+      // Bound only the unterminated remainder: a single chunk carrying
+      // many complete lines is legitimate; an endless line is not.
+      if (buffer.length > MAX_LINE_LENGTH) {
+        socket.destroy();
       }
     });
     const drop = () => {
@@ -177,30 +202,41 @@ export class LocalApiServer {
       method?: unknown;
       params?: unknown;
     };
-    if (typeof id !== "number" || typeof method !== "string") {
-      // Notifications from companions are not part of the protocol.
+    if (typeof id !== "number") {
+      // No recoverable id — notifications are not part of the inbound
+      // protocol, so there is nobody to answer.
       return;
     }
+    if (typeof method !== "string") {
+      // A request with an id but no method: answer so the companion's
+      // awaited reply resolves instead of hanging forever.
+      this.respond(socket, {
+        id,
+        error: { code: LOCAL_API_ERRORS.invalidRequest, message: "method must be a string" },
+      });
+      return;
+    }
+    const request: LocalApiRequestFrame = { id, method, params };
     try {
-      const result = this.dispatch(method, params);
-      this.respond(socket, { id, result });
+      const result = this.dispatch(request.method, request.params);
+      this.respond(socket, { id: request.id, result });
     } catch (error) {
       if (error instanceof LocalApiError) {
-        this.respond(socket, { id, error: { code: error.code, message: error.message } });
+        this.respond(socket, {
+          id: request.id,
+          error: { code: error.code, message: error.message },
+        });
       } else {
         const message = error instanceof Error ? error.message : String(error);
         this.respond(socket, {
-          id,
+          id: request.id,
           error: { code: LOCAL_API_ERRORS.internal, message },
         });
       }
     }
   }
 
-  private respond(
-    socket: net.Socket,
-    frame: { id: number; result?: unknown; error?: { code: number; message: string } },
-  ): void {
+  private respond(socket: net.Socket, frame: LocalApiResponseFrame): void {
     socket.write(`${JSON.stringify(frame)}\n`);
   }
 
@@ -256,7 +292,9 @@ export class LocalApiServer {
   private executeCommand(commandId: string, run: () => unknown): unknown {
     if (this.commandResults.has(commandId)) {
       const cached = this.commandResults.get(commandId);
-      return { ...(cached as Record<string, unknown>), deduped: true };
+      return cached && typeof cached === "object"
+        ? { ...(cached as Record<string, unknown>), deduped: true }
+        : cached;
     }
     const result = run();
     this.commandResults.set(commandId, result);
@@ -273,9 +311,10 @@ export class LocalApiServer {
     try {
       return run();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/not found|unknown task|no task/i.test(message)) {
-        throw new LocalApiError(LOCAL_API_ERRORS.taskNotFound, message);
+      // Match the typed error, not its wording — the controller may
+      // reword these messages without telling us.
+      if (error instanceof TaskNotFoundError) {
+        throw new LocalApiError(LOCAL_API_ERRORS.taskNotFound, error.message);
       }
       throw error;
     }
@@ -303,5 +342,10 @@ function stringParam(params: unknown, key: string): string {
 }
 
 export function localApiSocketPath(userDataPath: string): string {
-  return path.join(userDataPath, "run", "control.sock");
+  // Honor an explicit override for hermetic tests / app-level e2e,
+  // mirroring how the settings stores honor DUET_SETTINGS_DIR.
+  return (
+    process.env.DUET_LOCAL_API_SOCKET ||
+    path.join(userDataPath, "run", "control.sock")
+  );
 }

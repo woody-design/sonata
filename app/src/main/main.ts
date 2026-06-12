@@ -569,6 +569,11 @@ function sendReadingSystemMode(): void {
 }
 
 function startLocalApiIfEnabled(controller: RuntimeController): void {
+  // DUET_LOCAL_API=0 is a hard off that overrides the settings file —
+  // a kill switch that wins regardless of persisted preference.
+  if (process.env.DUET_LOCAL_API === "0") {
+    return;
+  }
   const settings = new LocalApiSettingsStore(
     localApiSettingsPath(app.getPath("userData")),
   ).read();

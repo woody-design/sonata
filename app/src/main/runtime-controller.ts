@@ -33,6 +33,7 @@ import type {
   WorkspaceTreeEntry,
 } from "../shared/types";
 import type { RunIndexEvent } from "../shared/types/events";
+import { TaskNotFoundError } from "./errors";
 import {
   TRANSCRIPT_SOURCES_SCHEMA_ID,
   TRANSCRIPT_SOURCES_SCHEMA_VERSION,
@@ -1016,7 +1017,7 @@ export class RuntimeController {
   private requireTaskRuntime(taskId: TaskId): ActiveTaskRuntime {
     const active = this.taskRuntimes.get(taskId);
     if (!active) {
-      throw new Error("No runtime task matches the requested taskId.");
+      throw new TaskNotFoundError("No runtime task matches the requested taskId.");
     }
     return active;
   }
@@ -1253,7 +1254,7 @@ export class RuntimeController {
 
     const latest = candidates[0]?.storageRoot;
     if (!latest) {
-      throw new Error("No persisted Duet Task was found.");
+      throw new TaskNotFoundError("No persisted Duet Task was found.");
     }
     return latest;
   }
@@ -1305,7 +1306,7 @@ export class RuntimeController {
   private readTaskManifest(cwd: string): TaskManifestV1 {
     const manifestPath = taskManifestPath(cwd);
     if (!fs.existsSync(manifestPath)) {
-      throw new Error("Task manifest was not found.");
+      throw new TaskNotFoundError("Task manifest was not found.");
     }
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as TaskManifestV1;
@@ -1370,7 +1371,7 @@ export class RuntimeController {
   } {
     const record = this.persistedSessionRecord(taskId);
     if (!record) {
-      throw new Error("No persisted session matches the requested taskId.");
+      throw new TaskNotFoundError("No persisted session matches the requested taskId.");
     }
     return record;
   }

@@ -1,6 +1,7 @@
 export * from "./domain";
 export * from "./events";
 export * from "./ipc";
+export * from "./local-api";
 export * from "./reading-settings";
 export * from "./resume-settings";
 export * from "./sessions";

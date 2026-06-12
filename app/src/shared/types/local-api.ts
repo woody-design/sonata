@@ -46,6 +46,7 @@ export interface LocalApiNotificationFrame {
 }
 
 export const LOCAL_API_ERRORS = {
+  invalidRequest: -32600,
   methodNotFound: -32601,
   invalidParams: -32602,
   taskNotFound: -32001,
