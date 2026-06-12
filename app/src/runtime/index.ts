@@ -4,4 +4,5 @@ export * from "./provider-transcript";
 export * from "./run-index";
 export * from "./terminal-host";
 export * from "./usage";
+export * from "./working-status";
 export * from "./workspace-preview";

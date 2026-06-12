@@ -59,6 +59,7 @@ import type {
   TranscriptBlock,
   TranscriptSourceRef,
 } from "../shared/types/transcript";
+import type { NativeStatusRegion, WorkingStatusState } from "../shared/types/working-status";
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
 import { cleanTerminalTranscript } from "../shared/terminal-transcript";
 
@@ -90,6 +91,7 @@ interface TaskViewState {
   deliveryState: DeliveryTaskState | null;
   pendingAttachments: ComposerAttachment[];
   usageSnapshot: UsageSnapshot | null;
+  workingStatus: WorkingStatusState | null;
   status: string;
   unread: boolean;
 }
@@ -1527,6 +1529,14 @@ terminal.open(elements.terminal);
 fitTerminal();
 
 const pendingReadyTaskIds = new Set<string>();
+// Ticks the derived status row's clock without re-rendering the transcript.
+window.setInterval(() => {
+  elements.runList
+    .querySelectorAll<HTMLElement>(".turn-status-elapsed[data-started-at]")
+    .forEach((node) => {
+      node.textContent = formatLiveElapsed(node.dataset.startedAt ?? null);
+    });
+}, 1000);
 const workTraceOpenByTurnKey = new Map<string, boolean>();
 let transcriptRenderTimer: number | null = null;
 let stickyPromptSyncFrame: number | null = null;
@@ -2684,6 +2694,17 @@ window.duetRuntime.onRuntimeEvent((event) => {
     return;
   }
 
+  if (event.type === "working-status:updated") {
+    view.workingStatus = { native: event.payload.native, capturedAt: event.payload.capturedAt };
+    // Native relay arrives at ~3Hz — update the live row in place; fall back
+    // to a full render only when the row does not exist yet or the content
+    // needs turn context (derived mode).
+    if (!updateLiveStatusRowInPlace(view)) {
+      markViewChanged(view);
+    }
+    return;
+  }
+
   if (event.type === "task:ready") {
     view.runtimeReady = true;
     view.composerObserved = true;
@@ -2772,6 +2793,7 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     deliveryState: null,
     pendingAttachments: [],
     usageSnapshot: null,
+    workingStatus: null,
     status,
     unread: false,
   };
@@ -4242,7 +4264,8 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   const workBlocks = turn.blocks.filter(isWorkTraceBlock);
   const answerBlocks = turn.blocks.filter(isAnswerBlock);
   const noAssistantOutput = turnCompletedWithoutAssistantOutput(turn);
-  if (turn.run) {
+  const liveRun = Boolean(turn.run && isActiveRunStatus(turn.run.status));
+  if (turn.run && (workBlocks.length > 0 || !liveRun)) {
     card.append(renderTurnWorkTrace(turn, workBlocks, noAssistantOutput));
   }
 
@@ -4263,6 +4286,10 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   }
   if (body.childElementCount > 0) {
     card.append(body);
+  }
+
+  if (liveRun) {
+    card.append(renderTurnStatusRow(view, turn));
   }
 
   if (turn.run) {
@@ -4382,8 +4409,6 @@ function renderTurnWorkTrace(
     for (const block of workBlocks) {
       body.append(renderTranscriptBlock(block));
     }
-  } else if (isActiveRunStatus(run.status)) {
-    body.append(renderTurnWorking());
   } else if (noAssistantOutput) {
     const note = document.createElement("div");
     note.className = "turn-system-note";
@@ -4456,6 +4481,105 @@ function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
   note.className = "turn-system-note";
   note.textContent = block.kind === "system-note" ? block.text : "";
   return note;
+}
+
+function renderTurnStatusRow(view: TaskViewState, turn: ReadingTurn): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "turn-status-row";
+  const native = view.workingStatus?.native ?? null;
+  if (native) {
+    renderNativeStatusContent(row, native);
+  } else {
+    renderDerivedStatusContent(row, turn);
+  }
+  return row;
+}
+
+// The agent's voice: the provider's status region, verbatim. No CSS spinner —
+// relay updates are the animation, so motion is evidence by construction.
+function renderNativeStatusContent(row: HTMLElement, native: NativeStatusRegion): void {
+  row.replaceChildren();
+  row.classList.remove("derived");
+  for (const trouble of native.troubleLines) {
+    const line = document.createElement("div");
+    line.className = "turn-status-trouble";
+    line.textContent = trouble;
+    row.append(line);
+  }
+  const status = document.createElement("div");
+  status.className = "turn-status-line";
+  status.textContent = native.line;
+  row.append(status);
+  for (const sub of native.subLines) {
+    const line = document.createElement("div");
+    line.className = "turn-status-sub";
+    line.textContent = sub;
+    row.append(line);
+  }
+}
+
+// Duet's voice: visibly different styling, derived from durable signals
+// (plan step, running tool) with Duet's own clock.
+function renderDerivedStatusContent(row: HTMLElement, turn: ReadingTurn): void {
+  row.replaceChildren();
+  row.classList.add("derived");
+  const line = document.createElement("div");
+  line.className = "turn-status-line";
+  const label = document.createElement("span");
+  label.textContent = deriveCurrentStep(turn) ?? "Working";
+  const elapsed = document.createElement("span");
+  elapsed.className = "turn-status-elapsed";
+  if (turn.run?.startedAt) {
+    elapsed.dataset.startedAt = turn.run.startedAt;
+  }
+  elapsed.textContent = formatLiveElapsed(turn.run?.startedAt ?? null);
+  line.append(label, document.createTextNode(" · "), elapsed);
+  row.append(line);
+}
+
+function deriveCurrentStep(turn: ReadingTurn): string | null {
+  let planStep: string | null = null;
+  let runningTool: string | null = null;
+  for (const block of turn.blocks) {
+    if (block.kind === "plan") {
+      const active = block.items.find((item) => item.status === "in_progress");
+      if (active) {
+        planStep = active.activeLabel ?? active.text;
+      }
+    } else if (block.kind === "tool-call" && block.status === "running") {
+      runningTool = block.summary ? `${block.toolName} — ${block.summary}` : block.toolName;
+    }
+  }
+  return planStep ?? runningTool;
+}
+
+function updateLiveStatusRowInPlace(view: TaskViewState): boolean {
+  if (!isActiveView(view)) {
+    // Background task: state stored; nothing to draw until the view shows.
+    return true;
+  }
+  const row = elements.runList.querySelector<HTMLElement>(".turn-status-row");
+  if (!row) {
+    return false;
+  }
+  const native = view.workingStatus?.native ?? null;
+  if (!native) {
+    // Derived content needs turn context — let the full render handle it.
+    return false;
+  }
+  renderNativeStatusContent(row, native);
+  return true;
+}
+
+function formatLiveElapsed(startedAt: string | null): string {
+  const startedMs = startedAt ? Date.parse(startedAt) : Number.NaN;
+  if (Number.isNaN(startedMs)) {
+    return "";
+  }
+  const totalSeconds = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
 function renderPlanBlock(block: PlanBlock): HTMLElement {
@@ -4540,13 +4664,6 @@ function renderTurnFallback(text: string): HTMLElement {
   pre.textContent = text;
   wrap.append(pre);
   return wrap;
-}
-
-function renderTurnWorking(): HTMLElement {
-  const working = document.createElement("div");
-  working.className = "turn-working";
-  working.textContent = `${activeProviderLabel()} is working…`;
-  return working;
 }
 
 function renderNoAssistantOutput(run: RuntimeRunReport | null): HTMLElement {

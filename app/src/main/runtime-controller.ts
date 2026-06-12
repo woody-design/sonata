@@ -54,6 +54,7 @@ import {
   ClaudeStatuslineUsageWatcher,
   parseClaudeStatuslinePayload,
   type ResolveRunIdInput,
+  StatusRegionTracker,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
 import type { ProjectsStore } from "./projects-store";
@@ -91,6 +92,7 @@ interface ActiveTaskRuntime {
   runtime: ReturnType<TerminalHost["startTask"]>;
   providerTranscript: ProviderTranscript;
   deliveryController: DeliveryController;
+  statusTracker: StatusRegionTracker;
 }
 
 export class RuntimeController {
@@ -174,6 +176,11 @@ export class RuntimeController {
       applyControlChange: (change) => this.applyControlChange(taskId, change),
       cleanupAttachments: (attachments) => this.cleanupAttachments(taskId, attachments),
     });
+    const statusTracker = new StatusRegionTracker({
+      taskId,
+      provider: request.provider,
+      eventSink: (event) => this.sendEvent(event),
+    });
 
     const startOptions = {
       cwd: providerCwd,
@@ -207,6 +214,7 @@ export class RuntimeController {
       runtime,
       providerTranscript,
       deliveryController,
+      statusTracker,
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
     this.watchClaudeUsage(activeTask);
@@ -284,6 +292,11 @@ export class RuntimeController {
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
       applyControlChange: (change) => this.applyControlChange(runningTask.id, change),
     });
+    const statusTracker = new StatusRegionTracker({
+      taskId: runningTask.id,
+      provider: runningTask.provider,
+      eventSink: (event) => this.sendEvent(event),
+    });
 
     const ptyStartedAt = new Date().toISOString();
     const runtime = terminalHost.startTask({
@@ -310,6 +323,7 @@ export class RuntimeController {
       runtime,
       providerTranscript,
       deliveryController,
+      statusTracker,
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
     this.watchClaudeUsage(activeTask);
@@ -586,6 +600,7 @@ export class RuntimeController {
   resizeTerminal(taskId: TaskId, cols: number, rows: number): void {
     const active = this.requireTaskRuntime(taskId);
     active.terminalHost.resize(cols, rows);
+    active.statusTracker.resize(cols, rows);
   }
 
   readReport(taskId: TaskId): RuntimeReportV1 {
@@ -669,7 +684,9 @@ export class RuntimeController {
       return;
     }
 
-    this.taskRuntimes.get(event.payload.taskId)?.deliveryController.handleRuntimeEvent(event);
+    const eventRuntime = this.taskRuntimes.get(event.payload.taskId);
+    eventRuntime?.deliveryController.handleRuntimeEvent(event);
+    eventRuntime?.statusTracker.handleRuntimeEvent(event);
 
     if (event.type === "run:started") {
       this.updateTaskTitleFromRun(event.payload.taskId, event.payload.title);
@@ -799,6 +816,7 @@ export class RuntimeController {
     }, active.storageRoot);
     active.providerTranscript.dispose();
     active.deliveryController.dispose();
+    active.statusTracker.dispose();
     active.terminalHost.dispose();
     this.unwatchClaudeUsage(active);
     this.usageSnapshots.delete(active.task.id);

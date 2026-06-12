@@ -1,3 +1,4 @@
+import type { NativeStatusRegion } from "./working-status";
 import type {
   ApprovalChoice,
   ApprovalDecision,
@@ -80,6 +81,15 @@ export type TaskAcceptsInputEvent = BaseRuntimeEvent<
     taskId: TaskId;
     source: "idle-prompt-structural";
     confidence: CompletionConfidence;
+  }
+>;
+
+export type WorkingStatusUpdatedEvent = BaseRuntimeEvent<
+  "working-status:updated",
+  {
+    taskId: TaskId;
+    native: NativeStatusRegion | null;
+    capturedAt: string;
   }
 >;
 
@@ -289,6 +299,7 @@ export type ProductRuntimeEvent =
   | TaskStartedEvent
   | TaskReadyEvent
   | TaskAcceptsInputEvent
+  | WorkingStatusUpdatedEvent
   | TaskUpdatedEvent
   | PromptSubmittedEvent
   | DeliveryStateEvent

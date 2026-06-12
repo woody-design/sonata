@@ -50,10 +50,12 @@
     "smoke:native-control-driver": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/native-control-driver.mjs",
     "smoke:command-approval": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/command-approval.mjs",
     "smoke:approval-reliability": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-reliability.mjs",
-    "rebuild:electron": "electron-rebuild -f -w node-pty"
+    "rebuild:electron": "electron-rebuild -f -w node-pty",
+    "smoke:status-region-tracker": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/status-region-tracker.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
+    "@xterm/headless": "^6.0.0",
     "@xterm/xterm": "^5.5.0",
     "dompurify": "^3.4.8",
     "lucide": "^1.17.0",
