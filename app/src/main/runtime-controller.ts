@@ -63,7 +63,11 @@ import { buildSessionIndex } from "./session-index";
 import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
 import type { ResumeSettingsStore } from "./settings-store";
-import type { ResumeSettings } from "../shared/types/resume-settings";
+import {
+  RESUME_PROMPT_MIN_IDLE_MS,
+  RESUME_PROMPT_MIN_TOKENS,
+  type ResumeSettings,
+} from "../shared/types/resume-settings";
 import type {
   PrepareResumeResponse,
   ResumeSettingsResponse,
@@ -73,11 +77,6 @@ import os from "node:os";
 
 const DEFAULT_TASK_TITLE = "New Task";
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
-// Duet's own resume-cost thresholds. They default-mirror the upstream
-// interstitial's (≥70min idle AND ≥100k tokens) but are DUET policy — the
-// choice renders from Duet's own data, so upstream drift cannot break it.
-const RESUME_PROMPT_MIN_IDLE_MS = 70 * 60_000;
-const RESUME_PROMPT_MIN_TOKENS = 100_000;
 // Undocumented but botmux-proven per-process levers (research §2.1). Both
 // force the full-session path, which is exactly what we want: the panel
 // never renders in the hidden PTY; Duet owns the choice. Version-fragile —

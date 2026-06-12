@@ -3,6 +3,8 @@ import { Terminal } from "@xterm/xterm";
 import DOMPurify from "dompurify";
 import {
   createElement as createLucideIcon,
+  Check,
+  ChevronDown,
   ChevronRight,
   Ellipsis,
   Eye,
@@ -15,6 +17,7 @@ import {
   SearchCode,
   SquarePen,
   SquareTerminal,
+  X,
   type IconNode,
 } from "lucide";
 import { marked } from "marked";
@@ -24,12 +27,18 @@ import {
   READING_MODE_IDS,
   READING_TEXT_STEPS,
   READING_THEME_IDS,
+  RESUME_POLICY_IDS,
+  RESUME_PROMPT_MIN_IDLE_MS,
+  RESUME_PROMPT_MIN_TOKENS,
   isReadingTextStep,
   normalizeReadingSettings,
+  normalizeResumeSettings,
   type ReadingModeSetting,
   type ReadingSettings,
   type ReadingThemeId,
   type ResolvedReadingMode,
+  type ResumePolicyId,
+  type ResumeSettings,
 } from "../shared/types";
 import type {
   ApprovalDecision,
@@ -128,8 +137,21 @@ interface RendererState {
   readingPopoverOpen: boolean;
   readingPopoverAnchor: PopoverAnchor | null;
   promptNav: PromptNavState | null;
+  /** The Settings page (centered overlay) is open; null when closed. */
+  settingsOverlay: SettingsOverlayState | null;
   busy: boolean;
   status: string;
+}
+
+interface SettingsOverlayState {
+  /** Snapshot read on open; null while the read is in flight. */
+  resume: { settings: ResumeSettings; bridgeDismissed: boolean } | null;
+  /** The resume-policy popup menu is showing. */
+  policyMenuOpen: boolean;
+  /** The bridge restore write is in flight. */
+  bridgeReverting: boolean;
+  /** The last bridge restore failed (~/.claude.json untouched). */
+  bridgeError: boolean;
 }
 
 interface PromptNavState {
@@ -217,6 +239,7 @@ const state: RendererState = {
   readingPopoverOpen: false,
   readingPopoverAnchor: null,
   promptNav: null,
+  settingsOverlay: null,
   busy: false,
   status: "Idle",
 };
@@ -1536,6 +1559,7 @@ appElement.innerHTML = `
     </section>
     </div>
     <div id="sidebar-menu-root"></div>
+    <div id="settings-overlay-root"></div>
   </section>
 `;
 
@@ -1553,6 +1577,7 @@ const elements = {
   sidebarList: getElement<HTMLDivElement>("sidebar-list"),
   sidebarToggle: getElement<HTMLButtonElement>("sidebar-toggle"),
   sidebarMenuRoot: getElement<HTMLDivElement>("sidebar-menu-root"),
+  settingsOverlayRoot: getElement<HTMLDivElement>("settings-overlay-root"),
   sessionMenuTrigger: getElement<HTMLButtonElement>("session-menu-trigger"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
   modalBanner: getElement<HTMLDivElement>("modal-banner"),
@@ -2359,6 +2384,353 @@ function readingModeLabel(mode: ReadingModeSetting): string {
   return "Auto";
 }
 
+// --- Settings page (centered overlay) ---------------------------------------
+// The review door for moment-born policy. Two doors, one state: the resume
+// chooser writes the same store this page revises. Instant-apply, no OK.
+
+function openSettingsOverlay(): void {
+  if (state.settingsOverlay) {
+    return;
+  }
+  state.settingsOverlay = {
+    resume: null,
+    policyMenuOpen: false,
+    bridgeReverting: false,
+    bridgeError: false,
+  };
+  render();
+  elements.settingsOverlayRoot.querySelector<HTMLElement>(".settings-window")?.focus();
+  void refreshSettingsOverlay();
+}
+
+function closeSettingsOverlay(): void {
+  state.settingsOverlay = null;
+  render();
+}
+
+async function refreshSettingsOverlay(): Promise<void> {
+  try {
+    const response = await window.duetRuntime.readResumeSettings();
+    if (!state.settingsOverlay) {
+      return;
+    }
+    state.settingsOverlay.resume = {
+      settings: normalizeResumeSettings(response.settings),
+      bridgeDismissed: response.bridgeDismissed,
+    };
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
+}
+
+async function persistResumePolicy(policy: ResumePolicyId): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.resume) {
+    return;
+  }
+  if (overlay.resume.settings.policy === policy) {
+    overlay.policyMenuOpen = false;
+    render();
+    return;
+  }
+  // A revision here retires the moment-born attribution line: the page
+  // becomes the last author and the history line has done its job.
+  const next: ResumeSettings = {
+    policy,
+    provenance: { source: "settings", at: new Date().toISOString() },
+  };
+  overlay.resume.settings = next;
+  overlay.policyMenuOpen = false;
+  render();
+  try {
+    const persisted = normalizeResumeSettings(await window.duetRuntime.writeResumeSettings(next));
+    if (state.settingsOverlay?.resume) {
+      state.settingsOverlay.resume.settings = persisted;
+    }
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
+}
+
+async function restoreResumeBridge(): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.resume || overlay.bridgeReverting) {
+    return;
+  }
+  overlay.bridgeReverting = true;
+  overlay.bridgeError = false;
+  render();
+  let cleared = false;
+  try {
+    cleared = (await window.duetRuntime.revertResumeBridge()).cleared;
+  } catch {
+    cleared = false;
+  }
+  if (state.settingsOverlay) {
+    if (state.settingsOverlay.resume) {
+      state.settingsOverlay.resume.bridgeDismissed = !cleared;
+    }
+    state.settingsOverlay.bridgeError = !cleared;
+    state.settingsOverlay.bridgeReverting = false;
+  }
+  render();
+}
+
+function renderSettingsOverlay(): void {
+  const overlay = state.settingsOverlay;
+  const active = document.activeElement;
+  const keepFocus =
+    overlay !== null &&
+    (active === document.body || elements.settingsOverlayRoot.contains(active));
+  elements.settingsOverlayRoot.replaceChildren();
+  if (!overlay) {
+    return;
+  }
+
+  const scrim = document.createElement("div");
+  scrim.className = "settings-overlay";
+  scrim.addEventListener("mousedown", (event) => {
+    if (event.target === scrim) {
+      closeSettingsOverlay();
+    }
+  });
+
+  const dialog = document.createElement("div");
+  dialog.className = "settings-window";
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute("aria-label", "Duet Settings");
+  dialog.tabIndex = -1;
+  dialog.addEventListener("mousedown", (event) => {
+    if (
+      overlay.policyMenuOpen &&
+      event.target instanceof Element &&
+      !event.target.closest(".settings-popup-wrap")
+    ) {
+      overlay.policyMenuOpen = false;
+      render();
+    }
+  });
+
+  dialog.append(
+    renderSettingsHeader(),
+    renderSessionsSettingsGroup(overlay),
+    renderClaudeSettingsGroup(overlay),
+  );
+  scrim.append(dialog);
+  elements.settingsOverlayRoot.append(scrim);
+  if (keepFocus) {
+    dialog.focus();
+  }
+}
+
+function renderSettingsHeader(): HTMLElement {
+  const header = document.createElement("header");
+  header.className = "settings-header";
+
+  const title = document.createElement("h2");
+  title.className = "settings-title";
+  title.textContent = "Settings";
+
+  const close = document.createElement("button");
+  close.className = "settings-close";
+  close.type = "button";
+  close.setAttribute("aria-label", "Close settings");
+  close.append(lucideIcon(X));
+  close.addEventListener("click", () => {
+    closeSettingsOverlay();
+  });
+
+  header.append(title, close);
+  return header;
+}
+
+function renderSessionsSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
+  const group = document.createElement("section");
+  group.className = "settings-group";
+  group.setAttribute("aria-label", "Sessions");
+
+  const heading = document.createElement("p");
+  heading.className = "settings-group-heading";
+  heading.textContent = "Sessions";
+
+  const box = document.createElement("div");
+  box.className = "settings-box";
+
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const copy = document.createElement("div");
+  copy.className = "settings-row-copy";
+  const title = document.createElement("span");
+  title.className = "settings-row-title";
+  title.textContent = "Resuming a large dormant session";
+  copy.append(title);
+
+  // Apple's provenance grammar (Login Items "Added by …"): state on the
+  // row, one quiet line of attribution — only while the value is
+  // moment-born. Reading settings never carry this; they have no moment.
+  const provenance = overlay.resume?.settings.provenance;
+  if (provenance?.source === "moment") {
+    const note = document.createElement("span");
+    note.className = "settings-row-note";
+    note.textContent = `Set from the resume chooser · ${settingsDateLabel(provenance.at)}`;
+    copy.append(note);
+  }
+
+  row.append(copy, renderResumePolicyPopup(overlay));
+  box.append(row);
+
+  const footnote = document.createElement("p");
+  footnote.className = "settings-footnote";
+  footnote.textContent = `Applies when a Claude session has been idle for over ${Math.round(
+    RESUME_PROMPT_MIN_IDLE_MS / 60_000,
+  )} minutes and holds about ${formatTokenCount(RESUME_PROMPT_MIN_TOKENS)} tokens or more.`;
+
+  group.append(heading, box, footnote);
+  return group;
+}
+
+function renderResumePolicyPopup(overlay: SettingsOverlayState): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "settings-popup-wrap";
+
+  const button = document.createElement("button");
+  button.className = "settings-popup";
+  button.type = "button";
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", String(overlay.policyMenuOpen));
+  button.disabled = !overlay.resume;
+  const label = document.createElement("span");
+  label.textContent = overlay.resume
+    ? resumePolicyLabel(overlay.resume.settings.policy)
+    : "Loading…";
+  button.append(label, lucideIcon(ChevronDown, 14));
+  button.addEventListener("click", () => {
+    overlay.policyMenuOpen = !overlay.policyMenuOpen;
+    render();
+  });
+  wrap.append(button);
+
+  if (overlay.policyMenuOpen && overlay.resume) {
+    const menu = document.createElement("div");
+    menu.className = "settings-popup-menu";
+    menu.setAttribute("role", "menu");
+    for (const policy of RESUME_POLICY_IDS) {
+      const selected = overlay.resume.settings.policy === policy;
+      const option = document.createElement("button");
+      option.className = "settings-popup-option";
+      option.classList.toggle("selected", selected);
+      option.type = "button";
+      option.setAttribute("role", "menuitemradio");
+      option.setAttribute("aria-checked", String(selected));
+      const check = document.createElement("span");
+      check.className = "settings-popup-option-check";
+      if (selected) {
+        check.append(lucideIcon(Check, 13));
+      }
+      const optionLabel = document.createElement("span");
+      optionLabel.className = "settings-popup-option-label";
+      optionLabel.textContent = resumePolicyLabel(policy);
+      option.append(check, optionLabel);
+      option.addEventListener("click", () => {
+        void persistResumePolicy(policy);
+      });
+      menu.append(option);
+    }
+    wrap.append(menu);
+  }
+
+  return wrap;
+}
+
+function renderClaudeSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
+  const group = document.createElement("section");
+  group.className = "settings-group";
+  group.setAttribute("aria-label", "Claude");
+
+  const heading = document.createElement("p");
+  heading.className = "settings-group-heading";
+  heading.textContent = "Claude";
+
+  // The territory declaration: provider passthrough is an IA axis, worn
+  // visibly but quietly — Duet renders Claude's state, never owns it.
+  const territory = document.createElement("p");
+  territory.className = "settings-territory-note";
+  territory.textContent =
+    "Claude Code's own state. Duet shows it here and never changes it without you.";
+
+  const box = document.createElement("div");
+  box.className = "settings-box";
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const copy = document.createElement("div");
+  copy.className = "settings-row-copy";
+  const title = document.createElement("span");
+  title.className = "settings-row-title";
+  title.textContent = "Claude's own resume warning";
+  copy.append(title);
+
+  const resume = overlay.resume;
+  if (overlay.bridgeError) {
+    const note = document.createElement("span");
+    note.className = "settings-row-note settings-row-note-error";
+    note.textContent = "Couldn't update ~/.claude.json — check it manually.";
+    copy.append(note);
+  } else if (resume?.bridgeDismissed) {
+    const note = document.createElement("span");
+    note.className = "settings-row-note";
+    note.textContent =
+      "Turned off by Duet's earlier bridge. Restoring affects terminals outside Duet.";
+    copy.append(note);
+  }
+  row.append(copy);
+
+  const trailing = document.createElement("div");
+  trailing.className = "settings-row-trailing";
+  const value = document.createElement("span");
+  value.className = "settings-value";
+  value.textContent = !resume ? "—" : resume.bridgeDismissed ? "Off" : "On";
+  trailing.append(value);
+  if (resume?.bridgeDismissed) {
+    const restore = document.createElement("button");
+    restore.className = "secondary settings-restore";
+    restore.type = "button";
+    restore.disabled = overlay.bridgeReverting;
+    restore.textContent = overlay.bridgeReverting ? "Restoring…" : "Restore";
+    restore.addEventListener("click", () => {
+      void restoreResumeBridge();
+    });
+    trailing.append(restore);
+  }
+  row.append(trailing);
+
+  box.append(row);
+  group.append(heading, territory, box);
+  return group;
+}
+
+function resumePolicyLabel(policy: ResumePolicyId): string {
+  if (policy === "summary") {
+    return "Resume from summary";
+  }
+  if (policy === "full") {
+    return "Resume full session";
+  }
+  return "Ask each time";
+}
+
+function settingsDateLabel(at: string): string {
+  const parsed = new Date(at);
+  if (Number.isNaN(parsed.getTime())) {
+    return at;
+  }
+  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
 function handlePromptNavigationKeydown(event: KeyboardEvent): void {
   if (event.isComposing || composerIsComposing || event.keyCode === 229) {
     return;
@@ -2432,7 +2804,12 @@ function isPromptNavEntryContext(target: EventTarget | null): boolean {
 }
 
 function hasStackedUiOpen(): boolean {
-  return Boolean(state.readingPopoverOpen || state.composerMenu || state.taskDraft.settingsOpen);
+  return Boolean(
+    state.readingPopoverOpen ||
+      state.composerMenu ||
+      state.taskDraft.settingsOpen ||
+      state.settingsOverlay,
+  );
 }
 
 function enterPromptNav(): boolean {
@@ -2847,6 +3224,16 @@ document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
   }
+  if (state.settingsOverlay) {
+    event.preventDefault();
+    if (state.settingsOverlay.policyMenuOpen) {
+      state.settingsOverlay.policyMenuOpen = false;
+      render();
+      return;
+    }
+    closeSettingsOverlay();
+    return;
+  }
   if (state.readingPopoverOpen) {
     event.preventDefault();
     closeReadingPopover();
@@ -2866,6 +3253,10 @@ readingModeQuery.addEventListener("change", () => {
 
 window.duetRuntime.onReadingSystemModeChanged((mode) => {
   applySystemReadingMode(mode);
+});
+
+window.duetRuntime.onSettingsOpen(() => {
+  openSettingsOverlay();
 });
 
 function applySystemReadingMode(mode: ResolvedReadingMode): void {
@@ -3383,8 +3774,8 @@ async function resumeSessionAndSend(
       // The applied default stays visible — a receipt, not a silent policy.
       view.status =
         preparation.policy === "full"
-          ? `Resuming in full (your default) — ${resumeCostLabel(preparation.idleMs, preparation.totalTokens)}`
-          : `Resuming from summary (your default) — /compact runs first`;
+          ? `Resuming in full (your default · ⌘, to change) — ${resumeCostLabel(preparation.idleMs, preparation.totalTokens)}`
+          : `Resuming from summary (your default · ⌘, to change) — /compact runs first`;
       render();
     }
   } catch {
@@ -3443,8 +3834,12 @@ async function resolveResumeChoice(mode: "full" | "summary"): Promise<void> {
   if (elements.resumeRemember.checked) {
     // The moment is where the setting is born; the chooser collapses for
     // future resumes and the policy lives in Duet's own settings store.
+    // Provenance marks the birth so the Settings page can attribute it.
     try {
-      await window.duetRuntime.writeResumeSettings({ policy: mode });
+      await window.duetRuntime.writeResumeSettings({
+        policy: mode,
+        provenance: { source: "moment", at: new Date().toISOString() },
+      });
     } catch {
       // Remembering is best-effort; the chosen resume still proceeds.
     }
@@ -3572,6 +3967,7 @@ function render(): void {
   elements.sessionMenuTrigger.classList.toggle("hidden", !view?.task);
   elements.sidebarNewChat.disabled = state.busy;
   renderReadingPopover();
+  renderSettingsOverlay();
   renderAttachmentStrip(view);
   renderComposerControls(view);
   renderComposerPopover(view);

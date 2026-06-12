@@ -4,9 +4,11 @@ import {
   app,
   BrowserWindow,
   dialog,
+  Menu,
   nativeTheme,
   screen,
   shell,
+  type MenuItemConstructorOptions,
   type OpenDialogOptions,
   type Rectangle,
 } from "electron";
@@ -489,6 +491,70 @@ function cursorFileUrl(filePath: string): string {
   return `cursor://file${encodedPath.startsWith("/") ? "" : "/"}${encodedPath}`;
 }
 
+/**
+ * The Settings page lives in the main window as a centered overlay; the
+ * menu item (and ⌘,) is its only chrome-level entrance per the HIG — no
+ * toolbar button. Most settings are born at their moments; this is the
+ * review door.
+ */
+function openSettingsInMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createMainWindow();
+    mainWindow.webContents.once("did-finish-load", () => {
+      mainWindow?.webContents.send(IPC_CHANNELS.settingsOpen);
+    });
+    return;
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send(IPC_CHANNELS.settingsOpen);
+}
+
+function createApplicationMenu(): void {
+  const isMac = process.platform === "darwin";
+  const settingsItem: MenuItemConstructorOptions = {
+    id: "settings",
+    label: "Settings…",
+    accelerator: "CmdOrCtrl+,",
+    click: () => openSettingsInMainWindow(),
+  };
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: "about" },
+              { type: "separator" },
+              settingsItem,
+              { type: "separator" },
+              { role: "services" },
+              { type: "separator" },
+              { role: "hide" },
+              { role: "hideOthers" },
+              { role: "unhide" },
+              { type: "separator" },
+              { role: "quit" },
+            ],
+          } satisfies MenuItemConstructorOptions,
+        ]
+      : []),
+    {
+      label: "File",
+      submenu: isMac
+        ? [{ role: "close" }]
+        : [settingsItem, { type: "separator" }, { role: "quit" }],
+    },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function sendReadingSystemMode(): void {
   const mode = nativeTheme.shouldUseDarkColors ? "dark" : "light";
   for (const window of BrowserWindow.getAllWindows()) {
@@ -528,6 +594,7 @@ app.whenReady().then(() => {
     pickFolder,
     closeTaskSurfaces,
   }, readingSettingsStore);
+  createApplicationMenu();
   mainWindow = createMainWindow();
 
   app.on("activate", () => {

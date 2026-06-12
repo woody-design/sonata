@@ -1469,6 +1469,225 @@ h2 {
   font-weight: 720;
 }
 
+/* Settings page — centered overlay above the reading surface. The scrim
+   deliberately covers the canvas: reviewing policy is its own moment.
+   (Proposal visuals; Woody calibrates.) */
+#settings-overlay-root {
+  display: contents;
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding: 11vh 24px 24px;
+  background: rgb(40 36 29 / 42%);
+}
+
+[data-mode="dark"] .settings-overlay {
+  background: rgb(0 0 0 / 52%);
+}
+
+.settings-window {
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  border: 1px solid var(--border-menu);
+  border-radius: 12px;
+  padding: 16px 20px 20px;
+  color: var(--ink-menu);
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
+  outline: none;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-title {
+  margin: 0;
+  color: var(--ink-strong);
+  font-family: var(--font-reading);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.settings-close {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  color: var(--ink-menu-muted);
+  background: transparent;
+}
+
+.settings-close:hover {
+  color: var(--ink-menu);
+  background: var(--surface-menu-hover);
+}
+
+.settings-group {
+  display: grid;
+  gap: 7px;
+}
+
+.settings-group-heading {
+  margin: 0;
+  color: var(--ink-menu-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-territory-note {
+  margin: -3px 0 1px;
+  color: var(--ink-menu-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.settings-box {
+  border: 1px solid var(--border-menu);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid var(--border-menu-divider);
+}
+
+.settings-row-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.settings-row-title {
+  color: var(--ink-menu);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-row-note {
+  color: var(--ink-menu-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.settings-row-note-error {
+  color: #b4543a;
+}
+
+.settings-row-trailing {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-value {
+  color: var(--ink-menu-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.settings-footnote {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--ink-menu-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.settings-popup-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.settings-popup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  border: 1px solid var(--border-control);
+  border-radius: 7px;
+  padding: 0 9px 0 11px;
+  color: var(--ink-ui);
+  background: var(--surface-control);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.settings-popup:disabled {
+  color: var(--ink-disabled-soft);
+  background: var(--surface-disabled);
+}
+
+.settings-popup-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 5;
+  min-width: 224px;
+  display: grid;
+  gap: 1px;
+  border: 1px solid var(--border-menu);
+  border-radius: 8px;
+  padding: 6px;
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
+}
+
+.settings-popup-option {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 9px 7px 7px;
+  color: var(--ink-menu);
+  background: transparent;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.settings-popup-option:hover,
+.settings-popup-option.selected {
+  background: var(--surface-menu-hover);
+}
+
+.settings-popup-option-check {
+  width: 15px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.settings-restore {
+  min-height: 28px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
 .workspace {
   flex: 1;
   min-height: 0;

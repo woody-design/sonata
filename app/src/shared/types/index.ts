@@ -2,6 +2,7 @@ export * from "./domain";
 export * from "./events";
 export * from "./ipc";
 export * from "./reading-settings";
+export * from "./resume-settings";
 export * from "./sessions";
 export * from "./slash";
 export * from "./transcript";

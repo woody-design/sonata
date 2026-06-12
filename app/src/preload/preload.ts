@@ -140,6 +140,13 @@ const duetRuntime: DuetRuntimeBridge = {
     ipcRenderer.on(IPC_CHANNELS.readingSystemModeChanged, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.readingSystemModeChanged, listener);
   },
+  onSettingsOpen: (callback) => {
+    const listener = () => {
+      callback();
+    };
+    ipcRenderer.on(IPC_CHANNELS.settingsOpen, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.settingsOpen, listener);
+  },
   onPreviewState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, previewState: PreviewWindowState) => {
       callback(previewState);

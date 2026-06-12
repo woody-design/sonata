@@ -31,6 +31,8 @@
     "e2e:change-summary": "npm run build && node tests/e2e/change-summary.mjs",
     "e2e:stop-continue": "npm run build && node tests/e2e/stop-continue.mjs",
     "e2e:reading-settings": "npm run build && node tests/e2e/reading-settings.mjs",
+    "e2e:settings-overlay": "npm run build && node tests/e2e/settings-overlay.mjs",
+    "e2e:settings-screenshots": "npm run build && node tests/e2e/settings-screenshots.mjs",
     "e2e:reading-navigation": "npm run build && node tests/e2e/reading-navigation.mjs",
     "e2e:open-task": "npm run build && node tests/e2e/open-task.mjs",
     "e2e:composer-attachment-screenshots": "npm run build && node tests/e2e/composer-attachment-screenshots.mjs",

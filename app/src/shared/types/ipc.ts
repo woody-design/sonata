@@ -80,6 +80,7 @@ export const IPC_CHANNELS = {
   readingSettingsWrite: "reading-settings:write",
   readingSettingsReadSync: "reading-settings:read-sync",
   readingSystemModeChanged: "reading-settings:system-mode-changed",
+  settingsOpen: "settings:open",
   runtimeEvent: "runtime:event",
 } as const;
 
@@ -456,6 +457,8 @@ export interface DuetRuntimeBridge {
   writeResumeSettings(settings: ResumeSettings): Promise<ResumeSettings>;
   revertResumeBridge(): Promise<RevertResumeBridgeResponse>;
   onReadingSystemModeChanged(callback: (mode: ResolvedReadingMode) => void): () => void;
+  /** The app menu's "Settings…" (⌘,) asks the main window to open the page. */
+  onSettingsOpen(callback: () => void): () => void;
   onInspectorState(callback: (state: InspectorWindowState) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;
 }
