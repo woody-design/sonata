@@ -61,9 +61,15 @@ export class LocalApiServer {
     const server = net.createServer((socket) => this.handleConnection(socket));
     this.server = server;
     await new Promise<void>((resolve, reject) => {
-      server.once("error", reject);
+      const onError = (error: Error) => {
+        // Don't leak a server that never bound (e.g. EADDRINUSE).
+        server.close();
+        this.server = null;
+        reject(error);
+      };
+      server.once("error", onError);
       server.listen(this.socketPath, () => {
-        server.removeListener("error", reject);
+        server.removeListener("error", onError);
         try {
           fs.chmodSync(this.socketPath, 0o600);
         } catch {
