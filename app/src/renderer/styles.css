@@ -992,6 +992,17 @@ body.sidebar-resizing {
   background: var(--status-attention);
 }
 
+.sidebar-session-done {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.sidebar-session:hover .sidebar-session-done {
+  visibility: hidden;
+}
+
 .sidebar-rename-input {
   flex: 1 1 auto;
   min-width: 0;

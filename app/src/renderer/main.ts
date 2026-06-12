@@ -94,6 +94,8 @@ interface TaskViewState {
   workingStatus: WorkingStatusState | null;
   status: string;
   unread: boolean;
+  /** A run finished while this session was not the focused view. */
+  completedUnseen: boolean;
 }
 
 interface ReadingTurn {
@@ -787,6 +789,12 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
     }
     spinner.append(lucideIcon(LoaderCircle, 14));
     return spinner;
+  }
+  if (taskViewForId(session.task.id)?.completedUnseen) {
+    const dot = document.createElement("span");
+    dot.className = "sidebar-session-done";
+    dot.title = "Finished while you were away";
+    return dot;
   }
   return null;
 }
@@ -2662,6 +2670,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
     view.liveTranscriptRunId = event.payload.id;
     view.runtimeReady = false;
     view.status = "Running";
+    view.completedUnseen = false;
     ensureRunTranscript(view, event.payload.id);
     markViewChanged(view);
     return;
@@ -2670,6 +2679,10 @@ window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type === "run:updated") {
     if (!isActiveRunStatus(event.payload.status) && view.liveTranscriptRunId === event.payload.id) {
       view.liveTranscriptRunId = null;
+    }
+    if (!isActiveRunStatus(event.payload.status) && !isActiveView(view)) {
+      // The settled sidebar grammar's fourth state: finished while away.
+      view.completedUnseen = true;
     }
     markViewChanged(view);
     return;
@@ -2828,6 +2841,7 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     workingStatus: null,
     status,
     unread: false,
+    completedUnseen: false,
   };
   applyPendingRuntimeState(view);
   return view;
@@ -2922,6 +2936,7 @@ function activateTask(taskId: string): void {
   }
   state.activeTaskId = taskId;
   view.unread = false;
+  view.completedUnseen = false;
   terminal.clear();
   if (view.terminalBuffer) {
     terminal.write(view.terminalBuffer);
@@ -4097,9 +4112,17 @@ function workflowState(): WorkflowState {
   }
 
   if (latestRun && isActiveRunStatus(latestRun.status)) {
+    if (view.workingStatus?.liveness === "silent") {
+      return {
+        headline: `${providerName} may be stuck`,
+        facts: ["No recent activity — check the terminal", ...baseFacts],
+        tone: "action",
+      };
+    }
+    const currentStep = deriveCurrentStepForView(view);
     return {
       headline: `${providerName} is working`,
-      facts: baseFacts,
+      facts: currentStep ? [currentStep, ...baseFacts] : baseFacts,
       tone: "attention",
     };
   }
@@ -4603,6 +4626,29 @@ function renderDerivedStatusContent(row: HTMLElement, turn: ReadingTurn): void {
 
 function openTerminalDrawerFromStatus(): void {
   setTerminalOpen(true);
+}
+
+function deriveCurrentStepForView(view: TaskViewState): string | null {
+  let planStep: string | null = null;
+  let runningTool: string | null = null;
+  for (const id of view.transcriptBlockOrder) {
+    const block = view.transcriptBlocks.get(id);
+    if (!block) {
+      continue;
+    }
+    if (block.kind === "plan") {
+      const active = block.items.find((item) => item.status === "in_progress");
+      planStep = active ? (active.activeLabel ?? active.text) : planStep;
+    } else if (block.kind === "tool-call") {
+      runningTool =
+        block.status === "running"
+          ? block.summary
+            ? `${block.toolName} — ${block.summary}`
+            : block.toolName
+          : runningTool;
+    }
+  }
+  return planStep ?? runningTool;
 }
 
 function deriveCurrentStep(turn: ReadingTurn): string | null {

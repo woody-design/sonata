@@ -81,4 +81,29 @@ assert.equal(usageWindowLabel(1440), "daily");
 assert.equal(usageWindowLabel(10080), "weekly");
 assert.equal(usageWindowLabel(43200), "monthly");
 
+// session_name (slice 5 auto-naming): parsed when present, null when absent.
+const namedLine = JSON.stringify({
+  session_id: "sess-1",
+  session_name: "Plan and read three files then write reflection",
+  context_window: {
+    used_percentage: 4,
+    context_window_size: 1000000,
+    current_usage: { input_tokens: 2, output_tokens: 1211, cache_creation_input_tokens: 88, cache_read_input_tokens: 34967 },
+  },
+});
+const named = parseClaudeStatuslineJson(namedLine);
+assert.ok(named, "expected named snapshot");
+assert.equal(named.snapshot.sessionName, "Plan and read three files then write reflection");
+
+const unnamedLine = JSON.stringify({
+  session_id: "sess-2",
+  context_window: {
+    used_percentage: 4,
+    context_window_size: 1000000,
+    current_usage: { input_tokens: 2, output_tokens: 1211, cache_creation_input_tokens: 88, cache_read_input_tokens: 34967 },
+  },
+});
+const unnamed = parseClaudeStatuslineJson(unnamedLine);
+assert.equal(unnamed.snapshot.sessionName, null);
+
 console.log("usage adapter fixtures passed");

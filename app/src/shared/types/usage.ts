@@ -18,4 +18,6 @@ export interface UsageSnapshot {
   capturedAt: number;
   context: UsageContextSnapshot | null;
   limits: UsageLimitSnapshot[];
+  /** Provider-generated session title (claude statusline `session_name`). */
+  sessionName?: string | null;
 }

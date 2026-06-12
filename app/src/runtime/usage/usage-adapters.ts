@@ -76,6 +76,11 @@ export function parseClaudeStatuslinePayload(
     return null;
   }
 
+  const sessionName =
+    typeof record.session_name === "string" && record.session_name.trim()
+      ? record.session_name.trim()
+      : null;
+
   return {
     providerSessionId,
     snapshot: {
@@ -83,6 +88,7 @@ export function parseClaudeStatuslinePayload(
       capturedAt: options.capturedAt ?? Date.now(),
       context,
       limits,
+      sessionName,
     },
   };
 }

@@ -93,6 +93,10 @@ interface ActiveTaskRuntime {
   providerTranscript: ProviderTranscript;
   deliveryController: DeliveryController;
   statusTracker: StatusRegionTracker;
+  /** Last automatically applied title (run prompt or provider session
+   *  name). null = unknown provenance (e.g. reopened task) → never
+   *  auto-rename. A user rename makes title diverge from this. */
+  autoTitle: string | null;
 }
 
 export class RuntimeController {
@@ -215,6 +219,7 @@ export class RuntimeController {
       providerTranscript,
       deliveryController,
       statusTracker,
+      autoTitle: null,
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
     this.watchClaudeUsage(activeTask);
@@ -324,6 +329,7 @@ export class RuntimeController {
       providerTranscript,
       deliveryController,
       statusTracker,
+      autoTitle: null,
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
     this.watchClaudeUsage(activeTask);
@@ -677,6 +683,7 @@ export class RuntimeController {
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
     if (event.type === "usage:updated") {
       this.publishUsageSnapshot(event.payload.taskId, event.payload.snapshot);
+      this.maybeApplyProviderSessionName(event.payload.taskId, event.payload.snapshot.sessionName);
       return;
     }
     if (event.type === "sessions:updated") {
@@ -762,7 +769,40 @@ export class RuntimeController {
       title: nextTitle,
       updatedAt: new Date().toISOString(),
     };
+    active.autoTitle = nextTitle;
     this.persistTaskManifest(active.task, active.storageRoot);
+  }
+
+  /**
+   * Claude's statusline carries a provider-generated session title. It only
+   * ever replaces an AUTOMATIC title (placeholder or the last auto-applied
+   * value) — a user rename diverges from autoTitle and wins forever. Like
+   * manual rename, this is metadata: updatedAt stays untouched.
+   */
+  private maybeApplyProviderSessionName(taskId: TaskId, sessionName: string | null | undefined): void {
+    const active = this.taskRuntimes.get(taskId);
+    const nextTitle = sessionName?.trim();
+    if (!active || !nextTitle || active.task.title === nextTitle) {
+      return;
+    }
+    const isAutomaticTitle =
+      AUTO_TITLE_PLACEHOLDERS.has(active.task.title) || active.task.title === active.autoTitle;
+    if (!isAutomaticTitle) {
+      return;
+    }
+    active.task = { ...active.task, title: nextTitle };
+    active.autoTitle = nextTitle;
+    this.persistTaskManifest(active.task, active.storageRoot);
+    this.sendEvent({
+      type: "task:updated",
+      payload: { taskId, task: active.task, reason: "runtime-status" },
+      ts: new Date().toISOString(),
+    });
+    this.sendEvent({
+      type: "sessions:updated",
+      payload: { reason: "session-renamed" },
+      ts: new Date().toISOString(),
+    });
   }
 
   private emitReportUpdated(runIndex: RunIndex): void {
@@ -869,6 +909,7 @@ export class RuntimeController {
     }
 
     this.publishUsageSnapshot(active.task.id, result.snapshot);
+    this.maybeApplyProviderSessionName(active.task.id, result.snapshot.sessionName);
   }
 
   private activeTaskForProviderSession(
@@ -897,6 +938,7 @@ export class RuntimeController {
     }
     this.pendingClaudeUsage.delete(providerSessionRef);
     this.publishUsageSnapshot(active.task.id, pending);
+    this.maybeApplyProviderSessionName(active.task.id, pending.sessionName);
   }
 
   private createProviderTranscript(
@@ -1298,6 +1340,7 @@ function mergeUsageSnapshot(previous: UsageSnapshot | null, next: UsageSnapshot)
     ...next,
     context: next.context ?? previous.context,
     limits: next.limits.length > 0 ? next.limits : previous.limits,
+    sessionName: next.sessionName ?? previous.sessionName ?? null,
   };
 }
 
