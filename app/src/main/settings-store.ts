@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  type LocalApiSettings,
+  normalizeLocalApiSettings,
+} from "../shared/types/local-api";
+import {
   type ReadingSettings,
   normalizeReadingSettings,
 } from "../shared/types/reading-settings";
@@ -67,4 +71,34 @@ export class ResumeSettingsStore {
 
 export function resumeSettingsPath(userDataPath: string): string {
   return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "resume-settings.json");
+}
+
+export class LocalApiSettingsStore {
+  readonly filePath: string;
+
+  constructor(filePath: string) {
+    this.filePath = filePath;
+  }
+
+  read(): LocalApiSettings {
+    try {
+      const raw = fs.readFileSync(this.filePath, "utf8");
+      return normalizeLocalApiSettings(JSON.parse(raw));
+    } catch {
+      return normalizeLocalApiSettings(null);
+    }
+  }
+
+  write(nextSettings: unknown): LocalApiSettings {
+    const settings = normalizeLocalApiSettings(nextSettings);
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    const tempPath = `${this.filePath}.tmp`;
+    fs.writeFileSync(tempPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+    fs.renameSync(tempPath, this.filePath);
+    return settings;
+  }
+}
+
+export function localApiSettingsPath(userDataPath: string): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "local-api-settings.json");
 }

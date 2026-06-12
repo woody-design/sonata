@@ -30,11 +30,14 @@ import {
 import { registerIpcHandlers } from "./ipc";
 import { RuntimeController } from "./runtime-controller";
 import {
+  LocalApiSettingsStore,
   ReadingSettingsStore,
   ResumeSettingsStore,
+  localApiSettingsPath,
   readingSettingsPath,
   resumeSettingsPath,
 } from "./settings-store";
+import { LocalApiServer, localApiSocketPath } from "./local-api/local-api-server";
 import { ProjectsStore, projectsStorePath } from "./projects-store";
 
 let mainWindow: BrowserWindow | null = null;
@@ -42,6 +45,7 @@ let previewWindow: BrowserWindow | null = null;
 let inspectorWindow: BrowserWindow | null = null;
 let runtimeController: RuntimeController | null = null;
 let readingSettingsStore: ReadingSettingsStore | null = null;
+let localApiServer: LocalApiServer | null = null;
 let previewState: PreviewWindowState = {
   tabs: [],
   selected: null,
@@ -564,6 +568,32 @@ function sendReadingSystemMode(): void {
   }
 }
 
+function startLocalApiIfEnabled(controller: RuntimeController): void {
+  const settings = new LocalApiSettingsStore(
+    localApiSettingsPath(app.getPath("userData")),
+  ).read();
+  const enabled = settings.enabled || process.env.DUET_LOCAL_API === "1";
+  if (!enabled) {
+    return;
+  }
+  localApiServer = new LocalApiServer({
+    socketPath: localApiSocketPath(app.getPath("userData")),
+    appVersion: app.getVersion(),
+    facade: {
+      readSessionIndex: () => controller.readSessionIndex(),
+      readSessionSnapshot: (taskId: TaskId) => controller.readSessionSnapshot(taskId),
+      submitPrompt: (taskId: TaskId, text: string) => controller.submitPrompt(taskId, text),
+      openTask: (taskId: TaskId) => {
+        controller.openTask({ taskId, resume: true });
+      },
+    },
+  });
+  localApiServer.start().catch((error) => {
+    console.error("[local-api] failed to start:", error);
+    localApiServer = null;
+  });
+}
+
 app.whenReady().then(() => {
   readingSettingsStore = new ReadingSettingsStore(readingSettingsPath(app.getPath("userData")));
   runtimeController = new RuntimeController({
@@ -571,6 +601,7 @@ app.whenReady().then(() => {
     resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath(app.getPath("userData"))),
     sendEvent: (event) => {
       handlePreviewRuntimeEvent(event);
+      localApiServer?.broadcastEvent(event);
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) {
           window.webContents.send(IPC_CHANNELS.runtimeEvent, event);
@@ -578,6 +609,7 @@ app.whenReady().then(() => {
       }
     },
   });
+  startLocalApiIfEnabled(runtimeController);
   if (!readingSettingsStore) {
     throw new Error("Reading settings store is not ready.");
   }
@@ -605,6 +637,8 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  localApiServer?.stop();
+  localApiServer = null;
   runtimeController?.dispose();
   runtimeController = null;
   previewWindow = null;
@@ -616,5 +650,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  localApiServer?.stop();
+  localApiServer = null;
   runtimeController?.dispose();
 });
