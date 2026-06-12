@@ -87,7 +87,8 @@ interface TaskViewState {
   transcriptBlocks: Map<string, TranscriptBlock>;
   transcriptBlockOrder: string[];
   transcriptSources: TranscriptSourceRef[];
-  terminalBuffer: string;
+  /** The human holds the keys in the drawer terminal (single-writer). */
+  userControl: boolean;
   runtimeReady: boolean;
   composerObserved: boolean;
   deliveryState: DeliveryTaskState | null;
@@ -1247,11 +1248,12 @@ async function deleteSessionFromSidebar(taskId: string, title: string): Promise<
 }
 
 function removeTaskViewLocally(taskId: string): void {
+  disposeTaskTerminal(taskId);
   state.taskViews = state.taskViews.filter((item) => item.task?.id !== taskId);
   if (state.activeTaskId === taskId) {
     state.activeTaskId = null;
     state.usagePopover = null;
-    terminal.clear();
+    elements.terminal.replaceChildren();
   }
   render();
 }
@@ -1445,9 +1447,12 @@ appElement.innerHTML = `
           <div class="terminal-drawer-header">
             <div>
               <p class="eyebrow">Terminal</p>
-              <strong>Trust / debug mirror</strong>
+              <strong id="terminal-drawer-title">Live mirror</strong>
             </div>
-            <button id="close-terminal" class="secondary" type="button">Close</button>
+            <div class="terminal-drawer-actions">
+              <button id="takeover-toggle" class="secondary" type="button">Take over</button>
+              <button id="close-terminal" class="secondary" type="button">Close</button>
+            </div>
           </div>
           <div id="terminal"></div>
         </section>
@@ -1547,6 +1552,8 @@ const elements = {
   composerPopoverRoot: getElement<HTMLDivElement>("composer-popover-root"),
   sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
   terminalDrawer: getElement<HTMLElement>("terminal-drawer"),
+  terminalDrawerTitle: getElement<HTMLElement>("terminal-drawer-title"),
+  takeoverToggle: getElement<HTMLButtonElement>("takeover-toggle"),
   closeTerminal: getElement<HTMLButtonElement>("close-terminal"),
   terminal: getElement<HTMLDivElement>("terminal"),
 };
@@ -1559,20 +1566,105 @@ const USAGE_CONTEXT_HIGH_USED_PERCENT = 80;
 const USAGE_POPOVER_OPEN_DELAY_MS = 150;
 const USAGE_POPOVER_CLOSE_DELAY_MS = 180;
 
-const terminal = new Terminal({
-  convertEol: true,
-  cursorBlink: false,
-  fontFamily: terminalFontFamily || "SFMono-Regular, Menlo, Consolas, monospace",
-  fontSize: 12,
-  theme: {
-    background: "#141414",
-    foreground: "#f0eee7",
-  },
-});
-const fitAddon = new FitAddon();
-terminal.loadAddon(fitAddon);
-terminal.open(elements.terminal);
-fitTerminal();
+/**
+ * One live terminal PER TASK, fed the full PTY stream from spawn. The
+ * drawer re-parents the active task's element — never replays a byte tail
+ * (the old sliced-replay drawer cut escape streams mid-sequence and showed
+ * empty/corrupt panels; slice A findings 2026-06-12). Writes before open()
+ * are buffered by xterm, so mirrors are faithful even while hidden.
+ */
+interface TaskTerminal {
+  terminal: Terminal;
+  fit: FitAddon;
+  element: HTMLDivElement;
+  opened: boolean;
+  disposers: Array<() => void>;
+}
+
+const taskTerminals = new Map<string, TaskTerminal>();
+
+function ensureTaskTerminal(taskId: string): TaskTerminal {
+  const existing = taskTerminals.get(taskId);
+  if (existing) {
+    return existing;
+  }
+  const term = new Terminal({
+    convertEol: true,
+    cursorBlink: false,
+    fontFamily: terminalFontFamily || "SFMono-Regular, Menlo, Consolas, monospace",
+    fontSize: 12,
+    theme: {
+      background: "#141414",
+      foreground: "#f0eee7",
+    },
+  });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  const element = document.createElement("div");
+  element.className = "task-terminal";
+  // Keystrokes only flow while THIS task holds take-over; otherwise the
+  // mirror stays read-only by construction.
+  const dataListener = term.onData((data) => forwardUserInput(taskId, data));
+  const binaryListener = term.onBinary((data) => forwardUserInput(taskId, data));
+  const entry: TaskTerminal = {
+    terminal: term,
+    fit,
+    element,
+    opened: false,
+    disposers: [() => dataListener.dispose(), () => binaryListener.dispose()],
+  };
+  taskTerminals.set(taskId, entry);
+  return entry;
+}
+
+function forwardUserInput(taskId: string, data: string): void {
+  const view = taskViewForId(taskId);
+  if (!view?.userControl || !data) {
+    return;
+  }
+  void window.duetRuntime.writeTerminalUserInput({ taskId, data }).catch((error) => {
+    view.status = errorMessage(error);
+    render();
+  });
+}
+
+function disposeTaskTerminal(taskId: string): void {
+  const entry = taskTerminals.get(taskId);
+  if (!entry) {
+    return;
+  }
+  for (const dispose of entry.disposers) {
+    dispose();
+  }
+  entry.terminal.dispose();
+  entry.element.remove();
+  taskTerminals.delete(taskId);
+}
+
+function activeTaskTerminal(): TaskTerminal | null {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return null;
+  }
+  return taskTerminals.get(view.task.id) ?? null;
+}
+
+/** Re-parent the active task's terminal into the drawer; open lazily once
+ *  the drawer is visible so xterm can measure real dimensions. */
+function attachActiveTaskTerminal(): void {
+  const view = activeTaskView();
+  elements.terminal.replaceChildren();
+  if (!view?.task) {
+    return;
+  }
+  const entry = ensureTaskTerminal(view.task.id);
+  elements.terminal.append(entry.element);
+  if (!entry.opened && state.terminalOpen) {
+    entry.terminal.open(entry.element);
+    entry.opened = true;
+  }
+  fitTerminal();
+}
 
 const pendingReadyTaskIds = new Set<string>();
 // Ticks the derived status row's clock without re-rendering the transcript.
@@ -1597,7 +1689,6 @@ let usagePopoverOpenTimer: number | null = null;
 let usagePopoverCloseTimer: number | null = null;
 const MAX_TRANSCRIPT_CHARS = 120_000;
 const MAX_TRANSCRIPT_RAW_CHARS = 260_000;
-const MAX_TERMINAL_BUFFER_CHARS = 80_000;
 const COMPOSITION_END_SHORTCUT_GUARD_MS = 80;
 const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
 const MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: string | null }>> = {
@@ -1813,6 +1904,10 @@ elements.readingSettings.addEventListener("click", (event) => {
 
 elements.closeTerminal.addEventListener("click", () => {
   setTerminalOpen(false);
+});
+
+elements.takeoverToggle.addEventListener("click", () => {
+  void toggleTakeover();
 });
 
 elements.openSelectedPreview.addEventListener("click", () => {
@@ -2711,9 +2806,11 @@ window.duetRuntime.onRuntimeEvent((event) => {
     if (!view) {
       return;
     }
-    appendTerminalBuffer(view, event.payload.data);
-    if (isActiveView(view)) {
-      terminal.write(event.payload.data);
+    // Every task's mirror lives from spawn — the drawer shows state, not a
+    // replayed byte tail.
+    ensureTaskTerminal(event.payload.taskId).terminal.write(event.payload.data);
+    if (!isActiveView(view)) {
+      view.unread = true;
     }
     appendLiveTranscript(view, event.payload.data);
     return;
@@ -2770,9 +2867,21 @@ window.duetRuntime.onRuntimeEvent((event) => {
     return;
   }
 
+  if (event.type === "terminal:user-control") {
+    view.userControl = event.payload.active;
+    view.status = event.payload.active ? "You have the keys — Duet paused" : "Ready";
+    markViewChanged(view);
+    return;
+  }
+
   if (event.type === "approval:decision") {
     view.pendingApproval = null;
-    view.status = event.payload.decision === "deny" ? "Approval denied" : "Approval sent";
+    view.status =
+      event.payload.decision === "deny"
+        ? "Approval denied"
+        : event.payload.decision === "answered-natively"
+          ? "Answered in terminal"
+          : "Approval sent";
     markViewChanged(view);
     return;
   }
@@ -2906,7 +3015,7 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     transcriptBlocks: new Map(),
     transcriptBlockOrder: [],
     transcriptSources: [],
-    terminalBuffer: "",
+    userControl: false,
     runtimeReady: false,
     composerObserved: false,
     deliveryState: null,
@@ -3005,6 +3114,11 @@ function activateTask(taskId: string): void {
     return;
   }
   if (state.activeTaskId !== taskId) {
+    const previous = activeTaskView();
+    if (previous?.userControl) {
+      // Take-over never outlives the surface that granted it.
+      void releaseUserControl(previous);
+    }
     exitPromptNav({ focusComposer: false });
     state.usagePopover = null;
     clearUsagePopoverTimers();
@@ -3012,10 +3126,7 @@ function activateTask(taskId: string): void {
   state.activeTaskId = taskId;
   view.unread = false;
   view.completedUnseen = false;
-  terminal.clear();
-  if (view.terminalBuffer) {
-    terminal.write(view.terminalBuffer);
-  }
+  attachActiveTaskTerminal();
   render();
 }
 
@@ -3029,13 +3140,6 @@ function markViewChanged(view: TaskViewState): void {
 
 function isActiveView(view: TaskViewState): boolean {
   return Boolean(view.task && view.task.id === state.activeTaskId);
-}
-
-function appendTerminalBuffer(view: TaskViewState, data: string): void {
-  view.terminalBuffer = `${view.terminalBuffer}${data}`.slice(-MAX_TERMINAL_BUFFER_CHARS);
-  if (!isActiveView(view)) {
-    view.unread = true;
-  }
 }
 
 function updateTaskTitleFromRun(view: TaskViewState, title: string): void {
@@ -3253,10 +3357,14 @@ async function resizeTerminal(): Promise<void> {
     return;
   }
   fitTerminal();
+  const entry = activeTaskTerminal();
+  if (!entry?.opened) {
+    return;
+  }
   await window.duetRuntime.resizeTerminal({
     taskId: view.task.id,
-    cols: terminal.cols,
-    rows: terminal.rows,
+    cols: entry.terminal.cols,
+    rows: entry.terminal.rows,
   });
 }
 
@@ -4517,12 +4625,17 @@ function isActiveRunStatus(status: string): boolean {
 }
 
 function renderModalBanner(): void {
-  const modal = activeTaskView()?.modalPanel ?? null;
+  const view = activeTaskView();
+  const modal = view?.modalPanel ?? null;
   elements.modalBanner.classList.toggle("hidden", !modal);
+  // Single writer: while the human holds the keys, Duet's answer buttons
+  // disable — typing in the terminal IS the answer surface.
+  elements.modalDismiss.disabled = Boolean(view?.userControl);
 }
 
 function renderApproval(): void {
-  const approval = activeTaskView()?.pendingApproval ?? null;
+  const view = activeTaskView();
+  const approval = view?.pendingApproval ?? null;
   elements.approvalBanner.classList.toggle("hidden", !approval);
   if (!approval) {
     elements.approvalBanner.removeAttribute("data-approval-kind");
@@ -4531,6 +4644,11 @@ function renderApproval(): void {
     return;
   }
 
+  // Single writer: the human on the terminal answers approvals natively.
+  const userControl = Boolean(view?.userControl);
+  elements.approveApproval.disabled = userControl;
+  elements.denyApproval.disabled = userControl;
+
   const sessionChoice =
     approval.choices?.find((choice) => choice.decision === "approve-for-session") ?? null;
   elements.approvalBanner.dataset.approvalKind = approval.kind;
@@ -4538,7 +4656,7 @@ function renderApproval(): void {
   elements.approvalTitle.textContent = approvalTitle(approval.kind);
   elements.approvalSummary.textContent = approvalSummary(approval.kind);
   elements.approveSessionApproval.classList.toggle("hidden", !sessionChoice);
-  elements.approveSessionApproval.disabled = !sessionChoice;
+  elements.approveSessionApproval.disabled = !sessionChoice || userControl;
   if (sessionChoice) {
     elements.approveSessionApproval.textContent = sessionChoice.label;
   }
@@ -5915,19 +6033,74 @@ async function openFloatingInspector(): Promise<void> {
 }
 
 function setTerminalOpen(open: boolean): void {
+  if (!open) {
+    const view = activeTaskView();
+    if (view?.userControl) {
+      // Closing the surface hands the keys back — control must never be
+      // held somewhere the human cannot type.
+      void releaseUserControl(view);
+    }
+  }
   state.terminalOpen = open;
   render();
   if (open) {
     queueMicrotask(() => {
-      fitTerminal();
+      attachActiveTaskTerminal();
       void resizeTerminal();
     });
   }
 }
 
 function renderTerminalDrawer(): void {
+  const view = activeTaskView();
+  const userControl = Boolean(view?.userControl);
   elements.terminalDrawer.classList.toggle("hidden", !state.terminalOpen);
+  elements.terminalDrawer.classList.toggle("user-control", userControl);
   elements.toggleTerminal.classList.toggle("active", state.terminalOpen);
+  elements.takeoverToggle.disabled = !view?.task || state.busy;
+  elements.takeoverToggle.textContent = userControl ? "Hand back" : "Take over";
+  elements.takeoverToggle.classList.toggle("primary", userControl);
+  elements.takeoverToggle.classList.toggle("secondary", !userControl);
+  elements.terminalDrawerTitle.textContent = userControl
+    ? "You have the keys — Duet is paused"
+    : "Live mirror";
+}
+
+async function toggleTakeover(): Promise<void> {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  const next = !view.userControl;
+  try {
+    const result = await window.duetRuntime.setTerminalUserControl({
+      taskId: view.task.id,
+      active: next,
+    });
+    view.userControl = result.active;
+    if (result.active) {
+      if (!state.terminalOpen) {
+        setTerminalOpen(true);
+      }
+      queueMicrotask(() => activeTaskTerminal()?.terminal.focus());
+    }
+    render();
+  } catch (error) {
+    view.status = errorMessage(error);
+    render();
+  }
+}
+
+async function releaseUserControl(view: TaskViewState): Promise<void> {
+  if (!view.task) {
+    return;
+  }
+  view.userControl = false;
+  try {
+    await window.duetRuntime.setTerminalUserControl({ taskId: view.task.id, active: false });
+  } catch {
+    // The PTY may already be gone — the host releases on exit by itself.
+  }
 }
 
 function renderDeliveryQueue(): void {
@@ -6148,10 +6321,7 @@ function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
   if (request.runId) {
     view.highlightedRunId = request.runId;
   }
-  terminal.clear();
-  if (view.terminalBuffer) {
-    terminal.write(view.terminalBuffer);
-  }
+  attachActiveTaskTerminal();
   render();
 
   queueMicrotask(() => {
@@ -6475,8 +6645,12 @@ function shortId(value: string): string {
 }
 
 function fitTerminal(): void {
+  const entry = activeTaskTerminal();
+  if (!entry?.opened) {
+    return;
+  }
   try {
-    fitAddon.fit();
+    entry.fit.fit();
   } catch {
     // The terminal can be measured only after layout is ready.
   }

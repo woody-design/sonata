@@ -205,6 +205,9 @@ function fakeHost() {
     isApprovalActive() {
       return this.approvalActive;
     },
+    isUserControlActive() {
+      return false;
+    },
     isIdleComposerReady() {
       return this.idleComposer;
     },

@@ -505,6 +505,19 @@ export class RuntimeController {
     return { cleared };
   }
 
+  setTerminalUserControl(taskId: TaskId, requestedActive: boolean): { active: boolean } {
+    const active = this.requireTaskRuntime(taskId);
+    return { active: active.terminalHost.setUserControl(requestedActive) };
+  }
+
+  writeTerminalUserInput(taskId: TaskId, data: string): void {
+    if (typeof data !== "string" || data.length === 0) {
+      return;
+    }
+    const active = this.requireTaskRuntime(taskId);
+    active.terminalHost.writeUserInput(data);
+  }
+
   listSlashCommands(request: ReadSlashCommandsRequest): SlashCommandsResponse {
     let provider = request.provider ?? null;
     let cwd = request.cwd ?? null;
@@ -741,7 +754,8 @@ export class RuntimeController {
       event.type === "report:updated" ||
       event.type === "transcript:blocks" ||
       event.type === "delivery:state" ||
-      event.type === "delivery:receipt"
+      event.type === "delivery:receipt" ||
+      event.type === "terminal:user-control"
     ) {
       return;
     }

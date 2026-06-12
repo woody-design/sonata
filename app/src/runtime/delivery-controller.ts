@@ -220,6 +220,10 @@ export class DeliveryController {
       !this.inFlight &&
       !this.terminalHost.hasActiveRun() &&
       !this.terminalHost.isApprovalActive() &&
+      // Single writer: while the human holds the keys, the queue holds the
+      // messages (P1b: a navigating human can flip the idle heuristic —
+      // delivery during take-over is a safety hazard, not a race).
+      !this.terminalHost.isUserControlActive() &&
       // Structural accepts-input gate: delivers as soon as the provider
       // composer exists (~3s), without waiting for the task-ready floor.
       this.terminalHost.acceptsPromptInput()
@@ -243,9 +247,9 @@ export class DeliveryController {
         attachments: item.attachments.map((attachment) => ({ path: attachment.path })),
       });
     } catch (error) {
-      item.status = isApprovalGuardError(error) ? "queued" : "undelivered";
+      item.status = isDeliveryGuardError(error) ? "queued" : "undelivered";
       item.deliveringAt = null;
-      item.failureReason = isApprovalGuardError(error)
+      item.failureReason = isDeliveryGuardError(error)
         ? null
         : error instanceof Error
           ? error.message
@@ -551,7 +555,16 @@ function imageMarkerCount(value: string): number {
   return value.match(/\[Image\s+#\d+\]/gi)?.length ?? 0;
 }
 
-function isApprovalGuardError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.toLowerCase().includes("native approval screen");
+/**
+ * Guard errors are states, not failures: the screen is temporarily owned by
+ * an approval, an interactive panel, or the human (take-over). The item
+ * stays queued and delivers when the state clears — never silently into it.
+ */
+function isDeliveryGuardError(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return (
+    message.includes("native approval screen") ||
+    message.includes("interactive panel") ||
+    message.includes("controlling the terminal")
+  );
 }

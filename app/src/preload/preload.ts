@@ -106,6 +106,9 @@ const duetRuntime: DuetRuntimeBridge = {
   decideApproval: (request) => ipcRenderer.invoke(IPC_CHANNELS.approvalDecide, request),
   stopRun: (request) => ipcRenderer.invoke(IPC_CHANNELS.runStop, request),
   resizeTerminal: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalResize, request),
+  setTerminalUserControl: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.terminalUserControlSet, request),
+  writeTerminalUserInput: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalUserInput, request),
   readReport: (request) => ipcRenderer.invoke(IPC_CHANNELS.reportRead, request),
   readTranscript: (request) => ipcRenderer.invoke(IPC_CHANNELS.transcriptRead, request),
   readUsage: (request) => ipcRenderer.invoke(IPC_CHANNELS.usageRead, request),

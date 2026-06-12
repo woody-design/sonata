@@ -48,6 +48,8 @@ export const IPC_CHANNELS = {
   approvalDecide: "approval:decide",
   runStop: "run:stop",
   terminalResize: "terminal:resize",
+  terminalUserControlSet: "terminal:user-control:set",
+  terminalUserInput: "terminal:user-input",
   reportRead: "report:read",
   transcriptRead: "transcript:read",
   usageRead: "usage:read",
@@ -214,6 +216,20 @@ export interface ResizeTerminalRequest {
   rows: number;
 }
 
+export interface SetTerminalUserControlRequest {
+  taskId: TaskId;
+  active: boolean;
+}
+
+export interface SetTerminalUserControlResponse {
+  active: boolean;
+}
+
+export interface TerminalUserInputRequest {
+  taskId: TaskId;
+  data: string;
+}
+
 export interface ReadReportRequest {
   taskId: TaskId;
 }
@@ -370,6 +386,10 @@ export interface DuetRuntimeBridge {
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;
   stopRun(request: StopRunRequest): Promise<void>;
   resizeTerminal(request: ResizeTerminalRequest): Promise<void>;
+  setTerminalUserControl(
+    request: SetTerminalUserControlRequest,
+  ): Promise<SetTerminalUserControlResponse>;
+  writeTerminalUserInput(request: TerminalUserInputRequest): Promise<void>;
   readReport(request: ReadReportRequest): Promise<RuntimeReportV1 | null>;
   readTranscript(request: ReadTranscriptRequest): Promise<ReadTranscriptResponse>;
   readUsage(request: ReadUsageRequest): Promise<ReadUsageResponse>;

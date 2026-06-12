@@ -111,6 +111,12 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.terminalResize, (_event, request) => {
     runtimeController.resizeTerminal(request.taskId, request.cols, request.rows);
   });
+  ipcMain.handle(IPC_CHANNELS.terminalUserControlSet, (_event, request) =>
+    runtimeController.setTerminalUserControl(request.taskId, request.active),
+  );
+  ipcMain.handle(IPC_CHANNELS.terminalUserInput, (_event, request) => {
+    runtimeController.writeTerminalUserInput(request.taskId, request.data);
+  });
   ipcMain.handle(IPC_CHANNELS.reportRead, (_event, request) =>
     runtimeController.readReport(request.taskId),
   );

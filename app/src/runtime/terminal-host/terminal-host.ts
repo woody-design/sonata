@@ -55,6 +55,10 @@ export const CODEX_MODAL_FOOTER_RE = /esc\s*to\s*(go\s*back|close)|space\s*to\s*
 // Probe screens: spikes/slash-probes evidence, 2026-06-12.
 export const CLAUDE_COMPOSER_REDRAW_RE = /dismissed|cancelled|◉|←\s*for\s*agents/gi;
 export const CODEX_COMPOSER_REDRAW_RE = /gpt[-\w.]+\s*\w*\s*·\s*[~/]/gi;
+/** Marker shared by all single-writer guard errors so DeliveryController can
+ *  re-queue (not fail) items blocked by a guard. */
+export const USER_CONTROL_GUARD_MESSAGE =
+  "The user is controlling the terminal — Duet writes are paused until hand-back.";
 
 function lastMatchIndex(text: string, pattern: RegExp): number {
   pattern.lastIndex = 0;
@@ -259,6 +263,14 @@ export class TerminalHost extends EventEmitter {
   private modalSignature: string | null = null;
   /** Arms the modal detector for a window after a slash passthrough. */
   private lastSlashSubmitAt = 0;
+  /**
+   * The human holds the keys (drawer take-over). Single-writer: while true
+   * every automation write path throws USER_CONTROL_GUARD_MESSAGE and only
+   * writeUserInput() may reach the PTY. P1b (2026-06-12): a single arrow
+   * key against a live panel flips the idle-prompt heuristic, so delivery
+   * MUST pause while a human navigates — this is a safety property.
+   */
+  private userControlActive = false;
 
   constructor(options: TerminalHostOptions) {
     super();
@@ -356,6 +368,10 @@ export class TerminalHost extends EventEmitter {
 
     this.ptyProcess.onData((data) => this.handlePtyData(data));
     this.ptyProcess.onExit((exit) => {
+      if (this.userControlActive) {
+        // Control never outlives the process that granted it.
+        this.setUserControl(false, "pty-exit");
+      }
       this.emitEvent("pty:exit", {
         taskId: this.taskId,
         runId: this.activeRun ? this.activeRun.id : null,
@@ -399,6 +415,89 @@ export class TerminalHost extends EventEmitter {
     this.ptyProcess.write(data);
   }
 
+  isUserControlActive(): boolean {
+    return this.userControlActive;
+  }
+
+  /**
+   * Explicit, reversible take-over (Warp CMD+I model). Idempotent; emits
+   * terminal:user-control on every transition so the renderer, delivery
+   * pump, and receipts all observe the same single-writer state.
+   */
+  setUserControl(active: boolean, reason: "user" | "pty-exit" = "user"): boolean {
+    if (active && !this.ptyProcess) {
+      throw new Error("No PTY process is running.");
+    }
+    if (this.userControlActive === active) {
+      return this.userControlActive;
+    }
+    this.userControlActive = active;
+    if (!active) {
+      // Hand-back: the human may have changed anything — re-derive
+      // readiness from fresh screen evidence instead of stale flags.
+      this.clearApprovalIfAnsweredNatively();
+      this.taskReady = false;
+      this.acceptsInputAnnounced = false;
+      this.scheduleTaskReadyCheck();
+    }
+    this.emitEvent("terminal:user-control", {
+      taskId: this.taskId,
+      active,
+      reason,
+    });
+    return this.userControlActive;
+  }
+
+  /** The ONLY write path allowed while the user controls the terminal. */
+  writeUserInput(data: string): void {
+    if (!this.ptyProcess) {
+      throw new Error("No PTY process is running.");
+    }
+    if (!this.userControlActive) {
+      throw new Error("Terminal input requires take-over to be active.");
+    }
+    this.ptyProcess.write(data);
+  }
+
+  /**
+   * A natively-answered approval leaves no decision event of its own — the
+   * human's keys are invisible to the automation flags, and a stuck
+   * approvalActive wedges the delivery gate forever. Screen evidence is the
+   * source of truth: when the approval text is gone (or the idle prompt
+   * rendered after it), the screen WAS answered. Only evaluated around
+   * take-over, where native answers are possible.
+   */
+  private clearApprovalIfAnsweredNatively(): void {
+    if (!this.approvalActive) {
+      return;
+    }
+    const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
+    const candidate = detectApprovalCandidate(approvalSource, this.profile);
+    if (candidate && !candidate.promptAfterApproval) {
+      return;
+    }
+    const previousKind = this.lastApprovalKind;
+    this.approvalActive = false;
+    this.lastApprovalDecision = "answered-natively";
+    this.lastApprovalDecisionAt = Date.now();
+    this.taskReady = false;
+    this.acceptsInputAnnounced = false;
+    this.emitEvent("approval:decision", {
+      taskId: this.taskId,
+      runId: this.activeRun ? this.activeRun.id : null,
+      decision: "answered-natively",
+      encodedAs: "native-keys",
+      previousKind,
+    });
+    this.updateActiveRun({
+      status: "active",
+      lifecyclePhase: "resumed-after-approval",
+      approvalDecision: "answered-natively",
+      approvalKind: previousKind ?? "unknown",
+    });
+    this.scheduleTaskReadyCheck();
+  }
+
   submitPrompt(
     text: string,
     options: { createRun?: boolean; attachments?: PromptAttachmentSubmission[] } = {},
@@ -418,6 +517,9 @@ export class TerminalHost extends EventEmitter {
       throw new Error(
         "The provider is showing an interactive panel — close it (Esc) before sending. Pasted text would be swallowed by the panel.",
       );
+    }
+    if (this.userControlActive) {
+      throw new Error(USER_CONTROL_GUARD_MESSAGE);
     }
 
     const kind: RunKind = trimmed.startsWith("/") && attachments.length === 0 ? "slash" : "prompt";
@@ -439,13 +541,17 @@ export class TerminalHost extends EventEmitter {
     }
     const textDelayMs = attachments.length > 0 ? 120 : 0;
     const enterDelayMs = attachments.length > 0 ? 260 : 120;
+    // The deferred writes re-check userControlActive: a take-over that lands
+    // between the guard above and these timers must still win — suppressed
+    // bytes surface as a receipt timeout, never as keystrokes under the
+    // human's navigation.
     setTimeout(() => {
-      if (this.ptyProcess && trimmed) {
+      if (this.ptyProcess && trimmed && !this.userControlActive) {
         this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
       }
     }, textDelayMs);
     setTimeout(() => {
-      if (this.ptyProcess) {
+      if (this.ptyProcess && !this.userControlActive) {
         this.ptyProcess.write(CSI_U_ENTER);
       }
     }, enterDelayMs);
@@ -456,7 +562,7 @@ export class TerminalHost extends EventEmitter {
     // own and the extra Enter never fires.
     if (this.profile.provider === "codex" && /^\$[A-Za-z0-9][\w.-]*$/.test(trimmed)) {
       setTimeout(() => {
-        if (this.ptyProcess) {
+        if (this.ptyProcess && !this.userControlActive) {
           this.ptyProcess.write(CSI_U_ENTER);
         }
       }, enterDelayMs + 320);
@@ -485,6 +591,9 @@ export class TerminalHost extends EventEmitter {
     }
     if (this.activeRun) {
       throw new Error("Cannot change controls while a provider run is active.");
+    }
+    if (this.userControlActive) {
+      throw new Error(USER_CONTROL_GUARD_MESSAGE);
     }
     if (!this.isIdleComposerReady()) {
       await this.waitForIdleComposer(DEFAULT_CONTROL_WAIT_MS);
@@ -756,6 +865,9 @@ export class TerminalHost extends EventEmitter {
     keySequence: string,
     encodedAs: ApprovalDecisionEncoding,
   ): void {
+    if (this.userControlActive) {
+      throw new Error(USER_CONTROL_GUARD_MESSAGE);
+    }
     const decisionAt = Date.now();
     const previousKind = this.lastApprovalKind;
     this.writeRaw(keySequence);
@@ -781,6 +893,9 @@ export class TerminalHost extends EventEmitter {
   }
 
   sendDeny(): void {
+    if (this.userControlActive) {
+      throw new Error(USER_CONTROL_GUARD_MESSAGE);
+    }
     const previousKind = this.lastApprovalKind;
     this.writeRaw(ESC);
     this.emitEvent("approval:decision", {
@@ -809,6 +924,9 @@ export class TerminalHost extends EventEmitter {
   }
 
   async stopRun(options: { inspectDelayMs?: number; forceSlashStop?: boolean } = {}): Promise<void> {
+    if (this.userControlActive) {
+      throw new Error(USER_CONTROL_GUARD_MESSAGE);
+    }
     const stoppedRunId = this.activeRun ? this.activeRun.id : null;
     const stoppedCommandApprovalRun = this.activeRun?.approvalKind === "command";
     this.writeRaw(ESC);
@@ -866,6 +984,9 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess) {
       return;
     }
+    if (this.userControlActive) {
+      this.setUserControl(false, "pty-exit");
+    }
     const proc = this.ptyProcess;
     this.ptyProcess = null;
     try {
@@ -890,6 +1011,9 @@ export class TerminalHost extends EventEmitter {
     }
     this.emitEvent("pty:data", { taskId: this.taskId, data });
     this.detectApproval();
+    if (this.userControlActive) {
+      this.clearApprovalIfAnsweredNatively();
+    }
     this.detectModalPanel();
     this.scheduleTaskReadyCheck();
     this.scheduleCompletionCheck();
@@ -997,6 +1121,10 @@ export class TerminalHost extends EventEmitter {
    */
   async dismissModal(): Promise<boolean> {
     for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (this.userControlActive) {
+        // Single writer: the human is on the panel — never race their keys.
+        return false;
+      }
       if (!this.modalActive || !this.ptyProcess) {
         return true;
       }
@@ -1860,6 +1988,17 @@ function isTerminalChromeLine(line: string, provider?: RuntimeProvider): boolean
 function ptyEnvironment(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
+  // Nested-session markers inherited when Duet itself was launched from a
+  // Claude Code session. A child `claude` that sees them registers NO
+  // ~/.claude/sessions/<pid>.json — the waitingFor side channel goes dark
+  // (research 2026-06-12 §4.2). CLAUDE_CONFIG_DIR is intentionally kept:
+  // it is user-owned configuration, not a nesting marker.
+  delete env.CLAUDECODE;
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("CLAUDE_CODE_")) {
+      delete env[key];
+    }
+  }
   return {
     ...env,
     TERM: "xterm-256color",

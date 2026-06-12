@@ -196,6 +196,23 @@ export type ModalStateEvent = BaseRuntimeEvent<
   }
 >;
 
+/**
+ * The human took (or released) direct keyboard control of the task
+ * terminal. While active, Duet is locked out as a writer: delivery pauses
+ * and every automation write path is guarded. P1b evidence (2026-06-12):
+ * automation bytes against a live native panel destroy the message and
+ * answer the panel — pausing delivery during take-over is a safety
+ * property, not polish.
+ */
+export type TerminalUserControlEvent = BaseRuntimeEvent<
+  "terminal:user-control",
+  {
+    taskId: TaskId;
+    active: boolean;
+    reason: "user" | "pty-exit";
+  }
+>;
+
 export type ApprovalDetectedEvent = BaseRuntimeEvent<
   "approval:detected",
   {
@@ -332,6 +349,7 @@ export type ProductRuntimeEvent =
   | ApprovalDetectedEvent
   | ApprovalDecisionEvent
   | ModalStateEvent
+  | TerminalUserControlEvent
   | FileWatchingEvent
   | FileWatchErrorEvent
   | FileChangedEvent
@@ -354,4 +372,5 @@ export type RunIndexEvent = Exclude<
   | DeliveryReceiptEvent
   | TaskUpdatedEvent
   | ModalStateEvent
+  | TerminalUserControlEvent
 >;

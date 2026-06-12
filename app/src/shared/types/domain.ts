@@ -194,8 +194,14 @@ export interface Run {
 
 export type ApprovalKind = "workspace-trust" | "file-read" | "file-edit" | "command" | "unknown";
 export type ApprovalRisk = "file-read" | "file-write" | "network" | "mixed" | "unknown";
-export type ApprovalDecision = "approve" | "approve-for-session" | "deny";
-export type ApprovalDecisionEncoding = "CSI-u Enter" | "ArrowDown + CSI-u Enter" | "Esc";
+/** "answered-natively": the human resolved the screen with their own keys
+ *  (take-over) — observed from screen evidence, not sent by Duet. */
+export type ApprovalDecision = "approve" | "approve-for-session" | "deny" | "answered-natively";
+export type ApprovalDecisionEncoding =
+  | "CSI-u Enter"
+  | "ArrowDown + CSI-u Enter"
+  | "Esc"
+  | "native-keys";
 
 export interface ApprovalChoice {
   decision: ApprovalDecision;
