@@ -1397,6 +1397,12 @@ if (!appElement) {
   throw new Error("Renderer mount point was not found.");
 }
 
+// Live take-over terminals, keyed by task id. Declared before the first
+// applyReadingSettings() call: that init-time call repaints terminal themes,
+// and a const referenced from its own TDZ would crash the renderer (white
+// screen). No terminals exist yet here — the map is simply empty.
+const taskTerminals = new Map<string, TaskTerminal>();
+
 applyReadingSettings(state.readingSettings);
 
 appElement.innerHTML = `
@@ -1655,7 +1661,29 @@ interface TaskTerminal {
   disposers: Array<() => void>;
 }
 
-const taskTerminals = new Map<string, TaskTerminal>();
+// The take-over terminal must read from the SAME theme tokens as the rest of
+// the app. Hardcoded dark colors (the old default) rendered the CLI's
+// background-adaptive text invisible in light mode — a sibling read OSC 11
+// from xterm and drew dark ink onto a hardcoded-dark canvas. Pulling the
+// live --surface/--ink keeps xterm's canvas honest about its own background.
+function terminalTheme(): { background: string; foreground: string; cursor: string } {
+  const styles = getComputedStyle(document.documentElement);
+  const read = (name: string, fallback: string): string =>
+    styles.getPropertyValue(name).trim() || fallback;
+  const foreground = read("--ink", "#f0eee7");
+  return {
+    background: read("--surface", "#141414"),
+    foreground,
+    cursor: foreground,
+  };
+}
+
+function refreshTerminalThemes(): void {
+  const theme = terminalTheme();
+  for (const entry of taskTerminals.values()) {
+    entry.terminal.options.theme = theme;
+  }
+}
 
 function ensureTaskTerminal(taskId: string): TaskTerminal {
   const existing = taskTerminals.get(taskId);
@@ -1667,10 +1695,7 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
     cursorBlink: false,
     fontFamily: terminalFontFamily || "SFMono-Regular, Menlo, Consolas, monospace",
     fontSize: 12,
-    theme: {
-      background: "#141414",
-      foreground: "#f0eee7",
-    },
+    theme: terminalTheme(),
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
@@ -2141,6 +2166,9 @@ function applyReadingSettings(nextSettings: ReadingSettings): void {
   root.dataset.mode = resolvedReadingMode(settings);
   root.dataset.readingModeSetting = settings.mode;
   root.dataset.textStep = String(settings.textStep);
+  // Mode is now on the root, so computed --surface/--ink reflect it: repaint
+  // any live take-over terminals to follow light/dark.
+  refreshTerminalThemes();
 }
 
 function resolvedReadingMode(settings = state.readingSettings): ResolvedReadingMode {

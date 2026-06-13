@@ -3531,8 +3531,8 @@ h2 {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-top: 1px solid #343434;
-  background: #141414;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .terminal-drawer.hidden {
@@ -3545,17 +3545,17 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #343434;
+  border-bottom: 1px solid var(--border);
   padding: 10px 12px;
-  background: #202020;
+  background: var(--surface-shell);
 }
 
 .terminal-drawer-header .eyebrow {
-  color: #c8c2b6;
+  color: var(--ink-muted);
 }
 
 .terminal-drawer-header strong {
-  color: #f0eee7;
+  color: var(--ink-strong);
   font-size: 13px;
 }
 
@@ -3644,11 +3644,11 @@ h2 {
 }
 
 .terminal-drawer.user-control .terminal-drawer-header {
-  background: #2a201b;
+  background: var(--surface-attention);
 }
 
 .terminal-drawer.user-control .terminal-drawer-header strong {
-  color: #f0b8a4;
+  color: var(--ink-strong);
 }
 
 .empty-state {
