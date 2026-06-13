@@ -95,6 +95,20 @@ check("read panel", summarize(detectApprovalCandidateForProvider(fixture("read-2
   keys: { approve: "1", "approve-for-session": "2" },
 });
 
+// Bypass interstitial (Layer 2b): deny listed FIRST (safe default mirrors
+// native's "No, exit"); accept is the deliberate digit-2 opt-in. Detected
+// as its own kind so the card can warn rather than read as a tool approval.
+check(
+  "bypass interstitial",
+  summarize(detectApprovalCandidateForProvider(fixture("dangerous-bypass-2.1.176.txt"), "claude")),
+  {
+    kind: "dangerous-bypass",
+    grammar: "v2",
+    decisions: ["deny:Esc", "approve:digit 2"],
+    keys: { approve: "2" },
+  },
+);
+
 // --- History-bleed regression: a completed ⏺ Read(…) tool line in the
 // stream must NOT drag an edit panel into file-read. ---
 const editWithReadHistory = `⏺ Read(probe-edit.txt)\n  ⎿  Read 1 line\n${fixture("edit-2.1.176.txt")}`;

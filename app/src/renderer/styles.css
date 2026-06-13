@@ -135,6 +135,9 @@
   --approval-workspace-trust-surface: color-mix(in srgb, var(--surface) 82%, #5f7fb5 18%);
   --approval-workspace-trust-border: color-mix(in srgb, var(--surface) 48%, #4e6590 52%);
   --approval-workspace-trust-ink: #2d4268;
+  --approval-dangerous-bypass-surface: color-mix(in srgb, var(--surface) 78%, #c0392b 22%);
+  --approval-dangerous-bypass-border: color-mix(in srgb, var(--surface) 38%, #a02b1e 62%);
+  --approval-dangerous-bypass-ink: #6b1d14;
   --approval-surface: var(--approval-file-edit-surface);
   --approval-border: var(--approval-file-edit-border);
   --approval-ink: var(--approval-file-edit-ink);
@@ -484,6 +487,9 @@
   --approval-workspace-trust-surface: color-mix(in srgb, var(--surface) 82%, #8ba8d4 18%);
   --approval-workspace-trust-border: color-mix(in srgb, var(--surface) 42%, #708db8 58%);
   --approval-workspace-trust-ink: color-mix(in srgb, var(--ink) 82%, #8ba8d4);
+  --approval-dangerous-bypass-surface: color-mix(in srgb, var(--surface) 80%, #e05a4a 20%);
+  --approval-dangerous-bypass-border: color-mix(in srgb, var(--surface) 38%, #c0392b 62%);
+  --approval-dangerous-bypass-ink: color-mix(in srgb, var(--ink) 80%, #e05a4a);
   --approval-badge-bg: color-mix(in srgb, var(--surface-panel) 88%, var(--approval-surface) 12%);
   --approval-context-bg: color-mix(in srgb, var(--surface-panel) 76%, var(--approval-surface) 24%);
   --approval-context-border: color-mix(in srgb, var(--approval-border) 62%, transparent);
@@ -1848,6 +1854,27 @@ h2 {
   --approval-surface: var(--approval-workspace-trust-surface);
   --approval-border: var(--approval-workspace-trust-border);
   --approval-ink: var(--approval-workspace-trust-ink);
+}
+
+/* The bypass interstitial is a dangerous mode acceptance, not a tool
+ * approval. Red surface, and the accept button is de-emphasised (a
+ * destructive action must not read as the primary call to action — its
+ * native default is "No, exit"). Visual proposal pending Woody's review. */
+.approval-banner[data-approval-kind="dangerous-bypass"] {
+  --approval-surface: var(--approval-dangerous-bypass-surface);
+  --approval-border: var(--approval-dangerous-bypass-border);
+  --approval-ink: var(--approval-dangerous-bypass-ink);
+}
+
+.approval-banner[data-approval-kind="dangerous-bypass"] #approve-approval {
+  background: transparent;
+  border: 1px solid var(--approval-dangerous-bypass-border);
+  color: var(--approval-dangerous-bypass-ink);
+  font-weight: 600;
+}
+
+.approval-banner[data-approval-kind="dangerous-bypass"] #deny-approval {
+  font-weight: 700;
 }
 
 .approval-summary {

@@ -199,7 +199,16 @@ export interface Run {
   rawTerminalPointer: null;
 }
 
-export type ApprovalKind = "workspace-trust" | "file-read" | "file-edit" | "command" | "unknown";
+export type ApprovalKind =
+  | "workspace-trust"
+  | "file-read"
+  | "file-edit"
+  | "command"
+  // The native "Bypass Permissions mode" warning interstitial — a mode
+  // acceptance, not a tool approval. Its safe default is "No, exit"; Duet
+  // mirrors that (deny is the primary action, accept is a deliberate opt-in).
+  | "dangerous-bypass"
+  | "unknown";
 export type ApprovalRisk = "file-read" | "file-write" | "network" | "mixed" | "unknown";
 /** "answered-natively": the human resolved the screen with their own keys
  *  (take-over) — observed from screen evidence, not sent by Duet.

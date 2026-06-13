@@ -2516,6 +2516,7 @@ interface ParsedClaudePanelOption {
 interface ParsedClaudePanel {
   kind: ApprovalKind;
   isTrust: boolean;
+  isBypass: boolean;
   options: ParsedClaudePanelOption[];
   fingerprintSource: string;
 }
@@ -2526,11 +2527,18 @@ export function parseClaudeApprovalPanel(rawText: string): ParsedClaudePanel | n
   const lines = cleanTerminal(rawText).split("\n").slice(-CLAUDE_PANEL_SCAN_LINES);
   const compactLines = lines.map((line) => compactText(line));
 
-  // Question anchors, newest first; walk back past garbled repaints.
+  // Question anchors, newest first; walk back past garbled repaints. The
+  // bypass interstitial has no "Do you want…?" line — its stable anchor is
+  // the "By proceeding, you accept …" sentence.
   const anchors: number[] = [];
   for (let i = compactLines.length - 1; i >= 0 && anchors.length < 6; i--) {
     const c = compactLines[i] ?? "";
-    if (c.includes("doyouwantto") || c.includes("quicksafetycheck") || c.includes("isthisaprojectyoucreated")) {
+    if (
+      c.includes("doyouwantto") ||
+      c.includes("quicksafetycheck") ||
+      c.includes("isthisaprojectyoucreated") ||
+      c.includes("byproceedingyouaccept")
+    ) {
       anchors.push(i);
     }
   }
@@ -2551,6 +2559,8 @@ function parseClaudePanelAtAnchor(
   const anchorCompact = compactLines[anchor] ?? "";
   const isTrust =
     anchorCompact.includes("quicksafetycheck") || anchorCompact.includes("isthisaprojectyoucreated");
+  const isBypass =
+    anchorCompact.includes("byproceedingyouaccept") || anchorCompact.includes("bypasspermissionsmode");
 
   const options: ParsedClaudePanelOption[] = [];
   let footerIndex = -1;
@@ -2591,7 +2601,9 @@ function parseClaudePanelAtAnchor(
   // the question; the command echo / diff preview sits in between.
   let kind: ApprovalKind = "unknown";
   let headerIndex = -1;
-  if (isTrust) {
+  if (isBypass) {
+    kind = "dangerous-bypass";
+  } else if (isTrust) {
     kind = "workspace-trust";
   } else {
     for (let i = anchor - 1; i >= Math.max(0, anchor - 25); i--) {
@@ -2621,7 +2633,7 @@ function parseClaudePanelAtAnchor(
 
   const sliceStart = headerIndex >= 0 ? headerIndex : Math.max(0, anchor - 12);
   const fingerprintSource = compactLines.slice(sliceStart, footerIndex + 1).join("");
-  return { kind, isTrust, options, fingerprintSource };
+  return { kind, isTrust, isBypass, options, fingerprintSource };
 }
 
 function classifyClaudePanelOption(option: {
@@ -2646,6 +2658,28 @@ function classifyClaudePanelOption(option: {
 }
 
 function claudePanelChoices(panel: ParsedClaudePanel): ApprovalChoice[] {
+  if (panel.isBypass) {
+    // Mirror native's safe ordering: "No, exit" is the default; accepting
+    // bypass is the deliberate opt-in. Deny is listed FIRST so the card's
+    // primary/default action stays safe.
+    return [
+      {
+        decision: "deny",
+        label: "Cancel (stay safe)",
+        description:
+          "Decline Bypass Permissions mode (the native default, “No, exit”). Claude will keep asking before dangerous actions.",
+        encodedAs: "Esc",
+      },
+      {
+        decision: "approve",
+        label: "Enable bypass — accept the risk",
+        description:
+          "Choose the native “Yes, I accept”. Claude will run EVERY command without asking — intended only for a sandboxed container/VM. You accept all responsibility.",
+        encodedAs: "digit 2",
+      },
+    ];
+  }
+
   if (panel.isTrust) {
     return [
       {
@@ -2705,6 +2739,10 @@ function claudePanelChoices(panel: ParsedClaudePanel): ApprovalChoice[] {
 }
 
 function claudePanelOptionKeys(panel: ParsedClaudePanel): Partial<Record<ApprovalDecision, string>> {
+  if (panel.isBypass) {
+    // "Yes, I accept" is option 2; deny falls through to Esc (sendDeny).
+    return { approve: "2" };
+  }
   if (panel.isTrust) {
     // CSI-u Enter bounces off the trust screen (pre-kitty-negotiation);
     // plain CR is probe-verified.

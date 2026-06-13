@@ -5445,6 +5445,14 @@ function renderApproval(): void {
     elements.approveApproval.textContent = approveChoice.label;
     elements.approveApproval.title = approveChoice.description;
   }
+  // The deny choice carries the panel's own safe-side label ("Deny", or
+  // "Cancel (stay safe)" for the bypass interstitial whose native default
+  // is "No, exit"). data-approval-kind lets CSS flag the dangerous card.
+  const denyChoice = approval.choices?.find((choice) => choice.decision === "deny") ?? null;
+  if (denyChoice) {
+    elements.denyApproval.textContent = denyChoice.label;
+    elements.denyApproval.title = denyChoice.description;
+  }
   elements.approvalContext.replaceChildren(
     approvalContextItem("Source", approval.source),
     approvalContextItem("Scope", approvalScope(approval.kind)),
@@ -7310,6 +7318,9 @@ function approvalTitle(kind: RuntimeRunReport["approvalKind"] | null | undefined
   if (kind === "command") {
     return "Command approval requested";
   }
+  if (kind === "dangerous-bypass") {
+    return "Bypass Permissions mode — confirm";
+  }
   return "Native approval requested";
 }
 
@@ -7327,6 +7338,9 @@ function approvalSummary(kind: RuntimeRunReport["approvalKind"] | null | undefin
   if (kind === "command") {
     return `${providerName} wants to run a command through the native CLI session. Approve only when the command matches the Task.`;
   }
+  if (kind === "dangerous-bypass") {
+    return `${providerName} is about to enter Bypass Permissions mode — it will run EVERY command without asking. Intended only for a sandboxed container/VM. Cancel unless you mean it.`;
+  }
   return `${providerName} is waiting on a native approval screen in the PTY session.`;
 }
 
@@ -7342,6 +7356,9 @@ function approvalScope(kind: RuntimeRunReport["approvalKind"] | null | undefined
   }
   if (kind === "command") {
     return "terminal command execution";
+  }
+  if (kind === "dangerous-bypass") {
+    return "all commands, no prompts (dangerous)";
   }
   const providerName = activeProviderLabel();
   return `native ${providerName} session`;
@@ -7359,6 +7376,9 @@ function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undef
   }
   if (kind === "command") {
     return "Command";
+  }
+  if (kind === "dangerous-bypass") {
+    return "Bypass mode";
   }
   return "Native";
 }
