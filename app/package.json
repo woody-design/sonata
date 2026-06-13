@@ -43,6 +43,7 @@
     "smoke:approval-session-choice": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-session-choice.mjs",
     "smoke:approval-grammar": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-grammar.mjs",
     "smoke:approval-persist-receipt": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-persist-receipt.mjs",
+    "smoke:approval-trust-trail": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-trust-trail.mjs",
     "smoke:submit-approval-guard": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/submit-approval-guard.mjs",
     "smoke:delivery-receipts": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-receipts.mjs",
     "smoke:usage-adapters": "npm run build:main && node tests/smoke/usage-adapters.mjs",

@@ -30,6 +30,11 @@ export interface RuntimeReportV1 {
   runtime: RuntimeLaunchReport | null;
   runs: RuntimeRunReport[];
   unassignedChanges: RuntimeFileChangeReport[];
+  /** Approval events with no owning run — e.g. the workspace-trust screen,
+   *  which fires during session setup before any run exists. Without this
+   *  bucket they were dropped, leaving session-setup approvals with no
+   *  forensic trail (2c). */
+  unassignedApprovals: RuntimeApprovalReport[];
 }
 
 export interface RuntimeLaunchReport {
@@ -135,5 +140,6 @@ export function freshRuntimeReportV1(taskId: TaskId): RuntimeReportV1 {
     runtime: null,
     runs: [],
     unassignedChanges: [],
+    unassignedApprovals: [],
   };
 }

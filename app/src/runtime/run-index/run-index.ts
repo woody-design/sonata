@@ -148,11 +148,11 @@ export class RunIndex {
           if (event.payload.choices !== undefined) {
             approvalEvent.choices = event.payload.choices;
           }
-          this.appendRunEvent(event.payload.runId, "approvalEvents", approvalEvent);
+          this.recordApprovalEvent(event.payload.runId, approvalEvent);
         }
         break;
       case "approval:decision":
-        this.appendRunEvent(event.payload.runId, "approvalEvents", {
+        this.recordApprovalEvent(event.payload.runId, {
           ts: event.ts,
           action: "decision",
           decision: event.payload.decision,
@@ -161,7 +161,7 @@ export class RunIndex {
         });
         break;
       case "approval:persisted":
-        this.appendRunEvent(event.payload.runId, "approvalEvents", {
+        this.recordApprovalEvent(event.payload.runId, {
           ts: event.ts,
           action: "persisted",
           file: event.payload.file,
@@ -266,6 +266,22 @@ export class RunIndex {
     run[key] = [...run[key], value] as RuntimeRunReport[K];
   }
 
+  /**
+   * Approvals can fire with no owning run — the workspace-trust screen
+   * appears during session setup, before the first run begins. Routing
+   * them to a run via upsertRun(null) silently dropped them (the empty
+   * approvalEvents in the 148-approval incident report). Mirror the
+   * unassignedChanges bucket so every approval leaves a trail.
+   */
+  private recordApprovalEvent(runId: string | null, value: RuntimeApprovalReport): void {
+    const run = this.upsertRun(runId, {});
+    if (!run) {
+      this.report.unassignedApprovals = [...this.report.unassignedApprovals, value];
+      return;
+    }
+    run.approvalEvents = [...run.approvalEvents, value];
+  }
+
   private appendChangedFile(event: Extract<RunIndexEvent, { type: "file:changed" }>): void {
     const run = this.upsertRun(event.payload.runId, {});
     const change = fileChangeFromEvent(event);
@@ -357,6 +373,8 @@ function readExistingReport(reportPath: string, taskId: TaskId): RuntimeReportV1
       ...parsed,
       taskId,
       rawTerminalPointer: null,
+      // Field added in 2c; reports written before it lack the key.
+      unassignedApprovals: parsed.unassignedApprovals ?? [],
       runs: parsed.runs.map((run) => ({ ...run, taskId, rawTerminalPointer: null })),
     };
   } catch {
