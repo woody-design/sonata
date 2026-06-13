@@ -321,6 +321,12 @@ export class RuntimeController {
       permissionMode: permissionSettings.permissionMode,
       status: "running" as const,
       updatedAt: new Date().toISOString(),
+      // A no-resume reopen (session gone, or resume explicitly off) starts a
+      // genuinely new session. Void the dead binding so discovery's
+      // first-establish writes the fresh id cleanly — otherwise the CAS guard
+      // reads the stale non-null ref, mistakes the new session for a hijack,
+      // and keeps pointing at the gone session.
+      ...(resumeRef ? {} : { providerSessionRef: null }),
     };
     const reportPath = runtimeReportPath(storageRoot);
     const runIndex = new RunIndex({
