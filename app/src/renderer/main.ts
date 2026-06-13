@@ -24,6 +24,7 @@ import { marked } from "marked";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 import {
+  CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS,
   READING_MODE_IDS,
   READING_TEXT_STEPS,
   READING_THEME_IDS,
@@ -31,8 +32,11 @@ import {
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
   isReadingTextStep,
+  normalizeClaudeSettings,
   normalizeReadingSettings,
   normalizeResumeSettings,
+  type ClaudeDefaultPermissionMode,
+  type ClaudeSettings,
   type ReadingModeSetting,
   type ReadingSettings,
   type ReadingThemeId,
@@ -146,8 +150,12 @@ interface RendererState {
 interface SettingsOverlayState {
   /** Snapshot read on open; null while the read is in flight. */
   resume: { settings: ResumeSettings; bridgeDismissed: boolean } | null;
+  /** Duet-owned Claude launch policy; null while the read is in flight. */
+  claude: { settings: ClaudeSettings } | null;
   /** The resume-policy popup menu is showing. */
   policyMenuOpen: boolean;
+  /** The default-permission-mode popup menu is showing. */
+  approvalMenuOpen: boolean;
   /** The bridge restore write is in flight. */
   bridgeReverting: boolean;
   /** The last bridge restore failed (~/.claude.json untouched). */
@@ -1805,10 +1813,15 @@ const CODEX_PERMISSION_OPTIONS: Array<{
   { label: "Approve for me", preset: "approveForMe", sandbox: "workspace-write", approval: "never" },
   { label: "Full Access", preset: "fullAccess", sandbox: "danger-full-access", approval: "never" },
 ];
+// Mirrors Claude's official Shift+Tab cycle. `auto` (v2.1.83+) auto-approves
+// every tool through a server-side safety classifier + deny rules — the
+// official low-friction mode, far safer than bypassPermissions (which stays
+// gated, next session). `dontAsk` is a CI allowlist mode, not interactive.
 const CLAUDE_PERMISSION_OPTIONS: Array<{ label: string; value: ClaudePermissionMode }> = [
   { label: "default", value: "default" },
   { label: "acceptEdits", value: "acceptEdits" },
   { label: "plan", value: "plan" },
+  { label: "auto", value: "auto" },
 ];
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
@@ -2394,7 +2407,9 @@ function openSettingsOverlay(): void {
   }
   state.settingsOverlay = {
     resume: null,
+    claude: null,
     policyMenuOpen: false,
+    approvalMenuOpen: false,
     bridgeReverting: false,
     bridgeError: false,
   };
@@ -2410,14 +2425,44 @@ function closeSettingsOverlay(): void {
 
 async function refreshSettingsOverlay(): Promise<void> {
   try {
-    const response = await window.duetRuntime.readResumeSettings();
+    const [resumeResponse, claudeResponse] = await Promise.all([
+      window.duetRuntime.readResumeSettings(),
+      window.duetRuntime.readClaudeSettings(),
+    ]);
     if (!state.settingsOverlay) {
       return;
     }
     state.settingsOverlay.resume = {
-      settings: normalizeResumeSettings(response.settings),
-      bridgeDismissed: response.bridgeDismissed,
+      settings: normalizeResumeSettings(resumeResponse.settings),
+      bridgeDismissed: resumeResponse.bridgeDismissed,
     };
+    state.settingsOverlay.claude = {
+      settings: normalizeClaudeSettings(claudeResponse),
+    };
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
+}
+
+async function persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.claude) {
+    return;
+  }
+  overlay.approvalMenuOpen = false;
+  if (overlay.claude.settings.defaultPermissionMode === mode) {
+    render();
+    return;
+  }
+  const next: ClaudeSettings = { defaultPermissionMode: mode };
+  overlay.claude.settings = next;
+  render();
+  try {
+    const persisted = normalizeClaudeSettings(await window.duetRuntime.writeClaudeSettings(next));
+    if (state.settingsOverlay?.claude) {
+      state.settingsOverlay.claude.settings = persisted;
+    }
   } catch (error) {
     state.status = errorMessage(error);
   }
@@ -2504,18 +2549,18 @@ function renderSettingsOverlay(): void {
   dialog.setAttribute("aria-label", "Duet Settings");
   dialog.tabIndex = -1;
   dialog.addEventListener("mousedown", (event) => {
-    if (
-      overlay.policyMenuOpen &&
-      event.target instanceof Element &&
-      !event.target.closest(".settings-popup-wrap")
-    ) {
+    const outsidePopup =
+      event.target instanceof Element && !event.target.closest(".settings-popup-wrap");
+    if (outsidePopup && (overlay.policyMenuOpen || overlay.approvalMenuOpen)) {
       overlay.policyMenuOpen = false;
+      overlay.approvalMenuOpen = false;
       render();
     }
   });
 
   dialog.append(
     renderSettingsHeader(),
+    renderApprovalsSettingsGroup(overlay),
     renderSessionsSettingsGroup(overlay),
     renderClaudeSettingsGroup(overlay),
   );
@@ -2545,6 +2590,101 @@ function renderSettingsHeader(): HTMLElement {
 
   header.append(title, close);
   return header;
+}
+
+function renderApprovalsSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
+  const group = document.createElement("section");
+  group.className = "settings-group";
+  group.setAttribute("aria-label", "Approvals");
+
+  const heading = document.createElement("p");
+  heading.className = "settings-group-heading";
+  heading.textContent = "Approvals";
+
+  const box = document.createElement("div");
+  box.className = "settings-box";
+
+  const row = document.createElement("div");
+  row.className = "settings-row";
+  const copy = document.createElement("div");
+  copy.className = "settings-row-copy";
+  const title = document.createElement("span");
+  title.className = "settings-row-title";
+  title.textContent = "New Claude sessions start in";
+  copy.append(title);
+  row.append(copy, renderDefaultPermissionModePopup(overlay));
+  box.append(row);
+
+  const footnote = document.createElement("p");
+  footnote.className = "settings-footnote";
+  footnote.textContent =
+    "Mirrors Claude's Shift+Tab modes. Auto approves every step through Claude's own safety classifier — far fewer prompts, with a guardrail. You can still switch any single session from its permission chip.";
+
+  group.append(heading, box, footnote);
+  return group;
+}
+
+function renderDefaultPermissionModePopup(overlay: SettingsOverlayState): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "settings-popup-wrap";
+
+  const button = document.createElement("button");
+  button.className = "settings-popup";
+  button.type = "button";
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", String(overlay.approvalMenuOpen));
+  button.disabled = !overlay.claude;
+  const label = document.createElement("span");
+  label.textContent = overlay.claude
+    ? permissionModeLabel(overlay.claude.settings.defaultPermissionMode)
+    : "Loading…";
+  button.append(label, lucideIcon(ChevronDown, 14));
+  button.addEventListener("click", () => {
+    overlay.approvalMenuOpen = !overlay.approvalMenuOpen;
+    render();
+  });
+  wrap.append(button);
+
+  if (overlay.approvalMenuOpen && overlay.claude) {
+    const menu = document.createElement("div");
+    menu.className = "settings-popup-menu";
+    menu.setAttribute("role", "menu");
+    for (const mode of CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS) {
+      const selected = overlay.claude.settings.defaultPermissionMode === mode;
+      const option = document.createElement("button");
+      option.className = "settings-popup-option";
+      option.classList.toggle("selected", selected);
+      option.type = "button";
+      option.setAttribute("role", "menuitemradio");
+      option.setAttribute("aria-checked", String(selected));
+      const check = document.createElement("span");
+      check.className = "settings-popup-option-check";
+      if (selected) {
+        check.append(lucideIcon(Check, 13));
+      }
+      const optionLabel = document.createElement("span");
+      optionLabel.className = "settings-popup-option-label";
+      optionLabel.textContent = permissionModeLabel(mode);
+      option.append(check, optionLabel);
+      option.addEventListener("click", () => {
+        void persistDefaultPermissionMode(mode);
+      });
+      menu.append(option);
+    }
+    wrap.append(menu);
+  }
+
+  return wrap;
+}
+
+function permissionModeLabel(mode: ClaudeDefaultPermissionMode): string {
+  if (mode === "acceptEdits") {
+    return "Accept edits";
+  }
+  if (mode === "auto") {
+    return "Auto";
+  }
+  return "Ask each time";
 }
 
 function renderSessionsSettingsGroup(overlay: SettingsOverlayState): HTMLElement {

@@ -63,7 +63,8 @@ import {
 import { buildSessionIndex } from "./session-index";
 import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
-import type { ResumeSettingsStore } from "./settings-store";
+import type { ResumeSettingsStore, ClaudeSettingsStore } from "./settings-store";
+import type { ClaudeSettings } from "../shared/types/claude-settings";
 import {
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
@@ -107,6 +108,7 @@ interface RuntimeControllerOptions {
   sendEvent: (event: RuntimeEvent) => void;
   projectsStore: ProjectsStore;
   resumeSettingsStore: ResumeSettingsStore;
+  claudeSettingsStore: ClaudeSettingsStore;
 }
 
 interface ActiveTaskRuntime {
@@ -129,6 +131,7 @@ export class RuntimeController {
   private readonly sendEvent: (event: RuntimeEvent) => void;
   private readonly projectsStore: ProjectsStore;
   private readonly resumeSettingsStore: ResumeSettingsStore;
+  private readonly claudeSettingsStore: ClaudeSettingsStore;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
@@ -140,6 +143,7 @@ export class RuntimeController {
     this.sendEvent = options.sendEvent;
     this.projectsStore = options.projectsStore;
     this.resumeSettingsStore = options.resumeSettingsStore;
+    this.claudeSettingsStore = options.claudeSettingsStore;
     this.claudeUsageWatcher = new ClaudeStatuslineUsageWatcher({
       onPayload: (payload, _filePath, mtimeMs) =>
         this.handleClaudeStatuslinePayload(payload, mtimeMs),
@@ -161,7 +165,18 @@ export class RuntimeController {
     const reportPath = runtimeReportPath(storageRoot);
     fs.mkdirSync(duetDirectory(storageRoot), { recursive: true });
     const launchSettings = normalizeLaunchSettings(request.provider, request);
-    const permissionSettings = normalizePermissionSettings(request.provider, request);
+    // New Claude sessions inherit the Duet-owned default permission mode
+    // (Settings → Approvals) unless the request names one explicitly. This
+    // is the "set it once" that keeps a trusted session from prompting on
+    // every tool call.
+    const permissionModeRequest =
+      request.provider === "claude" && request.permissionMode == null
+        ? { ...request, permissionMode: this.claudeSettingsStore.read().defaultPermissionMode }
+        : request;
+    const permissionSettings = normalizePermissionSettings(
+      request.provider,
+      permissionModeRequest,
+    );
 
     if (request.cwd) {
       this.projectsStore.noteFolderUsed(providerCwd);
@@ -456,6 +471,14 @@ export class RuntimeController {
 
   writeResumeSettings(settings: unknown): ResumeSettings {
     return this.resumeSettingsStore.write(settings);
+  }
+
+  readClaudeSettings(): ClaudeSettings {
+    return this.claudeSettingsStore.read();
+  }
+
+  writeClaudeSettings(settings: unknown): ClaudeSettings {
+    return this.claudeSettingsStore.write(settings);
   }
 
   /**

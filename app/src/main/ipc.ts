@@ -173,6 +173,10 @@ export function registerIpcHandlers(
     runtimeController.writeResumeSettings(request),
   );
   ipcMain.handle(IPC_CHANNELS.resumeBridgeRevert, () => runtimeController.revertResumeBridge());
+  ipcMain.handle(IPC_CHANNELS.claudeSettingsRead, () => runtimeController.readClaudeSettings());
+  ipcMain.handle(IPC_CHANNELS.claudeSettingsWrite, (_event, request) =>
+    runtimeController.writeClaudeSettings(request),
+  );
   ipcMain.handle(IPC_CHANNELS.readingSettingsRead, () => readingSettingsStore.read());
   ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) =>
     readingSettingsStore.write(request),

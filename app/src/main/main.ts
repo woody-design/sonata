@@ -30,9 +30,11 @@ import {
 import { registerIpcHandlers } from "./ipc";
 import { RuntimeController } from "./runtime-controller";
 import {
+  ClaudeSettingsStore,
   LocalApiSettingsStore,
   ReadingSettingsStore,
   ResumeSettingsStore,
+  claudeSettingsPath,
   localApiSettingsPath,
   readingSettingsPath,
   resumeSettingsPath,
@@ -604,6 +606,7 @@ app.whenReady().then(() => {
   runtimeController = new RuntimeController({
     projectsStore: new ProjectsStore(projectsStorePath(app.getPath("userData"))),
     resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath(app.getPath("userData"))),
+    claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath(app.getPath("userData"))),
     sendEvent: (event) => {
       handlePreviewRuntimeEvent(event);
       localApiServer?.broadcastEvent(event);

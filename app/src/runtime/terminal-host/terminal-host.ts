@@ -1963,25 +1963,36 @@ function numberedPickerSegments(line: string): Array<{ digit: string; text: stri
   return segments;
 }
 
-function detectClaudePermissionMode(cleanText: string): ClaudePermissionMode | null {
-  const tail = cleanText.toLowerCase().slice(-1800);
-  const compact = tail.replace(/[^a-z]+/g, "");
-  if (compact.includes("accepted") || (compact.includes("accept") && compact.includes("edi"))) {
-    return "acceptEdits";
+export function detectClaudePermissionMode(cleanText: string): ClaudePermissionMode | null {
+  // Shift+Tab cycling appends EVERY mode's banner into the stream
+  // ("accept edits on" → "plan mode on" → "auto mode on" → default), so a
+  // substring-anywhere test always matches the first-checked mode and
+  // misreads the current one. The CURRENT mode is whatever the LAST status
+  // line says. Every status line ends in the "← for agents" hint; the mode
+  // banner (if any) sits just before it on the same line. So classify the
+  // window immediately preceding the last composer hint. Compact away
+  // spaces — cleanTerminal sometimes drops them ("auto mode on" →
+  // "automodeon"). Default mode shows no banner, only the bare hint.
+  const compact = cleanText.toLowerCase().replace(/[^a-z]+/g, "");
+  const lastHint = compact.lastIndexOf("foragents");
+  if (lastHint === -1) {
+    return null;
   }
-  if (compact.includes("planmod") || compact.includes("planmode") || compact.includes("plan")) {
-    return "plan";
-  }
-  if (compact.includes("automode") || compact.includes("autoon")) {
+  // Isolate JUST the current status line: the span between the previous
+  // hint and this one. A 60-char window would bleed into the prior line's
+  // banner (which still lingers in the cycling stream).
+  const prevHint = compact.lastIndexOf("foragents", lastHint - 1);
+  const line = compact.slice(prevHint === -1 ? 0 : prevHint + "foragents".length, lastHint);
+  if (line.includes("automodeon") || line.includes("autoon")) {
     return "auto";
   }
-  if (compact.includes("default")) {
-    return "default";
+  if (line.includes("planmodeon") || line.includes("planmode")) {
+    return "plan";
   }
-  if ((compact.includes("shifttab") || compact.includes("cycle")) && !compact.includes("accept") && !compact.includes("plan") && !compact.includes("auto")) {
-    return "default";
+  if (line.includes("accepteditson") || line.includes("acceptedits")) {
+    return "acceptEdits";
   }
-  return null;
+  return "default";
 }
 
 function normalizedTokens(value: string): string[] {

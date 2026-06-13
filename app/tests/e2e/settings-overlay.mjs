@@ -12,6 +12,7 @@ const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-overl
 const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-overlay-store-"));
 const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-overlay-home-"));
 const resumeSettingsPath = path.join(settingsRoot, "resume-settings.json");
+const claudeSettingsPath = path.join(settingsRoot, "claude-settings.json");
 const claudeConfigPath = path.join(homeRoot, ".claude.json");
 let electronApp = null;
 
@@ -40,7 +41,7 @@ try {
   await page.locator(".settings-window").waitFor({ state: "visible" });
 
   // Moment-born state renders with attribution + threshold disclosure.
-  const popup = page.locator(".settings-popup");
+  const popup = page.locator('section[aria-label="Sessions"] .settings-popup');
   await popup.filter({ hasText: "Resume from summary" }).waitFor({ state: "visible" });
   const provenanceNote = page.locator(".settings-row-note", {
     hasText: "Set from the resume chooser",
@@ -50,13 +51,29 @@ try {
   if (!provenanceText.includes("2026")) {
     throw new Error(`Provenance line is missing the date: ${provenanceText}`);
   }
-  const footnote = await page.locator(".settings-footnote").textContent();
+  const footnote = await page
+    .locator('section[aria-label="Sessions"] .settings-footnote')
+    .textContent();
   if (!footnote.includes("70 minutes") || !footnote.includes("100.0k tokens")) {
     throw new Error(`Threshold footnote drifted: ${footnote}`);
   }
 
   // Bridge row: hermetic ~/.claude.json absent -> Claude's warning is On.
   await page.locator(".settings-value", { hasText: "On" }).waitFor({ state: "visible" });
+
+  // Approvals group: the default permission mode for new Claude sessions.
+  // Defaults to "Ask each time"; choosing Auto persists to the Duet-owned
+  // claude-settings.json (never ~/.claude.json).
+  const approvals = page.locator('section[aria-label="Approvals"]');
+  const approvalsPopup = approvals.locator(".settings-popup");
+  await approvalsPopup.filter({ hasText: "Ask each time" }).waitFor({ state: "visible" });
+  await approvalsPopup.click();
+  await approvals.locator(".settings-popup-option", { hasText: "Auto" }).click();
+  await waitUntil(() => {
+    const persisted = readPersistedClaudeSettings();
+    return persisted?.defaultPermissionMode === "auto";
+  }, 8000);
+  await approvalsPopup.filter({ hasText: "Auto" }).waitFor({ state: "visible" });
 
   // Revising on the page persists with settings provenance and retires
   // the attribution line (the page is now the last author).
@@ -142,6 +159,14 @@ async function openSettingsFromMenu() {
 
 function readPersistedResumeSettings() {
   return JSON.parse(fs.readFileSync(resumeSettingsPath, "utf8"));
+}
+
+function readPersistedClaudeSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(claudeSettingsPath, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 async function waitUntil(predicate, timeoutMs) {

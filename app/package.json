@@ -61,7 +61,9 @@
     "e2e:terminal-takeover": "npm run build && node tests/e2e/terminal-takeover.mjs",
     "smoke:modal-ambient-detection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/modal-ambient-detection.mjs",
     "smoke:resume-moment-units": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/resume-moment-units.mjs",
-    "smoke:local-api": "npm run build:main && node tests/smoke/local-api.mjs"
+    "smoke:local-api": "npm run build:main && node tests/smoke/local-api.mjs",
+    "smoke:claude-permission-default": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-permission-default.mjs",
+    "smoke:claude-permission-detection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-permission-detection.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

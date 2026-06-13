@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  type ClaudeSettings,
+  normalizeClaudeSettings,
+} from "../shared/types/claude-settings";
+import {
   type LocalApiSettings,
   normalizeLocalApiSettings,
 } from "../shared/types/local-api";
@@ -75,4 +79,14 @@ export class LocalApiSettingsStore extends JsonSettingsStore<LocalApiSettings> {
 
 export function localApiSettingsPath(userDataPath: string): string {
   return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "local-api-settings.json");
+}
+
+export class ClaudeSettingsStore extends JsonSettingsStore<ClaudeSettings> {
+  constructor(filePath: string) {
+    super(filePath, normalizeClaudeSettings);
+  }
+}
+
+export function claudeSettingsPath(userDataPath: string): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "claude-settings.json");
 }

@@ -15,6 +15,7 @@ import type {
 import type { RuntimeEvent } from "./events";
 import type { ReadingSettings, ResolvedReadingMode } from "./reading-settings";
 import type { ResumePolicyId, ResumeSettings } from "./resume-settings";
+import type { ClaudeSettings } from "./claude-settings";
 import type {
   ReadSessionIndexRequest,
   ReadSessionSnapshotRequest,
@@ -77,6 +78,8 @@ export const IPC_CHANNELS = {
   resumeSettingsRead: "resume-settings:read",
   resumeSettingsWrite: "resume-settings:write",
   resumeBridgeRevert: "resume:bridge:revert",
+  claudeSettingsRead: "claude-settings:read",
+  claudeSettingsWrite: "claude-settings:write",
   readingSettingsWrite: "reading-settings:write",
   readingSettingsReadSync: "reading-settings:read-sync",
   readingSystemModeChanged: "reading-settings:system-mode-changed",
@@ -456,6 +459,8 @@ export interface DuetRuntimeBridge {
   readResumeSettings(): Promise<ResumeSettingsResponse>;
   writeResumeSettings(settings: ResumeSettings): Promise<ResumeSettings>;
   revertResumeBridge(): Promise<RevertResumeBridgeResponse>;
+  readClaudeSettings(): Promise<ClaudeSettings>;
+  writeClaudeSettings(settings: ClaudeSettings): Promise<ClaudeSettings>;
   onReadingSystemModeChanged(callback: (mode: ResolvedReadingMode) => void): () => void;
   /** The app menu's "Settings…" (⌘,) asks the main window to open the page. */
   onSettingsOpen(callback: () => void): () => void;
