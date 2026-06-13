@@ -24,8 +24,34 @@ export interface LocateSessionOptions {
   providerCwd: string;
   notBefore: string;
   excludePaths?: ReadonlySet<string>;
+  /**
+   * The session id this Task already owns. When set, identity wins over
+   * recency: only the file whose id matches exactly may be adopted. This is
+   * the anti-rebind anchor — a sibling session in the same cwd (a different
+   * conversation the user resumed by hand) can never be mistaken for ours.
+   */
+  expectedSessionId?: string | null;
+  /**
+   * When false, never fall back to newest-by-mtime: return null unless the
+   * expected session id is found. Resume passes false so a failed/diverged
+   * resume cannot silently re-point the Task at whatever file is freshest.
+   * Defaults to true (fresh spawns still discover their id by recency).
+   */
+  allowMtimeFallback?: boolean;
   claudeProjectsDir?: string;
   codexSessionsDir?: string;
+}
+
+function claudeRef(filePath: string): TranscriptSourceRef {
+  const id = path.basename(filePath, ".jsonl");
+  return {
+    sourceId: `claude:${id}`,
+    provider: "claude",
+    format: "claude-session-jsonl",
+    path: filePath,
+    providerSessionId: id,
+    locatedAt: new Date().toISOString(),
+  };
 }
 
 export function locateSessionFile(options: LocateSessionOptions): TranscriptSourceRef | null {
@@ -57,27 +83,33 @@ function claudeCwdVariants(cwd: string): string[] {
 function locateClaudeSession(options: LocateSessionOptions): TranscriptSourceRef | null {
   const projectsDir = options.claudeProjectsDir ?? path.join(os.homedir(), ".claude", "projects");
   const notBeforeMs = Date.parse(options.notBefore) - LOCATE_SLACK_MS;
+  const allowFallback = options.allowMtimeFallback ?? true;
 
-  const candidates = claudeCwdVariants(options.providerCwd)
+  const present = claudeCwdVariants(options.providerCwd)
     .flatMap((variant) => listFiles(path.join(projectsDir, claudeProjectSlug(variant)), ".jsonl"))
-    .filter((candidate) => !options.excludePaths?.has(candidate.path))
-    .filter((candidate) => candidate.mtimeMs >= notBeforeMs)
-    .filter((candidate) => claudeSessionMatchesCwd(candidate.path, options.providerCwd))
-    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    .filter((candidate) => !options.excludePaths?.has(candidate.path));
 
-  const match = candidates[0];
-  if (!match) {
-    return null;
+  // Identity over recency: when the Task knows which session it owns, only
+  // that exact file may be adopted. The slug dir already encodes the cwd, so
+  // an id match there is authoritative — no mtime, no cwd re-scan.
+  if (options.expectedSessionId) {
+    const exact = present.find(
+      (candidate) => path.basename(candidate.path, ".jsonl") === options.expectedSessionId,
+    );
+    if (exact) {
+      return claudeRef(exact.path);
+    }
+    if (!allowFallback) {
+      return null;
+    }
   }
 
-  return {
-    sourceId: `claude:${path.basename(match.path, ".jsonl")}`,
-    provider: "claude",
-    format: "claude-session-jsonl",
-    path: match.path,
-    providerSessionId: path.basename(match.path, ".jsonl"),
-    locatedAt: new Date().toISOString(),
-  };
+  const match = present
+    .filter((candidate) => candidate.mtimeMs >= notBeforeMs)
+    .filter((candidate) => claudeSessionMatchesCwd(candidate.path, options.providerCwd))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
+
+  return match ? claudeRef(match.path) : null;
 }
 
 function locateCodexSession(options: LocateSessionOptions): TranscriptSourceRef | null {
@@ -101,19 +133,29 @@ function locateCodexSession(options: LocateSessionOptions): TranscriptSourceRef 
     }
   }
 
-  const match = candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
-  if (!match) {
-    return null;
-  }
-
-  return {
-    sourceId: `codex:${match.sessionId ?? path.basename(match.path, ".jsonl")}`,
+  const codexRef = (candidate: { path: string; sessionId: string | null }): TranscriptSourceRef => ({
+    sourceId: `codex:${candidate.sessionId ?? path.basename(candidate.path, ".jsonl")}`,
     provider: "codex",
     format: "codex-rollout-jsonl",
-    path: match.path,
-    providerSessionId: match.sessionId,
+    path: candidate.path,
+    providerSessionId: candidate.sessionId,
     locatedAt: new Date().toISOString(),
-  };
+  });
+
+  // Identity over recency (mirrors the Claude path): a known session id may
+  // only be matched exactly; resume refuses to fall back to a sibling rollout.
+  if (options.expectedSessionId) {
+    const exact = candidates.find((candidate) => candidate.sessionId === options.expectedSessionId);
+    if (exact) {
+      return codexRef(exact);
+    }
+    if (!(options.allowMtimeFallback ?? true)) {
+      return null;
+    }
+  }
+
+  const match = candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
+  return match ? codexRef(match) : null;
 }
 
 function codexDayDirectories(sessionsDir: string, notBeforeMs: number): string[] {

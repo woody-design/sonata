@@ -178,6 +178,12 @@ export interface StartTaskOptions {
   /** Provider session id to resume natively (claude --resume / codex resume). */
   resumeRef?: string;
   /**
+   * Fresh-spawn only: pin the new session to an id Duet chose up front
+   * (claude --session-id), so the Task's binding is known at birth instead
+   * of guessed by file mtime. Ignored when resuming. Claude-only today.
+   */
+  sessionId?: string;
+  /**
    * Per-spawn environment overlay — the clean lever for per-session
    * provider policy (e.g. suppressing the resume interstitial) without
    * ever mutating user-global state.
@@ -1934,9 +1940,13 @@ export function claudeArgs(options: {
   reasoningEffort?: ReasoningEffort | null | undefined;
   settingsPath?: string | null | undefined;
   resumeRef?: string | undefined;
+  sessionId?: string | undefined;
 }): string[] {
   return [
     ...(options.resumeRef ? ["--resume", options.resumeRef] : []),
+    // --session-id pins a fresh session to a known id; it is mutually
+    // exclusive with --resume (which already determines the id).
+    ...(!options.resumeRef && options.sessionId ? ["--session-id", options.sessionId] : []),
     "--permission-mode",
     options.permissionMode ?? "default",
     ...(options.settingsPath ? ["--settings", options.settingsPath] : []),
@@ -1980,6 +1990,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           reasoningEffort: options.reasoningEffort,
           settingsPath: ensureClaudeStatuslineSettings(options.cwd),
           resumeRef: options.resumeRef,
+          sessionId: options.sessionId,
         }),
       approvalHints: {
         fileRead: CLAUDE_FILE_READ_APPROVAL_HINTS,

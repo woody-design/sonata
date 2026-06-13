@@ -461,6 +461,57 @@ check("locator: finds codex rollout by session_meta cwd", () => {
   assert.equal(otherCwd, null);
 });
 
+check("locator: identity wins over recency — resume never rebinds to a sibling session", () => {
+  // The incident topology: two Claude sessions live in the SAME cwd slug, and
+  // the unrelated one (a hand /resume to another conversation) is the freshest.
+  const projectsDir = path.join(tempRoot, "claude-projects-rebind");
+  const cwd = path.join(tempRoot, "workspace-rebind");
+  fs.mkdirSync(cwd, { recursive: true });
+  const slugDir = path.join(projectsDir, claudeProjectSlug(cwd));
+  fs.mkdirSync(slugDir, { recursive: true });
+
+  const ourId = "f70912a7-aaaa-bbbb-cccc-000000000001";
+  const siblingId = "cffdc8a9-dddd-eeee-ffff-000000000002";
+  const ours = path.join(slugDir, `${ourId}.jsonl`);
+  const sibling = path.join(slugDir, `${siblingId}.jsonl`);
+  const rec = (sid) =>
+    `${JSON.stringify({ type: "user", cwd, sessionId: sid, message: { role: "user", content: "x" } })}\n`;
+  fs.writeFileSync(ours, rec(ourId));
+  fs.writeFileSync(sibling, rec(siblingId));
+  // Ours is OLDER; the sibling is the freshest file — the exact trap.
+  const old = new Date(Date.now() - 30_000);
+  fs.utimesSync(ours, old, old);
+
+  const base = {
+    provider: "claude",
+    providerCwd: cwd,
+    notBefore: new Date(Date.now() - 60_000).toISOString(),
+    claudeProjectsDir: projectsDir,
+  };
+
+  // Resume (strict): identity wins even though a fresher sibling exists.
+  const resumed = locateSessionFile({ ...base, expectedSessionId: ourId, allowMtimeFallback: false });
+  assert.equal(resumed?.providerSessionId, ourId);
+
+  // Resume where our file is already attached (excluded) — the live incident
+  // shape. Must return null, NEVER the fresher sibling.
+  const noRebind = locateSessionFile({
+    ...base,
+    expectedSessionId: ourId,
+    allowMtimeFallback: false,
+    excludePaths: new Set([ours]),
+  });
+  assert.equal(noRebind, null, "resume must never adopt a sibling session in the same cwd");
+
+  // Fresh discovery (no known id) keeps legacy newest-by-mtime behaviour.
+  const fresh = locateSessionFile({ ...base, allowMtimeFallback: true });
+  assert.equal(fresh?.providerSessionId, siblingId);
+
+  // Fresh with a pinned id present → identity match returns the pinned one.
+  const pinned = locateSessionFile({ ...base, expectedSessionId: ourId, allowMtimeFallback: true });
+  assert.equal(pinned?.providerSessionId, ourId);
+});
+
 // --- Tailer -------------------------------------------------------------------
 
 check("tailer: drains appended lines and carries partial lines", () => {

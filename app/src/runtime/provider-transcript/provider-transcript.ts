@@ -25,6 +25,10 @@ export interface ProviderTranscriptOptions {
   eventSink: (event: RuntimeEvent) => void;
   resolveRunId: (input: ResolveRunIdInput) => RunId | null;
   externallyClaimedPaths?: () => ReadonlySet<string>;
+  /** The session id this Task owns — discovery matches it by identity. */
+  expectedSessionId?: string | null;
+  /** Resume passes false so discovery can never rebind to a sibling session. */
+  allowMtimeFallback?: boolean;
   locate?: typeof locateSessionFile;
   pollMs?: number;
 }
@@ -140,6 +144,8 @@ export class ProviderTranscript {
       providerCwd: this.options.providerCwd,
       notBefore: this.discoveryNotBefore,
       excludePaths: claimed,
+      expectedSessionId: this.options.expectedSessionId ?? null,
+      allowMtimeFallback: this.options.allowMtimeFallback ?? true,
     });
     if (!ref) {
       return;

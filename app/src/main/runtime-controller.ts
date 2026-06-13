@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
@@ -202,11 +203,17 @@ export class RuntimeController {
     };
 
     const runIndex = new RunIndex({ taskId, reportPath });
+    // Pin a fresh Claude session to an id we choose, so the Task's binding is
+    // known at birth — discovery confirms this exact id instead of guessing
+    // the newest jsonl in the cwd (which silently rebinds when several
+    // sessions share a folder). mtime fallback stays on for safety.
+    const pinnedSessionId = request.provider === "claude" ? randomUUID() : undefined;
     const providerTranscript = this.createProviderTranscript(
       taskId,
       request.provider,
       providerCwd,
       runIndex,
+      { expectedSessionId: pinnedSessionId ?? null, allowMtimeFallback: true },
     );
     const terminalHost = new TerminalHost({
       taskId,
@@ -239,6 +246,7 @@ export class RuntimeController {
       ...(request.provider === "claude"
         ? { permissionMode: permissionSettings.permissionMode ?? "default" }
         : {}),
+      ...(pinnedSessionId ? { sessionId: pinnedSessionId } : {}),
     };
     const ptyStartedAt = new Date().toISOString();
     const runtime = terminalHost.startTask({
@@ -320,11 +328,21 @@ export class RuntimeController {
       reportPath,
       loadExisting: true,
     });
+    // Resume: discovery must confirm the resumed id by identity and never
+    // fall back to the freshest jsonl — that fallback is exactly how a
+    // hand-driven /resume to a sibling conversation hijacked the binding.
+    // No-resume reopen (session gone / resume disabled) pins a fresh id.
+    const pinnedSessionId =
+      !resumeRef && runningTask.provider === "claude" ? randomUUID() : undefined;
     const providerTranscript = this.createProviderTranscript(
       runningTask.id,
       runningTask.provider,
       providerCwd,
       runIndex,
+      {
+        expectedSessionId: resumeRef ?? pinnedSessionId ?? null,
+        allowMtimeFallback: !resumeRef,
+      },
     );
     const terminalHost = new TerminalHost({
       taskId: runningTask.id,
@@ -363,6 +381,7 @@ export class RuntimeController {
         ? { permissionMode: permissionSettings.permissionMode ?? "default" }
         : {}),
       ...(resumeRef ? { resumeRef } : {}),
+      ...(pinnedSessionId ? { sessionId: pinnedSessionId } : {}),
       ...(claudeResume ? { extraEnv: RESUME_PANEL_SUPPRESS_ENV } : {}),
       ...(request.rows !== undefined ? { rows: request.rows } : {}),
       ...(request.cols !== undefined ? { cols: request.cols } : {}),
@@ -1139,11 +1158,14 @@ export class RuntimeController {
     provider: RuntimeProvider,
     providerCwd: string,
     runIndex: RunIndex,
+    discovery: { expectedSessionId?: string | null; allowMtimeFallback?: boolean } = {},
   ): ProviderTranscript {
     return new ProviderTranscript({
       taskId,
       provider,
       providerCwd,
+      expectedSessionId: discovery.expectedSessionId ?? null,
+      allowMtimeFallback: discovery.allowMtimeFallback ?? true,
       eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
       resolveRunId: (input) => resolveRunForTurn(runIndex, input),
       externallyClaimedPaths: () => {
@@ -1175,13 +1197,26 @@ export class RuntimeController {
     fs.renameSync(tmpPath, filePath);
 
     const latest = active.providerTranscript.sources().at(-1);
-    if (latest && active.task.providerSessionRef !== latest.providerSessionId) {
-      active.task = {
-        ...active.task,
-        providerSessionRef: latest.providerSessionId,
-        updatedAt: new Date().toISOString(),
-      };
-      this.persistTaskManifest(active.task, active.storageRoot);
+    const current = active.task.providerSessionRef;
+    if (latest && current !== latest.providerSessionId) {
+      if (current === null) {
+        // First establishment — a fresh Task learning the id of the session
+        // it just spawned. This is the only sanctioned binding write.
+        active.task = {
+          ...active.task,
+          providerSessionRef: latest.providerSessionId,
+          updatedAt: new Date().toISOString(),
+        };
+        this.persistTaskManifest(active.task, active.storageRoot);
+      } else {
+        // CAS backstop: an established Task may NOT be silently rebound to a
+        // different session. Identity-scoped discovery should make this
+        // unreachable; if it fires, the live process diverged (e.g. a hand
+        // /resume to another conversation) — keep the original binding.
+        console.warn(
+          `[duet] suppressed session rebind for ${active.task.id}: bound=${current} located=${latest.providerSessionId}`,
+        );
+      }
     }
     this.flushPendingClaudeUsage(active);
   }
