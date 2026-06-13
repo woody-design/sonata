@@ -783,12 +783,8 @@ export class RuntimeController {
 
   decideApproval(taskId: TaskId, decision: ApprovalDecision): void {
     const active = this.requireTaskRuntime(taskId);
-    if (decision === "approve") {
-      active.terminalHost.sendApprove();
-      return;
-    }
-    if (decision === "approve-for-session") {
-      active.terminalHost.sendApproveForSession();
+    if (decision === "approve" || decision === "approve-for-session" || decision === "approve-always") {
+      active.terminalHost.sendApprovalDecision(decision);
       return;
     }
     active.terminalHost.sendDeny();

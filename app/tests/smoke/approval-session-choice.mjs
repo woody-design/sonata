@@ -10,7 +10,9 @@ const taskId = "task-approval-session-choice-smoke";
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-session-choice-smoke-"));
 const scriptPath = path.join(workspace, "fake-claude-approval-cli.mjs");
 const reportPath = path.join(workspace, ".duet", "runtime-report.json");
-const expectedKeyHex = "1b5b421b5b313375";
+// Numbered panels are answered by digit instant-select (probe findings
+// 2026-06-13); the session option is option 2.
+const expectedKeyHex = "32";
 
 fs.writeFileSync(
   scriptPath,
@@ -25,28 +27,37 @@ let approvalShown = false;
 function showApproval() {
   approvalShown = true;
   process.stdout.write("\\nThinking with fake Claude\\n");
+  process.stdout.write(" Read file\\n\\n");
   process.stdout.write("Read(/tmp/mp4probe.py:lines22-33)\\n\\n");
   process.stdout.write("Do you want to proceed?\\n\\n");
   process.stdout.write("❯1.Yes\\n\\n");
   process.stdout.write("2.Yes, allow reading from tmp/ during this session\\n\\n");
-  process.stdout.write("3.No\\n");
+  process.stdout.write("3.No\\n\\n");
+  process.stdout.write("Esc to cancel · Tab to amend\\n");
 }
 
 process.stdout.write("Fake Claude ready\\n❯ opus xhigh ~\\n");
 
+let pasteSeen = false;
 process.stdin.on("data", (data) => {
   const text = data.toString("utf8");
   const hex = data.toString("hex");
-  if (!promptSubmitted && text.includes("\\x1b[200~") && text.includes("\\x1b[13u")) {
-    promptSubmitted = true;
-    setTimeout(showApproval, 50);
+  if (!promptSubmitted) {
+    // Production submits paste and Enter as separate writes (+120ms).
+    if (text.includes("\\x1b[200~")) {
+      pasteSeen = true;
+    }
+    if (pasteSeen && text.includes("\\x1b[13u")) {
+      promptSubmitted = true;
+      setTimeout(showApproval, 50);
+    }
     return;
   }
   if (!approvalShown) {
     return;
   }
   process.stdout.write("\\nKEY_HEX:" + hex + "\\n");
-  if (text.includes("\\x1b[B") && text.includes("\\x1b[13u")) {
+  if (text === "2") {
     process.stdout.write("Thinking with fake Claude\\n");
     process.stdout.write("Session approval accepted.\\n❯ opus xhigh ~\\n");
   }
@@ -107,7 +118,7 @@ try {
         (event) =>
           event.type === "approval:decision" &&
           event.payload.decision === "approve-for-session" &&
-          event.payload.encodedAs === "ArrowDown + CSI-u Enter",
+          event.payload.encodedAs === "digit 2",
       ),
     5000,
     "approve-for-session decision event",
@@ -130,7 +141,7 @@ try {
       (event) =>
         event.action === "decision" &&
         event.decision === "approve-for-session" &&
-        event.encodedAs === "ArrowDown + CSI-u Enter",
+        event.encodedAs === "digit 2",
     ) &&
     ptyText.includes(`KEY_HEX:${expectedKeyHex}`) &&
     !JSON.stringify(report).includes("pty:data");

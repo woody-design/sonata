@@ -72,7 +72,7 @@ export interface RuntimeRunReport {
 
 export interface RuntimeApprovalReport {
   ts: string;
-  action: "detected" | "decision";
+  action: "detected" | "decision" | "persisted";
   kind?: ApprovalKind;
   source?: string;
   resurfacedAfterDecision?: boolean;
@@ -83,6 +83,9 @@ export interface RuntimeApprovalReport {
   decision?: ApprovalDecision;
   encodedAs?: ApprovalDecisionEncoding;
   previousKind?: ApprovalKind | null;
+  /** action "persisted": what the provider wrote, observed via read-after-write. */
+  file?: string;
+  rulesAdded?: string[];
 }
 
 export interface RuntimeStopReport {

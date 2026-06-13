@@ -129,6 +129,20 @@ const CLAUDE_WORKSPACE_TRUST_APPROVAL_HINTS = [
   "enter to confirm",
 ];
 
+// claude ≥2.1.17x panel grammar (probe findings 2026-06-13): tool panels
+// dropped "Enter to confirm" — the footer is now "Esc to cancel · Tab to
+// amend[ · ctrl+e to explain]" — and a header line names the tool class.
+// Structured parsing lives in parseClaudeApprovalPanel; these markers also
+// feed idle-prompt ordering (a live panel's footer must precede the prompt).
+const CLAUDE_PANEL_END_MARKERS = ["esc to cancel", "tab to amend", "enter to confirm"];
+
+const CLAUDE_PANEL_HEADER_KINDS: Array<{ header: string; kind: ApprovalKind }> = [
+  { header: "bashcommand", kind: "command" },
+  { header: "editfile", kind: "file-edit" },
+  { header: "createfile", kind: "file-edit" },
+  { header: "readfile", kind: "file-read" },
+];
+
 const BACKGROUND_TERMINAL_HINTS = [
   "background terminal",
   "background terminals",
@@ -218,6 +232,9 @@ interface ApprovalCandidate {
   fingerprintHash: string | null;
   promptAfterApproval: boolean;
   choices: ApprovalChoice[];
+  /** v2-parsed panels carry their own decision→key map (digits / CR). */
+  optionKeys?: Partial<Record<ApprovalDecision, string>>;
+  grammar?: "v2" | "legacy";
 }
 
 type ActiveRun = RunUpdatedEvent["payload"];
@@ -237,6 +254,10 @@ interface TerminalProviderProfile {
     command: string[];
     workspaceTrust: string[];
   };
+  /** Panel-footer markers that anchor idle-prompt ordering: a live panel
+   *  blocks readiness until the prompt renders AFTER its footer. Separate
+   *  from approvalHints so legacy endNeedle positions stay intact. */
+  approvalEndMarkers: string[];
 }
 
 export class TerminalHost extends EventEmitter {
@@ -259,6 +280,11 @@ export class TerminalHost extends EventEmitter {
   private lastApprovalFingerprint: string | null = null;
   private lastApprovalDecision: ApprovalDecision | null = null;
   private lastApprovalDecisionAt: number | null = null;
+  /** decision → key bytes for the CURRENTLY surfaced panel (v2 grammar
+   *  parses the panel's own numbered options; digits instant-select). */
+  private activeApprovalOptionKeys: Partial<Record<ApprovalDecision, string>> | null = null;
+  private persistReceiptTimers: NodeJS.Timeout[] = [];
+  private nativeAnswerRecheckTimers: NodeJS.Timeout[] = [];
   private startedAt: number | null = null;
   private activeRun: ActiveRun | null = null;
   private runSeq = 0;
@@ -355,6 +381,9 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalFingerprint = null;
     this.lastApprovalDecision = null;
     this.lastApprovalDecisionAt = null;
+    this.activeApprovalOptionKeys = null;
+    this.clearPersistReceiptTimers();
+    this.clearNativeAnswerRecheckTimers();
     this.activeRun = null;
     this.recentAttributionRun = null;
     this.activeRunRaw = "";
@@ -455,6 +484,11 @@ export class TerminalHost extends EventEmitter {
       // Hand-back: the human may have changed anything — re-derive
       // readiness from fresh screen evidence instead of stale flags.
       this.clearApprovalIfAnsweredNatively();
+      // The one-shot evaluation races the post-answer repaint: a hand-back
+      // in the same beat as the answering keystroke still sees the panel
+      // on screen and approvalActive wedges forever (probe 2026-06-13).
+      // Re-check once the screen has had time to settle.
+      this.scheduleNativeAnswerRecheck();
       this.taskReady = false;
       this.acceptsInputAnnounced = false;
       this.scheduleTaskReadyCheck();
@@ -515,6 +549,63 @@ export class TerminalHost extends EventEmitter {
       approvalKind: previousKind ?? "unknown",
     });
     this.scheduleTaskReadyCheck();
+  }
+
+  private scheduleNativeAnswerRecheck(): void {
+    this.clearNativeAnswerRecheckTimers();
+    for (const delayMs of [1500, 4000]) {
+      this.nativeAnswerRecheckTimers.push(
+        setTimeout(() => {
+          if (!this.userControlActive) {
+            this.clearApprovalIfAnsweredNatively();
+          }
+        }, delayMs),
+      );
+    }
+  }
+
+  private clearNativeAnswerRecheckTimers(): void {
+    for (const timer of this.nativeAnswerRecheckTimers) {
+      clearTimeout(timer);
+    }
+    this.nativeAnswerRecheckTimers = [];
+  }
+
+  /**
+   * Receipt-by-observation: snapshot the project's settings.local.json
+   * allow rules before the answer keys go out, then re-read on a short
+   * ladder. A diff means the CLI persisted a rule — report exactly what it
+   * wrote. No diff → no event: receipts are never fabricated.
+   */
+  private armPersistReceiptWatch(runId: RunId | null): void {
+    this.clearPersistReceiptTimers();
+    const workspace = this.cwd ?? this.defaultWorkspace;
+    const settingsPath = path.join(workspace, ".claude", "settings.local.json");
+    const before = readClaudeAllowRules(settingsPath);
+    for (const delayMs of [1500, 3000, 6000]) {
+      this.persistReceiptTimers.push(
+        setTimeout(() => {
+          const added = readClaudeAllowRules(settingsPath).filter((rule) => !before.includes(rule));
+          if (added.length === 0) {
+            return;
+          }
+          this.clearPersistReceiptTimers();
+          this.emitEvent("approval:persisted", {
+            taskId: this.taskId,
+            runId,
+            file: path.join(".claude", "settings.local.json"),
+            rulesAdded: added,
+          });
+        }, delayMs),
+      );
+    }
+  }
+
+  private clearPersistReceiptTimers(): void {
+    for (const timer of this.persistReceiptTimers) {
+      clearTimeout(timer);
+    }
+    this.persistReceiptTimers = [];
   }
 
   submitPrompt(
@@ -868,19 +959,43 @@ export class TerminalHost extends EventEmitter {
   }
 
   sendApprove(): void {
-    this.sendPositiveApproval("approve", CSI_U_ENTER, "CSI-u Enter");
+    this.sendApprovalDecision("approve");
   }
 
   sendApproveForSession(): void {
-    this.sendPositiveApproval(
-      "approve-for-session",
-      `${ARROW_DOWN}${CSI_U_ENTER}`,
-      "ArrowDown + CSI-u Enter",
-    );
+    this.sendApprovalDecision("approve-for-session");
+  }
+
+  sendApproveAlways(): void {
+    this.sendApprovalDecision("approve-always");
+  }
+
+  /**
+   * Answer the surfaced panel with the key its OWN parsed option list maps
+   * to (v2 grammar: digits instant-select; trust: plain CR). Legacy-grammar
+   * panels keep their historically verified encodings. `approve-always`
+   * exists only where the panel offered a native persistent option — there
+   * is no Duet-invented persistence to fall back to.
+   */
+  sendApprovalDecision(
+    decision: Extract<ApprovalDecision, "approve" | "approve-for-session" | "approve-always">,
+  ): void {
+    const panelKey = this.activeApprovalOptionKeys?.[decision];
+    const legacyKey =
+      decision === "approve"
+        ? CSI_U_ENTER
+        : decision === "approve-for-session"
+          ? `${ARROW_DOWN}${CSI_U_ENTER}`
+          : null;
+    const keySequence = panelKey ?? legacyKey;
+    if (!keySequence) {
+      throw new Error(`The active approval screen offers no native option for "${decision}".`);
+    }
+    this.sendPositiveApproval(decision, keySequence, describeApprovalKeySequence(keySequence));
   }
 
   private sendPositiveApproval(
-    decision: Extract<ApprovalDecision, "approve" | "approve-for-session">,
+    decision: Extract<ApprovalDecision, "approve" | "approve-for-session" | "approve-always">,
     keySequence: string,
     encodedAs: ApprovalDecisionEncoding,
   ): void {
@@ -889,6 +1004,11 @@ export class TerminalHost extends EventEmitter {
     }
     const decisionAt = Date.now();
     const previousKind = this.lastApprovalKind;
+    if (decision !== "approve") {
+      // Any native option-2 answer may persist a rule (the CLI's own
+      // write); watch the project settings file and receipt what lands.
+      this.armPersistReceiptWatch(this.activeRun ? this.activeRun.id : null);
+    }
     this.writeRaw(keySequence);
     this.emitEvent("approval:decision", {
       taskId: this.taskId,
@@ -998,6 +1118,8 @@ export class TerminalHost extends EventEmitter {
     this.stopFileWatcher();
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
+    this.clearPersistReceiptTimers();
+    this.clearNativeAnswerRecheckTimers();
   }
 
   private disposeProcess(): void {
@@ -1308,6 +1430,7 @@ export class TerminalHost extends EventEmitter {
     this.approvalActive = true;
     this.lastApprovalKind = candidate.kind;
     this.lastApprovalFingerprint = candidate.fingerprint;
+    this.activeApprovalOptionKeys = candidate.optionKeys ?? null;
     this.updateActiveRun({
       status: "waiting-for-approval",
       lifecyclePhase: "waiting-for-approval",
@@ -1864,6 +1987,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         command: CLAUDE_COMMAND_APPROVAL_HINTS,
         workspaceTrust: CLAUDE_WORKSPACE_TRUST_APPROVAL_HINTS,
       },
+      approvalEndMarkers: CLAUDE_PANEL_END_MARKERS,
     };
   }
 
@@ -1893,6 +2017,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       command: CODEX_COMMAND_APPROVAL_HINTS,
       workspaceTrust: CODEX_WORKSPACE_TRUST_APPROVAL_HINTS,
     },
+    approvalEndMarkers: [],
   };
 }
 
@@ -2274,6 +2399,11 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
     ...profile.approvalHints.fileEdit,
     ...profile.approvalHints.command,
     ...profile.approvalHints.workspaceTrust,
+    // Footer markers anchor a panel's END: without them the option line's
+    // own "❯" glyph counts as a prompt rendered after the approval text and
+    // a LIVE panel reads as answered (2.1.176 panels lost "enter to
+    // confirm", which used to be the de-facto end anchor).
+    ...profile.approvalEndMarkers,
   ].flatMap((hint) => [hint, compactText(hint)]);
   const lastApproval = maxLastIndexOf(lowered, approvalNeedles);
   const promptTail = lastAnyPrompt >= 0 ? recent.slice(lastAnyPrompt, lastAnyPrompt + 700) : "";
@@ -2292,6 +2422,15 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
   };
 }
 
+/** Test seam: full candidate detection (kind, choices, fingerprint) as the
+ *  host runs it, without standing up a PTY. */
+export function detectApprovalCandidateForProvider(
+  rawText: string,
+  provider: RuntimeProvider = "codex",
+): ApprovalCandidate | null {
+  return detectApprovalCandidate(rawText, terminalProviderProfile(provider));
+}
+
 export function detectIdlePromptForProvider(
   rawText: string,
   provider: RuntimeProvider = "codex",
@@ -2306,6 +2445,22 @@ export function detectIdlePromptForProvider(
 }
 
 function detectApprovalCandidate(rawText: string, profile: TerminalProviderProfile): ApprovalCandidate | null {
+  if (profile.provider === "claude") {
+    const panel = parseClaudeApprovalPanel(rawText);
+    if (panel) {
+      const fingerprint = `${panel.kind}:${panel.fingerprintSource}`;
+      return {
+        kind: panel.kind,
+        fingerprint,
+        fingerprintHash: sha256(fingerprint).slice(0, 16),
+        promptAfterApproval: detectIdlePrompt(rawText, profile).promptAfterApproval,
+        choices: claudePanelChoices(panel),
+        optionKeys: claudePanelOptionKeys(panel),
+        grammar: "v2",
+      };
+    }
+  }
+
   const recent = cleanTerminal(rawText).toLowerCase();
   const compactRecent = compactText(recent);
   const fileRead = includesApprovalHints(compactRecent, profile.approvalHints.fileRead);
@@ -2331,7 +2486,238 @@ function detectApprovalCandidate(rawText: string, profile: TerminalProviderProfi
     fingerprintHash: fingerprint ? sha256(fingerprint).slice(0, 16) : null,
     promptAfterApproval: detectIdlePrompt(rawText, profile).promptAfterApproval,
     choices: approvalChoices(rawText, profile),
+    grammar: "legacy",
   };
+}
+
+// ---------------------------------------------------------------------------
+// claude ≥2.1.17x structured panel parsing (probe findings 2026-06-13).
+//
+// The stream is a cursor-diff paint: repaints of the same panel can glue
+// words together and even drop characters, so (1) matching happens in
+// compact space (lowercase, alphanumerics only — also strips ❯, dots and
+// the curly apostrophe in "don’t"), (2) labels shown to the user are
+// class-canonical rather than reconstructed from the lossy stream, and
+// (3) when the LAST paint is too garbled to parse, earlier paints of the
+// same panel are tried (walk-back). Classification and fingerprinting are
+// confined to the panel's own header→footer slice — history outside the
+// panel can no longer vote (the old anywhere-substring scan misclassified
+// edit panels as file-read whenever a ⏺ Read(…) line sat in the backlog).
+// ---------------------------------------------------------------------------
+
+type ClaudePanelOptionSemantic = "approve-once" | "persist-rule" | "session-allow" | "deny-option";
+
+interface ParsedClaudePanelOption {
+  digit: "1" | "2" | "3";
+  compact: string;
+  semantic: ClaudePanelOptionSemantic;
+}
+
+interface ParsedClaudePanel {
+  kind: ApprovalKind;
+  isTrust: boolean;
+  options: ParsedClaudePanelOption[];
+  fingerprintSource: string;
+}
+
+const CLAUDE_PANEL_SCAN_LINES = 400;
+
+export function parseClaudeApprovalPanel(rawText: string): ParsedClaudePanel | null {
+  const lines = cleanTerminal(rawText).split("\n").slice(-CLAUDE_PANEL_SCAN_LINES);
+  const compactLines = lines.map((line) => compactText(line));
+
+  // Question anchors, newest first; walk back past garbled repaints.
+  const anchors: number[] = [];
+  for (let i = compactLines.length - 1; i >= 0 && anchors.length < 6; i--) {
+    const c = compactLines[i] ?? "";
+    if (c.includes("doyouwantto") || c.includes("quicksafetycheck") || c.includes("isthisaprojectyoucreated")) {
+      anchors.push(i);
+    }
+  }
+  for (const anchor of anchors) {
+    const parsed = parseClaudePanelAtAnchor(lines, compactLines, anchor);
+    if (parsed) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function parseClaudePanelAtAnchor(
+  lines: string[],
+  compactLines: string[],
+  anchor: number,
+): ParsedClaudePanel | null {
+  const anchorCompact = compactLines[anchor] ?? "";
+  const isTrust =
+    anchorCompact.includes("quicksafetycheck") || anchorCompact.includes("isthisaprojectyoucreated");
+
+  const options: ParsedClaudePanelOption[] = [];
+  let footerIndex = -1;
+  let expected = 1;
+  for (let i = anchor + 1; i < Math.min(lines.length, anchor + 60); i++) {
+    const compact = compactLines[i] ?? "";
+    if (!compact) {
+      continue;
+    }
+    if (compact.includes("esctocancel") || compact.includes("entertoconfirm")) {
+      footerIndex = i;
+      break;
+    }
+    if (expected <= 3 && compact.startsWith(String(expected))) {
+      options.push({
+        digit: String(expected) as ParsedClaudePanelOption["digit"],
+        compact: compact.slice(1),
+        semantic: "approve-once", // classified below once collection ends
+      });
+      expected += 1;
+      continue;
+    }
+    const lastOption = options[options.length - 1];
+    if (lastOption) {
+      // Wrapped continuation of the previous option's text.
+      lastOption.compact += compact;
+    }
+  }
+  if (footerIndex < 0 || options.length < 2) {
+    return null;
+  }
+  for (const option of options) {
+    option.semantic = classifyClaudePanelOption(option);
+  }
+
+  // Kind from the panel's own header line (exact compact equality — prose
+  // mentioning "read file" must not vote), searched a short window above
+  // the question; the command echo / diff preview sits in between.
+  let kind: ApprovalKind = "unknown";
+  let headerIndex = -1;
+  if (isTrust) {
+    kind = "workspace-trust";
+  } else {
+    for (let i = anchor - 1; i >= Math.max(0, anchor - 25); i--) {
+      const match = CLAUDE_PANEL_HEADER_KINDS.find((entry) => compactLines[i] === entry.header);
+      if (match) {
+        kind = match.kind;
+        headerIndex = i;
+        break;
+      }
+    }
+    if (kind === "unknown") {
+      // Header lost to a diff repaint (or a pre-header CLI): fall back to
+      // the question's wording, then to the option texts — those carry the
+      // permission class across grammar versions.
+      const optionText = options.map((option) => option.compact).join("");
+      if (anchorCompact.includes("edit") || anchorCompact.includes("create")) {
+        kind = "file-edit";
+      } else if (anchorCompact.includes("read") || optionText.includes("allowreadingfrom")) {
+        kind = "file-read";
+      } else if (optionText.includes("alledits")) {
+        kind = "file-edit";
+      } else if (optionText.includes("dontaskagain") || optionText.includes("allowaccessto")) {
+        kind = "command";
+      }
+    }
+  }
+
+  const sliceStart = headerIndex >= 0 ? headerIndex : Math.max(0, anchor - 12);
+  const fingerprintSource = compactLines.slice(sliceStart, footerIndex + 1).join("");
+  return { kind, isTrust, options, fingerprintSource };
+}
+
+function classifyClaudePanelOption(option: {
+  digit: string;
+  compact: string;
+}): ClaudePanelOptionSemantic {
+  if (option.digit === "1") {
+    return "approve-once";
+  }
+  if (option.digit === "3" || option.compact.startsWith("no")) {
+    return "deny-option";
+  }
+  if (option.compact.includes("dontaskagain")) {
+    return "persist-rule";
+  }
+  // "during this session", "always allow access to <dir>/ from this
+  // project" (probe-verified session-scoped: dies on resume), and any
+  // unrecognized yes-variant: session semantics. The persist receipt
+  // watcher still arms on every option-2 answer, so a future persistent
+  // wording is receipted even if classified conservatively here.
+  return "session-allow";
+}
+
+function claudePanelChoices(panel: ParsedClaudePanel): ApprovalChoice[] {
+  if (panel.isTrust) {
+    return [
+      {
+        decision: "approve",
+        label: "Trust this folder",
+        description:
+          "Choose the native “Yes, I trust this folder” option (plain Enter — this screen ignores CSI-u).",
+        encodedAs: "CR",
+      },
+      {
+        decision: "deny",
+        label: "Deny",
+        description: "Dismiss the native trust screen.",
+        encodedAs: "Esc",
+      },
+    ];
+  }
+
+  const choices: ApprovalChoice[] = [
+    {
+      decision: "approve",
+      label: "Approve once",
+      description: "Choose the native option 1 (Yes) for this approval only.",
+      encodedAs: "digit 1",
+    },
+    {
+      decision: "deny",
+      label: "Deny",
+      description: "Dismiss the native approval screen.",
+      encodedAs: "Esc",
+    },
+  ];
+
+  const optionTwo = panel.options.find((option) => option.digit === "2");
+  if (optionTwo?.semantic === "persist-rule") {
+    choices.splice(1, 0, {
+      decision: "approve-always",
+      label: "Don't ask again",
+      description:
+        `Choose Claude's native persistent option (“${optionTwo.compact}”). ` +
+        "Claude writes the allow rule to .claude/settings.local.json in this project; " +
+        "Duet shows a receipt of what was written.",
+      encodedAs: "digit 2",
+    });
+  } else if (optionTwo?.semantic === "session-allow") {
+    choices.splice(1, 0, {
+      decision: "approve-for-session",
+      label: "Allow for this session",
+      description:
+        `Choose Claude's native session option (“${optionTwo.compact}”). ` +
+        "Resets when the session ends or is resumed.",
+      encodedAs: "digit 2",
+    });
+  }
+
+  return choices;
+}
+
+function claudePanelOptionKeys(panel: ParsedClaudePanel): Partial<Record<ApprovalDecision, string>> {
+  if (panel.isTrust) {
+    // CSI-u Enter bounces off the trust screen (pre-kitty-negotiation);
+    // plain CR is probe-verified.
+    return { approve: "\r" };
+  }
+  const keys: Partial<Record<ApprovalDecision, string>> = { approve: "1" };
+  const optionTwo = panel.options.find((option) => option.digit === "2");
+  if (optionTwo?.semantic === "persist-rule") {
+    keys["approve-always"] = "2";
+  } else if (optionTwo?.semantic === "session-allow") {
+    keys["approve-for-session"] = "2";
+  }
+  return keys;
 }
 
 function approvalFingerprint(
@@ -2403,6 +2789,31 @@ function maxLastIndexOf(value: string, needles: string[]): number {
     return -1;
   }
   return Math.max(...needles.map((needle) => value.lastIndexOf(needle)));
+}
+
+function describeApprovalKeySequence(keySequence: string): ApprovalDecisionEncoding {
+  if (keySequence === "\r") {
+    return "CR";
+  }
+  if (keySequence === "1" || keySequence === "2" || keySequence === "3") {
+    return `digit ${keySequence}` as ApprovalDecisionEncoding;
+  }
+  if (keySequence === CSI_U_ENTER) {
+    return "CSI-u Enter";
+  }
+  return "ArrowDown + CSI-u Enter";
+}
+
+function readClaudeAllowRules(settingsPath: string): string[] {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(settingsPath, "utf8")) as {
+      permissions?: { allow?: unknown };
+    };
+    const allow = parsed.permissions?.allow;
+    return Array.isArray(allow) ? allow.filter((rule): rule is string => typeof rule === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 function completionSourceForStatus(status: RunStatus): CompletionSource {

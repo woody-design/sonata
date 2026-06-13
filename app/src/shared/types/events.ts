@@ -244,6 +244,19 @@ export type ApprovalDecisionEvent = BaseRuntimeEvent<
   }
 >;
 
+/** Receipt for a persisted allow: observed (read-after-write diff of the
+ *  provider's own settings file), never promised. Not emitted when no
+ *  write is observed — honest absence. */
+export type ApprovalPersistedEvent = BaseRuntimeEvent<
+  "approval:persisted",
+  {
+    taskId: TaskId;
+    runId: RunId | null;
+    file: string;
+    rulesAdded: string[];
+  }
+>;
+
 export type FileWatchingEvent = BaseRuntimeEvent<
   "file:watching",
   {
@@ -353,6 +366,7 @@ export type ProductRuntimeEvent =
   | RunStoppedEvent
   | ApprovalDetectedEvent
   | ApprovalDecisionEvent
+  | ApprovalPersistedEvent
   | ModalStateEvent
   | TerminalUserControlEvent
   | FileWatchingEvent

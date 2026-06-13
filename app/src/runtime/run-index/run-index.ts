@@ -160,6 +160,14 @@ export class RunIndex {
           previousKind: event.payload.previousKind,
         });
         break;
+      case "approval:persisted":
+        this.appendRunEvent(event.payload.runId, "approvalEvents", {
+          ts: event.ts,
+          action: "persisted",
+          file: event.payload.file,
+          rulesAdded: event.payload.rulesAdded,
+        });
+        break;
       case "run:stop-requested":
         this.appendRunEvent(event.payload.runId, "stopEvents", {
           ts: event.ts,

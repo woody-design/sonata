@@ -3228,7 +3228,12 @@ elements.approveApproval.addEventListener("click", () => {
 });
 
 elements.approveSessionApproval.addEventListener("click", () => {
-  void decideApproval("approve-for-session");
+  // The middle button mirrors the panel's own option 2 — its decision is
+  // whatever the parsed choice carries (session-scoped or persistent).
+  const middleChoice = activeTaskView()?.pendingApproval?.choices?.find(
+    (choice) => choice.decision === "approve-always" || choice.decision === "approve-for-session",
+  );
+  void decideApproval(middleChoice?.decision ?? "approve-for-session");
 });
 
 elements.denyApproval.addEventListener("click", () => {
@@ -3499,6 +3504,13 @@ window.duetRuntime.onRuntimeEvent((event) => {
         : event.payload.decision === "answered-natively"
           ? "Answered in terminal"
           : "Approval sent";
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "approval:persisted") {
+    // Receipt-by-observation: what the provider actually wrote, and where.
+    view.status = `Allow rule saved: ${event.payload.rulesAdded.join(", ")} → ${event.payload.file}`;
     markViewChanged(view);
     return;
   }
@@ -5409,16 +5421,29 @@ function renderApproval(): void {
   elements.approveApproval.disabled = userControl;
   elements.denyApproval.disabled = userControl;
 
-  const sessionChoice =
-    approval.choices?.find((choice) => choice.decision === "approve-for-session") ?? null;
+  // The middle button is a faithful projection of the panel's own option 2:
+  // session-scoped ("Allow for this session") or persistent ("Don't ask
+  // again" — Claude writes its own allow rule; Duet receipts the write).
+  const middleChoice =
+    approval.choices?.find(
+      (choice) => choice.decision === "approve-always" || choice.decision === "approve-for-session",
+    ) ?? null;
+  const approveChoice = approval.choices?.find((choice) => choice.decision === "approve") ?? null;
   elements.approvalBanner.dataset.approvalKind = approval.kind;
   elements.approvalKindBadge.textContent = approvalKindLabel(approval.kind);
   elements.approvalTitle.textContent = approvalTitle(approval.kind);
   elements.approvalSummary.textContent = approvalSummary(approval.kind);
-  elements.approveSessionApproval.classList.toggle("hidden", !sessionChoice);
-  elements.approveSessionApproval.disabled = !sessionChoice || userControl;
-  if (sessionChoice) {
-    elements.approveSessionApproval.textContent = sessionChoice.label;
+  elements.approveSessionApproval.classList.toggle("hidden", !middleChoice);
+  elements.approveSessionApproval.disabled = !middleChoice || userControl;
+  if (middleChoice) {
+    elements.approveSessionApproval.textContent = middleChoice.label;
+    elements.approveSessionApproval.title = middleChoice.description;
+  } else {
+    elements.approveSessionApproval.removeAttribute("title");
+  }
+  if (approveChoice) {
+    elements.approveApproval.textContent = approveChoice.label;
+    elements.approveApproval.title = approveChoice.description;
   }
   elements.approvalContext.replaceChildren(
     approvalContextItem("Source", approval.source),
@@ -5432,9 +5457,9 @@ function renderApproval(): void {
           ),
         ]
       : []),
-    approvalContextItem("Approve", "send native Enter"),
-    ...(sessionChoice
-      ? [approvalContextItem(sessionChoice.label, `send native ${sessionChoice.encodedAs}`)]
+    approvalContextItem("Approve", `send native ${approveChoice?.encodedAs ?? "Enter"}`),
+    ...(middleChoice
+      ? [approvalContextItem(middleChoice.label, `send native ${middleChoice.encodedAs}`)]
       : []),
     approvalContextItem("Deny", "send native Esc"),
   );

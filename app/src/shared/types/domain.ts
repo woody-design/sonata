@@ -202,11 +202,22 @@ export interface Run {
 export type ApprovalKind = "workspace-trust" | "file-read" | "file-edit" | "command" | "unknown";
 export type ApprovalRisk = "file-read" | "file-write" | "network" | "mixed" | "unknown";
 /** "answered-natively": the human resolved the screen with their own keys
- *  (take-over) — observed from screen evidence, not sent by Duet. */
-export type ApprovalDecision = "approve" | "approve-for-session" | "deny" | "answered-natively";
+ *  (take-over) — observed from screen evidence, not sent by Duet.
+ *  "approve-always": the panel's native persistent option ("don't ask
+ *  again…") — Claude writes its own allow rule; Duet receipts the write. */
+export type ApprovalDecision =
+  | "approve"
+  | "approve-for-session"
+  | "approve-always"
+  | "deny"
+  | "answered-natively";
 export type ApprovalDecisionEncoding =
   | "CSI-u Enter"
   | "ArrowDown + CSI-u Enter"
+  | "digit 1"
+  | "digit 2"
+  | "digit 3"
+  | "CR"
   | "Esc"
   | "native-keys";
 
