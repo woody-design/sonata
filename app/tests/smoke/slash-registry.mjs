@@ -125,6 +125,55 @@ assert.equal(
   "codex skills surface as skill entries",
 );
 
+// --- symlink discovery (regression: ~/.claude/skills/* are all symlinks) ---
+// Woody's real skills are symlinks (→ another repo's skills tree). A symlink
+// dirent reports isDirectory()/isFile() === false, so a bare guard dropped
+// every one of them silently (0 entries, 0 warnings). Discovery must follow
+// the link. Mirror that exact shape here — the regression was untested.
+const linkStore = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-linkstore-"));
+
+// Claude skill whose <name>/ directory is a symlink into the store.
+writeSkill(linkStore, "linked-skill", ["name: linked-skill", "description: Reached through a symlink"]);
+fs.symlinkSync(path.join(linkStore, "linked-skill"), path.join(claudeSkillsRoot, "linked-skill"), "dir");
+// Legacy .claude/commands/*.md that is itself a symlinked file.
+const linkedCommandTarget = path.join(linkStore, "linked-command.md");
+fs.writeFileSync(linkedCommandTarget, "---\ndescription: Linked legacy command\n---\n\nRun it.\n");
+fs.symlinkSync(linkedCommandTarget, path.join(claudeCommandsRoot, "linked-command.md"), "file");
+// A broken symlink must be skipped, never thrown.
+fs.symlinkSync(path.join(linkStore, "missing-target"), path.join(claudeSkillsRoot, "broken-link"), "dir");
+
+clearSlashCommandCache();
+const claudeLinked = listSlashCommands("claude", projectRoot);
+const claudeLinkedByName = new Map(claudeLinked.entries.map((entry) => [entry.name, entry]));
+assert.equal(
+  claudeLinkedByName.get("linked-skill")?.description,
+  "Reached through a symlink",
+  "symlinked skill directory is followed",
+);
+assert.equal(claudeLinkedByName.get("linked-skill")?.invocation, "/linked-skill");
+assert.equal(
+  claudeLinkedByName.get("linked-command")?.description,
+  "Linked legacy command",
+  "symlinked legacy command file is followed",
+);
+assert.equal(claudeLinkedByName.has("broken-link"), false, "broken symlink is skipped, not thrown");
+
+// Codex: a $CODEX_HOME/skills entry reached through a symlink.
+writeSkill(linkStore, "codex-linked", ["name: codex-linked", "description: Codex via symlink"]);
+fs.symlinkSync(
+  path.join(linkStore, "codex-linked"),
+  path.join(fixtureHome, ".codex", "skills", "codex-linked"),
+  "dir",
+);
+clearSlashCommandCache();
+const codexLinked = listSlashCommands("codex", projectRoot);
+const codexLinkedByName = new Map(codexLinked.entries.map((entry) => [entry.name, entry]));
+assert.equal(
+  codexLinkedByName.get("codex-linked")?.invocation,
+  "$codex-linked",
+  "symlinked codex skill is followed",
+);
+
 // --- modal footer signatures against real probe captures (spikes/slash-probes) ---
 const claudeFooters = [
   "Typetofilter·Enter/↓toselect·↑totabs·Esctoclear",
@@ -167,4 +216,5 @@ assert.ok(
 
 fs.rmSync(fixtureHome, { recursive: true, force: true });
 fs.rmSync(projectRoot, { recursive: true, force: true });
-console.log("slash-registry smoke: all assertions passed");
+fs.rmSync(linkStore, { recursive: true, force: true });
+console.log("slash-registry smoke: all assertions passed (incl. symlink discovery)");

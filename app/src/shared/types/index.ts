@@ -1,4 +1,5 @@
 export * from "./claude-settings";
+export * from "./cli-signal";
 export * from "./domain";
 export * from "./events";
 export * from "./ipc";

@@ -1,0 +1,140 @@
+import fs from "node:fs";
+import path from "node:path";
+import { claudeHooksDirectory } from "./claude-runtime-settings";
+import type { ClaudeHookPayload } from "../../shared/types/cli-signal";
+
+const DEFAULT_POLL_MS = 250;
+
+export interface ClaudeHookWatcherOptions {
+  pollMs?: number;
+  /** Called once per hook payload, in filename (≈ emission) order, with the
+   *  workspace cwd it was observed under (route by cwd → task). */
+  onPayload: (payload: ClaudeHookPayload, workspace: string) => void;
+  onError?: (error: Error, filePath?: string) => void;
+}
+
+/**
+ * Polls Duet-owned Claude hook sink dirs (`.duet/hooks/`), mirroring the
+ * statusline watcher's per-workspace poll. Each `hook-*.json` is a single hook
+ * payload written via tmp+rename; the watcher reads it in name order, hands it
+ * off, then DELETES it (the dir is a queue, not a log — bounded growth).
+ */
+export class ClaudeHookWatcher {
+  private readonly options: ClaudeHookWatcherOptions;
+  private readonly pollMs: number;
+  private readonly workspaceRefs = new Map<string, number>();
+  private timer: NodeJS.Timeout | null = null;
+
+  constructor(options: ClaudeHookWatcherOptions) {
+    this.options = options;
+    this.pollMs = options.pollMs ?? DEFAULT_POLL_MS;
+  }
+
+  watchWorkspace(cwd: string): void {
+    const workspace = path.resolve(cwd);
+    this.workspaceRefs.set(workspace, (this.workspaceRefs.get(workspace) ?? 0) + 1);
+    this.pollWorkspace(workspace);
+    this.ensureTimer();
+  }
+
+  unwatchWorkspace(cwd: string): void {
+    const workspace = path.resolve(cwd);
+    const count = this.workspaceRefs.get(workspace) ?? 0;
+    if (count <= 1) {
+      this.workspaceRefs.delete(workspace);
+      this.pruneWorkspace(workspace);
+    } else {
+      this.workspaceRefs.set(workspace, count - 1);
+    }
+    if (this.workspaceRefs.size === 0) {
+      this.stop();
+    }
+  }
+
+  dispose(): void {
+    this.stop();
+    this.workspaceRefs.clear();
+  }
+
+  private ensureTimer(): void {
+    if (this.timer) {
+      return;
+    }
+    this.timer = setInterval(() => this.poll(), this.pollMs);
+  }
+
+  private stop(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  private poll(): void {
+    for (const workspace of this.workspaceRefs.keys()) {
+      this.pollWorkspace(workspace);
+    }
+  }
+
+  private pollWorkspace(workspace: string): void {
+    const dir = claudeHooksDirectory(workspace);
+    let entries: string[];
+    try {
+      entries = fs.readdirSync(dir);
+    } catch {
+      return;
+    }
+    // Filename prefix is Date.now()-hrtime-pid → lexical sort ≈ emission order.
+    const files = entries.filter((e) => /^hook-.+\.json$/.test(e)).sort();
+    for (const entry of files) {
+      this.consumeFile(path.join(dir, entry), workspace);
+    }
+  }
+
+  private consumeFile(filePath: string, workspace: string): void {
+    let contents: string;
+    try {
+      contents = fs.readFileSync(filePath, "utf8");
+    } catch (error) {
+      this.options.onError?.(toError(error), filePath);
+      return;
+    }
+    // Delete first: a malformed file must not be re-read every poll.
+    try {
+      fs.rmSync(filePath, { force: true });
+    } catch {
+      // best-effort
+    }
+    let payload: ClaudeHookPayload;
+    try {
+      payload = JSON.parse(contents) as ClaudeHookPayload;
+    } catch (error) {
+      this.options.onError?.(toError(error), filePath);
+      return;
+    }
+    this.options.onPayload(payload, workspace);
+  }
+
+  private pruneWorkspace(workspace: string): void {
+    const dir = claudeHooksDirectory(workspace);
+    let entries: string[];
+    try {
+      entries = fs.readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (/^hook-.+\.json(\.tmp)?$/.test(entry)) {
+        try {
+          fs.rmSync(path.join(dir, entry), { force: true });
+        } catch {
+          // best-effort
+        }
+      }
+    }
+  }
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}

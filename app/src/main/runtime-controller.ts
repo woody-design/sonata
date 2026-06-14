@@ -56,6 +56,8 @@ import {
   TerminalHost,
   WorkspacePreview,
   ClaudeStatuslineUsageWatcher,
+  ClaudeHookWatcher,
+  CliStateModel,
   parseClaudeStatuslinePayload,
   readClaudeResumeStats,
   type ResolveRunIdInput,
@@ -66,6 +68,7 @@ import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
 import type { ResumeSettingsStore, ClaudeSettingsStore } from "./settings-store";
 import type { ClaudeSettings } from "../shared/types/claude-settings";
+import type { ClaudeHookPayload, CliStateSnapshot } from "../shared/types/cli-signal";
 import {
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
@@ -122,6 +125,7 @@ interface ActiveTaskRuntime {
   providerTranscript: ProviderTranscript;
   deliveryController: DeliveryController;
   statusTracker: StatusRegionTracker;
+  cliState: CliStateModel;
   /** Last automatically applied title (run prompt or provider session
    *  name). null = unknown provenance (e.g. reopened task) → never
    *  auto-rename. A user rename makes title diverge from this. */
@@ -134,6 +138,7 @@ export class RuntimeController {
   private readonly resumeSettingsStore: ResumeSettingsStore;
   private readonly claudeSettingsStore: ClaudeSettingsStore;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
+  private readonly claudeHookWatcher: ClaudeHookWatcher;
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
   private readonly pendingClaudeUsage = new Map<string, UsageSnapshot>();
@@ -151,6 +156,14 @@ export class RuntimeController {
       onError: (error, filePath) => {
         console.debug(
           `[usage] skipped Claude statusline payload${filePath ? ` ${filePath}` : ""}: ${error.message}`,
+        );
+      },
+    });
+    this.claudeHookWatcher = new ClaudeHookWatcher({
+      onPayload: (payload, workspace) => this.handleClaudeHookPayload(payload, workspace),
+      onError: (error, filePath) => {
+        console.debug(
+          `[signal] skipped Claude hook payload${filePath ? ` ${filePath}` : ""}: ${error.message}`,
         );
       },
     });
@@ -235,6 +248,7 @@ export class RuntimeController {
       provider: request.provider,
       eventSink: (event) => this.sendEvent(event),
     });
+    const cliState = new CliStateModel((snapshot) => this.emitCliState(taskId, snapshot));
 
     const startOptions = {
       cwd: providerCwd,
@@ -270,10 +284,12 @@ export class RuntimeController {
       providerTranscript,
       deliveryController,
       statusTracker,
+      cliState,
       autoTitle: null,
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
     this.watchClaudeUsage(activeTask);
+    this.watchClaudeHooks(activeTask);
     this.persistTaskManifest(activeTask.task, activeTask.storageRoot);
     providerTranscript.startDiscovery(ptyStartedAt);
 
@@ -369,6 +385,7 @@ export class RuntimeController {
       provider: runningTask.provider,
       eventSink: (event) => this.sendEvent(event),
     });
+    const cliState = new CliStateModel((snapshot) => this.emitCliState(runningTask.id, snapshot));
 
     // Duet owns the resume moment (slice C): the interstitial is suppressed
     // per-spawn for every Claude resume — the choice happened (or the
@@ -403,10 +420,12 @@ export class RuntimeController {
       providerTranscript,
       deliveryController,
       statusTracker,
+      cliState,
       autoTitle: null,
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
     this.watchClaudeUsage(activeTask);
+    this.watchClaudeHooks(activeTask);
     this.persistTaskManifest(runningTask, storageRoot);
 
     if (claudeResume && request.resumeMode === "summary") {
@@ -877,6 +896,7 @@ export class RuntimeController {
     this.usageSnapshots.clear();
     this.pendingClaudeUsage.clear();
     this.claudeUsageWatcher.dispose();
+    this.claudeHookWatcher.dispose();
   }
 
   private async applyControlChange(taskId: TaskId, change: DeliveryControlChange): Promise<void> {
@@ -911,6 +931,7 @@ export class RuntimeController {
     const eventRuntime = this.taskRuntimes.get(event.payload.taskId);
     eventRuntime?.deliveryController.handleRuntimeEvent(event);
     eventRuntime?.statusTracker.handleRuntimeEvent(event);
+    eventRuntime?.cliState.applyRuntimeEvent(event);
 
     if (event.type === "run:started") {
       this.updateTaskTitleFromRun(event.payload.taskId, event.payload.title);
@@ -1077,6 +1098,7 @@ export class RuntimeController {
     active.statusTracker.dispose();
     active.terminalHost.dispose();
     this.unwatchClaudeUsage(active);
+    this.unwatchClaudeHooks(active);
     this.usageSnapshots.delete(active.task.id);
   }
 
@@ -1110,6 +1132,49 @@ export class RuntimeController {
     if (active.task.provider === "claude") {
       this.claudeUsageWatcher.unwatchWorkspace(active.task.providerCwd);
     }
+  }
+
+  private watchClaudeHooks(active: ActiveTaskRuntime): void {
+    if (active.task.provider === "claude") {
+      this.claudeHookWatcher.watchWorkspace(active.task.providerCwd);
+    }
+  }
+
+  private unwatchClaudeHooks(active: ActiveTaskRuntime): void {
+    if (active.task.provider === "claude") {
+      this.claudeHookWatcher.unwatchWorkspace(active.task.providerCwd);
+    }
+  }
+
+  /**
+   * Route a Claude hook payload to its task by workspace (cwd) — more reliable
+   * than session-id matching, which lags transcript discovery. The hook fires
+   * only after the PTY is up, by which point the task is registered, so a
+   * pending buffer isn't needed (unmatched payloads are simply dropped).
+   */
+  private handleClaudeHookPayload(payload: ClaudeHookPayload, workspace: string): void {
+    const resolved = path.resolve(workspace);
+    for (const active of this.taskRuntimes.values()) {
+      if (active.task.provider === "claude" && pathsEqual(active.task.providerCwd, resolved)) {
+        active.cliState.applyHook(payload);
+        return;
+      }
+    }
+  }
+
+  private emitCliState(taskId: TaskId, snapshot: CliStateSnapshot): void {
+    this.sendEvent({
+      type: "cli-state:changed",
+      payload: {
+        taskId,
+        activity: snapshot.activity,
+        tool: snapshot.tool,
+        approvalKind: snapshot.approvalKind,
+        source: snapshot.source,
+        changedAt: snapshot.changedAt,
+      },
+      ts: new Date().toISOString(),
+    });
   }
 
   private handleClaudeStatuslinePayload(payload: unknown, mtimeMs: number): void {

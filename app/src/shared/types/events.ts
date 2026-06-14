@@ -1,4 +1,5 @@
 import type { NativeStatusRegion, WorkingLiveness } from "./working-status";
+import type { CliActivity } from "./cli-signal";
 import type {
   ApprovalChoice,
   ApprovalDecision,
@@ -92,6 +93,24 @@ export type WorkingStatusUpdatedEvent = BaseRuntimeEvent<
     liveness: WorkingLiveness;
     silentSince: string | null;
     capturedAt: string;
+  }
+>;
+
+/**
+ * The unified CLI activity state changed (Slice 1, Layer 1). Fed primarily by
+ * Claude hooks (busy/idle/approval transitions) with terminal-host signals as
+ * the safety net. The renderer subscribes to drive the working indicator from a
+ * structured signal instead of the 3Hz glyph scrape. UI-agnostic by design.
+ */
+export type CliStateChangedEvent = BaseRuntimeEvent<
+  "cli-state:changed",
+  {
+    taskId: TaskId;
+    activity: CliActivity;
+    tool: string | null;
+    approvalKind: string | null;
+    source: string;
+    changedAt: string;
   }
 >;
 
@@ -356,6 +375,7 @@ export type ProductRuntimeEvent =
   | TaskReadyEvent
   | TaskAcceptsInputEvent
   | WorkingStatusUpdatedEvent
+  | CliStateChangedEvent
   | TaskUpdatedEvent
   | PromptSubmittedEvent
   | DeliveryStateEvent
@@ -387,6 +407,7 @@ export type RunIndexEvent = Exclude<
   | TranscriptBlocksEvent
   | UsageUpdatedEvent
   | SessionsUpdatedEvent
+  | CliStateChangedEvent
   | DeliveryStateEvent
   | DeliveryReceiptEvent
   | TaskUpdatedEvent

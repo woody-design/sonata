@@ -47,6 +47,7 @@ import {
 import type {
   ApprovalDecision,
   ArtifactCandidate,
+  CliActivity,
   ClaudePermissionMode,
   CodexApprovalMode,
   CodexPermissionPreset,
@@ -108,6 +109,10 @@ interface TaskViewState {
   pendingAttachments: ComposerAttachment[];
   usageSnapshot: UsageSnapshot | null;
   workingStatus: WorkingStatusState | null;
+  /** Structured CLI activity (Slice 1): hooks-primary busy/idle/approval,
+   *  with terminal-host signals as the safety net. Drives the sidebar
+   *  indicator (approval now also fires from the PermissionRequest hook). */
+  cliState: { activity: CliActivity; tool: string | null; approvalKind: string | null } | null;
   /** A native TUI panel owns the provider screen — slash-opened (Esc
    *  verified) or ambient (startup/idle interstitial; Esc hazardous). */
   modalPanel: { signature: string | null; origin: "slash" | "ambient" | null } | null;
@@ -827,13 +832,17 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
       : "Queued message with no movement — check the terminal";
     return dot;
   }
-  if (session.liveStatus === "waiting-for-approval") {
+  // Approval can be surfaced two ways now: the footer scrape (liveStatus) or
+  // the PermissionRequest hook (cliState) — Slice 1 makes the hook primary,
+  // the scrape the fallback, so either fires the dot.
+  const cli = taskViewForId(session.task.id)?.cliState ?? null;
+  if (session.liveStatus === "waiting-for-approval" || cli?.activity === "waiting-approval") {
     const dot = document.createElement("span");
     dot.className = "sidebar-session-attention";
-    dot.title = "Waiting for approval";
+    dot.title = cli?.tool ? `Waiting for approval — ${cli.tool}` : "Waiting for approval";
     return dot;
   }
-  if (["running", "starting", "stopping"].includes(session.liveStatus)) {
+  if (["running", "starting", "stopping"].includes(session.liveStatus) || cli?.activity === "busy") {
     const spinner = document.createElement("span");
     spinner.className = "sidebar-session-spinner";
     spinner.title = "Working";
@@ -857,6 +866,36 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
     return dot;
   }
   return null;
+}
+
+// The persistent-node discipline for the sidebar spinner: a liveness change
+// toggles the existing node's class in place. The only other way to reflect
+// liveness — rebuilding the row — recreates the spinner <span>, restarting its
+// CSS animation at 0% (the "irregular, interrupted" rotation). Active or
+// background, the spinner already lives in the sidebar; we just patch it, and
+// no-op when the row currently shows a different indicator (e.g. it just
+// transitioned out of "running").
+function updateSidebarSpinnerLiveness(view: TaskViewState): void {
+  const taskId = view.task?.id;
+  if (!taskId) {
+    return;
+  }
+  const row = Array.from(
+    elements.sidebarList.querySelectorAll<HTMLElement>(".sidebar-session"),
+  ).find((node) => node.dataset.taskId === taskId);
+  const spinner = row?.querySelector<HTMLElement>(".sidebar-session-spinner") ?? null;
+  if (!spinner) {
+    return;
+  }
+  const liveness = view.workingStatus?.liveness ?? "fresh";
+  spinner.classList.toggle("quiet", liveness === "quiet");
+  spinner.classList.toggle("silent", liveness === "silent");
+  spinner.title =
+    liveness === "quiet"
+      ? "No recent activity"
+      : liveness === "silent"
+        ? "No sign of activity — check the terminal"
+        : "Working";
 }
 
 function sidebarIconButton(
@@ -3562,7 +3601,41 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   if (event.type === "usage:updated") {
     view.usageSnapshot = event.payload.snapshot;
-    markViewChanged(view);
+    // A usage tick is not content and not unread. Update only the usage
+    // indicator (and the popover, if open) in place — never a full render(),
+    // which would replaceChildren the transcript and wipe any active text
+    // selection. Background views just store the snapshot for later.
+    if (isActiveView(view)) {
+      renderUsageIndicator(view);
+      if (state.usagePopover) {
+        renderComposerPopover(view);
+      }
+    }
+    return;
+  }
+
+  if (event.type === "cli-state:changed") {
+    // The structured CLI activity (Slice 1, hooks-primary). Its unique value:
+    // the approval indicator now also fires from the PermissionRequest hook
+    // (earlier/more reliable than the footer scrape), and a take-over turn
+    // shows as busy without a Duet-owned run.
+    //
+    // S0 discipline: only the `activity` drives the sidebar indicator, not the
+    // `tool`, so a tool-only change (every Pre/PostToolUse) must NOT rebuild —
+    // that would reintroduce the per-tool spinner-restart churn S0 fixed. And
+    // CLI activity is never "unread content" (no markViewChanged → no spurious
+    // unread on background sessions). A genuine activity transition is a real,
+    // low-frequency state change, so a sidebar-only rebuild is acceptable
+    // (transcript/selection untouched).
+    const previousActivity = view.cliState?.activity ?? null;
+    view.cliState = {
+      activity: event.payload.activity,
+      tool: event.payload.tool,
+      approvalKind: event.payload.approvalKind,
+    };
+    if (event.payload.activity !== previousActivity) {
+      renderSidebar();
+    }
     return;
   }
 
@@ -3575,22 +3648,29 @@ window.duetRuntime.onRuntimeEvent((event) => {
       capturedAt: event.payload.capturedAt,
     };
     if (event.payload.liveness !== previousLiveness) {
-      // Liveness transitions are rare and the sidebar shows them for
-      // BACKGROUND sessions too. Status ticks are not unread content, so
-      // this never touches the unread flag.
+      // A liveness transition (fresh ↔ quiet ↔ silent) is a meaningful change,
+      // but it is still not content. Reflect it in place: toggle the sidebar
+      // spinner's class (never rebuild the row — that restarts the CSS spin
+      // animation) and re-apply the status row's stall voice. No render(), so
+      // the transcript and its selection survive. The sidebar shows liveness
+      // for BACKGROUND sessions too, so this patches regardless of active view.
+      updateSidebarSpinnerLiveness(view);
       if (isActiveView(view)) {
-        render();
-      } else {
-        renderSidebar();
+        const row = elements.runList.querySelector<HTMLElement>(".turn-status-row");
+        if (row) {
+          applyStatusRowLiveness(row, view);
+        }
       }
       return;
     }
-    // Native relay arrives at ~3Hz — update the live row in place; fall back
-    // to a full render only when the row does not exist yet or the content
-    // needs turn context (derived mode).
-    if (!updateLiveStatusRowInPlace(view)) {
-      markViewChanged(view);
-    }
+    // Native relay arrives at ~3Hz. Update the live status row in place; never
+    // fall back to a full render for a status tick. A full render would
+    // replaceChildren the transcript (wiping any active text selection) and
+    // rebuild the sidebar (restarting the spinner). The derived row needs no
+    // per-tick update — its label comes from transcript blocks and its clock
+    // from the 1s interval; the row itself is (re)created by run/transcript
+    // renders.
+    updateLiveStatusRowInPlace(view);
     return;
   }
 
@@ -3683,6 +3763,7 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     pendingAttachments: [],
     usageSnapshot: null,
     workingStatus: null,
+    cliState: null,
     modalPanel: null,
     resumeChoice: null,
     status,
@@ -6811,8 +6892,26 @@ function scheduleTranscriptRender(): void {
   }
   transcriptRenderTimer = window.setTimeout(() => {
     transcriptRenderTimer = null;
-    render();
+    renderTranscriptStream();
   }, 160);
+}
+
+// The transcript-streaming render path — decoupled from full render() so a
+// content batch never rebuilds the sidebar (which would restart the spinner's
+// CSS animation on every batch). Refresh only what new transcript content can
+// change: the reading surface (renderRuns), and the workflow strip's derived
+// "current step" (workflowState → deriveCurrentStepForView reads transcript
+// blocks — the one transcript-derived chrome outside renderRuns). Run
+// lifecycle, approvals, delivery, usage, and status each arrive as their own
+// events and render themselves, so nothing else goes stale between batches.
+//
+// Boundary (S0.2 close-out): this closes the *spinner* during streaming, NOT
+// the *selection* — renderRuns still replaceChildren the whole runList, so a
+// selection is cleared on each content batch. Selection-surviving incremental
+// run rendering is S1.
+function renderTranscriptStream(): void {
+  renderRuns();
+  renderWorkflow();
 }
 
 async function openArtifact(relativePath: string): Promise<void> {

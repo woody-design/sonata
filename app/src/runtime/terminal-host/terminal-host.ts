@@ -26,7 +26,7 @@ import type {
   TaskId,
 } from "../../shared/types/domain";
 import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
-import { ensureClaudeStatuslineSettings } from "../usage";
+import { ensureClaudeRuntimeSettings } from "../cli-signal";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
 export const BRACKETED_PASTE_END = "\x1b[201~";
@@ -1988,7 +1988,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           permissionMode: options.permissionMode,
           model: options.model,
           reasoningEffort: options.reasoningEffort,
-          settingsPath: ensureClaudeStatuslineSettings(options.cwd),
+          settingsPath: ensureClaudeRuntimeSettings(options.cwd),
           resumeRef: options.resumeRef,
           sessionId: options.sessionId,
         }),

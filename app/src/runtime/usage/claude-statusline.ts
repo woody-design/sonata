@@ -12,6 +12,19 @@ export function claudeUsageDirectory(cwd: string): string {
   return path.join(cwd, ".duet", "usage");
 }
 
+/**
+ * The statusLine `command` Claude runs each tick — `node <sink> <usageDir>`.
+ * Exported so the unified runtime-settings builder (cli-signal) can compose it
+ * with the hooks block into the single `--settings` file we inject.
+ */
+export function claudeStatuslineCommand(usageDirectory: string): string {
+  return [
+    "node",
+    shellQuote(path.join(__dirname, "claude-statusline-sink.js")),
+    shellQuote(usageDirectory),
+  ].join(" ");
+}
+
 export function ensureClaudeStatuslineSettings(cwd: string): string {
   const usageDirectory = claudeUsageDirectory(cwd);
   fs.mkdirSync(usageDirectory, { recursive: true });
@@ -20,18 +33,14 @@ export function ensureClaudeStatuslineSettings(cwd: string): string {
   const settings: ClaudeStatuslineSettings = {
     statusLine: {
       type: "command",
-      command: [
-        "node",
-        shellQuote(path.join(__dirname, "claude-statusline-sink.js")),
-        shellQuote(usageDirectory),
-      ].join(" "),
+      command: claudeStatuslineCommand(usageDirectory),
     },
   };
   writeJsonIfChanged(settingsPath, settings);
   return settingsPath;
 }
 
-function writeJsonIfChanged(filePath: string, value: unknown): void {
+export function writeJsonIfChanged(filePath: string, value: unknown): void {
   const next = `${JSON.stringify(value, null, 2)}\n`;
   try {
     if (fs.readFileSync(filePath, "utf8") === next) {
@@ -45,6 +54,6 @@ function writeJsonIfChanged(filePath: string, value: unknown): void {
   fs.renameSync(tmpPath, filePath);
 }
 
-function shellQuote(value: string): string {
+export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
