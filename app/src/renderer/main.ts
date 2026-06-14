@@ -79,6 +79,7 @@ import type { NativeStatusRegion, WorkingStatusState } from "../shared/types/wor
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
 import { cleanTerminalTranscript } from "../shared/terminal-transcript";
 import { planKeyedReconcile } from "../shared/keyed-reconcile";
+import { classifySlashIntent } from "../shared/slash/intent";
 
 interface RunTranscript {
   runId: string;
@@ -4752,22 +4753,39 @@ function completeSlashEntry(entry: SlashCommandEntry): void {
 }
 
 function executeSlashEntry(entry: SlashCommandEntry): void {
-  if (entry.nativeMenu) {
-    openNativeMenuForSlashEntry(entry);
-    return;
+  switch (classifySlashIntent(entry)) {
+    case "control":
+      openNativeMenuForSlashEntry(entry);
+      return;
+    case "skill":
+      // Skills complete instead of executing: a premature skill invocation
+      // costs a full model turn, while a second Enter on an args-less skill
+      // costs nothing.
+      completeSlashEntry(entry);
+      return;
+    case "panel":
+      // An interactive panel blind-injected leaves an invisible TUI dialog
+      // that swallows the next paste (probe s1). Route to the take-over floor
+      // so the user drives the native surface directly (S4.2). With no live
+      // floor, leave it composed rather than a silent no-op (panels are
+      // unlisted today, so this pick path is reached only if they're listed).
+      if (!routeSlashToFloor(entry.invocation)) {
+        completeSlashEntry(entry);
+      }
+      return;
+    default:
+      // passthrough builtins: an argument hint still completes (let the user
+      // add args) rather than firing a turn prematurely; otherwise execute
+      // directly, matching the CLIs' own Enter-dispatches semantics.
+      if (entry.argumentHint) {
+        completeSlashEntry(entry);
+        return;
+      }
+      elements.promptInput.value = entry.invocation;
+      state.slashPicker = null;
+      renderComposerPopover();
+      void submitPrompt();
   }
-  // Skills complete instead of executing: a premature skill invocation
-  // costs a full model turn, while a second Enter on an args-less skill
-  // costs nothing. Builtins without an argument hint execute directly,
-  // matching the CLIs' own Enter-dispatches semantics.
-  if (entry.argumentHint || entry.kind === "skill") {
-    completeSlashEntry(entry);
-    return;
-  }
-  elements.promptInput.value = entry.invocation;
-  state.slashPicker = null;
-  renderComposerPopover();
-  void submitPrompt();
 }
 
 function openNativeMenuForSlashEntry(entry: SlashCommandEntry): void {
@@ -4858,23 +4876,67 @@ function consumeSlashSubmitGuard(text: string): boolean {
   const entry = registry.entries.find((candidate) => candidate.name.toLowerCase() === token);
   if (entry) {
     const bare = text === entry.invocation;
+    const intent = classifySlashIntent(entry);
     // Codex's /model and /permissions ignore inline arguments — the panel
     // opens regardless — so any invocation routes to the duet menu there.
-    if (entry.nativeMenu && (bare || entry.provider === "codex")) {
+    // Claude's `/model sonnet` honors inline args (proven), so only the bare
+    // form opens the menu.
+    if (intent === "control" && (bare || entry.provider === "codex")) {
       openNativeMenuForSlashEntry(entry);
       return true;
     }
+    // Interactive panels route to the take-over floor (S4.2): blind-injecting
+    // them opens an invisible TUI dialog that swallows the next paste (s1).
+    if (intent === "panel") {
+      if (routeSlashToFloor(entry.invocation)) {
+        return true;
+      }
+      // No live terminal to drive — never spawn a session just to open an
+      // invisible panel.
+      composerStatusHint(`${entry.invocation} opens in the terminal — start the session first`);
+      return true;
+    }
+    // skill-with-args + passthrough builtins fall through to the normal
+    // submit — delivery dispatches them reliably (Phase 0).
     pendingUnknownSlashText = null;
     return false;
   }
+  // Unknown command: a gentle confirm first (it is most often a typo), then —
+  // rather than blind-submitting (an unknown-but-real *panel* command would
+  // swallow the next paste) — hand it to the floor so the user runs it
+  // natively. Degrades gracefully: never a silent hang.
   if (pendingUnknownSlashText === text) {
     pendingUnknownSlashText = null;
-    return false;
+    if (routeSlashToFloor(text)) {
+      return true;
+    }
+    return false; // no live floor (e.g. New Chat): forward; the CLI reports it locally.
   }
   pendingUnknownSlashText = text;
   composerStatusHint(
-    `Unknown ${providerLabel(composerSlashProvider())} command — press Enter again to send anyway`,
+    `Unknown ${providerLabel(composerSlashProvider())} command — press Enter again to open it in the terminal`,
   );
+  return true;
+}
+
+/**
+ * Route a panel/unknown "/" command to the take-over floor (S3): open the
+ * drawer so the user drives the native surface, and clear the composer (the
+ * command's home is now the terminal, not the composer). Returns false when
+ * there is no live PTY to drive — the caller falls back. We never write the
+ * command into the PTY ourselves: that blind paste is exactly what an open
+ * panel swallows; the user takes over and types it.
+ */
+function routeSlashToFloor(invocation: string): boolean {
+  const view = activeTaskView();
+  if (!view?.task || !view.live) {
+    return false;
+  }
+  elements.promptInput.value = "";
+  state.slashPicker = null;
+  pendingUnknownSlashText = null;
+  setTerminalOpen(true);
+  composerStatusHint(`Opened the terminal — take over to run ${invocation} natively`);
   return true;
 }
 
