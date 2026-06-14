@@ -10,6 +10,26 @@ export async function approveIfVisible(page, title, timeoutMs) {
   return true;
 }
 
+/**
+ * Approve whichever native approval banner is on screen RIGHT NOW, regardless
+ * of its title, and report whether one was answered.
+ *
+ * Codex picks its write mechanism per run — `apply_patch` surfaces as a
+ * File-edit banner, a shell write (`printf`/heredoc/`python3 -c`) as a Command
+ * banner — so a turn that "just writes a file" can raise EITHER. Draining by
+ * visibility (not by a fixed title) is what keeps a wait from stalling on the
+ * one banner the test didn't happen to name.
+ */
+export async function approveAnyVisibleApproval(page) {
+  const banner = page.locator("#approval-banner:not(.hidden)");
+  const visible = await banner.isVisible({ timeout: 500 }).catch(() => false);
+  if (!visible) {
+    return false;
+  }
+  await approveVisibleBanner(page, banner);
+  return true;
+}
+
 export async function approveVisibleBanner(page, banner) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     await page.locator("#approve-approval").click();

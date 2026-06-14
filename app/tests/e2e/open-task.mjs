@@ -6,10 +6,22 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveIfVisible } from "./helpers/approval.mjs";
+import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.mjs";
 import { activeSessionTaskId, selectSidebarSession, sendFirstPrompt, sendPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-open-task-e2e-"));
+// Isolate the projects/settings store too — NOT just DUET_PROJECTS_DIR. Without
+// this the renderer boot preselects the global store's `lastUsedFolder` as the
+// New Chat cwd (Settings persist in Electron userData, shared with the real
+// app and across runs), so the provider launches in whatever folder was used
+// last — e.g. this repo — and writes its artifacts THERE instead of the temp
+// workspace this test polls. A hermetic settings dir keeps `lastUsedFolder`
+// null, so the provider cwd falls back to the task's own storage root.
+const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-open-task-settings-"));
+// Failure forensics (report excerpt + screenshot) land here and SURVIVE the
+// workspace cleanup so a flake is inspectable after the run.
+const diagnosticsRoot = path.join(os.tmpdir(), "duet-open-task-diagnostics");
+const COMPLETED_OUTCOME = "Completed by terminal idle heuristic";
 const CODEWORD = "OPENTASK-99";
 let electronApp = null;
 
@@ -28,12 +40,14 @@ try {
   await sendFirstPrompt(page, originalPrompt);
   const taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
   const workspace = path.join(workspaceRoot, taskDirectory);
-  await approveIfVisible(page, "File edit approval requested", 180000);
-  await waitUntil(() => fs.existsSync(path.join(workspace, "open_original.md")), 180000, "original artifact");
-  await page.locator(".artifact-item", { hasText: "open_original.md" }).waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
-    state: "visible",
-  });
+  // Drain whichever native approval Codex raises this turn — apply_patch
+  // surfaces as a File-edit banner, a shell write as a Command banner, and the
+  // model picks per run — until the turn reports completion. Answering a single
+  // fixed-title banner once raced that choice and stalled the run whenever
+  // Codex took the path the test wasn't waiting on.
+  await settleTurnUntilCompleted(page, 1, 180000, { workspace, label: "original-turn" });
+  await expectArtifactItem(page, "open_original.md", 15000, { workspace, label: "original-artifact" });
+  await assertOnDisk(page, "open_original.md", { workspace, label: "original-on-disk" });
   await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
   await page
     .locator(".sidebar-session-title", { hasText: expectedTaskTitle })
@@ -59,7 +73,7 @@ try {
   // Clicking renders the transcript read-only — no PTY yet.
   await selectSidebarSession(page, taskId);
   await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: COMPLETED_OUTCOME }).waitFor({
     state: "visible",
   });
   const dormantPlaceholder = await page.locator("#prompt-input").getAttribute("placeholder");
@@ -75,9 +89,12 @@ try {
   ].join("\n");
   await sendPrompt(page, followupPrompt);
   await waitForResumeSpawn(page, 240000);
-  await approveIfVisible(page, "File edit approval requested", 240000);
-  await waitUntil(() => fs.existsSync(path.join(workspace, "open_followup.md")), 240000, "followup artifact");
-  await page.locator(".artifact-item", { hasText: "open_followup.md" }).waitFor({ state: "visible" });
+  // Second turn, same title-agnostic drain. The reopened transcript already
+  // shows the restored first turn's completion, so we wait for the SECOND
+  // completed outcome (restored + followup).
+  await settleTurnUntilCompleted(page, 2, 240000, { workspace, label: "followup-turn" });
+  await expectArtifactItem(page, "open_followup.md", 15000, { workspace, label: "followup-artifact" });
+  await assertOnDisk(page, "open_followup.md", { workspace, label: "followup-on-disk" });
 
   // Memory continuity: the resumed agent recalled the planted codeword.
   const followupContent = fs.readFileSync(path.join(workspace, "open_followup.md"), "utf8");
@@ -132,6 +149,7 @@ try {
     await electronApp.close();
   }
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  fs.rmSync(settingsRoot, { recursive: true, force: true });
 }
 
 async function launchApp(label) {
@@ -141,6 +159,7 @@ async function launchApp(label) {
       env: {
         ...process.env,
         DUET_PROJECTS_DIR: workspaceRoot,
+        DUET_SETTINGS_DIR: settingsRoot,
       },
     });
   } catch (error) {
@@ -160,6 +179,106 @@ async function launchApp(label) {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
   return page;
+}
+
+/**
+ * Approve any native approval as it appears and return once the requested
+ * number of turns report completion. This replaces a single approve-once +
+ * blind `fs.existsSync` wait, which stalled whenever Codex raised an approval
+ * the test wasn't watching for — the dominant first-turn flake.
+ */
+async function settleTurnUntilCompleted(page, targetCompleted, deadlineMs, diag) {
+  const deadline = Date.now() + deadlineMs;
+  while (Date.now() < deadline) {
+    await approveAnyVisibleApproval(page);
+    const completed = await page.locator(".turn-outcome", { hasText: COMPLETED_OUTCOME }).count();
+    if (completed >= targetCompleted) {
+      return;
+    }
+    await delay(500);
+  }
+  throw await diagnosticError(
+    page,
+    `Timed out waiting for ${targetCompleted} completed turn(s) [${diag.label}]`,
+    diag,
+  );
+}
+
+async function expectArtifactItem(page, name, timeoutMs, diag) {
+  try {
+    await page.locator(".artifact-item", { hasText: name }).waitFor({ state: "visible", timeout: timeoutMs });
+  } catch {
+    throw await diagnosticError(page, `Artifact "${name}" never surfaced in the inspector [${diag.label}]`, diag);
+  }
+}
+
+async function assertOnDisk(page, name, diag) {
+  if (fs.existsSync(path.join(diag.workspace, name))) {
+    return;
+  }
+  throw await diagnosticError(
+    page,
+    `Turn completed but ${name} is absent from the task workspace [${diag.label}]`,
+    diag,
+  );
+}
+
+/**
+ * Build an Error carrying enough state to tell the failure modes apart at a
+ * glance: an unanswered approval (banner still visible), the provider-cwd leak
+ * (artifacts recorded as repo-relative paths), or genuine non-compliance (turn
+ * completed, no matching artifact). Full detail goes to stderr + a screenshot.
+ */
+async function diagnosticError(page, message, diag) {
+  const diagnostics = await captureDiagnostics(page, diag);
+  console.error(JSON.stringify({ diagnostic: message, ...diagnostics }, null, 2));
+  return new Error(
+    `${message}. headline=${diagnostics.headline} status=${diagnostics.status} ` +
+      `approval=${diagnostics.approvalTitle ?? "none"} runs=${JSON.stringify(diagnostics.runs)} ` +
+      `screenshot=${diagnostics.screenshotPath ?? "n/a"}`,
+  );
+}
+
+async function captureDiagnostics(page, { workspace, label }) {
+  const headline = await safeText(page.locator("#workflow-headline"));
+  const status = await safeText(page.locator("#runtime-status"));
+  const approvalVisible = await page
+    .locator("#approval-banner:not(.hidden)")
+    .isVisible({ timeout: 500 })
+    .catch(() => false);
+  const approvalTitle = approvalVisible ? await safeText(page.locator("#approval-title")) : null;
+
+  let runs = null;
+  try {
+    const report = JSON.parse(
+      fs.readFileSync(path.join(workspace, ".duet", "runtime-report.json"), "utf8"),
+    );
+    runs = report.runs.map((run) => ({
+      kind: run.kind,
+      status: run.status,
+      approvalKind: run.approvalKind ?? null,
+      approvals: (run.approvalEvents ?? []).map(
+        (event) => `${event.action}:${event.kind ?? ""}${event.decision ? `=${event.decision}` : ""}`,
+      ),
+      // A wrong provider cwd shows up here as repo-relative paths
+      // (e.g. "app/dist/...") instead of the bare filename the prompt asked for.
+      changedFiles: (run.changedFiles ?? []).map((change) => change.path).slice(0, 12),
+      artifactCandidates: (run.artifactCandidates ?? []).map((artifact) => artifact.path),
+    }));
+  } catch (error) {
+    runs = { reportError: error instanceof Error ? error.message : String(error) };
+  }
+
+  let screenshotPath = null;
+  try {
+    fs.mkdirSync(diagnosticsRoot, { recursive: true });
+    screenshotPath = path.join(diagnosticsRoot, `${label}.png`);
+    await page.screenshot({ path: screenshotPath, fullPage: true });
+  } catch {
+    screenshotPath = null;
+  }
+
+  return { label, headline, status, approvalVisible, approvalTitle, runs, screenshotPath };
 }
 
 async function waitForResumeSpawn(page, timeoutMs) {
@@ -198,6 +317,14 @@ async function waitUntil(predicate, timeoutMs, label) {
     await delay(250);
   }
   throw new Error(`Timed out waiting for ${label}.`);
+}
+
+async function safeText(locator) {
+  try {
+    return (await locator.textContent({ timeout: 1000 })) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function delay(ms) {
