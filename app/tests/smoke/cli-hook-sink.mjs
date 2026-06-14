@@ -47,16 +47,18 @@ function fireHook(payload) {
 }
 
 const session_id = "smoke-session";
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const hookFiles = () => fs.readdirSync(hooksDir).filter((f) => /^hook-.+\.json$/.test(f));
+
+// 2a) the sink writes exactly one file per invocation.
 fireHook({ hook_event_name: "UserPromptSubmit", session_id });
 fireHook({ hook_event_name: "PreToolUse", session_id, tool_name: "Bash", tool_input: { command: "ls" } });
-fireHook({ hook_event_name: "PermissionRequest", session_id, tool_name: "Bash" });
-fireHook({ hook_event_name: "Stop", session_id, last_assistant_message: "done" });
+fireHook({ hook_event_name: "Stop", session_id, last_assistant_message: "stale" });
+assert.equal(hookFiles().length, 3, "one file per hook invocation");
 
-// Each invocation wrote exactly one file.
-const written = fs.readdirSync(hooksDir).filter((f) => /^hook-.+\.json$/.test(f));
-assert.equal(written.length, 4, "one file per hook invocation");
-
-// The watcher consumes them in order, feeds CliState, and deletes them.
+// 2b) crash-residue guard: files present at first-watch are STALE and must be
+// PRUNED, not replayed as fresh state. (Those 3 files simulate a crashed prior
+// session.)
 const observed = [];
 const model = new CliStateModel((s) => observed.push(s.activity));
 let lastWorkspace = null;
@@ -68,8 +70,17 @@ const watcher = new ClaudeHookWatcher({
   },
 });
 watcher.watchWorkspace(cwd);
+await delay(150);
+assert.deepEqual(observed, [], "stale pre-watch files are pruned, not replayed");
+assert.equal(hookFiles().length, 0, "stale files pruned at watch-start");
+assert.equal(model.current().activity, "idle", "no stale state leaked");
 
-await new Promise((r) => setTimeout(r, 300));
+// 2c) hooks fired WHILE watching are consumed in order, feed CliState, deleted.
+fireHook({ hook_event_name: "UserPromptSubmit", session_id });
+fireHook({ hook_event_name: "PreToolUse", session_id, tool_name: "Bash", tool_input: { command: "ls" } });
+fireHook({ hook_event_name: "PermissionRequest", session_id, tool_name: "Bash" });
+fireHook({ hook_event_name: "Stop", session_id, last_assistant_message: "done" });
+await delay(300);
 watcher.dispose();
 
 assert.equal(path.resolve(lastWorkspace), path.resolve(cwd), "watcher reports the workspace for routing");
@@ -77,8 +88,6 @@ assert.equal(model.current().activity, "turn-ended", "Stop hook ended the turn")
 // busy (UserPromptSubmit) → busy with tool=Bash (PreToolUse changes the tool field)
 // → waiting-approval (PermissionRequest) → turn-ended (Stop).
 assert.deepEqual(observed, ["busy", "busy", "waiting-approval", "turn-ended"], "transitions in order");
-
-const remaining = fs.readdirSync(hooksDir).filter((f) => /^hook-.+\.json$/.test(f));
-assert.equal(remaining.length, 0, "watcher deletes consumed files (queue, not log)");
+assert.equal(hookFiles().length, 0, "watcher deletes consumed files (queue, not log)");
 
 console.log("cli-hook-sink smoke: OK");

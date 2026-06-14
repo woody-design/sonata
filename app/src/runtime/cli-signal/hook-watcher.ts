@@ -32,8 +32,16 @@ export class ClaudeHookWatcher {
 
   watchWorkspace(cwd: string): void {
     const workspace = path.resolve(cwd);
+    const firstRef = !this.workspaceRefs.has(workspace);
     this.workspaceRefs.set(workspace, (this.workspaceRefs.get(workspace) ?? 0) + 1);
-    this.pollWorkspace(workspace);
+    if (firstRef) {
+      // Crash-residue guard: a prior session that died without dispose/prune may
+      // have left hook files here. Hooks fire only AFTER a turn starts (well
+      // after watch begins), so anything present at first-watch is stale — prune
+      // it rather than replay it as fresh state. The 250ms timer then picks up
+      // this session's real files.
+      this.pruneWorkspace(workspace);
+    }
     this.ensureTimer();
   }
 
