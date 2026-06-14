@@ -31,12 +31,25 @@ try {
   await trustBanner.waitFor({ state: "visible", timeout: 120000 });
   checks.trustDetected = true;
 
+  // Auto-surface (S3.3), gentle default: a needs-you accent appears on the
+  // terminal button while the floor is closed and the active task is blocked —
+  // the floor advertises itself without stealing the surface.
+  await page
+    .locator("#toggle-terminal.needs-you")
+    .waitFor({ state: "visible", timeout: 15000 });
+  checks.autoSurfaceSignal = true;
+
   // Open the drawer and take over.
   await page.locator("#toggle-terminal").click();
+  // Opening the floor clears the needs-you signal (it is now visible).
+  await page
+    .locator("#toggle-terminal.needs-you")
+    .waitFor({ state: "hidden", timeout: 5000 });
+  checks.autoSurfaceCleared = true;
   await page.locator("#terminal-drawer").waitFor({ state: "visible" });
   await page.locator("#takeover-toggle").click();
   await page
-    .locator("#terminal-drawer-title", { hasText: "You have the keys" })
+    .locator("#terminal-drawer-eyebrow", { hasText: "You hold the keys" })
     .waitFor({ state: "visible" });
   checks.takeoverActive = true;
 
@@ -66,7 +79,7 @@ try {
   // Hand back — the queued message should now deliver and complete.
   await page.locator("#takeover-toggle").click();
   await page
-    .locator("#terminal-drawer-title", { hasText: "Live mirror" })
+    .locator("#terminal-drawer-title", { hasText: "Live terminal" })
     .waitFor({ state: "visible" });
   await page.locator(".turn-card", { hasText: "TAKEOVER_OK" }).waitFor({
     state: "visible",
@@ -80,6 +93,8 @@ try {
 
   const success =
     checks.trustDetected &&
+    checks.autoSurfaceSignal &&
+    checks.autoSurfaceCleared &&
     checks.takeoverActive &&
     checks.approveDisabled &&
     checks.denyDisabled &&

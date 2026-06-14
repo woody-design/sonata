@@ -1442,6 +1442,9 @@ if (!appElement) {
 // and a const referenced from its own TDZ would crash the renderer (white
 // screen). No terminals exist yet here — the map is simply empty.
 const taskTerminals = new Map<string, TaskTerminal>();
+// Guards the focus→take-over round-trip so a single click can't fire the
+// setUserControl IPC twice (focusin can arrive again before the first resolves).
+const takeoverRequestInFlight = new Set<string>();
 
 applyReadingSettings(state.readingSettings);
 
@@ -1478,7 +1481,7 @@ appElement.innerHTML = `
         >Aa</button>
         <button id="open-preview-window" class="chrome-icon-button" type="button" title="Preview" aria-label="Open Preview"></button>
         <button id="open-inspector-window" class="chrome-icon-button" type="button" title="Inspector" aria-label="Open Inspector"></button>
-        <button id="toggle-terminal" class="chrome-icon-button" type="button" title="Terminal" aria-label="Toggle Terminal"></button>
+        <button id="toggle-terminal" class="chrome-icon-button" type="button" title="Terminal (Ctrl+&#96;)" aria-label="Toggle Terminal"></button>
       </div>
     </header>
     <div id="reading-popover-root"></div>
@@ -1536,10 +1539,11 @@ appElement.innerHTML = `
         <div id="run-list" class="run-list"></div>
 
         <section id="terminal-drawer" class="terminal-drawer hidden" aria-label="Terminal trust layer">
+          <div id="terminal-resizer" class="terminal-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize terminal" title="Drag to resize · double-click to reset"></div>
           <div class="terminal-drawer-header">
             <div>
-              <p class="eyebrow">Terminal</p>
-              <strong id="terminal-drawer-title">Live mirror</strong>
+              <p id="terminal-drawer-eyebrow" class="eyebrow">Terminal</p>
+              <strong id="terminal-drawer-title">Live terminal</strong>
             </div>
             <div class="terminal-drawer-actions">
               <button id="takeover-toggle" class="secondary" type="button">Take over</button>
@@ -1672,6 +1676,8 @@ const elements = {
   composerPopoverRoot: getElement<HTMLDivElement>("composer-popover-root"),
   sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
   terminalDrawer: getElement<HTMLElement>("terminal-drawer"),
+  terminalResizer: getElement<HTMLDivElement>("terminal-resizer"),
+  terminalDrawerEyebrow: getElement<HTMLElement>("terminal-drawer-eyebrow"),
   terminalDrawerTitle: getElement<HTMLElement>("terminal-drawer-title"),
   takeoverToggle: getElement<HTMLButtonElement>("takeover-toggle"),
   closeTerminal: getElement<HTMLButtonElement>("close-terminal"),
@@ -1745,12 +1751,23 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
   // mirror stays read-only by construction.
   const dataListener = term.onData((data) => forwardUserInput(taskId, data));
   const binaryListener = term.onBinary((data) => forwardUserInput(taskId, data));
+  // focus→take-over: clicking or tabbing into the terminal grabs the keys
+  // (the only reason to put the cursor here is to type). Hand-back stays
+  // deliberate — explicit button, drawer close, task switch, or pty exit —
+  // so a glance away never silently drops control. (focusin bubbles from the
+  // xterm helper textarea; focus does not.)
+  const focusListener = (): void => requestTakeoverFromFocus(taskId);
+  element.addEventListener("focusin", focusListener);
   const entry: TaskTerminal = {
     terminal: term,
     fit,
     element,
     opened: false,
-    disposers: [() => dataListener.dispose(), () => binaryListener.dispose()],
+    disposers: [
+      () => dataListener.dispose(),
+      () => binaryListener.dispose(),
+      () => element.removeEventListener("focusin", focusListener),
+    ],
   };
   taskTerminals.set(taskId, entry);
   return entry;
@@ -1765,6 +1782,30 @@ function forwardUserInput(taskId: string, data: string): void {
     view.status = errorMessage(error);
     render();
   });
+}
+
+/** Entering the terminal hands the human the keys (single-writer take-over).
+ *  Activate-only: focus never releases control (that would thrash on every
+ *  click into a card). Needs a live PTY to drive. Reuses slice-a plumbing. */
+function requestTakeoverFromFocus(taskId: string): void {
+  const view = taskViewForId(taskId);
+  if (!view?.task || !view.live || view.userControl || takeoverRequestInFlight.has(taskId)) {
+    return;
+  }
+  takeoverRequestInFlight.add(taskId);
+  void window.duetRuntime
+    .setTerminalUserControl({ taskId, active: true })
+    .then((result) => {
+      view.userControl = result.active;
+      render();
+    })
+    .catch((error) => {
+      view.status = errorMessage(error);
+      render();
+    })
+    .finally(() => {
+      takeoverRequestInFlight.delete(taskId);
+    });
 }
 
 function disposeTaskTerminal(taskId: string): void {
@@ -2041,6 +2082,27 @@ elements.toggleTerminal.addEventListener("click", () => {
   setTerminalOpen(!state.terminalOpen);
 });
 
+// Reflexive floor: Ctrl+` toggles the terminal from anywhere (VS Code's
+// terminal binding — devs reach for it without thinking). Capture phase +
+// stopPropagation so it fires even while the xterm holds focus during
+// take-over (and never leaks a backtick into the PTY). Only gated by a real
+// task — same as the header button, so the keys stay reachable mid-turn.
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (event.key !== "`" || !event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+    if (!activeTaskView()?.task) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    setTerminalOpen(!state.terminalOpen);
+  },
+  true,
+);
+
 elements.readingSettings.addEventListener("click", (event) => {
   event.stopPropagation();
   toggleReadingPopover(event.currentTarget as HTMLElement);
@@ -2052,6 +2114,100 @@ elements.closeTerminal.addEventListener("click", () => {
 
 elements.takeoverToggle.addEventListener("click", () => {
   void toggleTakeover();
+});
+
+// User-resizable floor height (the Claude-app / VS Code bottom-panel feel):
+// drag the top border, persisted across sessions. The drawer is a flex item
+// below the (flex:1) run-list, so pinning its basis grows the panel upward and
+// the reading surface absorbs the change. Default (no inline flex) falls back
+// to the CSS clamp; double-click restores it.
+const TERMINAL_HEIGHT_KEY = "duet.terminal.height";
+const TERMINAL_HEIGHT_MIN = 140;
+// Leave room for the chrome, composer, and a usable slice of reading surface
+// above the floor — the floor is summonable, never the whole column.
+function terminalHeightMax(): number {
+  return Math.max(TERMINAL_HEIGHT_MIN, Math.round(window.innerHeight - 260));
+}
+
+function applyTerminalHeight(height: number | null): void {
+  if (height === null) {
+    elements.terminalDrawer.style.removeProperty("flex");
+    return;
+  }
+  const clamped = Math.round(clamp(height, TERMINAL_HEIGHT_MIN, terminalHeightMax()));
+  // Keep flex-shrink:1 (as the CSS default does): the basis is the chosen
+  // height, but the panel still yields under a short window rather than pushing
+  // the composer off-screen (min-height:140 floors it). Drag feels exact
+  // because the basis never exceeds the available space (clamped above).
+  elements.terminalDrawer.style.flex = `0 1 ${clamped}px`;
+}
+
+function persistTerminalHeight(height: number | null): void {
+  try {
+    if (height === null) {
+      localStorage.removeItem(TERMINAL_HEIGHT_KEY);
+    } else {
+      localStorage.setItem(TERMINAL_HEIGHT_KEY, String(Math.round(height)));
+    }
+  } catch {
+    // View preference only.
+  }
+}
+
+try {
+  const stored = Number(localStorage.getItem(TERMINAL_HEIGHT_KEY));
+  if (Number.isFinite(stored) && stored > 0) {
+    applyTerminalHeight(stored);
+  }
+} catch {
+  // CSS default height stays.
+}
+
+elements.terminalResizer.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) {
+    return;
+  }
+  event.preventDefault();
+  const resizer = event.currentTarget as HTMLElement;
+  resizer.setPointerCapture(event.pointerId);
+  document.body.classList.add("terminal-resizing");
+  let frame = 0;
+  let lastHeight = elements.terminalDrawer.getBoundingClientRect().height;
+
+  const onMove = (moveEvent: PointerEvent): void => {
+    // Height = distance from the pointer up to the drawer's fixed bottom edge.
+    lastHeight = elements.terminalDrawer.getBoundingClientRect().bottom - moveEvent.clientY;
+    if (frame) {
+      return;
+    }
+    frame = window.requestAnimationFrame(() => {
+      frame = 0;
+      applyTerminalHeight(lastHeight);
+      fitTerminal();
+    });
+  };
+  const onUp = (): void => {
+    resizer.removeEventListener("pointermove", onMove);
+    resizer.removeEventListener("pointerup", onUp);
+    resizer.removeEventListener("pointercancel", onUp);
+    document.body.classList.remove("terminal-resizing");
+    if (frame) {
+      window.cancelAnimationFrame(frame);
+      frame = 0;
+    }
+    applyTerminalHeight(lastHeight);
+    persistTerminalHeight(clamp(lastHeight, TERMINAL_HEIGHT_MIN, terminalHeightMax()));
+    void resizeTerminal();
+  };
+  resizer.addEventListener("pointermove", onMove);
+  resizer.addEventListener("pointerup", onUp);
+  resizer.addEventListener("pointercancel", onUp);
+});
+
+elements.terminalResizer.addEventListener("dblclick", () => {
+  applyTerminalHeight(null);
+  persistTerminalHeight(null);
+  void resizeTerminal();
 });
 
 elements.openSelectedPreview.addEventListener("click", () => {
@@ -3542,6 +3698,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 
   if (event.type === "modal:state") {
+    const wasActive = Boolean(view.modalPanel);
     view.modalPanel = event.payload.active
       ? { signature: event.payload.signature, origin: event.payload.origin }
       : null;
@@ -3552,6 +3709,11 @@ window.duetRuntime.onRuntimeEvent((event) => {
       // Background sessions surface the needs-you dot immediately —
       // notify, don't steal focus.
       renderSidebar();
+    } else if (event.payload.active && !wasActive) {
+      // Auto-surface (S3.3): a native panel Duet can't parse just opened on the
+      // active task — surface the floor (gentle by default; "open" reveals but
+      // never grabs the keys). Background tasks never reach here (dot only).
+      maybeAutoSurfaceFloor();
     }
     markViewChanged(view);
     return;
@@ -3636,6 +3798,19 @@ window.duetRuntime.onRuntimeEvent((event) => {
     };
     if (event.payload.activity !== previousActivity) {
       renderSidebar();
+      if (isActiveView(view)) {
+        // Auto-surface (S3.3): the active task just changed activity — keep the
+        // floor's needs-you signal honest, and on the transition INTO
+        // waiting-approval, surface the floor (gentle by default). Targeted
+        // DOM only — no transcript rebuild (S0 discipline preserved).
+        updateTerminalNeedsYou();
+        if (
+          event.payload.activity === "waiting-approval" &&
+          previousActivity !== "waiting-approval"
+        ) {
+          maybeAutoSurfaceFloor();
+        }
+      }
     }
     return;
   }
@@ -4225,7 +4400,13 @@ function render(): void {
   elements.runtimeStatus.textContent = view?.status ?? state.status;
   elements.openPreviewWindow.disabled = !view?.task || state.busy;
   elements.openInspectorWindow.disabled = !view?.task || state.busy;
-  elements.toggleTerminal.disabled = !view?.task || state.busy;
+  // The floor must stay reachable exactly when it is needed (mid-turn, while a
+  // Duet operation is in flight, on a stuck interstitial). Opening the terminal
+  // is a safe, read-only-until-take-over view change, so it is gated ONLY by
+  // "a real task exists" — never by state.busy. (state.busy is Duet's own
+  // transient op flag — open/resume/decide/pick — not "Claude is working";
+  // gating the escape hatch on it is exactly the floor violation S3 removes.)
+  elements.toggleTerminal.disabled = !view?.task;
   elements.sessionMenuTrigger.classList.toggle("hidden", !view?.task);
   elements.sidebarNewChat.disabled = state.busy;
   renderReadingPopover();
@@ -7117,16 +7298,77 @@ function setTerminalOpen(open: boolean): void {
 function renderTerminalDrawer(): void {
   const view = activeTaskView();
   const userControl = Boolean(view?.userControl);
+  // Take-over writes to the PTY, so it needs a live one. Gating on view.live
+  // (NOT state.busy) keeps the keys reachable through any Duet operation — and
+  // correctly disables take-over on a dormant session that has no PTY to drive
+  // (the old `!task || busy` left it enabled, so a click threw "no runtime").
+  const live = Boolean(view?.live);
   elements.terminalDrawer.classList.toggle("hidden", !state.terminalOpen);
   elements.terminalDrawer.classList.toggle("user-control", userControl);
   elements.toggleTerminal.classList.toggle("active", state.terminalOpen);
-  elements.takeoverToggle.disabled = !view?.task || state.busy;
+  elements.takeoverToggle.disabled = !live;
   elements.takeoverToggle.textContent = userControl ? "Hand back" : "Take over";
   elements.takeoverToggle.classList.toggle("primary", userControl);
   elements.takeoverToggle.classList.toggle("secondary", !userControl);
+  // The ownership state is the panel's central concept. Eyebrow = the state
+  // (who holds the keys), title = the consequence — so it is unmistakable that
+  // typing here drives the real CLI and Duet has stepped back.
+  elements.terminalDrawerEyebrow.textContent = userControl ? "You hold the keys" : "Terminal";
   elements.terminalDrawerTitle.textContent = userControl
-    ? "You have the keys — Duet is paused"
-    : "Live mirror";
+    ? "Duet paused — your keys go straight to the terminal"
+    : live
+      ? "Live terminal"
+      : "No live session — send a message to start";
+  updateTerminalNeedsYou();
+}
+
+// Auto-surface aggressiveness (S3.3) — a PROPOSAL for Woody to feel live.
+// "signal" (default, gentler): a needs-you accent on the terminal button draws
+// the eye to the floor without stealing the surface. "open": reveal the panel
+// automatically (never focus it — notify, don't grab the keys). Dial live via
+// localStorage `duet.terminal.autoSurface` = "signal" | "open" (no rebuild).
+type TerminalAutoSurfaceMode = "signal" | "open";
+function terminalAutoSurfaceMode(): TerminalAutoSurfaceMode {
+  try {
+    return localStorage.getItem("duet.terminal.autoSurface") === "open" ? "open" : "signal";
+  } catch {
+    return "signal";
+  }
+}
+
+/** Does the ACTIVE task have a floor-resolvable block right now? Waiting on an
+ *  approval, or a native panel/interstitial Duet can't parse. (Background tasks
+ *  are deliberately excluded — they get the sidebar dot, never a focus grab.) */
+function activeViewNeedsFloor(): boolean {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return false;
+  }
+  return view.cliState?.activity === "waiting-approval" || Boolean(view.modalPanel);
+}
+
+/** Gentle signal: a needs-you accent on the header terminal button, shown only
+ *  while the floor is closed (open ⇒ already visible) and you don't already
+ *  hold the keys. Targeted class toggle — safe to call from high-frequency
+ *  handlers without rebuilding the transcript (S0 discipline). */
+function updateTerminalNeedsYou(): void {
+  const needs = !state.terminalOpen && !activeTaskView()?.userControl && activeViewNeedsFloor();
+  elements.toggleTerminal.classList.toggle("needs-you", needs);
+}
+
+/** Wire visibility to the signal layer: when the active task hits a
+ *  floor-resolvable block, surface the floor per the chosen aggressiveness.
+ *  Notify, never steal focus — "open" reveals the panel but does not take over.
+ *  Called on the transition INTO the blocked state (active task only). */
+function maybeAutoSurfaceFloor(): void {
+  if (!activeViewNeedsFloor()) {
+    return;
+  }
+  if (terminalAutoSurfaceMode() === "open" && !state.terminalOpen) {
+    setTerminalOpen(true);
+    return;
+  }
+  updateTerminalNeedsYou();
 }
 
 async function toggleTakeover(): Promise<void> {

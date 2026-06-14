@@ -1094,6 +1094,43 @@ body.sidebar-resizing {
   cursor: default;
 }
 
+/* Auto-surface needs-you (S3.3, gentle default): the active task is blocked on
+   something the floor can answer. A soft attention dot on the terminal button
+   draws the eye without stealing the surface; it clears when the floor opens. */
+#toggle-terminal.needs-you {
+  position: relative;
+  color: var(--status-attention);
+}
+
+#toggle-terminal.needs-you::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-attention);
+  box-shadow: 0 0 0 2px var(--surface-shell);
+  animation: terminal-needs-you-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes terminal-needs-you-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #toggle-terminal.needs-you::after {
+    animation: none;
+  }
+}
+
 .session-menu-trigger {
   width: 26px;
   min-height: 26px;
@@ -3539,6 +3576,33 @@ h2 {
   display: none;
 }
 
+/* Drag the top border to resize the floor (persisted). A thin strip that
+   straddles the drawer's top border; the accent line shows on hover/drag. */
+.terminal-resizer {
+  flex: 0 0 6px;
+  margin-top: -3px;
+  z-index: 5;
+  cursor: ns-resize;
+  background: transparent;
+}
+
+.terminal-resizer:hover,
+body.terminal-resizing .terminal-resizer {
+  background: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 1px,
+    var(--accent-soft-border) 1px,
+    var(--accent-soft-border) 3px,
+    transparent 3px
+  );
+}
+
+body.terminal-resizing {
+  cursor: ns-resize;
+  user-select: none;
+}
+
 .terminal-drawer-header {
   flex: 0 0 auto;
   display: flex;
@@ -3638,13 +3702,32 @@ h2 {
 }
 
 /* Take-over active: the human holds the keys — make the state unmistakable
-   (proposal visuals; Woody calibrates). */
+   (proposal visuals; Woody calibrates). The eyebrow becomes a live state badge,
+   the title states the consequence, and the terracotta rail marks the armed
+   surface end-to-end. */
 .terminal-drawer.user-control {
   border-top: 2px solid #d97757;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #d97757 35%, transparent);
 }
 
 .terminal-drawer.user-control .terminal-drawer-header {
   background: var(--surface-attention);
+}
+
+.terminal-drawer.user-control .terminal-drawer-header .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #d97757;
+  font-weight: 600;
+}
+
+.terminal-drawer.user-control .terminal-drawer-header .eyebrow::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d97757;
 }
 
 .terminal-drawer.user-control .terminal-drawer-header strong {
