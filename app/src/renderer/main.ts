@@ -78,6 +78,7 @@ import type {
 import type { NativeStatusRegion, WorkingStatusState } from "../shared/types/working-status";
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
 import { cleanTerminalTranscript } from "../shared/terminal-transcript";
+import { planKeyedReconcile } from "../shared/keyed-reconcile";
 
 interface RunTranscript {
   runId: string;
@@ -5730,15 +5731,150 @@ function renderWorkflow(): void {
   strip?.classList.toggle("action", workflow.tone === "action");
 }
 
+// Block render-version: a transcript block object is REPLACED with a new
+// reference whenever its content is upserted (applyTranscriptUpserts does
+// transcriptBlocks.set(id, newBlock)), while unchanged blocks keep their old
+// reference. So reference identity is an exact, O(1) "did this block change"
+// signal — captured here as a stable version number per object for the turn
+// signature.
+const blockRenderVersions = new WeakMap<TranscriptBlock, number>();
+let blockRenderVersionSeq = 0;
+function blockRenderVersion(block: TranscriptBlock): number {
+  let version = blockRenderVersions.get(block);
+  if (version === undefined) {
+    version = ++blockRenderVersionSeq;
+    blockRenderVersions.set(block, version);
+  }
+  return version;
+}
+
+// A turn's render signature: equal sig ⇒ renderTurn would produce identical
+// output ⇒ the existing card may be reused untouched (preserving any text
+// selection inside it — the whole point of the slice). Excludes the highlight
+// flag, which is a cheap class toggle applied on reuse, never a reason to
+// rebuild. The streaming turn's sig changes every batch (its blocks' versions
+// grow), so it re-renders; a stable turn's sig is constant, so it is never
+// touched; a turn that just completed flips sig once (status/endedAt), rebuilds
+// once, then is stable.
+function turnSignature(turn: ReadingTurn): string {
+  const parts = [
+    turn.runId ?? "",
+    turn.run?.status ?? "",
+    turn.run?.endedAt ?? "",
+    turn.fallbackText ?? "",
+  ];
+  for (const block of turn.blocks) {
+    parts.push(`${block.id}:${blockRenderVersion(block)}`);
+  }
+  return parts.join("|");
+}
+
+function refreshTurnCardCheap(card: HTMLElement, view: TaskViewState, turn: ReadingTurn): void {
+  if (turn.runId) {
+    card.classList.toggle("highlighted", turn.runId === view.highlightedRunId);
+  }
+}
+
+// R3: the sticky-prompt rail is a persistent node — created once, kept as the
+// runList's first child — so a streaming batch never tears it down.
+function ensureStickyPromptRail(runList: HTMLElement): HTMLElement {
+  let rail = runList.querySelector<HTMLElement>(".sticky-prompt-rail");
+  if (!rail) {
+    rail = renderStickyPromptRail();
+    runList.prepend(rail);
+  } else if (runList.firstChild !== rail) {
+    runList.prepend(rail);
+  }
+  return rail;
+}
+
+// The no-task / empty paths are not the streaming path and need no reconcile:
+// drop everything after the persistent rail and set the given nodes.
+function setNonRailChildren(runList: HTMLElement, rail: HTMLElement, nodes: HTMLElement[]): void {
+  while (rail.nextSibling) {
+    runList.removeChild(rail.nextSibling);
+  }
+  for (const node of nodes) {
+    runList.appendChild(node);
+  }
+}
+
+interface ReconcileChild {
+  key: string;
+  sig: string;
+  render: () => HTMLElement;
+  refresh?: (node: HTMLElement) => void;
+}
+
+// Keyed DOM reconcile of the runList's turn cards against the desired turns.
+// Reused nodes already in order are never detached → their text selection
+// survives across streaming batches. Non-reused nodes (stale, changed, or
+// non-keyed leftovers like the empty-state) are removed up front so the
+// positioning cursor only ever references nodes that stay.
+function reconcileKeyedChildren(
+  parent: HTMLElement,
+  rail: HTMLElement,
+  items: ReconcileChild[],
+): void {
+  const existing = new Map<string, HTMLElement>();
+  for (const child of Array.from(parent.children) as HTMLElement[]) {
+    if (child === rail) {
+      continue;
+    }
+    const key = child.dataset.key;
+    if (key !== undefined) {
+      existing.set(key, child);
+    }
+  }
+  const plan = planKeyedReconcile(
+    Array.from(existing, ([key, node]) => ({ key, sig: node.dataset.sig ?? "" })),
+    items.map((item) => ({ key: item.key, sig: item.sig })),
+  );
+  const reuseKeys = new Set(
+    plan.ordered.filter((step) => step.action === "reuse").map((step) => step.key),
+  );
+  for (const child of Array.from(parent.children) as HTMLElement[]) {
+    if (child === rail) {
+      continue;
+    }
+    const key = child.dataset.key;
+    if (key === undefined || !reuseKeys.has(key)) {
+      child.remove();
+    }
+  }
+  const itemByKey = new Map(items.map((item) => [item.key, item]));
+  let cursor: ChildNode | null = rail.nextSibling;
+  for (const step of plan.ordered) {
+    const item = itemByKey.get(step.key);
+    if (!item) {
+      continue;
+    }
+    let node: HTMLElement;
+    if (step.action === "reuse") {
+      node = existing.get(step.key)!;
+      item.refresh?.(node);
+    } else {
+      node = item.render();
+      node.dataset.key = item.key;
+      node.dataset.sig = item.sig;
+    }
+    if (node === cursor) {
+      cursor = node.nextSibling;
+    } else {
+      parent.insertBefore(node, cursor);
+    }
+  }
+}
+
 function renderRuns(): void {
   const runList = elements.runList;
   const nearBottom = runList.scrollHeight - runList.scrollTop - runList.clientHeight < 64;
   const previousScrollTop = runList.scrollTop;
-  runList.replaceChildren(renderStickyPromptRail());
+  const rail = ensureStickyPromptRail(runList);
 
   const view = activeTaskView();
   if (!view?.task) {
-    runList.append(renderTaskEntryPanel());
+    setNonRailChildren(runList, rail, [renderTaskEntryPanel()]);
     finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
     return;
   }
@@ -5748,14 +5884,21 @@ function renderRuns(): void {
     const empty = document.createElement("article");
     empty.className = "empty-state";
     empty.textContent = "No Runs yet";
-    runList.append(empty);
+    setNonRailChildren(runList, rail, [empty]);
     finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
     return;
   }
 
-  for (const turn of turns) {
-    runList.append(renderTurn(view, turn));
-  }
+  reconcileKeyedChildren(
+    runList,
+    rail,
+    turns.map((turn) => ({
+      key: turn.key,
+      sig: turnSignature(turn),
+      render: () => renderTurn(view, turn),
+      refresh: (node) => refreshTurnCardCheap(node, view, turn),
+    })),
+  );
 
   finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
 }
