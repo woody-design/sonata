@@ -6,6 +6,11 @@ import { approveIfVisible } from "./helpers/approval.mjs";
 import { sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-queue-delivery-e2e-"));
+// Without an isolated settings dir, the global lastUsedFolder leaks in as the
+// provider cwd, so the command's flag files land outside workspaceRoot and the
+// test times out waiting for "first command start" (see memory: duet-e2e-test
+// -isolation). Isolate settings too.
+const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-queue-delivery-settings-"));
 let electronApp = null;
 let page = null;
 let workspace = null;
@@ -17,6 +22,7 @@ try {
     env: {
       ...process.env,
       DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_SETTINGS_DIR: settingsDir,
     },
   });
 
@@ -138,6 +144,7 @@ try {
     await electronApp.close();
   }
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  fs.rmSync(settingsDir, { recursive: true, force: true });
 }
 
 async function waitForTaskDirectory(root, timeoutMs) {

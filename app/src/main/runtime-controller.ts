@@ -33,7 +33,6 @@ import type {
   WorkspaceFilePreviewResponse,
   WorkspaceTreeEntry,
 } from "../shared/types";
-import type { RunIndexEvent } from "../shared/types/events";
 import { TaskNotFoundError } from "./errors";
 import {
   TRANSCRIPT_SOURCES_SCHEMA_ID,
@@ -53,6 +52,7 @@ import {
   DeliveryController,
   ProviderTranscript,
   RunIndex,
+  isRunIndexEvent,
   TerminalHost,
   WorkspacePreview,
   ClaudeStatuslineUsageWatcher,
@@ -948,18 +948,18 @@ export class RuntimeController {
       return;
     }
 
-    if (
-      event.type === "pty:data" ||
-      event.type === "report:updated" ||
-      event.type === "transcript:blocks" ||
-      event.type === "delivery:state" ||
-      event.type === "delivery:receipt" ||
-      event.type === "terminal:user-control"
-    ) {
+    // Allowlist boundary: only events RunIndex.consume actually handles cross
+    // into it. Everything else — renderer-facing UI/state events (modal:state,
+    // terminal:user-control), plus events delivered on other paths (delivery:*,
+    // report:updated, transcript:blocks, pty:data) — was already sent to the
+    // renderer above and stops here. This replaces the old denylist skip-list +
+    // `event as RunIndexEvent` cast, which turned any un-routed event into an
+    // assertNever main-process crash (the modal:state incident).
+    if (!isRunIndexEvent(event)) {
       return;
     }
 
-    const summary = runIndex.consume(event as RunIndexEvent);
+    const summary = runIndex.consume(event);
     if (!summary) {
       return;
     }

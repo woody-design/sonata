@@ -78,11 +78,10 @@ try {
   await page.locator("#toggle-terminal").click();
   await drawer.waitFor({ state: "hidden", timeout: 10000 });
 
-  // --- Skill: /architect is discovered, prepends, composes, and submits ------
-  // (Renderer routing only. The actual model DISPATCH of a skill-with-args is
-  // a delivery-layer concern, locked deterministically by the runtime e2e
-  // `cli-slash-dispatch` — here we'd fight the floor's PTY-repaint timing for
-  // no extra coverage. Composer-clear proves the submit was accepted.)
+  // --- Skill: /architect is discovered, prepends, composes, submits, DISPATCHES
+  // This runs AFTER the floor tests above (which resized the PTY), so it also
+  // exercises the re-pump fix end to end: before that fix the message stuck
+  // "Queued" forever after floor interaction; now it delivers and dispatches.
   await input.fill("/arch");
   await page.locator(".slash-picker-option", { hasText: "/architect" }).first().waitFor({
     state: "visible",
@@ -94,14 +93,25 @@ try {
   await dispatchKey(page, "Enter");
   checks.skillPrepended = (await input.inputValue()) === "/architect ";
   checks.skillPrependNoTurn = (await page.locator(".turn-card").count()) === turnCardsBefore;
-  // Compose the multiline args and submit — the composer clears (submit
-  // accepted by the renderer → IPC → delivery).
+  // Compose the multiline args and submit — the composer clears (submit accepted).
   await input.fill(`/architect ${MULTILINE}`);
   await page.locator("#send-prompt").click();
   checks.skillSubmitAccepted = await waitFor(
     async () => (await input.inputValue()) === "",
     10000,
   );
+  // Dispatch: a real turn starts (the re-pump delivers it despite the prior
+  // floor resize). Signals: send button flips to "Stop" (active run), a busy
+  // spinner appears, or a new turn card lands — and it is NOT stuck queued.
+  checks.skillDispatched = await waitFor(async () => {
+    const stop = (await page.locator("#send-prompt").getAttribute("aria-label")) === "Stop";
+    const spinner = (await page.locator(".sidebar-session-spinner").count()) > 0;
+    const newCard = (await page.locator(".turn-card").count()) > turnCardsBefore;
+    return stop || spinner || newCard;
+  }, 90000);
+  if (!checks.skillDispatched) {
+    checks._stuckQueue = await page.locator("#delivery-queue").innerText().catch(() => "<none>");
+  }
 
   const success =
     checks.sessionLive &&
@@ -113,7 +123,8 @@ try {
     checks.skillDiscovered &&
     checks.skillPrepended &&
     checks.skillPrependNoTurn &&
-    checks.skillSubmitAccepted;
+    checks.skillSubmitAccepted &&
+    checks.skillDispatched;
   console.log(JSON.stringify({ success, checks }, null, 2));
   process.exitCode = success ? 0 : 1;
 } catch (error) {

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { TaskId } from "../../shared/types/domain";
-import type { RunIndexEvent } from "../../shared/types/events";
+import type { RunIndexEvent, RuntimeEvent } from "../../shared/types/events";
 import {
   freshRuntimeReportV1,
   RUNTIME_REPORT_SCHEMA_ID,
@@ -38,6 +38,48 @@ export interface RunIndexOptions {
   taskId: TaskId;
   reportPath: string;
   loadExisting?: boolean;
+}
+
+/**
+ * The event types `RunIndex.consume` handles — the ALLOWLIST that guards the
+ * consume boundary in `RuntimeController.handleRuntimeEvent`. Only events whose
+ * type is in this set may cross into `consume`; everything else (renderer-facing
+ * UI/state events like `modal:state` and `terminal:user-control`, plus events
+ * delivered on other paths) is skipped before it can reach `consume`'s
+ * `default: assertNever` and crash the main process.
+ *
+ * `satisfies Record<RunIndexEvent["type"], true>` makes the list provably exact
+ * at compile time — adding a type to `RunIndexEvent` (or un-excluding one) forces
+ * a matching entry here, and removing one is rejected as an excess key. Paired
+ * with `consume`'s `assertNever` default, the two checks keep the boundary sound
+ * with no unsafe cast: `consume` only ever sees real `RunIndexEvent`s.
+ */
+const RUN_INDEX_EVENT_TYPES = {
+  "pty:exit": true,
+  "task:started": true,
+  "task:ready": true,
+  "task:accepts-input": true,
+  "working-status:updated": true,
+  "prompt:submitted": true,
+  "run:started": true,
+  "run:updated": true,
+  "run:stop-requested": true,
+  "run:stopped": true,
+  "approval:detected": true,
+  "approval:decision": true,
+  "approval:persisted": true,
+  "file:watching": true,
+  "file:watch-error": true,
+  "file:changed": true,
+} satisfies Record<RunIndexEvent["type"], true>;
+
+/**
+ * Runtime type-guard for the allowlist above. Replaces the unsafe
+ * `event as RunIndexEvent` cast at the consume boundary so a forgotten or
+ * newly-added renderer-facing event can no longer slip through to `assertNever`.
+ */
+export function isRunIndexEvent(event: RuntimeEvent): event is RunIndexEvent {
+  return Object.prototype.hasOwnProperty.call(RUN_INDEX_EVENT_TYPES, event.type);
 }
 
 export class RunIndex {

@@ -20,6 +20,14 @@ const BACKFILL_RECEIPT_WINDOW_MS = 15 * 60_000;
 // this long with no understandable reason gets an honest signal, not silence.
 const DEFAULT_WEDGE_AFTER_MS = 45_000;
 const DEFAULT_WEDGE_CHECK_INTERVAL_MS = 5_000;
+// `acceptsPromptInput()` is a POLLED gate (PTY quiet + idle prompt), but pump()
+// is event-driven. Most blockers (run/approval/modal/take-over) re-pump on their
+// own resolution event; the accepts-input gate does NOT — e.g. opening the
+// take-over floor resizes the PTY, flips the gate false, and when it recovers an
+// idle session emits no event to re-pump, so the queue sticks forever (CLI Slice
+// 4 re-pump gap, reproduced live). This is the poll cadence used ONLY while a
+// queued item is blocked solely by that gate.
+const DEFAULT_PUMP_RETRY_INTERVAL_MS = 500;
 
 export interface DeliveryControllerOptions {
   taskId: TaskId;
@@ -30,9 +38,10 @@ export interface DeliveryControllerOptions {
   applyControlChange?: (change: DeliveryControlChange) => Promise<void>;
   cleanupAttachments?: (attachments: DeliveryAttachment[]) => void;
   receiptTimeoutMs?: number;
-  /** Test injection points; production uses the 45s/5s defaults. */
+  /** Test injection points; production uses the 45s/5s/500ms defaults. */
   wedgeAfterMs?: number;
   wedgeCheckIntervalMs?: number;
+  pumpRetryIntervalMs?: number;
 }
 
 interface InFlightDelivery {
@@ -70,6 +79,8 @@ export class DeliveryController {
   private wedgeTimer: NodeJS.Timeout | null = null;
   private blockedSinceMs: number | null = null;
   private wedgedSince: string | null = null;
+  private readonly pumpRetryIntervalMs: number;
+  private pumpRetryTimer: NodeJS.Timeout | null = null;
 
   constructor(options: DeliveryControllerOptions) {
     this.taskId = options.taskId;
@@ -81,6 +92,7 @@ export class DeliveryController {
     this.cleanupAttachments = options.cleanupAttachments ?? null;
     this.receiptTimeoutMs = options.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS;
     this.wedgeAfterMs = options.wedgeAfterMs ?? DEFAULT_WEDGE_AFTER_MS;
+    this.pumpRetryIntervalMs = options.pumpRetryIntervalMs ?? DEFAULT_PUMP_RETRY_INTERVAL_MS;
     this.wedgeTimer = setInterval(
       () => this.evaluateWedge(),
       options.wedgeCheckIntervalMs ?? DEFAULT_WEDGE_CHECK_INTERVAL_MS,
@@ -176,6 +188,7 @@ export class DeliveryController {
 
   dispose(): void {
     this.clearReceiptTimer();
+    this.clearPumpRetry();
     if (this.wedgeTimer) {
       clearInterval(this.wedgeTimer);
       this.wedgeTimer = null;
@@ -245,15 +258,61 @@ export class DeliveryController {
 
     const next = this.nextQueuedItem();
     if (!next) {
+      this.clearPumpRetry();
       this.emitState();
       return;
     }
     if (!this.canDeliver()) {
+      // The accepts-input gate is the one blocker with no resolution event in an
+      // idle session (PTY-quiet transition after a resize) — poll until it
+      // clears. The event-backed blockers re-pump on their own events, so
+      // polling for them would be wasteful; cancel any retry in that case.
+      if (this.isBlockedByAcceptsInputOnly()) {
+        this.schedulePumpRetry();
+      } else {
+        this.clearPumpRetry();
+      }
       this.emitState();
       return;
     }
 
+    this.clearPumpRetry();
     this.deliver(next);
+  }
+
+  /**
+   * True when every delivery condition holds EXCEPT `acceptsPromptInput()` — i.e.
+   * the queue is blocked only by the no-event PTY-quiet gate. (inFlight is
+   * already excluded: pump() returns early when it is set.)
+   */
+  private isBlockedByAcceptsInputOnly(): boolean {
+    return (
+      !this.terminalHost.hasActiveRun() &&
+      !this.terminalHost.isApprovalActive() &&
+      !this.terminalHost.isModalActive() &&
+      !this.terminalHost.isUserControlActive() &&
+      !this.terminalHost.acceptsPromptInput()
+    );
+  }
+
+  private schedulePumpRetry(): void {
+    if (this.pumpRetryTimer) {
+      return;
+    }
+    this.pumpRetryTimer = setTimeout(() => {
+      this.pumpRetryTimer = null;
+      this.pump();
+    }, this.pumpRetryIntervalMs);
+    // Never keep the process alive just to retry a blocked queue.
+    this.pumpRetryTimer.unref?.();
+  }
+
+  private clearPumpRetry(): void {
+    if (!this.pumpRetryTimer) {
+      return;
+    }
+    clearTimeout(this.pumpRetryTimer);
+    this.pumpRetryTimer = null;
   }
 
   private nextQueuedItem(): DeliveryQueueItem | null {
