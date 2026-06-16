@@ -102,6 +102,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.approvalDecide, (_event, request) => {
     runtimeController.decideApproval(request.taskId, request.decision);
   });
+  ipcMain.handle(IPC_CHANNELS.optionPromptAnswer, (_event, request) =>
+    runtimeController.answerOptionPrompt(request.taskId, request.toolUseId, request.optionIndices),
+  );
   ipcMain.handle(IPC_CHANNELS.runStop, (_event, request) =>
     runtimeController.stopRun(request.taskId, {
       inspectDelayMs: request.inspectDelayMs,

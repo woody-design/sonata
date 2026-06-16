@@ -83,6 +83,10 @@ const CODEX_TASK_READY_MIN_AGE_MS = 14_000;
 const DEFAULT_TASK_READY_QUIET_MS = 900;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
+/** Gap between option-prompt keystrokes so the native form's per-question
+ *  auto-advance (and the final Submit-tab render) settles before the next key.
+ *  Phase 0 saw the advance repaint well under this; generous = robust. */
+const OPTION_PROMPT_KEY_DELAY_MS = 300;
 const DEFAULT_CONTROL_WAIT_MS = 15_000;
 const CONTROL_CONTEXT_CHARS = 6000;
 
@@ -1066,6 +1070,38 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalDecision = "deny";
     this.lastApprovalDecisionAt = Date.now();
     this.clearApprovalSettleTimer();
+  }
+
+  /**
+   * Answer a native AskUserQuestion (option-prompt) form by playing back the
+   * verified key sequence (`optionPromptAnswerSequence`): each question's chosen
+   * 1-based digit, in order, then a CR for the Submit tab. Same keystroke-relay
+   * mechanism approvals use — not stdin games.
+   *
+   * Single-writer: the human-on-the-terminal path is mutually exclusive with
+   * this. We re-check user control before EVERY key so a take-over landing
+   * mid-injection abandons the rest rather than racing the human's navigation.
+   */
+  async sendOptionPromptAnswer(keys: string[]): Promise<void> {
+    if (!this.ptyProcess) {
+      throw new Error("No PTY process is running.");
+    }
+    if (this.userControlActive) {
+      throw new Error(USER_CONTROL_GUARD_MESSAGE);
+    }
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (key === undefined) {
+        continue;
+      }
+      if (i > 0) {
+        await delay(OPTION_PROMPT_KEY_DELAY_MS);
+      }
+      if (!this.ptyProcess || this.userControlActive) {
+        throw new Error(USER_CONTROL_GUARD_MESSAGE);
+      }
+      this.writeRaw(key);
+    }
   }
 
   async stopRun(options: { inspectDelayMs?: number; forceSlashStop?: boolean } = {}): Promise<void> {

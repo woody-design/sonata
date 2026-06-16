@@ -59,6 +59,9 @@ import {
   ClaudeHookWatcher,
   CliStateModel,
   parseClaudeStatuslinePayload,
+  parseOptionPrompt,
+  reconcileOptionPromptAnswers,
+  optionPromptAnswerSequence,
   readClaudeResumeStats,
   type ResolveRunIdInput,
   StatusRegionTracker,
@@ -69,6 +72,7 @@ import type { ProjectsStore } from "./projects-store";
 import type { ResumeSettingsStore, ClaudeSettingsStore } from "./settings-store";
 import type { ClaudeSettings } from "../shared/types/claude-settings";
 import type { ClaudeHookPayload, CliStateSnapshot } from "../shared/types/cli-signal";
+import type { OptionPrompt } from "../shared/types/option-prompt";
 import {
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
@@ -126,6 +130,10 @@ interface ActiveTaskRuntime {
   deliveryController: DeliveryController;
   statusTracker: StatusRegionTracker;
   cliState: CliStateModel;
+  /** A native AskUserQuestion awaiting an answer (Slice 5). Tracked so the
+   *  controller can answer it, bound-check the selection, and emit a
+   *  cancellation when the turn ends or the PTY exits unanswered. */
+  pendingOptionPrompt: OptionPrompt | null;
   /** Last automatically applied title (run prompt or provider session
    *  name). null = unknown provenance (e.g. reopened task) → never
    *  auto-rename. A user rename makes title diverge from this. */
@@ -285,6 +293,7 @@ export class RuntimeController {
       deliveryController,
       statusTracker,
       cliState,
+      pendingOptionPrompt: null,
       autoTitle: null,
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
@@ -421,6 +430,7 @@ export class RuntimeController {
       deliveryController,
       statusTracker,
       cliState,
+      pendingOptionPrompt: null,
       autoTitle: null,
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
@@ -933,6 +943,17 @@ export class RuntimeController {
     eventRuntime?.statusTracker.handleRuntimeEvent(event);
     eventRuntime?.cliState.applyRuntimeEvent(event);
 
+    if (event.type === "pty:exit" && eventRuntime?.pendingOptionPrompt) {
+      // The PTY died with a question still open — clear the card (no receipt).
+      const toolUseId = eventRuntime.pendingOptionPrompt.toolUseId;
+      eventRuntime.pendingOptionPrompt = null;
+      this.sendEvent({
+        type: "option-prompt:resolved",
+        payload: { taskId: event.payload.taskId, toolUseId, answers: null },
+        ts: new Date().toISOString(),
+      });
+    }
+
     if (event.type === "run:started") {
       this.updateTaskTitleFromRun(event.payload.taskId, event.payload.title);
       this.taskRuntimes.get(event.payload.taskId)?.providerTranscript.ensureDiscovery();
@@ -1157,9 +1178,91 @@ export class RuntimeController {
     for (const active of this.taskRuntimes.values()) {
       if (active.task.provider === "claude" && pathsEqual(active.task.providerCwd, resolved)) {
         active.cliState.applyHook(payload);
+        this.handleOptionPromptHook(active, payload);
         return;
       }
     }
+  }
+
+  /**
+   * Surface / reconcile a native AskUserQuestion (Slice 5) from the hooks duet
+   * already injects. Phase 0: `PreToolUse` carries the questions structurally,
+   * `PostToolUse` carries the verbatim answers. `Stop` with a prompt still open
+   * means it was cancelled (or finished without a PostToolUse) → clear the card.
+   * Detection is structured, not scraped; the floor stays a valid alternative.
+   */
+  private handleOptionPromptHook(active: ActiveTaskRuntime, payload: ClaudeHookPayload): void {
+    const event = typeof payload.hook_event_name === "string" ? payload.hook_event_name : "";
+    const tool = typeof payload.tool_name === "string" ? payload.tool_name : "";
+
+    if (tool === "AskUserQuestion" && event === "PreToolUse") {
+      const toolUseId = typeof payload.tool_use_id === "string" ? payload.tool_use_id : null;
+      const prompt = parseOptionPrompt(toolUseId, payload.tool_input);
+      if (!prompt) {
+        return; // malformed input → fall through to the floor, never a broken card
+      }
+      // NOTE: multiSelect questions are surfaced too (the card shows them as
+      // full context), but they are answered in the terminal, not injected —
+      // the renderer only offers card-Send when every question is single-select
+      // (the only verified injection mechanic). A real requirement-clarification
+      // commonly mixes single + multi, so suppressing the whole card on any
+      // multiSelect (the prior behavior) hid the card for the common case.
+      active.pendingOptionPrompt = prompt;
+      this.sendEvent({
+        type: "option-prompt:detected",
+        payload: { taskId: active.task.id, toolUseId: prompt.toolUseId, questions: prompt.questions },
+        ts: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (tool === "AskUserQuestion" && event === "PostToolUse") {
+      const toolUseId =
+        typeof payload.tool_use_id === "string"
+          ? payload.tool_use_id
+          : active.pendingOptionPrompt?.toolUseId ?? "";
+      active.pendingOptionPrompt = null;
+      this.sendEvent({
+        type: "option-prompt:resolved",
+        payload: {
+          taskId: active.task.id,
+          toolUseId,
+          answers: reconcileOptionPromptAnswers(payload.tool_response),
+        },
+        ts: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (event === "Stop" && active.pendingOptionPrompt) {
+      const toolUseId = active.pendingOptionPrompt.toolUseId;
+      active.pendingOptionPrompt = null;
+      this.sendEvent({
+        type: "option-prompt:resolved",
+        payload: { taskId: active.task.id, toolUseId, answers: null },
+        ts: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Answer a pending AskUserQuestion by playing back the verified key sequence.
+   * Guards on the `toolUseId` so a stale card (already answered, cancelled, or
+   * superseded by a newer prompt) is a no-op rather than a mis-injection.
+   */
+  async answerOptionPrompt(taskId: TaskId, toolUseId: string, optionIndices: number[]): Promise<void> {
+    const active = this.requireTaskRuntime(taskId);
+    const prompt = active.pendingOptionPrompt;
+    if (!prompt || prompt.toolUseId !== toolUseId) {
+      return;
+    }
+    if (prompt.questions.some((question) => question.multiSelect)) {
+      // Only the single-select sequence is verified; a multiSelect prompt is
+      // answered in the terminal. Never inject a guessed multi-select sequence.
+      return;
+    }
+    const keys = optionPromptAnswerSequence(prompt.questions, optionIndices);
+    await active.terminalHost.sendOptionPromptAnswer(keys);
   }
 
   private emitCliState(taskId: TaskId, snapshot: CliStateSnapshot): void {

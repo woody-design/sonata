@@ -1797,6 +1797,220 @@ h2 {
   outline-offset: 2px;
 }
 
+/* Native option prompt (AskUserQuestion) card — Slice 5. Same neutral surface
+ * language as the modal banner; a single-select stacked form, then a frozen
+ * receipt. "Claude is asking" provenance. */
+.option-prompt-card {
+  margin: 10px 18px 0;
+  border: 1px solid var(--border-menu);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--surface-menu);
+  color: var(--ink-strong);
+  /* Bound the card in the fixed run-column so a tall multi-question form
+   * scrolls internally instead of clipping its lower questions + Send. The
+   * card sits to its natural (short) height when content is small, and caps
+   * here when tall; the calc reserves room for header/composer on short
+   * windows. The card shrinks + scrolls before it can ever overflow. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: min(60vh, calc(100vh - 280px));
+  overflow: hidden;
+}
+
+.option-prompt-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* Pinned header + footer; only the questions/receipt region scrolls. */
+.option-prompt-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.option-prompt-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.option-prompt-heading .eyebrow {
+  margin-bottom: 0;
+}
+
+.option-prompt-sub {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.option-prompt-question {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-prompt-question-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.option-prompt-question-head strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.option-prompt-badge {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-menu);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: var(--surface-pill);
+  color: var(--ink-muted-warm);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.option-prompt-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.option-prompt-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--surface-raised);
+  color: var(--ink-strong);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.option-prompt-option:hover:not(:disabled) {
+  border-color: var(--accent-soft-border);
+  background: var(--surface-control);
+}
+
+.option-prompt-option.selected {
+  border-color: var(--accent);
+  background: var(--surface-selected);
+}
+
+.option-prompt-option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* multiSelect questions are read-only CONTEXT in the card (answered in the
+ * terminal). Keep them fully legible — not faded like a disabled control —
+ * just visibly non-interactive, with a square (checkbox) marker. */
+.option-prompt-option.checkbox,
+.option-prompt-option.checkbox:disabled {
+  opacity: 1;
+  cursor: default;
+  background: var(--surface-raised);
+  border-color: var(--border-subtle);
+}
+
+.option-prompt-option.checkbox .option-prompt-marker {
+  border-radius: 5px;
+  font-size: 13px;
+}
+
+.option-prompt-multi-tag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-muted);
+}
+
+.option-prompt-marker {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-white);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.option-prompt-option.selected .option-prompt-marker {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface-white);
+}
+
+.option-prompt-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.option-prompt-option-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.option-prompt-option-desc {
+  font-size: 12px;
+  color: var(--ink-muted);
+  line-height: 1.35;
+}
+
+.option-prompt-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  /* Pinned footer — the Send action stays visible while questions scroll. A
+   * hairline separates it from the scrolled content above. */
+  flex: 0 0 auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.option-prompt-hint {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.option-prompt-receipt-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.option-prompt-receipt-choice {
+  font-size: 13px;
+  color: var(--ink-strong);
+}
+
 .modal-banner {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

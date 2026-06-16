@@ -48,6 +48,7 @@ export const IPC_CHANNELS = {
   promptQueueCancel: "prompt-queue:cancel",
   promptQueueRetry: "prompt-queue:retry",
   approvalDecide: "approval:decide",
+  optionPromptAnswer: "option-prompt:answer",
   runStop: "run:stop",
   terminalResize: "terminal:resize",
   terminalUserControlSet: "terminal:user-control:set",
@@ -239,6 +240,14 @@ export interface ApprovalDecisionRequest {
   decision: ApprovalDecision;
 }
 
+export interface OptionPromptAnswerRequest {
+  taskId: TaskId;
+  /** The pending prompt's `tool_use_id` — guards against answering a stale card. */
+  toolUseId: string;
+  /** Single-select: the chosen option index per question, in question order. */
+  optionIndices: number[];
+}
+
 export interface DismissModalRequest {
   taskId: TaskId;
 }
@@ -427,6 +436,7 @@ export interface DuetRuntimeBridge {
   cancelQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   retryQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;
+  answerOptionPrompt(request: OptionPromptAnswerRequest): Promise<void>;
   stopRun(request: StopRunRequest): Promise<void>;
   resizeTerminal(request: ResizeTerminalRequest): Promise<void>;
   setTerminalUserControl(

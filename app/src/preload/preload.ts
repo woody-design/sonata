@@ -104,6 +104,7 @@ const duetRuntime: DuetRuntimeBridge = {
   cancelQueuedPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.promptQueueCancel, request),
   retryQueuedPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.promptQueueRetry, request),
   decideApproval: (request) => ipcRenderer.invoke(IPC_CHANNELS.approvalDecide, request),
+  answerOptionPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.optionPromptAnswer, request),
   stopRun: (request) => ipcRenderer.invoke(IPC_CHANNELS.runStop, request),
   resizeTerminal: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalResize, request),
   setTerminalUserControl: (request) =>

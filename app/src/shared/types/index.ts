@@ -4,6 +4,7 @@ export * from "./domain";
 export * from "./events";
 export * from "./ipc";
 export * from "./local-api";
+export * from "./option-prompt";
 export * from "./reading-settings";
 export * from "./resume-settings";
 export * from "./sessions";

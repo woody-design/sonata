@@ -23,6 +23,7 @@ import type {
   RuntimeProvider,
 } from "./domain";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
+import type { OptionPromptAnswers, OptionPromptQuestion } from "./option-prompt";
 import type { UsageSnapshot } from "./usage";
 
 export interface BaseRuntimeEvent<TType extends string, TPayload> {
@@ -276,6 +277,32 @@ export type ApprovalPersistedEvent = BaseRuntimeEvent<
   }
 >;
 
+/**
+ * Claude's native `AskUserQuestion` (multiple-choice) tool surfaced as an
+ * in-view card (Slice 5). `detected` carries the parsed questions (from the
+ * PreToolUse hook's `tool_input`); `resolved` carries the verbatim answers
+ * (from the PostToolUse hook's `tool_response.answers`) — or null when the
+ * prompt was cancelled / the turn ended unanswered. Detection is structured
+ * (the hook), not scraped; the floor stays a valid alternative answer surface.
+ */
+export type OptionPromptDetectedEvent = BaseRuntimeEvent<
+  "option-prompt:detected",
+  {
+    taskId: TaskId;
+    toolUseId: string;
+    questions: OptionPromptQuestion[];
+  }
+>;
+
+export type OptionPromptResolvedEvent = BaseRuntimeEvent<
+  "option-prompt:resolved",
+  {
+    taskId: TaskId;
+    toolUseId: string;
+    answers: OptionPromptAnswers | null;
+  }
+>;
+
 export type FileWatchingEvent = BaseRuntimeEvent<
   "file:watching",
   {
@@ -387,6 +414,8 @@ export type ProductRuntimeEvent =
   | ApprovalDetectedEvent
   | ApprovalDecisionEvent
   | ApprovalPersistedEvent
+  | OptionPromptDetectedEvent
+  | OptionPromptResolvedEvent
   | ModalStateEvent
   | TerminalUserControlEvent
   | FileWatchingEvent
@@ -412,5 +441,7 @@ export type RunIndexEvent = Exclude<
   | DeliveryReceiptEvent
   | TaskUpdatedEvent
   | ModalStateEvent
+  | OptionPromptDetectedEvent
+  | OptionPromptResolvedEvent
   | TerminalUserControlEvent
 >;

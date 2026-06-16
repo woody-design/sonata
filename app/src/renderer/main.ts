@@ -67,7 +67,12 @@ import type {
   Task,
   UsageSnapshot,
 } from "../shared/types";
-import type { ApprovalDetectedEvent, TranscriptBlocksEvent } from "../shared/types/events";
+import type {
+  ApprovalDetectedEvent,
+  OptionPromptDetectedEvent,
+  TranscriptBlocksEvent,
+} from "../shared/types/events";
+import type { OptionPromptAnswers, OptionPromptQuestion } from "../shared/types/option-prompt";
 import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
 import type {
   PlanBlock,
@@ -89,6 +94,20 @@ interface RunTranscript {
   receivedChars: number;
 }
 
+interface OptionPromptReceiptLine {
+  header: string;
+  question: string;
+  labels: string[];
+}
+
+interface OptionPromptReceipt {
+  toolUseId: string;
+  lines: OptionPromptReceiptLine[];
+  /** true once reconciled from the provider's own answer (verbatim labels);
+   *  false while showing the optimistic local selection. */
+  reconciled: boolean;
+}
+
 interface TaskViewState {
   task: Task | null;
   /** A PTY runtime backs this view; dormant views are read-only until resumed. */
@@ -97,6 +116,15 @@ interface TaskViewState {
   artifacts: ArtifactCandidate[];
   selectedArtifactPath: string | null;
   pendingApproval: ApprovalDetectedEvent["payload"] | null;
+  /** A native AskUserQuestion awaiting an in-view answer (Slice 5). */
+  pendingOptionPrompt: OptionPromptDetectedEvent["payload"] | null;
+  /** In-progress single-select choice per question (option index; -1 = none). */
+  optionPromptSelections: number[];
+  /** Send-in-flight: keystrokes are being relayed; the card is frozen. */
+  optionPromptBusy: boolean;
+  /** The answered card frozen into a receipt — optimistic on send, then
+   *  reconciled (verbatim labels) from the PostToolUse-driven resolved event. */
+  optionPromptReceipt: OptionPromptReceipt | null;
   highlightedRunId: string | null;
   liveTranscriptRunId: string | null;
   runTranscripts: RunTranscript[];
@@ -1506,6 +1534,10 @@ appElement.innerHTML = `
           </div>
         </div>
 
+        <!-- Native option prompt (AskUserQuestion). Built dynamically by
+             renderOptionPrompt() — N questions, each a single-select group. -->
+        <div id="option-prompt-card" class="option-prompt-card hidden"></div>
+
         <div id="modal-banner" class="modal-banner hidden">
           <div class="modal-banner-copy">
             <strong id="modal-title">The agent opened an interactive panel</strong>
@@ -1656,6 +1688,7 @@ const elements = {
   denyApproval: getElement<HTMLButtonElement>("deny-approval"),
   approveSessionApproval: getElement<HTMLButtonElement>("approve-session-approval"),
   approveApproval: getElement<HTMLButtonElement>("approve-approval"),
+  optionPromptCard: getElement<HTMLDivElement>("option-prompt-card"),
   workflowHeadline: getElement<HTMLElement>("workflow-headline"),
   workflowFacts: getElement<HTMLDivElement>("workflow-facts"),
   runList: getElement<HTMLDivElement>("run-list"),
@@ -3713,6 +3746,10 @@ window.duetRuntime.onRuntimeEvent((event) => {
     view.runtimeReady = false;
     view.status = "Running";
     view.completedUnseen = false;
+    // A new run means any prior option-prompt (and its receipt) is moot.
+    view.pendingOptionPrompt = null;
+    view.optionPromptReceipt = null;
+    view.optionPromptBusy = false;
     ensureRunTranscript(view, event.payload.id);
     markViewChanged(view);
     return;
@@ -3782,6 +3819,48 @@ window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type === "approval:persisted") {
     // Receipt-by-observation: what the provider actually wrote, and where.
     view.status = `Allow rule saved: ${event.payload.rulesAdded.join(", ")} → ${event.payload.file}`;
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "option-prompt:detected") {
+    // A native AskUserQuestion — surface it as an answerable card. Structured
+    // (from the PreToolUse hook), not scraped. The floor stays a valid
+    // alternative; a fresh prompt supersedes any prior receipt.
+    view.pendingOptionPrompt = event.payload;
+    view.optionPromptSelections = event.payload.questions.map(() => -1);
+    view.optionPromptBusy = false;
+    view.optionPromptReceipt = null;
+    view.runtimeReady = false;
+    view.status = "Claude is asking";
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "option-prompt:resolved") {
+    const answers = event.payload.answers;
+    if (!answers) {
+      // Cancelled / turn ended unanswered: drop the live form (keep any receipt
+      // already shown from a completed answer).
+      if (view.pendingOptionPrompt?.toolUseId === event.payload.toolUseId) {
+        view.pendingOptionPrompt = null;
+        view.optionPromptBusy = false;
+        view.status = "Ready";
+      }
+      markViewChanged(view);
+      return;
+    }
+    // Reconcile the receipt from the provider's own verbatim answers. The
+    // question metadata (header + order) comes from the live prompt if still
+    // present, else from the optimistic receipt, else from the answers keys.
+    view.optionPromptReceipt = {
+      toolUseId: event.payload.toolUseId,
+      reconciled: true,
+      lines: reconcileReceiptLines(optionPromptQuestionMeta(view), answers),
+    };
+    view.pendingOptionPrompt = null;
+    view.optionPromptBusy = false;
+    view.status = "Answered";
     markViewChanged(view);
     return;
   }
@@ -3967,6 +4046,10 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     artifacts: [],
     selectedArtifactPath: null,
     pendingApproval: null,
+    pendingOptionPrompt: null,
+    optionPromptSelections: [],
+    optionPromptBusy: false,
+    optionPromptReceipt: null,
     highlightedRunId: null,
     liveTranscriptRunId: null,
     runTranscripts: [],
@@ -4458,6 +4541,7 @@ function render(): void {
 
   renderSidebar();
   renderApproval();
+  renderOptionPrompt();
   renderModalBanner();
   renderResumeChoice();
   renderWorkflow();
@@ -5864,6 +5948,282 @@ function renderApproval(): void {
       : []),
     approvalContextItem("Deny", "send native Esc"),
   );
+}
+
+// ── Native option prompt (AskUserQuestion) card (Slice 5) ────────────────────
+
+/** Ordered question metadata, from the live prompt or a prior receipt. */
+function optionPromptQuestionMeta(view: TaskViewState): { header: string; question: string }[] {
+  if (view.pendingOptionPrompt) {
+    return view.pendingOptionPrompt.questions.map((q) => ({ header: q.header, question: q.question }));
+  }
+  if (view.optionPromptReceipt) {
+    return view.optionPromptReceipt.lines.map((l) => ({ header: l.header, question: l.question }));
+  }
+  return [];
+}
+
+/** Build receipt lines from the provider's verbatim answers (keyed by question). */
+function reconcileReceiptLines(
+  meta: { header: string; question: string }[],
+  answers: OptionPromptAnswers,
+): OptionPromptReceiptLine[] {
+  if (meta.length > 0) {
+    return meta.map((m) => ({ header: m.header, question: m.question, labels: answers[m.question] ?? [] }));
+  }
+  // No card context (e.g. answered natively before a card existed) — derive
+  // the lines straight from the answers object.
+  return Object.entries(answers).map(([question, labels]) => ({ header: question, question, labels }));
+}
+
+/** Optimistic receipt lines from the local single-select choice (pre-reconcile). */
+function optimisticReceiptLines(
+  prompt: OptionPromptDetectedEvent["payload"],
+  selections: number[],
+): OptionPromptReceiptLine[] {
+  return prompt.questions.map((q, i) => {
+    const idx = selections[i] ?? -1;
+    const label = idx >= 0 ? q.options[idx]?.label ?? "" : "";
+    return { header: q.header, question: q.question, labels: label ? [label] : [] };
+  });
+}
+
+function renderOptionPrompt(): void {
+  const view = activeTaskView();
+  const card = elements.optionPromptCard;
+  const pending = view?.pendingOptionPrompt ?? null;
+  const receipt = view?.optionPromptReceipt ?? null;
+  if (!view || (!pending && !receipt)) {
+    card.classList.add("hidden");
+    card.removeAttribute("data-state");
+    card.replaceChildren();
+    return;
+  }
+  card.classList.remove("hidden");
+  if (pending) {
+    card.dataset.state = "asking";
+    card.replaceChildren(renderOptionPromptForm(view, pending));
+  } else if (receipt) {
+    card.dataset.state = "answered";
+    card.replaceChildren(renderOptionPromptReceiptCard(receipt));
+  }
+}
+
+function renderOptionPromptForm(
+  view: TaskViewState,
+  prompt: OptionPromptDetectedEvent["payload"],
+): HTMLElement {
+  // Single writer: while the human holds the keys, the card defers to the
+  // terminal — answering there IS the alternative surface.
+  const userControl = Boolean(view.userControl);
+  const busy = view.optionPromptBusy;
+  // The card injects only the VERIFIED single-select sequence. If ANY question
+  // is multiSelect, the whole card is shown as full context and answered in the
+  // terminal floor (the multi-select TUI mechanic is not yet verified — a
+  // guessed injection could mis-answer a real clarification). All-single-select
+  // prompts stay fully card-answerable.
+  const hasMultiSelect = prompt.questions.some((q) => q.multiSelect);
+  const cardAnswerable = !hasMultiSelect;
+  const interactive = cardAnswerable && !userControl && !busy;
+
+  const root = document.createElement("div");
+  root.className = "option-prompt-body";
+
+  const heading = document.createElement("div");
+  heading.className = "option-prompt-heading";
+  const eyebrow = document.createElement("p");
+  eyebrow.className = "eyebrow";
+  eyebrow.textContent = "Claude is asking";
+  const sub = document.createElement("span");
+  sub.className = "option-prompt-sub";
+  sub.textContent =
+    prompt.questions.length > 1 ? `${prompt.questions.length} questions` : "Choose an option";
+  heading.append(eyebrow, sub);
+  root.append(heading);
+
+  // The questions scroll; the heading above and the footer below stay pinned,
+  // so a tall multi-question card never hides a question or the action.
+  const scroll = document.createElement("div");
+  scroll.className = "option-prompt-scroll";
+
+  prompt.questions.forEach((question, qIndex) => {
+    const block = document.createElement("div");
+    block.className = "option-prompt-question";
+    block.classList.toggle("multi", question.multiSelect);
+
+    const qHead = document.createElement("div");
+    qHead.className = "option-prompt-question-head";
+    const badge = document.createElement("span");
+    badge.className = "option-prompt-badge";
+    badge.textContent = question.header;
+    const qText = document.createElement("strong");
+    qText.textContent = question.question;
+    qHead.append(badge, qText);
+    if (question.multiSelect) {
+      const tag = document.createElement("span");
+      tag.className = "option-prompt-multi-tag";
+      tag.textContent = "choose one or more";
+      qHead.append(tag);
+    }
+    block.append(qHead);
+
+    const options = document.createElement("div");
+    options.className = "option-prompt-options";
+    question.options.forEach((option, oIndex) => {
+      // multiSelect options are read-only checkboxes (answered in the terminal);
+      // single-select options are clickable radios when the card is answerable.
+      const selectable = interactive && !question.multiSelect;
+      const selected = !question.multiSelect && view.optionPromptSelections[qIndex] === oIndex;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "option-prompt-option";
+      button.classList.toggle("checkbox", question.multiSelect);
+      button.classList.toggle("selected", selected);
+      button.setAttribute("aria-pressed", String(selected));
+      button.disabled = !selectable;
+
+      const marker = document.createElement("span");
+      marker.className = "option-prompt-marker";
+      marker.textContent = question.multiSelect ? "☐" : String(oIndex + 1);
+      const text = document.createElement("span");
+      text.className = "option-prompt-option-text";
+      const label = document.createElement("span");
+      label.className = "option-prompt-option-label";
+      label.textContent = option.label;
+      text.append(label);
+      if (option.description) {
+        const desc = document.createElement("span");
+        desc.className = "option-prompt-option-desc";
+        desc.textContent = option.description;
+        text.append(desc);
+      }
+      button.append(marker, text);
+      if (selectable) {
+        button.addEventListener("click", () => {
+          view.optionPromptSelections[qIndex] = oIndex;
+          renderOptionPrompt();
+        });
+      }
+      options.append(button);
+    });
+    block.append(options);
+    scroll.append(block);
+  });
+  root.append(scroll);
+
+  const actions = document.createElement("div");
+  actions.className = "option-prompt-actions";
+  if (cardAnswerable) {
+    const hint = document.createElement("span");
+    hint.className = "option-prompt-hint";
+    hint.textContent = userControl
+      ? "You hold the keys — answer in the terminal"
+      : "Or answer in the terminal";
+    const send = document.createElement("button");
+    send.type = "button";
+    send.className = "primary";
+    const allAnswered =
+      view.optionPromptSelections.length === prompt.questions.length &&
+      view.optionPromptSelections.every((s) => s >= 0);
+    send.textContent = busy ? "Sending…" : "Send answers";
+    send.disabled = userControl || busy || !allAnswered;
+    send.addEventListener("click", () => {
+      void answerOptionPrompt();
+    });
+    actions.append(hint, send);
+  } else {
+    // Context-only (has a multiSelect question): the questions are legible here
+    // in the main view; the answer is given in the terminal (one click away).
+    const note = document.createElement("span");
+    note.className = "option-prompt-hint";
+    note.textContent = userControl
+      ? "You hold the keys — choose in the terminal"
+      : "Multiple-choice — choose in the terminal, then submit";
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "primary";
+    open.textContent = "Answer in terminal";
+    open.addEventListener("click", () => {
+      setTerminalOpen(true);
+    });
+    actions.append(note, open);
+  }
+  root.append(actions);
+  return root;
+}
+
+function renderOptionPromptReceiptCard(receipt: OptionPromptReceipt): HTMLElement {
+  const root = document.createElement("div");
+  root.className = "option-prompt-body option-prompt-receipt";
+
+  const heading = document.createElement("div");
+  heading.className = "option-prompt-heading";
+  const eyebrow = document.createElement("p");
+  eyebrow.className = "eyebrow";
+  eyebrow.textContent = "Claude is asking";
+  const status = document.createElement("span");
+  status.className = "option-prompt-sub";
+  status.textContent = receipt.reconciled ? "Answered" : "Answer sent";
+  heading.append(eyebrow, status);
+  root.append(heading);
+
+  // A long receipt scrolls under the pinned heading rather than clipping.
+  const scroll = document.createElement("div");
+  scroll.className = "option-prompt-scroll";
+  receipt.lines.forEach((line) => {
+    const row = document.createElement("div");
+    row.className = "option-prompt-receipt-line";
+    const badge = document.createElement("span");
+    badge.className = "option-prompt-badge";
+    badge.textContent = line.header;
+    const chose = document.createElement("span");
+    chose.className = "option-prompt-receipt-choice";
+    chose.textContent = line.labels.length ? `You chose: ${line.labels.join(", ")}` : "You chose: —";
+    row.append(badge, chose);
+    scroll.append(row);
+  });
+  root.append(scroll);
+  return root;
+}
+
+async function answerOptionPrompt(): Promise<void> {
+  const view = activeTaskView();
+  const prompt = view?.pendingOptionPrompt ?? null;
+  if (!view?.task || !prompt) {
+    return;
+  }
+  const selections = view.optionPromptSelections;
+  if (
+    selections.length !== prompt.questions.length ||
+    selections.some((selection) => selection < 0)
+  ) {
+    return; // not every question answered yet
+  }
+
+  view.optionPromptBusy = true;
+  renderOptionPrompt();
+  try {
+    await window.duetRuntime.answerOptionPrompt({
+      taskId: view.task.id,
+      toolUseId: prompt.toolUseId,
+      optionIndices: [...selections],
+    });
+    // Optimistic receipt from the local choice; the resolved event upgrades it
+    // to the provider's verbatim labels (receipt-by-observation).
+    view.optionPromptReceipt = {
+      toolUseId: prompt.toolUseId,
+      reconciled: false,
+      lines: optimisticReceiptLines(prompt, selections),
+    };
+    view.pendingOptionPrompt = null;
+    view.optionPromptBusy = false;
+    view.status = "Answer sent";
+    markViewChanged(view);
+  } catch (error) {
+    view.optionPromptBusy = false;
+    view.status = errorMessage(error);
+    markViewChanged(view);
+  }
 }
 
 interface WorkflowState {
