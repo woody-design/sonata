@@ -1539,21 +1539,6 @@ appElement.innerHTML = `
 
         <div id="run-list" class="run-list"></div>
 
-        <section id="terminal-drawer" class="terminal-drawer hidden" aria-label="Terminal trust layer">
-          <div id="terminal-resizer" class="terminal-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize terminal" title="Drag to resize · double-click to reset"></div>
-          <div class="terminal-drawer-header">
-            <div>
-              <p id="terminal-drawer-eyebrow" class="eyebrow">Terminal</p>
-              <strong id="terminal-drawer-title">Live terminal</strong>
-            </div>
-            <div class="terminal-drawer-actions">
-              <button id="takeover-toggle" class="secondary" type="button">Take over</button>
-              <button id="close-terminal" class="secondary" type="button">Close</button>
-            </div>
-          </div>
-          <div id="terminal"></div>
-        </section>
-
         <section id="delivery-queue" class="delivery-queue hidden" aria-label="Queued messages"></section>
 
         <section id="resume-choice" class="resume-choice hidden" aria-label="Resume choice">
@@ -1614,6 +1599,25 @@ appElement.innerHTML = `
             multiple
           />
         </form>
+
+        <!-- The floor: terminal is the bottom tier of the 3-peer column
+             (reading → composer → terminal). Docked at the window bottom so the
+             resizer's top border is the composer↔terminal boundary and dragging
+             redistributes height upward (S3b). -->
+        <section id="terminal-drawer" class="terminal-drawer hidden" aria-label="Terminal trust layer">
+          <div id="terminal-resizer" class="terminal-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize terminal" title="Drag to resize · double-click to reset"></div>
+          <div class="terminal-drawer-header">
+            <div>
+              <p id="terminal-drawer-eyebrow" class="eyebrow">Terminal</p>
+              <strong id="terminal-drawer-title">Live terminal</strong>
+            </div>
+            <div class="terminal-drawer-actions">
+              <button id="takeover-toggle" class="secondary" type="button">Take over</button>
+              <button id="close-terminal" class="secondary" type="button">Close</button>
+            </div>
+          </div>
+          <div id="terminal"></div>
+        </section>
       </section>
     </section>
     </div>
@@ -2118,10 +2122,12 @@ elements.takeoverToggle.addEventListener("click", () => {
 });
 
 // User-resizable floor height (the Claude-app / VS Code bottom-panel feel):
-// drag the top border, persisted across sessions. The drawer is a flex item
-// below the (flex:1) run-list, so pinning its basis grows the panel upward and
-// the reading surface absorbs the change. Default (no inline flex) falls back
-// to the CSS clamp; double-click restores it.
+// drag the top border, persisted across sessions. The terminal is the BOTTOM
+// tier of the 3-peer column (reading → composer → terminal), so its bottom edge
+// is the window bottom (stable) and its basis pins the panel height while the
+// reading area (the lone flex:1 grower) absorbs the delta — dragging rides the
+// composer + reading up. Default (no inline flex) falls back to the CSS clamp;
+// double-click restores it.
 const TERMINAL_HEIGHT_KEY = "duet.terminal.height";
 const TERMINAL_HEIGHT_MIN = 140;
 // Leave room for the chrome, composer, and a usable slice of reading surface
@@ -2136,11 +2142,25 @@ function applyTerminalHeight(height: number | null): void {
     return;
   }
   const clamped = Math.round(clamp(height, TERMINAL_HEIGHT_MIN, terminalHeightMax()));
-  // Keep flex-shrink:1 (as the CSS default does): the basis is the chosen
-  // height, but the panel still yields under a short window rather than pushing
-  // the composer off-screen (min-height:140 floors it). Drag feels exact
-  // because the basis never exceeds the available space (clamped above).
-  elements.terminalDrawer.style.flex = `0 1 ${clamped}px`;
+  // flex-shrink:0 (matching the CSS) so the basis is honored exactly — run-list
+  // is the sole absorber. (Earlier 0 1 split the drag delta with run-list's
+  // huge content-basis, so the panel barely moved; that was the S3b resize bug.)
+  // The max-clamp above + reapply-on-resize keep the rigid panel from ever
+  // overflowing a short window.
+  elements.terminalDrawer.style.flex = `0 0 ${clamped}px`;
+}
+
+/** Re-clamp the persisted height to the current window so a rigid (shrink:0)
+ *  panel never pushes the composer off-screen after the window shrinks. */
+function reapplyStoredTerminalHeight(): void {
+  try {
+    const stored = Number(localStorage.getItem(TERMINAL_HEIGHT_KEY));
+    if (Number.isFinite(stored) && stored > 0) {
+      applyTerminalHeight(stored);
+    }
+  } catch {
+    // View preference only.
+  }
 }
 
 function persistTerminalHeight(height: number | null): void {
@@ -2155,14 +2175,14 @@ function persistTerminalHeight(height: number | null): void {
   }
 }
 
-try {
-  const stored = Number(localStorage.getItem(TERMINAL_HEIGHT_KEY));
-  if (Number.isFinite(stored) && stored > 0) {
-    applyTerminalHeight(stored);
-  }
-} catch {
-  // CSS default height stays.
+/** Single owner of the global resize cursor — so every teardown path (pointerup,
+ *  cancel, lost capture, drawer close) clears it the same way and it can never
+ *  stick (S3b.3). */
+function clearTerminalResizingCursor(): void {
+  document.body.classList.remove("terminal-resizing");
 }
+
+reapplyStoredTerminalHeight();
 
 elements.terminalResizer.addEventListener("pointerdown", (event) => {
   if (event.button !== 0) {
@@ -2174,9 +2194,11 @@ elements.terminalResizer.addEventListener("pointerdown", (event) => {
   document.body.classList.add("terminal-resizing");
   let frame = 0;
   let lastHeight = elements.terminalDrawer.getBoundingClientRect().height;
+  let finished = false;
 
   const onMove = (moveEvent: PointerEvent): void => {
-    // Height = distance from the pointer up to the drawer's fixed bottom edge.
+    // The terminal is the bottom tier, so its bottom edge is the window bottom
+    // (stable during the drag); height = that edge minus the pointer's Y.
     lastHeight = elements.terminalDrawer.getBoundingClientRect().bottom - moveEvent.clientY;
     if (frame) {
       return;
@@ -2187,11 +2209,24 @@ elements.terminalResizer.addEventListener("pointerdown", (event) => {
       fitTerminal();
     });
   };
-  const onUp = (): void => {
+  // Idempotent teardown bound to pointerup, pointercancel, AND lostpointercapture
+  // — whichever fires first wins, and a lost capture (drawer hidden mid-drag,
+  // window blur) still cleans up, so the ns-resize cursor never sticks (S3b.3).
+  const finish = (): void => {
+    if (finished) {
+      return;
+    }
+    finished = true;
     resizer.removeEventListener("pointermove", onMove);
-    resizer.removeEventListener("pointerup", onUp);
-    resizer.removeEventListener("pointercancel", onUp);
-    document.body.classList.remove("terminal-resizing");
+    resizer.removeEventListener("pointerup", finish);
+    resizer.removeEventListener("pointercancel", finish);
+    resizer.removeEventListener("lostpointercapture", finish);
+    try {
+      resizer.releasePointerCapture(event.pointerId);
+    } catch {
+      // Capture may already be gone.
+    }
+    clearTerminalResizingCursor();
     if (frame) {
       window.cancelAnimationFrame(frame);
       frame = 0;
@@ -2201,8 +2236,9 @@ elements.terminalResizer.addEventListener("pointerdown", (event) => {
     void resizeTerminal();
   };
   resizer.addEventListener("pointermove", onMove);
-  resizer.addEventListener("pointerup", onUp);
-  resizer.addEventListener("pointercancel", onUp);
+  resizer.addEventListener("pointerup", finish);
+  resizer.addEventListener("pointercancel", finish);
+  resizer.addEventListener("lostpointercapture", finish);
 });
 
 elements.terminalResizer.addEventListener("dblclick", () => {
@@ -3530,6 +3566,10 @@ elements.modalDismiss.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => {
+  // Re-clamp the floor to the new window before fitting xterm: a rigid
+  // (shrink:0) panel sized for a tall window must shrink with it, never push
+  // the composer off-screen.
+  reapplyStoredTerminalHeight();
   fitTerminal();
   if (state.readingPopoverOpen) {
     syncReadingPopoverAnchor();
@@ -7346,6 +7386,10 @@ function setTerminalOpen(open: boolean): void {
       // held somewhere the human cannot type.
       void releaseUserControl(view);
     }
+    // Defensive: if the drawer closes mid-resize (so pointerup never lands on
+    // the now-hidden resizer), the global ns-resize cursor would otherwise
+    // stick. Clear it on every close (S3b.3).
+    clearTerminalResizingCursor();
   }
   state.terminalOpen = open;
   render();

@@ -3563,7 +3563,15 @@ h2 {
 }
 
 .terminal-drawer {
-  flex: 0 1 clamp(150px, 28vh, 280px);
+  /* Bottom tier of the 3-peer column. flex-shrink:0 (NOT :1) is load-bearing:
+     the reading area (#run-list, flex:1 1 auto) is the sole absorber, so its
+     basis is the full transcript content. With shrink:1 here the flex algorithm
+     split every drag delta between the two by basis×shrink — diluting a 100px
+     drag down to ~18px of visible change (the "resize does nothing" bug, S3b.2).
+     Rigid basis → run-list absorbs the delta 1:1, so the drag visibly resizes.
+     Height stays bounded by the JS max-clamp (innerHeight − 260) + re-clamp on
+     window resize, so a rigid panel never pushes the composer off a short window. */
+  flex: 0 0 clamp(150px, 28vh, 280px);
   min-height: 140px;
   display: flex;
   flex-direction: column;

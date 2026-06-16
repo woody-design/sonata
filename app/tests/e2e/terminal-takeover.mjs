@@ -47,6 +47,37 @@ try {
     .waitFor({ state: "hidden", timeout: 5000 });
   checks.autoSurfaceCleared = true;
   await page.locator("#terminal-drawer").waitFor({ state: "visible" });
+
+  // S3b.1 — 3-tier peer layout: the terminal is the BOTTOM tier, below the
+  // composer (not between reading and composer).
+  {
+    const composerBox = await page.locator("#composer").boundingBox();
+    const drawerBox = await page.locator("#terminal-drawer").boundingBox();
+    checks.terminalBelowComposer = drawerBox.y >= composerBox.y + composerBox.height - 2;
+  }
+
+  // S3b.2 — resize visibly works. Reset to the default height, then drag the top
+  // border up and confirm the panel actually grows (the bug was a no-op drag).
+  {
+    await page.locator("#terminal-resizer").dblclick();
+    const before = (await page.locator("#terminal-drawer").boundingBox()).height;
+    const rb = await page.locator("#terminal-resizer").boundingBox();
+    const cx = rb.x + rb.width / 2;
+    const cy = rb.y + rb.height / 2;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, cy - 100, { steps: 8 });
+    await page.mouse.up();
+    const after = (await page.locator("#terminal-drawer").boundingBox()).height;
+    checks.resizeGrew = after >= before + 30;
+    // S3b.3 — the global ns-resize cursor must not stick after release.
+    checks.cursorReleased = !(await page
+      .locator("body")
+      .evaluate((el) => el.classList.contains("terminal-resizing")));
+    // Return to a sane height for the rest of the flow.
+    await page.locator("#terminal-resizer").dblclick();
+  }
+
   await page.locator("#takeover-toggle").click();
   await page
     .locator("#terminal-drawer-eyebrow", { hasText: "You hold the keys" })
@@ -95,6 +126,9 @@ try {
     checks.trustDetected &&
     checks.autoSurfaceSignal &&
     checks.autoSurfaceCleared &&
+    checks.terminalBelowComposer &&
+    checks.resizeGrew &&
+    checks.cursorReleased &&
     checks.takeoverActive &&
     checks.approveDisabled &&
     checks.denyDisabled &&
