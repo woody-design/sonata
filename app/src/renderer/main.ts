@@ -1552,7 +1552,6 @@ appElement.innerHTML = `
 
         <section class="workflow-strip" aria-label="Task workflow state">
           <div class="workflow-copy">
-            <p class="eyebrow">Task</p>
             <strong id="workflow-headline">Start or open a Task</strong>
           </div>
           <div id="workflow-facts" class="workflow-facts"></div>
@@ -1640,7 +1639,7 @@ appElement.innerHTML = `
           <div id="terminal-resizer" class="terminal-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize terminal" title="Drag to resize · double-click to reset"></div>
           <div class="terminal-drawer-header">
             <div>
-              <p id="terminal-drawer-eyebrow" class="eyebrow">Terminal</p>
+              <p id="terminal-drawer-eyebrow" class="eyebrow hidden"></p>
               <strong id="terminal-drawer-title">Live terminal</strong>
             </div>
             <div class="terminal-drawer-actions">
@@ -6692,13 +6691,29 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
   const text = userBlock?.text ?? turn.run?.prompt ?? "";
 
   if (userBlock?.command) {
+    // A slash command. Claude logs the whole invocation as `<name> <args>`, and
+    // for a skill like `/architect <brief>` the args ARE the user's prompt. Show
+    // the command name as a small provenance chip, but render that body as the
+    // normal growing bubble — full text, the user's own words, never crammed
+    // into a fixed-size mono pill. Bare commands (no body) stay as just the chip.
+    const name = userBlock.command;
+    const body = text.startsWith(name) ? text.slice(name.length).trim() : "";
     const chip = document.createElement("span");
-    chip.className = "turn-command-chip turn-prompt";
+    chip.className = body ? "turn-command-chip" : "turn-command-chip turn-prompt";
     chip.tabIndex = -1;
     chip.dataset.turnKey = turn.key;
-    chip.textContent = text || userBlock.command;
-    chip.setAttribute("aria-label", `Prompt: ${chip.textContent}`);
+    chip.textContent = name;
+    chip.setAttribute("aria-label", body ? `Command: ${name}` : `Prompt: ${name}`);
     header.append(chip);
+    if (body) {
+      const prompt = document.createElement("div");
+      prompt.className = "turn-user-text turn-prompt";
+      prompt.tabIndex = -1;
+      prompt.dataset.turnKey = turn.key;
+      prompt.textContent = body;
+      prompt.setAttribute("aria-label", `Prompt: ${body}`);
+      header.append(prompt);
+    }
   } else {
     const prompt = document.createElement("div");
     prompt.className = "turn-user-text turn-prompt";
@@ -7776,10 +7791,12 @@ function renderTerminalDrawer(): void {
   elements.takeoverToggle.textContent = userControl ? "Hand back" : "Take over";
   elements.takeoverToggle.classList.toggle("primary", userControl);
   elements.takeoverToggle.classList.toggle("secondary", !userControl);
-  // The ownership state is the panel's central concept. Eyebrow = the state
-  // (who holds the keys), title = the consequence — so it is unmistakable that
-  // typing here drives the real CLI and Duet has stepped back.
-  elements.terminalDrawerEyebrow.textContent = userControl ? "You hold the keys" : "Terminal";
+  // The ownership state is the panel's central concept. Idle, the eyebrow is
+  // silent — the title ("Live terminal") already labels the panel. On take-over
+  // it becomes the state badge ("You hold the keys") while the title states the
+  // consequence, so it is unmistakable that typing here drives the real CLI.
+  elements.terminalDrawerEyebrow.textContent = userControl ? "You hold the keys" : "";
+  elements.terminalDrawerEyebrow.classList.toggle("hidden", !userControl);
   elements.terminalDrawerTitle.textContent = userControl
     ? "Duet paused — your keys go straight to the terminal"
     : live

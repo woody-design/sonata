@@ -4072,7 +4072,9 @@ body.terminal-resizing {
 
 .turn-user-text {
   min-width: 0;
-  max-width: min(760px, 82%);
+  /* ~600px at the full 660px reading column (600/660 ≈ 91%); the % scales the
+   * bubble down proportionally on narrower windows, the px is the hard ceiling. */
+  max-width: min(600px, 91%);
   border: 1px solid var(--border-raised);
   border-radius: 8px;
   background: var(--surface-raised);
@@ -4080,7 +4082,7 @@ body.terminal-resizing {
   color: var(--ink-reading-prompt);
   font-family: var(--font-reading);
   font-size: var(--text-body);
-  font-weight: 560;
+  font-weight: 500;
   line-height: var(--leading-body);
   text-autospace: normal;
   white-space: pre-wrap;
