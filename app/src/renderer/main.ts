@@ -1482,7 +1482,9 @@ appElement.innerHTML = `
   <section class="shell" aria-label="Duet">
     <aside id="sidebar" class="sidebar" aria-label="Sessions">
       <div class="sidebar-top">
-        <span class="chrome-mark">Duet</span>
+        <div class="sidebar-rail">
+          <button id="sidebar-collapse" class="chrome-icon-button" type="button" title="Collapse sidebar" aria-label="Collapse sidebar"></button>
+        </div>
         <button id="sidebar-new-chat" class="sidebar-new-chat" type="button" title="New chat">
           <span class="sidebar-new-chat-icon"></span><span>New chat</span>
         </button>
@@ -1671,6 +1673,7 @@ const elements = {
   sidebarNewChat: getElement<HTMLButtonElement>("sidebar-new-chat"),
   sidebarList: getElement<HTMLDivElement>("sidebar-list"),
   sidebarToggle: getElement<HTMLButtonElement>("sidebar-toggle"),
+  sidebarCollapse: getElement<HTMLButtonElement>("sidebar-collapse"),
   sidebarMenuRoot: getElement<HTMLDivElement>("sidebar-menu-root"),
   settingsOverlayRoot: getElement<HTMLDivElement>("settings-overlay-root"),
   sessionMenuTrigger: getElement<HTMLButtonElement>("session-menu-trigger"),
@@ -1984,6 +1987,7 @@ function lucideIcon(node: IconNode, size = 16): SVGElement {
 }
 
 elements.sidebarToggle.append(lucideIcon(PanelLeft));
+elements.sidebarCollapse.append(lucideIcon(PanelLeft));
 elements.sessionMenuTrigger.append(lucideIcon(Ellipsis));
 elements.openPreviewWindow.append(lucideIcon(Eye));
 elements.openInspectorWindow.append(lucideIcon(SearchCode));
@@ -1995,6 +1999,11 @@ const SIDEBAR_COLLAPSED_KEY = "duet.sidebar.collapsed";
 function setSidebarCollapsed(collapsed: boolean): void {
   elements.sidebar.classList.toggle("collapsed", collapsed);
   elements.sidebarResizer.classList.toggle("hidden", collapsed);
+  // Drives the collapsed-only CSS: the main header reserves the traffic-light
+  // corner (the lights float over the main pane once the sidebar is gone) and
+  // the header's expand button appears (the in-sidebar collapse button is hidden
+  // with the sidebar).
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
   try {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
   } catch {
@@ -2092,6 +2101,9 @@ try {
   // Default stays expanded.
 }
 
+elements.sidebarCollapse.addEventListener("click", () => {
+  setSidebarCollapsed(true);
+});
 elements.sidebarToggle.addEventListener("click", () => {
   setSidebarCollapsed(!elements.sidebar.classList.contains("collapsed"));
 });

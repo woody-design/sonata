@@ -620,11 +620,22 @@ body.sidebar-resizing {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 10px 6px;
+  padding: 0 10px 6px;
 }
 
-.sidebar-top .chrome-mark {
-  padding-left: 4px;
+/* Top drag strip aligned with the floating macOS traffic lights. The lights
+   occupy the left ~76px; the in-sidebar collapse button sits just past them.
+   The whole strip is a window-drag handle (buttons opt back out). */
+.sidebar-rail {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding-left: 78px;
+  -webkit-app-region: drag;
+}
+
+.sidebar-rail button {
+  -webkit-app-region: no-drag;
 }
 
 .sidebar-new-chat {
@@ -1180,9 +1191,33 @@ body.sidebar-resizing {
   align-items: center;
   gap: 10px;
   min-height: 48px;
-  border-bottom: 1px solid var(--border-raised);
+  border-bottom: none;
   padding: 6px 10px 6px 12px;
-  background: var(--surface-raised);
+  background: transparent;
+  -webkit-app-region: drag;
+}
+
+/* Interactive chrome opts out of the window-drag region. */
+.task-chrome button,
+.task-chrome .status,
+.task-chrome input,
+.task-chrome [role="button"] {
+  -webkit-app-region: no-drag;
+}
+
+/* The header's expand button only exists while collapsed (the in-sidebar
+   collapse button is gone with the sidebar); and when collapsed the header
+   reserves the traffic-light corner the now-full-width main pane sits under. */
+#sidebar-toggle {
+  display: none;
+}
+
+body.sidebar-collapsed #sidebar-toggle {
+  display: inline-flex;
+}
+
+body.sidebar-collapsed .chrome-left {
+  padding-left: 78px;
 }
 
 .chrome-left {
@@ -1192,13 +1227,6 @@ body.sidebar-resizing {
   gap: 10px;
 }
 
-.chrome-mark {
-  flex: 0 0 auto;
-  color: var(--ink-muted);
-  font-size: 12px;
-  font-weight: 760;
-  letter-spacing: 0;
-}
 
 .chrome-actions {
   min-width: 0;

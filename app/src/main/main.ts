@@ -87,6 +87,15 @@ function createMainWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 640,
     title: "Duet",
+    // Full-height sidebar window (Notion/Codex/Finder pattern): no OS titlebar
+    // strip — the renderer owns the whole window and the traffic lights float
+    // over the sidebar's top-left. Fixes the dark-mode black titlebar (the app
+    // now draws its own background everywhere) and makes the sidebar + main two
+    // full-height bands. `trafficLightPosition` drops the lights into the
+    // sidebar-top zone; the renderer reserves that corner in both collapse
+    // states. macOS-only options; ignored elsewhere.
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 18, y: 18 },
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,

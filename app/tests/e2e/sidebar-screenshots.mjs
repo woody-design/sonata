@@ -110,8 +110,9 @@ try {
     await shoot(page, "09-filter-archived");
   }
 
-  // 6 — collapsed sidebar.
-  await page.locator("#sidebar-toggle").click();
+  // 6 — collapsed sidebar. Collapse from the in-sidebar rail button; expand
+  // from the header button that only appears once collapsed.
+  await page.locator("#sidebar-collapse").click();
   await page.waitForTimeout(300);
   await shoot(page, "06-sidebar-collapsed");
   await page.locator("#sidebar-toggle").click();
