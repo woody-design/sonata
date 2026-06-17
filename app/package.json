@@ -78,7 +78,8 @@
     "smoke:resume-moment-units": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/resume-moment-units.mjs",
     "smoke:local-api": "npm run build:main && node tests/smoke/local-api.mjs",
     "smoke:claude-permission-default": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-permission-default.mjs",
-    "smoke:claude-permission-detection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-permission-detection.mjs"
+    "smoke:claude-permission-detection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-permission-detection.mjs",
+    "smoke:stop-hook-completion": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/stop-hook-completion.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

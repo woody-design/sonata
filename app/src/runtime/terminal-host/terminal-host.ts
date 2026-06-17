@@ -1856,6 +1856,29 @@ export class TerminalHost extends EventEmitter {
     });
   }
 
+  /**
+   * Complete the active run from the authoritative turn-end signal — the Claude
+   * `Stop` hook. This is the honest answer to "did the turn end?": a structured
+   * event, not the composer-idle screen scrape. `checkCompletionHeuristic`
+   * stays as the fallback (for hook-less sessions or a missed Stop), so this is
+   * purely additive — Stop completes promptly, the scrape still backstops it.
+   *
+   * Guarded exactly like the heuristic: never completes a run that is waiting on
+   * an approval (status is "active" again only once the approval resolved —
+   * lifecyclePhase "resumed-after-approval"), and a no-op when no Duet-owned run
+   * is active (e.g. a take-over turn, or the scrape already finished it — which
+   * also avoids any double-completion).
+   */
+  completeRunFromTurnEnd(): ActiveRun | null {
+    if (!this.activeRun || this.activeRun.status !== "active" || this.approvalActive) {
+      return null;
+    }
+    return this.finishActiveRun("completed", "stop hook (turn ended)", {
+      completionSource: "hook-stop",
+      completionConfidence: "high",
+    });
+  }
+
   private clearCompletionTimer(): void {
     if (!this.completionTimer) {
       return;

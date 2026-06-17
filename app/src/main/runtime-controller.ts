@@ -1179,6 +1179,14 @@ export class RuntimeController {
       if (active.task.provider === "claude" && pathsEqual(active.task.providerCwd, resolved)) {
         active.cliState.applyHook(payload);
         this.handleOptionPromptHook(active, payload);
+        // `Stop` is the authoritative "turn ended" signal — complete the active
+        // run from it (structured truth) instead of waiting on the composer-idle
+        // scrape, which lagged and could be fooled (spinner/timer ran on after
+        // the reply). The terminal-host heuristic stays as the fallback, so this
+        // is additive: prompt completion when Stop fires, scrape otherwise.
+        if (payload.hook_event_name === "Stop") {
+          active.terminalHost.completeRunFromTurnEnd();
+        }
         return;
       }
     }

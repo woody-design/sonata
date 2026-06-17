@@ -89,6 +89,7 @@ export type CompletionSource =
   | "manual-control"
   | "native-control"
   | "pty-exit"
+  | "hook-stop"
   | "terminal-idle-heuristic"
   | "unknown";
 
