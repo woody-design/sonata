@@ -62,10 +62,34 @@ function captureFirstReadingFrame(): void {
   });
 }
 
+function readBootInstanceLabel(): string {
+  try {
+    const value = ipcRenderer.sendSync(IPC_CHANNELS.instanceLabelReadSync);
+    return typeof value === "string" ? value.trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+function stampInstanceLabel(label: string): void {
+  if (!label) {
+    return;
+  }
+  const root = document.documentElement;
+  if (!root) {
+    return;
+  }
+  root.dataset.instanceLabel = label;
+  root.style.setProperty("--instance-label", JSON.stringify(label));
+  document.title = `Duet — ${label}`;
+}
+
 if (isMainWindowDocument()) {
   const bootReadingSettings = readBootReadingSettings();
+  const bootInstanceLabel = readBootInstanceLabel();
   const stampBootSettings = (): void => {
     stampReadingSettings(bootReadingSettings);
+    stampInstanceLabel(bootInstanceLabel);
     captureFirstReadingFrame();
   };
 

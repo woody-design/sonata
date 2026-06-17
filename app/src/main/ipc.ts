@@ -38,6 +38,13 @@ export function registerIpcHandlers(
     event.returnValue = readingSettingsStore.read();
   });
 
+  ipcMain.on(IPC_CHANNELS.instanceLabelReadSync, (event) => {
+    // Drives the instance badge. Read from the launch env so the same build
+    // shows the badge only when the launcher sets it (the workshop does; the
+    // daily driver does not) — nothing branch-specific to promote.
+    event.returnValue = (process.env.DUET_INSTANCE_LABEL ?? "").trim();
+  });
+
   ipcMain.handle(IPC_CHANNELS.taskCreate, (_event, request) =>
     runtimeController.createTask(request),
   );

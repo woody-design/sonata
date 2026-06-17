@@ -83,6 +83,7 @@ export const IPC_CHANNELS = {
   claudeSettingsWrite: "claude-settings:write",
   readingSettingsWrite: "reading-settings:write",
   readingSettingsReadSync: "reading-settings:read-sync",
+  instanceLabelReadSync: "instance-label:read-sync",
   readingSystemModeChanged: "reading-settings:system-mode-changed",
   settingsOpen: "settings:open",
   runtimeEvent: "runtime:event",
