@@ -1,194 +1,124 @@
 # Duet
 
-Duet is a hosted CLI agent workspace.
+Duet is a reading-first desktop workspace around native CLI coding agents.
 
-It preserves native CLI-agent behavior while building a reading-first,
-task-oriented desktop experience around it. It is not a terminal skin, not an
-IDE, and not a new agent runtime.
+It runs your real `claude` / `codex` CLIs and keeps their native behavior,
+but wraps them in a task-oriented, readable, trustable surface. It is not a
+terminal skin, not an IDE, and not a new agent runtime.
 
-## Current Phase
+The bet: with capable CLI agents, the bottleneck is no longer the model —
+it's the surface. You need to *read* what the agent did, *trust* where it is
+right now, and *step in* when it matters. A raw terminal gives you none of
+those well. Duet is the layer that does.
 
-Status: formal walking skeleton accepted; ready for guided product walkthroughs.
+## Status
 
-Duet is no longer in isolated spike mode. The Codex runtime substrate was
-proven by:
+Duet is my daily driver — I run real work through it. It's well past the
+walking-skeleton stage, but still personal and early: not packaged, no
+polish promises for anyone but me.
 
-```text
-spikes/electron-pty-terminalhost/
-```
+What works today:
 
-That runtime truth has now been lifted into a formal TypeScript Electron app in
-`app/`. The current walking skeleton proves:
+- **Main Chat** — a reading-first transcript. Provider session JSONL
+  (Claude / Codex) is normalized into provider-neutral turn cards: markdown,
+  folded tool calls, plan blocks, run attribution. Tuned typography + reading
+  themes (light/dark).
+- **Signal layer** — busy/idle, approvals, and turn boundaries come from
+  Claude Code **hooks** (structured events), not screen-scraping. Scraping
+  survives only as a narrow, labeled fallback.
+- **Semantic slash** — skills prepend a chip in the composer; stateful
+  controls (`/model`, `/permissions`…) open native popovers; panels and
+  unknown commands route to the terminal floor.
+- **Terminal floor** — a take-over terminal as a first-class bottom panel,
+  with a single-writer "who holds the keys" handoff. Auto-surfaced on
+  "needs you".
+- **Sidebar** — past sessions and projects; instant read of a dormant
+  session (file I/O), lazy resume on first new message.
+- **Floating Preview / Inspector** — artifacts, changed files, and
+  run / change / artifact / folder truth in their own windows.
+- **Settings, usage, resume** — a settings overlay, an honest usage
+  indicator, and a pre-spawn resume choice for large sessions.
 
-```text
-New/Open Task
-  -> native Codex PTY through TerminalHost
-  -> optional selected folder cwd
-  -> provider-native model / reasoning / speed launch settings
-  -> prompt submission
-  -> Run creation and reading surface
-  -> native approval surfaced as Duet product controls
-  -> Stop / continue
-  -> changed files and artifact candidates
-  -> floating Preview for report-listed artifacts
-  -> floating Inspector for Run / Change / Artifact / Folder truth
-  -> raw Terminal as trust/debug layer
-```
+Provider is chosen per task at creation (Claude *or* Codex) and not switched
+mid-task. This is not Claude/Codex feature parity.
 
-The current app is not beta-quality and does not claim final UX, Home/project
-browser, Git workflow, Claude parity, provider abstraction, or production
-packaging.
+## Architecture in one line
 
-Claude Code now has an experimental provider-locked validation path:
+> Match each concern to the truth of its medium.
 
-```text
-New Claude Task
-  -> native Claude Code PTY through TerminalHost
-  -> provider-owned workspace trust and slash-command behavior
-  -> Task / Run / Preview / Inspector surfaces remain Duet-owned
-```
-
-This is not same-Task provider switching and not full Claude parity. A Task
-keeps the provider chosen when it is created.
-
-The Main Chat reading surface is now driven by a semantic transcript channel:
-
-```text
-provider session files (Claude session JSONL / Codex rollout JSONL)
-  -> located by provider cwd + launch time, tailed incrementally
-  -> normalized into provider-neutral transcript blocks
-  -> turn cards: markdown text, folded tool calls, run attribution
-  -> PTY remains the control + liveness channel and the raw trust layer
-  -> sanitized PTY text remains only as a labeled fallback
-```
+- **The runtime is the portable brain.** `main/` + `runtime/` own PTY
+  orchestration, the hooks-driven signal layer, transcript normalization,
+  and delivery — all UI-agnostic. The renderer is the replaceable shell.
+- **Observe high-frequency, render low-frequency.** Structured signals
+  update an in-memory state model; the renderer touches only what changed
+  (no full rebuild on a status tick).
 
 Start here:
 
 ```text
-product-thinking/2026-06-09-semantic-transcript-contract-v0.md
-product-thinking/2026-05-16-acceptance-checkpoint-refresh-v1.md
-product-thinking/2026-05-16-woody-testing-script-v0.md
-product-thinking/2026-06-09-claude-runtime-validation-v0.md
-product-thinking/2026-06-09-task-folder-launch-settings-v0.md
-product-thinking/2026-06-09-main-transcript-tui-noise-gate-v0.md
-product-thinking/2026-06-09-claude-session-approval-control-v0.md
-product-thinking/2026-05-15-three-surface-ux-architecture.md
-product-thinking/2026-05-15-terminalhost-runtime-contract.md
-product-thinking/2026-05-14-duet-mvp-product-architecture.md
+product-thinking/2026-06-13-cli-integration-architecture-v0.md   # signals, surfaces, the floor (governs the cli-* track)
+product-thinking/2026-06-09-semantic-transcript-contract-v0.md   # the reading-surface transcript channel
+product-thinking/2026-06-17-dev-worktree-workflow-v0.md          # how I run + ship it (workshop vs daily driver)
 ```
 
-## Local Run
+## Running it
 
-From the app directory:
+Day to day I keep two checkouts — a git **worktree** — so I can develop Duet
+while using it, without a build ever disturbing the running app:
+
+| Desktop shortcut | Does |
+|---|---|
+| `Duet Latest.command` | launch the daily driver |
+| `Duet Dev.command` | launch the workshop (the dev worktree, fully isolated data) |
+| `Promote Duet to Latest.command` | ship a verified change from the workshop to the daily driver |
+
+The full model — isolation layers, the daily loop, the one rule (*never build
+in the daily driver*) — is in
+`product-thinking/2026-06-17-dev-worktree-workflow-v0.md`.
+
+One-off run, no worktree:
 
 ```bash
 cd app
-npm run dev
+npm run dev            # build + launch
 ```
 
-For a clean guided walkthrough with isolated Task data:
+Throwaway session with isolated Task data:
 
 ```bash
 cd app
-DUET_PROJECTS_DIR="$(mktemp -d /tmp/duet-woody-test-XXXXXX)" npm run dev
+DUET_PROJECTS_DIR="$(mktemp -d /tmp/duet-XXXXXX)" npm run dev
 ```
 
-## Local Latest Channel
-
-For repeated human testing, use the local latest channel instead of a packaged
-app:
+## Verifying
 
 ```bash
-scripts/update-latest.sh
-scripts/install-desktop-shortcuts.sh
+cd app
+npm run build                      # typecheck + build all targets
+npm run e2e:gui-walking-skeleton   # representative end-to-end gate
 ```
 
-This installs two Desktop shortcuts:
+More smoke and e2e gates live in `app/package.json`.
+
+## Repository map
 
 ```text
-Duet Latest.command
-Update Duet Latest.command
+app/               the Electron app. main/ owns the runtime; renderer/ owns
+                   Main Chat, floating Preview, floating Inspector, Terminal.
+product-thinking/  current architecture, runtime contracts, slice briefs + findings.
+decisions/         durable architecture decision records.
+research/          external research and prior-art audits.
+spikes/            completed technical proofs (material reference, not source).
+archive/           superseded material, kept out of current reasoning.
 ```
 
-`Duet Latest.command` launches the latest built app. `Update Duet Latest.command`
-installs dependencies and rebuilds the app. Both use persistent dev data at:
+## Working rule
+
+Truth moves one direction:
 
 ```text
-~/Library/Application Support/Duet Dev/Projects
+research → spikes → product-thinking contracts → app
 ```
 
-Updating the app does not delete previous Task / Run / artifact records. Close
-Duet before updating; live native PTY sessions are not expected to survive a
-rebuild.
-
-## Verification
-
-Core health check:
-
-```bash
-cd app
-npm run build
-```
-
-Representative walking-skeleton gate:
-
-```bash
-cd app
-npm run e2e:gui-walking-skeleton
-```
-
-Provider validation gates:
-
-```bash
-cd app
-npm run smoke:provider-launch-settings
-npm run smoke:terminal-transcript
-npm run smoke:approval-session-choice
-npm run e2e:task-folder-cwd
-npm run smoke:claude-terminalhost
-npm run e2e:provider-locked-task
-```
-
-The app has additional E2E and smoke gates in `app/package.json` for Task
-entry, approval, Stop/continue, Open Task, Preview, Inspector, Task tabs, Run
-reading, and runtime report behavior.
-
-## Repository Map
-
-```text
-app/
-  Formal TypeScript Electron walking skeleton. Main owns runtime; renderer
-  owns Main Chat, floating Preview, floating Inspector, and Terminal surfaces.
-
-product-thinking/
-  Current product architecture, runtime contracts, and phase handoffs.
-
-decisions/
-  Durable architecture decision records. Use this for decisions that should
-  survive beyond one planning document.
-
-research/
-  External research, prior-art audits, and design/technical evidence.
-
-spikes/
-  Completed or active technical proofs. Spikes are material references, not
-  production source.
-
-archive/
-  Superseded material that no longer participates in current reasoning.
-
-ai-conversations/
-  Historical conversation notes that may inform product direction.
-```
-
-## Working Rule
-
-Product truth moves from research to spike to contract to app:
-
-```text
-research -> spikes -> product-thinking contracts -> app
-```
-
-Do not skip the direction of evidence. Spikes can prove material behavior, but
-formal app code should encode only the resulting contract, not incidental spike
-UI or temporary probe assumptions.
+Spikes prove material behavior; app code encodes the resulting contract — not
+incidental spike UI or temporary probe assumptions.
