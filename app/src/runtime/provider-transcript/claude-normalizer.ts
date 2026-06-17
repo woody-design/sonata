@@ -1,5 +1,7 @@
 import type { TaskId } from "../../shared/types/domain";
 import type {
+  AgentRosterBlock,
+  AgentRunItem,
   PlanBlock,
   PlanItem,
   ToolCallBlock,
@@ -44,6 +46,18 @@ export class ClaudeSessionNormalizer {
   /** Session-level task state for the 2.1.17x TaskCreate/TaskUpdate tools. */
   private readonly sessionTasks = new Map<string, PlanItem>();
   private readonly pendingPlanCalls = new Map<string, PendingPlanCall>();
+  /** Background agents the session spawned, keyed by the `Agent` tool_use id.
+   *  Insertion order == spawn order == roster row order. */
+  private readonly agents = new Map<string, AgentRunItem>();
+  /** Turn each agent belongs to, so completions upsert the right roster. */
+  private readonly agentTurnKey = new Map<string, string>();
+  /** Internal agentId (== notification task-id) -> spawning tool_use id. Filled
+   *  from the spawn's tool_result, which carries `agentId: <id>`. */
+  private readonly agentIdByTask = new Map<string, string>();
+  /** Spawns awaiting their tool_result, to capture that internal agentId. */
+  private readonly pendingAgentSpawns = new Map<string, true>();
+  /** One agent-roster block per turn, upserted in place (mirrors turnPlans). */
+  private readonly turnAgentRosters = new Map<string, AgentRosterBlock>();
 
   constructor(options: { taskId: TaskId; sourceId: string }) {
     this.taskId = options.taskId;
@@ -121,6 +135,12 @@ export class ClaudeSessionNormalizer {
     // reading surface — a worse failure than showing a stray notification. `sdk`
     // and legacy un-tagged records keep the heuristic below.
     if (promptSource === "system") {
+      // It is still the agent-completion signal, though: a `<task-notification>`
+      // settles a running roster row even as it produces no user bubble.
+      const settled = this.settleAgentFromNotification(textParts.join("\n"), ts);
+      if (settled) {
+        upserts.push(settled);
+      }
       return upserts;
     }
 
@@ -243,6 +263,18 @@ export class ClaudeSessionNormalizer {
             continue;
           }
         }
+        if (block.name === "Agent" || block.name === "Workflow") {
+          // Background fan-out: consolidate into one roster row per spawn
+          // instead of a generic tool card. `Agent` is a single sub-agent;
+          // `Workflow` is a whole background fleet (the deep-research skill's
+          // path) shown coarsely as one row. Both bridge through their launch
+          // result and settle on the matching task-notification.
+          const roster = this.spawnAgent(block, ts);
+          if (roster) {
+            upserts.push(roster);
+            continue;
+          }
+        }
         this.pendingToolCalls.set(block.id, toolCall);
         upserts.push(toolCall);
       }
@@ -329,9 +361,154 @@ export class ClaudeSessionNormalizer {
     return updated;
   }
 
+  private spawnAgent(block: Record<string, unknown>, ts: string): AgentRosterBlock | null {
+    const toolUseId = block.id;
+    if (typeof toolUseId !== "string") {
+      return null;
+    }
+    const input = block.input as Record<string, unknown> | undefined;
+    let name: string;
+    let agentType: string;
+    if (block.name === "Workflow") {
+      // A `Workflow` launch — name is the workflow id ("deep-research"). Its
+      // own fan-out lives in the workflow transcript dir, not the main stream,
+      // so it shows as one coarse "still working" row, not its inner agents.
+      name = typeof input?.name === "string" && input.name.trim() ? input.name : "workflow";
+      agentType = "workflow";
+    } else {
+      name =
+        typeof input?.description === "string" && input.description.trim()
+          ? input.description
+          : "Agent";
+      agentType =
+        typeof input?.subagent_type === "string" && input.subagent_type.trim()
+          ? input.subagent_type
+          : "agent";
+    }
+    this.agents.set(toolUseId, {
+      toolUseId,
+      name,
+      detail: null,
+      agentType,
+      status: "running",
+      startedAt: ts,
+      durationMs: null,
+    });
+    const turnKey = this.currentTurnKey ?? this.openImplicitTurn();
+    this.agentTurnKey.set(toolUseId, turnKey);
+    this.pendingAgentSpawns.set(toolUseId, true);
+    return this.upsertAgentRoster(turnKey, ts);
+  }
+
+  private settleAgentFromNotification(text: string, ts: string): AgentRosterBlock | null {
+    if (!text.includes("<task-notification>")) {
+      return null;
+    }
+    const taskId = text.match(/<task-id>([^<]+)<\/task-id>/)?.[1]?.trim();
+    if (!taskId) {
+      return null;
+    }
+    const toolUseId = this.agentIdByTask.get(taskId);
+    const item = toolUseId ? this.agents.get(toolUseId) : undefined;
+    const turnKey = toolUseId ? this.agentTurnKey.get(toolUseId) : undefined;
+    if (!item || !turnKey) {
+      // Not one of our top-level spawns (e.g. a nested child agent, or a
+      // notification that arrived before its launch result was parsed).
+      return null;
+    }
+    // The CLI may notify the same agent more than once. Settle to done, but
+    // never let a later notification clobber a good CLI duration with an
+    // estimate: trust an explicit <duration_ms>, otherwise compute one only
+    // while we still have none. Skip the re-upsert when nothing changed, so a
+    // duplicate notification doesn't needlessly restart co-running animations.
+    let changed = item.status !== "done";
+    item.status = "done";
+    const durationMatch = text.match(/<duration_ms>(\d+)<\/duration_ms>/);
+    if (durationMatch) {
+      const reported = Number(durationMatch[1]);
+      if (reported !== item.durationMs) {
+        item.durationMs = reported;
+        changed = true;
+      }
+    } else if (item.durationMs === null) {
+      const started = Date.parse(item.startedAt);
+      const ended = Date.parse(ts);
+      const computed =
+        Number.isNaN(started) || Number.isNaN(ended) ? null : Math.max(0, ended - started);
+      if (computed !== null) {
+        item.durationMs = computed;
+        changed = true;
+      }
+    }
+    if (!changed) {
+      return null;
+    }
+    return this.upsertAgentRoster(turnKey, ts);
+  }
+
+  private agentItemsForTurn(turnKey: string): AgentRunItem[] {
+    const items: AgentRunItem[] = [];
+    for (const [toolUseId, item] of this.agents) {
+      if (this.agentTurnKey.get(toolUseId) === turnKey) {
+        items.push({ ...item });
+      }
+    }
+    return items;
+  }
+
+  private upsertAgentRoster(turnKey: string, ts: string): AgentRosterBlock {
+    const items = this.agentItemsForTurn(turnKey);
+    const existing = this.turnAgentRosters.get(turnKey);
+    const updated: AgentRosterBlock = existing
+      ? { ...existing, items, ts }
+      : {
+          kind: "agents",
+          id: `${this.sourceId}:agents:${turnKey}`,
+          taskId: this.taskId,
+          sourceId: this.sourceId,
+          provider: "claude",
+          turnKey,
+          runId: null,
+          ts,
+          seq: ++this.seq,
+          items,
+        };
+    this.turnAgentRosters.set(turnKey, updated);
+    return updated;
+  }
+
   private resolveToolResult(block: Record<string, unknown>, ts: string): TranscriptBlock | null {
     const callId = block.tool_use_id;
     if (typeof callId !== "string") {
+      return null;
+    }
+    if (this.pendingAgentSpawns.has(callId)) {
+      // The launch result. Bridge the internal id the later task-notification
+      // will report (Agent → "agentId: …"; Workflow → "Task ID: …") to this
+      // spawn's tool_use id. The roster already shows the row; the launch text
+      // itself is plumbing.
+      this.pendingAgentSpawns.delete(callId);
+      const text = toolResultText(block.content);
+      // Match the same charset the notification's <task-id> can hold ([^<]+) —
+      // stop only at whitespace or the trailing "(" of "agentId: x (internal…)".
+      // A stricter [A-Za-z0-9]+ here would silently fail to bridge any id with
+      // a '-'/'_' (some workflow ids have them), leaving the row stuck running.
+      const taskId = text.match(/(?:agentId|Task ID):\s*([^\s)]+)/)?.[1];
+      if (taskId) {
+        this.agentIdByTask.set(taskId, callId);
+      }
+      // A Workflow launch result carries a one-line `Summary:` describing the
+      // fleet — fold it onto the row so it reads like the CLI ("deep-research —
+      // Deep research harness …"), then re-upsert so the detail appears.
+      const item = this.agents.get(callId);
+      const summary = text.match(/Summary:\s*(.+)/)?.[1]?.trim();
+      if (item && summary && !item.detail) {
+        item.detail = summary;
+        const turnKey = this.agentTurnKey.get(callId);
+        if (turnKey) {
+          return this.upsertAgentRoster(turnKey, ts);
+        }
+      }
       return null;
     }
     const pendingPlan = this.pendingPlanCalls.get(callId);

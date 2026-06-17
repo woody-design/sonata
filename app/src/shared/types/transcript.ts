@@ -28,6 +28,7 @@ export type TranscriptBlockKind =
   | "thinking"
   | "tool-call"
   | "plan"
+  | "agents"
   | "system-note";
 
 interface TranscriptBlockBase {
@@ -110,12 +111,51 @@ export interface SystemNoteBlock extends TranscriptBlockBase {
   text: string;
 }
 
+export type AgentRunStatus = "running" | "done";
+
+export interface AgentRunItem {
+  /** The spawning `Agent` tool_use id — the stable join key for this agent. */
+  toolUseId: string;
+  /** Human label: the `Agent` tool's `description` ("Research … facts"), or a
+   *  `Workflow`'s name ("deep-research"). */
+  name: string;
+  /** Optional one-line description shown after the name — a `Workflow`'s
+   *  summary ("Deep research harness — fan-out web searches …"). Null for a
+   *  plain `Agent`, whose name already is its description. */
+  detail: string | null;
+  /** subagent_type ("general-purpose"), or "workflow" for a Workflow launch. */
+  agentType: string;
+  status: AgentRunStatus;
+  /** Spawn timestamp (ISO). Drives the live elapsed clock while running. */
+  startedAt: string;
+  /** Wall-clock duration once the agent comes to rest. CLI-reported when the
+   *  notification carries it, else computed from the completion timestamp. */
+  durationMs: number | null;
+}
+
+/**
+ * Background work the turn fanned out to — a claude `Agent` (one sub-agent) or
+ * a `Workflow` (a whole background fleet, e.g. the deep-research skill, shown
+ * coarsely as one row). Like PlanBlock, one block per turn upserted in place:
+ * a spawn adds a running row, the matching task-notification settles it to
+ * done. It is a live dashboard while work runs and a permanent archive after.
+ *
+ * Scope is what the main session itself launched. Nested children — a sub-
+ * agent's own agents, or a workflow's internal agents (the terminal's "+N") —
+ * are not surfaced here; their spawns never reach the main session stream.
+ */
+export interface AgentRosterBlock extends TranscriptBlockBase {
+  kind: "agents";
+  items: AgentRunItem[];
+}
+
 export type TranscriptBlock =
   | UserMessageBlock
   | AssistantTextBlock
   | ThinkingBlock
   | ToolCallBlock
   | PlanBlock
+  | AgentRosterBlock
   | SystemNoteBlock;
 
 export const TRANSCRIPT_SOURCES_SCHEMA_ID = "duet.transcript-sources.v1" as const;

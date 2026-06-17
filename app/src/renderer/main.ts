@@ -75,6 +75,7 @@ import type {
 import type { OptionPromptAnswers, OptionPromptQuestion } from "../shared/types/option-prompt";
 import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
 import type {
+  AgentRosterBlock,
   PlanBlock,
   ToolCallBlock,
   TranscriptBlock,
@@ -1895,6 +1896,11 @@ window.setInterval(() => {
     .querySelectorAll<HTMLElement>(".turn-status-stall-elapsed[data-silent-since]")
     .forEach((node) => {
       node.textContent = formatLiveElapsed(node.dataset.silentSince ?? null);
+    });
+  elements.runList
+    .querySelectorAll<HTMLElement>(".turn-agent-elapsed[data-started-at]")
+    .forEach((node) => {
+      node.textContent = formatLiveElapsed(node.dataset.startedAt ?? null);
     });
 }, 1000);
 const workTraceOpenByTurnKey = new Map<string, boolean>();
@@ -6728,8 +6734,13 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
 
 function isWorkTraceBlock(
   block: TranscriptBlock,
-): block is Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" }> {
-  return block.kind === "thinking" || block.kind === "tool-call" || block.kind === "plan";
+): block is Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" | "agents" }> {
+  return (
+    block.kind === "thinking" ||
+    block.kind === "tool-call" ||
+    block.kind === "plan" ||
+    block.kind === "agents"
+  );
 }
 
 function isAnswerBlock(
@@ -6748,7 +6759,7 @@ function turnCompletedWithoutAssistantOutput(turn: ReadingTurn): boolean {
 
 function renderTurnWorkTrace(
   turn: ReadingTurn,
-  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" }>>,
+  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" | "agents" }>>,
   noAssistantOutput: boolean,
 ): HTMLElement {
   const run = turn.run;
@@ -6835,7 +6846,7 @@ function workTraceLabel(run: RuntimeRunReport, noAssistantOutput = false): strin
 
 function workTraceMeta(
   run: RuntimeRunReport,
-  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" }>>,
+  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" | "agents" }>>,
 ): string[] {
   const toolCount = workBlocks.filter((block) => block.kind === "tool-call").length;
   return [
@@ -6858,6 +6869,9 @@ function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
   }
   if (block.kind === "plan") {
     return renderPlanBlock(block);
+  }
+  if (block.kind === "agents") {
+    return renderAgentRosterBlock(block);
   }
   if (block.kind === "thinking") {
     const section = document.createElement("section");
@@ -7023,6 +7037,19 @@ function updateLiveStatusRowInPlace(view: TaskViewState): boolean {
   return true;
 }
 
+// A settled duration, in the same "Xm Ys" shape the live clock ticks in (not
+// formatElapsed's "284.7 s" — the roster's running and done rows must read the
+// same way).
+function formatAgentDuration(durationMs: number | null): string {
+  if (durationMs === null) {
+    return "";
+  }
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
 function formatLiveElapsed(startedAt: string | null): string {
   const startedMs = startedAt ? Date.parse(startedAt) : Number.NaN;
   if (Number.isNaN(startedMs)) {
@@ -7050,6 +7077,68 @@ function renderPlanBlock(block: PlanBlock): HTMLElement {
     text.className = "turn-plan-text";
     text.textContent =
       item.status === "in_progress" && item.activeLabel ? item.activeLabel : item.text;
+    row.append(status, text);
+    list.append(row);
+  }
+  section.append(list);
+  return section;
+}
+
+function renderAgentRosterBlock(block: AgentRosterBlock): HTMLElement {
+  const running = block.items.filter((item) => item.status === "running").length;
+  const section = document.createElement("section");
+  section.className = "turn-agents";
+  section.append(
+    runSectionLabel(running > 0 ? `Agents · ${running} working` : "Agents"),
+  );
+  const list = document.createElement("ul");
+  list.className = "turn-agents-list";
+  for (const item of block.items) {
+    const row = document.createElement("li");
+    row.className = `turn-agent ${item.status}`;
+
+    const status = document.createElement("span");
+    status.className = "turn-agent-status";
+    if (item.status === "done") {
+      // Settles to a check and stays as the fan-out's archive.
+      status.textContent = "✓";
+    } else {
+      // Three staggered dots animate (CSS) — the unmistakable "alive, working,
+      // not stuck" signal. It echoes the "…" in-progress glyph the plan/tool
+      // blocks already use, and stays clear of the sidebar's rotating spinner.
+      status.classList.add("working");
+      for (let i = 0; i < 3; i += 1) {
+        status.append(document.createElement("i"));
+      }
+    }
+
+    // Name (+ optional detail) and the clock flow as one inline run, so the
+    // timer trails the text as "… · 2m 14s" rather than floating off to the
+    // right edge.
+    const text = document.createElement("span");
+    text.className = "turn-agent-text";
+
+    const name = document.createElement("span");
+    name.className = "turn-agent-name";
+    name.textContent = item.detail ? `${item.name} — ${item.detail}` : item.name;
+    text.append(name);
+
+    const clock =
+      item.status === "running" ? formatLiveElapsed(item.startedAt) : formatAgentDuration(item.durationMs);
+    if (clock) {
+      const sep = document.createElement("span");
+      sep.className = "turn-agent-sep";
+      sep.textContent = " · ";
+      const elapsed = document.createElement("span");
+      elapsed.className = "turn-agent-elapsed";
+      if (item.status === "running") {
+        // The tick interval refreshes this in place every second — no re-render.
+        elapsed.dataset.startedAt = item.startedAt;
+      }
+      elapsed.textContent = clock;
+      text.append(sep, elapsed);
+    }
+
     row.append(status, text);
     list.append(row);
   }

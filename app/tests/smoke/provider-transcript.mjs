@@ -331,6 +331,209 @@ check("claude: promptSource=system records (task notifications) never render as 
   assert.equal(upserts[2].turnKey, upserts[0].turnKey, "reply stays in the user's turn");
 });
 
+check("claude: Agent fan-out becomes one roster block — spawn, bridge, settle", () => {
+  // The full T0 chain, all from the main stream: an `Agent` tool_use spawns a
+  // running row; its tool_result carries `agentId:` (bridging tool_use id ->
+  // the internal id the notification reports); the `<task-notification>`
+  // (promptSource:system) settles the row to done with the CLI's duration.
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s-ag" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      promptSource: "typed",
+      timestamp: "2026-06-17T10:00:00.000Z",
+      message: { role: "user", content: "Research the bookshop and the logo" },
+    }),
+    // Two background agents spawned in one assistant turn.
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-06-17T10:00:02.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "toolu_A", name: "Agent", input: { description: "Research bookshop facts", subagent_type: "general-purpose", prompt: "…" } },
+          { type: "tool_use", id: "toolu_B", name: "Agent", input: { description: "Curate logo references", subagent_type: "general-purpose", prompt: "…" } },
+        ],
+      },
+    }),
+    // Launch results — carry the internal agentId for each spawn.
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptId: "p1",
+      timestamp: "2026-06-17T10:00:02.300Z",
+      message: {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "toolu_A", content: "Async agent launched successfully.\nagentId: a3833de70ddc9449d (internal ID - do not mention)" },
+          { type: "tool_result", tool_use_id: "toolu_B", content: "Async agent launched successfully.\nagentId: acb286c4569214d3c (internal ID - do not mention)" },
+        ],
+      },
+    }),
+    // First agent comes to rest — settles via task-id == agentId, duration from <usage>.
+    claudeLine({
+      type: "user",
+      uuid: "u3",
+      promptSource: "system",
+      timestamp: "2026-06-17T10:04:00.000Z",
+      message: {
+        role: "user",
+        content:
+          "<task-notification>\n<task-id>a3833de70ddc9449d</task-id>\n<status>completed</status>\n<summary>Agent \"Research bookshop facts\" came to rest</summary>\n<usage><subagent_tokens>40810</subagent_tokens><tool_uses>7</tool_uses><duration_ms>284740</duration_ms></usage>\n</task-notification>",
+      },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  // No generic Agent tool cards, no user bubble for the notification.
+  assert.equal(upserts.filter((b) => b.kind === "tool-call").length, 0, "no raw Agent cards");
+  assert.equal(
+    upserts.filter((b) => b.kind === "user-message").length,
+    1,
+    "only the real typed prompt is a user message",
+  );
+
+  const rosters = upserts.filter((b) => b.kind === "agents");
+  assert.ok(rosters.length >= 1, "the fan-out produced a roster block");
+  assert.equal(new Set(rosters.map((b) => b.id)).size, 1, "one roster block per turn, upserted in place");
+  assert.equal(rosters[0].seq, rosters[rosters.length - 1].seq, "stable seq keeps transcript position");
+
+  const finalRoster = rosters[rosters.length - 1];
+  assert.equal(finalRoster.turnKey, "p1", "roster lives in the spawning turn");
+  assert.deepEqual(
+    finalRoster.items.map((i) => [i.name, i.status, i.durationMs]),
+    [
+      ["Research bookshop facts", "done", 284740],
+      ["Curate logo references", "running", null],
+    ],
+    "first agent settled with the CLI duration; second still running",
+  );
+
+  // Snapshot isolation: the spawn-time roster must not have been mutated by the
+  // later settle (emitted blocks are immutable history).
+  assert.equal(rosters[0].items[0].status, "running", "earlier snapshot is frozen");
+});
+
+check("claude: a Workflow launch (deep-research) becomes one coarse roster row that settles", () => {
+  // The deep-research path: a `Workflow` tool fans out INSIDE its own
+  // transcript dir, so the main stream sees only the launch + a single
+  // completion notification keyed by the workflow Task ID. It shows as one
+  // "still working" row, not its inner agents.
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s-wf" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      promptSource: "typed",
+      timestamp: "2026-06-17T10:00:00.000Z",
+      message: { role: "user", content: "deep research the best DJI Pocket 4 accessories" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-06-17T10:00:02.000Z",
+      message: {
+        role: "assistant",
+        content: [{ type: "tool_use", id: "toolu_W", name: "Workflow", input: { name: "deep-research", args: {} } }],
+      },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptId: "p1",
+      timestamp: "2026-06-17T10:00:02.400Z",
+      message: {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "toolu_W", content: "Workflow launched in background. Task ID: wfuyb6jib\nSummary: Deep research harness …" },
+        ],
+      },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u3",
+      promptSource: "system",
+      timestamp: "2026-06-17T10:09:00.000Z",
+      message: {
+        role: "user",
+        content:
+          "<task-notification>\n<task-id>wfuyb6jib</task-id>\n<status>completed</status>\n<summary>Workflow \"deep-research\" came to rest</summary>\n<usage><duration_ms>540000</duration_ms></usage>\n</task-notification>",
+      },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  assert.equal(upserts.filter((b) => b.kind === "tool-call").length, 0, "no raw Workflow card");
+  const rosters = upserts.filter((b) => b.kind === "agents");
+  assert.ok(rosters.length >= 1, "the workflow launch produced a roster row");
+  const finalRoster = rosters[rosters.length - 1];
+  assert.deepEqual(
+    finalRoster.items.map((i) => [i.name, i.detail, i.agentType, i.status, i.durationMs]),
+    [["deep-research", "Deep research harness …", "workflow", "done", 540000]],
+    "one coarse workflow row, summary folded onto it, settled with the CLI duration",
+  );
+});
+
+check("claude: a re-notification never clobbers a settled agent's CLI duration", () => {
+  // The CLI may notify the same agent more than once. A later notification
+  // WITHOUT <duration_ms> must not overwrite the authoritative first duration
+  // with a wall-clock estimate, and must not re-emit a no-op block.
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s-renotify" });
+  const upserts = [];
+  const lines = [
+    claudeLine({ type: "user", uuid: "u1", promptId: "p1", promptSource: "typed", timestamp: "2026-06-17T10:00:00.000Z", message: { role: "user", content: "Research it" } }),
+    claudeLine({ type: "assistant", uuid: "a1", promptId: "p1", timestamp: "2026-06-17T10:00:01.000Z", message: { role: "assistant", content: [{ type: "tool_use", id: "toolu_A", name: "Agent", input: { description: "Research", subagent_type: "general-purpose" } }] } }),
+    claudeLine({ type: "user", uuid: "u2", promptId: "p1", timestamp: "2026-06-17T10:00:01.200Z", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_A", content: "agentId: a-1 (internal)" }] } }),
+    // First notification: authoritative duration.
+    claudeLine({ type: "user", uuid: "u3", promptSource: "system", timestamp: "2026-06-17T10:02:00.000Z", message: { role: "user", content: "<task-notification>\n<task-id>a-1</task-id>\n<status>completed</status>\n<usage><duration_ms>119000</duration_ms></usage>\n</task-notification>" } }),
+    // Re-notification much later, no duration — must NOT clobber, must NOT re-emit.
+    claudeLine({ type: "user", uuid: "u4", promptSource: "system", timestamp: "2026-06-17T10:30:00.000Z", message: { role: "user", content: "<task-notification>\n<task-id>a-1</task-id>\n<status>completed</status>\n</task-notification>" } }),
+  ];
+  let beforeRenotify = 0;
+  for (const [i, line] of lines.entries()) {
+    const out = normalizer.consumeLine(line);
+    if (i === 3) beforeRenotify = upserts.length + out.length;
+    upserts.push(...out);
+  }
+  assert.equal(upserts.length, beforeRenotify, "the duplicate notification emitted no new block");
+  const finalRoster = upserts.filter((b) => b.kind === "agents").pop();
+  assert.equal(finalRoster.items[0].status, "done");
+  assert.equal(finalRoster.items[0].durationMs, 119000, "CLI duration preserved, not recomputed to ~30min");
+});
+
+check("claude: agent rosters are isolated per turn (a later turn never inherits earlier agents)", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s-ag2" });
+  const upserts = [];
+  const spawn = (turnPrompt, toolId, desc, t) => [
+    claudeLine({ type: "user", uuid: `u-${toolId}`, promptId: turnPrompt, promptSource: "typed", timestamp: t, message: { role: "user", content: `prompt ${turnPrompt}` } }),
+    claudeLine({ type: "assistant", uuid: `a-${toolId}`, promptId: turnPrompt, timestamp: t, message: { role: "assistant", content: [{ type: "tool_use", id: toolId, name: "Agent", input: { description: desc, subagent_type: "general-purpose" } }] } }),
+  ];
+  const lines = [
+    ...spawn("turnA", "toolu_A", "Agent in turn A", "2026-06-17T10:00:00.000Z"),
+    ...spawn("turnB", "toolu_B", "Agent in turn B", "2026-06-17T10:05:00.000Z"),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  const rosters = upserts.filter((b) => b.kind === "agents");
+  const turnA = rosters.filter((b) => b.turnKey === "turnA").pop();
+  const turnB = rosters.filter((b) => b.turnKey === "turnB").pop();
+  assert.deepEqual(turnA.items.map((i) => i.name), ["Agent in turn A"]);
+  assert.deepEqual(turnB.items.map((i) => i.name), ["Agent in turn B"], "turn B's roster has only its own agent");
+});
+
 check("claude: promptSource=sdk records still render (the user's own words in SDK sessions)", () => {
   // Guard against the tempting over-fix: every prompt in a Claude-Agent-SDK
   // session is tagged `sdk`. Excluding it would erase the user from the

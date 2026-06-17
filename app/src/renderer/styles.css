@@ -4520,6 +4520,99 @@ body.terminal-resizing {
   color: var(--accent);
 }
 
+.turn-agents {
+  border-left: 3px solid var(--border-soft);
+  padding-left: 10px;
+}
+
+.turn-agents-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.turn-agent {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.turn-agent.running {
+  color: var(--ink);
+}
+
+.turn-agent-status {
+  flex: none;
+  width: 16px;
+  min-height: calc(1.5 * 13px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-weight: 700;
+}
+
+.turn-agent.done .turn-agent-status {
+  color: var(--accent);
+}
+
+/* Three staggered dots — the "alive, working" signal. The 1s clock tick
+   touches only the elapsed text, so it never restarts the animation; a roster
+   change (spawn/settle) does rebuild the dots, but that is low-frequency and a
+   genuine state change. Calm by design: a soft opacity fade, not a bounce. */
+.turn-agent-status.working {
+  color: var(--ink-muted);
+}
+
+.turn-agent-status.working i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: turn-agent-dot 1.4s ease-in-out infinite;
+}
+
+.turn-agent-status.working i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.turn-agent-status.working i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+.turn-agent-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.turn-agent-sep {
+  color: var(--ink-faint, var(--ink-muted));
+  opacity: 0.7;
+}
+
+.turn-agent-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint, var(--ink-muted));
+  opacity: 0.8;
+}
+
+@keyframes turn-agent-dot {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .turn-thinking-text {
   margin: 6px 0 0;
   color: var(--ink-muted);
