@@ -21,6 +21,10 @@ import {
  *
  * Turn rules:
  * - Meta user records are context injection and are skipped.
+ * - `promptSource: "system"` records are machinery injected into the user role
+ *   (task notifications from background/research workflows, etc.) — never the
+ *   user's words, so they never render as a prompt. (`sdk` is deliberately NOT
+ *   excluded — see consumeUserRecord.)
  * - A typed prompt or command invocation always starts a new turn.
  * - Legacy user records without promptSource keep the older fallback heuristic:
  *   real text starts a turn once the previous turn has assistant content.
@@ -103,8 +107,24 @@ export class ClaudeSessionNormalizer {
       return upserts;
     }
 
-    const command = parseCommandInvocation(userText);
     const promptSource = typeof record.promptSource === "string" ? record.promptSource : null;
+
+    // `promptSource` is the medium's own provenance signal. A `system` source is
+    // machinery the CLI injects into the user role — task notifications from
+    // background/research workflows ("<task-notification> … came to rest"), and
+    // the like — never the user's words. It must never render as a prompt bubble;
+    // any tool_results it carried are already resolved into `upserts` above.
+    //
+    // Deliberately NOT extended to `sdk`: in a Claude-Agent-SDK session every
+    // user message is tagged `sdk` (including the prompts driving this very Duet
+    // workshop), so excluding it would erase the user's own words from the
+    // reading surface — a worse failure than showing a stray notification. `sdk`
+    // and legacy un-tagged records keep the heuristic below.
+    if (promptSource === "system") {
+      return upserts;
+    }
+
+    const command = parseCommandInvocation(userText);
     const startsTurn =
       promptSource === "typed" ||
       promptSource === "queued" ||

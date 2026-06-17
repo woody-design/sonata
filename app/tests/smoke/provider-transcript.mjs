@@ -272,6 +272,109 @@ check("claude: isMeta user records are skipped", () => {
   assert.equal(upserts[1].turnKey, "p1");
 });
 
+check("claude: promptSource=system records (task notifications) never render as the user's prompt", () => {
+  // The research-session bug: a deep-research / Workflow run injects a
+  // `<task-notification>` as a `type:"user"` record with `promptSource:"system"`
+  // and no `isMeta`. Mid-turn (assistant has already spoken) the legacy
+  // `turnHasAssistant` fallback used to render it as a fresh user bubble,
+  // attributing CLI machinery to the user's own words.
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s-sys" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      promptSource: "typed",
+      timestamp: "2026-06-09T10:00:00.000Z",
+      message: { role: "user", content: "Research the two cameras" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-06-09T10:00:02.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Spawning research agents." }] },
+    }),
+    // The machinery record — string content, no isMeta, promptSource:system.
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptSource: "system",
+      timestamp: "2026-06-09T10:00:30.000Z",
+      message: {
+        role: "user",
+        content:
+          "<task-notification>\n<task-id>ab504d018b671ce18</task-id>\n<status>completed</status>\n<summary>Agent \"Research Insta360 Luna Ultra\" came to rest</summary>\n</task-notification>",
+      },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a2",
+      promptId: "p1",
+      timestamp: "2026-06-09T10:00:32.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Here is what the research found." }] },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  assert.deepEqual(
+    upserts.map((block) => block.kind),
+    ["user-message", "assistant-text", "assistant-text"],
+    "the task-notification produces no user bubble",
+  );
+  assert.equal(upserts[0].text, "Research the two cameras");
+  // The post-notification assistant text folds back into the original prompt's
+  // turn — the notification was mid-turn machinery, not a new question.
+  assert.equal(upserts[2].turnKey, upserts[0].turnKey, "reply stays in the user's turn");
+});
+
+check("claude: promptSource=sdk records still render (the user's own words in SDK sessions)", () => {
+  // Guard against the tempting over-fix: every prompt in a Claude-Agent-SDK
+  // session is tagged `sdk`. Excluding it would erase the user from the
+  // reading surface. `sdk` must keep starting turns like a real prompt.
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s-sdk" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      promptSource: "sdk",
+      timestamp: "2026-06-09T10:00:00.000Z",
+      message: { role: "user", content: "First SDK-driven prompt" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-06-09T10:00:02.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Reply one." }] },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptId: "p2",
+      promptSource: "sdk",
+      timestamp: "2026-06-09T10:01:00.000Z",
+      message: { role: "user", content: "Second SDK-driven prompt" },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  assert.deepEqual(
+    upserts.map((block) => block.kind),
+    ["user-message", "assistant-text", "user-message"],
+  );
+  assert.equal(upserts[0].text, "First SDK-driven prompt");
+  assert.equal(upserts[2].text, "Second SDK-driven prompt");
+  assert.notEqual(upserts[0].turnKey, upserts[2].turnKey);
+});
+
 check("claude: legacy user records without promptSource keep fallback heuristic", () => {
   const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s2d" });
   const upserts = [];
