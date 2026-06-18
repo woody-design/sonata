@@ -567,6 +567,12 @@ pre {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Two-tone bands (Apple/Notion/M3 depth model): the main pane is the focal
+     reading plane on --surface; the sidebar recedes one rung down on
+     --surface-shell. Both tones come from the per-theme ladder already defined
+     (shell < surface < raised < panel), so the distinction holds across every
+     theme + mode with no new colors. */
+  background: var(--surface);
 }
 
 /* ---------------------------------------------------------------- sidebar */
@@ -1773,7 +1779,8 @@ h2 {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--surface-shell);
+  /* Inherit the main pane's --surface (the focal reading plane); see .main-pane. */
+  background: transparent;
 }
 
 .run-list {
