@@ -7742,11 +7742,27 @@ function renderTerminalPane(): void {
   elements.viewTerminal.setAttribute("aria-selected", String(inTerminal));
   elements.viewTerminal.disabled = !view?.task;
 
-  // No take-over gesture (S2): typing here just goes to the live CLI. The cue
-  // that you're driving (and the queued-message promise) lands in S2.3.
+  // No take-over gesture (S2): typing here just goes to the live CLI. The echoing
+  // cursor already shows you're driving, so the cue is a calm label — not the old
+  // terracotta alarm.
   elements.terminalPaneTitle.textContent = live
     ? "Live terminal"
     : "No live session — send a message to start";
+  elements.terminalPaneEyebrow.textContent = live ? "Keys go to the live CLI" : "";
+  elements.terminalPaneEyebrow.classList.toggle("hidden", !live);
+
+  // The promise: a queued Duet message isn't lost — it sends once you're done
+  // typing here (the activity window clears and the queue re-pumps). Shown only
+  // when something is actually waiting, so it explains the wait rather than nags.
+  const queuedCount = (view?.deliveryState?.queue ?? []).filter(
+    (item) => item.status === "queued",
+  ).length;
+  elements.terminalPaneStatus.textContent =
+    live && queuedCount > 0
+      ? queuedCount === 1
+        ? "1 message will send when you’re done here"
+        : `${queuedCount} messages will send when you’re done here`
+      : "";
   updateTerminalNeedsYou();
 }
 
