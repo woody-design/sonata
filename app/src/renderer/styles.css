@@ -1781,6 +1781,28 @@ h2 {
   overflow: hidden;
   /* Inherit the main pane's --surface (the focal reading plane); see .main-pane. */
   background: transparent;
+  /* Anchor for the bottom .reading-fade veil. */
+  position: relative;
+}
+
+/* Frosted scroll-edge fade: a full-width veil over the bottom of the reading
+   column. A color scrim dissolves content into --surface while a gradient-masked
+   backdrop blur frosts it — so scrolling content fades + softens under the
+   composer instead of hard-clipping at the edge. Non-interactive; the composer
+   sits above it (higher z-index). Pattern: backdrop-filter + mask-image ramp. */
+.reading-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 132px;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--surface) 50%, transparent);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  -webkit-mask-image: linear-gradient(to top, #000 42%, transparent);
+  mask-image: linear-gradient(to top, #000 42%, transparent);
 }
 
 .run-list {
@@ -2559,11 +2581,17 @@ h2 {
      18px side padding at narrow widths. */
   width: min(100% - 36px, var(--measure-prose));
   margin: 8px auto 12px;
-  border: 1px solid var(--border-strong);
+  /* Transparent and frameless at rest — it floats on the frosted .reading-fade
+     veil below, which is the ground (no card fill, no divider above). The frame
+     + glow return only on focus (see .composer:focus-within). z-index keeps it
+     above the veil so its own text is never blurred. */
+  position: relative;
+  z-index: 2;
+  border: 1px solid transparent;
   border-radius: 22px;
   padding: 8px 9px 8px 13px;
-  background: var(--surface-panel);
-  box-shadow: var(--shadow-composer);
+  background: transparent;
+  box-shadow: none;
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease,
