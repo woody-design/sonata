@@ -1199,7 +1199,9 @@ body.sidebar-resizing {
 .task-chrome {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  /* Three zones so the view switch sits dead-center regardless of the left
+     title's width or the right actions. Left/right share the slack equally. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   min-height: 48px;
@@ -1207,6 +1209,12 @@ body.sidebar-resizing {
   padding: 6px 10px 6px 12px;
   background: transparent;
   -webkit-app-region: drag;
+}
+
+.chrome-center {
+  min-width: 0;
+  display: flex;
+  justify-content: center;
 }
 
 /* Interactive chrome opts out of the window-drag region. */
@@ -1516,6 +1524,66 @@ h2 {
   background: var(--accent);
 }
 
+/* Header view switch (Read | Terminal) — the same segmented idiom as the reading
+   controls, two columns. The active task's mode is the selected segment. */
+.view-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(64px, auto));
+  gap: 2px;
+  border: 1px solid var(--border-menu);
+  border-radius: 8px;
+  padding: 2px;
+  background: var(--surface-control-soft);
+  -webkit-app-region: no-drag;
+}
+
+.view-segment {
+  position: relative;
+  min-width: 0;
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 14px;
+  color: var(--ink-menu);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.view-segment:hover:not(.selected):not(:disabled) {
+  background: var(--surface-menu-hover);
+}
+
+.view-segment.selected {
+  color: var(--ink-on-accent);
+  background: var(--accent);
+}
+
+.view-segment:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Needs-you: the active task hit a terminal-resolvable block (a native panel /
+   an unparsed wait) while you're in Read. A dot on the Terminal segment draws
+   the eye without stealing the surface. */
+.view-segment.needs-you::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface-control-soft);
+}
+
+.view-segment.selected.needs-you::after {
+  background: var(--ink-on-accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
 .reading-size-stepper {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr) 52px;
@@ -1787,6 +1855,13 @@ h2 {
   overflow: hidden;
   /* Inherit the main pane's --surface (the focal reading plane); see .main-pane. */
   background: transparent;
+}
+
+/* Explicit override — a bare .hidden{display:none} loses to .run-column{display:
+   flex} above (the source-order trap). The view switch hides whichever surface
+   is not in front. */
+.run-column.hidden {
+  display: none;
 }
 
 .run-list {
@@ -2510,7 +2585,7 @@ h2 {
 /* Without this, the bare `.hidden` (display:none) loses to `.delivery-queue`
    (display:grid) on source order, so an EMPTY queue still occupied its 10px
    padding above the composer — the phantom gap below the scroll fade. The
-   sibling panels (.resume-choice.hidden, .terminal-drawer.hidden, …) all carry
+   sibling panels (.resume-choice.hidden, .terminal-pane.hidden, …) all carry
    the same explicit override; this one was missing. */
 .delivery-queue.hidden {
   display: none;
@@ -3850,56 +3925,25 @@ h2 {
   min-height: 440px;
 }
 
-.terminal-drawer {
-  /* Bottom tier of the 3-peer column. flex-shrink:0 (NOT :1) is load-bearing:
-     the reading area (#run-list, flex:1 1 auto) is the sole absorber, so its
-     basis is the full transcript content. With shrink:1 here the flex algorithm
-     split every drag delta between the two by basis×shrink — diluting a 100px
-     drag down to ~18px of visible change (the "resize does nothing" bug, S3b.2).
-     Rigid basis → run-list absorbs the delta 1:1, so the drag visibly resizes.
-     Height stays bounded by the JS max-clamp (innerHeight − 260) + re-clamp on
-     window resize, so a rigid panel never pushes the composer off a short window. */
-  flex: 0 0 clamp(150px, 28vh, 280px);
-  min-height: 140px;
+/* The terminal is now a co-equal sibling of the reading column — when in front
+   it fills the whole workspace (full height, no stacking, no drag-to-resize).
+   The view switch swaps which pane is shown. */
+.terminal-pane {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-top: 1px solid var(--border);
   background: var(--surface);
 }
 
-.terminal-drawer.hidden {
+/* Explicit override — see .run-column.hidden (the source-order trap). */
+.terminal-pane.hidden {
   display: none;
 }
 
-/* Drag the top border to resize the floor (persisted). A thin strip that
-   straddles the drawer's top border; the accent line shows on hover/drag. */
-.terminal-resizer {
-  flex: 0 0 6px;
-  margin-top: -3px;
-  z-index: 5;
-  cursor: ns-resize;
-  background: transparent;
-}
-
-.terminal-resizer:hover,
-body.terminal-resizing .terminal-resizer {
-  background: linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 1px,
-    var(--accent-soft-border) 1px,
-    var(--accent-soft-border) 3px,
-    transparent 3px
-  );
-}
-
-body.terminal-resizing {
-  cursor: ns-resize;
-  user-select: none;
-}
-
-.terminal-drawer-header {
+.terminal-pane-header {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -3910,11 +3954,11 @@ body.terminal-resizing {
   background: var(--surface-shell);
 }
 
-.terminal-drawer-header .eyebrow {
+.terminal-pane-header .eyebrow {
   color: var(--ink-muted);
 }
 
-.terminal-drawer-header strong {
+.terminal-pane-header strong {
   color: var(--ink-strong);
   font-size: 13px;
 }
@@ -3991,7 +4035,7 @@ body.terminal-resizing {
   text-decoration: underline;
 }
 
-.terminal-drawer-actions {
+.terminal-pane-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4001,16 +4045,16 @@ body.terminal-resizing {
    (proposal visuals; Woody calibrates). The eyebrow becomes a live state badge,
    the title states the consequence, and the terracotta rail marks the armed
    surface end-to-end. */
-.terminal-drawer.user-control {
-  border-top: 2px solid #d97757;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #d97757 35%, transparent);
+.terminal-pane.user-control {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, #d97757 45%, transparent);
 }
 
-.terminal-drawer.user-control .terminal-drawer-header {
+.terminal-pane.user-control .terminal-pane-header {
   background: var(--surface-attention);
+  border-bottom-color: #d97757;
 }
 
-.terminal-drawer.user-control .terminal-drawer-header .eyebrow {
+.terminal-pane.user-control .terminal-pane-header .eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -4018,7 +4062,7 @@ body.terminal-resizing {
   font-weight: 600;
 }
 
-.terminal-drawer.user-control .terminal-drawer-header .eyebrow::before {
+.terminal-pane.user-control .terminal-pane-header .eyebrow::before {
   content: "";
   width: 7px;
   height: 7px;
@@ -4026,7 +4070,7 @@ body.terminal-resizing {
   background: #d97757;
 }
 
-.terminal-drawer.user-control .terminal-drawer-header strong {
+.terminal-pane.user-control .terminal-pane-header strong {
   color: var(--ink-strong);
 }
 
