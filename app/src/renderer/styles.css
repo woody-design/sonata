@@ -2211,25 +2211,16 @@ h2 {
   justify-content: space-between;
   gap: 12px;
   min-height: 34px;
-  border-bottom: 1px solid var(--border);
   padding: 5px 18px;
-  /* Flat with the reading plane — no band tint (see two-tone notes). */
+  /* Flat with the reading plane — no band tint, no divider line. The state cue
+     (quiet/attention/action) previously rode on the background + bottom-border
+     color; that visual is parked for a redesign, so only the text carries state
+     for now. */
   background: transparent;
 }
 
 .workflow-strip.quiet {
   color: var(--ink-muted-warm);
-  background: var(--surface-shell);
-}
-
-.workflow-strip.attention {
-  border-bottom-color: var(--border-waiting-quiet);
-  background: var(--surface-waiting-quiet);
-}
-
-.workflow-strip.action {
-  border-bottom-color: var(--border-waiting-action);
-  background: var(--surface-waiting-action);
 }
 
 .workflow-copy {
@@ -2269,8 +2260,8 @@ h2 {
 
 .artifact-strip {
   flex: 0 0 auto;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-shell);
+  /* Flat with the reading plane — no band, no divider line. */
+  background: transparent;
 }
 
 .artifact-strip-header {
@@ -2485,9 +2476,9 @@ h2 {
   flex: 0 0 auto;
   display: grid;
   gap: 7px;
-  border-top: 1px solid var(--border);
   padding: 10px 18px 0;
-  background: var(--surface-shell);
+  /* Flat with the reading plane — no band, no divider line. */
+  background: transparent;
 }
 
 .delivery-item {
