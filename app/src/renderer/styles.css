@@ -1787,35 +1787,6 @@ h2 {
   overflow: hidden;
   /* Inherit the main pane's --surface (the focal reading plane); see .main-pane. */
   background: transparent;
-  /* Anchor for the bottom .reading-fade veil. */
-  position: relative;
-}
-
-/* Frosted scroll-edge fade: a full-width veil over the bottom of the reading
-   column. A color scrim dissolves content into --surface while a gradient-masked
-   backdrop blur frosts it — so scrolling content fades + softens under the
-   composer instead of hard-clipping at the edge. Non-interactive; the composer
-   sits above it (higher z-index). Pattern: backdrop-filter + mask-image ramp. */
-.reading-fade {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 180px;
-  z-index: 1;
-  pointer-events: none;
-  /* Frosted glass, not a fade-to-opaque: a translucent surface tint lets the
-     backdrop blur show through (content stays semi-visible but softened), and
-     the mask ramps the whole effect to nothing at the top. */
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--surface) 80%, transparent),
-    transparent
-  );
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  -webkit-mask-image: linear-gradient(to top, #000 50%, transparent);
-  mask-image: linear-gradient(to top, #000 50%, transparent);
 }
 
 .run-list {
@@ -1823,10 +1794,16 @@ h2 {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  /* Small bottom padding so scrolling content runs right up into the frosted
-     .reading-fade zone above the composer (no empty gap that would leave the
-     blur with nothing to act on). */
   padding: 16px 18px 4px;
+  /* Scroll-edge fade applied to the scroll container itself: content dissolves
+     to transparent over the bottom ~40px instead of hard-clipping at the edge.
+     Because it rides run-list's OWN bottom (which is always just above the
+     composer), it tracks every layout state — composer expansion, the terminal
+     pushing the composer up — and can never drift onto the wrong element the way
+     a column-anchored overlay did. Pure mask, no backdrop element, so there is
+     nothing to mis-anchor or leave with nothing to act on. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
 }
 
 .sticky-prompt-rail {
@@ -2599,8 +2576,8 @@ h2 {
   margin: 2px auto 12px;
   /* A distinct filled field (Apple text-field pattern): its own elevated fill
      (--surface-panel, the brightest rung) + a hairline ring set it apart from
-     the reading surface around it. z-index keeps it above the frosted
-     .reading-fade veil, so the field stays crisp while content frosts behind it. */
+     the reading surface around it. position:relative anchors the ::before frost
+     to the field's top edge. */
   position: relative;
   z-index: 2;
   border: 1px solid var(--border);
@@ -2614,6 +2591,7 @@ h2 {
     margin 120ms ease,
     padding 120ms ease;
 }
+
 
 #prompt-input {
   width: 100%;

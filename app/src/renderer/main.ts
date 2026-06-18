@@ -1591,8 +1591,6 @@ appElement.innerHTML = `
           </div>
         </section>
 
-        <div class="reading-fade" aria-hidden="true"></div>
-
         <form id="composer" class="composer">
           <textarea id="prompt-input" rows="1" placeholder="Start or open a Task"></textarea>
           <div id="attachment-strip" class="attachment-strip hidden" aria-label="Image attachments"></div>
