@@ -1796,14 +1796,25 @@ h2 {
   overflow: auto;
   padding: 16px 18px 4px;
   /* Scroll-edge fade applied to the scroll container itself: content dissolves
-     to transparent over the bottom ~40px instead of hard-clipping at the edge.
-     Because it rides run-list's OWN bottom (which is always just above the
-     composer), it tracks every layout state — composer expansion, the terminal
-     pushing the composer up — and can never drift onto the wrong element the way
-     a column-anchored overlay did. Pure mask, no backdrop element, so there is
-     nothing to mis-anchor or leave with nothing to act on. */
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+     to transparent over the top and bottom 24px instead of hard-clipping at
+     either edge. Because it rides run-list's OWN box (top just below the header,
+     bottom just above the composer), it tracks every layout state — composer
+     expansion, the terminal pushing the composer up — and can never drift onto
+     the wrong element the way a column-anchored overlay did. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
 }
 
 .sticky-prompt-rail {
