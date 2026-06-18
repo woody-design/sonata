@@ -87,6 +87,11 @@ const DEFAULT_APPROVAL_SETTLE_MS = 1200;
  *  auto-advance (and the final Submit-tab render) settles before the next key.
  *  Phase 0 saw the advance repaint well under this; generous = robust. */
 const OPTION_PROMPT_KEY_DELAY_MS = 300;
+/** How long after the human's last terminal keystroke Duet treats them as
+ *  actively typing and holds delivery (S2). Bridges the gaps between keystrokes
+ *  — and the pause-to-think over a half-typed line — that the idle-prompt
+ *  heuristic alone cannot see. Dogfood-tuned. */
+const HUMAN_ACTIVE_WINDOW_MS = 3500;
 const DEFAULT_CONTROL_WAIT_MS = 15_000;
 const CONTROL_CONTEXT_CHARS = 6000;
 
@@ -324,6 +329,20 @@ export class TerminalHost extends EventEmitter {
    * MUST pause while a human navigates — this is a safety property.
    */
   private userControlActive = false;
+  /**
+   * Single-writer arbitration between Duet's automation and the human typing in
+   * the terminal (S2). `duetWriteDepth` > 0 means an automation write SEQUENCE is
+   * in flight — a prompt paste (sync attachment writes + the deferred text/Enter
+   * timers), an option-prompt key run, or a control-change drive. Human
+   * keystrokes that arrive during that window are held in `pendingHumanInput` and
+   * flushed the instant the sequence completes, so the two byte streams never
+   * interleave (no `git che`+paste corruption; no split bracketed-paste frame).
+   * `lastHumanInputAt` timestamps the human's last terminal keystroke;
+   * `isHumanActivelyTyping()` reads it to pause delivery while the human drives.
+   */
+  private duetWriteDepth = 0;
+  private pendingHumanInput = "";
+  private lastHumanInputAt = 0;
 
   constructor(options: TerminalHostOptions) {
     super();
@@ -519,7 +538,63 @@ export class TerminalHost extends EventEmitter {
     if (!this.userControlActive) {
       throw new Error("Terminal input requires take-over to be active.");
     }
+    // Record the keystroke for the activity window, then either buffer it (an
+    // automation sequence is mid-flight — flush on completion so it lands
+    // contiguously) or write it straight through (S2).
+    this.lastHumanInputAt = Date.now();
+    if (this.duetWriting) {
+      this.pendingHumanInput += data;
+      return;
+    }
     this.ptyProcess.write(data);
+  }
+
+  /** Marks the start of an automation write sequence (a prompt paste, an
+   *  approval/option key run, a control-change drive). Nestable; while the depth
+   *  is > 0, human keystrokes buffer instead of splitting the sequence (S2). */
+  private beginDuetWrite(): void {
+    this.duetWriteDepth++;
+  }
+
+  /** Ends one automation write sequence; when the last one finishes, flush any
+   *  human keystrokes that arrived mid-sequence so they land contiguously. */
+  private endDuetWrite(): void {
+    if (this.duetWriteDepth > 0) {
+      this.duetWriteDepth--;
+    }
+    if (this.duetWriteDepth === 0 && this.pendingHumanInput && this.ptyProcess) {
+      const buffered = this.pendingHumanInput;
+      this.pendingHumanInput = "";
+      this.ptyProcess.write(buffered);
+    }
+  }
+
+  /** Schedule an automation write `ms` from now, holding the write-lock across
+   *  the timer gap so a human keystroke in that window buffers rather than
+   *  splitting the sequence. */
+  private deferDuetWrite(ms: number, fn: () => void): void {
+    this.beginDuetWrite();
+    setTimeout(() => {
+      try {
+        fn();
+      } finally {
+        this.endDuetWrite();
+      }
+    }, ms);
+  }
+
+  private get duetWriting(): boolean {
+    return this.duetWriteDepth > 0;
+  }
+
+  /** True while the human is actively typing in the terminal (within the
+   *  activity window of their last keystroke). Delivery pauses while true so an
+   *  automation paste never lands in the middle of a half-typed line — the
+   *  exclusivity lesson from Expect, scoped to a time window rather than a mode. */
+  isHumanActivelyTyping(): boolean {
+    return (
+      this.lastHumanInputAt > 0 && Date.now() - this.lastHumanInputAt < HUMAN_ACTIVE_WINDOW_MS
+    );
   }
 
   /**
@@ -653,6 +728,12 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalDecision = null;
     this.lastApprovalDecisionAt = null;
     this.clearApprovalSettleTimer();
+    // Hold the write-lock across the whole sync+deferred sequence so a human
+    // keystroke landing mid-paste buffers (and flushes after) rather than
+    // splitting the bracketed-paste frame (S2). The initial begin covers the
+    // synchronous attachment writes; each deferred write keeps the depth > 0
+    // until it fires, so endDuetWrite() below does not release early.
+    this.beginDuetWrite();
     for (const attachment of attachments) {
       this.ptyProcess.write(`${BRACKETED_PASTE_START}${attachment.path}${BRACKETED_PASTE_END}`);
     }
@@ -665,28 +746,31 @@ export class TerminalHost extends EventEmitter {
     // between the guard above and these timers must still win — suppressed
     // bytes surface as a receipt timeout, never as keystrokes under the
     // human's navigation.
-    setTimeout(() => {
+    this.deferDuetWrite(textDelayMs, () => {
       if (this.ptyProcess && trimmed && !this.userControlActive) {
         this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
       }
-    }, textDelayMs);
-    setTimeout(() => {
+    });
+    this.deferDuetWrite(enterDelayMs, () => {
       if (this.ptyProcess && !this.userControlActive) {
         this.ptyProcess.write(CSI_U_ENTER);
       }
-    }, enterDelayMs);
+    });
     // A bare Codex skill mention ("$name") opens the skill-mention popup,
     // whose "Press enter to insert" consumes the first Enter. The second
     // Enter submits the inserted mention. Both steps verified by probe
     // s3b.codexSkillDoubleEnter; with trailing text the popup closes on its
     // own and the extra Enter never fires.
     if (this.profile.provider === "codex" && /^\$[A-Za-z0-9][\w.-]*$/.test(trimmed)) {
-      setTimeout(() => {
+      this.deferDuetWrite(enterDelayMs + 320, () => {
         if (this.ptyProcess && !this.userControlActive) {
           this.ptyProcess.write(CSI_U_ENTER);
         }
-      }, enterDelayMs + 320);
+      });
     }
+    // Release the initial begin; the deferred writes hold the depth until they
+    // fire, so the lock spans the full sequence.
+    this.endDuetWrite();
     this.emitEvent("prompt:submitted", {
       taskId: this.taskId,
       runId: run ? run.id : this.activeRun ? this.activeRun.id : null,
@@ -722,10 +806,19 @@ export class TerminalHost extends EventEmitter {
       throw new Error("Cannot change controls until the provider composer is idle.");
     }
 
-    const evidence =
-      this.profile.provider === "codex"
-        ? await this.applyCodexControlChange(change)
-        : await this.applyClaudeControlChange(change);
+    // Hold the write-lock across the multi-step native drive (slash command,
+    // picker navigation, digit selection) so a human keystroke buffers rather
+    // than desyncing the navigation (S2). The idle-wait above only reads.
+    this.beginDuetWrite();
+    let evidence: string;
+    try {
+      evidence =
+        this.profile.provider === "codex"
+          ? await this.applyCodexControlChange(change)
+          : await this.applyClaudeControlChange(change);
+    } finally {
+      this.endDuetWrite();
+    }
     this.taskReady = false;
     this.scheduleTaskReadyCheck();
     return {
@@ -1089,18 +1182,26 @@ export class TerminalHost extends EventEmitter {
     if (this.userControlActive) {
       throw new Error(USER_CONTROL_GUARD_MESSAGE);
     }
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
-      if (key === undefined) {
-        continue;
+    // Hold the write-lock across the whole multi-key run (with its inter-key
+    // delays) so a human keystroke buffers rather than interleaving into the
+    // answer sequence (S2).
+    this.beginDuetWrite();
+    try {
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        if (key === undefined) {
+          continue;
+        }
+        if (i > 0) {
+          await delay(OPTION_PROMPT_KEY_DELAY_MS);
+        }
+        if (!this.ptyProcess || this.userControlActive) {
+          throw new Error(USER_CONTROL_GUARD_MESSAGE);
+        }
+        this.writeRaw(key);
       }
-      if (i > 0) {
-        await delay(OPTION_PROMPT_KEY_DELAY_MS);
-      }
-      if (!this.ptyProcess || this.userControlActive) {
-        throw new Error(USER_CONTROL_GUARD_MESSAGE);
-      }
-      this.writeRaw(key);
+    } finally {
+      this.endDuetWrite();
     }
   }
 
