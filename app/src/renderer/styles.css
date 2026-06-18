@@ -4043,39 +4043,6 @@ h2 {
   font-size: 12px;
 }
 
-/* Take-over active: the human holds the keys — make the state unmistakable
-   (proposal visuals; Woody calibrates). The eyebrow becomes a live state badge,
-   the title states the consequence, and the terracotta rail marks the armed
-   surface end-to-end. */
-.terminal-pane.user-control {
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, #d97757 45%, transparent);
-}
-
-.terminal-pane.user-control .terminal-pane-header {
-  background: var(--surface-attention);
-  border-bottom-color: #d97757;
-}
-
-.terminal-pane.user-control .terminal-pane-header .eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #d97757;
-  font-weight: 600;
-}
-
-.terminal-pane.user-control .terminal-pane-header .eyebrow::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #d97757;
-}
-
-.terminal-pane.user-control .terminal-pane-header strong {
-  color: var(--ink-strong);
-}
-
 .empty-state {
   padding: 16px;
   color: var(--ink-muted-warm);
