@@ -251,8 +251,23 @@ export class DeliveryController {
     };
   }
 
+  /** TEMP diagnostic: why a queued item won't deliver. Throttled to once per
+   *  reason-change so a 500ms poll doesn't spam. Goes to stderr (captured by the
+   *  launch log). Remove once the fresh-session "stuck Queued" is root-caused. */
+  private diag(reason: string, detail: Record<string, unknown>): void {
+    const queue = this.items.map((i) => `${i.kind}:${i.status}`);
+    const line = `${reason} ${JSON.stringify({ ...detail, queue })}`;
+    if (line === this.lastDiagLine) {
+      return;
+    }
+    this.lastDiagLine = line;
+    console.error(`[delivery-diag] ${this.taskId} ${line}`);
+  }
+  private lastDiagLine = "";
+
   private pump(): void {
     if (this.inFlight) {
+      this.diag("inFlight-stuck", { inFlightKind: this.inFlight.kind, inFlightItem: this.inFlight.itemId });
       this.emitState();
       return;
     }
@@ -264,6 +279,13 @@ export class DeliveryController {
       return;
     }
     if (!this.canDeliver()) {
+      this.diag("blocked", {
+        run: this.terminalHost.hasActiveRun(),
+        approval: this.terminalHost.isApprovalActive(),
+        modal: this.terminalHost.isModalActive(),
+        holding: this.terminalHost.isHumanHoldingInput(),
+        accepts: this.terminalHost.acceptsPromptInput(),
+      });
       // A queued item can't go out yet — poll until it can. We do NOT trust the
       // blocker to re-pump on its own resolution event. The event-backed blockers
       // (run/approval/modal) usually do, but a startup or post-resume interstitial
