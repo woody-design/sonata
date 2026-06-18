@@ -206,7 +206,7 @@ export class DeliveryController {
     const understandablyBusy =
       this.terminalHost.hasActiveRun() ||
       this.terminalHost.isApprovalActive() ||
-      this.terminalHost.isHumanActivelyTyping();
+      this.terminalHost.isHumanHoldingInput();
     const blocked = hasQueued && !this.inFlight && !understandablyBusy && !this.canDeliver();
     if (!blocked) {
       this.blockedSinceMs = null;
@@ -294,7 +294,7 @@ export class DeliveryController {
       !this.terminalHost.isApprovalActive() &&
       !this.terminalHost.isModalActive();
     const blockedByTimeGate =
-      this.terminalHost.isHumanActivelyTyping() || !this.terminalHost.acceptsPromptInput();
+      this.terminalHost.isHumanHoldingInput() || !this.terminalHost.acceptsPromptInput();
     return eventBackedClear && blockedByTimeGate;
   }
 
@@ -342,7 +342,7 @@ export class DeliveryController {
       // queue holds (S2). A keystroke into a live panel can flip the idle
       // heuristic (P1b), so an automation paste must never land mid-burst — this
       // is a safety property, scoped to the activity window rather than a mode.
-      !this.terminalHost.isHumanActivelyTyping() &&
+      !this.terminalHost.isHumanHoldingInput() &&
       // Structural accepts-input gate: delivers as soon as the provider
       // composer exists (~3s), without waiting for the task-ready floor.
       this.terminalHost.acceptsPromptInput()

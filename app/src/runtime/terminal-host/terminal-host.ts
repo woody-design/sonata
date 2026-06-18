@@ -344,6 +344,11 @@ export class TerminalHost extends EventEmitter {
   private pendingHumanInput = "";
   private lastHumanInputAt = 0;
   private humanSettleTimer: NodeJS.Timeout | null = null;
+  /** Printable chars the human has typed onto the current terminal line since
+   *  their last Enter/clear — i.e. an uncommitted draft. > 0 holds delivery so an
+   *  automation paste never lands mid-line (tracked from relayed keystrokes, not
+   *  the screen). */
+  private humanLineChars = 0;
 
   constructor(options: TerminalHostOptions) {
     super();
@@ -535,8 +540,8 @@ export class TerminalHost extends EventEmitter {
    * The human's keystrokes into the terminal. No take-over gate (S2): the human
    * may type anytime. The single-writer invariant is held instead by (1) the
    * write-lock — keystrokes that arrive mid automation-sequence buffer and flush
-   * after, never interleaving — and (2) the activity window, which pauses
-   * delivery while the human is typing (`isHumanActivelyTyping`).
+   * after, never interleaving — and (2) the input-hold signal (`isHumanHoldingInput`),
+   * which pauses delivery while the human is typing OR has an uncommitted line.
    */
   writeUserInput(data: string): void {
     if (!this.ptyProcess) {
@@ -544,11 +549,48 @@ export class TerminalHost extends EventEmitter {
     }
     this.lastHumanInputAt = Date.now();
     this.scheduleHumanInputSettle();
+    this.trackHumanLine(data);
     if (this.duetWriting) {
       this.pendingHumanInput += data;
       return;
     }
     this.ptyProcess.write(data);
+  }
+
+  /**
+   * Track whether the human has an UNCOMMITTED line in the terminal, from the
+   * keystrokes Duet itself relays — no screen scraping. The idle-prompt heuristic
+   * matches the prompt's structure even with text typed after it, so a half-typed
+   * `git g` left for a while would otherwise look idle and let an automation
+   * paste land mid-line (the corruption case). `humanLineChars > 0` holds delivery
+   * until the human submits (Enter) or clears the line.
+   */
+  private trackHumanLine(data: string): void {
+    // Enter (either encoding) commits the line; so does a paste that carries a
+    // newline. Strip bracketed-paste markers first so the newline check sees the
+    // pasted content.
+    const unwrapped = data.replace(/\x1b\[20[01]~/g, "");
+    if (data === CSI_U_ENTER || /[\r\n]/.test(unwrapped)) {
+      this.humanLineChars = 0;
+      return;
+    }
+    // Ctrl-U (kill line), Ctrl-C (cancel), or a lone Esc clears the draft.
+    if (data === "\x15" || data === "\x03" || data === "\x1b") {
+      this.humanLineChars = 0;
+      return;
+    }
+    // Strip remaining CSI escape sequences (arrows, function keys) — navigation,
+    // not input. What's left is literal text typed or pasted onto the line.
+    const literal = unwrapped.replace(/\x1b\[[0-9;]*[A-Za-z~]/g, "");
+    let delta = 0;
+    for (const ch of literal) {
+      if (ch === "\x7f" || ch === "\b") {
+        delta -= 1; // backspace / delete
+      } else if (ch >= " ") {
+        delta += 1; // printable (incl. multi-byte CJK code points)
+      }
+    }
+    this.humanLineChars = Math.max(0, this.humanLineChars + delta);
   }
 
   /** Re-arm the settle timer on every keystroke; it fires once the human has
@@ -617,14 +659,19 @@ export class TerminalHost extends EventEmitter {
     return this.duetWriteDepth > 0;
   }
 
-  /** True while the human is actively typing in the terminal (within the
-   *  activity window of their last keystroke). Delivery pauses while true so an
-   *  automation paste never lands in the middle of a half-typed line — the
-   *  exclusivity lesson from Expect, scoped to a time window rather than a mode. */
+  /** True within the activity window of the human's last terminal keystroke. */
   isHumanActivelyTyping(): boolean {
     return (
       this.lastHumanInputAt > 0 && Date.now() - this.lastHumanInputAt < HUMAN_ACTIVE_WINDOW_MS
     );
+  }
+
+  /** The delivery pause signal: the human is either actively typing OR has an
+   *  uncommitted line sitting in the terminal. Either way an automation paste
+   *  would corrupt their input, so the queue holds (the Expect exclusivity
+   *  lesson — here keyed on real input state, not a mode or a screen guess). */
+  isHumanHoldingInput(): boolean {
+    return this.isHumanActivelyTyping() || this.humanLineChars > 0;
   }
 
   /**
@@ -1320,6 +1367,7 @@ export class TerminalHost extends EventEmitter {
       clearTimeout(this.humanSettleTimer);
       this.humanSettleTimer = null;
     }
+    this.humanLineChars = 0;
   }
 
   private handlePtyData(data: string): void {

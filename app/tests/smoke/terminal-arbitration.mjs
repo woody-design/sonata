@@ -2,7 +2,8 @@
 // The human may type into the terminal anytime; the invariant is held by
 //  (1) the write-lock: a keystroke arriving mid automation-sequence buffers and
 //      flushes AFTER it, never interleaving; and
-//  (2) the activity window: isHumanActivelyTyping() gates delivery.
+//  (2) the input-hold signal: isHumanHoldingInput() (actively typing OR an
+//      uncommitted line) gates delivery.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -100,6 +101,28 @@ try {
   assert(
     host.isHumanActivelyTyping() === false,
     "isHumanActivelyTyping false after the activity window elapses",
+  );
+
+  // A5 — a HALF-TYPED line holds delivery even after the activity window: the
+  // idle-prompt heuristic can't see the uncommitted `git g`, so the keystroke
+  // tracker must (otherwise an automation paste lands mid-line — the dogfood bug).
+  host.writeUserInput("git g"); // no Enter — an uncommitted draft
+  await delay(3700); // activity window elapses, but the line is still dirty
+  assert(host.isHumanActivelyTyping() === false, "not actively typing after the pause");
+  assert(
+    host.isHumanHoldingInput() === true,
+    "half-typed line still HOLDS delivery after the activity window",
+  );
+  // Submitting the line commits it; once the window also clears, delivery frees.
+  host.writeUserInput("\r");
+  assert(
+    host.isHumanHoldingInput() === true,
+    "still holding right after Enter (within the activity window)",
+  );
+  await delay(3700);
+  assert(
+    host.isHumanHoldingInput() === false,
+    "releases once the line is submitted and the activity window clears",
   );
 
   const success = failures.length === 0;
