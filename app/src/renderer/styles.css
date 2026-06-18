@@ -2507,6 +2507,15 @@ h2 {
   background: transparent;
 }
 
+/* Without this, the bare `.hidden` (display:none) loses to `.delivery-queue`
+   (display:grid) on source order, so an EMPTY queue still occupied its 10px
+   padding above the composer — the phantom gap below the scroll fade. The
+   sibling panels (.resume-choice.hidden, .terminal-drawer.hidden, …) all carry
+   the same explicit override; this one was missing. */
+.delivery-queue.hidden {
+  display: none;
+}
+
 .delivery-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2592,7 +2601,7 @@ h2 {
   position: relative;
   z-index: 2;
   border: 1px solid var(--border);
-  border-radius: 22px;
+  border-radius: 16px;
   padding: 8px 9px 8px 13px;
   background: var(--surface-panel);
   box-shadow: var(--shadow-composer);
