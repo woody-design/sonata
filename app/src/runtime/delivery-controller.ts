@@ -20,13 +20,14 @@ const BACKFILL_RECEIPT_WINDOW_MS = 15 * 60_000;
 // this long with no understandable reason gets an honest signal, not silence.
 const DEFAULT_WEDGE_AFTER_MS = 45_000;
 const DEFAULT_WEDGE_CHECK_INTERVAL_MS = 5_000;
-// `acceptsPromptInput()` is a POLLED gate (PTY quiet + idle prompt), but pump()
-// is event-driven. Most blockers (run/approval/modal/take-over) re-pump on their
-// own resolution event; the accepts-input gate does NOT — e.g. opening the
-// take-over floor resizes the PTY, flips the gate false, and when it recovers an
-// idle session emits no event to re-pump, so the queue sticks forever (CLI Slice
-// 4 re-pump gap, reproduced live). This is the poll cadence used ONLY while a
-// queued item is blocked solely by that gate.
+// pump() is event-driven, but NO blocker is trusted to re-pump on its own
+// resolution event: the accepts-input gate flips silently (PTY-quiet recovery
+// emits no event), and even the "event-backed" blockers (run/approval/modal) can
+// clear with no pump-triggering event — a startup or post-resume interstitial
+// that disarms leaves the queue wedged forever (observed: fresh-session and
+// post-restart "stuck Queued"). So while ANY queued item is blocked, the pump
+// polls at this cadence until it can deliver; the timer is idempotent + unref'd,
+// and the 5s wedge alarm backs a genuinely stuck queue.
 const DEFAULT_PUMP_RETRY_INTERVAL_MS = 500;
 
 export interface DeliveryControllerOptions {
@@ -263,16 +264,14 @@ export class DeliveryController {
       return;
     }
     if (!this.canDeliver()) {
-      // Two blockers resolve SILENTLY with no state-change event — the PTY-quiet
-      // accepts-input gate and the human-activity window — so the pump must poll
-      // until they clear. The genuinely event-backed blockers (run/approval/
-      // modal) re-pump on their own events, so polling for them would be
-      // wasteful; cancel any retry in that case.
-      if (this.isBlockedByPolledGateOnly()) {
-        this.schedulePumpRetry();
-      } else {
-        this.clearPumpRetry();
-      }
+      // A queued item can't go out yet — poll until it can. We do NOT trust the
+      // blocker to re-pump on its own resolution event. The event-backed blockers
+      // (run/approval/modal) usually do, but a startup or post-resume interstitial
+      // can clear with NO pump-triggering event, which wedged the queue forever
+      // (fresh-session and post-restart "stuck Queued"). A 500ms canDeliver
+      // re-check while blocked is negligible (the timer is unref'd and idempotent),
+      // and the 5s wedge alarm still backs a genuinely stuck queue.
+      this.schedulePumpRetry();
       this.emitState();
       return;
     }
@@ -281,22 +280,6 @@ export class DeliveryController {
     this.deliver(next);
   }
 
-  /**
-   * True when the queue is blocked ONLY by a time-based, no-event gate — either
-   * the PTY-quiet accepts-input gate or the human-activity window. Both flip
-   * silently (no state-change event), so the pump must poll until they clear.
-   * The event-backed blockers (run/approval/modal) are all clear here; they
-   * re-pump on their own events. (inFlight is excluded: pump() returns early.)
-   */
-  private isBlockedByPolledGateOnly(): boolean {
-    const eventBackedClear =
-      !this.terminalHost.hasActiveRun() &&
-      !this.terminalHost.isApprovalActive() &&
-      !this.terminalHost.isModalActive();
-    const blockedByTimeGate =
-      this.terminalHost.isHumanHoldingInput() || !this.terminalHost.acceptsPromptInput();
-    return eventBackedClear && blockedByTimeGate;
-  }
 
   private schedulePumpRetry(): void {
     if (this.pumpRetryTimer) {

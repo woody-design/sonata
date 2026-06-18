@@ -111,4 +111,26 @@ function makeController(host) {
   dc.dispose();
 }
 
+// --- 5. Event-backed blocker that clears with NO event still recovers --------
+// The wedge class behind the fresh-session / post-restart "stuck Queued": a
+// startup/resume interstitial arms an event-backed blocker (modal), then
+// disarms WITHOUT any pump-triggering event. The pump must keep polling and
+// deliver once it clears — not wait forever on an event that never comes.
+{
+  const host = makeHost({ accepts: true, modal: true });
+  const dc = makeController(host);
+  dc.enqueue("hello");
+  await delay(700); // longer than a poll interval — the modal must hold it
+  assert.equal(host.state.submits.length, 0, "does NOT deliver while a modal is up");
+  // The interstitial disarms silently — NO event is fired into the controller.
+  host.state.modal = false;
+  await delay(700);
+  assert.equal(
+    host.state.submits.length,
+    1,
+    "polls and delivers after the event-backed blocker clears with no event",
+  );
+  dc.dispose();
+}
+
 console.log(JSON.stringify({ smoke: "delivery-repump", success: true }, null, 2));
