@@ -28,10 +28,13 @@ What works today:
   survives only as a narrow, labeled fallback.
 - **Semantic slash** — skills prepend a chip in the composer; stateful
   controls (`/model`, `/permissions`…) open native popovers; panels and
-  unknown commands route to the terminal floor.
-- **Terminal floor** — a take-over terminal as a first-class bottom panel,
-  with a single-writer "who holds the keys" handoff. Auto-surfaced on
-  "needs you".
+  unknown commands route to the Terminal view.
+- **Read / Terminal switch** — the raw terminal is a co-equal surface, picked
+  by a header switch (default Read). Both *are* Duet; the switch chooses the
+  lens. You type into the terminal anytime — no take-over gesture. A single
+  writer is held automatically: an in-flight automation write buffers your
+  keystrokes (no interleave), and delivery pauses while you're typing or have
+  an uncommitted line. Auto-surfaced on a native panel Duet can't drive.
 - **Sidebar** — past sessions and projects; instant read of a dormant
   session (file I/O), lazy resume on first new message.
 - **Window shell** — a macOS full-height-sidebar window (no OS titlebar
@@ -60,8 +63,9 @@ mid-task. This is not Claude/Codex feature parity.
 Start here:
 
 ```text
+product-thinking/2026-06-18-terminal-surface-redesign-v0.md      # Read/Terminal switch + automatic single-writer arbitration (supersedes the "floor")
 product-thinking/2026-06-18-ui-shell-redesign-v0.md             # the window shell, two-tone token ladder, scroll fade
-product-thinking/2026-06-13-cli-integration-architecture-v0.md   # signals, surfaces, the floor (governs the cli-* track)
+product-thinking/2026-06-13-cli-integration-architecture-v0.md   # signals, surfaces (the take-over "floor" is superseded — see terminal-surface-redesign)
 product-thinking/2026-06-09-semantic-transcript-contract-v0.md   # the reading-surface transcript channel
 product-thinking/2026-06-17-dev-worktree-workflow-v0.md          # how I run + ship it (workshop vs daily driver)
 ```
