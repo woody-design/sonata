@@ -2554,7 +2554,12 @@ h2 {
   flex: 0 0 auto;
   display: grid;
   gap: 6px;
-  margin: 8px 18px 12px;
+  /* Track the reading column (.turn-card uses the same measure, centered) so the
+     composer stays aligned with the transcript above and never balloons when the
+     sidebar is collapsed and the pane widens. 100% - 36px mirrors the run-list's
+     18px side padding at narrow widths. */
+  width: min(100% - 36px, var(--measure-prose));
+  margin: 8px auto 12px;
   border: 1px solid var(--border-strong);
   border-radius: 22px;
   padding: 8px 9px 8px 13px;
