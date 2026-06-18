@@ -92,6 +92,24 @@ const OPTION_PROMPT_KEY_DELAY_MS = 300;
  *  — and the pause-to-think over a half-typed line — that the idle-prompt
  *  heuristic alone cannot see. Dogfood-tuned. */
 const HUMAN_ACTIVE_WINDOW_MS = 3500;
+/** Terminal auto-emissions the emulator generates on its own — NOT human typing.
+ *  A TUI like Claude triggers these constantly (cursor queries every redraw,
+ *  focus reporting on every view switch), so the activity tracker must ignore
+ *  them or `isHumanActivelyTyping` never clears and delivery wedges:
+ *    - cursor-position report (DSR)  `ESC[<row>;<col>R`
+ *    - device status                 `ESC[<n>n`
+ *    - device attributes             `ESC[?...c` / `ESC[>...c`
+ *    - focus in / focus out (1004)   `ESC[I` / `ESC[O`
+ *  Human cursor keys (`ESC[A`..`D`) and bracketed paste are deliberately NOT
+ *  matched — those are real human input. */
+function isTerminalAutoReply(data: string): boolean {
+  return (
+    /^\x1b\[[0-9;]*[Rn]$/.test(data) ||
+    /^\x1b\[[?>][0-9;]*c$/.test(data) ||
+    data === "\x1b[I" ||
+    data === "\x1b[O"
+  );
+}
 const DEFAULT_CONTROL_WAIT_MS = 15_000;
 const CONTROL_CONTEXT_CHARS = 6000;
 
@@ -547,9 +565,17 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess) {
       throw new Error("No PTY process is running.");
     }
-    this.lastHumanInputAt = Date.now();
-    this.scheduleHumanInputSettle();
-    this.trackHumanLine(data);
+    // xterm auto-answers the CLI's terminal queries — cursor-position reports
+    // (DSR), device attributes — through the SAME onData path as human
+    // keystrokes. These are NOT typing: a redrawing TUI emits them constantly,
+    // and counting them as activity keeps `isHumanActivelyTyping` alive forever,
+    // wedging delivery (the fresh-session "stuck Queued"). Forward them to the
+    // PTY (the CLI asked) but never let them mark the human as active.
+    if (!isTerminalAutoReply(data)) {
+      this.lastHumanInputAt = Date.now();
+      this.scheduleHumanInputSettle();
+      this.trackHumanLine(data);
+    }
     if (this.duetWriting) {
       this.pendingHumanInput += data;
       return;

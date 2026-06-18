@@ -125,6 +125,23 @@ try {
     "releases once the line is submitted and the activity window clears",
   );
 
+  // A6 — terminal AUTO-REPLIES (xterm's answers to the CLI's queries) must NOT
+  // count as human typing. A redrawing TUI emits cursor-position reports (DSR)
+  // constantly; if they marked the human active, delivery would wedge forever
+  // (the fresh-session "stuck Queued"). They still reach the PTY.
+  fs.writeFileSync(inputLogPath, "", "utf8");
+  host.writeUserInput("\x1b[24;80R"); // DSR cursor-position report
+  host.writeUserInput("\x1b[?1;2c"); // device attributes
+  assert(
+    host.isHumanActivelyTyping() === false && host.isHumanHoldingInput() === false,
+    "terminal auto-replies (DSR / device attributes) do NOT mark the human active",
+  );
+  await delay(150);
+  assert(readLog().includes("24;80R"), "auto-replies still reach the PTY (the CLI asked)");
+  // …but a real keystroke right after still does mark active.
+  host.writeUserInput("x");
+  assert(host.isHumanActivelyTyping() === true, "a real keystroke after an auto-reply marks active");
+
   const success = failures.length === 0;
   console.log(JSON.stringify({ success, failures, workspace }, null, 2));
   process.exitCode = success ? 0 : 1;
