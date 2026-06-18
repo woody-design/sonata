@@ -593,8 +593,14 @@ pre {
 }
 
 .sidebar-resizer {
-  flex: 0 0 5px;
-  margin-left: -3px;
+  /* Zero-layout overlay straddling the seam (the VS Code "sash" pattern): 8px
+     wide but -4px margins net to 0 layout, so the sidebar and main pane abut
+     with no gap. Earlier this was a flex item contributing 2px (5px basis - 3px
+     margin) of transparent strip — which revealed the shell background between
+     the sidebar border and the main pane once the two bands differed in color.
+     The handle floats over the boundary on z-index; the border shows through. */
+  flex: 0 0 8px;
+  margin: 0 -4px;
   z-index: 5;
   cursor: col-resize;
   background: transparent;
@@ -602,13 +608,13 @@ pre {
 
 .sidebar-resizer:hover,
 body.sidebar-resizing .sidebar-resizer {
+  /* Accent line centered on the seam (the border sits ~3-4px into the handle). */
   background: linear-gradient(
     to right,
-    transparent 0,
-    transparent 1px,
-    var(--accent-soft-border) 1px,
+    transparent 3px,
     var(--accent-soft-border) 3px,
-    transparent 3px
+    var(--accent-soft-border) 5px,
+    transparent 5px
   );
 }
 
