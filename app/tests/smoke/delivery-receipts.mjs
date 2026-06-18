@@ -205,7 +205,7 @@ function fakeHost() {
     isApprovalActive() {
       return this.approvalActive;
     },
-    isUserControlActive() {
+    isHumanActivelyTyping() {
       return false;
     },
     isModalActive() {

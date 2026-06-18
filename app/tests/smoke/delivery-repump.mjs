@@ -16,9 +16,9 @@ function makeHost(overrides = {}) {
     activeRun: false,
     approval: false,
     modal: false,
-    userControl: false,
     accepts: false,
     idle: true,
+    humanTyping: false,
     submits: [],
     ...overrides,
   };
@@ -27,7 +27,7 @@ function makeHost(overrides = {}) {
     hasActiveRun: () => state.activeRun,
     isApprovalActive: () => state.approval,
     isModalActive: () => state.modal,
-    isUserControlActive: () => state.userControl,
+    isHumanActivelyTyping: () => state.humanTyping,
     acceptsPromptInput: () => state.accepts,
     isIdleComposerReady: () => state.idle,
     submitPrompt: (text, opts) => {
@@ -77,27 +77,27 @@ function makeController(host) {
   dc.dispose();
 }
 
-// --- 3. Event-backed blockers are NOT polled (take-over waits for hand-back) -
+// --- 3. The human-activity gate is POLLED (it clears with no event) ----------
 {
-  const host = makeHost({ accepts: false, userControl: true });
+  const host = makeHost({ accepts: false, humanTyping: true });
   const dc = makeController(host);
   dc.enqueue("hello");
-  host.state.accepts = true; // gate is fine now, but take-over still holds
-  await delay(120);
+  host.state.accepts = true; // gate is fine now, but the human is still typing
+  await delay(700); // longer than one poll interval — typing must still hold it
   assert.equal(
     host.state.submits.length,
     0,
-    "does NOT poll-deliver while take-over holds (waits for the hand-back event)",
+    "does NOT deliver while the human is actively typing (even across a poll)",
   );
-  // Hand back: the single-writer release emits an event → pump re-evaluates.
-  host.state.userControl = false;
-  dc.handleRuntimeEvent({
-    type: "terminal:user-control",
-    payload: { taskId: "t", active: false, reason: "user" },
-    ts: new Date(1700000000000).toISOString(),
-  });
-  await delay(60);
-  assert.equal(host.state.submits.length, 1, "delivers once control is handed back");
+  // The human stops typing — the activity window expires SILENTLY (no event).
+  // Unlike the old hand-back, nothing fires, so the pump must poll and recover.
+  host.state.humanTyping = false;
+  await delay(700);
+  assert.equal(
+    host.state.submits.length,
+    1,
+    "polls and delivers once the human-activity window clears (no event needed)",
+  );
   dc.dispose();
 }
 

@@ -343,6 +343,7 @@ export class TerminalHost extends EventEmitter {
   private duetWriteDepth = 0;
   private pendingHumanInput = "";
   private lastHumanInputAt = 0;
+  private humanSettleTimer: NodeJS.Timeout | null = null;
 
   constructor(options: TerminalHostOptions) {
     super();
@@ -530,23 +531,52 @@ export class TerminalHost extends EventEmitter {
     return this.userControlActive;
   }
 
-  /** The ONLY write path allowed while the user controls the terminal. */
+  /**
+   * The human's keystrokes into the terminal. No take-over gate (S2): the human
+   * may type anytime. The single-writer invariant is held instead by (1) the
+   * write-lock — keystrokes that arrive mid automation-sequence buffer and flush
+   * after, never interleaving — and (2) the activity window, which pauses
+   * delivery while the human is typing (`isHumanActivelyTyping`).
+   */
   writeUserInput(data: string): void {
     if (!this.ptyProcess) {
       throw new Error("No PTY process is running.");
     }
-    if (!this.userControlActive) {
-      throw new Error("Terminal input requires take-over to be active.");
-    }
-    // Record the keystroke for the activity window, then either buffer it (an
-    // automation sequence is mid-flight — flush on completion so it lands
-    // contiguously) or write it straight through (S2).
     this.lastHumanInputAt = Date.now();
+    this.scheduleHumanInputSettle();
     if (this.duetWriting) {
       this.pendingHumanInput += data;
       return;
     }
     this.ptyProcess.write(data);
+  }
+
+  /** Re-arm the settle timer on every keystroke; it fires once the human has
+   *  been quiet for the activity window (their input burst ended). */
+  private scheduleHumanInputSettle(): void {
+    if (this.humanSettleTimer) {
+      clearTimeout(this.humanSettleTimer);
+    }
+    this.humanSettleTimer = setTimeout(() => {
+      this.humanSettleTimer = null;
+      this.onHumanInputSettled();
+    }, HUMAN_ACTIVE_WINDOW_MS);
+  }
+
+  /** The human just finished a burst of terminal input — they may have answered
+   *  a native approval/panel directly. Re-derive readiness from fresh screen
+   *  evidence and re-announce accepts-input so a held queue re-pumps. This is the
+   *  activity-settle reconciliation that replaces the old explicit hand-back
+   *  (which ran the identical body on setUserControl(false)). */
+  private onHumanInputSettled(): void {
+    if (!this.ptyProcess) {
+      return;
+    }
+    this.clearApprovalIfAnsweredNatively();
+    this.scheduleNativeAnswerRecheck();
+    this.taskReady = false;
+    this.acceptsInputAnnounced = false;
+    this.scheduleTaskReadyCheck();
   }
 
   /** Marks the start of an automation write sequence (a prompt paste, an
@@ -1286,6 +1316,10 @@ export class TerminalHost extends EventEmitter {
     }
     this.clearTaskReadyTimer();
     this.clearApprovalSettleTimer();
+    if (this.humanSettleTimer) {
+      clearTimeout(this.humanSettleTimer);
+      this.humanSettleTimer = null;
+    }
   }
 
   private handlePtyData(data: string): void {
@@ -1296,7 +1330,10 @@ export class TerminalHost extends EventEmitter {
     }
     this.emitEvent("pty:data", { taskId: this.taskId, data });
     this.detectApproval();
-    if (this.userControlActive) {
+    if (this.isHumanActivelyTyping()) {
+      // While the human is typing in the terminal they may be answering a native
+      // approval directly — re-check each repaint so approvalActive clears
+      // promptly (continuous reconciliation; the settle pass catches a late one).
       this.clearApprovalIfAnsweredNatively();
     }
     this.detectModalPanel();

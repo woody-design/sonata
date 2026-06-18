@@ -66,7 +66,7 @@
     "smoke:delivery-repump": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-repump.mjs",
     "smoke:transcript-reconcile": "npm run build:main && node tests/smoke/transcript-reconcile.mjs",
     "e2e:composer-slash-picker": "npm run build && node tests/e2e/composer-slash-picker.mjs",
-    "smoke:terminal-takeover-guard": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-takeover-guard.mjs",
+    "smoke:terminal-arbitration": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-arbitration.mjs",
     "smoke:pty-env-scrub": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/pty-env-scrub.mjs",
     "e2e:terminal-takeover": "npm run build && node tests/e2e/terminal-takeover.mjs",
     "e2e:option-prompt-surface": "npm run build && node tests/e2e/option-prompt-surface.mjs",

@@ -1478,9 +1478,6 @@ if (!appElement) {
 // and a const referenced from its own TDZ would crash the renderer (white
 // screen). No terminals exist yet here — the map is simply empty.
 const taskTerminals = new Map<string, TaskTerminal>();
-// Guards the focus→take-over round-trip so a single click can't fire the
-// setUserControl IPC twice (focusin can arrive again before the first resolves).
-const takeoverRequestInFlight = new Set<string>();
 
 applyReadingSettings(state.readingSettings);
 
@@ -1651,17 +1648,15 @@ appElement.innerHTML = `
 
       <!-- The raw terminal, now a co-equal sibling of the reading column (not a
            bottom drawer): the header switch swaps which fills the workspace, so
-           Terminal gets full height and never needs resizing. Read-only until
-           focused — focus grabs the keys (single-writer take-over, model Y). -->
+           Terminal gets full height and never needs resizing. Typing here goes
+           straight to the live CLI — no take-over gesture (S2). -->
       <section id="terminal-pane" class="terminal-pane hidden" aria-label="Terminal">
         <div class="terminal-pane-header">
           <div>
             <p id="terminal-pane-eyebrow" class="eyebrow hidden"></p>
             <strong id="terminal-pane-title">Live terminal</strong>
           </div>
-          <div class="terminal-pane-actions">
-            <button id="takeover-toggle" class="secondary" type="button">Take over</button>
-          </div>
+          <div id="terminal-pane-status" class="terminal-pane-status"></div>
         </div>
         <div id="terminal"></div>
       </section>
@@ -1733,7 +1728,7 @@ const elements = {
   terminalPane: getElement<HTMLElement>("terminal-pane"),
   terminalPaneEyebrow: getElement<HTMLElement>("terminal-pane-eyebrow"),
   terminalPaneTitle: getElement<HTMLElement>("terminal-pane-title"),
-  takeoverToggle: getElement<HTMLButtonElement>("takeover-toggle"),
+  terminalPaneStatus: getElement<HTMLDivElement>("terminal-pane-status"),
   terminal: getElement<HTMLDivElement>("terminal"),
 };
 
@@ -1800,27 +1795,18 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
   term.loadAddon(fit);
   const element = document.createElement("div");
   element.className = "task-terminal";
-  // Keystrokes only flow while THIS task holds take-over; otherwise the
-  // mirror stays read-only by construction.
+  // The human may type into the terminal whenever a live PTY backs the task —
+  // no take-over gesture (S2). The single-writer invariant is enforced in the
+  // host (write-lock buffers keystrokes during an automation sequence; the
+  // activity window pauses delivery while the human types).
   const dataListener = term.onData((data) => forwardUserInput(taskId, data));
   const binaryListener = term.onBinary((data) => forwardUserInput(taskId, data));
-  // focus→take-over: clicking or tabbing into the terminal grabs the keys
-  // (the only reason to put the cursor here is to type). Hand-back stays
-  // deliberate — explicit button, drawer close, task switch, or pty exit —
-  // so a glance away never silently drops control. (focusin bubbles from the
-  // xterm helper textarea; focus does not.)
-  const focusListener = (): void => requestTakeoverFromFocus(taskId);
-  element.addEventListener("focusin", focusListener);
   const entry: TaskTerminal = {
     terminal: term,
     fit,
     element,
     opened: false,
-    disposers: [
-      () => dataListener.dispose(),
-      () => binaryListener.dispose(),
-      () => element.removeEventListener("focusin", focusListener),
-    ],
+    disposers: [() => dataListener.dispose(), () => binaryListener.dispose()],
   };
   taskTerminals.set(taskId, entry);
   return entry;
@@ -1828,37 +1814,13 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
 
 function forwardUserInput(taskId: string, data: string): void {
   const view = taskViewForId(taskId);
-  if (!view?.userControl || !data) {
+  if (!view?.live || !data) {
     return;
   }
   void window.duetRuntime.writeTerminalUserInput({ taskId, data }).catch((error) => {
     view.status = errorMessage(error);
     render();
   });
-}
-
-/** Entering the terminal hands the human the keys (single-writer take-over).
- *  Activate-only: focus never releases control (that would thrash on every
- *  click into a card). Needs a live PTY to drive. Reuses slice-a plumbing. */
-function requestTakeoverFromFocus(taskId: string): void {
-  const view = taskViewForId(taskId);
-  if (!view?.task || !view.live || view.userControl || takeoverRequestInFlight.has(taskId)) {
-    return;
-  }
-  takeoverRequestInFlight.add(taskId);
-  void window.duetRuntime
-    .setTerminalUserControl({ taskId, active: true })
-    .then((result) => {
-      view.userControl = result.active;
-      render();
-    })
-    .catch((error) => {
-      view.status = errorMessage(error);
-      render();
-    })
-    .finally(() => {
-      takeoverRequestInFlight.delete(taskId);
-    });
 }
 
 function disposeTaskTerminal(taskId: string): void {
@@ -2181,10 +2143,6 @@ document.addEventListener(
 elements.readingSettings.addEventListener("click", (event) => {
   event.stopPropagation();
   toggleReadingPopover(event.currentTarget as HTMLElement);
-});
-
-elements.takeoverToggle.addEventListener("click", () => {
-  void toggleTakeover();
 });
 
 // Terminal height needs no management now: in Terminal mode the pane fills the
@@ -3451,11 +3409,10 @@ elements.modalOpenTerminal.addEventListener("click", () => {
 });
 
 elements.modalTakeOver.addEventListener("click", () => {
-  const view = activeTaskView();
-  if (!view?.task || view.userControl) {
+  if (!activeTaskView()?.task) {
     return;
   }
-  void toggleTakeover();
+  setViewMode("terminal");
 });
 
 elements.resumeFull.addEventListener("click", () => {
@@ -4066,11 +4023,6 @@ function activateTask(taskId: string): void {
     return;
   }
   if (state.activeTaskId !== taskId) {
-    const previous = activeTaskView();
-    if (previous?.userControl) {
-      // Take-over never outlives the surface that granted it.
-      void releaseUserControl(previous);
-    }
     exitPromptNav({ focusComposer: false });
     state.usagePopover = null;
     clearUsagePopoverTimers();
@@ -7762,9 +7714,6 @@ function setViewMode(mode: ViewMode): void {
   if (!view) {
     return;
   }
-  if (mode === "read" && view.userControl) {
-    void releaseUserControl(view);
-  }
   view.viewMode = mode;
   render();
   if (mode === "terminal") {
@@ -7778,10 +7727,6 @@ function setViewMode(mode: ViewMode): void {
 function renderTerminalPane(): void {
   const view = activeTaskView();
   const inTerminal = (view?.viewMode ?? "read") === "terminal";
-  const userControl = Boolean(view?.userControl);
-  // Take-over writes to the PTY, so it needs a live one. Gating on view.live
-  // (NOT state.busy) keeps the keys reachable through any Duet operation — and
-  // correctly disables take-over on a dormant session that has no PTY to drive.
   const live = Boolean(view?.live);
 
   // Swap which surface fills the workspace. Explicit .hidden overrides matter:
@@ -7789,7 +7734,6 @@ function renderTerminalPane(): void {
   // defined later (the source-order trap) — each carries its own .x.hidden rule.
   elements.runColumn.classList.toggle("hidden", inTerminal);
   elements.terminalPane.classList.toggle("hidden", !inTerminal);
-  elements.terminalPane.classList.toggle("user-control", userControl);
 
   // The header switch mirrors the active task's mode; Terminal needs a task.
   elements.viewRead.classList.toggle("selected", !inTerminal);
@@ -7798,21 +7742,11 @@ function renderTerminalPane(): void {
   elements.viewTerminal.setAttribute("aria-selected", String(inTerminal));
   elements.viewTerminal.disabled = !view?.task;
 
-  elements.takeoverToggle.disabled = !live;
-  elements.takeoverToggle.textContent = userControl ? "Hand back" : "Take over";
-  elements.takeoverToggle.classList.toggle("primary", userControl);
-  elements.takeoverToggle.classList.toggle("secondary", !userControl);
-  // The ownership state is the pane's central concept. Idle, the eyebrow is
-  // silent — the title ("Live terminal") already labels it. On take-over it
-  // becomes the state badge ("You hold the keys") while the title states the
-  // consequence, so it is unmistakable that typing here drives the real CLI.
-  elements.terminalPaneEyebrow.textContent = userControl ? "You hold the keys" : "";
-  elements.terminalPaneEyebrow.classList.toggle("hidden", !userControl);
-  elements.terminalPaneTitle.textContent = userControl
-    ? "Duet paused — your keys go straight to the terminal"
-    : live
-      ? "Live terminal"
-      : "No live session — send a message to start";
+  // No take-over gesture (S2): typing here just goes to the live CLI. The cue
+  // that you're driving (and the queued-message promise) lands in S2.3.
+  elements.terminalPaneTitle.textContent = live
+    ? "Live terminal"
+    : "No live session — send a message to start";
   updateTerminalNeedsYou();
 }
 
@@ -7867,43 +7801,6 @@ function maybeAutoSurfaceFloor(): void {
     return;
   }
   updateTerminalNeedsYou();
-}
-
-async function toggleTakeover(): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-  const next = !view.userControl;
-  try {
-    const result = await window.duetRuntime.setTerminalUserControl({
-      taskId: view.task.id,
-      active: next,
-    });
-    view.userControl = result.active;
-    if (result.active) {
-      if (activeViewMode() !== "terminal") {
-        setViewMode("terminal");
-      }
-      queueMicrotask(() => activeTaskTerminal()?.terminal.focus());
-    }
-    render();
-  } catch (error) {
-    view.status = errorMessage(error);
-    render();
-  }
-}
-
-async function releaseUserControl(view: TaskViewState): Promise<void> {
-  if (!view.task) {
-    return;
-  }
-  view.userControl = false;
-  try {
-    await window.duetRuntime.setTerminalUserControl({ taskId: view.task.id, active: false });
-  } catch {
-    // The PTY may already be gone — the host releases on exit by itself.
-  }
 }
 
 function renderDeliveryQueue(): void {

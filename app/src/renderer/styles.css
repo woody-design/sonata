@@ -4035,10 +4035,12 @@ h2 {
   text-decoration: underline;
 }
 
-.terminal-pane-actions {
+.terminal-pane-status {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: var(--ink-muted);
+  font-size: 12px;
 }
 
 /* Take-over active: the human holds the keys — make the state unmistakable

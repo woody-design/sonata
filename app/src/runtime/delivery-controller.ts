@@ -206,7 +206,7 @@ export class DeliveryController {
     const understandablyBusy =
       this.terminalHost.hasActiveRun() ||
       this.terminalHost.isApprovalActive() ||
-      this.terminalHost.isUserControlActive();
+      this.terminalHost.isHumanActivelyTyping();
     const blocked = hasQueued && !this.inFlight && !understandablyBusy && !this.canDeliver();
     if (!blocked) {
       this.blockedSinceMs = null;
@@ -263,11 +263,12 @@ export class DeliveryController {
       return;
     }
     if (!this.canDeliver()) {
-      // The accepts-input gate is the one blocker with no resolution event in an
-      // idle session (PTY-quiet transition after a resize) — poll until it
-      // clears. The event-backed blockers re-pump on their own events, so
-      // polling for them would be wasteful; cancel any retry in that case.
-      if (this.isBlockedByAcceptsInputOnly()) {
+      // Two blockers resolve SILENTLY with no state-change event — the PTY-quiet
+      // accepts-input gate and the human-activity window — so the pump must poll
+      // until they clear. The genuinely event-backed blockers (run/approval/
+      // modal) re-pump on their own events, so polling for them would be
+      // wasteful; cancel any retry in that case.
+      if (this.isBlockedByPolledGateOnly()) {
         this.schedulePumpRetry();
       } else {
         this.clearPumpRetry();
@@ -281,18 +282,20 @@ export class DeliveryController {
   }
 
   /**
-   * True when every delivery condition holds EXCEPT `acceptsPromptInput()` — i.e.
-   * the queue is blocked only by the no-event PTY-quiet gate. (inFlight is
-   * already excluded: pump() returns early when it is set.)
+   * True when the queue is blocked ONLY by a time-based, no-event gate — either
+   * the PTY-quiet accepts-input gate or the human-activity window. Both flip
+   * silently (no state-change event), so the pump must poll until they clear.
+   * The event-backed blockers (run/approval/modal) are all clear here; they
+   * re-pump on their own events. (inFlight is excluded: pump() returns early.)
    */
-  private isBlockedByAcceptsInputOnly(): boolean {
-    return (
+  private isBlockedByPolledGateOnly(): boolean {
+    const eventBackedClear =
       !this.terminalHost.hasActiveRun() &&
       !this.terminalHost.isApprovalActive() &&
-      !this.terminalHost.isModalActive() &&
-      !this.terminalHost.isUserControlActive() &&
-      !this.terminalHost.acceptsPromptInput()
-    );
+      !this.terminalHost.isModalActive();
+    const blockedByTimeGate =
+      this.terminalHost.isHumanActivelyTyping() || !this.terminalHost.acceptsPromptInput();
+    return eventBackedClear && blockedByTimeGate;
   }
 
   private schedulePumpRetry(): void {
@@ -335,10 +338,11 @@ export class DeliveryController {
       // A detected panel blocks delivery as STATE — the idle-prompt
       // heuristic alone is one arrow keypress away from lying (P1b).
       !this.terminalHost.isModalActive() &&
-      // Single writer: while the human holds the keys, the queue holds the
-      // messages (P1b: a navigating human can flip the idle heuristic —
-      // delivery during take-over is a safety hazard, not a race).
-      !this.terminalHost.isUserControlActive() &&
+      // Single writer: while the human is actively typing in the terminal, the
+      // queue holds (S2). A keystroke into a live panel can flip the idle
+      // heuristic (P1b), so an automation paste must never land mid-burst — this
+      // is a safety property, scoped to the activity window rather than a mode.
+      !this.terminalHost.isHumanActivelyTyping() &&
       // Structural accepts-input gate: delivers as soon as the provider
       // composer exists (~3s), without waiting for the task-ready floor.
       this.terminalHost.acceptsPromptInput()
