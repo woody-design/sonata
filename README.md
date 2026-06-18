@@ -34,6 +34,10 @@ What works today:
   "needs you".
 - **Sidebar** — past sessions and projects; instant read of a dormant
   session (file I/O), lazy resume on first new message.
+- **Window shell** — a macOS full-height-sidebar window (no OS titlebar
+  strip; traffic lights float over the sidebar). Sidebar and reading column
+  are two full-height bands toned from a per-theme depth ladder; the reading
+  surface is flat with frosted scroll edges.
 - **Floating Preview / Inspector** — artifacts, changed files, and
   run / change / artifact / folder truth in their own windows.
 - **Settings, usage, resume** — a settings overlay, an honest usage
@@ -56,6 +60,7 @@ mid-task. This is not Claude/Codex feature parity.
 Start here:
 
 ```text
+product-thinking/2026-06-18-ui-shell-redesign-v0.md             # the window shell, two-tone token ladder, scroll fade
 product-thinking/2026-06-13-cli-integration-architecture-v0.md   # signals, surfaces, the floor (governs the cli-* track)
 product-thinking/2026-06-09-semantic-transcript-contract-v0.md   # the reading-surface transcript channel
 product-thinking/2026-06-17-dev-worktree-workflow-v0.md          # how I run + ship it (workshop vs daily driver)
