@@ -2213,7 +2213,8 @@ h2 {
   min-height: 34px;
   border-bottom: 1px solid var(--border);
   padding: 5px 18px;
-  background: var(--surface-strip);
+  /* Flat with the reading plane — no band tint (see two-tone notes). */
+  background: transparent;
 }
 
 .workflow-strip.quiet {
