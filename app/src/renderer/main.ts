@@ -1375,7 +1375,9 @@ function removeTaskViewLocally(taskId: string): void {
   if (state.activeTaskId === taskId) {
     state.activeTaskId = null;
     state.usagePopover = null;
-    elements.terminal.replaceChildren();
+    // The closed task's element was already removed by disposeTaskTerminal above;
+    // other tasks' terminals stay mounted (never re-parented). With no active task
+    // renderTerminalPane hides the whole pane, so nothing stale shows.
   }
   render();
 }
@@ -1852,26 +1854,32 @@ function activeTaskTerminal(): TaskTerminal | null {
   return taskTerminals.get(view.task.id) ?? null;
 }
 
-/** Re-parent the active task's terminal into the drawer; open lazily once
- *  the drawer is visible so xterm can measure real dimensions. */
+/** Show the active task's terminal. Each task's xterm lives in its own element,
+ *  mounted into the pane ONCE and never moved again — switching tasks toggles
+ *  visibility, it does not re-parent. (Moving an xterm element across the DOM
+ *  breaks rendering on xterm v6; VS Code likewise keeps a stable per-terminal
+ *  wrapper and toggles an `active` class.) Open lazily on first reveal so xterm
+ *  can measure real dimensions. */
 function attachActiveTaskTerminal(): void {
   const view = activeTaskView();
-  elements.terminal.replaceChildren();
   if (!view?.task) {
+    for (const entry of taskTerminals.values()) {
+      entry.element.classList.add("hidden");
+    }
     return;
   }
   const entry = ensureTaskTerminal(view.task.id);
-  elements.terminal.append(entry.element);
+  // Mount once; never re-parent (the v6 re-render-on-reopen regression bites here).
+  if (entry.element.parentElement !== elements.terminal) {
+    elements.terminal.append(entry.element);
+  }
+  // Exactly one terminal visible — the active task's. No DOM moves.
+  for (const other of taskTerminals.values()) {
+    other.element.classList.toggle("hidden", other !== entry);
+  }
   if (!entry.opened && view.viewMode === "terminal") {
     entry.terminal.open(entry.element);
     entry.opened = true;
-    // WebGL renderer temporarily REMOVED pending a lifecycle fix. It was loaded
-    // here and broke the terminal: it initializes while the pane is still hidden
-    // (0×0 — see "attach measured it while still hidden" in the task-switch path),
-    // which the DOM renderer tolerates but WebGL renders blank from; and Duet
-    // re-parents the terminal element on every switch, churning the GL context.
-    // DOM is the correct renderer for this mount model until WebGL is reworked to
-    // load only once the pane is visible + sized and to survive re-parenting.
   }
   fitTerminal();
 }

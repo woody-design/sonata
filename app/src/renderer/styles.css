@@ -3974,6 +3974,12 @@ h2 {
   height: 100%;
 }
 
+/* Inactive task terminals stay mounted (never re-parented) but hidden; switching
+   toggles this. Explicit rule to win the source-order trap (see .run-column.hidden). */
+.task-terminal.hidden {
+  display: none;
+}
+
 /* The resume moment (slice C) — inline, on the intent path, above the
    composer. Proposal visuals; Woody calibrates. */
 .resume-choice {
