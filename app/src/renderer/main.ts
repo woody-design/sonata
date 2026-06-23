@@ -1,4 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { Terminal } from "@xterm/xterm";
 import DOMPurify from "dompurify";
 import {
@@ -1785,6 +1786,9 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
     return existing;
   }
   const term = new Terminal({
+    // Required by the Unicode 11 width API (term.unicode.activeVersion, below):
+    // without it xterm throws "You must set the allowProposedApi option to true".
+    allowProposedApi: true,
     convertEol: true,
     cursorBlink: false,
     fontFamily: terminalFontFamily || "SFMono-Regular, Menlo, Consolas, monospace",
@@ -1793,6 +1797,10 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  // Unicode 11 width tables — core defaults to v6 and mis-measures CJK/emoji as
+  // width 1. Loading the addon is inert until activeVersion is set.
+  term.loadAddon(new Unicode11Addon());
+  term.unicode.activeVersion = "11";
   const element = document.createElement("div");
   element.className = "task-terminal";
   // The human may type into the terminal whenever a live PTY backs the task —
@@ -1857,6 +1865,13 @@ function attachActiveTaskTerminal(): void {
   if (!entry.opened && view.viewMode === "terminal") {
     entry.terminal.open(entry.element);
     entry.opened = true;
+    // WebGL renderer temporarily REMOVED pending a lifecycle fix. It was loaded
+    // here and broke the terminal: it initializes while the pane is still hidden
+    // (0×0 — see "attach measured it while still hidden" in the task-switch path),
+    // which the DOM renderer tolerates but WebGL renders blank from; and Duet
+    // re-parents the terminal element on every switch, churning the GL context.
+    // DOM is the correct renderer for this mount model until WebGL is reworked to
+    // load only once the pane is visible + sized and to survive re-parenting.
   }
   fitTerminal();
 }
