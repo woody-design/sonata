@@ -265,7 +265,7 @@ const state: RendererState = {
   activeTaskId: null,
   previewTabs: [],
   taskDraft: {
-    provider: "codex",
+    provider: "claude",
     cwd: null,
     settingsOpen: false,
     settingsAnchor: null,
