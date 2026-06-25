@@ -1896,8 +1896,13 @@ function attachActiveTaskTerminal(): void {
       const onEnd = onCompose(false);
       textarea.addEventListener("compositionstart", onStart);
       textarea.addEventListener("compositionend", onEnd);
+      // Focus can leave mid-composition without a compositionend (task switch,
+      // window blur), which would otherwise pin `composing` true and wedge
+      // delivery — clear it on blur (mirrors the prompt composer's blur reset).
+      textarea.addEventListener("blur", onEnd);
       entry.disposers.push(() => textarea.removeEventListener("compositionstart", onStart));
       entry.disposers.push(() => textarea.removeEventListener("compositionend", onEnd));
+      entry.disposers.push(() => textarea.removeEventListener("blur", onEnd));
     }
   }
   fitTerminal();

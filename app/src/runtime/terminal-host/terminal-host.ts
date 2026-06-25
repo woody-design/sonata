@@ -111,6 +111,11 @@ const HUMAN_ACTIVE_WINDOW_MS = 3500;
  * the spec instead. Genuine human keys (printables, Enter, Ctrl-*, arrows,
  * edit/function keys, paste, kitty key PRESSES `CSI…u` without `?`) match none
  * of these shapes and so are correctly seen as input.
+ *
+ * Accepted ambiguity: the CPR alternative also matches Shift+F3 (`ESC[1;2R`) —
+ * the spec shapes genuinely overlap. The failure direction is benign (a real
+ * key counted as non-typing → never causes a wedge, at worst delivers one
+ * keypress too eagerly), and F-keys are vanishingly rare in the Claude TUI.
  */
 const TERMINAL_NON_TYPING_RE = new RegExp(
   [
@@ -133,6 +138,12 @@ const TERMINAL_NON_TYPING_RE = new RegExp(
  * emulator auto-reply nor a navigation key inflates the count. Bracketed-paste
  * MARKERS are handled by the caller (the payload between them is real human text
  * and must survive).
+ *
+ * Latent (not live on xterm.js v6, which sends ordinary keys as raw bytes): if a
+ * future renderer ran the kitty keyboard protocol at flag ≥8, printable keys and
+ * Backspace would arrive as `CSI…u` and be stripped here — so the draft counter
+ * would neither increment nor decrement. Symmetric → never inflates → no
+ * over-hold wedge, but the uncommitted-line hold would silently no-op until then.
  */
 const TERMINAL_CONTROL_SEQ_RE = new RegExp(
   [
@@ -153,7 +164,7 @@ const TERMINAL_CONTROL_SEQ_RE = new RegExp(
  * mixed chunk that still contains a real keystroke returns false → treated as
  * input (never miss genuine typing).
  */
-function isNonTypingTerminalInput(data: string): boolean {
+export function isNonTypingTerminalInput(data: string): boolean {
   if (data.length === 0) {
     return false;
   }
@@ -460,9 +471,11 @@ export class TerminalHost extends EventEmitter {
    * taskReadyMinAgeMs fuse. Prompt detection already requires the prompt to
    * render AFTER any approval-screen text, so a pending trust screen blocks
    * this both via approvalActive and via the prompt-ordering rule. Used by
-   * the delivery gate so a queued first message goes out as soon as the CLI
-   * accepts input (~3s) instead of at the task-ready floor (14s); task:ready
-   * remains the unconditional fallback that pumps delivery at the latest.
+   * the delivery gate (and the control-change idle wait) so a queued message
+   * goes out as soon as the CLI accepts input (~3s) instead of at the task-ready
+   * floor (14s). The delivery pump re-polls THIS gate every ~500ms while blocked,
+   * so it does not depend on `task:ready` — whose own PTY-quiet fuse
+   * (`checkTaskReady`) can be starved indefinitely by the same animating TUI.
    *
    * No PTY-quiet gate (was: idle until quiet for ~taskReadyQuietMs). A modern
    * TUI redraws its footer continuously (claude 2.1.191's "auto mode" line), so
@@ -502,6 +515,7 @@ export class TerminalHost extends EventEmitter {
     this.activeRunRaw = "";
     this.taskReady = false;
     this.acceptsInputAnnounced = false;
+    this.composing = false;
     this.clearModalPanel();
     this.resetAmbientModalCandidate();
     this.clearCompletionTimer();
@@ -974,10 +988,15 @@ export class TerminalHost extends EventEmitter {
     if (this.userControlActive) {
       throw new Error(USER_CONTROL_GUARD_MESSAGE);
     }
-    if (!this.isIdleComposerReady()) {
+    // Gate on the STRUCTURAL idle check (composer rendered, no run/approval) —
+    // same condition the delivery gate and waitForIdleComposer use. NOT
+    // isIdleComposerReady(): its PTY-quiet fuse is unsatisfiable under a
+    // continuously-animating TUI, which would throw here even when the composer
+    // is genuinely idle (claude 2.1.191 — switching model/effort mid-animation).
+    if (!this.acceptsPromptInput()) {
       await this.waitForIdleComposer(DEFAULT_CONTROL_WAIT_MS);
     }
-    if (!this.isIdleComposerReady()) {
+    if (!this.acceptsPromptInput()) {
       throw new Error("Cannot change controls until the provider composer is idle.");
     }
 
@@ -1225,7 +1244,9 @@ export class TerminalHost extends EventEmitter {
   private async waitForIdleComposer(timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      if (!this.approvalActive && !this.activeRun && detectIdlePrompt(this.rawTail, this.profile).ready) {
+      // Structural idle (same as acceptsPromptInput) — no PTY-quiet fuse, which a
+      // continuously-animating TUI never satisfies.
+      if (this.acceptsPromptInput()) {
         return;
       }
       await delay(100);
@@ -1466,6 +1487,7 @@ export class TerminalHost extends EventEmitter {
       this.humanSettleTimer = null;
     }
     this.humanLineChars = 0;
+    this.composing = false;
   }
 
   private handlePtyData(data: string): void {
