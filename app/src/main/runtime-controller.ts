@@ -729,6 +729,16 @@ export class RuntimeController {
     active.terminalHost.writeUserInput(data);
   }
 
+  /**
+   * IME composition state for the terminal (from the renderer's xterm textarea).
+   * While composing CJK, no bytes reach the PTY until commit — so the host's
+   * keystroke-derived draft can't see it. Tolerant of a stray signal (no task →
+   * no-op): it's a fire-and-forget boolean, never a reason to throw.
+   */
+  setTerminalComposing(taskId: TaskId, composing: boolean): void {
+    this.taskRuntimes.get(taskId)?.terminalHost.setComposing(Boolean(composing));
+  }
+
   listSlashCommands(request: ReadSlashCommandsRequest): SlashCommandsResponse {
     let provider = request.provider ?? null;
     let cwd = request.cwd ?? null;

@@ -53,6 +53,7 @@ export const IPC_CHANNELS = {
   terminalResize: "terminal:resize",
   terminalUserControlSet: "terminal:user-control:set",
   terminalUserInput: "terminal:user-input",
+  terminalComposing: "terminal:composing",
   reportRead: "report:read",
   transcriptRead: "transcript:read",
   usageRead: "usage:read",
@@ -283,6 +284,11 @@ export interface TerminalUserInputRequest {
   data: string;
 }
 
+export interface SetTerminalComposingRequest {
+  taskId: TaskId;
+  composing: boolean;
+}
+
 export interface ReadReportRequest {
   taskId: TaskId;
 }
@@ -444,6 +450,7 @@ export interface DuetRuntimeBridge {
     request: SetTerminalUserControlRequest,
   ): Promise<SetTerminalUserControlResponse>;
   writeTerminalUserInput(request: TerminalUserInputRequest): Promise<void>;
+  setTerminalComposing(request: SetTerminalComposingRequest): Promise<void>;
   readReport(request: ReadReportRequest): Promise<RuntimeReportV1 | null>;
   readTranscript(request: ReadTranscriptRequest): Promise<ReadTranscriptResponse>;
   readUsage(request: ReadUsageRequest): Promise<ReadUsageResponse>;

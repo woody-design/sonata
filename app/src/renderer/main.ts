@@ -1880,6 +1880,25 @@ function attachActiveTaskTerminal(): void {
   if (!entry.opened && view.viewMode === "terminal") {
     entry.terminal.open(entry.element);
     entry.opened = true;
+    // IME: while the human composes CJK in the terminal, xterm holds the text in
+    // its helper textarea and sends NO bytes to the PTY until commit — so the
+    // host's keystroke-derived draft can't see the in-progress composition.
+    // Forward the composition window from the textarea (the authoritative DOM
+    // signal, not a screen scrape) so delivery holds until the human commits.
+    const composingTaskId = view.task.id;
+    const textarea = entry.terminal.textarea;
+    if (textarea) {
+      const onCompose = (composing: boolean) => () =>
+        void window.duetRuntime
+          .setTerminalComposing({ taskId: composingTaskId, composing })
+          .catch(() => {});
+      const onStart = onCompose(true);
+      const onEnd = onCompose(false);
+      textarea.addEventListener("compositionstart", onStart);
+      textarea.addEventListener("compositionend", onEnd);
+      entry.disposers.push(() => textarea.removeEventListener("compositionstart", onStart));
+      entry.disposers.push(() => textarea.removeEventListener("compositionend", onEnd));
+    }
   }
   fitTerminal();
 }

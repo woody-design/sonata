@@ -92,23 +92,72 @@ const OPTION_PROMPT_KEY_DELAY_MS = 300;
  *  — and the pause-to-think over a half-typed line — that the idle-prompt
  *  heuristic alone cannot see. Dogfood-tuned. */
 const HUMAN_ACTIVE_WINDOW_MS = 3500;
-/** Terminal auto-emissions the emulator generates on its own — NOT human typing.
- *  A TUI like Claude triggers these constantly (cursor queries every redraw,
- *  focus reporting on every view switch), so the activity tracker must ignore
- *  them or `isHumanActivelyTyping` never clears and delivery wedges:
- *    - cursor-position report (DSR)  `ESC[<row>;<col>R`
- *    - device status                 `ESC[<n>n`
- *    - device attributes             `ESC[?...c` / `ESC[>...c`
- *    - focus in / focus out (1004)   `ESC[I` / `ESC[O`
- *  Human cursor keys (`ESC[A`..`D`) and bracketed paste are deliberately NOT
- *  matched — those are real human input. */
-function isTerminalAutoReply(data: string): boolean {
-  return (
-    /^\x1b\[[0-9;]*[Rn]$/.test(data) ||
-    /^\x1b\[[?>][0-9;]*c$/.test(data) ||
-    data === "\x1b[I" ||
-    data === "\x1b[O"
-  );
+/**
+ * Terminal traffic that is NOT the human composing a line — emulator-generated
+ * query replies AND mouse activity. xterm.js relays all of these through the
+ * SAME `onData` path as keystrokes, with no flag to tell them apart (confirmed:
+ * `CoreService.triggerDataEvent`'s `wasUserInput` is not surfaced; and even
+ * iTerm2 classifies mouse reports identically to keystrokes). So the activity
+ * tracker must filter them structurally, or `isHumanActivelyTyping` never clears
+ * and delivery wedges — which is exactly what mouse motion/scroll (`ESC[<…M`)
+ * and `?`-prefixed cursor reports did on the post-reply screen.
+ *
+ * The set is the well-specified terminal INPUT grammar (CSI/OSC/DCS/mouse) — a
+ * stable standard, NOT a guess at Claude's volatile TUI — so a future CLI adding
+ * a new probe is excluded by default rather than re-breaking us (the 2.1.191
+ * regression: DECRQM `$y` / kitty `?u` / OSC color / SGR mouse slipped past the
+ * old `[Rn]`/`[?>]c`/focus list). Reading the rendered composer instead would
+ * re-couple us to that volatile TUI (placeholder text, layout); this depends on
+ * the spec instead. Genuine human keys (printables, Enter, Ctrl-*, arrows,
+ * edit/function keys, paste, kitty key PRESSES `CSI…u` without `?`) match none
+ * of these shapes and so are correctly seen as input.
+ */
+const TERMINAL_NON_TYPING_RE = new RegExp(
+  [
+    "\\x1b\\[[?]?[0-9;]*[Rn]", // CPR / DSR / DECXCPR cursor-position report (incl. `?`-prefixed)
+    "\\x1b\\[[?>=][0-9;]*c", // device attributes DA1/DA2/DA3 (CSI form)
+    "\\x1b\\[[?]?[0-9;]*\\$y", // DECRQM mode report  ESC[?<n>;<m>$y
+    "\\x1b\\[\\?[0-9;]*u", // kitty keyboard flags reply  ESC[?<flags>u (NOT a keypress: those lack `?`)
+    "\\x1b\\[<[0-9;]*[Mm]", // SGR mouse report (motion/scroll/press/release) — forward, never typing
+    "\\x1b\\[M[\\s\\S]{3}", // legacy X10 mouse report (ESC[M + 3 coordinate bytes)
+    "\\x1b\\][0-9]+;[^\\x07\\x1b]*(?:\\x07|\\x1b\\\\)", // OSC reply (color/title/palette) … BEL|ST
+    "\\x1bP[\\s\\S]*?\\x1b\\\\", // DCS reply (XTVERSION / XTGETTCAP / DA3) … ST
+    "\\x1b\\[[IO]", // focus in / out
+  ].join("|"),
+  "g",
+);
+
+/**
+ * All terminal control/escape sequences (CSI/OSC/DCS/SS3). Stripped from relayed
+ * input before counting the human's uncommitted-line length, so neither an
+ * emulator auto-reply nor a navigation key inflates the count. Bracketed-paste
+ * MARKERS are handled by the caller (the payload between them is real human text
+ * and must survive).
+ */
+const TERMINAL_CONTROL_SEQ_RE = new RegExp(
+  [
+    "\\x1b\\][\\s\\S]*?(?:\\x07|\\x1b\\\\)", // OSC … BEL|ST
+    "\\x1bP[\\s\\S]*?\\x1b\\\\", // DCS … ST
+    "\\x1b\\[[\\x30-\\x3f]*[\\x20-\\x2f]*[\\x40-\\x7e]", // CSI (params/intermediates/final per ECMA-48)
+    "\\x1bO[\\x40-\\x7e]", // SS3 (application-mode arrows / F-keys)
+  ].join("|"),
+  "g",
+);
+
+/**
+ * True when a chunk is entirely non-typing terminal traffic (query replies +
+ * mouse) — i.e. removing every recognized non-typing token leaves nothing.
+ * Robust to BATCHING (a redraw can emit several replies/mouse events in one
+ * chunk; if even one slipped through it would bump the typing timestamp and the
+ * activity window would never clear under continuous animation/scrolling). A
+ * mixed chunk that still contains a real keystroke returns false → treated as
+ * input (never miss genuine typing).
+ */
+function isNonTypingTerminalInput(data: string): boolean {
+  if (data.length === 0) {
+    return false;
+  }
+  return data.replace(TERMINAL_NON_TYPING_RE, "").length === 0;
 }
 const DEFAULT_CONTROL_WAIT_MS = 15_000;
 const CONTROL_CONTEXT_CHARS = 6000;
@@ -367,6 +416,10 @@ export class TerminalHost extends EventEmitter {
    *  automation paste never lands mid-line (tracked from relayed keystrokes, not
    *  the screen). */
   private humanLineChars = 0;
+  /** Renderer-reported IME composition state (terminal xterm textarea). True
+   *  between compositionstart and compositionend — the only window where the
+   *  human is composing but no bytes have reached the PTY yet. */
+  private composing = false;
 
   constructor(options: TerminalHostOptions) {
     super();
@@ -410,12 +463,19 @@ export class TerminalHost extends EventEmitter {
    * the delivery gate so a queued first message goes out as soon as the CLI
    * accepts input (~3s) instead of at the task-ready floor (14s); task:ready
    * remains the unconditional fallback that pumps delivery at the latest.
+   *
+   * No PTY-quiet gate (was: idle until quiet for ~taskReadyQuietMs). A modern
+   * TUI redraws its footer continuously (claude 2.1.191's "auto mode" line), so
+   * the PTY never goes quiet — the quiet wait is UNSATISFIABLE, not just slow,
+   * and there is no usable threshold (any value ≥ the redraw interval re-wedges,
+   * any value below it is meaningless). The structural idle-prompt is the honest
+   * readiness signal: it requires the `❯` composer rendered after any panel, and
+   * `activeRun`/`approvalActive` (+ the delivery gate's `modalActive`) cover the
+   * busy/panel cases. The Claude hook lifecycle (SessionStart/Stop) becomes the
+   * authoritative primary in the follow-up; this trusts the structural prompt now.
    */
   acceptsPromptInput(): boolean {
     if (!this.ptyProcess || this.activeRun || this.approvalActive) {
-      return false;
-    }
-    if (Date.now() - this.lastPtyDataAt < this.profile.taskReadyQuietMs - 50) {
       return false;
     }
     return detectIdlePrompt(this.rawTail, this.profile).ready;
@@ -565,13 +625,14 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess) {
       throw new Error("No PTY process is running.");
     }
-    // xterm auto-answers the CLI's terminal queries — cursor-position reports
-    // (DSR), device attributes — through the SAME onData path as human
-    // keystrokes. These are NOT typing: a redrawing TUI emits them constantly,
-    // and counting them as activity keeps `isHumanActivelyTyping` alive forever,
-    // wedging delivery (the fresh-session "stuck Queued"). Forward them to the
-    // PTY (the CLI asked) but never let them mark the human as active.
-    if (!isTerminalAutoReply(data)) {
+    // xterm relays the CLI's terminal-query replies (cursor-position/DSR, device
+    // attributes, DECRQM, OSC color, kitty flags) AND mouse reports through the
+    // SAME onData path as human keystrokes. None of these are the human composing
+    // a line: a redrawing TUI emits replies constantly, and reading/scrolling
+    // emits mouse motion — counting either as activity keeps `isHumanActivelyTyping`
+    // alive forever and wedges delivery (the fresh-session AND post-reply "stuck
+    // Queued"). Forward them to the PTY (the CLI asked) but never mark them as input.
+    if (!isNonTypingTerminalInput(data)) {
       this.lastHumanInputAt = Date.now();
       this.scheduleHumanInputSettle();
       this.trackHumanLine(data);
@@ -605,9 +666,11 @@ export class TerminalHost extends EventEmitter {
       this.humanLineChars = 0;
       return;
     }
-    // Strip remaining CSI escape sequences (arrows, function keys) — navigation,
-    // not input. What's left is literal text typed or pasted onto the line.
-    const literal = unwrapped.replace(/\x1b\[[0-9;]*[A-Za-z~]/g, "");
+    // Strip ALL terminal control/escape sequences (CSI nav, OSC/DCS replies,
+    // SS3) — structural, so a new emulator reply type can't inflate the count
+    // (the 2.1.191 wedge: OSC/DCS/DECRQM replies counted as 1050 "typed" chars).
+    // What's left is literal text typed or pasted onto the line.
+    const literal = unwrapped.replace(TERMINAL_CONTROL_SEQ_RE, "");
     let delta = 0;
     for (const ch of literal) {
       if (ch === "\x7f" || ch === "\b") {
@@ -692,12 +755,21 @@ export class TerminalHost extends EventEmitter {
     );
   }
 
-  /** The delivery pause signal: the human is either actively typing OR has an
-   *  uncommitted line sitting in the terminal. Either way an automation paste
-   *  would corrupt their input, so the queue holds (the Expect exclusivity
-   *  lesson — here keyed on real input state, not a mode or a screen guess). */
+  /** Renderer-reported IME composition state for the terminal's xterm textarea.
+   *  During CJK composition NO bytes reach the PTY until commit, so the
+   *  keystroke-derived draft (`humanLineChars`) can't see it — the renderer's
+   *  compositionstart/end is the authoritative signal (not a screen scrape). */
+  setComposing(composing: boolean): void {
+    this.composing = composing;
+  }
+
+  /** The delivery pause signal: the human is actively typing, OR has an
+   *  uncommitted line, OR is mid-IME-composition in the terminal. Any of these
+   *  means an automation paste would corrupt their input, so the queue holds
+   *  (the Expect exclusivity lesson — keyed on real input state, not a mode or a
+   *  screen guess; mouse/scroll/auto-replies are excluded at `writeUserInput`). */
   isHumanHoldingInput(): boolean {
-    return this.isHumanActivelyTyping() || this.humanLineChars > 0;
+    return this.isHumanActivelyTyping() || this.humanLineChars > 0 || this.composing;
   }
 
   /**

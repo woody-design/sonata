@@ -127,6 +127,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.terminalUserInput, (_event, request) => {
     runtimeController.writeTerminalUserInput(request.taskId, request.data);
   });
+  ipcMain.handle(IPC_CHANNELS.terminalComposing, (_event, request) => {
+    runtimeController.setTerminalComposing(request.taskId, request.composing);
+  });
   ipcMain.handle(IPC_CHANNELS.reportRead, (_event, request) =>
     runtimeController.readReport(request.taskId),
   );
