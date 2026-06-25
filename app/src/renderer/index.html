@@ -2,9 +2,14 @@
 <html lang="en" data-theme="duet">
   <head>
     <meta charset="UTF-8" />
+    <!-- style-src allows 'unsafe-inline': xterm v6 injects a <style> element for
+         scrollbar slider colors (xterm.js #4445) that strict style-src blocks.
+         Low risk here — script-src stays 'self' (the load-bearing one), and CSS
+         exfiltration has no egress (img-src/default-src are 'self'); content is
+         DOMPurify-sanitized. Only the main window (xterm lives here) is relaxed. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Duet</title>
