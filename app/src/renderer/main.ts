@@ -1900,11 +1900,19 @@ function openTerminalSearch(): void {
 }
 
 function closeTerminalSearch(): void {
+  // Clear decorations on the task the box was BOUND to, not whatever is active now
+  // — when a task switch closes the box, the active terminal has already changed,
+  // and the old task's match highlights would otherwise linger.
+  const bound = terminalSearchTaskId ? taskTerminals.get(terminalSearchTaskId) : null;
   terminalSearchTaskId = null;
   elements.terminalSearch.classList.add("hidden");
-  const entry = activeTaskTerminal();
-  entry?.search.clearDecorations();
-  entry?.terminal.focus();
+  bound?.search.clearDecorations();
+  // Focus only an opened terminal — focus() before open() throws (same proposed-
+  // API/render-layer class as registerCharacterJoiner).
+  const active = activeTaskTerminal();
+  if (active?.opened) {
+    active.terminal.focus();
+  }
 }
 
 elements.terminalSearchInput.addEventListener("input", () => runTerminalSearch("next", true));
@@ -2083,7 +2091,11 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
     }
     return true;
   });
-  const selectionListener = term.onSelectionChange(() => {
+  // Copy-on-select: copy on mouseup — once per selection gesture — rather than on
+  // every onSelectionChange (which fires per cell as a drag grows). Reading the
+  // selection on a real mouse-up in THIS terminal also means a background or
+  // programmatic selection never clobbers the clipboard.
+  const onMouseUp = () => {
     if (!TERMINAL_COPY_ON_SELECT) {
       return;
     }
@@ -2091,12 +2103,17 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
     if (selection) {
       void navigator.clipboard.writeText(selection).catch(() => {});
     }
-  });
-  // Right-click pastes (a terminal convention). Read the clipboard in the main
-  // process (reliable in a sandboxed renderer) and feed it through term.paste so
-  // bracketed-paste mode is honored and it rides the same single-writer onData path.
+  };
+  element.addEventListener("mouseup", onMouseUp);
+  // Right-click pastes (a terminal convention). Skip dead sessions entirely — no
+  // clipboard read, no silent no-op. Read in the main process (reliable in a
+  // sandboxed renderer) and feed through term.paste so bracketed-paste mode is
+  // honored and it rides the same single-writer onData path.
   const onContextMenu = (event: MouseEvent) => {
     event.preventDefault();
+    if (!taskViewForId(taskId)?.live) {
+      return;
+    }
     void window.duetRuntime
       .readClipboardText()
       .then(({ text }) => {
@@ -2123,8 +2140,8 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
     disposers: [
       () => dataListener.dispose(),
       () => binaryListener.dispose(),
-      () => selectionListener.dispose(),
       () => resultsListener.dispose(),
+      () => element.removeEventListener("mouseup", onMouseUp),
       () => element.removeEventListener("contextmenu", onContextMenu),
     ],
   };
@@ -2147,6 +2164,12 @@ function disposeTaskTerminal(taskId: string): void {
   const entry = taskTerminals.get(taskId);
   if (!entry) {
     return;
+  }
+  // If the find box was bound to this task, drop the dangling reference and hide
+  // it (the task's terminal — and its decorations — are about to be gone).
+  if (terminalSearchTaskId === taskId) {
+    terminalSearchTaskId = null;
+    elements.terminalSearch.classList.add("hidden");
   }
   for (const dispose of entry.disposers) {
     dispose();
@@ -4775,11 +4798,17 @@ async function resizeTerminal(): Promise<void> {
   if (!entry?.opened) {
     return;
   }
-  await window.duetRuntime.resizeTerminal({
-    taskId: view.task.id,
-    cols: entry.terminal.cols,
-    rows: entry.terminal.rows,
-  });
+  try {
+    await window.duetRuntime.resizeTerminal({
+      taskId: view.task.id,
+      cols: entry.terminal.cols,
+      rows: entry.terminal.rows,
+    });
+  } catch {
+    // The host can reject a resize for a task that just ended or closed; the next
+    // fit/resize reconciles. Swallow so the several fire-and-forget `void
+    // resizeTerminal()` call sites don't surface an unhandled rejection.
+  }
 }
 
 function render(): void {
