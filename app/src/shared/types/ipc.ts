@@ -54,6 +54,8 @@ export const IPC_CHANNELS = {
   terminalUserControlSet: "terminal:user-control:set",
   terminalUserInput: "terminal:user-input",
   terminalComposing: "terminal:composing",
+  terminalOpenLink: "terminal:open-link",
+  clipboardReadText: "clipboard:read-text",
   reportRead: "report:read",
   transcriptRead: "transcript:read",
   usageRead: "usage:read",
@@ -289,6 +291,20 @@ export interface SetTerminalComposingRequest {
   composing: boolean;
 }
 
+export interface OpenTerminalLinkRequest {
+  url: string;
+}
+
+export interface OpenTerminalLinkResponse {
+  // false when the URL's scheme is not on the allowlist — the renderer can then
+  // surface a quiet "blocked" hint instead of silently doing nothing.
+  opened: boolean;
+}
+
+export interface ClipboardReadTextResponse {
+  text: string;
+}
+
 export interface ReadReportRequest {
   taskId: TaskId;
 }
@@ -451,6 +467,8 @@ export interface DuetRuntimeBridge {
   ): Promise<SetTerminalUserControlResponse>;
   writeTerminalUserInput(request: TerminalUserInputRequest): Promise<void>;
   setTerminalComposing(request: SetTerminalComposingRequest): Promise<void>;
+  openTerminalLink(request: OpenTerminalLinkRequest): Promise<OpenTerminalLinkResponse>;
+  readClipboardText(): Promise<ClipboardReadTextResponse>;
   readReport(request: ReadReportRequest): Promise<RuntimeReportV1 | null>;
   readTranscript(request: ReadTranscriptRequest): Promise<ReadTranscriptResponse>;
   readUsage(request: ReadUsageRequest): Promise<ReadUsageResponse>;

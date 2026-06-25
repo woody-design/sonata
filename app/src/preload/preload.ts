@@ -135,6 +135,8 @@ const duetRuntime: DuetRuntimeBridge = {
     ipcRenderer.invoke(IPC_CHANNELS.terminalUserControlSet, request),
   writeTerminalUserInput: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalUserInput, request),
   setTerminalComposing: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalComposing, request),
+  openTerminalLink: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalOpenLink, request),
+  readClipboardText: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardReadText),
   readReport: (request) => ipcRenderer.invoke(IPC_CHANNELS.reportRead, request),
   readTranscript: (request) => ipcRenderer.invoke(IPC_CHANNELS.transcriptRead, request),
   readUsage: (request) => ipcRenderer.invoke(IPC_CHANNELS.usageRead, request),

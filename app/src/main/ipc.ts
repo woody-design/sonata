@@ -1,18 +1,42 @@
-import { ipcMain, shell } from "electron";
+import { clipboard, ipcMain, shell } from "electron";
 import {
   IPC_CHANNELS,
+  type ClipboardReadTextResponse,
   type FolderPickResponse,
   type FocusArtifactInMainRequest,
   type InspectorWindowState,
   type MarkPreviewReviewedRequest,
   type OpenInspectorRequest,
   type OpenPreviewRequest,
+  type OpenTerminalLinkRequest,
+  type OpenTerminalLinkResponse,
   type PreviewWindowState,
   type TaskId,
   type WorkspaceOpenExternalRequest,
   type WorkspaceOpenExternalResponse,
   type WorkspaceOpenFolderRequest,
 } from "../shared/types";
+
+// Links clicked in the terminal are UNTRUSTED — they come from whatever the CLI
+// printed (or a hostile remote). Only web/mail schemes may reach the OS opener;
+// everything else (file:, vscode:, custom app schemes that could trigger actions)
+// is refused. The check lives here in the main process so a compromised renderer
+// can't bypass it, and we open the re-serialized parsed URL, never the raw string.
+const TERMINAL_LINK_ALLOWED_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+
+function openExternalIfAllowed(rawUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (!TERMINAL_LINK_ALLOWED_PROTOCOLS.has(parsed.protocol)) {
+    return false;
+  }
+  void shell.openExternal(parsed.toString());
+  return true;
+}
 import type { ReadingSettingsStore } from "./settings-store";
 import type { RuntimeController } from "./runtime-controller";
 
@@ -130,6 +154,16 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.terminalComposing, (_event, request) => {
     runtimeController.setTerminalComposing(request.taskId, request.composing);
   });
+  ipcMain.handle(
+    IPC_CHANNELS.terminalOpenLink,
+    (_event, request: OpenTerminalLinkRequest): OpenTerminalLinkResponse => ({
+      opened: openExternalIfAllowed(request.url),
+    }),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.clipboardReadText,
+    (): ClipboardReadTextResponse => ({ text: clipboard.readText() }),
+  );
   ipcMain.handle(IPC_CHANNELS.reportRead, (_event, request) =>
     runtimeController.readReport(request.taskId),
   );
