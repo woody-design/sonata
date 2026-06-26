@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { duetConfigDir } from "./duet-paths";
 
 /**
  * Thin overlay for project (working folder) metadata that cannot be derived
@@ -85,6 +86,6 @@ export class ProjectsStore {
   }
 }
 
-export function projectsStorePath(userDataPath: string): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "projects.json");
+export function projectsStorePath(): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "projects.json");
 }

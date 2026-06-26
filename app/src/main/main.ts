@@ -586,7 +586,7 @@ function startLocalApiIfEnabled(controller: RuntimeController): void {
     return;
   }
   const settings = new LocalApiSettingsStore(
-    localApiSettingsPath(app.getPath("userData")),
+    localApiSettingsPath(),
   ).read();
   const enabled = settings.enabled || process.env.DUET_LOCAL_API === "1";
   if (!enabled) {
@@ -611,11 +611,11 @@ function startLocalApiIfEnabled(controller: RuntimeController): void {
 }
 
 app.whenReady().then(() => {
-  readingSettingsStore = new ReadingSettingsStore(readingSettingsPath(app.getPath("userData")));
+  readingSettingsStore = new ReadingSettingsStore(readingSettingsPath());
   runtimeController = new RuntimeController({
-    projectsStore: new ProjectsStore(projectsStorePath(app.getPath("userData"))),
-    resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath(app.getPath("userData"))),
-    claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath(app.getPath("userData"))),
+    projectsStore: new ProjectsStore(projectsStorePath()),
+    resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath()),
+    claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath()),
     sendEvent: (event) => {
       handlePreviewRuntimeEvent(event);
       localApiServer?.broadcastEvent(event);

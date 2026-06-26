@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { duetConfigDir } from "./duet-paths";
 import {
   type ClaudeSettings,
   normalizeClaudeSettings,
@@ -57,8 +58,8 @@ export class ReadingSettingsStore extends JsonSettingsStore<ReadingSettings> {
   }
 }
 
-export function readingSettingsPath(userDataPath: string): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "reading-settings.json");
+export function readingSettingsPath(): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "reading-settings.json");
 }
 
 export class ResumeSettingsStore extends JsonSettingsStore<ResumeSettings> {
@@ -67,8 +68,8 @@ export class ResumeSettingsStore extends JsonSettingsStore<ResumeSettings> {
   }
 }
 
-export function resumeSettingsPath(userDataPath: string): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "resume-settings.json");
+export function resumeSettingsPath(): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "resume-settings.json");
 }
 
 export class LocalApiSettingsStore extends JsonSettingsStore<LocalApiSettings> {
@@ -77,8 +78,8 @@ export class LocalApiSettingsStore extends JsonSettingsStore<LocalApiSettings> {
   }
 }
 
-export function localApiSettingsPath(userDataPath: string): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "local-api-settings.json");
+export function localApiSettingsPath(): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "local-api-settings.json");
 }
 
 export class ClaudeSettingsStore extends JsonSettingsStore<ClaudeSettings> {
@@ -87,6 +88,6 @@ export class ClaudeSettingsStore extends JsonSettingsStore<ClaudeSettings> {
   }
 }
 
-export function claudeSettingsPath(userDataPath: string): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || userDataPath, "claude-settings.json");
+export function claudeSettingsPath(): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "claude-settings.json");
 }
