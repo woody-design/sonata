@@ -114,7 +114,7 @@ async function launchApp() {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
       DUET_SETTINGS_DIR: settingsRoot,
     },
   });

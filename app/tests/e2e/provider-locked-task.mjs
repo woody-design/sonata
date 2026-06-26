@@ -25,8 +25,8 @@ try {
   // The first composer message creates the provider-locked session.
   await sendFirstPrompt(page, "Reply exactly DUET_PROVIDER_LOCKED. Do not create or modify any files.");
 
-  const taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
-  const workspace = path.join(workspaceRoot, taskDirectory);
+  const taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 45000);
+  const workspace = path.join(workspaceRoot, "data", "projects", taskDirectory);
   await waitForRuntimeReady(page, 240000);
 
   // TODO(sidebar): .task-tab-meta provider label removed with task tabs; the
@@ -34,8 +34,8 @@ try {
   await page.locator("#runtime-status", { hasText: /Ready|Claude PTY/ }).waitFor({ state: "visible" });
   await page.locator("#send-prompt").waitFor({ state: "visible" });
 
-  const manifestPath = path.join(workspace, ".duet", "task.json");
-  const reportPath = path.join(workspace, ".duet", "runtime-report.json");
+  const manifestPath = path.join(workspace, "task.json");
+  const reportPath = path.join(workspace, "runtime-report.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
   const reportText = JSON.stringify(report);
@@ -89,7 +89,7 @@ async function launchApp() {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
     },
   });
   const page = await electronApp.firstWindow();
@@ -117,7 +117,12 @@ async function waitForRuntimeReady(page, timeoutMs) {
 async function waitForTaskDirectory(root, timeoutMs) {
   let found = null;
   await waitUntil(() => {
-    const entries = fs.readdirSync(root, { withFileTypes: true });
+    let entries = [];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      entries = [];
+    }
     found = entries.find((entry) => entry.isDirectory())?.name ?? null;
     return Boolean(found);
   }, timeoutMs, "task directory");

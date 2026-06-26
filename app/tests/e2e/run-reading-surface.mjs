@@ -13,7 +13,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
     },
   });
 
@@ -126,10 +126,14 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
 }
 
 function readReports(root) {
+  const projectsRoot = path.join(root, "data", "projects");
+  if (!fs.existsSync(projectsRoot)) {
+    return [];
+  }
   return fs
-    .readdirSync(root, { withFileTypes: true })
+    .readdirSync(projectsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(root, entry.name, ".duet", "runtime-report.json"))
+    .map((entry) => path.join(projectsRoot, entry.name, "runtime-report.json"))
     .filter((reportPath) => fs.existsSync(reportPath))
     .map((reportPath) => JSON.parse(fs.readFileSync(reportPath, "utf8")));
 }

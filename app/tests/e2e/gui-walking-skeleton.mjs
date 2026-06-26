@@ -13,7 +13,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
     },
   });
 
@@ -86,7 +86,7 @@ try {
   await previewPage.locator(".artifact-review", { hasText: "Floating Preview" }).waitFor({
     state: "visible",
   });
-  await previewPage.locator(".artifact-review", { hasText: ".duet/runtime-report.json" }).waitFor({
+  await previewPage.locator(".artifact-review", { hasText: "runtime-report.json" }).waitFor({
     state: "visible",
   });
   await previewPage.locator(".text-preview", { hasText: "Markdown artifact ready." }).waitFor({
@@ -191,10 +191,13 @@ try {
   await page.locator("#terminal-drawer").waitFor({ state: "visible" });
   await page.locator("#terminal").waitFor({ state: "visible" });
 
-  const workspaceEntries = fs.readdirSync(workspaceRoot, { withFileTypes: true });
+  const projectsRoot = path.join(workspaceRoot, "data", "projects");
+  const workspaceEntries = fs.existsSync(projectsRoot)
+    ? fs.readdirSync(projectsRoot, { withFileTypes: true })
+    : [];
   const taskDirectory = workspaceEntries.find((entry) => entry.isDirectory())?.name ?? null;
   const reportPath = taskDirectory
-    ? path.join(workspaceRoot, taskDirectory, ".duet", "runtime-report.json")
+    ? path.join(projectsRoot, taskDirectory, "runtime-report.json")
     : null;
   const report = reportPath && fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, "utf8")) : null;
   const reportText = report ? JSON.stringify(report) : "";

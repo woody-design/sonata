@@ -10,7 +10,7 @@ import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.
 import { activeSessionTaskId, selectSidebarSession, sendFirstPrompt, sendPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-open-task-e2e-"));
-// Isolate the projects/settings store too — NOT just DUET_PROJECTS_DIR. Without
+// Isolate the projects/settings store too — NOT just DUET_DATA_DIR. Without
 // this the renderer boot preselects the global store's `lastUsedFolder` as the
 // New Chat cwd (Settings persist in Electron userData, shared with the real
 // app and across runs), so the provider launches in whatever folder was used
@@ -38,24 +38,28 @@ try {
   const expectedTaskTitle = originalPrompt.split("\n", 1)[0];
 
   await sendFirstPrompt(page, originalPrompt);
-  const taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
-  const workspace = path.join(workspaceRoot, taskDirectory);
+  const taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 45000);
+  const recordDir = path.join(workspaceRoot, "data", "projects", taskDirectory);
+  // Project-less sessions run in an unpredictable date-slug working directory,
+  // not the record dir — read the real cwd from the manifest's providerCwd. The
+  // agent writes its artifact files there.
+  const workspace = await waitForProviderCwd(recordDir, 45000);
   // Drain whichever native approval Codex raises this turn — apply_patch
   // surfaces as a File-edit banner, a shell write as a Command banner, and the
   // model picks per run — until the turn reports completion. Answering a single
   // fixed-title banner once raced that choice and stalled the run whenever
   // Codex took the path the test wasn't waiting on.
-  await settleTurnUntilCompleted(page, 1, 180000, { workspace, label: "original-turn" });
-  await expectArtifactItem(page, "open_original.md", 15000, { workspace, label: "original-artifact" });
-  await assertOnDisk(page, "open_original.md", { workspace, label: "original-on-disk" });
+  await settleTurnUntilCompleted(page, 1, 180000, { workspace, recordDir, label: "original-turn" });
+  await expectArtifactItem(page, "open_original.md", 15000, { workspace, recordDir, label: "original-artifact" });
+  await assertOnDisk(page, "open_original.md", { workspace, recordDir, label: "original-on-disk" });
   await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
   await page
     .locator(".sidebar-session-title", { hasText: expectedTaskTitle })
     .waitFor({ state: "visible" });
 
   const taskId = await activeSessionTaskId(page);
-  const manifestPath = path.join(workspace, ".duet", "task.json");
-  const reportPath = path.join(workspace, ".duet", "runtime-report.json");
+  const manifestPath = path.join(recordDir, "task.json");
+  const reportPath = path.join(recordDir, "runtime-report.json");
   if (!fs.existsSync(manifestPath)) {
     throw new Error("Task manifest was not persisted.");
   }
@@ -92,9 +96,9 @@ try {
   // Second turn, same title-agnostic drain. The reopened transcript already
   // shows the restored first turn's completion, so we wait for the SECOND
   // completed outcome (restored + followup).
-  await settleTurnUntilCompleted(page, 2, 240000, { workspace, label: "followup-turn" });
-  await expectArtifactItem(page, "open_followup.md", 15000, { workspace, label: "followup-artifact" });
-  await assertOnDisk(page, "open_followup.md", { workspace, label: "followup-on-disk" });
+  await settleTurnUntilCompleted(page, 2, 240000, { workspace, recordDir, label: "followup-turn" });
+  await expectArtifactItem(page, "open_followup.md", 15000, { workspace, recordDir, label: "followup-artifact" });
+  await assertOnDisk(page, "open_followup.md", { workspace, recordDir, label: "followup-on-disk" });
 
   // Memory continuity: the resumed agent recalled the planted codeword.
   const followupContent = fs.readFileSync(path.join(workspace, "open_followup.md"), "utf8");
@@ -158,7 +162,7 @@ async function launchApp(label) {
       args: ["dist/main/main.js"],
       env: {
         ...process.env,
-        DUET_PROJECTS_DIR: workspaceRoot,
+        DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
         DUET_SETTINGS_DIR: settingsRoot,
       },
     });
@@ -239,7 +243,7 @@ async function diagnosticError(page, message, diag) {
   );
 }
 
-async function captureDiagnostics(page, { workspace, label }) {
+async function captureDiagnostics(page, { recordDir, label }) {
   const headline = await safeText(page.locator("#workflow-headline"));
   const status = await safeText(page.locator("#runtime-status"));
   const approvalVisible = await page
@@ -251,7 +255,7 @@ async function captureDiagnostics(page, { workspace, label }) {
   let runs = null;
   try {
     const report = JSON.parse(
-      fs.readFileSync(path.join(workspace, ".duet", "runtime-report.json"), "utf8"),
+      fs.readFileSync(path.join(recordDir, "runtime-report.json"), "utf8"),
     );
     runs = report.runs.map((run) => ({
       kind: run.kind,
@@ -301,11 +305,30 @@ async function waitForResumeSpawn(page, timeoutMs) {
 async function waitForTaskDirectory(root, timeoutMs) {
   let found = null;
   await waitUntil(() => {
-    const entries = fs.readdirSync(root, { withFileTypes: true });
+    let entries = [];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      entries = [];
+    }
     found = entries.find((entry) => entry.isDirectory())?.name ?? null;
     return Boolean(found);
   }, timeoutMs, "task directory");
   return found;
+}
+
+async function waitForProviderCwd(recordDir, timeoutMs) {
+  const manifestPath = path.join(recordDir, "task.json");
+  let providerCwd = null;
+  await waitUntil(() => {
+    if (!fs.existsSync(manifestPath)) {
+      return false;
+    }
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    providerCwd = manifest.task?.providerCwd ?? null;
+    return Boolean(providerCwd);
+  }, timeoutMs, "provider cwd");
+  return providerCwd;
 }
 
 async function waitUntil(predicate, timeoutMs, label) {

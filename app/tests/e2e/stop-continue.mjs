@@ -10,13 +10,14 @@ let electronApp = null;
 let page = null;
 let taskDirectory = null;
 let workspace = null;
+let recordDir = null;
 
 try {
   electronApp = await electron.launch({
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
     },
   });
 
@@ -40,8 +41,12 @@ try {
   // The first prompt creates the session (deferred creation) and answers the
   // workspace-trust approval that surfaces during the provider cold start.
   await sendFirstPrompt(page, longCommand);
-  taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
-  workspace = path.join(workspaceRoot, taskDirectory);
+  taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 45000);
+  recordDir = path.join(workspaceRoot, "data", "projects", taskDirectory);
+  // Project-less sessions run in an unpredictable date-slug working directory,
+  // not the record dir — read the real cwd from the manifest's providerCwd. The
+  // agent writes its flag/recovery files there.
+  workspace = await waitForProviderCwd(recordDir, 45000);
   const paths = {
     start: path.join(workspace, "stop_start.flag"),
     pid: path.join(workspace, "stop_pid.flag"),
@@ -111,13 +116,13 @@ try {
   await previewPage.locator(".artifact-review", { hasText: "Floating Preview" }).waitFor({
     state: "visible",
   });
-  await previewPage.locator(".artifact-review", { hasText: ".duet/runtime-report.json" }).waitFor({
+  await previewPage.locator(".artifact-review", { hasText: "runtime-report.json" }).waitFor({
     state: "visible",
   });
   await previewPage.locator(".artifact-review", { hasText: "markdown" }).waitFor({ state: "visible" });
   await previewPage.locator(".artifact-review", { hasText: "not persisted" }).waitFor({ state: "visible" });
 
-  const reportPath = path.join(workspace, ".duet", "runtime-report.json");
+  const reportPath = path.join(recordDir, "runtime-report.json");
   const report = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, "utf8")) : null;
   const runs = report?.runs ?? [];
   const stoppedRun = runs.find((run) => run.status === "stopped") ?? null;
@@ -177,6 +182,7 @@ try {
         workspaceRoot,
         taskDirectory,
         workspace,
+        recordDir,
         error,
       }),
       null,
@@ -194,11 +200,30 @@ try {
 async function waitForTaskDirectory(root, timeoutMs) {
   let found = null;
   await waitUntil(() => {
-    const entries = fs.readdirSync(root, { withFileTypes: true });
+    let entries = [];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      entries = [];
+    }
     found = entries.find((entry) => entry.isDirectory())?.name ?? null;
     return Boolean(found);
   }, timeoutMs);
   return found;
+}
+
+async function waitForProviderCwd(recordDir, timeoutMs) {
+  const manifestPath = path.join(recordDir, "task.json");
+  let providerCwd = null;
+  await waitUntil(() => {
+    if (!fs.existsSync(manifestPath)) {
+      return false;
+    }
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    providerCwd = manifest.task?.providerCwd ?? null;
+    return Boolean(providerCwd);
+  }, timeoutMs);
+  return providerCwd;
 }
 
 function readPid(filePath) {
@@ -233,8 +258,8 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function collectDiagnostics({ page, workspaceRoot, taskDirectory, workspace, error }) {
-  const reportPath = workspace ? path.join(workspace, ".duet", "runtime-report.json") : null;
+async function collectDiagnostics({ page, workspaceRoot, taskDirectory, workspace, recordDir, error }) {
+  const reportPath = recordDir ? path.join(recordDir, "runtime-report.json") : null;
   const report = reportPath && fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, "utf8")) : null;
   return {
     error: error instanceof Error ? error.message : String(error),

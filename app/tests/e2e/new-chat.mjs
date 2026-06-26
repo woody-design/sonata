@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt } from "./helpers/session.mjs";
+import { sendFirstPrompt, chooseDraftProvider } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-new-chat-e2e-"));
 const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-new-chat-folder-"));
@@ -29,6 +29,9 @@ try {
   await page.locator("#entry-choose-folder", { hasText: path.basename(selectedFolder) }).waitFor({
     state: "visible",
   });
+  // New sessions now default to Claude; the "Speed" setting below is Codex-only, so
+  // select Codex explicitly (this test exercises the Codex launch-settings path).
+  await chooseDraftProvider(page, "codex");
   await page.locator("#entry-launch-settings").click();
   await page.locator(".task-settings-popover", { hasText: "Reasoning" }).waitFor({ state: "visible" });
   await page
@@ -38,8 +41,8 @@ try {
 
   const firstPrompt = "Reply with exactly: NEW_CHAT_READY";
   await sendFirstPrompt(page, firstPrompt);
-  const taskDirectory = await waitForTaskDirectory(workspaceRoot, 60000);
-  const workspace = path.join(workspaceRoot, taskDirectory);
+  const taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 60000);
+  const workspace = path.join(workspaceRoot, "data", "projects", taskDirectory);
   await page.locator(".task-entry-panel").waitFor({ state: "hidden" });
   await page.locator(".turn-card", { hasText: "NEW_CHAT_READY" }).waitFor({ state: "visible" });
   await page.locator(".turn-outcome", { hasText: "Completed" }).waitFor({ state: "visible" });
@@ -50,9 +53,9 @@ try {
     .waitFor({ state: "visible" });
   await page.locator(".sidebar-session.active").waitFor({ state: "visible" });
 
-  const manifestPath = path.join(workspace, ".duet", "task.json");
+  const manifestPath = path.join(workspace, "task.json");
   const createdManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  const createdReportPath = path.join(workspace, ".duet", "runtime-report.json");
+  const createdReportPath = path.join(workspace, "runtime-report.json");
   const createdReport = fs.existsSync(createdReportPath)
     ? JSON.parse(fs.readFileSync(createdReportPath, "utf8"))
     : null;
@@ -135,7 +138,7 @@ async function launchApp() {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
       DUET_SETTINGS_DIR: settingsDir,
       DUET_TEST_PICK_FOLDER: selectedFolder,
     },
@@ -157,7 +160,12 @@ async function assertNewChatVisible(page) {
 async function waitForTaskDirectory(root, timeoutMs) {
   let found = null;
   await waitUntil(() => {
-    const entries = fs.readdirSync(root, { withFileTypes: true });
+    let entries = [];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      entries = [];
+    }
     found = entries.find((entry) => entry.isDirectory())?.name ?? null;
     return Boolean(found);
   }, timeoutMs, "task directory");

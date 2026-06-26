@@ -12,7 +12,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
     },
   });
   await installExternalOpenProbe(electronApp);
@@ -32,7 +32,15 @@ try {
   }
   await waitForCompletedTurns(page, 1);
 
-  const taskWorkspace = path.join(workspaceRoot, taskId);
+  // Project-less sessions run in an unpredictable date-slug working directory,
+  // not <workspaceRoot>/<taskId>. Read the real working dir from the manifest's
+  // providerCwd; that is the folder the Inspector's "open folder" actions target.
+  const manifestPath = path.join(workspaceRoot, "data", "projects", taskId, "task.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const taskWorkspace = manifest.task.providerCwd;
+  if (!taskWorkspace || !fs.existsSync(taskWorkspace)) {
+    throw new Error(`Manifest providerCwd is not an existing directory: ${taskWorkspace}`);
+  }
   const reviewFilePath = path.join(taskWorkspace, "folder_review.md");
   fs.writeFileSync(reviewFilePath, "Inspector folder external opening ready.\n", "utf8");
 
@@ -75,7 +83,10 @@ try {
     (call) => call.method === "openPath" && call.path === taskWorkspace,
   );
   const cursorWorkspaceOpened = calls.some(
-    (call) => call.method === "openExternal" && call.url.startsWith("cursor://file") && call.url.includes(taskId),
+    (call) =>
+      call.method === "openExternal" &&
+      call.url.startsWith("cursor://file") &&
+      call.url.includes(path.basename(taskWorkspace)),
   );
   const cursorFileOpened = calls.some(
     (call) =>
@@ -138,10 +149,14 @@ async function readExternalOpenCalls(electronApp) {
 }
 
 function readReports(root) {
+  const projectsRoot = path.join(root, "data", "projects");
+  if (!fs.existsSync(projectsRoot)) {
+    return [];
+  }
   return fs
-    .readdirSync(root, { withFileTypes: true })
+    .readdirSync(projectsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(root, entry.name, ".duet", "runtime-report.json"))
+    .map((entry) => path.join(projectsRoot, entry.name, "runtime-report.json"))
     .filter((reportPath) => fs.existsSync(reportPath))
     .map((reportPath) => JSON.parse(fs.readFileSync(reportPath, "utf8")));
 }

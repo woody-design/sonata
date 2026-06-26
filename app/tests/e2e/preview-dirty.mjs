@@ -13,7 +13,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
     },
   });
 
@@ -47,13 +47,23 @@ try {
     state: "visible",
   });
 
-  const taskDirectory = fs
-    .readdirSync(workspaceRoot, { withFileTypes: true })
-    .find((entry) => entry.isDirectory())?.name;
+  const projectsRoot = path.join(workspaceRoot, "data", "projects");
+  const taskDirectory = fs.existsSync(projectsRoot)
+    ? fs.readdirSync(projectsRoot, { withFileTypes: true }).find((entry) => entry.isDirectory())?.name
+    : undefined;
   if (!taskDirectory) {
     throw new Error("Task workspace was not created.");
   }
-  const reportFile = path.join(workspaceRoot, taskDirectory, "report.md");
+  const recordDir = path.join(projectsRoot, taskDirectory);
+  // Project-less sessions run in an unpredictable date-slug working directory,
+  // not the record dir — read the real cwd from the manifest's providerCwd. The
+  // agent's report.md artifact lives there.
+  const manifest = JSON.parse(fs.readFileSync(path.join(recordDir, "task.json"), "utf8"));
+  const providerCwd = manifest.task.providerCwd;
+  if (!providerCwd || !fs.existsSync(providerCwd)) {
+    throw new Error(`Manifest providerCwd is not an existing directory: ${providerCwd}`);
+  }
+  const reportFile = path.join(providerCwd, "report.md");
   fs.writeFileSync(reportFile, "Report updated while another Preview tab is selected.\n");
 
   const reportTab = previewPage.locator(".preview-window-tab", { hasText: "report.md" });
@@ -70,7 +80,7 @@ try {
     .waitFor({ state: "visible" });
   await reportTab.locator(".preview-dirty-dot").waitFor({ state: "hidden" });
 
-  const reportPath = path.join(workspaceRoot, taskDirectory, ".duet", "runtime-report.json");
+  const reportPath = path.join(recordDir, "runtime-report.json");
   const report = reportPath && fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, "utf8")) : null;
   const reportText = report ? JSON.stringify(report) : "";
   const rawTerminalPersisted =

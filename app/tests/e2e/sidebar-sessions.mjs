@@ -21,7 +21,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
     },
   });
 
@@ -197,10 +197,14 @@ async function startFileSession(page, options) {
 }
 
 function readReports(root) {
+  const projectsRoot = path.join(root, "data", "projects");
+  if (!fs.existsSync(projectsRoot)) {
+    return [];
+  }
   return fs
-    .readdirSync(root, { withFileTypes: true })
+    .readdirSync(projectsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(root, entry.name, ".duet", "runtime-report.json"))
+    .map((entry) => path.join(projectsRoot, entry.name, "runtime-report.json"))
     .filter((reportPath) => fs.existsSync(reportPath))
     .map((reportPath) => JSON.parse(fs.readFileSync(reportPath, "utf8")));
 }
@@ -209,7 +213,7 @@ function readManifest(root, taskId) {
   if (!taskId) {
     return null;
   }
-  const manifestPath = path.join(root, taskId, ".duet", "task.json");
+  const manifestPath = path.join(root, "data", "projects", taskId, "task.json");
   return fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, "utf8")) : null;
 }
 

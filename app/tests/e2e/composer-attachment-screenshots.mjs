@@ -21,7 +21,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_PROJECTS_DIR: workspaceRoot,
+      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
     },
   });
   const page = await electronApp.firstWindow();
@@ -30,8 +30,8 @@ try {
   // Sessions are born from the first composer message, and attachments only
   // work for a live session — so create the session with a no-op prompt first.
   await sendFirstPrompt(page, "Reply exactly DUET_ATTACHMENT_SESSION_READY. Do not create or modify any files.");
-  taskDirectory = await waitForTaskDirectory(workspaceRoot, 45000);
-  workspace = path.join(workspaceRoot, taskDirectory);
+  taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 45000);
+  workspace = path.join(workspaceRoot, "data", "projects", taskDirectory);
   await waitForCompletedTurns(page, 1);
 
   await attachImage(page, imagePath);
@@ -86,7 +86,12 @@ async function attachImage(page, imagePath) {
 async function waitForTaskDirectory(root, timeoutMs) {
   let found = null;
   await waitUntil(() => {
-    const entries = fs.readdirSync(root, { withFileTypes: true });
+    let entries = [];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      entries = [];
+    }
     found = entries.find((entry) => entry.isDirectory() && entry.name.startsWith("task-"))?.name ?? null;
     return Boolean(found);
   }, timeoutMs);

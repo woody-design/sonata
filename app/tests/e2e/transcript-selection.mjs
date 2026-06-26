@@ -24,7 +24,7 @@ let electronApp = null;
 try {
   electronApp = await electron.launch({
     args: ["dist/main/main.js"],
-    env: { ...process.env, DUET_PROJECTS_DIR: workspaceRoot },
+    env: { ...process.env, DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot },
   });
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);
