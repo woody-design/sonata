@@ -8,8 +8,9 @@ const DEFAULT_POLL_MS = 250;
 export interface ClaudeHookWatcherOptions {
   pollMs?: number;
   /** Called once per hook payload, in filename (≈ emission) order, with the
-   *  workspace cwd it was observed under (route by cwd → task). */
-  onPayload: (payload: ClaudeHookPayload, workspace: string) => void;
+   *  RUNTIME DIR it was observed under (~/.duet/data/runtime/<taskId> since D8;
+   *  route by runtime dir → task — NOT the agent cwd). */
+  onPayload: (payload: ClaudeHookPayload, runtimeDir: string) => void;
   onError?: (error: Error, filePath?: string) => void;
 }
 

@@ -92,11 +92,12 @@ cd app
 npm run dev            # build + launch
 ```
 
-Throwaway session with isolated Task data:
+Throwaway session with isolated Duet data (data + config + visible workspaces):
 
 ```bash
 cd app
-DUET_PROJECTS_DIR="$(mktemp -d /tmp/duet-XXXXXX)" npm run dev
+TMP="$(mktemp -d /tmp/duet-XXXXXX)"
+DUET_DATA_DIR="$TMP" DUET_WORKSPACES_DIR="$TMP/workspaces" npm run dev
 ```
 
 ## Verifying
