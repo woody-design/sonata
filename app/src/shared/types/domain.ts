@@ -47,6 +47,15 @@ export interface Task {
   status: TaskStatus;
   /** Session is hidden from the default sidebar list. Absent on old manifests. */
   archived?: boolean;
+  /**
+   * True when Duet generated the working directory itself — a project-less
+   * "chat" — rather than the user choosing a folder. Set explicitly at creation
+   * and read for sidebar grouping (chat vs project) and deletion policy. Replaces
+   * the old "is providerCwd inside the central storage root?" inference, which D7
+   * dissolved by moving the auto-workspace cwd to a visible ~/Documents/Duet/<slug>.
+   * Absent on pre-D7 manifests → treat as false (a chosen project).
+   */
+  autoWorkspace?: boolean;
   createdAt: string;
   updatedAt: string;
 }
