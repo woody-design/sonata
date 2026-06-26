@@ -10,7 +10,7 @@ export interface TaskManifestV1 {
   generatedAt: string;
   task: Task;
   rawTerminalPolicy: typeof RAW_TERMINAL_POLICY;
-  runtimeReportPath: ".duet/runtime-report.json";
+  runtimeReportPath: "runtime-report.json";
 }
 
 export function freshTaskManifestV1(task: Task): TaskManifestV1 {
@@ -20,7 +20,7 @@ export function freshTaskManifestV1(task: Task): TaskManifestV1 {
     generatedAt: new Date().toISOString(),
     task,
     rawTerminalPolicy: RAW_TERMINAL_POLICY,
-    runtimeReportPath: ".duet/runtime-report.json",
+    runtimeReportPath: "runtime-report.json",
   };
 }
 

@@ -8,8 +8,8 @@ interface ClaudeStatuslineSettings {
   };
 }
 
-export function claudeUsageDirectory(cwd: string): string {
-  return path.join(cwd, ".duet", "usage");
+export function claudeUsageDirectory(runtimeDir: string): string {
+  return path.join(runtimeDir, "usage");
 }
 
 /**

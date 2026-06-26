@@ -86,6 +86,7 @@ export class RunIndex {
   private readonly taskId: TaskId;
   private readonly reportPath: string;
   private report: RuntimeReportV1;
+  private disposed = false;
 
   constructor(options: RunIndexOptions) {
     this.taskId = options.taskId;
@@ -346,7 +347,21 @@ export class RunIndex {
     }
   }
 
+  /**
+   * Stop persisting. A disposed run must never write again — otherwise a late
+   * straggler event (e.g. the killed PTY's async `pty:exit`) would re-create the
+   * report file, and with it the task's record dir, AFTER the session was deleted.
+   * The on-event report is already up to date at dispose time; nothing after it
+   * matters.
+   */
+  dispose(): void {
+    this.disposed = true;
+  }
+
   private persist(): void {
+    if (this.disposed) {
+      return;
+    }
     fs.mkdirSync(path.dirname(this.reportPath), { recursive: true });
     const tmpPath = `${this.reportPath}.tmp`;
     fs.writeFileSync(tmpPath, `${JSON.stringify(this.report, null, 2)}\n`);

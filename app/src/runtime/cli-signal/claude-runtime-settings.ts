@@ -17,8 +17,8 @@ import type { ClaudeHookEventName } from "../../shared/types/cli-signal";
  */
 
 /** Where the hook sink drops payload files; watched by ClaudeHookWatcher. */
-export function claudeHooksDirectory(cwd: string): string {
-  return path.join(cwd, ".duet", "hooks");
+export function claudeHooksDirectory(runtimeDir: string): string {
+  return path.join(runtimeDir, "hooks");
 }
 
 /**
@@ -73,12 +73,17 @@ function buildHooks(command: string): Record<string, ClaudeHookMatcherGroup[]> {
 }
 
 /**
- * Ensure (and return the path to) duet's merged Claude `--settings` file for a
- * workspace: statusLine sink + hook sink, both pointed at `.duet/` dirs.
+ * Ensure (and return the path to) duet's merged Claude `--settings` file: the
+ * statusLine sink + hook sink, both pointed at subdirs of `runtimeDir`.
+ *
+ * `runtimeDir` is the session's Duet-owned runtime home — `~/.duet/data/runtime/
+ * <taskId>` in the app (D8), so nothing Duet-owned is written into the agent's
+ * working directory. All three paths the file carries are absolute; G1 verified
+ * Claude fires hooks from a `--settings` file located outside the agent cwd.
  */
-export function ensureClaudeRuntimeSettings(cwd: string): string {
-  const usageDirectory = claudeUsageDirectory(cwd);
-  const hooksDirectory = claudeHooksDirectory(cwd);
+export function ensureClaudeRuntimeSettings(runtimeDir: string): string {
+  const usageDirectory = claudeUsageDirectory(runtimeDir);
+  const hooksDirectory = claudeHooksDirectory(runtimeDir);
   fs.mkdirSync(usageDirectory, { recursive: true });
   fs.mkdirSync(hooksDirectory, { recursive: true });
 
@@ -91,7 +96,7 @@ export function ensureClaudeRuntimeSettings(cwd: string): string {
     hooks: buildHooks(hookCommand),
   };
 
-  const settingsPath = path.join(cwd, ".duet", "claude-runtime-settings.json");
+  const settingsPath = path.join(runtimeDir, "claude-runtime-settings.json");
   writeJsonIfChanged(settingsPath, settings);
   return settingsPath;
 }

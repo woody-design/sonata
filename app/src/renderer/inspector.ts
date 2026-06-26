@@ -298,7 +298,7 @@ function renderRunLens(): void {
     inspectorRow("Runs", String(report.runs.length)),
     inspectorRow("Generated", formatTimestamp(report.generatedAt)),
     inspectorRow("Workspace", report.runtime?.cwd ?? "unknown"),
-    inspectorRow("Report", ".duet/runtime-report.json"),
+    inspectorRow("Report", "runtime-report.json"),
     inspectorRow("Raw terminal", "not persisted"),
     inspectorRow("Raw policy", report.rawTerminalPolicy),
   );
@@ -386,7 +386,7 @@ function renderChangeLens(): void {
   );
   section.append(
     inspectorRow("Scope", "active Task workspace"),
-    inspectorRow("Source", ".duet/runtime-report.json"),
+    inspectorRow("Source", "runtime-report.json"),
     inspectorRow("Review model", "current file snapshots, not Git diffs"),
     inspectorRow("Runs with changes", String(summary.runsWithChanges)),
     inspectorRow("Latest change", formatTimestamp(summary.latestChangeAt)),
@@ -427,7 +427,7 @@ function renderArtifactLens(): void {
   section.className = "inspector-section";
   section.append(inspectorTitle("Artifact candidates"));
   section.append(
-    inspectorRow("Source", ".duet/runtime-report.json"),
+    inspectorRow("Source", "runtime-report.json"),
     inspectorRow("Preview rule", "report-listed candidates only"),
     inspectorRow("Candidates", String(state.artifacts.length)),
   );

@@ -20,14 +20,11 @@ export interface SessionIndexInput {
   /** Live runtimes — their in-memory Task is fresher than the disk manifest. */
   liveTasks: Map<TaskId, Task>;
   overlay: ProjectsFileV1;
-  /** Root under which Duet auto-workspaces live ("Chats" detection). */
-  taskStorageRoot: string;
   includeArchived?: boolean;
 }
 
 export function buildSessionIndex(input: SessionIndexInput): SessionIndexResponse {
   const includeArchived = Boolean(input.includeArchived);
-  const storageRootResolved = path.resolve(input.taskStorageRoot);
 
   const chats: SessionSummary[] = [];
   const byFolder = new Map<string, SessionSummary[]>();
@@ -59,7 +56,7 @@ export function buildSessionIndex(input: SessionIndexInput): SessionIndexRespons
       lastActivityAt: lastActivity(candidate.mtimeMs, task.updatedAt),
     };
 
-    if (isAutoWorkspace(providerCwd, storageRootResolved)) {
+    if (task.autoWorkspace) {
       chats.push(summary);
     } else {
       const group = byFolder.get(providerCwd);
@@ -95,11 +92,6 @@ export function buildSessionIndex(input: SessionIndexInput): SessionIndexRespons
     chats,
     lastUsedFolder: input.overlay.lastUsedFolder,
   };
-}
-
-function isAutoWorkspace(providerCwd: string, storageRootResolved: string): boolean {
-  const relative = path.relative(storageRootResolved, providerCwd);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 function lastActivity(manifestMtimeMs: number, updatedAt: string): string {

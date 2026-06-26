@@ -67,6 +67,12 @@ import {
   StatusRegionTracker,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
+import {
+  projectRecordRoot,
+  projectsDataDir,
+  runtimeDir,
+  attachmentsRootForTask,
+} from "./duet-paths";
 import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
 import type { ResumeSettingsStore, ClaudeSettingsStore } from "./settings-store";
@@ -182,10 +188,23 @@ export class RuntimeController {
 
     const now = new Date().toISOString();
     const taskId = this.nextTaskId();
-    const storageRoot = this.defaultWorkspacePath(taskId);
-    const providerCwd = path.resolve(request.cwd ?? storageRoot);
+    const title = request.title?.trim() || DEFAULT_TASK_TITLE;
+    // Duet's own records live under ~/.duet (hidden, Duet-owned), keyed by taskId
+    // and fully decoupled from where the agent works. providerCwd is the user's
+    // work: a chosen folder, or — for a project-less session — a VISIBLE generated
+    // workspace (D7), never the hidden record dir.
+    const storageRoot = projectRecordRoot(taskId);
+    const autoWorkspace = !request.cwd;
+    const providerCwd = request.cwd
+      ? path.resolve(request.cwd)
+      : this.autoWorkspacePath(taskId);
     const reportPath = runtimeReportPath(storageRoot);
-    fs.mkdirSync(duetDirectory(storageRoot), { recursive: true });
+    // The record dir always; the generated workspace must exist before the PTY
+    // spawns (a chosen folder already does).
+    fs.mkdirSync(storageRoot, { recursive: true });
+    if (autoWorkspace) {
+      fs.mkdirSync(providerCwd, { recursive: true });
+    }
     const launchSettings = normalizeLaunchSettings(request.provider, request);
     // New Claude sessions inherit the Duet-owned default permission mode
     // (Settings → Approvals) unless the request names one explicitly. This
@@ -206,7 +225,7 @@ export class RuntimeController {
 
     const task: Task = {
       id: taskId,
-      title: request.title?.trim() || DEFAULT_TASK_TITLE,
+      title,
       provider: request.provider,
       model: launchSettings.model,
       reasoningEffort: launchSettings.reasoningEffort,
@@ -218,6 +237,7 @@ export class RuntimeController {
       providerSessionRef: null,
       providerCwd,
       workingDirectory: providerCwd,
+      autoWorkspace,
       status: "starting",
       createdAt: now,
       updatedAt: now,
@@ -260,6 +280,9 @@ export class RuntimeController {
 
     const startOptions = {
       cwd: providerCwd,
+      // Claude's hooks/usage/settings live HERE (D8) — Duet-owned, outside the
+      // agent's working directory, so nothing Duet writes into the user's repo.
+      runtimeDir: runtimeDir(taskId),
       sandbox: permissionSettings.sandbox ?? "read-only",
       approval: permissionSettings.approval ?? "on-request",
       model: launchSettings.model,
@@ -404,6 +427,11 @@ export class RuntimeController {
     const ptyStartedAt = new Date().toISOString();
     const runtime = terminalHost.startTask({
       cwd: providerCwd,
+      // D8: same Duet-owned runtime home on RESUME as on fresh spawn — keyed by
+      // taskId, so Claude's hooks/usage/settings stay out of the user's repo and
+      // the watcher (also keyed by runtimeDir) keeps seeing them. Omitting this
+      // silently re-pollutes the repo and breaks busy/Stop/approval detection.
+      runtimeDir: runtimeDir(runningTask.id),
       sandbox: permissionSettings.sandbox ?? "read-only",
       approval: permissionSettings.approval ?? "on-request",
       model: runningTask.model,
@@ -631,7 +659,6 @@ export class RuntimeController {
       candidates: this.taskManifestCandidates(),
       liveTasks,
       overlay: this.projectsStore.read(),
-      taskStorageRoot: this.taskStorageRoot(),
       ...(request.includeArchived !== undefined
         ? { includeArchived: request.includeArchived }
         : {}),
@@ -687,25 +714,14 @@ export class RuntimeController {
     }
     const record = this.persistedSessionRecord(taskId);
     if (record) {
-      const providerCwd = taskProviderCwd(record.manifest.task, record.storageRoot);
-      const insideCentralRoot = isPathInside(this.taskStorageRoot(), record.storageRoot);
-      if (pathsEqual(providerCwd, record.storageRoot)) {
-        // Auto-workspace session: the storage root doubles as the working
-        // folder and may hold agent-created artifacts. Keep any content
-        // beyond .duet; never silently destroy work products.
-        if (insideCentralRoot && !hasContentBesidesDuet(record.storageRoot)) {
-          fs.rmSync(record.storageRoot, { recursive: true, force: true });
-        } else {
-          fs.rmSync(duetDirectory(record.storageRoot), { recursive: true, force: true });
-        }
-      } else if (insideCentralRoot) {
-        // User-picked folder: the storage root holds only Duet records.
-        // The user's working folder and the provider transcript stay.
-        fs.rmSync(record.storageRoot, { recursive: true, force: true });
-      } else {
-        // Legacy manifest living inside a user folder: remove only .duet.
-        fs.rmSync(duetDirectory(record.storageRoot), { recursive: true, force: true });
-      }
+      // storageRoot is Duet's own hidden record dir — remove it wholesale, with
+      // the task's Duet-owned attachment and runtime subtrees. The agent's working
+      // directory (providerCwd) is the user's VISIBLE work — a chosen folder or a
+      // generated ~/Documents/Duet workspace — and is NEVER touched (C4). The CLI
+      // transcript (CLI-owned) also stays.
+      fs.rmSync(record.storageRoot, { recursive: true, force: true });
+      fs.rmSync(attachmentsRootForTask(taskId), { recursive: true, force: true });
+      fs.rmSync(runtimeDir(taskId), { recursive: true, force: true });
     }
     this.emitSessionsUpdated("session-deleted");
   }
@@ -806,7 +822,7 @@ export class RuntimeController {
 
     const id = `attachment-${Date.now()}-${++this.attachmentSeq}`;
     const filename = `${id}${imageExtension(mediaType)}`;
-    const attachmentDirectory = attachmentsDirectory(active.storageRoot);
+    const attachmentDirectory = attachmentsRootForTask(active.task.id);
     fs.mkdirSync(attachmentDirectory, { recursive: true });
     const attachmentPath = path.join(attachmentDirectory, filename);
     fs.writeFileSync(attachmentPath, bytes, { flag: "wx" });
@@ -821,7 +837,7 @@ export class RuntimeController {
 
   deleteAttachment(taskId: TaskId, attachmentId: string): void {
     const active = this.requireTaskRuntime(taskId);
-    const attachmentDirectory = attachmentsDirectory(active.storageRoot);
+    const attachmentDirectory = attachmentsRootForTask(active.task.id);
     const files = fs.existsSync(attachmentDirectory) ? fs.readdirSync(attachmentDirectory) : [];
     for (const file of files) {
       if (file.startsWith(`${attachmentId}.`)) {
@@ -1128,6 +1144,9 @@ export class RuntimeController {
     active.deliveryController.dispose();
     active.statusTracker.dispose();
     active.terminalHost.dispose();
+    // Stop the report writer LAST: after this, a straggler PTY-exit event can no
+    // longer re-create the record dir we are about to (for a delete) remove.
+    active.runIndex.dispose();
     this.unwatchClaudeUsage(active);
     this.unwatchClaudeHooks(active);
     this.usageSnapshots.delete(active.task.id);
@@ -1155,25 +1174,25 @@ export class RuntimeController {
 
   private watchClaudeUsage(active: ActiveTaskRuntime): void {
     if (active.task.provider === "claude") {
-      this.claudeUsageWatcher.watchWorkspace(active.task.providerCwd);
+      this.claudeUsageWatcher.watchWorkspace(runtimeDir(active.task.id));
     }
   }
 
   private unwatchClaudeUsage(active: ActiveTaskRuntime): void {
     if (active.task.provider === "claude") {
-      this.claudeUsageWatcher.unwatchWorkspace(active.task.providerCwd);
+      this.claudeUsageWatcher.unwatchWorkspace(runtimeDir(active.task.id));
     }
   }
 
   private watchClaudeHooks(active: ActiveTaskRuntime): void {
     if (active.task.provider === "claude") {
-      this.claudeHookWatcher.watchWorkspace(active.task.providerCwd);
+      this.claudeHookWatcher.watchWorkspace(runtimeDir(active.task.id));
     }
   }
 
   private unwatchClaudeHooks(active: ActiveTaskRuntime): void {
     if (active.task.provider === "claude") {
-      this.claudeHookWatcher.unwatchWorkspace(active.task.providerCwd);
+      this.claudeHookWatcher.unwatchWorkspace(runtimeDir(active.task.id));
     }
   }
 
@@ -1184,9 +1203,11 @@ export class RuntimeController {
    * pending buffer isn't needed (unmatched payloads are simply dropped).
    */
   private handleClaudeHookPayload(payload: ClaudeHookPayload, workspace: string): void {
+    // The watcher is keyed by the session's runtime dir (D8), not its cwd — route
+    // the payload back to the task by the same key.
     const resolved = path.resolve(workspace);
     for (const active of this.taskRuntimes.values()) {
-      if (active.task.provider === "claude" && pathsEqual(active.task.providerCwd, resolved)) {
+      if (active.task.provider === "claude" && pathsEqual(runtimeDir(active.task.id), resolved)) {
         active.cliState.applyHook(payload);
         this.handleOptionPromptHook(active, payload);
         // `Stop` is the authoritative "turn ended" signal — complete the active
@@ -1436,19 +1457,37 @@ export class RuntimeController {
     return `task-${Date.now()}-${++this.taskSeq}`;
   }
 
-  private defaultWorkspacePath(taskId: TaskId): string {
-    return path.join(this.taskStorageRoot(), taskId);
+  private autoWorkspacePath(taskId: TaskId): string {
+    // The user's VISIBLE work for a project-less session — kept cleanly separate
+    // from Duet's hidden records (P1). The folder name is display-only; the stored
+    // absolute path is the ground truth (never reverse-decoded). A LOCAL-date prefix
+    // makes Finder's name-sort match time-sort; a short session id keeps it unique
+    // and recognizable without depending on a title that isn't set yet at creation
+    // (D7, Woody: "date + session id"). The counter only fires on the astronomically
+    // rare same-id collision.
+    const base = this.visibleWorkspacesDir();
+    const name = `${localDateStamp()}-${shortSessionId(taskId)}`;
+    const candidate = path.join(base, name);
+    if (!fs.existsSync(candidate)) {
+      return candidate;
+    }
+    for (let i = 2; ; i++) {
+      const next = path.join(base, `${name}-${i}`);
+      if (!fs.existsSync(next)) {
+        return next;
+      }
+    }
   }
 
-  private taskStorageRoot(): string {
-    return process.env.DUET_PROJECTS_DIR || path.join(app.getPath("documents"), "Duet Projects");
+  private visibleWorkspacesDir(): string {
+    return process.env.DUET_WORKSPACES_DIR || path.join(app.getPath("documents"), "Duet");
   }
 
   private normalizeDeliveryAttachments(
     active: ActiveTaskRuntime,
     attachments: DeliveryAttachment[],
   ): DeliveryAttachment[] {
-    const attachmentDirectory = `${attachmentsDirectory(active.storageRoot)}${path.sep}`;
+    const attachmentDirectory = `${attachmentsRootForTask(active.task.id)}${path.sep}`;
     return attachments.map((attachment) => {
       const resolved = path.resolve(attachment.path);
       if (!resolved.startsWith(attachmentDirectory) || resolved.includes(" ")) {
@@ -1475,7 +1514,7 @@ export class RuntimeController {
 
   private resolveOpenTaskStorageRoot(request: OpenTaskRequest): string {
     if (request.taskId) {
-      const candidate = this.defaultWorkspacePath(request.taskId);
+      const candidate = projectRecordRoot(request.taskId);
       if (fs.existsSync(taskManifestPath(candidate))) {
         return candidate;
       }
@@ -1485,9 +1524,6 @@ export class RuntimeController {
       const matchingTaskStorageRoot = this.findLatestTaskStorageRootForProviderCwd(cwd);
       if (matchingTaskStorageRoot) {
         return matchingTaskStorageRoot;
-      }
-      if (fs.existsSync(taskManifestPath(cwd))) {
-        return cwd;
       }
       throw new Error("No persisted Duet Task was found for the selected folder.");
     }
@@ -1522,7 +1558,7 @@ export class RuntimeController {
     manifest: TaskManifestV1;
     mtimeMs: number;
   }> {
-    const projectRoot = this.taskStorageRoot();
+    const projectRoot = projectsDataDir();
     const entries = fs.existsSync(projectRoot)
       ? fs.readdirSync(projectRoot, { withFileTypes: true })
       : [];
@@ -1595,7 +1631,7 @@ export class RuntimeController {
   private persistedSessionRecord(
     taskId: TaskId,
   ): { storageRoot: string; manifest: TaskManifestV1 } | null {
-    const direct = this.defaultWorkspacePath(taskId);
+    const direct = projectRecordRoot(taskId);
     if (fs.existsSync(taskManifestPath(direct))) {
       try {
         return { storageRoot: direct, manifest: this.readTaskManifest(direct) };
@@ -1623,24 +1659,20 @@ export class RuntimeController {
   }
 }
 
-function duetDirectory(cwd: string): string {
-  return path.join(cwd, ".duet");
+// Records live DIRECTLY under the task's record root (~/.duet/data/projects/
+// <taskId>/) — no nested `.duet`, which was redundant once the whole tree is
+// Duet-owned and hidden (C6).
+
+function taskManifestPath(recordRoot: string): string {
+  return path.join(recordRoot, "task.json");
 }
 
-function taskManifestPath(cwd: string): string {
-  return path.join(duetDirectory(cwd), "task.json");
+function runtimeReportPath(recordRoot: string): string {
+  return path.join(recordRoot, "runtime-report.json");
 }
 
-function runtimeReportPath(cwd: string): string {
-  return path.join(duetDirectory(cwd), "runtime-report.json");
-}
-
-function transcriptSourcesPath(cwd: string): string {
-  return path.join(duetDirectory(cwd), "transcript-sources.json");
-}
-
-function attachmentsDirectory(cwd: string): string {
-  return path.join(duetDirectory(cwd), "attachments");
+function transcriptSourcesPath(recordRoot: string): string {
+  return path.join(recordRoot, "transcript-sources.json");
 }
 
 function normalizeImageMediaType(mediaType: string, originalName: string, bytes: Buffer): string | null {
@@ -1746,6 +1778,26 @@ function normalizeTaskForProviderCwd(task: Task, providerCwd: string): Task {
   };
 }
 
+/** YYYY-MM-DD in LOCAL time — so the auto-workspace name-sorts as time-sorts. */
+function localDateStamp(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/**
+ * A short, unique session id for the auto-workspace folder name — base36 of the
+ * taskId's creation timestamp (matches the codebase's short-id convention, e.g.
+ * the hook sink). Compact and recognizable; the manifest's stored providerCwd is
+ * the ground truth, so this never needs to be decoded back to a taskId.
+ */
+function shortSessionId(taskId: string): string {
+  const match = /^task-(\d+)-\d+$/.exec(taskId);
+  const ms = match ? Number(match[1]) : NaN;
+  return Number.isFinite(ms) ? ms.toString(36) : taskId.replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+
 function taskProviderCwd(task: Task, storageRoot: string): string {
   return path.resolve(task.providerCwd || task.workingDirectory || storageRoot);
 }
@@ -1770,21 +1822,6 @@ function hasUsageData(snapshot: UsageSnapshot): boolean {
 
 function pathsEqual(left: string, right: string): boolean {
   return path.resolve(left) === path.resolve(right);
-}
-
-function isPathInside(parent: string, child: string): boolean {
-  const relative = path.relative(path.resolve(parent), path.resolve(child));
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
-}
-
-function hasContentBesidesDuet(folder: string): boolean {
-  try {
-    return fs
-      .readdirSync(folder)
-      .some((entry) => entry !== ".duet" && entry !== ".DS_Store");
-  } catch {
-    return false;
-  }
 }
 
 function normalizeLaunchSettings(

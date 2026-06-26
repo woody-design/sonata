@@ -253,6 +253,13 @@ export interface TerminalHostOptions {
 
 export interface StartTaskOptions {
   cwd?: string;
+  /**
+   * The session's Duet-owned runtime home for Claude's hooks/usage/settings (D8).
+   * The app passes ~/.duet/data/runtime/<taskId> so nothing Duet-owned lands in
+   * the agent's working directory. Defaults to `<cwd>/.duet` when unset (the
+   * legacy in-cwd location) so a bare TerminalHost in a test still works.
+   */
+  runtimeDir?: string;
   command?: string;
   args?: string[];
   sandbox?: CodexSandboxMode;
@@ -2353,7 +2360,9 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           permissionMode: options.permissionMode,
           model: options.model,
           reasoningEffort: options.reasoningEffort,
-          settingsPath: ensureClaudeRuntimeSettings(options.cwd),
+          settingsPath: ensureClaudeRuntimeSettings(
+            options.runtimeDir ?? path.join(options.cwd, ".duet"),
+          ),
           resumeRef: options.resumeRef,
           sessionId: options.sessionId,
         }),

@@ -13,7 +13,7 @@ const storageRoot = path.join(root, "Duet Projects");
 const userFolder = path.join(root, "my-project");
 fs.mkdirSync(userFolder, { recursive: true });
 
-function manifest(taskId, providerCwd, { title = taskId, archived, updatedAt } = {}) {
+function manifest(taskId, providerCwd, { title = taskId, archived, autoWorkspace, updatedAt } = {}) {
   return {
     schemaId: "duet.task-manifest.v1",
     version: 1,
@@ -34,11 +34,12 @@ function manifest(taskId, providerCwd, { title = taskId, archived, updatedAt } =
       workingDirectory: providerCwd,
       status: "idle",
       ...(archived !== undefined ? { archived } : {}),
+      ...(autoWorkspace !== undefined ? { autoWorkspace } : {}),
       createdAt: updatedAt,
       updatedAt,
     },
     rawTerminalPolicy: "raw-terminal-not-persisted-by-default",
-    runtimeReportPath: ".duet/runtime-report.json",
+    runtimeReportPath: "runtime-report.json",
   };
 }
 
@@ -51,11 +52,18 @@ function candidate(taskId, providerCwd, options = {}) {
   };
 }
 
-const chatsCwd = path.join(storageRoot, "task-3");
+// A project-less chat now lives in a VISIBLE workspace (~/Documents/Duet/<…>),
+// outside the record root — proving the explicit autoWorkspace flag, not the
+// path, is what sorts it into Chats.
+const chatsCwd = path.join(root, "Documents", "Duet", "2026-06-09-quick-chat");
 const candidates = [
   candidate("task-1", userFolder, { title: "Older session", updatedAt: "2026-06-10T10:00:00.000Z" }),
   candidate("task-2", userFolder, { title: "Newer session", updatedAt: "2026-06-11T10:00:00.000Z" }),
-  candidate("task-3", chatsCwd, { title: "Quick chat", updatedAt: "2026-06-09T10:00:00.000Z" }),
+  candidate("task-3", chatsCwd, {
+    title: "Quick chat",
+    autoWorkspace: true,
+    updatedAt: "2026-06-09T10:00:00.000Z",
+  }),
   candidate("task-4", userFolder, {
     title: "Archived session",
     archived: true,
@@ -79,7 +87,6 @@ const index = buildSessionIndex({
   candidates,
   liveTasks,
   overlay: store.read(),
-  taskStorageRoot: storageRoot,
 });
 
 assert.equal(index.projects.length, 1, "one project derived from the user folder");
@@ -109,7 +116,6 @@ const withArchived = buildSessionIndex({
   candidates,
   liveTasks,
   overlay: store.read(),
-  taskStorageRoot: storageRoot,
   includeArchived: true,
 });
 assert.equal(withArchived.projects[0].sessions.length, 3, "includeArchived shows everything");
@@ -125,7 +131,6 @@ const archivedProject = (() => {
     candidates,
     liveTasks,
     overlay: store.read(),
-    taskStorageRoot: storageRoot,
   });
 })();
 assert.equal(archivedProject.projects.length, 0, "archived project hidden by default");

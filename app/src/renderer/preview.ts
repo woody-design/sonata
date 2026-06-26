@@ -244,7 +244,7 @@ function renderFloatingReview(): HTMLElement {
     reviewRow("Kind", artifact ? artifact.kind : state.preview?.previewKind ?? "unknown"),
     reviewRow("Change", artifact?.changeKind ?? "unknown"),
     reviewRow("Preview", state.preview ? previewEvidenceLabel(state.preview) : "not loaded"),
-    reviewRow("Report source", ".duet/runtime-report.json"),
+    reviewRow("Report source", "runtime-report.json"),
     reviewRow("Raw terminal", "not persisted"),
   );
 
