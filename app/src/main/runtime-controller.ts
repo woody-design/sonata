@@ -411,6 +411,9 @@ export class RuntimeController {
       eventSink: (event) => this.sendEvent(event),
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
       applyControlChange: (change) => this.applyControlChange(runningTask.id, change),
+      // Same as createTask: a cancelled queue item must delete its copied blobs —
+      // a resumed session can attach + cancel just like a fresh one.
+      cleanupAttachments: (attachments) => this.cleanupAttachments(runningTask.id, attachments),
     });
     const statusTracker = new StatusRegionTracker({
       taskId: runningTask.id,
