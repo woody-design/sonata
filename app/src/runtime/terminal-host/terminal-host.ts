@@ -27,6 +27,7 @@ import type {
 } from "../../shared/types/domain";
 import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
 import { ensureClaudeRuntimeSettings } from "../cli-signal";
+import { shellQuotePath } from "../shell-quote";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
 export const BRACKETED_PASTE_END = "\x1b[201~";
@@ -913,7 +914,11 @@ export class TerminalHost extends EventEmitter {
       throw new Error(USER_CONTROL_GUARD_MESSAGE);
     }
 
-    const kind: RunKind = trimmed.startsWith("/") && attachments.length === 0 ? "slash" : "prompt";
+    // A slash command is a single line with no attachments. A folded file/folder
+    // reference makes the text multi-line (path on its own line), so the newline
+    // check keeps "/cmd + a referenced file" classified as a prompt, not a slash.
+    const kind: RunKind =
+      trimmed.startsWith("/") && !trimmed.includes("\n") && attachments.length === 0 ? "slash" : "prompt";
     const runText = trimmed || attachmentPromptTitle(attachments.length);
     const run = options.createRun === false ? null : this.beginRun(runText, kind);
     const submittedAt = new Date().toISOString();
@@ -931,7 +936,7 @@ export class TerminalHost extends EventEmitter {
     // until it fires, so endDuetWrite() below does not release early.
     this.beginDuetWrite();
     for (const attachment of attachments) {
-      this.ptyProcess.write(`${BRACKETED_PASTE_START}${attachment.path}${BRACKETED_PASTE_END}`);
+      this.ptyProcess.write(`${BRACKETED_PASTE_START}${shellQuotePath(attachment.path)}${BRACKETED_PASTE_END}`);
     }
     if (kind === "slash") {
       this.lastSlashSubmitAt = Date.now();

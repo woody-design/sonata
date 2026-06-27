@@ -116,12 +116,32 @@ export type DeliveryItemStatus = "queued" | "delivering" | "delivered" | "undeli
 export type DeliveryItemKind = "prompt" | "control";
 export type DeliveryReceiptSource = "provider-transcript" | "pty-composer-echo" | "native-control";
 
+/** Who owns the bytes. `blob` = Duet copied them into the per-task attachments
+ *  dir (deleted with the chip/session). `referenced` = the user's own path, never
+ *  copied and NEVER deleted by Duet. */
+export type AttachmentProvenance = "blob" | "referenced";
+
+/** Decides the delivery channel and the chip's visual. `image` chips natively as
+ *  [Image #N]; `file`/`folder` are delivered as a path mention in the prompt text. */
+export type AttachmentKind = "image" | "file" | "folder";
+
 export interface DeliveryAttachment {
   id: string;
   path: string;
   originalName: string;
   mediaType: string;
   size: number;
+  provenance: AttachmentProvenance;
+  kind: AttachmentKind;
+}
+
+/** A referenced path plus a chip preview. previewDataUrl is a capped thumbnail
+ *  data URL for an image reference; null for files/folders or oversize images
+ *  (the chip falls back to a kind icon). Kept off DeliveryAttachment so the wire
+ *  type never carries preview bytes. */
+export interface ReferenceResult {
+  attachment: DeliveryAttachment;
+  previewDataUrl: string | null;
 }
 
 export type DeliveryControlChange =

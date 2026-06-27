@@ -143,6 +143,8 @@ await check("attachment markers and image evidence complete delivery", async () 
     originalName: "red.png",
     mediaType: "image/png",
     size: 68,
+    provenance: "referenced",
+    kind: "image",
   };
   const item = controller.enqueue("Attachment receipt prompt", [attachment]);
   assert.deepEqual(host.submissions[0]?.attachments, [{ path: attachment.path }]);
@@ -186,6 +188,106 @@ await check("attachment markers and image evidence complete delivery", async () 
   assert.ok(receipt, "expected attachment delivery receipt event");
   assert.equal(receipt.payload.receipt.source, "provider-transcript");
   assert.equal(controller.state().queue.length, 0);
+  controller.dispose();
+});
+
+await check("file reference folds into prompt text VERBATIM (no shell-escaping)", async () => {
+  const host = fakeHost();
+  const controller = new DeliveryController({
+    taskId: "task-ref-fold-smoke",
+    provider: "codex",
+    terminalHost: host,
+    eventSink: () => {},
+    hasLiveTranscriptSource: () => true,
+    receiptTimeoutMs: 500,
+  });
+  // $ and ` are exactly what shellQuotePath would backslash-escape — wrong for
+  // the prompt-text channel, where nothing un-escapes (guards bug: text quoter).
+  const refPath = "/Users/a/proj$1/`notes`/report.pdf";
+  const fileRef = {
+    id: "ref-fold-1",
+    path: refPath,
+    originalName: "report.pdf",
+    mediaType: "application/pdf",
+    size: 20,
+    provenance: "referenced",
+    kind: "file",
+  };
+  controller.enqueue("Look at this", [fileRef]);
+  const submitted = host.submissions[0]?.text ?? "";
+  assert.ok(submitted.includes(refPath), `expected the raw path in delivered text, got: ${submitted}`);
+  assert.ok(!submitted.includes("\\$") && !submitted.includes("\\`"), "text-channel path must not be shell-escaped");
+  assert.deepEqual(host.submissions[0]?.attachments, [], "a file reference is text, not a chip");
+  controller.dispose();
+});
+
+await check("mixed image + file reference: file folds to text, image chips, item receipts", async () => {
+  const events = [];
+  const host = fakeHost();
+  const controller = new DeliveryController({
+    taskId: "task-mixed-receipt-smoke",
+    provider: "codex",
+    terminalHost: host,
+    eventSink: (event) => events.push(event),
+    hasLiveTranscriptSource: () => true,
+    receiptTimeoutMs: 500,
+  });
+  const imageRef = {
+    id: "mixed-img-1",
+    path: "/tmp/duet-mixed/shot.png",
+    originalName: "shot.png",
+    mediaType: "image/png",
+    size: 10,
+    provenance: "referenced",
+    kind: "image",
+  };
+  const fileRef = {
+    id: "mixed-file-1",
+    path: "/tmp/duet-mixed/report.pdf",
+    originalName: "report.pdf",
+    mediaType: "application/pdf",
+    size: 20,
+    provenance: "referenced",
+    kind: "file",
+  };
+  const item = controller.enqueue("Review these", [imageRef, fileRef]);
+  // image stays a chip attachment; file folds into the prompt text.
+  assert.deepEqual(host.submissions[0]?.attachments, [{ path: imageRef.path }]);
+  assert.ok(host.submissions[0]?.text.includes(fileRef.path), "file path folded into prompt text");
+
+  // The agent records [Image #N] + the prompt + the folded path. The item MUST
+  // reach "delivered" (the e2e only proves the agent replied, not the receipt).
+  controller.handleRuntimeEvent({
+    type: "transcript:blocks",
+    payload: {
+      taskId: "task-mixed-receipt-smoke",
+      sourceId: "source-mixed-1",
+      reset: false,
+      upserts: [
+        {
+          kind: "user-message",
+          id: "source-mixed-1:user-1",
+          taskId: "task-mixed-receipt-smoke",
+          sourceId: "source-mixed-1",
+          provider: "codex",
+          turnKey: "turn-1",
+          runId: "run-mixed-1",
+          ts: new Date().toISOString(),
+          seq: 1,
+          text: `[Image #1] Review these\n"${fileRef.path}"`,
+          command: null,
+          attachments: [{ kind: "image", source: "local-path", path: imageRef.path, mediaType: "image/png" }],
+        },
+      ],
+    },
+    ts: new Date().toISOString(),
+  });
+
+  const receipt = events.find(
+    (event) => event.type === "delivery:receipt" && event.payload.itemId === item.id,
+  );
+  assert.ok(receipt, "expected mixed-submission delivery receipt");
+  assert.equal(controller.state().queue.length, 0, "item left the queue (delivered)");
   controller.dispose();
 });
 

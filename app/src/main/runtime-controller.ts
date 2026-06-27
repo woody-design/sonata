@@ -4,6 +4,7 @@ import path from "node:path";
 import { app } from "electron";
 import type {
   DeliveryAttachment,
+  ReferenceResult,
   ArtifactCandidate,
   ApprovalDecision,
   ClaudePermissionMode,
@@ -835,18 +836,47 @@ export class RuntimeController {
       originalName: input.originalName.trim() || filename,
       mediaType,
       size: bytes.length,
+      provenance: "blob",
+      kind: "image",
     };
   }
 
-  deleteAttachment(taskId: TaskId, attachmentId: string): void {
-    const active = this.requireTaskRuntime(taskId);
-    const attachmentDirectory = attachmentsRootForTask(active.task.id);
-    const files = fs.existsSync(attachmentDirectory) ? fs.readdirSync(attachmentDirectory) : [];
-    for (const file of files) {
-      if (file.startsWith(`${attachmentId}.`)) {
-        fs.rmSync(path.join(attachmentDirectory, file), { force: true });
+  /** Reference user paths by absolute path — NO copy, NEVER deleted (Invariant 4).
+   *  taskId-independent (works before a session exists). Classifies each path by
+   *  stat + extension so delivery can pick the channel (image chip vs path text),
+   *  and reads a capped thumbnail for image references (a small file read for a
+   *  chip preview — the agent reads the file itself anyway). */
+  createReference(paths: string[]): ReferenceResult[] {
+    const results: ReferenceResult[] = [];
+    for (const input of paths) {
+      // Per-path: a single missing/inaccessible path (e.g. one item of a
+      // multi-file drag vanished, or a broken symlink) must not drop the rest.
+      try {
+        const resolved = path.resolve(input);
+        const stat = fs.statSync(resolved);
+        const isDirectory = stat.isDirectory();
+        const ext = path.extname(resolved).toLowerCase();
+        const imageMediaType = IMAGE_EXTENSION_MEDIA_TYPES.get(ext);
+        const kind = isDirectory ? "folder" : imageMediaType ? "image" : "file";
+        const attachment: DeliveryAttachment = {
+          id: `attachment-${Date.now()}-${++this.attachmentSeq}`,
+          path: resolved,
+          originalName: path.basename(resolved) || resolved,
+          mediaType: isDirectory ? "inode/directory" : imageMediaType ?? "application/octet-stream",
+          size: isDirectory ? 0 : stat.size,
+          provenance: "referenced",
+          kind,
+        };
+        const previewDataUrl =
+          imageMediaType && !isDirectory && stat.size > 0 && stat.size <= REFERENCE_PREVIEW_MAX_BYTES
+            ? `data:${imageMediaType};base64,${fs.readFileSync(resolved).toString("base64")}`
+            : null;
+        results.push({ attachment, previewDataUrl });
+      } catch {
+        // Skip this path; the caller surfaces a count mismatch if needed.
       }
     }
+    return results;
   }
 
   setControl(taskId: TaskId, change: DeliveryControlChange): void {
@@ -1493,24 +1523,42 @@ export class RuntimeController {
     const attachmentDirectory = `${attachmentsRootForTask(active.task.id)}${path.sep}`;
     return attachments.map((attachment) => {
       const resolved = path.resolve(attachment.path);
-      if (!resolved.startsWith(attachmentDirectory) || resolved.includes(" ")) {
-        throw new Error("Attachment path was not a generated Duet attachment path.");
+      if (attachment.provenance === "blob") {
+        // Duet-owned blob: MUST live inside the per-task attachments dir and be a
+        // real image. (No space-reject — delivery double-quotes the path now.)
+        if (!resolved.startsWith(attachmentDirectory)) {
+          throw new Error("Attachment path was not a generated Duet attachment path.");
+        }
+        if (!fs.existsSync(resolved)) {
+          throw new Error(`Attachment file is missing: ${attachment.originalName}`);
+        }
+        if (!normalizeImageMediaType(attachment.mediaType, attachment.originalName, fs.readFileSync(resolved))) {
+          throw new Error(`Attachment is not a supported image: ${attachment.originalName}`);
+        }
+        return { ...attachment, path: resolved };
       }
+      // Referenced: the user's own path, anywhere. It MUST exist; Duet NEVER reads
+      // or deletes it. No image media re-read (it may be a huge file) and no
+      // readFileSync on a folder — its kind was classified at attach time, and the
+      // agent reads it with its own tools (it already has the user's FS authority).
       if (!fs.existsSync(resolved)) {
-        throw new Error(`Attachment file is missing: ${attachment.originalName}`);
+        throw new Error(`Attachment no longer exists: ${attachment.originalName}`);
       }
-      if (!normalizeImageMediaType(attachment.mediaType, attachment.originalName, fs.readFileSync(resolved))) {
-        throw new Error(`Attachment is not a supported image: ${attachment.originalName}`);
-      }
-      return {
-        ...attachment,
-        path: resolved,
-      };
+      return { ...attachment, path: resolved };
     });
   }
 
   private cleanupAttachments(_taskId: TaskId, attachments: DeliveryAttachment[]): void {
     for (const attachment of attachments) {
+      // LOAD-BEARING for Invariant 4 — DO NOT REMOVE this guard. A referenced
+      // IMAGE has kind:"image", so DeliveryController.enqueue (which splits by
+      // kind, not provenance) keeps it in item.attachments; cancelling a queued
+      // prompt then calls this with the user's ORIGINAL image. Only this
+      // provenance check stops us from deleting it. (Referenced files/folders are
+      // folded into the prompt text and never reach here; referenced images do.)
+      if (attachment.provenance !== "blob") {
+        continue;
+      }
       fs.rmSync(attachment.path, { force: true });
     }
   }
@@ -1722,6 +1770,9 @@ function imageExtension(mediaType: string): string {
   return `.${mediaType.replace("image/", "")}`;
 }
 
+// Cap on reading an image reference back for a chip thumbnail. Over this, the
+// chip falls back to a kind icon (the agent still reads the file itself).
+const REFERENCE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024;
 const SUPPORTED_IMAGE_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const IMAGE_EXTENSION_MEDIA_TYPES = new Map([
   [".png", "image/png"],

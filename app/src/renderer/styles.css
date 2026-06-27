@@ -2939,11 +2939,16 @@ h2 {
   opacity: 0;
 }
 
+/* Attachments sit ABOVE the input. Two chip shapes: a square image thumbnail
+   (no text) and a file/folder card (icon tile + name/kind). Wraps, then scrolls
+   so many attachments never push the input too far down. */
 .attachment-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  min-height: 38px;
+  gap: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+  margin-bottom: 8px;
 }
 
 .attachment-strip.hidden {
@@ -2955,49 +2960,107 @@ h2 {
 }
 
 .attachment-chip {
-  max-width: 190px;
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 22px;
-  align-items: center;
-  gap: 7px;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+/* Image — a square thumbnail, no label. */
+.attachment-chip-image {
+  width: 58px;
+  height: 58px;
+  border-radius: 11px;
+  overflow: hidden;
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 4px;
   background: var(--surface-control);
 }
 
-.attachment-chip img {
-  width: 30px;
-  height: 30px;
-  border-radius: 5px;
+.attachment-chip-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 
-.attachment-chip span {
-  overflow: hidden;
+.attachment-chip-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--ink-faint);
+}
+
+/* File / folder — a card: icon tile + name (truncated) over a kind line. */
+.attachment-chip-file {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  height: 58px;
+  max-width: 264px;
+  padding: 9px 30px 9px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 13px;
+  background: var(--surface-raised);
+}
+
+.attachment-chip-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  background: var(--surface-strip);
   color: var(--ink-subtle);
-  font-size: 12px;
+}
+
+.attachment-chip-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.attachment-chip-name {
+  overflow: hidden;
+  color: var(--ink-strong);
+  font-size: 14px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.attachment-chip-kind {
+  color: var(--ink-meta);
+  font-size: 12px;
+}
+
+/* ✕ badge — a dark scrim with a light glyph so it reads on any thumbnail or card
+   in either reading mode (a scrim overlay, intentionally not a themed surface). */
 .attachment-remove {
-  width: 22px;
-  min-width: 22px;
-  min-height: 22px;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 19px;
+  height: 19px;
+  min-width: 19px;
+  /* override the global button min-height:34px (else the badge is a tall oval) */
+  min-height: 19px;
+  padding: 0;
   border: 0;
   border-radius: 50%;
-  padding: 0;
-  color: var(--ink-meta);
-  background: transparent;
-  font-size: 12px;
-  line-height: 1;
+  color: #fff;
+  background: rgba(22, 22, 20, 0.66);
+  cursor: pointer;
 }
 
 .attachment-remove:hover {
-  color: var(--status-attention-deep);
-  background: var(--surface-attention-hover);
+  background: rgba(22, 22, 20, 0.85);
 }
 
 .composer-menu {

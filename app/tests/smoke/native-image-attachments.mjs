@@ -31,11 +31,15 @@ try {
 async function runProviderImageSmoke(provider) {
   const nonImage = await runNonImageCheck(provider);
   const delivery = await runImageDeliveryCheck(provider);
+  const spacey = await runSpaceyImageDeliveryCheck(provider);
+  const reference = await runReferenceTextCheck(provider);
   return {
     provider,
-    verified: nonImage.verified && delivery.verified,
+    verified: nonImage.verified && delivery.verified && spacey.verified && reference.verified,
     nonImage,
     delivery,
+    spacey,
+    reference,
   };
 }
 
@@ -70,6 +74,8 @@ async function runImageDeliveryCheck(provider) {
       originalName: "red.png",
       mediaType: "image/png",
       size: fs.statSync(imagePath).size,
+      provenance: "referenced",
+      kind: "image",
     };
     const item = controller.delivery.enqueue(prompt, [attachment]);
     const receipt = await waitForReceipt(controller.deliveryEvents, item.id, 180000);
@@ -87,6 +93,95 @@ async function runImageDeliveryCheck(provider) {
       receiptSource: receipt?.payload.receipt.source ?? null,
       transcriptAttachmentCount: userBlock?.attachments.length ?? 0,
       evidenceTail: redact(tail.slice(-1200)),
+    };
+  } finally {
+    controller.dispose();
+  }
+}
+
+// The gate: an image at a path with a SPACE (and an apostrophe) chips via the
+// real delivery path, which now double-quotes the path before bracketed-paste.
+// Proves the quoting works end-to-end on both CLIs (the probe proved the quoting
+// itself; this proves it through DeliveryController + terminal-host timing).
+async function runSpaceyImageDeliveryCheck(provider) {
+  const controller = await startHost(provider, `${provider}-spacey-image`);
+  try {
+    const dir = path.join(controller.workspace, "with space");
+    fs.mkdirSync(dir, { recursive: true });
+    const imagePath = path.join(dir, "a'b.png");
+    fs.writeFileSync(imagePath, redPngBytes());
+    const prompt = `Reply exactly DUET_${provider.toUpperCase()}_SPACEY_IMAGE_RECEIPT.`;
+    const attachment = {
+      id: `attachment-${provider}-spacey`,
+      path: imagePath,
+      originalName: "a'b.png",
+      mediaType: "image/png",
+      size: fs.statSync(imagePath).size,
+      provenance: "referenced",
+      kind: "image",
+    };
+    const item = controller.delivery.enqueue(prompt, [attachment]);
+    const receipt = await waitForReceipt(controller.deliveryEvents, item.id, 180000);
+    const tail = controller.cleanTail();
+    const userBlock = controller.transcript.blocks().find(
+      (block) => block.kind === "user-message" && block.text.includes(prompt),
+    );
+    return {
+      name: `${provider} spacey+quote PNG path chips via double-quote delivery`,
+      verified:
+        Boolean(receipt) &&
+        imageMarkerCount(tail) > 0 &&
+        Boolean(userBlock) &&
+        userBlock.attachments.length >= 1,
+      receiptSource: receipt?.payload.receipt.source ?? null,
+      transcriptAttachmentCount: userBlock?.attachments.length ?? 0,
+      evidenceTail: redact(tail.slice(-1200)),
+    };
+  } finally {
+    controller.dispose();
+  }
+}
+
+// Slice B: a REFERENCED non-image file (kind:"file") is delivered as a path
+// mention folded into the prompt TEXT — not chipped — and the agent receives it.
+// (file and folder share the same delivery code; folder is exercised in the UI
+// e2e.) The path has a space, so it also confirms quoting in the text channel.
+async function runReferenceTextCheck(provider) {
+  const controller = await startHost(provider, `${provider}-ref-file`);
+  try {
+    // Space + apostrophe — realistic folder-name special chars that must deliver
+    // VERBATIM on both CLIs (the text channel must not shell-escape them). The
+    // bug-#1-specific "no backslash-escaping of $/`/\\" is guarded deterministically
+    // in delivery-receipts.mjs; shell-EXPANSION chars ($, `) in a referenced path
+    // are mangled by Codex's own composer (carry-forward), so not asserted here.
+    const dir = path.join(controller.workspace, "ref's space");
+    fs.mkdirSync(dir, { recursive: true });
+    const refPath = path.join(dir, "notes.txt");
+    fs.writeFileSync(refPath, "reference target");
+    const prompt = `Reply exactly DUET_${provider.toUpperCase()}_REF_FILE_RECEIPT.`;
+    const attachment = {
+      id: `attachment-${provider}-ref-file`,
+      path: refPath,
+      originalName: "notes.txt",
+      mediaType: "text/plain",
+      size: fs.statSync(refPath).size,
+      provenance: "referenced",
+      kind: "file",
+    };
+    const item = controller.delivery.enqueue(prompt, [attachment]);
+    const receipt = await waitForReceipt(controller.deliveryEvents, item.id, 180000);
+    const userBlock = controller.transcript.blocks().find(
+      (block) => block.kind === "user-message" && block.text.includes(prompt),
+    );
+    const pathInText = Boolean(userBlock) && userBlock.text.includes(refPath);
+    const chippedAsImage = (userBlock?.attachments.length ?? 0) > 0;
+    return {
+      name: `${provider} referenced file delivers as path-in-text (no chip)`,
+      verified: Boolean(receipt) && pathInText && !chippedAsImage,
+      receiptSource: receipt?.payload.receipt.source ?? null,
+      pathInText,
+      chippedAsImage,
+      evidenceTail: redact(controller.cleanTail().slice(-1200)),
     };
   } finally {
     controller.dispose();

@@ -11,6 +11,7 @@ import type {
 } from "../shared/types/domain";
 import type { RuntimeEvent } from "../shared/types/events";
 import type { TranscriptBlock } from "../shared/types/transcript";
+import { quotePathForText } from "./shell-quote";
 import { cleanTerminal, type PromptSubmission, type TerminalHost } from "./terminal-host";
 
 const DEFAULT_RECEIPT_TIMEOUT_MS = 45_000;
@@ -104,7 +105,19 @@ export class DeliveryController {
 
   enqueue(text: string, attachments: DeliveryAttachment[] = []): DeliveryQueueItem {
     const trimmed = text.trim();
-    if (!trimmed && attachments.length === 0) {
+    // Channel split (owned here so item.text == what is delivered → receipts
+    // match, and referenced originals never enter item.attachments → cleanup
+    // can never delete them): images chip natively; a file/folder is a path
+    // mention folded into the prompt text. A non-image path does not chip, so
+    // placing it in the text — quoted, on its own line — is the honest wire.
+    const imageAttachments = attachments.filter(
+      (attachment) => attachment.kind !== "file" && attachment.kind !== "folder",
+    );
+    const referencePaths = attachments
+      .filter((attachment) => attachment.kind === "file" || attachment.kind === "folder")
+      .map((attachment) => quotePathForText(attachment.path));
+    const fullText = [trimmed, ...referencePaths].filter((part) => part.length > 0).join("\n");
+    if (!fullText && imageAttachments.length === 0) {
       throw new Error("Cannot queue an empty prompt without attachments.");
     }
 
@@ -112,9 +125,9 @@ export class DeliveryController {
       id: `delivery-${Date.now()}-${++this.seq}`,
       taskId: this.taskId,
       kind: "prompt",
-      text: trimmed,
+      text: fullText,
       control: null,
-      attachments: attachments.map((attachment) => ({ ...attachment })),
+      attachments: imageAttachments.map((attachment) => ({ ...attachment })),
       status: "queued",
       enqueuedAt: new Date().toISOString(),
       deliveringAt: null,

@@ -6,6 +6,7 @@ import type {
   CodexSandboxMode,
   DeliveryControlChange,
   DeliveryAttachment,
+  ReferenceResult,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
@@ -43,7 +44,8 @@ export const IPC_CHANNELS = {
   projectReveal: "project:reveal",
   promptSubmit: "prompt:submit",
   attachmentCreate: "attachment:create",
-  attachmentDelete: "attachment:delete",
+  attachmentCreateReference: "attachment:create-reference",
+  attachmentPick: "attachment:pick",
   controlSet: "control:set",
   promptQueueCancel: "prompt-queue:cancel",
   promptQueueRetry: "prompt-queue:retry",
@@ -224,9 +226,10 @@ export interface CreateAttachmentRequest {
   bytes: ArrayBuffer;
 }
 
-export interface DeleteAttachmentRequest {
-  taskId: TaskId;
-  attachmentId: string;
+/** Reference user paths by absolute path (no copy). taskId-independent — works
+ *  in a new chat before a session exists. */
+export interface CreateReferenceRequest {
+  paths: string[];
 }
 
 export interface SetControlRequest {
@@ -454,7 +457,12 @@ export interface DuetRuntimeBridge {
   revealProject(request: RevealProjectRequest): Promise<void>;
   submitPrompt(request: SubmitPromptRequest): Promise<void>;
   createAttachment(request: CreateAttachmentRequest): Promise<DeliveryAttachment>;
-  deleteAttachment(request: DeleteAttachmentRequest): Promise<void>;
+  createReference(request: CreateReferenceRequest): Promise<ReferenceResult[]>;
+  /** Native file/folder picker (Add button); returns chosen absolute paths. */
+  pickReferences(): Promise<string[]>;
+  /** Electron's replacement for File.path — the absolute path of a dragged/pasted
+   *  File, or "" for a path-less clipboard bitmap. Synchronous. */
+  getPathForFile(file: File): string;
   setControl(request: SetControlRequest): Promise<void>;
   cancelQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   retryQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;

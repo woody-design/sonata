@@ -454,6 +454,20 @@ async function pickFolder(): Promise<FolderPickResponse> {
   };
 }
 
+async function pickReferences(): Promise<string[]> {
+  if (process.env.DUET_TEST_PICK_REFERENCES) {
+    return process.env.DUET_TEST_PICK_REFERENCES.split("\n").map((entry) => entry.trim()).filter(Boolean);
+  }
+  const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+  // macOS shows files AND folders in one panel — no split menu (D6).
+  const options: OpenDialogOptions = {
+    title: "Attach Files or Folders",
+    properties: ["openFile", "openDirectory", "multiSelections"],
+  };
+  const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+  return result.canceled ? [] : result.filePaths;
+}
+
 async function openFolderTarget(targetPath: string, revealTarget: boolean): Promise<void> {
   if (revealTarget && fs.statSync(targetPath).isFile()) {
     shell.showItemInFolder(targetPath);
@@ -641,6 +655,7 @@ app.whenReady().then(() => {
     openWorkspaceExternal,
     openWorkspaceFolder,
     pickFolder,
+    pickReferences,
     closeTaskSurfaces,
   }, readingSettingsStore);
   createApplicationMenu();

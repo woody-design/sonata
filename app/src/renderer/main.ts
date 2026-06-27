@@ -11,8 +11,10 @@ import {
   ChevronRight,
   Ellipsis,
   Eye,
+  File as FileIcon,
   Folder,
   FolderOpen,
+  Image as ImageIcon,
   ListFilter,
   LoaderCircle,
   PanelLeft,
@@ -53,9 +55,11 @@ import type {
   ClaudePermissionMode,
   CodexApprovalMode,
   CodexPermissionPreset,
+  AttachmentKind,
   CodexSandboxMode,
   DeliveryControlChange,
   DeliveryAttachment,
+  ReferenceResult,
   DeliveryQueueItem,
   DeliveryTaskState,
   LaunchSpeedMode,
@@ -180,6 +184,8 @@ interface RendererState {
   activeTaskId: string | null;
   previewTabs: PreviewWindowTab[];
   taskDraft: TaskLaunchDraft;
+  /** New-chat composer attachments, materialized on first send (see ComposerAttachment). */
+  draftAttachments: ComposerAttachment[];
   composerMenu: ComposerMenuState | null;
   slashPicker: SlashPickerState | null;
   usagePopover: UsagePopoverState | null;
@@ -238,9 +244,19 @@ interface PopoverAnchor {
   width: number;
 }
 
+/** A composer attachment held until send (lazy). A path-less bitmap is held as a
+ *  File and copied (createAttachment) on send; a reference is already a
+ *  DeliveryAttachment (createReference, no copy) and passes through. Nothing
+ *  touches disk until send — so removing a chip or abandoning the composer
+ *  leaves no orphan, and there is no eager-copy cleanup to do. One shape for both
+ *  a live task's pending list and the new-chat draft. previewUrl is a thumbnail
+ *  (object URL for a bitmap, data URL for a referenced image) or null (icon). */
 interface ComposerAttachment {
-  attachment: DeliveryAttachment;
-  previewUrl: string;
+  file: File | null;
+  reference: DeliveryAttachment | null;
+  previewUrl: string | null;
+  name: string;
+  kind: AttachmentKind;
 }
 
 interface TaskLaunchDraft {
@@ -285,6 +301,7 @@ const state: RendererState = {
       claude: null,
     },
   },
+  draftAttachments: [],
   composerMenu: null,
   slashPicker: null,
   usagePopover: null,
@@ -1608,8 +1625,8 @@ appElement.innerHTML = `
         </section>
 
         <form id="composer" class="composer">
+          <div id="attachment-strip" class="attachment-strip hidden" aria-label="Attachments"></div>
           <textarea id="prompt-input" rows="1" placeholder="Start or open a Task"></textarea>
-          <div id="attachment-strip" class="attachment-strip hidden" aria-label="Image attachments"></div>
           <div class="composer-control-row">
             <div class="composer-control-left">
               <button id="add-attachment" class="composer-icon-button" type="button" aria-label="Add photos & files">+</button>
@@ -1641,13 +1658,6 @@ appElement.innerHTML = `
             </div>
           </div>
           <div id="composer-popover-root"></div>
-          <input
-            id="attachment-picker"
-            class="hidden"
-            type="file"
-            accept="image/png,image/jpeg,image/gif,image/webp"
-            multiple
-          />
         </form>
       </section>
 
@@ -1738,7 +1748,6 @@ const elements = {
   promptInput: getElement<HTMLTextAreaElement>("prompt-input"),
   attachmentStrip: getElement<HTMLDivElement>("attachment-strip"),
   addAttachment: getElement<HTMLButtonElement>("add-attachment"),
-  attachmentPicker: getElement<HTMLInputElement>("attachment-picker"),
   permissionChip: getElement<HTMLButtonElement>("permission-chip"),
   modelChip: getElement<HTMLButtonElement>("model-chip"),
   usageIndicator: getElement<HTMLButtonElement>("usage-indicator"),
@@ -2306,6 +2315,11 @@ let transcriptRenderTimer: number | null = null;
 let stickyPromptSyncFrame: number | null = null;
 let composerIsComposing = false;
 let lastComposerCompositionEndAt = 0;
+/** Re-entrancy guard: a send (materialize + submit) is in flight. Blocks a fast
+ *  double-Enter from re-materializing the same attachments (duplicate blob +
+ *  double delivery) on the live path, which — unlike new-chat/dormant — has no
+ *  state.busy gate. */
+let composerSending = false;
 let usagePopoverOpenTimer: number | null = null;
 let usagePopoverCloseTimer: number | null = null;
 const MAX_TRANSCRIPT_CHARS = 120_000;
@@ -2609,34 +2623,28 @@ elements.addAttachment.addEventListener("click", (event) => {
   toggleComposerMenu("add", event.currentTarget as HTMLElement);
 });
 
-elements.attachmentPicker.addEventListener("change", () => {
-  const files = Array.from(elements.attachmentPicker.files ?? []);
-  elements.attachmentPicker.value = "";
-  void addAttachmentFiles(files);
-});
-
 elements.composer.addEventListener("paste", (event) => {
-  const files = Array.from(event.clipboardData?.files ?? []).filter(isSupportedImageFile);
+  const files = Array.from(event.clipboardData?.files ?? []);
   if (files.length === 0) {
     return;
   }
   event.preventDefault();
-  void addAttachmentFiles(files);
+  void intakeFiles(files);
 });
 
 elements.composer.addEventListener("dragover", (event) => {
-  if (hasImageTransfer(event.dataTransfer)) {
+  if (hasFileTransfer(event.dataTransfer)) {
     event.preventDefault();
   }
 });
 
 elements.composer.addEventListener("drop", (event) => {
-  const files = Array.from(event.dataTransfer?.files ?? []).filter(isSupportedImageFile);
+  const files = Array.from(event.dataTransfer?.files ?? []);
   if (files.length === 0) {
     return;
   }
   event.preventDefault();
-  void addAttachmentFiles(files);
+  void intakeFiles(files);
 });
 
 elements.permissionChip.addEventListener("click", (event) => {
@@ -2689,7 +2697,9 @@ elements.promptInput.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.shiftKey) {
     return;
   }
-  if (elements.promptInput.value.trim().length === 0 && (activeTaskView()?.pendingAttachments.length ?? 0) === 0) {
+  const submitView = activeTaskView();
+  const attachmentCount = submitView ? submitView.pendingAttachments.length : state.draftAttachments.length;
+  if (elements.promptInput.value.trim().length === 0 && attachmentCount === 0) {
     return;
   }
   event.preventDefault();
@@ -3918,6 +3928,7 @@ document.addEventListener("click", (event) => {
     target.closest(".reading-settings-popover") ||
     target.closest(".task-settings-wrap") ||
     target.closest(".composer-chip") ||
+    target.closest("#add-attachment") ||
     target.closest(".composer-menu") ||
     target.closest(".usage-indicator") ||
     target.closest(".usage-popover") ||
@@ -4535,41 +4546,49 @@ async function submitPrompt(): Promise<void> {
   if (consumeSlashSubmitGuard(text)) {
     return;
   }
-
+  // A send is already in flight — drop this one (a fast double-Enter would
+  // otherwise re-materialize the same attachments: duplicate blob + double send).
+  if (composerSending) {
+    return;
+  }
+  // Nothing-to-send checks first, so the guard is never held for a no-op.
   if (!view) {
-    // New chat: the first message creates the session.
-    if (text) {
-      await createSessionFromComposer(text);
+    if (!text && state.draftAttachments.length === 0) {
+      return;
     }
+  } else if (!view.task) {
     return;
-  }
-  if (!view.task) {
-    return;
-  }
-
-  const attachments = view.pendingAttachments.map((item) => item.attachment);
-  if (!text && attachments.length === 0) {
+  } else if (!text && view.pendingAttachments.length === 0) {
     view.status = "Type a message before sending";
     render();
     return;
   }
 
-  if (!view.live) {
-    // Dormant session: lazy spawn + native resume, then queue the message.
-    await resumeSessionAndSend(view, text, attachments);
-    return;
-  }
-
-  view.status = "Queued";
-  render();
-
+  composerSending = true;
   try {
-    await window.duetRuntime.submitPrompt({ taskId: view.task.id, text, attachments });
-    elements.promptInput.value = "";
-    clearPendingAttachments(view);
+    if (!view) {
+      // New chat: the first message (text and/or attachments) creates the session.
+      await createSessionFromComposer(text);
+    } else if (!view.live) {
+      // Dormant session: lazy spawn + native resume, then queue the message.
+      await resumeSessionAndSend(view, text);
+    } else if (view.task) {
+      const taskId = view.task.id;
+      view.status = "Queued";
+      render();
+      const attachments = await materializeAttachments(view.pendingAttachments, taskId);
+      await window.duetRuntime.submitPrompt({ taskId, text, attachments });
+      elements.promptInput.value = "";
+      clearComposerAttachments(view.pendingAttachments);
+    }
   } catch (error) {
-    view.status = errorMessage(error);
+    if (view?.task) {
+      view.status = errorMessage(error);
+    } else {
+      state.status = errorMessage(error);
+    }
   } finally {
+    composerSending = false;
     render();
   }
 }
@@ -4582,20 +4601,25 @@ async function createSessionFromComposer(text: string): Promise<void> {
     return;
   }
   try {
-    await window.duetRuntime.submitPrompt({ taskId: view.task.id, text, attachments: [] });
+    // The session now exists — materialize the held draft (copy bitmaps, pass
+    // references through) and deliver with the first prompt.
+    const attachments = await materializeAttachments(state.draftAttachments, view.task.id);
+    await window.duetRuntime.submitPrompt({ taskId: view.task.id, text, attachments });
     elements.promptInput.value = "";
+    clearComposerAttachments(state.draftAttachments);
   } catch (error) {
     view.status = errorMessage(error);
+    // The session was created but delivery failed — don't lose the user's
+    // attachments. Move the draft into the now-live task's pending list so the
+    // chips stay visible and retriable (keep their preview URLs; don't revoke).
+    view.pendingAttachments.push(...state.draftAttachments);
+    state.draftAttachments.length = 0;
   } finally {
     render();
   }
 }
 
-async function resumeSessionAndSend(
-  view: TaskViewState,
-  text: string,
-  attachments: DeliveryAttachment[],
-): Promise<void> {
+async function resumeSessionAndSend(view: TaskViewState, text: string): Promise<void> {
   if (!view.task) {
     return;
   }
@@ -4630,13 +4654,12 @@ async function resumeSessionAndSend(
     // Preparation is best-effort context; resume itself proceeds.
   }
 
-  await openDormantSessionAndSend(view, text, attachments, resumeMode);
+  await openDormantSessionAndSend(view, text, resumeMode);
 }
 
 async function openDormantSessionAndSend(
   view: TaskViewState,
   text: string,
-  attachments: DeliveryAttachment[],
   resumeMode: "full" | "summary" | undefined,
 ): Promise<void> {
   if (!view.task) {
@@ -4660,10 +4683,13 @@ async function openDormantSessionAndSend(
       ? "Resumed — your message will send when the agent is ready"
       : "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable";
     applyPendingRuntimeState(view);
+    // The session is live now — materialize the held items (copy bitmaps, pass
+    // references through) and deliver.
+    const attachments = await materializeAttachments(view.pendingAttachments, taskId);
     if (text || attachments.length > 0) {
       await window.duetRuntime.submitPrompt({ taskId, text, attachments });
       elements.promptInput.value = "";
-      clearPendingAttachments(view);
+      clearComposerAttachments(view.pendingAttachments);
     }
     void hydrateUsage(taskId);
   } catch (error) {
@@ -4695,8 +4721,7 @@ async function resolveResumeChoice(mode: "full" | "summary"): Promise<void> {
   view.resumeChoice = null;
   elements.resumeRemember.checked = false;
   const text = elements.promptInput.value.trim();
-  const attachments = view.pendingAttachments.map((item) => item.attachment);
-  await openDormantSessionAndSend(view, text, attachments, mode);
+  await openDormantSessionAndSend(view, text, mode);
 }
 
 function resumeCostLabel(idleMs: number | null, totalTokens: number | null): string {
@@ -4842,36 +4867,94 @@ function render(): void {
   renderDeliveryQueue();
 }
 
+/** One chip's data, sourced from either a live task's pendingAttachments or the
+ *  new-chat draft — the chip UI is identical; only the source and removal differ. */
+interface ComposerChipModel {
+  name: string;
+  previewUrl: string | null;
+  kind: AttachmentKind;
+  remove: () => void;
+}
+
+function composerChipModels(view: TaskViewState | null): ComposerChipModel[] {
+  const list = view?.task ? view.pendingAttachments : state.draftAttachments;
+  return list.map((item) => ({
+    name: item.name,
+    previewUrl: item.previewUrl,
+    kind: item.kind,
+    remove: () => removeComposerAttachment(list, item),
+  }));
+}
+
+/** A copied bitmap shows its thumbnail; a reference shows a kind icon — honestly
+ *  a pointer to the user's file/folder, not content Duet ingested. */
+function attachmentKindIcon(kind: AttachmentKind, size = 18): SVGElement {
+  const node = kind === "folder" ? Folder : kind === "image" ? ImageIcon : FileIcon;
+  return lucideIcon(node, size);
+}
+
+/** The secondary line on a file/folder chip: "Folder", or the file's extension
+ *  uppercased ("PDF" / "GZ"), or "File" when there is none. Images show no label. */
+function attachmentKindLabel(kind: AttachmentKind, name: string): string {
+  if (kind === "folder") {
+    return "Folder";
+  }
+  return fileExtension(name).slice(1).toUpperCase() || "File";
+}
+
 function renderAttachmentStrip(view = activeTaskView()): void {
   elements.attachmentStrip.replaceChildren();
-  const attachments = view?.pendingAttachments ?? [];
-  elements.attachmentStrip.classList.toggle("hidden", attachments.length === 0);
-  if (attachments.length === 0) {
+  const chips = composerChipModels(view);
+  elements.attachmentStrip.classList.toggle("hidden", chips.length === 0);
+  if (chips.length === 0) {
     return;
   }
 
-  for (const item of attachments) {
+  for (const item of chips) {
     const chip = document.createElement("div");
-    chip.className = "attachment-chip";
-    chip.title = item.attachment.originalName;
+    chip.title = item.name;
 
-    const image = document.createElement("img");
-    image.src = item.previewUrl;
-    image.alt = item.attachment.originalName;
-
-    const label = document.createElement("span");
-    label.textContent = item.attachment.originalName;
+    if (item.kind === "image") {
+      // Image: a square thumbnail, no text. (Over the preview cap / unreadable →
+      // a centered glyph instead of a blank square.)
+      chip.className = "attachment-chip attachment-chip-image";
+      if (item.previewUrl) {
+        const image = document.createElement("img");
+        image.src = item.previewUrl;
+        image.alt = item.name;
+        chip.append(image);
+      } else {
+        const glyph = document.createElement("span");
+        glyph.className = "attachment-chip-glyph";
+        glyph.append(attachmentKindIcon("image", 22));
+        chip.append(glyph);
+      }
+    } else {
+      // File / folder: an icon tile + name (truncated) over a kind line.
+      chip.className = "attachment-chip attachment-chip-file";
+      const tile = document.createElement("span");
+      tile.className = "attachment-chip-icon";
+      tile.append(attachmentKindIcon(item.kind, 20));
+      const meta = document.createElement("div");
+      meta.className = "attachment-chip-meta";
+      const name = document.createElement("span");
+      name.className = "attachment-chip-name";
+      name.textContent = item.name;
+      const kindLine = document.createElement("span");
+      kindLine.className = "attachment-chip-kind";
+      kindLine.textContent = attachmentKindLabel(item.kind, item.name);
+      meta.append(name, kindLine);
+      chip.append(tile, meta);
+    }
 
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "attachment-remove";
-    remove.setAttribute("aria-label", `Remove ${item.attachment.originalName}`);
-    remove.textContent = "x";
-    remove.addEventListener("click", () => {
-      void removePendingAttachment(item.attachment.id);
-    });
+    remove.setAttribute("aria-label", `Remove ${item.name}`);
+    remove.append(lucideIcon(X, 12));
+    remove.addEventListener("click", item.remove);
+    chip.append(remove);
 
-    chip.append(image, label, remove);
     elements.attachmentStrip.append(chip);
   }
 }
@@ -4880,7 +4963,10 @@ function renderComposerControls(view = activeTaskView()): void {
   const activeRun = hasActiveRun(view) || Boolean(view?.deliveryState?.activeRun);
   const pendingApproval = Boolean(view?.pendingApproval);
   const promptHasText = elements.promptInput.value.trim().length > 0;
-  const hasAttachments = (view?.pendingAttachments.length ?? 0) > 0;
+  const newChat = !view;
+  const hasAttachments = newChat
+    ? state.draftAttachments.length > 0
+    : (view?.pendingAttachments.length ?? 0) > 0;
   const focused = document.activeElement === elements.promptInput;
   renderComposerChip(
     elements.permissionChip,
@@ -4897,8 +4983,9 @@ function renderComposerControls(view = activeTaskView()): void {
   renderUsageIndicator(view);
   // New-chat state (no view): the composer IS the create action — the
   // session is born from the first message, never from an empty spawn.
-  const newChat = !view;
-  elements.addAttachment.disabled = !view?.task || !view.live;
+  // Attachments are allowed in a new chat (held in the draft until the first
+  // send materializes them).
+  elements.addAttachment.disabled = newChat ? false : !view.live;
   elements.addAttachment.classList.toggle("active", state.composerMenu?.type === "add");
   elements.sendPrompt.disabled = state.busy || (!activeRun && !promptHasText && !hasAttachments);
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText || hasAttachments);
@@ -5461,7 +5548,10 @@ function positionSlashPicker(pickerElement: HTMLElement): void {
 
 function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement): void {
   const view = activeTaskView();
-  if (!view?.task) {
+  // The Add (attachments) menu works in a new chat too — attachments are held in
+  // the draft until send. Permission/model menus configure a live session, so
+  // they still require a task.
+  if (type !== "add" && !view?.task) {
     return;
   }
   clearUsagePopoverTimers();
@@ -5569,6 +5659,14 @@ function renderComposerPopover(view = activeTaskView()): void {
     positionSlashPicker(picker);
     return;
   }
+  // The Add (attachments) menu works in a new chat too — render it before the
+  // task guard. Usage / permission / model popovers configure a live session.
+  if (state.composerMenu?.type === "add") {
+    const menu = renderAddMenu();
+    positionComposerMenu(menu);
+    elements.composerPopoverRoot.append(menu);
+    return;
+  }
   if (!view?.task) {
     return;
   }
@@ -5581,9 +5679,8 @@ function renderComposerPopover(view = activeTaskView()): void {
   if (!state.composerMenu) {
     return;
   }
-  const menu = state.composerMenu.type === "add"
-    ? renderAddMenu()
-    : state.composerMenu.type === "permission"
+  const menu =
+    state.composerMenu.type === "permission"
       ? renderPermissionMenu(view.task)
       : renderModelMenu(view.task);
   positionComposerMenu(menu);
@@ -5670,13 +5767,26 @@ function renderUsageLimitRow(limit: UsageSnapshot["limits"][number]): HTMLElemen
 function renderAddMenu(): HTMLElement {
   const menu = composerMenu("Add");
   menu.append(
-    composerMenuOption("Add photos & files", false, () => {
+    composerMenuOption("Add files & folders", false, () => {
       state.composerMenu = null;
-      elements.attachmentPicker.click();
       render();
+      void pickAndAddReferences();
     }),
   );
   return menu;
+}
+
+async function pickAndAddReferences(): Promise<void> {
+  let paths: string[];
+  try {
+    paths = await window.duetRuntime.pickReferences();
+  } catch (error) {
+    setComposerStatus(activeTaskView(), errorMessage(error));
+    return;
+  }
+  if (paths.length > 0) {
+    await addReferences(paths);
+  }
 }
 
 function renderPermissionMenu(task: Task): HTMLElement {
@@ -5977,82 +6087,154 @@ async function queueControlChange(change: DeliveryControlChange): Promise<void> 
   }
 }
 
-async function addAttachmentFiles(files: File[]): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task || files.length === 0) {
+// Route dropped/pasted Files by the one fact that matters: does it already have
+// a path on disk? A real Electron file (drag/paste of a file, or the picker)
+// has a path → REFERENCE it (no copy). A path-less image (clipboard bitmap /
+// screenshot) has no path → COPY it. webUtils.getPathForFile returns "" for a
+// bitmap — that is the discriminator.
+async function intakeFiles(files: File[]): Promise<void> {
+  if (files.length === 0) {
     return;
   }
-
-  const imageFiles = files.filter(isSupportedImageFile);
-  if (imageFiles.length === 0) {
-    view.status = "Only PNG, JPEG, GIF, and WebP images can be attached";
-    render();
-    return;
-  }
-
-  for (const file of imageFiles) {
-    try {
-      const bytes = await file.arrayBuffer();
-      const attachment = await window.duetRuntime.createAttachment({
-        taskId: view.task.id,
-        originalName: file.name,
-        mediaType: file.type,
-        bytes,
-      });
-      view.pendingAttachments.push({
-        attachment,
-        previewUrl: URL.createObjectURL(file),
-      });
-      view.status = "Image attached";
-    } catch (error) {
-      view.status = errorMessage(error);
+  const bitmaps: File[] = [];
+  const referencePaths: string[] = [];
+  for (const file of files) {
+    const filePath = window.duetRuntime.getPathForFile(file);
+    if (filePath) {
+      referencePaths.push(filePath);
+    } else if (isSupportedImageFile(file)) {
+      bitmaps.push(file);
     }
+  }
+  if (referencePaths.length === 0 && bitmaps.length === 0) {
+    // We prevented the default paste/drop but found nothing attachable (e.g. a
+    // path-less, unsupported clipboard item) — say so instead of doing nothing.
+    setComposerStatus(activeTaskView(), "Nothing attachable here — try a file, folder, or image.");
+    return;
+  }
+  if (referencePaths.length > 0) {
+    await addReferences(referencePaths);
+  }
+  if (bitmaps.length > 0) {
+    addBitmaps(bitmaps);
+  }
+}
+
+/** The composer attachment list for the current surface: a live task's pending
+ *  list, or the new-chat draft. */
+function composerAttachmentList(): ComposerAttachment[] {
+  const view = activeTaskView();
+  return view?.task ? view.pendingAttachments : state.draftAttachments;
+}
+
+// Path-less image bitmaps (screenshots, copied images) → held as a File and
+// copied into the blob dir only on send (lazy). Chipped with a thumbnail.
+function addBitmaps(files: File[]): void {
+  const list = composerAttachmentList();
+  for (const file of files) {
+    list.push({
+      file,
+      reference: null,
+      previewUrl: URL.createObjectURL(file),
+      name: file.name,
+      kind: "image",
+    });
   }
   render();
 }
 
-async function removePendingAttachment(attachmentId: string): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
+// User paths (dragged/pasted files, picked files/folders) → referenced by
+// absolute path, never copied. createReference classifies + returns a capped
+// thumbnail for images; files/folders fall back to a kind icon.
+async function addReferences(paths: string[]): Promise<void> {
+  let references: ReferenceResult[];
+  try {
+    references = await window.duetRuntime.createReference({ paths });
+  } catch (error) {
+    setComposerStatus(activeTaskView(), errorMessage(error));
     return;
   }
-  const index = view.pendingAttachments.findIndex((item) => item.attachment.id === attachmentId);
+  const list = composerAttachmentList();
+  for (const { attachment, previewDataUrl } of references) {
+    list.push({
+      file: null,
+      reference: attachment,
+      previewUrl: previewDataUrl,
+      name: attachment.originalName,
+      kind: attachment.kind,
+    });
+  }
+  render();
+}
+
+/** Surface a composer status on the active view, or globally for a new chat. */
+function setComposerStatus(view: TaskViewState | null, message: string): void {
+  if (view?.task) {
+    view.status = message;
+  } else {
+    state.status = message;
+  }
+  render();
+}
+
+/** Remove a held composer attachment. Renderer-only: nothing is on disk yet — a
+ *  bitmap is copied only on send, a reference is never copied — so dropping the
+ *  chip (and revoking any object URL) is the entire removal. Never touches a
+ *  user's original (Invariant 4). */
+function removeComposerAttachment(list: ComposerAttachment[], target: ComposerAttachment): void {
+  const index = list.indexOf(target);
   if (index === -1) {
     return;
   }
-  const [removed] = view.pendingAttachments.splice(index, 1);
-  if (!removed) {
-    return;
+  const [removed] = list.splice(index, 1);
+  if (removed?.previewUrl) {
+    URL.revokeObjectURL(removed.previewUrl);
   }
-  URL.revokeObjectURL(removed.previewUrl);
-  try {
-    await window.duetRuntime.deleteAttachment({
-      taskId: view.task.id,
-      attachmentId: removed.attachment.id,
-    });
-    view.status = "Image removed";
-  } catch (error) {
-    view.status = errorMessage(error);
-  } finally {
-    render();
-  }
+  render();
 }
 
-function clearPendingAttachments(view: TaskViewState): void {
-  for (const item of view.pendingAttachments) {
-    URL.revokeObjectURL(item.previewUrl);
+function clearComposerAttachments(list: ComposerAttachment[]): void {
+  for (const item of list) {
+    if (item.previewUrl) {
+      URL.revokeObjectURL(item.previewUrl);
+    }
   }
-  view.pendingAttachments = [];
+  list.length = 0;
+}
+
+/** Turn the held items into DeliveryAttachments for the prompt: a bitmap is
+ *  copied into the (now live) task's blob dir; a reference passes through (never
+ *  copied). The runtime is always live by the time this runs (createTask /
+ *  openTask have spawned it). */
+async function materializeAttachments(
+  items: ComposerAttachment[],
+  taskId: string,
+): Promise<DeliveryAttachment[]> {
+  const attachments: DeliveryAttachment[] = [];
+  for (const item of items) {
+    if (item.reference) {
+      attachments.push(item.reference);
+    } else if (item.file) {
+      const bytes = await item.file.arrayBuffer();
+      attachments.push(
+        await window.duetRuntime.createAttachment({
+          taskId,
+          originalName: item.file.name,
+          mediaType: item.file.type,
+          bytes,
+        }),
+      );
+    }
+  }
+  return attachments;
 }
 
 function isSupportedImageFile(file: File): boolean {
   return SUPPORTED_IMAGE_MIME_TYPES.has(file.type) || SUPPORTED_IMAGE_EXTENSIONS.has(fileExtension(file.name));
 }
 
-function hasImageTransfer(dataTransfer: DataTransfer | null): boolean {
-  return Array.from(dataTransfer?.items ?? []).some(
-    (item) => item.kind === "file" && SUPPORTED_IMAGE_MIME_TYPES.has(item.type),
-  );
+function hasFileTransfer(dataTransfer: DataTransfer | null): boolean {
+  return Array.from(dataTransfer?.items ?? []).some((item) => item.kind === "file");
 }
 
 function fileExtension(name: string): string {

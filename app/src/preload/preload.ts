@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import {
   DEFAULT_READING_SETTINGS,
   IPC_CHANNELS,
@@ -123,7 +123,9 @@ const duetRuntime: DuetRuntimeBridge = {
   revealProject: (request) => ipcRenderer.invoke(IPC_CHANNELS.projectReveal, request),
   submitPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.promptSubmit, request),
   createAttachment: (request) => ipcRenderer.invoke(IPC_CHANNELS.attachmentCreate, request),
-  deleteAttachment: (request) => ipcRenderer.invoke(IPC_CHANNELS.attachmentDelete, request),
+  createReference: (request) => ipcRenderer.invoke(IPC_CHANNELS.attachmentCreateReference, request),
+  pickReferences: () => ipcRenderer.invoke(IPC_CHANNELS.attachmentPick),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   setControl: (request) => ipcRenderer.invoke(IPC_CHANNELS.controlSet, request),
   cancelQueuedPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.promptQueueCancel, request),
   retryQueuedPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.promptQueueRetry, request),

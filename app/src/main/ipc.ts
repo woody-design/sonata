@@ -50,6 +50,7 @@ export interface WindowIpcController {
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   pickFolder(): Promise<FolderPickResponse>;
+  pickReferences(): Promise<string[]>;
   closeTaskSurfaces(taskId: TaskId): void;
 }
 
@@ -118,9 +119,10 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.attachmentCreate, (_event, request) => {
     return runtimeController.createAttachment(request.taskId, request);
   });
-  ipcMain.handle(IPC_CHANNELS.attachmentDelete, (_event, request) => {
-    runtimeController.deleteAttachment(request.taskId, request.attachmentId);
+  ipcMain.handle(IPC_CHANNELS.attachmentCreateReference, (_event, request) => {
+    return runtimeController.createReference(request.paths);
   });
+  ipcMain.handle(IPC_CHANNELS.attachmentPick, () => windowController.pickReferences());
   ipcMain.handle(IPC_CHANNELS.controlSet, (_event, request) => {
     return runtimeController.setControl(request.taskId, request.change);
   });
