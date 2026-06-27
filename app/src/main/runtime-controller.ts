@@ -807,7 +807,19 @@ export class RuntimeController {
 
   submitPrompt(taskId: TaskId, text: string, attachments: DeliveryAttachment[] = []): void {
     const active = this.requireTaskRuntime(taskId);
-    active.deliveryController.enqueue(text, this.normalizeDeliveryAttachments(active, attachments));
+    let normalized: DeliveryAttachment[];
+    try {
+      normalized = this.normalizeDeliveryAttachments(active, attachments);
+    } catch (error) {
+      // Lazy materialization copies bitmap blobs in the renderer BEFORE this
+      // validation runs. If validation now fails (e.g. a referenced path vanished
+      // between attach and send), those just-copied blobs would orphan with no
+      // handle. Clean them transactionally with the failed send (blob-guarded —
+      // referenced originals are never touched), then surface the error.
+      this.cleanupAttachments(taskId, attachments);
+      throw error;
+    }
+    active.deliveryController.enqueue(text, normalized);
   }
 
   createAttachment(

@@ -4985,7 +4985,10 @@ function renderComposerControls(view = activeTaskView()): void {
   // session is born from the first message, never from an empty spawn.
   // Attachments are allowed in a new chat (held in the draft until the first
   // send materializes them).
-  elements.addAttachment.disabled = newChat ? false : !view.live;
+  // Attachments are held lazily (materialized on send), so a live runtime is no
+  // longer required — enable for a new chat and for any session, incl. dormant
+  // (paste/drop already add there; resume-send materializes them).
+  elements.addAttachment.disabled = newChat ? false : !view.task;
   elements.addAttachment.classList.toggle("active", state.composerMenu?.type === "add");
   elements.sendPrompt.disabled = state.busy || (!activeRun && !promptHasText && !hasAttachments);
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText || hasAttachments);
@@ -6163,6 +6166,15 @@ async function addReferences(paths: string[]): Promise<void> {
       name: attachment.originalName,
       kind: attachment.kind,
     });
+  }
+  // createReference skips paths that vanished / are inaccessible — don't drop them
+  // silently (Invariant 5): say how many made it.
+  if (references.length < paths.length) {
+    setComposerStatus(
+      activeTaskView(),
+      `Attached ${references.length} of ${paths.length} — the rest were unavailable.`,
+    );
+    return;
   }
   render();
 }

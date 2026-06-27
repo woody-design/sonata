@@ -27,6 +27,9 @@ try {
   fs.writeFileSync(refImage, redPngBytes());
   fs.writeFileSync(refFile, "pretend pdf");
   fs.mkdirSync(refFolder, { recursive: true });
+  // A 4th, NONEXISTENT path — createReference must skip it (per-path resilience)
+  // and the renderer must surface the partial result, not drop it silently.
+  const missing = path.join(userDir, "gone.txt");
   const attachmentsDir = path.join(workspaceRoot, "data", "attachments");
 
   electronApp = await electron.launch({
@@ -35,7 +38,7 @@ try {
       ...process.env,
       DUET_DATA_DIR: workspaceRoot,
       DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_TEST_PICK_REFERENCES: `${refImage}\n${refFile}\n${refFolder}`,
+      DUET_TEST_PICK_REFERENCES: `${refImage}\n${refFile}\n${refFolder}\n${missing}`,
     },
   });
   const page = await electronApp.firstWindow();
@@ -47,7 +50,12 @@ try {
   await page.locator(".composer-menu-option", { hasText: "Add files & folders" }).click();
   await page.locator(".attachment-chip").nth(2).waitFor({ state: "visible" });
 
+  // 4 picked, 1 missing → exactly 3 chips (the bad one skipped, not crashing the batch).
   checks.threeChips = (await page.locator(".attachment-chip").count()) === 3;
+  // Partial failure surfaced, not silent (Invariant 5).
+  checks.partialFailureSurfaced = (
+    await page.locator("#runtime-status").textContent().catch(() => "")
+  )?.includes("3 of 4");
   // A referenced IMAGE is a square thumbnail (no text) that actually RENDERS; the
   // file + folder are cards.
   const imageChip = page.locator(".attachment-chip-image");
