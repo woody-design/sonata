@@ -17,12 +17,16 @@ import {
   type ResumeSettings,
   normalizeResumeSettings,
 } from "../shared/types/resume-settings";
+import {
+  type WindowStateDocument,
+  normalizeWindowStateDocument,
+} from "../shared/types/window-state";
 
 /**
  * A settings file backed by JSON: read-with-normalize-fallback and
- * atomic temp-file write. The three concrete stores differ only in
- * their type and normalize function, so the invariant lives here
- * (project heuristic: three instances with a shared concept → extract).
+ * atomic temp-file write. Each concrete store differs only in its type and
+ * normalize function, so the invariant lives here (the abstraction was
+ * extracted once three instances shared the concept; more have since followed).
  */
 export class JsonSettingsStore<T> {
   readonly filePath: string;
@@ -90,4 +94,14 @@ export class ClaudeSettingsStore extends JsonSettingsStore<ClaudeSettings> {
 
 export function claudeSettingsPath(): string {
   return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "claude-settings.json");
+}
+
+export class WindowStateStore extends JsonSettingsStore<WindowStateDocument> {
+  constructor(filePath: string) {
+    super(filePath, normalizeWindowStateDocument);
+  }
+}
+
+export function windowStatePath(): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "window-state.json");
 }

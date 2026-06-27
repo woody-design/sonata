@@ -11,4 +11,5 @@ export * from "./sessions";
 export * from "./slash";
 export * from "./transcript";
 export * from "./usage";
+export * from "./window-state";
 export * from "./working-status";

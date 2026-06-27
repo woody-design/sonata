@@ -6,11 +6,9 @@ import {
   dialog,
   Menu,
   nativeTheme,
-  screen,
   shell,
   type MenuItemConstructorOptions,
   type OpenDialogOptions,
-  type Rectangle,
 } from "electron";
 import {
   IPC_CHANNELS,
@@ -34,11 +32,14 @@ import {
   LocalApiSettingsStore,
   ReadingSettingsStore,
   ResumeSettingsStore,
+  WindowStateStore,
   claudeSettingsPath,
   localApiSettingsPath,
   readingSettingsPath,
   resumeSettingsPath,
+  windowStatePath,
 } from "./settings-store";
+import { WindowStateManager, type WindowDefaults } from "./window-state";
 import { LocalApiServer, localApiSocketPath } from "./local-api/local-api-server";
 import { ProjectsStore, projectsStorePath } from "./projects-store";
 
@@ -56,24 +57,21 @@ let inspectorState: InspectorWindowState = {
   taskId: null,
   lens: "run",
 };
-let previewWindowBounds: Rectangle | null = null;
-let inspectorWindowBounds: Rectangle | null = null;
+let windowState: WindowStateManager | null = null;
 
-interface FloatingWindowDefaults {
-  width: number;
-  height: number;
-  minWidth: number;
-  minHeight: number;
-}
-
-const MIN_RESTORED_VISIBLE_EDGE = 80;
-const PREVIEW_WINDOW_DEFAULTS: FloatingWindowDefaults = {
+const MAIN_WINDOW_DEFAULTS: WindowDefaults = {
+  width: 1280,
+  height: 860,
+  minWidth: 960,
+  minHeight: 640,
+};
+const PREVIEW_WINDOW_DEFAULTS: WindowDefaults = {
   width: 980,
   height: 760,
   minWidth: 560,
   minHeight: 420,
 };
-const INSPECTOR_WINDOW_DEFAULTS: FloatingWindowDefaults = {
+const INSPECTOR_WINDOW_DEFAULTS: WindowDefaults = {
   width: 1080,
   height: 760,
   minWidth: 620,
@@ -81,11 +79,17 @@ const INSPECTOR_WINDOW_DEFAULTS: FloatingWindowDefaults = {
 };
 
 function createMainWindow(): BrowserWindow {
+  const decision = windowState?.restore("main", MAIN_WINDOW_DEFAULTS);
   const window = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 960,
-    minHeight: 640,
+    ...(decision?.bounds ?? {
+      width: MAIN_WINDOW_DEFAULTS.width,
+      height: MAIN_WINDOW_DEFAULTS.height,
+    }),
+    minWidth: MAIN_WINDOW_DEFAULTS.minWidth,
+    minHeight: MAIN_WINDOW_DEFAULTS.minHeight,
+    // Only set fullscreen when restoring into it — passing `false` explicitly
+    // disables the macOS fullscreen (green) button.
+    ...(decision?.fullScreen ? { fullscreen: true } : {}),
     title: "Duet",
     // Full-height sidebar window (Notion/Codex/Finder pattern): no OS titlebar
     // strip — the renderer owns the whole window and the traffic lights float
@@ -113,7 +117,7 @@ function createMainWindow(): BrowserWindow {
   });
 
   window.loadFile(path.join(__dirname, "../renderer/index.html"));
-
+  windowState?.track(window, "main");
   window.on("closed", () => {
     if (mainWindow === window) {
       mainWindow = null;
@@ -124,10 +128,17 @@ function createMainWindow(): BrowserWindow {
 }
 
 function createPreviewWindow(): BrowserWindow {
+  const decision = windowState?.restore("preview", PREVIEW_WINDOW_DEFAULTS);
   const window = new BrowserWindow({
-    ...restoredFloatingWindowBounds(previewWindowBounds, PREVIEW_WINDOW_DEFAULTS),
+    ...(decision?.bounds ?? {
+      width: PREVIEW_WINDOW_DEFAULTS.width,
+      height: PREVIEW_WINDOW_DEFAULTS.height,
+    }),
     minWidth: PREVIEW_WINDOW_DEFAULTS.minWidth,
     minHeight: PREVIEW_WINDOW_DEFAULTS.minHeight,
+    // Only set fullscreen when restoring into it — passing `false` explicitly
+    // disables the macOS fullscreen (green) button.
+    ...(decision?.fullScreen ? { fullscreen: true } : {}),
     title: "Duet Preview",
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
@@ -143,10 +154,7 @@ function createPreviewWindow(): BrowserWindow {
   });
 
   window.loadFile(path.join(__dirname, "../renderer/preview.html"));
-  trackFloatingWindowBounds(window, (bounds) => {
-    previewWindowBounds = bounds;
-  });
-
+  windowState?.track(window, "preview");
   window.on("closed", () => {
     if (previewWindow === window) {
       previewWindow = null;
@@ -157,10 +165,17 @@ function createPreviewWindow(): BrowserWindow {
 }
 
 function createInspectorWindow(): BrowserWindow {
+  const decision = windowState?.restore("inspector", INSPECTOR_WINDOW_DEFAULTS);
   const window = new BrowserWindow({
-    ...restoredFloatingWindowBounds(inspectorWindowBounds, INSPECTOR_WINDOW_DEFAULTS),
+    ...(decision?.bounds ?? {
+      width: INSPECTOR_WINDOW_DEFAULTS.width,
+      height: INSPECTOR_WINDOW_DEFAULTS.height,
+    }),
     minWidth: INSPECTOR_WINDOW_DEFAULTS.minWidth,
     minHeight: INSPECTOR_WINDOW_DEFAULTS.minHeight,
+    // Only set fullscreen when restoring into it — passing `false` explicitly
+    // disables the macOS fullscreen (green) button.
+    ...(decision?.fullScreen ? { fullscreen: true } : {}),
     title: "Duet Inspector",
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
@@ -176,10 +191,7 @@ function createInspectorWindow(): BrowserWindow {
   });
 
   window.loadFile(path.join(__dirname, "../renderer/inspector.html"));
-  trackFloatingWindowBounds(window, (bounds) => {
-    inspectorWindowBounds = bounds;
-  });
-
+  windowState?.track(window, "inspector");
   window.on("closed", () => {
     if (inspectorWindow === window) {
       inspectorWindow = null;
@@ -187,62 +199,6 @@ function createInspectorWindow(): BrowserWindow {
   });
 
   return window;
-}
-
-function restoredFloatingWindowBounds(
-  savedBounds: Rectangle | null,
-  defaults: FloatingWindowDefaults,
-): Pick<Rectangle, "x" | "y" | "width" | "height"> | Pick<Rectangle, "width" | "height"> {
-  if (!savedBounds) {
-    return {
-      width: defaults.width,
-      height: defaults.height,
-    };
-  }
-
-  const bounds = {
-    x: savedBounds.x,
-    y: savedBounds.y,
-    width: Math.max(savedBounds.width, defaults.minWidth),
-    height: Math.max(savedBounds.height, defaults.minHeight),
-  };
-
-  if (!isWindowVisibleOnAnyDisplay(bounds)) {
-    return {
-      width: defaults.width,
-      height: defaults.height,
-    };
-  }
-
-  return bounds;
-}
-
-function isWindowVisibleOnAnyDisplay(bounds: Pick<Rectangle, "x" | "y" | "width" | "height">): boolean {
-  return screen.getAllDisplays().some((display) => {
-    const visibleWidth =
-      Math.min(bounds.x + bounds.width, display.workArea.x + display.workArea.width) -
-      Math.max(bounds.x, display.workArea.x);
-    const visibleHeight =
-      Math.min(bounds.y + bounds.height, display.workArea.y + display.workArea.height) -
-      Math.max(bounds.y, display.workArea.y);
-    return visibleWidth >= MIN_RESTORED_VISIBLE_EDGE && visibleHeight >= MIN_RESTORED_VISIBLE_EDGE;
-  });
-}
-
-function trackFloatingWindowBounds(
-  window: BrowserWindow,
-  saveBounds: (bounds: Rectangle) => void,
-): void {
-  const rememberBounds = (): void => {
-    if (window.isDestroyed() || window.isMinimized()) {
-      return;
-    }
-    saveBounds(window.getBounds());
-  };
-
-  window.on("move", rememberBounds);
-  window.on("resize", rememberBounds);
-  window.on("close", rememberBounds);
 }
 
 async function openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState> {
@@ -659,6 +615,7 @@ app.whenReady().then(() => {
     closeTaskSurfaces,
   }, readingSettingsStore);
   createApplicationMenu();
+  windowState = new WindowStateManager(new WindowStateStore(windowStatePath()));
   mainWindow = createMainWindow();
 
   app.on("activate", () => {
@@ -682,6 +639,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  windowState?.flush();
   localApiServer?.stop();
   localApiServer = null;
   runtimeController?.dispose();
