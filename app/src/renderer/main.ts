@@ -1696,13 +1696,6 @@ appElement.innerHTML = `
            Terminal gets full height and never needs resizing. Typing here goes
            straight to the live CLI — no take-over gesture (S2). -->
       <section id="terminal-pane" class="terminal-pane hidden" aria-label="Terminal">
-        <div class="terminal-pane-header">
-          <div>
-            <p id="terminal-pane-eyebrow" class="eyebrow hidden"></p>
-            <strong id="terminal-pane-title">Live terminal</strong>
-          </div>
-          <div id="terminal-pane-status" class="terminal-pane-status"></div>
-        </div>
         <div id="terminal-search" class="terminal-search hidden" role="search">
           <input
             id="terminal-search-input"
@@ -1787,9 +1780,6 @@ const elements = {
   sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
   runColumn: getElement<HTMLElement>("run-column"),
   terminalPane: getElement<HTMLElement>("terminal-pane"),
-  terminalPaneEyebrow: getElement<HTMLElement>("terminal-pane-eyebrow"),
-  terminalPaneTitle: getElement<HTMLElement>("terminal-pane-title"),
-  terminalPaneStatus: getElement<HTMLDivElement>("terminal-pane-status"),
   terminal: getElement<HTMLDivElement>("terminal"),
   terminalSearch: getElement<HTMLDivElement>("terminal-search"),
   terminalSearchInput: getElement<HTMLInputElement>("terminal-search-input"),
@@ -8806,7 +8796,6 @@ function setViewMode(mode: ViewMode): void {
 function renderTerminalPane(): void {
   const view = activeTaskView();
   const inTerminal = (view?.viewMode ?? "read") === "terminal";
-  const live = Boolean(view?.live);
 
   // Swap which surface fills the workspace. Explicit .hidden overrides matter:
   // a bare .hidden{display:none} loses to .run-column/.terminal-pane{display:flex}
@@ -8821,27 +8810,6 @@ function renderTerminalPane(): void {
   elements.viewTerminal.setAttribute("aria-selected", String(inTerminal));
   elements.viewTerminal.disabled = !view?.task;
 
-  // No take-over gesture (S2): typing here just goes to the live CLI. The echoing
-  // cursor already shows you're driving, so the cue is a calm label — not the old
-  // terracotta alarm.
-  elements.terminalPaneTitle.textContent = live
-    ? "Live terminal"
-    : "No live session — send a message to start";
-  elements.terminalPaneEyebrow.textContent = live ? "Keys go to the live CLI" : "";
-  elements.terminalPaneEyebrow.classList.toggle("hidden", !live);
-
-  // The promise: a queued Duet message isn't lost — it sends once you're done
-  // typing here (the activity window clears and the queue re-pumps). Shown only
-  // when something is actually waiting, so it explains the wait rather than nags.
-  const queuedCount = (view?.deliveryState?.queue ?? []).filter(
-    (item) => item.status === "queued",
-  ).length;
-  elements.terminalPaneStatus.textContent =
-    live && queuedCount > 0
-      ? queuedCount === 1
-        ? "1 message will send when you’re done here"
-        : `${queuedCount} messages will send when you’re done here`
-      : "";
   updateTerminalNeedsYou();
 }
 
