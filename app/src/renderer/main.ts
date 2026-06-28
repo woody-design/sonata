@@ -5430,7 +5430,6 @@ function renderComposerControls(view = activeTaskView()): void {
   const hasAttachments = newChat
     ? state.draftAttachments.length > 0
     : (view?.pendingAttachments.length ?? 0) > 0;
-  const focused = document.activeElement === elements.promptInput;
   renderComposerChip(
     elements.permissionChip,
     composerChipLabel(view, "permission"),
@@ -5460,10 +5459,6 @@ function renderComposerControls(view = activeTaskView()): void {
   elements.promptInput.disabled = state.busy && !newChat;
   elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
-  elements.composer.classList.toggle("is-focused", focused);
-  elements.composer.classList.toggle("is-drafting", promptHasText || hasAttachments);
-  elements.composer.classList.toggle("has-attachments", hasAttachments);
-  elements.composer.classList.toggle("is-idle", !newChat && !focused && !promptHasText && !hasAttachments);
 }
 
 function renderUsageIndicator(view: TaskViewState | null): void {

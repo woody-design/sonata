@@ -2923,8 +2923,18 @@ h2 {
 
 #prompt-input {
   width: 100%;
-  min-height: 28px;
-  max-height: 38vh;
+  /* Auto-grow: the field's height is a direct readout of how much you've
+     written — nothing else moves it. It opens at 2 lines, grows line by line
+     with content, then caps at the smaller of a third of the window or ~12
+     lines and scrolls internally. `field-sizing: content` (Chromium 123+; we
+     ship 140) does this in pure CSS — no scrollHeight bookkeeping. Height is
+     deliberately decoupled from focus: focus is shown by the composer's
+     ring/shadow (.composer:focus-within), not by resizing the field. Growth
+     is intentionally un-animated so it tracks the caret without lag. */
+  field-sizing: content;
+  min-height: calc(2lh + 4px);
+  max-height: min(33vh, 12lh);
+  overflow-y: auto;
   resize: none;
   border: 0;
   border-radius: 16px;
@@ -2932,17 +2942,6 @@ h2 {
   color: var(--ink-strong);
   background: transparent;
   line-height: 1.45;
-  transition: min-height 120ms ease;
-}
-
-.composer.is-focused #prompt-input,
-.composer.is-drafting #prompt-input,
-.composer.has-attachments #prompt-input {
-  min-height: 112px;
-}
-
-.composer.is-drafting #prompt-input {
-  min-height: 132px;
 }
 
 #prompt-input:focus {
