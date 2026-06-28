@@ -7575,6 +7575,14 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   const answerBlocks = turn.blocks.filter(isAnswerBlock);
   const noAssistantOutput = turnCompletedWithoutAssistantOutput(turn);
   const liveRun = Boolean(turn.run && isActiveRunStatus(turn.run.status));
+  // The live activity row (renderTurnStatusRow, the "✱ Beaming…" line) and the
+  // turn footer both surface working status. While the run streams, the activity
+  // row owns it, so the footer — which would just repeat "<provider> is working ·
+  // running · pending · provider transcript" — is suppressed. It returns once the
+  // run settles, carrying the real post-hoc summary (outcome, elapsed, changes,
+  // clickable artifacts, provenance). waiting-for-approval keeps the footer (it
+  // shows "Waiting for … approval" and has no activity row).
+  const showsLiveActivity = liveRun && turn.run?.status !== "waiting-for-approval";
   if (turn.run && (workBlocks.length > 0 || !liveRun)) {
     card.append(renderTurnWorkTrace(turn, workBlocks, noAssistantOutput));
   }
@@ -7598,11 +7606,11 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
     card.append(body);
   }
 
-  if (liveRun && turn.run?.status !== "waiting-for-approval") {
+  if (showsLiveActivity) {
     card.append(renderTurnStatusRow(view, turn));
   }
 
-  if (turn.run) {
+  if (turn.run && !showsLiveActivity) {
     card.append(renderTurnFooter(turn.run, turn.blocks.length > 0, noAssistantOutput));
   }
   return card;
