@@ -1656,7 +1656,7 @@ appElement.innerHTML = `
 
         <form id="composer" class="composer">
           <div id="attachment-strip" class="attachment-strip hidden" aria-label="Attachments"></div>
-          <textarea id="prompt-input" rows="1" placeholder="Start or open a Task"></textarea>
+          <textarea id="prompt-input" placeholder="Start or open a Task"></textarea>
           <div class="composer-control-row">
             <div class="composer-control-left">
               <button id="add-attachment" class="composer-icon-button" type="button" aria-label="Add photos & files">+</button>
