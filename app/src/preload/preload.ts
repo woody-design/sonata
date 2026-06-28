@@ -144,6 +144,8 @@ const duetRuntime: DuetRuntimeBridge = {
   readUsage: (request) => ipcRenderer.invoke(IPC_CHANNELS.usageRead, request),
   readSlashCommands: (request) => ipcRenderer.invoke(IPC_CHANNELS.slashCommandsRead, request),
   dismissModal: (request) => ipcRenderer.invoke(IPC_CHANNELS.modalDismiss, request),
+  injectRemoteControl: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.remoteControlInject, request),
   listArtifacts: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactList, request),
   readArtifact: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactRead, request),
   openPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewOpen, request),

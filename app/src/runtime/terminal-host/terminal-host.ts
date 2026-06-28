@@ -26,12 +26,42 @@ import type {
   TaskId,
 } from "../../shared/types/domain";
 import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
+import type { RemoteControlInjectResponse } from "../../shared/types/ipc";
 import { ensureClaudeRuntimeSettings } from "../cli-signal";
 import { shellQuotePath } from "../shell-quote";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
 export const BRACKETED_PASTE_END = "\x1b[201~";
 export const CSI_U_ENTER = "\x1b[13u";
+
+// Remote Control stream detection (pure; unit-tested in
+// tests/smoke/remote-control-detect-units.mjs). See detectRemoteControlState.
+export const REMOTE_CONTROL_SCAN_LIMIT = 2048;
+const REMOTE_CONTROL_URL_RE = /https:\/\/claude\.(?:ai|com)\/code\/session_[A-Za-z0-9_-]+/;
+
+/** Strip CSI escapes and ALL whitespace. claude word-positions panel/result text
+ *  with cursor moves (`\x1b[NG`) instead of spaces, so a positioned line glues
+ *  after stripping — matching the compacted form is whitespace- and
+ *  position-insensitive. Apply to the accumulated RAW tail so a split landing
+ *  inside an escape reassembles before stripping. */
+export function compactRemoteControlScan(raw: string): string {
+  return raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\s+/g, "");
+}
+
+/** The OFF signal: claude's "Remote Control disconnected." Case kept (its own
+ *  capitalization) so lowercase model prose can't trip it; the glued form also
+ *  excludes the panel option "Disconnect this session" and the slash menu. */
+export function hasRemoteControlDisconnect(compact: string): boolean {
+  return compact.includes("RemoteControldisconnected");
+}
+
+/** The session link (for display), or null. Takes the RAW scan and strips ONLY
+ *  escapes (whitespace preserved) so the id stops at the space/glyph after it —
+ *  fully compacting would glue a trailing word onto the session id. The id char
+ *  class includes `-`/`_` so a hyphenated/base64url id is never truncated. */
+export function findRemoteControlUrl(raw: string): string | null {
+  return raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").match(REMOTE_CONTROL_URL_RE)?.[0] ?? null;
+}
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
 export const SHIFT_TAB = "\x1b[Z";
@@ -269,6 +299,9 @@ export interface StartTaskOptions {
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
   speedMode?: LaunchSpeedMode | null;
+  /** Claude only: spawn with `--remote-control` so the session is phone-
+   *  reachable from the start (the "arm at session start" path). */
+  remoteControl?: boolean;
   resumeLast?: boolean;
   /** Provider session id to resume natively (claude --resume / codex resume). */
   resumeRef?: string;
@@ -398,6 +431,18 @@ export class TerminalHost extends EventEmitter {
   private recentAttributionRun: RecentAttributionRun | null = null;
   private activeRunRaw = "";
   private modalActive = false;
+  // Remote Control (phone access) — tracked optimistically; no hook/structured
+  // signal exists for it, and the footer "/rc active" is a volatile TUI scrape
+  // we refuse. `injectRemoteControl` flips us active; the scraped session URL
+  // confirms and carries the phone link.
+  private remoteControlActive = false;
+  private remoteControlUrl: string | null = null;
+  // Rolling RAW tail (capped). While active we compact it (escapes + whitespace
+  // removed) to detect the OFF line and to capture the URL — robust to claude's
+  // word-positioned redraw (glued words) AND to a split landing inside a word OR
+  // inside an escape sequence. Reset on every transition so a stale match can't
+  // fire after a reconnect.
+  private remoteControlScan = "";
   private modalSignature: string | null = null;
   /** How the panel was armed: slash panels have probe-verified Esc
    *  semantics; ambient (startup/idle) panels do NOT — Esc on the resume
@@ -529,6 +574,9 @@ export class TerminalHost extends EventEmitter {
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
     this.clearTaskReadyTimer();
+    this.remoteControlActive = false;
+    this.remoteControlUrl = null;
+    this.remoteControlScan = "";
     this.startFileWatcher(cwd);
 
     const command = options.command ?? this.profile.defaultCommand;
@@ -554,6 +602,11 @@ export class TerminalHost extends EventEmitter {
       if (this.userControlActive) {
         // Control never outlives the process that granted it.
         this.setUserControl(false, "pty-exit");
+      }
+      // RC never outlives the process either — clear it so the header button
+      // doesn't keep showing "on" for a dead/crashed session.
+      if (this.remoteControlActive) {
+        this.setRemoteControlActive(false, null);
       }
       this.emitEvent("pty:exit", {
         taskId: this.taskId,
@@ -583,6 +636,14 @@ export class TerminalHost extends EventEmitter {
       persistence: "raw-terminal-memory-only",
     });
 
+    // Spawned with `--remote-control`: arm our state immediately (symmetric with
+    // injectRemoteControl). Activation is OUR signal, never the scraped URL — so
+    // disconnect detection is armed from the start even if the URL line never
+    // scrapes cleanly, and the URL scrape becomes pure link-capture (below).
+    if (options.remoteControl) {
+      this.setRemoteControlActive(true);
+    }
+
     return {
       pid: this.ptyProcess.pid,
       cwd,
@@ -596,6 +657,100 @@ export class TerminalHost extends EventEmitter {
       throw new Error("No PTY process is running.");
     }
     this.ptyProcess.write(data);
+  }
+
+  /**
+   * Inject `/remote-control` out-of-band (NOT via the delivery queue). claude
+   * handles `/rc` as a client-side command in parallel with any active turn, so
+   * this works mid-stream (verified 2026-06-27, claude 2.1.195): when OFF it
+   * connects; when already ON it opens claude's native Remote Control panel
+   * (Disconnect / Show QR / Continue). Held under the write-lock so a human
+   * keystroke mid-inject buffers instead of splitting the paste. An open
+   * approval/modal panel would swallow the command, so we refuse in that state
+   * and report it rather than flip to a false "on".
+   */
+  injectRemoteControl(): RemoteControlInjectResponse {
+    if (!this.ptyProcess) {
+      return { ok: false, reason: "no-process" };
+    }
+    if (this.userControlActive) {
+      return { ok: false, reason: "user-control" };
+    }
+    if (this.approvalActive || this.modalActive) {
+      return { ok: false, reason: "panel-open" };
+    }
+    // The write-lock (beginDuetWrite) only BUFFERS human keystrokes; it does NOT
+    // serialise two automation writers. If a prompt delivery is mid-sequence (its
+    // deferred paste/Enter still pending), injecting now would interleave `/rc`
+    // bytes with the prompt's — refuse and let the caller retry once it clears.
+    if (this.duetWriting) {
+      return { ok: false, reason: "busy" };
+    }
+    this.beginDuetWrite();
+    this.ptyProcess.write(`${BRACKETED_PASTE_START}/remote-control${BRACKETED_PASTE_END}`);
+    // Defer the Enter under the held lock (mirrors the prompt-delivery path): a
+    // human keystroke landing in the gap buffers rather than splitting the frame.
+    this.deferDuetWrite(120, () => {
+      if (this.ptyProcess && !this.userControlActive) {
+        this.ptyProcess.write(CSI_U_ENTER);
+      }
+    });
+    this.endDuetWrite();
+    // Optimistic: we asked to connect. The scraped URL confirms + carries the
+    // link. A second invocation opens the panel (still active), so flipping to
+    // true is always correct here.
+    this.setRemoteControlActive(true);
+    return { ok: true };
+  }
+
+  private setRemoteControlActive(active: boolean, url?: string | null): void {
+    const nextUrl = url === undefined ? this.remoteControlUrl : url;
+    if (this.remoteControlActive === active && this.remoteControlUrl === nextUrl) {
+      return;
+    }
+    this.remoteControlActive = active;
+    this.remoteControlUrl = nextUrl;
+    // Fresh scan window per transition: prevents a stale "disconnected" (or a
+    // stale URL) in the rolling tail from firing again right after a reconnect.
+    this.remoteControlScan = "";
+    this.emitEvent("remote-control:state", {
+      taskId: this.taskId,
+      active: this.remoteControlActive,
+      url: this.remoteControlUrl,
+    });
+  }
+
+  /**
+   * Remote Control has NO hook/structured channel (confirmed), so we read its
+   * stream — but ONLY while we already believe RC is on. Activation is always OUR
+   * own signal (`injectRemoteControl` or the `--remote-control` spawn flag), never
+   * a scraped URL: a `claude.ai/code/session_…` link can appear in model output, a
+   * file, or a RESUMED transcript, and must not flip RC on with a foreign link.
+   * Once active, the rolling RAW tail is compacted (escapes + ALL whitespace
+   * removed) so two things are robust against claude's word-POSITIONED redraw
+   * (`This\x1b[9Gsession\x1b[17Gis…` — words glue after stripping) AND against a
+   * PTY split landing inside a word or inside an escape sequence (we accumulate
+   * RAW and strip the whole tail, so a split escape reassembles first):
+   *   OFF → claude's `Remote Control disconnected.` line (whitespace-insensitive;
+   *         case kept so model prose "…remote control disconnected…" can't trip it).
+   *   URL → the session link, captured once for display.
+   * (verified 2026-06-27/28, claude 2.1.195 — re-validate on claude upgrades).
+   */
+  private detectRemoteControlState(data: string): void {
+    if (!this.remoteControlActive) {
+      return;
+    }
+    this.remoteControlScan = (this.remoteControlScan + data).slice(-REMOTE_CONTROL_SCAN_LIMIT);
+    if (hasRemoteControlDisconnect(compactRemoteControlScan(this.remoteControlScan))) {
+      this.setRemoteControlActive(false, null);
+      return;
+    }
+    if (!this.remoteControlUrl) {
+      const url = findRemoteControlUrl(this.remoteControlScan);
+      if (url) {
+        this.setRemoteControlActive(true, url);
+      }
+    }
   }
 
   isUserControlActive(): boolean {
@@ -1480,6 +1635,9 @@ export class TerminalHost extends EventEmitter {
     if (this.userControlActive) {
       this.setUserControl(false, "pty-exit");
     }
+    if (this.remoteControlActive) {
+      this.setRemoteControlActive(false, null);
+    }
     const proc = this.ptyProcess;
     this.ptyProcess = null;
     try {
@@ -1509,6 +1667,7 @@ export class TerminalHost extends EventEmitter {
       this.activeRunRaw = `${this.activeRunRaw}${data}`.slice(-this.scrollbackLimit);
     }
     this.emitEvent("pty:data", { taskId: this.taskId, data });
+    this.detectRemoteControlState(data);
     this.detectApproval();
     if (this.isHumanActivelyTyping()) {
       // While the human is typing in the terminal they may be answering a native
@@ -2318,6 +2477,7 @@ export function claudeArgs(options: {
   settingsPath?: string | null | undefined;
   resumeRef?: string | undefined;
   sessionId?: string | undefined;
+  remoteControl?: boolean | undefined;
 }): string[] {
   return [
     ...(options.resumeRef ? ["--resume", options.resumeRef] : []),
@@ -2329,6 +2489,9 @@ export function claudeArgs(options: {
     ...(options.settingsPath ? ["--settings", options.settingsPath] : []),
     ...(options.model?.trim() ? ["--model", options.model.trim()] : []),
     ...(options.reasoningEffort ? ["--effort", options.reasoningEffort] : []),
+    // MUST stay last: `--remote-control [name]` takes an OPTIONAL positional
+    // name, so any flag placed after it would be swallowed as the name.
+    ...(options.remoteControl ? ["--remote-control"] : []),
   ];
 }
 
@@ -2370,6 +2533,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           ),
           resumeRef: options.resumeRef,
           sessionId: options.sessionId,
+          remoteControl: options.remoteControl,
         }),
       approvalHints: {
         fileRead: CLAUDE_FILE_READ_APPROVAL_HINTS,

@@ -181,6 +181,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.modalDismiss, (_event, request) =>
     runtimeController.dismissModal(request.taskId),
   );
+  ipcMain.handle(IPC_CHANNELS.remoteControlInject, (_event, request) =>
+    runtimeController.injectRemoteControl(request.taskId),
+  );
   ipcMain.handle(IPC_CHANNELS.artifactList, (_event, request) =>
     runtimeController.listArtifacts(request.taskId),
   );

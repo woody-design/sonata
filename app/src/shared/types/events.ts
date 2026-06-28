@@ -222,6 +222,23 @@ export type ModalStateEvent = BaseRuntimeEvent<
 >;
 
 /**
+ * Remote Control (phone access) state for a task changed. v1 rides Claude
+ * Code's native `/remote-control`: `active` is tracked optimistically (we
+ * injected `/rc`, verified to work mid-stream); `url` is the session link
+ * scraped from the stream — the one datum with no hook/structured channel,
+ * matched by its stable format, never the surrounding prose. The phone surface
+ * is Anthropic's claude.ai/code + Claude app, not a Duet-built UI.
+ */
+export type RemoteControlStateEvent = BaseRuntimeEvent<
+  "remote-control:state",
+  {
+    taskId: TaskId;
+    active: boolean;
+    url: string | null;
+  }
+>;
+
+/**
  * The human took (or released) direct keyboard control of the task
  * terminal. While active, Duet is locked out as a writer: delivery pauses
  * and every automation write path is guarded. P1b evidence (2026-06-12):
@@ -417,6 +434,7 @@ export type ProductRuntimeEvent =
   | OptionPromptDetectedEvent
   | OptionPromptResolvedEvent
   | ModalStateEvent
+  | RemoteControlStateEvent
   | TerminalUserControlEvent
   | FileWatchingEvent
   | FileWatchErrorEvent
@@ -441,6 +459,7 @@ export type RunIndexEvent = Exclude<
   | DeliveryReceiptEvent
   | TaskUpdatedEvent
   | ModalStateEvent
+  | RemoteControlStateEvent
   | OptionPromptDetectedEvent
   | OptionPromptResolvedEvent
   | TerminalUserControlEvent

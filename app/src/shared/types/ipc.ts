@@ -63,6 +63,7 @@ export const IPC_CHANNELS = {
   usageRead: "usage:read",
   slashCommandsRead: "slash:commands:read",
   modalDismiss: "modal:dismiss",
+  remoteControlInject: "remote-control:inject",
   artifactList: "artifact:list",
   artifactRead: "artifact:read",
   previewOpen: "preview:open",
@@ -104,6 +105,8 @@ export interface CreateTaskRequest {
   sandbox?: CodexSandboxMode;
   approval?: CodexApprovalMode;
   permissionMode?: ClaudePermissionMode;
+  /** Claude only: start the session with Remote Control on (spawn `--remote-control`). */
+  remoteControl?: boolean;
   rows?: number;
   cols?: number;
 }
@@ -130,6 +133,8 @@ export interface OpenTaskRequest {
   sandbox?: CodexSandboxMode;
   approval?: CodexApprovalMode;
   permissionMode?: ClaudePermissionMode;
+  /** Claude only: resume the session with Remote Control on (spawn `--remote-control`). */
+  remoteControl?: boolean;
   /**
    * Natively resume the provider session when its file still exists
    * (default). Pass false to force a fresh provider session.
@@ -262,6 +267,16 @@ export interface DismissModalRequest {
 export interface DismissModalResponse {
   cleared: boolean;
 }
+
+export interface RemoteControlInjectRequest {
+  taskId: TaskId;
+}
+
+/** Result of injecting `/remote-control`. `panel-open` means an approval/modal
+ *  panel would have swallowed the command, so nothing was sent. */
+export type RemoteControlInjectResponse =
+  | { ok: true }
+  | { ok: false; reason: "no-process" | "user-control" | "panel-open" | "busy" };
 
 export interface StopRunRequest {
   taskId: TaskId;
@@ -482,6 +497,9 @@ export interface DuetRuntimeBridge {
   readUsage(request: ReadUsageRequest): Promise<ReadUsageResponse>;
   readSlashCommands(request: ReadSlashCommandsRequest): Promise<SlashCommandsResponse>;
   dismissModal(request: DismissModalRequest): Promise<DismissModalResponse>;
+  injectRemoteControl(
+    request: RemoteControlInjectRequest,
+  ): Promise<RemoteControlInjectResponse>;
   listArtifacts(request: ListArtifactsRequest): Promise<ArtifactCandidate[]>;
   readArtifact(request: ReadArtifactRequest): Promise<ArtifactPreviewResponse>;
   openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;

@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Copy,
   Ellipsis,
   Eye,
   File as FileIcon,
@@ -20,6 +21,7 @@ import {
   PanelLeft,
   Plus,
   SearchCode,
+  Smartphone,
   SquarePen,
   X,
   type IconNode,
@@ -158,6 +160,13 @@ interface TaskViewState {
   /** A native TUI panel owns the provider screen — slash-opened (Esc
    *  verified) or ambient (startup/idle interstitial; Esc hazardous). */
   modalPanel: { signature: string | null; origin: "slash" | "ambient" | null } | null;
+  /** Remote Control (phone access) for this task. `active` is optimistic (we
+   *  injected `/rc`); `url` is the session link scraped from the stream — the
+   *  phone surface is Anthropic's Claude app, not a Duet-built UI. */
+  /** `active`/`url`: the LIVE connected state (from `remote-control:state`). For a
+   *  DORMANT view, `armedOverride` is the "will start with RC" desire — null =
+   *  follow the global default (`state.remoteControlDefault`); true/false = user set. */
+  remoteControl: { active: boolean; url: string | null; armedOverride: boolean | null };
   /** The pre-spawn resume moment is waiting for the user's choice. */
   resumeChoice: { idleMs: number | null; totalTokens: number | null; bridgeDismissed: boolean } | null;
   status: string;
@@ -192,6 +201,13 @@ interface RendererState {
   readingSettings: ReadingSettings;
   readingPopoverOpen: boolean;
   readingPopoverAnchor: PopoverAnchor | null;
+  remoteControlPopoverOpen: boolean;
+  remoteControlPopoverAnchor: PopoverAnchor | null;
+  /** Transient note shown in the RC popover (e.g. why Turn on was refused). */
+  remoteControlNote: string | null;
+  /** The global "auto-enable Remote Control" default (Claude settings). Seeds
+   *  the New Chat draft AND newly-opened dormant sessions so both arm on start. */
+  remoteControlDefault: boolean;
   promptNav: PromptNavState | null;
   /** The Settings page (centered overlay) is open; null when closed. */
   settingsOverlay: SettingsOverlayState | null;
@@ -268,6 +284,9 @@ interface TaskLaunchDraft {
   model: Record<RuntimeProvider, string | null>;
   reasoningEffort: Record<RuntimeProvider, ReasoningEffort | null>;
   speedMode: Record<RuntimeProvider, LaunchSpeedMode | null>;
+  /** New chat: arm Remote Control so the session spawns with `--remote-control`
+   *  (Claude only). The "arm at session start" entry point. */
+  remoteControl: boolean;
 }
 
 interface TaskEntryMessage {
@@ -300,6 +319,7 @@ const state: RendererState = {
       codex: "default",
       claude: null,
     },
+    remoteControl: false,
   },
   draftAttachments: [],
   composerMenu: null,
@@ -308,6 +328,10 @@ const state: RendererState = {
   readingSettings: bootReadingSettingsFromDom(),
   readingPopoverOpen: false,
   readingPopoverAnchor: null,
+  remoteControlPopoverOpen: false,
+  remoteControlPopoverAnchor: null,
+  remoteControlNote: null,
+  remoteControlDefault: false,
   promptNav: null,
   settingsOverlay: null,
   busy: false,
@@ -1444,6 +1468,10 @@ function startNewChat(folder?: string | null): void {
     state.taskDraft.cwd = sessionIndex?.lastUsedFolder ?? state.taskDraft.cwd;
   }
   state.taskDraft.message = null;
+  // Each New Chat starts from the global default, so a per-chat toggle never
+  // leaks into the next one ("Auto-enable Remote Control" means NEW sessions
+  // come up on, regardless of what the previous draft was set to).
+  state.taskDraft.remoteControl = state.remoteControlDefault;
   render();
   elements.promptInput.focus();
 }
@@ -1545,11 +1573,13 @@ appElement.innerHTML = `
           aria-expanded="false"
           title="Reading Controls"
         >Aa</button>
+        <button id="remote-control-toggle" class="chrome-icon-button" type="button" aria-haspopup="dialog" aria-expanded="false" title="Remote control" aria-label="Remote control"></button>
         <button id="open-preview-window" class="chrome-icon-button" type="button" title="Preview" aria-label="Open Preview"></button>
         <button id="open-inspector-window" class="chrome-icon-button" type="button" title="Inspector" aria-label="Open Inspector"></button>
       </div>
     </header>
     <div id="reading-popover-root"></div>
+    <div id="remote-control-popover-root"></div>
 
     <section class="workspace">
       <section id="run-column" class="run-column" aria-label="Run reading surface">
@@ -1702,6 +1732,8 @@ const elements = {
   runtimeStatus: getElement<HTMLSpanElement>("runtime-status"),
   readingSettings: getElement<HTMLButtonElement>("reading-settings"),
   readingPopoverRoot: getElement<HTMLDivElement>("reading-popover-root"),
+  remoteControlToggle: getElement<HTMLButtonElement>("remote-control-toggle"),
+  remoteControlPopoverRoot: getElement<HTMLDivElement>("remote-control-popover-root"),
   openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
   openInspectorWindow: getElement<HTMLButtonElement>("open-inspector-window"),
   viewRead: getElement<HTMLButtonElement>("view-read"),
@@ -2400,6 +2432,7 @@ elements.sidebarCollapse.append(lucideIcon(PanelLeft));
 elements.sessionMenuTrigger.append(lucideIcon(Ellipsis));
 elements.openPreviewWindow.append(lucideIcon(Eye));
 elements.openInspectorWindow.append(lucideIcon(SearchCode));
+elements.remoteControlToggle.append(lucideIcon(Smartphone));
 elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIcon(SquarePen));
 
 const SIDEBAR_COLLAPSED_KEY = "duet.sidebar.collapsed";
@@ -2580,6 +2613,14 @@ elements.readingSettings.addEventListener("click", (event) => {
   toggleReadingPopover(event.currentTarget as HTMLElement);
 });
 
+elements.remoteControlToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  if (remoteControlContext().mode === "unavailable") {
+    return;
+  }
+  toggleRemoteControlPopover(event.currentTarget as HTMLElement);
+});
+
 // Terminal height needs no management now: in Terminal mode the pane fills the
 // whole workspace (full height, no stacking, no drag-to-resize). The old
 // resizable bottom-drawer floor — and its persisted height + drag handle —
@@ -2726,6 +2767,20 @@ async function hydrateReadingSettings(): Promise<void> {
   }
 }
 
+/** Seed the global "Auto-enable Remote Control" default (and the New Chat draft
+ *  it arms) from Claude settings on boot — awaited before the session index makes
+ *  dormant sessions clickable, so a dormant view never arms from a stale default. */
+async function hydrateClaudeDefaults(): Promise<void> {
+  try {
+    const settings = normalizeClaudeSettings(await window.duetRuntime.readClaudeSettings());
+    state.remoteControlDefault = settings.defaultRemoteControl;
+    state.taskDraft.remoteControl = settings.defaultRemoteControl;
+    render();
+  } catch {
+    // Best-effort: the New Chat default just stays off.
+  }
+}
+
 function applyReadingSettings(nextSettings: ReadingSettings): void {
   const settings = normalizeReadingSettings(nextSettings);
   const root = document.documentElement;
@@ -2753,6 +2808,8 @@ function toggleReadingPopover(anchor: HTMLElement): void {
     state.composerMenu = null;
     state.taskDraft.settingsOpen = false;
     state.taskDraft.settingsAnchor = null;
+    state.remoteControlPopoverOpen = false;
+    state.remoteControlPopoverAnchor = null;
   }
   render();
 }
@@ -2820,6 +2877,296 @@ function positionReadingPopover(popover: HTMLElement): void {
   popover.style.top = `${top}px`;
   popover.style.width = `${width}px`;
   popover.style.maxHeight = `${Math.max(260, window.innerHeight - top - viewportPadding)}px`;
+}
+
+// ── Remote Control popover ──────────────────────────────────────────────────
+// Same model as the reading ("Aa") popover: the header button only opens this
+// popover; the on/off ACTION lives inside it. ON injects `/rc` (works mid-turn);
+// the on-state surfaces the scraped session URL (copy) + routes Disconnect/QR to
+// claude's own native panel via the Terminal view (fragility-free management).
+
+function toggleRemoteControlPopover(anchor: HTMLElement): void {
+  const willOpen = !state.remoteControlPopoverOpen;
+  state.remoteControlPopoverOpen = willOpen;
+  state.remoteControlPopoverAnchor = willOpen ? popoverAnchorFromElement(anchor) : null;
+  if (willOpen) {
+    state.remoteControlNote = null;
+    state.readingPopoverOpen = false;
+    state.readingPopoverAnchor = null;
+    state.composerMenu = null;
+  }
+  render();
+}
+
+function closeRemoteControlPopover(): void {
+  state.remoteControlPopoverOpen = false;
+  state.remoteControlPopoverAnchor = null;
+  state.remoteControlNote = null;
+  renderRemoteControlPopover();
+}
+
+type RemoteControlContext =
+  | { mode: "inject" } // a live Claude session — inject `/rc` (works mid-turn)
+  | { mode: "arm-draft" } // New Chat with a Claude draft — arm the spawn flag
+  | { mode: "arm-dormant" } // a dormant Claude session — arm the resume spawn flag
+  | { mode: "unavailable" }; // Codex, or nothing to control
+
+/** What the RC button acts on right now. Claude-only (Codex is out of scope);
+ *  when there's no live PTY (New Chat OR a dormant session) it ARMS the
+ *  `--remote-control` spawn flag instead of injecting. */
+function remoteControlContext(): RemoteControlContext {
+  const view = activeTaskView();
+  if (view?.task) {
+    if (view.task.provider !== "claude") {
+      return { mode: "unavailable" };
+    }
+    return view.live ? { mode: "inject" } : { mode: "arm-dormant" };
+  }
+  return state.taskDraft.provider === "claude" ? { mode: "arm-draft" } : { mode: "unavailable" };
+}
+
+/** A dormant Claude view's effective armed state: the user's explicit override if
+ *  set, else the live global default — so toggling the default applies to
+ *  ALREADY-OPEN dormant sessions, not only to ones opened afterward. */
+function dormantArmed(view: TaskViewState): boolean {
+  return view.remoteControl.armedOverride ?? state.remoteControlDefault;
+}
+
+/** Is RC on/armed in the current context (drives the button's active fill)?
+ *  inject → live `active`; arm-dormant → effective armed (override ?? default);
+ *  arm-draft → the New Chat draft flag. */
+function remoteControlOn(ctx: RemoteControlContext = remoteControlContext()): boolean {
+  const view = activeTaskView();
+  if (ctx.mode === "arm-draft") {
+    return state.taskDraft.remoteControl;
+  }
+  if (ctx.mode === "inject") {
+    return Boolean(view?.remoteControl.active);
+  }
+  if (ctx.mode === "arm-dormant") {
+    return view ? dormantArmed(view) : false;
+  }
+  return false;
+}
+
+/** The header button's persistent on/off indication (active fill = "on") and
+ *  availability. Mirrors the reading button's split: state here, popover content
+ *  in renderRemoteControlPopover. */
+function renderRemoteControl(): void {
+  const ctx = remoteControlContext();
+  const on = remoteControlOn(ctx);
+  elements.remoteControlToggle.classList.toggle("remote-on", on);
+  elements.remoteControlToggle.disabled = ctx.mode === "unavailable";
+  elements.remoteControlToggle.title =
+    ctx.mode === "unavailable"
+      ? "Remote control (Claude only)"
+      : on
+        ? "Remote control · on"
+        : "Remote control";
+}
+
+function remoteControlPopoverHeader(statusText: string, on: boolean): HTMLElement {
+  const header = document.createElement("div");
+  header.className = "remote-control-popover-header";
+  const title = document.createElement("span");
+  title.className = "remote-control-popover-title";
+  title.textContent = "Remote control";
+  const status = document.createElement("span");
+  status.className = "remote-control-popover-status";
+  status.classList.toggle("on", on);
+  status.textContent = statusText;
+  header.append(title, status);
+  return header;
+}
+
+function renderRemoteControlPopover(): void {
+  elements.remoteControlToggle.setAttribute(
+    "aria-expanded",
+    String(state.remoteControlPopoverOpen),
+  );
+  elements.remoteControlPopoverRoot.replaceChildren();
+  if (!state.remoteControlPopoverOpen) {
+    return;
+  }
+  elements.remoteControlPopoverRoot.append(renderRemoteControlPopoverContent());
+}
+
+function renderRemoteControlPopoverContent(): HTMLElement {
+  const popover = document.createElement("div");
+  popover.className = "remote-control-popover";
+  popover.setAttribute("role", "dialog");
+  popover.setAttribute("aria-label", "Remote control");
+  positionPopoverElement(popover, state.remoteControlPopoverAnchor, 320);
+  popover.addEventListener("click", (event) => event.stopPropagation());
+
+  // No live PTY yet (New Chat or a dormant session): the button ARMS the spawn
+  // flag; the session connects the moment it starts/resumes.
+  const armCtx = remoteControlContext();
+  if (armCtx.mode === "arm-draft" || armCtx.mode === "arm-dormant") {
+    const armed = remoteControlOn(armCtx);
+    popover.append(remoteControlPopoverHeader(armed ? "Armed" : "Off", armed));
+    const armDesc = document.createElement("p");
+    armDesc.className = "remote-control-popover-desc";
+    armDesc.textContent = armed
+      ? "Remote control will be on when this session starts — open it in the Claude app on your phone."
+      : "Start this session with remote control on, so you can see and steer it from the Claude app on your phone.";
+    popover.append(armDesc);
+    const arm = document.createElement("button");
+    arm.type = "button";
+    arm.className = armed
+      ? "remote-control-popover-action"
+      : "remote-control-popover-action primary";
+    arm.textContent = armed ? "Turn off" : "Turn on";
+    arm.addEventListener("click", () => {
+      if (armCtx.mode === "arm-draft") {
+        state.taskDraft.remoteControl = !state.taskDraft.remoteControl;
+      } else {
+        const view = activeTaskView();
+        if (view) {
+          view.remoteControl.armedOverride = !dormantArmed(view);
+        }
+      }
+      render();
+    });
+    popover.append(arm);
+    return popover;
+  }
+
+  const rc = activeTaskView()?.remoteControl ?? { active: false, url: null };
+  popover.append(remoteControlPopoverHeader(rc.active ? "On" : "Off", rc.active));
+
+  const desc = document.createElement("p");
+  desc.className = "remote-control-popover-desc";
+
+  if (!rc.active) {
+    desc.textContent = "See and steer this session from the Claude app on your phone.";
+    popover.append(desc);
+    const turnOn = document.createElement("button");
+    turnOn.type = "button";
+    turnOn.className = "remote-control-popover-action primary";
+    turnOn.textContent = "Turn on";
+    turnOn.addEventListener("click", () => void enableRemoteControl());
+    popover.append(turnOn);
+    if (state.remoteControlNote) {
+      const note = document.createElement("p");
+      note.className = "remote-control-popover-note";
+      note.textContent = state.remoteControlNote;
+      popover.append(note);
+    }
+    return popover;
+  }
+
+  desc.textContent = "Open Claude on your phone, or use the link below.";
+  popover.append(desc);
+
+  if (rc.url) {
+    const urlRow = document.createElement("div");
+    urlRow.className = "remote-control-popover-url-row";
+    const urlText = document.createElement("span");
+    urlText.className = "remote-control-popover-url";
+    urlText.textContent = rc.url;
+    urlText.title = rc.url;
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "remote-control-popover-copy";
+    copy.title = "Copy link";
+    copy.append(lucideIcon(Copy, 14));
+    copy.addEventListener("click", () => {
+      const url = rc.url;
+      if (!url) {
+        return;
+      }
+      void navigator.clipboard.writeText(url).catch(() => {});
+      copy.classList.add("copied");
+      window.setTimeout(() => copy.classList.remove("copied"), 1200);
+    });
+    urlRow.append(urlText, copy);
+    popover.append(urlRow);
+  } else {
+    const connecting = document.createElement("p");
+    connecting.className = "remote-control-popover-desc";
+    connecting.textContent = "Connecting…";
+    popover.append(connecting);
+  }
+
+  const manage = document.createElement("button");
+  manage.type = "button";
+  manage.className = "remote-control-popover-action";
+  manage.textContent = "Manage / disconnect in terminal →";
+  manage.addEventListener("click", () => void manageRemoteControl());
+  popover.append(manage);
+  return popover;
+}
+
+function positionPopoverElement(
+  popover: HTMLElement,
+  anchor: PopoverAnchor | null,
+  maxWidth: number,
+): void {
+  const viewportPadding = 14;
+  const width = Math.min(maxWidth, window.innerWidth - viewportPadding * 2);
+  const top = anchor?.top ?? viewportPadding;
+  const left = anchor
+    ? Math.min(
+        window.innerWidth - width - viewportPadding,
+        Math.max(viewportPadding, anchor.left + anchor.width - width),
+      )
+    : viewportPadding;
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+  popover.style.width = `${width}px`;
+  popover.style.maxHeight = `${Math.max(180, window.innerHeight - top - viewportPadding)}px`;
+}
+
+/** Turn RC on. The main process injects `/rc` and emits remote-control:state
+ *  (optimistic active), which re-renders the popover to the on-state; the URL
+ *  fills in when scraped. A refusal (an open approval/modal panel would eat the
+ *  command) leaves us off and explains why. */
+async function enableRemoteControl(): Promise<void> {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  state.remoteControlNote = null;
+  try {
+    const result = await window.duetRuntime.injectRemoteControl({ taskId: view.task.id });
+    if (!result.ok) {
+      state.remoteControlNote =
+        result.reason === "panel-open"
+          ? "Claude is waiting on something in the terminal — answer that first."
+          : result.reason === "user-control"
+            ? "You hold the keys in the terminal — release them first."
+            : result.reason === "busy"
+              ? "Claude is mid-delivery — try again in a moment."
+              : "Couldn't enable remote control.";
+      renderRemoteControlPopover();
+    }
+  } catch (error) {
+    // The PTY can exit between opening the popover and clicking (the session
+    // ended) — the IPC then rejects. Surface it like the dismissModal sibling.
+    state.remoteControlNote = errorMessage(error);
+    renderRemoteControlPopover();
+  }
+}
+
+/** Manage an active RC session: inject `/rc` to open claude's own panel
+ *  (Disconnect / Show QR / Continue), then switch to Terminal so the user acts
+ *  in it. The native panel — not a Duet-driven menu — is the honest,
+ *  fragility-free management surface. */
+async function manageRemoteControl(): Promise<void> {
+  const view = activeTaskView();
+  if (!view?.task) {
+    return;
+  }
+  closeRemoteControlPopover();
+  try {
+    const result = await window.duetRuntime.injectRemoteControl({ taskId: view.task.id });
+    if (result.ok) {
+      setViewMode("terminal");
+    }
+  } catch {
+    // PTY gone between popover-open and click — nothing to manage; stay put.
+  }
 }
 
 function renderReadingThemeSection(): HTMLElement {
@@ -3050,7 +3397,7 @@ async function persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): 
     render();
     return;
   }
-  const next: ClaudeSettings = { defaultPermissionMode: mode };
+  const next: ClaudeSettings = { ...overlay.claude.settings, defaultPermissionMode: mode };
   overlay.claude.settings = next;
   render();
   try {
@@ -3156,6 +3503,7 @@ function renderSettingsOverlay(): void {
   dialog.append(
     renderSettingsHeader(),
     renderApprovalsSettingsGroup(overlay),
+    renderRemoteControlSettingsGroup(overlay),
     renderSessionsSettingsGroup(overlay),
     renderClaudeSettingsGroup(overlay),
   );
@@ -3217,6 +3565,81 @@ function renderApprovalsSettingsGroup(overlay: SettingsOverlayState): HTMLElemen
 
   group.append(heading, box, footnote);
   return group;
+}
+
+function renderRemoteControlSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
+  const group = document.createElement("section");
+  group.className = "settings-group";
+  group.setAttribute("aria-label", "Remote control");
+
+  const heading = document.createElement("p");
+  heading.className = "settings-group-heading";
+  heading.textContent = "Remote control";
+
+  const box = document.createElement("div");
+  box.className = "settings-box";
+  const row = document.createElement("div");
+  row.className = "settings-row";
+
+  const copy = document.createElement("div");
+  copy.className = "settings-row-copy";
+  const title = document.createElement("span");
+  title.className = "settings-row-title";
+  title.textContent = "Auto-enable Remote Control";
+  copy.append(title);
+  row.append(copy);
+
+  const on = overlay.claude?.settings.defaultRemoteControl ?? false;
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "settings-toggle";
+  toggle.classList.toggle("on", on);
+  toggle.setAttribute("role", "switch");
+  toggle.setAttribute("aria-checked", String(on));
+  toggle.disabled = !overlay.claude;
+  toggle.textContent = on ? "On" : "Off";
+  toggle.addEventListener("click", () => {
+    void setDefaultRemoteControl(!on);
+  });
+  const trailing = document.createElement("div");
+  trailing.className = "settings-row-trailing";
+  trailing.append(toggle);
+  row.append(trailing);
+
+  box.append(row);
+
+  const footnote = document.createElement("p");
+  footnote.className = "settings-footnote";
+  footnote.textContent =
+    "New and resumed Claude sessions come up reachable from the Claude app on your phone. You can still turn it off for any single session.";
+
+  group.append(heading, box, footnote);
+  return group;
+}
+
+async function setDefaultRemoteControl(value: boolean): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.claude || overlay.claude.settings.defaultRemoteControl === value) {
+    return;
+  }
+  const next: ClaudeSettings = { ...overlay.claude.settings, defaultRemoteControl: value };
+  overlay.claude.settings = next;
+  // Reflect the new default immediately: the New Chat draft (header button) and
+  // the default that newly-opened dormant sessions arm from.
+  state.remoteControlDefault = value;
+  state.taskDraft.remoteControl = value;
+  render();
+  try {
+    const persisted = normalizeClaudeSettings(await window.duetRuntime.writeClaudeSettings(next));
+    if (state.settingsOverlay?.claude) {
+      state.settingsOverlay.claude.settings = persisted;
+    }
+    state.remoteControlDefault = persisted.defaultRemoteControl;
+    state.taskDraft.remoteControl = persisted.defaultRemoteControl;
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
 }
 
 function renderDefaultPermissionModePopup(overlay: SettingsOverlayState): HTMLElement {
@@ -3926,6 +4349,8 @@ document.addEventListener("click", (event) => {
     !(target instanceof Element) ||
     target.closest(".reading-settings-trigger") ||
     target.closest(".reading-settings-popover") ||
+    target.closest("#remote-control-toggle") ||
+    target.closest(".remote-control-popover") ||
     target.closest(".task-settings-wrap") ||
     target.closest(".composer-chip") ||
     target.closest("#add-attachment") ||
@@ -3951,6 +4376,9 @@ document.addEventListener("click", (event) => {
   }
   if (state.readingPopoverOpen) {
     closeReadingPopover();
+  }
+  if (state.remoteControlPopoverOpen) {
+    closeRemoteControlPopover();
   }
   if (state.usagePopover) {
     closeUsagePopover();
@@ -3978,6 +4406,12 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     closeReadingPopover();
     elements.readingSettings.focus();
+    return;
+  }
+  if (state.remoteControlPopoverOpen) {
+    event.preventDefault();
+    closeRemoteControlPopover();
+    elements.remoteControlToggle.focus();
     return;
   }
   if (state.usagePopover) {
@@ -4090,6 +4524,15 @@ window.duetRuntime.onRuntimeEvent((event) => {
       // never grabs the keys). Background tasks never reach here (dot only).
       maybeAutoSurfaceFloor();
     }
+    markViewChanged(view);
+    return;
+  }
+
+  if (event.type === "remote-control:state") {
+    // Set fields (not replace) so a dormant view's armedOverride survives the
+    // connect/disconnect events that flow once it goes live.
+    view.remoteControl.active = event.payload.active;
+    view.remoteControl.url = event.payload.url;
     markViewChanged(view);
     return;
   }
@@ -4331,7 +4774,12 @@ void window.duetRuntime.readPreviewState().then((previewState) => {
 });
 
 void hydrateReadingSettings();
-void refreshSessionIndex();
+// Load the RC default BEFORE the session index makes dormant sessions clickable:
+// a dormant view arms from `state.remoteControlDefault` at creation, so the
+// default must be in place first (otherwise a fast click arms from a stale off).
+void hydrateClaudeDefaults().finally(() => {
+  void refreshSessionIndex();
+});
 
 render();
 
@@ -4354,6 +4802,10 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     transcriptBlockOrder: [],
     transcriptSources: [],
     viewMode: "read",
+    // active/url = live connected state; armedOverride = null means a dormant view
+    // FOLLOWS the global default (so changing the default applies to it), until the
+    // user toggles it. createTask sets active optimistically for a live armed spawn.
+    remoteControl: { active: false, url: null, armedOverride: null },
     userControl: false,
     runtimeReady: false,
     composerObserved: false,
@@ -4520,8 +4972,14 @@ async function createTask(
       speedMode: launchSettings.speedMode,
       approval: "on-request",
       sandbox: "read-only",
+      ...(provider === "claude" && state.taskDraft.remoteControl ? { remoteControl: true } : {}),
     });
     const view = createTaskView(response.task, `${providerName} PTY ${response.runtime.pid}`);
+    if (provider === "claude" && state.taskDraft.remoteControl) {
+      // Spawned with --remote-control: reflect "on" immediately; the scraped URL
+      // confirms and fills the link a beat later (~1.2s).
+      view.remoteControl.active = true;
+    }
     upsertTaskView(view);
     activateTask(response.task.id);
     void hydrateTranscript(response.task.id);
@@ -4675,6 +5133,9 @@ async function openDormantSessionAndSend(
     const response = await window.duetRuntime.openTask({
       taskId,
       ...(resumeMode ? { resumeMode } : {}),
+      ...(view.task.provider === "claude" && dormantArmed(view)
+        ? { remoteControl: true }
+        : {}),
     });
     view.task = response.task;
     view.live = true;
@@ -4850,6 +5311,8 @@ function render(): void {
   elements.sessionMenuTrigger.classList.toggle("hidden", !view?.task);
   elements.sidebarNewChat.disabled = state.busy;
   renderReadingPopover();
+  renderRemoteControl();
+  renderRemoteControlPopover();
   renderSettingsOverlay();
   renderAttachmentStrip(view);
   renderComposerControls(view);

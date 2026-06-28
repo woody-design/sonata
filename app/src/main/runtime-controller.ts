@@ -87,6 +87,7 @@ import {
 } from "../shared/types/resume-settings";
 import type {
   PrepareResumeResponse,
+  RemoteControlInjectResponse,
   ResumeSettingsResponse,
   RevertResumeBridgeResponse,
 } from "../shared/types/ipc";
@@ -292,6 +293,7 @@ export class RuntimeController {
       ...(request.provider === "claude"
         ? { permissionMode: permissionSettings.permissionMode ?? "default" }
         : {}),
+      ...(request.provider === "claude" && request.remoteControl ? { remoteControl: true } : {}),
       ...(pinnedSessionId ? { sessionId: pinnedSessionId } : {}),
     };
     const ptyStartedAt = new Date().toISOString();
@@ -444,6 +446,7 @@ export class RuntimeController {
       ...(runningTask.provider === "claude"
         ? { permissionMode: permissionSettings.permissionMode ?? "default" }
         : {}),
+      ...(runningTask.provider === "claude" && request.remoteControl ? { remoteControl: true } : {}),
       ...(resumeRef ? { resumeRef } : {}),
       ...(pinnedSessionId ? { sessionId: pinnedSessionId } : {}),
       ...(claudeResume ? { extraEnv: RESUME_PANEL_SUPPRESS_ENV } : {}),
@@ -734,6 +737,11 @@ export class RuntimeController {
     const active = this.requireTaskRuntime(taskId);
     const cleared = await active.terminalHost.dismissModal();
     return { cleared };
+  }
+
+  injectRemoteControl(taskId: TaskId): RemoteControlInjectResponse {
+    const active = this.requireTaskRuntime(taskId);
+    return active.terminalHost.injectRemoteControl();
   }
 
   setTerminalUserControl(taskId: TaskId, requestedActive: boolean): { active: boolean } {

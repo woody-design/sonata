@@ -23,10 +23,14 @@ export type ClaudeDefaultPermissionMode =
 
 export interface ClaudeSettings {
   defaultPermissionMode: ClaudeDefaultPermissionMode;
+  /** Start new Claude sessions with Remote Control on (spawn `--remote-control`),
+   *  so they come up phone-reachable without arming each one by hand. */
+  defaultRemoteControl: boolean;
 }
 
 export const DEFAULT_CLAUDE_SETTINGS: ClaudeSettings = {
   defaultPermissionMode: "default",
+  defaultRemoteControl: false,
 };
 
 export function isClaudeDefaultPermissionMode(
@@ -45,6 +49,10 @@ export function normalizeClaudeSettings(value: unknown): ClaudeSettings {
     defaultPermissionMode: isClaudeDefaultPermissionMode(value.defaultPermissionMode)
       ? value.defaultPermissionMode
       : DEFAULT_CLAUDE_SETTINGS.defaultPermissionMode,
+    defaultRemoteControl:
+      typeof value.defaultRemoteControl === "boolean"
+        ? value.defaultRemoteControl
+        : DEFAULT_CLAUDE_SETTINGS.defaultRemoteControl,
   };
 }
 

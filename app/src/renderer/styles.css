@@ -1473,6 +1473,138 @@ h2 {
   box-shadow: var(--shadow-popover);
 }
 
+/* Remote Control header toggle: an active fill (the same "selected" surface as
+   the view switch) signals "on" at a glance — not icon color alone (weak + fails
+   a11y). The popover, not this button, is where you act. */
+.chrome-icon-button.remote-on,
+.chrome-icon-button.remote-on:hover:not(:disabled) {
+  background: var(--surface-selected);
+  color: var(--accent-strong);
+}
+
+.remote-control-popover {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--border-menu);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--ink-menu);
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
+}
+
+.remote-control-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.remote-control-popover-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-menu);
+}
+
+.remote-control-popover-status {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-menu-muted);
+}
+
+.remote-control-popover-status.on {
+  color: var(--accent);
+}
+
+.remote-control-popover-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-menu-muted);
+}
+
+.remote-control-popover-url-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-menu-divider);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--surface-control-soft);
+}
+
+.remote-control-popover-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-menu);
+}
+
+.remote-control-popover-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-menu-muted);
+  cursor: pointer;
+}
+
+.remote-control-popover-copy:hover {
+  background: var(--surface-control);
+  color: var(--ink-menu);
+}
+
+.remote-control-popover-copy.copied {
+  color: var(--accent);
+}
+
+.remote-control-popover-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border-control);
+  border-radius: 7px;
+  background: var(--surface-control);
+  color: var(--ink-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.remote-control-popover-action:hover {
+  background: var(--surface-control-soft);
+}
+
+.remote-control-popover-action.primary {
+  border-color: var(--accent-strong);
+  background: var(--accent);
+  color: var(--ink-on-accent);
+}
+
+.remote-control-popover-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--status-attention-label);
+}
+
 .reading-setting-section + .reading-setting-section {
   border-top: 1px solid var(--border-menu-divider);
   margin-top: 10px;
@@ -1831,6 +1963,35 @@ h2 {
   color: var(--ink-menu-muted);
   font-size: 12.5px;
   font-weight: 600;
+}
+
+/* A boolean launch-default toggle (pill; accent fill = on — the same visual
+   language as the Remote Control header button's active state). */
+.settings-toggle {
+  min-width: 56px;
+  padding: 5px 14px;
+  border: 1px solid var(--border-control);
+  border-radius: 999px;
+  background: var(--surface-control);
+  color: var(--ink-ui);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-toggle:hover:not(:disabled) {
+  background: var(--surface-control-soft);
+}
+
+.settings-toggle.on {
+  border-color: var(--accent-strong);
+  background: var(--accent);
+  color: var(--ink-on-accent);
+}
+
+.settings-toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .settings-footnote {
