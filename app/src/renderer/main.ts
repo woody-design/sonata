@@ -2617,12 +2617,10 @@ document.addEventListener(
     if (event.key !== "`" || !event.ctrlKey || event.metaKey || event.altKey) {
       return;
     }
-    if (!activeTaskView()?.task) {
-      return;
-    }
     event.preventDefault();
     event.stopPropagation();
-    setViewMode(activeViewMode() === "terminal" ? "read" : "terminal");
+    // Repurposed from the old in-pane toggle: open/focus the terminal window.
+    surfaceTerminalWindow();
   },
   true,
 );
@@ -8827,15 +8825,17 @@ function activeViewMode(): ViewMode {
  *  task is touched. Leaving Terminal hands the keys back — control must never be
  *  held where the human can't type (model Y). Entering Terminal attaches + fits
  *  the xterm once the pane is visible. */
-function setViewMode(_mode: ViewMode): void {
-  // The terminal now lives in its own satellite window; the main window is
-  // always the Read surface. This is a no-op stub — its callers include the
-  // dead Ctrl+` binding and view switch — until that in-pane view-mode
-  // machinery is removed wholesale in a later slice.
-  const view = activeTaskView();
-  if (view && view.viewMode !== "read") {
-    view.viewMode = "read";
-    render();
+function surfaceTerminalWindow(): void {
+  void window.duetRuntime.setTerminalWindowOpen(true).catch(() => {});
+}
+
+function setViewMode(mode: ViewMode): void {
+  // The terminal is its own window now: "switch to terminal" opens and focuses
+  // it, and there is no in-pane Read/Terminal switch to toggle. Keeping this as
+  // the single choke point lets every "surface the terminal" caller (approvals,
+  // modals, slash commands, the delivery queue) keep working unchanged.
+  if (mode === "terminal") {
+    surfaceTerminalWindow();
   }
 }
 

@@ -1,6 +1,7 @@
 import "./styles.css";
 import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal, type ITheme } from "@xterm/xterm";
@@ -41,6 +42,13 @@ appElement.innerHTML = `
     </header>
     <section class="terminal-window-content">
       <div id="terminal-window-term" class="terminal-window-term"></div>
+      <div id="terminal-window-search" class="terminal-search hidden" role="search">
+        <input id="terminal-window-search-input" class="terminal-search-input" type="text" placeholder="Find" aria-label="Find in terminal" spellcheck="false" autocomplete="off" />
+        <span id="terminal-window-search-count" class="terminal-search-count" aria-live="polite"></span>
+        <button id="terminal-window-search-prev" class="terminal-search-btn" type="button" title="Previous (⇧⏎)" aria-label="Previous match">↑</button>
+        <button id="terminal-window-search-next" class="terminal-search-btn" type="button" title="Next (⏎)" aria-label="Next match">↓</button>
+        <button id="terminal-window-search-close" class="terminal-search-btn" type="button" title="Close (Esc)" aria-label="Close find">✕</button>
+      </div>
       <p id="terminal-window-empty" class="terminal-window-placeholder">No active task — start or select one in Duet.</p>
     </section>
     <div id="terminal-theme-popover" class="terminal-theme-popover hidden" role="dialog" aria-label="Terminal theme"></div>
@@ -51,6 +59,12 @@ const termMount = requireEl<HTMLDivElement>("#terminal-window-term");
 const emptyState = requireEl<HTMLParagraphElement>("#terminal-window-empty");
 const themeTrigger = requireEl<HTMLButtonElement>("#terminal-theme-trigger");
 const themePopover = requireEl<HTMLDivElement>("#terminal-theme-popover");
+const searchBox = requireEl<HTMLDivElement>("#terminal-window-search");
+const searchInput = requireEl<HTMLInputElement>("#terminal-window-search-input");
+const searchCount = requireEl<HTMLSpanElement>("#terminal-window-search-count");
+const searchPrev = requireEl<HTMLButtonElement>("#terminal-window-search-prev");
+const searchNext = requireEl<HTMLButtonElement>("#terminal-window-search-next");
+const searchClose = requireEl<HTMLButtonElement>("#terminal-window-search-close");
 
 const terminalFontFamily = getComputedStyle(document.documentElement)
   .getPropertyValue("--font-mono")
@@ -152,6 +166,7 @@ interface TaskTerminal {
   taskId: string;
   terminal: Terminal;
   fit: FitAddon;
+  search: SearchAddon;
   element: HTMLDivElement;
   opened: boolean;
   hydrating: boolean;
@@ -161,6 +176,9 @@ interface TaskTerminal {
 const terminals = new Map<string, TaskTerminal>();
 let activeTaskId: string | null = null;
 let activeLive = false;
+// The task the open find box is bound to (declared early — a render-time
+// reference to a later `let` would hit the temporal dead zone).
+let searchBoundTaskId: string | null = null;
 
 function forwardUserInput(taskId: string, data: string): void {
   // Only the active (focused, visible) terminal receives keystrokes, and only
@@ -205,7 +223,14 @@ function createTaskTerminal(taskId: string): TaskTerminal {
   term.loadAddon(fit);
   term.loadAddon(new Unicode11Addon());
   term.unicode.activeVersion = "11";
+  const search = new SearchAddon();
+  term.loadAddon(search);
   term.loadAddon(new WebLinksAddon((_event, uri) => openExternalTerminalLink(uri)));
+  const resultsListener = search.onDidChangeResults((result) => {
+    if (activeTaskId === taskId && searchBoundTaskId === taskId) {
+      updateSearchCount(result);
+    }
+  });
 
   // Mounted hidden; shown when this task becomes active. xterm buffers writes
   // issued before open(), so a hidden terminal keeps a faithful mirror.
@@ -258,12 +283,14 @@ function createTaskTerminal(taskId: string): TaskTerminal {
     taskId,
     terminal: term,
     fit,
+    search,
     element,
     opened: false,
     hydrating: true,
     disposers: [
       () => dataListener.dispose(),
       () => binaryListener.dispose(),
+      () => resultsListener.dispose(),
       () => element.removeEventListener("mouseup", onMouseUp),
       () => element.removeEventListener("contextmenu", onContextMenu),
     ],
@@ -379,6 +406,12 @@ function showActiveTerminal(): void {
 }
 
 function applyActiveTask(next: TerminalActiveTaskState): void {
+  if (searchBoundTaskId && searchBoundTaskId !== next.taskId) {
+    // The find box lives on one terminal's decorations; a task switch closes it.
+    terminals.get(searchBoundTaskId)?.search.clearDecorations();
+    searchBoundTaskId = null;
+    searchBox.classList.add("hidden");
+  }
   activeTaskId = next.taskId;
   activeLive = next.live;
   // Dispose terminals whose task has closed.
@@ -392,6 +425,99 @@ function applyActiveTask(next: TerminalActiveTaskState): void {
   }
   showActiveTerminal();
 }
+
+// --- Find (Cmd+F) ------------------------------------------------------------
+const TERMINAL_SEARCH_DECORATIONS = {
+  matchBackground: "rgba(205, 171, 109, 0.30)",
+  matchOverviewRuler: "rgba(205, 171, 109, 0.70)",
+  activeMatchBackground: "rgba(121, 183, 165, 0.55)",
+  activeMatchBorder: "rgba(160, 214, 198, 0.90)",
+  activeMatchColorOverviewRuler: "rgba(121, 183, 165, 0.90)",
+};
+
+function activeEntry(): TaskTerminal | null {
+  return activeTaskId ? terminals.get(activeTaskId) ?? null : null;
+}
+
+function updateSearchCount(result?: { resultIndex: number; resultCount: number }): void {
+  const hasQuery = searchInput.value.length > 0;
+  if (!result || result.resultCount === 0) {
+    searchCount.textContent = hasQuery ? "No results" : "";
+    return;
+  }
+  searchCount.textContent = `${result.resultIndex + 1}/${result.resultCount}`;
+}
+
+function runSearch(direction: "next" | "prev", incremental = false): void {
+  const entry = activeEntry();
+  if (!entry) {
+    return;
+  }
+  const query = searchInput.value;
+  if (!query) {
+    entry.search.clearDecorations();
+    updateSearchCount(undefined);
+    return;
+  }
+  const options = { decorations: TERMINAL_SEARCH_DECORATIONS, incremental };
+  if (direction === "next") {
+    entry.search.findNext(query, options);
+  } else {
+    entry.search.findPrevious(query, options);
+  }
+}
+
+function openSearch(): void {
+  const entry = activeEntry();
+  if (!entry) {
+    return;
+  }
+  searchBoundTaskId = activeTaskId;
+  searchBox.classList.remove("hidden");
+  searchInput.focus();
+  searchInput.select();
+  runSearch("next", true);
+}
+
+function closeSearch(): void {
+  const bound = searchBoundTaskId ? terminals.get(searchBoundTaskId) : null;
+  searchBoundTaskId = null;
+  searchBox.classList.add("hidden");
+  bound?.search.clearDecorations();
+  const entry = activeEntry();
+  if (entry?.opened) {
+    entry.terminal.focus();
+  }
+}
+
+searchInput.addEventListener("input", () => runSearch("next", true));
+searchInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    runSearch(event.shiftKey ? "prev" : "next");
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closeSearch();
+  }
+});
+searchPrev.addEventListener("click", () => runSearch("prev"));
+searchNext.addEventListener("click", () => runSearch("next"));
+searchClose.addEventListener("click", () => closeSearch());
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      event.key.toLowerCase() === "f" &&
+      activeEntry()
+    ) {
+      event.preventDefault();
+      openSearch();
+    }
+  },
+  true,
+);
 
 // --- Theme (the terminal's own, independent of the main window) --------------
 const THEME_OPTIONS: Array<{ id: ReadingThemeId; label: string }> = [

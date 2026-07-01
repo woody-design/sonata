@@ -93,12 +93,13 @@ try {
     state: "visible",
   });
   await page.locator(".side-column").waitFor({ state: "hidden" });
-  await page.locator("#terminal-drawer").waitFor({ state: "hidden" });
-  await page.locator("#toggle-terminal").click();
-  await page.locator("#terminal-drawer").waitFor({ state: "visible" });
-  await page.locator("#terminal").waitFor({ state: "visible" });
-  await page.locator("#close-terminal").click();
-  await page.locator("#terminal-drawer").waitFor({ state: "hidden" });
+  // The terminal is its own satellite window now (default-on). Exercise the
+  // header toggle via its label, which tracks the window's real open state.
+  await page.locator("#toggle-terminal-window", { hasText: "Close Terminal" }).waitFor({ state: "visible" });
+  await page.locator("#toggle-terminal-window").click();
+  await page.locator("#toggle-terminal-window", { hasText: "Open Terminal" }).waitFor({ state: "visible" });
+  await page.locator("#toggle-terminal-window").click();
+  await page.locator("#toggle-terminal-window", { hasText: "Close Terminal" }).waitFor({ state: "visible" });
 
   await page.locator(".artifact-item", { hasText: "page.html" }).click();
   await previewPage.locator(".preview-window-tab", { hasText: "page.html" }).waitFor({
@@ -186,10 +187,6 @@ try {
   await inspectorPage.locator(".workspace-file-preview", { hasText: "Markdown artifact ready." }).waitFor({
     state: "visible",
   });
-
-  await page.locator("#toggle-terminal").click();
-  await page.locator("#terminal-drawer").waitFor({ state: "visible" });
-  await page.locator("#terminal").waitFor({ state: "visible" });
 
   const projectsRoot = path.join(workspaceRoot, "data", "projects");
   const workspaceEntries = fs.existsSync(projectsRoot)
