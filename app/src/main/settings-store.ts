@@ -18,6 +18,10 @@ import {
   normalizeResumeSettings,
 } from "../shared/types/resume-settings";
 import {
+  type TerminalWindowSettings,
+  normalizeTerminalWindowSettings,
+} from "../shared/types/terminal-window-settings";
+import {
   type WindowStateDocument,
   normalizeWindowStateDocument,
 } from "../shared/types/window-state";
@@ -104,4 +108,17 @@ export class WindowStateStore extends JsonSettingsStore<WindowStateDocument> {
 
 export function windowStatePath(): string {
   return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "window-state.json");
+}
+
+export class TerminalWindowSettingsStore extends JsonSettingsStore<TerminalWindowSettings> {
+  constructor(filePath: string) {
+    super(filePath, normalizeTerminalWindowSettings);
+  }
+}
+
+export function terminalWindowSettingsPath(): string {
+  return path.join(
+    process.env.DUET_SETTINGS_DIR || duetConfigDir(),
+    "terminal-window-settings.json",
+  );
 }

@@ -21,6 +21,7 @@ import {
   type PreviewWindowState,
   type RuntimeEvent,
   type TaskId,
+  type TerminalWindowState,
   type WorkspaceOpenExternalRequest,
   type WorkspaceOpenExternalResponse,
   type WorkspaceOpenFolderRequest,
@@ -32,11 +33,13 @@ import {
   LocalApiSettingsStore,
   ReadingSettingsStore,
   ResumeSettingsStore,
+  TerminalWindowSettingsStore,
   WindowStateStore,
   claudeSettingsPath,
   localApiSettingsPath,
   readingSettingsPath,
   resumeSettingsPath,
+  terminalWindowSettingsPath,
   windowStatePath,
 } from "./settings-store";
 import { WindowStateManager, type WindowDefaults } from "./window-state";
@@ -46,9 +49,14 @@ import { ProjectsStore, projectsStorePath } from "./projects-store";
 let mainWindow: BrowserWindow | null = null;
 let previewWindow: BrowserWindow | null = null;
 let inspectorWindow: BrowserWindow | null = null;
+let terminalWindow: BrowserWindow | null = null;
 let runtimeController: RuntimeController | null = null;
 let readingSettingsStore: ReadingSettingsStore | null = null;
+let terminalWindowSettingsStore: TerminalWindowSettingsStore | null = null;
 let localApiServer: LocalApiServer | null = null;
+// Distinguishes a user closing the terminal window (persist closed) from the
+// app quitting (leave the open preference intact, so it reopens next launch).
+let isQuitting = false;
 let previewState: PreviewWindowState = {
   tabs: [],
   selected: null,
@@ -76,6 +84,12 @@ const INSPECTOR_WINDOW_DEFAULTS: WindowDefaults = {
   height: 760,
   minWidth: 620,
   minHeight: 460,
+};
+const TERMINAL_WINDOW_DEFAULTS: WindowDefaults = {
+  width: 900,
+  height: 760,
+  minWidth: 480,
+  minHeight: 360,
 };
 
 function createMainWindow(): BrowserWindow {
@@ -196,6 +210,53 @@ function createInspectorWindow(): BrowserWindow {
     if (inspectorWindow === window) {
       inspectorWindow = null;
     }
+  });
+
+  return window;
+}
+
+function createTerminalWindow(): BrowserWindow {
+  const decision = windowState?.restore("terminal", TERMINAL_WINDOW_DEFAULTS);
+  const window = new BrowserWindow({
+    ...(decision?.bounds ?? {
+      width: TERMINAL_WINDOW_DEFAULTS.width,
+      height: TERMINAL_WINDOW_DEFAULTS.height,
+    }),
+    minWidth: TERMINAL_WINDOW_DEFAULTS.minWidth,
+    minHeight: TERMINAL_WINDOW_DEFAULTS.minHeight,
+    ...(decision?.fullScreen ? { fullscreen: true } : {}),
+    title: "Duet Terminal",
+    // Frameless like the main window: the renderer owns the whole surface and
+    // the traffic lights float over the topbar's reserved left corner, so the
+    // terminal reads as a peer of the main column (its "Terminal" label sits
+    // right of the lights). macOS-only options; ignored elsewhere.
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 18, y: 15 },
+    webPreferences: {
+      preload: path.join(__dirname, "../preload/preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  window.loadFile(path.join(__dirname, "../renderer/terminal.html"));
+  windowState?.track(window, "terminal");
+  window.on("closed", () => {
+    if (terminalWindow === window) {
+      terminalWindow = null;
+    }
+    // A user-initiated close persists the closed preference; an app quit leaves
+    // it intact so the terminal reopens next launch.
+    if (!isQuitting) {
+      persistTerminalWindowOpen(false);
+    }
+    sendTerminalWindowState();
   });
 
   return window;
@@ -362,6 +423,57 @@ function updateInspectorState(request: OpenInspectorRequest): void {
 function sendInspectorState(): void {
   if (inspectorWindow && !inspectorWindow.isDestroyed()) {
     inspectorWindow.webContents.send(IPC_CHANNELS.inspectorState, inspectorState);
+  }
+}
+
+/**
+ * The terminal window's toggle. Opening creates-or-focuses the window and
+ * persists the preference; closing routes through `window.close()`, whose
+ * "closed" handler persists the closed preference and broadcasts state. The
+ * return value carries the *intent* immediately (for the awaiting toggle
+ * button); the authoritative broadcast follows from the window lifecycle.
+ */
+async function setTerminalWindowOpen(open: boolean): Promise<TerminalWindowState> {
+  if (open) {
+    if (!terminalWindow || terminalWindow.isDestroyed()) {
+      terminalWindow = createTerminalWindow();
+    } else {
+      terminalWindow.show();
+      terminalWindow.focus();
+    }
+    persistTerminalWindowOpen(true);
+    sendTerminalWindowState();
+    return { open: true };
+  }
+
+  if (terminalWindow && !terminalWindow.isDestroyed()) {
+    terminalWindow.close();
+  } else {
+    persistTerminalWindowOpen(false);
+    sendTerminalWindowState();
+  }
+  return { open: false };
+}
+
+function readTerminalWindowState(): TerminalWindowState {
+  return { open: Boolean(terminalWindow && !terminalWindow.isDestroyed()) };
+}
+
+function sendTerminalWindowState(): void {
+  const state = readTerminalWindowState();
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.terminalWindowState, state);
+    }
+  }
+}
+
+function persistTerminalWindowOpen(open: boolean): void {
+  try {
+    terminalWindowSettingsStore?.write({ open });
+  } catch {
+    // A failed preference write must never crash the app — at worst the open
+    // state re-defaults on next launch.
   }
 }
 
@@ -608,6 +720,8 @@ app.whenReady().then(() => {
     focusArtifactInMain,
     openInspector,
     readInspectorState,
+    setTerminalWindowOpen,
+    readTerminalWindowState,
     openWorkspaceExternal,
     openWorkspaceFolder,
     pickFolder,
@@ -617,6 +731,26 @@ app.whenReady().then(() => {
   createApplicationMenu();
   windowState = new WindowStateManager(new WindowStateStore(windowStatePath()));
   mainWindow = createMainWindow();
+  // Default-on: the terminal opens beside the conversation unless the user
+  // closed it last session. `windowState` is ready above, so the restore path
+  // inside the factory works.
+  terminalWindowSettingsStore = new TerminalWindowSettingsStore(terminalWindowSettingsPath());
+  if (terminalWindowSettingsStore.read().open) {
+    // Open the terminal only after the main window has loaded: the conversation
+    // is the primary surface (it stays frontmost and is the first window any
+    // harness sees), and the terminal slides in beside it a beat later. The
+    // heavy main renderer would otherwise lose the "first window" race to the
+    // tiny terminal page.
+    mainWindow.webContents.once("did-finish-load", () => {
+      if (!terminalWindow || terminalWindow.isDestroyed()) {
+        terminalWindow = createTerminalWindow();
+      }
+      mainWindow?.focus();
+      // The main renderer's boot-time state read may have run before the window
+      // existed; broadcast now so its toggle button reflects the open terminal.
+      sendTerminalWindowState();
+    });
+  }
 
   app.on("activate", () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -632,6 +766,7 @@ app.on("window-all-closed", () => {
   runtimeController = null;
   previewWindow = null;
   inspectorWindow = null;
+  terminalWindow = null;
 
   if (process.platform !== "darwin") {
     app.quit();
@@ -639,6 +774,9 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  // Mark the quit so the terminal window's "closed" handler leaves the open
+  // preference intact (a quit is not the user choosing to close the terminal).
+  isQuitting = true;
   windowState?.flush();
   localApiServer?.stop();
   localApiServer = null;

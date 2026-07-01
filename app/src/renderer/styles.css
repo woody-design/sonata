@@ -1257,6 +1257,64 @@ body.sidebar-resizing {
   background: var(--surface-shell);
 }
 
+/* The terminal satellite window. Frameless (hiddenInset) like the main window,
+   so the topbar is the only drag handle and must clear the floating traffic
+   lights on the left. Interactive controls (the Aa picker lands here in a later
+   slice) opt back out of the drag region. */
+.terminal-window-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-shell);
+  color: var(--text-body);
+}
+
+.terminal-window-topbar {
+  -webkit-app-region: drag;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 44px;
+  padding: 8px 16px 8px 82px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.terminal-window-topbar .eyebrow {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-body);
+}
+
+.terminal-window-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-window-topbar button,
+.terminal-window-topbar .no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.terminal-window-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.terminal-window-placeholder {
+  margin: 0;
+  padding: 20px 22px;
+  font-size: 13px;
+  color: var(--text-muted, var(--text-body));
+}
+
 .topbar {
   min-height: 72px;
   display: flex;

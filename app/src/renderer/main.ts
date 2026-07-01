@@ -81,7 +81,11 @@ import type {
   TranscriptBlocksEvent,
 } from "../shared/types/events";
 import type { OptionPromptAnswers, OptionPromptQuestion } from "../shared/types/option-prompt";
-import type { FocusArtifactInMainRequest, PreviewWindowTab } from "../shared/types/ipc";
+import type {
+  FocusArtifactInMainRequest,
+  PreviewWindowTab,
+  TerminalWindowState,
+} from "../shared/types/ipc";
 import type {
   AgentRosterBlock,
   PlanBlock,
@@ -1565,6 +1569,7 @@ appElement.innerHTML = `
       </div>
       <div class="topbar-actions chrome-actions">
         <span id="runtime-status" class="status">Idle</span>
+        <button id="toggle-terminal-window" class="secondary" type="button" aria-pressed="true" title="Close the terminal window">Close Terminal</button>
         <button
           id="reading-settings"
           class="secondary reading-settings-trigger"
@@ -1729,6 +1734,7 @@ const elements = {
   remoteControlPopoverRoot: getElement<HTMLDivElement>("remote-control-popover-root"),
   openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
   openInspectorWindow: getElement<HTMLButtonElement>("open-inspector-window"),
+  toggleTerminalWindow: getElement<HTMLButtonElement>("toggle-terminal-window"),
   viewRead: getElement<HTMLButtonElement>("view-read"),
   viewTerminal: getElement<HTMLButtonElement>("view-terminal"),
   sidebar: getElement<HTMLElement>("sidebar"),
@@ -2563,6 +2569,25 @@ elements.openPreviewWindow.addEventListener("click", () => {
 elements.openInspectorWindow.addEventListener("click", () => {
   void openFloatingInspector();
 });
+
+// The terminal satellite window's toggle. Unlike the icon window-openers, it's
+// a labelled button that flips between "Open Terminal" and "Close Terminal".
+// The label tracks the window's real state — the toggle and an OS-close both
+// drive the broadcast this subscribes to — so it stays honest either way.
+function applyTerminalWindowState(state: TerminalWindowState): void {
+  const button = elements.toggleTerminalWindow;
+  button.textContent = state.open ? "Close Terminal" : "Open Terminal";
+  button.setAttribute("aria-pressed", state.open ? "true" : "false");
+  button.title = state.open ? "Close the terminal window" : "Open the terminal window";
+}
+
+elements.toggleTerminalWindow.addEventListener("click", () => {
+  const open = elements.toggleTerminalWindow.getAttribute("aria-pressed") === "true";
+  void window.duetRuntime.setTerminalWindowOpen(!open).then(applyTerminalWindowState);
+});
+
+window.duetRuntime.onTerminalWindowState(applyTerminalWindowState);
+void window.duetRuntime.readTerminalWindowState().then(applyTerminalWindowState);
 
 // The view switch: Read is always reachable; Terminal needs a live PTY-backed
 // task to drive. Switching is the only "open/close" — there is no separate

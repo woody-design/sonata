@@ -75,6 +75,9 @@ export const IPC_CHANNELS = {
   inspectorOpen: "inspector:open",
   inspectorStateRead: "inspector:state:read",
   inspectorState: "inspector:state",
+  terminalWindowSetOpen: "terminal-window:set-open",
+  terminalWindowStateRead: "terminal-window:state:read",
+  terminalWindowState: "terminal-window:state",
   workspaceTreeRead: "workspace:tree:read",
   workspaceFileRead: "workspace:file:read",
   workspaceOpenExternal: "workspace:open-external",
@@ -408,6 +411,17 @@ export interface InspectorWindowState {
   lens: InspectorLens;
 }
 
+/**
+ * The live open/closed state of the terminal satellite window, broadcast to
+ * every window so the main-window toggle button's label tracks reality
+ * (OS-close and the toggle both update it). This is the runtime signal derived
+ * from the actual window; the persisted preference lives in
+ * terminal-window-settings.json.
+ */
+export interface TerminalWindowState {
+  open: boolean;
+}
+
 export interface WorkspaceTreeRequest {
   taskId: TaskId;
 }
@@ -510,6 +524,9 @@ export interface DuetRuntimeBridge {
   onMainArtifactFocus(callback: (request: FocusArtifactInMainRequest) => void): () => void;
   openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
   readInspectorState(): Promise<InspectorWindowState>;
+  setTerminalWindowOpen(open: boolean): Promise<TerminalWindowState>;
+  readTerminalWindowState(): Promise<TerminalWindowState>;
+  onTerminalWindowState(callback: (state: TerminalWindowState) => void): () => void;
   readWorkspaceTree(request: WorkspaceTreeRequest): Promise<WorkspaceTreeEntry[]>;
   readWorkspaceFile(request: WorkspaceFileReadRequest): Promise<WorkspaceFilePreviewResponse>;
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;

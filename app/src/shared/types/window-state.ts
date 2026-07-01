@@ -1,4 +1,4 @@
-export const WINDOW_STATE_KEYS = ["main", "preview", "inspector"] as const;
+export const WINDOW_STATE_KEYS = ["main", "preview", "inspector", "terminal"] as const;
 export type WindowStateKey = (typeof WINDOW_STATE_KEYS)[number];
 
 /**
