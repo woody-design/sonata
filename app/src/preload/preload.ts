@@ -9,6 +9,7 @@ import {
   type ReadingSettings,
   type ResolvedReadingMode,
   type RuntimeEvent,
+  type TerminalActiveTaskState,
   type TerminalWindowState,
   normalizeReadingSettings,
 } from "../shared/types";
@@ -158,6 +159,8 @@ const duetRuntime: DuetRuntimeBridge = {
   readInspectorState: () => ipcRenderer.invoke(IPC_CHANNELS.inspectorStateRead),
   setTerminalWindowOpen: (open) => ipcRenderer.invoke(IPC_CHANNELS.terminalWindowSetOpen, open),
   readTerminalWindowState: () => ipcRenderer.invoke(IPC_CHANNELS.terminalWindowStateRead),
+  setActiveTerminalTask: (state) => ipcRenderer.invoke(IPC_CHANNELS.terminalActiveTaskSet, state),
+  readActiveTerminalTask: () => ipcRenderer.invoke(IPC_CHANNELS.terminalActiveTaskRead),
   readWorkspaceTree: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceTreeRead, request),
   readWorkspaceFile: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceFileRead, request),
   openWorkspaceExternal: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceOpenExternal, request),
@@ -212,6 +215,13 @@ const duetRuntime: DuetRuntimeBridge = {
     };
     ipcRenderer.on(IPC_CHANNELS.terminalWindowState, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.terminalWindowState, listener);
+  },
+  onActiveTerminalTask: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: TerminalActiveTaskState) => {
+      callback(state);
+    };
+    ipcRenderer.on(IPC_CHANNELS.terminalActiveTask, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.terminalActiveTask, listener);
   },
   onRuntimeEvent: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, runtimeEvent: RuntimeEvent) => {

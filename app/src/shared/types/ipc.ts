@@ -79,6 +79,9 @@ export const IPC_CHANNELS = {
   terminalWindowSetOpen: "terminal-window:set-open",
   terminalWindowStateRead: "terminal-window:state:read",
   terminalWindowState: "terminal-window:state",
+  terminalActiveTaskSet: "terminal-active-task:set",
+  terminalActiveTaskRead: "terminal-active-task:read",
+  terminalActiveTask: "terminal-active-task",
   workspaceTreeRead: "workspace:tree:read",
   workspaceFileRead: "workspace:file:read",
   workspaceOpenExternal: "workspace:open-external",
@@ -440,6 +443,17 @@ export interface TerminalWindowState {
   open: boolean;
 }
 
+/**
+ * Which task the terminal window should show, and whether it has a live PTY
+ * (so the window knows whether to forward keystrokes). Owned by the main
+ * window — the selected-task concept is its UI state — and relayed to the
+ * terminal window through the main process.
+ */
+export interface TerminalActiveTaskState {
+  taskId: TaskId | null;
+  live: boolean;
+}
+
 export interface WorkspaceTreeRequest {
   taskId: TaskId;
 }
@@ -546,6 +560,9 @@ export interface DuetRuntimeBridge {
   setTerminalWindowOpen(open: boolean): Promise<TerminalWindowState>;
   readTerminalWindowState(): Promise<TerminalWindowState>;
   onTerminalWindowState(callback: (state: TerminalWindowState) => void): () => void;
+  setActiveTerminalTask(state: TerminalActiveTaskState): Promise<void>;
+  readActiveTerminalTask(): Promise<TerminalActiveTaskState>;
+  onActiveTerminalTask(callback: (state: TerminalActiveTaskState) => void): () => void;
   readWorkspaceTree(request: WorkspaceTreeRequest): Promise<WorkspaceTreeEntry[]>;
   readWorkspaceFile(request: WorkspaceFileReadRequest): Promise<WorkspaceFilePreviewResponse>;
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;

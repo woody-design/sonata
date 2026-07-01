@@ -12,6 +12,7 @@ import {
   type OpenTerminalLinkResponse,
   type PreviewWindowState,
   type TaskId,
+  type TerminalActiveTaskState,
   type TerminalWindowState,
   type WorkspaceOpenExternalRequest,
   type WorkspaceOpenExternalResponse,
@@ -50,6 +51,8 @@ export interface WindowIpcController {
   readInspectorState(): InspectorWindowState;
   setTerminalWindowOpen(open: boolean): Promise<TerminalWindowState>;
   readTerminalWindowState(): TerminalWindowState;
+  setActiveTerminalTask(state: TerminalActiveTaskState): void;
+  readActiveTerminalTask(): TerminalActiveTaskState;
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   pickFolder(): Promise<FolderPickResponse>;
@@ -215,6 +218,12 @@ export function registerIpcHandlers(
   );
   ipcMain.handle(IPC_CHANNELS.terminalWindowStateRead, () =>
     windowController.readTerminalWindowState(),
+  );
+  ipcMain.handle(IPC_CHANNELS.terminalActiveTaskSet, (_event, state) => {
+    windowController.setActiveTerminalTask(state);
+  });
+  ipcMain.handle(IPC_CHANNELS.terminalActiveTaskRead, () =>
+    windowController.readActiveTerminalTask(),
   );
   ipcMain.handle(IPC_CHANNELS.workspaceTreeRead, (_event, request) =>
     runtimeController.readWorkspaceTree(request.taskId),

@@ -21,6 +21,7 @@ import {
   type PreviewWindowState,
   type RuntimeEvent,
   type TaskId,
+  type TerminalActiveTaskState,
   type TerminalWindowState,
   type WorkspaceOpenExternalRequest,
   type WorkspaceOpenExternalResponse,
@@ -65,6 +66,9 @@ let inspectorState: InspectorWindowState = {
   taskId: null,
   lens: "run",
 };
+// Which task the terminal window shows. Owned by the main renderer (the
+// selected-task concept is its UI state); relayed here for the terminal window.
+let activeTerminalTask: TerminalActiveTaskState = { taskId: null, live: false };
 let windowState: WindowStateManager | null = null;
 
 const MAIN_WINDOW_DEFAULTS: WindowDefaults = {
@@ -477,6 +481,19 @@ function persistTerminalWindowOpen(open: boolean): void {
   }
 }
 
+function setActiveTerminalTask(next: TerminalActiveTaskState): void {
+  activeTerminalTask = next;
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.terminalActiveTask, activeTerminalTask);
+    }
+  }
+}
+
+function readActiveTerminalTask(): TerminalActiveTaskState {
+  return activeTerminalTask;
+}
+
 async function openWorkspaceExternal(
   request: WorkspaceOpenExternalRequest,
 ): Promise<WorkspaceOpenExternalResponse> {
@@ -722,6 +739,8 @@ app.whenReady().then(() => {
     readInspectorState,
     setTerminalWindowOpen,
     readTerminalWindowState,
+    setActiveTerminalTask,
+    readActiveTerminalTask,
     openWorkspaceExternal,
     openWorkspaceFolder,
     pickFolder,

@@ -300,6 +300,10 @@ interface TaskEntryMessage {
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "dark" : "light";
+// Dedup key for the terminal-window active-task relay (see pushActiveTerminalTask).
+// Declared here — with the other early module state — so it is initialized before
+// the first render() call (a later declaration lands in the temporal dead zone).
+let lastPushedTerminalTask = "";
 
 const state: RendererState = {
   taskViews: [],
@@ -4463,9 +4467,8 @@ window.duetRuntime.onRuntimeEvent((event) => {
     if (!view) {
       return;
     }
-    // Every task's mirror lives from spawn — the drawer shows state, not a
-    // replayed byte tail.
-    ensureTaskTerminal(event.payload.taskId).terminal.write(event.payload.data);
+    // The raw terminal now renders in the satellite window (fed by the same
+    // broadcast). The main window keeps only the Read transcript and unread cue.
     if (!isActiveView(view)) {
       view.unread = true;
     }
@@ -4929,13 +4932,7 @@ function activateTask(taskId: string): void {
   state.activeTaskId = taskId;
   view.unread = false;
   view.completedUnseen = false;
-  attachActiveTaskTerminal();
   render();
-  // A task switched to while it sits in Terminal mode needs its xterm refit once
-  // the pane is shown by render() (attach measured it while still hidden).
-  if (view.viewMode === "terminal") {
-    queueMicrotask(() => void resizeTerminal());
-  }
 }
 
 function markViewChanged(view: TaskViewState): void {
@@ -5312,8 +5309,24 @@ async function resizeTerminal(): Promise<void> {
   }
 }
 
+// Relay the active task (and its live-ness) to the terminal window, deduped so
+// render()'s frequent calls don't spam IPC. The terminal window shows this
+// task's terminal and forwards keystrokes only while it is live.
+// (`lastPushedTerminalTask` is declared with the early module state above.)
+function pushActiveTerminalTask(): void {
+  const taskId = state.activeTaskId ?? null;
+  const live = Boolean(activeTaskView()?.live);
+  const key = `${taskId}:${live}`;
+  if (key === lastPushedTerminalTask) {
+    return;
+  }
+  lastPushedTerminalTask = key;
+  void window.duetRuntime.setActiveTerminalTask({ taskId, live }).catch(() => {});
+}
+
 function render(): void {
   const view = activeTaskView();
+  pushActiveTerminalTask();
   elements.taskTitle.textContent = view?.task?.title ?? "New chat";
   elements.runtimeStatus.textContent = view?.status ?? state.status;
   elements.openPreviewWindow.disabled = !view?.task || state.busy;
@@ -8811,18 +8824,15 @@ function activeViewMode(): ViewMode {
  *  task is touched. Leaving Terminal hands the keys back — control must never be
  *  held where the human can't type (model Y). Entering Terminal attaches + fits
  *  the xterm once the pane is visible. */
-function setViewMode(mode: ViewMode): void {
+function setViewMode(_mode: ViewMode): void {
+  // The terminal now lives in its own satellite window; the main window is
+  // always the Read surface. This is a no-op stub — its callers include the
+  // dead Ctrl+` binding and view switch — until that in-pane view-mode
+  // machinery is removed wholesale in a later slice.
   const view = activeTaskView();
-  if (!view) {
-    return;
-  }
-  view.viewMode = mode;
-  render();
-  if (mode === "terminal") {
-    queueMicrotask(() => {
-      attachActiveTaskTerminal();
-      void resizeTerminal();
-    });
+  if (view && view.viewMode !== "read") {
+    view.viewMode = "read";
+    render();
   }
 }
 
@@ -9132,7 +9142,6 @@ function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
   if (request.runId) {
     view.highlightedRunId = request.runId;
   }
-  attachActiveTaskTerminal();
   render();
 
   queueMicrotask(() => {

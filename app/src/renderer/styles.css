@@ -1305,14 +1305,30 @@ body.sidebar-resizing {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   position: relative;
 }
 
+/* Mirrors the main window's #terminal wrapper: FitAddon measures this padded
+   inner box, so the reading-surface inset is honoured by the grid. */
+.terminal-window-term {
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+}
+
 .terminal-window-placeholder {
+  position: absolute;
+  inset: 0;
   margin: 0;
-  padding: 20px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
   font-size: 13px;
   color: var(--text-muted, var(--text-body));
+  pointer-events: none;
 }
 
 .topbar {
@@ -1788,8 +1804,11 @@ h2 {
 
 /* Header view switch (Read | Terminal) — the same segmented idiom as the reading
    controls, two columns. The active task's mode is the selected segment. */
+/* The Read/Terminal in-pane switch is retired: the terminal is a satellite
+   window now, toggled from the header button. Hidden here; the markup and its
+   handlers are removed wholesale in a later slice. */
 .view-switch {
-  display: grid;
+  display: none;
   grid-template-columns: repeat(2, minmax(64px, auto));
   gap: 2px;
   border: 1px solid var(--border-menu);
