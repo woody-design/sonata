@@ -20,8 +20,7 @@ import {
 // main-process headless mirror on creation. The active task — relayed via
 // onActiveTerminalTask — is the one shown; the rest stay mounted-but-hidden and
 // keep accumulating. Terminals whose task has closed are disposed. The whole
-// subsystem was lifted out of the main window's renderer; Cmd+F search lands in
-// a later slice.
+// subsystem was lifted out of the main window's renderer.
 
 function requireEl<T extends HTMLElement>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -107,8 +106,8 @@ function openExternalTerminalLink(url: string): void {
 
 // Resolve the app's --term-* palette tokens (which may be var()/color-mix())
 // down to concrete sRGB via a probe + 1x1 canvas — xterm's color parser rejects
-// color(srgb ...). Identical to the main window's resolver so the two surfaces
-// read the same until the terminal gets its own theme control.
+// color(srgb ...). The same resolver the main window uses, reading whatever
+// theme this window's root is stamped with (its own, set via the Aa picker).
 function terminalTheme(): ITheme {
   const probe = document.createElement("span");
   probe.style.position = "absolute";
@@ -665,5 +664,9 @@ void (async () => {
     settings = { ...DEFAULT_TERMINAL_WINDOW_SETTINGS };
   }
   applyAppearance();
-  applyActiveTask(await window.duetRuntime.readActiveTerminalTask());
+  try {
+    applyActiveTask(await window.duetRuntime.readActiveTerminalTask());
+  } catch {
+    // No active task read yet; the onActiveTerminalTask broadcast populates it.
+  }
 })();

@@ -1415,9 +1415,8 @@ function removeTaskViewLocally(taskId: string): void {
   if (state.activeTaskId === taskId) {
     state.activeTaskId = null;
     state.usagePopover = null;
-    // The closed task's element was already removed by disposeTaskTerminal above;
-    // other tasks' terminals stay mounted (never re-parented). With no active task
-    // renderTerminalPane hides the whole pane, so nothing stale shows.
+    // The terminal window disposes this task's xterm when it drops out of the
+    // active-task broadcast's openTaskIds; nothing terminal-related lingers here.
   }
   render();
 }
@@ -2016,14 +2015,9 @@ elements.toggleTerminalWindow.addEventListener("click", () => {
 window.duetRuntime.onTerminalWindowState(applyTerminalWindowState);
 void window.duetRuntime.readTerminalWindowState().then(applyTerminalWindowState);
 
-// The view switch: Read is always reachable; Terminal needs a live PTY-backed
-// task to drive. Switching is the only "open/close" — there is no separate
-// close button (you switch back to Read).
-// Reflexive switch: Ctrl+` flips between Read and Terminal from anywhere (VS
-// Code's terminal binding — devs reach for it without thinking). Capture phase
-// + stopPropagation so it fires even while the xterm holds focus during
-// take-over (and never leaks a backtick into the PTY). Only gated by a real
-// task — so the terminal stays reachable mid-turn.
+// Ctrl+` opens/focuses the terminal window (repurposed from VS Code's terminal
+// binding — devs reach for it without thinking). Capture phase + stopPropagation
+// so it fires even while an xterm holds focus and never leaks a backtick.
 document.addEventListener(
   "keydown",
   (event) => {
@@ -2050,11 +2044,6 @@ elements.remoteControlToggle.addEventListener("click", (event) => {
   }
   toggleRemoteControlPopover(event.currentTarget as HTMLElement);
 });
-
-// Terminal height needs no management now: in Terminal mode the pane fills the
-// whole workspace (full height, no stacking, no drag-to-resize). The old
-// resizable bottom-drawer floor — and its persisted height + drag handle —
-// retired with the move to a header view switch.
 
 elements.openSelectedPreview.addEventListener("click", () => {
   void openFloatingPreview();
@@ -4700,11 +4689,6 @@ function render(): void {
   elements.runtimeStatus.textContent = view?.status ?? state.status;
   elements.openPreviewWindow.disabled = !view?.task || state.busy;
   elements.openInspectorWindow.disabled = !view?.task || state.busy;
-  // The Terminal switch must stay reachable exactly when it is needed (mid-turn,
-  // while a Duet operation is in flight, on a stuck interstitial). Switching is a
-  // safe, read-only-until-focused view change, gated ONLY by "a real task exists"
-  // — never by state.busy (Duet's own transient op flag: open/resume/decide/pick,
-  // not "Claude is working"). renderTerminalPane owns the switch's disabled state.
   elements.sessionMenuTrigger.classList.toggle("hidden", !view?.task);
   elements.sidebarNewChat.disabled = state.busy;
   renderReadingPopover();

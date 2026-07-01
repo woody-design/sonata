@@ -1898,70 +1898,6 @@ h2 {
   color: var(--ink-on-accent);
   background: var(--accent);
 }
-
-/* Header view switch (Read | Terminal) — the same segmented idiom as the reading
-   controls, two columns. The active task's mode is the selected segment. */
-/* The Read/Terminal in-pane switch is retired: the terminal is a satellite
-   window now, toggled from the header button. Hidden here; the markup and its
-   handlers are removed wholesale in a later slice. */
-.view-switch {
-  display: none;
-  grid-template-columns: repeat(2, minmax(64px, auto));
-  gap: 2px;
-  border: 1px solid var(--border-menu);
-  border-radius: 8px;
-  padding: 2px;
-  background: var(--surface-control-soft);
-  -webkit-app-region: no-drag;
-}
-
-.view-segment {
-  position: relative;
-  min-width: 0;
-  min-height: 28px;
-  border: 0;
-  border-radius: 6px;
-  padding: 0 14px;
-  color: var(--ink-menu);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.view-segment:hover:not(.selected):not(:disabled) {
-  background: var(--surface-menu-hover);
-}
-
-.view-segment.selected {
-  color: var(--ink-on-accent);
-  background: var(--accent);
-}
-
-.view-segment:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-/* Needs-you: the active task hit a terminal-resolvable block (a native panel /
-   an unparsed wait) while you're in Read. A dot on the Terminal segment draws
-   the eye without stealing the surface. */
-.view-segment.needs-you::after {
-  content: "";
-  position: absolute;
-  top: 5px;
-  right: 7px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 2px var(--surface-control-soft);
-}
-
-.view-segment.selected.needs-you::after {
-  background: var(--ink-on-accent);
-  box-shadow: 0 0 0 2px var(--accent);
-}
-
 .reading-size-stepper {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr) 52px;
@@ -3017,8 +2953,8 @@ h2 {
 /* Without this, the bare `.hidden` (display:none) loses to `.delivery-queue`
    (display:grid) on source order, so an EMPTY queue still occupied its 10px
    padding above the composer — the phantom gap below the scroll fade. The
-   sibling panels (.resume-choice.hidden, .terminal-pane.hidden, …) all carry
-   the same explicit override; this one was missing. */
+   sibling panels (.resume-choice.hidden, …) all carry the same explicit
+   override; this one was missing. */
 .delivery-queue.hidden {
   display: none;
 }
@@ -4419,21 +4355,6 @@ h2 {
   min-height: 440px;
 }
 
-/* The terminal is now a co-equal sibling of the reading column — when in front
-   it fills the whole workspace (full height, no stacking, no drag-to-resize).
-   The view switch swaps which pane is shown. */
-.terminal-pane {
-  min-width: 0;
-  min-height: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--surface);
-  /* Anchor for the find overlay, which floats over the terminal's top-right. */
-  position: relative;
-}
-
 /* Find box — floats over the terminal's top-right (VS Code / browser-find idiom),
    never reflows the grid. Duet's panel surface + tokens so it reads native, not
    like terminal chrome. Woody dials placement/spacing. */
@@ -4498,20 +4419,6 @@ h2 {
 .terminal-search-btn:hover {
   background: var(--surface-menu-hover);
   color: var(--ink-strong);
-}
-
-/* Explicit override — see .run-column.hidden (the source-order trap). */
-.terminal-pane.hidden {
-  display: none;
-}
-
-#terminal {
-  flex: 1;
-  min-height: 0;
-  /* Reading-surface breathing room. FitAddon measures the padded inner box of
-     this wrapper, so the inset is honored by the grid. Ghostty's default is 2pt;
-     a dwell-in reading surface wants more (contract D4). Woody dials this live. */
-  padding: 12px;
 }
 
 .task-terminal {
