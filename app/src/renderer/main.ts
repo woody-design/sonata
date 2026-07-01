@@ -1,8 +1,3 @@
-import { FitAddon } from "@xterm/addon-fit";
-import { SearchAddon } from "@xterm/addon-search";
-import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { Terminal, type ITheme } from "@xterm/xterm";
 import DOMPurify from "dompurify";
 import {
   createElement as createLucideIcon,
@@ -27,7 +22,6 @@ import {
   type IconNode,
 } from "lucide";
 import { marked } from "marked";
-import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 import {
   CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS,
@@ -144,10 +138,6 @@ interface TaskViewState {
   transcriptBlocks: Map<string, TranscriptBlock>;
   transcriptBlockOrder: string[];
   transcriptSources: TranscriptSourceRef[];
-  /** Which surface this task shows: the reading view or the raw terminal.
-   *  Per-task so a session stuck at a CLI prompt can sit in Terminal while
-   *  another is read in Read; the header switch reflects the active task. */
-  viewMode: ViewMode;
   /** The human holds the keys in the terminal view (single-writer). In Terminal
    *  mode the pane is read-only until focused — focus grabs the keys (model Y). */
   userControl: boolean;
@@ -1421,7 +1411,6 @@ async function deleteSessionFromSidebar(taskId: string, title: string): Promise<
 }
 
 function removeTaskViewLocally(taskId: string): void {
-  disposeTaskTerminal(taskId);
   state.taskViews = state.taskViews.filter((item) => item.task?.id !== taskId);
   if (state.activeTaskId === taskId) {
     state.activeTaskId = null;
@@ -1531,11 +1520,6 @@ if (!appElement) {
   throw new Error("Renderer mount point was not found.");
 }
 
-// Live take-over terminals, keyed by task id. Declared before the first
-// applyReadingSettings() call: that init-time call repaints terminal themes,
-// and a const referenced from its own TDZ would crash the renderer (white
-// screen). No terminals exist yet here — the map is simply empty.
-const taskTerminals = new Map<string, TaskTerminal>();
 
 applyReadingSettings(state.readingSettings);
 
@@ -1563,13 +1547,6 @@ appElement.innerHTML = `
         <button id="session-menu-trigger" class="chrome-icon-button session-menu-trigger hidden" type="button" title="Session actions" aria-haspopup="menu" aria-label="Session actions"></button>
       </div>
       <div class="chrome-center">
-        <!-- The two co-equal surfaces of a task: the crafted Read view and the
-             raw Terminal. Both ARE Duet; the switch picks the lens in front.
-             Default Read; Terminal is the always-one-click-away native door. -->
-        <div class="view-switch" role="tablist" aria-label="View">
-          <button id="view-read" class="view-segment selected" type="button" role="tab" aria-selected="true">Read</button>
-          <button id="view-terminal" class="view-segment" type="button" role="tab" aria-selected="false" title="Terminal (Ctrl+&#96;)">Terminal</button>
-        </div>
       </div>
       <div class="topbar-actions chrome-actions">
         <span id="runtime-status" class="status">Idle</span>
@@ -1700,28 +1677,6 @@ appElement.innerHTML = `
         </form>
       </section>
 
-      <!-- The raw terminal, now a co-equal sibling of the reading column (not a
-           bottom drawer): the header switch swaps which fills the workspace, so
-           Terminal gets full height and never needs resizing. Typing here goes
-           straight to the live CLI — no take-over gesture (S2). -->
-      <section id="terminal-pane" class="terminal-pane hidden" aria-label="Terminal">
-        <div id="terminal-search" class="terminal-search hidden" role="search">
-          <input
-            id="terminal-search-input"
-            class="terminal-search-input"
-            type="text"
-            placeholder="Find"
-            aria-label="Find in terminal"
-            spellcheck="false"
-            autocomplete="off"
-          />
-          <span id="terminal-search-count" class="terminal-search-count" aria-live="polite"></span>
-          <button id="terminal-search-prev" class="terminal-search-btn" type="button" title="Previous (⇧⏎)" aria-label="Previous match">↑</button>
-          <button id="terminal-search-next" class="terminal-search-btn" type="button" title="Next (⏎)" aria-label="Next match">↓</button>
-          <button id="terminal-search-close" class="terminal-search-btn" type="button" title="Close (Esc)" aria-label="Close find">✕</button>
-        </div>
-        <div id="terminal"></div>
-      </section>
     </section>
     </div>
     <div id="sidebar-menu-root"></div>
@@ -1739,8 +1694,6 @@ const elements = {
   openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
   openInspectorWindow: getElement<HTMLButtonElement>("open-inspector-window"),
   toggleTerminalWindow: getElement<HTMLButtonElement>("toggle-terminal-window"),
-  viewRead: getElement<HTMLButtonElement>("view-read"),
-  viewTerminal: getElement<HTMLButtonElement>("view-terminal"),
   sidebar: getElement<HTMLElement>("sidebar"),
   sidebarResizer: getElement<HTMLDivElement>("sidebar-resizer"),
   sidebarNewChat: getElement<HTMLButtonElement>("sidebar-new-chat"),
@@ -1789,539 +1742,13 @@ const elements = {
   composerPopoverRoot: getElement<HTMLDivElement>("composer-popover-root"),
   sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
   runColumn: getElement<HTMLElement>("run-column"),
-  terminalPane: getElement<HTMLElement>("terminal-pane"),
-  terminal: getElement<HTMLDivElement>("terminal"),
-  terminalSearch: getElement<HTMLDivElement>("terminal-search"),
-  terminalSearchInput: getElement<HTMLInputElement>("terminal-search-input"),
-  terminalSearchCount: getElement<HTMLSpanElement>("terminal-search-count"),
-  terminalSearchPrev: getElement<HTMLButtonElement>("terminal-search-prev"),
-  terminalSearchNext: getElement<HTMLButtonElement>("terminal-search-next"),
-  terminalSearchClose: getElement<HTMLButtonElement>("terminal-search-close"),
 };
 
-const terminalFontFamily = getComputedStyle(document.documentElement)
-  .getPropertyValue("--font-mono")
-  .trim();
-
-// xterm measures cell geometry once, at open(). A bundled web font that hasn't
-// finished loading at that moment is measured with the fallback face, and the
-// wrong cell size is cached → a misaligned grid (contract gotcha). @font-face is
-// lazy (the font only loads when something requests it), so document.fonts.ready
-// alone can resolve before the face is ever requested — we trigger the load
-// explicitly, then await. open() is gated on this (see openTaskTerminal); once the
-// face is cached this resolves immediately, so only the genuine first open waits.
-const terminalFontsReady: Promise<void> = (async () => {
-  try {
-    await Promise.all([
-      document.fonts.load('13px "Maple Mono NF CN"'),
-      document.fonts.load('bold 13px "Maple Mono NF CN"'),
-    ]);
-  } catch {
-    // A failed explicit load still falls through to the global readiness check;
-    // worst case the terminal renders in the fallback face until reload.
-  }
-  await document.fonts.ready;
-})();
 
 const USAGE_CONTEXT_HIGH_USED_PERCENT = 80;
 const USAGE_POPOVER_OPEN_DELAY_MS = 150;
 const USAGE_POPOVER_CLOSE_DELAY_MS = 180;
 
-/**
- * One live terminal PER TASK, fed the full PTY stream from spawn. The
- * drawer re-parents the active task's element — never replays a byte tail
- * (the old sliced-replay drawer cut escape streams mid-sequence and showed
- * empty/corrupt panels; slice A findings 2026-06-12). Writes before open()
- * are buffered by xterm, so mirrors are faithful even while hidden.
- */
-interface TaskTerminal {
-  terminal: Terminal;
-  fit: FitAddon;
-  search: SearchAddon;
-  element: HTMLDivElement;
-  opened: boolean;
-  disposers: Array<() => void>;
-}
-
-// Copy-on-select mirrors iTerm2/Linux terminals — selecting text drops it on the
-// clipboard with no Cmd+C. It diverges from the macOS norm (explicit copy) and
-// clobbers the clipboard on every drag, so it is a single flag Woody can flip.
-// Cmd+C still copies the selection regardless; Cmd+V / paste are xterm-native.
-const TERMINAL_COPY_ON_SELECT = true;
-
-// Programming ligatures, default on (D8 — Ghostty renders them by default and
-// that is the eye Woody benchmarks against). xterm needs nothing fancy: a
-// character joiner groups a sequence into one render run, and the DOM renderer
-// then lets the bundled font shape it (Maple Mono carries the ligatures, and CSS
-// re-enables the calt/liga features). This deliberately does NOT use
-// @xterm/addon-ligatures — that pulls font-finder (Node) to read the font off
-// disk, which can't work in our sandboxed renderer with a bundled (non-system)
-// font; the joiner path is sandbox-safe and needs no WebGL (deferred). Verified
-// rendering on the DOM renderer in a standalone harness. One flag to disable.
-const TERMINAL_LIGATURES = true;
-
-// Sequences Maple Mono shapes. Ordered longest-first so "===" matches whole, not
-// "=="+"=". Joining a non-ligated sequence is harmless — it just renders as-is.
-const LIGATURE_PATTERN =
-  /<!--|-->|<==>|<=>|<==|==>|===|!==|=>>|<<=|>>=|->>|<<-|<->|->|<-|=>|<=|>=|==|!=|&&|\|\||\+\+|--|\/\/|\/\*|\*\/|:::|::|:=|\|>|<\||>>|<<|\.\.\.|\.\./g;
-
-function ligatureJoiner(text: string): Array<[number, number]> {
-  const ranges: Array<[number, number]> = [];
-  LIGATURE_PATTERN.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = LIGATURE_PATTERN.exec(text))) {
-    ranges.push([match.index, match.index + match[0].length]);
-  }
-  return ranges;
-}
-
-// Terminal links are untrusted (whatever the CLI printed). Route every click —
-// OSC 8 hyperlinks and bare URLs alike — through the main process, which enforces
-// the scheme allowlist (http/https/mailto) before handing anything to the OS.
-function openExternalTerminalLink(url: string): void {
-  void window.duetRuntime.openTerminalLink({ url }).catch(() => {});
-}
-
-// --- Terminal find (Cmd+F) ---------------------------------------------------
-// Match-highlight colors. Translucent so they wash over content instead of
-// replacing it; amber for matches, teal (Duet's accent) for the active one. Both
-// read on light and dark; Woody dials.
-const TERMINAL_SEARCH_DECORATIONS = {
-  matchBackground: "rgba(205, 171, 109, 0.30)",
-  matchOverviewRuler: "rgba(205, 171, 109, 0.70)",
-  activeMatchBackground: "rgba(121, 183, 165, 0.55)",
-  activeMatchBorder: "rgba(160, 214, 198, 0.90)",
-  activeMatchColorOverviewRuler: "rgba(121, 183, 165, 0.90)",
-};
-
-// The task the open find box is bound to: a task switch closes it (decorations
-// live on one terminal), while a same-task Read⇄Terminal toggle just hides it
-// with the pane and keeps the query.
-let terminalSearchTaskId: string | null = null;
-
-function updateTerminalSearchCount(result?: { resultIndex: number; resultCount: number }): void {
-  const hasQuery = elements.terminalSearchInput.value.length > 0;
-  if (!result || result.resultCount === 0) {
-    elements.terminalSearchCount.textContent = hasQuery ? "No results" : "";
-    return;
-  }
-  elements.terminalSearchCount.textContent = `${result.resultIndex + 1}/${result.resultCount}`;
-}
-
-function runTerminalSearch(direction: "next" | "prev", incremental = false): void {
-  const entry = activeTaskTerminal();
-  if (!entry) {
-    return;
-  }
-  const query = elements.terminalSearchInput.value;
-  if (!query) {
-    entry.search.clearDecorations();
-    updateTerminalSearchCount(undefined);
-    return;
-  }
-  const options = { decorations: TERMINAL_SEARCH_DECORATIONS, incremental };
-  if (direction === "next") {
-    entry.search.findNext(query, options);
-  } else {
-    entry.search.findPrevious(query, options);
-  }
-}
-
-function openTerminalSearch(): void {
-  const entry = activeTaskTerminal();
-  if (!entry) {
-    return;
-  }
-  terminalSearchTaskId = activeTaskView()?.task?.id ?? null;
-  elements.terminalSearch.classList.remove("hidden");
-  elements.terminalSearchInput.focus();
-  elements.terminalSearchInput.select();
-  // Re-run against whatever the box still holds (a prior open's query).
-  runTerminalSearch("next", true);
-}
-
-function closeTerminalSearch(): void {
-  // Clear decorations on the task the box was BOUND to, not whatever is active now
-  // — when a task switch closes the box, the active terminal has already changed,
-  // and the old task's match highlights would otherwise linger.
-  const bound = terminalSearchTaskId ? taskTerminals.get(terminalSearchTaskId) : null;
-  terminalSearchTaskId = null;
-  elements.terminalSearch.classList.add("hidden");
-  bound?.search.clearDecorations();
-  // Focus only an opened terminal — focus() before open() throws (same proposed-
-  // API/render-layer class as registerCharacterJoiner).
-  const active = activeTaskTerminal();
-  if (active?.opened) {
-    active.terminal.focus();
-  }
-}
-
-elements.terminalSearchInput.addEventListener("input", () => runTerminalSearch("next", true));
-elements.terminalSearchInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    runTerminalSearch(event.shiftKey ? "prev" : "next");
-  } else if (event.key === "Escape") {
-    event.preventDefault();
-    closeTerminalSearch();
-  }
-});
-elements.terminalSearchPrev.addEventListener("click", () => runTerminalSearch("prev"));
-elements.terminalSearchNext.addEventListener("click", () => runTerminalSearch("next"));
-elements.terminalSearchClose.addEventListener("click", () => closeTerminalSearch());
-// Cmd/Ctrl+F opens find while the Terminal lens is the active surface. Capture so
-// it beats xterm's own key handling; scoped to terminal view so Read keeps Cmd+F.
-document.addEventListener(
-  "keydown",
-  (event) => {
-    if (
-      (event.metaKey || event.ctrlKey) &&
-      !event.altKey &&
-      event.key.toLowerCase() === "f" &&
-      activeTaskView()?.viewMode === "terminal"
-    ) {
-      event.preventDefault();
-      openTerminalSearch();
-    }
-  },
-  true,
-);
-
-// The terminal reads the SAME theme tokens as the rest of the app, now as a full
-// 22-role ANSI palette (contract D6). The slot index is the semantic contract —
-// 1=red=error, 2=green=success, 3=yellow=warning — so the CLI's colors land on
-// roles that mean what Duet means. Hue roles route Duet's own art-directed tokens
-// (--status-*, --accent), so the palette reads native and tracks any token retune.
-//
-// Honesty about the background still matters (the old 3-role version's lesson):
-// hardcoded dark colors once rendered the CLI's OSC-11-adaptive text invisible in
-// light mode. Routing background→--surface / foreground→--ink keeps xterm's canvas
-// honest in BOTH light and dark — the --term-* tokens are defined for each.
-//
-// Tokens may be color-mix()/var() expressions. Resolving them is a two-step
-// problem: getComputedStyle on a custom property returns it UNEVALUATED, and even
-// after a probe element resolves var()/color-mix, the engine serializes an srgb
-// color-mix as "color(srgb r g b)" (verified) — which xterm's color parser does
-// NOT accept. So we (1) resolve through a probe's real `color` property, then
-// (2) paint that onto a 1×1 canvas and read the pixel back: getImageData rasters
-// ANY computed color (rgb(), color(srgb), future spaces) down to concrete sRGB
-// bytes. Robust for plain hex, var(), and color-mix() alike, and future-proof.
-function terminalTheme(): ITheme {
-  const probe = document.createElement("span");
-  probe.style.position = "absolute";
-  probe.style.visibility = "hidden";
-  probe.style.pointerEvents = "none";
-  document.body.appendChild(probe);
-  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
-  const resolve = (token: string, fallback: string): string => {
-    probe.style.color = `var(${token}, ${fallback})`;
-    const computed = getComputedStyle(probe).color || fallback;
-    if (!ctx) {
-      return computed;
-    }
-    ctx.clearRect(0, 0, 1, 1);
-    ctx.fillStyle = computed;
-    ctx.fillRect(0, 0, 1, 1);
-    const px = ctx.getImageData(0, 0, 1, 1).data;
-    const r = px[0] ?? 0;
-    const g = px[1] ?? 0;
-    const b = px[2] ?? 0;
-    const a = px[3] ?? 255;
-    return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
-  };
-  try {
-    return {
-      background: resolve("--term-bg", "#1e1d1a"),
-      foreground: resolve("--term-fg", "#e8e3d9"),
-      cursor: resolve("--term-cursor", "#a0d6c6"),
-      cursorAccent: resolve("--term-cursor-accent", "#191814"),
-      selectionBackground: resolve("--term-selection-bg", "#334039"),
-      selectionForeground: resolve("--term-selection-fg", "#e8e3d9"),
-      black: resolve("--term-black", "#34312b"),
-      red: resolve("--term-red", "#d58b78"),
-      green: resolve("--term-green", "#82bfa8"),
-      yellow: resolve("--term-yellow", "#cdab6d"),
-      blue: resolve("--term-blue", "#7fa8cf"),
-      magenta: resolve("--term-magenta", "#bb96c4"),
-      cyan: resolve("--term-cyan", "#79b7a5"),
-      white: resolve("--term-white", "#cfc8ba"),
-      brightBlack: resolve("--term-bright-black", "#6c685f"),
-      brightRed: resolve("--term-bright-red", "#e7a18d"),
-      brightGreen: resolve("--term-bright-green", "#9bd9bd"),
-      brightYellow: resolve("--term-bright-yellow", "#e3c585"),
-      brightBlue: resolve("--term-bright-blue", "#9cc2e0"),
-      brightMagenta: resolve("--term-bright-magenta", "#d0b0d8"),
-      brightCyan: resolve("--term-bright-cyan", "#a0d6c6"),
-      brightWhite: resolve("--term-bright-white", "#f0eadf"),
-    };
-  } finally {
-    probe.remove();
-  }
-}
-
-function refreshTerminalThemes(): void {
-  const theme = terminalTheme();
-  for (const entry of taskTerminals.values()) {
-    entry.terminal.options.theme = theme;
-  }
-}
-
-function ensureTaskTerminal(taskId: string): TaskTerminal {
-  const existing = taskTerminals.get(taskId);
-  if (existing) {
-    return existing;
-  }
-  const term = new Terminal({
-    // Required by the Unicode 11 width API (term.unicode.activeVersion, below):
-    // without it xterm throws "You must set the allowProposedApi option to true".
-    allowProposedApi: true,
-    convertEol: true,
-    cursorBlink: false,
-    fontFamily:
-      terminalFontFamily || '"Maple Mono NF CN", "PingFang SC", Menlo, monospace',
-    // 13 = Ghostty's macOS default (Duet's old 12 read a touch small next to it);
-    // 1.2 line height gives a reading surface breathing room over the crammed
-    // terminal default of 1.0; letterSpacing stays 0 — any positive value trips
-    // xterm's fractional-rounding stretch bug (#972). Contract D4; Woody dials live.
-    fontSize: 13,
-    lineHeight: 1.2,
-    letterSpacing: 0,
-    // Outline cursor when focus leaves the terminal — a quiet "you're not typing
-    // here" cue that reads better than a solid block on a reading surface (D7).
-    cursorInactiveStyle: "outline",
-    // Long agent runs scroll far past the 1000-line default; keep more so users
-    // can scroll back through a whole run (D7). Woody dials if memory bites.
-    scrollback: 10000,
-    // OSC 8 hyperlinks (links the CLI explicitly marks) → the allowlisted opener.
-    // allowNonHttpProtocols stays false; the main-process allowlist is the real gate.
-    linkHandler: {
-      activate: (_event, text) => openExternalTerminalLink(text),
-    },
-    theme: terminalTheme(),
-  });
-  const fit = new FitAddon();
-  term.loadAddon(fit);
-  // Unicode 11 width tables — core defaults to v6 and mis-measures CJK/emoji as
-  // width 1. Loading the addon is inert until activeVersion is set.
-  term.loadAddon(new Unicode11Addon());
-  term.unicode.activeVersion = "11";
-  // Cmd+F search (UI in the renderer) + clickable bare URLs (OSC 8 is handled by
-  // linkHandler above; this catches plain-text URLs). Both routed to the opener.
-  const search = new SearchAddon();
-  term.loadAddon(search);
-  term.loadAddon(new WebLinksAddon((_event, uri) => openExternalTerminalLink(uri)));
-  // NOTE: the ligature character joiner is registered in openTaskTerminal, AFTER
-  // open() — registerCharacterJoiner throws "Terminal must be opened first" if
-  // called before the render layer exists. Since open() is deferred (font gate),
-  // registering here would throw inside ensureTaskTerminal — which also runs on
-  // every PTY write — and the terminal would never mount at all.
-  const element = document.createElement("div");
-  element.className = "task-terminal";
-  // The human may type into the terminal whenever a live PTY backs the task —
-  // no take-over gesture (S2). The single-writer invariant is enforced in the
-  // host (write-lock buffers keystrokes during an automation sequence; the
-  // activity window pauses delivery while the human types).
-  const dataListener = term.onData((data) => forwardUserInput(taskId, data));
-  const binaryListener = term.onBinary((data) => forwardUserInput(taskId, data));
-  // Cmd+C copies the selection (the macOS expectation); without a selection it
-  // falls through. Ctrl+C is untouched — it still reaches the PTY as SIGINT.
-  term.attachCustomKeyEventHandler((event) => {
-    if (event.type === "keydown" && event.metaKey && event.key === "c" && term.hasSelection()) {
-      void navigator.clipboard.writeText(term.getSelection()).catch(() => {});
-      return false;
-    }
-    return true;
-  });
-  // Copy-on-select: copy on mouseup — once per selection gesture — rather than on
-  // every onSelectionChange (which fires per cell as a drag grows). Reading the
-  // selection on a real mouse-up in THIS terminal also means a background or
-  // programmatic selection never clobbers the clipboard.
-  const onMouseUp = () => {
-    if (!TERMINAL_COPY_ON_SELECT) {
-      return;
-    }
-    const selection = term.getSelection();
-    if (selection) {
-      void navigator.clipboard.writeText(selection).catch(() => {});
-    }
-  };
-  element.addEventListener("mouseup", onMouseUp);
-  // Right-click pastes (a terminal convention). Skip dead sessions entirely — no
-  // clipboard read, no silent no-op. Read in the main process (reliable in a
-  // sandboxed renderer) and feed through term.paste so bracketed-paste mode is
-  // honored and it rides the same single-writer onData path.
-  const onContextMenu = (event: MouseEvent) => {
-    event.preventDefault();
-    if (!taskViewForId(taskId)?.live) {
-      return;
-    }
-    void window.duetRuntime
-      .readClipboardText()
-      .then(({ text }) => {
-        if (text) {
-          term.paste(text);
-        }
-      })
-      .catch(() => {});
-  };
-  element.addEventListener("contextmenu", onContextMenu);
-  // Feed the "3/17" counter — but only when this is the terminal the search box is
-  // bound to (inactive terminals never get searched, so this rarely fires for them).
-  const resultsListener = search.onDidChangeResults((result) => {
-    if (activeTaskTerminal()?.search === search) {
-      updateTerminalSearchCount(result);
-    }
-  });
-  const entry: TaskTerminal = {
-    terminal: term,
-    fit,
-    search,
-    element,
-    opened: false,
-    disposers: [
-      () => dataListener.dispose(),
-      () => binaryListener.dispose(),
-      () => resultsListener.dispose(),
-      () => element.removeEventListener("mouseup", onMouseUp),
-      () => element.removeEventListener("contextmenu", onContextMenu),
-    ],
-  };
-  taskTerminals.set(taskId, entry);
-  return entry;
-}
-
-function forwardUserInput(taskId: string, data: string): void {
-  const view = taskViewForId(taskId);
-  if (!view?.live || !data) {
-    return;
-  }
-  void window.duetRuntime.writeTerminalUserInput({ taskId, data }).catch((error) => {
-    view.status = errorMessage(error);
-    render();
-  });
-}
-
-function disposeTaskTerminal(taskId: string): void {
-  const entry = taskTerminals.get(taskId);
-  if (!entry) {
-    return;
-  }
-  // If the find box was bound to this task, drop the dangling reference and hide
-  // it (the task's terminal — and its decorations — are about to be gone).
-  if (terminalSearchTaskId === taskId) {
-    terminalSearchTaskId = null;
-    elements.terminalSearch.classList.add("hidden");
-  }
-  for (const dispose of entry.disposers) {
-    dispose();
-  }
-  entry.terminal.dispose();
-  entry.element.remove();
-  taskTerminals.delete(taskId);
-}
-
-function activeTaskTerminal(): TaskTerminal | null {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return null;
-  }
-  return taskTerminals.get(view.task.id) ?? null;
-}
-
-/** Show the active task's terminal. Each task's xterm lives in its own element,
- *  mounted into the pane ONCE and never moved again — switching tasks toggles
- *  visibility, it does not re-parent. (Moving an xterm element across the DOM
- *  breaks rendering on xterm v6; VS Code likewise keeps a stable per-terminal
- *  wrapper and toggles an `active` class.) Open lazily on first reveal so xterm
- *  can measure real dimensions. */
-function attachActiveTaskTerminal(): void {
-  const view = activeTaskView();
-  if (!view?.task) {
-    for (const entry of taskTerminals.values()) {
-      entry.element.classList.add("hidden");
-    }
-    return;
-  }
-  const entry = ensureTaskTerminal(view.task.id);
-  // A find box open on a different task is now stale (its decorations live on the
-  // other terminal) — close it before showing this one.
-  if (terminalSearchTaskId && terminalSearchTaskId !== view.task.id) {
-    closeTerminalSearch();
-  }
-  // Mount once; never re-parent (the v6 re-render-on-reopen regression bites here).
-  if (entry.element.parentElement !== elements.terminal) {
-    elements.terminal.append(entry.element);
-  }
-  // Exactly one terminal visible — the active task's. No DOM moves.
-  for (const other of taskTerminals.values()) {
-    other.element.classList.toggle("hidden", other !== entry);
-  }
-  if (!entry.opened && view.viewMode === "terminal") {
-    openTaskTerminal(entry, view.task.id);
-  }
-  fitTerminal();
-}
-
-/** Open a task's xterm, gated on the terminal font having loaded so cell metrics
- *  are measured against the real face (contract gotcha). Once the font is cached
- *  the gate resolves immediately; only the genuine first open ever waits. */
-function openTaskTerminal(entry: TaskTerminal, taskId: string): void {
-  void terminalFontsReady.then(() => {
-    // Re-validate at resolve time: the task may have closed, or the view moved
-    // on, while the font loaded. Opening a hidden/detached xterm would measure a
-    // zero-size box and misalign — so only open while this task is still the one
-    // shown in Terminal mode. If not, the next attach opens it (font now cached).
-    if (entry.opened || taskTerminals.get(taskId) !== entry) {
-      return;
-    }
-    const view = activeTaskView();
-    if (view?.task?.id !== taskId || view.viewMode !== "terminal") {
-      return;
-    }
-    entry.terminal.open(entry.element);
-    entry.opened = true;
-    wireTerminalComposition(entry, taskId);
-    // Ligatures (D8): the character joiner groups sequences so the font shapes
-    // them. registerCharacterJoiner is a proposed API that needs the render layer,
-    // so it MUST run after open() — registering it in ensureTaskTerminal (before
-    // this deferred open) threw "Terminal must be opened first" and wedged the
-    // whole terminal. allowProposedApi (set in the constructor) unlocks it.
-    if (TERMINAL_LIGATURES) {
-      entry.terminal.registerCharacterJoiner(ligatureJoiner);
-    }
-    // open() was deferred past attachActiveTaskTerminal's synchronous fit, so
-    // fit the client grid and push the real cols/rows to the PTY now.
-    fitTerminal();
-    void resizeTerminal();
-  });
-}
-
-/** IME: while the human composes CJK in the terminal, xterm holds the text in its
- *  helper textarea and sends NO bytes to the PTY until commit — so the host's
- *  keystroke-derived draft can't see the in-progress composition. Forward the
- *  composition window from the textarea (the authoritative DOM signal, not a
- *  screen scrape) so delivery holds until the human commits. */
-function wireTerminalComposition(entry: TaskTerminal, taskId: string): void {
-  const textarea = entry.terminal.textarea;
-  if (!textarea) {
-    return;
-  }
-  const onCompose = (composing: boolean) => () =>
-    void window.duetRuntime
-      .setTerminalComposing({ taskId, composing })
-      .catch(() => {});
-  const onStart = onCompose(true);
-  const onEnd = onCompose(false);
-  textarea.addEventListener("compositionstart", onStart);
-  textarea.addEventListener("compositionend", onEnd);
-  // Focus can leave mid-composition without a compositionend (task switch, window
-  // blur), which would otherwise pin `composing` true and wedge delivery — clear
-  // it on blur (mirrors the prompt composer's blur reset).
-  textarea.addEventListener("blur", onEnd);
-  entry.disposers.push(() => textarea.removeEventListener("compositionstart", onStart));
-  entry.disposers.push(() => textarea.removeEventListener("compositionend", onEnd));
-  entry.disposers.push(() => textarea.removeEventListener("blur", onEnd));
-}
 
 const pendingReadyTaskIds = new Set<string>();
 // Ticks the derived status row's clock without re-rendering the transcript.
@@ -2450,7 +1877,6 @@ function setSidebarCollapsed(collapsed: boolean): void {
   } catch {
     // Cosmetic state only.
   }
-  window.requestAnimationFrame(fitTerminal);
 }
 
 const SIDEBAR_WIDTH_KEY = "duet.sidebar.width";
@@ -2509,7 +1935,6 @@ elements.sidebarResizer.addEventListener("pointerdown", (event) => {
     frame = window.requestAnimationFrame(() => {
       frame = 0;
       applySidebarWidth(lastWidth);
-      fitTerminal();
     });
   };
   const onUp = (): void => {
@@ -2523,7 +1948,6 @@ elements.sidebarResizer.addEventListener("pointerdown", (event) => {
     }
     applySidebarWidth(lastWidth);
     persistSidebarWidth(clamp(lastWidth, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX));
-    window.requestAnimationFrame(fitTerminal);
   };
   resizer.addEventListener("pointermove", onMove);
   resizer.addEventListener("pointerup", onUp);
@@ -2533,7 +1957,6 @@ elements.sidebarResizer.addEventListener("pointerdown", (event) => {
 elements.sidebarResizer.addEventListener("dblclick", () => {
   applySidebarWidth(null);
   persistSidebarWidth(null);
-  window.requestAnimationFrame(fitTerminal);
 });
 
 try {
@@ -2596,16 +2019,6 @@ void window.duetRuntime.readTerminalWindowState().then(applyTerminalWindowState)
 // The view switch: Read is always reachable; Terminal needs a live PTY-backed
 // task to drive. Switching is the only "open/close" — there is no separate
 // close button (you switch back to Read).
-elements.viewRead.addEventListener("click", () => {
-  setViewMode("read");
-});
-elements.viewTerminal.addEventListener("click", () => {
-  if (!activeTaskView()?.task) {
-    return;
-  }
-  setViewMode("terminal");
-});
-
 // Reflexive switch: Ctrl+` flips between Read and Terminal from anywhere (VS
 // Code's terminal binding — devs reach for it without thinking). Capture phase
 // + stopPropagation so it fires even while the xterm holds focus during
@@ -2805,9 +2218,6 @@ function applyReadingSettings(nextSettings: ReadingSettings): void {
   root.dataset.mode = resolvedReadingMode(settings);
   root.dataset.readingModeSetting = settings.mode;
   root.dataset.textStep = String(settings.textStep);
-  // Mode is now on the root, so computed --surface/--ink reflect it: repaint
-  // any live take-over terminals to follow light/dark.
-  refreshTerminalThemes();
 }
 
 function resolvedReadingMode(settings = state.readingSettings): ResolvedReadingMode {
@@ -4339,7 +3749,6 @@ elements.modalDismiss.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => {
-  fitTerminal();
   if (state.readingPopoverOpen) {
     syncReadingPopoverAnchor();
     renderReadingPopover();
@@ -4534,11 +3943,6 @@ window.duetRuntime.onRuntimeEvent((event) => {
       // Background sessions surface the needs-you dot immediately —
       // notify, don't steal focus.
       renderSidebar();
-    } else if (event.payload.active && !wasActive) {
-      // Auto-surface (S3.3): a native panel Duet can't parse just opened on the
-      // active task — surface the floor (gentle by default; "open" reveals but
-      // never grabs the keys). Background tasks never reach here (dot only).
-      maybeAutoSurfaceFloor();
     }
     markViewChanged(view);
     return;
@@ -4674,19 +4078,6 @@ window.duetRuntime.onRuntimeEvent((event) => {
     };
     if (event.payload.activity !== previousActivity) {
       renderSidebar();
-      if (isActiveView(view)) {
-        // Auto-surface (S3.3): the active task just changed activity — keep the
-        // floor's needs-you signal honest, and on the transition INTO
-        // waiting-approval, surface the floor (gentle by default). Targeted
-        // DOM only — no transcript rebuild (S0 discipline preserved).
-        updateTerminalNeedsYou();
-        if (
-          event.payload.activity === "waiting-approval" &&
-          previousActivity !== "waiting-approval"
-        ) {
-          maybeAutoSurfaceFloor();
-        }
-      }
     }
     return;
   }
@@ -4817,7 +4208,6 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     transcriptBlocks: new Map(),
     transcriptBlockOrder: [],
     transcriptSources: [],
-    viewMode: "read",
     // active/url = live connected state; armedOverride = null means a dormant view
     // FOLLOWS the global default (so changing the default applies to it), until the
     // user toggles it. createTask sets active optimistically for a live armed spawn.
@@ -5284,28 +4674,6 @@ async function refreshReport(taskId = state.activeTaskId): Promise<void> {
   markViewChanged(view);
 }
 
-async function resizeTerminal(): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-  fitTerminal();
-  const entry = activeTaskTerminal();
-  if (!entry?.opened) {
-    return;
-  }
-  try {
-    await window.duetRuntime.resizeTerminal({
-      taskId: view.task.id,
-      cols: entry.terminal.cols,
-      rows: entry.terminal.rows,
-    });
-  } catch {
-    // The host can reject a resize for a task that just ended or closed; the next
-    // fit/resize reconciles. Swallow so the several fire-and-forget `void
-    // resizeTerminal()` call sites don't surface an unhandled rejection.
-  }
-}
 
 // Relay the active task (and its live-ness) to the terminal window, deduped so
 // render()'s frequent calls don't spam IPC. The terminal window shows this
@@ -5355,7 +4723,6 @@ function render(): void {
   renderWorkflow();
   renderRuns();
   renderArtifacts();
-  renderTerminalPane();
   renderDeliveryQueue();
 }
 
@@ -8817,9 +8184,6 @@ async function openFloatingInspector(): Promise<void> {
   });
 }
 
-function activeViewMode(): ViewMode {
-  return activeTaskView()?.viewMode ?? "read";
-}
 
 /** Switch the active task's surface (Read ⇄ Terminal). Per-task: only the active
  *  task is touched. Leaving Terminal hands the keys back — control must never be
@@ -8839,78 +8203,6 @@ function setViewMode(mode: ViewMode): void {
   }
 }
 
-function renderTerminalPane(): void {
-  const view = activeTaskView();
-  const inTerminal = (view?.viewMode ?? "read") === "terminal";
-
-  // Swap which surface fills the workspace. Explicit .hidden overrides matter:
-  // a bare .hidden{display:none} loses to .run-column/.terminal-pane{display:flex}
-  // defined later (the source-order trap) — each carries its own .x.hidden rule.
-  elements.runColumn.classList.toggle("hidden", inTerminal);
-  elements.terminalPane.classList.toggle("hidden", !inTerminal);
-
-  // The header switch mirrors the active task's mode; Terminal needs a task.
-  elements.viewRead.classList.toggle("selected", !inTerminal);
-  elements.viewRead.setAttribute("aria-selected", String(!inTerminal));
-  elements.viewTerminal.classList.toggle("selected", inTerminal);
-  elements.viewTerminal.setAttribute("aria-selected", String(inTerminal));
-  elements.viewTerminal.disabled = !view?.task;
-
-  updateTerminalNeedsYou();
-}
-
-// Auto-surface aggressiveness — a PROPOSAL for Woody to feel live. "signal"
-// (default, gentler): a needs-you accent on the Terminal switch draws the eye
-// without stealing the surface. "open": auto-switch to Terminal (notify, never
-// grab the keys — Terminal is read-only until focused). Dial live via
-// localStorage `duet.terminal.autoSurface` = "signal" | "open" (no rebuild).
-// NOTE: the trigger is activeViewNeedsFloor() — a parsed approval/modal — NOT
-// idle-ready, which fires after every normal turn-end (the happy path). The
-// "CLI is waiting on something Duet can't parse" detector is a separate slice.
-type TerminalAutoSurfaceMode = "signal" | "open";
-function terminalAutoSurfaceMode(): TerminalAutoSurfaceMode {
-  try {
-    return localStorage.getItem("duet.terminal.autoSurface") === "open" ? "open" : "signal";
-  } catch {
-    return "signal";
-  }
-}
-
-/** Does the ACTIVE task have a terminal-resolvable block right now? Waiting on an
- *  approval, or a native panel/interstitial Duet can't parse. (Background tasks
- *  are deliberately excluded — they get the sidebar dot, never a focus grab.) */
-function activeViewNeedsFloor(): boolean {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return false;
-  }
-  return view.cliState?.activity === "waiting-approval" || Boolean(view.modalPanel);
-}
-
-/** Gentle signal: a needs-you accent on the Terminal switch, shown only while
- *  you're in Read (already in Terminal ⇒ visible) and don't hold the keys.
- *  Targeted class toggle — safe to call from high-frequency handlers without
- *  rebuilding the transcript (S0 discipline). */
-function updateTerminalNeedsYou(): void {
-  const needs =
-    activeViewMode() === "read" && !activeTaskView()?.userControl && activeViewNeedsFloor();
-  elements.viewTerminal.classList.toggle("needs-you", needs);
-}
-
-/** Wire visibility to the signal layer: when the active task hits a
- *  terminal-resolvable block, surface it per the chosen aggressiveness. Notify,
- *  never steal focus — "open" auto-switches but does not take over. Called on
- *  the transition INTO the blocked state (active task only). */
-function maybeAutoSurfaceFloor(): void {
-  if (!activeViewNeedsFloor()) {
-    return;
-  }
-  if (terminalAutoSurfaceMode() === "open" && activeViewMode() === "read") {
-    setViewMode("terminal");
-    return;
-  }
-  updateTerminalNeedsYou();
-}
 
 function renderDeliveryQueue(): void {
   elements.deliveryQueue.replaceChildren();
@@ -9479,17 +8771,6 @@ function shortId(value: string): string {
   return value.length > 18 ? `${value.slice(0, 18)}...` : value;
 }
 
-function fitTerminal(): void {
-  const entry = activeTaskTerminal();
-  if (!entry?.opened) {
-    return;
-  }
-  try {
-    entry.fit.fit();
-  } catch {
-    // The terminal can be measured only after layout is ready.
-  }
-}
 
 function getElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
