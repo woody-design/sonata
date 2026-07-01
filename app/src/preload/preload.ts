@@ -161,6 +161,9 @@ const duetRuntime: DuetRuntimeBridge = {
   readTerminalWindowState: () => ipcRenderer.invoke(IPC_CHANNELS.terminalWindowStateRead),
   setActiveTerminalTask: (state) => ipcRenderer.invoke(IPC_CHANNELS.terminalActiveTaskSet, state),
   readActiveTerminalTask: () => ipcRenderer.invoke(IPC_CHANNELS.terminalActiveTaskRead),
+  readTerminalWindowSettings: () => ipcRenderer.invoke(IPC_CHANNELS.terminalWindowSettingsRead),
+  writeTerminalWindowSettings: (settings) =>
+    ipcRenderer.invoke(IPC_CHANNELS.terminalWindowSettingsWrite, settings),
   readWorkspaceTree: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceTreeRead, request),
   readWorkspaceFile: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceFileRead, request),
   openWorkspaceExternal: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceOpenExternal, request),

@@ -15,6 +15,7 @@ import type {
 } from "./domain";
 import type { RuntimeEvent } from "./events";
 import type { ReadingSettings, ResolvedReadingMode } from "./reading-settings";
+import type { TerminalWindowSettings } from "./terminal-window-settings";
 import type { ResumePolicyId, ResumeSettings } from "./resume-settings";
 import type { ClaudeSettings } from "./claude-settings";
 import type {
@@ -79,6 +80,8 @@ export const IPC_CHANNELS = {
   terminalWindowSetOpen: "terminal-window:set-open",
   terminalWindowStateRead: "terminal-window:state:read",
   terminalWindowState: "terminal-window:state",
+  terminalWindowSettingsRead: "terminal-window:settings:read",
+  terminalWindowSettingsWrite: "terminal-window:settings:write",
   terminalActiveTaskSet: "terminal-active-task:set",
   terminalActiveTaskRead: "terminal-active-task:read",
   terminalActiveTask: "terminal-active-task",
@@ -563,6 +566,8 @@ export interface DuetRuntimeBridge {
   setTerminalWindowOpen(open: boolean): Promise<TerminalWindowState>;
   readTerminalWindowState(): Promise<TerminalWindowState>;
   onTerminalWindowState(callback: (state: TerminalWindowState) => void): () => void;
+  readTerminalWindowSettings(): Promise<TerminalWindowSettings>;
+  writeTerminalWindowSettings(settings: TerminalWindowSettings): Promise<TerminalWindowSettings>;
   setActiveTerminalTask(state: TerminalActiveTaskState): Promise<void>;
   readActiveTerminalTask(): Promise<TerminalActiveTaskState>;
   onActiveTerminalTask(callback: (state: TerminalActiveTaskState) => void): () => void;

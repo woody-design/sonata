@@ -11,6 +11,7 @@ import {
   type OpenDialogOptions,
 } from "electron";
 import {
+  DEFAULT_TERMINAL_WINDOW_SETTINGS,
   IPC_CHANNELS,
   type FolderPickResponse,
   type FocusArtifactInMainRequest,
@@ -22,6 +23,7 @@ import {
   type RuntimeEvent,
   type TaskId,
   type TerminalActiveTaskState,
+  type TerminalWindowSettings,
   type TerminalWindowState,
   type WorkspaceOpenExternalRequest,
   type WorkspaceOpenExternalResponse,
@@ -472,9 +474,29 @@ function sendTerminalWindowState(): void {
   }
 }
 
+function readTerminalWindowSettings(): TerminalWindowSettings {
+  return terminalWindowSettingsStore?.read() ?? { ...DEFAULT_TERMINAL_WINDOW_SETTINGS };
+}
+
+function writeTerminalWindowSettings(settings: TerminalWindowSettings): TerminalWindowSettings {
+  // The window owns theme + mode; `open` is owned by the toggle, so preserve the
+  // stored value rather than trusting the request.
+  const merged: TerminalWindowSettings = {
+    ...readTerminalWindowSettings(),
+    theme: settings.theme,
+    mode: settings.mode,
+  };
+  try {
+    return terminalWindowSettingsStore?.write(merged) ?? merged;
+  } catch {
+    return merged;
+  }
+}
+
 function persistTerminalWindowOpen(open: boolean): void {
   try {
-    terminalWindowSettingsStore?.write({ open });
+    // Merge so the persisted theme/mode survive an open/close toggle.
+    terminalWindowSettingsStore?.write({ ...readTerminalWindowSettings(), open });
   } catch {
     // A failed preference write must never crash the app — at worst the open
     // state re-defaults on next launch.
@@ -739,6 +761,8 @@ app.whenReady().then(() => {
     readInspectorState,
     setTerminalWindowOpen,
     readTerminalWindowState,
+    readTerminalWindowSettings,
+    writeTerminalWindowSettings,
     setActiveTerminalTask,
     readActiveTerminalTask,
     openWorkspaceExternal,

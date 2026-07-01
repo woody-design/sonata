@@ -4,7 +4,14 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal, type ITheme } from "@xterm/xterm";
-import type { ReadingSettings, ResolvedReadingMode, TerminalActiveTaskState } from "../shared/types";
+import {
+  DEFAULT_TERMINAL_WINDOW_SETTINGS,
+  type ReadingModeSetting,
+  type ReadingThemeId,
+  type ResolvedReadingMode,
+  type TerminalActiveTaskState,
+  type TerminalWindowSettings,
+} from "../shared/types";
 
 // The terminal satellite window's xterm view. The PTY lives in the main
 // process; this renders it. One live xterm PER TASK (kept alive so switching
@@ -28,17 +35,22 @@ appElement.innerHTML = `
   <section class="terminal-window-shell" aria-label="Duet Terminal">
     <header class="terminal-window-topbar">
       <p class="eyebrow">Terminal</p>
-      <div class="terminal-window-topbar-actions"></div>
+      <div class="terminal-window-topbar-actions">
+        <button id="terminal-theme-trigger" class="secondary" type="button" aria-haspopup="dialog" aria-expanded="false" title="Terminal theme">Aa</button>
+      </div>
     </header>
     <section class="terminal-window-content">
       <div id="terminal-window-term" class="terminal-window-term"></div>
       <p id="terminal-window-empty" class="terminal-window-placeholder">No active task — start or select one in Duet.</p>
     </section>
+    <div id="terminal-theme-popover" class="terminal-theme-popover hidden" role="dialog" aria-label="Terminal theme"></div>
   </section>
 `;
 
 const termMount = requireEl<HTMLDivElement>("#terminal-window-term");
 const emptyState = requireEl<HTMLParagraphElement>("#terminal-window-empty");
+const themeTrigger = requireEl<HTMLButtonElement>("#terminal-theme-trigger");
+const themePopover = requireEl<HTMLDivElement>("#terminal-theme-popover");
 
 const terminalFontFamily = getComputedStyle(document.documentElement)
   .getPropertyValue("--font-mono")
@@ -381,28 +393,116 @@ function applyActiveTask(next: TerminalActiveTaskState): void {
   showActiveTerminal();
 }
 
-function resolvedMode(settings: ReadingSettings): ResolvedReadingMode {
-  if (settings.mode !== "auto") {
-    return settings.mode;
+// --- Theme (the terminal's own, independent of the main window) --------------
+const THEME_OPTIONS: Array<{ id: ReadingThemeId; label: string }> = [
+  { id: "duet", label: "Duet" },
+  { id: "paper", label: "Paper" },
+  { id: "calm", label: "Calm" },
+  { id: "focus", label: "Focus" },
+];
+const MODE_OPTIONS: Array<{ id: ReadingModeSetting; label: string }> = [
+  { id: "auto", label: "Auto" },
+  { id: "light", label: "Light" },
+  { id: "dark", label: "Dark" },
+];
+
+let settings: TerminalWindowSettings = { ...DEFAULT_TERMINAL_WINDOW_SETTINGS };
+
+function resolvedMode(mode: ReadingModeSetting): ResolvedReadingMode {
+  if (mode !== "auto") {
+    return mode;
   }
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-// Match the main window's theme/mode on boot so the two surfaces read alike.
-// (A later slice gives the terminal its own persisted theme.)
-async function stampTheme(): Promise<void> {
-  try {
-    const reading = await window.duetRuntime.readReadingSettings();
-    document.documentElement.dataset.theme = reading.theme;
-    document.documentElement.dataset.mode = resolvedMode(reading);
-  } catch {
-    // Fall back to the default :root palette.
-  }
+/** Stamp the terminal window's own theme/mode on the root and repaint every
+ *  xterm's palette from the resulting --term-* tokens. */
+function applyAppearance(): void {
+  document.documentElement.dataset.theme = settings.theme;
+  document.documentElement.dataset.mode = resolvedMode(settings.mode);
   const theme = terminalTheme();
   for (const entry of terminals.values()) {
     entry.terminal.options.theme = theme;
   }
 }
+
+function renderThemePopover(): void {
+  const resolved = resolvedMode(settings.mode);
+  const cards = THEME_OPTIONS.map(
+    (option) => `
+      <button class="terminal-theme-card${option.id === settings.theme ? " selected" : ""}"
+        type="button" data-theme-choice="${option.id}" data-theme="${option.id}"
+        data-mode="${resolved}" aria-pressed="${option.id === settings.theme}">
+        <span class="terminal-theme-swatch">Aa</span>
+        <span class="terminal-theme-name">${option.label}</span>
+      </button>`,
+  ).join("");
+  const modes = MODE_OPTIONS.map(
+    (option) => `<button class="terminal-mode-btn${option.id === settings.mode ? " selected" : ""}"
+      type="button" data-mode-choice="${option.id}" aria-pressed="${option.id === settings.mode}">${option.label}</button>`,
+  ).join("");
+  themePopover.innerHTML = `
+    <div class="terminal-theme-section">
+      <p class="terminal-theme-heading">Theme</p>
+      <div class="terminal-theme-grid">${cards}</div>
+    </div>
+    <div class="terminal-theme-section">
+      <p class="terminal-theme-heading">Mode</p>
+      <div class="terminal-mode-row">${modes}</div>
+    </div>
+  `;
+}
+
+function persistAppearance(): void {
+  void window.duetRuntime.writeTerminalWindowSettings({ ...settings }).catch(() => {});
+}
+
+function setPopoverOpen(open: boolean): void {
+  themePopover.classList.toggle("hidden", !open);
+  themeTrigger.setAttribute("aria-expanded", String(open));
+  if (open) {
+    renderThemePopover();
+  }
+}
+
+themeTrigger.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setPopoverOpen(themePopover.classList.contains("hidden"));
+});
+
+themePopover.addEventListener("click", (event) => {
+  // Keep the click inside the popover: selecting a card re-renders (detaching
+  // the target), which would otherwise read as an outside click and close it.
+  event.stopPropagation();
+  const target = (event.target as HTMLElement).closest<HTMLElement>(
+    "[data-theme-choice],[data-mode-choice]",
+  );
+  if (!target) {
+    return;
+  }
+  const themeChoice = target.dataset.themeChoice as ReadingThemeId | undefined;
+  const modeChoice = target.dataset.modeChoice as ReadingModeSetting | undefined;
+  if (themeChoice) {
+    settings = { ...settings, theme: themeChoice };
+  } else if (modeChoice) {
+    settings = { ...settings, mode: modeChoice };
+  } else {
+    return;
+  }
+  applyAppearance();
+  renderThemePopover();
+  persistAppearance();
+});
+
+document.addEventListener("click", (event) => {
+  if (
+    !themePopover.classList.contains("hidden") &&
+    !themePopover.contains(event.target as Node) &&
+    event.target !== themeTrigger
+  ) {
+    setPopoverOpen(false);
+  }
+});
 
 window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type !== "pty:data") {
@@ -417,7 +517,10 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
 window.duetRuntime.onActiveTerminalTask(applyActiveTask);
 window.duetRuntime.onReadingSystemModeChanged(() => {
-  void stampTheme();
+  // Only "auto" follows the system; an explicit light/dark choice is pinned.
+  if (settings.mode === "auto") {
+    applyAppearance();
+  }
 });
 window.addEventListener("resize", () => {
   if (!activeTaskId) {
@@ -430,6 +533,11 @@ window.addEventListener("resize", () => {
 });
 
 void (async () => {
-  await stampTheme();
+  try {
+    settings = await window.duetRuntime.readTerminalWindowSettings();
+  } catch {
+    settings = { ...DEFAULT_TERMINAL_WINDOW_SETTINGS };
+  }
+  applyAppearance();
   applyActiveTask(await window.duetRuntime.readActiveTerminalTask());
 })();

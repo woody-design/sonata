@@ -1,26 +1,40 @@
+import {
+  DEFAULT_READING_SETTINGS,
+  isReadingModeSetting,
+  isReadingThemeId,
+  type ReadingModeSetting,
+  type ReadingThemeId,
+} from "./reading-settings";
+
 /**
  * The terminal window's own persisted preferences. Kept separate from the
- * global reading settings because the terminal window is an independent surface
- * with its own lifecycle and (from a later slice) its own theme. For now it
- * holds one thing: whether the window is open. Default-on — a fresh install
- * shows the terminal beside the conversation, and the choice is remembered
- * across launches.
+ * global reading settings so the terminal is an independent surface: its own
+ * open/closed state and — so the two windows are instantly distinguishable —
+ * its own theme and light/dark mode, chosen from the same palette as the main
+ * window. Default-on, defaulting to the same theme as the main window until the
+ * user sets them apart.
  */
 export interface TerminalWindowSettings {
   open: boolean;
+  theme: ReadingThemeId;
+  mode: ReadingModeSetting;
 }
 
 export const DEFAULT_TERMINAL_WINDOW_SETTINGS: TerminalWindowSettings = {
   open: true,
+  theme: DEFAULT_READING_SETTINGS.theme,
+  mode: DEFAULT_READING_SETTINGS.mode,
 };
 
 export function normalizeTerminalWindowSettings(value: unknown): TerminalWindowSettings {
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { open?: unknown }).open === "boolean"
-  ) {
-    return { open: (value as { open: boolean }).open };
+  if (typeof value !== "object" || value === null) {
+    return { ...DEFAULT_TERMINAL_WINDOW_SETTINGS };
   }
-  return { ...DEFAULT_TERMINAL_WINDOW_SETTINGS };
+  const record = value as Record<string, unknown>;
+  return {
+    open:
+      typeof record.open === "boolean" ? record.open : DEFAULT_TERMINAL_WINDOW_SETTINGS.open,
+    theme: isReadingThemeId(record.theme) ? record.theme : DEFAULT_TERMINAL_WINDOW_SETTINGS.theme,
+    mode: isReadingModeSetting(record.mode) ? record.mode : DEFAULT_TERMINAL_WINDOW_SETTINGS.mode,
+  };
 }
