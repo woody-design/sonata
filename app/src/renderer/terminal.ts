@@ -15,12 +15,14 @@ import {
 } from "../shared/types";
 
 // The terminal satellite window's xterm view. The PTY lives in the main
-// process; this renders it. One live xterm PER TASK (kept alive so switching
+// process; this renders it. One xterm per LIVE task (kept alive so switching
 // tasks is instant), fed the live pty:data broadcast and hydrated from the
 // main-process headless mirror on creation. The active task — relayed via
-// onActiveTerminalTask — is the one shown; the rest stay mounted-but-hidden and
-// keep accumulating. Terminals whose task has closed are disposed. The whole
-// subsystem was lifted out of the main window's renderer.
+// onActiveTerminalTask — is the one shown; other live tasks stay
+// mounted-but-hidden and keep accumulating. A dormant (history-loaded) session
+// has no PTY to mirror, so it shows a placeholder rather than a blank grid.
+// Terminals whose task has closed are disposed. The whole subsystem was lifted
+// out of the main window's renderer.
 
 function requireEl<T extends HTMLElement>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -382,21 +384,26 @@ function disposeTaskTerminal(taskId: string): void {
   entry.element.remove();
 }
 
+// Placeholders for when there is no live terminal to show.
+const EMPTY_NO_TASK = "No active task — start or select one in Duet.";
+const EMPTY_DORMANT = "This session isn't running — send a message in Duet to resume it.";
+
 /** Show the active task's terminal; hide the rest (no DOM re-parenting — the v6
- *  re-render-on-reopen regression bites there). Open the active one lazily. */
+ *  re-render-on-reopen regression bites there). Open the active one lazily. When
+ *  there is no terminal for the active task — either nothing is selected, or the
+ *  selected session is dormant (no PTY to mirror) — show a placeholder that says
+ *  which, rather than a blank grid. */
 function showActiveTerminal(): void {
   for (const [id, entry] of terminals) {
     entry.element.classList.toggle("hidden", id !== activeTaskId);
   }
-  if (!activeTaskId) {
+  const entry = activeTaskId ? terminals.get(activeTaskId) ?? null : null;
+  if (!entry) {
+    emptyState.textContent = activeTaskId ? EMPTY_DORMANT : EMPTY_NO_TASK;
     emptyState.classList.remove("hidden");
     return;
   }
   emptyState.classList.add("hidden");
-  const entry = terminals.get(activeTaskId);
-  if (!entry) {
-    return;
-  }
   if (!entry.opened) {
     openTaskTerminal(entry);
   } else {
@@ -419,7 +426,10 @@ function applyActiveTask(next: TerminalActiveTaskState): void {
       disposeTaskTerminal(id);
     }
   }
-  if (next.taskId) {
+  // Only a live task has a PTY to mirror; creating an xterm for a dormant
+  // (history-loaded) session would just show a blank grid and linger in the map.
+  // The dormant→live transition re-pushes with live=true and creates it then.
+  if (next.taskId && next.live) {
     ensureTaskTerminal(next.taskId);
   }
   showActiveTerminal();

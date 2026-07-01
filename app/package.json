@@ -74,7 +74,6 @@
     "e2e:composer-slash-picker": "npm run build && node tests/e2e/composer-slash-picker.mjs",
     "smoke:terminal-arbitration": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-arbitration.mjs",
     "smoke:pty-env-scrub": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/pty-env-scrub.mjs",
-    "e2e:terminal-takeover": "npm run build && node tests/e2e/terminal-takeover.mjs",
     "e2e:option-prompt-surface": "npm run build && node tests/e2e/option-prompt-surface.mjs",
     "e2e:option-prompt-multiselect": "npm run build && node tests/e2e/option-prompt-multiselect.mjs",
     "e2e:cli-slash-semantic": "npm run build && node tests/e2e/cli-slash-semantic.mjs",

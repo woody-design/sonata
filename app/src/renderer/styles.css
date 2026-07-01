@@ -1189,43 +1189,6 @@ body.sidebar-resizing {
   cursor: default;
 }
 
-/* Auto-surface needs-you (S3.3, gentle default): the active task is blocked on
-   something the floor can answer. A soft attention dot on the terminal button
-   draws the eye without stealing the surface; it clears when the floor opens. */
-#toggle-terminal.needs-you {
-  position: relative;
-  color: var(--status-attention);
-}
-
-#toggle-terminal.needs-you::after {
-  content: "";
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--status-attention);
-  box-shadow: 0 0 0 2px var(--surface-shell);
-  animation: terminal-needs-you-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes terminal-needs-you-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #toggle-terminal.needs-you::after {
-    animation: none;
-  }
-}
-
 .session-menu-trigger {
   width: 26px;
   min-height: 26px;
