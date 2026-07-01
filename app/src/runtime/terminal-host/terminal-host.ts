@@ -26,9 +26,10 @@ import type {
   TaskId,
 } from "../../shared/types/domain";
 import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
-import type { RemoteControlInjectResponse } from "../../shared/types/ipc";
+import type { RemoteControlInjectResponse, TerminalReplaySnapshot } from "../../shared/types/ipc";
 import { ensureClaudeRuntimeSettings } from "../cli-signal";
 import { shellQuotePath } from "../shell-quote";
+import { TerminalScrollback } from "./terminal-scrollback";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
 export const BRACKETED_PASTE_END = "\x1b[201~";
@@ -403,6 +404,7 @@ export class TerminalHost extends EventEmitter {
   private readonly completionQuietMs: number;
   private readonly postCompletionAttributionMs: number;
   private ptyProcess: pty.IPty | null = null;
+  private scrollback: TerminalScrollback | null = null;
   private rawTail = "";
   private cwd: string | null = null;
   private fileWatcher: fs.FSWatcher | null = null;
@@ -596,6 +598,9 @@ export class TerminalHost extends EventEmitter {
       cwd,
       env: ptyEnvironment(options.extraEnv),
     });
+    // Main-process mirror of the rendered buffer, sized to the PTY, so a
+    // (re)opened terminal window can restore recent scrollback (snapshot+tail).
+    this.scrollback = new TerminalScrollback(cols, rows);
 
     this.ptyProcess.onData((data) => this.handlePtyData(data));
     this.ptyProcess.onExit((exit) => {
@@ -1614,7 +1619,17 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess) {
       return;
     }
-    this.ptyProcess.resize(Number(cols) || DEFAULT_COLS, Number(rows) || DEFAULT_ROWS);
+    const nextCols = Number(cols) || DEFAULT_COLS;
+    const nextRows = Number(rows) || DEFAULT_ROWS;
+    this.ptyProcess.resize(nextCols, nextRows);
+    // Keep the mirror in lock-step with the PTY so the serialized layout matches.
+    this.scrollback?.resize(nextCols, nextRows);
+  }
+
+  /** Snapshot the terminal for replay into a (re)opening window, or null when
+   *  there is no live terminal yet. */
+  async serializeScrollback(): Promise<TerminalReplaySnapshot | null> {
+    return this.scrollback ? this.scrollback.snapshot() : null;
   }
 
   dispose(): void {
@@ -1640,6 +1655,8 @@ export class TerminalHost extends EventEmitter {
     }
     const proc = this.ptyProcess;
     this.ptyProcess = null;
+    this.scrollback?.dispose();
+    this.scrollback = null;
     try {
       proc.write("\x04");
     } catch {
@@ -1663,6 +1680,7 @@ export class TerminalHost extends EventEmitter {
   private handlePtyData(data: string): void {
     this.lastPtyDataAt = Date.now();
     this.rawTail = `${this.rawTail}${data}`.slice(-this.scrollbackLimit);
+    this.scrollback?.write(data);
     if (this.activeRun) {
       this.activeRunRaw = `${this.activeRunRaw}${data}`.slice(-this.scrollbackLimit);
     }

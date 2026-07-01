@@ -57,6 +57,7 @@ export const IPC_CHANNELS = {
   terminalUserInput: "terminal:user-input",
   terminalComposing: "terminal:composing",
   terminalOpenLink: "terminal:open-link",
+  terminalReplay: "terminal:replay",
   clipboardReadText: "clipboard:read-text",
   reportRead: "report:read",
   transcriptRead: "transcript:read",
@@ -312,6 +313,23 @@ export interface SetTerminalComposingRequest {
   composing: boolean;
 }
 
+export interface TerminalReplayRequest {
+  taskId: TaskId;
+}
+
+/**
+ * A snapshot of a task's terminal, produced by the main-process headless
+ * mirror. `data` is a SerializeAddon string (text + SGR/cursor as escape
+ * sequences); a reopening terminal window writes it into a fresh xterm sized to
+ * {cols, rows} BEFORE calling open(), then tails live output. Null when the
+ * task has no live terminal to replay.
+ */
+export interface TerminalReplaySnapshot {
+  data: string;
+  cols: number;
+  rows: number;
+}
+
 export interface OpenTerminalLinkRequest {
   url: string;
 }
@@ -504,6 +522,7 @@ export interface DuetRuntimeBridge {
   ): Promise<SetTerminalUserControlResponse>;
   writeTerminalUserInput(request: TerminalUserInputRequest): Promise<void>;
   setTerminalComposing(request: SetTerminalComposingRequest): Promise<void>;
+  replayTerminal(request: TerminalReplayRequest): Promise<TerminalReplaySnapshot | null>;
   openTerminalLink(request: OpenTerminalLinkRequest): Promise<OpenTerminalLinkResponse>;
   readClipboardText(): Promise<ClipboardReadTextResponse>;
   readReport(request: ReadReportRequest): Promise<RuntimeReportV1 | null>;

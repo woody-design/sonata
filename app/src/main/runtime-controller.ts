@@ -90,6 +90,7 @@ import type {
   RemoteControlInjectResponse,
   ResumeSettingsResponse,
   RevertResumeBridgeResponse,
+  TerminalReplaySnapshot,
 } from "../shared/types/ipc";
 import os from "node:os";
 
@@ -932,6 +933,17 @@ export class RuntimeController {
     const active = this.requireTaskRuntime(taskId);
     active.terminalHost.resize(cols, rows);
     active.statusTracker.resize(cols, rows);
+  }
+
+  /** Snapshot a task's terminal for replay into a (re)opening terminal window.
+   *  Null when the task has no live runtime — the caller shows a blank terminal
+   *  and tails live output from there. */
+  async replayTerminal(taskId: TaskId): Promise<TerminalReplaySnapshot | null> {
+    const runtime = this.taskRuntimes.get(taskId);
+    if (!runtime) {
+      return null;
+    }
+    return runtime.terminalHost.serializeScrollback();
   }
 
   readReport(taskId: TaskId): RuntimeReportV1 {

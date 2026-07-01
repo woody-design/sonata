@@ -58,6 +58,7 @@
     "smoke:native-image-attachments": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/native-image-attachments.mjs",
     "smoke:codex-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-terminalhost.mjs",
     "smoke:claude-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-terminalhost.mjs",
+    "smoke:terminal-scrollback": "npm run build:main && node tests/smoke/terminal-scrollback.mjs",
     "smoke:native-control-driver": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/native-control-driver.mjs",
     "smoke:command-approval": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/command-approval.mjs",
     "smoke:approval-reliability": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-reliability.mjs",
@@ -97,6 +98,7 @@
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",
+    "@xterm/addon-serialize": "^0.14.0",
     "@xterm/addon-unicode11": "^0.9.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/addon-webgl": "^0.19.0",
