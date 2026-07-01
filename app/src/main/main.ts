@@ -68,7 +68,7 @@ let inspectorState: InspectorWindowState = {
 };
 // Which task the terminal window shows. Owned by the main renderer (the
 // selected-task concept is its UI state); relayed here for the terminal window.
-let activeTerminalTask: TerminalActiveTaskState = { taskId: null, live: false };
+let activeTerminalTask: TerminalActiveTaskState = { taskId: null, live: false, openTaskIds: [] };
 let windowState: WindowStateManager | null = null;
 
 const MAIN_WINDOW_DEFAULTS: WindowDefaults = {

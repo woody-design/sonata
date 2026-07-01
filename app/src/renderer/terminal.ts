@@ -7,17 +7,23 @@ import { Terminal, type ITheme } from "@xterm/xterm";
 import type { ReadingSettings, ResolvedReadingMode, TerminalActiveTaskState } from "../shared/types";
 
 // The terminal satellite window's xterm view. The PTY lives in the main
-// process; this is a disposable projection of ONE task at a time — the task the
-// main window has selected, relayed via onActiveTerminalTask. On (re)creation it
-// hydrates from the main-process headless mirror (snapshot), then tails the live
-// pty:data broadcast. The whole subsystem was lifted out of the main window's
-// renderer; per-task caching and Cmd+F search land in later slices.
+// process; this renders it. One live xterm PER TASK (kept alive so switching
+// tasks is instant), fed the live pty:data broadcast and hydrated from the
+// main-process headless mirror on creation. The active task — relayed via
+// onActiveTerminalTask — is the one shown; the rest stay mounted-but-hidden and
+// keep accumulating. Terminals whose task has closed are disposed. The whole
+// subsystem was lifted out of the main window's renderer; Cmd+F search lands in
+// a later slice.
 
-const appElement = document.querySelector<HTMLDivElement>("#app");
-if (!appElement) {
-  throw new Error("Terminal window mount point was not found.");
+function requireEl<T extends HTMLElement>(selector: string): T {
+  const element = document.querySelector<T>(selector);
+  if (!element) {
+    throw new Error(`Terminal window element not found: ${selector}`);
+  }
+  return element;
 }
 
+const appElement = requireEl<HTMLDivElement>("#app");
 appElement.innerHTML = `
   <section class="terminal-window-shell" aria-label="Duet Terminal">
     <header class="terminal-window-topbar">
@@ -30,14 +36,6 @@ appElement.innerHTML = `
     </section>
   </section>
 `;
-
-function requireEl<T extends HTMLElement>(selector: string): T {
-  const element = document.querySelector<T>(selector);
-  if (!element) {
-    throw new Error(`Terminal window element not found: ${selector}`);
-  }
-  return element;
-}
 
 const termMount = requireEl<HTMLDivElement>("#terminal-window-term");
 const emptyState = requireEl<HTMLParagraphElement>("#terminal-window-empty");
@@ -138,7 +136,7 @@ function terminalTheme(): ITheme {
   }
 }
 
-interface ActiveTerminal {
+interface TaskTerminal {
   taskId: string;
   terminal: Terminal;
   fit: FitAddon;
@@ -148,19 +146,21 @@ interface ActiveTerminal {
   disposers: Array<() => void>;
 }
 
-let current: ActiveTerminal | null = null;
-let activeState: TerminalActiveTaskState = { taskId: null, live: false };
+const terminals = new Map<string, TaskTerminal>();
+let activeTaskId: string | null = null;
+let activeLive = false;
 
 function forwardUserInput(taskId: string, data: string): void {
-  if (!activeState.live || !data) {
+  // Only the active (focused, visible) terminal receives keystrokes, and only
+  // forward while its task is live.
+  if (taskId !== activeTaskId || !activeLive || !data) {
     return;
   }
   void window.duetRuntime.writeTerminalUserInput({ taskId, data }).catch(() => {});
 }
 
-function fitAndResize(): void {
-  const entry = current;
-  if (!entry?.opened) {
+function fitAndResize(entry: TaskTerminal): void {
+  if (!entry.opened) {
     return;
   }
   try {
@@ -175,21 +175,7 @@ function fitAndResize(): void {
     });
 }
 
-function disposeCurrent(): void {
-  const entry = current;
-  current = null;
-  if (!entry) {
-    return;
-  }
-  for (const dispose of entry.disposers) {
-    dispose();
-  }
-  entry.terminal.dispose();
-  entry.element.remove();
-}
-
-function createTerminal(taskId: string): void {
-  emptyState.classList.add("hidden");
+function createTaskTerminal(taskId: string): TaskTerminal {
   const term = new Terminal({
     allowProposedApi: true,
     convertEol: true,
@@ -209,8 +195,10 @@ function createTerminal(taskId: string): void {
   term.unicode.activeVersion = "11";
   term.loadAddon(new WebLinksAddon((_event, uri) => openExternalTerminalLink(uri)));
 
+  // Mounted hidden; shown when this task becomes active. xterm buffers writes
+  // issued before open(), so a hidden terminal keeps a faithful mirror.
   const element = document.createElement("div");
-  element.className = "task-terminal";
+  element.className = "task-terminal hidden";
   termMount.append(element);
 
   const dataListener = term.onData((data) => forwardUserInput(taskId, data));
@@ -240,7 +228,7 @@ function createTerminal(taskId: string): void {
   // so bracketed-paste is honoured and it rides the single-writer onData path.
   const onContextMenu = (event: MouseEvent): void => {
     event.preventDefault();
-    if (!activeState.live) {
+    if (taskId !== activeTaskId || !activeLive) {
       return;
     }
     void window.duetRuntime
@@ -254,7 +242,7 @@ function createTerminal(taskId: string): void {
   };
   element.addEventListener("contextmenu", onContextMenu);
 
-  const entry: ActiveTerminal = {
+  const entry: TaskTerminal = {
     taskId,
     terminal: term,
     fit,
@@ -268,49 +256,65 @@ function createTerminal(taskId: string): void {
       () => element.removeEventListener("contextmenu", onContextMenu),
     ],
   };
-  current = entry;
-  void hydrate(entry);
+  terminals.set(taskId, entry);
+  return entry;
 }
 
-/** Restore recent scrollback from the main-process mirror, then open and start
- *  tailing live output. Live pty:data is dropped while hydrating so the snapshot
- *  (which already covers it) isn't double-applied. */
-async function hydrate(entry: ActiveTerminal): Promise<void> {
+function ensureTaskTerminal(taskId: string): TaskTerminal {
+  const existing = terminals.get(taskId);
+  if (existing) {
+    return existing;
+  }
+  const entry = createTaskTerminal(taskId);
+  void hydrateData(entry);
+  return entry;
+}
+
+/** Restore recent scrollback into the (unopened) buffer from the main-process
+ *  mirror. Live pty:data is dropped while hydrating so the snapshot — which
+ *  already covers it — isn't double-applied. Opening happens on first show. */
+async function hydrateData(entry: TaskTerminal): Promise<void> {
   let snapshot = null;
   try {
     snapshot = await window.duetRuntime.replayTerminal({ taskId: entry.taskId });
   } catch {
     // No mirror (task not live yet) — start blank and tail forward.
   }
-  if (current !== entry) {
+  if (terminals.get(entry.taskId) !== entry) {
     return;
   }
   if (snapshot) {
-    // Restore at the captured geometry BEFORE open() so the buffer's wrapping
-    // matches the snapshot; the fit below reflows to the window size.
+    // Restore at the captured geometry BEFORE open() so wrapping matches; the
+    // fit on first show reflows to the window size.
     entry.terminal.resize(snapshot.cols, snapshot.rows);
     entry.terminal.write(snapshot.data);
   }
-
-  await terminalFontsReady;
-  if (current !== entry) {
-    return;
+  entry.hydrating = false;
+  if (entry.taskId === activeTaskId && entry.opened) {
+    fitAndResize(entry);
   }
-  if (!entry.opened) {
+}
+
+/** Open the xterm into its element — gated on the font, and only for the active
+ *  (visible) terminal so cell metrics measure a real box. */
+function openTaskTerminal(entry: TaskTerminal): void {
+  void terminalFontsReady.then(() => {
+    if (terminals.get(entry.taskId) !== entry || entry.opened || entry.taskId !== activeTaskId) {
+      return;
+    }
     entry.terminal.open(entry.element);
     entry.opened = true;
     wireComposition(entry);
     if (TERMINAL_LIGATURES) {
       entry.terminal.registerCharacterJoiner(ligatureJoiner);
     }
-  }
-  entry.hydrating = false;
-  fitAndResize();
+    fitAndResize(entry);
+  });
 }
 
 /** Forward the IME composition window so the host holds delivery until the human
  *  commits CJK — the authoritative DOM signal, not a screen scrape. */
-function wireComposition(entry: ActiveTerminal): void {
+function wireComposition(entry: TaskTerminal): void {
   const textarea = entry.terminal.textarea;
   if (!textarea) {
     return;
@@ -327,19 +331,54 @@ function wireComposition(entry: ActiveTerminal): void {
   entry.disposers.push(() => textarea.removeEventListener("blur", onEnd));
 }
 
-function applyActiveTask(next: TerminalActiveTaskState): void {
-  const prevTaskId = activeState.taskId;
-  activeState = next;
-  if (next.taskId === prevTaskId) {
-    // Only live-ness changed; forwardUserInput reads activeState.live directly.
+function disposeTaskTerminal(taskId: string): void {
+  const entry = terminals.get(taskId);
+  if (!entry) {
     return;
   }
-  disposeCurrent();
-  if (next.taskId) {
-    createTerminal(next.taskId);
-  } else {
-    emptyState.classList.remove("hidden");
+  terminals.delete(taskId);
+  for (const dispose of entry.disposers) {
+    dispose();
   }
+  entry.terminal.dispose();
+  entry.element.remove();
+}
+
+/** Show the active task's terminal; hide the rest (no DOM re-parenting — the v6
+ *  re-render-on-reopen regression bites there). Open the active one lazily. */
+function showActiveTerminal(): void {
+  for (const [id, entry] of terminals) {
+    entry.element.classList.toggle("hidden", id !== activeTaskId);
+  }
+  if (!activeTaskId) {
+    emptyState.classList.remove("hidden");
+    return;
+  }
+  emptyState.classList.add("hidden");
+  const entry = terminals.get(activeTaskId);
+  if (!entry) {
+    return;
+  }
+  if (!entry.opened) {
+    openTaskTerminal(entry);
+  } else {
+    fitAndResize(entry);
+  }
+}
+
+function applyActiveTask(next: TerminalActiveTaskState): void {
+  activeTaskId = next.taskId;
+  activeLive = next.live;
+  // Dispose terminals whose task has closed.
+  for (const id of [...terminals.keys()]) {
+    if (!next.openTaskIds.includes(id)) {
+      disposeTaskTerminal(id);
+    }
+  }
+  if (next.taskId) {
+    ensureTaskTerminal(next.taskId);
+  }
+  showActiveTerminal();
 }
 
 function resolvedMode(settings: ReadingSettings): ResolvedReadingMode {
@@ -359,8 +398,9 @@ async function stampTheme(): Promise<void> {
   } catch {
     // Fall back to the default :root palette.
   }
-  if (current) {
-    current.terminal.options.theme = terminalTheme();
+  const theme = terminalTheme();
+  for (const entry of terminals.values()) {
+    entry.terminal.options.theme = theme;
   }
 }
 
@@ -368,8 +408,8 @@ window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type !== "pty:data") {
     return;
   }
-  const entry = current;
-  if (!entry || entry.taskId !== event.payload.taskId || entry.hydrating) {
+  const entry = terminals.get(event.payload.taskId);
+  if (!entry || entry.hydrating) {
     return;
   }
   entry.terminal.write(event.payload.data);
@@ -379,7 +419,15 @@ window.duetRuntime.onActiveTerminalTask(applyActiveTask);
 window.duetRuntime.onReadingSystemModeChanged(() => {
   void stampTheme();
 });
-window.addEventListener("resize", () => fitAndResize());
+window.addEventListener("resize", () => {
+  if (!activeTaskId) {
+    return;
+  }
+  const entry = terminals.get(activeTaskId);
+  if (entry) {
+    fitAndResize(entry);
+  }
+});
 
 void (async () => {
   await stampTheme();

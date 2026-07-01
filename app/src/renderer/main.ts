@@ -5316,12 +5316,15 @@ async function resizeTerminal(): Promise<void> {
 function pushActiveTerminalTask(): void {
   const taskId = state.activeTaskId ?? null;
   const live = Boolean(activeTaskView()?.live);
-  const key = `${taskId}:${live}`;
+  const openTaskIds = state.taskViews
+    .map((view) => view.task?.id)
+    .filter((id): id is string => Boolean(id));
+  const key = `${taskId}:${live}:${openTaskIds.join(",")}`;
   if (key === lastPushedTerminalTask) {
     return;
   }
   lastPushedTerminalTask = key;
-  void window.duetRuntime.setActiveTerminalTask({ taskId, live }).catch(() => {});
+  void window.duetRuntime.setActiveTerminalTask({ taskId, live, openTaskIds }).catch(() => {});
 }
 
 function render(): void {

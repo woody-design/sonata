@@ -452,6 +452,9 @@ export interface TerminalWindowState {
 export interface TerminalActiveTaskState {
   taskId: TaskId | null;
   live: boolean;
+  /** Every open task's id. The terminal window keeps a live xterm per task for
+   *  instant switching and disposes any whose task has closed. */
+  openTaskIds: TaskId[];
 }
 
 export interface WorkspaceTreeRequest {
