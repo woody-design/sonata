@@ -11,8 +11,10 @@ import {
   type ReadingThemeId,
   type ResolvedReadingMode,
   type TerminalActiveTaskState,
+  type TerminalReplaySnapshot,
   type TerminalWindowSettings,
 } from "../shared/types";
+import { stitchHydration, type HydrationChunk } from "../shared/terminal-hydration";
 
 // The terminal satellite window's xterm view. The PTY lives in the main
 // process; this renders it. One xterm per LIVE task (kept alive so switching
@@ -171,6 +173,15 @@ interface TaskTerminal {
   element: HTMLDivElement;
   opened: boolean;
   hydrating: boolean;
+  /** Live pty:data chunks that arrived while `hydrating` — buffered (not dropped)
+   *  so hydrateData can stitch the tail onto the replay snapshot by seq. Drained
+   *  and left empty once hydration completes. */
+  buffer: HydrationChunk[];
+  /** Running char total of `buffer` (UTF-16 length, a cheap memory proxy), kept so
+   *  the cap check stays O(1) per chunk under a hard stream — re-summing the
+   *  buffer per push would be O(n²) across a slow hydration under a small-chunk
+   *  flood. */
+  bufferedChars: number;
   disposers: Array<() => void>;
 }
 
@@ -288,6 +299,8 @@ function createTaskTerminal(taskId: string): TaskTerminal {
     element,
     opened: false,
     hydrating: true,
+    buffer: [],
+    bufferedChars: 0,
     disposers: [
       () => dataListener.dispose(),
       () => binaryListener.dispose(),
@@ -311,10 +324,12 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
 }
 
 /** Restore recent scrollback into the (unopened) buffer from the main-process
- *  mirror. Live pty:data is dropped while hydrating so the snapshot — which
- *  already covers it — isn't double-applied. Opening happens on first show. */
+ *  mirror, then stitch on the live tail that arrived while the replay IPC was in
+ *  flight. Live pty:data is buffered (not dropped) during hydration and applied
+ *  here by seq, so the (re)opened window loses no bytes and duplicates none.
+ *  Opening happens on first show. */
 async function hydrateData(entry: TaskTerminal): Promise<void> {
-  let snapshot = null;
+  let snapshot: TerminalReplaySnapshot | null = null;
   try {
     snapshot = await window.duetRuntime.replayTerminal({ taskId: entry.taskId });
   } catch {
@@ -323,15 +338,59 @@ async function hydrateData(entry: TaskTerminal): Promise<void> {
   if (terminals.get(entry.taskId) !== entry) {
     return;
   }
+  // No `await` from here through `hydrating = false`: the snapshot body and the
+  // buffered tail are applied in one synchronous run, so no live chunk can slip
+  // in mid-drain and reorder. xterm's write queue is FIFO, so call-order is
+  // apply-order.
   if (snapshot) {
     // Restore at the captured geometry BEFORE open() so wrapping matches; the
     // fit on first show reflows to the window size.
     entry.terminal.resize(snapshot.cols, snapshot.rows);
-    entry.terminal.write(snapshot.data);
   }
+  for (const chunk of stitchHydration(snapshot, entry.buffer)) {
+    entry.terminal.write(chunk);
+  }
+  entry.buffer.length = 0;
+  entry.bufferedChars = 0;
   entry.hydrating = false;
   if (entry.taskId === activeTaskId && entry.opened) {
     fitAndResize(entry);
+  }
+}
+
+/** Hydration lasts one replay round-trip (sub-100ms typically), so the buffer is
+ *  normally tiny. Cap its size so a task streaming hard through a slow round-trip
+ *  can't grow it without bound. If it ever trips, scrollback across the hydration
+ *  boundary may show a gap for that task — memory safety over completeness in a
+ *  pathological case, and never silent. */
+const HYDRATION_BUFFER_MAX_CHARS = 8_000_000;
+
+/** Append a live chunk to a hydrating terminal's buffer, enforcing the size cap
+ *  with drop-oldest + a logged warning (never a silent cap). Keeps at least the
+ *  newest chunk so a lone oversized chunk can't empty the buffer. */
+function bufferDuringHydration(entry: TaskTerminal, data: string, seq: number): void {
+  entry.buffer.push({ data, seq });
+  entry.bufferedChars += data.length;
+  if (entry.bufferedChars <= HYDRATION_BUFFER_MAX_CHARS) {
+    return;
+  }
+  let dropped = 0;
+  let droppedChars = 0;
+  while (entry.bufferedChars > HYDRATION_BUFFER_MAX_CHARS && entry.buffer.length > 1) {
+    const oldest = entry.buffer.shift();
+    if (!oldest) {
+      break;
+    }
+    entry.bufferedChars -= oldest.data.length;
+    dropped += 1;
+    droppedChars += oldest.data.length;
+  }
+  if (dropped > 0) {
+    console.warn(
+      `[terminal] hydration buffer for ${entry.taskId} exceeded ${HYDRATION_BUFFER_MAX_CHARS} ` +
+        `chars; dropped ${dropped} oldest chunk(s) (${droppedChars} chars). Scrollback across ` +
+        `the hydration boundary may show a gap for this task.`,
+    );
   }
 }
 
@@ -644,7 +703,13 @@ window.duetRuntime.onRuntimeEvent((event) => {
     return;
   }
   const entry = terminals.get(event.payload.taskId);
-  if (!entry || entry.hydrating) {
+  if (!entry) {
+    return;
+  }
+  if (entry.hydrating) {
+    // Buffer (don't drop) live chunks racing the in-flight replay IPC; hydrateData
+    // stitches them onto the snapshot by seq once it lands.
+    bufferDuringHydration(entry, event.payload.data, event.payload.seq);
     return;
   }
   entry.terminal.write(event.payload.data);

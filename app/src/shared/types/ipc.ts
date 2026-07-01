@@ -334,6 +334,11 @@ export interface TerminalReplaySnapshot {
   data: string;
   cols: number;
   rows: number;
+  /** Number of live `pty:data` chunks the mirror had ingested when `data` was
+   *  serialized (== the seq of the first chunk NOT yet in `data`). A hydrating
+   *  renderer writes a buffered live chunk iff its seq >= this value — exactly
+   *  the tail the snapshot doesn't already contain. */
+  seq: number;
 }
 
 export interface OpenTerminalLinkRequest {

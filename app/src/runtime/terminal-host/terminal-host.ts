@@ -1680,11 +1680,19 @@ export class TerminalHost extends EventEmitter {
   private handlePtyData(data: string): void {
     this.lastPtyDataAt = Date.now();
     this.rawTail = `${this.rawTail}${data}`.slice(-this.scrollbackLimit);
-    this.scrollback?.write(data);
+    // The mirror assigns this chunk's ingest seq; tag it onto the broadcast below
+    // so a mid-stream-hydrating terminal window can stitch the chunk onto its
+    // replay snapshot exactly once (write iff seq >= snapshot.seq). If the mirror
+    // was already torn down (a late node-pty data event after disposeProcess()
+    // nulled it), fall back to MAX_SAFE_INTEGER, not 0: such a chunk is genuinely
+    // the newest, so a window still hydrating against a snapshot captured *before*
+    // teardown must treat it as tail (>= any snapshot seq) and write it — a 0
+    // would misfile it as already-in-snapshot and drop it.
+    const seq = this.scrollback?.write(data) ?? Number.MAX_SAFE_INTEGER;
     if (this.activeRun) {
       this.activeRunRaw = `${this.activeRunRaw}${data}`.slice(-this.scrollbackLimit);
     }
-    this.emitEvent("pty:data", { taskId: this.taskId, data });
+    this.emitEvent("pty:data", { taskId: this.taskId, data, seq });
     this.detectRemoteControlState(data);
     this.detectApproval();
     if (this.isHumanActivelyTyping()) {

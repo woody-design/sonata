@@ -60,6 +60,46 @@ check("serialize-cost", serializeMs < 100, `serialize took ${results.serializeMs
 
 mirror.dispose();
 
+// 5) Seq boundary (the producer-side contract the renderer's stitch relies on):
+//    write() hands out contiguous ingest indices, and snapshot.seq names the
+//    FIRST chunk not yet in the snapshot — so a hydrating renderer writes a
+//    buffered live chunk iff its seq >= snapshot.seq (no loss, no duplication).
+const seqMirror = new TerminalScrollback(80, 24);
+const idxA = seqMirror.write("alpha\r\n"); // 0
+const idxB = seqMirror.write("bravo\r\n"); // 1
+const idxC = seqMirror.write("charlie\r\n"); // 2
+const seqSnap = await seqMirror.snapshot();
+const idxD = seqMirror.write("delta\r\n"); // 3 — first chunk after the snapshot
+results.seq = { idxA, idxB, idxC, snapSeq: seqSnap.seq, idxD };
+check("seq-contiguous", idxA === 0 && idxB === 1 && idxC === 2, `got ${idxA},${idxB},${idxC}`);
+check("seq-count", seqSnap.seq === 3, `snapshot.seq=${seqSnap.seq}, expected 3`);
+check("seq-boundary", idxD === seqSnap.seq, `first post-snapshot chunk seq=${idxD}, snapshot.seq=${seqSnap.seq}`);
+check("seq-tail-excluded", !seqSnap.data.includes("delta"), "post-snapshot chunk must not be in snapshot data");
+check("seq-head-included", seqSnap.data.includes("charlie"), "last pre-snapshot chunk must be in snapshot data");
+seqMirror.dispose();
+
+// 6) Flush-gap race — the load-bearing xterm callback-ordering assumption the
+//    serialize-in-flush-callback refinement rests on. Case 5 writes its tail
+//    chunk AFTER `await snapshot()`, so it can't reach the gap; here the chunk is
+//    written SYNCHRONOUSLY onto the still-pending snapshot, i.e. after seq is
+//    frozen at marker-enqueue but before the marker's callback serializes. It
+//    must be EXCLUDED from snapshot.data and UNCOUNTED by snapshot.seq — else the
+//    boundary is a timing accident. If a future @xterm/headless upgrade defers
+//    write callbacks past later-queued chunks, "gap" leaks into the body and this
+//    fails, which is exactly the regression we want to catch.
+const gapMirror = new TerminalScrollback(80, 24);
+gapMirror.write("one\r\n"); // 0
+gapMirror.write("two\r\n"); // 1
+const gapSnapPromise = gapMirror.snapshot(); // marker enqueued, seq frozen at 2
+const gapSeq = gapMirror.write("gap\r\n"); // 2 — lands in the flush gap, queued after the marker
+const gapSnap = await gapSnapPromise;
+results.gap = { gapSeq, snapSeq: gapSnap.seq };
+check("gap-seq-frozen", gapSnap.seq === 2, `snapshot.seq=${gapSnap.seq}, expected 2 (in-gap chunk must not be counted)`);
+check("gap-is-boundary", gapSeq === gapSnap.seq, `in-gap chunk seq=${gapSeq}, snapshot.seq=${gapSnap.seq} (renderer writes it as the tail)`);
+check("gap-excluded-from-body", !gapSnap.data.includes("gap"), "the in-gap chunk must not be in the snapshot body (else a duplicate)");
+check("gap-pre-marker-present", gapSnap.data.includes("two"), "the last pre-marker chunk must be in the snapshot body");
+gapMirror.dispose();
+
 results.success = failures.length === 0;
 results.failures = failures;
 console.log(JSON.stringify(results, null, 2));
