@@ -1620,7 +1620,6 @@ appElement.innerHTML = `
 
         <div id="run-list" class="run-list"></div>
 
-        <section id="delivery-queue" class="delivery-queue hidden" aria-label="Queued messages"></section>
 
         <section id="resume-choice" class="resume-choice hidden" aria-label="Resume choice">
           <div class="resume-choice-copy">
@@ -1722,7 +1721,6 @@ const elements = {
   artifactStrip: getElement<HTMLElement>("artifact-strip"),
   artifactList: getElement<HTMLDivElement>("artifact-list"),
   openSelectedPreview: getElement<HTMLButtonElement>("open-selected-preview"),
-  deliveryQueue: getElement<HTMLElement>("delivery-queue"),
   resumeChoice: getElement<HTMLElement>("resume-choice"),
   resumeChoiceBody: getElement<HTMLParagraphElement>("resume-choice-body"),
   resumeBridgeNote: getElement<HTMLParagraphElement>("resume-bridge-note"),
@@ -4706,7 +4704,6 @@ function render(): void {
   renderWorkflow();
   renderRuns();
   renderArtifacts();
-  renderDeliveryQueue();
 }
 
 /** One chip's data, sourced from either a live task's pendingAttachments or the
@@ -8173,21 +8170,13 @@ function setViewMode(mode: ViewMode): void {
 }
 
 
-function renderDeliveryQueue(): void {
-  elements.deliveryQueue.replaceChildren();
-  const view = activeTaskView();
-  const items = view?.deliveryState?.queue ?? [];
-  const visibleItems = items.filter((item) => item.status !== "delivered");
-  elements.deliveryQueue.classList.toggle("hidden", visibleItems.length === 0);
-  if (!view?.task || visibleItems.length === 0) {
-    return;
-  }
-
-  for (const item of visibleItems) {
-    elements.deliveryQueue.append(renderDeliveryItem(view, item));
-  }
-}
-
+// The persistent delivery-queue PANEL was removed (S1c-followup): with
+// send-is-send write-through, a queued message goes straight into the CLI's
+// native queue (shown in the co-visible terminal — "Press up to edit queued
+// messages"), so a Duet-side panel just duplicated it. The rare hold states
+// (starting / waiting-for-approval / undelivered) are the composer status line
+// (deliveryStatusLabel → view.status → runtimeStatus). The item-list renderer +
+// its actions below are now orphaned — swept in S6.
 function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLElement {
   const providerName = providerLabel(view.task?.provider ?? "codex");
   const row = document.createElement("article");
