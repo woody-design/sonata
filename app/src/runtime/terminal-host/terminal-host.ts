@@ -280,6 +280,10 @@ export interface StartTaskOptions {
   /** Claude only: spawn with `--remote-control` so the session is phone-
    *  reachable from the start (the "arm at session start" path). */
   remoteControl?: boolean;
+  /** Claude only: set false for native-approval mode — routes PermissionRequest
+   *  to the scrape/keys fallback instead of the hook-intercept broker (S2).
+   *  Default (undefined) is broker-on. */
+  approvalBroker?: boolean;
   resumeLast?: boolean;
   /** Provider session id to resume natively (claude --resume / codex resume). */
   resumeRef?: string;
@@ -2502,6 +2506,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           reasoningEffort: options.reasoningEffort,
           settingsPath: ensureClaudeRuntimeSettings(
             options.runtimeDir ?? path.join(options.cwd, ".duet"),
+            { approvalBroker: options.approvalBroker !== false },
           ),
           resumeRef: options.resumeRef,
           sessionId: options.sessionId,

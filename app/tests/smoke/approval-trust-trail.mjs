@@ -71,6 +71,7 @@ const host = new TerminalHost({
 
 try {
   host.startTask({
+    approvalBroker: false, // S2: drives the scrape/keys fallback (broker verified in s2b-e2e-verify)
     cwd: workspace,
     command: process.execPath,
     args: [scriptPath],

@@ -142,7 +142,7 @@ export function registerIpcHandlers(
     runtimeController.retryQueuedPrompt(request.taskId, request.itemId);
   });
   ipcMain.handle(IPC_CHANNELS.approvalDecide, (_event, request) => {
-    runtimeController.decideApproval(request.taskId, request.decision);
+    runtimeController.decideApproval(request.taskId, request.decision, request.approvalId ?? null);
   });
   ipcMain.handle(IPC_CHANNELS.optionPromptAnswer, (_event, request) =>
     runtimeController.answerOptionPrompt(request.taskId, request.toolUseId, request.optionIndices),

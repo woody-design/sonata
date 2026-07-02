@@ -7,6 +7,8 @@ import type {
   ReferenceResult,
   ArtifactCandidate,
   ApprovalDecision,
+  ApprovalKind,
+  ApprovalChoice,
   ClaudePermissionMode,
   CodexApprovalMode,
   CodexPermissionPreset,
@@ -58,6 +60,9 @@ import {
   WorkspacePreview,
   ClaudeStatuslineUsageWatcher,
   ClaudeHookWatcher,
+  ClaudeApprovalWatcher,
+  writeApprovalReply,
+  type ApprovalAsk,
   CliStateModel,
   parseClaudeStatuslinePayload,
   parseOptionPrompt,
@@ -156,6 +161,13 @@ export class RuntimeController {
   private readonly claudeSettingsStore: ClaudeSettingsStore;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
   private readonly claudeHookWatcher: ClaudeHookWatcher;
+  private readonly claudeApprovalWatcher: ClaudeApprovalWatcher;
+  /** Live hook-broker approvals awaiting a card answer, keyed by broker id →
+   *  the task + payload needed to build the reply decision. */
+  private readonly pendingBrokerApprovals = new Map<
+    string,
+    { taskId: TaskId; payload: ClaudeHookPayload }
+  >();
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
   private readonly pendingClaudeUsage = new Map<string, UsageSnapshot>();
@@ -181,6 +193,15 @@ export class RuntimeController {
       onError: (error, filePath) => {
         console.debug(
           `[signal] skipped Claude hook payload${filePath ? ` ${filePath}` : ""}: ${error.message}`,
+        );
+      },
+    });
+    this.claudeApprovalWatcher = new ClaudeApprovalWatcher({
+      onAsk: (ask, workspace) => this.handleApprovalAsk(ask, workspace),
+      onExpired: (id, workspace) => this.handleApprovalExpired(id, workspace),
+      onError: (error, filePath) => {
+        console.debug(
+          `[approval] skipped broker file${filePath ? ` ${filePath}` : ""}: ${error.message}`,
         );
       },
     });
@@ -905,13 +926,87 @@ export class RuntimeController {
     active.deliveryController.retry(itemId);
   }
 
-  decideApproval(taskId: TaskId, decision: ApprovalDecision): void {
+  decideApproval(taskId: TaskId, decision: ApprovalDecision, approvalId: string | null = null): void {
     const active = this.requireTaskRuntime(taskId);
+    // Hook-broker card (S2, Claude): answer on the hook channel — write the
+    // reply the broker is polling for. No native keys, no scrape.
+    const pending = approvalId ? this.pendingBrokerApprovals.get(approvalId) : null;
+    if (approvalId && pending && pending.taskId === taskId) {
+      this.pendingBrokerApprovals.delete(approvalId);
+      writeApprovalReply(runtimeDir(taskId), approvalId, brokerDecisionJson(decision, pending.payload));
+      // Optimistically clear the card + resync activity; PostToolUse/Stop hooks
+      // reconcile the ground truth as the turn proceeds.
+      this.sendEvent({
+        type: "approval:decision",
+        payload: { taskId, runId: null, decision, encodedAs: "native-keys", previousKind: null },
+        ts: new Date().toISOString(),
+      });
+      return;
+    }
+    // Fallback / Codex: the scraped native panel — replay keys.
     if (decision === "approve" || decision === "approve-for-session" || decision === "approve-always") {
       active.terminalHost.sendApprovalDecision(decision);
       return;
     }
     active.terminalHost.sendDeny();
+  }
+
+  /**
+   * A broker surfaced a permission request (S2). Route it to its task, drive
+   * cli-state to waiting-approval (as the old sink did), and surface the card
+   * FROM THE HOOK — the one-line "what" comes from tool_name/tool_input, and the
+   * answer goes back via the reply file (answerVia:"reply"), never native keys.
+   */
+  private handleApprovalAsk(ask: ApprovalAsk, workspace: string): void {
+    const resolved = path.resolve(workspace);
+    for (const active of this.taskRuntimes.values()) {
+      if (active.task.provider !== "claude" || !pathsEqual(runtimeDir(active.task.id), resolved)) {
+        continue;
+      }
+      active.cliState.applyHook(ask.payload);
+      this.pendingBrokerApprovals.set(ask.id, { taskId: active.task.id, payload: ask.payload });
+      const kind = classifyApprovalKind(ask.payload);
+      this.sendEvent({
+        type: "approval:detected",
+        payload: {
+          taskId: active.task.id,
+          runId: null,
+          kind,
+          source: "hook-broker",
+          answerVia: "reply",
+          approvalId: ask.id,
+          summary: approvalSummary(ask.payload),
+          choices: brokerApprovalChoices(kind),
+        },
+        ts: new Date().toISOString(),
+      });
+      return;
+    }
+  }
+
+  /**
+   * A broker gave up (timeout) — the CLI's native panel is taking over. Clear
+   * the hook card so the scrape path can surface the native panel afresh (the
+   * free fallback). The pending entry is dropped; a late reply is a no-op.
+   */
+  private handleApprovalExpired(id: string, workspace: string): void {
+    const pending = this.pendingBrokerApprovals.get(id);
+    this.pendingBrokerApprovals.delete(id);
+    const resolved = path.resolve(workspace);
+    for (const active of this.taskRuntimes.values()) {
+      if (active.task.provider !== "claude" || !pathsEqual(runtimeDir(active.task.id), resolved)) {
+        continue;
+      }
+      if (!pending || pending.taskId !== active.task.id) {
+        return;
+      }
+      this.sendEvent({
+        type: "approval:decision",
+        payload: { taskId: active.task.id, runId: null, decision: "answered-natively", encodedAs: "native-keys", previousKind: null },
+        ts: new Date().toISOString(),
+      });
+      return;
+    }
   }
 
   async stopRun(taskId: TaskId, options: { inspectDelayMs?: number; forceSlashStop?: boolean }): Promise<void> {
@@ -988,6 +1083,8 @@ export class RuntimeController {
     this.pendingClaudeUsage.clear();
     this.claudeUsageWatcher.dispose();
     this.claudeHookWatcher.dispose();
+    this.claudeApprovalWatcher.dispose();
+    this.pendingBrokerApprovals.clear();
   }
 
   private async applyControlChange(taskId: TaskId, change: DeliveryControlChange): Promise<void> {
@@ -1242,12 +1339,14 @@ export class RuntimeController {
   private watchClaudeHooks(active: ActiveTaskRuntime): void {
     if (active.task.provider === "claude") {
       this.claudeHookWatcher.watchWorkspace(runtimeDir(active.task.id));
+      this.claudeApprovalWatcher.watchWorkspace(runtimeDir(active.task.id));
     }
   }
 
   private unwatchClaudeHooks(active: ActiveTaskRuntime): void {
     if (active.task.provider === "claude") {
       this.claudeHookWatcher.unwatchWorkspace(runtimeDir(active.task.id));
+      this.claudeApprovalWatcher.unwatchWorkspace(runtimeDir(active.task.id));
     }
   }
 
@@ -2087,4 +2186,118 @@ function claudePermissionLabel(mode: ClaudePermissionMode): string {
     return "acceptEdits";
   }
   return mode;
+}
+
+// ── Hook-broker approval helpers (S2) ────────────────────────────────────────
+
+function toolInputRecord(payload: ClaudeHookPayload): Record<string, unknown> {
+  const input = payload.tool_input;
+  return input && typeof input === "object" && !Array.isArray(input)
+    ? (input as Record<string, unknown>)
+    : {};
+}
+
+/** Map the hook's tool to Duet's ApprovalKind (mirrors the scrape grammar). */
+function classifyApprovalKind(payload: ClaudeHookPayload): ApprovalKind {
+  const tool = typeof payload.tool_name === "string" ? payload.tool_name : "";
+  if (tool === "Bash") return "command";
+  if (tool === "Edit" || tool === "Write" || tool === "MultiEdit" || tool === "NotebookEdit")
+    return "file-edit";
+  if (tool === "Read" || tool === "NotebookRead") return "file-read";
+  return "unknown";
+}
+
+/** The one-line "what the agent wants to do", from tool_name/tool_input. */
+function approvalSummary(payload: ClaudeHookPayload): string {
+  const tool = typeof payload.tool_name === "string" ? payload.tool_name : "tool";
+  const input = toolInputRecord(payload);
+  const str = (key: string): string | null =>
+    typeof input[key] === "string" ? (input[key] as string) : null;
+  if (tool === "Bash") return `Run  ${truncateMiddle(str("command") ?? "(command)", 80)}`;
+  const filePath = str("file_path") ?? str("path") ?? str("notebook_path");
+  if (tool === "Edit" || tool === "Write" || tool === "MultiEdit" || tool === "NotebookEdit")
+    return `Edit  ${truncateMiddle(filePath ?? "(file)", 72)}`;
+  if (tool === "Read" || tool === "NotebookRead")
+    return `Read  ${truncateMiddle(filePath ?? "(file)", 72)}`;
+  return `${tool}${filePath ? `  ${truncateMiddle(filePath, 72)}` : ""}`;
+}
+
+function truncateMiddle(value: string, max: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const head = Math.ceil((max - 1) / 2);
+  const tail = Math.floor((max - 1) / 2);
+  return `${clean.slice(0, head)}…${clean.slice(clean.length - tail)}`;
+}
+
+/** The three fixed choices on a hook-broker card (answered via the reply file). */
+function brokerApprovalChoices(kind: ApprovalKind): ApprovalChoice[] {
+  const always =
+    kind === "command"
+      ? "Always allow this command"
+      : kind === "file-edit"
+        ? "Always allow edits"
+        : kind === "file-read"
+          ? "Always allow reads"
+          : "Always allow";
+  return [
+    { decision: "approve", label: "Approve", description: "Allow once", encodedAs: "native-keys" },
+    { decision: "approve-always", label: "Always", description: always, encodedAs: "native-keys" },
+    { decision: "deny", label: "Deny", description: "Reject this request", encodedAs: "native-keys" },
+  ];
+}
+
+/**
+ * Build the PermissionRequest decision JSON the broker emits to the CLI
+ * (P1-verified schema). "Always" adds a persistent allow rule via
+ * updatedPermissions — next-turn semantics (Woody, 2026-07-02): the rule
+ * persists so subsequent matching calls skip the prompt.
+ */
+function brokerDecisionJson(decision: ApprovalDecision, payload: ClaudeHookPayload): unknown {
+  const out = (d: Record<string, unknown>): unknown => ({
+    hookSpecificOutput: { hookEventName: "PermissionRequest", decision: d },
+  });
+  if (decision === "deny") {
+    return out({ behavior: "deny" });
+  }
+  if (decision === "approve-always") {
+    const rule = alwaysAllowRule(payload);
+    return out(rule ? { behavior: "allow", updatedPermissions: [rule] } : { behavior: "allow" });
+  }
+  // approve / approve-for-session → allow once
+  return out({ behavior: "allow" });
+}
+
+/** A conservative "always allow" rule from the tool call (tunable). */
+function alwaysAllowRule(payload: ClaudeHookPayload): Record<string, unknown> | null {
+  const tool = typeof payload.tool_name === "string" ? payload.tool_name : "";
+  const input = toolInputRecord(payload);
+  if (tool === "Bash") {
+    const command = typeof input.command === "string" ? input.command.trim() : "";
+    const firstToken = command.split(/\s+/, 1)[0] ?? "";
+    if (!firstToken) return null;
+    return {
+      type: "addRules",
+      rules: [{ toolName: "Bash", ruleContent: `${firstToken} *` }],
+      behavior: "allow",
+      destination: "projectSettings",
+    };
+  }
+  if (tool === "Edit" || tool === "Write" || tool === "MultiEdit" || tool === "NotebookEdit") {
+    return {
+      type: "addRules",
+      rules: [{ toolName: tool }],
+      behavior: "allow",
+      destination: "projectSettings",
+    };
+  }
+  if (tool === "Read" || tool === "NotebookRead") {
+    return {
+      type: "addRules",
+      rules: [{ toolName: tool }],
+      behavior: "allow",
+      destination: "projectSettings",
+    };
+  }
+  return null;
 }

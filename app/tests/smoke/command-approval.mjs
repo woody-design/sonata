@@ -50,6 +50,9 @@ const host = new TerminalHost({
 
 try {
   host.startTask({
+    // S2: this test drives the scrape/keys fallback (native-approval mode);
+    // the hook-broker path is verified in spikes/two-window-p0/s2b-e2e-verify.
+    approvalBroker: false,
     cwd: workspace,
     sandbox: "read-only",
     approval: "on-request",

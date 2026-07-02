@@ -259,6 +259,9 @@ export interface PromptQueueItemRequest {
 export interface ApprovalDecisionRequest {
   taskId: TaskId;
   decision: ApprovalDecision;
+  /** Set for a hook-broker card (S2) — the reply is written to this id instead
+   *  of replaying native keys. Absent ⇒ the scrape/keys path. */
+  approvalId?: string | null;
 }
 
 export interface OptionPromptAnswerRequest {

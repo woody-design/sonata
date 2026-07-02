@@ -272,6 +272,16 @@ export type ApprovalDetectedEvent = BaseRuntimeEvent<
     decisionAgeMs?: number | null;
     fingerprintHash?: string | null;
     choices?: ApprovalChoice[];
+    /** How the card's answer reaches the CLI: "reply" = the hook broker (S2,
+     *  Claude) — Duet writes reply-<approvalId>.json; "keys" = the scraped
+     *  native panel (Codex + the broker's timeout fallback). Absent ⇒ "keys". */
+    answerVia?: "reply" | "keys";
+    /** The broker's id — the reply file to write when answerVia === "reply". */
+    approvalId?: string | null;
+    /** The one-line "what the agent wants to do", derived from the hook's
+     *  tool_name/tool_input (e.g. "Run `touch x`"). The card shows THIS instead
+     *  of the low-level panel encodings. Absent for scrape cards. */
+    summary?: string | null;
   }
 >;
 

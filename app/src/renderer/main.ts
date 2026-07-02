@@ -4609,7 +4609,11 @@ async function decideApproval(decision: ApprovalDecision): Promise<void> {
   state.busy = true;
   render();
   try {
-    await window.duetRuntime.decideApproval({ taskId: view.task.id, decision });
+    await window.duetRuntime.decideApproval({
+      taskId: view.task.id,
+      decision,
+      approvalId: view.pendingApproval?.approvalId ?? null,
+    });
   } catch (error) {
     view.status = errorMessage(error);
   } finally {
@@ -6226,8 +6230,14 @@ function renderApproval(): void {
   const approveChoice = approval.choices?.find((choice) => choice.decision === "approve") ?? null;
   elements.approvalBanner.dataset.approvalKind = approval.kind;
   elements.approvalKindBadge.textContent = approvalKindLabel(approval.kind);
-  elements.approvalTitle.textContent = approvalTitle(approval.kind);
-  elements.approvalSummary.textContent = approvalSummary(approval.kind);
+  // The card leads with the ONE thing that matters: what the agent wants to do
+  // (from the hook's tool_name/tool_input). Scrape cards (no summary — Codex /
+  // the broker's timeout fallback) fall back to the generic kind title. The
+  // low-level context (source, run, native key encodings) is deliberately gone.
+  elements.approvalTitle.textContent = approval.summary?.trim() || approvalTitle(approval.kind);
+  elements.approvalSummary.textContent = "";
+  elements.approvalSummary.classList.add("hidden");
+  elements.approvalContext.replaceChildren();
   elements.approveSessionApproval.classList.toggle("hidden", !middleChoice);
   elements.approveSessionApproval.disabled = !middleChoice || userControl;
   if (middleChoice) {
@@ -6240,32 +6250,12 @@ function renderApproval(): void {
     elements.approveApproval.textContent = approveChoice.label;
     elements.approveApproval.title = approveChoice.description;
   }
-  // The deny choice carries the panel's own safe-side label ("Deny", or
-  // "Cancel (stay safe)" for the bypass interstitial whose native default
-  // is "No, exit"). data-approval-kind lets CSS flag the dangerous card.
+  // data-approval-kind lets CSS flag the dangerous (bypass) card.
   const denyChoice = approval.choices?.find((choice) => choice.decision === "deny") ?? null;
   if (denyChoice) {
     elements.denyApproval.textContent = denyChoice.label;
     elements.denyApproval.title = denyChoice.description;
   }
-  elements.approvalContext.replaceChildren(
-    approvalContextItem("Source", approval.source),
-    approvalContextItem("Scope", approvalScope(approval.kind)),
-    approvalContextItem("Run", approval.runId ? shortId(approval.runId) : "session setup"),
-    ...(approval.resurfacedAfterDecision
-      ? [
-          approvalContextItem(
-            "Retry",
-            `${approval.previousDecision ?? "decision"} did not advance native screen`,
-          ),
-        ]
-      : []),
-    approvalContextItem("Approve", `send native ${approveChoice?.encodedAs ?? "Enter"}`),
-    ...(middleChoice
-      ? [approvalContextItem(middleChoice.label, `send native ${middleChoice.encodedAs}`)]
-      : []),
-    approvalContextItem("Deny", "send native Esc"),
-  );
 }
 
 // ── Native option prompt (AskUserQuestion) card (Slice 5) ────────────────────
