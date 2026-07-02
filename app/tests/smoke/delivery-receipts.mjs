@@ -307,9 +307,6 @@ function fakeHost() {
     isApprovalActive() {
       return this.approvalActive;
     },
-    isModalActive() {
-      return false;
-    },
     isIdleComposerReady() {
       return this.idleComposer;
     },

@@ -125,7 +125,7 @@ export type TaskUpdatedEvent = BaseRuntimeEvent<
   {
     taskId: TaskId;
     task: Task;
-    reason: "verified-native-control" | "runtime-status";
+    reason: "runtime-status";
   }
 >;
 
@@ -203,30 +203,6 @@ export type RunStoppedEvent = BaseRuntimeEvent<
 >;
 
 /**
- * The hosted TUI entered (or left) an interactive panel state after a
- * passthrough slash submit — e.g. /config opened its settings dialog inside
- * the hidden terminal. Probe evidence (spikes/slash-probes s1): while such a
- * panel is open, subsequent pasted text is swallowed by the panel, so duet
- * surfaces the state and blocks submits until it clears.
- */
-export type ModalStateEvent = BaseRuntimeEvent<
-  "modal:state",
-  {
-    taskId: TaskId;
-    active: boolean;
-    /** Cleaned tail excerpt of the panel for display; null when inactive. */
-    excerpt: string | null;
-    /** The footer-hint signature that triggered detection. */
-    signature: string | null;
-    /** "slash": opened by a passthrough slash command (Esc verified safe).
-     *  "ambient": startup/idle interstitial — Esc semantics UNKNOWN and
-     *  potentially destructive; the only safe affordances are take-over
-     *  and registry-verified answers. */
-    origin: "slash" | "ambient" | null;
-  }
->;
-
-/**
  * Remote Control (phone access) state for a task changed. v1 rides Claude
  * Code's native `/remote-control`: `active` is tracked optimistically (we
  * injected `/rc`, verified to work mid-stream); `url` is the session link
@@ -240,23 +216,6 @@ export type RemoteControlStateEvent = BaseRuntimeEvent<
     taskId: TaskId;
     active: boolean;
     url: string | null;
-  }
->;
-
-/**
- * The human took (or released) direct keyboard control of the task
- * terminal. While active, Duet is locked out as a writer: delivery pauses
- * and every automation write path is guarded. P1b evidence (2026-06-12):
- * automation bytes against a live native panel destroy the message and
- * answer the panel — pausing delivery during take-over is a safety
- * property, not polish.
- */
-export type TerminalUserControlEvent = BaseRuntimeEvent<
-  "terminal:user-control",
-  {
-    taskId: TaskId;
-    active: boolean;
-    reason: "user" | "pty-exit";
   }
 >;
 
@@ -459,9 +418,7 @@ export type ProductRuntimeEvent =
   | ApprovalPersistedEvent
   | OptionPromptDetectedEvent
   | OptionPromptResolvedEvent
-  | ModalStateEvent
   | RemoteControlStateEvent
-  | TerminalUserControlEvent
   | FileWatchingEvent
   | FileWatchErrorEvent
   | FileChangedEvent
@@ -484,9 +441,7 @@ export type RunIndexEvent = Exclude<
   | DeliveryStateEvent
   | DeliveryReceiptEvent
   | TaskUpdatedEvent
-  | ModalStateEvent
   | RemoteControlStateEvent
   | OptionPromptDetectedEvent
   | OptionPromptResolvedEvent
-  | TerminalUserControlEvent
 >;

@@ -1,13 +1,16 @@
-// CLI Slice 4 e2e — semantic slash routing, end to end against REAL claude.
+// S3 e2e — slash verbatim passthrough, end to end against REAL claude.
 //
 // Locks the keystone: Problem 2 (the /architect hang) — a skill prepends into
 // the composer, composes with multiline args, submits, and DISPATCHES a real
-// turn. Plus the one new route built this slice: panel + unknown commands open
-// the take-over floor (S3) instead of blind-injecting an invisible TUI dialog.
+// turn. Plus the 2-way contract (two-window §1 machine #2 retired): panel and
+// unknown commands submit VERBATIM — no Reading floor, no popover, no modal
+// banner; the panel opens in the co-visible terminal window where the user
+// operates it natively (verified here by closing /config with a real Esc in
+// that window, then dispatching a follow-up turn).
 //
 //   npm run e2e:cli-slash-semantic
 //
-// Requires a logged-in `claude` (network). Mirrors tests/e2e/terminal-takeover.mjs.
+// Requires a logged-in `claude` (network).
 
 import fs from "node:fs";
 import os from "node:os";
@@ -43,45 +46,56 @@ try {
   checks.sessionLive = true;
 
   const input = page.locator("#prompt-input");
-  const drawer = page.locator("#terminal-drawer");
 
-  // Warm the slash registry so /config is classified (not blind-forwarded as an
-  // unknown): open the picker, wait for options, then clear.
+  // Warm the slash registry so /config is classified as known: open the
+  // picker, wait for options, then clear.
   await input.fill("/");
   await page.locator(".slash-picker-option").first().waitFor({ state: "visible" });
   await input.fill("");
   await page.locator(".slash-picker").waitFor({ state: "hidden" });
 
-  const turnCardsBefore = await page.locator(".turn-card").count();
+  // A verbatim slash submit begins a Duet run (kind "slash") — the send button
+  // is Stop (■) while it is active, so each step must wait for the run to
+  // settle before the next submit. The settle itself is load-bearing: it is
+  // the quiescence completion that replaced armModalPanel's close-the-slash-run
+  // side effect (S3, decision A).
+  const composerIdle = () =>
+    waitFor(async () => (await page.locator("#send-prompt").textContent()) === "↑", 60000);
 
-  // --- Panel → floor: /config opens the drawer, dispatches NO turn ----------
+  // --- Panel command → verbatim passthrough --------------------------------
+  // /config submits like any text: the composer clears and nothing floors or
+  // banners in Reading; the panel renders in the terminal window.
   await input.fill("/config");
   await page.locator("#send-prompt").click();
-  await drawer.waitFor({ state: "visible", timeout: 15000 });
-  checks.panelOpensFloor = !(await drawer.evaluate((el) => el.classList.contains("hidden")));
-  checks.panelClearsComposer = (await input.inputValue()) === "";
-  checks.panelDispatchedNoTurn = (await page.locator(".turn-card").count()) === turnCardsBefore;
-  // Close the drawer (no take-over happened, so this is a plain toggle).
-  await page.locator("#toggle-terminal").click();
-  await drawer.waitFor({ state: "hidden", timeout: 10000 });
+  checks.panelSubmitAccepted = await waitFor(async () => (await input.inputValue()) === "", 15000);
+  await page.waitForTimeout(2500); // let the panel render in the terminal
+  checks.panelNoReadingBanner = (await page.locator("#modal-banner").count()) === 0;
 
-  // --- Unknown → gentle confirm, then floor ---------------------------------
+  // The panel is operable in the co-visible terminal window: open it, press
+  // Esc on the real xterm, and the session keeps working (follow-up below).
+  const terminal = await openTerminalWindow(page);
+  checks.terminalWindowOpen = Boolean(terminal);
+  if (terminal) {
+    await terminal.locator(".xterm-helper-textarea").focus();
+    await terminal.keyboard.press("Escape");
+    await page.waitForTimeout(800);
+    checks.panelClosedNatively = true;
+  }
+  // The slash run settles by quiescence (no wedged busy state after a panel).
+  checks.panelRunSettles = await composerIdle();
+
+  // --- Unknown command → gentle confirm, then verbatim forward -------------
   await input.fill("/zzz-not-a-command");
   await page.locator("#send-prompt").click();
-  // First Enter: a gentle confirm, NOT the floor.
   await page.waitForTimeout(400);
-  checks.unknownFirstStaysClosed = await drawer.evaluate((el) => el.classList.contains("hidden"));
-  // Second Enter (same text): hand it to the floor.
+  // First Enter: the typo caution — the text stays composed, nothing sent.
+  checks.unknownFirstHolds = (await input.inputValue()) === "/zzz-not-a-command";
+  // Second Enter: forwards verbatim; the CLI reports it locally.
   await page.locator("#send-prompt").click();
-  await drawer.waitFor({ state: "visible", timeout: 15000 });
-  checks.unknownOpensFloor = !(await drawer.evaluate((el) => el.classList.contains("hidden")));
-  await page.locator("#toggle-terminal").click();
-  await drawer.waitFor({ state: "hidden", timeout: 10000 });
+  checks.unknownForwarded = await waitFor(async () => (await input.inputValue()) === "", 15000);
+  checks.unknownRunSettles = await composerIdle();
 
   // --- Skill: /architect is discovered, prepends, composes, submits, DISPATCHES
-  // This runs AFTER the floor tests above (which resized the PTY), so it also
-  // exercises the re-pump fix end to end: before that fix the message stuck
-  // "Queued" forever after floor interaction; now it delivers and dispatches.
   await input.fill("/arch");
   await page.locator(".slash-picker-option", { hasText: "/architect" }).first().waitFor({
     state: "visible",
@@ -92,7 +106,7 @@ try {
   // it must NOT submit (a premature skill turn is the cost we avoid).
   await dispatchKey(page, "Enter");
   checks.skillPrepended = (await input.inputValue()) === "/architect ";
-  checks.skillPrependNoTurn = (await page.locator(".turn-card").count()) === turnCardsBefore;
+  const turnCardsBeforeSkill = await page.locator(".turn-card").count();
   // Compose the multiline args and submit — the composer clears (submit accepted).
   await input.fill(`/architect ${MULTILINE}`);
   await page.locator("#send-prompt").click();
@@ -100,29 +114,27 @@ try {
     async () => (await input.inputValue()) === "",
     10000,
   );
-  // Dispatch: a real turn starts (the re-pump delivers it despite the prior
-  // floor resize). Signals: send button flips to "Stop" (active run), a busy
-  // spinner appears, or a new turn card lands — and it is NOT stuck queued.
+  // Dispatch: a real turn starts. Signals: send button flips to "Stop" (active
+  // run), a busy spinner appears, or a new turn card lands.
   checks.skillDispatched = await waitFor(async () => {
     const stop = (await page.locator("#send-prompt").getAttribute("aria-label")) === "Stop";
     const spinner = (await page.locator(".sidebar-session-spinner").count()) > 0;
-    const newCard = (await page.locator(".turn-card").count()) > turnCardsBefore;
+    const newCard = (await page.locator(".turn-card").count()) > turnCardsBeforeSkill;
     return stop || spinner || newCard;
   }, 90000);
-  if (!checks.skillDispatched) {
-    checks._stuckQueue = await page.locator("#delivery-queue").innerText().catch(() => "<none>");
-  }
 
   const success =
     checks.sessionLive &&
-    checks.panelOpensFloor &&
-    checks.panelClearsComposer &&
-    checks.panelDispatchedNoTurn &&
-    checks.unknownFirstStaysClosed &&
-    checks.unknownOpensFloor &&
+    checks.panelSubmitAccepted &&
+    checks.panelNoReadingBanner &&
+    checks.terminalWindowOpen &&
+    checks.panelClosedNatively &&
+    checks.panelRunSettles &&
+    checks.unknownFirstHolds &&
+    checks.unknownForwarded &&
+    checks.unknownRunSettles &&
     checks.skillDiscovered &&
     checks.skillPrepended &&
-    checks.skillPrependNoTurn &&
     checks.skillSubmitAccepted &&
     checks.skillDispatched;
   console.log(JSON.stringify({ success, checks }, null, 2));
@@ -150,6 +162,34 @@ async function launchApp() {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
   return page;
+}
+
+/** Surface the satellite terminal window and return its Playwright page. */
+async function openTerminalWindow(page) {
+  const already = findTerminalWindow();
+  if (already) {
+    return already;
+  }
+  await page.locator("#toggle-terminal-window").click();
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    const found = findTerminalWindow();
+    if (found) {
+      await found.locator(".xterm").first().waitFor({ state: "visible", timeout: 10000 });
+      return found;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return null;
+}
+
+function findTerminalWindow() {
+  for (const candidate of electronApp.windows()) {
+    if (candidate.url().includes("terminal.html")) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 async function dispatchKey(page, key) {

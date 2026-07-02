@@ -11,12 +11,10 @@ import type {
   ApprovalKind,
   ClaudePermissionMode,
   CodexApprovalMode,
-  CodexPermissionPreset,
   CodexSandboxMode,
   CompletionConfidence,
   CompletionHint,
   CompletionSource,
-  DeliveryControlChange,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
@@ -65,49 +63,12 @@ export function findRemoteControlUrl(raw: string): string | null {
 }
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
-export const SHIFT_TAB = "\x1b[Z";
-const CTRL_U = "\x15";
-const ENTER = "\r";
 
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
 const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 
 const DEFAULT_ROWS = 36;
 const DEFAULT_COLS = 120;
-// Modal-panel detection (probe evidence: spikes/slash-probes, 2026-06-12).
-// cleanTerminal output sometimes loses spaces between rendered cells, so the
-// patterns tolerate collapsed whitespace.
-const MODAL_DETECT_WINDOW_MS = 45_000;
-const MODAL_SCAN_CHARS = 4000;
-// Ambient (startup/idle) panels must survive a quiescence window before
-// arming: real panels are static (P1 2026-06-12: 65s+ without a byte),
-// transient repaint frames are not.
-const AMBIENT_MODAL_CONFIRM_MS = 1200;
-const AMBIENT_MODAL_QUIET_MS = 600;
-export const CLAUDE_MODAL_FOOTER_RE = /Esc\s*to\s*(cancel|clear)/gi;
-export const CODEX_MODAL_FOOTER_RE = /esc\s*to\s*(go\s*back|close)|space\s*to\s*select/gi;
-// What the composer looks like when it is back: Claude prints a dismissal
-// line (⎿ … dismissed / cancelled) and its bottom bar (◉ mode glyph,
-// "← for agents"); Codex repaints its status bar ("gpt-5.5 xhigh · /path").
-// Probe screens: spikes/slash-probes evidence, 2026-06-12.
-export const CLAUDE_COMPOSER_REDRAW_RE = /dismissed|cancelled|◉|←\s*for\s*agents/gi;
-export const CODEX_COMPOSER_REDRAW_RE = /gpt[-\w.]+\s*\w*\s*·\s*[~/]/gi;
-/** Marker shared by all single-writer guard errors so DeliveryController can
- *  re-queue (not fail) items blocked by a guard. */
-export const USER_CONTROL_GUARD_MESSAGE =
-  "The user is controlling the terminal — Duet writes are paused until hand-back.";
-
-function lastMatchIndex(text: string, pattern: RegExp): number {
-  pattern.lastIndex = 0;
-  let last = -1;
-  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-    last = match.index;
-    if (match.index === pattern.lastIndex) {
-      pattern.lastIndex += 1;
-    }
-  }
-  return last;
-}
 const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_TASK_READY_MIN_AGE_MS = 8000;
@@ -321,13 +282,6 @@ export interface PromptAttachmentSubmission {
   path: string;
 }
 
-export interface NativeControlResult {
-  provider: RuntimeProvider;
-  change: DeliveryControlChange;
-  verifiedAt: string;
-  evidence: string;
-}
-
 interface SnapshotEntry {
   exists: boolean;
   type: "file" | "directory" | "other" | "missing" | "error";
@@ -413,7 +367,6 @@ export class TerminalHost extends EventEmitter {
   private taskReady = false;
   private recentAttributionRun: RecentAttributionRun | null = null;
   private activeRunRaw = "";
-  private modalActive = false;
   // Remote Control (phone access) — tracked optimistically; no hook/structured
   // signal exists for it, and the footer "/rc active" is a volatile TUI scrape
   // we refuse. `injectRemoteControl` flips us active; the scraped session URL
@@ -426,33 +379,16 @@ export class TerminalHost extends EventEmitter {
   // inside an escape sequence. Reset on every transition so a stale match can't
   // fire after a reconnect.
   private remoteControlScan = "";
-  private modalSignature: string | null = null;
-  /** How the panel was armed: slash panels have probe-verified Esc
-   *  semantics; ambient (startup/idle) panels do NOT — Esc on the resume
-   *  panel silently resumes full, Esc on Codex trust quits the process. */
-  private modalOrigin: "slash" | "ambient" | null = null;
-  private ambientModalCandidate: { signature: string; sinceMs: number } | null = null;
-  private ambientModalTimer: NodeJS.Timeout | null = null;
-  /** Arms the modal detector for a window after a slash passthrough. */
-  private lastSlashSubmitAt = 0;
-  /**
-   * The human holds the keys (drawer take-over). Single-writer: while true
-   * every automation write path throws USER_CONTROL_GUARD_MESSAGE and only
-   * writeUserInput() may reach the PTY. P1b (2026-06-12): a single arrow
-   * key against a live panel flips the idle-prompt heuristic, so delivery
-   * MUST pause while a human navigates — this is a safety property.
-   */
-  private userControlActive = false;
   /**
    * Single-writer arbitration between Duet's automation and the human typing in
-   * the terminal (S2). `duetWriteDepth` > 0 means an automation write SEQUENCE is
-   * in flight — a prompt paste (sync attachment writes + the deferred text/Enter
-   * timers), an option-prompt key run, or a control-change drive. Human
+   * the terminal (S2 — the AtomicWriter). `duetWriteDepth` > 0 means an
+   * automation write SEQUENCE is in flight — a prompt paste (sync attachment
+   * writes + the deferred text/Enter timers) or an option-prompt key run. Human
    * keystrokes that arrive during that window are held in `pendingHumanInput` and
    * flushed the instant the sequence completes, so the two byte streams never
    * interleave (no `git che`+paste corruption; no split bracketed-paste frame).
-   * `lastHumanInputAt` timestamps the human's last terminal keystroke;
-   * `isHumanActivelyTyping()` reads it to pause delivery while the human drives.
+   * `lastHumanInputAt` timestamps the human's last terminal keystroke — used
+   * ONLY to reconcile natively-answered approvals, never to hold delivery.
    */
   private duetWriteDepth = 0;
   private pendingHumanInput = "";
@@ -510,9 +446,9 @@ export class TerminalHost extends EventEmitter {
    * and there is no usable threshold (any value ≥ the redraw interval re-wedges,
    * any value below it is meaningless). The structural idle-prompt is the honest
    * readiness signal: it requires the `❯` composer rendered after any panel, and
-   * `activeRun`/`approvalActive` (+ the delivery gate's `modalActive`) cover the
-   * busy/panel cases. The Claude hook lifecycle (SessionStart/Stop) becomes the
-   * authoritative primary in the follow-up; this trusts the structural prompt now.
+   * `activeRun`/`approvalActive` cover the busy/panel cases. The Claude hook
+   * lifecycle (SessionStart/Stop) becomes the authoritative primary in the
+   * follow-up; this trusts the structural prompt now.
    */
   acceptsPromptInput(): boolean {
     if (!this.ptyProcess || this.activeRun || this.approvalActive) {
@@ -542,8 +478,6 @@ export class TerminalHost extends EventEmitter {
     this.activeRunRaw = "";
     this.taskReady = false;
     this.acceptsInputAnnounced = false;
-    this.clearModalPanel();
-    this.resetAmbientModalCandidate();
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
     this.clearTaskReadyTimer();
@@ -575,11 +509,7 @@ export class TerminalHost extends EventEmitter {
 
     this.ptyProcess.onData((data) => this.handlePtyData(data));
     this.ptyProcess.onExit((exit) => {
-      if (this.userControlActive) {
-        // Control never outlives the process that granted it.
-        this.setUserControl(false, "pty-exit");
-      }
-      // RC never outlives the process either — clear it so the header button
+      // RC never outlives the process — clear it so the header button
       // doesn't keep showing "on" for a dead/crashed session.
       if (this.remoteControlActive) {
         this.setRemoteControlActive(false, null);
@@ -642,17 +572,14 @@ export class TerminalHost extends EventEmitter {
    * connects; when already ON it opens claude's native Remote Control panel
    * (Disconnect / Show QR / Continue). Held under the write-lock so a human
    * keystroke mid-inject buffers instead of splitting the paste. An open
-   * approval/modal panel would swallow the command, so we refuse in that state
+   * approval panel would swallow the command, so we refuse in that state
    * and report it rather than flip to a false "on".
    */
   injectRemoteControl(): RemoteControlInjectResponse {
     if (!this.ptyProcess) {
       return { ok: false, reason: "no-process" };
     }
-    if (this.userControlActive) {
-      return { ok: false, reason: "user-control" };
-    }
-    if (this.approvalActive || this.modalActive) {
+    if (this.approvalActive) {
       return { ok: false, reason: "panel-open" };
     }
     // The write-lock (beginDuetWrite) only BUFFERS human keystrokes; it does NOT
@@ -667,7 +594,7 @@ export class TerminalHost extends EventEmitter {
     // Defer the Enter under the held lock (mirrors the prompt-delivery path): a
     // human keystroke landing in the gap buffers rather than splitting the frame.
     this.deferDuetWrite(120, () => {
-      if (this.ptyProcess && !this.userControlActive) {
+      if (this.ptyProcess) {
         this.ptyProcess.write(CSI_U_ENTER);
       }
     });
@@ -729,44 +656,6 @@ export class TerminalHost extends EventEmitter {
     }
   }
 
-  isUserControlActive(): boolean {
-    return this.userControlActive;
-  }
-
-  /**
-   * Explicit, reversible take-over (Warp CMD+I model). Idempotent; emits
-   * terminal:user-control on every transition so the renderer, delivery
-   * pump, and receipts all observe the same single-writer state.
-   */
-  setUserControl(active: boolean, reason: "user" | "pty-exit" = "user"): boolean {
-    if (active && !this.ptyProcess) {
-      throw new Error("No PTY process is running.");
-    }
-    if (this.userControlActive === active) {
-      return this.userControlActive;
-    }
-    this.userControlActive = active;
-    if (!active) {
-      // Hand-back: the human may have changed anything — re-derive
-      // readiness from fresh screen evidence instead of stale flags.
-      this.clearApprovalIfAnsweredNatively();
-      // The one-shot evaluation races the post-answer repaint: a hand-back
-      // in the same beat as the answering keystroke still sees the panel
-      // on screen and approvalActive wedges forever (probe 2026-06-13).
-      // Re-check once the screen has had time to settle.
-      this.scheduleNativeAnswerRecheck();
-      this.taskReady = false;
-      this.acceptsInputAnnounced = false;
-      this.scheduleTaskReadyCheck();
-    }
-    this.emitEvent("terminal:user-control", {
-      taskId: this.taskId,
-      active,
-      reason,
-    });
-    return this.userControlActive;
-  }
-
   /**
    * The human's keystrokes into the terminal. The human may type anytime;
    * delivery is never held on "the human is typing" (send-is-send). The one
@@ -811,9 +700,7 @@ export class TerminalHost extends EventEmitter {
 
   /** The human just finished a burst of terminal input — they may have answered
    *  a native approval/panel directly. Re-derive readiness from fresh screen
-   *  evidence and re-announce accepts-input so a held queue re-pumps. This is the
-   *  activity-settle reconciliation that replaces the old explicit hand-back
-   *  (which ran the identical body on setUserControl(false)). */
+   *  evidence and re-announce accepts-input so a held queue re-pumps. */
   private onHumanInputSettled(): void {
     if (!this.ptyProcess) {
       return;
@@ -916,9 +803,7 @@ export class TerminalHost extends EventEmitter {
     for (const delayMs of [1500, 4000]) {
       this.nativeAnswerRecheckTimers.push(
         setTimeout(() => {
-          if (!this.userControlActive) {
-            this.clearApprovalIfAnsweredNatively();
-          }
+          this.clearApprovalIfAnsweredNatively();
         }, delayMs),
       );
     }
@@ -983,14 +868,6 @@ export class TerminalHost extends EventEmitter {
     if (this.approvalActive) {
       throw new Error("Cannot submit a prompt while a native approval screen is active.");
     }
-    if (this.modalActive) {
-      throw new Error(
-        "The provider is showing an interactive panel — close it (Esc) before sending. Pasted text would be swallowed by the panel.",
-      );
-    }
-    if (this.userControlActive) {
-      throw new Error(USER_CONTROL_GUARD_MESSAGE);
-    }
 
     // A slash command is a single line with no attachments. A folded file/folder
     // reference makes the text multi-line (path on its own line), so the newline
@@ -1023,22 +900,15 @@ export class TerminalHost extends EventEmitter {
     for (const attachment of attachments) {
       this.ptyProcess.write(`${BRACKETED_PASTE_START}${shellQuotePath(attachment.path)}${BRACKETED_PASTE_END}`);
     }
-    if (kind === "slash") {
-      this.lastSlashSubmitAt = Date.now();
-    }
     const textDelayMs = attachments.length > 0 ? 120 : 0;
     const enterDelayMs = attachments.length > 0 ? 260 : 120;
-    // The deferred writes re-check userControlActive: a take-over that lands
-    // between the guard above and these timers must still win — suppressed
-    // bytes surface as a receipt timeout, never as keystrokes under the
-    // human's navigation.
     this.deferDuetWrite(textDelayMs, () => {
-      if (this.ptyProcess && trimmed && !this.userControlActive) {
+      if (this.ptyProcess && trimmed) {
         this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
       }
     });
     this.deferDuetWrite(enterDelayMs, () => {
-      if (this.ptyProcess && !this.userControlActive) {
+      if (this.ptyProcess) {
         this.ptyProcess.write(CSI_U_ENTER);
       }
     });
@@ -1049,7 +919,7 @@ export class TerminalHost extends EventEmitter {
     // own and the extra Enter never fires.
     if (this.profile.provider === "codex" && /^\$[A-Za-z0-9][\w.-]*$/.test(trimmed)) {
       this.deferDuetWrite(enterDelayMs + 320, () => {
-        if (this.ptyProcess && !this.userControlActive) {
+        if (this.ptyProcess) {
           this.ptyProcess.write(CSI_U_ENTER);
         }
       });
@@ -1099,283 +969,6 @@ export class TerminalHost extends EventEmitter {
     this.beginRun(text || "(prompt)", kind);
   }
 
-  async applyControlChange(change: DeliveryControlChange): Promise<NativeControlResult> {
-    if (!this.ptyProcess) {
-      throw new Error("No PTY process is running.");
-    }
-    if (this.approvalActive) {
-      throw new Error("Cannot change controls while a native approval screen is active.");
-    }
-    if (this.activeRun) {
-      throw new Error("Cannot change controls while a provider run is active.");
-    }
-    if (this.userControlActive) {
-      throw new Error(USER_CONTROL_GUARD_MESSAGE);
-    }
-    // Gate on the STRUCTURAL idle check (composer rendered, no run/approval) —
-    // same condition the delivery gate and waitForIdleComposer use. NOT
-    // isIdleComposerReady(): its PTY-quiet fuse is unsatisfiable under a
-    // continuously-animating TUI, which would throw here even when the composer
-    // is genuinely idle (claude 2.1.191 — switching model/effort mid-animation).
-    if (!this.acceptsPromptInput()) {
-      await this.waitForIdleComposer(DEFAULT_CONTROL_WAIT_MS);
-    }
-    if (!this.acceptsPromptInput()) {
-      throw new Error("Cannot change controls until the provider composer is idle.");
-    }
-
-    // Hold the write-lock across the multi-step native drive (slash command,
-    // picker navigation, digit selection) so a human keystroke buffers rather
-    // than desyncing the navigation (S2). The idle-wait above only reads.
-    this.beginDuetWrite();
-    let evidence: string;
-    try {
-      evidence =
-        this.profile.provider === "codex"
-          ? await this.applyCodexControlChange(change)
-          : await this.applyClaudeControlChange(change);
-    } finally {
-      this.endDuetWrite();
-    }
-    this.taskReady = false;
-    this.scheduleTaskReadyCheck();
-    return {
-      provider: this.profile.provider,
-      change,
-      verifiedAt: new Date().toISOString(),
-      evidence,
-    };
-  }
-
-  private async applyCodexControlChange(change: DeliveryControlChange): Promise<string> {
-    if (change.kind === "permission") {
-      if (!change.codex) {
-        throw new Error("Codex permission change was missing its native preset.");
-      }
-      return this.driveCodexPermissions(change.codex.preset);
-    }
-    return this.driveCodexModel(change.model, change.reasoningEffort);
-  }
-
-  private async driveCodexPermissions(preset: CodexPermissionPreset): Promise<string> {
-    const label = codexPermissionPresetLabel(preset);
-    const pickerOutput = await this.submitNativeSlashCommandAndWait(
-      "/permissions",
-      /Full\s*Access|FullAccess/i,
-      DEFAULT_CONTROL_WAIT_MS,
-      "Codex permissions picker",
-    );
-    const confirmationSnapshot = await this.selectCodexPickerItem(
-      label,
-      "Codex permissions option",
-      pickerOutput,
-      codexPermissionPresetIndex(preset),
-    );
-    if (preset === "fullAccess") {
-      const fullAccessConfirmation = await this.waitForClean(
-        /Permissions updated to\s+Full Access|Enable\s*full\s*access|Yes,\s*continue\s*anyway/i,
-        DEFAULT_CONTROL_WAIT_MS,
-        "Codex full access confirmation",
-        confirmationSnapshot,
-      );
-      if (/Permissions updated to\s+Full Access/i.test(fullAccessConfirmation)) {
-        return fullAccessConfirmation;
-      }
-      const finalConfirmationSnapshot = await this.selectCodexPickerItem(
-        "Yes, continue anyway",
-        "Codex full access confirmation option",
-        fullAccessConfirmation,
-      );
-      return this.waitForClean(
-        /Permissions updated to\s+Full Access/i,
-        DEFAULT_CONTROL_WAIT_MS,
-        "Codex permissions confirmation",
-        finalConfirmationSnapshot,
-      );
-    }
-    const confirmation = await this.waitForClean(
-      new RegExp(`Permissions updated to\\s+${escapeRegExp(label)}`, "i"),
-      DEFAULT_CONTROL_WAIT_MS,
-      "Codex permissions confirmation",
-      confirmationSnapshot,
-    );
-    return confirmation;
-  }
-
-  private async driveCodexModel(
-    model: string | null,
-    reasoningEffort: ReasoningEffort | null,
-  ): Promise<string> {
-    if (!model) {
-      throw new Error("Codex model picker cannot verify a Native Default selection mid-session.");
-    }
-    const modelPickerOutput = await this.submitNativeSlashCommandAndWait(
-      "/model",
-      /Select Model|Select Model and Effort/i,
-      DEFAULT_CONTROL_WAIT_MS,
-      "Codex model picker",
-    );
-    let confirmationSnapshot = await this.selectCodexPickerItem(model, "Codex model option", modelPickerOutput);
-
-    if (reasoningEffort) {
-      const effortPickerOutput = await this.waitForClean(
-        /effort|reasoning|Low|Medium|High|Extra High/i,
-        DEFAULT_CONTROL_WAIT_MS,
-        "Codex effort picker",
-        confirmationSnapshot,
-      );
-      confirmationSnapshot = await this.selectCodexPickerItem(
-        reasoningEffortPickerLabel(reasoningEffort),
-        "Codex reasoning effort",
-        effortPickerOutput,
-      );
-    }
-
-    const confirmation = await this.waitForClean(
-      new RegExp(`${escapeRegExp(model)}|model|effort|reasoning`, "i"),
-      DEFAULT_CONTROL_WAIT_MS,
-      "Codex model confirmation",
-      confirmationSnapshot,
-    );
-    return confirmation;
-  }
-
-  private async selectCodexPickerItem(
-    targetLabel: string,
-    label: string,
-    pickerOutput: string,
-    targetIndexOverride?: number,
-  ): Promise<string> {
-    const targetDigit =
-      targetIndexOverride === undefined
-        ? pickerDigitForLabel(pickerOutput, targetLabel)
-        : String(targetIndexOverride + 1);
-    if (!targetDigit) {
-      throw new Error(`${label} "${targetLabel}" was not found in the native picker.\n\n${pickerOutput.slice(-2200)}`);
-    }
-    const snapshot = this.rawTail;
-    await delay(2000);
-    this.writeRaw(targetDigit);
-    await delay(180);
-    this.writeRaw(ENTER);
-    return snapshot;
-  }
-
-  private async applyClaudeControlChange(change: DeliveryControlChange): Promise<string> {
-    if (change.kind === "permission") {
-      if (!change.claude) {
-        throw new Error("Claude permission change was missing its native mode.");
-      }
-      return this.driveClaudePermission(change.claude.permissionMode);
-    }
-    return this.driveClaudeModel(change.model, change.reasoningEffort);
-  }
-
-  private async driveClaudePermission(mode: ClaudePermissionMode): Promise<string> {
-    if (!["default", "acceptEdits", "plan", "auto"].includes(mode)) {
-      throw new Error(`Claude permission mode ${mode} is not available mid-session.`);
-    }
-
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const current = detectClaudePermissionMode(this.cleanTail(CONTROL_CONTEXT_CHARS));
-      if (current === mode) {
-        return this.cleanTail(CONTROL_CONTEXT_CHARS);
-      }
-      this.writeRaw(SHIFT_TAB);
-      await delay(1800);
-      const landed = detectClaudePermissionMode(this.cleanTail(CONTROL_CONTEXT_CHARS));
-      if (landed === mode) {
-        return this.cleanTail(CONTROL_CONTEXT_CHARS);
-      }
-    }
-
-    throw new Error(
-      `Claude permission mode ${mode} was not verified after bounded Shift+Tab cycling.\n\n${this.cleanTail(CONTROL_CONTEXT_CHARS).slice(-2200)}`,
-    );
-  }
-
-  private async driveClaudeModel(
-    model: string | null,
-    reasoningEffort: ReasoningEffort | null,
-  ): Promise<string> {
-    if (model) {
-      await this.submitNativeSlashSingleShot(`/model ${model}`);
-      await this.waitForClean(new RegExp(escapeRegExp(model), "i"), 30_000, "Claude model confirmation");
-      await this.waitForIdleComposer(DEFAULT_CONTROL_WAIT_MS);
-    }
-    if (reasoningEffort) {
-      await this.submitNativeSlashSingleShot(`/effort ${reasoningEffort}`);
-      await this.waitForClean(
-        new RegExp(escapeRegExp(reasoningEffort), "i"),
-        30_000,
-        "Claude effort confirmation",
-      );
-      await this.waitForIdleComposer(DEFAULT_CONTROL_WAIT_MS);
-    }
-    return this.cleanTail(CONTROL_CONTEXT_CHARS);
-  }
-
-  private async submitNativeSlashCommandAndWait(
-    text: string,
-    pattern: RegExp,
-    timeoutMs: number,
-    label: string,
-  ): Promise<string> {
-    this.taskReady = false;
-    const snapshot = this.rawTail;
-    this.writeRaw(CTRL_U);
-    await delay(40);
-    this.writeRaw(`${BRACKETED_PASTE_START}${text}${BRACKETED_PASTE_END}`);
-    await delay(160);
-    if (this.ptyProcess) {
-      this.ptyProcess.write(ENTER);
-    }
-    return this.waitForClean(pattern, timeoutMs, label, snapshot);
-  }
-
-  private async submitNativeSlashSingleShot(text: string): Promise<void> {
-    this.taskReady = false;
-    this.writeRaw(`${BRACKETED_PASTE_START}${text}${BRACKETED_PASTE_END}`);
-    await delay(160);
-    if (this.ptyProcess) {
-      this.ptyProcess.write(CSI_U_ENTER);
-    }
-    await delay(500);
-  }
-
-  private async waitForClean(
-    pattern: RegExp,
-    timeoutMs: number,
-    label: string,
-    snapshot?: string,
-  ): Promise<string> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const clean = snapshot
-        ? cleanTerminal(rawTailSince(snapshot, this.rawTail)).slice(-CONTROL_CONTEXT_CHARS)
-        : this.cleanTail(CONTROL_CONTEXT_CHARS);
-      if (pattern.test(clean)) {
-        return clean;
-      }
-      await delay(100);
-    }
-    const context = snapshot
-      ? cleanTerminal(rawTailSince(snapshot, this.rawTail)).slice(-2200)
-      : this.cleanTail(CONTROL_CONTEXT_CHARS).slice(-2200);
-    throw new Error(`Timed out waiting for ${label}.\n\n${context}`);
-  }
-
-  private async waitForIdleComposer(timeoutMs: number): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      // Structural idle (same as acceptsPromptInput) — no PTY-quiet fuse, which a
-      // continuously-animating TUI never satisfies.
-      if (this.acceptsPromptInput()) {
-        return;
-      }
-      await delay(100);
-    }
-  }
 
   private cleanTail(chars: number): string {
     return cleanTerminal(this.rawTail).slice(-chars);
@@ -1422,9 +1015,6 @@ export class TerminalHost extends EventEmitter {
     keySequence: string,
     encodedAs: ApprovalDecisionEncoding,
   ): void {
-    if (this.userControlActive) {
-      throw new Error(USER_CONTROL_GUARD_MESSAGE);
-    }
     const decisionAt = Date.now();
     const previousKind = this.lastApprovalKind;
     if (decision !== "approve") {
@@ -1455,9 +1045,6 @@ export class TerminalHost extends EventEmitter {
   }
 
   sendDeny(): void {
-    if (this.userControlActive) {
-      throw new Error(USER_CONTROL_GUARD_MESSAGE);
-    }
     const previousKind = this.lastApprovalKind;
     this.writeRaw(ESC);
     this.emitEvent("approval:decision", {
@@ -1490,17 +1077,10 @@ export class TerminalHost extends EventEmitter {
    * verified key sequence (`optionPromptAnswerSequence`): each question's chosen
    * 1-based digit, in order, then a CR for the Submit tab. Same keystroke-relay
    * mechanism approvals use — not stdin games.
-   *
-   * Single-writer: the human-on-the-terminal path is mutually exclusive with
-   * this. We re-check user control before EVERY key so a take-over landing
-   * mid-injection abandons the rest rather than racing the human's navigation.
    */
   async sendOptionPromptAnswer(keys: string[]): Promise<void> {
     if (!this.ptyProcess) {
       throw new Error("No PTY process is running.");
-    }
-    if (this.userControlActive) {
-      throw new Error(USER_CONTROL_GUARD_MESSAGE);
     }
     // Hold the write-lock across the whole multi-key run (with its inter-key
     // delays) so a human keystroke buffers rather than interleaving into the
@@ -1515,8 +1095,8 @@ export class TerminalHost extends EventEmitter {
         if (i > 0) {
           await delay(OPTION_PROMPT_KEY_DELAY_MS);
         }
-        if (!this.ptyProcess || this.userControlActive) {
-          throw new Error(USER_CONTROL_GUARD_MESSAGE);
+        if (!this.ptyProcess) {
+          throw new Error("The PTY exited mid-answer.");
         }
         this.writeRaw(key);
       }
@@ -1526,9 +1106,6 @@ export class TerminalHost extends EventEmitter {
   }
 
   async stopRun(options: { inspectDelayMs?: number; forceSlashStop?: boolean } = {}): Promise<void> {
-    if (this.userControlActive) {
-      throw new Error(USER_CONTROL_GUARD_MESSAGE);
-    }
     const stoppedRunId = this.activeRun ? this.activeRun.id : null;
     const stoppedCommandApprovalRun = this.activeRun?.approvalKind === "command";
     this.writeRaw(ESC);
@@ -1586,7 +1163,6 @@ export class TerminalHost extends EventEmitter {
 
   dispose(): void {
     this.clearTaskReadyTimer();
-    this.resetAmbientModalCandidate();
     this.disposeProcess();
     this.stopFileWatcher();
     this.clearCompletionTimer();
@@ -1598,9 +1174,6 @@ export class TerminalHost extends EventEmitter {
   private disposeProcess(): void {
     if (!this.ptyProcess) {
       return;
-    }
-    if (this.userControlActive) {
-      this.setUserControl(false, "pty-exit");
     }
     if (this.remoteControlActive) {
       this.setRemoteControlActive(false, null);
@@ -1651,201 +1224,8 @@ export class TerminalHost extends EventEmitter {
       // promptly (continuous reconciliation; the settle pass catches a late one).
       this.clearApprovalIfAnsweredNatively();
     }
-    this.detectModalPanel();
     this.scheduleTaskReadyCheck();
     this.scheduleCompletionCheck();
-  }
-
-  isModalActive(): boolean {
-    return this.modalActive;
-  }
-
-  /**
-   * Footer-hint detection for interactive TUI panels left open by a slash
-   * passthrough. Signatures from probe screens (spikes/slash-probes):
-   * Claude panels all end in "Esc to cancel/clear"; Codex panels in
-   * "esc to go back/close" or "space to select". The detector only arms for
-   * a window after a slash submit and never fires while the idle composer,
-   * an approval screen, or an active run is visible — three independent
-   * conditions against false positives from model output quoting these
-   * phrases.
-   */
-  /**
-   * The panel-open signal is positional, not structural: in the append-only
-   * render stream, a panel is visible when its footer hint was rendered
-   * AFTER the last composer redraw marker. detectIdlePrompt cannot serve as
-   * the gate here — Claude panels draw their selection caret as "❯", which
-   * that heuristic reads as an idle prompt.
-   */
-  private modalFooterSignature(): string | null {
-    const clean = cleanTerminal(this.rawTail).slice(-MODAL_SCAN_CHARS);
-    const footerRe =
-      this.profile.provider === "claude" ? CLAUDE_MODAL_FOOTER_RE : CODEX_MODAL_FOOTER_RE;
-    const redrawRe =
-      this.profile.provider === "claude" ? CLAUDE_COMPOSER_REDRAW_RE : CODEX_COMPOSER_REDRAW_RE;
-    const lastFooter = lastMatchIndex(clean, footerRe);
-    if (lastFooter === -1 || lastFooter <= lastMatchIndex(clean, redrawRe)) {
-      return null;
-    }
-    footerRe.lastIndex = lastFooter;
-    const match = footerRe.exec(clean);
-    footerRe.lastIndex = 0;
-    return match ? match[0] : null;
-  }
-
-  private detectModalPanel(): void {
-    if (this.modalActive) {
-      if (
-        (this.activeRun && this.activeRun.kind !== "slash") ||
-        this.approvalActive ||
-        this.modalFooterSignature() === null
-      ) {
-        this.clearModalPanel();
-      }
-      return;
-    }
-    // A slash submit records its own run (kind "slash"), so an active slash
-    // run is exactly the state in which a panel can appear — only a real
-    // prompt run disarms the detector.
-    if ((this.activeRun && this.activeRun.kind !== "slash") || this.approvalActive) {
-      this.resetAmbientModalCandidate();
-      return;
-    }
-    const signature = this.modalFooterSignature();
-    if (!signature) {
-      this.resetAmbientModalCandidate();
-      return;
-    }
-    const armedMs = Date.now() - this.lastSlashSubmitAt;
-    if (this.lastSlashSubmitAt !== 0 && armedMs <= MODAL_DETECT_WINDOW_MS) {
-      this.armModalPanel(signature, "slash");
-      return;
-    }
-    // Ambient arming (startup/idle interstitials — the incident class):
-    // same positional signature, but it must survive a quiescence window.
-    if (
-      this.ambientModalCandidate === null ||
-      this.ambientModalCandidate.signature !== signature
-    ) {
-      this.ambientModalCandidate = { signature, sinceMs: Date.now() };
-    }
-    this.scheduleAmbientModalConfirm();
-  }
-
-  /** Static panels emit no further bytes (P1) — confirmation needs its own
-   *  timer, re-checking the same screen rather than waiting for data. */
-  private scheduleAmbientModalConfirm(): void {
-    if (this.ambientModalTimer) {
-      return;
-    }
-    this.ambientModalTimer = setTimeout(() => {
-      this.ambientModalTimer = null;
-      const candidate = this.ambientModalCandidate;
-      if (!candidate || this.modalActive || !this.ptyProcess) {
-        return;
-      }
-      if ((this.activeRun && this.activeRun.kind !== "slash") || this.approvalActive) {
-        return;
-      }
-      if (Date.now() - this.lastPtyDataAt < AMBIENT_MODAL_QUIET_MS) {
-        this.scheduleAmbientModalConfirm();
-        return;
-      }
-      if (Date.now() - candidate.sinceMs < AMBIENT_MODAL_CONFIRM_MS) {
-        this.scheduleAmbientModalConfirm();
-        return;
-      }
-      const signature = this.modalFooterSignature();
-      if (signature !== candidate.signature) {
-        this.ambientModalCandidate = signature
-          ? { signature, sinceMs: Date.now() }
-          : null;
-        if (signature) {
-          this.scheduleAmbientModalConfirm();
-        }
-        return;
-      }
-      this.armModalPanel(signature, "ambient");
-    }, AMBIENT_MODAL_CONFIRM_MS);
-  }
-
-  private resetAmbientModalCandidate(): void {
-    this.ambientModalCandidate = null;
-    if (this.ambientModalTimer) {
-      clearTimeout(this.ambientModalTimer);
-      this.ambientModalTimer = null;
-    }
-  }
-
-  private armModalPanel(signature: string, origin: "slash" | "ambient"): void {
-    this.modalActive = true;
-    this.modalSignature = signature;
-    this.modalOrigin = origin;
-    this.resetAmbientModalCandidate();
-    if (this.activeRun && this.activeRun.kind === "slash") {
-      // The "run" ended in a panel, not output — settle it so the session
-      // does not look busy while the panel waits for a human.
-      this.finishActiveRun("completed", "slash command opened an interactive panel", {
-        completionSource: "native-control",
-        completionConfidence: "high",
-      });
-    }
-    this.emitEvent("modal:state", {
-      taskId: this.taskId,
-      active: true,
-      excerpt: this.cleanTail(600),
-      signature,
-      origin,
-    });
-  }
-
-  private clearModalPanel(): void {
-    if (!this.modalActive) {
-      return;
-    }
-    this.modalActive = false;
-    this.modalSignature = null;
-    this.modalOrigin = null;
-    this.lastSlashSubmitAt = 0;
-    this.resetAmbientModalCandidate();
-    this.emitEvent("modal:state", {
-      taskId: this.taskId,
-      active: false,
-      excerpt: null,
-      signature: null,
-      origin: null,
-    });
-  }
-
-  /**
-   * Bounded Esc retries to close a detected panel. Claude's /config needs
-   * two: the first Esc only clears its search filter (probe s1). Success is
-   * verified structurally — the idle composer must come back.
-   */
-  async dismissModal(): Promise<boolean> {
-    if (this.modalActive && this.modalOrigin !== "slash") {
-      // Esc is only probe-verified for slash-opened panels. On ambient
-      // interstitials it has side effects (resume panel: silently resumes
-      // full; Codex trust: quits the process). Never offered, never sent.
-      return false;
-    }
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      if (this.userControlActive) {
-        // Single writer: the human is on the panel — never race their keys.
-        return false;
-      }
-      if (!this.modalActive || !this.ptyProcess) {
-        return true;
-      }
-      this.writeRaw(ESC);
-      // The dismissal redraw clears modalActive through detectModalPanel
-      // on incoming data; the wait gives the TUI time to repaint.
-      await delay(1400);
-      if (!this.modalActive) {
-        return true;
-      }
-    }
-    return !this.modalActive;
   }
 
   private scheduleTaskReadyCheck(): void {
@@ -2556,68 +1936,10 @@ function tomlString(value: string): string {
   return JSON.stringify(value);
 }
 
-function codexPermissionPresetLabel(preset: CodexPermissionPreset): string {
-  if (preset === "approveForMe") {
-    return "Approve for me";
-  }
-  if (preset === "fullAccess") {
-    return "Full Access";
-  }
-  return "Ask for approval";
-}
 
-function codexPermissionPresetIndex(preset: CodexPermissionPreset): number {
-  if (preset === "approveForMe") {
-    return 1;
-  }
-  if (preset === "fullAccess") {
-    return 2;
-  }
-  return 0;
-}
 
-function reasoningEffortPickerLabel(effort: ReasoningEffort): string {
-  if (effort === "xhigh") {
-    return "Extra High";
-  }
-  return effort;
-}
 
-function pickerDigitForLabel(cleanText: string, targetLabel: string): string | null {
-  const targetTokens = normalizedTokens(targetLabel);
-  const lines = cleanText.split(/\n/).map((line) => line.trim()).filter(Boolean);
-  for (const line of lines) {
-    const segments = numberedPickerSegments(line);
-    for (const segment of segments) {
-      if (tokensContain(normalizedTokens(segment.text), targetTokens)) {
-        return segment.digit;
-      }
-    }
-  }
-  return null;
-}
 
-function numberedPickerSegments(line: string): Array<{ digit: string; text: string }> {
-  const matches = [...line.matchAll(/([1-9])[\).]\s*(?=[A-Za-z])/g)];
-  const segments: Array<{ digit: string; text: string }> = [];
-  for (let index = 0; index < matches.length; index += 1) {
-    const match = matches[index];
-    if (!match) {
-      continue;
-    }
-    const digit = match[1];
-    if (!digit || match.index === undefined) {
-      continue;
-    }
-    const start = match.index + match[0].length;
-    const end = matches[index + 1]?.index ?? line.length;
-    segments.push({
-      digit,
-      text: line.slice(start, end),
-    });
-  }
-  return segments;
-}
 
 export function detectClaudePermissionMode(cleanText: string): ClaudePermissionMode | null {
   // Shift+Tab cycling appends EVERY mode's banner into the stream
@@ -2651,22 +1973,7 @@ export function detectClaudePermissionMode(cleanText: string): ClaudePermissionM
   return "default";
 }
 
-function normalizedTokens(value: string): string[] {
-  return value
-    .toLowerCase()
-    .replace(/gpt[-\s]?/g, "gpt")
-    .split(/[^a-z0-9.]+/)
-    .filter(Boolean);
-}
 
-function tokensContain(haystack: string[], needle: string[]): boolean {
-  if (needle.length === 0) {
-    return false;
-  }
-  return needle.every((token) =>
-    haystack.some((candidate) => candidate === token || candidate.includes(token) || token.includes(candidate)),
-  );
-}
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

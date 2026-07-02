@@ -17,20 +17,6 @@ const {
   clearSlashCommandCache,
   parseFrontmatter,
 } = require("../../dist/main/skills-discovery");
-const {
-  CLAUDE_MODAL_FOOTER_RE,
-  CODEX_MODAL_FOOTER_RE,
-  CLAUDE_COMPOSER_REDRAW_RE,
-  CODEX_COMPOSER_REDRAW_RE,
-} = require("../../dist/runtime/terminal-host/terminal-host");
-
-// The runtime regexes carry /g for positional scanning — reset state per use.
-function matches(re, text) {
-  re.lastIndex = 0;
-  const result = re.test(text);
-  re.lastIndex = 0;
-  return result;
-}
 
 function writeSkill(root, name, frontmatterLines, body = "Do the thing.") {
   const dir = path.join(root, name);
@@ -57,15 +43,15 @@ function writeSkill(root, name, frontmatterLines, body = "Do the thing.") {
   assert.equal(body, "No frontmatter here.\n");
 }
 
-// --- builtin snapshots ---
+// --- builtin snapshots (S3: every builtin is a verbatim passthrough) ---
 for (const provider of ["claude", "codex"]) {
   const builtins = builtinSlashCommands(provider);
   const names = builtins.map((entry) => entry.name);
   assert.equal(new Set(names).size, names.length, `${provider} builtin names must be unique`);
-  const model = builtins.find((entry) => entry.name === "model");
-  assert.equal(model?.nativeMenu, "model", `${provider} /model must redirect to the native menu`);
-  const permissions = builtins.find((entry) => entry.name === "permissions");
-  assert.equal(permissions?.nativeMenu, "permission");
+  for (const entry of builtins) {
+    assert.equal(entry.kind, "builtin", `${provider} /${entry.name} is a builtin entry`);
+    assert.equal(entry.invocation, `/${entry.name}`, `${provider} /${entry.name} invokes verbatim`);
+  }
   assert.ok(builtins.some((entry) => entry.listed), `${provider} must list some builtins`);
   assert.ok(
     builtins.some((entry) => !entry.listed),
@@ -172,46 +158,6 @@ assert.equal(
   codexLinkedByName.get("codex-linked")?.invocation,
   "$codex-linked",
   "symlinked codex skill is followed",
-);
-
-// --- modal footer signatures against real probe captures (spikes/slash-probes) ---
-const claudeFooters = [
-  "Typetofilter·Enter/↓toselect·↑totabs·Esctoclear",
-  "Space to change · Enter to save · / tosearch · Esc to cancel",
-  "Entertosetasdefault·stousethissessiononly·Esctocancel",
-  "Ctrl+Atoshowallprojects·Typetosearch·Esctocancel",
-];
-for (const footer of claudeFooters) {
-  assert.ok(matches(CLAUDE_MODAL_FOOTER_RE, footer), `claude signature must match: ${footer}`);
-}
-const codexFooters = [
-  "Press enter to confirm or esc to go back",
-  "Press space to select or enter to save for next conversation",
-  "Pressentertoinsertoresctoclose",
-];
-for (const footer of codexFooters) {
-  assert.ok(matches(CODEX_MODAL_FOOTER_RE, footer), `codex signature must match: ${footer}`);
-}
-// Idle composer footers must NOT look modal.
-const idleFooters = [
-  "← for agents ◉ xhigh · /effort",
-  "›Use /skills to list available skillsgpt-5.5 xhigh · /var/folders/x",
-  "(0s • esc to interrupt)",
-];
-for (const footer of idleFooters) {
-  assert.ok(!matches(CLAUDE_MODAL_FOOTER_RE, footer), `claude must not flag idle: ${footer}`);
-  assert.ok(!matches(CODEX_MODAL_FOOTER_RE, footer), `codex must not flag idle: ${footer}`);
-}
-// Composer-redraw markers (the positional "panel closed" side), from probe
-// after-esc captures.
-assert.ok(matches(CLAUDE_COMPOSER_REDRAW_RE, "⎿Configdialogdismissed"));
-assert.ok(matches(CLAUDE_COMPOSER_REDRAW_RE, "←foragents◉xhigh·/effort"));
-assert.ok(
-  matches(CODEX_COMPOSER_REDRAW_RE, "›Use /skills to list available skillsgpt-5.5 xhigh · /var/folders/x"),
-);
-assert.ok(
-  !matches(CODEX_COMPOSER_REDRAW_RE, "› 1. gpt-5.5 (current)    Frontier model for complex coding"),
-  "codex picker rows must not read as composer redraw",
 );
 
 fs.rmSync(fixtureHome, { recursive: true, force: true });

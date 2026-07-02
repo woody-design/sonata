@@ -113,11 +113,9 @@ export interface CompletionHint {
 }
 
 export type DeliveryItemStatus = "queued" | "delivering" | "delivered" | "undelivered";
-export type DeliveryItemKind = "prompt" | "control";
 export type DeliveryReceiptSource =
   | "provider-transcript"
   | "pty-composer-echo"
-  | "native-control"
   // A mid-turn write-through send: the bytes were written and the CLI native-
   // queued it (P2/P6) → sent. Its transcript block arrives only at dequeue, so
   // this is the receipt at hand-off time (no 45s undelivered timer).
@@ -151,26 +149,6 @@ export interface ReferenceResult {
   previewDataUrl: string | null;
 }
 
-export type DeliveryControlChange =
-  | {
-      kind: "permission";
-      label: string;
-      codex: {
-        preset: CodexPermissionPreset;
-        sandbox: CodexSandboxMode;
-        approval: CodexApprovalMode;
-      } | null;
-      claude: {
-        permissionMode: ClaudePermissionMode;
-      } | null;
-    }
-  | {
-      kind: "model";
-      label: string;
-      model: string | null;
-      reasoningEffort: ReasoningEffort | null;
-    };
-
 export interface DeliveryReceipt {
   source: DeliveryReceiptSource;
   receivedAt: string;
@@ -183,9 +161,7 @@ export interface DeliveryReceipt {
 export interface DeliveryQueueItem {
   id: DeliveryItemId;
   taskId: TaskId;
-  kind: DeliveryItemKind;
   text: string;
-  control: DeliveryControlChange | null;
   attachments: DeliveryAttachment[];
   status: DeliveryItemStatus;
   enqueuedAt: string;
@@ -201,9 +177,6 @@ export interface DeliveryTaskState {
   deliverable: boolean;
   activeRun: boolean;
   approvalActive: boolean;
-  /** A native interactive panel owns the screen — delivery is blocked by
-   *  state, not by the idle-prompt heuristic (P1b 2026-06-12). */
-  modalActive: boolean;
   idleComposer: boolean;
   acceptsInput: boolean;
   queue: DeliveryQueueItem[];

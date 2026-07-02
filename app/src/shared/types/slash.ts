@@ -1,17 +1,5 @@
 import type { RuntimeProvider } from "./domain";
 
-/**
- * How the hosted CLI reacts when this command is submitted through the PTY.
- * Probe evidence: research/2026-06-12-slash-command-systems-research.md.
- *
- * - "prompt": expands into a model turn (skills, /init, /review).
- * - "local": prints output locally; the model is not involved (/status, /diff).
- * - "panel": opens an interactive TUI panel. Blind injection leaves the panel
- *   open invisibly and subsequent pastes are swallowed by it (probe s1).
- * - "session": mutates session lifecycle or session-scoped state the CLI owns.
- */
-export type SlashBehavior = "prompt" | "local" | "panel" | "session";
-
 export type SlashScope = "builtin" | "system" | "personal" | "project";
 
 export interface SlashCommandEntry {
@@ -25,7 +13,6 @@ export interface SlashCommandEntry {
   name: string;
   provider: RuntimeProvider;
   kind: "builtin" | "skill";
-  behavior: SlashBehavior;
   description: string;
   /** e.g. "[instructions]" — shown as ghost text after the name. */
   argumentHint: string | null;
@@ -35,13 +22,6 @@ export interface SlashCommandEntry {
    * submit guard, so typing them forwards without an unknown-command warning.
    */
   listed: boolean;
-  /**
-   * Selecting this entry opens the corresponding duet-native menu instead of
-   * inserting text. The native menu drives the CLI's own picker via the
-   * verified control choreography (applyControlChange), so the action stays
-   * CLI-native — just operated by duet instead of blind-injected.
-   */
-  nativeMenu: "model" | "permission" | null;
 }
 
 export interface ReadSlashCommandsRequest {

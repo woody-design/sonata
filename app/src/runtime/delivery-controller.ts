@@ -1,5 +1,4 @@
 import type {
-  DeliveryControlChange,
   DeliveryAttachment,
   DeliveryItemId,
   DeliveryQueueItem,
@@ -16,14 +15,14 @@ import { cleanTerminal, type PromptSubmission, type TerminalHost } from "./termi
 
 const DEFAULT_RECEIPT_TIMEOUT_MS = 45_000;
 const BACKFILL_RECEIPT_WINDOW_MS = 15 * 60_000;
-// pump() is event-driven, but the remaining blockers can clear with no
-// pump-triggering event: a scrape-detected modal (retired in S3) can disarm
-// silently, and the one-shot boot latch opens on first accepts-input. So while
-// a queued item is blocked, the pump re-checks at this cadence until it can
-// deliver; the timer is idempotent + unref'd. (Send-is-send removed the wedge
-// alarm — a queued item is now always either understandably blocked, or shown
-// its reason by the per-item delivery label; nothing sits blocked "for no
-// reason" long enough to need a stuck signal.)
+// pump() is event-driven, but the boot latch can open with no pump-triggering
+// event: `task:accepts-input` is the normal signal, and the scrape fallback in
+// pump() only helps if something calls pump — a startup or post-resume
+// interstitial clearing silently was the cold-start "stuck Queued" class. So
+// while a queued item is blocked, the pump re-checks at this cadence until it
+// can deliver; the timer is idempotent + unref'd. (Send-is-send removed the
+// wedge alarm — a queued item is now always either understandably blocked, or
+// shown its reason by the per-item delivery label.)
 const DEFAULT_PUMP_RETRY_INTERVAL_MS = 500;
 
 export interface DeliveryControllerOptions {
@@ -32,7 +31,6 @@ export interface DeliveryControllerOptions {
   terminalHost: TerminalHost;
   eventSink: (event: RuntimeEvent) => void;
   hasLiveTranscriptSource: () => boolean;
-  applyControlChange?: (change: DeliveryControlChange) => Promise<void>;
   cleanupAttachments?: (attachments: DeliveryAttachment[]) => void;
   receiptTimeoutMs?: number;
   /** Test injection point; production uses the 500ms default. */
@@ -41,7 +39,6 @@ export interface DeliveryControllerOptions {
 
 interface InFlightDelivery {
   itemId: DeliveryItemId;
-  kind: "prompt" | "control";
   submittedAtMs: number;
   allowPtyEchoReceipt: boolean;
   ptyEchoTail: string;
@@ -62,7 +59,6 @@ export class DeliveryController {
   private readonly terminalHost: TerminalHost;
   private readonly eventSink: (event: RuntimeEvent) => void;
   private readonly hasLiveTranscriptSource: () => boolean;
-  private readonly applyControlChange: ((change: DeliveryControlChange) => Promise<void>) | null;
   private readonly cleanupAttachments: ((attachments: DeliveryAttachment[]) => void) | null;
   private readonly receiptTimeoutMs: number;
   private readonly items: DeliveryQueueItem[] = [];
@@ -73,8 +69,8 @@ export class DeliveryController {
   // can stay false forever under a continuously-animating TUI (the acceptsInput
   // wedge). We gate the FIRST send on it once — the latch flips the first time
   // the composer accepts input and never closes — then stop re-gating delivery
-  // on the scrape. After boot, a send writes as soon as no run/approval/panel
-  // owns the screen; the CLI's own queue absorbs anything mid-turn.
+  // on the scrape. After boot, a send writes as soon as no approval owns the
+  // screen; the CLI's own queue absorbs anything mid-turn.
   private bootLatched = false;
   // "A question is addressed to the human" — set on approval:detected (scrape OR
   // hook-broker, the latter fed in by the controller), cleared on
@@ -94,7 +90,6 @@ export class DeliveryController {
     this.terminalHost = options.terminalHost;
     this.eventSink = options.eventSink;
     this.hasLiveTranscriptSource = options.hasLiveTranscriptSource;
-    this.applyControlChange = options.applyControlChange ?? null;
     this.cleanupAttachments = options.cleanupAttachments ?? null;
     this.receiptTimeoutMs = options.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS;
     this.pumpRetryIntervalMs = options.pumpRetryIntervalMs ?? DEFAULT_PUMP_RETRY_INTERVAL_MS;
@@ -121,36 +116,8 @@ export class DeliveryController {
     const item: DeliveryQueueItem = {
       id: `delivery-${Date.now()}-${++this.seq}`,
       taskId: this.taskId,
-      kind: "prompt",
       text: fullText,
-      control: null,
       attachments: imageAttachments.map((attachment) => ({ ...attachment })),
-      status: "queued",
-      enqueuedAt: new Date().toISOString(),
-      deliveringAt: null,
-      runId: null,
-      receipt: null,
-      failureReason: null,
-    };
-    this.items.push(item);
-    this.emitState();
-    this.pump();
-    return item;
-  }
-
-  enqueueControl(change: DeliveryControlChange): DeliveryQueueItem {
-    const label = change.label.trim();
-    if (!label) {
-      throw new Error("Cannot queue an unlabeled control change.");
-    }
-
-    const item: DeliveryQueueItem = {
-      id: `delivery-${Date.now()}-${++this.seq}`,
-      taskId: this.taskId,
-      kind: "control",
-      text: label,
-      control: change,
-      attachments: [],
       status: "queued",
       enqueuedAt: new Date().toISOString(),
       deliveringAt: null,
@@ -232,7 +199,6 @@ export class DeliveryController {
       deliverable: this.canDeliver(),
       activeRun: this.terminalHost.hasActiveRun(),
       approvalActive: this.terminalHost.isApprovalActive(),
-      modalActive: this.terminalHost.isModalActive(),
       idleComposer: this.terminalHost.isIdleComposerReady(),
       acceptsInput: this.terminalHost.acceptsPromptInput(),
       queue: this.items.map((item) => ({ ...item })),
@@ -261,11 +227,10 @@ export class DeliveryController {
     if (!this.canDeliver()) {
       // A queued item can't go out yet — poll until it can. We do NOT trust the
       // blocker to re-pump on its own resolution event. The event-backed blockers
-      // (run/approval/modal) usually do, but a startup or post-resume interstitial
+      // (run/approval) usually do, but a startup or post-resume interstitial
       // can clear with NO pump-triggering event, which wedged the queue forever
       // (fresh-session and post-restart "stuck Queued"). A 500ms canDeliver
-      // re-check while blocked is negligible (the timer is unref'd and idempotent),
-      // and the 5s wedge alarm still backs a genuinely stuck queue.
+      // re-check while blocked is negligible (the timer is unref'd and idempotent).
       this.schedulePumpRetry();
       this.emitState();
       return;
@@ -325,12 +290,13 @@ export class DeliveryController {
       // as answers by a live approval panel (digit-swallow → unintended
       // approval). `isApprovalActive` is the scrape flag (rendered panels only);
       // `approvalPending` also covers hook-broker approvals, where no panel
-      // renders while the broker holds (S2, reviewer P1/P2).
+      // renders while the broker holds (S2, reviewer P1/P2). This is the ONLY
+      // question-guard: slash-opened panels no longer hold delivery (S3,
+      // decision A) — a paste into a panel the user opened themselves is
+      // visible in the co-present terminal and recoverable, while a detector
+      // false-positive would be an invisible hold (the S1 wedge class).
       !this.terminalHost.isApprovalActive() &&
-      !this.approvalPending &&
-      // A detected interactive panel would swallow the paste. Retired in S3
-      // (slash passthrough); kept as a guard until then.
-      !this.terminalHost.isModalActive()
+      !this.approvalPending
     );
   }
 
@@ -339,11 +305,6 @@ export class DeliveryController {
     item.deliveringAt = new Date().toISOString();
     item.failureReason = null;
     this.emitState();
-
-    if (item.kind === "control") {
-      void this.deliverControl(item);
-      return;
-    }
 
     let submission: PromptSubmission | null = null;
     try {
@@ -393,7 +354,6 @@ export class DeliveryController {
     }
     this.inFlight = {
       itemId: item.id,
-      kind: "prompt",
       submittedAtMs: Date.parse(submission.submittedAt),
       allowPtyEchoReceipt:
         item.attachments.length === 0 && this.provider === "claude" && !this.hasLiveTranscriptSource(),
@@ -403,53 +363,8 @@ export class DeliveryController {
     this.emitState();
   }
 
-  private async deliverControl(item: DeliveryQueueItem): Promise<void> {
-    if (!item.control) {
-      item.status = "undelivered";
-      item.deliveringAt = null;
-      item.failureReason = "Control change was missing its target.";
-      this.emitState();
-      return;
-    }
-    if (!this.applyControlChange) {
-      item.status = "undelivered";
-      item.deliveringAt = null;
-      item.failureReason = "No native control driver is available for this Task.";
-      this.emitState();
-      return;
-    }
-
-    this.inFlight = {
-      itemId: item.id,
-      kind: "control",
-      submittedAtMs: Date.now(),
-      allowPtyEchoReceipt: false,
-      ptyEchoTail: "",
-    };
-    this.emitState();
-
-    try {
-      await this.applyControlChange(item.control);
-      const receipt: DeliveryReceipt = {
-        source: "native-control",
-        receivedAt: new Date().toISOString(),
-        runId: null,
-        sourceId: null,
-        blockId: null,
-        backfilled: false,
-      };
-      this.completeDelivery(item, receipt);
-    } catch (error) {
-      item.status = "undelivered";
-      item.deliveringAt = null;
-      item.failureReason = error instanceof Error ? error.message : String(error);
-      this.inFlight = null;
-      this.emitState();
-    }
-  }
-
   private handlePtyData(data: string): void {
-    if (this.inFlight?.kind !== "prompt" || !this.inFlight.allowPtyEchoReceipt) {
+    if (!this.inFlight?.allowPtyEchoReceipt) {
       return;
     }
     const item = this.items.find((candidate) => candidate.id === this.inFlight?.itemId);
@@ -495,7 +410,7 @@ export class DeliveryController {
   }
 
   private receiptFromUserBlock(block: Extract<TranscriptBlock, { kind: "user-message" }>): void {
-    if (!this.inFlight || this.inFlight.kind !== "prompt") {
+    if (!this.inFlight) {
       return;
     }
     const item = this.items.find((candidate) => candidate.id === this.inFlight?.itemId);
@@ -536,9 +451,7 @@ export class DeliveryController {
     this.emitReceipt(backfill.itemId, {
       id: backfill.itemId,
       taskId: this.taskId,
-      kind: "prompt",
       text: backfill.text,
-      control: null,
       attachments: backfill.attachments.map((attachment) => ({ ...attachment })),
       status: "delivered",
       enqueuedAt: new Date(backfill.submittedAtMs).toISOString(),
@@ -612,9 +525,7 @@ export class DeliveryController {
       item: item ? { ...item } : {
         id: itemId,
         taskId: this.taskId,
-        kind: "prompt",
         text: "",
-        control: null,
         attachments: [],
         status: "delivered",
         enqueuedAt: receipt.receivedAt,
@@ -680,14 +591,10 @@ function imageMarkerCount(value: string): number {
 
 /**
  * Guard errors are states, not failures: the screen is temporarily owned by
- * an approval, an interactive panel, or the human (take-over). The item
- * stays queued and delivers when the state clears — never silently into it.
+ * an approval. The item stays queued and delivers when the state clears —
+ * never silently into it.
  */
 function isDeliveryGuardError(error: unknown): boolean {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
-  return (
-    message.includes("native approval screen") ||
-    message.includes("interactive panel") ||
-    message.includes("controlling the terminal")
-  );
+  return message.includes("native approval screen");
 }

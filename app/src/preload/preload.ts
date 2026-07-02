@@ -128,15 +128,12 @@ const duetRuntime: DuetRuntimeBridge = {
   createReference: (request) => ipcRenderer.invoke(IPC_CHANNELS.attachmentCreateReference, request),
   pickReferences: () => ipcRenderer.invoke(IPC_CHANNELS.attachmentPick),
   getPathForFile: (file) => webUtils.getPathForFile(file),
-  setControl: (request) => ipcRenderer.invoke(IPC_CHANNELS.controlSet, request),
   cancelQueuedPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.promptQueueCancel, request),
   retryQueuedPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.promptQueueRetry, request),
   decideApproval: (request) => ipcRenderer.invoke(IPC_CHANNELS.approvalDecide, request),
   answerOptionPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.optionPromptAnswer, request),
   stopRun: (request) => ipcRenderer.invoke(IPC_CHANNELS.runStop, request),
   resizeTerminal: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalResize, request),
-  setTerminalUserControl: (request) =>
-    ipcRenderer.invoke(IPC_CHANNELS.terminalUserControlSet, request),
   writeTerminalUserInput: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalUserInput, request),
   replayTerminal: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalReplay, request),
   openTerminalLink: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalOpenLink, request),
@@ -145,7 +142,6 @@ const duetRuntime: DuetRuntimeBridge = {
   readTranscript: (request) => ipcRenderer.invoke(IPC_CHANNELS.transcriptRead, request),
   readUsage: (request) => ipcRenderer.invoke(IPC_CHANNELS.usageRead, request),
   readSlashCommands: (request) => ipcRenderer.invoke(IPC_CHANNELS.slashCommandsRead, request),
-  dismissModal: (request) => ipcRenderer.invoke(IPC_CHANNELS.modalDismiss, request),
   injectRemoteControl: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.remoteControlInject, request),
   listArtifacts: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactList, request),

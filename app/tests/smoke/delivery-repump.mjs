@@ -3,9 +3,9 @@ import { createRequire } from "node:module";
 
 // Deterministic regression for the delivery re-pump: a queue blocked ONLY by a
 // no-event gate must deliver when the gate recovers, even though no runtime
-// event fires. Two gates matter post-send-is-send: the one-shot boot latch
-// (first accepts-input), and a live interactive panel (modal). A fake
-// TerminalHost flips a gate false→true with NO handleRuntimeEvent call.
+// event fires. Post-S3 one gate matters: the one-shot boot latch (first
+// accepts-input). A fake TerminalHost flips it false→true with NO
+// handleRuntimeEvent call.
 const require = createRequire(import.meta.url);
 const { DeliveryController } = require("../../dist/runtime");
 
@@ -15,7 +15,6 @@ function makeHost(overrides = {}) {
   const state = {
     activeRun: false,
     approval: false,
-    modal: false,
     accepts: false,
     idle: true,
     submits: [],
@@ -25,7 +24,6 @@ function makeHost(overrides = {}) {
     state,
     hasActiveRun: () => state.activeRun,
     isApprovalActive: () => state.approval,
-    isModalActive: () => state.modal,
     acceptsPromptInput: () => state.accepts,
     isIdleComposerReady: () => state.idle,
     submitPrompt: (text, opts) => {
@@ -104,25 +102,16 @@ function makeController(host) {
   dc.dispose();
 }
 
-// --- 5. Event-backed blocker that clears with NO event still recovers --------
-// The wedge class behind the fresh-session / post-restart "stuck Queued": a
-// startup/resume interstitial arms an event-backed blocker (modal), then
-// disarms WITHOUT any pump-triggering event. The pump must keep polling and
-// deliver once it clears — not wait forever on an event that never comes.
+// --- 5. No panel hold (S3, decision A): a visible panel never gates delivery --
+// The modal delivery guard is deleted with the modal scrape: a paste into a
+// panel the user opened themselves is visible in the co-present terminal and
+// recoverable, while a detector false-positive was an invisible hold (the S1
+// wedge class). Delivery proceeds; only approvals gate.
 {
-  const host = makeHost({ accepts: true, modal: true });
+  const host = makeHost({ accepts: true });
   const dc = makeController(host);
   dc.enqueue("hello");
-  await delay(700); // longer than a poll interval — the modal must hold it
-  assert.equal(host.state.submits.length, 0, "does NOT deliver while a modal is up");
-  // The interstitial disarms silently — NO event is fired into the controller.
-  host.state.modal = false;
-  await delay(700);
-  assert.equal(
-    host.state.submits.length,
-    1,
-    "polls and delivers after the event-backed blocker clears with no event",
-  );
+  assert.equal(host.state.submits.length, 1, "delivers regardless of any open panel");
   dc.dispose();
 }
 

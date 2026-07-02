@@ -44,9 +44,9 @@ export interface RunIndexOptions {
  * The event types `RunIndex.consume` handles — the ALLOWLIST that guards the
  * consume boundary in `RuntimeController.handleRuntimeEvent`. Only events whose
  * type is in this set may cross into `consume`; everything else (renderer-facing
- * UI/state events like `modal:state` and `terminal:user-control`, plus events
- * delivered on other paths) is skipped before it can reach `consume`'s
- * `default: assertNever` and crash the main process.
+ * UI/state events like `remote-control:state`, plus events delivered on other
+ * paths) is skipped before it can reach `consume`'s `default: assertNever` and
+ * crash the main process.
  *
  * `satisfies Record<RunIndexEvent["type"], true>` makes the list provably exact
  * at compile time — adding a type to `RunIndexEvent` (or un-excluding one) forces

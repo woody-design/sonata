@@ -11,11 +11,9 @@ import type {
   ApprovalChoice,
   ClaudePermissionMode,
   CodexApprovalMode,
-  CodexPermissionPreset,
   CodexSandboxMode,
   CreateTaskRequest,
   CreateTaskResponse,
-  DeliveryControlChange,
   LaunchSpeedMode,
   OpenTaskRequest,
   ReadSessionIndexRequest,
@@ -295,7 +293,6 @@ export class RuntimeController {
       terminalHost,
       eventSink: (event) => this.sendEvent(event),
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
-      applyControlChange: (change) => this.applyControlChange(taskId, change),
       cleanupAttachments: (attachments) => this.cleanupAttachments(taskId, attachments),
     });
     const statusTracker = new StatusRegionTracker({
@@ -438,7 +435,6 @@ export class RuntimeController {
       terminalHost,
       eventSink: (event) => this.sendEvent(event),
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
-      applyControlChange: (change) => this.applyControlChange(runningTask.id, change),
       // Same as createTask: a cancelled queue item must delete its copied blobs —
       // a resumed session can attach + cancel just like a fresh one.
       cleanupAttachments: (attachments) => this.cleanupAttachments(runningTask.id, attachments),
@@ -758,20 +754,9 @@ export class RuntimeController {
     this.emitSessionsUpdated("session-deleted");
   }
 
-  async dismissModal(taskId: TaskId): Promise<{ cleared: boolean }> {
-    const active = this.requireTaskRuntime(taskId);
-    const cleared = await active.terminalHost.dismissModal();
-    return { cleared };
-  }
-
   injectRemoteControl(taskId: TaskId): RemoteControlInjectResponse {
     const active = this.requireTaskRuntime(taskId);
     return active.terminalHost.injectRemoteControl();
-  }
-
-  setTerminalUserControl(taskId: TaskId, requestedActive: boolean): { active: boolean } {
-    const active = this.requireTaskRuntime(taskId);
-    return { active: active.terminalHost.setUserControl(requestedActive) };
   }
 
   writeTerminalUserInput(taskId: TaskId, data: string): void {
@@ -912,11 +897,6 @@ export class RuntimeController {
       }
     }
     return results;
-  }
-
-  setControl(taskId: TaskId, change: DeliveryControlChange): void {
-    const active = this.requireTaskRuntime(taskId);
-    active.deliveryController.enqueueControl(normalizeControlChange(active.task.provider, change));
   }
 
   cancelQueuedPrompt(taskId: TaskId, itemId: string): void {
@@ -1133,24 +1113,6 @@ export class RuntimeController {
     this.pendingBrokerApprovals.clear();
   }
 
-  private async applyControlChange(taskId: TaskId, change: DeliveryControlChange): Promise<void> {
-    const active = this.requireTaskRuntime(taskId);
-    const normalized = normalizeControlChange(active.task.provider, change);
-    await active.terminalHost.applyControlChange(normalized);
-
-    active.task = applyVerifiedControlToTask(active.task, normalized);
-    this.persistTaskManifest(active.task, active.storageRoot);
-    this.sendEvent({
-      type: "task:updated",
-      payload: {
-        taskId,
-        task: active.task,
-        reason: "verified-native-control",
-      },
-      ts: new Date().toISOString(),
-    });
-  }
-
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
     if (event.type === "usage:updated") {
       this.publishUsageSnapshot(event.payload.taskId, event.payload.snapshot);
@@ -1194,12 +1156,12 @@ export class RuntimeController {
     }
 
     // Allowlist boundary: only events RunIndex.consume actually handles cross
-    // into it. Everything else — renderer-facing UI/state events (modal:state,
-    // terminal:user-control), plus events delivered on other paths (delivery:*,
+    // into it. Everything else — renderer-facing UI/state events
+    // (remote-control:state), plus events delivered on other paths (delivery:*,
     // report:updated, transcript:blocks, pty:data) — was already sent to the
     // renderer above and stops here. This replaces the old denylist skip-list +
     // `event as RunIndexEvent` cast, which turned any un-routed event into an
-    // assertNever main-process crash (the modal:state incident).
+    // assertNever main-process crash (the 2026-06 modal:state incident).
     if (!isRunIndexEvent(event)) {
       return;
     }
@@ -2118,86 +2080,6 @@ function normalizePermissionSettings(
   };
 }
 
-function normalizeControlChange(
-  provider: RuntimeProvider,
-  change: DeliveryControlChange,
-): DeliveryControlChange {
-  if (change.kind === "model") {
-    const launchSettings = normalizeLaunchSettings(provider, {
-      model: change.model,
-      reasoningEffort: change.reasoningEffort,
-      speedMode: null,
-    });
-    if (!launchSettings.model && !launchSettings.reasoningEffort) {
-      throw new Error("Choose a model or reasoning value before applying a model control.");
-    }
-    return {
-      kind: "model",
-      label: change.label.trim() || "Model",
-      model: launchSettings.model,
-      reasoningEffort: launchSettings.reasoningEffort,
-    };
-  }
-
-  if (provider === "claude") {
-    const permissionMode = change.claude?.permissionMode;
-    if (permissionMode === "bypassPermissions" || permissionMode === "dontAsk") {
-      throw new Error(`Claude permission mode ${permissionMode} is not available mid-session.`);
-    }
-    if (!permissionMode || !CLAUDE_PERMISSION_MODES.has(permissionMode)) {
-      throw new Error("Choose a supported Claude permission mode.");
-    }
-    return {
-      kind: "permission",
-      label: change.label.trim() || claudePermissionLabel(permissionMode),
-      codex: null,
-      claude: { permissionMode },
-    };
-  }
-
-  const codex = change.codex;
-  if (!codex || !CODEX_SANDBOX_MODES.has(codex.sandbox) || !CODEX_APPROVAL_MODES.has(codex.approval)) {
-    throw new Error("Choose a supported Codex permission preset.");
-  }
-  return {
-    kind: "permission",
-    label: change.label.trim() || codexPermissionLabel(codex.preset),
-    codex,
-    claude: null,
-  };
-}
-
-function applyVerifiedControlToTask(task: Task, change: DeliveryControlChange): Task {
-  const now = new Date().toISOString();
-  if (change.kind === "model") {
-    return {
-      ...task,
-      model: change.model,
-      reasoningEffort: change.reasoningEffort,
-      updatedAt: now,
-    };
-  }
-
-  if (task.provider === "claude" && change.claude) {
-    return {
-      ...task,
-      permissionMode: change.claude.permissionMode,
-      updatedAt: now,
-    };
-  }
-
-  if (task.provider === "codex" && change.codex) {
-    return {
-      ...task,
-      sandbox: change.codex.sandbox,
-      approval: change.codex.approval,
-      updatedAt: now,
-    };
-  }
-
-  return task;
-}
-
 function taskStatusFromRunStatus(status: RunStatus): Task["status"] {
   if (status === "active" || status === "resumed-after-approval") {
     return "running";
@@ -2215,23 +2097,6 @@ function taskStatusFromRunStatus(status: RunStatus): Task["status"] {
     return "failed";
   }
   return "idle";
-}
-
-function codexPermissionLabel(preset: CodexPermissionPreset): string {
-  if (preset === "approveForMe") {
-    return "Approve for me";
-  }
-  if (preset === "fullAccess") {
-    return "Full Access";
-  }
-  return "Ask for approval";
-}
-
-function claudePermissionLabel(mode: ClaudePermissionMode): string {
-  if (mode === "acceptEdits") {
-    return "acceptEdits";
-  }
-  return mode;
 }
 
 // ── Hook-broker approval helpers (S2) ────────────────────────────────────────

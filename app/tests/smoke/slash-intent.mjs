@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
-// Pure intent classifier for the semantic-slash router (CLI Slice 4). Tied to
-// the real builtin registry so a behavior/nativeMenu drift (e.g. /model losing
-// its duet menu) is caught here.
+// The 2-way intent classifier (S3, slash verbatim passthrough): skills get the
+// composer's complete-don't-execute nicety; EVERYTHING else — builtins, panels,
+// unknown — submits verbatim and any panel it opens renders in the co-visible
+// terminal window. Tied to the real builtin registry so a registry drift (e.g.
+// /model growing special routing again) is caught here.
 const require = createRequire(import.meta.url);
 const { classifySlashIntent } = require("../../dist/shared/slash/intent");
 const { builtinSlashCommands } = require("../../dist/shared/slash/builtins");
@@ -14,57 +16,44 @@ function entry(provider, name) {
   return found;
 }
 
-// --- unknown: nothing in the registry --------------------------------------
-assert.equal(classifySlashIntent(null), "unknown", "null → unknown");
-assert.equal(classifySlashIntent(undefined), "unknown", "undefined → unknown");
+// --- unknown / absent entries → passthrough (never a special route) ---------
+assert.equal(classifySlashIntent(null), "passthrough", "null → passthrough");
+assert.equal(classifySlashIntent(undefined), "passthrough", "undefined → passthrough");
 
-// --- skill: a prompt macro (kind:"skill") ----------------------------------
+// --- skill: the one special intent (kind:"skill" completes, not executes) ---
 const skill = {
   invocation: "/architect",
   name: "architect",
   provider: "claude",
   kind: "skill",
-  behavior: "prompt",
   description: "Architect mode",
   argumentHint: null,
   scope: "personal",
   listed: true,
-  nativeMenu: null,
 };
 assert.equal(classifySlashIntent(skill), "skill", "kind:skill → skill");
-// A skill must win even if it somehow carried a panel behavior.
-assert.equal(
-  classifySlashIntent({ ...skill, behavior: "panel" }),
-  "skill",
-  "skill behavior:panel still → skill",
-);
 
-// --- control: native-menu wins over its panel behavior ---------------------
-assert.equal(classifySlashIntent(entry("claude", "model")), "control", "/model → control");
-assert.equal(classifySlashIntent(entry("claude", "effort")), "control", "/effort → control");
-assert.equal(
-  classifySlashIntent(entry("claude", "permissions")),
-  "control",
-  "/permissions → control",
-);
-assert.equal(classifySlashIntent(entry("codex", "model")), "control", "codex /model → control");
-// /model carries behavior:"panel" — confirm the nativeMenu check precedes it.
-assert.equal(entry("claude", "model").behavior, "panel", "fixture: /model is behavior:panel");
+const codexSkill = { ...skill, invocation: "$architect", provider: "codex" };
+assert.equal(classifySlashIntent(codexSkill), "skill", "codex $skill → skill");
 
-// --- panel: interactive TUI, no duet menu → take-over floor ----------------
-assert.equal(classifySlashIntent(entry("claude", "config")), "panel", "/config → panel");
-assert.equal(classifySlashIntent(entry("claude", "resume")), "panel", "/resume → panel");
-assert.equal(classifySlashIntent(entry("claude", "theme")), "panel", "/theme → panel");
-assert.equal(classifySlashIntent(entry("codex", "resume")), "panel", "codex /resume → panel");
+// --- every builtin is a verbatim passthrough — incl. the ex-control and
+// ex-panel classes (the retired 5-way's control/panel/unknown branches) ------
+for (const provider of ["claude", "codex"]) {
+  for (const builtin of builtinSlashCommands(provider)) {
+    assert.equal(
+      classifySlashIntent(builtin),
+      "passthrough",
+      `${provider} /${builtin.name} → passthrough`,
+    );
+  }
+}
+// The exact commands that used to route specially — locked to passthrough.
+for (const name of ["model", "effort", "permissions"]) {
+  assert.equal(classifySlashIntent(entry("claude", name)), "passthrough");
+}
+assert.equal(classifySlashIntent(entry("claude", "config")), "passthrough");
+assert.equal(classifySlashIntent(entry("claude", "status")), "passthrough");
+assert.equal(classifySlashIntent(entry("codex", "model")), "passthrough");
+assert.equal(classifySlashIntent(entry("codex", "permissions")), "passthrough");
 
-// --- passthrough: local / session / prompt builtins submit verbatim --------
-assert.equal(classifySlashIntent(entry("claude", "status")), "passthrough", "/status → passthrough");
-assert.equal(classifySlashIntent(entry("claude", "clear")), "passthrough", "/clear → passthrough");
-assert.equal(classifySlashIntent(entry("claude", "init")), "passthrough", "/init → passthrough");
-assert.equal(
-  classifySlashIntent(entry("claude", "code-review")),
-  "passthrough",
-  "/code-review → passthrough",
-);
-
-console.log(JSON.stringify({ smoke: "slash-intent", success: true }, null, 2));
+console.log("slash-intent smoke: all assertions passed (2-way: skill | passthrough)");

@@ -4,7 +4,6 @@ import type {
   ClaudePermissionMode,
   CodexApprovalMode,
   CodexSandboxMode,
-  DeliveryControlChange,
   DeliveryAttachment,
   ReferenceResult,
   LaunchSpeedMode,
@@ -47,14 +46,12 @@ export const IPC_CHANNELS = {
   attachmentCreate: "attachment:create",
   attachmentCreateReference: "attachment:create-reference",
   attachmentPick: "attachment:pick",
-  controlSet: "control:set",
   promptQueueCancel: "prompt-queue:cancel",
   promptQueueRetry: "prompt-queue:retry",
   approvalDecide: "approval:decide",
   optionPromptAnswer: "option-prompt:answer",
   runStop: "run:stop",
   terminalResize: "terminal:resize",
-  terminalUserControlSet: "terminal:user-control:set",
   terminalUserInput: "terminal:user-input",
   terminalOpenLink: "terminal:open-link",
   terminalReplay: "terminal:replay",
@@ -63,7 +60,6 @@ export const IPC_CHANNELS = {
   transcriptRead: "transcript:read",
   usageRead: "usage:read",
   slashCommandsRead: "slash:commands:read",
-  modalDismiss: "modal:dismiss",
   remoteControlInject: "remote-control:inject",
   artifactList: "artifact:list",
   artifactRead: "artifact:read",
@@ -246,11 +242,6 @@ export interface CreateReferenceRequest {
   paths: string[];
 }
 
-export interface SetControlRequest {
-  taskId: TaskId;
-  change: DeliveryControlChange;
-}
-
 export interface PromptQueueItemRequest {
   taskId: TaskId;
   itemId: string;
@@ -272,23 +263,15 @@ export interface OptionPromptAnswerRequest {
   optionIndices: number[];
 }
 
-export interface DismissModalRequest {
-  taskId: TaskId;
-}
-
-export interface DismissModalResponse {
-  cleared: boolean;
-}
-
 export interface RemoteControlInjectRequest {
   taskId: TaskId;
 }
 
-/** Result of injecting `/remote-control`. `panel-open` means an approval/modal
+/** Result of injecting `/remote-control`. `panel-open` means an approval
  *  panel would have swallowed the command, so nothing was sent. */
 export type RemoteControlInjectResponse =
   | { ok: true }
-  | { ok: false; reason: "no-process" | "user-control" | "panel-open" | "busy" };
+  | { ok: false; reason: "no-process" | "panel-open" | "busy" };
 
 export interface StopRunRequest {
   taskId: TaskId;
@@ -300,15 +283,6 @@ export interface ResizeTerminalRequest {
   taskId: TaskId;
   cols: number;
   rows: number;
-}
-
-export interface SetTerminalUserControlRequest {
-  taskId: TaskId;
-  active: boolean;
-}
-
-export interface SetTerminalUserControlResponse {
-  active: boolean;
 }
 
 export interface TerminalUserInputRequest {
@@ -532,16 +506,12 @@ export interface DuetRuntimeBridge {
   /** Electron's replacement for File.path — the absolute path of a dragged/pasted
    *  File, or "" for a path-less clipboard bitmap. Synchronous. */
   getPathForFile(file: File): string;
-  setControl(request: SetControlRequest): Promise<void>;
   cancelQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   retryQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;
   answerOptionPrompt(request: OptionPromptAnswerRequest): Promise<void>;
   stopRun(request: StopRunRequest): Promise<void>;
   resizeTerminal(request: ResizeTerminalRequest): Promise<void>;
-  setTerminalUserControl(
-    request: SetTerminalUserControlRequest,
-  ): Promise<SetTerminalUserControlResponse>;
   writeTerminalUserInput(request: TerminalUserInputRequest): Promise<void>;
   replayTerminal(request: TerminalReplayRequest): Promise<TerminalReplaySnapshot | null>;
   openTerminalLink(request: OpenTerminalLinkRequest): Promise<OpenTerminalLinkResponse>;
@@ -550,7 +520,6 @@ export interface DuetRuntimeBridge {
   readTranscript(request: ReadTranscriptRequest): Promise<ReadTranscriptResponse>;
   readUsage(request: ReadUsageRequest): Promise<ReadUsageResponse>;
   readSlashCommands(request: ReadSlashCommandsRequest): Promise<SlashCommandsResponse>;
-  dismissModal(request: DismissModalRequest): Promise<DismissModalResponse>;
   injectRemoteControl(
     request: RemoteControlInjectRequest,
   ): Promise<RemoteControlInjectResponse>;

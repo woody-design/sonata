@@ -132,9 +132,6 @@ export function registerIpcHandlers(
     return runtimeController.createReference(request.paths);
   });
   ipcMain.handle(IPC_CHANNELS.attachmentPick, () => windowController.pickReferences());
-  ipcMain.handle(IPC_CHANNELS.controlSet, (_event, request) => {
-    return runtimeController.setControl(request.taskId, request.change);
-  });
   ipcMain.handle(IPC_CHANNELS.promptQueueCancel, (_event, request) => {
     runtimeController.cancelQueuedPrompt(request.taskId, request.itemId);
   });
@@ -156,9 +153,6 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.terminalResize, (_event, request) => {
     runtimeController.resizeTerminal(request.taskId, request.cols, request.rows);
   });
-  ipcMain.handle(IPC_CHANNELS.terminalUserControlSet, (_event, request) =>
-    runtimeController.setTerminalUserControl(request.taskId, request.active),
-  );
   ipcMain.handle(IPC_CHANNELS.terminalUserInput, (_event, request) => {
     runtimeController.writeTerminalUserInput(request.taskId, request.data);
   });
@@ -186,9 +180,6 @@ export function registerIpcHandlers(
   );
   ipcMain.handle(IPC_CHANNELS.slashCommandsRead, (_event, request) =>
     runtimeController.listSlashCommands(request ?? {}),
-  );
-  ipcMain.handle(IPC_CHANNELS.modalDismiss, (_event, request) =>
-    runtimeController.dismissModal(request.taskId),
   );
   ipcMain.handle(IPC_CHANNELS.remoteControlInject, (_event, request) =>
     runtimeController.injectRemoteControl(request.taskId),

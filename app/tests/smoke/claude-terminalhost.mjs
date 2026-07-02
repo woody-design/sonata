@@ -38,8 +38,7 @@ const host = new TerminalHost({
 
     eventTypes.push(event.type);
     // Mirror the real runtime-controller: only RunIndex events reach the index
-    // (it asserts-never on the rest). Without this guard a `/status` panel's
-    // modal:state event crashes the harness — the controller guards it in prod
+    // (it asserts-never on the rest) — the controller guards this in prod
     // (runtime-controller isRunIndexEvent), the harness must too.
     if (isRunIndexEvent(event)) {
       runIndex.consume(event);

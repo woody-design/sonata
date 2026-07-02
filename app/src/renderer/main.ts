@@ -48,12 +48,7 @@ import type {
   ApprovalDecision,
   ArtifactCandidate,
   CliActivity,
-  ClaudePermissionMode,
-  CodexApprovalMode,
-  CodexPermissionPreset,
   AttachmentKind,
-  CodexSandboxMode,
-  DeliveryControlChange,
   DeliveryAttachment,
   ReferenceResult,
   DeliveryQueueItem,
@@ -138,9 +133,6 @@ interface TaskViewState {
   transcriptBlocks: Map<string, TranscriptBlock>;
   transcriptBlockOrder: string[];
   transcriptSources: TranscriptSourceRef[];
-  /** The human holds the keys in the terminal view (single-writer). In Terminal
-   *  mode the pane is read-only until focused — focus grabs the keys (model Y). */
-  userControl: boolean;
   runtimeReady: boolean;
   composerObserved: boolean;
   deliveryState: DeliveryTaskState | null;
@@ -151,9 +143,6 @@ interface TaskViewState {
    *  with terminal-host signals as the safety net. Drives the sidebar
    *  indicator (approval now also fires from the PermissionRequest hook). */
   cliState: { activity: CliActivity; tool: string | null; approvalKind: string | null } | null;
-  /** A native TUI panel owns the provider screen — slash-opened (Esc
-   *  verified) or ambient (startup/idle interstitial; Esc hazardous). */
-  modalPanel: { signature: string | null; origin: "slash" | "ambient" | null } | null;
   /** Remote Control (phone access) for this task. `active` is optimistic (we
    *  injected `/rc`); `url` is the session link scraped from the stream — the
    *  phone surface is Anthropic's Claude app, not a Duet-built UI. */
@@ -232,7 +221,7 @@ interface PromptNavState {
 }
 
 interface ComposerMenuState {
-  type: "add" | "permission" | "model";
+  type: "add";
   anchor: PopoverAnchor;
 }
 
@@ -899,16 +888,6 @@ function renderSidebarRenameInput(taskId: string, currentTitle: string): HTMLEle
 function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
   if (!session.live || !session.liveStatus) {
     return null;
-  }
-  const liveView = taskViewForId(session.task.id);
-  // Needs-you grammar (same dot as approvals): a native panel is asking.
-  if (liveView?.modalPanel) {
-    const dot = document.createElement("span");
-    dot.className = "sidebar-session-attention";
-    dot.title = liveView.modalPanel
-      ? "The agent is asking something — open the terminal"
-      : "Queued message with no movement — check the terminal";
-    return dot;
   }
   // Approval can be surfaced two ways now: the footer scrape (liveStatus) or
   // the PermissionRequest hook (cliState) — Slice 1 makes the hook primary,
@@ -1588,18 +1567,6 @@ appElement.innerHTML = `
              renderOptionPrompt() — N questions, each a single-select group. -->
         <div id="option-prompt-card" class="option-prompt-card hidden"></div>
 
-        <div id="modal-banner" class="modal-banner hidden">
-          <div class="modal-banner-copy">
-            <strong id="modal-title">The agent opened an interactive panel</strong>
-            <p id="modal-body">A panel is waiting for input in the provider terminal.</p>
-          </div>
-          <div class="modal-banner-actions">
-            <button id="modal-open-terminal" class="secondary" type="button">Open Terminal</button>
-            <button id="modal-dismiss" class="secondary" type="button">Close Panel (Esc)</button>
-            <button id="modal-take-over" class="primary" type="button">Open &amp; take over</button>
-          </div>
-        </div>
-
         <section class="workflow-strip" aria-label="Task workflow state">
           <div class="workflow-copy">
             <strong id="workflow-headline">Start or open a Task</strong>
@@ -1701,12 +1668,6 @@ const elements = {
   settingsOverlayRoot: getElement<HTMLDivElement>("settings-overlay-root"),
   sessionMenuTrigger: getElement<HTMLButtonElement>("session-menu-trigger"),
   approvalBanner: getElement<HTMLDivElement>("approval-banner"),
-  modalBanner: getElement<HTMLDivElement>("modal-banner"),
-  modalTitle: getElement<HTMLElement>("modal-title"),
-  modalBody: getElement<HTMLParagraphElement>("modal-body"),
-  modalOpenTerminal: getElement<HTMLButtonElement>("modal-open-terminal"),
-  modalDismiss: getElement<HTMLButtonElement>("modal-dismiss"),
-  modalTakeOver: getElement<HTMLButtonElement>("modal-take-over"),
   approvalKindBadge: getElement<HTMLSpanElement>("approval-kind-badge"),
   approvalTitle: getElement<HTMLElement>("approval-title"),
   approvalSummary: getElement<HTMLParagraphElement>("approval-summary"),
@@ -1797,10 +1758,6 @@ const MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: strin
     { label: "Native Default", value: null },
   ],
 };
-const SESSION_MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: string }>> = {
-  codex: MODEL_OPTIONS.codex.filter((option): option is { label: string; value: string } => Boolean(option.value)),
-  claude: MODEL_OPTIONS.claude.filter((option): option is { label: string; value: string } => Boolean(option.value)),
-};
 const PROMPT_NAV_DOM_TASK_ID = "__active-transcript-dom__";
 const REASONING_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: ReasoningEffort | null }>> = {
   codex: [
@@ -1819,26 +1776,6 @@ const REASONING_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: R
     { label: "Native Default", value: null },
   ],
 };
-const CODEX_PERMISSION_OPTIONS: Array<{
-  label: string;
-  preset: CodexPermissionPreset;
-  sandbox: CodexSandboxMode;
-  approval: CodexApprovalMode;
-}> = [
-  { label: "Ask for approval", preset: "askForApproval", sandbox: "workspace-write", approval: "on-request" },
-  { label: "Approve for me", preset: "approveForMe", sandbox: "workspace-write", approval: "never" },
-  { label: "Full Access", preset: "fullAccess", sandbox: "danger-full-access", approval: "never" },
-];
-// Mirrors Claude's official Shift+Tab cycle. `auto` (v2.1.83+) auto-approves
-// every tool through a server-side safety classifier + deny rules — the
-// official low-friction mode, far safer than bypassPermissions (which stays
-// gated, next session). `dontAsk` is a CI allowlist mode, not interactive.
-const CLAUDE_PERMISSION_OPTIONS: Array<{ label: string; value: ClaudePermissionMode }> = [
-  { label: "default", value: "default" },
-  { label: "acceptEdits", value: "acceptEdits" },
-  { label: "plan", value: "plan" },
-  { label: "auto", value: "auto" },
-];
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
@@ -2102,14 +2039,6 @@ elements.composer.addEventListener("drop", (event) => {
   }
   event.preventDefault();
   void intakeFiles(files);
-});
-
-elements.permissionChip.addEventListener("click", (event) => {
-  toggleComposerMenu("permission", event.currentTarget as HTMLElement);
-});
-
-elements.modelChip.addEventListener("click", (event) => {
-  toggleComposerMenu("model", event.currentTarget as HTMLElement);
 });
 
 elements.usageIndicator.addEventListener("mouseenter", () => {
@@ -2547,16 +2476,14 @@ async function enableRemoteControl(): Promise<void> {
       state.remoteControlNote =
         result.reason === "panel-open"
           ? "Claude is waiting on something in the terminal — answer that first."
-          : result.reason === "user-control"
-            ? "You hold the keys in the terminal — release them first."
-            : result.reason === "busy"
-              ? "Claude is mid-delivery — try again in a moment."
-              : "Couldn't enable remote control.";
+          : result.reason === "busy"
+            ? "Claude is mid-delivery — try again in a moment."
+            : "Couldn't enable remote control.";
       renderRemoteControlPopover();
     }
   } catch (error) {
     // The PTY can exit between opening the popover and clicking (the session
-    // ended) — the IPC then rejects. Surface it like the dismissModal sibling.
+    // ended) — the IPC then rejects. Surface the error in the popover note.
     state.remoteControlNote = errorMessage(error);
     renderRemoteControlPopover();
   }
@@ -3671,17 +3598,6 @@ elements.denyApproval.addEventListener("click", () => {
   void decideApproval("deny");
 });
 
-elements.modalOpenTerminal.addEventListener("click", () => {
-  setViewMode("terminal");
-});
-
-elements.modalTakeOver.addEventListener("click", () => {
-  if (!activeTaskView()?.task) {
-    return;
-  }
-  setViewMode("terminal");
-});
-
 elements.resumeFull.addEventListener("click", () => {
   void resolveResumeChoice("full");
 });
@@ -3708,29 +3624,6 @@ elements.resumeBridgeRevert.addEventListener("click", () => {
     })
     .finally(() => {
       elements.resumeBridgeRevert.disabled = false;
-    });
-});
-
-elements.modalDismiss.addEventListener("click", () => {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-  elements.modalDismiss.disabled = true;
-  void window.duetRuntime
-    .dismissModal({ taskId: view.task.id })
-    .then((result) => {
-      if (!result.cleared) {
-        view.status = "Could not close the panel — open the terminal to look at it";
-        render();
-      }
-    })
-    .catch((error) => {
-      view.status = errorMessage(error);
-      render();
-    })
-    .finally(() => {
-      elements.modalDismiss.disabled = false;
     });
 });
 
@@ -3917,35 +3810,11 @@ window.duetRuntime.onRuntimeEvent((event) => {
     return;
   }
 
-  if (event.type === "modal:state") {
-    const wasActive = Boolean(view.modalPanel);
-    view.modalPanel = event.payload.active
-      ? { signature: event.payload.signature, origin: event.payload.origin }
-      : null;
-    view.status = event.payload.active
-      ? `${providerLabel(view.task?.provider ?? "codex")} is asking something`
-      : "Ready";
-    if (!isActiveView(view)) {
-      // Background sessions surface the needs-you dot immediately —
-      // notify, don't steal focus.
-      renderSidebar();
-    }
-    markViewChanged(view);
-    return;
-  }
-
   if (event.type === "remote-control:state") {
     // Set fields (not replace) so a dormant view's armedOverride survives the
     // connect/disconnect events that flow once it goes live.
     view.remoteControl.active = event.payload.active;
     view.remoteControl.url = event.payload.url;
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "terminal:user-control") {
-    view.userControl = event.payload.active;
-    view.status = event.payload.active ? "You have the keys — Duet paused" : "Ready";
     markViewChanged(view);
     return;
   }
@@ -4119,9 +3988,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   if (event.type === "task:updated") {
     view.task = event.payload.task;
-    view.status = event.payload.reason === "verified-native-control"
-      ? "Settings updated"
-      : taskStatusLabel(event.payload.task);
+    view.status = taskStatusLabel(event.payload.task);
     markViewChanged(view);
     return;
   }
@@ -4204,7 +4071,6 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     // FOLLOWS the global default (so changing the default applies to it), until the
     // user toggles it. createTask sets active optimistically for a live armed spawn.
     remoteControl: { active: false, url: null, armedOverride: null },
-    userControl: false,
     runtimeReady: false,
     composerObserved: false,
     deliveryState: null,
@@ -4212,7 +4078,6 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     usageSnapshot: null,
     workingStatus: null,
     cliState: null,
-    modalPanel: null,
     resumeChoice: null,
     status,
     unread: false,
@@ -4709,7 +4574,6 @@ function render(): void {
   renderSidebar();
   renderApproval();
   renderOptionPrompt();
-  renderModalBanner();
   renderResumeChoice();
   renderWorkflow();
   renderRuns();
@@ -4819,14 +4683,12 @@ function renderComposerControls(view = activeTaskView()): void {
   renderComposerChip(
     elements.permissionChip,
     composerChipLabel(view, "permission"),
-    "permission",
-    Boolean(view?.task),
+    "Switch modes in the terminal — Shift+Tab or /permissions",
   );
   renderComposerChip(
     elements.modelChip,
     composerChipLabel(view, "model"),
-    "model",
-    Boolean(view?.task),
+    "Switch models in the terminal — /model",
   );
   renderUsageIndicator(view);
   // New-chat state (no view): the composer IS the create action — the
@@ -4878,19 +4740,18 @@ function renderUsageIndicator(view: TaskViewState | null): void {
   elements.usageIndicator.setAttribute("aria-label", label);
 }
 
-function renderComposerChip(
-  element: HTMLButtonElement,
-  label: string | null,
-  type: "permission" | "model",
-  enabled: boolean,
-): void {
+/**
+ * Display-only session facts (S3): mid-session model/permission switching
+ * lives in the terminal (native Shift+Tab, /model); the chip mirrors the
+ * session's current value (task record, updated via hooks/statusline) and
+ * its tooltip points at the native switch.
+ */
+function renderComposerChip(element: HTMLButtonElement, label: string | null, hint: string): void {
   element.classList.toggle("hidden", !label);
-  element.classList.toggle("active", state.composerMenu?.type === type);
   element.textContent = label ?? "";
-  element.disabled = !enabled || !label;
-  element.ariaExpanded = String(state.composerMenu?.type === type);
+  element.disabled = true;
   if (label) {
-    element.title = label;
+    element.title = `${label} — ${hint}`;
   } else {
     element.removeAttribute("title");
   }
@@ -4898,15 +4759,7 @@ function renderComposerChip(
 
 function composerChipLabel(view: TaskViewState | null, type: "permission" | "model"): string | null {
   const task = view?.task ?? null;
-  const confirmed = type === "permission" ? sessionPermissionLabel(task) : sessionModelSummaryLabel(task);
-  const pending = firstControlItem(view, type);
-  if (!pending) {
-    return confirmed;
-  }
-  if (pending.status === "undelivered") {
-    return confirmed ? `${confirmed} (failed)` : "Failed";
-  }
-  return `${confirmed ?? "Default"} -> ${pending.text}`;
+  return type === "permission" ? sessionPermissionLabel(task) : sessionModelSummaryLabel(task);
 }
 
 // --- Slash command picker -------------------------------------------------
@@ -5102,58 +4955,25 @@ function completeSlashEntry(entry: SlashCommandEntry): void {
 }
 
 function executeSlashEntry(entry: SlashCommandEntry): void {
-  switch (classifySlashIntent(entry)) {
-    case "control":
-      openNativeMenuForSlashEntry(entry);
-      return;
-    case "skill":
-      // Skills complete instead of executing: a premature skill invocation
-      // costs a full model turn, while a second Enter on an args-less skill
-      // costs nothing.
-      completeSlashEntry(entry);
-      return;
-    case "panel":
-      // An interactive panel blind-injected leaves an invisible TUI dialog
-      // that swallows the next paste (probe s1). Route to the take-over floor
-      // so the user drives the native surface directly (S4.2). With no live
-      // floor, leave it composed rather than a silent no-op (panels are
-      // unlisted today, so this pick path is reached only if they're listed).
-      if (!routeSlashToFloor(entry.invocation)) {
-        completeSlashEntry(entry);
-      }
-      return;
-    default:
-      // passthrough builtins: an argument hint still completes (let the user
-      // add args) rather than firing a turn prematurely; otherwise execute
-      // directly, matching the CLIs' own Enter-dispatches semantics.
-      if (entry.argumentHint) {
-        completeSlashEntry(entry);
-        return;
-      }
-      elements.promptInput.value = entry.invocation;
-      state.slashPicker = null;
-      renderComposerPopover();
-      void submitPrompt();
-  }
-}
-
-function openNativeMenuForSlashEntry(entry: SlashCommandEntry): void {
-  elements.promptInput.value = "";
-  state.slashPicker = null;
-  renderComposerControls();
-  if (!activeTaskView()?.task) {
-    // New chat: model and permission live in the launch settings popover.
-    const trigger = document.getElementById("entry-launch-settings");
-    if (trigger) {
-      const rect = trigger.getBoundingClientRect();
-      state.taskDraft.settingsOpen = true;
-      state.taskDraft.settingsAnchor = { left: rect.left, top: rect.bottom + 8, width: rect.width };
-    }
-    render();
+  if (classifySlashIntent(entry) === "skill") {
+    // Skills complete instead of executing: a premature skill invocation
+    // costs a full model turn, while a second Enter on an args-less skill
+    // costs nothing.
+    completeSlashEntry(entry);
     return;
   }
-  const anchor = entry.nativeMenu === "model" ? elements.modelChip : elements.permissionChip;
-  toggleComposerMenu(entry.nativeMenu === "model" ? "model" : "permission", anchor);
+  // Passthrough (everything else): an argument hint still completes (let the
+  // user add args) rather than firing a turn prematurely; otherwise execute
+  // directly, matching the CLIs' own Enter-dispatches semantics. A command
+  // that opens a panel opens it in the co-visible terminal window (S3).
+  if (entry.argumentHint) {
+    completeSlashEntry(entry);
+    return;
+  }
+  elements.promptInput.value = entry.invocation;
+  state.slashPicker = null;
+  renderComposerPopover();
+  void submitPrompt();
 }
 
 function handleSlashPickerKeydown(event: KeyboardEvent): boolean {
@@ -5200,10 +5020,10 @@ function handleSlashPickerKeydown(event: KeyboardEvent): boolean {
 
 /**
  * Submit-time guard for "/" texts. Returns true when the submit should stop
- * here. Evidence: bare "/" and prefixes dispatch the first popup item
- * (probes s2/s2b — "/" ran the architect skill, "/mod" opened the model
- * panel); unknown commands fail locally and never reach the model, so
- * forwarding after an explicit confirmation is safe.
+ * here. Everything known submits verbatim (S3): a panel command opens its
+ * panel in the co-visible terminal window. Two local niceties survive: the
+ * bare-"/" hint, and a double-Enter confirm on unknown commands (most often a
+ * typo; the CLI reports a real unknown locally without involving the model).
  */
 function consumeSlashSubmitGuard(text: string): boolean {
   if (!text.startsWith("/")) {
@@ -5222,70 +5042,15 @@ function consumeSlashSubmitGuard(text: string): boolean {
     return false;
   }
   const token = text.slice(1).split(/\s+/, 1)[0]?.toLowerCase() ?? "";
-  const entry = registry.entries.find((candidate) => candidate.name.toLowerCase() === token);
-  if (entry) {
-    const bare = text === entry.invocation;
-    const intent = classifySlashIntent(entry);
-    // Codex's /model and /permissions ignore inline arguments — the panel
-    // opens regardless — so any invocation routes to the duet menu there.
-    // Claude's `/model sonnet` honors inline args (proven), so only the bare
-    // form opens the menu.
-    if (intent === "control" && (bare || entry.provider === "codex")) {
-      openNativeMenuForSlashEntry(entry);
-      return true;
-    }
-    // Interactive panels route to the take-over floor (S4.2): blind-injecting
-    // them opens an invisible TUI dialog that swallows the next paste (s1).
-    if (intent === "panel") {
-      if (routeSlashToFloor(entry.invocation)) {
-        return true;
-      }
-      // No live terminal to drive — never spawn a session just to open an
-      // invisible panel.
-      composerStatusHint(`${entry.invocation} opens in the terminal — start the session first`);
-      return true;
-    }
-    // skill-with-args + passthrough builtins fall through to the normal
-    // submit — delivery dispatches them reliably (Phase 0).
+  const known = registry.entries.some((candidate) => candidate.name.toLowerCase() === token);
+  if (known || pendingUnknownSlashText === text) {
     pendingUnknownSlashText = null;
     return false;
-  }
-  // Unknown command: a gentle confirm first (it is most often a typo), then —
-  // rather than blind-submitting (an unknown-but-real *panel* command would
-  // swallow the next paste) — hand it to the floor so the user runs it
-  // natively. Degrades gracefully: never a silent hang.
-  if (pendingUnknownSlashText === text) {
-    pendingUnknownSlashText = null;
-    if (routeSlashToFloor(text)) {
-      return true;
-    }
-    return false; // no live floor (e.g. New Chat): forward; the CLI reports it locally.
   }
   pendingUnknownSlashText = text;
   composerStatusHint(
-    `Unknown ${providerLabel(composerSlashProvider())} command — press Enter again to open it in the terminal`,
+    `Unknown ${providerLabel(composerSlashProvider())} command — press Enter again to send it anyway`,
   );
-  return true;
-}
-
-/**
- * Route a panel/unknown "/" command to the take-over floor (S3): open the
- * drawer so the user drives the native surface, and clear the composer (the
- * command's home is now the terminal, not the composer). Returns false when
- * there is no live PTY to drive — the caller falls back. We never write the
- * command into the PTY ourselves: that blind paste is exactly what an open
- * panel swallows; the user takes over and types it.
- */
-function routeSlashToFloor(invocation: string): boolean {
-  const view = activeTaskView();
-  if (!view?.task || !view.live) {
-    return false;
-  }
-  elements.promptInput.value = "";
-  state.slashPicker = null;
-  pendingUnknownSlashText = null;
-  setViewMode("terminal");
-  composerStatusHint(`Opened the terminal — take over to run ${invocation} natively`);
   return true;
 }
 
@@ -5394,13 +5159,8 @@ function positionSlashPicker(pickerElement: HTMLElement): void {
 }
 
 function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement): void {
-  const view = activeTaskView();
-  // The Add (attachments) menu works in a new chat too — attachments are held in
-  // the draft until send. Permission/model menus configure a live session, so
-  // they still require a task.
-  if (type !== "add" && !view?.task) {
-    return;
-  }
+  // The Add (attachments) menu works in a new chat too — attachments are held
+  // in the draft until send.
   clearUsagePopoverTimers();
   state.slashPicker = null;
   const rect = anchor.getBoundingClientRect();
@@ -5507,7 +5267,7 @@ function renderComposerPopover(view = activeTaskView()): void {
     return;
   }
   // The Add (attachments) menu works in a new chat too — render it before the
-  // task guard. Usage / permission / model popovers configure a live session.
+  // task guard. The usage popover reads a live session.
   if (state.composerMenu?.type === "add") {
     const menu = renderAddMenu();
     positionComposerMenu(menu);
@@ -5521,17 +5281,7 @@ function renderComposerPopover(view = activeTaskView()): void {
     const popover = renderUsagePopover(view);
     elements.composerPopoverRoot.append(popover);
     positionUsagePopover(popover);
-    return;
   }
-  if (!state.composerMenu) {
-    return;
-  }
-  const menu =
-    state.composerMenu.type === "permission"
-      ? renderPermissionMenu(view.task)
-      : renderModelMenu(view.task);
-  positionComposerMenu(menu);
-  elements.composerPopoverRoot.append(menu);
 }
 
 function renderUsagePopover(view: TaskViewState): HTMLElement {
@@ -5636,78 +5386,6 @@ async function pickAndAddReferences(): Promise<void> {
   }
 }
 
-function renderPermissionMenu(task: Task): HTMLElement {
-  const menu = composerMenu("Permission");
-  if (task.provider === "codex") {
-    for (const option of CODEX_PERMISSION_OPTIONS) {
-      menu.append(
-        composerMenuOption(option.label, sessionPermissionLabel(task) === option.label, () => {
-          if (sessionPermissionLabel(task) === option.label) {
-            state.composerMenu = null;
-            render();
-            return;
-          }
-          void queueControlChange({
-            kind: "permission",
-            label: option.label,
-            codex: {
-              preset: option.preset,
-              sandbox: option.sandbox,
-              approval: option.approval,
-            },
-            claude: null,
-          });
-        }),
-      );
-    }
-    return menu;
-  }
-
-  for (const option of CLAUDE_PERMISSION_OPTIONS) {
-    menu.append(
-      composerMenuOption(option.label, task.permissionMode === option.value, () => {
-        if (task.permissionMode === option.value) {
-          state.composerMenu = null;
-          render();
-          return;
-        }
-        void queueControlChange({
-          kind: "permission",
-          label: option.label,
-          codex: null,
-          claude: {
-            permissionMode: option.value,
-          },
-        });
-      }),
-    );
-  }
-  return menu;
-}
-
-function renderModelMenu(task: Task): HTMLElement {
-  const menu = composerMenu("Model");
-  menu.append(
-    renderComposerMenuSection(
-      "Reasoning",
-      REASONING_OPTIONS[task.provider],
-      task.reasoningEffort,
-      (value) => {
-        void queueControlChange(modelControlChange(task, task.model, value as ReasoningEffort | null));
-      },
-    ),
-    renderComposerSubmenuSection(
-      "Model",
-      SESSION_MODEL_OPTIONS[task.provider],
-      task.model,
-      (value) => {
-        void queueControlChange(modelControlChange(task, value, task.reasoningEffort));
-      },
-    ),
-  );
-  return menu;
-}
-
 function composerMenu(titleText: string): HTMLElement {
   const menu = document.createElement("div");
   menu.className = "composer-menu";
@@ -5717,71 +5395,6 @@ function composerMenu(titleText: string): HTMLElement {
   title.textContent = titleText;
   menu.append(title);
   return menu;
-}
-
-function renderComposerMenuSection<T extends string | null>(
-  label: string,
-  options: Array<{ label: string; value: T }>,
-  selected: T,
-  onSelect: (value: T) => void,
-): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "composer-menu-section";
-  const heading = document.createElement("p");
-  heading.className = "composer-menu-section-heading";
-  heading.textContent = label;
-  section.append(heading);
-  for (const option of options) {
-    section.append(composerMenuOption(option.label, option.value === selected, () => onSelect(option.value)));
-  }
-  return section;
-}
-
-function renderComposerSubmenuSection<T extends string>(
-  label: string,
-  options: Array<{ label: string; value: T }>,
-  selected: T | null,
-  onSelect: (value: T) => void,
-): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "composer-menu-section composer-submenu-section";
-
-  const trigger = document.createElement("button");
-  trigger.className = "composer-menu-option composer-submenu-trigger";
-  trigger.type = "button";
-  trigger.setAttribute("aria-haspopup", "menu");
-  trigger.setAttribute("aria-expanded", "false");
-  trigger.textContent = label;
-  const current = modelOptionLabel(options, selected) ?? "Choose";
-  const meta = document.createElement("span");
-  meta.textContent = `${current} >`;
-  trigger.append(meta);
-  trigger.addEventListener("click", (event) => {
-    event.preventDefault();
-  });
-
-  const submenu = document.createElement("div");
-  submenu.className = "composer-submenu";
-  submenu.setAttribute("role", "menu");
-  for (const option of options) {
-    submenu.append(composerMenuOption(option.label, option.value === selected, () => onSelect(option.value)));
-  }
-
-  section.addEventListener("mouseenter", () => {
-    trigger.setAttribute("aria-expanded", "true");
-  });
-  section.addEventListener("mouseleave", () => {
-    trigger.setAttribute("aria-expanded", "false");
-  });
-  section.addEventListener("focusin", () => {
-    trigger.setAttribute("aria-expanded", "true");
-  });
-  section.addEventListener("focusout", () => {
-    trigger.setAttribute("aria-expanded", String(section.matches(":focus-within")));
-  });
-
-  section.append(trigger, submenu);
-  return section;
 }
 
 function composerMenuOption(label: string, selected: boolean, onClick: () => void): HTMLButtonElement {
@@ -5801,13 +5414,6 @@ function composerMenuOption(label: string, selected: boolean, onClick: () => voi
   return button;
 }
 
-function modelOptionLabel<T extends string>(
-  options: Array<{ label: string; value: T }>,
-  selected: T | null,
-): string | null {
-  return options.find((option) => option.value === selected)?.label ?? null;
-}
-
 function positionComposerMenu(menu: HTMLElement): void {
   const anchor = state.composerMenu?.anchor;
   const viewportPadding = 14;
@@ -5818,7 +5424,7 @@ function positionComposerMenu(menu: HTMLElement): void {
         Math.max(viewportPadding, anchor.left + anchor.width - width),
       )
     : viewportPadding;
-  const estimatedHeight = state.composerMenu?.type === "model" ? 360 : 190;
+  const estimatedHeight = 190;
   const top = anchor
     ? Math.max(viewportPadding, anchor.top - estimatedHeight - 8)
     : viewportPadding;
@@ -5899,39 +5505,6 @@ function usageLimitDisplayLabel(label: string): string {
 
 function trimTrailingZero(value: string): string {
   return value.endsWith(".0") ? value.slice(0, -2) : value;
-}
-
-function modelControlChange(
-  task: Task,
-  model: string | null,
-  reasoningEffort: ReasoningEffort | null,
-): DeliveryControlChange {
-  return {
-    kind: "model",
-    label: [
-      modelValueLabel(task.provider, model) ?? "Native Default",
-      reasoningValueLabel(reasoningEffort) ?? "Native Default",
-    ].join(" "),
-    model,
-    reasoningEffort,
-  };
-}
-
-async function queueControlChange(change: DeliveryControlChange): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-  state.composerMenu = null;
-  view.status = "Queued";
-  render();
-  try {
-    await window.duetRuntime.setControl({ taskId: view.task.id, change });
-  } catch (error) {
-    view.status = errorMessage(error);
-  } finally {
-    render();
-  }
 }
 
 // Route dropped/pasted Files by the one fact that matters: does it already have
@@ -6125,17 +5698,6 @@ function sessionModelSummaryLabel(task: Task | null): string | null {
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
-function firstControlItem(
-  view: TaskViewState | null,
-  type: "permission" | "model",
-): DeliveryQueueItem | null {
-  return (
-    view?.deliveryState?.queue.find(
-      (item) => item.kind === "control" && item.control?.kind === type && item.status !== "delivered",
-    ) ?? null
-  );
-}
-
 function hasActiveRun(view = activeTaskView()): boolean {
   const latestRun = view?.report?.runs.at(-1);
   return isActiveRunStatus(latestRun?.status ?? "");
@@ -6188,29 +5750,6 @@ function renderResumeChoice(): void {
   elements.resumeBridgeNote.classList.toggle("hidden", !choice.bridgeDismissed);
 }
 
-function renderModalBanner(): void {
-  const view = activeTaskView();
-  const modal = view?.modalPanel ?? null;
-  elements.modalBanner.classList.toggle("hidden", !modal);
-  if (!modal) {
-    return;
-  }
-  const providerName = providerLabel(view?.task?.provider ?? "codex");
-  const ambient = modal.origin !== "slash";
-  // Provenance first: WHO is asking. Ambient panels never get an Esc
-  // affordance — Esc semantics are unverified and can be destructive
-  // (resume panel: silently resumes full; Codex trust: quits).
-  elements.modalTitle.textContent = `${providerName} is asking something in the terminal`;
-  elements.modalBody.textContent = ambient
-    ? "A native panel is waiting for input. Your messages stay queued until it is answered — take over to answer it with your keyboard."
-    : "A slash command opened a dialog inside the provider terminal. Close it to keep sending messages, or open the terminal to look at it.";
-  elements.modalDismiss.classList.toggle("hidden", ambient);
-  // Single writer: while the human holds the keys, Duet's answer buttons
-  // disable — typing in the terminal IS the answer surface.
-  elements.modalDismiss.disabled = Boolean(view?.userControl);
-  elements.modalTakeOver.disabled = Boolean(view?.userControl);
-}
-
 function renderApproval(): void {
   const view = activeTaskView();
   const approval = view?.pendingApproval ?? null;
@@ -6222,10 +5761,8 @@ function renderApproval(): void {
     return;
   }
 
-  // Single writer: the human on the terminal answers approvals natively.
-  const userControl = Boolean(view?.userControl);
-  elements.approveApproval.disabled = userControl;
-  elements.denyApproval.disabled = userControl;
+  elements.approveApproval.disabled = false;
+  elements.denyApproval.disabled = false;
 
   // The middle button is a faithful projection of the panel's own option 2:
   // session-scoped ("Allow for this session") or persistent ("Don't ask
@@ -6246,7 +5783,7 @@ function renderApproval(): void {
   elements.approvalSummary.classList.add("hidden");
   elements.approvalContext.replaceChildren();
   elements.approveSessionApproval.classList.toggle("hidden", !middleChoice);
-  elements.approveSessionApproval.disabled = !middleChoice || userControl;
+  elements.approveSessionApproval.disabled = !middleChoice;
   if (middleChoice) {
     elements.approveSessionApproval.textContent = middleChoice.label;
     elements.approveSessionApproval.title = middleChoice.description;
@@ -6328,18 +5865,15 @@ function renderOptionPromptForm(
   view: TaskViewState,
   prompt: OptionPromptDetectedEvent["payload"],
 ): HTMLElement {
-  // Single writer: while the human holds the keys, the card defers to the
-  // terminal — answering there IS the alternative surface.
-  const userControl = Boolean(view.userControl);
   const busy = view.optionPromptBusy;
   // The card injects only the VERIFIED single-select sequence. If ANY question
   // is multiSelect, the whole card is shown as full context and answered in the
-  // terminal floor (the multi-select TUI mechanic is not yet verified — a
-  // guessed injection could mis-answer a real clarification). All-single-select
+  // terminal (the multi-select TUI mechanic is not yet verified — a guessed
+  // injection could mis-answer a real clarification). All-single-select
   // prompts stay fully card-answerable.
   const hasMultiSelect = prompt.questions.some((q) => q.multiSelect);
   const cardAnswerable = !hasMultiSelect;
-  const interactive = cardAnswerable && !userControl && !busy;
+  const interactive = cardAnswerable && !busy;
 
   const root = document.createElement("div");
   root.className = "option-prompt-body";
@@ -6431,9 +5965,7 @@ function renderOptionPromptForm(
   if (cardAnswerable) {
     const hint = document.createElement("span");
     hint.className = "option-prompt-hint";
-    hint.textContent = userControl
-      ? "You hold the keys — answer in the terminal"
-      : "Or answer in the terminal";
+    hint.textContent = "Or answer in the terminal";
     const send = document.createElement("button");
     send.type = "button";
     send.className = "primary";
@@ -6441,7 +5973,7 @@ function renderOptionPromptForm(
       view.optionPromptSelections.length === prompt.questions.length &&
       view.optionPromptSelections.every((s) => s >= 0);
     send.textContent = busy ? "Sending…" : "Send answers";
-    send.disabled = userControl || busy || !allAnswered;
+    send.disabled = busy || !allAnswered;
     send.addEventListener("click", () => {
       void answerOptionPrompt();
     });
@@ -6451,9 +5983,7 @@ function renderOptionPromptForm(
     // in the main view; the answer is given in the terminal (one click away).
     const note = document.createElement("span");
     note.className = "option-prompt-hint";
-    note.textContent = userControl
-      ? "You hold the keys — choose in the terminal"
-      : "Multiple-choice — choose in the terminal, then submit";
+    note.textContent = "Multiple-choice — choose in the terminal, then submit";
     const open = document.createElement("button");
     open.type = "button";
     open.className = "primary";
@@ -6573,11 +6103,8 @@ function workflowState(): WorkflowState {
 
   if (firstDeliveryItem?.status === "undelivered") {
     return {
-      headline: firstDeliveryItem.kind === "control" ? "Setting needs attention" : "Message needs attention",
-      facts: [
-        firstDeliveryItem.kind === "control" ? "Setting failed" : `No ${providerName} receipt`,
-        ...baseFacts,
-      ],
+      headline: "Message needs attention",
+      facts: [`No ${providerName} receipt`, ...baseFacts],
       tone: "action",
     };
   }
@@ -8198,7 +7725,7 @@ function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLE
   const status = document.createElement("strong");
   status.textContent = deliveryItemStatusLabel(view, providerName, item);
   const text = document.createElement("p");
-  text.textContent = item.kind === "control" ? controlItemLabel(item) : promptItemLabel(item);
+  text.textContent = promptItemLabel(item);
   copy.append(status, text);
   if (item.failureReason) {
     const reason = document.createElement("span");
@@ -8209,37 +7736,22 @@ function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLE
 
   const actions = document.createElement("div");
   actions.className = "delivery-actions";
-  if (item.status === "queued" && item.kind === "prompt") {
+  if (item.status === "queued") {
     actions.append(
       deliveryAction("Edit", () => {
         void editQueuedPrompt(item);
       }),
       deliveryAction("Cancel", () => {
         void cancelQueuedPrompt(item.id);
-      }),
-    );
-  } else if (item.status === "queued") {
-    actions.append(
-      deliveryAction("Cancel", () => {
-        void cancelQueuedPrompt(item.id);
-      }),
-    );
-  } else if (item.status === "undelivered" && item.kind === "prompt") {
-    actions.append(
-      deliveryAction("Retry", () => {
-        void retryQueuedPrompt(item.id);
-      }),
-      deliveryAction("Edit", () => {
-        void editQueuedPrompt(item);
-      }),
-      deliveryAction("Terminal", () => {
-        setViewMode("terminal");
       }),
     );
   } else if (item.status === "undelivered") {
     actions.append(
       deliveryAction("Retry", () => {
         void retryQueuedPrompt(item.id);
+      }),
+      deliveryAction("Edit", () => {
+        void editQueuedPrompt(item);
       }),
       deliveryAction("Terminal", () => {
         setViewMode("terminal");
@@ -8265,9 +7777,6 @@ function deliveryAction(label: string, onClick: () => void): HTMLButtonElement {
 }
 
 async function editQueuedPrompt(item: DeliveryQueueItem): Promise<void> {
-  if (item.kind !== "prompt") {
-    return;
-  }
   elements.promptInput.value = item.text;
   await cancelQueuedPrompt(item.id);
   focusComposer();
@@ -8305,23 +7814,11 @@ function deliveryItemStatusLabel(
   providerName: string,
   item: DeliveryQueueItem,
 ): string {
-  if (item.kind === "control") {
-    if (item.status === "delivering") {
-      return `Applying ${providerName} setting`;
-    }
-    if (item.status === "undelivered") {
-      return "Setting change failed";
-    }
-    return `Queued ${providerName} setting`;
-  }
   if (item.status === "delivering") {
     return `Delivering to ${providerName}`;
   }
   if (item.status === "undelivered") {
     return `Undelivered — no ${providerName} receipt`;
-  }
-  if (view.deliveryState?.modalActive) {
-    return `Queued behind a prompt — ${providerName} is asking something in the terminal`;
   }
   const launchWait =
     !view.runtimeReady &&
@@ -8343,35 +7840,17 @@ function promptItemLabel(item: DeliveryQueueItem): string {
   return [attachmentLabel, item.text].filter((part): part is string => Boolean(part)).join(" - ");
 }
 
-function controlItemLabel(item: DeliveryQueueItem): string {
-  if (!item.control) {
-    return item.text;
-  }
-  return item.control.kind === "permission"
-    ? `Permission: ${item.text}`
-    : `Model: ${item.text}`;
-}
-
 function deliveryStatusLabel(view: TaskViewState, deliveryState: DeliveryTaskState): string {
   const providerName = providerLabel(deliveryState.provider);
   const first = deliveryState.queue[0] ?? null;
   if (first?.status === "delivering") {
-    if (first.kind === "control") {
-      return "Applying setting";
-    }
     return `Delivering to ${providerName}`;
   }
   if (first?.status === "undelivered") {
-    return first.kind === "control" ? "Setting failed" : "Undelivered";
+    return "Undelivered";
   }
   if (deliveryState.queue.some((item) => item.status === "queued")) {
-    if (deliveryState.modalActive) {
-      return `Queued — ${providerName} is asking something`;
-    }
     return "Queued";
-  }
-  if (deliveryState.modalActive) {
-    return `${providerName} is asking something`;
   }
   if (deliveryState.approvalActive) {
     return `Waiting for ${providerName} approval`;

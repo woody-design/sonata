@@ -26,12 +26,20 @@ const settingsPath = ensureClaudeRuntimeSettings(cwd);
 const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
 assert.ok(settings.statusLine?.command, "statusLine coexists in the injected file");
 assert.ok(settings.statusLine.command.includes("claude-statusline-sink.js"), "statusLine → usage sink");
-for (const event of ["UserPromptSubmit", "PreToolUse", "PermissionRequest", "Stop"]) {
+for (const event of ["UserPromptSubmit", "PreToolUse", "Stop"]) {
   const groups = settings.hooks?.[event];
   assert.ok(Array.isArray(groups) && groups.length === 1, `${event} has exactly one duet group`);
   const cmds = groups.flatMap((g) => g.hooks.map((h) => h.command));
   assert.equal(cmds.length, 1, `${event} injects exactly one duet command (no user clobber)`);
   assert.ok(cmds[0].includes("hook-sink.js"), `${event} → duet hook sink`);
+}
+// PermissionRequest is owned by the approval broker (S2b), not the sink.
+{
+  const groups = settings.hooks?.PermissionRequest;
+  assert.ok(Array.isArray(groups) && groups.length === 1, "PermissionRequest has one duet group");
+  const cmds = groups.flatMap((g) => g.hooks.map((h) => h.command));
+  assert.equal(cmds.length, 1, "PermissionRequest injects exactly one duet command");
+  assert.ok(cmds[0].includes("approval-broker.js"), "PermissionRequest → approval broker (S2b)");
 }
 
 // ── 2) Sink → watcher → CliState roundtrip ──────────────────────────────────
