@@ -146,9 +146,11 @@ function freshConfig(configPath) {
   assert(!(linkPath in projects), "7: no symlink-keyed duplicate");
 }
 
-// --- 8. conflict retry: a concurrent writer wins, our edit lands on top ------
+// --- 8. conflict retry: a concurrent writer wins, our edit lands on top,
+//        and the backup captures the SURVIVING attempt's bytes ---------------
 {
   const configPath = path.join(workspace, "config-8.json");
+  const backupPath = path.join(workspace, "config-8.json.duet-bak");
   freshConfig(configPath);
   let calls = 0;
   const result = updateClaudeConfig(
@@ -163,12 +165,19 @@ function freshConfig(configPath) {
       config.duetProbe = true;
       return true;
     },
-    { configPath, backupPath: null },
+    { configPath, backupPath },
   );
   assert(result.applied && calls === 2, "8: conflict retried from a fresh read");
   const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
   assert(parsed.numStartups === 43, "8: the concurrent write survived");
   assert(parsed.duetProbe === true, "8: our edit landed on top of it");
+  // The recovery point must be the bytes the SURVIVING write was computed
+  // from — i.e. include the concurrent change, not attempt 1's stale read
+  // (review P2: a stale backup would lose the CLI's write on restore).
+  const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
+  assert(backup.numStartups === 43, "8: backup holds the fresh (post-conflict) bytes");
+  assert(!("duetProbe" in backup), "8: backup is pre-write (no Duet edit)");
+  assert(result.backupCreated === true, "8: backupCreated reported on the surviving attempt");
 }
 
 // --- 9. the resume-bridge mutator shape (same primitive) ----------------------

@@ -89,8 +89,24 @@ export function updateClaudeConfig(
     }
 
     try {
-      // Back up the exact bytes this mutation was computed from, then verify
-      // the copy landed before the original is touched.
+      // The CLI may have rewritten the file while we worked on the snapshot —
+      // renaming over its write would silently revert it. Recompute instead.
+      let statNow: fs.Stats;
+      try {
+        statNow = fs.statSync(configPath);
+      } catch {
+        return { applied: false, reason: "config-missing", backupCreated: false };
+      }
+      if (statNow.mtimeMs !== statBefore.mtimeMs || statNow.size !== statBefore.size) {
+        continue;
+      }
+
+      // Back up the exact bytes the SURVIVING write was computed from, then
+      // verify the copy landed before the original is touched. Ordered AFTER
+      // the conflict check (review P2, 2026-07-02): a backup taken before it
+      // could be created from a retried attempt's stale snapshot while the
+      // write lands on fresher bytes — restoring it would lose the CLI's
+      // concurrent change.
       let backupCreated = false;
       if (backupPath && !fs.existsSync(backupPath)) {
         fs.writeFileSync(backupPath, raw, "utf8");
@@ -98,18 +114,6 @@ export function updateClaudeConfig(
           return { applied: false, reason: "write-failed", backupCreated: false };
         }
         backupCreated = true;
-      }
-
-      // The CLI may have rewritten the file while we worked on the snapshot —
-      // renaming over its write would silently revert it. Recompute instead.
-      let statNow: fs.Stats;
-      try {
-        statNow = fs.statSync(configPath);
-      } catch {
-        return { applied: false, reason: "config-missing", backupCreated };
-      }
-      if (statNow.mtimeMs !== statBefore.mtimeMs || statNow.size !== statBefore.size) {
-        continue;
       }
 
       const tempPath = `${configPath}.duet-tmp-${process.pid}`;

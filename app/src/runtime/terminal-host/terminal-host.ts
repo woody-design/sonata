@@ -1340,6 +1340,17 @@ export class TerminalHost extends EventEmitter {
       candidate.kind === this.lastApprovalKind
     ) {
       this.approvalSuppressedInSettleWindow = true;
+      // Whoever suppresses must guarantee the honesty re-check (review P2,
+      // 2026-07-02): only positive Duet sends arm the settle check at
+      // decision time — an answered-natively or deny decision records
+      // lastApprovalDecisionAt WITHOUT one, so a candidate suppressed here
+      // would have no path back on a static screen. Worse than a hold: the
+      // decision already cleared approvalPending, so the gate is OPEN while
+      // a live panel sits card-less (digit-swallow class). Arming at the
+      // suppression site covers every decision source by construction.
+      if (!this.approvalSettleTimer && this.lastApprovalDecisionAt) {
+        this.scheduleApprovalSettleCheck(this.lastApprovalDecisionAt);
+      }
       return;
     }
     const resurfacedAfterDecision =

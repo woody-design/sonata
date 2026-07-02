@@ -49,11 +49,22 @@ process.stdout.write("2.No, exit\\n\\n");
 process.stdout.write("Enter to confirm \\u00B7 Esc to cancel\\n");
 `;
 
-/** Fake claude: trust panel at startup; on CR, a phantom repaint of the SAME
- *  panel ~10ms later, then either a composer prompt (scenario A — the panel
- *  was truly answered) or another full panel repaint and silence (scenario B
- *  — the answer did not take). */
+/** Fake claude: trust panel at startup; on CR, either a phantom repaint then
+ *  a composer prompt (scenario A — truly answered), a phantom then another
+ *  full panel and silence (scenario B — the answer did not take), or a
+ *  prompt FIRST then a full panel repaint (scenario C — the native-answer
+ *  path records a decision from the prompt-after evidence, THEN the panel
+ *  comes back inside the settle window). */
 function fakeCliScript(scenario) {
+  const onAnswer =
+    scenario === "answered"
+      ? `setTimeout(paintPanel, 10); // the phantom repaint (the wedge trigger)
+  setTimeout(() => process.stdout.write("\\nTrusted.\\n\\u276F opus xhigh ~\\n"), 500);`
+      : scenario === "still-open"
+        ? `setTimeout(paintPanel, 10);
+  setTimeout(paintPanel, 600); // still unanswered; never a prompt`
+        : `setTimeout(() => process.stdout.write("\\nTrusted.\\n\\u276F opus xhigh ~\\n"), 50);
+  setTimeout(paintPanel, 400); // back inside the settle window, after the decision`;
   return `
 if (process.stdin.isTTY) {
   process.stdin.setRawMode(true);
@@ -67,12 +78,7 @@ process.stdin.on("data", (data) => {
     return;
   }
   answered = true;
-  setTimeout(paintPanel, 10); // the phantom repaint (the wedge trigger)
-  ${
-    scenario === "answered"
-      ? 'setTimeout(() => process.stdout.write("\\nTrusted.\\n\\u276F opus xhigh ~\\n"), 500);'
-      : "setTimeout(paintPanel, 600); // still unanswered; never a prompt"
-  }
+  ${onAnswer}
 });
 setInterval(() => {}, 1000);
 `;
@@ -112,12 +118,27 @@ async function runScenario(name, scenario) {
       6000,
       `${name}: initial trust detection`,
     );
-    host.sendApprove();
-    await waitUntil(
-      () => events.some((e) => e.type === "approval:decision"),
-      6000,
-      `${name}: approve decision`,
-    );
+    if (scenario === "native-still-open") {
+      // The HUMAN answers in the terminal: the decision is recorded from
+      // screen evidence (answered-natively) — the one decision path that
+      // never armed a settle check of its own (review P2).
+      host.writeUserInput("\r");
+      await waitUntil(
+        () =>
+          events.some(
+            (e) => e.type === "approval:decision" && e.payload.decision === "answered-natively",
+          ),
+        8000,
+        `${name}: answered-natively decision from screen evidence`,
+      );
+    } else {
+      host.sendApprove();
+      await waitUntil(
+        () => events.some((e) => e.type === "approval:decision"),
+        6000,
+        `${name}: approve decision`,
+      );
+    }
 
     if (scenario === "answered") {
       // Past the phantom (+10ms), the composer (+500ms), and both settle
@@ -131,7 +152,10 @@ async function runScenario(name, scenario) {
       );
     } else {
       // The genuinely-unanswered panel must come back — as an honest
-      // post-decision resurface, once the screen settles.
+      // post-decision resurface, once the screen settles. For the
+      // native-answer scenario this is exactly the review-P2 lock: the
+      // suppression site itself must arm the re-check, because the
+      // answered-natively decision never scheduled one.
       const resurfaced = await waitUntil(
         () =>
           events.find(
@@ -153,6 +177,7 @@ async function runScenario(name, scenario) {
 try {
   await runScenario("A/answered", "answered");
   await runScenario("B/still-open", "still-open");
+  await runScenario("C/native-still-open", "native-still-open");
 } catch (error) {
   failures.push(String(error));
 }
