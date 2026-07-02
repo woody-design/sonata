@@ -5334,7 +5334,8 @@ function renderUsagePopover(view: TaskViewState): HTMLElement {
   });
 
   const snapshot = view.usageSnapshot;
-  if (!snapshot || (!snapshot.context && snapshot.limits.length === 0)) {
+  const hasCost = typeof snapshot?.costUsd === "number";
+  if (!snapshot || (!snapshot.context && snapshot.limits.length === 0 && !hasCost)) {
     const empty = document.createElement("p");
     empty.className = "usage-popover-empty";
     empty.textContent = "No usage data yet — appears after the first response";
@@ -6390,6 +6391,16 @@ function turnSignature(turn: ReadingTurn): string {
     turn.runId ?? "",
     turn.run?.status ?? "",
     turn.run?.endedAt ?? "",
+    // The footer's facts arrive on their own events, possibly AFTER the
+    // completed card rendered (file:changed / artifact candidates trail the
+    // run; approval:persisted trails a decision) — a signature blind to them
+    // reused the card and left the per-turn archive stale (review P2,
+    // 2026-07-02). Counts are the cheap honest proxy: every append changes
+    // one of them.
+    String(turn.run?.changedFiles.length ?? ""),
+    String(turn.run?.artifactCandidates.length ?? ""),
+    String(turn.run?.approvalEvents.length ?? ""),
+    String(turn.run?.stopEvents.length ?? ""),
     turn.fallbackText ?? "",
   ];
   for (const block of turn.blocks) {

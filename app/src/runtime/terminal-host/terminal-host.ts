@@ -997,17 +997,20 @@ export class TerminalHost extends EventEmitter {
       return;
     }
     const kind: RunKind = text.startsWith("/") && !text.includes("\n") ? "slash" : "prompt";
-    const run = this.beginRun(text || "(prompt)", kind);
     // A background-workflow task-notification: the CLI resumed the session
     // with an XML system message in the user role. The run is real (the CLI
     // is working — busy state, stop affordance, completion all apply), but
-    // its title must never be the raw XML: anything that shows run titles
-    // (auto-naming, inspector) gets the honest label instead. The prompt
-    // stays verbatim — it is the detection key for the reading surface's
-    // husk suppression.
-    if (run && text.startsWith("<task-notification>")) {
-      this.updateActiveRun({ title: "(background task returned)" });
-    }
+    // its title must never be the raw XML — and never even transiently:
+    // `run:started` feeds auto-titling (main + renderer) and the run-index
+    // report the moment it fires, so the honest label must ride the FIRST
+    // event, not a follow-up patch (review P2, 2026-07-02). The prompt stays
+    // verbatim — it is the detection key for the reading surface's husk
+    // suppression.
+    this.beginRun(
+      text || "(prompt)",
+      kind,
+      text.startsWith("<task-notification>") ? { title: "(background task returned)" } : {},
+    );
   }
 
 
@@ -1696,7 +1699,7 @@ export class TerminalHost extends EventEmitter {
     this.fileSnapshot = nextSnapshot;
   }
 
-  private beginRun(text: string, kind: RunKind): ActiveRun {
+  private beginRun(text: string, kind: RunKind, options: { title?: string } = {}): ActiveRun {
     if (this.activeRun) {
       this.finishActiveRun("completed", "closed by next input");
     }
@@ -1708,7 +1711,7 @@ export class TerminalHost extends EventEmitter {
       id: `run-${now.getTime()}-${++this.runSeq}`,
       kind,
       prompt: text,
-      title: trimmed.split(/\r?\n/, 1)[0]?.slice(0, 120) || "(empty prompt)",
+      title: options.title ?? (trimmed.split(/\r?\n/, 1)[0]?.slice(0, 120) || "(empty prompt)"),
       status: "active",
       lifecyclePhase: "active",
       startedAt: now.toISOString(),

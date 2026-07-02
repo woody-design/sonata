@@ -129,4 +129,16 @@ const junkCostLine = JSON.stringify({
 });
 assert.equal(parseClaudeStatuslineJson(junkCostLine).snapshot.costUsd, null);
 
+// Cost is an independent signal (review P3): a payload with cost but no
+// parseable context/rate-limit fields must still produce a snapshot.
+const costOnlyLine = JSON.stringify({
+  session_id: "sess-5",
+  cost: { total_cost_usd: 0.42 },
+});
+const costOnly = parseClaudeStatuslineJson(costOnlyLine);
+assert.ok(costOnly, "cost-only payload must not be dropped");
+assert.equal(costOnly.snapshot.costUsd, 0.42);
+assert.equal(costOnly.snapshot.context, null);
+assert.deepEqual(costOnly.snapshot.limits, []);
+
 console.log("usage adapter fixtures passed");

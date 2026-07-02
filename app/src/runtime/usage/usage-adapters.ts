@@ -72,7 +72,15 @@ export function parseClaudeStatuslinePayload(
 
   const context = claudeContextSnapshot(record.context_window);
   const limits = claudeLimitSnapshots(record.rate_limits);
-  if (!context && limits.length === 0) {
+  const rawCost = finiteNumber(asRecord(record.cost)?.total_cost_usd);
+  // Cost is an independent signal (review P3, 2026-07-02): if the
+  // context/rate-limit fields ever drift unparseable, a cost-carrying
+  // payload must still get through rather than silently dropping the
+  // Session-cost row with it. A $0 cost carries no signal, though — the
+  // startup payload reports cost 0 before anything ran, and it must keep
+  // reading as "no usage data yet".
+  const costUsd = rawCost !== null && rawCost > 0 ? rawCost : null;
+  if (!context && limits.length === 0 && costUsd === null) {
     return null;
   }
 
@@ -80,7 +88,6 @@ export function parseClaudeStatuslinePayload(
     typeof record.session_name === "string" && record.session_name.trim()
       ? record.session_name.trim()
       : null;
-  const costUsd = finiteNumber(asRecord(record.cost)?.total_cost_usd);
 
   return {
     providerSessionId,

@@ -2097,7 +2097,9 @@ function mergeUsageSnapshot(previous: UsageSnapshot | null, next: UsageSnapshot)
 }
 
 function hasUsageData(snapshot: UsageSnapshot): boolean {
-  return Boolean(snapshot.context || snapshot.limits.length > 0);
+  return Boolean(
+    snapshot.context || snapshot.limits.length > 0 || typeof snapshot.costUsd === "number",
+  );
 }
 
 function pathsEqual(left: string, right: string): boolean {

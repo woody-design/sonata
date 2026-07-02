@@ -81,6 +81,36 @@ if (failures.length > 0) {
   process.exitCode = 1;
 }
 
+await check("beginRunFromHook titles a task-notification run honestly ON run:started", async () => {
+  // Review P2 (2026-07-02): run:started feeds auto-titling and the run-index
+  // report the moment it fires — the honest title must ride the FIRST event,
+  // never a follow-up run:updated patch, or raw XML can leak into task/
+  // session titles while the placeholder guard is still open.
+  const events = [];
+  const host = makeHost(events);
+  try {
+    host.ptyProcess = fakePty();
+    host.beginRunFromHook(
+      "<task-notification>\n<task-id>abc</task-id>\n<status>completed</status>\n</task-notification>",
+    );
+    const started = events.find((event) => event.type === "run:started");
+    assert.ok(started, "expected a run:started for the notification turn");
+    assert.equal(started.payload.title, "(background task returned)");
+    assert.ok(
+      started.payload.prompt.startsWith("<task-notification>"),
+      "prompt stays verbatim (the husk-suppression detection key)",
+    );
+    assert.ok(
+      !events.some(
+        (event) => event.type === "run:updated" && event.payload.title !== "(background task returned)",
+      ),
+      "no event ever carries the XML as a title",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
 function makeHost(events) {
   return new TerminalHost({
     taskId: "stop-hook-completion-smoke",
