@@ -16,19 +16,14 @@ import { cleanTerminal, type PromptSubmission, type TerminalHost } from "./termi
 
 const DEFAULT_RECEIPT_TIMEOUT_MS = 45_000;
 const BACKFILL_RECEIPT_WINDOW_MS = 15 * 60_000;
-// Anthropic's own background-job infra treats "wedged on a dialog" as a
-// timeout-detected state (~45s). Same stance here: a queued message blocked
-// this long with no understandable reason gets an honest signal, not silence.
-const DEFAULT_WEDGE_AFTER_MS = 45_000;
-const DEFAULT_WEDGE_CHECK_INTERVAL_MS = 5_000;
-// pump() is event-driven, but NO blocker is trusted to re-pump on its own
-// resolution event: the accepts-input gate flips silently (PTY-quiet recovery
-// emits no event), and even the "event-backed" blockers (run/approval/modal) can
-// clear with no pump-triggering event — a startup or post-resume interstitial
-// that disarms leaves the queue wedged forever (observed: fresh-session and
-// post-restart "stuck Queued"). So while ANY queued item is blocked, the pump
-// polls at this cadence until it can deliver; the timer is idempotent + unref'd,
-// and the 5s wedge alarm backs a genuinely stuck queue.
+// pump() is event-driven, but the remaining blockers can clear with no
+// pump-triggering event: a scrape-detected modal (retired in S3) can disarm
+// silently, and the one-shot boot latch opens on first accepts-input. So while
+// a queued item is blocked, the pump re-checks at this cadence until it can
+// deliver; the timer is idempotent + unref'd. (Send-is-send removed the wedge
+// alarm — a queued item is now always either understandably blocked, or shown
+// its reason by the per-item delivery label; nothing sits blocked "for no
+// reason" long enough to need a stuck signal.)
 const DEFAULT_PUMP_RETRY_INTERVAL_MS = 500;
 
 export interface DeliveryControllerOptions {
@@ -40,9 +35,7 @@ export interface DeliveryControllerOptions {
   applyControlChange?: (change: DeliveryControlChange) => Promise<void>;
   cleanupAttachments?: (attachments: DeliveryAttachment[]) => void;
   receiptTimeoutMs?: number;
-  /** Test injection points; production uses the 45s/5s/500ms defaults. */
-  wedgeAfterMs?: number;
-  wedgeCheckIntervalMs?: number;
+  /** Test injection point; production uses the 500ms default. */
   pumpRetryIntervalMs?: number;
 }
 
@@ -76,11 +69,14 @@ export class DeliveryController {
   private readonly ptyEchoBackfills: PtyEchoBackfill[] = [];
   private seq = 0;
   private inFlight: InFlightDelivery | null = null;
+  // Boot latch (send-is-send): the CLI's composer-ready is a screen scrape that
+  // can stay false forever under a continuously-animating TUI (the acceptsInput
+  // wedge). We gate the FIRST send on it once — the latch flips the first time
+  // the composer accepts input and never closes — then stop re-gating delivery
+  // on the scrape. After boot, a send writes as soon as no run/approval/panel
+  // owns the screen; the CLI's own queue absorbs anything mid-turn.
+  private bootLatched = false;
   private receiptTimer: NodeJS.Timeout | null = null;
-  private readonly wedgeAfterMs: number;
-  private wedgeTimer: NodeJS.Timeout | null = null;
-  private blockedSinceMs: number | null = null;
-  private wedgedSince: string | null = null;
   private readonly pumpRetryIntervalMs: number;
   private pumpRetryTimer: NodeJS.Timeout | null = null;
 
@@ -93,14 +89,7 @@ export class DeliveryController {
     this.applyControlChange = options.applyControlChange ?? null;
     this.cleanupAttachments = options.cleanupAttachments ?? null;
     this.receiptTimeoutMs = options.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS;
-    this.wedgeAfterMs = options.wedgeAfterMs ?? DEFAULT_WEDGE_AFTER_MS;
     this.pumpRetryIntervalMs = options.pumpRetryIntervalMs ?? DEFAULT_PUMP_RETRY_INTERVAL_MS;
-    this.wedgeTimer = setInterval(
-      () => this.evaluateWedge(),
-      options.wedgeCheckIntervalMs ?? DEFAULT_WEDGE_CHECK_INTERVAL_MS,
-    );
-    // Never keep a process alive just to watch for wedges.
-    this.wedgeTimer.unref?.();
   }
 
   enqueue(text: string, attachments: DeliveryAttachment[] = []): DeliveryQueueItem {
@@ -203,38 +192,6 @@ export class DeliveryController {
   dispose(): void {
     this.clearReceiptTimer();
     this.clearPumpRetry();
-    if (this.wedgeTimer) {
-      clearInterval(this.wedgeTimer);
-      this.wedgeTimer = null;
-    }
-  }
-
-  /**
-   * A static panel emits no events (P1), so the wedge check needs its own
-   * clock. "Wedged" = queued items blocked with no understandable reason:
-   * a run, an approval, or the human holding the keys all explain
-   * themselves elsewhere.
-   */
-  private evaluateWedge(): void {
-    const hasQueued = this.items.some((item) => item.status === "queued");
-    const understandablyBusy =
-      this.terminalHost.hasActiveRun() ||
-      this.terminalHost.isApprovalActive() ||
-      this.terminalHost.isHumanHoldingInput();
-    const blocked = hasQueued && !this.inFlight && !understandablyBusy && !this.canDeliver();
-    if (!blocked) {
-      this.blockedSinceMs = null;
-      if (this.wedgedSince !== null) {
-        this.wedgedSince = null;
-        this.emitState();
-      }
-      return;
-    }
-    this.blockedSinceMs ??= Date.now();
-    if (this.wedgedSince === null && Date.now() - this.blockedSinceMs >= this.wedgeAfterMs) {
-      this.wedgedSince = new Date().toISOString();
-      this.emitState();
-    }
   }
 
   handleRuntimeEvent(event: RuntimeEvent): void {
@@ -245,6 +202,11 @@ export class DeliveryController {
     if (event.type === "transcript:blocks") {
       this.handleTranscriptBlocks(event.payload.upserts);
       return;
+    }
+    if (event.type === "task:accepts-input") {
+      // The composer accepted input at least once — open the boot latch for
+      // good. Subsequent re-announcements (after each turn) are redundant.
+      this.bootLatched = true;
     }
     this.pump();
   }
@@ -259,12 +221,18 @@ export class DeliveryController {
       modalActive: this.terminalHost.isModalActive(),
       idleComposer: this.terminalHost.isIdleComposerReady(),
       acceptsInput: this.terminalHost.acceptsPromptInput(),
-      wedgedSince: this.wedgedSince,
       queue: this.items.map((item) => ({ ...item })),
     };
   }
 
   private pump(): void {
+    // Boot-latch fallback: if the `task:accepts-input` event was missed, latch
+    // the first time the scrape reports the composer ready. After that the
+    // scrape never re-gates delivery (send-is-send). Kept here (not in
+    // canDeliver) so canDeliver stays a pure query for state()/wedge reads.
+    if (!this.bootLatched && this.terminalHost.acceptsPromptInput()) {
+      this.bootLatched = true;
+    }
     if (this.inFlight) {
       this.emitState();
       return;
@@ -329,19 +297,23 @@ export class DeliveryController {
   private canDeliver(): boolean {
     return (
       !this.inFlight &&
-      !this.terminalHost.hasActiveRun() &&
+      // One-shot boot readiness — NOT a continuous scrape gate. Once the CLI
+      // has accepted input, we never wait on the (animating-TUI-fragile)
+      // idle-prompt scrape again.
+      this.bootLatched &&
+      // Write-through (Claude): a mid-turn send writes straight into the CLI's
+      // native queue — do NOT hold on an active run. The queued message's run
+      // begins honestly on its own UserPromptSubmit hook when the CLI dequeues
+      // it. Codex has no native queue signal, so it keeps holding until the run
+      // ends (Stop/scrape → re-pump).
+      (this.provider === "claude" || !this.terminalHost.hasActiveRun()) &&
+      // Pending-question guard: a pasted prompt's characters would be consumed
+      // as answers by a live approval panel (P1 — digit-swallow → unintended
+      // approval). Retired for Claude when hook-intercept lands (S2).
       !this.terminalHost.isApprovalActive() &&
-      // A detected panel blocks delivery as STATE — the idle-prompt
-      // heuristic alone is one arrow keypress away from lying (P1b).
-      !this.terminalHost.isModalActive() &&
-      // Single writer: while the human is actively typing in the terminal, the
-      // queue holds (S2). A keystroke into a live panel can flip the idle
-      // heuristic (P1b), so an automation paste must never land mid-burst — this
-      // is a safety property, scoped to the activity window rather than a mode.
-      !this.terminalHost.isHumanHoldingInput() &&
-      // Structural accepts-input gate: delivers as soon as the provider
-      // composer exists (~3s), without waiting for the task-ready floor.
-      this.terminalHost.acceptsPromptInput()
+      // A detected interactive panel would swallow the paste. Retired in S3
+      // (slash passthrough); kept as a guard until then.
+      !this.terminalHost.isModalActive()
     );
   }
 

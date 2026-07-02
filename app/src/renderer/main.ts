@@ -901,9 +901,8 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
     return null;
   }
   const liveView = taskViewForId(session.task.id);
-  // Needs-you grammar (same dot as approvals): a native panel is asking,
-  // or queued messages have sat blocked past the wedge threshold.
-  if (liveView?.modalPanel || liveView?.deliveryState?.wedgedSince) {
+  // Needs-you grammar (same dot as approvals): a native panel is asking.
+  if (liveView?.modalPanel) {
     const dot = document.createElement("span");
     dot.className = "sidebar-session-attention";
     dot.title = liveView.modalPanel
@@ -4015,12 +4014,8 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 
   if (event.type === "delivery:state") {
-    const wedgeChanged = (view.deliveryState?.wedgedSince ?? null) !== event.payload.wedgedSince;
     view.deliveryState = event.payload;
     view.status = deliveryStatusLabel(view, event.payload);
-    if (wedgeChanged && !isActiveView(view)) {
-      renderSidebar();
-    }
     markViewChanged(view);
     return;
   }
@@ -8339,9 +8334,6 @@ function deliveryItemStatusLabel(
   if (view.deliveryState?.modalActive) {
     return `Queued behind a prompt — ${providerName} is asking something in the terminal`;
   }
-  if (view.deliveryState?.wedgedSince) {
-    return `Queued — no movement; ${providerName} may be waiting in the terminal`;
-  }
   const launchWait =
     !view.runtimeReady &&
     !view.deliveryState?.activeRun &&
@@ -8386,9 +8378,6 @@ function deliveryStatusLabel(view: TaskViewState, deliveryState: DeliveryTaskSta
   if (deliveryState.queue.some((item) => item.status === "queued")) {
     if (deliveryState.modalActive) {
       return `Queued — ${providerName} is asking something`;
-    }
-    if (deliveryState.wedgedSince) {
-      return "Queued — no movement; check the terminal";
     }
     return "Queued";
   }

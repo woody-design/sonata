@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
-// Deterministic regression for the CLI Slice 4 re-pump gap: a queue blocked
-// ONLY by the no-event `acceptsPromptInput` gate must deliver when the gate
-// recovers, even though no runtime event fires (the idle-session case that
-// opening the take-over floor created). A fake TerminalHost flips the gate
-// false→true with NO handleRuntimeEvent call.
+// Deterministic regression for the delivery re-pump: a queue blocked ONLY by a
+// no-event gate must deliver when the gate recovers, even though no runtime
+// event fires. Two gates matter post-send-is-send: the one-shot boot latch
+// (first accepts-input), and a live interactive panel (modal). A fake
+// TerminalHost flips a gate false→true with NO handleRuntimeEvent call.
 const require = createRequire(import.meta.url);
 const { DeliveryController } = require("../../dist/runtime");
 
@@ -18,7 +18,6 @@ function makeHost(overrides = {}) {
     modal: false,
     accepts: false,
     idle: true,
-    humanTyping: false,
     submits: [],
     ...overrides,
   };
@@ -27,7 +26,6 @@ function makeHost(overrides = {}) {
     hasActiveRun: () => state.activeRun,
     isApprovalActive: () => state.approval,
     isModalActive: () => state.modal,
-    isHumanHoldingInput: () => state.humanTyping,
     acceptsPromptInput: () => state.accepts,
     isIdleComposerReady: () => state.idle,
     submitPrompt: (text, opts) => {
@@ -50,7 +48,6 @@ function makeController(host) {
     eventSink: () => {},
     hasLiveTranscriptSource: () => false,
     pumpRetryIntervalMs: 20,
-    wedgeCheckIntervalMs: 1000,
   });
 }
 
@@ -77,26 +74,22 @@ function makeController(host) {
   dc.dispose();
 }
 
-// --- 3. The human-activity gate is POLLED (it clears with no event) ----------
+// --- 3. Send-is-send: human typing does NOT hold delivery --------------------
+// The old gate held delivery while the human was "actively typing" — an
+// inference from the PTY byte stream whose false positives (auto-replies, OSC
+// echoes) wedged the queue indefinitely (the shipped stuck-Queued bugs). That
+// hold is deleted: the queue delivers regardless of terminal typing. Byte-level
+// integrity (a paste never splitting a human keystroke frame) is the
+// TerminalHost AtomicWriter's job, verified in terminal-arbitration.mjs — not a
+// delivery-gate concern. No invisible holds.
 {
-  const host = makeHost({ accepts: false, humanTyping: true });
+  const host = makeHost({ accepts: true });
   const dc = makeController(host);
   dc.enqueue("hello");
-  host.state.accepts = true; // gate is fine now, but the human is still typing
-  await delay(700); // longer than one poll interval — typing must still hold it
-  assert.equal(
-    host.state.submits.length,
-    0,
-    "does NOT deliver while the human is actively typing (even across a poll)",
-  );
-  // The human stops typing — the activity window expires SILENTLY (no event).
-  // Unlike the old hand-back, nothing fires, so the pump must poll and recover.
-  host.state.humanTyping = false;
-  await delay(700);
   assert.equal(
     host.state.submits.length,
     1,
-    "polls and delivers once the human-activity window clears (no event needed)",
+    "delivers even though the human is 'typing' (send-is-send; no typing hold)",
   );
   dc.dispose();
 }

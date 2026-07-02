@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
-// Regression guard for the terminal-lens delivery unwedge (fix 057eea6):
-//  - the input classifier categorically excludes mouse + device-reply traffic
-//    from "the human is typing" (claude 2.1.191's animated TUI emits these
-//    constantly; counting them as typing wedged delivery on "Queued"), while
-//    still recognizing genuine keystrokes/paste;
-//  - the IME composing flag holds delivery and clears cleanly.
+// Regression guard for the terminal input classifier (fix 057eea6): it
+// categorically excludes mouse + device-reply traffic from "the human is
+// typing" (claude 2.1.191's animated TUI emits these constantly; counting them
+// as typing wedged delivery on "Queued"), while still recognizing genuine
+// keystrokes/paste. Post-send-is-send this no longer gates delivery — it only
+// gates the native-approval reconciliation pass — but the classifier's
+// correctness still matters, so the guard stays.
 const require = createRequire(import.meta.url);
-const { isNonTypingTerminalInput, TerminalHost } = require("../../dist/runtime");
+const { isNonTypingTerminalInput } = require("../../dist/runtime");
 
 const E = "\x1b";
 const BEL = "\x07";
@@ -56,18 +57,5 @@ for (const [name, seq] of Object.entries(typing)) {
   assert.equal(isNonTypingTerminalInput(seq), false, `typing: ${name}`);
 }
 assert.equal(isNonTypingTerminalInput(""), false, "empty chunk is not non-typing");
-
-// --- 3. IME composing flag holds delivery and clears -------------------------
-const host = new TerminalHost({
-  taskId: "t",
-  provider: "claude",
-  defaultWorkspace: "/tmp",
-  eventSink: () => {},
-});
-assert.equal(host.isHumanHoldingInput(), false, "fresh host: not holding");
-host.setComposing(true);
-assert.equal(host.isHumanHoldingInput(), true, "composing → holds delivery (IME gap)");
-host.setComposing(false);
-assert.equal(host.isHumanHoldingInput(), false, "composition end → released");
 
 console.log(JSON.stringify({ smoke: "terminal-input-classifier", success: true }, null, 2));

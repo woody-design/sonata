@@ -165,29 +165,6 @@ const TERMINAL_NON_TYPING_RE = new RegExp(
 );
 
 /**
- * All terminal control/escape sequences (CSI/OSC/DCS/SS3). Stripped from relayed
- * input before counting the human's uncommitted-line length, so neither an
- * emulator auto-reply nor a navigation key inflates the count. Bracketed-paste
- * MARKERS are handled by the caller (the payload between them is real human text
- * and must survive).
- *
- * Latent (not live on xterm.js v6, which sends ordinary keys as raw bytes): if a
- * future renderer ran the kitty keyboard protocol at flag ≥8, printable keys and
- * Backspace would arrive as `CSI…u` and be stripped here — so the draft counter
- * would neither increment nor decrement. Symmetric → never inflates → no
- * over-hold wedge, but the uncommitted-line hold would silently no-op until then.
- */
-const TERMINAL_CONTROL_SEQ_RE = new RegExp(
-  [
-    "\\x1b\\][\\s\\S]*?(?:\\x07|\\x1b\\\\)", // OSC … BEL|ST
-    "\\x1bP[\\s\\S]*?\\x1b\\\\", // DCS … ST
-    "\\x1b\\[[\\x30-\\x3f]*[\\x20-\\x2f]*[\\x40-\\x7e]", // CSI (params/intermediates/final per ECMA-48)
-    "\\x1bO[\\x40-\\x7e]", // SS3 (application-mode arrows / F-keys)
-  ].join("|"),
-  "g",
-);
-
-/**
  * True when a chunk is entirely non-typing terminal traffic (query replies +
  * mouse) — i.e. removing every recognized non-typing token leaves nothing.
  * Robust to BATCHING (a redraw can emit several replies/mouse events in one
@@ -477,15 +454,6 @@ export class TerminalHost extends EventEmitter {
   private pendingHumanInput = "";
   private lastHumanInputAt = 0;
   private humanSettleTimer: NodeJS.Timeout | null = null;
-  /** Printable chars the human has typed onto the current terminal line since
-   *  their last Enter/clear — i.e. an uncommitted draft. > 0 holds delivery so an
-   *  automation paste never lands mid-line (tracked from relayed keystrokes, not
-   *  the screen). */
-  private humanLineChars = 0;
-  /** Renderer-reported IME composition state (terminal xterm textarea). True
-   *  between compositionstart and compositionend — the only window where the
-   *  human is composing but no bytes have reached the PTY yet. */
-  private composing = false;
 
   constructor(options: TerminalHostOptions) {
     super();
@@ -570,7 +538,6 @@ export class TerminalHost extends EventEmitter {
     this.activeRunRaw = "";
     this.taskReady = false;
     this.acceptsInputAnnounced = false;
-    this.composing = false;
     this.clearModalPanel();
     this.resetAmbientModalCandidate();
     this.clearCompletionTimer();
@@ -797,11 +764,13 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
-   * The human's keystrokes into the terminal. No take-over gate (S2): the human
-   * may type anytime. The single-writer invariant is held instead by (1) the
-   * write-lock — keystrokes that arrive mid automation-sequence buffer and flush
-   * after, never interleaving — and (2) the input-hold signal (`isHumanHoldingInput`),
-   * which pauses delivery while the human is typing OR has an uncommitted line.
+   * The human's keystrokes into the terminal. The human may type anytime;
+   * delivery is never held on "the human is typing" (send-is-send). The one
+   * invariant kept here is byte-level atomicity: a keystroke that arrives mid
+   * automation-sequence buffers and flushes AFTER it, never interleaving (the
+   * AtomicWriter — a split bracketed-paste frame is corruption). `lastHumanInputAt`
+   * + the settle pass are retained ONLY to reconcile a native approval the human
+   * may answer directly in the terminal (until hook-intercept, S2).
    */
   writeUserInput(data: string): void {
     if (!this.ptyProcess) {
@@ -809,59 +778,19 @@ export class TerminalHost extends EventEmitter {
     }
     // xterm relays the CLI's terminal-query replies (cursor-position/DSR, device
     // attributes, DECRQM, OSC color, kitty flags) AND mouse reports through the
-    // SAME onData path as human keystrokes. None of these are the human composing
-    // a line: a redrawing TUI emits replies constantly, and reading/scrolling
-    // emits mouse motion — counting either as activity keeps `isHumanActivelyTyping`
-    // alive forever and wedges delivery (the fresh-session AND post-reply "stuck
-    // Queued"). Forward them to the PTY (the CLI asked) but never mark them as input.
+    // SAME onData path as human keystrokes. None are the human answering a panel,
+    // and a redrawing TUI emits them constantly — counting them as activity would
+    // keep the approval-reconciliation pass firing forever. Forward them to the
+    // PTY (the CLI asked) but never mark them as input.
     if (!isNonTypingTerminalInput(data)) {
       this.lastHumanInputAt = Date.now();
       this.scheduleHumanInputSettle();
-      this.trackHumanLine(data);
     }
     if (this.duetWriting) {
       this.pendingHumanInput += data;
       return;
     }
     this.ptyProcess.write(data);
-  }
-
-  /**
-   * Track whether the human has an UNCOMMITTED line in the terminal, from the
-   * keystrokes Duet itself relays — no screen scraping. The idle-prompt heuristic
-   * matches the prompt's structure even with text typed after it, so a half-typed
-   * `git g` left for a while would otherwise look idle and let an automation
-   * paste land mid-line (the corruption case). `humanLineChars > 0` holds delivery
-   * until the human submits (Enter) or clears the line.
-   */
-  private trackHumanLine(data: string): void {
-    // Enter (either encoding) commits the line; so does a paste that carries a
-    // newline. Strip bracketed-paste markers first so the newline check sees the
-    // pasted content.
-    const unwrapped = data.replace(/\x1b\[20[01]~/g, "");
-    if (data === CSI_U_ENTER || /[\r\n]/.test(unwrapped)) {
-      this.humanLineChars = 0;
-      return;
-    }
-    // Ctrl-U (kill line), Ctrl-C (cancel), or a lone Esc clears the draft.
-    if (data === "\x15" || data === "\x03" || data === "\x1b") {
-      this.humanLineChars = 0;
-      return;
-    }
-    // Strip ALL terminal control/escape sequences (CSI nav, OSC/DCS replies,
-    // SS3) — structural, so a new emulator reply type can't inflate the count
-    // (the 2.1.191 wedge: OSC/DCS/DECRQM replies counted as 1050 "typed" chars).
-    // What's left is literal text typed or pasted onto the line.
-    const literal = unwrapped.replace(TERMINAL_CONTROL_SEQ_RE, "");
-    let delta = 0;
-    for (const ch of literal) {
-      if (ch === "\x7f" || ch === "\b") {
-        delta -= 1; // backspace / delete
-      } else if (ch >= " ") {
-        delta += 1; // printable (incl. multi-byte CJK code points)
-      }
-    }
-    this.humanLineChars = Math.max(0, this.humanLineChars + delta);
   }
 
   /** Re-arm the settle timer on every keystroke; it fires once the human has
@@ -930,28 +859,13 @@ export class TerminalHost extends EventEmitter {
     return this.duetWriteDepth > 0;
   }
 
-  /** True within the activity window of the human's last terminal keystroke. */
+  /** True within the activity window of the human's last terminal keystroke.
+   *  Used only to reconcile a natively-answered approval (handlePtyData +
+   *  onHumanInputSettled) — NOT to hold delivery (send-is-send). */
   isHumanActivelyTyping(): boolean {
     return (
       this.lastHumanInputAt > 0 && Date.now() - this.lastHumanInputAt < HUMAN_ACTIVE_WINDOW_MS
     );
-  }
-
-  /** Renderer-reported IME composition state for the terminal's xterm textarea.
-   *  During CJK composition NO bytes reach the PTY until commit, so the
-   *  keystroke-derived draft (`humanLineChars`) can't see it — the renderer's
-   *  compositionstart/end is the authoritative signal (not a screen scrape). */
-  setComposing(composing: boolean): void {
-    this.composing = composing;
-  }
-
-  /** The delivery pause signal: the human is actively typing, OR has an
-   *  uncommitted line, OR is mid-IME-composition in the terminal. Any of these
-   *  means an automation paste would corrupt their input, so the queue holds
-   *  (the Expect exclusivity lesson — keyed on real input state, not a mode or a
-   *  screen guess; mouse/scroll/auto-replies are excluded at `writeUserInput`). */
-  isHumanHoldingInput(): boolean {
-    return this.isHumanActivelyTyping() || this.humanLineChars > 0 || this.composing;
   }
 
   /**
@@ -1080,7 +994,14 @@ export class TerminalHost extends EventEmitter {
     const kind: RunKind =
       trimmed.startsWith("/") && !trimmed.includes("\n") && attachments.length === 0 ? "slash" : "prompt";
     const runText = trimmed || attachmentPromptTitle(attachments.length);
-    const run = options.createRun === false ? null : this.beginRun(runText, kind);
+    // Begin a run ONLY when the composer is idle (no active run). A mid-turn
+    // send (write-through) must NOT beginRun here: beginRun would finish the
+    // live turn as "closed by next input" and orphan it. Its run instead begins
+    // when the CLI dequeues it and fires UserPromptSubmit (beginRunFromHook) —
+    // the honest start moment. Codex (gated by hasActiveRun) only ever submits
+    // when idle, so it is unaffected. createRun:false (e.g. /stop) never begins.
+    const run =
+      options.createRun === false || this.activeRun ? null : this.beginRun(runText, kind);
     const submittedAt = new Date().toISOString();
 
     this.taskReady = false;
@@ -1132,19 +1053,46 @@ export class TerminalHost extends EventEmitter {
     // Release the initial begin; the deferred writes hold the depth until they
     // fire, so the lock spans the full sequence.
     this.endDuetWrite();
+    // The run this submission belongs to: a freshly-begun run (idle send), or —
+    // for a control action that doesn't start one (createRun:false, e.g. /stop)
+    // — the run it acts upon. A mid-turn write-through has NO run yet (null);
+    // its run begins later on the UserPromptSubmit hook.
+    const submissionRunId = run
+      ? run.id
+      : options.createRun === false
+        ? this.activeRun?.id ?? null
+        : null;
     this.emitEvent("prompt:submitted", {
       taskId: this.taskId,
-      runId: run ? run.id : this.activeRun ? this.activeRun.id : null,
+      runId: submissionRunId,
       kind,
       chars: trimmed.length,
       attachments: attachments.length,
     });
     return {
       taskId: this.taskId,
-      runId: run ? run.id : this.activeRun ? this.activeRun.id : null,
+      runId: submissionRunId,
       kind,
       submittedAt,
     };
+  }
+
+  /**
+   * Hook-driven run-start (Claude). The CLI fired `UserPromptSubmit` — a turn is
+   * genuinely beginning now (either the first send, or a queued mid-turn send
+   * the CLI just dequeued). Begin the run from the prompt the CLI actually
+   * received. No-op if a run is already active: the idle-send path already began
+   * it via submitPrompt, and this hook (arriving ~300ms later) must not restart
+   * it. This is the symmetric half of the `Stop`-hook run completion — the run
+   * lifecycle is now bracketed by authoritative CLI signals on both edges.
+   */
+  beginRunFromHook(prompt: string): void {
+    if (!this.ptyProcess || this.activeRun) {
+      return;
+    }
+    const text = prompt.trim();
+    const kind: RunKind = text.startsWith("/") && !text.includes("\n") ? "slash" : "prompt";
+    this.beginRun(text || "(prompt)", kind);
   }
 
   async applyControlChange(change: DeliveryControlChange): Promise<NativeControlResult> {
@@ -1673,8 +1621,6 @@ export class TerminalHost extends EventEmitter {
       clearTimeout(this.humanSettleTimer);
       this.humanSettleTimer = null;
     }
-    this.humanLineChars = 0;
-    this.composing = false;
   }
 
   private handlePtyData(data: string): void {

@@ -199,10 +199,6 @@ export interface DeliveryTaskState {
   modalActive: boolean;
   idleComposer: boolean;
   acceptsInput: boolean;
-  /** Set when queued items have been blocked ≥ the wedge threshold with no
-   *  understandable reason (no run, no approval, no take-over) — the
-   *  honest "no movement" signal for whatever detection missed. */
-  wedgedSince: string | null;
   queue: DeliveryQueueItem[];
 }
 

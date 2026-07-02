@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { RunIndex, TerminalHost, cleanTerminal } = require("../../dist/runtime");
+const { RunIndex, TerminalHost, cleanTerminal, isRunIndexEvent } = require("../../dist/runtime");
 
 const taskId = "task-claude-smoke";
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-claude-smoke-"));
@@ -37,7 +37,11 @@ const host = new TerminalHost({
     }
 
     eventTypes.push(event.type);
-    if (event.type !== "report:updated") {
+    // Mirror the real runtime-controller: only RunIndex events reach the index
+    // (it asserts-never on the rest). Without this guard a `/status` panel's
+    // modal:state event crashes the harness — the controller guards it in prod
+    // (runtime-controller isRunIndexEvent), the harness must too.
+    if (isRunIndexEvent(event)) {
       runIndex.consume(event);
     }
     if (event.type === "pty:exit") {

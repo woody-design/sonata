@@ -34,6 +34,10 @@ export interface ClaudeHookPayload {
   transcript_path?: string;
   cwd?: string;
   permission_mode?: string;
+  /** UserPromptSubmit — the prompt the CLI actually received (drives
+   *  hook-driven run-start; carries the verbatim text + prompt_id). */
+  prompt?: string;
+  prompt_id?: string;
   /** PermissionRequest / Pre/PostToolUse */
   tool_name?: string;
   tool_input?: unknown;

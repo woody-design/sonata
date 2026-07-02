@@ -403,31 +403,11 @@ function openTaskTerminal(entry: TaskTerminal): void {
     }
     entry.terminal.open(entry.element);
     entry.opened = true;
-    wireComposition(entry);
     if (TERMINAL_LIGATURES) {
       entry.terminal.registerCharacterJoiner(ligatureJoiner);
     }
     fitAndResize(entry);
   });
-}
-
-/** Forward the IME composition window so the host holds delivery until the human
- *  commits CJK — the authoritative DOM signal, not a screen scrape. */
-function wireComposition(entry: TaskTerminal): void {
-  const textarea = entry.terminal.textarea;
-  if (!textarea) {
-    return;
-  }
-  const onCompose = (composing: boolean) => (): void =>
-    void window.duetRuntime.setTerminalComposing({ taskId: entry.taskId, composing }).catch(() => {});
-  const onStart = onCompose(true);
-  const onEnd = onCompose(false);
-  textarea.addEventListener("compositionstart", onStart);
-  textarea.addEventListener("compositionend", onEnd);
-  textarea.addEventListener("blur", onEnd);
-  entry.disposers.push(() => textarea.removeEventListener("compositionstart", onStart));
-  entry.disposers.push(() => textarea.removeEventListener("compositionend", onEnd));
-  entry.disposers.push(() => textarea.removeEventListener("blur", onEnd));
 }
 
 function disposeTaskTerminal(taskId: string): void {

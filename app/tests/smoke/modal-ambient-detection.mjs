@@ -1,9 +1,8 @@
 // Slice B smoke — ambient modal detection + the speaking gate.
 // A fake CLI paints a static panel at startup (no slash, no run). Asserts:
 // ambient arming after the quiescence window, delivery blocked by STATE,
-// wedge signal fires (injected threshold), dismissModal refuses ambient
-// panels (zero Esc bytes), and a native take-over answer clears the modal
-// from screen evidence.
+// dismissModal refuses ambient panels (zero Esc bytes), and a native take-over
+// answer clears the modal from screen evidence.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -63,8 +62,6 @@ const delivery = new DeliveryController({
   terminalHost: host,
   eventSink: (event) => events.push(event),
   hasLiveTranscriptSource: () => false,
-  wedgeAfterMs: 1200,
-  wedgeCheckIntervalMs: 250,
 });
 
 const failures = [];
@@ -100,10 +97,6 @@ try {
     throwsWith(() => host.submitPrompt("direct"), "interactive panel"),
     "submitPrompt guarded by panel state",
   );
-
-  // Wedge: queued + blocked + not understandably busy ≥ threshold.
-  await waitUntil(() => delivery.state().wedgedSince !== null, 4000, "wedge signal");
-  assert(delivery.state().wedgedSince !== null, "wedgedSince set");
 
   // Ambient panels never get Esc.
   const dismissed = await host.dismissModal();

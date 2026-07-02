@@ -758,16 +758,6 @@ export class RuntimeController {
     active.terminalHost.writeUserInput(data);
   }
 
-  /**
-   * IME composition state for the terminal (from the renderer's xterm textarea).
-   * While composing CJK, no bytes reach the PTY until commit — so the host's
-   * keystroke-derived draft can't see it. Tolerant of a stray signal (no task →
-   * no-op): it's a fire-and-forget boolean, never a reason to throw.
-   */
-  setTerminalComposing(taskId: TaskId, composing: boolean): void {
-    this.taskRuntimes.get(taskId)?.terminalHost.setComposing(Boolean(composing));
-  }
-
   listSlashCommands(request: ReadSlashCommandsRequest): SlashCommandsResponse {
     let provider = request.provider ?? null;
     let cwd = request.cwd ?? null;
@@ -1275,6 +1265,16 @@ export class RuntimeController {
       if (active.task.provider === "claude" && pathsEqual(runtimeDir(active.task.id), resolved)) {
         active.cliState.applyHook(payload);
         this.handleOptionPromptHook(active, payload);
+        // `UserPromptSubmit` is the authoritative "a turn is starting" signal —
+        // the CLI just began (or dequeued) a prompt. Begin the run from it
+        // (no-op if the idle-send path already began one). This is what makes
+        // mid-turn write-through honest: a queued send's run starts exactly when
+        // the CLI dequeues it, not when Duet wrote the bytes. Symmetric with the
+        // Stop-hook completion below.
+        if (payload.hook_event_name === "UserPromptSubmit") {
+          const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
+          active.terminalHost.beginRunFromHook(prompt);
+        }
         // `Stop` is the authoritative "turn ended" signal — complete the active
         // run from it (structured truth) instead of waiting on the composer-idle
         // scrape, which lagged and could be fooled (spinner/timer ran on after

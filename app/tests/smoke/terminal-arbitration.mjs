@@ -1,9 +1,9 @@
-// S2 smoke — activity-based single-writer arbitration (no take-over mode).
-// The human may type into the terminal anytime; the invariant is held by
-//  (1) the write-lock: a keystroke arriving mid automation-sequence buffers and
-//      flushes AFTER it, never interleaving; and
-//  (2) the input-hold signal: isHumanHoldingInput() (actively typing OR an
-//      uncommitted line) gates delivery.
+// Smoke — the AtomicWriter (single-writer byte integrity). Post-send-is-send
+// the ONLY invariant is: a human keystroke arriving mid automation-sequence
+// buffers and flushes AFTER it, never interleaving (a split bracketed-paste
+// frame is corruption). Delivery is NEVER held on "the human is typing"
+// (that inference — isHumanHoldingInput — was deleted); isHumanActivelyTyping
+// survives only to gate native-approval reconciliation, checked here too.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -96,44 +96,23 @@ try {
   );
 
   // A3 — after the activity window elapses with no keystroke, the human is no
-  // longer "actively typing", so delivery may resume. (Window is 3500ms.)
+  // longer "actively typing". (Send-is-send: this does NOT hold delivery — it
+  // only gates the native-approval reconciliation pass. Window is 3500ms.)
   await delay(3700);
   assert(
     host.isHumanActivelyTyping() === false,
     "isHumanActivelyTyping false after the activity window elapses",
   );
 
-  // A5 — a HALF-TYPED line holds delivery even after the activity window: the
-  // idle-prompt heuristic can't see the uncommitted `git g`, so the keystroke
-  // tracker must (otherwise an automation paste lands mid-line — the dogfood bug).
-  host.writeUserInput("git g"); // no Enter — an uncommitted draft
-  await delay(3700); // activity window elapses, but the line is still dirty
-  assert(host.isHumanActivelyTyping() === false, "not actively typing after the pause");
-  assert(
-    host.isHumanHoldingInput() === true,
-    "half-typed line still HOLDS delivery after the activity window",
-  );
-  // Submitting the line commits it; once the window also clears, delivery frees.
-  host.writeUserInput("\r");
-  assert(
-    host.isHumanHoldingInput() === true,
-    "still holding right after Enter (within the activity window)",
-  );
-  await delay(3700);
-  assert(
-    host.isHumanHoldingInput() === false,
-    "releases once the line is submitted and the activity window clears",
-  );
-
   // A6 — terminal AUTO-REPLIES (xterm's answers to the CLI's queries) must NOT
   // count as human typing. A redrawing TUI emits cursor-position reports (DSR)
-  // constantly; if they marked the human active, delivery would wedge forever
-  // (the fresh-session "stuck Queued"). They still reach the PTY.
+  // constantly; if they marked the human active, the approval-reconciliation
+  // pass would fire forever. They still reach the PTY.
   fs.writeFileSync(inputLogPath, "", "utf8");
   host.writeUserInput("\x1b[24;80R"); // DSR cursor-position report
   host.writeUserInput("\x1b[?1;2c"); // device attributes
   assert(
-    host.isHumanActivelyTyping() === false && host.isHumanHoldingInput() === false,
+    host.isHumanActivelyTyping() === false,
     "terminal auto-replies (DSR / device attributes) do NOT mark the human active",
   );
   await delay(150);

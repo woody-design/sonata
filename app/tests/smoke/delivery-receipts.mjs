@@ -307,9 +307,6 @@ function fakeHost() {
     isApprovalActive() {
       return this.approvalActive;
     },
-    isHumanHoldingInput() {
-      return false;
-    },
     isModalActive() {
       return false;
     },

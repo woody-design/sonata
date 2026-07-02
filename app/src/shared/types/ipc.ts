@@ -56,7 +56,6 @@ export const IPC_CHANNELS = {
   terminalResize: "terminal:resize",
   terminalUserControlSet: "terminal:user-control:set",
   terminalUserInput: "terminal:user-input",
-  terminalComposing: "terminal:composing",
   terminalOpenLink: "terminal:open-link",
   terminalReplay: "terminal:replay",
   clipboardReadText: "clipboard:read-text",
@@ -314,11 +313,6 @@ export interface TerminalUserInputRequest {
   data: string;
 }
 
-export interface SetTerminalComposingRequest {
-  taskId: TaskId;
-  composing: boolean;
-}
-
 export interface TerminalReplayRequest {
   taskId: TaskId;
 }
@@ -546,7 +540,6 @@ export interface DuetRuntimeBridge {
     request: SetTerminalUserControlRequest,
   ): Promise<SetTerminalUserControlResponse>;
   writeTerminalUserInput(request: TerminalUserInputRequest): Promise<void>;
-  setTerminalComposing(request: SetTerminalComposingRequest): Promise<void>;
   replayTerminal(request: TerminalReplayRequest): Promise<TerminalReplaySnapshot | null>;
   openTerminalLink(request: OpenTerminalLinkRequest): Promise<OpenTerminalLinkResponse>;
   readClipboardText(): Promise<ClipboardReadTextResponse>;
