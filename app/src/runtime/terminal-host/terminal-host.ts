@@ -140,8 +140,6 @@ export function isNonTypingTerminalInput(data: string): boolean {
   }
   return data.replace(TERMINAL_NON_TYPING_RE, "").length === 0;
 }
-const DEFAULT_CONTROL_WAIT_MS = 15_000;
-const CONTROL_CONTEXT_CHARS = 6000;
 
 const CODEX_FILE_EDIT_APPROVAL_HINTS = [
   "would you like to make the following edits",
@@ -1674,17 +1672,32 @@ export class TerminalHost extends EventEmitter {
     }
 
     const hint = detectIdleComposer(this.activeRunRaw, this.profile);
-    if (!hint.completed) {
+    // A slash run has no model turn, so the activity-glyph precondition inside
+    // detectIdleComposer can never satisfy (pre-S3 the modal-arm side effect
+    // closed these runs; S3 retired it). Its honest completion is "the CLI
+    // accepts input again — or a panel is waiting for a human": the structural
+    // idle prompt alone. Same semantics the modal arm encoded ("the run ended
+    // in a panel, not output — settle it so the session does not look busy").
+    const completed =
+      this.activeRun.kind === "slash"
+        ? detectIdlePrompt(this.activeRunRaw, this.profile).ready
+        : hint.completed;
+    if (!completed) {
       this.updateActiveRun({
         lifecyclePhase: "active",
         lastLifecycleHint: hint,
       });
+      if (this.activeRun.kind === "slash") {
+        // A static panel emits no further bytes (P1: 65s+ without one), so no
+        // pty:data will re-arm the check — keep polling until the run settles.
+        this.scheduleCompletionCheck();
+      }
       return;
     }
 
     this.finishActiveRun("completed", "terminal idle/composer heuristic", {
       completionSource: "terminal-idle-heuristic",
-      completionConfidence: hint.confidence,
+      completionConfidence: this.activeRun.kind === "slash" ? "medium" : hint.confidence,
       completionHint: hint,
     });
   }

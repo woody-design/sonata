@@ -71,17 +71,26 @@ try {
   await page.waitForTimeout(2500); // let the panel render in the terminal
   checks.panelNoReadingBanner = (await page.locator("#modal-banner").count()) === 0;
 
-  // The panel is operable in the co-visible terminal window: open it, press
-  // Esc on the real xterm, and the session keeps working (follow-up below).
+  // The panel is operable in the co-visible terminal window: it actually
+  // RENDERED there (S3's core promise), a real Esc on the xterm closes it,
+  // and the viewport returns to the composer.
   const terminal = await openTerminalWindow(page);
   checks.terminalWindowOpen = Boolean(terminal);
   if (terminal) {
+    const panelRe = /settings|esc to (cancel|clear|close)/i;
+    checks.panelVisibleInTerminal = await waitFor(async () => {
+      const text = (await terminal.locator(".xterm-rows").textContent().catch(() => "")) ?? "";
+      return panelRe.test(text);
+    }, 15000);
     await terminal.locator(".xterm-helper-textarea").focus();
     await terminal.keyboard.press("Escape");
-    await page.waitForTimeout(800);
-    checks.panelClosedNatively = true;
+    checks.panelClosedNatively = await waitFor(async () => {
+      const text = (await terminal.locator(".xterm-rows").textContent().catch(() => "")) ?? "";
+      return !panelRe.test(text) && text.includes("❯");
+    }, 15000);
   }
-  // The slash run settles by quiescence (no wedged busy state after a panel).
+  // The slash run settles once the panel is gone (the idle prompt is its
+  // honest completion — the S3 replacement for the modal-arm side effect).
   checks.panelRunSettles = await composerIdle();
 
   // --- Unknown command → gentle confirm, then verbatim forward -------------
@@ -128,6 +137,7 @@ try {
     checks.panelSubmitAccepted &&
     checks.panelNoReadingBanner &&
     checks.terminalWindowOpen &&
+    checks.panelVisibleInTerminal &&
     checks.panelClosedNatively &&
     checks.panelRunSettles &&
     checks.unknownFirstHolds &&
