@@ -114,7 +114,14 @@ export interface CompletionHint {
 
 export type DeliveryItemStatus = "queued" | "delivering" | "delivered" | "undelivered";
 export type DeliveryItemKind = "prompt" | "control";
-export type DeliveryReceiptSource = "provider-transcript" | "pty-composer-echo" | "native-control";
+export type DeliveryReceiptSource =
+  | "provider-transcript"
+  | "pty-composer-echo"
+  | "native-control"
+  // A mid-turn write-through send: the bytes were written and the CLI native-
+  // queued it (P2/P6) → sent. Its transcript block arrives only at dequeue, so
+  // this is the receipt at hand-off time (no 45s undelivered timer).
+  | "native-queue";
 
 /** Who owns the bytes. `blob` = Duet copied them into the per-task attachments
  *  dir (deleted with the chip/session). `referenced` = the user's own path, never

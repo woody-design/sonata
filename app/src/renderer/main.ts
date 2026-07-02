@@ -3962,6 +3962,16 @@ window.duetRuntime.onRuntimeEvent((event) => {
     return;
   }
 
+  if (event.type === "approval:expired") {
+    // The hook broker timed out → the native panel is taking over. Clear the
+    // hook card (the scrape surfaces the native one next); the request is still
+    // unanswered, so keep the "waiting" truth (cli-state stays waiting-approval).
+    view.pendingApproval = null;
+    view.status = "Waiting in the terminal";
+    markViewChanged(view);
+    return;
+  }
+
   if (event.type === "approval:persisted") {
     // Receipt-by-observation: what the provider actually wrote, and where.
     view.status = `Allow rule saved: ${event.payload.rulesAdded.join(", ")} → ${event.payload.file}`;

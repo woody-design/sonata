@@ -76,6 +76,14 @@ export class DeliveryController {
   // on the scrape. After boot, a send writes as soon as no run/approval/panel
   // owns the screen; the CLI's own queue absorbs anything mid-turn.
   private bootLatched = false;
+  // "A question is addressed to the human" — set on approval:detected (scrape OR
+  // hook-broker, the latter fed in by the controller), cleared on
+  // approval:decision. Deliberately NOT cleared on approval:expired: a broker
+  // timeout means the approval is still pending (now the native panel), so the
+  // gate must stay closed through the expiry→scrape gap (reviewer P1/P2). The
+  // scrape flag (isApprovalActive) only sees rendered panels, so it misses the
+  // whole broker-hold window — this flag is what covers it.
+  private approvalPending = false;
   private receiptTimer: NodeJS.Timeout | null = null;
   private readonly pumpRetryIntervalMs: number;
   private pumpRetryTimer: NodeJS.Timeout | null = null;
@@ -208,6 +216,12 @@ export class DeliveryController {
       // good. Subsequent re-announcements (after each turn) are redundant.
       this.bootLatched = true;
     }
+    if (event.type === "approval:detected") {
+      this.approvalPending = true;
+    } else if (event.type === "approval:decision") {
+      this.approvalPending = false;
+    }
+    // approval:expired intentionally leaves approvalPending set (see the field).
     this.pump();
   }
 
@@ -308,9 +322,12 @@ export class DeliveryController {
       // ends (Stop/scrape → re-pump).
       (this.provider === "claude" || !this.terminalHost.hasActiveRun()) &&
       // Pending-question guard: a pasted prompt's characters would be consumed
-      // as answers by a live approval panel (P1 — digit-swallow → unintended
-      // approval). Retired for Claude when hook-intercept lands (S2).
+      // as answers by a live approval panel (digit-swallow → unintended
+      // approval). `isApprovalActive` is the scrape flag (rendered panels only);
+      // `approvalPending` also covers hook-broker approvals, where no panel
+      // renders while the broker holds (S2, reviewer P1/P2).
       !this.terminalHost.isApprovalActive() &&
+      !this.approvalPending &&
       // A detected interactive panel would swallow the paste. Retired in S3
       // (slash passthrough); kept as a guard until then.
       !this.terminalHost.isModalActive()
@@ -355,6 +372,25 @@ export class DeliveryController {
     }
 
     item.runId = submission.runId;
+    // Write-through (mid-turn send → no run started → runId null): the bytes are
+    // in the CLI's native queue (P2/P6) — it's sent. Its transcript block only
+    // arrives when the CLI DEQUEUES it, which can be far later than the 45s
+    // receipt timeout (behind a long current turn). Arming the timer here would
+    // false-mark a delivered message "undelivered" AND, once inFlight cleared,
+    // the late transcript block could no longer reconcile it (reviewer P1) —
+    // made worse by S1c removing the retry surface. So complete now with a
+    // native-queue receipt; the transcript is corroboration, not a gate.
+    if (!submission.runId) {
+      this.completeDelivery(item, {
+        source: "native-queue",
+        receivedAt: new Date().toISOString(),
+        runId: null,
+        sourceId: null,
+        blockId: null,
+        backfilled: false,
+      });
+      return;
+    }
     this.inFlight = {
       itemId: item.id,
       kind: "prompt",

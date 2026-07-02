@@ -67,6 +67,7 @@ const RUN_INDEX_EVENT_TYPES = {
   "run:stopped": true,
   "approval:detected": true,
   "approval:decision": true,
+  "approval:expired": true,
   "approval:persisted": true,
   "file:watching": true,
   "file:watch-error": true,
@@ -238,6 +239,10 @@ export class RunIndex {
       case "prompt:submitted":
       case "file:watching":
       case "file:watch-error":
+      // A broker approval timed out to the native panel — the request is still
+      // pending (the native decision updates run state later), so the index
+      // records nothing here.
+      case "approval:expired":
         break;
       default:
         assertNever(event);

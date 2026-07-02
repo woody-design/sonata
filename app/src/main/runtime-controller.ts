@@ -168,6 +168,9 @@ export class RuntimeController {
     string,
     { taskId: TaskId; payload: ClaudeHookPayload }
   >();
+  /** Per task, the broker approvalId whose card is currently shown — enforces
+   *  one card at a time; the rest queue (P3). */
+  private readonly shownBrokerApproval = new Map<TaskId, string>();
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
   private readonly pendingClaudeUsage = new Map<string, UsageSnapshot>();
@@ -934,13 +937,17 @@ export class RuntimeController {
     if (approvalId && pending && pending.taskId === taskId) {
       this.pendingBrokerApprovals.delete(approvalId);
       writeApprovalReply(runtimeDir(taskId), approvalId, brokerDecisionJson(decision, pending.payload));
-      // Optimistically clear the card + resync activity; PostToolUse/Stop hooks
-      // reconcile the ground truth as the turn proceeds.
-      this.sendEvent({
+      const decisionEvent: RuntimeEvent = {
         type: "approval:decision",
         payload: { taskId, runId: null, decision, encodedAs: "native-keys", previousKind: null },
         ts: new Date().toISOString(),
-      });
+      };
+      this.sendEvent(decisionEvent); // renderer clears the card + cli-state resyncs
+      active.deliveryController.handleRuntimeEvent(decisionEvent); // clear the delivery gate
+      if (this.shownBrokerApproval.get(taskId) === approvalId) {
+        this.shownBrokerApproval.delete(taskId);
+      }
+      this.surfaceNextBrokerApproval(active); // P3: show the next queued approval, if any
       return;
     }
     // Fallback / Codex: the scraped native panel — replay keys.
@@ -965,29 +972,62 @@ export class RuntimeController {
       }
       active.cliState.applyHook(ask.payload);
       this.pendingBrokerApprovals.set(ask.id, { taskId: active.task.id, payload: ask.payload });
-      const kind = classifyApprovalKind(ask.payload);
-      this.sendEvent({
-        type: "approval:detected",
-        payload: {
-          taskId: active.task.id,
-          runId: null,
-          kind,
-          source: "hook-broker",
-          answerVia: "reply",
-          approvalId: ask.id,
-          summary: approvalSummary(ask.payload),
-          choices: brokerApprovalChoices(kind),
-        },
-        ts: new Date().toISOString(),
-      });
+      this.surfaceBrokerApproval(active, ask.id);
       return;
     }
   }
 
   /**
-   * A broker gave up (timeout) — the CLI's native panel is taking over. Clear
-   * the hook card so the scrape path can surface the native panel afresh (the
-   * free fallback). The pending entry is dropped; a late reply is a no-op.
+   * Surface a broker approval: feed the delivery gate (ANY pending approval
+   * blocks delivery, so paste can't land in it) + show the card. Only ONE card
+   * per task at a time (P3): a concurrent ask stays in pendingBrokerApprovals
+   * (still answerable + gate-blocking) and surfaces when the current resolves.
+   */
+  private surfaceBrokerApproval(active: ActiveTaskRuntime, id: string): void {
+    const pending = this.pendingBrokerApprovals.get(id);
+    if (!pending || pending.taskId !== active.task.id) {
+      return;
+    }
+    const kind = classifyApprovalKind(pending.payload);
+    const event: RuntimeEvent = {
+      type: "approval:detected",
+      payload: {
+        taskId: active.task.id,
+        runId: null,
+        kind,
+        source: "hook-broker",
+        answerVia: "reply",
+        approvalId: id,
+        summary: approvalSummary(pending.payload),
+        choices: brokerApprovalChoices(kind, pending.payload),
+      },
+      ts: new Date().toISOString(),
+    };
+    active.deliveryController.handleRuntimeEvent(event); // gate blocks while any approval is pending
+    if (!this.shownBrokerApproval.has(active.task.id)) {
+      this.shownBrokerApproval.set(active.task.id, id);
+      this.sendEvent(event); // the card
+    }
+  }
+
+  private surfaceNextBrokerApproval(active: ActiveTaskRuntime): void {
+    if (this.shownBrokerApproval.has(active.task.id)) {
+      return;
+    }
+    for (const [id, pending] of this.pendingBrokerApprovals) {
+      if (pending.taskId === active.task.id) {
+        this.surfaceBrokerApproval(active, id);
+        return;
+      }
+    }
+  }
+
+  /**
+   * A broker gave up (timeout) — the CLI's native panel is taking over, and the
+   * scrape will surface it. Clear the hook card, but emit `approval:expired`
+   * (NOT a false "answered-natively" decision): nothing was answered, so
+   * cli-state stays waiting-approval and the delivery gate stays blocked through
+   * the expiry→scrape gap (reviewer P1/P2).
    */
   private handleApprovalExpired(id: string, workspace: string): void {
     const pending = this.pendingBrokerApprovals.get(id);
@@ -1000,11 +1040,17 @@ export class RuntimeController {
       if (!pending || pending.taskId !== active.task.id) {
         return;
       }
-      this.sendEvent({
-        type: "approval:decision",
-        payload: { taskId: active.task.id, runId: null, decision: "answered-natively", encodedAs: "native-keys", previousKind: null },
+      const expiredEvent: RuntimeEvent = {
+        type: "approval:expired",
+        payload: { taskId: active.task.id, approvalId: id },
         ts: new Date().toISOString(),
-      });
+      };
+      this.sendEvent(expiredEvent); // renderer clears the hook card; scrape surfaces the native panel next
+      active.deliveryController.handleRuntimeEvent(expiredEvent); // gate: no-op → stays blocked
+      if (this.shownBrokerApproval.get(active.task.id) === id) {
+        this.shownBrokerApproval.delete(active.task.id);
+      }
+      this.surfaceNextBrokerApproval(active); // a concurrent queued approval, if any
       return;
     }
   }
@@ -2230,21 +2276,39 @@ function truncateMiddle(value: string, max: number): string {
   return `${clean.slice(0, head)}…${clean.slice(clean.length - tail)}`;
 }
 
-/** The three fixed choices on a hook-broker card (answered via the reply file). */
-function brokerApprovalChoices(kind: ApprovalKind): ApprovalChoice[] {
-  const always =
-    kind === "command"
-      ? "Always allow this command"
-      : kind === "file-edit"
-        ? "Always allow edits"
-        : kind === "file-read"
-          ? "Always allow reads"
-          : "Always allow";
+/**
+ * The three fixed choices on a hook-broker card (answered via the reply file).
+ * The "Always" label/description states the ACTUAL persisted rule, not a vague
+ * "this command" — because for Bash the rule is `<firstToken> *` (approving
+ * `git status` allows all `git *`). The button must not promise narrower than
+ * it grants (reviewer P2, trust boundary).
+ */
+function brokerApprovalChoices(kind: ApprovalKind, payload: ClaudeHookPayload): ApprovalChoice[] {
+  const scope = alwaysAllowScopeLabel(kind, payload); // e.g. "git *", "edits", "reads"
   return [
     { decision: "approve", label: "Approve", description: "Allow once", encodedAs: "native-keys" },
-    { decision: "approve-always", label: "Always", description: always, encodedAs: "native-keys" },
+    {
+      decision: "approve-always",
+      label: scope ? `Always: ${scope}` : "Always",
+      description: scope ? `Persist an allow rule for ${scope}` : "Always allow",
+      encodedAs: "native-keys",
+    },
     { decision: "deny", label: "Deny", description: "Reject this request", encodedAs: "native-keys" },
   ];
+}
+
+/** Human label for what "Always" actually persists — matches `alwaysAllowRule`. */
+function alwaysAllowScopeLabel(kind: ApprovalKind, payload: ClaudeHookPayload): string | null {
+  if (kind === "command") {
+    const command = typeof toolInputRecord(payload).command === "string"
+      ? (toolInputRecord(payload).command as string).trim()
+      : "";
+    const firstToken = command.split(/\s+/, 1)[0] ?? "";
+    return firstToken ? `${firstToken} *` : null;
+  }
+  if (kind === "file-edit") return "edits";
+  if (kind === "file-read") return "reads";
+  return null;
 }
 
 /**

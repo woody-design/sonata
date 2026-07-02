@@ -296,6 +296,16 @@ export type ApprovalDecisionEvent = BaseRuntimeEvent<
   }
 >;
 
+/** A hook-broker approval timed out (S2) — the CLI is falling back to its native
+ *  panel, which the scrape will surface next. NOT a decision: nothing was
+ *  answered. The hook card clears, but the "user still owes an answer" truth
+ *  (cli-state waiting-approval, delivery blocked) is deliberately preserved
+ *  until the native panel is answered (reviewer P1/P2). */
+export type ApprovalExpiredEvent = BaseRuntimeEvent<
+  "approval:expired",
+  { taskId: TaskId; approvalId: string }
+>;
+
 /** Receipt for a persisted allow: observed (read-after-write diff of the
  *  provider's own settings file), never promised. Not emitted when no
  *  write is observed — honest absence. */
@@ -445,6 +455,7 @@ export type ProductRuntimeEvent =
   | RunStoppedEvent
   | ApprovalDetectedEvent
   | ApprovalDecisionEvent
+  | ApprovalExpiredEvent
   | ApprovalPersistedEvent
   | OptionPromptDetectedEvent
   | OptionPromptResolvedEvent
