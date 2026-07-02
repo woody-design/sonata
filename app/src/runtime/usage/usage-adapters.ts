@@ -80,6 +80,7 @@ export function parseClaudeStatuslinePayload(
     typeof record.session_name === "string" && record.session_name.trim()
       ? record.session_name.trim()
       : null;
+  const costUsd = finiteNumber(asRecord(record.cost)?.total_cost_usd);
 
   return {
     providerSessionId,
@@ -89,6 +90,7 @@ export function parseClaudeStatuslinePayload(
       context,
       limits,
       sessionName,
+      costUsd,
     },
   };
 }

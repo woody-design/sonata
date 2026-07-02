@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveIfVisible } from "./helpers/approval.mjs";
-import { sendFirstPrompt } from "./helpers/session.mjs";
+import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.mjs";
+import { sendFirstPrompt, waitForEngagement, waitForWindowByUrl } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-stop-e2e-"));
 let electronApp = null;
@@ -54,9 +54,7 @@ try {
     recovery: path.join(workspace, "stop_recovery.md"),
   };
   const commandApprovalSeen = await approveIfVisible(page, "Command approval requested", 180000);
-  await page.locator("#workflow-headline", { hasText: /Codex is working|Command approval needed/ }).waitFor({
-    state: "visible",
-  });
+  await waitForEngagement(page);
 
   await waitUntil(() => fs.existsSync(paths.start), 180000, "long command start file");
   await waitUntil(() => fs.existsSync(paths.pid), 15000, "long command pid file");
@@ -64,10 +62,8 @@ try {
   const commandAliveBeforeStop = pidAlive(commandPid);
 
   await page.locator("#send-prompt").click();
-  await page.locator("#workflow-headline", { hasText: "Stopped. Ready to continue" }).waitFor({
-    state: "visible",
-    timeout: 90000,
-  });
+  // Stopped + ready to continue: the send button leaves stop-mode (■ → ↑).
+  await page.locator("#send-prompt:not(.stop-mode)").waitFor({ state: "attached", timeout: 90000 });
   await page.locator("#send-prompt").waitFor({ state: "visible" });
   await page.locator(".turn-outcome", { hasText: "Stopped by Esc" }).waitFor({
     state: "visible",
@@ -98,17 +94,15 @@ try {
   let recoveryApprovalSeen = false;
   await waitUntil(async () => {
     recoveryApprovalSeen =
-      (await approveIfVisible(page, "Command approval requested", 1000)) ||
-      (await approveIfVisible(page, "File edit approval requested", 1000)) ||
+      (await approveAnyVisibleApproval(page)) ||
       recoveryApprovalSeen;
     return fs.existsSync(paths.recovery);
   }, 180000, "recovery file");
   await page.locator(".artifact-item", { hasText: "stop_recovery.md" }).waitFor({
     state: "visible",
   });
-  const previewWindowPromise = electronApp.waitForEvent("window");
   await page.locator(".artifact-item", { hasText: "stop_recovery.md" }).click();
-  const previewPage = await previewWindowPromise;
+  const previewPage = await waitForWindowByUrl(electronApp, "preview.html");
   previewPage.setDefaultTimeout(240000);
   await previewPage.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
     state: "visible",

@@ -1076,6 +1076,44 @@ export class TerminalHost extends EventEmitter {
     this.scheduleApprovalSettleCheck(decisionAt);
   }
 
+  /**
+   * A hook-broker approval was answered on the REPLY channel (S2): no keys
+   * were written, but terminal-host state must resync. While the broker
+   * holds, the claude TUI paints the pending tool line ("Write(page.html) ·
+   * Computing… · running PermissionRequest hook"), and the approval scrape
+   * can false-positive on those bytes — `surfaceApproval` then flips the run
+   * to waiting-for-approval and sets `approvalActive`, and with the decision
+   * made on the hook channel NOTHING else ever resumes them: the Stop hook's
+   * completion is guarded on status, so the run wedges "Waiting for approval"
+   * forever and the approval guard blocks every later send (S5
+   * walking-skeleton diag, s5-diags/evidence-walking-skeleton). Mirrors
+   * sendPositiveApproval's bookkeeping minus the keys and minus the event
+   * (the controller emits its own decision event for broker replies). The
+   * post-decision settle re-check keeps the honesty backstop: anything
+   * genuinely still asking on screen resurfaces after the window.
+   */
+  noteHookApprovalDecision(decision: ApprovalDecision, kind: ApprovalKind): void {
+    const decisionAt = Date.now();
+    if (this.activeRun?.status === "waiting-for-approval") {
+      this.updateActiveRun({
+        status: "active",
+        lifecyclePhase: "resumed-after-approval",
+        approvalDecision: decision,
+        approvalKind: kind,
+      });
+    }
+    this.approvalActive = false;
+    this.lastApprovalDecision = decision;
+    this.lastApprovalDecisionAt = decisionAt;
+    this.approvalSuppressedInSettleWindow = false;
+    this.taskReady = false;
+    this.acceptsInputAnnounced = false;
+    this.scheduleApprovalSettleCheck(decisionAt);
+    // The wedged run's completion check was parked (schedule-skip on
+    // waiting-for-approval) — re-arm it now that the run is active again.
+    this.scheduleCompletionCheck();
+  }
+
   sendDeny(): void {
     const previousKind = this.lastApprovalKind;
     this.writeRaw(ESC);

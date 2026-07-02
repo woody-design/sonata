@@ -174,10 +174,102 @@ async function runScenario(name, scenario) {
   }
 }
 
+/** Scenario D (S5): a broker-held approval's PREVIEW bytes false-positive the
+ *  scrape mid-run — `surfaceApproval` flips the run to waiting-for-approval —
+ *  and the decision then arrives on the HOOK channel (no keys). Without the
+ *  reply-channel resync (`noteHookApprovalDecision`), nothing ever resumes
+ *  the run: the Stop hook's completion is guarded on status, so the run
+ *  wedges "Waiting for approval" forever and the approval guard blocks every
+ *  later send (s5-diags/evidence-walking-skeleton). Locks: the resync
+ *  resumes the run AND the Stop-hook completion then lands. */
+async function runBrokerResyncScenario(name) {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-resurface-broker-"));
+  const scriptPath = path.join(workspace, "fake-claude.mjs");
+  fs.writeFileSync(
+    scriptPath,
+    `
+if (process.stdin.isTTY) {
+  process.stdin.setRawMode(true);
+}
+process.stdin.resume();
+process.stdout.write("\\u276F opus xhigh ~\\n");
+let ran = false;
+const paintPanel = () => {${PANEL_PAINT}};
+process.stdin.on("data", (data) => {
+  const text = data.toString("utf8");
+  // W1 delivers a bracketed paste and encodes Enter as CSI-u — accept either.
+  if (ran || !(text.includes("\\r") || text.includes("201~") || text.includes("[13"))) {
+    return;
+  }
+  ran = true;
+  process.stdout.write("\\nRunning Write(page.html) \\u00B7 Computing\\u2026\\n");
+  setTimeout(paintPanel, 50); // the broker-held preview the scrape misreads
+});
+setInterval(() => {}, 1000);
+`,
+    "utf8",
+  );
+
+  const events = [];
+  const host = new TerminalHost({
+    taskId: "task-resurface-broker",
+    provider: "claude",
+    defaultWorkspace: workspace,
+    eventSink: (event) => {
+      if (
+        event.type === "approval:detected" ||
+        event.type === "approval:decision" ||
+        event.type === "run:updated"
+      ) {
+        events.push(event);
+      }
+    },
+    completionQuietMs: 600,
+  });
+
+  try {
+    host.startTask({
+      approvalBroker: false,
+      cwd: workspace,
+      command: process.execPath,
+      args: [scriptPath],
+      approval: "never",
+      rows: 24,
+      cols: 110,
+    });
+    await delay(400); // let the composer paint
+    host.submitPrompt("create two files");
+    await waitUntil(
+      () => events.some((e) => e.type === "approval:detected"),
+      6000,
+      `${name}: mid-run scrape detection`,
+    );
+    const wedged = events.find(
+      (e) => e.type === "run:updated" && e.payload.status === "waiting-for-approval",
+    );
+    assert(Boolean(wedged), `${name}: run flipped to waiting-for-approval by the scrape`);
+    // Pre-fix truth: a Stop hook landing NOW is a guarded no-op.
+    assert(host.completeRunFromTurnEnd() === null, `${name}: Stop is a no-op while wedged`);
+
+    // The decision arrives on the hook channel — the controller resyncs us.
+    host.noteHookApprovalDecision("approve", "file-edit");
+    const resumed = events.find(
+      (e) => e.type === "run:updated" && e.payload.lifecyclePhase === "resumed-after-approval",
+    );
+    assert(Boolean(resumed), `${name}: reply-channel decision resumed the run`);
+    const finished = host.completeRunFromTurnEnd();
+    assert(finished?.status === "completed", `${name}: Stop-hook completion lands after resync`);
+  } finally {
+    host.dispose();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
 try {
   await runScenario("A/answered", "answered");
   await runScenario("B/still-open", "still-open");
   await runScenario("C/native-still-open", "native-still-open");
+  await runBrokerResyncScenario("D/broker-resync");
 } catch (error) {
   failures.push(String(error));
 }

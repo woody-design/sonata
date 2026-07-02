@@ -2583,82 +2583,68 @@ h2 {
   flex-wrap: nowrap;
 }
 
-.workflow-strip {
+/* — Attention banners (S5) — one family of passive "in the Terminal" pointers
+   (slash command settled, approval expired to the native panel). Display-only:
+   the action focuses the terminal window; dismiss clears the pointer. */
+.attention-banner-root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attention-banner-root:not(:empty) {
+  padding: 6px 18px 0;
+}
+
+.attention-banner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 34px;
-  padding: 5px 18px;
-  /* Flat with the reading plane — no band tint, no divider line. The state cue
-     (quiet/attention/action) previously rode on the background + bottom-border
-     color; that visual is parked for a redesign, so only the text carries state
-     for now. */
-  background: transparent;
+  gap: 10px;
+  padding: 7px 10px 7px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-panel);
 }
 
-.workflow-strip.quiet {
-  color: var(--ink-muted-warm);
-}
-
-/* — Temporarily hidden, frontend-only —
-   The transient task states this strip surfaces (working, stuck, delivery
-   failed, queued, review-ready, …) are migrating to dedicated banners. Until
-   then renderWorkflow()/workflowState() stay fully intact — that state logic is
-   what the future banners will reuse — and we only hide the strip from view.
-   Deliberately NOT display:none: 10+ e2e tests sync on #workflow-headline /
-   #workflow-facts via waitFor({ state: "visible" }). The visually-hidden
-   (sr-only) pattern keeps the strip an off-screen, machine-readable state hook
-   that Playwright still counts as "visible", so the suite stays green untouched.
-   Delete this block to revive the strip; once the banners land, remove the
-   strip + its render code + this block and repoint the tests onto the banners. */
-.workflow-strip {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  min-height: 0;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-  pointer-events: none;
-}
-
-.workflow-copy {
+.attention-banner-copy {
+  flex: 1 1 auto;
   min-width: 0;
-}
-
-.workflow-copy strong {
-  display: block;
   overflow: hidden;
-  color: var(--ink-strong);
-  font-size: 13px;
-  font-weight: 680;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.workflow-facts {
-  display: flex;
-  flex: 0 1 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  min-width: 0;
-}
-
-.workflow-facts span {
-  overflow: hidden;
+.attention-open-terminal {
+  flex: none;
+  padding: 4px 10px;
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
-  padding: 3px 7px;
-  color: var(--ink-status);
-  background: var(--surface-panel);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: transparent;
+  color: var(--ink-strong);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.attention-open-terminal:hover {
+  border-color: var(--ink-muted);
+}
+
+.attention-banner-dismiss {
+  flex: none;
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: var(--ink-faint, var(--ink-muted));
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.attention-banner-dismiss:hover {
+  color: var(--ink-strong);
 }
 
 .artifact-strip {
@@ -4851,14 +4837,21 @@ h2 {
 /* Live status row — the agent's voice (native relay) vs Duet's voice
    (derived). The two must stay visually distinct: native is the provider's
    terminal text verbatim (mono); derived is Duet UI text. */
-.turn-status-row {
-  margin-top: 10px;
+/* — Status strip (S5) — the slim live-activity surface between the run list
+   and the composer. The per-turn working-detail row retired into it; visual
+   language carried over: mono verbatim for the agent's voice, italic UI font
+   for Duet's derived voice. */
+.status-strip {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
+  padding: 4px 18px 2px;
+  /* Flat with the reading plane — no band tint, no divider line. */
+  background: transparent;
 }
 
-.turn-status-row .turn-status-line {
+.strip-status-line {
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.5;
@@ -4867,7 +4860,7 @@ h2 {
   overflow-wrap: anywhere;
 }
 
-.turn-status-row .turn-status-trouble {
+.strip-status-trouble {
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.5;
@@ -4876,7 +4869,7 @@ h2 {
   overflow-wrap: anywhere;
 }
 
-.turn-status-row .turn-status-sub {
+.strip-status-sub {
   font-family: var(--font-mono);
   font-size: 11.5px;
   line-height: 1.45;
@@ -4886,19 +4879,26 @@ h2 {
   overflow-wrap: anywhere;
 }
 
-.turn-status-row.derived .turn-status-line {
+.status-strip-status.derived .strip-status-line {
   font-family: var(--font-ui);
   font-size: 13px;
   font-style: italic;
   color: var(--ink-muted);
 }
 
-.turn-status-row.quiet .turn-status-line,
-.turn-status-row.quiet .turn-status-sub {
+.status-strip.quiet .strip-status-line,
+.status-strip.quiet .strip-status-sub {
   opacity: 0.55;
 }
 
-.turn-status-stall {
+.strip-status-elapsed,
+.strip-agent-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint, var(--ink-muted));
+  opacity: 0.8;
+}
+
+.strip-status-stall {
   margin-top: 2px;
   padding: 0;
   border: none;
@@ -4911,9 +4911,66 @@ h2 {
   color: var(--status-attention);
 }
 
-.turn-status-stall:hover {
+.strip-status-stall:hover {
   color: var(--status-attention-strong);
   text-decoration: underline;
+}
+
+.status-strip-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.strip-agent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+/* Same three staggered dots as the work-trace roster (turn-agent-status) —
+   one "alive, working" signal across surfaces. Signature-guarded rebuilds
+   keep the animation running through status ticks. */
+.strip-agent-dots {
+  flex: none;
+  width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.strip-agent-dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: turn-agent-dot 1.4s ease-in-out infinite;
+}
+
+.strip-agent-dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.strip-agent-dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+.strip-agent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.strip-agent-type {
+  flex: none;
+  color: var(--ink-faint, var(--ink-muted));
+  opacity: 0.8;
+  font-size: 11.5px;
 }
 
 .turn-plan-list {

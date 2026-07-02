@@ -49,6 +49,35 @@ export async function sendPrompt(page, lines) {
   await page.locator("#send-prompt").click();
 }
 
+/** Wait until the session is visibly engaged: a run is active (the status
+ *  strip is up) or an approval is asking. Replaces the retired
+ *  workflow-strip headline wait ("<provider> is working | … approval
+ *  needed") with the real S5 surfaces. Both elements always exist in the
+ *  DOM with `.hidden` toggled, so "attached without .hidden" is exact. */
+export async function waitForEngagement(page, timeout = 240000) {
+  await page
+    .locator("#status-strip:not(.hidden), #approval-banner:not(.hidden)")
+    .first()
+    .waitFor({ state: "attached", timeout });
+}
+
+/** Acquire a floating window by its URL instead of the next "window" event —
+ *  queued events from earlier window activity (terminal toggles, a prior
+ *  preview) make waitForEvent grab the wrong page. */
+export async function waitForWindowByUrl(electronApp, urlPart, timeout = 30000) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const found = electronApp.windows().find((w) => w.url().includes(urlPart));
+    if (found) {
+      return found;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`No window matching "${urlPart}" appeared within ${timeout}ms.`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
 /** Wait until N turn cards report Completed. */
 export async function waitForCompletedTurns(page, count, timeout = 240000) {
   await page

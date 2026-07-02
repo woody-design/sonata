@@ -52,8 +52,13 @@ try {
   await card.locator(".option-prompt-option.checkbox .option-prompt-option-label", { hasText: "Python" }).waitFor({ state: "visible" });
   checks.multiSelectShownAsContext = true;
 
-  // The footer routes answering to the terminal (no card-Send for multiSelect).
-  const answerInTerminal = card.locator(".option-prompt-actions button.primary", { hasText: "Answer in terminal" });
+  // The footer routes answering to the terminal (no card-Send for
+  // multiSelect). The action wears the S5 attention-banner family style —
+  // one visual voice for every "waiting for you in the Terminal" pointer.
+  const answerInTerminal = card.locator(
+    ".option-prompt-actions button.attention-open-terminal",
+    { hasText: "Answer in Terminal" },
+  );
   await answerInTerminal.waitFor({ state: "visible" });
   checks.answerInTerminalCta = true;
   checks.noSendButton = (await card.locator(".option-prompt-actions button.primary", { hasText: "Send answers" }).count()) === 0;
@@ -61,9 +66,15 @@ try {
     throw new Error("A multiSelect prompt must NOT offer card-Send (only verified single-select injects).");
   }
 
-  // The CTA opens the terminal floor (where the user answers natively).
+  // The CTA surfaces the satellite terminal window (the old #terminal-drawer
+  // assertion referenced the UI retired by d433caf — pre-existing debt).
   await answerInTerminal.click();
-  await page.locator("#terminal-drawer:not(.hidden)").waitFor({ state: "visible", timeout: 15000 });
+  const terminalWindow = electronApp
+    .windows()
+    .find((w) => w.url().includes("terminal.html"));
+  if (!terminalWindow) {
+    throw new Error("The Answer-in-Terminal CTA did not surface a terminal window.");
+  }
   checks.ctaOpensFloor = true;
 
   checks.success = true;

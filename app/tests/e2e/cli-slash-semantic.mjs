@@ -105,6 +105,16 @@ try {
   // honest completion — the S3 replacement for the modal-arm side effect).
   checks.panelRunSettles = await composerIdle();
 
+  // S5: the settled slash run raises its passive attention banner — anything
+  // the command opened lives in the terminal; Reading gets the pointer.
+  checks.slashBannerShown = await waitFor(async () => {
+    const banner = page.locator('.attention-banner[data-kind="slash-sent"]');
+    if ((await banner.count()) === 0) {
+      return false;
+    }
+    return ((await banner.textContent()) ?? "").includes("/config");
+  }, 10000);
+
   // --- Unknown command → gentle confirm, then verbatim forward -------------
   await input.fill("/zzz-not-a-command");
   await page.locator("#send-prompt").click();
@@ -143,6 +153,12 @@ try {
     const newCard = (await page.locator(".turn-card").count()) > turnCardsBeforeSkill;
     return stop || spinner || newCard;
   }, 90000);
+  // S5: the skill dispatch began a new run — the slash pointer retires with it
+  // (attention moved on; run:started clears slashAttention).
+  checks.slashBannerCleared = await waitFor(
+    async () => (await page.locator('.attention-banner[data-kind="slash-sent"]').count()) === 0,
+    15000,
+  );
 
   const success =
     checks.noTrustDialog &&
@@ -153,13 +169,15 @@ try {
     checks.panelVisibleInTerminal &&
     checks.panelClosedNatively &&
     checks.panelRunSettles &&
+    checks.slashBannerShown &&
     checks.unknownFirstHolds &&
     checks.unknownForwarded &&
     checks.unknownRunSettles &&
     checks.skillDiscovered &&
     checks.skillPrepended &&
     checks.skillSubmitAccepted &&
-    checks.skillDispatched;
+    checks.skillDispatched &&
+    checks.slashBannerCleared;
   console.log(JSON.stringify({ success, checks }, null, 2));
   process.exitCode = success ? 0 : 1;
 } catch (error) {

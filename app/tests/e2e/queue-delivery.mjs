@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveIfVisible } from "./helpers/approval.mjs";
-import { sendFirstPrompt } from "./helpers/session.mjs";
+import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.mjs";
+import { sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-queue-delivery-e2e-"));
 // Without an isolated settings dir, the global lastUsedFolder leaks in as the
@@ -65,9 +65,7 @@ try {
   };
   await approveIfVisible(page, "Command approval requested", 180000);
   await waitUntil(() => fs.existsSync(paths.firstStart), 180000, "first command start");
-  await page.locator("#workflow-headline", { hasText: /Codex is working|Delivering to Codex/ }).waitFor({
-    state: "visible",
-  });
+  await waitForEngagement(page);
 
   await page.locator("#prompt-input").fill(secondPrompt);
   await page.locator("#prompt-input").press("Enter");
@@ -78,8 +76,7 @@ try {
 
   await waitUntil(() => fs.existsSync(paths.firstDone), 180000, "first command done");
   await waitUntil(async () => {
-    await approveIfVisible(page, "Command approval requested", 1000);
-    await approveIfVisible(page, "File edit approval requested", 1000);
+    await approveAnyVisibleApproval(page);
     return fs.existsSync(paths.second);
   }, 180000, "queued prompt artifact");
   await page.locator(".delivery-item.undelivered").waitFor({ state: "hidden", timeout: 30000 });
@@ -206,7 +203,7 @@ async function collectDiagnostics({ error, page, workspaceRoot, taskDirectory, w
     taskDirectory,
     reportPath,
     runtimeStatus: page ? await safeText(page.locator("#runtime-status")) : null,
-    workflowHeadline: page ? await safeText(page.locator("#workflow-headline")) : null,
+    statusStrip: page ? await safeText(page.locator("#status-strip")) : null,
     deliveryQueue: page ? await safeText(page.locator("#delivery-queue")) : null,
     runListText: page ? redact(await safeText(page.locator("#run-list"))) : null,
     workspaceEntries: workspace && fs.existsSync(workspace) ? fs.readdirSync(workspace).sort() : [],

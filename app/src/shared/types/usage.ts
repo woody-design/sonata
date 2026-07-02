@@ -20,4 +20,6 @@ export interface UsageSnapshot {
   limits: UsageLimitSnapshot[];
   /** Provider-generated session title (claude statusline `session_name`). */
   sessionName?: string | null;
+  /** Session cost (claude statusline `cost.total_cost_usd`); codex has none. */
+  costUsd?: number | null;
 }

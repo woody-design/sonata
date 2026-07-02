@@ -1,5 +1,12 @@
 export async function approveIfVisible(page, title, timeoutMs) {
-  const banner = page.locator("#approval-banner", { hasText: title });
+  // Match by the approval KIND, not the full title: a Claude broker card's
+  // title is the tool SUMMARY ("Edit …/file.md"), not the fixed
+  // "<Kind> approval requested" string — but the kind badge
+  // (#approval-kind-badge: "File edit" / "Command" / "Workspace trust") is
+  // always on the card, so stripping the " approval requested" suffix keeps
+  // one matcher that covers scrape cards (Codex, trust) AND broker cards.
+  const kindText = title.replace(/ approval requested$/, "");
+  const banner = page.locator("#approval-banner", { hasText: kindText });
   try {
     await banner.waitFor({ state: "visible", timeout: timeoutMs });
   } catch {

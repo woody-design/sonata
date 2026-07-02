@@ -21,7 +21,9 @@ const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-open-task-setti
 // Failure forensics (report excerpt + screenshot) land here and SURVIVE the
 // workspace cleanup so a flake is inspectable after the run.
 const diagnosticsRoot = path.join(os.tmpdir(), "duet-open-task-diagnostics");
-const COMPLETED_OUTCOME = "Completed by terminal idle heuristic";
+// Provider-agnostic: Claude completes via the Stop hook ("Completed"),
+// Codex via the idle heuristic ("Completed by terminal idle heuristic").
+const COMPLETED_OUTCOME = "Completed";
 const CODEWORD = "OPENTASK-99";
 let electronApp = null;
 
@@ -237,14 +239,14 @@ async function diagnosticError(page, message, diag) {
   const diagnostics = await captureDiagnostics(page, diag);
   console.error(JSON.stringify({ diagnostic: message, ...diagnostics }, null, 2));
   return new Error(
-    `${message}. headline=${diagnostics.headline} status=${diagnostics.status} ` +
+    `${message}. strip=${diagnostics.strip} status=${diagnostics.status} ` +
       `approval=${diagnostics.approvalTitle ?? "none"} runs=${JSON.stringify(diagnostics.runs)} ` +
       `screenshot=${diagnostics.screenshotPath ?? "n/a"}`,
   );
 }
 
 async function captureDiagnostics(page, { recordDir, label }) {
-  const headline = await safeText(page.locator("#workflow-headline"));
+  const strip = await safeText(page.locator("#status-strip"));
   const status = await safeText(page.locator("#runtime-status"));
   const approvalVisible = await page
     .locator("#approval-banner:not(.hidden)")
@@ -282,7 +284,7 @@ async function captureDiagnostics(page, { recordDir, label }) {
     screenshotPath = null;
   }
 
-  return { label, headline, status, approvalVisible, approvalTitle, runs, screenshotPath };
+  return { label, strip, status, approvalVisible, approvalTitle, runs, screenshotPath };
 }
 
 async function waitForResumeSpawn(page, timeoutMs) {

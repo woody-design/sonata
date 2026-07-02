@@ -77,12 +77,13 @@ import type {
 } from "../shared/types/ipc";
 import type {
   AgentRosterBlock,
+  AgentRunItem,
   PlanBlock,
   ToolCallBlock,
   TranscriptBlock,
   TranscriptSourceRef,
 } from "../shared/types/transcript";
-import type { NativeStatusRegion, WorkingStatusState } from "../shared/types/working-status";
+import type { WorkingStatusState } from "../shared/types/working-status";
 import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
 import { cleanTerminalTranscript } from "../shared/terminal-transcript";
 import { planKeyedReconcile } from "../shared/keyed-reconcile";
@@ -152,6 +153,12 @@ interface TaskViewState {
   remoteControl: { active: boolean; url: string | null; armedOverride: boolean | null };
   /** The pre-spawn resume moment is waiting for the user's choice. */
   resumeChoice: { idleMs: number | null; totalTokens: number | null; bridgeDismissed: boolean } | null;
+  /** Attention banners (S5) — passive "in the Terminal" pointers. A dispatched
+   *  slash command settled (its panel, if any, lives in the terminal); an
+   *  approval card expired to the native panel. Display-only state: set/cleared
+   *  from runtime events, never drives delivery or runs. */
+  slashAttention: { runId: string; command: string } | null;
+  approvalExpiredAttention: boolean;
   status: string;
   unread: boolean;
   /** A run finished while this session was not the focused view. */
@@ -1567,12 +1574,10 @@ appElement.innerHTML = `
              renderOptionPrompt() — N questions, each a single-select group. -->
         <div id="option-prompt-card" class="option-prompt-card hidden"></div>
 
-        <section class="workflow-strip" aria-label="Task workflow state">
-          <div class="workflow-copy">
-            <strong id="workflow-headline">Start or open a Task</strong>
-          </div>
-          <div id="workflow-facts" class="workflow-facts"></div>
-        </section>
+        <!-- Attention banners (S5): passive "waiting for you in the Terminal"
+             pointers — one family, display-only, click focuses the terminal
+             window, never drives runtime state. -->
+        <div id="attention-banner-root" class="attention-banner-root"></div>
 
         <section id="artifact-strip" class="artifact-strip hidden" aria-label="Artifact candidates">
           <div class="artifact-strip-header">
@@ -1587,6 +1592,14 @@ appElement.innerHTML = `
 
         <div id="run-list" class="run-list"></div>
 
+        <!-- Status strip (S5): the slim live-activity surface that replaced the
+             per-turn working-detail row. Spinner region verbatim (display-only,
+             StatusRegionTracker) + running-subagent roster (transcript-derived).
+             Visible only while something is actually happening. -->
+        <section id="status-strip" class="status-strip hidden" aria-label="Live activity">
+          <div id="status-strip-status" class="status-strip-status"></div>
+          <div id="status-strip-agents" class="status-strip-agents hidden"></div>
+        </section>
 
         <section id="resume-choice" class="resume-choice hidden" aria-label="Resume choice">
           <div class="resume-choice-copy">
@@ -1676,8 +1689,10 @@ const elements = {
   approveSessionApproval: getElement<HTMLButtonElement>("approve-session-approval"),
   approveApproval: getElement<HTMLButtonElement>("approve-approval"),
   optionPromptCard: getElement<HTMLDivElement>("option-prompt-card"),
-  workflowHeadline: getElement<HTMLElement>("workflow-headline"),
-  workflowFacts: getElement<HTMLDivElement>("workflow-facts"),
+  attentionBannerRoot: getElement<HTMLDivElement>("attention-banner-root"),
+  statusStrip: getElement<HTMLElement>("status-strip"),
+  statusStripStatus: getElement<HTMLDivElement>("status-strip-status"),
+  statusStripAgents: getElement<HTMLDivElement>("status-strip-agents"),
   runList: getElement<HTMLDivElement>("run-list"),
   artifactStrip: getElement<HTMLElement>("artifact-strip"),
   artifactList: getElement<HTMLDivElement>("artifact-list"),
@@ -1708,15 +1723,18 @@ const USAGE_POPOVER_CLOSE_DELAY_MS = 180;
 
 
 const pendingReadyTaskIds = new Set<string>();
-// Ticks the derived status row's clock without re-rendering the transcript.
+// Ticks the live clocks (status strip + work-trace agent rows) without
+// re-rendering the transcript.
 window.setInterval(() => {
-  elements.runList
-    .querySelectorAll<HTMLElement>(".turn-status-elapsed[data-started-at]")
+  elements.statusStrip
+    .querySelectorAll<HTMLElement>(
+      ".strip-status-elapsed[data-started-at], .strip-agent-elapsed[data-started-at]",
+    )
     .forEach((node) => {
       node.textContent = formatLiveElapsed(node.dataset.startedAt ?? null);
     });
-  elements.runList
-    .querySelectorAll<HTMLElement>(".turn-status-stall-elapsed[data-silent-since]")
+  elements.statusStrip
+    .querySelectorAll<HTMLElement>(".strip-stall-elapsed[data-silent-since]")
     .forEach((node) => {
       node.textContent = formatLiveElapsed(node.dataset.silentSince ?? null);
     });
@@ -3785,6 +3803,8 @@ window.duetRuntime.onRuntimeEvent((event) => {
     view.pendingOptionPrompt = null;
     view.optionPromptReceipt = null;
     view.optionPromptBusy = false;
+    // …and so is a prior slash-attention pointer (attention moved on).
+    view.slashAttention = null;
     ensureRunTranscript(view, event.payload.id);
     markViewChanged(view);
     return;
@@ -3798,6 +3818,17 @@ window.duetRuntime.onRuntimeEvent((event) => {
       // The settled sidebar grammar's fourth state: finished while away.
       view.completedUnseen = true;
     }
+    // A dispatched slash command settled by quiescence: the write happened and
+    // the CLI painted whatever it had to say. If that was a panel, it is now
+    // waiting in the co-visible terminal — Duet cannot tell (panel detection
+    // was retired with S3; a panel's own ❯ defeats the idle-prompt scrape), so
+    // the honest surface is a passive pointer, not a state (S4 handoff → S5).
+    if (event.payload.kind === "slash" && event.payload.status === "completed") {
+      view.slashAttention = {
+        runId: event.payload.id,
+        command: event.payload.prompt.split(/\r?\n/, 1)[0] ?? event.payload.prompt,
+      };
+    }
     markViewChanged(view);
     return;
   }
@@ -3806,6 +3837,9 @@ window.duetRuntime.onRuntimeEvent((event) => {
     view.pendingApproval = event.payload;
     view.runtimeReady = false;
     view.status = "Waiting for approval";
+    // A live card supersedes the "waiting in the terminal" pointer (e.g. the
+    // scrape resurfaced the native panel after a broker expiry).
+    view.approvalExpiredAttention = false;
     markViewChanged(view);
     return;
   }
@@ -3821,6 +3855,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   if (event.type === "approval:decision") {
     view.pendingApproval = null;
+    view.approvalExpiredAttention = false;
     view.status =
       event.payload.decision === "deny"
         ? "Approval denied"
@@ -3834,8 +3869,10 @@ window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type === "approval:expired") {
     // The hook broker timed out → the native panel is taking over. Clear the
     // hook card (the scrape surfaces the native one next); the request is still
-    // unanswered, so keep the "waiting" truth (cli-state stays waiting-approval).
+    // unanswered, so keep the "waiting" truth (cli-state stays waiting-approval)
+    // and raise the passive attention banner in the card's place (S5).
     view.pendingApproval = null;
+    view.approvalExpiredAttention = true;
     view.status = "Waiting in the terminal";
     markViewChanged(view);
     return;
@@ -3955,26 +3992,23 @@ window.duetRuntime.onRuntimeEvent((event) => {
       // A liveness transition (fresh ↔ quiet ↔ silent) is a meaningful change,
       // but it is still not content. Reflect it in place: toggle the sidebar
       // spinner's class (never rebuild the row — that restarts the CSS spin
-      // animation) and re-apply the status row's stall voice. No render(), so
-      // the transcript and its selection survive. The sidebar shows liveness
-      // for BACKGROUND sessions too, so this patches regardless of active view.
+      // animation) and re-apply the strip's stall voice. No render(), so the
+      // transcript and its selection survive. The sidebar shows liveness for
+      // BACKGROUND sessions too, so this patches regardless of active view.
       updateSidebarSpinnerLiveness(view);
       if (isActiveView(view)) {
-        const row = elements.runList.querySelector<HTMLElement>(".turn-status-row");
-        if (row) {
-          applyStatusRowLiveness(row, view);
-        }
+        renderStatusStrip(view);
       }
       return;
     }
-    // Native relay arrives at ~3Hz. Update the live status row in place; never
-    // fall back to a full render for a status tick. A full render would
+    // Native relay arrives at ~3Hz. Update the strip's status area in place;
+    // never fall back to a full render for a status tick. A full render would
     // replaceChildren the transcript (wiping any active text selection) and
-    // rebuild the sidebar (restarting the spinner). The derived row needs no
-    // per-tick update — its label comes from transcript blocks and its clock
-    // from the 1s interval; the row itself is (re)created by run/transcript
-    // renders.
-    updateLiveStatusRowInPlace(view);
+    // rebuild the sidebar (restarting the spinner). The strip lives OUTSIDE
+    // the transcript, so updating it touches nothing else.
+    if (isActiveView(view)) {
+      updateStatusStripStatusInPlace(view);
+    }
     return;
   }
 
@@ -4079,6 +4113,8 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     workingStatus: null,
     cliState: null,
     resumeChoice: null,
+    slashAttention: null,
+    approvalExpiredAttention: false,
     status,
     unread: false,
     completedUnseen: false,
@@ -4575,7 +4611,8 @@ function render(): void {
   renderApproval();
   renderOptionPrompt();
   renderResumeChoice();
-  renderWorkflow();
+  renderAttentionBanners(view);
+  renderStatusStrip(view);
   renderRuns();
   renderArtifacts();
 }
@@ -5313,6 +5350,17 @@ function renderUsagePopover(view: TaskViewState): HTMLElement {
     popover.append(renderUsageLimitRow(limit));
   }
 
+  if (typeof snapshot.costUsd === "number") {
+    const cost = document.createElement("div");
+    cost.className = "usage-context-row";
+    const label = document.createElement("strong");
+    label.textContent = "Session cost";
+    const value = document.createElement("span");
+    value.textContent = `$${snapshot.costUsd.toFixed(2)}`;
+    cost.append(label, value);
+    popover.append(cost);
+  }
+
   const footer = document.createElement("p");
   footer.className = "usage-popover-footer";
   footer.textContent = `as of ${formatRelativeUsageTime(snapshot.capturedAt)}`;
@@ -5981,13 +6029,15 @@ function renderOptionPromptForm(
   } else {
     // Context-only (has a multiSelect question): the questions are legible here
     // in the main view; the answer is given in the terminal (one click away).
+    // The action shares the attention-banner family's style — same duty
+    // ("waiting for you in the Terminal"), same visual voice (S5).
     const note = document.createElement("span");
     note.className = "option-prompt-hint";
     note.textContent = "Multiple-choice — choose in the terminal, then submit";
     const open = document.createElement("button");
     open.type = "button";
-    open.className = "primary";
-    open.textContent = "Answer in terminal";
+    open.className = "attention-open-terminal";
+    open.textContent = "Answer in Terminal →";
     open.addEventListener("click", () => {
       setViewMode("terminal");
     });
@@ -6071,149 +6121,243 @@ async function answerOptionPrompt(): Promise<void> {
   }
 }
 
-interface WorkflowState {
-  headline: string;
-  facts: string[];
-  tone: "quiet" | "attention" | "action";
-}
+// ——— Status strip (S5) ———————————————————————————————————————————————————
+// The slim live-activity surface that replaced the workflow strip's machine
+// headline AND the per-turn working-detail row (contract §3.4 / §4). Two
+// areas, updated on different cadences so render hygiene holds:
+//  - status: the provider's native status region verbatim (display-only relay
+//    from StatusRegionTracker — if the scrape breaks, a string goes stale,
+//    nothing acts), with Duet's derived "current step" voice as the fallback
+//    while a run is active, and the stall voice at "silent" liveness. Text
+//    only — safe to rebuild at the ~3Hz relay cadence.
+//  - agents: every subagent currently running, from the transcript-derived
+//    roster blocks (the same source the work trace renders; probe p5b showed
+//    SubagentStart/Stop hooks work too, but a second roster machine would
+//    duplicate this one — findings 2026-07-02). Signature-guarded: rebuilt
+//    only when membership/status changes, so the working-dots animation runs
+//    free and the 1s ticker owns the clocks.
+// Visible only while something is happening: an active run, or a background
+// subagent still working after its launch turn ended (async agents outlive
+// their turn — probe p5b).
 
-function workflowState(): WorkflowState {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return {
-      headline: "Start or open a Task",
-      facts: ["No provider selected"],
-      tone: "action",
-    };
-  }
-
-  const providerName = providerLabel(view.task.provider);
-  const runs = view.report?.runs ?? [];
-  const latestRun = runs.at(-1) ?? null;
-  const changedFiles = latestRun?.changedFiles.length ?? 0;
-  const artifactCount = view.artifacts.length;
-  const baseFacts = [
-    pluralize(runs.length, "Run"),
-    pluralize(changedFiles, "change"),
-    pluralize(artifactCount, "artifact"),
-    "Terminal available",
-  ];
-  const deliveryItems = view.deliveryState?.queue ?? [];
-  const firstDeliveryItem = deliveryItems[0] ?? null;
-
-  if (firstDeliveryItem?.status === "undelivered") {
-    return {
-      headline: "Message needs attention",
-      facts: [`No ${providerName} receipt`, ...baseFacts],
-      tone: "action",
-    };
-  }
-
-  if (firstDeliveryItem?.status === "delivering") {
-    return {
-      headline: `Delivering to ${providerName}`,
-      facts: ["Waiting for receipt", ...baseFacts],
-      tone: "attention",
-    };
-  }
-
-  if (deliveryItems.some((item) => item.status === "queued")) {
-    return {
-      headline: `Queued for ${providerName}`,
-      facts: [`${deliveryItems.length} waiting`, ...baseFacts],
-      tone: "attention",
-    };
-  }
-
-  if (view.pendingApproval) {
-    return {
-      headline: `${approvalKindLabel(view.pendingApproval.kind)} approval needed`,
-      facts: baseFacts,
-      tone: "action",
-    };
-  }
-
-  if (latestRun && isActiveRunStatus(latestRun.status)) {
-    if (view.workingStatus?.liveness === "silent") {
-      return {
-        headline: `${providerName} may be stuck`,
-        facts: ["No recent activity — check the terminal", ...baseFacts],
-        tone: "action",
-      };
+function stripRunningAgents(view: TaskViewState): AgentRunItem[] {
+  const items: AgentRunItem[] = [];
+  for (const id of view.transcriptBlockOrder) {
+    const block = view.transcriptBlocks.get(id);
+    if (block?.kind === "agents") {
+      for (const item of block.items) {
+        if (item.status === "running") {
+          items.push(item);
+        }
+      }
     }
-    const currentStep = deriveCurrentStepForView(view);
-    return {
-      headline: `${providerName} is working`,
-      facts: currentStep ? [currentStep, ...baseFacts] : baseFacts,
-      tone: "attention",
-    };
   }
-
-  if (latestRun?.status === "stopped") {
-    return {
-      headline: "Stopped. Ready to continue",
-      facts: baseFacts,
-      tone: "action",
-    };
-  }
-
-  if (artifactCount > 0) {
-    return {
-      headline: "Review ready",
-      facts: baseFacts,
-      tone: "action",
-    };
-  }
-
-  if (runs.length > 0) {
-    return {
-      headline: "Ready to continue",
-      facts: baseFacts,
-      tone: "quiet",
-    };
-  }
-
-  if (view.runtimeReady) {
-    return {
-      headline: "Ready for first Run",
-      facts: baseFacts,
-      tone: "quiet",
-    };
-  }
-
-  if (!view.live) {
-    // Dormant session: nothing is starting until the user sends a message.
-    return {
-      headline: "Ready to continue",
-      facts: baseFacts,
-      tone: "quiet",
-    };
-  }
-
-  return {
-    headline: `Starting ${providerName}`,
-    facts: baseFacts,
-    tone: "attention",
-  };
+  return items;
 }
 
-function workflowFact(value: string): HTMLElement {
-  const fact = document.createElement("span");
-  fact.textContent = value;
-  return fact;
+function renderStatusStrip(view = activeTaskView()): void {
+  const strip = elements.statusStrip;
+  const runningAgents = view?.task ? stripRunningAgents(view) : [];
+  const activeRun = view?.task ? hasActiveRun(view) : false;
+  const visible = Boolean(view?.task && (activeRun || runningAgents.length > 0));
+  strip.classList.toggle("hidden", !visible);
+  if (!visible || !view) {
+    strip.classList.remove("quiet", "silent");
+    elements.statusStripStatus.replaceChildren();
+    elements.statusStripAgents.replaceChildren();
+    elements.statusStripAgents.classList.add("hidden");
+    delete elements.statusStripAgents.dataset.sig;
+    return;
+  }
+  renderStripStatus(view, activeRun);
+  renderStripAgents(runningAgents);
 }
 
-function renderWorkflow(): void {
-  const strip = elements.workflowHeadline.closest<HTMLElement>(".workflow-strip");
-  // The New Chat surface speaks for itself; the workflow strip would
-  // only repeat it.
-  strip?.classList.toggle("hidden", !activeTaskView()?.task);
-  const workflow = workflowState();
-  elements.workflowHeadline.textContent = workflow.headline;
-  elements.workflowFacts.replaceChildren(...workflow.facts.map(workflowFact));
-  strip?.classList.toggle("quiet", workflow.tone === "quiet");
-  strip?.classList.toggle("attention", workflow.tone === "attention");
-  strip?.classList.toggle("action", workflow.tone === "action");
+/** The ~3Hz native-relay path: refresh ONLY the status area (text nodes; no
+ *  CSS animation lives there) — never the agents area, whose working dots
+ *  must not restart on a status tick. */
+function updateStatusStripStatusInPlace(view: TaskViewState): void {
+  if (elements.statusStrip.classList.contains("hidden")) {
+    // A native tick can arrive before any run/render pass showed the strip
+    // (hook-begun run) — fall through to the full strip render once.
+    renderStatusStrip(view);
+    return;
+  }
+  renderStripStatus(view, hasActiveRun(view));
+}
+
+function renderStripStatus(view: TaskViewState, activeRun: boolean): void {
+  const container = elements.statusStripStatus;
+  const native = view.workingStatus?.native ?? null;
+  container.replaceChildren();
+  container.classList.toggle("hidden", !native && !activeRun);
+  if (native) {
+    // The agent's voice: the provider's status region, verbatim. No CSS
+    // spinner — relay updates are the animation, so motion is evidence.
+    container.classList.remove("derived");
+    for (const trouble of native.troubleLines) {
+      const line = document.createElement("div");
+      line.className = "strip-status-trouble";
+      line.textContent = trouble;
+      container.append(line);
+    }
+    const status = document.createElement("div");
+    status.className = "strip-status-line";
+    status.textContent = native.line;
+    container.append(status);
+    for (const sub of native.subLines) {
+      const line = document.createElement("div");
+      line.className = "strip-status-sub";
+      line.textContent = sub;
+      container.append(line);
+    }
+  } else if (activeRun) {
+    // Duet's voice: visibly different styling, derived from durable signals
+    // (plan step, running tool) with Duet's own clock.
+    container.classList.add("derived");
+    const line = document.createElement("div");
+    line.className = "strip-status-line";
+    const label = document.createElement("span");
+    label.textContent = deriveCurrentStepForView(view) ?? "Working";
+    const elapsed = document.createElement("span");
+    elapsed.className = "strip-status-elapsed";
+    const startedAt = view.report?.runs.at(-1)?.startedAt ?? null;
+    if (startedAt) {
+      elapsed.dataset.startedAt = startedAt;
+    }
+    elapsed.textContent = formatLiveElapsed(startedAt);
+    line.append(label, document.createTextNode(" · "), elapsed);
+    container.append(line);
+  }
+  applyStripLiveness(view);
+}
+
+// Duet's stall voice — the one thing the native UIs never say. Appears at
+// "silent", self-heals without residue when evidence resumes.
+function applyStripLiveness(view: TaskViewState): void {
+  const strip = elements.statusStrip;
+  const liveness = view.workingStatus?.liveness ?? "fresh";
+  strip.classList.toggle("quiet", liveness === "quiet");
+  strip.classList.toggle("silent", liveness === "silent");
+  elements.statusStripStatus.querySelector(".strip-status-stall")?.remove();
+  if (liveness !== "silent") {
+    return;
+  }
+  const stall = document.createElement("button");
+  stall.type = "button";
+  stall.className = "strip-status-stall";
+  const silentSince = view.workingStatus?.silentSince ?? null;
+  const seconds = document.createElement("span");
+  seconds.className = "strip-stall-elapsed";
+  if (silentSince) {
+    seconds.dataset.silentSince = silentSince;
+  }
+  seconds.textContent = formatLiveElapsed(silentSince);
+  stall.append(
+    document.createTextNode("No sign of activity for "),
+    seconds,
+    document.createTextNode(" — check the terminal"),
+  );
+  stall.addEventListener("click", () => {
+    setViewMode("terminal");
+  });
+  elements.statusStripStatus.append(stall);
+  elements.statusStripStatus.classList.remove("hidden");
+}
+
+function renderStripAgents(items: AgentRunItem[]): void {
+  const container = elements.statusStripAgents;
+  container.classList.toggle("hidden", items.length === 0);
+  const sig = items
+    .map((item) => `${item.toolUseId}:${item.status}:${item.detail ?? ""}`)
+    .join("|");
+  if (container.dataset.sig === sig) {
+    return; // membership unchanged — dots keep animating, ticker owns clocks
+  }
+  container.dataset.sig = sig;
+  container.replaceChildren();
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "strip-agent";
+    const dots = document.createElement("span");
+    dots.className = "strip-agent-dots";
+    for (let i = 0; i < 3; i += 1) {
+      dots.append(document.createElement("i"));
+    }
+    const name = document.createElement("span");
+    name.className = "strip-agent-name";
+    name.textContent = item.name;
+    row.append(dots, name);
+    if (item.agentType && item.agentType !== "agent") {
+      const type = document.createElement("span");
+      type.className = "strip-agent-type";
+      type.textContent = item.agentType;
+      row.append(type);
+    }
+    const elapsed = document.createElement("span");
+    elapsed.className = "strip-agent-elapsed";
+    elapsed.dataset.startedAt = item.startedAt;
+    elapsed.textContent = formatLiveElapsed(item.startedAt);
+    row.append(elapsed);
+    container.append(row);
+  }
+}
+
+// ——— Attention banners (S5) ——————————————————————————————————————————————
+// One family: passive "in the Terminal" pointers (contract §2 — every
+// interaction homed in the Terminal owes Reading a banner). Display-only by
+// design: a banner never drives delivery, runs, or approvals; clicking
+// focuses the terminal window through the single choke point, dismissing
+// only clears the pointer. The third family member — the multiSelect
+// option-prompt's "Answer in terminal" — stays inside its card (the card is
+// the stronger attention surface) and shares the family's action style.
+
+function renderAttentionBanners(view = activeTaskView()): void {
+  const root = elements.attentionBannerRoot;
+  const banners: HTMLElement[] = [];
+  if (view?.task) {
+    if (view.approvalExpiredAttention) {
+      banners.push(
+        attentionBanner("approval-expired", "Approval waiting for you in the Terminal", () => {
+          view.approvalExpiredAttention = false;
+          renderAttentionBanners(view);
+        }),
+      );
+    }
+    if (view.slashAttention) {
+      banners.push(
+        attentionBanner("slash-sent", `${view.slashAttention.command} ran in the Terminal`, () => {
+          view.slashAttention = null;
+          renderAttentionBanners(view);
+        }),
+      );
+    }
+  }
+  root.replaceChildren(...banners);
+}
+
+function attentionBanner(kind: string, copy: string, onDismiss: () => void): HTMLElement {
+  const banner = document.createElement("div");
+  banner.className = "attention-banner";
+  banner.dataset.kind = kind;
+  const text = document.createElement("span");
+  text.className = "attention-banner-copy";
+  text.textContent = copy;
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "attention-open-terminal";
+  open.textContent = "Open Terminal →";
+  open.addEventListener("click", () => {
+    setViewMode("terminal");
+  });
+  const dismiss = document.createElement("button");
+  dismiss.type = "button";
+  dismiss.className = "attention-banner-dismiss";
+  dismiss.setAttribute("aria-label", "Dismiss");
+  dismiss.textContent = "✕";
+  dismiss.addEventListener("click", onDismiss);
+  banner.append(text, open, dismiss);
+  return banner;
 }
 
 // Block render-version: a transcript block object is REPLACED with a new
@@ -6484,14 +6628,6 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   const answerBlocks = turn.blocks.filter(isAnswerBlock);
   const noAssistantOutput = turnCompletedWithoutAssistantOutput(turn);
   const liveRun = Boolean(turn.run && isActiveRunStatus(turn.run.status));
-  // The live activity row (renderTurnStatusRow, the "✱ Beaming…" line) and the
-  // turn footer both surface working status. While the run streams, the activity
-  // row owns it, so the footer — which would just repeat "<provider> is working ·
-  // running · pending · provider transcript" — is suppressed. It returns once the
-  // run settles, carrying the real post-hoc summary (outcome, elapsed, changes,
-  // clickable artifacts, provenance). waiting-for-approval keeps the footer (it
-  // shows "Waiting for … approval" and has no activity row).
-  const showsLiveActivity = liveRun && turn.run?.status !== "waiting-for-approval";
   if (turn.run && (workBlocks.length > 0 || !liveRun)) {
     card.append(renderTurnWorkTrace(turn, workBlocks, noAssistantOutput));
   }
@@ -6515,11 +6651,12 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
     card.append(body);
   }
 
-  if (showsLiveActivity) {
-    card.append(renderTurnStatusRow(view, turn));
-  }
-
-  if (turn.run && !showsLiveActivity) {
+  // While the run streams, the status strip (below the run list) owns the
+  // live working detail — the per-turn activity row retired into it (S5). The
+  // footer returns once the run settles, carrying the real post-hoc summary
+  // (outcome, elapsed, changes, clickable artifacts, provenance).
+  // waiting-for-approval keeps the footer ("Waiting for … approval").
+  if (turn.run && (!liveRun || turn.run.status === "waiting-for-approval")) {
     card.append(renderTurnFooter(turn.run, turn.blocks.length > 0, noAssistantOutput));
   }
   return card;
@@ -6734,96 +6871,6 @@ function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
   return note;
 }
 
-function renderTurnStatusRow(view: TaskViewState, turn: ReadingTurn): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "turn-status-row";
-  const native = view.workingStatus?.native ?? null;
-  if (native) {
-    renderNativeStatusContent(row, native);
-  } else {
-    renderDerivedStatusContent(row, turn);
-  }
-  applyStatusRowLiveness(row, view);
-  return row;
-}
-
-// Duet's stall voice — the one thing the native UIs never say. Appears at
-// "silent", self-heals without residue when evidence resumes.
-function applyStatusRowLiveness(row: HTMLElement, view: TaskViewState): void {
-  const liveness = view.workingStatus?.liveness ?? "fresh";
-  row.classList.toggle("quiet", liveness === "quiet");
-  row.classList.toggle("silent", liveness === "silent");
-  row.querySelector(".turn-status-stall")?.remove();
-  if (liveness !== "silent") {
-    return;
-  }
-  const stall = document.createElement("button");
-  stall.type = "button";
-  stall.className = "turn-status-stall";
-  const silentSince = view.workingStatus?.silentSince ?? null;
-  const seconds = document.createElement("span");
-  seconds.className = "turn-status-stall-elapsed";
-  if (silentSince) {
-    seconds.dataset.silentSince = silentSince;
-  }
-  seconds.textContent = formatLiveElapsed(silentSince);
-  stall.append(
-    document.createTextNode("No sign of activity for "),
-    seconds,
-    document.createTextNode(" — check the terminal"),
-  );
-  stall.addEventListener("click", () => {
-    openTerminalDrawerFromStatus();
-  });
-  row.append(stall);
-}
-
-// The agent's voice: the provider's status region, verbatim. No CSS spinner —
-// relay updates are the animation, so motion is evidence by construction.
-function renderNativeStatusContent(row: HTMLElement, native: NativeStatusRegion): void {
-  row.replaceChildren();
-  row.classList.remove("derived");
-  for (const trouble of native.troubleLines) {
-    const line = document.createElement("div");
-    line.className = "turn-status-trouble";
-    line.textContent = trouble;
-    row.append(line);
-  }
-  const status = document.createElement("div");
-  status.className = "turn-status-line";
-  status.textContent = native.line;
-  row.append(status);
-  for (const sub of native.subLines) {
-    const line = document.createElement("div");
-    line.className = "turn-status-sub";
-    line.textContent = sub;
-    row.append(line);
-  }
-}
-
-// Duet's voice: visibly different styling, derived from durable signals
-// (plan step, running tool) with Duet's own clock.
-function renderDerivedStatusContent(row: HTMLElement, turn: ReadingTurn): void {
-  row.replaceChildren();
-  row.classList.add("derived");
-  const line = document.createElement("div");
-  line.className = "turn-status-line";
-  const label = document.createElement("span");
-  label.textContent = deriveCurrentStep(turn) ?? "Working";
-  const elapsed = document.createElement("span");
-  elapsed.className = "turn-status-elapsed";
-  if (turn.run?.startedAt) {
-    elapsed.dataset.startedAt = turn.run.startedAt;
-  }
-  elapsed.textContent = formatLiveElapsed(turn.run?.startedAt ?? null);
-  line.append(label, document.createTextNode(" · "), elapsed);
-  row.append(line);
-}
-
-function openTerminalDrawerFromStatus(): void {
-  setViewMode("terminal");
-}
-
 function deriveCurrentStepForView(view: TaskViewState): string | null {
   let planStep: string | null = null;
   let runningTool: string | null = null;
@@ -6845,41 +6892,6 @@ function deriveCurrentStepForView(view: TaskViewState): string | null {
     }
   }
   return planStep ?? runningTool;
-}
-
-function deriveCurrentStep(turn: ReadingTurn): string | null {
-  let planStep: string | null = null;
-  let runningTool: string | null = null;
-  for (const block of turn.blocks) {
-    if (block.kind === "plan") {
-      const active = block.items.find((item) => item.status === "in_progress");
-      if (active) {
-        planStep = active.activeLabel ?? active.text;
-      }
-    } else if (block.kind === "tool-call" && block.status === "running") {
-      runningTool = block.summary ? `${block.toolName} — ${block.summary}` : block.toolName;
-    }
-  }
-  return planStep ?? runningTool;
-}
-
-function updateLiveStatusRowInPlace(view: TaskViewState): boolean {
-  if (!isActiveView(view)) {
-    // Background task: state stored; nothing to draw until the view shows.
-    return true;
-  }
-  const row = elements.runList.querySelector<HTMLElement>(".turn-status-row");
-  if (!row) {
-    return false;
-  }
-  const native = view.workingStatus?.native ?? null;
-  if (!native) {
-    // Derived content needs turn context — let the full render handle it.
-    return false;
-  }
-  renderNativeStatusContent(row, native);
-  applyStatusRowLiveness(row, view);
-  return true;
 }
 
 // A settled duration, in the same "Xm Ys" shape the live clock ticks in (not
@@ -7634,9 +7646,10 @@ function scheduleTranscriptRender(): void {
 // The transcript-streaming render path — decoupled from full render() so a
 // content batch never rebuilds the sidebar (which would restart the spinner's
 // CSS animation on every batch). Refresh only what new transcript content can
-// change: the reading surface (renderRuns), and the workflow strip's derived
-// "current step" (workflowState → deriveCurrentStepForView reads transcript
-// blocks — the one transcript-derived chrome outside renderRuns). Run
+// change: the reading surface (renderRuns), and the status strip's
+// transcript-derived pieces (the running-agent roster and the derived
+// "current step" fallback — its agents area is signature-guarded, so a batch
+// that doesn't change roster membership never restarts the dots). Run
 // lifecycle, approvals, delivery, usage, and status each arrive as their own
 // events and render themselves, so nothing else goes stale between batches.
 //
@@ -7646,7 +7659,7 @@ function scheduleTranscriptRender(): void {
 // run rendering is S1.
 function renderTranscriptStream(): void {
   renderRuns();
-  renderWorkflow();
+  renderStatusStrip();
 }
 
 async function openArtifact(relativePath: string): Promise<void> {

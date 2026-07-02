@@ -926,6 +926,10 @@ export class RuntimeController {
       };
       this.sendEvent(decisionEvent); // renderer clears the card + cli-state resyncs
       active.deliveryController.handleRuntimeEvent(decisionEvent); // clear the delivery gate
+      // Resync terminal-host state: the approval scrape may have flipped the
+      // run to waiting-for-approval off the broker-held preview bytes; a
+      // reply-channel decision must resume it or the run wedges (S5 diag).
+      active.terminalHost.noteHookApprovalDecision(decision, classifyApprovalKind(pending.payload));
       if (this.shownBrokerApproval.get(taskId) === approvalId) {
         this.shownBrokerApproval.delete(taskId);
       }
@@ -2088,6 +2092,7 @@ function mergeUsageSnapshot(previous: UsageSnapshot | null, next: UsageSnapshot)
     context: next.context ?? previous.context,
     limits: next.limits.length > 0 ? next.limits : previous.limits,
     sessionName: next.sessionName ?? previous.sessionName ?? null,
+    costUsd: next.costUsd ?? previous.costUsd ?? null,
   };
 }
 

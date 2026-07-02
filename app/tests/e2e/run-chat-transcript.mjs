@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveIfVisible, approveVisibleBanner } from "./helpers/approval.mjs";
-import { activeSessionTaskId, sendFirstPrompt } from "./helpers/session.mjs";
+import { approveAnyVisibleApproval, approveVisibleBanner } from "./helpers/approval.mjs";
+import { activeSessionTaskId, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-run-chat-e2e-"));
 let electronApp = null;
@@ -72,7 +72,7 @@ try {
   const transcriptUsesMainScroll = transcriptMaxHeight === "none" && transcriptOverflow === "visible";
 
   await page.locator(".artifact-item", { hasText: "transcript.md" }).waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+  await page.locator(".turn-outcome", { hasText: "Completed" }).waitFor({
     state: "visible",
   });
   await page.locator(".turn-artifacts .artifact-link", { hasText: "transcript.md" }).waitFor({
@@ -130,20 +130,18 @@ async function runPrompt(page, expectedCompletedRuns, prompt) {
   // The first prompt creates the session (deferred creation) and answers the
   // workspace-trust approval that surfaces during the provider cold start.
   await sendFirstPrompt(page, prompt);
-  await page.locator("#workflow-headline", { hasText: /Codex is working|File edit approval needed/ }).waitFor({
-    state: "visible",
-  });
+  await waitForEngagement(page);
   await waitForCompletedRuns(page, expectedCompletedRuns, 240000);
 }
 
 async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    await approveIfVisible(page, "File edit approval requested", 1000);
-    await approveIfVisible(page, "Command approval requested", 1000);
+    // Drain by visibility: Claude asks per tool call (edit/read/command) and
+    // broker card titles are tool summaries — kind-bound waits under-match.
     await approveAnyVisibleApproval(page);
     const completed = await page
-      .locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" })
+      .locator(".turn-outcome", { hasText: "Completed" })
       .count();
     if (completed >= expectedCompletedRuns) {
       return;
@@ -151,21 +149,13 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     await page.waitForTimeout(1000);
   }
 
-  const headline = await safeText(page.locator("#workflow-headline"));
+  const strip = await safeText(page.locator("#status-strip"));
   const status = await safeText(page.locator("#runtime-status"));
   const approval = await safeText(page.locator("#approval-title"));
   throw new Error(
     `Timed out waiting for ${expectedCompletedRuns} completed Runs. ` +
-      `headline=${headline} status=${status} approval=${approval}`,
+      `strip=${strip} status=${status} approval=${approval}`,
   );
-}
-
-async function approveAnyVisibleApproval(page) {
-  const banner = page.locator("#approval-banner:not(.hidden)");
-  const visible = await banner.isVisible({ timeout: 500 }).catch(() => false);
-  if (visible) {
-    await approveVisibleBanner(page, banner);
-  }
 }
 
 function readReports(root) {

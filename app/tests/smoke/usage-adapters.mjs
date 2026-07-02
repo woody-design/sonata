@@ -105,5 +105,28 @@ const unnamedLine = JSON.stringify({
 });
 const unnamed = parseClaudeStatuslineJson(unnamedLine);
 assert.equal(unnamed.snapshot.sessionName, null);
+assert.equal(unnamed.snapshot.costUsd, null, "cost absent → null");
+
+// costUsd (S5 usage-popover widening): parsed when present, robust to junk.
+const costLine = JSON.stringify({
+  session_id: "sess-3",
+  cost: { total_cost_usd: 1.2345, total_duration_ms: 100 },
+  context_window: {
+    used_percentage: 4,
+    context_window_size: 1000000,
+    current_usage: { input_tokens: 2, output_tokens: 1211, cache_creation_input_tokens: 88, cache_read_input_tokens: 34967 },
+  },
+});
+assert.equal(parseClaudeStatuslineJson(costLine).snapshot.costUsd, 1.2345);
+const junkCostLine = JSON.stringify({
+  session_id: "sess-4",
+  cost: { total_cost_usd: "oops" },
+  context_window: {
+    used_percentage: 4,
+    context_window_size: 1000000,
+    current_usage: { input_tokens: 2, output_tokens: 1211, cache_creation_input_tokens: 88, cache_read_input_tokens: 34967 },
+  },
+});
+assert.equal(parseClaudeStatuslineJson(junkCostLine).snapshot.costUsd, null);
 
 console.log("usage adapter fixtures passed");

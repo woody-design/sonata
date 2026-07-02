@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
-import { sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
+import { sendFirstPrompt, waitForCompletedTurns, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-control-shots-"));
 const screenshotRoot = path.resolve("..", "product-thinking", "composer-slice-3-screenshots");
@@ -46,9 +46,7 @@ try {
   await page.locator("#prompt-input").fill(longCommand);
   await page.locator("#send-prompt").click();
   await approveIfVisible(page, "Command approval requested", 180000);
-  await page.locator("#workflow-headline", { hasText: /Codex is working|Command approval needed/ }).waitFor({
-    state: "visible",
-  });
+  await waitForEngagement(page);
 
   await page.locator("#permission-chip").click();
   await page.locator(".composer-menu-option", { hasText: "Approve for me" }).click();
@@ -58,10 +56,8 @@ try {
   await page.screenshot({ path: path.join(screenshotRoot, "03-pending-control.png"), fullPage: true });
   await page.locator(".delivery-item.queued .compact-action", { hasText: "Cancel" }).click();
   await page.locator("#send-prompt").click();
-  await page.locator("#workflow-headline", { hasText: "Stopped. Ready to continue" }).waitFor({
-    state: "visible",
-    timeout: 90000,
-  });
+  // Stopped + ready to continue: the send button leaves stop-mode (■ → ↑).
+  await page.locator("#send-prompt:not(.stop-mode)").waitFor({ state: "attached", timeout: 90000 });
 
   await page.locator("#model-chip").click();
   await page.locator(".composer-submenu-section", { hasText: "Model" }).hover();

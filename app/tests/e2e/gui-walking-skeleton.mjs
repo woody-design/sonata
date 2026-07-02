@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveIfVisible } from "./helpers/approval.mjs";
-import { sendFirstPrompt } from "./helpers/session.mjs";
+import { approveAnyVisibleApproval } from "./helpers/approval.mjs";
+import { sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-gui-e2e-"));
 let electronApp = null;
@@ -29,21 +29,26 @@ try {
 
   // The first message creates the session (deferred creation).
   await sendFirstPrompt(page, prompt);
-  await page
-    .locator("#workflow-headline", {
-      hasText: /Codex is working|File edit approval needed|Starting Codex|Queued for Codex|Delivering to Codex/,
-    })
-    .waitFor({ state: "visible" });
+  await waitForEngagement(page);
 
-  await approveIfVisible(page, "File edit approval requested", 180000);
-  await approveIfVisible(page, "Command approval requested", 15000);
+  // Approve every ask until the run completes: Claude (the default provider
+  // since f6dd283) requests approval PER tool call — two file writes are two
+  // asks — and a broker ask's card title is the tool summary, not a fixed
+  // string, so drain by visibility (approveAnyVisibleApproval), not by title.
+  const outcomeLocator = page.locator(".turn-outcome", { hasText: "Completed" });
+  const outcomeDeadline = Date.now() + 240000;
+  while (Date.now() < outcomeDeadline && (await outcomeLocator.count()) === 0) {
+    await approveAnyVisibleApproval(page);
+    await page.waitForTimeout(500);
+  }
 
   await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
   await page.locator(".artifact-item", { hasText: "page.html" }).waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".turn-facts", { hasText: "terminal-idle-heuristic" }).waitFor({
+  // Provider-agnostic completion: Claude settles by the Stop hook
+  // ("Completed"), Codex by the idle heuristic ("Completed by terminal idle
+  // heuristic"). The provenance facts line carries the source either way.
+  await outcomeLocator.waitFor({ state: "visible" });
+  await page.locator(".turn-facts", { hasText: /hook-stop|terminal-idle-heuristic/ }).waitFor({
     state: "visible",
   });
   await page.locator(".turn-facts", { hasText: "2 changes" }).waitFor({ state: "visible" });
@@ -57,20 +62,24 @@ try {
   });
   await turnCard.locator(".turn-provenance").waitFor({ state: "visible" });
   const transcriptText = await turnCard.locator(".turn-body").textContent();
+  // Readable assistant content, no raw ANSI. Claude's reply to this prompt
+  // can be a single short sentence — the length floor guards "non-empty",
+  // not verbosity.
   const transcriptObserved =
-    Boolean(transcriptText) && transcriptText.trim().length > 40 && !transcriptText.includes("\u001b");
+    Boolean(transcriptText) && transcriptText.trim().length > 10 && !transcriptText.includes("\u001b");
   if (!transcriptObserved) {
     throw new Error("Main Chat reading flow did not show readable assistant content.");
   }
-  await page.locator("#workflow-headline", { hasText: "Review ready" }).waitFor({
-    state: "visible",
-  });
-  await page.locator("#workflow-facts", { hasText: "1 Run" }).waitFor({ state: "visible" });
-  await page.locator("#workflow-facts", { hasText: "2 changes" }).waitFor({ state: "visible" });
-  await page.locator("#workflow-facts", { hasText: "2 artifacts" }).waitFor({ state: "visible" });
-  await page.locator("#workflow-facts", { hasText: "Terminal available" }).waitFor({
-    state: "visible",
-  });
+  // The retired workflow strip's "Review ready" + facts (S5): the real
+  // surfaces carry them now — the artifact strip is up for review, exactly
+  // one Run's turn card exists (its "2 changes" facts and artifact links were
+  // asserted above), and the live status strip has settled away.
+  await page.locator("#artifact-strip:not(.hidden)").waitFor({ state: "attached" });
+  await page.locator("#status-strip.hidden").waitFor({ state: "attached" });
+  const turnCount = await page.locator(".turn-card").count();
+  if (turnCount !== 1) {
+    throw new Error(`Expected exactly 1 turn card after the walking-skeleton run, saw ${turnCount}`);
+  }
   await page.locator("#send-prompt").waitFor({ state: "visible" });
 
   const previewWindowPromise = electronApp.waitForEvent("window");
@@ -110,9 +119,21 @@ try {
   });
   await previewPage.locator(".html-preview").waitFor({ state: "visible" });
 
-  const inspectorWindowPromise = electronApp.waitForEvent("window");
+  // Acquire the inspector window by URL, not by the next "window" event —
+  // the terminal-window toggles just above can leave a queued window event
+  // that waitForEvent would mistake for the inspector.
   await page.locator("#open-inspector-window").click();
-  const inspectorPage = await inspectorWindowPromise;
+  const inspectorDeadline = Date.now() + 30000;
+  let inspectorPage = null;
+  while (!inspectorPage && Date.now() < inspectorDeadline) {
+    inspectorPage = electronApp.windows().find((w) => w.url().includes("inspector.html")) ?? null;
+    if (!inspectorPage) {
+      await page.waitForTimeout(250);
+    }
+  }
+  if (!inspectorPage) {
+    throw new Error("Inspector window did not open.");
+  }
   inspectorPage.setDefaultTimeout(180000);
   await inspectorPage.locator(".floating-inspector-shell", { hasText: "Inspector" }).waitFor({
     state: "visible",
