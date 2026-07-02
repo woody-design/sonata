@@ -137,9 +137,37 @@ export class ClaudeSessionNormalizer {
     if (promptSource === "system") {
       // It is still the agent-completion signal, though: a `<task-notification>`
       // settles a running roster row even as it produces no user bubble.
-      const settled = this.settleAgentFromNotification(textParts.join("\n"), ts);
+      const rawText = textParts.join("\n");
+      const settled = this.settleAgentFromNotification(rawText, ts);
       if (settled) {
         upserts.push(settled);
+      }
+      // A system record injected into the user role IS a turn boundary at the
+      // API level — the CLI begins a fresh assistant turn from it. Without
+      // opening a turn here, every reply that follows (including a background
+      // workflow's FINAL integrated answer) kept attributing to the original
+      // request's turn: the reading surface piled successive replies into one
+      // card while the notification runs rendered as raw-XML husks (Woody's
+      // Loop-Engineering session, 2026-07-02). The continuation turn has NO
+      // user-message block — the renderer shows no "You" bubble — only a
+      // muted note naming what came back, then the reply.
+      const promptId = typeof record.promptId === "string" ? record.promptId : null;
+      this.currentTurnKey = promptId ?? `turn-${++this.turnSeq}`;
+      this.turnHasAssistant = false;
+      if (rawText.includes("<task-notification>")) {
+        const summary = rawText.match(/<summary>([^<]+)<\/summary>/)?.[1]?.trim();
+        upserts.push({
+          kind: "system-note",
+          id: this.blockId(record, "continuation"),
+          taskId: this.taskId,
+          sourceId: this.sourceId,
+          provider: "claude",
+          turnKey: this.currentTurnKey,
+          runId: null,
+          ts,
+          seq: ++this.seq,
+          text: summary ?? "Background task returned",
+        });
       }
       return upserts;
     }

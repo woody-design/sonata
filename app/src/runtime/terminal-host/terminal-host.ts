@@ -997,7 +997,17 @@ export class TerminalHost extends EventEmitter {
       return;
     }
     const kind: RunKind = text.startsWith("/") && !text.includes("\n") ? "slash" : "prompt";
-    this.beginRun(text || "(prompt)", kind);
+    const run = this.beginRun(text || "(prompt)", kind);
+    // A background-workflow task-notification: the CLI resumed the session
+    // with an XML system message in the user role. The run is real (the CLI
+    // is working — busy state, stop affordance, completion all apply), but
+    // its title must never be the raw XML: anything that shows run titles
+    // (auto-naming, inspector) gets the honest label instead. The prompt
+    // stays verbatim — it is the detection key for the reading surface's
+    // husk suppression.
+    if (run && text.startsWith("<task-notification>")) {
+      this.updateActiveRun({ title: "(background task returned)" });
+    }
   }
 
 

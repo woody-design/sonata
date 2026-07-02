@@ -6579,6 +6579,15 @@ function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
     if (matchedRunIds.has(run.runId)) {
       continue;
     }
+    // A background-workflow task-notification run: the CLI resumes the
+    // session with an XML system message in the user role. Its REPLY lives in
+    // a continuation turn (transcript blocks); the run itself would render as
+    // a husk card whose "user" text is the raw XML — plumbing, never the
+    // user's words. Suppress the card (the run still drives busy/■/strip
+    // state through the report; this is presentation only).
+    if (run.prompt.trimStart().startsWith("<task-notification>")) {
+      continue;
+    }
     turns.push({
       key: `run:${run.runId}`,
       runId: run.runId,
@@ -6622,7 +6631,15 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
     card.classList.toggle("highlighted", turn.runId === view.highlightedRunId);
   }
 
-  card.append(renderTurnUser(turn));
+  // A continuation turn (background-workflow reply): transcript blocks with
+  // no user-message — the "user" was the CLI's own task-notification, not a
+  // person. No "You" bubble; the muted system-note in the body names what
+  // came back.
+  const hasUserVoice =
+    turn.blocks.length === 0 || turn.blocks.some((block) => block.kind === "user-message");
+  if (hasUserVoice) {
+    card.append(renderTurnUser(turn));
+  }
 
   const workBlocks = turn.blocks.filter(isWorkTraceBlock);
   const answerBlocks = turn.blocks.filter(isAnswerBlock);

@@ -322,13 +322,18 @@ check("claude: promptSource=system records (task notifications) never render as 
 
   assert.deepEqual(
     upserts.map((block) => block.kind),
-    ["user-message", "assistant-text", "assistant-text"],
-    "the task-notification produces no user bubble",
+    ["user-message", "assistant-text", "system-note", "assistant-text"],
+    "the task-notification produces a muted note, never a user bubble",
   );
   assert.equal(upserts[0].text, "Research the two cameras");
-  // The post-notification assistant text folds back into the original prompt's
-  // turn — the notification was mid-turn machinery, not a new question.
-  assert.equal(upserts[2].turnKey, upserts[0].turnKey, "reply stays in the user's turn");
+  // The notification IS a turn boundary at the API level — the CLI begins a
+  // fresh assistant turn from it. The reply lands in a CONTINUATION turn
+  // (with the note naming what came back), not the original prompt's turn:
+  // piling successive replies into one card was the Loop-Engineering reading
+  // bug (S5 follow-up, 2026-07-02).
+  assert.equal(upserts[2].text, 'Agent "Research Insta360 Luna Ultra" came to rest');
+  assert.notEqual(upserts[2].turnKey, upserts[0].turnKey, "continuation turn opens");
+  assert.equal(upserts[3].turnKey, upserts[2].turnKey, "reply lands in the continuation turn");
 });
 
 check("claude: Agent fan-out becomes one roster block — spawn, bridge, settle", () => {
@@ -501,13 +506,19 @@ check("claude: a re-notification never clobbers a settled agent's CLI duration",
     // Re-notification much later, no duration — must NOT clobber, must NOT re-emit.
     claudeLine({ type: "user", uuid: "u4", promptSource: "system", timestamp: "2026-06-17T10:30:00.000Z", message: { role: "user", content: "<task-notification>\n<task-id>a-1</task-id>\n<status>completed</status>\n</task-notification>" } }),
   ];
-  let beforeRenotify = 0;
+  let renotifyOut = [];
   for (const [i, line] of lines.entries()) {
     const out = normalizer.consumeLine(line);
-    if (i === 3) beforeRenotify = upserts.length + out.length;
+    if (i === 4) renotifyOut = out;
     upserts.push(...out);
   }
-  assert.equal(upserts.length, beforeRenotify, "the duplicate notification emitted no new block");
+  // The re-notification opens its own continuation turn (one muted note) but
+  // must NOT re-upsert the roster — settled state stays untouched.
+  assert.deepEqual(
+    renotifyOut.map((b) => b.kind),
+    ["system-note"],
+    "the duplicate notification emits only its continuation note",
+  );
   const finalRoster = upserts.filter((b) => b.kind === "agents").pop();
   assert.equal(finalRoster.items[0].status, "done");
   assert.equal(finalRoster.items[0].durationMs, 119000, "CLI duration preserved, not recomputed to ~30min");
