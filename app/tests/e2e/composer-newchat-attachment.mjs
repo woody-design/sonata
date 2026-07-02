@@ -57,7 +57,9 @@ try {
   // First send creates the session and materializes + delivers the attachment.
   await page.locator("#prompt-input").fill("Reply exactly DUET_NEWCHAT_IMAGE_RECEIPT. Do not create or modify any files.");
   await page.locator("#send-prompt").click();
-  await approveIfVisible(page, "Workspace trust requested", 60000);
+  // S4 pre-trusts the auto workspace — the banner normally never comes; the
+  // short wait is fallback tolerance, not the expected path.
+  await approveIfVisible(page, "Workspace trust requested", 8000);
 
   const taskId = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 60000);
   await waitForCompletedTurns(page, 1);

@@ -292,6 +292,10 @@ interface SnapshotEntry {
 interface RecentAttributionRun {
   id: RunId;
   expiresAt: number;
+  /** The finished run's prompt — lets a LATE UserPromptSubmit echo (file-queue
+   *  latency) be recognized as belonging to the run that already ran, instead
+   *  of beginning a phantom run for it. */
+  prompt: string;
 }
 
 interface ApprovalCandidate {
@@ -349,6 +353,11 @@ export class TerminalHost extends EventEmitter {
   private lastApprovalFingerprint: string | null = null;
   private lastApprovalDecision: ApprovalDecision | null = null;
   private lastApprovalDecisionAt: number | null = null;
+  /** A same-kind candidate was swallowed inside the post-decision settle
+   *  window (the phantom-repaint class). Gates the settle re-check's re-arm:
+   *  only a suppressed candidate needs the extra look — every other path
+   *  keeps the one-shot settle semantics. */
+  private approvalSuppressedInSettleWindow = false;
   /** decision → key bytes for the CURRENTLY surfaced panel (v2 grammar
    *  parses the panel's own numbered options; digits instant-select). */
   private activeApprovalOptionKeys: Partial<Record<ApprovalDecision, string>> | null = null;
@@ -362,6 +371,12 @@ export class TerminalHost extends EventEmitter {
   private taskReadyTimer: NodeJS.Timeout | null = null;
   private acceptsInputAnnounced = false;
   private lastPtyDataAt = 0;
+  /** Last chunk that carried PRINTABLE content (survives cleanTerminal). The
+   *  idle claude TUI emits a 5-byte control-only chunk every ~200ms
+   *  (housekeeping, s4-diags/zzz-completion-trace) — raw-byte recency
+   *  therefore never goes quiet, which silently debounced the completion
+   *  timer to death. "The CLI is still talking" must mean VISIBLE output. */
+  private lastPrintablePtyDataAt = 0;
   private taskReady = false;
   private recentAttributionRun: RecentAttributionRun | null = null;
   private activeRunRaw = "";
@@ -468,6 +483,7 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalFingerprint = null;
     this.lastApprovalDecision = null;
     this.lastApprovalDecisionAt = null;
+    this.approvalSuppressedInSettleWindow = false;
     this.activeApprovalOptionKeys = null;
     this.clearPersistReceiptTimers();
     this.clearNativeAnswerRecheckTimers();
@@ -778,6 +794,7 @@ export class TerminalHost extends EventEmitter {
     this.approvalActive = false;
     this.lastApprovalDecision = "answered-natively";
     this.lastApprovalDecisionAt = Date.now();
+    this.approvalSuppressedInSettleWindow = false;
     this.taskReady = false;
     this.acceptsInputAnnounced = false;
     this.emitEvent("approval:decision", {
@@ -888,6 +905,7 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalKind = null;
     this.lastApprovalDecision = null;
     this.lastApprovalDecisionAt = null;
+    this.approvalSuppressedInSettleWindow = false;
     this.clearApprovalSettleTimer();
     // Hold the write-lock across the whole sync+deferred sequence so a human
     // keystroke landing mid-paste buffers (and flushes after) rather than
@@ -963,6 +981,21 @@ export class TerminalHost extends EventEmitter {
       return;
     }
     const text = prompt.trim();
+    // A slash run settles by quiescence seconds before its UserPromptSubmit
+    // clears the hook file queue (~250ms watcher + fs latency): that late
+    // event is the ECHO of the run that already ran, not a new turn — begun,
+    // it would be a phantom run with no output to ever close it. Text
+    // identity inside the attribution window recognizes exactly the echo; a
+    // human typing a command natively in the terminal (different text, or no
+    // fresh completion) still gets its run.
+    if (
+      this.recentAttributionRun &&
+      this.recentAttributionRun.expiresAt > Date.now() &&
+      this.recentAttributionRun.prompt.trim() === text
+    ) {
+      this.debugCompletion(`hook-echo swallowed "${text.slice(0, 40)}"`);
+      return;
+    }
     const kind: RunKind = text.startsWith("/") && !text.includes("\n") ? "slash" : "prompt";
     this.beginRun(text || "(prompt)", kind);
   }
@@ -1039,6 +1072,7 @@ export class TerminalHost extends EventEmitter {
     this.approvalActive = false;
     this.lastApprovalDecision = decision;
     this.lastApprovalDecisionAt = decisionAt;
+    this.approvalSuppressedInSettleWindow = false;
     this.scheduleApprovalSettleCheck(decisionAt);
   }
 
@@ -1067,6 +1101,7 @@ export class TerminalHost extends EventEmitter {
     this.approvalActive = false;
     this.lastApprovalDecision = "deny";
     this.lastApprovalDecisionAt = Date.now();
+    this.approvalSuppressedInSettleWindow = false;
     this.clearApprovalSettleTimer();
   }
 
@@ -1200,6 +1235,15 @@ export class TerminalHost extends EventEmitter {
 
   private handlePtyData(data: string): void {
     this.lastPtyDataAt = Date.now();
+    const printable = cleanTerminal(data).trim().length > 0;
+    if (printable) {
+      this.lastPrintablePtyDataAt = this.lastPtyDataAt;
+    }
+    if (process.env.DUET_DEBUG_COMPLETION && this.activeRun && printable) {
+      console.log(
+        `[completion] ${new Date().toISOString()} run=${this.activeRun.id} pty-data len=${data.length} printable=${JSON.stringify(cleanTerminal(data).trim().slice(0, 60))}`,
+      );
+    }
     this.rawTail = `${this.rawTail}${data}`.slice(-this.scrollbackLimit);
     // The mirror assigns this chunk's ingest seq; tag it onto the broadcast below
     // so a mid-stream-hydrating terminal window can stitch the chunk onto its
@@ -1223,7 +1267,13 @@ export class TerminalHost extends EventEmitter {
       this.clearApprovalIfAnsweredNatively();
     }
     this.scheduleTaskReadyCheck();
-    this.scheduleCompletionCheck();
+    // Completion debounce keys on PRINTABLE chunks only: the idle TUI's
+    // ~200ms control-only heartbeat would otherwise clear+re-arm the timer
+    // forever and the quiescence completion (slash runs, the Esc-interrupt
+    // run-closer) never fires (s4-diags/zzz-completion-trace).
+    if (printable) {
+      this.scheduleCompletionCheck();
+    }
   }
 
   private scheduleTaskReadyCheck(): void {
@@ -1275,6 +1325,23 @@ export class TerminalHost extends EventEmitter {
     }
 
     const decisionAgeMs = this.lastApprovalDecisionAt ? Date.now() - this.lastApprovalDecisionAt : null;
+    // Post-decision settle window: a same-kind candidate this soon after an
+    // answer is a repaint of the answered panel, not a new ask. Fingerprint
+    // identity alone cannot dedupe it — a PARTIAL repaint hashes to a NEW
+    // fingerprint, which re-armed `approvalPending` with no decision ever
+    // coming (the fresh-workspace trust wedge: answered → ~6ms later the same
+    // screen re-detects → delivery gate closed forever; s3-diags). Honesty
+    // backstop: checkApprovalSettled re-derives from the live screen once the
+    // window closes and resurfaces anything genuinely unanswered — so the
+    // worst case of this suppression is a ≤1.2s VISIBLE delay, never a hold.
+    if (
+      decisionAgeMs !== null &&
+      decisionAgeMs < DEFAULT_APPROVAL_SETTLE_MS &&
+      candidate.kind === this.lastApprovalKind
+    ) {
+      this.approvalSuppressedInSettleWindow = true;
+      return;
+    }
     const resurfacedAfterDecision =
       Boolean(this.lastApprovalDecisionAt) &&
       Boolean(candidate.fingerprint) &&
@@ -1301,6 +1368,7 @@ export class TerminalHost extends EventEmitter {
   ): void {
     this.taskReady = false;
     this.approvalActive = true;
+    this.approvalSuppressedInSettleWindow = false;
     this.lastApprovalKind = candidate.kind;
     this.lastApprovalFingerprint = candidate.fingerprint;
     this.activeApprovalOptionKeys = candidate.optionKeys ?? null;
@@ -1340,13 +1408,27 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess || !this.lastApprovalDecisionAt || this.lastApprovalDecisionAt !== decisionAt) {
       return;
     }
-    if (this.approvalActive || Date.now() - this.lastPtyDataAt < DEFAULT_APPROVAL_SETTLE_MS - 50) {
+    if (this.approvalActive) {
       return;
     }
 
     const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
     const candidate = detectApprovalCandidate(approvalSource, this.profile);
     if (!candidate || candidate.promptAfterApproval) {
+      return;
+    }
+    if (Date.now() - this.lastPtyDataAt < DEFAULT_APPROVAL_SETTLE_MS - 50) {
+      // A candidate is on screen but bytes are still flowing — too fresh to
+      // judge. When a same-kind candidate was SUPPRESSED inside the settle
+      // window it has no other path back (a static panel emits no further
+      // bytes to re-trigger detection), so re-arm instead of dropping; the
+      // chain ends when the screen quiets (judged below) or the candidate
+      // leaves the tail. Every other path keeps today's one-shot semantics —
+      // an unconditional re-arm would widen the false-resurface window for
+      // answered panels whose text still lingers in the run tail.
+      if (this.approvalSuppressedInSettleWindow) {
+        this.scheduleApprovalSettleCheck(decisionAt);
+      }
       return;
     }
 
@@ -1580,7 +1662,13 @@ export class TerminalHost extends EventEmitter {
     this.activeRun = run;
     this.recentAttributionRun = null;
     this.activeRunRaw = "";
+    this.debugCompletion(`begun "${trimmed.slice(0, 40)}"`);
     this.emitEvent("run:started", run);
+    // Arm the completion path at birth: a run whose command was already
+    // painted before the run began (a late hook-begun run, a command that
+    // produces no further printable output) would otherwise wait on a
+    // printable chunk that never comes.
+    this.scheduleCompletionCheck();
     return run;
   }
 
@@ -1609,6 +1697,7 @@ export class TerminalHost extends EventEmitter {
     if (!this.activeRun) {
       return null;
     }
+    this.debugCompletion(`finish status=${status} reason="${reason}"`);
 
     const endedAt = new Date();
     const completionSource = metadata.completionSource ?? completionSourceForStatus(status);
@@ -1637,6 +1726,7 @@ export class TerminalHost extends EventEmitter {
     this.recentAttributionRun = {
       id: finished.id,
       expiresAt: Date.now() + this.postCompletionAttributionMs,
+      prompt: finished.prompt,
     };
     this.clearCompletionTimer();
     this.emitEvent("run:updated", finished);
@@ -1651,11 +1741,21 @@ export class TerminalHost extends EventEmitter {
       return;
     }
     if (this.activeRun.status !== "active") {
+      this.debugCompletion(`schedule-skip status=${this.activeRun.status}`);
       return;
     }
 
     this.clearCompletionTimer();
     this.completionTimer = setTimeout(() => this.checkCompletionHeuristic(), this.completionQuietMs);
+  }
+
+  private debugCompletion(message: string): void {
+    // Diag-only telemetry (s4-diags); inert unless the env flag is set.
+    if (process.env.DUET_DEBUG_COMPLETION) {
+      console.log(
+        `[completion] ${new Date().toISOString()} run=${this.activeRun?.id ?? "none"} kind=${this.activeRun?.kind ?? "-"} ${message}`,
+      );
+    }
   }
 
   private checkCompletionHeuristic(): void {
@@ -1664,34 +1764,43 @@ export class TerminalHost extends EventEmitter {
       return;
     }
     if (this.approvalActive || this.activeRun.status !== "active") {
+      this.debugCompletion(
+        `guard-exit approvalActive=${this.approvalActive} status=${this.activeRun.status}`,
+      );
       return;
     }
-    if (Date.now() - this.lastPtyDataAt < this.completionQuietMs - 50) {
+    // Quiet = no PRINTABLE output. Raw-byte recency lies: the idle TUI emits
+    // control-only housekeeping every ~200ms, which would keep this guard
+    // (and the schedule debounce) re-arming forever.
+    if (Date.now() - this.lastPrintablePtyDataAt < this.completionQuietMs - 50) {
+      this.debugCompletion(
+        `data-fresh printableAgeMs=${Date.now() - this.lastPrintablePtyDataAt} → re-arm`,
+      );
       this.scheduleCompletionCheck();
       return;
     }
+    this.debugCompletion("judging");
 
     const hint = detectIdleComposer(this.activeRunRaw, this.profile);
-    // A slash run has no model turn, so the activity-glyph precondition inside
-    // detectIdleComposer can never satisfy (pre-S3 the modal-arm side effect
-    // closed these runs; S3 retired it). Its honest completion is "the CLI
-    // accepts input again — or a panel is waiting for a human": the structural
-    // idle prompt alone. Same semantics the modal arm encoded ("the run ended
-    // in a panel, not output — settle it so the session does not look busy").
-    const completed =
-      this.activeRun.kind === "slash"
-        ? detectIdlePrompt(this.activeRunRaw, this.profile).ready
-        : hint.completed;
+    // A slash run has no model turn: no Stop hook closes it, and a cursor-diff
+    // TUI may never repaint the composer ❯ into the run's OWN bytes — an
+    // unknown command paints exactly one ⏺ line and nothing else, so S3's
+    // "structural idle prompt in the run raw" test stayed false forever on a
+    // static stream (■ wedged; the next send-click became an interrupt —
+    // s4-diags/zzz-settle-probe). Reaching this line already guarantees the
+    // stream has been QUIET for completionQuietMs (the animating spinner makes
+    // real work never quiet), and that quiescence IS a slash run's honest
+    // completion: the command was written and the CLI painted whatever it had
+    // to say — output, or a panel now waiting for the human in the co-visible
+    // terminal (the S5 attention banner's concern, not a busy state).
+    // Supersedes S3's settle-on-panel-close, which this evidence showed was
+    // repaint-order luck (Woody, 2026-07-02).
+    const completed = this.activeRun.kind === "slash" ? true : hint.completed;
     if (!completed) {
       this.updateActiveRun({
         lifecyclePhase: "active",
         lastLifecycleHint: hint,
       });
-      if (this.activeRun.kind === "slash") {
-        // A static panel emits no further bytes (P1: 65s+ without one), so no
-        // pty:data will re-arm the check — keep polling until the run settles.
-        this.scheduleCompletionCheck();
-      }
       return;
     }
 
@@ -1954,39 +2063,10 @@ function tomlString(value: string): string {
 
 
 
-export function detectClaudePermissionMode(cleanText: string): ClaudePermissionMode | null {
-  // Shift+Tab cycling appends EVERY mode's banner into the stream
-  // ("accept edits on" → "plan mode on" → "auto mode on" → default), so a
-  // substring-anywhere test always matches the first-checked mode and
-  // misreads the current one. The CURRENT mode is whatever the LAST status
-  // line says. Every status line ends in the "← for agents" hint; the mode
-  // banner (if any) sits just before it on the same line. So classify the
-  // window immediately preceding the last composer hint. Compact away
-  // spaces — cleanTerminal sometimes drops them ("auto mode on" →
-  // "automodeon"). Default mode shows no banner, only the bare hint.
-  const compact = cleanText.toLowerCase().replace(/[^a-z]+/g, "");
-  const lastHint = compact.lastIndexOf("foragents");
-  if (lastHint === -1) {
-    return null;
-  }
-  // Isolate JUST the current status line: the span between the previous
-  // hint and this one. A 60-char window would bleed into the prior line's
-  // banner (which still lingers in the cycling stream).
-  const prevHint = compact.lastIndexOf("foragents", lastHint - 1);
-  const line = compact.slice(prevHint === -1 ? 0 : prevHint + "foragents".length, lastHint);
-  if (line.includes("automodeon") || line.includes("autoon")) {
-    return "auto";
-  }
-  if (line.includes("planmodeon") || line.includes("planmode")) {
-    return "plan";
-  }
-  if (line.includes("accepteditson") || line.includes("acceptedits")) {
-    return "acceptEdits";
-  }
-  return "default";
-}
-
-
+// detectClaudePermissionMode (the permission-mode banner scrape) retired in
+// S4: S3 deleted its last caller (driveClaudePermission); mode DISPLAY now
+// follows the hook payload's `permission_mode` (runtime-controller). History:
+// git log -S detectClaudePermissionMode.
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

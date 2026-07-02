@@ -40,8 +40,13 @@ try {
   });
   await page.locator("#entry-provider-claude").click();
 
-  // A live, idle Claude session to route slash commands into.
-  await sendFirstPrompt(page, "Reply with exactly: READY", { approveTrust: true });
+  // A live, idle Claude session to route slash commands into. The auto
+  // workspace is pre-trusted at creation (S4 trust pre-write), so the trust
+  // dialog must NOT appear — its scrape/answer cycle is exactly what wedged
+  // this suite's baseline pre-S4 (fingerprint-keyed resurface × partial
+  // repaint; s3-diags/trust-wedge-gui-diag).
+  const trustOutcome = await sendFirstPrompt(page, "Reply with exactly: READY");
+  checks.noTrustDialog = trustOutcome === "pre-trusted";
   await waitForCompletedTurns(page, 1);
   checks.sessionLive = true;
 
@@ -83,11 +88,18 @@ try {
       return panelRe.test(text);
     }, 15000);
     await terminal.locator(".xterm-helper-textarea").focus();
-    await terminal.keyboard.press("Escape");
-    checks.panelClosedNatively = await waitFor(async () => {
-      const text = (await terminal.locator(".xterm-rows").textContent().catch(() => "")) ?? "";
-      return !panelRe.test(text) && text.includes("❯");
-    }, 15000);
+    // /config opens with its search field focused: the first Esc only leaves
+    // the field ("Esc to clear" → "Esc to close"); closing the panel takes a
+    // second one (s4-diags/config-esc evidence). Press until the viewport is
+    // back at the composer — exactly what a human reading the footer does.
+    checks.panelClosedNatively = false;
+    for (let attempt = 0; attempt < 3 && !checks.panelClosedNatively; attempt += 1) {
+      await terminal.keyboard.press("Escape");
+      checks.panelClosedNatively = await waitFor(async () => {
+        const text = (await terminal.locator(".xterm-rows").textContent().catch(() => "")) ?? "";
+        return !panelRe.test(text) && text.includes("❯");
+      }, 5000);
+    }
   }
   // The slash run settles once the panel is gone (the idle prompt is its
   // honest completion — the S3 replacement for the modal-arm side effect).
@@ -133,6 +145,7 @@ try {
   }, 90000);
 
   const success =
+    checks.noTrustDialog &&
     checks.sessionLive &&
     checks.panelSubmitAccepted &&
     checks.panelNoReadingBanner &&

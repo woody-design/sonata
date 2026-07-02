@@ -81,7 +81,9 @@ try {
   // Send -> session is created, references fold into the prompt text and deliver.
   await page.locator("#prompt-input").fill("Reply exactly DUET_REF_RECEIPT. Do not create or modify any files.");
   await page.locator("#send-prompt").click();
-  await approveIfVisible(page, "Workspace trust requested", 60000);
+  // S4 pre-trusts the auto workspace — the banner normally never comes; the
+  // short wait is fallback tolerance, not the expected path.
+  await approveIfVisible(page, "Workspace trust requested", 8000);
   await waitForCompletedTurns(page, 1);
 
   const userText = (await page.locator(".turn-user-text").allTextContents()).join("\n");

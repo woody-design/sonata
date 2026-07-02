@@ -55,6 +55,7 @@ import {
   RunIndex,
   isRunIndexEvent,
   TerminalHost,
+  type StartTaskOptions,
   WorkspacePreview,
   ClaudeStatuslineUsageWatcher,
   ClaudeHookWatcher,
@@ -71,6 +72,7 @@ import {
   StatusRegionTracker,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
+import { ensureClaudeProjectTrust, updateClaudeConfig } from "./claude-config";
 import {
   projectRecordRoot,
   projectsDataDir,
@@ -230,6 +232,23 @@ export class RuntimeController {
     if (autoWorkspace) {
       fs.mkdirSync(providerCwd, { recursive: true });
     }
+    if (request.provider === "claude") {
+      // Trust pre-write (two-window contract §2, S4): every cwd a task can be
+      // born with was designated by the user in Duet's own UI — picked in the
+      // folder dialog, chosen from recents / a project row, carried over as
+      // the last-used folder — or is the auto workspace Duet itself just
+      // created (trustworthy by construction: it is empty). That gesture IS
+      // the trust grant (Woody, 2026-07-02: all four sources count), so the
+      // native dialog is pre-answered instead of mirrored. Resume/reopen adds
+      // no fresh gesture and does NOT pre-write (reopenTask) — its folder was
+      // granted when the session was first created. On any failure the write
+      // degrades to a no-op and the native dialog simply appears (the scrape
+      // fallback answers it, as before S4).
+      const trust = ensureClaudeProjectTrust(providerCwd);
+      console.debug(
+        `[trust] pre-write ${trust.reason}${trust.backupCreated ? " (backup created)" : ""}: ${trust.projectKey}`,
+      );
+    }
     const launchSettings = normalizeLaunchSettings(request.provider, request);
     // New Claude sessions inherit the Duet-owned default permission mode
     // (Settings → Approvals) unless the request names one explicitly. This
@@ -302,28 +321,22 @@ export class RuntimeController {
     });
     const cliState = new CliStateModel((snapshot) => this.emitCliState(taskId, snapshot));
 
-    const startOptions = {
-      cwd: providerCwd,
-      // Claude's hooks/usage/settings live HERE (D8) — Duet-owned, outside the
-      // agent's working directory, so nothing Duet writes into the user's repo.
-      runtimeDir: runtimeDir(taskId),
-      sandbox: permissionSettings.sandbox ?? "read-only",
-      approval: permissionSettings.approval ?? "on-request",
-      model: launchSettings.model,
-      reasoningEffort: launchSettings.reasoningEffort,
-      speedMode: launchSettings.speedMode,
-      ...(request.provider === "claude"
-        ? { permissionMode: permissionSettings.permissionMode ?? "default" }
-        : {}),
-      ...(request.provider === "claude" && request.remoteControl ? { remoteControl: true } : {}),
-      ...(pinnedSessionId ? { sessionId: pinnedSessionId } : {}),
-    };
     const ptyStartedAt = new Date().toISOString();
-    const runtime = terminalHost.startTask({
-      ...startOptions,
-      ...(request.rows !== undefined ? { rows: request.rows } : {}),
-      ...(request.cols !== undefined ? { cols: request.cols } : {}),
-    });
+    const runtime = terminalHost.startTask(
+      this.buildStartOptions({
+        provider: request.provider,
+        taskId,
+        cwd: providerCwd,
+        model: launchSettings.model,
+        reasoningEffort: launchSettings.reasoningEffort,
+        speedMode: launchSettings.speedMode,
+        permissionSettings,
+        remoteControl: Boolean(request.remoteControl),
+        sessionId: pinnedSessionId ?? null,
+        rows: request.rows,
+        cols: request.cols,
+      }),
+    );
 
     const runningTask: Task = {
       ...task,
@@ -452,28 +465,23 @@ export class RuntimeController {
     // numbers. Per-spawn env, never a ~/.claude.json write.
     const claudeResume = runningTask.provider === "claude" && Boolean(resumeRef);
     const ptyStartedAt = new Date().toISOString();
-    const runtime = terminalHost.startTask({
-      cwd: providerCwd,
-      // D8: same Duet-owned runtime home on RESUME as on fresh spawn — keyed by
-      // taskId, so Claude's hooks/usage/settings stay out of the user's repo and
-      // the watcher (also keyed by runtimeDir) keeps seeing them. Omitting this
-      // silently re-pollutes the repo and breaks busy/Stop/approval detection.
-      runtimeDir: runtimeDir(runningTask.id),
-      sandbox: permissionSettings.sandbox ?? "read-only",
-      approval: permissionSettings.approval ?? "on-request",
-      model: runningTask.model,
-      reasoningEffort: runningTask.reasoningEffort,
-      speedMode: runningTask.speedMode,
-      ...(runningTask.provider === "claude"
-        ? { permissionMode: permissionSettings.permissionMode ?? "default" }
-        : {}),
-      ...(runningTask.provider === "claude" && request.remoteControl ? { remoteControl: true } : {}),
-      ...(resumeRef ? { resumeRef } : {}),
-      ...(pinnedSessionId ? { sessionId: pinnedSessionId } : {}),
-      ...(claudeResume ? { extraEnv: RESUME_PANEL_SUPPRESS_ENV } : {}),
-      ...(request.rows !== undefined ? { rows: request.rows } : {}),
-      ...(request.cols !== undefined ? { cols: request.cols } : {}),
-    });
+    const runtime = terminalHost.startTask(
+      this.buildStartOptions({
+        provider: runningTask.provider,
+        taskId: runningTask.id,
+        cwd: providerCwd,
+        model: runningTask.model,
+        reasoningEffort: runningTask.reasoningEffort,
+        speedMode: runningTask.speedMode,
+        permissionSettings,
+        remoteControl: Boolean(request.remoteControl),
+        resumeRef,
+        sessionId: pinnedSessionId ?? null,
+        ...(claudeResume ? { extraEnv: RESUME_PANEL_SUPPRESS_ENV } : {}),
+        rows: request.rows,
+        cols: request.cols,
+      }),
+    );
 
     const activeTask = {
       task: runningTask,
@@ -593,27 +601,21 @@ export class RuntimeController {
 
   /**
    * Removes the temporary `resumeReturnDismissed: true` bridge from
-   * ~/.claude.json — the ONLY user-global provider write Duet performs,
-   * and only on an explicit click. Inside Duet the panel is suppressed
-   * per-spawn regardless; this restores Claude's own warning for
-   * terminals OUTSIDE Duet. Last-writer-wins with concurrent claude
-   * processes, same as the native option-3 write itself.
+   * ~/.claude.json, only on an explicit click. Inside Duet the panel is
+   * suppressed per-spawn regardless; this restores Claude's own warning
+   * for terminals OUTSIDE Duet. Rides the shared `updateClaudeConfig`
+   * primitive (S4) — same backup-once / atomic / conflict-retry rules as
+   * the trust pre-write, one write path for the user-global config.
    */
   revertResumeBridge(): RevertResumeBridgeResponse {
-    const configPath = path.join(os.homedir(), ".claude.json");
-    try {
-      const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
-      if (parsed.resumeReturnDismissed !== true) {
-        return { cleared: true };
+    const result = updateClaudeConfig((config) => {
+      if (config.resumeReturnDismissed !== true) {
+        return false;
       }
-      delete parsed.resumeReturnDismissed;
-      const tempPath = `${configPath}.duet-tmp`;
-      fs.writeFileSync(tempPath, JSON.stringify(parsed, null, 2), "utf8");
-      fs.renameSync(tempPath, configPath);
-      return { cleared: true };
-    } catch {
-      return { cleared: false };
-    }
+      delete config.resumeReturnDismissed;
+      return true;
+    });
+    return { cleared: result.applied || result.reason === "no-change" };
   }
 
   private readResumeBridgeDismissed(): boolean {
@@ -1371,6 +1373,7 @@ export class RuntimeController {
     for (const active of this.taskRuntimes.values()) {
       if (active.task.provider === "claude" && pathsEqual(runtimeDir(active.task.id), resolved)) {
         active.cliState.applyHook(payload);
+        this.applyHookPermissionMode(active, payload);
         this.handleOptionPromptHook(active, payload);
         // `UserPromptSubmit` is the authoritative "a turn is starting" signal —
         // the CLI just began (or dequeued) a prompt. Begin the run from it
@@ -1393,6 +1396,35 @@ export class RuntimeController {
         return;
       }
     }
+  }
+
+  /**
+   * Keep the displayed permission mode current from hook payloads (contract
+   * §2: mid-session switching lives in the Terminal — Shift+Tab, /permissions
+   * — and Reading only DISPLAYS the mode; the banner scrape that used to
+   * verify drives is retired in S4). Every hook event carries
+   * `permission_mode`, so a native switch is reflected on the next hook
+   * activity — not instantly on the keypress; the statusline payload has no
+   * mode field, so hooks are the only structured source.
+   */
+  private applyHookPermissionMode(active: ActiveTaskRuntime, payload: ClaudeHookPayload): void {
+    const mode = payload.permission_mode;
+    if (
+      typeof mode !== "string" ||
+      !CLAUDE_PERMISSION_MODES.has(mode as ClaudePermissionMode) ||
+      active.task.permissionMode === mode
+    ) {
+      return;
+    }
+    // updatedAt stays put — a mode display refresh is metadata, not activity
+    // (same rule as rename/archive), so the sidebar ordering doesn't jump.
+    active.task = { ...active.task, permissionMode: mode as ClaudePermissionMode };
+    this.persistTaskManifest(active.task, active.storageRoot);
+    this.sendEvent({
+      type: "task:updated",
+      payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
+      ts: new Date().toISOString(),
+    });
   }
 
   /**
@@ -1627,6 +1659,56 @@ export class RuntimeController {
 
   private nextTaskId(): TaskId {
     return `task-${Date.now()}-${++this.taskSeq}`;
+  }
+
+  /**
+   * The ONE assembly of provider spawn options (contract §2: session-start
+   * config is fully structured spawn args — S4 consolidation). createTask and
+   * reopenTask both ride it; the split assembly is exactly how a resume once
+   * silently dropped `runtimeDir` (D8) and broke busy/Stop/approval detection.
+   */
+  private buildStartOptions(args: {
+    provider: RuntimeProvider;
+    taskId: TaskId;
+    cwd: string;
+    model: string | null;
+    reasoningEffort: ReasoningEffort | null;
+    speedMode: LaunchSpeedMode | null;
+    permissionSettings: {
+      sandbox: CodexSandboxMode | null;
+      approval: CodexApprovalMode | null;
+      permissionMode: ClaudePermissionMode | null;
+    };
+    remoteControl: boolean;
+    resumeRef?: string | null;
+    sessionId?: string | null;
+    extraEnv?: Record<string, string>;
+    rows?: number | undefined;
+    cols?: number | undefined;
+  }): StartTaskOptions {
+    return {
+      cwd: args.cwd,
+      // Claude's hooks/usage/settings live HERE (D8) — Duet-owned, outside the
+      // agent's working directory, so nothing Duet writes into the user's repo
+      // and the hook watcher (also keyed by runtimeDir) keeps seeing them —
+      // on fresh spawn and resume alike.
+      runtimeDir: runtimeDir(args.taskId),
+      sandbox: args.permissionSettings.sandbox ?? "read-only",
+      approval: args.permissionSettings.approval ?? "on-request",
+      model: args.model,
+      reasoningEffort: args.reasoningEffort,
+      speedMode: args.speedMode,
+      ...(args.provider === "claude"
+        ? { permissionMode: args.permissionSettings.permissionMode ?? "default" }
+        : {}),
+      ...(args.provider === "claude" && args.remoteControl ? { remoteControl: true } : {}),
+      ...(args.resumeRef ? { resumeRef: args.resumeRef } : {}),
+      // --session-id pins a fresh session only; --resume already owns the id.
+      ...(!args.resumeRef && args.sessionId ? { sessionId: args.sessionId } : {}),
+      ...(args.extraEnv ? { extraEnv: args.extraEnv } : {}),
+      ...(args.rows !== undefined ? { rows: args.rows } : {}),
+      ...(args.cols !== undefined ? { cols: args.cols } : {}),
+    };
   }
 
   private autoWorkspacePath(taskId: TaskId): string {

@@ -1,4 +1,4 @@
-import { approveIfVisible } from "./approval.mjs";
+import { approveVisibleBanner } from "./approval.mjs";
 
 /**
  * Sidebar-era session helpers.
@@ -10,14 +10,37 @@ import { approveIfVisible } from "./approval.mjs";
  * surfaces during that cold start) is answered here.
  */
 
-/** Send the FIRST prompt of a window — creates the session. */
+/** Send the FIRST prompt of a window — creates the session.
+ *
+ * Returns how the trust moment resolved: `"pre-trusted"` (the prompt
+ * dispatched with no trust banner — S4's pre-write world for Claude),
+ * `"trust-answered"` (the banner appeared and was approved — Codex, and any
+ * pre-write fallback), or `"timeout"`. Waiting is a RACE, not a fixed stall:
+ * with trust pre-granted the banner never comes, and a fixed wait would add
+ * its full timeout to every suite. */
 export async function sendFirstPrompt(page, lines, options = {}) {
   const { approveTrust = true, trustTimeout = 60000 } = options;
+  const cardsBefore = await page.locator(".turn-card").count();
   await page.locator("#prompt-input").fill(asText(lines));
   await page.locator("#send-prompt").click();
-  if (approveTrust) {
-    await approveIfVisible(page, "Workspace trust requested", trustTimeout);
+  if (!approveTrust) {
+    return "pre-trusted";
   }
+  const banner = page.locator("#approval-banner", { hasText: "Workspace trust requested" });
+  const deadline = Date.now() + trustTimeout;
+  while (Date.now() < deadline) {
+    if (await banner.isVisible().catch(() => false)) {
+      await approveVisibleBanner(page, banner);
+      return "trust-answered";
+    }
+    // A turn card can only land once the prompt actually dispatched — which a
+    // pending trust panel blocks — so it is proof no trust gate is coming.
+    if ((await page.locator(".turn-card").count()) > cardsBefore) {
+      return "pre-trusted";
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return "timeout";
 }
 
 /** Send a follow-up prompt into the active (already live) session. */

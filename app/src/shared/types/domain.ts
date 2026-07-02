@@ -119,7 +119,15 @@ export type DeliveryReceiptSource =
   // A mid-turn write-through send: the bytes were written and the CLI native-
   // queued it (P2/P6) → sent. Its transcript block arrives only at dequeue, so
   // this is the receipt at hand-off time (no 45s undelivered timer).
-  | "native-queue";
+  | "native-queue"
+  // A verbatim slash command submitted on an idle composer: a LOCAL command
+  // never yields a transcript user-block (and the echo path is off once the
+  // transcript is live), so the transcript receipt is structurally
+  // unreachable — its 45s timeout marked the item undelivered, and an
+  // undelivered head blocks the queue forever (the S4 /config wedge,
+  // s4-diags). Sent-is-sent: the bytes are in the PTY and the command's
+  // panel/output is visible in the co-present terminal.
+  | "slash-write";
 
 /** Who owns the bytes. `blob` = Duet copied them into the per-task attachments
  *  dir (deleted with the chip/session). `referenced` = the user's own path, never

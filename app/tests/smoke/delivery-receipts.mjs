@@ -291,6 +291,39 @@ await check("mixed image + file reference: file folds to text, image chips, item
   controller.dispose();
 });
 
+await check("slash delivery receipts immediately and never blocks the queue", async () => {
+  // A verbatim slash on an idle composer opens a kind:"slash" run whose
+  // transcript receipt is structurally unreachable (local commands write no
+  // user-block; echo is off once the transcript is live). Pre-fix, the 45s
+  // timeout marked it undelivered and the undelivered HEAD blocked
+  // nextQueuedItem() forever — every later send silently died (the S4
+  // /config wedge, s4-diags/skill-dispatch evidence). Lock: sent-is-sent.
+  const events = [];
+  const host = fakeHost();
+  const controller = new DeliveryController({
+    taskId: "task-slash-receipt-smoke",
+    provider: "claude",
+    terminalHost: host,
+    eventSink: (event) => events.push(event),
+    hasLiveTranscriptSource: () => true,
+    receiptTimeoutMs: 500,
+  });
+
+  const slashItem = controller.enqueue("/config");
+  const receipt = events.find(
+    (event) => event.type === "delivery:receipt" && event.payload.itemId === slashItem.id,
+  );
+  assert.ok(receipt, "slash item receipts at write time");
+  assert.equal(receipt.payload.receipt.source, "slash-write");
+  assert.equal(controller.state().queue.length, 0, "slash item left the queue immediately");
+
+  // The queue keeps moving: a follow-up prompt delivers (write-through), it
+  // does not sit queued behind a phantom undelivered slash.
+  controller.enqueue("follow-up prompt");
+  assert.equal(host.submissions.length, 2, "follow-up prompt reached the PTY");
+  controller.dispose();
+});
+
 if (failures.length > 0) {
   process.exitCode = 1;
 }

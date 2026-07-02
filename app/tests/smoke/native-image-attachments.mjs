@@ -213,7 +213,12 @@ async function startHost(provider, name) {
       exited = true;
     }
     if (event.type === "approval:detected" && event.payload.kind === "workspace-trust") {
-      host.sendApprove();
+      // Answer OUTSIDE this dispatch. A synchronous sendApprove() here made the
+      // delivery controller (line below) see approval:decision BEFORE this very
+      // approval:detected, wedging `approvalPending` true forever — a re-entrancy
+      // that cannot happen in production, where answers arrive via async IPC
+      // (s3-diags/image-smoke-gate-diag).
+      setTimeout(() => host.sendApprove(), 0);
     }
     if (event.type === "run:started") {
       transcript.ensureDiscovery();

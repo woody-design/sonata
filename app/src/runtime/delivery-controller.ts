@@ -352,6 +352,26 @@ export class DeliveryController {
       });
       return;
     }
+    // A slash run (verbatim command on an idle composer, S3) can never earn a
+    // transcript receipt: local commands write no user-block to the JSONL, and
+    // the echo path is off once the transcript is live. Arming the 45s timer
+    // marked it undelivered — and an undelivered head blocks nextQueuedItem()
+    // forever (no retry surface since S1c): every later send silently died
+    // (the S4 /config wedge, s4-diags/skill-dispatch evidence). Sent-is-sent:
+    // the write happened and the command's effect is visible in the
+    // co-present terminal; the run's own completion is tracked separately by
+    // the structural idle re-check.
+    if (submission.kind === "slash") {
+      this.completeDelivery(item, {
+        source: "slash-write",
+        receivedAt: new Date().toISOString(),
+        runId: submission.runId,
+        sourceId: null,
+        blockId: null,
+        backfilled: false,
+      });
+      return;
+    }
     this.inFlight = {
       itemId: item.id,
       submittedAtMs: Date.parse(submission.submittedAt),
