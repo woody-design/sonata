@@ -48,11 +48,14 @@ const [claudeStartupLine, claudeResponseLine] = fs
   .trim()
   .split("\n");
 
-assert.equal(
-  parseClaudeStatuslineJson(claudeStartupLine),
-  null,
-  "Claude startup payload has no usable usage data",
-);
+// The startup payload carries no USAGE ($0 cost, empty context) but it does
+// carry the live model — since S6.5 that is an independent signal, so the
+// payload parses into a model-only snapshot (the chip goes live at startup).
+const claudeStartup = parseClaudeStatuslineJson(claudeStartupLine);
+assert.ok(claudeStartup, "startup payload parses for its model display");
+assert.equal(claudeStartup.snapshot.modelDisplayName, "Fable 5");
+assert.equal(claudeStartup.snapshot.reasoningEffort, "high");
+assert.equal(claudeStartup.snapshot.costUsd, null, "startup $0 cost still reads as no cost");
 
 const claudeResponse = parseClaudeStatuslineJson(claudeResponseLine, { capturedAt: 123456 });
 assert.ok(claudeResponse, "expected Claude response statusline snapshot");
@@ -140,5 +143,27 @@ assert.ok(costOnly, "cost-only payload must not be dropped");
 assert.equal(costOnly.snapshot.costUsd, 0.42);
 assert.equal(costOnly.snapshot.context, null);
 assert.deepEqual(costOnly.snapshot.limits, []);
+
+// Model display is an independent signal (S6.5): a payload carrying only the
+// model must still snapshot (drives the live chip); junk shapes read null.
+const modelOnlyLine = JSON.stringify({
+  session_id: "sess-6",
+  model: { id: "claude-opus-4-8", display_name: "Opus 4.8" },
+  effort: { level: "medium" },
+});
+const modelOnly = parseClaudeStatuslineJson(modelOnlyLine);
+assert.ok(modelOnly, "model-only payload must not be dropped");
+assert.equal(modelOnly.snapshot.modelDisplayName, "Opus 4.8");
+assert.equal(modelOnly.snapshot.reasoningEffort, "medium");
+const junkModelLine = JSON.stringify({
+  session_id: "sess-7",
+  model: { display_name: "   " },
+  effort: 42,
+});
+assert.equal(
+  parseClaudeStatuslineJson(junkModelLine),
+  null,
+  "whitespace model + junk effort carry no signal",
+);
 
 console.log("usage adapter fixtures passed");

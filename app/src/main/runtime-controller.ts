@@ -312,7 +312,6 @@ export class RuntimeController {
       terminalHost,
       eventSink: (event) => this.sendEvent(event),
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
-      cleanupAttachments: (attachments) => this.cleanupAttachments(taskId, attachments),
     });
     const statusTracker = new StatusRegionTracker({
       taskId,
@@ -448,9 +447,6 @@ export class RuntimeController {
       terminalHost,
       eventSink: (event) => this.sendEvent(event),
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
-      // Same as createTask: a cancelled queue item must delete its copied blobs —
-      // a resumed session can attach + cancel just like a fresh one.
-      cleanupAttachments: (attachments) => this.cleanupAttachments(runningTask.id, attachments),
     });
     const statusTracker = new StatusRegionTracker({
       taskId: runningTask.id,
@@ -901,16 +897,6 @@ export class RuntimeController {
     return results;
   }
 
-  cancelQueuedPrompt(taskId: TaskId, itemId: string): void {
-    const active = this.requireTaskRuntime(taskId);
-    active.deliveryController.cancel(itemId);
-  }
-
-  retryQueuedPrompt(taskId: TaskId, itemId: string): void {
-    const active = this.requireTaskRuntime(taskId);
-    active.deliveryController.retry(itemId);
-  }
-
   decideApproval(taskId: TaskId, decision: ApprovalDecision, approvalId: string | null = null): void {
     const active = this.requireTaskRuntime(taskId);
     // Hook-broker card (S2, Claude): answer on the hook channel — write the
@@ -921,11 +907,22 @@ export class RuntimeController {
       writeApprovalReply(runtimeDir(taskId), approvalId, brokerDecisionJson(decision, pending.payload));
       const decisionEvent: RuntimeEvent = {
         type: "approval:decision",
-        payload: { taskId, runId: null, decision, encodedAs: "native-keys", previousKind: null },
+        payload: {
+          taskId,
+          runId: active.terminalHost.activeRunId(),
+          decision,
+          encodedAs: "reply-file",
+          previousKind: classifyApprovalKind(pending.payload),
+        },
         ts: new Date().toISOString(),
       };
       this.sendEvent(decisionEvent); // renderer clears the card + cli-state resyncs
       active.deliveryController.handleRuntimeEvent(decisionEvent); // clear the delivery gate
+      // Audit trail (same reason as surfaceBrokerApproval): reply-channel
+      // decisions must reach the run-index themselves.
+      if (active.runIndex.consume(decisionEvent)) {
+        this.emitReportUpdated(active.runIndex);
+      }
       // Resync terminal-host state: the approval scrape may have flipped the
       // run to waiting-for-approval off the broker-held preview bytes; a
       // reply-channel decision must resume it or the run wedges (S5 diag).
@@ -979,7 +976,9 @@ export class RuntimeController {
       type: "approval:detected",
       payload: {
         taskId: active.task.id,
-        runId: null,
+        // Broker asks carry no runId of their own; attribute to the open
+        // Duet run — the same attribution the scrape path records.
+        runId: active.terminalHost.activeRunId(),
         kind,
         source: "hook-broker",
         answerVia: "reply",
@@ -990,6 +989,13 @@ export class RuntimeController {
       ts: new Date().toISOString(),
     };
     active.deliveryController.handleRuntimeEvent(event); // gate blocks while any approval is pending
+    // The report is the approval audit trail: broker asks never flow through
+    // the terminal-host eventSink, so consume into the run-index here or the
+    // durable record silently loses hook-broker provenance (found by the S6
+    // approval-surface rewrite — the report had NO approval events at all).
+    if (active.runIndex.consume(event)) {
+      this.emitReportUpdated(active.runIndex);
+    }
     if (!this.shownBrokerApproval.has(active.task.id)) {
       this.shownBrokerApproval.set(active.task.id, id);
       this.sendEvent(event); // the card
@@ -1396,6 +1402,16 @@ export class RuntimeController {
         // is additive: prompt completion when Stop fires, scrape otherwise.
         if (payload.hook_event_name === "Stop") {
           active.terminalHost.completeRunFromTurnEnd();
+        }
+        // `StopFailure` is the turn's other honest ending: the API errored
+        // out after retries and Stop will never fire (probed S6). Complete
+        // the run with the structured error — the scrape-side excerpt
+        // extraction remains the fallback for hook-less sessions.
+        if (payload.hook_event_name === "StopFailure") {
+          const error = typeof payload.error === "string" && payload.error.trim()
+            ? payload.error.trim()
+            : "API error";
+          active.terminalHost.completeRunFromTurnEnd({ errorExcerpt: error });
         }
         return;
       }
@@ -2093,12 +2109,20 @@ function mergeUsageSnapshot(previous: UsageSnapshot | null, next: UsageSnapshot)
     limits: next.limits.length > 0 ? next.limits : previous.limits,
     sessionName: next.sessionName ?? previous.sessionName ?? null,
     costUsd: next.costUsd ?? previous.costUsd ?? null,
+    modelDisplayName: next.modelDisplayName ?? previous.modelDisplayName ?? null,
+    reasoningEffort: next.reasoningEffort ?? previous.reasoningEffort ?? null,
   };
 }
 
 function hasUsageData(snapshot: UsageSnapshot): boolean {
+  // Model display counts as signal (S6.5): the startup payload is often
+  // model-only ($0 cost, no context yet) and must still publish so the live
+  // model chip follows the statusline from the first event.
   return Boolean(
-    snapshot.context || snapshot.limits.length > 0 || typeof snapshot.costUsd === "number",
+    snapshot.context ||
+      snapshot.limits.length > 0 ||
+      typeof snapshot.costUsd === "number" ||
+      snapshot.modelDisplayName,
   );
 }
 
@@ -2233,9 +2257,10 @@ function truncateMiddle(value: string, max: number): string {
 /**
  * The three fixed choices on a hook-broker card (answered via the reply file).
  * The "Always" label/description states the ACTUAL persisted rule, not a vague
- * "this command" — because for Bash the rule is `<firstToken> *` (approving
- * `git status` allows all `git *`). The button must not promise narrower than
- * it grants (reviewer P2, trust boundary).
+ * "this command" — because for Bash the rule is `Bash(<firstToken>:*)`
+ * (approving `git status` allows all git commands; the label renders it as
+ * "git *" for humans). The button must not promise narrower than it grants
+ * (reviewer P2, trust boundary).
  */
 function brokerApprovalChoices(kind: ApprovalKind, payload: ClaudeHookPayload): ApprovalChoice[] {
   const scope = alwaysAllowScopeLabel(kind, payload); // e.g. "git *", "edits", "reads"
@@ -2296,7 +2321,13 @@ function alwaysAllowRule(payload: ClaudeHookPayload): Record<string, unknown> | 
     if (!firstToken) return null;
     return {
       type: "addRules",
-      rules: [{ toolName: "Bash", ruleContent: `${firstToken} *` }],
+      // Claude's prefix syntax is COLON-star: `Bash(touch:*)` matches every
+      // touch command; `Bash(touch *)` (space) is a literal exact-match that
+      // never fires — the S6 rule-timing probe found the Always button had
+      // been persisting exactly that dead form. With the colon form the rule
+      // applies IMMEDIATELY (same-turn follow-up calls stop asking) —
+      // p1-intercept always-variant, 2.1.198.
+      rules: [{ toolName: "Bash", ruleContent: `${firstToken}:*` }],
       behavior: "allow",
       destination: "projectSettings",
     };

@@ -71,9 +71,6 @@ const DEFAULT_ROWS = 36;
 const DEFAULT_COLS = 120;
 const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
-const DEFAULT_TASK_READY_MIN_AGE_MS = 8000;
-const CODEX_TASK_READY_MIN_AGE_MS = 14_000;
-const DEFAULT_TASK_READY_QUIET_MS = 900;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
 /** Gap between option-prompt keystrokes so the native form's per-question
@@ -315,8 +312,11 @@ interface TerminalProviderProfile {
   defaultCommand: string;
   approvalSource: string;
   supportsSlashStop: boolean;
-  taskReadyMinAgeMs: number;
-  taskReadyQuietMs: number;
+  /** Fence-only vocabulary (S6): the last-activity ordering anchors inside
+   *  `detectIdlePrompt` (composer must render AFTER work text) and
+   *  `detectIdleComposer` (the quiescence run-closer's "work happened"
+   *  evidence). NOT a busy/idle driver — that is cli-state (hooks) with the
+   *  StatusRegionTracker's own display-only glyph constants behind it. */
   activityHints: string[];
   idlePromptModelHints: RegExp;
   buildArgs: (options: StartTaskOptions & { cwd: string }) => string[];
@@ -368,8 +368,6 @@ export class TerminalHost extends EventEmitter {
   private runSeq = 0;
   private completionTimer: NodeJS.Timeout | null = null;
   private approvalSettleTimer: NodeJS.Timeout | null = null;
-  private taskReadyTimer: NodeJS.Timeout | null = null;
-  private acceptsInputAnnounced = false;
   private lastPtyDataAt = 0;
   /** Last chunk that carried PRINTABLE content (survives cleanTerminal). The
    *  idle claude TUI emits a 5-byte control-only chunk every ~200ms
@@ -428,40 +426,33 @@ export class TerminalHost extends EventEmitter {
     return Boolean(this.activeRun);
   }
 
+  /** The Duet-owned run currently open, for attribution of controller-side
+   *  events (hook-broker approvals carry no runId of their own). */
+  activeRunId(): RunId | null {
+    return this.activeRun ? this.activeRun.id : null;
+  }
+
   isApprovalActive(): boolean {
     return this.approvalActive;
   }
 
-  isIdleComposerReady(): boolean {
-    if (!this.ptyProcess || this.activeRun || this.approvalActive || !this.taskReady) {
-      return false;
-    }
-    if (Date.now() - this.lastPtyDataAt < this.profile.taskReadyQuietMs) {
-      return false;
-    }
-    return detectIdlePrompt(this.rawTail, this.profile).ready;
-  }
-
   /**
-   * Structural "the composer exists and is idle" check WITHOUT the
-   * taskReadyMinAgeMs fuse. Prompt detection already requires the prompt to
-   * render AFTER any approval-screen text, so a pending trust screen blocks
-   * this both via approvalActive and via the prompt-ordering rule. Used by
-   * the delivery gate (and the control-change idle wait) so a queued message
-   * goes out as soon as the CLI accepts input (~3s) instead of at the task-ready
-   * floor (14s). The delivery pump re-polls THIS gate every ~500ms while blocked,
-   * so it does not depend on `task:ready` — whose own PTY-quiet fuse
-   * (`checkTaskReady`) can be starved indefinitely by the same animating TUI.
+   * Structural "the composer exists and is idle" check — the boot-latch
+   * fence (contract §4 permanent fence list). Prompt detection requires the
+   * prompt to render AFTER any approval-screen text, so a pending trust
+   * screen blocks this both via approvalActive and via the prompt-ordering
+   * rule. The delivery pump re-polls THIS gate every ~500ms while blocked;
+   * it opens the boot latch (~1s after spawn, probe s6-diags) and never
+   * re-gates delivery after that.
    *
-   * No PTY-quiet gate (was: idle until quiet for ~taskReadyQuietMs). A modern
-   * TUI redraws its footer continuously (claude 2.1.191's "auto mode" line), so
-   * the PTY never goes quiet — the quiet wait is UNSATISFIABLE, not just slow,
-   * and there is no usable threshold (any value ≥ the redraw interval re-wedges,
-   * any value below it is meaningless). The structural idle-prompt is the honest
-   * readiness signal: it requires the `❯` composer rendered after any panel, and
-   * `activeRun`/`approvalActive` cover the busy/panel cases. The Claude hook
-   * lifecycle (SessionStart/Stop) becomes the authoritative primary in the
-   * follow-up; this trusts the structural prompt now.
+   * No PTY-quiet gate. A modern TUI never goes byte-quiet — the idle claude
+   * TUI emits a control-only chunk every ~200ms forever (s4-diags), which is
+   * exactly what starved the retired between-runs poller (`checkTaskReady`,
+   * S6): its debounce re-armed on every chunk and its quiet gate read the
+   * raw-byte clock, so `task:ready`/`task:accepts-input` never fired in the
+   * full app. The structural idle-prompt is the honest readiness signal: it
+   * requires the `❯` composer rendered after any panel, and
+   * `activeRun`/`approvalActive` cover the busy/panel cases.
    */
   acceptsPromptInput(): boolean {
     if (!this.ptyProcess || this.activeRun || this.approvalActive) {
@@ -491,10 +482,8 @@ export class TerminalHost extends EventEmitter {
     this.recentAttributionRun = null;
     this.activeRunRaw = "";
     this.taskReady = false;
-    this.acceptsInputAnnounced = false;
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
-    this.clearTaskReadyTimer();
     this.remoteControlActive = false;
     this.remoteControlUrl = null;
     this.remoteControlScan = "";
@@ -714,7 +703,7 @@ export class TerminalHost extends EventEmitter {
 
   /** The human just finished a burst of terminal input — they may have answered
    *  a native approval/panel directly. Re-derive readiness from fresh screen
-   *  evidence and re-announce accepts-input so a held queue re-pumps. */
+   *  evidence; a held queue re-pumps via the 500ms poll. */
   private onHumanInputSettled(): void {
     if (!this.ptyProcess) {
       return;
@@ -722,8 +711,6 @@ export class TerminalHost extends EventEmitter {
     this.clearApprovalIfAnsweredNatively();
     this.scheduleNativeAnswerRecheck();
     this.taskReady = false;
-    this.acceptsInputAnnounced = false;
-    this.scheduleTaskReadyCheck();
   }
 
   /** Marks the start of an automation write sequence (a prompt paste, an
@@ -796,7 +783,6 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalDecisionAt = Date.now();
     this.approvalSuppressedInSettleWindow = false;
     this.taskReady = false;
-    this.acceptsInputAnnounced = false;
     this.emitEvent("approval:decision", {
       taskId: this.taskId,
       runId: this.activeRun ? this.activeRun.id : null,
@@ -810,7 +796,6 @@ export class TerminalHost extends EventEmitter {
       approvalDecision: "answered-natively",
       approvalKind: previousKind ?? "unknown",
     });
-    this.scheduleTaskReadyCheck();
   }
 
   private scheduleNativeAnswerRecheck(): void {
@@ -1081,7 +1066,6 @@ export class TerminalHost extends EventEmitter {
       approvalKind: previousKind ?? "unknown",
     });
     this.taskReady = false;
-    this.acceptsInputAnnounced = false;
     this.approvalActive = false;
     this.lastApprovalDecision = decision;
     this.lastApprovalDecisionAt = decisionAt;
@@ -1120,7 +1104,6 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalDecisionAt = decisionAt;
     this.approvalSuppressedInSettleWindow = false;
     this.taskReady = false;
-    this.acceptsInputAnnounced = false;
     this.scheduleApprovalSettleCheck(decisionAt);
     // The wedged run's completion check was parked (schedule-skip on
     // waiting-for-approval) — re-arm it now that the run is active again.
@@ -1144,7 +1127,6 @@ export class TerminalHost extends EventEmitter {
       approvalKind: previousKind ?? "unknown",
     });
     this.taskReady = false;
-    this.acceptsInputAnnounced = false;
     this.finishActiveRun("approval-denied", "Esc denied native approval", {
       completionSource: "native-control",
       completionConfidence: "high",
@@ -1246,7 +1228,6 @@ export class TerminalHost extends EventEmitter {
   }
 
   dispose(): void {
-    this.clearTaskReadyTimer();
     this.disposeProcess();
     this.stopFileWatcher();
     this.clearCompletionTimer();
@@ -1276,7 +1257,6 @@ export class TerminalHost extends EventEmitter {
     } catch {
       // Ignore shutdown races.
     }
-    this.clearTaskReadyTimer();
     this.clearApprovalSettleTimer();
     if (this.humanSettleTimer) {
       clearTimeout(this.humanSettleTimer);
@@ -1317,7 +1297,6 @@ export class TerminalHost extends EventEmitter {
       // promptly (continuous reconciliation; the settle pass catches a late one).
       this.clearApprovalIfAnsweredNatively();
     }
-    this.scheduleTaskReadyCheck();
     // Completion debounce keys on PRINTABLE chunks only: the idle TUI's
     // ~200ms control-only heartbeat would otherwise clear+re-arm the timer
     // forever and the quiescence completion (slash runs, the Esc-interrupt
@@ -1325,43 +1304,6 @@ export class TerminalHost extends EventEmitter {
     if (printable) {
       this.scheduleCompletionCheck();
     }
-  }
-
-  private scheduleTaskReadyCheck(): void {
-    if (this.taskReady || this.activeRun || this.approvalActive || !this.ptyProcess) {
-      return;
-    }
-
-    this.clearTaskReadyTimer();
-    this.taskReadyTimer = setTimeout(() => this.checkTaskReady(), this.profile.taskReadyQuietMs);
-  }
-
-  private checkTaskReady(): void {
-    this.taskReadyTimer = null;
-    if (this.taskReady || this.activeRun || this.approvalActive || !this.ptyProcess) {
-      return;
-    }
-    this.maybeAnnounceAcceptsInput();
-    const taskAgeMs = this.startedAt ? Date.now() - this.startedAt : this.profile.taskReadyMinAgeMs;
-    if (taskAgeMs < this.profile.taskReadyMinAgeMs) {
-      this.taskReadyTimer = setTimeout(
-        () => this.checkTaskReady(),
-        this.profile.taskReadyMinAgeMs - taskAgeMs,
-      );
-      return;
-    }
-    if (Date.now() - this.lastPtyDataAt < this.profile.taskReadyQuietMs - 50) {
-      this.scheduleTaskReadyCheck();
-      return;
-    }
-
-    const hint = detectIdlePrompt(this.rawTail, this.profile);
-    if (!hint.ready) {
-      this.scheduleTaskReadyCheck();
-      return;
-    }
-
-    this.markTaskReady(hint.confidence);
   }
 
   private detectApproval(): void {
@@ -1886,9 +1828,20 @@ export class TerminalHost extends EventEmitter {
    * is active (e.g. a take-over turn, or the scrape already finished it — which
    * also avoids any double-completion).
    */
-  completeRunFromTurnEnd(): ActiveRun | null {
+  completeRunFromTurnEnd(failure?: { errorExcerpt: string }): ActiveRun | null {
     if (!this.activeRun || this.activeRun.status !== "active" || this.approvalActive) {
       return null;
+    }
+    // `StopFailure` (probed S6: fires on API errors with a structured
+    // `error` field, while Stop stays silent) rides the same completion
+    // path — the turn ENDED; the hint carries the structured error, so the
+    // scrape-side excerpt extraction is now the fallback, not the primary.
+    if (failure) {
+      return this.finishActiveRun("completed", "stop-failure hook (turn failed)", {
+        completionSource: "hook-stop",
+        completionConfidence: "high",
+        completionHint: withCompletionErrorExcerpt(undefined, failure.errorExcerpt),
+      });
     }
     return this.finishActiveRun("completed", "stop hook (turn ended)", {
       completionSource: "hook-stop",
@@ -1912,30 +1865,19 @@ export class TerminalHost extends EventEmitter {
     this.approvalSettleTimer = null;
   }
 
-  private clearTaskReadyTimer(): void {
-    if (!this.taskReadyTimer) {
-      return;
-    }
-    clearTimeout(this.taskReadyTimer);
-    this.taskReadyTimer = null;
-  }
-
-  private maybeAnnounceAcceptsInput(): void {
-    if (this.acceptsInputAnnounced) {
-      return;
-    }
-    const hint = detectIdlePrompt(this.rawTail, this.profile);
-    if (!hint.ready || !this.acceptsPromptInput()) {
-      return;
-    }
-    this.acceptsInputAnnounced = true;
-    this.emitEvent("task:accepts-input", {
-      taskId: this.taskId,
-      source: "idle-prompt-structural",
-      confidence: hint.confidence,
-    });
-  }
-
+  /**
+   * `task:ready` = a quiescence-completed run returned the composer. Fired
+   * only from `finishActiveRun` (terminal-idle-heuristic completions: slash
+   * runs, the Esc-interrupt run-closer, codex turns). Its consumer is the
+   * cli-state busy→turn-ended fallback — the only path off "busy" for turns
+   * that end with no Stop hook (probe s6-diags). The between-runs poller
+   * that used to feed it (`checkTaskReady` — an ambient composer-ready
+   * detector on the raw-byte clock, starved forever by the idle TUI's
+   * ~200ms control-only heartbeat) was retired in S6: contract §3.4 retired
+   * the continuous composer-ready gate, and every other consumer had an
+   * independent structured path. `taskReady` dedups to one event per idle
+   * period (any submit/approval/stop resets it).
+   */
   private markTaskReady(confidence: CompletionConfidence): void {
     if (this.taskReady) {
       return;
@@ -2042,8 +1984,6 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       defaultCommand: "claude",
       approvalSource: "native Claude PTY approval screen",
       supportsSlashStop: false,
-      taskReadyMinAgeMs: 14000,
-      taskReadyQuietMs: 2500,
       activityHints: [
         "esc to interrupt",
         "esctointerrupt",
@@ -2091,8 +2031,6 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
     defaultCommand: "codex",
     approvalSource: "native Codex PTY approval screen",
     supportsSlashStop: true,
-    taskReadyMinAgeMs: CODEX_TASK_READY_MIN_AGE_MS,
-    taskReadyQuietMs: DEFAULT_TASK_READY_QUIET_MS,
     activityHints: ["working", "esc to interrupt"],
     idlePromptModelHints: /gpt[-\w.]*|xhigh|high|medium|low|~/i,
     buildArgs: (options) =>

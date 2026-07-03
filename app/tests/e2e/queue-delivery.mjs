@@ -67,23 +67,19 @@ try {
   await waitUntil(() => fs.existsSync(paths.firstStart), 180000, "first command start");
   await waitForEngagement(page);
 
+  // Send-is-send (S1c/S6): a mid-turn send writes straight through into the
+  // CLI's native queue — there is no Duet-side queue panel to observe (the
+  // .delivery-item DOM died with it). The observable contract is the
+  // outcome: the second run happens AFTER the first, its artifact lands,
+  // and the report orders them.
   await page.locator("#prompt-input").fill(secondPrompt);
   await page.locator("#prompt-input").press("Enter");
-  await page.locator(".delivery-item.queued", { hasText: "Queued" }).waitFor({ state: "visible" });
-  await page.locator(".delivery-item.queued", { hasText: "queue_second.md" }).waitFor({
-    state: "visible",
-  });
 
   await waitUntil(() => fs.existsSync(paths.firstDone), 180000, "first command done");
   await waitUntil(async () => {
     await approveAnyVisibleApproval(page);
     return fs.existsSync(paths.second);
   }, 180000, "queued prompt artifact");
-  await page.locator(".delivery-item.undelivered").waitFor({ state: "hidden", timeout: 30000 });
-  await page.locator(".delivery-item", { hasText: "queue_second.md" }).waitFor({
-    state: "hidden",
-    timeout: 30000,
-  });
   await page.locator(".turn-card", { hasText: "queue_second.md" }).waitFor({ state: "visible" });
 
   const reportPath = path.join(recordDir, "runtime-report.json");
@@ -91,7 +87,17 @@ try {
   const runs = report?.runs ?? [];
   const firstRunIndex = runs.findIndex((run) => run.prompt.includes("queue_first_start.flag"));
   const secondRunIndex = runs.findIndex((run) => run.prompt.includes("queue_second.md"));
-  const secondRun = secondRunIndex >= 0 ? runs[secondRunIndex] : null;
+  // Ledger contract under the CLI-native queue (s6-diags/queue-run-timing):
+  // whether the queued message becomes its OWN turn is the CLI's choice.
+  // Boundary dequeue → a second run (own UserPromptSubmit + Stop); mid-turn
+  // steering dequeue (observed on tool-use turns) → NO second turn exists at
+  // the API level — one Stop closes both, and the artifact is honestly
+  // recorded under the absorbing run. Both shapes are correct; what MUST
+  // hold is the delivery (artifact + transcript) and the record of it.
+  const secondRunOrdered = secondRunIndex === -1 || secondRunIndex > firstRunIndex;
+  const artifactRecorded = runs.some((run) =>
+    run.artifactCandidates?.some((artifact) => artifact.path === "queue_second.md"),
+  );
   const reportText = report ? JSON.stringify(report) : "";
   const rawTerminalPersisted =
     reportText.includes("pty:data") ||
@@ -100,8 +106,8 @@ try {
   const success =
     Boolean(report) &&
     firstRunIndex >= 0 &&
-    secondRunIndex > firstRunIndex &&
-    Boolean(secondRun) &&
+    secondRunOrdered &&
+    artifactRecorded &&
     fs.readFileSync(paths.second, "utf8").includes("delivered after the earlier run finished") &&
     !rawTerminalPersisted;
 
@@ -114,9 +120,9 @@ try {
         runCount: runs.length,
         firstRunIndex,
         secondRunIndex,
+        ledgerShape: secondRunIndex === -1 ? "absorbed-mid-turn-steering" : "own-run",
         queuedArtifactCreated: fs.existsSync(paths.second),
-        secondRunChanges: secondRun?.changedFiles?.map((file) => file.path) ?? [],
-        secondRunArtifacts: secondRun?.artifactCandidates?.map((artifact) => artifact.path) ?? [],
+        artifactRecorded,
         rawTerminalPersisted,
         success,
       },
@@ -204,7 +210,6 @@ async function collectDiagnostics({ error, page, workspaceRoot, taskDirectory, w
     reportPath,
     runtimeStatus: page ? await safeText(page.locator("#runtime-status")) : null,
     statusStrip: page ? await safeText(page.locator("#status-strip")) : null,
-    deliveryQueue: page ? await safeText(page.locator("#delivery-queue")) : null,
     runListText: page ? redact(await safeText(page.locator("#run-list"))) : null,
     workspaceEntries: workspace && fs.existsSync(workspace) ? fs.readdirSync(workspace).sort() : [],
     reportRunCount: report?.runs?.length ?? 0,

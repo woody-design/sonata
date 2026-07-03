@@ -1,11 +1,28 @@
+// Approval SURFACE e2e — the broker-card content contract (S6 rewrite).
+//
+// The original suite asserted the codex-era scrape surface (workspace-trust
+// card "in full", "Source: native Codex PTY approval screen", Enter/Esc key
+// encodings). Both premises died: S4's trust pre-write removed the trust
+// dialog from the createTask path, and the claude approval surface is the S2
+// hook broker — the card leads with the tool summary and panel-faithful
+// choice buttons; the low-level context rows are deliberately gone.
+//
+// What THIS suite uniquely locks (walking-skeleton approves by visibility
+// and never reads the card):
+//  1. S4 negative control: a fresh createTask cold start is pre-trusted —
+//     no workspace-trust card ever renders.
+//  2. Broker card content: data-approval-kind, badge text, tool-summary
+//     title ("Run  python3 …"), the honest "Always: <scope>" middle button.
+//  3. Report provenance: approvalEvents carry source "hook-broker" with a
+//     matching approve decision (the reply channel, not key replay).
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveVisibleBanner } from "./helpers/approval.mjs";
-import { activeSessionTaskId, sendFirstPrompt } from "./helpers/session.mjs";
+import { sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-surface-e2e-"));
+const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-surface-settings-"));
 let electronApp = null;
 
 try {
@@ -14,6 +31,7 @@ try {
     env: {
       ...process.env,
       DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
+      DUET_SETTINGS_DIR: settingsDir,
     },
   });
 
@@ -30,62 +48,109 @@ try {
     "Do not edit files directly.",
     `Command: ${commandText}`,
   ].join("\n");
-  // The first prompt creates the session; the workspace-trust approval
-  // surfaces during the cold start and is asserted in full here.
-  await sendFirstPrompt(page, prompt, { approveTrust: false });
-  await approveWithSurface(page, {
-    title: "Workspace trust requested",
-    badge: "Workspace trust",
-    scope: "Task workspace trust",
-    run: "session setup",
-  });
 
-  const taskId = await activeSessionTaskId(page);
-  if (!taskId) {
-    throw new Error("Sidebar session did not expose a task id.");
+  // 1. S4 negative control — the pick gesture pre-granted trust, so the
+  //    dispatch must win the race against a trust banner that never comes.
+  const trustOutcome = await sendFirstPrompt(page, prompt);
+  if (trustOutcome !== "pre-trusted") {
+    throw new Error(`Expected a pre-trusted cold start (S4), got: ${trustOutcome}`);
   }
 
-  await approveWithSurface(page, {
-    title: "Command approval requested",
-    badge: "Command",
-    scope: "terminal command execution",
-    run: "run-",
-  });
+  // 2. The command approval's broker card. Claude may ask for other tools
+  //    first (reads vary per run) — approve those by visibility until the
+  //    command card is up, then read THIS card in full.
+  const banner = page.locator("#approval-banner");
+  const commandCard = page.locator('#approval-banner[data-approval-kind="command"]');
+  const cardChecks = { badge: null, title: null, alwaysLabel: null, denyLabel: null };
+  await waitUntil(async () => {
+    if (await commandCard.isVisible().catch(() => false)) {
+      return true;
+    }
+    if (await banner.isVisible().catch(() => false)) {
+      await page.locator("#approve-approval").click(); // a non-command ask; drain
+      await page.waitForTimeout(400);
+    }
+    return false;
+  }, 180000, "command approval card");
 
+  cardChecks.badge = (await page.locator("#approval-kind-badge").textContent())?.trim();
+  cardChecks.title = (await page.locator("#approval-title").textContent())?.trim();
+  const middle = page.locator("#approve-session-approval");
+  cardChecks.alwaysVisible = await middle.isVisible();
+  cardChecks.alwaysLabel = (await middle.textContent())?.trim();
+  cardChecks.denyLabel = (await page.locator("#deny-approval").textContent())?.trim();
+
+  const cardOk =
+    cardChecks.badge === "Command" &&
+    Boolean(cardChecks.title?.startsWith("Run")) &&
+    Boolean(cardChecks.title?.includes("python3")) &&
+    cardChecks.alwaysVisible === true &&
+    // The middle button states the ACTUAL persisted rule scope ("<tool> *"),
+    // never a vague promise (reviewer P2, trust boundary).
+    Boolean(cardChecks.alwaysLabel?.startsWith("Always:")) &&
+    Boolean(cardChecks.alwaysLabel?.includes("python3")) &&
+    cardChecks.denyLabel === "Deny";
+
+  // 3. Approve once (reply channel) and drain any later asks until the turn
+  //    completes with the artifact.
+  await page.locator("#approve-approval").click();
+  await waitUntil(async () => {
+    if (await banner.isVisible().catch(() => false)) {
+      await page.locator("#approve-approval").click();
+      await page.waitForTimeout(400);
+    }
+    return page
+      .locator(".turn-outcome", { hasText: "Completed" })
+      .isVisible()
+      .catch(() => false);
+  }, 180000, "turn completion");
   await page.locator(".artifact-item", { hasText: "approval_command.md" }).waitFor({
     state: "visible",
   });
-  await page.locator(".turn-outcome", { hasText: "Completed" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".turn-facts", { hasText: /approval/ }).waitFor({ state: "visible" });
 
   const reports = readReports(workspaceRoot);
-  const latestRun = reports.at(-1)?.runs?.at(-1) ?? null;
+  const report = reports.at(-1) ?? null;
+  const approvalEvents = [
+    ...(report?.runs ?? []).flatMap((run) => run.approvalEvents ?? []),
+    ...(report?.unassignedApprovals ?? []),
+  ];
   const reportText = JSON.stringify(reports);
   const rawTerminalPersisted =
     reportText.includes("pty:data") ||
-    reportText.includes("OpenAI Codex") ||
     reportText.includes("Do you trust the contents of this directory");
+  const trustCardEverDetected = approvalEvents.some((event) => event.kind === "workspace-trust");
+  const brokerDetected = approvalEvents.some(
+    (event) => event.action === "detected" && event.kind === "command" && event.source === "hook-broker",
+  );
+  const approveDecision = approvalEvents.some(
+    (event) => event.action === "decision" && event.decision === "approve",
+  );
+  const artifactRecorded = (report?.runs ?? []).some((run) =>
+    run.artifactCandidates?.some((artifact) => artifact.path === "approval_command.md"),
+  );
+
   const success =
     reports.length === 1 &&
-    latestRun?.approvalEvents?.some(
-      (event) => event.action === "detected" && event.kind === "command",
-    ) &&
-    latestRun?.approvalEvents?.some(
-      (event) => event.action === "decision" && event.decision === "approve",
-    ) &&
-    latestRun?.artifactCandidates?.some((artifact) => artifact.path === "approval_command.md") &&
+    cardOk &&
+    !trustCardEverDetected &&
+    brokerDetected &&
+    approveDecision &&
+    artifactRecorded &&
     !rawTerminalPersisted;
 
   console.log(
     JSON.stringify(
       {
         workspaceRoot,
-        taskId,
-        approvalEvents: latestRun?.approvalEvents ?? [],
-        artifactCandidates: latestRun?.artifactCandidates?.map((artifact) => artifact.path) ?? [],
+        trustOutcome,
+        cardChecks,
+        cardOk,
+        trustCardEverDetected,
+        brokerDetected,
+        approveDecision,
+        artifactRecorded,
         rawTerminalPersisted,
+        approvalEvents,
         success,
       },
       null,
@@ -99,30 +164,18 @@ try {
     await electronApp.close();
   }
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  fs.rmSync(settingsDir, { recursive: true, force: true });
 }
 
-async function approveWithSurface(page, expected) {
-  const banner = page.locator("#approval-banner", { hasText: expected.title });
-  await banner.waitFor({ state: "visible", timeout: 180000 });
-  await banner.locator("#approval-kind-badge", { hasText: expected.badge }).waitFor({
-    state: "visible",
-  });
-  await banner.locator("#approval-context", { hasText: "Source: native Codex PTY approval screen" }).waitFor({
-    state: "visible",
-  });
-  await banner.locator("#approval-context", { hasText: `Scope: ${expected.scope}` }).waitFor({
-    state: "visible",
-  });
-  await banner.locator("#approval-context", { hasText: `Run: ${expected.run}` }).waitFor({
-    state: "visible",
-  });
-  await banner.locator("#approval-context", { hasText: "Approve: send native Enter" }).waitFor({
-    state: "visible",
-  });
-  await banner.locator("#approval-context", { hasText: "Deny: send native Esc" }).waitFor({
-    state: "visible",
-  });
-  await approveVisibleBanner(page, banner);
+async function waitUntil(predicate, timeoutMs, label) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Timed out waiting for ${label}.`);
 }
 
 function readReports(root) {

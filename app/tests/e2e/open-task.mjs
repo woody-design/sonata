@@ -37,7 +37,11 @@ try {
     `Also remember this codeword for later: ${CODEWORD}.`,
     "Do not modify any other files.",
   ].join("\n");
-  const expectedTaskTitle = originalPrompt.split("\n", 1)[0];
+  // Title premise (S6 rehab): the provider's statusline `session_name` takes
+  // the task title (auto-naming since c0eea72 + claude default f6dd283), so
+  // the exact text is model-generated and non-deterministic. The honest
+  // assertions are structural: a non-empty title, the sidebar row addressed
+  // by task id, and header/sidebar/manifest agreeing on the SAME title.
 
   await sendFirstPrompt(page, originalPrompt);
   const taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 45000);
@@ -54,12 +58,11 @@ try {
   await settleTurnUntilCompleted(page, 1, 180000, { workspace, recordDir, label: "original-turn" });
   await expectArtifactItem(page, "open_original.md", 15000, { workspace, recordDir, label: "original-artifact" });
   await assertOnDisk(page, "open_original.md", { workspace, recordDir, label: "original-on-disk" });
-  await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
-  await page
-    .locator(".sidebar-session-title", { hasText: expectedTaskTitle })
-    .waitFor({ state: "visible" });
-
+  await page.locator("#task-title").waitFor({ state: "visible" });
   const taskId = await activeSessionTaskId(page);
+  await page
+    .locator(`.sidebar-session[data-task-id="${taskId}"] .sidebar-session-title`)
+    .waitFor({ state: "visible" });
   const manifestPath = path.join(recordDir, "task.json");
   const reportPath = path.join(recordDir, "runtime-report.json");
   if (!fs.existsSync(manifestPath)) {
@@ -71,14 +74,26 @@ try {
 
   page = await launchApp("reopen");
 
-  // The relaunched sidebar lists the session from disk.
+  // The relaunched sidebar lists the session from disk (addressed by id —
+  // the title text is the model-generated session_name).
   await page
-    .locator(".sidebar-session-title", { hasText: expectedTaskTitle })
+    .locator(`.sidebar-session[data-task-id="${taskId}"] .sidebar-session-title`)
     .waitFor({ state: "visible" });
+  const sidebarTitle = (
+    await page
+      .locator(`.sidebar-session[data-task-id="${taskId}"] .sidebar-session-title`)
+      .textContent()
+  )?.trim();
 
   // Clicking renders the transcript read-only — no PTY yet.
   await selectSidebarSession(page, taskId);
-  await page.locator("#task-title", { hasText: expectedTaskTitle }).waitFor({ state: "visible" });
+  await page.locator("#task-title").waitFor({ state: "visible" });
+  const headerTitle = (await page.locator("#task-title").textContent())?.trim();
+  if (!headerTitle || headerTitle !== sidebarTitle) {
+    throw new Error(
+      `Header/sidebar title mismatch after reopen: header=${JSON.stringify(headerTitle)} sidebar=${JSON.stringify(sidebarTitle)}`,
+    );
+  }
   await page.locator(".turn-outcome", { hasText: COMPLETED_OUTCOME }).waitFor({
     state: "visible",
   });
@@ -106,6 +121,9 @@ try {
   const followupContent = fs.readFileSync(path.join(workspace, "open_followup.md"), "utf8");
   const codewordRecalled = followupContent.includes(CODEWORD);
 
+  // Re-read the header at the end: the provider may re-name the session on a
+  // later statusline tick, and the manifest tracks that (auto-title follows).
+  const finalHeaderTitle = (await page.locator("#task-title").textContent())?.trim();
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
   const reportText = JSON.stringify(report);
@@ -123,7 +141,9 @@ try {
     manifest.schemaId === "duet.task-manifest.v1" &&
     manifest.task.id === report.taskId &&
     manifest.task.id === taskId &&
-    manifest.task.title === expectedTaskTitle &&
+    typeof manifest.task.title === "string" &&
+    manifest.task.title.trim().length > 0 &&
+    manifest.task.title.trim() === finalHeaderTitle &&
     Boolean(originalRun) &&
     Boolean(followupRun) &&
     codewordRecalled &&

@@ -42,6 +42,10 @@ const INJECTED_HOOK_EVENTS: ClaudeHookEventName[] = [
   "PostToolUse",
   "Notification",
   "Stop",
+  // Fires when a turn ends by FAILING (API error after retries) — Stop stays
+  // silent then; payload carries a structured `error` (probed S6,
+  // s6-diags/stopfailure-probe). Completes the run + ends cli-state busy.
+  "StopFailure",
   "SubagentStop",
 ];
 

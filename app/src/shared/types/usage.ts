@@ -22,4 +22,9 @@ export interface UsageSnapshot {
   sessionName?: string | null;
   /** Session cost (claude statusline `cost.total_cost_usd`); codex has none. */
   costUsd?: number | null;
+  /** Live model (claude statusline `model.display_name`) — the mid-session
+   *  /model switch surface (contract §2); spawn settings are the fallback. */
+  modelDisplayName?: string | null;
+  /** Live reasoning effort (claude statusline `effort`), same contract row. */
+  reasoningEffort?: string | null;
 }

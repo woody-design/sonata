@@ -15,14 +15,16 @@ import { cleanTerminal, type PromptSubmission, type TerminalHost } from "./termi
 
 const DEFAULT_RECEIPT_TIMEOUT_MS = 45_000;
 const BACKFILL_RECEIPT_WINDOW_MS = 15 * 60_000;
-// pump() is event-driven, but the boot latch can open with no pump-triggering
-// event: `task:accepts-input` is the normal signal, and the scrape fallback in
-// pump() only helps if something calls pump — a startup or post-resume
-// interstitial clearing silently was the cold-start "stuck Queued" class. So
-// while a queued item is blocked, the pump re-checks at this cadence until it
-// can deliver; the timer is idempotent + unref'd. (Send-is-send removed the
-// wedge alarm — a queued item is now always either understandably blocked, or
-// shown its reason by the per-item delivery label.)
+// pump() is event-driven, but the boot latch opens with no pump-triggering
+// event: the structural composer check in pump() IS the boot signal (the
+// `task:accepts-input` event that used to announce it was retired in S6 —
+// its emitter lived inside the starved between-runs poller and never fired
+// in the full app; the poll opens the latch ~1s after spawn, probe
+// s6-diags). While a queued item is blocked, the pump re-checks at this
+// cadence until it can deliver; the timer is idempotent + unref'd.
+// (Send-is-send removed the wedge alarm — a queued item is now always
+// either understandably blocked, or shown its reason by the per-item
+// delivery label.)
 const DEFAULT_PUMP_RETRY_INTERVAL_MS = 500;
 
 export interface DeliveryControllerOptions {
@@ -31,7 +33,6 @@ export interface DeliveryControllerOptions {
   terminalHost: TerminalHost;
   eventSink: (event: RuntimeEvent) => void;
   hasLiveTranscriptSource: () => boolean;
-  cleanupAttachments?: (attachments: DeliveryAttachment[]) => void;
   receiptTimeoutMs?: number;
   /** Test injection point; production uses the 500ms default. */
   pumpRetryIntervalMs?: number;
@@ -59,18 +60,18 @@ export class DeliveryController {
   private readonly terminalHost: TerminalHost;
   private readonly eventSink: (event: RuntimeEvent) => void;
   private readonly hasLiveTranscriptSource: () => boolean;
-  private readonly cleanupAttachments: ((attachments: DeliveryAttachment[]) => void) | null;
   private readonly receiptTimeoutMs: number;
   private readonly items: DeliveryQueueItem[] = [];
   private readonly ptyEchoBackfills: PtyEchoBackfill[] = [];
   private seq = 0;
   private inFlight: InFlightDelivery | null = null;
-  // Boot latch (send-is-send): the CLI's composer-ready is a screen scrape that
-  // can stay false forever under a continuously-animating TUI (the acceptsInput
-  // wedge). We gate the FIRST send on it once — the latch flips the first time
-  // the composer accepts input and never closes — then stop re-gating delivery
-  // on the scrape. After boot, a send writes as soon as no approval owns the
-  // screen; the CLI's own queue absorbs anything mid-turn.
+  // Boot latch (send-is-send): the CLI's composer-ready is a screen scrape
+  // that can stay false forever under a continuously-animating TUI. We gate
+  // the FIRST send on it once — the latch flips the first time the composer
+  // accepts input and never closes — then stop re-gating delivery on the
+  // scrape. After boot, a send writes as soon as no approval owns the
+  // screen; the CLI's own queue absorbs anything mid-turn. Exposed on
+  // DeliveryTaskState as the honest "still starting?" display bit (S6).
   private bootLatched = false;
   // "A question is addressed to the human" — set on approval:detected (scrape OR
   // hook-broker, the latter fed in by the controller), cleared on
@@ -90,7 +91,6 @@ export class DeliveryController {
     this.terminalHost = options.terminalHost;
     this.eventSink = options.eventSink;
     this.hasLiveTranscriptSource = options.hasLiveTranscriptSource;
-    this.cleanupAttachments = options.cleanupAttachments ?? null;
     this.receiptTimeoutMs = options.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS;
     this.pumpRetryIntervalMs = options.pumpRetryIntervalMs ?? DEFAULT_PUMP_RETRY_INTERVAL_MS;
   }
@@ -131,39 +131,6 @@ export class DeliveryController {
     return item;
   }
 
-  cancel(itemId: DeliveryItemId): void {
-    const index = this.items.findIndex((item) => item.id === itemId);
-    if (index === -1) {
-      return;
-    }
-    if (this.items[index]?.status === "delivering") {
-      throw new Error("Cannot cancel an item while it is being delivered.");
-    }
-    const [item] = this.items.splice(index, 1);
-    if (item?.attachments.length) {
-      this.cleanupAttachments?.(item.attachments);
-    }
-    this.emitState();
-    this.pump();
-  }
-
-  retry(itemId: DeliveryItemId): void {
-    const item = this.items.find((candidate) => candidate.id === itemId);
-    if (!item) {
-      return;
-    }
-    if (item.status !== "undelivered") {
-      throw new Error("Only undelivered items can be retried.");
-    }
-    item.status = "queued";
-    item.failureReason = null;
-    item.deliveringAt = null;
-    item.runId = null;
-    item.receipt = null;
-    this.emitState();
-    this.pump();
-  }
-
   dispose(): void {
     this.clearReceiptTimer();
     this.clearPumpRetry();
@@ -177,11 +144,6 @@ export class DeliveryController {
     if (event.type === "transcript:blocks") {
       this.handleTranscriptBlocks(event.payload.upserts);
       return;
-    }
-    if (event.type === "task:accepts-input") {
-      // The composer accepted input at least once — open the boot latch for
-      // good. Subsequent re-announcements (after each turn) are redundant.
-      this.bootLatched = true;
     }
     if (event.type === "approval:detected") {
       this.approvalPending = true;
@@ -199,17 +161,22 @@ export class DeliveryController {
       deliverable: this.canDeliver(),
       activeRun: this.terminalHost.hasActiveRun(),
       approvalActive: this.terminalHost.isApprovalActive(),
-      idleComposer: this.terminalHost.isIdleComposerReady(),
-      acceptsInput: this.terminalHost.acceptsPromptInput(),
+      // The honest "is the CLI still starting?" bit for display copy: false
+      // only before the boot latch opens. The old idleComposer/acceptsInput
+      // fields (continuous composer-ready scrapes) were retired in S6 —
+      // idleComposer gated on the starved task-ready flag and read
+      // permanently false in the full app.
+      bootLatched: this.bootLatched,
       queue: this.items.map((item) => ({ ...item })),
     };
   }
 
   private pump(): void {
-    // Boot-latch fallback: if the `task:accepts-input` event was missed, latch
-    // the first time the scrape reports the composer ready. After that the
-    // scrape never re-gates delivery (send-is-send). Kept here (not in
-    // canDeliver) so canDeliver stays a pure query for state()/wedge reads.
+    // Boot latch: latch the first time the structural check reports the
+    // composer ready (the ONLY boot signal since S6 — see the pump-retry
+    // comment above). After that the scrape never re-gates delivery
+    // (send-is-send). Kept here (not in canDeliver) so canDeliver stays a
+    // pure query for state()/wedge reads.
     if (!this.bootLatched && this.terminalHost.acceptsPromptInput()) {
       this.bootLatched = true;
     }
@@ -262,10 +229,12 @@ export class DeliveryController {
   }
 
   private nextQueuedItem(): DeliveryQueueItem | null {
+    // An undelivered item does NOT block the queue (S6). Send-is-send: the
+    // bytes were written — "undelivered" means "no receipt observed", a
+    // report, not a delivery gate. The old head-block was a queue-era hold
+    // with no unblock affordance left (the retry surface died with the S1c
+    // panel), so one missed receipt silently killed every later send.
     for (const item of this.items) {
-      if (item.status === "undelivered") {
-        return null;
-      }
       if (item.status === "queued") {
         return item;
       }
@@ -355,12 +324,12 @@ export class DeliveryController {
     // A slash run (verbatim command on an idle composer, S3) can never earn a
     // transcript receipt: local commands write no user-block to the JSONL, and
     // the echo path is off once the transcript is live. Arming the 45s timer
-    // marked it undelivered — and an undelivered head blocks nextQueuedItem()
-    // forever (no retry surface since S1c): every later send silently died
-    // (the S4 /config wedge, s4-diags/skill-dispatch evidence). Sent-is-sent:
-    // the write happened and the command's effect is visible in the
-    // co-present terminal; the run's own completion is tracked separately by
-    // the structural idle re-check.
+    // marked it undelivered — and at the time an undelivered head blocked
+    // nextQueuedItem() forever (the S4 /config wedge, s4-diags/skill-dispatch
+    // evidence; S6 removed the head-block, but a false "Undelivered" report
+    // would still be a lie). Sent-is-sent: the write happened and the
+    // command's effect is visible in the co-present terminal; the run's own
+    // completion is tracked separately by the structural idle re-check.
     if (submission.kind === "slash") {
       this.completeDelivery(item, {
         source: "slash-write",
@@ -510,6 +479,9 @@ export class DeliveryController {
       this.inFlight = null;
       this.clearReceiptTimer();
       this.emitState();
+      // The missed receipt is reported, not enforced — anything queued
+      // behind this item flows immediately (S6, no head-block).
+      this.pump();
     }, this.receiptTimeoutMs);
   }
 

@@ -132,12 +132,6 @@ export function registerIpcHandlers(
     return runtimeController.createReference(request.paths);
   });
   ipcMain.handle(IPC_CHANNELS.attachmentPick, () => windowController.pickReferences());
-  ipcMain.handle(IPC_CHANNELS.promptQueueCancel, (_event, request) => {
-    runtimeController.cancelQueuedPrompt(request.taskId, request.itemId);
-  });
-  ipcMain.handle(IPC_CHANNELS.promptQueueRetry, (_event, request) => {
-    runtimeController.retryQueuedPrompt(request.taskId, request.itemId);
-  });
   ipcMain.handle(IPC_CHANNELS.approvalDecide, (_event, request) => {
     runtimeController.decideApproval(request.taskId, request.decision, request.approvalId ?? null);
   });

@@ -15,7 +15,6 @@ const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rc-disc-smoke-"));
 
 let rawTail = "";
 let trustApproved = false;
-let taskReady = false;
 const rcStates = [];
 
 const host = new TerminalHost({
@@ -27,7 +26,6 @@ const host = new TerminalHost({
       rawTail = `${rawTail}${event.payload.data}`.slice(-64 * 1024);
       return;
     }
-    if (event.type === "task:ready") taskReady = true;
     if (event.type === "approval:detected" && event.payload.kind === "workspace-trust") {
       trustApproved = true;
       host.sendApprove();
@@ -40,8 +38,12 @@ const host = new TerminalHost({
 
 try {
   host.startTask({ cwd: workspace, permissionMode: "default", rows: 36, cols: 120 });
-  await waitUntil(() => trustApproved || taskReady, 120000, "Claude startup");
-  await waitUntil(() => taskReady, 120000, "Claude task ready");
+  // Boot readiness = the structural composer gate (the boot-latch fence),
+  // same as production's delivery pump. `task:ready` no longer fires at boot
+  // (the between-runs poller was retired in S6 — it only rides quiescence
+  // run completions now).
+  await waitUntil(() => trustApproved || host.acceptsPromptInput(), 120000, "Claude startup");
+  await waitUntil(() => host.acceptsPromptInput(), 120000, "Claude accepts input");
 
   // Connect.
   host.injectRemoteControl();

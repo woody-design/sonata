@@ -73,20 +73,18 @@ export type TaskStartedEvent = BaseRuntimeEvent<
   }
 >;
 
+/** A quiescence-completed run returned the composer (fired only from
+ *  `finishActiveRun`, terminal-idle-heuristic completions). Consumed by the
+ *  cli-state busy→turn-ended fallback for turns with no Stop hook (slash,
+ *  Esc-interrupt, codex). The between-runs poller that also fed this —
+ *  along with the `task:accepts-input` boot announcement — was retired in
+ *  S6 (starved by the idle TUI's control-only heartbeat; boot readiness is
+ *  the delivery pump's structural poll). */
 export type TaskReadyEvent = BaseRuntimeEvent<
   "task:ready",
   {
     taskId: TaskId;
     source: "terminal-idle-composer-heuristic";
-    confidence: CompletionConfidence;
-  }
->;
-
-export type TaskAcceptsInputEvent = BaseRuntimeEvent<
-  "task:accepts-input",
-  {
-    taskId: TaskId;
-    source: "idle-prompt-structural";
     confidence: CompletionConfidence;
   }
 >;
@@ -401,7 +399,6 @@ export type ProductRuntimeEvent =
   | PtyExitEvent
   | TaskStartedEvent
   | TaskReadyEvent
-  | TaskAcceptsInputEvent
   | WorkingStatusUpdatedEvent
   | CliStateChangedEvent
   | TaskUpdatedEvent

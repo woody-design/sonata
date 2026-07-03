@@ -46,8 +46,6 @@ export const IPC_CHANNELS = {
   attachmentCreate: "attachment:create",
   attachmentCreateReference: "attachment:create-reference",
   attachmentPick: "attachment:pick",
-  promptQueueCancel: "prompt-queue:cancel",
-  promptQueueRetry: "prompt-queue:retry",
   approvalDecide: "approval:decide",
   optionPromptAnswer: "option-prompt:answer",
   runStop: "run:stop",
@@ -240,11 +238,6 @@ export interface CreateAttachmentRequest {
  *  in a new chat before a session exists. */
 export interface CreateReferenceRequest {
   paths: string[];
-}
-
-export interface PromptQueueItemRequest {
-  taskId: TaskId;
-  itemId: string;
 }
 
 export interface ApprovalDecisionRequest {
@@ -506,8 +499,6 @@ export interface DuetRuntimeBridge {
   /** Electron's replacement for File.path — the absolute path of a dragged/pasted
    *  File, or "" for a path-less clipboard bitmap. Synchronous. */
   getPathForFile(file: File): string;
-  cancelQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
-  retryQueuedPrompt(request: PromptQueueItemRequest): Promise<void>;
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;
   answerOptionPrompt(request: OptionPromptAnswerRequest): Promise<void>;
   stopRun(request: StopRunRequest): Promise<void>;

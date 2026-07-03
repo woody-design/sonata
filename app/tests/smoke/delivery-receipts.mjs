@@ -340,9 +340,6 @@ function fakeHost() {
     isApprovalActive() {
       return this.approvalActive;
     },
-    isIdleComposerReady() {
-      return this.idleComposer;
-    },
     acceptsPromptInput() {
       return this.idleComposer;
     },

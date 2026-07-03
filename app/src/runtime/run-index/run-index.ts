@@ -58,7 +58,6 @@ const RUN_INDEX_EVENT_TYPES = {
   "pty:exit": true,
   "task:started": true,
   "task:ready": true,
-  "task:accepts-input": true,
   "working-status:updated": true,
   "prompt:submitted": true,
   "run:started": true,
@@ -234,7 +233,6 @@ export class RunIndex {
         break;
       case "pty:exit":
       case "task:ready":
-      case "task:accepts-input":
       case "working-status:updated":
       case "prompt:submitted":
       case "file:watching":

@@ -34,6 +34,28 @@ await check("Stop hook completes an active run as hook-stop / high confidence", 
   }
 });
 
+await check("StopFailure completes the run carrying the structured error", async () => {
+  const events = [];
+  const host = makeHost(events);
+  try {
+    host.ptyProcess = fakePty();
+    host.activeRun = activeRun();
+
+    const finished = host.completeRunFromTurnEnd({ errorExcerpt: "model_not_found" });
+
+    assert.ok(finished, "expected the failed turn to complete the run");
+    assert.equal(finished.status, "completed");
+    assert.equal(finished.completionSource, "hook-stop");
+    assert.equal(
+      finished.completionHint?.errorExcerpt,
+      "model_not_found",
+      "the hook's structured error rides the completion hint",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
 await check("Stop hook does NOT complete a run while an approval is pending", async () => {
   const events = [];
   const host = makeHost(events);

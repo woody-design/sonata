@@ -63,6 +63,12 @@ export class CliStateModel {
       case "Stop":
         this.set("turn-ended", { tool: null, approvalKind: null }, "hook:Stop");
         break;
+      case "StopFailure":
+        // The turn ended by FAILING (API error after retries — probed S6).
+        // Stop does not fire in this case, so without this the state sat
+        // busy until the quiescence fallback.
+        this.set("turn-ended", { tool: null, approvalKind: null }, "hook:StopFailure");
+        break;
       case "Notification": {
         const kind = typeof payload.notification_type === "string" ? payload.notification_type : "";
         if (kind === "permission_prompt") {

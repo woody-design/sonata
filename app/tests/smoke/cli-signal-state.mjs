@@ -39,6 +39,15 @@ function newModel() {
   assert.ok(changes.length >= 5, "each meaningful transition emitted");
 }
 
+// 2b) A FAILED turn (API error) ends via StopFailure — Stop never fires
+// (probed S6, s6-diags/stopfailure-probe); busy must not linger.
+{
+  const { model } = newModel();
+  model.applyHook({ hook_event_name: "UserPromptSubmit" });
+  model.applyHook({ hook_event_name: "StopFailure", error: "model_not_found" });
+  assert.equal(model.current().activity, "turn-ended", "StopFailure → turn-ended");
+}
+
 // 3) Idempotency: re-applying the same activity does not emit.
 {
   const { model, changes } = newModel();

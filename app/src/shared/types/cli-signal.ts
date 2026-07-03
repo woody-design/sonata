@@ -22,6 +22,7 @@ export type ClaudeHookEventName =
   | "PermissionRequest"
   | "Notification"
   | "Stop"
+  | "StopFailure"
   | "SubagentStop";
 
 /**
@@ -46,6 +47,8 @@ export interface ClaudeHookPayload {
   /** Stop */
   stop_hook_active?: boolean;
   last_assistant_message?: unknown;
+  /** StopFailure — structured API error, e.g. "model_not_found" (probed S6). */
+  error?: string;
   /** Notification (observed absent on 2.1.177, kept for forward-compat) */
   notification_type?: string;
   message?: string;

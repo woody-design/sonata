@@ -192,7 +192,7 @@ async function startHost(provider, name) {
   const workspace = path.join(workspaceRoot, name);
   fs.mkdirSync(workspace, { recursive: true });
   const taskId = `native-image-${name}`;
-  let ready = false;
+
   let exited = false;
   let raw = "";
   const runtimeEvents = [];
@@ -205,9 +205,6 @@ async function startHost(provider, name) {
     runtimeEvents.push(event);
     if (event.type === "pty:data") {
       raw = `${raw}${event.payload.data}`.slice(-96_000);
-    }
-    if (event.type === "task:ready") {
-      ready = true;
     }
     if (event.type === "pty:exit") {
       exited = true;
@@ -259,7 +256,9 @@ async function startHost(provider, name) {
       : { permissionMode: "default", model: "opus", reasoningEffort: "xhigh" }),
   });
   transcript.startDiscovery(startedAt);
-  await waitUntil(() => ready || exited, 180000, () => cleanTerminal(raw).slice(-3000));
+  // Boot readiness = the structural composer gate (task:ready no longer
+  // fires at boot — the between-runs poller was retired in S6).
+  await waitUntil(() => host.acceptsPromptInput() || exited, 180000, () => cleanTerminal(raw).slice(-3000));
   if (exited) {
     throw new Error(`${provider} exited before ready.\n\n${redact(cleanTerminal(raw).slice(-3000))}`);
   }

@@ -185,8 +185,10 @@ export interface DeliveryTaskState {
   deliverable: boolean;
   activeRun: boolean;
   approvalActive: boolean;
-  idleComposer: boolean;
-  acceptsInput: boolean;
+  /** One-shot boot readiness: false only until the CLI first accepts input.
+   *  Display copy keys "Starting <provider>" on this — never on a continuous
+   *  composer-ready scrape (retired, S6). */
+  bootLatched: boolean;
   queue: DeliveryQueueItem[];
 }
 
@@ -242,7 +244,10 @@ export type ApprovalDecisionEncoding =
   | "digit 3"
   | "CR"
   | "Esc"
-  | "native-keys";
+  | "native-keys"
+  /** Hook-broker reply (S2): the decision went back on the hook channel —
+   *  no bytes ever touched the PTY. */
+  | "reply-file";
 
 export interface ApprovalChoice {
   decision: ApprovalDecision;

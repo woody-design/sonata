@@ -134,8 +134,6 @@ interface TaskViewState {
   transcriptBlocks: Map<string, TranscriptBlock>;
   transcriptBlockOrder: string[];
   transcriptSources: TranscriptSourceRef[];
-  runtimeReady: boolean;
-  composerObserved: boolean;
   deliveryState: DeliveryTaskState | null;
   pendingAttachments: ComposerAttachment[];
   usageSnapshot: UsageSnapshot | null;
@@ -1722,7 +1720,6 @@ const USAGE_POPOVER_OPEN_DELAY_MS = 150;
 const USAGE_POPOVER_CLOSE_DELAY_MS = 180;
 
 
-const pendingReadyTaskIds = new Set<string>();
 // Ticks the live clocks (status strip + work-trace agent rows) without
 // re-rendering the transcript.
 window.setInterval(() => {
@@ -3787,16 +3784,12 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   const view = taskViewForId(event.payload.taskId);
   if (!view) {
-    if (event.type === "task:ready") {
-      pendingReadyTaskIds.add(event.payload.taskId);
-    }
     return;
   }
 
   if (event.type === "run:started") {
     updateTaskTitleFromRun(view, event.payload.title);
     view.liveTranscriptRunId = event.payload.id;
-    view.runtimeReady = false;
     view.status = "Running";
     view.completedUnseen = false;
     // A new run means any prior option-prompt (and its receipt) is moot.
@@ -3835,7 +3828,6 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   if (event.type === "approval:detected") {
     view.pendingApproval = event.payload;
-    view.runtimeReady = false;
     view.status = "Waiting for approval";
     // A live card supersedes the "waiting in the terminal" pointer (e.g. the
     // scrape resurfaced the native panel after a broker expiry).
@@ -3893,7 +3885,6 @@ window.duetRuntime.onRuntimeEvent((event) => {
     view.optionPromptSelections = event.payload.questions.map(() => -1);
     view.optionPromptBusy = false;
     view.optionPromptReceipt = null;
-    view.runtimeReady = false;
     view.status = "Claude is asking";
     markViewChanged(view);
     return;
@@ -3929,7 +3920,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
 
   if (event.type === "delivery:state") {
     view.deliveryState = event.payload;
-    view.status = deliveryStatusLabel(view, event.payload);
+    view.status = deliveryStatusLabel(event.payload);
     markViewChanged(view);
     return;
   }
@@ -3941,6 +3932,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 
   if (event.type === "usage:updated") {
+    const previousModelSummary = sessionModelSummaryLabel(view);
     view.usageSnapshot = event.payload.snapshot;
     // A usage tick is not content and not unread. Update only the usage
     // indicator (and the popover, if open) in place — never a full render(),
@@ -3948,6 +3940,12 @@ window.duetRuntime.onRuntimeEvent((event) => {
     // selection. Background views just store the snapshot for later.
     if (isActiveView(view)) {
       renderUsageIndicator(view);
+      // The model chip follows the statusline (mid-session /model switch,
+      // S6.5). Chips are fixed elements — updating them touches neither the
+      // transcript nor the sidebar spinner.
+      if (sessionModelSummaryLabel(view) !== previousModelSummary) {
+        renderComposerControls(view);
+      }
       if (state.usagePopover) {
         renderComposerPopover(view);
       }
@@ -4012,13 +4010,9 @@ window.duetRuntime.onRuntimeEvent((event) => {
     return;
   }
 
-  if (event.type === "task:ready") {
-    view.runtimeReady = true;
-    view.composerObserved = true;
-    view.status = hasActiveRun(view) ? view.status : "Ready";
-    markViewChanged(view);
-    return;
-  }
+  // task:ready needs no renderer handler: the "Ready" copy keys on the
+  // delivery state's bootLatched (a delivery:state follows every runtime
+  // event), and cli-state consumes task:ready in the main process.
 
   if (event.type === "task:updated") {
     view.task = event.payload.task;
@@ -4028,7 +4022,6 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 
   if (event.type === "run:stopped") {
-    view.runtimeReady = true;
     view.status = "Stopped";
     markViewChanged(view);
   }
@@ -4105,8 +4098,6 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     // FOLLOWS the global default (so changing the default applies to it), until the
     // user toggles it. createTask sets active optimistically for a live armed spawn.
     remoteControl: { active: false, url: null, armedOverride: null },
-    runtimeReady: false,
-    composerObserved: false,
     deliveryState: null,
     pendingAttachments: [],
     usageSnapshot: null,
@@ -4119,7 +4110,6 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     unread: false,
     completedUnseen: false,
   };
-  applyPendingRuntimeState(view);
   return view;
 }
 
@@ -4169,15 +4159,6 @@ async function hydrateUsage(taskId: string): Promise<void> {
   }
   view.usageSnapshot = await window.duetRuntime.readUsage({ taskId });
   markViewChanged(view);
-}
-
-function applyPendingRuntimeState(view: TaskViewState): void {
-  if (!view.task || !pendingReadyTaskIds.delete(view.task.id)) {
-    return;
-  }
-  view.runtimeReady = true;
-  view.composerObserved = true;
-  view.status = hasActiveRun(view) ? view.status : "Ready";
 }
 
 function upsertTaskView(view: TaskViewState): void {
@@ -4436,7 +4417,6 @@ async function openDormantSessionAndSend(
     view.status = response.resumedProviderSession
       ? "Resumed — your message will send when the agent is ready"
       : "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable";
-    applyPendingRuntimeState(view);
     // The session is live now — materialize the held items (copy bitmaps, pass
     // references through) and deliver.
     const attachments = await materializeAttachments(view.pendingAttachments, taskId);
@@ -4559,9 +4539,6 @@ async function refreshReport(taskId = state.activeTaskId): Promise<void> {
 
   view.report = await window.duetRuntime.readReport({ taskId: view.task.id });
   view.artifacts = await window.duetRuntime.listArtifacts({ taskId: view.task.id });
-  if (view.composerObserved && !view.pendingApproval && !hasActiveRun(view)) {
-    view.runtimeReady = true;
-  }
   if (
     view.selectedArtifactPath &&
     !view.artifacts.some((artifact) => artifact.path === view.selectedArtifactPath)
@@ -4796,7 +4773,7 @@ function renderComposerChip(element: HTMLButtonElement, label: string | null, hi
 
 function composerChipLabel(view: TaskViewState | null, type: "permission" | "model"): string | null {
   const task = view?.task ?? null;
-  return type === "permission" ? sessionPermissionLabel(task) : sessionModelSummaryLabel(task);
+  return type === "permission" ? sessionPermissionLabel(task) : sessionModelSummaryLabel(view);
 }
 
 // --- Slash command picker -------------------------------------------------
@@ -5736,14 +5713,22 @@ function sessionPermissionLabel(task: Task | null): string | null {
   return "Ask for approval";
 }
 
-function sessionModelSummaryLabel(task: Task | null): string | null {
+function sessionModelSummaryLabel(view: TaskViewState | null): string | null {
+  const task = view?.task ?? null;
   if (!task) {
     return null;
   }
-  const parts = [
-    modelValueLabel(task.provider, task.model),
-    reasoningValueLabel(task.reasoningEffort),
-  ].filter((part): part is string => Boolean(part));
+  // The live statusline value wins (contract §2: mid-session /model and
+  // effort switching happens in the Terminal; Reading only DISPLAYS it —
+  // same shape as the S4 permission_mode wiring). Spawn settings are the
+  // fallback before the first statusline event, and for codex, whose
+  // snapshots never carry a model.
+  const live = view?.usageSnapshot ?? null;
+  const model = live?.modelDisplayName ?? modelValueLabel(task.provider, task.model);
+  const effortValue = (live?.reasoningEffort ?? task.reasoningEffort) as ReasoningEffort | null;
+  const parts = [model, reasoningValueLabel(effortValue)].filter((part): part is string =>
+    Boolean(part),
+  );
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
@@ -5771,7 +5756,7 @@ function sendPromptTitle(
   if (pendingApproval) {
     return `Queued — delivers after ${providerName} approval is resolved.`;
   }
-  if (!view.runtimeReady) {
+  if (view.live && !view.deliveryState?.bootLatched) {
     return `${providerName} is starting — your message sends as soon as it accepts input.`;
   }
   if (view.deliveryState && !view.deliveryState.deliverable) {
@@ -7750,148 +7735,25 @@ function setViewMode(mode: ViewMode): void {
 
 // The persistent delivery-queue PANEL was removed (S1c-followup): with
 // send-is-send write-through, a queued message goes straight into the CLI's
-// native queue (shown in the co-visible terminal — "Press up to edit queued
-// messages"), so a Duet-side panel just duplicated it. The rare hold states
-// (starting / waiting-for-approval / undelivered) are the composer status line
-// (deliveryStatusLabel → view.status → runtimeStatus). The item-list renderer +
-// its actions below are now orphaned — swept in S6.
-function renderDeliveryItem(view: TaskViewState, item: DeliveryQueueItem): HTMLElement {
-  const providerName = providerLabel(view.task?.provider ?? "codex");
-  const row = document.createElement("article");
-  row.className = `delivery-item ${item.status}`;
-  row.dataset.deliveryId = item.id;
-
-  const copy = document.createElement("div");
-  copy.className = "delivery-copy";
-  const status = document.createElement("strong");
-  status.textContent = deliveryItemStatusLabel(view, providerName, item);
-  const text = document.createElement("p");
-  text.textContent = promptItemLabel(item);
-  copy.append(status, text);
-  if (item.failureReason) {
-    const reason = document.createElement("span");
-    reason.className = "delivery-reason";
-    reason.textContent = item.failureReason;
-    copy.append(reason);
-  }
-
-  const actions = document.createElement("div");
-  actions.className = "delivery-actions";
-  if (item.status === "queued") {
-    actions.append(
-      deliveryAction("Edit", () => {
-        void editQueuedPrompt(item);
-      }),
-      deliveryAction("Cancel", () => {
-        void cancelQueuedPrompt(item.id);
-      }),
-    );
-  } else if (item.status === "undelivered") {
-    actions.append(
-      deliveryAction("Retry", () => {
-        void retryQueuedPrompt(item.id);
-      }),
-      deliveryAction("Edit", () => {
-        void editQueuedPrompt(item);
-      }),
-      deliveryAction("Terminal", () => {
-        setViewMode("terminal");
-      }),
-    );
-  } else {
-    const waiting = document.createElement("span");
-    waiting.textContent = "Waiting for receipt";
-    actions.append(waiting);
-  }
-
-  row.append(copy, actions);
-  return row;
-}
-
-function deliveryAction(label: string, onClick: () => void): HTMLButtonElement {
-  const button = document.createElement("button");
-  button.className = "secondary compact-action";
-  button.type = "button";
-  button.textContent = label;
-  button.addEventListener("click", onClick);
-  return button;
-}
-
-async function editQueuedPrompt(item: DeliveryQueueItem): Promise<void> {
-  elements.promptInput.value = item.text;
-  await cancelQueuedPrompt(item.id);
-  focusComposer();
-  render();
-}
-
-async function cancelQueuedPrompt(itemId: string): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-  try {
-    await window.duetRuntime.cancelQueuedPrompt({ taskId: view.task.id, itemId });
-  } catch (error) {
-    view.status = errorMessage(error);
-    render();
-  }
-}
-
-async function retryQueuedPrompt(itemId: string): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-  try {
-    await window.duetRuntime.retryQueuedPrompt({ taskId: view.task.id, itemId });
-  } catch (error) {
-    view.status = errorMessage(error);
-    render();
-  }
-}
-
-function deliveryItemStatusLabel(
-  view: TaskViewState,
-  providerName: string,
-  item: DeliveryQueueItem,
-): string {
-  if (item.status === "delivering") {
-    return `Delivering to ${providerName}`;
-  }
-  if (item.status === "undelivered") {
-    return `Undelivered — no ${providerName} receipt`;
-  }
-  const launchWait =
-    !view.runtimeReady &&
-    !view.deliveryState?.activeRun &&
-    !view.deliveryState?.approvalActive;
-  if (launchWait) {
-    return `Starting ${providerName} — sends as soon as it accepts input`;
-  }
-  return `Queued — delivers when ${providerName} is ready`;
-}
-
-function promptItemLabel(item: DeliveryQueueItem): string {
-  const attachmentLabel =
-    item.attachments.length === 0
-      ? null
-      : item.attachments.length === 1
-        ? "1 image"
-        : `${item.attachments.length} images`;
-  return [attachmentLabel, item.text].filter((part): part is string => Boolean(part)).join(" - ");
-}
-
-function deliveryStatusLabel(view: TaskViewState, deliveryState: DeliveryTaskState): string {
+// native queue (shown in the co-visible terminal). The orphaned item-list
+// renderer + its Edit/Cancel/Retry actions (and their IPC backend) were swept
+// in S6 — an unreceipted item no longer blocks the queue, so the retry
+// affordance had nothing left to unblock (git log -S renderDeliveryItem).
+// The composer status line below is the sole delivery surface.
+function deliveryStatusLabel(deliveryState: DeliveryTaskState): string {
   const providerName = providerLabel(deliveryState.provider);
-  const first = deliveryState.queue[0] ?? null;
-  if (first?.status === "delivering") {
+  // Whole-queue derivation (S6): an undelivered item no longer blocks the
+  // queue, so it may sit at the head while later items flow — live activity
+  // (delivering/queued) outranks the stale report; the report shows only
+  // when nothing fresher is happening.
+  if (deliveryState.queue.some((item) => item.status === "delivering")) {
     return `Delivering to ${providerName}`;
-  }
-  if (first?.status === "undelivered") {
-    return "Undelivered";
   }
   if (deliveryState.queue.some((item) => item.status === "queued")) {
     return "Queued";
+  }
+  if (deliveryState.queue.some((item) => item.status === "undelivered")) {
+    return "Undelivered";
   }
   if (deliveryState.approvalActive) {
     return `Waiting for ${providerName} approval`;
@@ -7899,7 +7761,12 @@ function deliveryStatusLabel(view: TaskViewState, deliveryState: DeliveryTaskSta
   if (deliveryState.activeRun) {
     return `${providerName} is working`;
   }
-  if (deliveryState.idleComposer || view.runtimeReady) {
+  // bootLatched is the honest "still starting?" bit: one-shot, opened by the
+  // delivery pump's structural poll. The old key (idleComposer — a continuous
+  // composer-ready scrape gated on the starved task-ready flag) read
+  // permanently false in the full app, so an idle session could wedge on
+  // "Starting <provider>" (the S5 residual label class; probe s6-diags).
+  if (deliveryState.bootLatched) {
     return "Ready";
   }
   return `Starting ${providerName}`;
@@ -7984,7 +7851,7 @@ function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): stri
   if (!view.live) {
     return `Message ${providerName} — resumes this session`;
   }
-  if (!view.runtimeReady) {
+  if (!view.deliveryState?.bootLatched) {
     return `${providerName} is starting — your message will send when it's ready`;
   }
   if ((view.report?.runs.length ?? 0) === 0) {
@@ -8009,13 +7876,6 @@ function runSectionLabel(value: string): HTMLElement {
   label.className = "run-rhythm-label";
   label.textContent = value;
   return label;
-}
-
-function approvalContextItem(label: string, value: string): HTMLElement {
-  const item = document.createElement("span");
-  item.dataset.approvalLabel = label;
-  item.textContent = `${label}: ${value}`;
-  return item;
 }
 
 function completionLabel(run: RuntimeRunReport): string {
@@ -8131,26 +7991,6 @@ function approvalSummary(kind: RuntimeRunReport["approvalKind"] | null | undefin
     return `${providerName} is about to enter Bypass Permissions mode — it will run EVERY command without asking. Intended only for a sandboxed container/VM. Cancel unless you mean it.`;
   }
   return `${providerName} is waiting on a native approval screen in the PTY session.`;
-}
-
-function approvalScope(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
-  if (kind === "workspace-trust") {
-    return "Task workspace trust";
-  }
-  if (kind === "file-edit") {
-    return "workspace file write";
-  }
-  if (kind === "file-read") {
-    return "native file read";
-  }
-  if (kind === "command") {
-    return "terminal command execution";
-  }
-  if (kind === "dangerous-bypass") {
-    return "all commands, no prompts (dangerous)";
-  }
-  const providerName = activeProviderLabel();
-  return `native ${providerName} session`;
 }
 
 function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {

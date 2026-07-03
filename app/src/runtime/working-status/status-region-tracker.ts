@@ -35,6 +35,12 @@ export interface StatusRegionTrackerOptions {
  * reconstruction. Emission is gated on run liveness: outside an active run
  * the region is null, which keeps end-of-turn summary lines ("✻ Cogitated
  * for 49s") from relaying forever at idle.
+ *
+ * Contract §3.1 fence #1 — DISPLAY-ONLY scrape (permanent citizen). Its
+ * output feeds the status strip, sidebar liveness, and the run-index
+ * allowlist entry; nothing derives busy/idle STATE from it (that is
+ * cli-state, hooks-primary). If a TUI redesign breaks the glyph constants
+ * below, a string goes stale on screen — nothing wedges, nothing acts.
  */
 export class StatusRegionTracker {
   private readonly taskId: TaskId;

@@ -80,7 +80,17 @@ export function parseClaudeStatuslinePayload(
   // startup payload reports cost 0 before anything ran, and it must keep
   // reading as "no usage data yet".
   const costUsd = rawCost !== null && rawCost > 0 ? rawCost : null;
-  if (!context && limits.length === 0 && costUsd === null) {
+  // Model display is an independent signal too (same class as cost, S6.5):
+  // the live model chip must keep following a /model switch even if the
+  // usage fields ever drift unparseable. The startup payload carries it, so
+  // the chip goes live before any usage accrues.
+  const rawModel = asRecord(record.model)?.display_name;
+  const modelDisplayName = typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : null;
+  // `effort` ships as {level: "high"} (2.1.172+); tolerate a bare string too.
+  const rawEffort = asRecord(record.effort)?.level ?? record.effort;
+  const reasoningEffort =
+    typeof rawEffort === "string" && rawEffort.trim() ? rawEffort.trim() : null;
+  if (!context && limits.length === 0 && costUsd === null && modelDisplayName === null) {
     return null;
   }
 
@@ -98,6 +108,8 @@ export function parseClaudeStatuslinePayload(
       limits,
       sessionName,
       costUsd,
+      modelDisplayName,
+      reasoningEffort,
     },
   };
 }

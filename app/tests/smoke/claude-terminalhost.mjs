@@ -61,11 +61,14 @@ try {
     cols: 120,
   });
 
-  await waitUntil(() => workspaceTrustApproved || eventTypes.includes("task:ready"), 120000, "Claude startup");
+  // Boot readiness = the structural composer gate (production's boot-latch
+  // signal). `task:ready` no longer fires at boot — the between-runs poller
+  // was retired in S6; the event only rides quiescence run completions now.
+  await waitUntil(() => workspaceTrustApproved || host.acceptsPromptInput(), 120000, "Claude startup");
   if (ptyExited) {
     throw new Error(`Claude PTY exited before prompt submission.\n${redactedTail(rawTail)}`);
   }
-  await waitUntil(() => eventTypes.includes("task:ready"), 120000, "Claude task ready");
+  await waitUntil(() => host.acceptsPromptInput(), 120000, "Claude accepts input");
 
   host.submitPrompt(`Reply exactly ${marker}. Do not run commands and do not edit files.`);
   await waitUntil(() => sawMarker, 180000, "Claude marker response");
