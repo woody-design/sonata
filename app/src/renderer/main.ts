@@ -106,7 +106,6 @@ import {
   usageLimitDisplayLabel,
 } from "../reading-core/selectors/formatters";
 import {
-  AUTO_TITLE_PLACEHOLDERS,
   MAX_TRANSCRIPT_CHARS,
   MAX_TRANSCRIPT_RAW_CHARS,
   MODEL_OPTIONS,
@@ -136,15 +135,12 @@ import {
   composerPlaceholder,
   filteredSlashItems,
   optimisticReceiptLines,
-  optionPromptQuestionMeta,
-  reconcileReceiptLines,
   sendPromptTitle,
   sessionModelSummaryLabel,
   slashFilterScore,
 } from "../reading-core/selectors/composer";
 import {
   completionErrorExcerpt,
-  deliveryStatusLabel,
   dormantArmed,
   hasActiveRun,
   isActiveRunStatus,
@@ -152,14 +148,10 @@ import {
   remoteControlOn,
   runOutcome,
   runTone,
-  taskStatusLabel,
 } from "../reading-core/selectors/runs";
 import {
-  appendLiveTranscript,
-  applyTranscriptUpserts,
   createInitialState,
   createTaskView,
-  ensureRunTranscript,
   taskViewForId,
   upsertTaskView,
   type ComposerAttachment,
@@ -172,6 +164,8 @@ import {
   type SlashPickerState,
   type TaskViewState,
 } from "../reading-core/state";
+import { reduceRuntimeEvent } from "../reading-core/runtime-reducer";
+import type { Directive } from "../reading-core/directives";
 
 
 /** The two co-equal surfaces of a task: the crafted reading view and the raw
@@ -3373,312 +3367,72 @@ function applySystemReadingMode(mode: ResolvedReadingMode): void {
   renderReadingPopover();
 }
 
+// The runtime-event entry point (map C2): the reducer owns every mutation and
+// render-path CHOICE (§1.3 policy-as-data, corpus-fenced); the shell performs
+// the returned directive list 1:1, in order. No logic beyond the mapping
+// lives here — a directive's payload already carries the reducer's decisions.
 window.duetRuntime.onRuntimeEvent((event) => {
-  if (event.type === "pty:data") {
-    const view = taskViewForId(state, event.payload.taskId);
-    if (!view) {
+  for (const directive of reduceRuntimeEvent(state, event)) {
+    performDirective(directive);
+  }
+});
+
+function performDirective(directive: Directive): void {
+  switch (directive.kind) {
+    case "full":
+      render();
       return;
-    }
-    // The raw terminal now renders in the satellite window (fed by the same
-    // broadcast). The main window keeps only the Read transcript and unread cue.
-    if (!isActiveView(view)) {
-      view.unread = true;
-    }
-    if (appendLiveTranscript(view, event.payload.data)) {
-      scheduleTranscriptRender();
-    }
-    return;
-  }
-
-  if (event.type === "sessions:updated") {
-    scheduleSessionIndexRefresh();
-    return;
-  }
-
-  const view = taskViewForId(state, event.payload.taskId);
-  if (!view) {
-    return;
-  }
-
-  if (event.type === "run:started") {
-    updateTaskTitleFromRun(view, event.payload.title);
-    view.liveTranscriptRunId = event.payload.id;
-    view.status = "Running";
-    view.completedUnseen = false;
-    // A new run means any prior option-prompt (and its receipt) is moot.
-    view.pendingOptionPrompt = null;
-    view.optionPromptReceipt = null;
-    view.optionPromptBusy = false;
-    // …and so is a prior slash-attention pointer (attention moved on).
-    view.slashAttention = null;
-    ensureRunTranscript(view, event.payload.id);
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "run:updated") {
-    if (!isActiveRunStatus(event.payload.status) && view.liveTranscriptRunId === event.payload.id) {
-      view.liveTranscriptRunId = null;
-    }
-    // A settled run cannot be waiting for approval: if the card on screen is
-    // attributed to this run, it is a stale scrape artifact (the Stop hook
-    // completed the run over a phantom re-detected panel) — retract it.
-    if (
-      !isActiveRunStatus(event.payload.status) &&
-      view.pendingApproval?.runId === event.payload.id
-    ) {
-      view.pendingApproval = null;
-    }
-    if (!isActiveRunStatus(event.payload.status) && !isActiveView(view)) {
-      // The settled sidebar grammar's fourth state: finished while away.
-      view.completedUnseen = true;
-    }
-    // A dispatched slash command settled by quiescence: the write happened and
-    // the CLI painted whatever it had to say. If that was a panel, it is now
-    // waiting in the co-visible terminal — Duet cannot tell (panel detection
-    // was retired with S3; a panel's own ❯ defeats the idle-prompt scrape), so
-    // the honest surface is a passive pointer, not a state (S4 handoff → S5).
-    if (event.payload.kind === "slash" && event.payload.status === "completed") {
-      view.slashAttention = {
-        runId: event.payload.id,
-        command: event.payload.prompt.split(/\r?\n/, 1)[0] ?? event.payload.prompt,
-      };
-    }
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "approval:detected") {
-    view.pendingApproval = event.payload;
-    view.status = "Waiting for approval";
-    // A live card supersedes the "waiting in the terminal" pointer (e.g. the
-    // scrape resurfaced the native panel after a broker expiry).
-    view.approvalExpiredAttention = false;
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "remote-control:state") {
-    // Set fields (not replace) so a dormant view's armedOverride survives the
-    // connect/disconnect events that flow once it goes live.
-    view.remoteControl.active = event.payload.active;
-    view.remoteControl.url = event.payload.url;
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "approval:decision") {
-    view.pendingApproval = null;
-    view.approvalExpiredAttention = false;
-    view.status =
-      event.payload.decision === "deny"
-        ? "Approval denied"
-        : event.payload.decision === "answered-natively"
-          ? "Answered in terminal"
-          : "Approval sent";
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "approval:expired") {
-    // The hook broker timed out → the native panel is taking over. Clear the
-    // hook card (the scrape surfaces the native one next); the request is still
-    // unanswered, so keep the "waiting" truth (cli-state stays waiting-approval)
-    // and raise the passive attention banner in the card's place (S5).
-    // Keyed (S6 review P2): only the ask THIS card shows may clear it — the
-    // controller already filters hidden-ask expiries, this is the renderer's
-    // own defense (a queued ask expiring must not blank a live unrelated card).
-    if (view.pendingApproval?.approvalId !== event.payload.approvalId) {
+    case "unread-only":
+    case "none":
+      // State-only outcomes: the reducer already applied any mutation
+      // (unread-only = markViewChanged's background branch).
       return;
-    }
-    view.pendingApproval = null;
-    view.approvalExpiredAttention = true;
-    view.status = "Waiting in the terminal";
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "approval:persisted") {
-    // Receipt-by-observation: what the provider actually wrote, and where.
-    view.status = `Allow rule saved: ${event.payload.rulesAdded.join(", ")} → ${event.payload.file}`;
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "option-prompt:detected") {
-    // A native AskUserQuestion — surface it as an answerable card. Structured
-    // (from the PreToolUse hook), not scraped. The floor stays a valid
-    // alternative; a fresh prompt supersedes any prior receipt.
-    view.pendingOptionPrompt = event.payload;
-    view.optionPromptSelections = event.payload.questions.map(() => -1);
-    view.optionPromptBusy = false;
-    view.optionPromptReceipt = null;
-    view.status = "Claude is asking";
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "option-prompt:resolved") {
-    const answers = event.payload.answers;
-    if (!answers) {
-      // Cancelled / turn ended unanswered: drop the live form (keep any receipt
-      // already shown from a completed answer).
-      if (view.pendingOptionPrompt?.toolUseId === event.payload.toolUseId) {
-        view.pendingOptionPrompt = null;
-        view.optionPromptBusy = false;
-        view.status = "Ready";
-      }
-      markViewChanged(view);
-      return;
-    }
-    // Reconcile the receipt from the provider's own verbatim answers. The
-    // question metadata (header + order) comes from the live prompt if still
-    // present, else from the optimistic receipt, else from the answers keys.
-    view.optionPromptReceipt = {
-      toolUseId: event.payload.toolUseId,
-      reconciled: true,
-      lines: reconcileReceiptLines(optionPromptQuestionMeta(view), answers),
-    };
-    view.pendingOptionPrompt = null;
-    view.optionPromptBusy = false;
-    view.status = "Answered";
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "delivery:state") {
-    view.deliveryState = event.payload;
-    view.status = deliveryStatusLabel(event.payload);
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "delivery:receipt") {
-    view.status = event.payload.receipt.backfilled ? "Receipt backfilled" : "Delivered";
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "usage:updated") {
-    const previousModelSummary = sessionModelSummaryLabel(view);
-    view.usageSnapshot = event.payload.snapshot;
-    // A usage tick is not content and not unread. Update only the usage
-    // indicator (and the popover, if open) in place — never a full render(),
-    // which would replaceChildren the transcript and wipe any active text
-    // selection. Background views just store the snapshot for later.
-    if (isActiveView(view)) {
-      renderUsageIndicator(view);
-      // The model chip follows the statusline (mid-session /model switch,
-      // S6.5). Chips are fixed elements — updating them touches neither the
-      // transcript nor the sidebar spinner.
-      if (sessionModelSummaryLabel(view) !== previousModelSummary) {
-        renderComposerControls(view);
-      }
-      if (state.usagePopover) {
-        renderComposerPopover(view);
-      }
-    }
-    return;
-  }
-
-  if (event.type === "cli-state:changed") {
-    // The structured CLI activity (Slice 1, hooks-primary). Its unique value:
-    // the approval indicator now also fires from the PermissionRequest hook
-    // (earlier/more reliable than the footer scrape), and a take-over turn
-    // shows as busy without a Duet-owned run.
-    //
-    // S0 discipline: only the `activity` drives the sidebar indicator, not the
-    // `tool`, so a tool-only change (every Pre/PostToolUse) must NOT rebuild —
-    // that would reintroduce the per-tool spinner-restart churn S0 fixed. And
-    // CLI activity is never "unread content" (no markViewChanged → no spurious
-    // unread on background sessions). A genuine activity transition is a real,
-    // low-frequency state change, so a sidebar-only rebuild is acceptable
-    // (transcript/selection untouched).
-    const previousActivity = view.cliState?.activity ?? null;
-    view.cliState = {
-      activity: event.payload.activity,
-      tool: event.payload.tool,
-      approvalKind: event.payload.approvalKind,
-    };
-    if (event.payload.activity !== previousActivity) {
+    case "sidebar":
       renderSidebar();
+      return;
+    case "strip-in-place": {
+      const view = taskViewForId(state, directive.taskId);
+      if (view) {
+        updateStatusStripStatusInPlace(view);
+      }
+      return;
     }
-    return;
-  }
-
-  if (event.type === "working-status:updated") {
-    const previousLiveness = view.workingStatus?.liveness ?? "fresh";
-    view.workingStatus = {
-      native: event.payload.native,
-      liveness: event.payload.liveness,
-      silentSince: event.payload.silentSince,
-      capturedAt: event.payload.capturedAt,
-    };
-    if (event.payload.liveness !== previousLiveness) {
-      // A liveness transition (fresh ↔ quiet ↔ silent) is a meaningful change,
-      // but it is still not content. Reflect it in place: toggle the sidebar
-      // spinner's class (never rebuild the row — that restarts the CSS spin
-      // animation) and re-apply the strip's stall voice. No render(), so the
-      // transcript and its selection survive. The sidebar shows liveness for
-      // BACKGROUND sessions too, so this patches regardless of active view.
+    case "strip-full": {
+      const view = taskViewForId(state, directive.taskId);
+      if (!view) {
+        return;
+      }
       updateSidebarSpinnerLiveness(view);
-      if (isActiveView(view)) {
+      if (directive.statusStrip) {
         renderStatusStrip(view);
       }
       return;
     }
-    // Native relay arrives at ~3Hz. Update the strip's status area in place;
-    // never fall back to a full render for a status tick. A full render would
-    // replaceChildren the transcript (wiping any active text selection) and
-    // rebuild the sidebar (restarting the spinner). The strip lives OUTSIDE
-    // the transcript, so updating it touches nothing else.
-    if (isActiveView(view)) {
-      updateStatusStripStatusInPlace(view);
+    case "usage-in-place": {
+      const view = taskViewForId(state, directive.taskId);
+      if (!view) {
+        return;
+      }
+      renderUsageIndicator(view);
+      if (directive.chipChanged) {
+        renderComposerControls(view);
+      }
+      if (directive.popoverOpen) {
+        renderComposerPopover(view);
+      }
+      return;
     }
-    return;
-  }
-
-  // task:ready needs no renderer handler: the "Ready" copy keys on the
-  // delivery state's bootLatched (a delivery:state follows every runtime
-  // event), and cli-state consumes task:ready in the main process.
-
-  if (event.type === "task:updated") {
-    view.task = event.payload.task;
-    view.status = taskStatusLabel(event.payload.task);
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "run:stopped") {
-    view.status = "Stopped";
-    markViewChanged(view);
-  }
-
-  if (event.type === "transcript:located") {
-    view.transcriptSources = [
-      ...view.transcriptSources.filter(
-        (source) => source.sourceId !== event.payload.source.sourceId,
-      ),
-      event.payload.source,
-    ];
-    markViewChanged(view);
-    return;
-  }
-
-  if (event.type === "transcript:blocks") {
-    applyTranscriptUpserts(view, event.payload);
-    if (isActiveView(view)) {
+    case "transcript-debounced":
       scheduleTranscriptRender();
-    } else {
-      view.unread = true;
-    }
-    return;
+      return;
+    case "session-index-debounced":
+      scheduleSessionIndexRefresh();
+      return;
+    case "report-refresh":
+      void refreshReport(directive.taskId);
+      return;
   }
-
-  if (event.type === "report:updated") {
-    void refreshReport(event.payload.taskId);
-  }
-});
+}
 
 window.duetRuntime.onMainArtifactFocus((request) => {
   focusArtifactFromPreview(request);
@@ -3788,18 +3542,6 @@ function markViewChanged(view: TaskViewState): void {
 
 function isActiveView(view: TaskViewState): boolean {
   return Boolean(view.task && view.task.id === state.activeTaskId);
-}
-
-function updateTaskTitleFromRun(view: TaskViewState, title: string): void {
-  const nextTitle = title.trim();
-  if (!view.task || !nextTitle || !AUTO_TITLE_PLACEHOLDERS.has(view.task.title)) {
-    return;
-  }
-  view.task = {
-    ...view.task,
-    title: nextTitle,
-    updatedAt: new Date().toISOString(),
-  };
 }
 
 async function createTask(
