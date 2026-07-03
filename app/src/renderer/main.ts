@@ -4336,6 +4336,11 @@ async function createSessionFromComposer(text: string): Promise<void> {
     // Creation failed; createTask already surfaced the error.
     return;
   }
+  // Deferred creation is an ownership handover: this draft now belongs to the
+  // session it just created. createTask→activateTask parked the still-visible
+  // text into the New Chat slot a moment ago — consume it, or the next New
+  // Chat resurrects an already-sent prompt.
+  newChatComposerDraft = "";
   try {
     // The session now exists — materialize the held draft (copy bitmaps, pass
     // references through) and deliver with the first prompt.
@@ -4346,8 +4351,11 @@ async function createSessionFromComposer(text: string): Promise<void> {
   } catch (error) {
     view.status = errorMessage(error);
     // The session was created but delivery failed — don't lose the user's
-    // attachments. Move the draft into the now-live task's pending list so the
-    // chips stay visible and retriable (keep their preview URLs; don't revoke).
+    // words or attachments. The text goes back into the composer the user is
+    // now standing in (the new task's), visible and retriable; the attachment
+    // draft moves into the task's pending list the same way (keep their
+    // preview URLs; don't revoke).
+    elements.promptInput.value = text;
     view.pendingAttachments.push(...state.draftAttachments);
     state.draftAttachments.length = 0;
   } finally {

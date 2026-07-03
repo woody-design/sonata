@@ -53,6 +53,14 @@ try {
     .waitFor({ state: "visible" });
   await page.locator(".sidebar-session.active").waitFor({ state: "visible" });
 
+  // Deferred creation consumes the New Chat draft: a fresh New Chat must NOT
+  // resurrect the already-sent first prompt (the createTask→activateTask
+  // handover parks the still-visible text into the New Chat slot; the send
+  // path owns clearing it).
+  await page.locator("#sidebar-new-chat").click();
+  await assertNewChatVisible(page);
+  const resurrectedDraft = await page.locator("#prompt-input").inputValue();
+
   const manifestPath = path.join(workspace, "task.json");
   const createdManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const createdReportPath = path.join(workspace, "runtime-report.json");
@@ -84,6 +92,7 @@ try {
     !composerDisabled &&
     sendDisabledWithoutText &&
     sendEnabledWithText &&
+    resurrectedDraft === "" &&
     Boolean(placeholder?.includes("starts the session")) &&
     Boolean(dormantPlaceholder?.includes("resumes this session")) &&
     createdManifest.schemaId === "duet.task-manifest.v1" &&
@@ -113,6 +122,7 @@ try {
         sendDisabledWithoutText,
         sendEnabledWithText,
         placeholder,
+        resurrectedDraft,
         dormantPlaceholder,
         selectedFolderManifestExists,
         lastUsedFolder: projectsFile.lastUsedFolder,

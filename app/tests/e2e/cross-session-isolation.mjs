@@ -135,11 +135,60 @@ try {
   const composerIsolated =
     draftOnAlpha === "" && draftOnBeta === "DRAFT-BETA unsent" && draftBackOnAlpha === "DRAFT-ALPHA unsent";
 
+  // 4. /clear rebind: the CLI declares a NEW session id under the same PTY.
+  // The hook handshake must rebind the manifest ref (a sanctioned identity
+  // update — everything keyed by providerSessionRef follows the live
+  // session), and Reading must follow the new transcript.
+  await selectSidebarSession(page, alpha.task.id);
+  await page.evaluate(
+    async (request) => window.duetRuntime.submitPrompt(request),
+    { taskId: alpha.task.id, text: "/clear" },
+  );
+  await page.waitForTimeout(4000);
+  await page.evaluate(
+    async (request) => window.duetRuntime.submitPrompt(request),
+    {
+      taskId: alpha.task.id,
+      text: [
+        "Create exactly one file named gamma_only.md containing exactly: CODEWORD_GAMMA ready.",
+        "Reply with the phrase CODEWORD_GAMMA and nothing about any other codeword.",
+        "Do not modify any other files.",
+      ].join("\n"),
+    },
+  );
+  const gammaDeadline = Date.now() + 240000;
+  const gammaDone = () =>
+    (readReport(alpha.task.id)?.runs ?? []).some(
+      (run) =>
+        run.status === "completed" &&
+        run.artifactCandidates?.some((artifact) => artifact.path === "gamma_only.md"),
+    );
+  while (Date.now() < gammaDeadline && !gammaDone()) {
+    await approveAnyVisibleApproval(page);
+    await page.waitForTimeout(500);
+  }
+  if (!gammaDone()) {
+    throw new Error("The post-/clear run did not complete.");
+  }
+  await page.locator(".turn-card .turn-body", { hasText: "CODEWORD_GAMMA" }).waitFor({
+    state: "visible",
+  });
+
+  const alphaSourcesAfterClear = readSources(alpha.task.id);
+  const alphaRefAfterClear = readManifest(alpha.task.id)?.task?.providerSessionRef ?? null;
+  const clearTip = alphaSourcesAfterClear.at(-1) ?? null;
+  const rebindCoherent =
+    alphaSourcesAfterClear.length === 2 &&
+    Boolean(clearTip) &&
+    clearTip.providerSessionId === alphaRefAfterClear &&
+    alphaRefAfterClear !== alphaRef;
+
   const filesOnDisk =
     fs.existsSync(path.join(sharedFolder, "alpha_only.md")) &&
-    fs.existsSync(path.join(sharedFolder, "beta_only.md"));
+    fs.existsSync(path.join(sharedFolder, "beta_only.md")) &&
+    fs.existsSync(path.join(sharedFolder, "gamma_only.md"));
 
-  const success = bindingsDistinct && composerIsolated && filesOnDisk;
+  const success = bindingsDistinct && composerIsolated && rebindCoherent && filesOnDisk;
   console.log(
     JSON.stringify(
       {
@@ -156,6 +205,10 @@ try {
         draftOnBeta,
         draftBackOnAlpha,
         composerIsolated,
+        alphaRefAfterClear,
+        clearTipSessionId: clearTip?.providerSessionId ?? null,
+        alphaSourcesAfterClear: alphaSourcesAfterClear.map((source) => source.providerSessionId),
+        rebindCoherent,
         filesOnDisk,
         success,
       },
@@ -176,13 +229,16 @@ function recordDir(taskId) {
   return path.join(workspaceRoot, "data", "projects", taskId);
 }
 
-function latestRun(taskId) {
-  const reportPath = path.join(recordDir(taskId), "runtime-report.json");
+function readReport(taskId) {
   try {
-    return JSON.parse(fs.readFileSync(reportPath, "utf8"))?.runs?.at(-1) ?? null;
+    return JSON.parse(fs.readFileSync(path.join(recordDir(taskId), "runtime-report.json"), "utf8"));
   } catch {
     return null;
   }
+}
+
+function latestRun(taskId) {
+  return readReport(taskId)?.runs?.at(-1) ?? null;
 }
 
 function runCompleted(taskId) {

@@ -1545,6 +1545,27 @@ export class RuntimeController {
     if (!sessionId || !transcriptPath) {
       return;
     }
+    // A hook-owned rebind is a SANCTIONED identity update — the CLI itself is
+    // declaring which session this PTY now is (/clear, native /resume), not a
+    // locator guessing by recency (which the persist-time CAS rightly keeps
+    // blocking). Update the manifest ref BEFORE adopting the source, so the
+    // CAS sees current === latest, and everything keyed by providerSessionRef
+    // (statusline usage flush, session-name adoption) follows the live
+    // session instead of splitting from the transcript.
+    if (active.task.providerSessionRef !== sessionId) {
+      active.task = {
+        ...active.task,
+        providerSessionRef: sessionId,
+        updatedAt: new Date().toISOString(),
+      };
+      this.persistTaskManifest(active.task, active.storageRoot);
+      this.sendEvent({
+        type: "task:updated",
+        payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
+        ts: new Date().toISOString(),
+      });
+      this.flushPendingClaudeUsage(active);
+    }
     // The transcript file can trail the first hook by a beat — skip now, a
     // later hook of the same session retries (hooks fire per tool call).
     if (!fs.existsSync(transcriptPath)) {
@@ -1780,7 +1801,10 @@ export class RuntimeController {
     if (latest && current !== latest.providerSessionId) {
       if (current === null) {
         // First establishment — a fresh Task learning the id of the session
-        // it just spawned. This is the only sanctioned binding write.
+        // it just spawned. The other sanctioned binding write is the
+        // hook-owned rebind in adoptTranscriptFromHook (the CLI declaring its
+        // own session after /clear or a native /resume); it updates the ref
+        // BEFORE the source attaches, so it never reaches this branch.
         active.task = {
           ...active.task,
           providerSessionRef: latest.providerSessionId,
