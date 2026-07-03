@@ -6713,6 +6713,12 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   for (const block of answerBlocks) {
     body.append(renderTranscriptBlock(block));
   }
+  // A reply-less completed turn speaks ONLY when it has something actionable
+  // to say (an API error excerpt). The plain "returned to the prompt without
+  // a reply" self-narration retired 2026-07-03: it was Duet reporting an
+  // observation gap (idle-heuristic completion, zero blocks), not user
+  // information — the co-visible Terminal already shows what happened, and a
+  // slash command producing no reply is simply normal.
   const noAssistantErrorExcerpt = completionErrorExcerpt(turn.run);
   if (body.childElementCount === 0 && noAssistantOutput && noAssistantErrorExcerpt) {
     body.append(renderNoAssistantOutput(turn.run));
@@ -6724,9 +6730,6 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   // status strip owns "working", and blocks usually land moments later.
   if (body.childElementCount === 0 && turn.blocks.length === 0 && turn.fallbackText && !liveRun) {
     body.append(renderTurnFallback());
-  }
-  if (body.childElementCount === 0 && noAssistantOutput) {
-    body.append(renderNoAssistantOutput(turn.run));
   }
   if (body.childElementCount > 0) {
     card.append(body);
@@ -6881,15 +6884,13 @@ function renderTurnFallback(): HTMLElement {
   return note;
 }
 
+// Only the error-carrying variant survives (the caller gates on a present
+// excerpt): a reply-less turn WITH an API error is actionable; without one,
+// the card stays quiet — see the renderTurn comment.
 function renderNoAssistantOutput(run: RuntimeRunReport | null): HTMLElement {
   const errorExcerpt = completionErrorExcerpt(run);
   const note = document.createElement("div");
-  note.className = errorExcerpt ? "turn-system-note attention" : "turn-system-note";
-  if (!errorExcerpt) {
-    const action = run?.kind === "slash" ? "completed the native command" : "returned to the prompt";
-    note.textContent = `${providerLabelForRun(run)} ${action} without producing an assistant reply.`;
-    return note;
-  }
+  note.className = "turn-system-note attention";
 
   const copy = document.createElement("div");
   copy.textContent = `${providerLabelForRun(run)} returned to the prompt without a reply. A provider/API error likely occurred.`;
@@ -7553,10 +7554,7 @@ function sendButtonLabel(activeRun: boolean): string {
 
 
 
-function runOutcome(
-  run: RuntimeRunReport,
-  options: { noAssistantOutput?: boolean } = {},
-): string {
+function runOutcome(run: RuntimeRunReport): string {
   const providerName = activeProviderLabel();
   if (run.status === "waiting-for-approval") {
     return `Waiting for ${approvalKindLabel(run.approvalKind)} approval`;
@@ -7571,9 +7569,6 @@ function runOutcome(
   }
   if (run.status === "approval-denied") {
     return `${approvalKindLabel(run.approvalKind)} approval denied`;
-  }
-  if (run.status === "completed" && options.noAssistantOutput) {
-    return `${providerName} completed without an assistant reply`;
   }
   if (run.status === "completed" && run.completionSource === "terminal-idle-heuristic") {
     return "Completed by terminal idle heuristic";
@@ -7603,13 +7598,7 @@ function completionErrorExcerpt(run: RuntimeRunReport | null): string | null {
   return typeof excerpt === "string" && excerpt.trim() ? excerpt.trim() : null;
 }
 
-function runTone(
-  run: RuntimeRunReport,
-  options: { noAssistantOutput?: boolean } = {},
-): string {
-  if (options.noAssistantOutput) {
-    return "attention";
-  }
+function runTone(run: RuntimeRunReport): string {
   if (run.status === "stopped" || run.status === "approval-denied" || run.status === "failed") {
     return "attention";
   }
