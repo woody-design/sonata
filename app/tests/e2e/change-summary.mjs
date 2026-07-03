@@ -35,9 +35,6 @@ try {
     throw new Error("Sidebar session did not expose a task id.");
   }
 
-  await page.locator(".artifact-item", { hasText: "change_summary.md" }).waitFor({
-    state: "visible",
-  });
   await waitForReportChangedFiles(["change_summary.md", "change_notes.txt"], 30000);
 
   const inspectorWindowPromise = electronApp.waitForEvent("window");
@@ -159,7 +156,7 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     // broker card titles are tool summaries — kind-bound waits under-match.
     await approveAnyVisibleApproval(page);
     const completed = await page
-      .locator(".turn-outcome", { hasText: "Completed" })
+      .locator('.turn-card[data-run-status="completed"]')
       .count();
     if (completed >= expectedCompletedRuns) {
       return;

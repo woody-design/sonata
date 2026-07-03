@@ -41,17 +41,13 @@ try {
   await runCard.locator(".turn-user", { hasText: "DUET_TRANSCRIPT_VISIBLE" }).waitFor({
     state: "visible",
   });
-  await runCard.locator(".turn-provenance", { hasText: /provider transcript|terminal approximation/ }).waitFor({
-    state: "visible",
-  });
 
-  const workTrace = runCard.locator(".turn-work-trace").first();
-  await workTrace.locator(".turn-work-summary", { hasText: /Worked for|Completed/ }).waitFor({
-    state: "visible",
-  });
-  const workTraceCollapsed = await workTrace.evaluate((element) => !element.hasAttribute("open"));
-  await workTrace.locator(".turn-work-summary").click();
-  const workTraceExpandable = await workTrace.evaluate((element) => element.hasAttribute("open"));
+  // Reading = reply + state (2026-07-03): the work trace, provenance line,
+  // and footer no longer render. The reply must read clean, and no process
+  // block (tool call / thinking / plan / agents) may leak into the card.
+  const processBlocks = await runCard
+    .locator(".turn-work-trace, .turn-tool, .turn-thinking, .turn-plan, .turn-agents, .turn-provenance")
+    .count();
 
   const assistantBody = runCard.locator(".turn-body .md-body, .turn-body .turn-fallback-text").first();
   await assistantBody.waitFor({ state: "visible" });
@@ -63,19 +59,19 @@ try {
   const transcriptOverflow = await assistantBody.evaluate((element) =>
     getComputedStyle(element).overflowY,
   );
+  // Content-based, not length-based: Claude's reply to this prompt can be
+  // a single short sentence, so the old 40-char floor flaked on brevity.
+  // The prompt demands the codeword in the response - assert THAT, plus no
+  // raw ANSI.
   const transcriptClean =
     Boolean(assistantText) &&
-    assistantText.trim().length > 40 &&
+    assistantText.includes("DUET_TRANSCRIPT_VISIBLE") &&
     !assistantText.includes("\u001b") &&
     !assistantText.includes("[?25");
   const promptComplete = userText === prompt;
   const transcriptUsesMainScroll = transcriptMaxHeight === "none" && transcriptOverflow === "visible";
 
-  await page.locator(".artifact-item", { hasText: "transcript.md" }).waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Completed" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".turn-artifacts .artifact-link", { hasText: "transcript.md" }).waitFor({
+  await page.locator('.turn-card[data-run-status="completed"]').waitFor({
     state: "visible",
   });
 
@@ -90,8 +86,7 @@ try {
     reports.length === 1 &&
     latestRun?.artifactCandidates?.some((artifact) => artifact.path === "transcript.md") &&
     promptComplete &&
-    workTraceCollapsed &&
-    workTraceExpandable &&
+    processBlocks === 0 &&
     transcriptClean &&
     transcriptUsesMainScroll &&
     !rawTerminalPersisted;
@@ -102,8 +97,7 @@ try {
         workspaceRoot,
         taskId,
         promptComplete,
-        workTraceCollapsed,
-        workTraceExpandable,
+        processBlocks,
         assistantTranscriptChars: assistantText?.length ?? 0,
         transcriptMaxHeight,
         transcriptOverflow,
@@ -141,7 +135,7 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     // broker card titles are tool summaries — kind-bound waits under-match.
     await approveAnyVisibleApproval(page);
     const completed = await page
-      .locator(".turn-outcome", { hasText: "Completed" })
+      .locator('.turn-card[data-run-status="completed"]')
       .count();
     if (completed >= expectedCompletedRuns) {
       return;

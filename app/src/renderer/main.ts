@@ -46,7 +46,6 @@ import {
 } from "../shared/types";
 import type {
   ApprovalDecision,
-  ArtifactCandidate,
   CliActivity,
   AttachmentKind,
   DeliveryAttachment,
@@ -72,14 +71,10 @@ import type {
 import type { OptionPromptAnswers, OptionPromptQuestion } from "../shared/types/option-prompt";
 import type {
   FocusArtifactInMainRequest,
-  PreviewWindowTab,
   TerminalWindowState,
 } from "../shared/types/ipc";
 import type {
-  AgentRosterBlock,
   AgentRunItem,
-  PlanBlock,
-  ToolCallBlock,
   TranscriptBlock,
   TranscriptSourceRef,
 } from "../shared/types/transcript";
@@ -116,8 +111,6 @@ interface TaskViewState {
   /** A PTY runtime backs this view; dormant views are read-only until resumed. */
   live: boolean;
   report: RuntimeReportV1 | null;
-  artifacts: ArtifactCandidate[];
-  selectedArtifactPath: string | null;
   pendingApproval: ApprovalDetectedEvent["payload"] | null;
   /** A native AskUserQuestion awaiting an in-view answer (Slice 5). */
   pendingOptionPrompt: OptionPromptDetectedEvent["payload"] | null;
@@ -179,7 +172,6 @@ type ViewMode = "read" | "terminal";
 interface RendererState {
   taskViews: TaskViewState[];
   activeTaskId: string | null;
-  previewTabs: PreviewWindowTab[];
   taskDraft: TaskLaunchDraft;
   /** New-chat composer attachments, materialized on first send (see ComposerAttachment). */
   draftAttachments: ComposerAttachment[];
@@ -292,7 +284,6 @@ let lastPushedTerminalTask = "";
 const state: RendererState = {
   taskViews: [],
   activeTaskId: null,
-  previewTabs: [],
   taskDraft: {
     provider: "claude",
     cwd: null,
@@ -1577,17 +1568,6 @@ appElement.innerHTML = `
              window, never drives runtime state. -->
         <div id="attention-banner-root" class="attention-banner-root"></div>
 
-        <section id="artifact-strip" class="artifact-strip hidden" aria-label="Artifact candidates">
-          <div class="artifact-strip-header">
-            <div>
-              <p class="eyebrow">Artifacts</p>
-              <strong>Review in Preview</strong>
-            </div>
-            <button id="open-selected-preview" class="secondary" type="button">Open Preview</button>
-          </div>
-          <div id="artifact-list" class="artifact-list"></div>
-        </section>
-
         <!-- Status strip (S5; moved into the reading flow 2026-07-03): the
              slim live-activity surface — spinner region verbatim (display-only,
              StatusRegionTracker) + running-subagent roster (transcript-derived).
@@ -1697,9 +1677,6 @@ const elements = {
   statusStripStatus: getElement<HTMLDivElement>("status-strip-status"),
   statusStripAgents: getElement<HTMLDivElement>("status-strip-agents"),
   runList: getElement<HTMLDivElement>("run-list"),
-  artifactStrip: getElement<HTMLElement>("artifact-strip"),
-  artifactList: getElement<HTMLDivElement>("artifact-list"),
-  openSelectedPreview: getElement<HTMLButtonElement>("open-selected-preview"),
   resumeChoice: getElement<HTMLElement>("resume-choice"),
   resumeChoiceBody: getElement<HTMLParagraphElement>("resume-choice-body"),
   resumeBridgeNote: getElement<HTMLParagraphElement>("resume-bridge-note"),
@@ -1740,13 +1717,7 @@ window.setInterval(() => {
     .forEach((node) => {
       node.textContent = formatLiveElapsed(node.dataset.silentSince ?? null);
     });
-  elements.runList
-    .querySelectorAll<HTMLElement>(".turn-agent-elapsed[data-started-at]")
-    .forEach((node) => {
-      node.textContent = formatLiveElapsed(node.dataset.startedAt ?? null);
-    });
 }, 1000);
-const workTraceOpenByTurnKey = new Map<string, boolean>();
 let transcriptRenderTimer: number | null = null;
 let stickyPromptSyncFrame: number | null = null;
 let composerIsComposing = false;
@@ -1997,10 +1968,6 @@ elements.remoteControlToggle.addEventListener("click", (event) => {
     return;
   }
   toggleRemoteControlPopover(event.currentTarget as HTMLElement);
-});
-
-elements.openSelectedPreview.addEventListener("click", () => {
-  void openFloatingPreview();
 });
 
 elements.composer.addEventListener("submit", (event) => {
@@ -4063,18 +4030,8 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 });
 
-window.duetRuntime.onPreviewState((previewState) => {
-  state.previewTabs = previewState.tabs;
-  render();
-});
-
 window.duetRuntime.onMainArtifactFocus((request) => {
   focusArtifactFromPreview(request);
-});
-
-void window.duetRuntime.readPreviewState().then((previewState) => {
-  state.previewTabs = previewState.tabs;
-  render();
 });
 
 void hydrateReadingSettings();
@@ -4092,8 +4049,6 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     task,
     live,
     report: null,
-    artifacts: [],
-    selectedArtifactPath: null,
     pendingApproval: null,
     pendingOptionPrompt: null,
     optionPromptSelections: [],
@@ -4549,13 +4504,6 @@ async function refreshReport(taskId = state.activeTaskId): Promise<void> {
   }
 
   view.report = await window.duetRuntime.readReport({ taskId: view.task.id });
-  view.artifacts = await window.duetRuntime.listArtifacts({ taskId: view.task.id });
-  if (
-    view.selectedArtifactPath &&
-    !view.artifacts.some((artifact) => artifact.path === view.selectedArtifactPath)
-  ) {
-    view.selectedArtifactPath = null;
-  }
   markViewChanged(view);
 }
 
@@ -4602,7 +4550,6 @@ function render(): void {
   renderAttentionBanners(view);
   renderStatusStrip(view);
   renderRuns();
-  renderArtifacts();
 }
 
 /** One chip's data, sourced from either a live task's pendingAttachments or the
@@ -6407,15 +6354,10 @@ function turnSignature(turn: ReadingTurn): string {
     turn.runId ?? "",
     turn.run?.status ?? "",
     turn.run?.endedAt ?? "",
-    // The footer's facts arrive on their own events, possibly AFTER the
-    // completed card rendered (file:changed / artifact candidates trail the
-    // run; approval:persisted trails a decision) — a signature blind to them
-    // reused the card and left the per-turn archive stale (review P2,
-    // 2026-07-02). Counts are the cheap honest proxy: every append changes
-    // one of them.
-    String(turn.run?.changedFiles.length ?? ""),
-    String(turn.run?.artifactCandidates.length ?? ""),
-    String(turn.run?.approvalEvents.length ?? ""),
+    // completionSource can trail endedAt (heuristic completion re-grades),
+    // and stop events shape the outcome note's wording ("Esc + /stop") — both
+    // must flip the signature or the settled card goes stale.
+    turn.run?.completionSource ?? "",
     String(turn.run?.stopEvents.length ?? ""),
     turn.fallbackText ?? "",
   ];
@@ -6680,12 +6622,16 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
     card.append(renderTurnUser(turn));
   }
 
-  const workBlocks = turn.blocks.filter(isWorkTraceBlock);
   const answerBlocks = turn.blocks.filter(isAnswerBlock);
   const noAssistantOutput = turnCompletedWithoutAssistantOutput(turn);
   const liveRun = Boolean(turn.run && isActiveRunStatus(turn.run.status));
-  if (turn.run && (workBlocks.length > 0 || !liveRun)) {
-    card.append(renderTurnWorkTrace(turn, workBlocks, noAssistantOutput));
+  // Machine-readable run state on the card itself: the e2e suite's completion
+  // beacon (was `.turn-outcome` in the retired footer) and a debugging hook.
+  if (turn.run) {
+    card.dataset.runStatus = turn.run.status;
+    if (turn.run.completionSource) {
+      card.dataset.completionSource = turn.run.completionSource;
+    }
   }
 
   const body = document.createElement("div");
@@ -6707,15 +6653,24 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
     card.append(body);
   }
 
-  // While the run streams, the status strip (below the run list) owns the
-  // live working detail — the per-turn activity row retired into it (S5). The
-  // footer returns once the run settles, carrying the real post-hoc summary
-  // (outcome, elapsed, changes, clickable artifacts, provenance).
-  // waiting-for-approval keeps the footer ("Waiting for … approval").
-  if (turn.run && (!liveRun || turn.run.status === "waiting-for-approval")) {
-    card.append(renderTurnFooter(turn.run, turn.blocks.length > 0, noAssistantOutput));
+  // Reading shows the reply and the state, not the process (2026-07-03): the
+  // work trace, turn footer, and artifact strip retired — the co-visible
+  // Terminal carries process detail live, and forensics live in the provider
+  // transcript. What survives per turn: an attention note when a settled run
+  // did NOT complete (stopped / failed / denied / pty-exited) — failure IS
+  // state, and without it a stopped run would be indistinguishable from a
+  // completed one. Live and waiting states belong to the status strip.
+  if (turn.run && !liveRun && turn.run.status !== "completed") {
+    card.append(renderRunOutcomeNote(turn.run));
   }
   return card;
+}
+
+function renderRunOutcomeNote(run: RuntimeRunReport): HTMLElement {
+  const note = document.createElement("div");
+  note.className = `turn-outcome-note ${runTone(run)}`;
+  note.textContent = runOutcome(run);
+  return note;
 }
 
 function renderTurnUser(turn: ReadingTurn): HTMLElement {
@@ -6770,17 +6725,6 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
   return header;
 }
 
-function isWorkTraceBlock(
-  block: TranscriptBlock,
-): block is Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" | "agents" }> {
-  return (
-    block.kind === "thinking" ||
-    block.kind === "tool-call" ||
-    block.kind === "plan" ||
-    block.kind === "agents"
-  );
-}
-
 function isAnswerBlock(
   block: TranscriptBlock,
 ): block is Extract<TranscriptBlock, { kind: "assistant-text" | "system-note" }> {
@@ -6795,131 +6739,12 @@ function turnCompletedWithoutAssistantOutput(turn: ReadingTurn): boolean {
   );
 }
 
-function renderTurnWorkTrace(
-  turn: ReadingTurn,
-  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" | "agents" }>>,
-  noAssistantOutput: boolean,
-): HTMLElement {
-  const run = turn.run;
-  if (!run) {
-    throw new Error("Cannot render a work trace without a Run.");
-  }
-
-  const details = document.createElement("details");
-  details.className = `turn-work-trace ${runTone(run, { noAssistantOutput })}`;
-  const rememberedOpen = workTraceOpenByTurnKey.get(turn.key);
-  details.open = rememberedOpen ?? shouldOpenWorkTraceByDefault(run);
-
-  const summary = document.createElement("summary");
-  summary.className = "turn-work-summary";
-  let userRequestedToggle = false;
-  summary.addEventListener("pointerdown", () => {
-    userRequestedToggle = true;
-  });
-  summary.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      userRequestedToggle = true;
-    }
-  });
-  details.addEventListener("toggle", () => {
-    if (!userRequestedToggle) {
-      return;
-    }
-    workTraceOpenByTurnKey.set(turn.key, details.open);
-    userRequestedToggle = false;
-  });
-
-  const label = document.createElement("span");
-  label.className = "turn-work-label";
-  label.textContent = workTraceLabel(run, noAssistantOutput);
-  summary.append(label);
-
-  const metaItems = workTraceMeta(run, workBlocks);
-  if (metaItems.length > 0) {
-    const meta = document.createElement("span");
-    meta.className = "turn-work-meta";
-    meta.textContent = metaItems.join(" · ");
-    summary.append(meta);
-  }
-
-  details.append(summary);
-
-  const body = document.createElement("div");
-  body.className = "turn-work-body";
-  if (workBlocks.length > 0) {
-    for (const block of workBlocks) {
-      body.append(renderTranscriptBlock(block));
-    }
-  } else if (noAssistantOutput) {
-    const note = document.createElement("div");
-    note.className = "turn-system-note";
-    note.textContent = `${providerLabelForRun(run)} returned to the prompt without emitting an assistant response or tool trace.`;
-    body.append(note);
-  } else {
-    const note = document.createElement("div");
-    note.className = "turn-system-note";
-    note.textContent = "No structured work trace was captured for this Run.";
-    body.append(note);
-  }
-  details.append(body);
-  return details;
-}
-
-function shouldOpenWorkTraceByDefault(run: RuntimeRunReport): boolean {
-  return run.status !== "completed";
-}
-
-function workTraceLabel(run: RuntimeRunReport, noAssistantOutput = false): string {
-  if (isActiveRunStatus(run.status)) {
-    return `${activeProviderLabel()} is working`;
-  }
-  if (noAssistantOutput) {
-    return `No assistant reply after ${formatElapsed(run.elapsedMs)}`;
-  }
-  if (run.status === "completed") {
-    return `Worked for ${formatElapsed(run.elapsedMs)}`;
-  }
-  return runOutcome(run);
-}
-
-function workTraceMeta(
-  run: RuntimeRunReport,
-  workBlocks: Array<Extract<TranscriptBlock, { kind: "thinking" | "tool-call" | "plan" | "agents" }>>,
-): string[] {
-  const toolCount = workBlocks.filter((block) => block.kind === "tool-call").length;
-  return [
-    toolCount > 0 ? pluralize(toolCount, "action") : null,
-    run.changedFiles.length > 0 ? changedFilesLabel(run.changedFiles.length) : null,
-    run.approvalEvents.length > 0 ? pluralize(run.approvalEvents.length, "approval") : null,
-  ].filter((item): item is string => Boolean(item));
-}
-
-function changedFilesLabel(count: number): string {
-  return count === 1 ? "1 file changed" : `${count} files changed`;
-}
-
+// Only answer blocks reach the card now — the process blocks (thinking,
+// tool calls, plan, agents) stay in the data layer for the status strip and
+// the provider transcript; Reading no longer renders them (2026-07-03).
 function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
   if (block.kind === "assistant-text") {
     return markdownBody(block.markdown);
-  }
-  if (block.kind === "tool-call") {
-    return renderToolCallBlock(block);
-  }
-  if (block.kind === "plan") {
-    return renderPlanBlock(block);
-  }
-  if (block.kind === "agents") {
-    return renderAgentRosterBlock(block);
-  }
-  if (block.kind === "thinking") {
-    const section = document.createElement("section");
-    section.className = "turn-thinking";
-    section.append(runSectionLabel("Thinking"));
-    const pre = document.createElement("pre");
-    pre.className = "turn-thinking-text";
-    pre.textContent = block.text;
-    section.append(pre);
-    return section;
   }
   const note = document.createElement("div");
   note.className = "turn-system-note";
@@ -6953,16 +6778,6 @@ function deriveCurrentStepForView(view: TaskViewState): string | null {
 // A settled duration, in the same "Xm Ys" shape the live clock ticks in (not
 // formatElapsed's "284.7 s" — the roster's running and done rows must read the
 // same way).
-function formatAgentDuration(durationMs: number | null): string {
-  if (durationMs === null) {
-    return "";
-  }
-  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-}
-
 function formatLiveElapsed(startedAt: string | null): string {
   const startedMs = startedAt ? Date.parse(startedAt) : Number.NaN;
   if (Number.isNaN(startedMs)) {
@@ -6972,141 +6787,6 @@ function formatLiveElapsed(startedAt: string | null): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-}
-
-function renderPlanBlock(block: PlanBlock): HTMLElement {
-  const section = document.createElement("section");
-  section.className = "turn-plan";
-  section.append(runSectionLabel("Plan"));
-  const list = document.createElement("ul");
-  list.className = "turn-plan-list";
-  for (const item of block.items) {
-    const row = document.createElement("li");
-    row.className = `turn-plan-item ${item.status}`;
-    const status = document.createElement("span");
-    status.className = "turn-plan-status";
-    status.textContent = item.status === "completed" ? "✓" : item.status === "in_progress" ? "…" : "○";
-    const text = document.createElement("span");
-    text.className = "turn-plan-text";
-    text.textContent =
-      item.status === "in_progress" && item.activeLabel ? item.activeLabel : item.text;
-    row.append(status, text);
-    list.append(row);
-  }
-  section.append(list);
-  return section;
-}
-
-function renderAgentRosterBlock(block: AgentRosterBlock): HTMLElement {
-  const running = block.items.filter((item) => item.status === "running").length;
-  const section = document.createElement("section");
-  section.className = "turn-agents";
-  section.append(
-    runSectionLabel(running > 0 ? `Agents · ${running} working` : "Agents"),
-  );
-  const list = document.createElement("ul");
-  list.className = "turn-agents-list";
-  for (const item of block.items) {
-    const row = document.createElement("li");
-    row.className = `turn-agent ${item.status}`;
-
-    const status = document.createElement("span");
-    status.className = "turn-agent-status";
-    if (item.status === "done") {
-      // Settles to a check and stays as the fan-out's archive.
-      status.textContent = "✓";
-    } else {
-      // Three staggered dots animate (CSS) — the unmistakable "alive, working,
-      // not stuck" signal. It echoes the "…" in-progress glyph the plan/tool
-      // blocks already use, and stays clear of the sidebar's rotating spinner.
-      status.classList.add("working");
-      for (let i = 0; i < 3; i += 1) {
-        status.append(document.createElement("i"));
-      }
-    }
-
-    // Name (+ optional detail) and the clock flow as one inline run, so the
-    // timer trails the text as "… · 2m 14s" rather than floating off to the
-    // right edge.
-    const text = document.createElement("span");
-    text.className = "turn-agent-text";
-
-    const name = document.createElement("span");
-    name.className = "turn-agent-name";
-    name.textContent = item.detail ? `${item.name} — ${item.detail}` : item.name;
-    text.append(name);
-
-    const clock =
-      item.status === "running" ? formatLiveElapsed(item.startedAt) : formatAgentDuration(item.durationMs);
-    if (clock) {
-      const sep = document.createElement("span");
-      sep.className = "turn-agent-sep";
-      sep.textContent = " · ";
-      const elapsed = document.createElement("span");
-      elapsed.className = "turn-agent-elapsed";
-      if (item.status === "running") {
-        // The tick interval refreshes this in place every second — no re-render.
-        elapsed.dataset.startedAt = item.startedAt;
-      }
-      elapsed.textContent = clock;
-      text.append(sep, elapsed);
-    }
-
-    row.append(status, text);
-    list.append(row);
-  }
-  section.append(list);
-  return section;
-}
-
-function renderToolCallBlock(block: ToolCallBlock): HTMLElement {
-  const tool = document.createElement("article");
-  tool.className = `turn-tool ${block.status}`;
-
-  const summary = document.createElement("div");
-  summary.className = "turn-tool-summary";
-  const status = document.createElement("span");
-  status.className = "turn-tool-status";
-  status.textContent = block.status === "running" ? "…" : block.status === "ok" ? "✓" : "✕";
-  const name = document.createElement("strong");
-  name.className = "turn-tool-name";
-  name.textContent = block.toolName;
-  summary.append(status, name);
-  if (block.summary) {
-    const hint = document.createElement("span");
-    hint.className = "turn-tool-hint";
-    hint.textContent = block.summary;
-    summary.append(hint);
-  }
-  if (block.durationMs !== null) {
-    const duration = document.createElement("span");
-    duration.className = "turn-tool-duration";
-    duration.textContent = formatElapsed(block.durationMs);
-    summary.append(duration);
-  }
-  tool.append(summary);
-
-  const body = document.createElement("div");
-  body.className = "turn-tool-body";
-  body.append(
-    toolDetailSection("Input", block.inputPreview, block.inputTruncated),
-  );
-  if (block.resultPreview !== null) {
-    body.append(toolDetailSection("Result", block.resultPreview, block.resultTruncated));
-  }
-  tool.append(body);
-  return tool;
-}
-
-function toolDetailSection(label: string, text: string, truncated: boolean): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "turn-tool-section";
-  section.append(runSectionLabel(truncated ? `${label} (truncated)` : label));
-  const pre = document.createElement("pre");
-  pre.className = "turn-tool-text";
-  pre.textContent = text;
-  section.append(pre);
-  return section;
 }
 
 function renderTurnFallback(text: string): HTMLElement {
@@ -7144,58 +6824,6 @@ function renderNoAssistantOutput(run: RuntimeRunReport | null): HTMLElement {
   });
   note.append(copy, excerpt, action);
   return note;
-}
-
-function renderTurnFooter(
-  run: RuntimeRunReport,
-  hasSemanticBlocks: boolean,
-  noAssistantOutput: boolean,
-): HTMLElement {
-  const footer = document.createElement("footer");
-  footer.className = `turn-footer ${runTone(run, { noAssistantOutput })}`;
-
-  const outcome = document.createElement("span");
-  outcome.className = "turn-outcome";
-  outcome.textContent = runOutcome(run, { noAssistantOutput });
-  footer.append(outcome);
-
-  const facts = document.createElement("span");
-  facts.className = "turn-facts";
-  const factItems = [
-    formatElapsed(run.elapsedMs),
-    run.changedFiles.length > 0 ? pluralize(run.changedFiles.length, "change") : null,
-    run.approvalEvents.length > 0 ? pluralize(run.approvalEvents.length, "approval") : null,
-    completionLabel(run),
-  ].filter((item): item is string => Boolean(item));
-  facts.textContent = factItems.join(" · ");
-  footer.append(facts);
-
-  if (run.artifactCandidates.length > 0) {
-    const artifacts = document.createElement("span");
-    artifacts.className = "turn-artifacts";
-    for (const artifact of run.artifactCandidates) {
-      const button = document.createElement("button");
-      button.className = "artifact-link compact";
-      button.type = "button";
-      button.textContent = artifact.path;
-      button.addEventListener("click", () => {
-        void openArtifact(artifact.path);
-      });
-      artifacts.append(button);
-    }
-    footer.append(artifacts);
-  }
-
-  const provenance = document.createElement("span");
-  provenance.className = "turn-provenance";
-  provenance.textContent = noAssistantOutput
-    ? "provider transcript (no assistant output)"
-    : hasSemanticBlocks
-      ? "provider transcript"
-      : "terminal approximation";
-  footer.append(provenance);
-
-  return footer;
 }
 
 const markdownSanitizerConfig = {
@@ -7600,55 +7228,6 @@ function folderName(folderPath: string): string {
   return folderPath.split(/[\\/]/).filter(Boolean).at(-1) ?? folderPath;
 }
 
-function renderArtifacts(): void {
-  elements.artifactList.replaceChildren();
-  const view = activeTaskView();
-  const artifacts = view?.artifacts ?? [];
-  elements.artifactStrip.classList.toggle("hidden", artifacts.length === 0);
-  elements.openSelectedPreview.disabled = !view?.task || artifacts.length === 0;
-
-  if (artifacts.length === 0) {
-    return;
-  }
-
-  for (const artifact of artifacts) {
-    const reviewState = artifactPreviewTab(artifact.taskId, artifact.path);
-    const item = document.createElement("button");
-    item.className = "artifact-item";
-    item.type = "button";
-    item.classList.toggle("selected", artifact.path === view?.selectedArtifactPath);
-    item.classList.toggle("reviewed", Boolean(reviewState?.reviewed && !reviewState.dirty));
-    item.classList.toggle("dirty", Boolean(reviewState?.dirty));
-    const title = document.createElement("span");
-    title.className = "artifact-item-title";
-    title.textContent = artifact.path;
-    const meta = document.createElement("span");
-    meta.className = "artifact-item-meta";
-    meta.textContent = `${artifactKindLabel(artifact.kind)} / ${artifact.changeKind} / ${artifactReviewLabel(
-      reviewState,
-    )}`;
-    item.append(title, meta);
-    item.addEventListener("click", () => {
-      void openArtifact(artifact.path);
-    });
-    elements.artifactList.append(item);
-  }
-}
-
-function artifactPreviewTab(taskId: string, relativePath: string): PreviewWindowTab | null {
-  return state.previewTabs.find((tab) => tab.taskId === taskId && tab.path === relativePath) ?? null;
-}
-
-function artifactReviewLabel(tab: PreviewWindowTab | null): string {
-  if (tab?.dirty) {
-    return "Updated";
-  }
-  if (tab?.reviewed) {
-    return "Reviewed";
-  }
-  return "Needs review";
-}
-
 function appendLiveTranscript(view: TaskViewState, data: string): void {
   if (!view.liveTranscriptRunId) {
     return;
@@ -7718,31 +7297,13 @@ function renderTranscriptStream(): void {
   renderStatusStrip();
 }
 
-async function openArtifact(relativePath: string): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-
-  view.selectedArtifactPath = relativePath;
-  render();
-  await window.duetRuntime.openPreview({
-    taskId: view.task.id,
-    relativePath,
-  });
-}
-
 async function openFloatingPreview(): Promise<void> {
   const view = activeTaskView();
   if (!view?.task) {
     return;
   }
-  const relativePath = view.selectedArtifactPath ?? view.artifacts[0]?.path;
 
-  await window.duetRuntime.openPreview({
-    taskId: view.task.id,
-    ...(relativePath ? { relativePath } : {}),
-  });
+  await window.duetRuntime.openPreview({ taskId: view.task.id });
 }
 
 async function openFloatingInspector(): Promise<void> {
@@ -7815,6 +7376,9 @@ function deliveryStatusLabel(deliveryState: DeliveryTaskState): string {
   return `Starting ${providerName}`;
 }
 
+// "Show in main" from the Preview window: activate the task and, when the
+// request names a run, highlight and scroll to it. The artifact-strip scroll
+// target retired with the strip (2026-07-03).
 function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
   const view = taskViewForId(request.taskId);
   if (!view?.task) {
@@ -7823,27 +7387,15 @@ function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
 
   state.activeTaskId = request.taskId;
   view.unread = false;
-  if (request.relativePath) {
-    view.selectedArtifactPath = request.relativePath;
-  }
   if (request.runId) {
     view.highlightedRunId = request.runId;
   }
   render();
 
   queueMicrotask(() => {
-    if (request.mode === "run" && request.runId) {
+    if (request.runId) {
       scrollRunIntoView(request.runId);
-      return;
     }
-    if (!request.relativePath) {
-      return;
-    }
-    const relativePath = request.relativePath;
-    const artifact = Array.from(elements.artifactList.querySelectorAll<HTMLElement>(".artifact-item")).find(
-      (item) => item.textContent?.includes(relativePath),
-    );
-    artifact?.scrollIntoView({ block: "nearest", inline: "center" });
   });
 }
 
@@ -7921,12 +7473,6 @@ function runSectionLabel(value: string): HTMLElement {
   return label;
 }
 
-function completionLabel(run: RuntimeRunReport): string {
-  if (!run.completionSource) {
-    return "pending";
-  }
-  return `${run.completionSource} / ${run.completionConfidence ?? "low"}`;
-}
 
 function runOutcome(
   run: RuntimeRunReport,
@@ -8055,9 +7601,6 @@ function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undef
   return "Native";
 }
 
-function pluralize(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
 
 function formatElapsed(value: number | null): string {
   if (value === null) {
@@ -8069,33 +7612,6 @@ function formatElapsed(value: number | null): string {
   return `${(value / 1000).toFixed(1)} s`;
 }
 
-function artifactKindLabel(kind: ArtifactCandidate["kind"]): string {
-  if (kind === "html") {
-    return "HTML";
-  }
-  if (kind === "markdown") {
-    return "Markdown";
-  }
-  if (kind === "pdf") {
-    return "PDF";
-  }
-  if (kind === "image") {
-    return "Image";
-  }
-  if (kind === "spreadsheet") {
-    return "Spreadsheet";
-  }
-  if (kind === "document") {
-    return "Document";
-  }
-  if (kind === "presentation") {
-    return "Presentation";
-  }
-  if (kind === "text") {
-    return "Text";
-  }
-  return "Unknown";
-}
 
 function providerLabel(provider: RuntimeProvider): string {
   if (provider === "claude") {

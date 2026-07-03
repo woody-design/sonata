@@ -24,7 +24,7 @@ try {
   page.on("pageerror", (err) => pageErrors.push(String(err)));
   await sendFirstPrompt(page, "Reply with exactly: DORMANT_SEED");
   await page.locator(".turn-card", { hasText: "DORMANT_SEED" }).waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Completed" }).first().waitFor({ state: "visible" });
+  await page.locator('.turn-card[data-run-status="completed"]').first().waitFor({ state: "visible" });
   const taskId = await activeSessionTaskId(page);
   await electronApp.close();
   electronApp = null;

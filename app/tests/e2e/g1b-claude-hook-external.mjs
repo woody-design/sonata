@@ -45,7 +45,7 @@ try {
   });
   await sendFirstPrompt(page, "Reply with exactly: G1B_OK");
 
-  await page.locator(".turn-outcome", { hasText: "Completed" }).waitFor({ state: "visible" });
+  await page.locator('.turn-card[data-run-status="completed"]').waitFor({ state: "visible" });
 
   // Read the completed run's provenance from the report (records live in ~/.duet).
   const projectsDir = path.join(dataRoot, "data", "projects");

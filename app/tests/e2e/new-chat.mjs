@@ -45,7 +45,7 @@ try {
   const workspace = path.join(workspaceRoot, "data", "projects", taskDirectory);
   await page.locator(".task-entry-panel").waitFor({ state: "hidden" });
   await page.locator(".turn-card", { hasText: "NEW_CHAT_READY" }).waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Completed" }).waitFor({ state: "visible" });
+  await page.locator('.turn-card[data-run-status="completed"]').waitFor({ state: "visible" });
 
   // The session lands in the sidebar under the chosen folder's project group.
   await page

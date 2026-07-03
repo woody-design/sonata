@@ -35,32 +35,25 @@ try {
   // since f6dd283) requests approval PER tool call — two file writes are two
   // asks — and a broker ask's card title is the tool summary, not a fixed
   // string, so drain by visibility (approveAnyVisibleApproval), not by title.
-  const outcomeLocator = page.locator(".turn-outcome", { hasText: "Completed" });
+  // Completion beacon: the card's data-run-status attribute (the turn footer
+  // and its ".turn-outcome" retired 2026-07-03).
+  const completedCard = page.locator('.turn-card[data-run-status="completed"]');
   const outcomeDeadline = Date.now() + 240000;
-  while (Date.now() < outcomeDeadline && (await outcomeLocator.count()) === 0) {
+  while (Date.now() < outcomeDeadline && (await completedCard.count()) === 0) {
     await approveAnyVisibleApproval(page);
     await page.waitForTimeout(500);
   }
+  await completedCard.waitFor({ state: "visible" });
 
-  await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-item", { hasText: "page.html" }).waitFor({ state: "visible" });
-  // Provider-agnostic completion: Claude settles by the Stop hook
-  // ("Completed"), Codex by the idle heuristic ("Completed by terminal idle
-  // heuristic"). The provenance facts line carries the source either way.
-  await outcomeLocator.waitFor({ state: "visible" });
-  await page.locator(".turn-facts", { hasText: /hook-stop|terminal-idle-heuristic/ }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".turn-facts", { hasText: "2 changes" }).waitFor({ state: "visible" });
+  // Provider-agnostic completion provenance: Claude settles by the Stop hook,
+  // Codex by the idle heuristic. The card carries the source as data now.
+  const completionSource = await completedCard.getAttribute("data-completion-source");
+  if (!/hook-stop|terminal-idle-heuristic/.test(completionSource ?? "")) {
+    throw new Error(`Unexpected completion source: ${completionSource}`);
+  }
+
   const turnCard = page.locator(".turn-card", { hasText: "Create exactly two files" }).first();
   await turnCard.locator(".turn-user", { hasText: "You" }).waitFor({ state: "visible" });
-  await turnCard.locator(".turn-artifacts .artifact-link", { hasText: "report.md" }).waitFor({
-    state: "visible",
-  });
-  await turnCard.locator(".turn-artifacts .artifact-link", { hasText: "page.html" }).waitFor({
-    state: "visible",
-  });
-  await turnCard.locator(".turn-provenance").waitFor({ state: "visible" });
   const transcriptText = await turnCard.locator(".turn-body").textContent();
   // Readable assistant content, no raw ANSI. Claude's reply to this prompt
   // can be a single short sentence — the length floor guards "non-empty",
@@ -70,11 +63,10 @@ try {
   if (!transcriptObserved) {
     throw new Error("Main Chat reading flow did not show readable assistant content.");
   }
-  // The retired workflow strip's "Review ready" + facts (S5): the real
-  // surfaces carry them now — the artifact strip is up for review, exactly
-  // one Run's turn card exists (its "2 changes" facts and artifact links were
-  // asserted above), and the live status strip has settled away.
-  await page.locator("#artifact-strip:not(.hidden)").waitFor({ state: "attached" });
+  // Reading = reply + state (2026-07-03): exactly one Run's turn card exists
+  // and the live status strip has settled away. Process detail (work trace,
+  // facts, artifact chips) no longer renders here — the co-visible Terminal
+  // and the runtime report carry it (asserted below on disk).
   await page.locator("#status-strip.hidden").waitFor({ state: "attached" });
   const turnCount = await page.locator(".turn-card").count();
   if (turnCount !== 1) {
@@ -82,26 +74,6 @@ try {
   }
   await page.locator("#send-prompt").waitFor({ state: "visible" });
 
-  const previewWindowPromise = electronApp.waitForEvent("window");
-  await page.locator(".artifact-item", { hasText: "report.md" }).click();
-  const previewPage = await previewWindowPromise;
-  previewPage.setDefaultTimeout(180000);
-  await previewPage.locator(".floating-preview-shell", { hasText: "report.md" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".preview-window-tab", { hasText: "report.md" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".artifact-review", { hasText: "Floating Preview" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".artifact-review", { hasText: "runtime-report.json" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".text-preview", { hasText: "Markdown artifact ready." }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".side-column").waitFor({ state: "hidden" });
   // The terminal is its own satellite window now (default-on). Exercise the
   // header toggle via its label, which tracks the window's real open state.
   await page.locator("#toggle-terminal-window", { hasText: "Close Terminal" }).waitFor({ state: "visible" });
@@ -109,15 +81,6 @@ try {
   await page.locator("#toggle-terminal-window", { hasText: "Open Terminal" }).waitFor({ state: "visible" });
   await page.locator("#toggle-terminal-window").click();
   await page.locator("#toggle-terminal-window", { hasText: "Close Terminal" }).waitFor({ state: "visible" });
-
-  await page.locator(".artifact-item", { hasText: "page.html" }).click();
-  await previewPage.locator(".preview-window-tab", { hasText: "page.html" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".floating-preview-shell", { hasText: "page.html" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".html-preview").waitFor({ state: "visible" });
 
   // Acquire the inspector window by URL, not by the next "window" event —
   // the terminal-window toggles just above can leave a queued window event

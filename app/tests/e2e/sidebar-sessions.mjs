@@ -1,6 +1,9 @@
 // Sidebar multi-session e2e: two sessions born from first messages, switched
-// via the sidebar, with task-scoped Preview/Inspector surfaces, and archive
-// cleaning up the surfaces (the sidebar-era successor of tab close).
+// via the sidebar with isolated reading surfaces, the Inspector following the
+// active session, and archive cleaning up the surfaces (the sidebar-era
+// successor of tab close). The Preview-tab scoping legs retired with the
+// artifact strip (2026-07-03) — the strip was the only entry point they
+// exercised.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -34,18 +37,6 @@ try {
     throw new Error("First session did not expose a task id in the sidebar.");
   }
 
-  await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
-  const previewWindowPromise = electronApp.waitForEvent("window");
-  await page.locator(".artifact-item", { hasText: "report.md" }).click();
-  const previewPage = await previewWindowPromise;
-  previewPage.setDefaultTimeout(180000);
-  await previewPage.locator(".text-preview", { hasText: "Alpha artifact ready." }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".preview-window-tab", { hasText: shortId(firstTaskId) }).waitFor({
-    state: "visible",
-  });
-
   // Second session via New chat (deferred creation: entry panel first).
   await openNewChat(page);
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
@@ -55,38 +46,14 @@ try {
     throw new Error("Second session did not create an independent task id.");
   }
 
-  await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
-  await page.locator(".artifact-item", { hasText: "report.md" }).click();
-  await previewPage.locator(".text-preview", { hasText: "Beta artifact ready." }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".preview-window-tab", { hasText: shortId(secondTaskId) }).waitFor({
-    state: "visible",
-  });
-  const reportTabCount = await previewPage.locator(".preview-window-tab", { hasText: "report.md" }).count();
-  if (reportTabCount !== 2) {
-    throw new Error(`Expected two task-scoped report.md Preview tabs; found ${reportTabCount}.`);
-  }
-
   // Sidebar switching isolates the reading surfaces.
   await selectSidebarSession(page, firstTaskId);
-  await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
   await page.locator(".turn-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "visible" });
   await page.locator(".turn-card", { hasText: "Beta artifact ready." }).waitFor({ state: "hidden" });
 
   await selectSidebarSession(page, secondTaskId);
-  await page.locator(".artifact-item", { hasText: "report.md" }).waitFor({ state: "visible" });
   await page.locator(".turn-card", { hasText: "Beta artifact ready." }).waitFor({ state: "visible" });
   await page.locator(".turn-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "hidden" });
-
-  await previewPage.locator(".preview-window-tab", { hasText: shortId(firstTaskId) }).click();
-  await previewPage.locator(".text-preview", { hasText: "Alpha artifact ready." }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".preview-window-tab", { hasText: shortId(secondTaskId) }).click();
-  await previewPage.locator(".text-preview", { hasText: "Beta artifact ready." }).waitFor({
-    state: "visible",
-  });
 
   // Inspector follows the active session and lists both.
   await selectSidebarSession(page, firstTaskId);
@@ -110,20 +77,6 @@ try {
   await inspectorPage.locator("#inspector-window-title", { hasText: "No active Task" }).waitFor({
     state: "visible",
   });
-  await previewPage.locator(".preview-window-tab", { hasText: shortId(firstTaskId) }).waitFor({
-    state: "hidden",
-  });
-  await previewPage.locator(".preview-window-tab", { hasText: shortId(secondTaskId) }).waitFor({
-    state: "visible",
-  });
-  const remainingReportTabCount = await previewPage
-    .locator(".preview-window-tab", { hasText: "report.md" })
-    .count();
-  if (remainingReportTabCount !== 1) {
-    throw new Error(
-      `Expected one report.md Preview tab after archiving session A; found ${remainingReportTabCount}.`,
-    );
-  }
 
   const reports = readReports(workspaceRoot);
   const alphaReport = reports.find((report) =>
@@ -150,8 +103,6 @@ try {
       run.artifactCandidates?.some((artifact) => artifact.path === "report.md"),
     ) &&
     alphaManifest?.task?.archived === true &&
-    reportTabCount === 2 &&
-    remainingReportTabCount === 1 &&
     reports.length === 2 &&
     !rawTerminalPersisted;
 
@@ -163,8 +114,6 @@ try {
         secondTaskId,
         reportTaskIds: reports.map((report) => report.taskId),
         alphaArchived: alphaManifest?.task?.archived ?? null,
-        reportPreviewTabs: reportTabCount,
-        reportPreviewTabsAfterArchive: remainingReportTabCount,
         rawTerminalPersisted,
         success,
       },
@@ -191,7 +140,7 @@ async function startFileSession(page, options) {
   await sendFirstPrompt(page, prompt);
   await approveIfVisible(page, "File edit approval requested", 180000);
   await approveIfVisible(page, "Command approval requested", 15000);
-  await page.locator(".turn-outcome", { hasText: "Completed by terminal idle heuristic" }).waitFor({
+  await page.locator('.turn-card[data-run-status="completed"]').waitFor({
     state: "visible",
   });
 }

@@ -21,9 +21,6 @@ const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-open-task-setti
 // Failure forensics (report excerpt + screenshot) land here and SURVIVE the
 // workspace cleanup so a flake is inspectable after the run.
 const diagnosticsRoot = path.join(os.tmpdir(), "duet-open-task-diagnostics");
-// Provider-agnostic: Claude completes via the Stop hook ("Completed"),
-// Codex via the idle heuristic ("Completed by terminal idle heuristic").
-const COMPLETED_OUTCOME = "Completed";
 const CODEWORD = "OPENTASK-99";
 let electronApp = null;
 
@@ -94,7 +91,7 @@ try {
       `Header/sidebar title mismatch after reopen: header=${JSON.stringify(headerTitle)} sidebar=${JSON.stringify(sidebarTitle)}`,
     );
   }
-  await page.locator(".turn-outcome", { hasText: COMPLETED_OUTCOME }).waitFor({
+  await page.locator('.turn-card[data-run-status="completed"]').waitFor({
     state: "visible",
   });
   const dormantPlaceholder = await page.locator("#prompt-input").getAttribute("placeholder");
@@ -217,7 +214,7 @@ async function settleTurnUntilCompleted(page, targetCompleted, deadlineMs, diag)
   const deadline = Date.now() + deadlineMs;
   while (Date.now() < deadline) {
     await approveAnyVisibleApproval(page);
-    const completed = await page.locator(".turn-outcome", { hasText: COMPLETED_OUTCOME }).count();
+    const completed = await page.locator('.turn-card[data-run-status="completed"]').count();
     if (completed >= targetCompleted) {
       return;
     }
@@ -230,12 +227,27 @@ async function settleTurnUntilCompleted(page, targetCompleted, deadlineMs, diag)
   );
 }
 
+// The artifact strip is gone (2026-07-03) — the durable runtime report is the
+// artifact-candidate surface now.
 async function expectArtifactItem(page, name, timeoutMs, diag) {
-  try {
-    await page.locator(".artifact-item", { hasText: name }).waitFor({ state: "visible", timeout: timeoutMs });
-  } catch {
-    throw await diagnosticError(page, `Artifact "${name}" never surfaced in the inspector [${diag.label}]`, diag);
+  const reportPath = path.join(diag.recordDir, "runtime-report.json");
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+      if (report?.runs?.some((run) => run.artifactCandidates?.some((a) => a.path === name))) {
+        return;
+      }
+    } catch {
+      // report not written yet — keep polling
+    }
+    await delay(250);
   }
+  throw await diagnosticError(
+    page,
+    `Artifact "${name}" never surfaced in the runtime report [${diag.label}]`,
+    diag,
+  );
 }
 
 async function assertOnDisk(page, name, diag) {
@@ -311,7 +323,7 @@ async function waitForResumeSpawn(page, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const working = await page
-      .locator(".sidebar-session-spinner, .turn-outcome")
+      .locator('.sidebar-session-spinner, .turn-card[data-run-status]')
       .first()
       .isVisible({ timeout: 500 })
       .catch(() => false);

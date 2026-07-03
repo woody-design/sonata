@@ -28,7 +28,7 @@ try {
   // Create the session with a fast first turn; the helper answers workspace trust.
   await sendFirstPrompt(page, "Reply with exactly: RC_READY");
   await page.locator(".turn-card", { hasText: "RC_READY" }).waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Completed" }).first().waitFor({ state: "visible" });
+  await page.locator('.turn-card[data-run-status="completed"]').first().waitFor({ state: "visible" });
 
   const rcButton = page.locator("#remote-control-toggle");
   await rcButton.waitFor({ state: "visible" });

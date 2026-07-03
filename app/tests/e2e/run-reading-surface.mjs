@@ -32,24 +32,22 @@ try {
     throw new Error("Sidebar session did not expose a task id.");
   }
 
+  // Reading = reply + state (2026-07-03): the card shows the prompt and the
+  // reply; the retired process surfaces (work trace / footer / facts /
+  // artifact chips) must NOT render, and a completed run shows no outcome
+  // note (the note is reserved for stopped/failed/denied runs). The runtime
+  // report on disk stays the durable carrier of changed files and artifact
+  // candidates — asserted below, including the eligibility filter.
   const runCard = page.locator(".turn-card").first();
   await runCard.locator(".turn-user", { hasText: "You" }).waitFor({ state: "visible" });
-  await runCard.locator(".turn-facts", { hasText: "2 changes" }).waitFor({ state: "visible" });
-  await runCard.locator(".turn-outcome", { hasText: "Completed" }).waitFor({ state: "visible" });
-
-  const artifactChip = runCard.locator(".turn-artifacts .artifact-link", { hasText: "run_reading.md" });
-  await artifactChip.waitFor({ state: "visible" });
-  const ordinaryPreviewActions = await runCard
-    .locator(".turn-artifacts .artifact-link", { hasText: "run_notes.txt" })
+  await page.locator('.turn-card[data-run-status="completed"]').waitFor({ state: "visible" });
+  await runCard.locator(".turn-body").waitFor({ state: "visible" });
+  const processSurfaces = await runCard
+    .locator(".turn-work-trace, .turn-footer, .turn-facts, .turn-artifacts, .turn-outcome-note")
     .count();
-
-  const previewWindowPromise = electronApp.waitForEvent("window");
-  await artifactChip.click();
-  const previewPage = await previewWindowPromise;
-  previewPage.setDefaultTimeout(180000);
-  await previewPage.locator(".text-preview", { hasText: "Run reading artifact ready." }).waitFor({
-    state: "visible",
-  });
+  if (processSurfaces !== 0) {
+    throw new Error(`Retired process surfaces rendered on the completed turn card: ${processSurfaces}`);
+  }
 
   const reports = readReports(workspaceRoot);
   const latestRun = reports.at(-1)?.runs?.at(-1) ?? null;
@@ -64,7 +62,6 @@ try {
     latestRun?.changedFiles?.some((file) => file.path === "run_notes.txt") &&
     latestRun?.artifactCandidates?.some((artifact) => artifact.path === "run_reading.md") &&
     !latestRun?.artifactCandidates?.some((artifact) => artifact.path === "run_notes.txt") &&
-    ordinaryPreviewActions === 0 &&
     !rawTerminalPersisted;
 
   console.log(
@@ -75,7 +72,6 @@ try {
         runId: latestRun?.runId,
         changedFiles: latestRun?.changedFiles?.map((file) => file.path) ?? [],
         artifactCandidates: latestRun?.artifactCandidates?.map((artifact) => artifact.path) ?? [],
-        ordinaryPreviewActions,
         rawTerminalPersisted,
         success,
       },
@@ -107,7 +103,7 @@ async function waitForCompletedRuns(page, expectedCompletedRuns, timeoutMs) {
     // broker card titles are tool summaries — kind-bound waits under-match.
     await approveAnyVisibleApproval(page);
     const completed = await page
-      .locator(".turn-outcome", { hasText: "Completed" })
+      .locator('.turn-card[data-run-status="completed"]')
       .count();
     if (completed >= expectedCompletedRuns) {
       return;

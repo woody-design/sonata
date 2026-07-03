@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.mjs";
-import { sendFirstPrompt, waitForEngagement, waitForWindowByUrl } from "./helpers/session.mjs";
+import { sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-stop-e2e-"));
 let electronApp = null;
@@ -70,13 +70,15 @@ try {
   // Stopped + ready to continue: the send button leaves stop-mode (■ → ↑).
   await page.locator("#send-prompt:not(.stop-mode)").waitFor({ state: "attached", timeout: 90000 });
   await page.locator("#send-prompt").waitFor({ state: "visible" });
-  await page.locator(".turn-outcome", { hasText: "Stopped by Esc" }).waitFor({
+  // The stopped state survives the footer retirement as the outcome note;
+  // completion provenance moved to the card's data attributes (the report
+  // checks below assert native-control/high durably).
+  await page.locator(".turn-outcome-note", { hasText: "Stopped by Esc" }).waitFor({
     state: "visible",
   });
-  await page.locator(".turn-facts", { hasText: "native-control / high" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".turn-facts", { hasText: /approval/ }).waitFor({ state: "visible" });
+  await page
+    .locator('.turn-card[data-run-status="stopped"][data-completion-source="native-control"]')
+    .waitFor({ state: "attached" });
   await page.locator(".turn-card", { hasText: "Run exactly this shell command" }).waitFor({
     state: "visible",
   });
@@ -103,25 +105,21 @@ try {
       recoveryApprovalSeen;
     return fs.existsSync(paths.recovery);
   }, 180000, "recovery file");
-  await page.locator(".artifact-item", { hasText: "stop_recovery.md" }).waitFor({
-    state: "visible",
-  });
-  await page.locator(".artifact-item", { hasText: "stop_recovery.md" }).click();
-  const previewPage = await waitForWindowByUrl(electronApp, "preview.html");
-  previewPage.setDefaultTimeout(240000);
-  await previewPage.locator(".artifact-review", { hasText: "Review candidate" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".artifact-review", { hasText: "Floating Preview" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".artifact-review", { hasText: "runtime-report.json" }).waitFor({
-    state: "visible",
-  });
-  await previewPage.locator(".artifact-review", { hasText: "markdown" }).waitFor({ state: "visible" });
-  await previewPage.locator(".artifact-review", { hasText: "not persisted" }).waitFor({ state: "visible" });
-
+  // The strip-entered Preview review of the recovery artifact retired with
+  // the artifact strip (2026-07-03) — the durable report carries the
+  // recovery-run evidence. Poll it explicitly: the report write trails the
+  // recovery file's appearance on disk.
   const reportPath = path.join(recordDir, "runtime-report.json");
+  await waitUntil(() => {
+    try {
+      const snapshot = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+      return snapshot?.runs?.some((run) =>
+        run.artifactCandidates?.some((artifact) => artifact.path === "stop_recovery.md"),
+      );
+    } catch {
+      return false;
+    }
+  }, 60000, "recovery run in report");
   const report = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, "utf8")) : null;
   const runs = report?.runs ?? [];
   const stoppedRun = runs.find((run) => run.status === "stopped") ?? null;

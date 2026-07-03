@@ -2647,27 +2647,6 @@ h2 {
   color: var(--ink-strong);
 }
 
-.artifact-strip {
-  flex: 0 0 auto;
-  /* Flat with the reading plane — no band, no divider line. */
-  background: transparent;
-}
-
-.artifact-strip-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 10px 18px 0;
-}
-
-.artifact-strip-header strong {
-  display: block;
-  color: var(--ink-strong);
-  font-size: 13px;
-  font-weight: 680;
-}
-
 .hidden {
   display: none;
 }
@@ -3633,14 +3612,6 @@ h2 {
   border-bottom: 1px solid var(--border);
 }
 
-.artifact-strip .artifact-list {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 10px 18px 12px;
-  border-bottom: 0;
-}
-
 .artifact-list.standalone {
   display: grid;
   gap: 8px;
@@ -3662,10 +3633,6 @@ h2 {
   background: var(--surface-panel);
   font-size: 13px;
   text-align: left;
-}
-
-.artifact-strip .artifact-item {
-  flex: 0 0 260px;
 }
 
 .artifact-item-title,
@@ -3701,10 +3668,6 @@ h2 {
 
 .artifact-item + .artifact-item {
   margin-top: 8px;
-}
-
-.artifact-strip .artifact-item + .artifact-item {
-  margin-top: 0;
 }
 
 .preview-content,
@@ -3834,34 +3797,6 @@ h2 {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-white);
-}
-
-.artifact-link {
-  min-height: 28px;
-  overflow: hidden;
-  border: 1px solid var(--border-control);
-  color: var(--accent);
-  background: var(--surface-control);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.artifact-link.compact {
-  justify-self: start;
-  margin-top: 4px;
-}
-
-.artifact-link.reviewed {
-  border-color: var(--border-complete);
-  color: var(--status-complete-ink);
-  background: var(--surface-complete-soft);
-}
-
-.artifact-link.dirty {
-  border-color: var(--status-complete-strong);
-  color: var(--status-complete-link);
-  background: var(--surface-complete-soft);
 }
 
 .inspector-section {
@@ -4453,75 +4388,6 @@ h2 {
   font-size: 12px;
 }
 
-.turn-work-trace {
-  margin-top: 18px;
-  border-top: 1px solid var(--border-raised);
-  border-bottom: 1px solid var(--border-raised);
-}
-
-.turn-work-trace > summary {
-  list-style: none;
-}
-
-.turn-work-trace > summary::-webkit-details-marker {
-  display: none;
-}
-
-.turn-work-summary {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 38px;
-  cursor: pointer;
-  color: var(--ink-work);
-  font-size: 13px;
-}
-
-.turn-work-summary::after {
-  content: "›";
-  flex: none;
-  color: var(--ink-faint);
-  font-size: 18px;
-  line-height: 1;
-  transition: transform 120ms ease;
-}
-
-.turn-work-trace[open] .turn-work-summary::after {
-  transform: rotate(90deg);
-}
-
-.turn-work-label {
-  flex: 0 0 auto;
-  font-weight: 640;
-}
-
-.turn-work-meta {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ink-trace);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.turn-work-trace.complete .turn-work-label {
-  color: var(--status-complete-label);
-}
-
-.turn-work-trace.attention .turn-work-label {
-  color: var(--status-attention-label);
-}
-
-.turn-work-trace.waiting .turn-work-label,
-.turn-work-trace.active .turn-work-label {
-  color: var(--status-waiting-label);
-}
-
-.turn-work-body {
-  display: grid;
-  gap: 10px;
-  padding: 4px 0 14px;
-}
-
 .turn-body {
   display: flex;
   flex-direction: column;
@@ -4655,101 +4521,7 @@ h2 {
 
 /* Tool call cards */
 
-.turn-tool {
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  background: var(--surface-tool);
-}
-
-.turn-tool-summary {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 7px 12px;
-  font-size: 12.5px;
-  color: var(--ink-status);
-}
-
-.turn-tool-summary + .turn-tool-body {
-  border-top: 1px solid var(--border-soft);
-}
-
-.turn-tool-status {
-  flex: none;
-  width: 14px;
-  text-align: center;
-  font-weight: 700;
-}
-
-.turn-tool.ok .turn-tool-status {
-  color: var(--accent);
-}
-
-.turn-tool.error .turn-tool-status {
-  color: var(--status-attention);
-}
-
-.turn-tool.running .turn-tool-status {
-  color: var(--ink-faint);
-}
-
-.turn-tool.error {
-  border-color: var(--border-attention-muted);
-}
-
-.turn-tool-name {
-  flex: none;
-  color: var(--ink-strong);
-  font-size: 12.5px;
-}
-
-.turn-tool-hint {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--ink-muted);
-}
-
-.turn-tool-duration {
-  flex: none;
-  margin-left: auto;
-  font-size: 11.5px;
-  color: var(--ink-faint);
-}
-
-.turn-tool-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-}
-
-.turn-tool-text {
-  margin: 0;
-  max-height: 320px;
-  overflow: auto;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--ink-subtle);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 /* Thinking, notes, fallback, working */
-
-.turn-thinking {
-  border-left: 3px solid var(--border-soft);
-  padding-left: 10px;
-}
-
-.turn-plan {
-  border-left: 3px solid var(--border-soft);
-  padding-left: 10px;
-}
 
 /* Live status row — the agent's voice (native relay) vs Duet's voice
    (derived). The two must stay visually distinct: native is the provider's
@@ -4851,9 +4623,8 @@ h2 {
   color: var(--ink-muted);
 }
 
-/* Same three staggered dots as the work-trace roster (turn-agent-status) —
-   one "alive, working" signal across surfaces. Signature-guarded rebuilds
-   keep the animation running through status ticks. */
+/* Three staggered dots — the "alive, working" signal. Signature-guarded
+   rebuilds keep the animation running through status ticks. */
 .strip-agent-dots {
   flex: none;
   width: 16px;
@@ -4893,127 +4664,10 @@ h2 {
   font-size: 11.5px;
 }
 
-.turn-plan-list {
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.turn-plan-item {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--ink-muted);
-}
-
-.turn-plan-item.in_progress {
-  color: var(--ink);
-}
-
-.turn-plan-item.completed .turn-plan-text {
-  text-decoration: line-through;
-  text-decoration-color: var(--border-soft);
-}
-
-.turn-plan-status {
-  flex: none;
-  width: 14px;
-  text-align: center;
-  font-weight: 700;
-}
-
-.turn-plan-item.completed .turn-plan-status {
-  color: var(--accent);
-}
-
-.turn-agents {
-  border-left: 3px solid var(--border-soft);
-  padding-left: 10px;
-}
-
-.turn-agents-list {
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.turn-agent {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--ink-muted);
-}
-
-.turn-agent.running {
-  color: var(--ink);
-}
-
-.turn-agent-status {
-  flex: none;
-  width: 16px;
-  min-height: calc(1.5 * 13px);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  font-weight: 700;
-}
-
-.turn-agent.done .turn-agent-status {
-  color: var(--accent);
-}
-
 /* Three staggered dots — the "alive, working" signal. The 1s clock tick
    touches only the elapsed text, so it never restarts the animation; a roster
    change (spawn/settle) does rebuild the dots, but that is low-frequency and a
    genuine state change. Calm by design: a soft opacity fade, not a bounce. */
-.turn-agent-status.working {
-  color: var(--ink-muted);
-}
-
-.turn-agent-status.working i {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: turn-agent-dot 1.4s ease-in-out infinite;
-}
-
-.turn-agent-status.working i:nth-child(2) {
-  animation-delay: 0.18s;
-}
-
-.turn-agent-status.working i:nth-child(3) {
-  animation-delay: 0.36s;
-}
-
-.turn-agent-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.turn-agent-sep {
-  color: var(--ink-faint, var(--ink-muted));
-  opacity: 0.7;
-}
-
-.turn-agent-elapsed {
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-faint, var(--ink-muted));
-  opacity: 0.8;
-}
-
 @keyframes turn-agent-dot {
   0%,
   100% {
@@ -5022,15 +4676,6 @@ h2 {
   50% {
     opacity: 1;
   }
-}
-
-.turn-thinking-text {
-  margin: 6px 0 0;
-  color: var(--ink-muted);
-  font-size: 13px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .turn-system-note {
@@ -5082,53 +4727,20 @@ h2 {
   overflow-wrap: anywhere;
 }
 
-.turn-working {
-  color: var(--ink-faint);
-  font-size: 13px;
-  font-style: italic;
-}
-
-/* Turn evidence */
-
-.turn-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 14px;
+/* Settled-but-not-completed marker (stopped / failed / denied / pty-exited):
+   the one piece of run state that must survive the 2026-07-03 retirement of
+   the turn footer — without it a stopped run reads as a completed one. */
+.turn-outcome-note {
   margin-top: 14px;
   border-top: 1px solid var(--border-footer);
   padding-top: 9px;
   font-size: 12px;
-  color: var(--ink-muted);
-}
-
-.turn-outcome {
   font-weight: 700;
   color: var(--ink-status);
 }
 
-.turn-footer.complete .turn-outcome {
-  color: var(--accent);
-}
-
-.turn-footer.attention .turn-outcome {
+.turn-outcome-note.attention {
   color: var(--status-attention);
-}
-
-.turn-footer.waiting .turn-outcome {
-  color: var(--status-waiting);
-}
-
-.turn-artifacts {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.turn-provenance {
-  margin-left: auto;
-  color: var(--ink-fainter);
-  font-size: 11.5px;
 }
 
 /* Instance badge — only shows when the launcher exports DUET_INSTANCE_LABEL

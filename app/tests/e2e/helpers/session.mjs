@@ -81,7 +81,7 @@ export async function waitForWindowByUrl(electronApp, urlPart, timeout = 30000) 
 /** Wait until N turn cards report Completed. */
 export async function waitForCompletedTurns(page, count, timeout = 240000) {
   await page
-    .locator(".turn-card .turn-outcome", { hasText: "Completed" })
+    .locator('.turn-card[data-run-status="completed"]')
     .nth(count - 1)
     .waitFor({ state: "visible", timeout });
 }

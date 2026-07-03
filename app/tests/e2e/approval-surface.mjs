@@ -100,13 +100,22 @@ try {
       await page.waitForTimeout(400);
     }
     return page
-      .locator(".turn-outcome", { hasText: "Completed" })
+      .locator('.turn-card[data-run-status="completed"]')
       .isVisible()
       .catch(() => false);
   }, 180000, "turn completion");
-  await page.locator(".artifact-item", { hasText: "approval_command.md" }).waitFor({
-    state: "visible",
-  });
+  // The artifact strip is gone (2026-07-03): the durable report is the
+  // artifact-candidate surface now.
+  await waitUntil(
+    () =>
+      readReports(workspaceRoot)
+        .at(-1)
+        ?.runs?.some((run) =>
+          run.artifactCandidates?.some((artifact) => artifact.path === "approval_command.md"),
+        ) ?? false,
+    30000,
+    "artifact candidate in report",
+  );
 
   const reports = readReports(workspaceRoot);
   const report = reports.at(-1) ?? null;
