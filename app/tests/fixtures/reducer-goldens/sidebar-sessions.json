@@ -1,0 +1,887 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 416,
+      "directiveCounts": {
+        "none": 79,
+        "report-refresh": 25,
+        "session-index-debounced": 18,
+        "full": 35,
+        "sidebar": 8,
+        "transcript-debounced": 186,
+        "usage-in-place": 5,
+        "strip-in-place": 22,
+        "unread-only": 38
+      },
+      "state": {
+        "activeTaskId": "task-1783114384118-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114384118-1",
+              "title": "Create report.md with artifact status",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114384118-1",
+              "providerSessionRef": "b1208490-8116-437d-8753-f2152d3409c5",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5g9kae",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5g9kae",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:33:04.118Z",
+              "updatedAt": "2026-07-03T21:33:12.687Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114384637-1",
+                "rawText": {
+                  "~len": 16012,
+                  "~sha256": "49dcb60e5a4dd32f",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "53;153;153m✻\u001b[3GBrewed for 7s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3447,
+                  "~sha256": "959d52f105009d7e",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedreport.md.\n",
+                  "~tail": "\nrunning stop hook · 7s · ↓167 tokens)\nDoodling…7\n✻Brewed for 7s"
+                },
+                "truncated": false,
+                "receivedChars": 16012
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:b1208490-8116-437d-8753-f2152d3409c5:9252ae90-c74b-441f-a76e-e3409d9be3c3:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:b1208490-8116-437d-8753-f2152d3409c5:9252ae90-c74b-441f-a76e-e3409d9be3c3:text-0",
+                  "taskId": "task-1783114384118-1",
+                  "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                  "provider": "claude",
+                  "turnKey": "df2a8c98-ad21-4eba-8f7b-c7a431f696df",
+                  "runId": "run-1783114384637-1",
+                  "ts": "2026-07-03T21:33:12.495Z",
+                  "seq": 4,
+                  "markdown": "Done. Created `report.md` containing the sentence \"Alpha artifact ready.\" No other files were modified."
+                }
+              ],
+              [
+                "claude:b1208490-8116-437d-8753-f2152d3409c5:dcded930-ffdc-41a3-8382-c90d7eb4fa9f:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:b1208490-8116-437d-8753-f2152d3409c5:dcded930-ffdc-41a3-8382-c90d7eb4fa9f:user",
+                  "taskId": "task-1783114384118-1",
+                  "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                  "provider": "claude",
+                  "turnKey": "df2a8c98-ad21-4eba-8f7b-c7a431f696df",
+                  "runId": "run-1783114384637-1",
+                  "ts": "2026-07-03T21:33:04.765Z",
+                  "seq": 1,
+                  "text": "Create exactly one file named report.md.\nThe file must contain the sentence 'Alpha artifact ready.'\nDo not modify any other files.",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:b1208490-8116-437d-8753-f2152d3409c5:f025e017-59cb-4c3c-a342-a43bf668c60d:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:b1208490-8116-437d-8753-f2152d3409c5:f025e017-59cb-4c3c-a342-a43bf668c60d:text-0",
+                  "taskId": "task-1783114384118-1",
+                  "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                  "provider": "claude",
+                  "turnKey": "df2a8c98-ad21-4eba-8f7b-c7a431f696df",
+                  "runId": "run-1783114384637-1",
+                  "ts": "2026-07-03T21:33:08.011Z",
+                  "seq": 2,
+                  "markdown": "I'll create the file as requested."
+                }
+              ],
+              [
+                "claude:b1208490-8116-437d-8753-f2152d3409c5:tool:toolu_012VbKP8MgiH5VPuXbSjgg4A",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:b1208490-8116-437d-8753-f2152d3409c5:tool:toolu_012VbKP8MgiH5VPuXbSjgg4A",
+                  "taskId": "task-1783114384118-1",
+                  "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                  "provider": "claude",
+                  "turnKey": "df2a8c98-ad21-4eba-8f7b-c7a431f696df",
+                  "runId": "run-1783114384637-1",
+                  "ts": "2026-07-03T21:33:10.416Z",
+                  "seq": 3,
+                  "callId": "toolu_012VbKP8MgiH5VPuXbSjgg4A",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5g9kae/report.md",
+                  "inputPreview": {
+                    "~len": 171,
+                    "~sha256": "4c994ef318f6768f",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "03-mr5g9kae/report.md\",\n  \"content\": \"Alpha artifact ready.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 206,
+                    "~sha256": "1b22abea7cc4f237",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 403
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:b1208490-8116-437d-8753-f2152d3409c5:dcded930-ffdc-41a3-8382-c90d7eb4fa9f:user",
+              "claude:b1208490-8116-437d-8753-f2152d3409c5:f025e017-59cb-4c3c-a342-a43bf668c60d:text-0",
+              "claude:b1208490-8116-437d-8753-f2152d3409c5:tool:toolu_012VbKP8MgiH5VPuXbSjgg4A",
+              "claude:b1208490-8116-437d-8753-f2152d3409c5:9252ae90-c74b-441f-a76e-e3409d9be3c3:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 172,
+                  "~sha256": "3e2980745889db34",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "h-2026-07-03-mr5g9kae/b1208490-8116-437d-8753-f2152d3409c5.jsonl"
+                },
+                "providerSessionId": "b1208490-8116-437d-8753-f2152d3409c5",
+                "locatedAt": "2026-07-03T21:33:04.886Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114384118-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114393403,
+              "context": {
+                "usedTokens": 34539,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create report.md with artifact status",
+              "costUsd": 0.2142345,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:33:12.687Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          },
+          {
+            "task": {
+              "id": "task-1783114405749-2",
+              "title": "Create report.md with beta artifact status",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114405749-2",
+              "providerSessionRef": "001f4cbd-595d-4f6d-87d1-02abcad2507f",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5ga0z9",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5ga0z9",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:33:25.749Z",
+              "updatedAt": "2026-07-03T21:33:34.571Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114406261-1",
+                "rawText": {
+                  "~len": 16570,
+                  "~sha256": "b9d8dbe2944f3156",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "3;153;153m✻\u001b[3GSautéed for 7s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3505,
+                  "~sha256": "8c5ae44b37ac5549",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedreport.md.\n",
+                  "~tail": ".\nFlummoxinrunning stop hook · 7s · ↓167 tokens)\n✻Sautéed for 7s"
+                },
+                "truncated": false,
+                "receivedChars": 16570
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:6ce4e2ca-e346-47c5-a386-df13b1165756:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:6ce4e2ca-e346-47c5-a386-df13b1165756:user",
+                  "taskId": "task-1783114405749-2",
+                  "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                  "provider": "claude",
+                  "turnKey": "81c80f89-f39d-4c6c-9f1b-6eef95ed2b09",
+                  "runId": "run-1783114406261-1",
+                  "ts": "2026-07-03T21:33:26.388Z",
+                  "seq": 1,
+                  "text": "Create exactly one file named report.md.\nThe file must contain the sentence 'Beta artifact ready.'\nDo not modify any other files.",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:8c57bfd0-f094-404a-8bc8-ff8eec0c880a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:8c57bfd0-f094-404a-8bc8-ff8eec0c880a:text-0",
+                  "taskId": "task-1783114405749-2",
+                  "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                  "provider": "claude",
+                  "turnKey": "81c80f89-f39d-4c6c-9f1b-6eef95ed2b09",
+                  "runId": "run-1783114406261-1",
+                  "ts": "2026-07-03T21:33:29.457Z",
+                  "seq": 2,
+                  "markdown": "I'll create the file directly."
+                }
+              ],
+              [
+                "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:f0b3b24d-1a58-4070-a9f2-4a4f333049ab:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:f0b3b24d-1a58-4070-a9f2-4a4f333049ab:text-0",
+                  "taskId": "task-1783114405749-2",
+                  "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                  "provider": "claude",
+                  "turnKey": "81c80f89-f39d-4c6c-9f1b-6eef95ed2b09",
+                  "runId": "run-1783114406261-1",
+                  "ts": "2026-07-03T21:33:34.410Z",
+                  "seq": 4,
+                  "markdown": "Created `report.md` containing the sentence \"Beta artifact ready.\" No other files were modified."
+                }
+              ],
+              [
+                "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:tool:toolu_01Jd9Lrg7y6uJKt4hpvjNAU1",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:tool:toolu_01Jd9Lrg7y6uJKt4hpvjNAU1",
+                  "taskId": "task-1783114405749-2",
+                  "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                  "provider": "claude",
+                  "turnKey": "81c80f89-f39d-4c6c-9f1b-6eef95ed2b09",
+                  "runId": "run-1783114406261-1",
+                  "ts": "2026-07-03T21:33:32.058Z",
+                  "seq": 3,
+                  "callId": "toolu_01Jd9Lrg7y6uJKt4hpvjNAU1",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5ga0z9/report.md",
+                  "inputPreview": {
+                    "~len": 170,
+                    "~sha256": "56cb0b7a02cb175a",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "-03-mr5ga0z9/report.md\",\n  \"content\": \"Beta artifact ready.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 206,
+                    "~sha256": "d3527c4e84ca3dc9",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 298
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:6ce4e2ca-e346-47c5-a386-df13b1165756:user",
+              "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:8c57bfd0-f094-404a-8bc8-ff8eec0c880a:text-0",
+              "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:tool:toolu_01Jd9Lrg7y6uJKt4hpvjNAU1",
+              "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:f0b3b24d-1a58-4070-a9f2-4a4f333049ab:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 172,
+                  "~sha256": "aba331c606ac63a7",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "h-2026-07-03-mr5ga0z9/001f4cbd-595d-4f6d-87d1-02abcad2507f.jsonl"
+                },
+                "providerSessionId": "001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                "locatedAt": "2026-07-03T21:33:26.529Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114405749-2",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114415275,
+              "context": {
+                "usedTokens": 34379,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create report.md with beta artifact status",
+              "costUsd": 0.21337299999999998,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:33:34.571Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 416,
+      "directiveCounts": {
+        "none": 106,
+        "report-refresh": 25,
+        "session-index-debounced": 18,
+        "unread-only": 76,
+        "sidebar": 8,
+        "transcript-debounced": 183
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114384118-1",
+              "title": "Create report.md with artifact status",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114384118-1",
+              "providerSessionRef": "b1208490-8116-437d-8753-f2152d3409c5",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5g9kae",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5g9kae",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:33:04.118Z",
+              "updatedAt": "2026-07-03T21:33:12.687Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114384637-1",
+                "rawText": {
+                  "~len": 16012,
+                  "~sha256": "49dcb60e5a4dd32f",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "53;153;153m✻\u001b[3GBrewed for 7s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3447,
+                  "~sha256": "959d52f105009d7e",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedreport.md.\n",
+                  "~tail": "\nrunning stop hook · 7s · ↓167 tokens)\nDoodling…7\n✻Brewed for 7s"
+                },
+                "truncated": false,
+                "receivedChars": 16012
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:b1208490-8116-437d-8753-f2152d3409c5:9252ae90-c74b-441f-a76e-e3409d9be3c3:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:b1208490-8116-437d-8753-f2152d3409c5:9252ae90-c74b-441f-a76e-e3409d9be3c3:text-0",
+                  "taskId": "task-1783114384118-1",
+                  "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                  "provider": "claude",
+                  "turnKey": "df2a8c98-ad21-4eba-8f7b-c7a431f696df",
+                  "runId": "run-1783114384637-1",
+                  "ts": "2026-07-03T21:33:12.495Z",
+                  "seq": 4,
+                  "markdown": "Done. Created `report.md` containing the sentence \"Alpha artifact ready.\" No other files were modified."
+                }
+              ],
+              [
+                "claude:b1208490-8116-437d-8753-f2152d3409c5:dcded930-ffdc-41a3-8382-c90d7eb4fa9f:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:b1208490-8116-437d-8753-f2152d3409c5:dcded930-ffdc-41a3-8382-c90d7eb4fa9f:user",
+                  "taskId": "task-1783114384118-1",
+                  "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                  "provider": "claude",
+                  "turnKey": "df2a8c98-ad21-4eba-8f7b-c7a431f696df",
+                  "runId": "run-1783114384637-1",
+                  "ts": "2026-07-03T21:33:04.765Z",
+                  "seq": 1,
+                  "text": "Create exactly one file named report.md.\nThe file must contain the sentence 'Alpha artifact ready.'\nDo not modify any other files.",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:b1208490-8116-437d-8753-f2152d3409c5:f025e017-59cb-4c3c-a342-a43bf668c60d:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:b1208490-8116-437d-8753-f2152d3409c5:f025e017-59cb-4c3c-a342-a43bf668c60d:text-0",
+                  "taskId": "task-1783114384118-1",
+                  "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                  "provider": "claude",
+                  "turnKey": "df2a8c98-ad21-4eba-8f7b-c7a431f696df",
+                  "runId": "run-1783114384637-1",
+                  "ts": "2026-07-03T21:33:08.011Z",
+                  "seq": 2,
+                  "markdown": "I'll create the file as requested."
+                }
+              ],
+              [
+                "claude:b1208490-8116-437d-8753-f2152d3409c5:tool:toolu_012VbKP8MgiH5VPuXbSjgg4A",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:b1208490-8116-437d-8753-f2152d3409c5:tool:toolu_012VbKP8MgiH5VPuXbSjgg4A",
+                  "taskId": "task-1783114384118-1",
+                  "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                  "provider": "claude",
+                  "turnKey": "df2a8c98-ad21-4eba-8f7b-c7a431f696df",
+                  "runId": "run-1783114384637-1",
+                  "ts": "2026-07-03T21:33:10.416Z",
+                  "seq": 3,
+                  "callId": "toolu_012VbKP8MgiH5VPuXbSjgg4A",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5g9kae/report.md",
+                  "inputPreview": {
+                    "~len": 171,
+                    "~sha256": "4c994ef318f6768f",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "03-mr5g9kae/report.md\",\n  \"content\": \"Alpha artifact ready.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 206,
+                    "~sha256": "1b22abea7cc4f237",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 403
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:b1208490-8116-437d-8753-f2152d3409c5:dcded930-ffdc-41a3-8382-c90d7eb4fa9f:user",
+              "claude:b1208490-8116-437d-8753-f2152d3409c5:f025e017-59cb-4c3c-a342-a43bf668c60d:text-0",
+              "claude:b1208490-8116-437d-8753-f2152d3409c5:tool:toolu_012VbKP8MgiH5VPuXbSjgg4A",
+              "claude:b1208490-8116-437d-8753-f2152d3409c5:9252ae90-c74b-441f-a76e-e3409d9be3c3:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:b1208490-8116-437d-8753-f2152d3409c5",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 172,
+                  "~sha256": "3e2980745889db34",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "h-2026-07-03-mr5g9kae/b1208490-8116-437d-8753-f2152d3409c5.jsonl"
+                },
+                "providerSessionId": "b1208490-8116-437d-8753-f2152d3409c5",
+                "locatedAt": "2026-07-03T21:33:04.886Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114384118-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114393403,
+              "context": {
+                "usedTokens": 34539,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create report.md with artifact status",
+              "costUsd": 0.2142345,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:33:12.687Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          },
+          {
+            "task": {
+              "id": "task-1783114405749-2",
+              "title": "Create report.md with beta artifact status",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114405749-2",
+              "providerSessionRef": "001f4cbd-595d-4f6d-87d1-02abcad2507f",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5ga0z9",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5ga0z9",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:33:25.749Z",
+              "updatedAt": "2026-07-03T21:33:34.571Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114406261-1",
+                "rawText": {
+                  "~len": 16570,
+                  "~sha256": "b9d8dbe2944f3156",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "3;153;153m✻\u001b[3GSautéed for 7s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3505,
+                  "~sha256": "8c5ae44b37ac5549",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedreport.md.\n",
+                  "~tail": ".\nFlummoxinrunning stop hook · 7s · ↓167 tokens)\n✻Sautéed for 7s"
+                },
+                "truncated": false,
+                "receivedChars": 16570
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:6ce4e2ca-e346-47c5-a386-df13b1165756:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:6ce4e2ca-e346-47c5-a386-df13b1165756:user",
+                  "taskId": "task-1783114405749-2",
+                  "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                  "provider": "claude",
+                  "turnKey": "81c80f89-f39d-4c6c-9f1b-6eef95ed2b09",
+                  "runId": "run-1783114406261-1",
+                  "ts": "2026-07-03T21:33:26.388Z",
+                  "seq": 1,
+                  "text": "Create exactly one file named report.md.\nThe file must contain the sentence 'Beta artifact ready.'\nDo not modify any other files.",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:8c57bfd0-f094-404a-8bc8-ff8eec0c880a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:8c57bfd0-f094-404a-8bc8-ff8eec0c880a:text-0",
+                  "taskId": "task-1783114405749-2",
+                  "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                  "provider": "claude",
+                  "turnKey": "81c80f89-f39d-4c6c-9f1b-6eef95ed2b09",
+                  "runId": "run-1783114406261-1",
+                  "ts": "2026-07-03T21:33:29.457Z",
+                  "seq": 2,
+                  "markdown": "I'll create the file directly."
+                }
+              ],
+              [
+                "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:f0b3b24d-1a58-4070-a9f2-4a4f333049ab:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:f0b3b24d-1a58-4070-a9f2-4a4f333049ab:text-0",
+                  "taskId": "task-1783114405749-2",
+                  "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                  "provider": "claude",
+                  "turnKey": "81c80f89-f39d-4c6c-9f1b-6eef95ed2b09",
+                  "runId": "run-1783114406261-1",
+                  "ts": "2026-07-03T21:33:34.410Z",
+                  "seq": 4,
+                  "markdown": "Created `report.md` containing the sentence \"Beta artifact ready.\" No other files were modified."
+                }
+              ],
+              [
+                "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:tool:toolu_01Jd9Lrg7y6uJKt4hpvjNAU1",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:tool:toolu_01Jd9Lrg7y6uJKt4hpvjNAU1",
+                  "taskId": "task-1783114405749-2",
+                  "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                  "provider": "claude",
+                  "turnKey": "81c80f89-f39d-4c6c-9f1b-6eef95ed2b09",
+                  "runId": "run-1783114406261-1",
+                  "ts": "2026-07-03T21:33:32.058Z",
+                  "seq": 3,
+                  "callId": "toolu_01Jd9Lrg7y6uJKt4hpvjNAU1",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-sidebar-e2e-7P9cfh/2026-07-03-mr5ga0z9/report.md",
+                  "inputPreview": {
+                    "~len": 170,
+                    "~sha256": "56cb0b7a02cb175a",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "-03-mr5ga0z9/report.md\",\n  \"content\": \"Beta artifact ready.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 206,
+                    "~sha256": "d3527c4e84ca3dc9",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 298
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:6ce4e2ca-e346-47c5-a386-df13b1165756:user",
+              "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:8c57bfd0-f094-404a-8bc8-ff8eec0c880a:text-0",
+              "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:tool:toolu_01Jd9Lrg7y6uJKt4hpvjNAU1",
+              "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f:f0b3b24d-1a58-4070-a9f2-4a4f333049ab:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 172,
+                  "~sha256": "aba331c606ac63a7",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "h-2026-07-03-mr5ga0z9/001f4cbd-595d-4f6d-87d1-02abcad2507f.jsonl"
+                },
+                "providerSessionId": "001f4cbd-595d-4f6d-87d1-02abcad2507f",
+                "locatedAt": "2026-07-03T21:33:26.529Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114405749-2",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114415275,
+              "context": {
+                "usedTokens": 34379,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create report.md with beta artifact status",
+              "costUsd": 0.21337299999999998,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:33:34.571Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

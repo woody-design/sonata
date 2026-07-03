@@ -1,0 +1,540 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 308,
+      "directiveCounts": {
+        "none": 21,
+        "report-refresh": 18,
+        "session-index-debounced": 11,
+        "full": 51,
+        "usage-in-place": 6,
+        "sidebar": 8,
+        "transcript-debounced": 157,
+        "strip-in-place": 36
+      },
+      "state": {
+        "activeTaskId": "task-1783114366511-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114366511-1",
+              "title": "Create two files with specific content",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114366511-1",
+              "providerSessionRef": "0d33734c-6239-444c-8568-e8b91e60019e",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-reading-e2e-9fHTv2/2026-07-03-mr5g96pb",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-reading-e2e-9fHTv2/2026-07-03-mr5g96pb",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:32:46.511Z",
+              "updatedAt": "2026-07-03T21:33:00.364Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114367530-1",
+                "rawText": {
+                  "~len": 31780,
+                  "~sha256": "e74a8892ea839394",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": ";153;153m✻\u001b[3GSautéed for 11s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 7950,
+                  "~sha256": "3bd4ac3575cd9e26",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly two fi",
+                  "~tail": "stop hook · 11s · ↓397 tokens)\n✶Harmonizing…404\n✻Sautéed for 11s"
+                },
+                "truncated": false,
+                "receivedChars": 31780
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:36f4292e-5e61-42fe-88bd-d4ce81b0e567:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:36f4292e-5e61-42fe-88bd-d4ce81b0e567:text-0",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:32:50.665Z",
+                  "seq": 2,
+                  "markdown": "I'll create the two files exactly as specified."
+                }
+              ],
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:5198a981-add7-4da4-b2dc-aa97da205a95:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:5198a981-add7-4da4-b2dc-aa97da205a95:user",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:32:47.660Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 210,
+                    "~sha256": "8a992d58066a2907",
+                    "~head": "Create exactly two files.\nFirst, create run_reading.md containin",
+                    "~tail": "ctly: Run reading snapshot ready.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:6c488737-7962-432e-b391-13e5ad129b9e:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:6c488737-7962-432e-b391-13e5ad129b9e:text-0",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:33:00.177Z",
+                  "seq": 5,
+                  "markdown": "Both files created:\n\n- **run_reading.md** → `Run reading artifact ready.`\n- **run_notes.txt** → `Run reading snapshot ready.`\n\nNo other files were modified."
+                }
+              ],
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_011WiBKkKdgLqGFK83kDTwUJ",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_011WiBKkKdgLqGFK83kDTwUJ",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:32:57.374Z",
+                  "seq": 4,
+                  "callId": "toolu_011WiBKkKdgLqGFK83kDTwUJ",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-reading-e2e-9fHTv2/2026-07-03-mr5g96pb/run_notes.txt",
+                  "inputPreview": {
+                    "~len": 183,
+                    "~sha256": "d4f352ac1812ddd5",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "6pb/run_notes.txt\",\n  \"content\": \"Run reading snapshot ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 214,
+                    "~sha256": "4ca421631bdc6b02",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 391
+                }
+              ],
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_018MT7GVvAc2SUzq3JtDSxgh",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_018MT7GVvAc2SUzq3JtDSxgh",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:32:53.148Z",
+                  "seq": 3,
+                  "callId": "toolu_018MT7GVvAc2SUzq3JtDSxgh",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-reading-e2e-9fHTv2/2026-07-03-mr5g96pb/run_reading.md",
+                  "inputPreview": {
+                    "~len": 184,
+                    "~sha256": "b8f9f6bbd37799f0",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "pb/run_reading.md\",\n  \"content\": \"Run reading artifact ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 215,
+                    "~sha256": "f0940247fbed976e",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 612
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:5198a981-add7-4da4-b2dc-aa97da205a95:user",
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:36f4292e-5e61-42fe-88bd-d4ce81b0e567:text-0",
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_018MT7GVvAc2SUzq3JtDSxgh",
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_011WiBKkKdgLqGFK83kDTwUJ",
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:6c488737-7962-432e-b391-13e5ad129b9e:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 176,
+                  "~sha256": "40092bf7d675423e",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "2-2026-07-03-mr5g96pb/0d33734c-6239-444c-8568-e8b91e60019e.jsonl"
+                },
+                "providerSessionId": "0d33734c-6239-444c-8568-e8b91e60019e",
+                "locatedAt": "2026-07-03T21:32:47.784Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114366511-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114378063,
+              "context": {
+                "usedTokens": 35010,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create two files with specific content",
+              "costUsd": 0.224686,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:33:00.364Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 308,
+      "directiveCounts": {
+        "none": 63,
+        "report-refresh": 18,
+        "session-index-debounced": 11,
+        "unread-only": 56,
+        "sidebar": 8,
+        "transcript-debounced": 152
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114366511-1",
+              "title": "Create two files with specific content",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114366511-1",
+              "providerSessionRef": "0d33734c-6239-444c-8568-e8b91e60019e",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-reading-e2e-9fHTv2/2026-07-03-mr5g96pb",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-reading-e2e-9fHTv2/2026-07-03-mr5g96pb",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:32:46.511Z",
+              "updatedAt": "2026-07-03T21:33:00.364Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114367530-1",
+                "rawText": {
+                  "~len": 31780,
+                  "~sha256": "e74a8892ea839394",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": ";153;153m✻\u001b[3GSautéed for 11s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 7950,
+                  "~sha256": "3bd4ac3575cd9e26",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly two fi",
+                  "~tail": "stop hook · 11s · ↓397 tokens)\n✶Harmonizing…404\n✻Sautéed for 11s"
+                },
+                "truncated": false,
+                "receivedChars": 31780
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:36f4292e-5e61-42fe-88bd-d4ce81b0e567:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:36f4292e-5e61-42fe-88bd-d4ce81b0e567:text-0",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:32:50.665Z",
+                  "seq": 2,
+                  "markdown": "I'll create the two files exactly as specified."
+                }
+              ],
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:5198a981-add7-4da4-b2dc-aa97da205a95:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:5198a981-add7-4da4-b2dc-aa97da205a95:user",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:32:47.660Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 210,
+                    "~sha256": "8a992d58066a2907",
+                    "~head": "Create exactly two files.\nFirst, create run_reading.md containin",
+                    "~tail": "ctly: Run reading snapshot ready.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:6c488737-7962-432e-b391-13e5ad129b9e:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:6c488737-7962-432e-b391-13e5ad129b9e:text-0",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:33:00.177Z",
+                  "seq": 5,
+                  "markdown": "Both files created:\n\n- **run_reading.md** → `Run reading artifact ready.`\n- **run_notes.txt** → `Run reading snapshot ready.`\n\nNo other files were modified."
+                }
+              ],
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_011WiBKkKdgLqGFK83kDTwUJ",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_011WiBKkKdgLqGFK83kDTwUJ",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:32:57.374Z",
+                  "seq": 4,
+                  "callId": "toolu_011WiBKkKdgLqGFK83kDTwUJ",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-reading-e2e-9fHTv2/2026-07-03-mr5g96pb/run_notes.txt",
+                  "inputPreview": {
+                    "~len": 183,
+                    "~sha256": "d4f352ac1812ddd5",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "6pb/run_notes.txt\",\n  \"content\": \"Run reading snapshot ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 214,
+                    "~sha256": "4ca421631bdc6b02",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 391
+                }
+              ],
+              [
+                "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_018MT7GVvAc2SUzq3JtDSxgh",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_018MT7GVvAc2SUzq3JtDSxgh",
+                  "taskId": "task-1783114366511-1",
+                  "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                  "provider": "claude",
+                  "turnKey": "114805f6-6b31-4649-8757-0ae4c3159da1",
+                  "runId": "run-1783114367530-1",
+                  "ts": "2026-07-03T21:32:53.148Z",
+                  "seq": 3,
+                  "callId": "toolu_018MT7GVvAc2SUzq3JtDSxgh",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-reading-e2e-9fHTv2/2026-07-03-mr5g96pb/run_reading.md",
+                  "inputPreview": {
+                    "~len": 184,
+                    "~sha256": "b8f9f6bbd37799f0",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "pb/run_reading.md\",\n  \"content\": \"Run reading artifact ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 215,
+                    "~sha256": "f0940247fbed976e",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 612
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:5198a981-add7-4da4-b2dc-aa97da205a95:user",
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:36f4292e-5e61-42fe-88bd-d4ce81b0e567:text-0",
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_018MT7GVvAc2SUzq3JtDSxgh",
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:tool:toolu_011WiBKkKdgLqGFK83kDTwUJ",
+              "claude:0d33734c-6239-444c-8568-e8b91e60019e:6c488737-7962-432e-b391-13e5ad129b9e:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:0d33734c-6239-444c-8568-e8b91e60019e",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 176,
+                  "~sha256": "40092bf7d675423e",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "2-2026-07-03-mr5g96pb/0d33734c-6239-444c-8568-e8b91e60019e.jsonl"
+                },
+                "providerSessionId": "0d33734c-6239-444c-8568-e8b91e60019e",
+                "locatedAt": "2026-07-03T21:32:47.784Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114366511-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114378063,
+              "context": {
+                "usedTokens": 35010,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create two files with specific content",
+              "costUsd": 0.224686,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:33:00.364Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

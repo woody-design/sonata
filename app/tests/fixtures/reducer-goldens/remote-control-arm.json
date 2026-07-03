@@ -1,0 +1,285 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 55,
+      "directiveCounts": {
+        "none": 13,
+        "report-refresh": 5,
+        "full": 23,
+        "session-index-debounced": 4,
+        "sidebar": 1,
+        "transcript-debounced": 8,
+        "usage-in-place": 1
+      },
+      "state": {
+        "activeTaskId": "task-1783114329850-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114329850-1",
+              "title": "Reply with exactly: RC_ARMED_READY",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114329850-1",
+              "providerSessionRef": "3a096241-f29b-4045-9aae-44b670d95032",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-rcarm-e2e-G6EZ9y/2026-07-03-mr5g8eey",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-rcarm-e2e-G6EZ9y/2026-07-03-mr5g8eey",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:32:09.850Z",
+              "updatedAt": "2026-07-03T21:32:10.873Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114330871-1",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114330871-1",
+                "rawText": {
+                  "~len": 999,
+                  "~sha256": "b20bd6bf5348cb4b",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GRC_ARMED_READY",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": {
+                  "~len": 234,
+                  "~sha256": "f1e2a571279faee2",
+                  "~head": "Replywithexactly:RC_ARMED_READY\n⚠1 MCP server needs authenticati",
+                  "~tail": "eply with exactly: RC_ARMED_READY\n✽Skedaddling…\n← for agents(B78"
+                },
+                "truncated": false,
+                "receivedChars": 999
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:3a096241-f29b-4045-9aae-44b670d95032:7e28c675-5536-45ce-97c1-93d10df07305:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3a096241-f29b-4045-9aae-44b670d95032:7e28c675-5536-45ce-97c1-93d10df07305:user",
+                  "taskId": "task-1783114329850-1",
+                  "sourceId": "claude:3a096241-f29b-4045-9aae-44b670d95032",
+                  "provider": "claude",
+                  "turnKey": "3e5005cb-decb-478d-88f4-70efe86e77f6",
+                  "runId": "run-1783114330871-1",
+                  "ts": "2026-07-03T21:32:11.008Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: RC_ARMED_READY",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:3a096241-f29b-4045-9aae-44b670d95032:7e28c675-5536-45ce-97c1-93d10df07305:user"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:3a096241-f29b-4045-9aae-44b670d95032",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 170,
+                  "~sha256": "7befd86cfc155241",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "y-2026-07-03-mr5g8eey/3a096241-f29b-4045-9aae-44b670d95032.jsonl"
+                },
+                "providerSessionId": "3a096241-f29b-4045-9aae-44b670d95032",
+                "locatedAt": "2026-07-03T21:32:11.131Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114329850-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114330707,
+              "context": null,
+              "limits": [],
+              "sessionName": null,
+              "costUsd": null,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": null,
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Claude is working",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 55,
+      "directiveCounts": {
+        "none": 14,
+        "report-refresh": 5,
+        "unread-only": 24,
+        "session-index-debounced": 4,
+        "sidebar": 1,
+        "transcript-debounced": 7
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114329850-1",
+              "title": "Reply with exactly: RC_ARMED_READY",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114329850-1",
+              "providerSessionRef": "3a096241-f29b-4045-9aae-44b670d95032",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-rcarm-e2e-G6EZ9y/2026-07-03-mr5g8eey",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-rcarm-e2e-G6EZ9y/2026-07-03-mr5g8eey",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:32:09.850Z",
+              "updatedAt": "2026-07-03T21:32:10.873Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114330871-1",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114330871-1",
+                "rawText": {
+                  "~len": 999,
+                  "~sha256": "b20bd6bf5348cb4b",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GRC_ARMED_READY",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": {
+                  "~len": 234,
+                  "~sha256": "f1e2a571279faee2",
+                  "~head": "Replywithexactly:RC_ARMED_READY\n⚠1 MCP server needs authenticati",
+                  "~tail": "eply with exactly: RC_ARMED_READY\n✽Skedaddling…\n← for agents(B78"
+                },
+                "truncated": false,
+                "receivedChars": 999
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:3a096241-f29b-4045-9aae-44b670d95032:7e28c675-5536-45ce-97c1-93d10df07305:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3a096241-f29b-4045-9aae-44b670d95032:7e28c675-5536-45ce-97c1-93d10df07305:user",
+                  "taskId": "task-1783114329850-1",
+                  "sourceId": "claude:3a096241-f29b-4045-9aae-44b670d95032",
+                  "provider": "claude",
+                  "turnKey": "3e5005cb-decb-478d-88f4-70efe86e77f6",
+                  "runId": "run-1783114330871-1",
+                  "ts": "2026-07-03T21:32:11.008Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: RC_ARMED_READY",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:3a096241-f29b-4045-9aae-44b670d95032:7e28c675-5536-45ce-97c1-93d10df07305:user"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:3a096241-f29b-4045-9aae-44b670d95032",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 170,
+                  "~sha256": "7befd86cfc155241",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "y-2026-07-03-mr5g8eey/3a096241-f29b-4045-9aae-44b670d95032.jsonl"
+                },
+                "providerSessionId": "3a096241-f29b-4045-9aae-44b670d95032",
+                "locatedAt": "2026-07-03T21:32:11.131Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114329850-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114330707,
+              "context": null,
+              "limits": [],
+              "sessionName": null,
+              "costUsd": null,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": null,
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Claude is working",
+            "unread": true,
+            "completedUnseen": false
+          }
+        ]
+      }
+    }
+  }
+}

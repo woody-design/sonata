@@ -1,0 +1,508 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 240,
+      "directiveCounts": {
+        "none": 26,
+        "report-refresh": 21,
+        "session-index-debounced": 11,
+        "full": 54,
+        "sidebar": 8,
+        "transcript-debounced": 92,
+        "usage-in-place": 5,
+        "strip-in-place": 23
+      },
+      "state": {
+        "activeTaskId": "task-1783114222777-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114222777-1",
+              "title": "Create markdown and HTML artifact files",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114222777-1",
+              "providerSessionRef": "25ea14cf-6b14-47fe-80d8-2207aab37d11",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-gui-e2e-bpLxlD/2026-07-03-mr5g63sp",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-gui-e2e-bpLxlD/2026-07-03-mr5g63sp",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:22.776Z",
+              "updatedAt": "2026-07-03T21:30:32.374Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114223794-1",
+                "rawText": {
+                  "~len": 25753,
+                  "~sha256": "fa4c0b3d7dd3ac42",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": "34;1H\u001b[31;3H\u001b[?25h\u001b]0;⠂ Create markdown and HTML artifact files\u0007"
+                },
+                "text": {
+                  "~len": 6612,
+                  "~sha256": "ffee178faac0ff01",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly two fi",
+                  "~tail": " ready.\n10 </body>\n… +1 line\n⎿ Allowed by PermissionRequest hook"
+                },
+                "truncated": false,
+                "receivedChars": 25753
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:0cd84bba-4d16-4a11-a773-2bb658e94b4a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:0cd84bba-4d16-4a11-a773-2bb658e94b4a:text-0",
+                  "taskId": "task-1783114222777-1",
+                  "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                  "provider": "claude",
+                  "turnKey": "f0fc2608-29d9-4ec5-935c-71fc46615ebf",
+                  "runId": "run-1783114223794-1",
+                  "ts": "2026-07-03T21:30:25.605Z",
+                  "seq": 2,
+                  "markdown": "I'll create the two files as specified."
+                }
+              ],
+              [
+                "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:ab107134-fc55-48cf-b78b-9c999e9ffd7f:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:ab107134-fc55-48cf-b78b-9c999e9ffd7f:user",
+                  "taskId": "task-1783114222777-1",
+                  "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                  "provider": "claude",
+                  "turnKey": "f0fc2608-29d9-4ec5-935c-71fc46615ebf",
+                  "runId": "run-1783114223794-1",
+                  "ts": "2026-07-03T21:30:23.926Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 254,
+                    "~sha256": "3b030da44dcdcdcb",
+                    "~head": "Create exactly two files in this workspace:\n1. report.md with th",
+                    "~tail": "y contains 'HTML artifact ready.'\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01L8rWVYzuEGnEob4w9AEEo4",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01L8rWVYzuEGnEob4w9AEEo4",
+                  "taskId": "task-1783114222777-1",
+                  "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                  "provider": "claude",
+                  "turnKey": "f0fc2608-29d9-4ec5-935c-71fc46615ebf",
+                  "runId": "run-1783114223794-1",
+                  "ts": "2026-07-03T21:30:28.619Z",
+                  "seq": 3,
+                  "callId": "toolu_01L8rWVYzuEGnEob4w9AEEo4",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-gui-e2e-bpLxlD/2026-07-03-mr5g63sp/report.md",
+                  "inputPreview": {
+                    "~len": 189,
+                    "~sha256": "e3c37de8db2bcab6",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": ",\n  \"content\": \"# Duet GUI Gate\\n\\nMarkdown artifact ready.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 202,
+                    "~sha256": "fd09cb25b401d205",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 401
+                }
+              ],
+              [
+                "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01XrCzjfR5dWGSQXTY7CYius",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01XrCzjfR5dWGSQXTY7CYius",
+                  "taskId": "task-1783114222777-1",
+                  "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                  "provider": "claude",
+                  "turnKey": "f0fc2608-29d9-4ec5-935c-71fc46615ebf",
+                  "runId": "run-1783114223794-1",
+                  "ts": "2026-07-03T21:30:30.161Z",
+                  "seq": 4,
+                  "callId": "toolu_01XrCzjfR5dWGSQXTY7CYius",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-gui-e2e-bpLxlD/2026-07-03-mr5g63sp/page.html",
+                  "inputPreview": {
+                    "~len": 384,
+                    "~sha256": "b61e96212eef1133",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "\\n</head>\\n<body>\\n  HTML artifact ready.\\n</body>\\n</html>\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 202,
+                    "~sha256": "baec139e484f4ef0",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 395
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:ab107134-fc55-48cf-b78b-9c999e9ffd7f:user",
+              "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:0cd84bba-4d16-4a11-a773-2bb658e94b4a:text-0",
+              "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01L8rWVYzuEGnEob4w9AEEo4",
+              "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01XrCzjfR5dWGSQXTY7CYius"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 168,
+                  "~sha256": "af8410935fc0f489",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "D-2026-07-03-mr5g63sp/25ea14cf-6b14-47fe-80d8-2207aab37d11.jsonl"
+                },
+                "providerSessionId": "25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                "locatedAt": "2026-07-03T21:30:24.044Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114222777-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114230857,
+              "context": {
+                "usedTokens": 34560,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create markdown and HTML artifact files",
+              "costUsd": 0.15478650000000002,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:32.372Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 240,
+      "directiveCounts": {
+        "none": 54,
+        "report-refresh": 21,
+        "session-index-debounced": 11,
+        "unread-only": 57,
+        "sidebar": 8,
+        "transcript-debounced": 89
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114222777-1",
+              "title": "Create markdown and HTML artifact files",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114222777-1",
+              "providerSessionRef": "25ea14cf-6b14-47fe-80d8-2207aab37d11",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-gui-e2e-bpLxlD/2026-07-03-mr5g63sp",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-gui-e2e-bpLxlD/2026-07-03-mr5g63sp",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:22.776Z",
+              "updatedAt": "2026-07-03T21:30:32.374Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114223794-1",
+                "rawText": {
+                  "~len": 25753,
+                  "~sha256": "fa4c0b3d7dd3ac42",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": "34;1H\u001b[31;3H\u001b[?25h\u001b]0;⠂ Create markdown and HTML artifact files\u0007"
+                },
+                "text": {
+                  "~len": 6612,
+                  "~sha256": "ffee178faac0ff01",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly two fi",
+                  "~tail": " ready.\n10 </body>\n… +1 line\n⎿ Allowed by PermissionRequest hook"
+                },
+                "truncated": false,
+                "receivedChars": 25753
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:0cd84bba-4d16-4a11-a773-2bb658e94b4a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:0cd84bba-4d16-4a11-a773-2bb658e94b4a:text-0",
+                  "taskId": "task-1783114222777-1",
+                  "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                  "provider": "claude",
+                  "turnKey": "f0fc2608-29d9-4ec5-935c-71fc46615ebf",
+                  "runId": "run-1783114223794-1",
+                  "ts": "2026-07-03T21:30:25.605Z",
+                  "seq": 2,
+                  "markdown": "I'll create the two files as specified."
+                }
+              ],
+              [
+                "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:ab107134-fc55-48cf-b78b-9c999e9ffd7f:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:ab107134-fc55-48cf-b78b-9c999e9ffd7f:user",
+                  "taskId": "task-1783114222777-1",
+                  "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                  "provider": "claude",
+                  "turnKey": "f0fc2608-29d9-4ec5-935c-71fc46615ebf",
+                  "runId": "run-1783114223794-1",
+                  "ts": "2026-07-03T21:30:23.926Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 254,
+                    "~sha256": "3b030da44dcdcdcb",
+                    "~head": "Create exactly two files in this workspace:\n1. report.md with th",
+                    "~tail": "y contains 'HTML artifact ready.'\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01L8rWVYzuEGnEob4w9AEEo4",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01L8rWVYzuEGnEob4w9AEEo4",
+                  "taskId": "task-1783114222777-1",
+                  "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                  "provider": "claude",
+                  "turnKey": "f0fc2608-29d9-4ec5-935c-71fc46615ebf",
+                  "runId": "run-1783114223794-1",
+                  "ts": "2026-07-03T21:30:28.619Z",
+                  "seq": 3,
+                  "callId": "toolu_01L8rWVYzuEGnEob4w9AEEo4",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-gui-e2e-bpLxlD/2026-07-03-mr5g63sp/report.md",
+                  "inputPreview": {
+                    "~len": 189,
+                    "~sha256": "e3c37de8db2bcab6",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": ",\n  \"content\": \"# Duet GUI Gate\\n\\nMarkdown artifact ready.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 202,
+                    "~sha256": "fd09cb25b401d205",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 401
+                }
+              ],
+              [
+                "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01XrCzjfR5dWGSQXTY7CYius",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01XrCzjfR5dWGSQXTY7CYius",
+                  "taskId": "task-1783114222777-1",
+                  "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                  "provider": "claude",
+                  "turnKey": "f0fc2608-29d9-4ec5-935c-71fc46615ebf",
+                  "runId": "run-1783114223794-1",
+                  "ts": "2026-07-03T21:30:30.161Z",
+                  "seq": 4,
+                  "callId": "toolu_01XrCzjfR5dWGSQXTY7CYius",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-gui-e2e-bpLxlD/2026-07-03-mr5g63sp/page.html",
+                  "inputPreview": {
+                    "~len": 384,
+                    "~sha256": "b61e96212eef1133",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "\\n</head>\\n<body>\\n  HTML artifact ready.\\n</body>\\n</html>\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 202,
+                    "~sha256": "baec139e484f4ef0",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 395
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:ab107134-fc55-48cf-b78b-9c999e9ffd7f:user",
+              "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:0cd84bba-4d16-4a11-a773-2bb658e94b4a:text-0",
+              "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01L8rWVYzuEGnEob4w9AEEo4",
+              "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11:tool:toolu_01XrCzjfR5dWGSQXTY7CYius"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 168,
+                  "~sha256": "af8410935fc0f489",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "D-2026-07-03-mr5g63sp/25ea14cf-6b14-47fe-80d8-2207aab37d11.jsonl"
+                },
+                "providerSessionId": "25ea14cf-6b14-47fe-80d8-2207aab37d11",
+                "locatedAt": "2026-07-03T21:30:24.044Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114222777-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114230857,
+              "context": {
+                "usedTokens": 34560,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create markdown and HTML artifact files",
+              "costUsd": 0.15478650000000002,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:32.372Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

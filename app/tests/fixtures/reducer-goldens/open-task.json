@@ -1,0 +1,1112 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 261,
+      "directiveCounts": {
+        "none": 17,
+        "report-refresh": 12,
+        "session-index-debounced": 9,
+        "full": 37,
+        "usage-in-place": 4,
+        "sidebar": 4,
+        "transcript-debounced": 143,
+        "strip-in-place": 35
+      },
+      "state": {
+        "activeTaskId": "task-1783114245711-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114245711-1",
+              "title": "Create markdown file with open task content",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114245711-1",
+              "providerSessionRef": "3601c062-20d3-4c07-a864-86412147489c",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:45.711Z",
+              "updatedAt": "2026-07-03T21:30:59.026Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114246727-1",
+                "rawText": {
+                  "~len": 26520,
+                  "~sha256": "8bf9878931e5444d",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+4\u001b[22Glines]\r\u001b[2",
+                  "~tail": "3;153;153m✻\u001b[3GBrewed for 11s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 6666,
+                  "~sha256": "aa8447ff922276b4",
+                  "~head": "[Pastedtext#1+4lines]\npasteain to expand\n❯ Create a Markdown fil",
+                  "~tail": "g stop hook · 11s · ↓533 tokens)\n✽Elucidating…41\n✻Brewed for 11s"
+                },
+                "truncated": false,
+                "receivedChars": 26520
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:53.168Z",
+                  "seq": 2,
+                  "markdown": "I'll create that file in the working directory."
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:46.857Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 228,
+                    "~sha256": "b68697e2b94f69fb",
+                    "~head": "Create a Markdown file named open_original.md with exactly this ",
+                    "~tail": " codeword for later: OPENTASK-99.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:58.784Z",
+                  "seq": 4,
+                  "markdown": {
+                    "~len": 277,
+                    "~sha256": "abe8c68c04ad52e7",
+                    "~head": "Done. Created `open_original.md` with the exact content:\n\n```\n# ",
+                    "~tail": "odified. I've also noted the codeword **OPENTASK-99** for later."
+                  }
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:55.948Z",
+                  "seq": 3,
+                  "callId": "toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr/open_original.md",
+                  "inputPreview": {
+                    "~len": 285,
+                    "~sha256": "3e098b2b5c1578a4",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "ssion.\\nAlso remember this codeword for later: OPENTASK-99.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 215,
+                    "~sha256": "ad0727c2d98a809f",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 600
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 174,
+                  "~sha256": "86c84ad0d9e3d277",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "G-2026-07-03-mr5g6lhr/3601c062-20d3-4c07-a864-86412147489c.jsonl"
+                },
+                "providerSessionId": "3601c062-20d3-4c07-a864-86412147489c",
+                "locatedAt": "2026-07-03T21:30:46.977Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114245711-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114256848,
+              "context": {
+                "usedTokens": 35010,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create markdown file with open task content",
+              "costUsd": 0.1573535,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:58.487Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 261,
+      "directiveCounts": {
+        "none": 56,
+        "report-refresh": 12,
+        "session-index-debounced": 9,
+        "unread-only": 41,
+        "sidebar": 4,
+        "transcript-debounced": 139
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114245711-1",
+              "title": "Create markdown file with open task content",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114245711-1",
+              "providerSessionRef": "3601c062-20d3-4c07-a864-86412147489c",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:45.711Z",
+              "updatedAt": "2026-07-03T21:30:59.026Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114246727-1",
+                "rawText": {
+                  "~len": 26520,
+                  "~sha256": "8bf9878931e5444d",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+4\u001b[22Glines]\r\u001b[2",
+                  "~tail": "3;153;153m✻\u001b[3GBrewed for 11s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 6666,
+                  "~sha256": "aa8447ff922276b4",
+                  "~head": "[Pastedtext#1+4lines]\npasteain to expand\n❯ Create a Markdown fil",
+                  "~tail": "g stop hook · 11s · ↓533 tokens)\n✽Elucidating…41\n✻Brewed for 11s"
+                },
+                "truncated": false,
+                "receivedChars": 26520
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:53.168Z",
+                  "seq": 2,
+                  "markdown": "I'll create that file in the working directory."
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:46.857Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 228,
+                    "~sha256": "b68697e2b94f69fb",
+                    "~head": "Create a Markdown file named open_original.md with exactly this ",
+                    "~tail": " codeword for later: OPENTASK-99.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:58.784Z",
+                  "seq": 4,
+                  "markdown": {
+                    "~len": 277,
+                    "~sha256": "abe8c68c04ad52e7",
+                    "~head": "Done. Created `open_original.md` with the exact content:\n\n```\n# ",
+                    "~tail": "odified. I've also noted the codeword **OPENTASK-99** for later."
+                  }
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:55.948Z",
+                  "seq": 3,
+                  "callId": "toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr/open_original.md",
+                  "inputPreview": {
+                    "~len": 285,
+                    "~sha256": "3e098b2b5c1578a4",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "ssion.\\nAlso remember this codeword for later: OPENTASK-99.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 215,
+                    "~sha256": "ad0727c2d98a809f",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 600
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 174,
+                  "~sha256": "86c84ad0d9e3d277",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "G-2026-07-03-mr5g6lhr/3601c062-20d3-4c07-a864-86412147489c.jsonl"
+                },
+                "providerSessionId": "3601c062-20d3-4c07-a864-86412147489c",
+                "locatedAt": "2026-07-03T21:30:46.977Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114245711-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114256848,
+              "context": {
+                "usedTokens": 35010,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create markdown file with open task content",
+              "costUsd": 0.1573535,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:58.487Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  },
+  "02.jsonl": {
+    "active": {
+      "events": 182,
+      "directiveCounts": {
+        "none": 16,
+        "report-refresh": 14,
+        "usage-in-place": 4,
+        "session-index-debounced": 5,
+        "full": 36,
+        "transcript-debounced": 82,
+        "sidebar": 6,
+        "strip-in-place": 19
+      },
+      "state": {
+        "activeTaskId": "task-1783114245711-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114245711-1",
+              "title": "Create markdown file with open task content",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114245711-1",
+              "providerSessionRef": "3601c062-20d3-4c07-a864-86412147489c",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:45.711Z",
+              "updatedAt": "2026-07-03T21:31:08.263Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114261721-1",
+                "rawText": {
+                  "~len": 22390,
+                  "~sha256": "1d2ad131fa6cd492",
+                  "~head": "\u001b[?25l\u001b[H\u001b[K\r\u001b[1B \u001b[38;2;255;193;7m⚠\u001b[39m \u001b[38;2;255;193;7m1 MCP",
+                  "~tail": "153;153;153m✻\u001b[3GBaked for 6s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 7254,
+                  "~sha256": "e1752c80410b2bed",
+                  "~head": "⚠ 1 MCP server needs authentication · run /mcp\n❯ Create a Markdo",
+                  "~tail": "↓179 tokens) 1 # Open Task Original\nProcessing…692\n✻Baked for 6s"
+                },
+                "truncated": false,
+                "receivedChars": 22390
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:06a765eb-c42d-4af9-a48b-f002cb32ed2c:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:06a765eb-c42d-4af9-a48b-f002cb32ed2c:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "0b0a0ce6-3709-4382-b1eb-47258c3bc466",
+                  "runId": "run-1783114261721-1",
+                  "ts": "2026-07-03T21:31:07.955Z",
+                  "seq": 8,
+                  "markdown": "Done. The codeword is **OPENTASK-99**, and I've created `open_followup.md` containing exactly that codeword. No other files were modified."
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:53.168Z",
+                  "seq": 2,
+                  "markdown": "I'll create that file in the working directory."
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:46.857Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 228,
+                    "~sha256": "b68697e2b94f69fb",
+                    "~head": "Create a Markdown file named open_original.md with exactly this ",
+                    "~tail": " codeword for later: OPENTASK-99.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:58.784Z",
+                  "seq": 4,
+                  "markdown": {
+                    "~len": 277,
+                    "~sha256": "abe8c68c04ad52e7",
+                    "~head": "Done. Created `open_original.md` with the exact content:\n\n```\n# ",
+                    "~tail": "odified. I've also noted the codeword **OPENTASK-99** for later."
+                  }
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:b9256689-f671-4704-bbbb-1bf93bdc7d0f:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:b9256689-f671-4704-bbbb-1bf93bdc7d0f:user",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "0b0a0ce6-3709-4382-b1eb-47258c3bc466",
+                  "runId": "run-1783114261721-1",
+                  "ts": "2026-07-03T21:31:01.851Z",
+                  "seq": 5,
+                  "text": {
+                    "~len": 164,
+                    "~sha256": "1f5cb04364436824",
+                    "~head": "Reply with the codeword I asked you to remember, then create a M",
+                    "~tail": "containing exactly that codeword.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:d7424953-29c8-4260-a9a3-5f8393e01c9a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:d7424953-29c8-4260-a9a3-5f8393e01c9a:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "0b0a0ce6-3709-4382-b1eb-47258c3bc466",
+                  "runId": "run-1783114261721-1",
+                  "ts": "2026-07-03T21:31:05.114Z",
+                  "seq": 6,
+                  "markdown": "The codeword is **OPENTASK-99**."
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:55.948Z",
+                  "seq": 3,
+                  "callId": "toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr/open_original.md",
+                  "inputPreview": {
+                    "~len": 285,
+                    "~sha256": "3e098b2b5c1578a4",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "ssion.\\nAlso remember this codeword for later: OPENTASK-99.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 215,
+                    "~sha256": "ad0727c2d98a809f",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 600
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01L6LReJZmLqUxLyzzeTAoy6",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01L6LReJZmLqUxLyzzeTAoy6",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "0b0a0ce6-3709-4382-b1eb-47258c3bc466",
+                  "runId": "run-1783114261721-1",
+                  "ts": "2026-07-03T21:31:06.140Z",
+                  "seq": 7,
+                  "callId": "toolu_01L6LReJZmLqUxLyzzeTAoy6",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr/open_followup.md",
+                  "inputPreview": {
+                    "~len": 170,
+                    "~sha256": "95461e4884f02611",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "07-03-mr5g6lhr/open_followup.md\",\n  \"content\": \"OPENTASK-99\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 215,
+                    "~sha256": "135613a278835054",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 222
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:b9256689-f671-4704-bbbb-1bf93bdc7d0f:user",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:d7424953-29c8-4260-a9a3-5f8393e01c9a:text-0",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01L6LReJZmLqUxLyzzeTAoy6",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:06a765eb-c42d-4af9-a48b-f002cb32ed2c:text-0"
+            ],
+            "transcriptSources": [],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114245711-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114266668,
+              "context": {
+                "usedTokens": 35713,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create markdown file with open task content",
+              "costUsd": 0.2563085,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:31:08.263Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 182,
+      "directiveCounts": {
+        "none": 39,
+        "report-refresh": 14,
+        "session-index-debounced": 5,
+        "unread-only": 41,
+        "sidebar": 6,
+        "transcript-debounced": 77
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114245711-1",
+              "title": "Create markdown file with open task content",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114245711-1",
+              "providerSessionRef": "3601c062-20d3-4c07-a864-86412147489c",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:45.711Z",
+              "updatedAt": "2026-07-03T21:31:08.263Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114261721-1",
+                "rawText": {
+                  "~len": 22390,
+                  "~sha256": "1d2ad131fa6cd492",
+                  "~head": "\u001b[?25l\u001b[H\u001b[K\r\u001b[1B \u001b[38;2;255;193;7m⚠\u001b[39m \u001b[38;2;255;193;7m1 MCP",
+                  "~tail": "153;153;153m✻\u001b[3GBaked for 6s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 7254,
+                  "~sha256": "e1752c80410b2bed",
+                  "~head": "⚠ 1 MCP server needs authentication · run /mcp\n❯ Create a Markdo",
+                  "~tail": "↓179 tokens) 1 # Open Task Original\nProcessing…692\n✻Baked for 6s"
+                },
+                "truncated": false,
+                "receivedChars": 22390
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:06a765eb-c42d-4af9-a48b-f002cb32ed2c:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:06a765eb-c42d-4af9-a48b-f002cb32ed2c:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "0b0a0ce6-3709-4382-b1eb-47258c3bc466",
+                  "runId": "run-1783114261721-1",
+                  "ts": "2026-07-03T21:31:07.955Z",
+                  "seq": 8,
+                  "markdown": "Done. The codeword is **OPENTASK-99**, and I've created `open_followup.md` containing exactly that codeword. No other files were modified."
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:53.168Z",
+                  "seq": 2,
+                  "markdown": "I'll create that file in the working directory."
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:46.857Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 228,
+                    "~sha256": "b68697e2b94f69fb",
+                    "~head": "Create a Markdown file named open_original.md with exactly this ",
+                    "~tail": " codeword for later: OPENTASK-99.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:58.784Z",
+                  "seq": 4,
+                  "markdown": {
+                    "~len": 277,
+                    "~sha256": "abe8c68c04ad52e7",
+                    "~head": "Done. Created `open_original.md` with the exact content:\n\n```\n# ",
+                    "~tail": "odified. I've also noted the codeword **OPENTASK-99** for later."
+                  }
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:b9256689-f671-4704-bbbb-1bf93bdc7d0f:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:b9256689-f671-4704-bbbb-1bf93bdc7d0f:user",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "0b0a0ce6-3709-4382-b1eb-47258c3bc466",
+                  "runId": "run-1783114261721-1",
+                  "ts": "2026-07-03T21:31:01.851Z",
+                  "seq": 5,
+                  "text": {
+                    "~len": 164,
+                    "~sha256": "1f5cb04364436824",
+                    "~head": "Reply with the codeword I asked you to remember, then create a M",
+                    "~tail": "containing exactly that codeword.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:d7424953-29c8-4260-a9a3-5f8393e01c9a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:d7424953-29c8-4260-a9a3-5f8393e01c9a:text-0",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "0b0a0ce6-3709-4382-b1eb-47258c3bc466",
+                  "runId": "run-1783114261721-1",
+                  "ts": "2026-07-03T21:31:05.114Z",
+                  "seq": 6,
+                  "markdown": "The codeword is **OPENTASK-99**."
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "d28f27d7-e99f-4d22-b631-8d509593042c",
+                  "runId": "run-1783114246727-1",
+                  "ts": "2026-07-03T21:30:55.948Z",
+                  "seq": 3,
+                  "callId": "toolu_01BBdP3guup1wKFfDsC2vnzJ",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr/open_original.md",
+                  "inputPreview": {
+                    "~len": 285,
+                    "~sha256": "3e098b2b5c1578a4",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "ssion.\\nAlso remember this codeword for later: OPENTASK-99.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 215,
+                    "~sha256": "ad0727c2d98a809f",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 600
+                }
+              ],
+              [
+                "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01L6LReJZmLqUxLyzzeTAoy6",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01L6LReJZmLqUxLyzzeTAoy6",
+                  "taskId": "task-1783114245711-1",
+                  "sourceId": "claude:3601c062-20d3-4c07-a864-86412147489c",
+                  "provider": "claude",
+                  "turnKey": "0b0a0ce6-3709-4382-b1eb-47258c3bc466",
+                  "runId": "run-1783114261721-1",
+                  "ts": "2026-07-03T21:31:06.140Z",
+                  "seq": 7,
+                  "callId": "toolu_01L6LReJZmLqUxLyzzeTAoy6",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-open-task-e2e-Z3mh7G/2026-07-03-mr5g6lhr/open_followup.md",
+                  "inputPreview": {
+                    "~len": 170,
+                    "~sha256": "95461e4884f02611",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "07-03-mr5g6lhr/open_followup.md\",\n  \"content\": \"OPENTASK-99\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 215,
+                    "~sha256": "135613a278835054",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 222
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:3601c062-20d3-4c07-a864-86412147489c:9bf6343f-cd4d-4153-a28a-6cf90baa949b:user",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:1c0af774-f391-4796-8813-3d4969c1ea66:text-0",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01BBdP3guup1wKFfDsC2vnzJ",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:b899c9ab-cedf-48b4-8abf-6cb02b1d4ee8:text-0",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:b9256689-f671-4704-bbbb-1bf93bdc7d0f:user",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:d7424953-29c8-4260-a9a3-5f8393e01c9a:text-0",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:tool:toolu_01L6LReJZmLqUxLyzzeTAoy6",
+              "claude:3601c062-20d3-4c07-a864-86412147489c:06a765eb-c42d-4af9-a48b-f002cb32ed2c:text-0"
+            ],
+            "transcriptSources": [],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114245711-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114266668,
+              "context": {
+                "usedTokens": 35713,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create markdown file with open task content",
+              "costUsd": 0.2563085,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:31:08.263Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

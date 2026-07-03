@@ -1,0 +1,518 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 282,
+      "directiveCounts": {
+        "none": 19,
+        "report-refresh": 18,
+        "session-index-debounced": 11,
+        "full": 49,
+        "sidebar": 6,
+        "transcript-debounced": 137,
+        "usage-in-place": 5,
+        "strip-in-place": 37
+      },
+      "state": {
+        "activeTaskId": "task-1783114126985-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114126985-1",
+              "title": "Create change summary files",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114126985-1",
+              "providerSessionRef": "b17ff570-b781-4d52-9582-a14b8e495c2f",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-change-summary-e2e-GYR6M6/2026-07-03-mr5g41vt",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-change-summary-e2e-GYR6M6/2026-07-03-mr5g41vt",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:28:46.985Z",
+              "updatedAt": "2026-07-03T21:29:00.797Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114127502-1",
+                "rawText": {
+                  "~len": 24913,
+                  "~sha256": "a23925a6f3815bf9",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted text #1 +3 lines]\u001b[K\r\u001b[2C\u001b[3B\u001b[38;2;1",
+                  "~tail": "3;153;153m✻\u001b[3GBrewed for 10s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 5935,
+                  "~sha256": "ccf33e321702cccb",
+                  "~head": "[Pasted text #1 +3 lines]\npasteain to expand\n❯ Create exactly tw",
+                  "~tail": "Imagining…running stop hook · 10s · ↓355 tokens)\n✻Brewed for 10s"
+                },
+                "truncated": false,
+                "receivedChars": 24913
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:846c9bb1-8fc4-4d5f-8b8d-312cce617151:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:846c9bb1-8fc4-4d5f-8b8d-312cce617151:text-0",
+                  "taskId": "task-1783114126985-1",
+                  "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                  "provider": "claude",
+                  "turnKey": "dceb0b1d-d326-4d20-8403-b59f2054ac79",
+                  "runId": "run-1783114127502-1",
+                  "ts": "2026-07-03T21:29:00.474Z",
+                  "seq": 4,
+                  "markdown": {
+                    "~len": 164,
+                    "~sha256": "7e530c38b26ce380",
+                    "~head": "Both files created:\n\n- `change_summary.md` → `Change summary art",
+                    "~tail": " `Change summary snapshot ready.`\n\nNo other files were modified."
+                  }
+                }
+              ],
+              [
+                "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:8ad68d1d-7ba5-413e-a02f-eb2253937200:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:8ad68d1d-7ba5-413e-a02f-eb2253937200:user",
+                  "taskId": "task-1783114126985-1",
+                  "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                  "provider": "claude",
+                  "turnKey": "dceb0b1d-d326-4d20-8403-b59f2054ac79",
+                  "runId": "run-1783114127502-1",
+                  "ts": "2026-07-03T21:28:47.629Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 222,
+                    "~sha256": "c3ca0f90e496696b",
+                    "~head": "Create exactly two files.\nFirst, create change_summary.md contai",
+                    "~tail": "y: Change summary snapshot ready.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01UG3jYo3ZKn7LtgrxMGd5yF",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01UG3jYo3ZKn7LtgrxMGd5yF",
+                  "taskId": "task-1783114126985-1",
+                  "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                  "provider": "claude",
+                  "turnKey": "dceb0b1d-d326-4d20-8403-b59f2054ac79",
+                  "runId": "run-1783114127502-1",
+                  "ts": "2026-07-03T21:28:54.636Z",
+                  "seq": 2,
+                  "callId": "toolu_01UG3jYo3ZKn7LtgrxMGd5yF",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-change-summary-e2e-GYR6M6/2026-07-03-mr5g41vt/change_summary.md",
+                  "inputPreview": {
+                    "~len": 193,
+                    "~sha256": "5b52f067b1ef6ae4",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "nge_summary.md\",\n  \"content\": \"Change summary artifact ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 221,
+                    "~sha256": "d54c8974ebe50ebc",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 1220
+                }
+              ],
+              [
+                "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01YLqGHxGJcrRVeP6Qbqs9sp",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01YLqGHxGJcrRVeP6Qbqs9sp",
+                  "taskId": "task-1783114126985-1",
+                  "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                  "provider": "claude",
+                  "turnKey": "dceb0b1d-d326-4d20-8403-b59f2054ac79",
+                  "runId": "run-1783114127502-1",
+                  "ts": "2026-07-03T21:28:55.842Z",
+                  "seq": 3,
+                  "callId": "toolu_01YLqGHxGJcrRVeP6Qbqs9sp",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-change-summary-e2e-GYR6M6/2026-07-03-mr5g41vt/change_notes.txt",
+                  "inputPreview": {
+                    "~len": 192,
+                    "~sha256": "60e1dbcc538d378d",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "ange_notes.txt\",\n  \"content\": \"Change summary snapshot ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 220,
+                    "~sha256": "17eea83507aa46c5",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 1005
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:8ad68d1d-7ba5-413e-a02f-eb2253937200:user",
+              "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01UG3jYo3ZKn7LtgrxMGd5yF",
+              "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01YLqGHxGJcrRVeP6Qbqs9sp",
+              "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:846c9bb1-8fc4-4d5f-8b8d-312cce617151:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 179,
+                  "~sha256": "e17672fc9128b2b4",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "6-2026-07-03-mr5g41vt/b17ff570-b781-4d52-9582-a14b8e495c2f.jsonl"
+                },
+                "providerSessionId": "b17ff570-b781-4d52-9582-a14b8e495c2f",
+                "locatedAt": "2026-07-03T21:28:47.749Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114126985-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114141307,
+              "context": {
+                "usedTokens": 35048,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 80,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create change summary files",
+              "costUsd": 0.22352700000000003,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:00.796Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 282,
+      "directiveCounts": {
+        "none": 61,
+        "report-refresh": 18,
+        "session-index-debounced": 11,
+        "unread-only": 53,
+        "sidebar": 6,
+        "transcript-debounced": 133
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114126985-1",
+              "title": "Create change summary files",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114126985-1",
+              "providerSessionRef": "b17ff570-b781-4d52-9582-a14b8e495c2f",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-change-summary-e2e-GYR6M6/2026-07-03-mr5g41vt",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-change-summary-e2e-GYR6M6/2026-07-03-mr5g41vt",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:28:46.985Z",
+              "updatedAt": "2026-07-03T21:29:00.797Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114127502-1",
+                "rawText": {
+                  "~len": 24913,
+                  "~sha256": "a23925a6f3815bf9",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted text #1 +3 lines]\u001b[K\r\u001b[2C\u001b[3B\u001b[38;2;1",
+                  "~tail": "3;153;153m✻\u001b[3GBrewed for 10s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 5935,
+                  "~sha256": "ccf33e321702cccb",
+                  "~head": "[Pasted text #1 +3 lines]\npasteain to expand\n❯ Create exactly tw",
+                  "~tail": "Imagining…running stop hook · 10s · ↓355 tokens)\n✻Brewed for 10s"
+                },
+                "truncated": false,
+                "receivedChars": 24913
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:846c9bb1-8fc4-4d5f-8b8d-312cce617151:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:846c9bb1-8fc4-4d5f-8b8d-312cce617151:text-0",
+                  "taskId": "task-1783114126985-1",
+                  "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                  "provider": "claude",
+                  "turnKey": "dceb0b1d-d326-4d20-8403-b59f2054ac79",
+                  "runId": "run-1783114127502-1",
+                  "ts": "2026-07-03T21:29:00.474Z",
+                  "seq": 4,
+                  "markdown": {
+                    "~len": 164,
+                    "~sha256": "7e530c38b26ce380",
+                    "~head": "Both files created:\n\n- `change_summary.md` → `Change summary art",
+                    "~tail": " `Change summary snapshot ready.`\n\nNo other files were modified."
+                  }
+                }
+              ],
+              [
+                "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:8ad68d1d-7ba5-413e-a02f-eb2253937200:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:8ad68d1d-7ba5-413e-a02f-eb2253937200:user",
+                  "taskId": "task-1783114126985-1",
+                  "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                  "provider": "claude",
+                  "turnKey": "dceb0b1d-d326-4d20-8403-b59f2054ac79",
+                  "runId": "run-1783114127502-1",
+                  "ts": "2026-07-03T21:28:47.629Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 222,
+                    "~sha256": "c3ca0f90e496696b",
+                    "~head": "Create exactly two files.\nFirst, create change_summary.md contai",
+                    "~tail": "y: Change summary snapshot ready.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01UG3jYo3ZKn7LtgrxMGd5yF",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01UG3jYo3ZKn7LtgrxMGd5yF",
+                  "taskId": "task-1783114126985-1",
+                  "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                  "provider": "claude",
+                  "turnKey": "dceb0b1d-d326-4d20-8403-b59f2054ac79",
+                  "runId": "run-1783114127502-1",
+                  "ts": "2026-07-03T21:28:54.636Z",
+                  "seq": 2,
+                  "callId": "toolu_01UG3jYo3ZKn7LtgrxMGd5yF",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-change-summary-e2e-GYR6M6/2026-07-03-mr5g41vt/change_summary.md",
+                  "inputPreview": {
+                    "~len": 193,
+                    "~sha256": "5b52f067b1ef6ae4",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "nge_summary.md\",\n  \"content\": \"Change summary artifact ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 221,
+                    "~sha256": "d54c8974ebe50ebc",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 1220
+                }
+              ],
+              [
+                "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01YLqGHxGJcrRVeP6Qbqs9sp",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01YLqGHxGJcrRVeP6Qbqs9sp",
+                  "taskId": "task-1783114126985-1",
+                  "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                  "provider": "claude",
+                  "turnKey": "dceb0b1d-d326-4d20-8403-b59f2054ac79",
+                  "runId": "run-1783114127502-1",
+                  "ts": "2026-07-03T21:28:55.842Z",
+                  "seq": 3,
+                  "callId": "toolu_01YLqGHxGJcrRVeP6Qbqs9sp",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-change-summary-e2e-GYR6M6/2026-07-03-mr5g41vt/change_notes.txt",
+                  "inputPreview": {
+                    "~len": 192,
+                    "~sha256": "60e1dbcc538d378d",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "ange_notes.txt\",\n  \"content\": \"Change summary snapshot ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 220,
+                    "~sha256": "17eea83507aa46c5",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 1005
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:8ad68d1d-7ba5-413e-a02f-eb2253937200:user",
+              "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01UG3jYo3ZKn7LtgrxMGd5yF",
+              "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:tool:toolu_01YLqGHxGJcrRVeP6Qbqs9sp",
+              "claude:b17ff570-b781-4d52-9582-a14b8e495c2f:846c9bb1-8fc4-4d5f-8b8d-312cce617151:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:b17ff570-b781-4d52-9582-a14b8e495c2f",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 179,
+                  "~sha256": "e17672fc9128b2b4",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "6-2026-07-03-mr5g41vt/b17ff570-b781-4d52-9582-a14b8e495c2f.jsonl"
+                },
+                "providerSessionId": "b17ff570-b781-4d52-9582-a14b8e495c2f",
+                "locatedAt": "2026-07-03T21:28:47.749Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114126985-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114141307,
+              "context": {
+                "usedTokens": 35048,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 80,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create change summary files",
+              "costUsd": 0.22352700000000003,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:00.796Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,522 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 145,
+      "directiveCounts": {
+        "none": 13,
+        "report-refresh": 6,
+        "session-index-debounced": 6,
+        "full": 23,
+        "sidebar": 3,
+        "transcript-debounced": 76,
+        "strip-in-place": 15,
+        "usage-in-place": 3
+      },
+      "state": {
+        "activeTaskId": "task-1783114277111-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114277111-1",
+              "title": "UI test harness with multiple choice questions",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114277111-1",
+              "providerSessionRef": "691a8014-c65c-4e9e-80bd-76df6b783d97",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-optionprompt-e2e-aYrTfe/2026-07-03-mr5g79pz",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-optionprompt-e2e-aYrTfe/2026-07-03-mr5g79pz",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:31:17.111Z",
+              "updatedAt": "2026-07-03T21:31:18.131Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": {
+              "taskId": "task-1783114277111-1",
+              "runId": "run-1783114278129-1",
+              "kind": "unknown",
+              "source": "hook-broker",
+              "answerVia": "reply",
+              "approvalId": "mr5g7e5u-4hmyefx6t1-60968",
+              "summary": "AskUserQuestion",
+              "choices": [
+                {
+                  "decision": "approve",
+                  "label": "Approve",
+                  "description": "Allow once",
+                  "encodedAs": "reply-file"
+                },
+                {
+                  "decision": "approve-always",
+                  "label": "Always",
+                  "description": "Always allow",
+                  "encodedAs": "reply-file"
+                },
+                {
+                  "decision": "deny",
+                  "label": "Deny",
+                  "description": "Reject this request",
+                  "encodedAs": "reply-file"
+                }
+              ]
+            },
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [
+              -1,
+              -1,
+              -1
+            ],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": {
+              "toolUseId": "toolu_012fQnqFiF73dXc7GEi2gG53",
+              "reconciled": true,
+              "lines": [
+                {
+                  "header": "Fruit",
+                  "question": "Which fruit?",
+                  "labels": [
+                    "Apple"
+                  ]
+                },
+                {
+                  "header": "Number",
+                  "question": "Which number?",
+                  "labels": [
+                    "One"
+                  ]
+                },
+                {
+                  "header": "Animal",
+                  "question": "Which animal?",
+                  "labels": [
+                    "Bee"
+                  ]
+                }
+              ]
+            },
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114278129-1",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114278129-1",
+                "rawText": {
+                  "~len": 21987,
+                  "~sha256": "f680224bca922e80",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[22B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": {
+                  "~len": 8020,
+                  "~sha256": "fd99abb9ce86e81d",
+                  "~head": "◉ xhigh · /effort\n❯ YouareinsideaUItestharness.DoEXACTLYonething",
+                  "~tail": "──────────────────────╮\n✽Hatching…76\nHatching…301\nHatching…2(B78"
+                },
+                "truncated": false,
+                "receivedChars": 21987
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:cd84887b-a26a-4c92-a695-5b28b215f514:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:cd84887b-a26a-4c92-a695-5b28b215f514:user",
+                  "taskId": "task-1783114277111-1",
+                  "sourceId": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97",
+                  "provider": "claude",
+                  "turnKey": "77bb6bd0-45e4-452a-8c22-416483de4b31",
+                  "runId": "run-1783114278129-1",
+                  "ts": "2026-07-03T21:31:18.258Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 703,
+                    "~sha256": "d4eb10a8b32f92ea",
+                    "~head": "You are inside a UI test harness. Do EXACTLY one thing and nothi",
+                    "~tail": "scription 'a flying insect'; label 'Cat' description 'a mammal'."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:tool:toolu_012fQnqFiF73dXc7GEi2gG53",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:tool:toolu_012fQnqFiF73dXc7GEi2gG53",
+                  "taskId": "task-1783114277111-1",
+                  "sourceId": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97",
+                  "provider": "claude",
+                  "turnKey": "77bb6bd0-45e4-452a-8c22-416483de4b31",
+                  "runId": "run-1783114278129-1",
+                  "ts": "2026-07-03T21:31:22.747Z",
+                  "seq": 2,
+                  "callId": "toolu_012fQnqFiF73dXc7GEi2gG53",
+                  "toolName": "AskUserQuestion",
+                  "summary": "",
+                  "inputPreview": {
+                    "~len": 1105,
+                    "~sha256": "afd4399f035df5e0",
+                    "~head": "{\n  \"questions\": [\n    {\n      \"question\": \"Which fruit?\",\n     ",
+                    "~tail": "         \"description\": \"a mammal\"\n        }\n      ]\n    }\n  ]\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": "Your questions have been answered: \"Which fruit?\"=\"Apple\", \"Which number?\"=\"One\", \"Which animal?\"=\"Bee\". You can now continue with these answers in mind.",
+                  "resultTruncated": false,
+                  "durationMs": 1434
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:cd84887b-a26a-4c92-a695-5b28b215f514:user",
+              "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:tool:toolu_012fQnqFiF73dXc7GEi2gG53"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 177,
+                  "~sha256": "84ecf681d2a1195c",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "e-2026-07-03-mr5g79pz/691a8014-c65c-4e9e-80bd-76df6b783d97.jsonl"
+                },
+                "providerSessionId": "691a8014-c65c-4e9e-80bd-76df6b783d97",
+                "locatedAt": "2026-07-03T21:31:18.383Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114277111-1",
+              "provider": "claude",
+              "deliverable": false,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114284191,
+              "context": {
+                "usedTokens": 34660,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "UI test harness with multiple choice questions",
+              "costUsd": 0.1546555,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": {
+                "line": "✽ Hatching… (4s · ↓ 301 tokens)",
+                "subLines": [],
+                "troubleLines": []
+              },
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:31:24.425Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Answered",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 145,
+      "directiveCounts": {
+        "none": 31,
+        "report-refresh": 6,
+        "session-index-debounced": 6,
+        "unread-only": 25,
+        "sidebar": 3,
+        "transcript-debounced": 74
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114277111-1",
+              "title": "UI test harness with multiple choice questions",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114277111-1",
+              "providerSessionRef": "691a8014-c65c-4e9e-80bd-76df6b783d97",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-optionprompt-e2e-aYrTfe/2026-07-03-mr5g79pz",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-optionprompt-e2e-aYrTfe/2026-07-03-mr5g79pz",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:31:17.111Z",
+              "updatedAt": "2026-07-03T21:31:18.131Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": {
+              "taskId": "task-1783114277111-1",
+              "runId": "run-1783114278129-1",
+              "kind": "unknown",
+              "source": "hook-broker",
+              "answerVia": "reply",
+              "approvalId": "mr5g7e5u-4hmyefx6t1-60968",
+              "summary": "AskUserQuestion",
+              "choices": [
+                {
+                  "decision": "approve",
+                  "label": "Approve",
+                  "description": "Allow once",
+                  "encodedAs": "reply-file"
+                },
+                {
+                  "decision": "approve-always",
+                  "label": "Always",
+                  "description": "Always allow",
+                  "encodedAs": "reply-file"
+                },
+                {
+                  "decision": "deny",
+                  "label": "Deny",
+                  "description": "Reject this request",
+                  "encodedAs": "reply-file"
+                }
+              ]
+            },
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [
+              -1,
+              -1,
+              -1
+            ],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": {
+              "toolUseId": "toolu_012fQnqFiF73dXc7GEi2gG53",
+              "reconciled": true,
+              "lines": [
+                {
+                  "header": "Fruit",
+                  "question": "Which fruit?",
+                  "labels": [
+                    "Apple"
+                  ]
+                },
+                {
+                  "header": "Number",
+                  "question": "Which number?",
+                  "labels": [
+                    "One"
+                  ]
+                },
+                {
+                  "header": "Animal",
+                  "question": "Which animal?",
+                  "labels": [
+                    "Bee"
+                  ]
+                }
+              ]
+            },
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114278129-1",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114278129-1",
+                "rawText": {
+                  "~len": 21987,
+                  "~sha256": "f680224bca922e80",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[22B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": {
+                  "~len": 8020,
+                  "~sha256": "fd99abb9ce86e81d",
+                  "~head": "◉ xhigh · /effort\n❯ YouareinsideaUItestharness.DoEXACTLYonething",
+                  "~tail": "──────────────────────╮\n✽Hatching…76\nHatching…301\nHatching…2(B78"
+                },
+                "truncated": false,
+                "receivedChars": 21987
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:cd84887b-a26a-4c92-a695-5b28b215f514:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:cd84887b-a26a-4c92-a695-5b28b215f514:user",
+                  "taskId": "task-1783114277111-1",
+                  "sourceId": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97",
+                  "provider": "claude",
+                  "turnKey": "77bb6bd0-45e4-452a-8c22-416483de4b31",
+                  "runId": "run-1783114278129-1",
+                  "ts": "2026-07-03T21:31:18.258Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 703,
+                    "~sha256": "d4eb10a8b32f92ea",
+                    "~head": "You are inside a UI test harness. Do EXACTLY one thing and nothi",
+                    "~tail": "scription 'a flying insect'; label 'Cat' description 'a mammal'."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:tool:toolu_012fQnqFiF73dXc7GEi2gG53",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:tool:toolu_012fQnqFiF73dXc7GEi2gG53",
+                  "taskId": "task-1783114277111-1",
+                  "sourceId": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97",
+                  "provider": "claude",
+                  "turnKey": "77bb6bd0-45e4-452a-8c22-416483de4b31",
+                  "runId": "run-1783114278129-1",
+                  "ts": "2026-07-03T21:31:22.747Z",
+                  "seq": 2,
+                  "callId": "toolu_012fQnqFiF73dXc7GEi2gG53",
+                  "toolName": "AskUserQuestion",
+                  "summary": "",
+                  "inputPreview": {
+                    "~len": 1105,
+                    "~sha256": "afd4399f035df5e0",
+                    "~head": "{\n  \"questions\": [\n    {\n      \"question\": \"Which fruit?\",\n     ",
+                    "~tail": "         \"description\": \"a mammal\"\n        }\n      ]\n    }\n  ]\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": "Your questions have been answered: \"Which fruit?\"=\"Apple\", \"Which number?\"=\"One\", \"Which animal?\"=\"Bee\". You can now continue with these answers in mind.",
+                  "resultTruncated": false,
+                  "durationMs": 1434
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:cd84887b-a26a-4c92-a695-5b28b215f514:user",
+              "claude:691a8014-c65c-4e9e-80bd-76df6b783d97:tool:toolu_012fQnqFiF73dXc7GEi2gG53"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:691a8014-c65c-4e9e-80bd-76df6b783d97",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 177,
+                  "~sha256": "84ecf681d2a1195c",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "e-2026-07-03-mr5g79pz/691a8014-c65c-4e9e-80bd-76df6b783d97.jsonl"
+                },
+                "providerSessionId": "691a8014-c65c-4e9e-80bd-76df6b783d97",
+                "locatedAt": "2026-07-03T21:31:18.383Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114277111-1",
+              "provider": "claude",
+              "deliverable": false,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114284191,
+              "context": {
+                "usedTokens": 34660,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "UI test harness with multiple choice questions",
+              "costUsd": 0.1546555,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": {
+                "line": "✽ Hatching… (4s · ↓ 301 tokens)",
+                "subLines": [],
+                "troubleLines": []
+              },
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:31:24.425Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Answered",
+            "unread": true,
+            "completedUnseen": false
+          }
+        ]
+      }
+    }
+  }
+}

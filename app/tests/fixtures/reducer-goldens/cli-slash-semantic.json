@@ -1,0 +1,480 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 171,
+      "directiveCounts": {
+        "none": 25,
+        "report-refresh": 16,
+        "session-index-debounced": 12,
+        "full": 56,
+        "usage-in-place": 4,
+        "sidebar": 7,
+        "transcript-debounced": 40,
+        "strip-in-place": 11
+      },
+      "state": {
+        "activeTaskId": "task-1783114145642-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114145642-1",
+              "title": "Respond with ready message",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114145642-1",
+              "providerSessionRef": "3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-slash-e2e-B0Zuaq/2026-07-03-mr5g4ga2",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-slash-e2e-B0Zuaq/2026-07-03-mr5g4ga2",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:29:05.642Z",
+              "updatedAt": "2026-07-03T21:29:20.151Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114160150-4",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114146658-1",
+                "rawText": {
+                  "~len": 2064,
+                  "~sha256": "290f3f33d1b6da7f",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GREADY\r\u001b[2C\u001b[3B",
+                  "~tail": "53m✻\u001b[3GCogitated for 2s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 167,
+                  "~sha256": "343346a4c32e0db0",
+                  "~head": "Replywithexactly:READY\n❯ Reply with exactly: READY\n✽Choreographi",
+                  "~tail": "s)\n⏺READY\nustrunning sp hook · 2s · ↓1 tokens)\n✻Cogitated for 2s"
+                },
+                "truncated": false,
+                "receivedChars": 2064
+              },
+              {
+                "runId": "run-1783114149683-2",
+                "rawText": {
+                  "~len": 3099,
+                  "~sha256": "f63d4e5484a0bc17",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/config\r\u001b[2C\u001b[3B\u001b[39m\u001b[K\u001b[",
+                  "~tail": "r/↓ to select · ↑ to tabs · Esc to clear\u001b[39m\u001b[34;1H\u001b[7;8H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 1007,
+                  "~sha256": "7740eefc96c693dd",
+                  "~head": "/config\n/config Open settings\n/update-config Use this skill to c",
+                  "~tail": "ow\nType to filter · Enter/↓ to select · ↑ to tabs · Esc to clear"
+                },
+                "truncated": false,
+                "receivedChars": 3099
+              },
+              {
+                "runId": "run-1783114158019-3",
+                "rawText": {
+                  "~len": 368,
+                  "~sha256": "d544d86e8e4113f2",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B/zzz-not-a-command\r\u001b[2C\u001b[3B\u001b[K\u001b[34;1H\u001b[31;21H",
+                  "~tail": "9m\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[27B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": "/zzz-not-a-command\nNo commands match \"/zzz-not-a-command\"\n⏺Unknown command: /zzz-not-a-command\n← for agents",
+                "truncated": false,
+                "receivedChars": 368
+              },
+              {
+                "runId": "run-1783114160150-4",
+                "rawText": {
+                  "~len": 345,
+                  "~sha256": "fc51c0d931ec6455",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+6\u001b[22Glines]\r\u001b[2",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": "[Pastedtext#1+6lines]\npasteain to expand(B78",
+                "truncated": false,
+                "receivedChars": 345
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:5db28500-0538-4601-a7e1-e585aff6bfc4:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:5db28500-0538-4601-a7e1-e585aff6bfc4:text-0",
+                  "taskId": "task-1783114145642-1",
+                  "sourceId": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+                  "provider": "claude",
+                  "turnKey": "522035ef-1fc1-4fb6-b332-4a58ce970af7",
+                  "runId": "run-1783114146658-1",
+                  "ts": "2026-07-03T21:29:09.268Z",
+                  "seq": 2,
+                  "markdown": "READY"
+                }
+              ],
+              [
+                "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:f779f22f-1057-4297-92f0-a9999a4efaaf:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:f779f22f-1057-4297-92f0-a9999a4efaaf:user",
+                  "taskId": "task-1783114145642-1",
+                  "sourceId": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+                  "provider": "claude",
+                  "turnKey": "522035ef-1fc1-4fb6-b332-4a58ce970af7",
+                  "runId": "run-1783114146658-1",
+                  "ts": "2026-07-03T21:29:06.788Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: READY",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:f779f22f-1057-4297-92f0-a9999a4efaaf:user",
+              "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:5db28500-0538-4601-a7e1-e585aff6bfc4:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 170,
+                  "~sha256": "405a9a368e83adea",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "q-2026-07-03-mr5g4ga2/3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d.jsonl"
+                },
+                "providerSessionId": "3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+                "locatedAt": "2026-07-03T21:29:06.912Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114145642-1",
+              "provider": "claude",
+              "deliverable": false,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": [
+                {
+                  "id": "delivery-1783114160149-4",
+                  "taskId": "task-1783114145642-1",
+                  "text": {
+                    "~len": 225,
+                    "~sha256": "e2e68b7c25d72f8d",
+                    "~head": "/architect I'm sketching a tiny two-way-door UI choice and want ",
+                    "~tail": "e a 2-sentence gut read. Do not read any files or run any tools."
+                  },
+                  "attachments": [],
+                  "status": "delivering",
+                  "enqueuedAt": "2026-07-03T21:29:20.149Z",
+                  "deliveringAt": "2026-07-03T21:29:20.150Z",
+                  "runId": "run-1783114160150-4",
+                  "receipt": null,
+                  "failureReason": null
+                }
+              ]
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114157742,
+              "context": {
+                "usedTokens": 34534,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 80,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Respond with ready message",
+              "costUsd": 0.1454185,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:19.952Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Delivering to Claude",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 171,
+      "directiveCounts": {
+        "none": 40,
+        "report-refresh": 16,
+        "session-index-debounced": 12,
+        "unread-only": 58,
+        "sidebar": 7,
+        "transcript-debounced": 38
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114145642-1",
+              "title": "Respond with ready message",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114145642-1",
+              "providerSessionRef": "3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-slash-e2e-B0Zuaq/2026-07-03-mr5g4ga2",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-slash-e2e-B0Zuaq/2026-07-03-mr5g4ga2",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:29:05.642Z",
+              "updatedAt": "2026-07-03T21:29:20.151Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114160150-4",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114146658-1",
+                "rawText": {
+                  "~len": 2064,
+                  "~sha256": "290f3f33d1b6da7f",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GREADY\r\u001b[2C\u001b[3B",
+                  "~tail": "53m✻\u001b[3GCogitated for 2s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 167,
+                  "~sha256": "343346a4c32e0db0",
+                  "~head": "Replywithexactly:READY\n❯ Reply with exactly: READY\n✽Choreographi",
+                  "~tail": "s)\n⏺READY\nustrunning sp hook · 2s · ↓1 tokens)\n✻Cogitated for 2s"
+                },
+                "truncated": false,
+                "receivedChars": 2064
+              },
+              {
+                "runId": "run-1783114149683-2",
+                "rawText": {
+                  "~len": 3099,
+                  "~sha256": "f63d4e5484a0bc17",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/config\r\u001b[2C\u001b[3B\u001b[39m\u001b[K\u001b[",
+                  "~tail": "r/↓ to select · ↑ to tabs · Esc to clear\u001b[39m\u001b[34;1H\u001b[7;8H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 1007,
+                  "~sha256": "7740eefc96c693dd",
+                  "~head": "/config\n/config Open settings\n/update-config Use this skill to c",
+                  "~tail": "ow\nType to filter · Enter/↓ to select · ↑ to tabs · Esc to clear"
+                },
+                "truncated": false,
+                "receivedChars": 3099
+              },
+              {
+                "runId": "run-1783114158019-3",
+                "rawText": {
+                  "~len": 368,
+                  "~sha256": "d544d86e8e4113f2",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B/zzz-not-a-command\r\u001b[2C\u001b[3B\u001b[K\u001b[34;1H\u001b[31;21H",
+                  "~tail": "9m\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[27B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": "/zzz-not-a-command\nNo commands match \"/zzz-not-a-command\"\n⏺Unknown command: /zzz-not-a-command\n← for agents",
+                "truncated": false,
+                "receivedChars": 368
+              },
+              {
+                "runId": "run-1783114160150-4",
+                "rawText": {
+                  "~len": 345,
+                  "~sha256": "fc51c0d931ec6455",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+6\u001b[22Glines]\r\u001b[2",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": "[Pastedtext#1+6lines]\npasteain to expand(B78",
+                "truncated": false,
+                "receivedChars": 345
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:5db28500-0538-4601-a7e1-e585aff6bfc4:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:5db28500-0538-4601-a7e1-e585aff6bfc4:text-0",
+                  "taskId": "task-1783114145642-1",
+                  "sourceId": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+                  "provider": "claude",
+                  "turnKey": "522035ef-1fc1-4fb6-b332-4a58ce970af7",
+                  "runId": "run-1783114146658-1",
+                  "ts": "2026-07-03T21:29:09.268Z",
+                  "seq": 2,
+                  "markdown": "READY"
+                }
+              ],
+              [
+                "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:f779f22f-1057-4297-92f0-a9999a4efaaf:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:f779f22f-1057-4297-92f0-a9999a4efaaf:user",
+                  "taskId": "task-1783114145642-1",
+                  "sourceId": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+                  "provider": "claude",
+                  "turnKey": "522035ef-1fc1-4fb6-b332-4a58ce970af7",
+                  "runId": "run-1783114146658-1",
+                  "ts": "2026-07-03T21:29:06.788Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: READY",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:f779f22f-1057-4297-92f0-a9999a4efaaf:user",
+              "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d:5db28500-0538-4601-a7e1-e585aff6bfc4:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 170,
+                  "~sha256": "405a9a368e83adea",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "q-2026-07-03-mr5g4ga2/3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d.jsonl"
+                },
+                "providerSessionId": "3c4d2cfc-d1a8-41ac-88bb-6018ae57f54d",
+                "locatedAt": "2026-07-03T21:29:06.912Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114145642-1",
+              "provider": "claude",
+              "deliverable": false,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": [
+                {
+                  "id": "delivery-1783114160149-4",
+                  "taskId": "task-1783114145642-1",
+                  "text": {
+                    "~len": 225,
+                    "~sha256": "e2e68b7c25d72f8d",
+                    "~head": "/architect I'm sketching a tiny two-way-door UI choice and want ",
+                    "~tail": "e a 2-sentence gut read. Do not read any files or run any tools."
+                  },
+                  "attachments": [],
+                  "status": "delivering",
+                  "enqueuedAt": "2026-07-03T21:29:20.149Z",
+                  "deliveringAt": "2026-07-03T21:29:20.150Z",
+                  "runId": "run-1783114160150-4",
+                  "receipt": null,
+                  "failureReason": null
+                }
+              ]
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114157742,
+              "context": {
+                "usedTokens": 34534,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 80,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Respond with ready message",
+              "costUsd": 0.1454185,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:19.952Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Delivering to Claude",
+            "unread": true,
+            "completedUnseen": false
+          }
+        ]
+      }
+    }
+  }
+}

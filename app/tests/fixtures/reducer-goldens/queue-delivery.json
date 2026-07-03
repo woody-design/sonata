@@ -1,0 +1,550 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 502,
+      "directiveCounts": {
+        "none": 19,
+        "report-refresh": 20,
+        "session-index-debounced": 11,
+        "full": 58,
+        "sidebar": 10,
+        "transcript-debounced": 307,
+        "usage-in-place": 7,
+        "strip-in-place": 70
+      },
+      "state": {
+        "activeTaskId": "task-1783114290703-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114290703-1",
+              "title": "Run queue initialization shell command",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114290703-1",
+              "providerSessionRef": "fcc24340-c9f5-4acd-b617-46ca6b231c83",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-queue-delivery-e2e-B9UgvS/2026-07-03-mr5g7k7j",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-queue-delivery-e2e-B9UgvS/2026-07-03-mr5g7k7j",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:31:30.703Z",
+              "updatedAt": "2026-07-03T21:31:55.365Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114291220-1",
+                "rawText": {
+                  "~len": 60089,
+                  "~sha256": "d8020c18b7395a81",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[25B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
+                  "~tail": ";153;153m✻\u001b[3GSautéed for 23s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 16952,
+                  "~sha256": "8d86620ab4d7e2fc",
+                  "~head": "◉ xhigh · /effort\n❯ Runexactlythisshellcommandandnoothercommands",
+                  "~tail": " stop hook · 23s · ↓551 tokens)\n✢Reticulating…6\n✻Sautéed for 23s"
+                },
+                "truncated": false,
+                "receivedChars": 60089
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:6283557a-cf0c-4db2-87d5-ac1b4757799b:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:6283557a-cf0c-4db2-87d5-ac1b4757799b:text-0",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:55.188Z",
+                  "seq": 5,
+                  "markdown": {
+                    "~len": 275,
+                    "~sha256": "1c85fe5ef2451812",
+                    "~head": "Both tasks are done:\n\n1. **Ran the command** — the Python script",
+                    "~tail": "ith exactly the two specified lines, and touched no other files."
+                  }
+                }
+              ],
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:8e921274-94db-4d98-b6f0-080e689b110d:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:8e921274-94db-4d98-b6f0-080e689b110d:user",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:31.348Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 282,
+                    "~sha256": "46fd5a4d90f0f28e",
+                    "~head": "Run exactly this shell command and no other commands. Do not use",
+                    "~tail": "time.sleep(8); Path('queue_first_done.flag').write_text('done')\""
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:a5907beb-ecd6-4d6a-9e0b-8068628985a2:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:a5907beb-ecd6-4d6a-9e0b-8068628985a2:text-0",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:48.104Z",
+                  "seq": 3,
+                  "markdown": "The command completed. Now addressing your follow-up message."
+                }
+              ],
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_011spePJ8vMuZWp64zPktCHQ",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_011spePJ8vMuZWp64zPktCHQ",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:50.994Z",
+                  "seq": 4,
+                  "callId": "toolu_011spePJ8vMuZWp64zPktCHQ",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-queue-delivery-e2e-B9UgvS/2026-07-03-mr5g7k7j/queue_second.md",
+                  "inputPreview": {
+                    "~len": 239,
+                    "~sha256": "7e8410fbc04c605c",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "nThis message was delivered after the earlier run finished.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 219,
+                    "~sha256": "9bfd960771809b46",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 296
+                }
+              ],
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_017JUzp8Cnjftc87cDSbYS7S",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_017JUzp8Cnjftc87cDSbYS7S",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:37.657Z",
+                  "seq": 2,
+                  "callId": "toolu_017JUzp8Cnjftc87cDSbYS7S",
+                  "toolName": "Bash",
+                  "summary": {
+                    "~len": 161,
+                    "~sha256": "8a47390d1892b1ef",
+                    "~head": "python3 -c \"from pathlib import Path; import time; Path('queue_f",
+                    "~tail": "rt'); time.sleep(8); Path('queue_first_done.flag').write_text('…"
+                  },
+                  "inputPreview": {
+                    "~len": 257,
+                    "~sha256": "bf294a00ab35cda1",
+                    "~head": "{\n  \"command\": \"python3 -c \\\"from pathlib import Path; import ti",
+                    "~tail": "scription\": \"Run Python script to write flag files with delay\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": "(Bash completed with no output)",
+                  "resultTruncated": false,
+                  "durationMs": 8782
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:8e921274-94db-4d98-b6f0-080e689b110d:user",
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_017JUzp8Cnjftc87cDSbYS7S",
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:a5907beb-ecd6-4d6a-9e0b-8068628985a2:text-0",
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_011spePJ8vMuZWp64zPktCHQ",
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:6283557a-cf0c-4db2-87d5-ac1b4757799b:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 179,
+                  "~sha256": "093a89fd3664fd10",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "S-2026-07-03-mr5g7k7j/fcc24340-c9f5-4acd-b617-46ca6b231c83.jsonl"
+                },
+                "providerSessionId": "fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                "locatedAt": "2026-07-03T21:31:31.471Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114290703-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114311600,
+              "context": {
+                "usedTokens": 35027,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Run queue initialization shell command",
+              "costUsd": 0.2234955,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:31:55.365Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 502,
+      "directiveCounts": {
+        "none": 96,
+        "report-refresh": 20,
+        "session-index-debounced": 11,
+        "unread-only": 64,
+        "sidebar": 10,
+        "transcript-debounced": 301
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114290703-1",
+              "title": "Run queue initialization shell command",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114290703-1",
+              "providerSessionRef": "fcc24340-c9f5-4acd-b617-46ca6b231c83",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-queue-delivery-e2e-B9UgvS/2026-07-03-mr5g7k7j",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-queue-delivery-e2e-B9UgvS/2026-07-03-mr5g7k7j",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:31:30.703Z",
+              "updatedAt": "2026-07-03T21:31:55.365Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114291220-1",
+                "rawText": {
+                  "~len": 60089,
+                  "~sha256": "d8020c18b7395a81",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[25B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
+                  "~tail": ";153;153m✻\u001b[3GSautéed for 23s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 16952,
+                  "~sha256": "8d86620ab4d7e2fc",
+                  "~head": "◉ xhigh · /effort\n❯ Runexactlythisshellcommandandnoothercommands",
+                  "~tail": " stop hook · 23s · ↓551 tokens)\n✢Reticulating…6\n✻Sautéed for 23s"
+                },
+                "truncated": false,
+                "receivedChars": 60089
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:6283557a-cf0c-4db2-87d5-ac1b4757799b:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:6283557a-cf0c-4db2-87d5-ac1b4757799b:text-0",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:55.188Z",
+                  "seq": 5,
+                  "markdown": {
+                    "~len": 275,
+                    "~sha256": "1c85fe5ef2451812",
+                    "~head": "Both tasks are done:\n\n1. **Ran the command** — the Python script",
+                    "~tail": "ith exactly the two specified lines, and touched no other files."
+                  }
+                }
+              ],
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:8e921274-94db-4d98-b6f0-080e689b110d:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:8e921274-94db-4d98-b6f0-080e689b110d:user",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:31.348Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 282,
+                    "~sha256": "46fd5a4d90f0f28e",
+                    "~head": "Run exactly this shell command and no other commands. Do not use",
+                    "~tail": "time.sleep(8); Path('queue_first_done.flag').write_text('done')\""
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:a5907beb-ecd6-4d6a-9e0b-8068628985a2:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:a5907beb-ecd6-4d6a-9e0b-8068628985a2:text-0",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:48.104Z",
+                  "seq": 3,
+                  "markdown": "The command completed. Now addressing your follow-up message."
+                }
+              ],
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_011spePJ8vMuZWp64zPktCHQ",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_011spePJ8vMuZWp64zPktCHQ",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:50.994Z",
+                  "seq": 4,
+                  "callId": "toolu_011spePJ8vMuZWp64zPktCHQ",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-queue-delivery-e2e-B9UgvS/2026-07-03-mr5g7k7j/queue_second.md",
+                  "inputPreview": {
+                    "~len": 239,
+                    "~sha256": "7e8410fbc04c605c",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "nThis message was delivered after the earlier run finished.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 219,
+                    "~sha256": "9bfd960771809b46",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 296
+                }
+              ],
+              [
+                "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_017JUzp8Cnjftc87cDSbYS7S",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_017JUzp8Cnjftc87cDSbYS7S",
+                  "taskId": "task-1783114290703-1",
+                  "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                  "provider": "claude",
+                  "turnKey": "f764cba5-5bf2-4b58-ad7c-72729814c21c",
+                  "runId": "run-1783114291220-1",
+                  "ts": "2026-07-03T21:31:37.657Z",
+                  "seq": 2,
+                  "callId": "toolu_017JUzp8Cnjftc87cDSbYS7S",
+                  "toolName": "Bash",
+                  "summary": {
+                    "~len": 161,
+                    "~sha256": "8a47390d1892b1ef",
+                    "~head": "python3 -c \"from pathlib import Path; import time; Path('queue_f",
+                    "~tail": "rt'); time.sleep(8); Path('queue_first_done.flag').write_text('…"
+                  },
+                  "inputPreview": {
+                    "~len": 257,
+                    "~sha256": "bf294a00ab35cda1",
+                    "~head": "{\n  \"command\": \"python3 -c \\\"from pathlib import Path; import ti",
+                    "~tail": "scription\": \"Run Python script to write flag files with delay\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": "(Bash completed with no output)",
+                  "resultTruncated": false,
+                  "durationMs": 8782
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:8e921274-94db-4d98-b6f0-080e689b110d:user",
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_017JUzp8Cnjftc87cDSbYS7S",
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:a5907beb-ecd6-4d6a-9e0b-8068628985a2:text-0",
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:tool:toolu_011spePJ8vMuZWp64zPktCHQ",
+              "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83:6283557a-cf0c-4db2-87d5-ac1b4757799b:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 179,
+                  "~sha256": "093a89fd3664fd10",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "S-2026-07-03-mr5g7k7j/fcc24340-c9f5-4acd-b617-46ca6b231c83.jsonl"
+                },
+                "providerSessionId": "fcc24340-c9f5-4acd-b617-46ca6b231c83",
+                "locatedAt": "2026-07-03T21:31:31.471Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114290703-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114311600,
+              "context": {
+                "usedTokens": 35027,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Run queue initialization shell command",
+              "costUsd": 0.2234955,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:31:55.365Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

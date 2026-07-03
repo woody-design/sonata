@@ -1,0 +1,538 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 120,
+      "directiveCounts": {
+        "none": 11,
+        "report-refresh": 6,
+        "session-index-debounced": 6,
+        "full": 21,
+        "sidebar": 3,
+        "transcript-debounced": 57,
+        "usage-in-place": 2,
+        "strip-in-place": 14
+      },
+      "state": {
+        "activeTaskId": "task-1783114269578-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114269578-1",
+              "title": "Create user survey with language and editor questions",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114269578-1",
+              "providerSessionRef": "91cb6399-af61-4e57-844c-c268a1dc2ee0",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-optms-e2e-ZnsGXX/2026-07-03-mr5g73wq",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-optms-e2e-ZnsGXX/2026-07-03-mr5g73wq",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:31:09.578Z",
+              "updatedAt": "2026-07-03T21:31:10.098Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": {
+              "taskId": "task-1783114269578-1",
+              "runId": "run-1783114270097-1",
+              "kind": "unknown",
+              "source": "hook-broker",
+              "answerVia": "reply",
+              "approvalId": "mr5g782d-4hmurrva19-60919",
+              "summary": "AskUserQuestion",
+              "choices": [
+                {
+                  "decision": "approve",
+                  "label": "Approve",
+                  "description": "Allow once",
+                  "encodedAs": "reply-file"
+                },
+                {
+                  "decision": "approve-always",
+                  "label": "Always",
+                  "description": "Always allow",
+                  "encodedAs": "reply-file"
+                },
+                {
+                  "decision": "deny",
+                  "label": "Deny",
+                  "description": "Reject this request",
+                  "encodedAs": "reply-file"
+                }
+              ]
+            },
+            "pendingOptionPrompt": {
+              "taskId": "task-1783114269578-1",
+              "toolUseId": "toolu_01D6Z94qyHi2MLUQpUk4BZbe",
+              "questions": [
+                {
+                  "question": "Which languages do you use?",
+                  "header": "Langs",
+                  "multiSelect": true,
+                  "options": [
+                    {
+                      "label": "Python",
+                      "description": "py"
+                    },
+                    {
+                      "label": "Rust",
+                      "description": "rs"
+                    },
+                    {
+                      "label": "Go",
+                      "description": "go"
+                    }
+                  ]
+                },
+                {
+                  "question": "Which editor?",
+                  "header": "Editor",
+                  "multiSelect": false,
+                  "options": [
+                    {
+                      "label": "Vim",
+                      "description": "v"
+                    },
+                    {
+                      "label": "VSCode",
+                      "description": "c"
+                    }
+                  ]
+                }
+              ]
+            },
+            "optionPromptSelections": [
+              -1,
+              -1
+            ],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114270097-1",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114270097-1",
+                "rawText": {
+                  "~len": 10179,
+                  "~sha256": "6a2710d93acbd390",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[24B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": {
+                  "~len": 2957,
+                  "~sha256": "843f726096f43576",
+                  "~head": "◉ xhigh · /effort\n❯ YouareinsideaUItestharness.DoEXACTLYonething",
+                  "~tail": "nter to slect · Tab/Arrow keys to navigate · Esc to cancel(B(B78"
+                },
+                "truncated": false,
+                "receivedChars": 10179
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:228cba45-a367-4987-bcbb-769808f8f80d:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:228cba45-a367-4987-bcbb-769808f8f80d:user",
+                  "taskId": "task-1783114269578-1",
+                  "sourceId": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0",
+                  "provider": "claude",
+                  "turnKey": "82f5848d-2067-42d7-a280-50a6d7d53113",
+                  "runId": "run-1783114270097-1",
+                  "ts": "2026-07-03T21:31:10.226Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 462,
+                    "~sha256": "5cf2591a948a9f90",
+                    "~head": "You are inside a UI test harness. Do EXACTLY one thing and nothi",
+                    "~tail": "ns: label 'Vim' description 'v'; label 'VSCode' description 'c'."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:tool:toolu_01D6Z94qyHi2MLUQpUk4BZbe",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:tool:toolu_01D6Z94qyHi2MLUQpUk4BZbe",
+                  "taskId": "task-1783114269578-1",
+                  "sourceId": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0",
+                  "provider": "claude",
+                  "turnKey": "82f5848d-2067-42d7-a280-50a6d7d53113",
+                  "runId": "run-1783114270097-1",
+                  "ts": "2026-07-03T21:31:14.843Z",
+                  "seq": 2,
+                  "callId": "toolu_01D6Z94qyHi2MLUQpUk4BZbe",
+                  "toolName": "AskUserQuestion",
+                  "summary": "",
+                  "inputPreview": {
+                    "~len": 680,
+                    "~sha256": "888f782faab07aa4",
+                    "~head": "{\n  \"questions\": [\n    {\n      \"question\": \"Which languages do y",
+                    "~tail": "ode\",\n          \"description\": \"c\"\n        }\n      ]\n    }\n  ]\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "running",
+                  "resultPreview": null,
+                  "resultTruncated": false,
+                  "durationMs": null
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:228cba45-a367-4987-bcbb-769808f8f80d:user",
+              "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:tool:toolu_01D6Z94qyHi2MLUQpUk4BZbe"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 170,
+                  "~sha256": "debdbd95f72cb596",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "X-2026-07-03-mr5g73wq/91cb6399-af61-4e57-844c-c268a1dc2ee0.jsonl"
+                },
+                "providerSessionId": "91cb6399-af61-4e57-844c-c268a1dc2ee0",
+                "locatedAt": "2026-07-03T21:31:10.348Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114269578-1",
+              "provider": "claude",
+              "deliverable": false,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114273911,
+              "context": {
+                "usedTokens": 34211,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create user survey with language and editor questions",
+              "costUsd": 0.000728,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:31:15.161Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": "AskUserQuestion",
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Claude is working",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 120,
+      "directiveCounts": {
+        "none": 27,
+        "report-refresh": 6,
+        "session-index-debounced": 6,
+        "unread-only": 23,
+        "sidebar": 3,
+        "transcript-debounced": 55
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114269578-1",
+              "title": "Create user survey with language and editor questions",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114269578-1",
+              "providerSessionRef": "91cb6399-af61-4e57-844c-c268a1dc2ee0",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-optms-e2e-ZnsGXX/2026-07-03-mr5g73wq",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-optms-e2e-ZnsGXX/2026-07-03-mr5g73wq",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:31:09.578Z",
+              "updatedAt": "2026-07-03T21:31:10.098Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": {
+              "taskId": "task-1783114269578-1",
+              "runId": "run-1783114270097-1",
+              "kind": "unknown",
+              "source": "hook-broker",
+              "answerVia": "reply",
+              "approvalId": "mr5g782d-4hmurrva19-60919",
+              "summary": "AskUserQuestion",
+              "choices": [
+                {
+                  "decision": "approve",
+                  "label": "Approve",
+                  "description": "Allow once",
+                  "encodedAs": "reply-file"
+                },
+                {
+                  "decision": "approve-always",
+                  "label": "Always",
+                  "description": "Always allow",
+                  "encodedAs": "reply-file"
+                },
+                {
+                  "decision": "deny",
+                  "label": "Deny",
+                  "description": "Reject this request",
+                  "encodedAs": "reply-file"
+                }
+              ]
+            },
+            "pendingOptionPrompt": {
+              "taskId": "task-1783114269578-1",
+              "toolUseId": "toolu_01D6Z94qyHi2MLUQpUk4BZbe",
+              "questions": [
+                {
+                  "question": "Which languages do you use?",
+                  "header": "Langs",
+                  "multiSelect": true,
+                  "options": [
+                    {
+                      "label": "Python",
+                      "description": "py"
+                    },
+                    {
+                      "label": "Rust",
+                      "description": "rs"
+                    },
+                    {
+                      "label": "Go",
+                      "description": "go"
+                    }
+                  ]
+                },
+                {
+                  "question": "Which editor?",
+                  "header": "Editor",
+                  "multiSelect": false,
+                  "options": [
+                    {
+                      "label": "Vim",
+                      "description": "v"
+                    },
+                    {
+                      "label": "VSCode",
+                      "description": "c"
+                    }
+                  ]
+                }
+              ]
+            },
+            "optionPromptSelections": [
+              -1,
+              -1
+            ],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114270097-1",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114270097-1",
+                "rawText": {
+                  "~len": 10179,
+                  "~sha256": "6a2710d93acbd390",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[24B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": {
+                  "~len": 2957,
+                  "~sha256": "843f726096f43576",
+                  "~head": "◉ xhigh · /effort\n❯ YouareinsideaUItestharness.DoEXACTLYonething",
+                  "~tail": "nter to slect · Tab/Arrow keys to navigate · Esc to cancel(B(B78"
+                },
+                "truncated": false,
+                "receivedChars": 10179
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:228cba45-a367-4987-bcbb-769808f8f80d:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:228cba45-a367-4987-bcbb-769808f8f80d:user",
+                  "taskId": "task-1783114269578-1",
+                  "sourceId": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0",
+                  "provider": "claude",
+                  "turnKey": "82f5848d-2067-42d7-a280-50a6d7d53113",
+                  "runId": "run-1783114270097-1",
+                  "ts": "2026-07-03T21:31:10.226Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 462,
+                    "~sha256": "5cf2591a948a9f90",
+                    "~head": "You are inside a UI test harness. Do EXACTLY one thing and nothi",
+                    "~tail": "ns: label 'Vim' description 'v'; label 'VSCode' description 'c'."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:tool:toolu_01D6Z94qyHi2MLUQpUk4BZbe",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:tool:toolu_01D6Z94qyHi2MLUQpUk4BZbe",
+                  "taskId": "task-1783114269578-1",
+                  "sourceId": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0",
+                  "provider": "claude",
+                  "turnKey": "82f5848d-2067-42d7-a280-50a6d7d53113",
+                  "runId": "run-1783114270097-1",
+                  "ts": "2026-07-03T21:31:14.843Z",
+                  "seq": 2,
+                  "callId": "toolu_01D6Z94qyHi2MLUQpUk4BZbe",
+                  "toolName": "AskUserQuestion",
+                  "summary": "",
+                  "inputPreview": {
+                    "~len": 680,
+                    "~sha256": "888f782faab07aa4",
+                    "~head": "{\n  \"questions\": [\n    {\n      \"question\": \"Which languages do y",
+                    "~tail": "ode\",\n          \"description\": \"c\"\n        }\n      ]\n    }\n  ]\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "running",
+                  "resultPreview": null,
+                  "resultTruncated": false,
+                  "durationMs": null
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:228cba45-a367-4987-bcbb-769808f8f80d:user",
+              "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0:tool:toolu_01D6Z94qyHi2MLUQpUk4BZbe"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:91cb6399-af61-4e57-844c-c268a1dc2ee0",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 170,
+                  "~sha256": "debdbd95f72cb596",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "X-2026-07-03-mr5g73wq/91cb6399-af61-4e57-844c-c268a1dc2ee0.jsonl"
+                },
+                "providerSessionId": "91cb6399-af61-4e57-844c-c268a1dc2ee0",
+                "locatedAt": "2026-07-03T21:31:10.348Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114269578-1",
+              "provider": "claude",
+              "deliverable": false,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114273911,
+              "context": {
+                "usedTokens": 34211,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create user survey with language and editor questions",
+              "costUsd": 0.000728,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:31:15.161Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": "AskUserQuestion",
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Claude is working",
+            "unread": true,
+            "completedUnseen": false
+          }
+        ]
+      }
+    }
+  }
+}

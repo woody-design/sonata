@@ -1,0 +1,474 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 197,
+      "directiveCounts": {
+        "none": 18,
+        "report-refresh": 10,
+        "session-index-debounced": 9,
+        "full": 40,
+        "sidebar": 4,
+        "transcript-debounced": 91,
+        "usage-in-place": 4,
+        "strip-in-place": 21
+      },
+      "state": {
+        "activeTaskId": "task-1783114446249-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114446249-1",
+              "title": "Write sentence about blue color",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114446249-1",
+              "providerSessionRef": "db682785-501c-481d-a4ff-ef90db4f6da0",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-transcript-selection-e2e-vxeoHl/2026-07-03-mr5gaw89",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-transcript-selection-e2e-vxeoHl/2026-07-03-mr5gaw89",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:34:06.249Z",
+              "updatedAt": "2026-07-03T21:34:15.828Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114447266-1",
+                "rawText": {
+                  "~len": 2933,
+                  "~sha256": "40e66afbcc1645f6",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BWrite\u001b[9Gexactly\u001b[17Gone\u001b[21Gshort\u001b[27Gsenten",
+                  "~tail": "3;153m✻\u001b[3GCooked for 3s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 347,
+                  "~sha256": "0129d42e56d59b06",
+                  "~head": "Writeexactlyoneshortsentenceaboutthecolorblue,andnothingelse.\n❯ ",
+                  "~tail": "nning sp hook · 3s · ↓1 tokens)\nFiddle-faddling…3\n✻Cooked for 3s"
+                },
+                "truncated": false,
+                "receivedChars": 2933
+              },
+              {
+                "runId": "run-1783114451289-2",
+                "rawText": {
+                  "~len": 11748,
+                  "~sha256": "f30c6a29d2778977",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BWrite\u001b[9Ga\u001b[11Gshort\u001b[17Gparagraph\u001b[27Gof\u001b[30",
+                  "~tail": "53;153;153mChurned\u001b[11Gfor 4s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3656,
+                  "~sha256": "5a0b9b37c3ad1a08",
+                  "~head": "Writeashortparagraphoffourorfivesentencesaboutthecolorred.\n❯ Wri",
+                  "~tail": "frared.\nWarmandinsistent,redrarelygoesunnoticed.\n✻ Churnedfor 4s"
+                },
+                "truncated": false,
+                "receivedChars": 11748
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:db682785-501c-481d-a4ff-ef90db4f6da0:0c60911b-f6a2-47c2-a505-21f30bb71cda:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:db682785-501c-481d-a4ff-ef90db4f6da0:0c60911b-f6a2-47c2-a505-21f30bb71cda:user",
+                  "taskId": "task-1783114446249-1",
+                  "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                  "provider": "claude",
+                  "turnKey": "a6e6bc95-a071-489e-bcfe-b8c1a5164f32",
+                  "runId": "run-1783114447266-1",
+                  "ts": "2026-07-03T21:34:07.400Z",
+                  "seq": 1,
+                  "text": "Write exactly one short sentence about the color blue, and nothing else.",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:db682785-501c-481d-a4ff-ef90db4f6da0:141d726e-8072-4f83-bc94-507d834f847a:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:db682785-501c-481d-a4ff-ef90db4f6da0:141d726e-8072-4f83-bc94-507d834f847a:user",
+                  "taskId": "task-1783114446249-1",
+                  "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                  "provider": "claude",
+                  "turnKey": "1b5cd66d-9183-4625-b9d9-7212f19d7e30",
+                  "runId": "run-1783114451289-2",
+                  "ts": "2026-07-03T21:34:11.415Z",
+                  "seq": 3,
+                  "text": "Write a short paragraph of four or five sentences about the color red.",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:db682785-501c-481d-a4ff-ef90db4f6da0:19bae114-224a-468e-ae0c-bdaf80626b48:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:db682785-501c-481d-a4ff-ef90db4f6da0:19bae114-224a-468e-ae0c-bdaf80626b48:text-0",
+                  "taskId": "task-1783114446249-1",
+                  "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                  "provider": "claude",
+                  "turnKey": "a6e6bc95-a071-489e-bcfe-b8c1a5164f32",
+                  "runId": "run-1783114447266-1",
+                  "ts": "2026-07-03T21:34:10.818Z",
+                  "seq": 2,
+                  "markdown": "Blue is the color of a clear midday sky."
+                }
+              ],
+              [
+                "claude:db682785-501c-481d-a4ff-ef90db4f6da0:b9121abf-d932-424c-ad97-8ae369046c05:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:db682785-501c-481d-a4ff-ef90db4f6da0:b9121abf-d932-424c-ad97-8ae369046c05:text-0",
+                  "taskId": "task-1783114446249-1",
+                  "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                  "provider": "claude",
+                  "turnKey": "1b5cd66d-9183-4625-b9d9-7212f19d7e30",
+                  "runId": "run-1783114451289-2",
+                  "ts": "2026-07-03T21:34:15.489Z",
+                  "seq": 4,
+                  "markdown": {
+                    "~len": 466,
+                    "~sha256": "f0f97ba708a0781f",
+                    "~head": "Red is the color of intensity — it pulls the eye faster than any",
+                    "~tail": "es into infrared. Warm and insistent, red rarely goes unnoticed."
+                  }
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:db682785-501c-481d-a4ff-ef90db4f6da0:0c60911b-f6a2-47c2-a505-21f30bb71cda:user",
+              "claude:db682785-501c-481d-a4ff-ef90db4f6da0:19bae114-224a-468e-ae0c-bdaf80626b48:text-0",
+              "claude:db682785-501c-481d-a4ff-ef90db4f6da0:141d726e-8072-4f83-bc94-507d834f847a:user",
+              "claude:db682785-501c-481d-a4ff-ef90db4f6da0:b9121abf-d932-424c-ad97-8ae369046c05:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 185,
+                  "~sha256": "14d34020e6403050",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "l-2026-07-03-mr5gaw89/db682785-501c-481d-a4ff-ef90db4f6da0.jsonl"
+                },
+                "providerSessionId": "db682785-501c-481d-a4ff-ef90db4f6da0",
+                "locatedAt": "2026-07-03T21:34:07.522Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114446249-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114455850,
+              "context": {
+                "usedTokens": 34734,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Write sentence about blue color",
+              "costUsd": 0.217412,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:34:15.828Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 197,
+      "directiveCounts": {
+        "none": 43,
+        "report-refresh": 10,
+        "session-index-debounced": 9,
+        "unread-only": 44,
+        "sidebar": 4,
+        "transcript-debounced": 87
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114446249-1",
+              "title": "Write sentence about blue color",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114446249-1",
+              "providerSessionRef": "db682785-501c-481d-a4ff-ef90db4f6da0",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-transcript-selection-e2e-vxeoHl/2026-07-03-mr5gaw89",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-transcript-selection-e2e-vxeoHl/2026-07-03-mr5gaw89",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:34:06.249Z",
+              "updatedAt": "2026-07-03T21:34:15.828Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114447266-1",
+                "rawText": {
+                  "~len": 2933,
+                  "~sha256": "40e66afbcc1645f6",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BWrite\u001b[9Gexactly\u001b[17Gone\u001b[21Gshort\u001b[27Gsenten",
+                  "~tail": "3;153m✻\u001b[3GCooked for 3s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 347,
+                  "~sha256": "0129d42e56d59b06",
+                  "~head": "Writeexactlyoneshortsentenceaboutthecolorblue,andnothingelse.\n❯ ",
+                  "~tail": "nning sp hook · 3s · ↓1 tokens)\nFiddle-faddling…3\n✻Cooked for 3s"
+                },
+                "truncated": false,
+                "receivedChars": 2933
+              },
+              {
+                "runId": "run-1783114451289-2",
+                "rawText": {
+                  "~len": 11748,
+                  "~sha256": "f30c6a29d2778977",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BWrite\u001b[9Ga\u001b[11Gshort\u001b[17Gparagraph\u001b[27Gof\u001b[30",
+                  "~tail": "53;153;153mChurned\u001b[11Gfor 4s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3656,
+                  "~sha256": "5a0b9b37c3ad1a08",
+                  "~head": "Writeashortparagraphoffourorfivesentencesaboutthecolorred.\n❯ Wri",
+                  "~tail": "frared.\nWarmandinsistent,redrarelygoesunnoticed.\n✻ Churnedfor 4s"
+                },
+                "truncated": false,
+                "receivedChars": 11748
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:db682785-501c-481d-a4ff-ef90db4f6da0:0c60911b-f6a2-47c2-a505-21f30bb71cda:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:db682785-501c-481d-a4ff-ef90db4f6da0:0c60911b-f6a2-47c2-a505-21f30bb71cda:user",
+                  "taskId": "task-1783114446249-1",
+                  "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                  "provider": "claude",
+                  "turnKey": "a6e6bc95-a071-489e-bcfe-b8c1a5164f32",
+                  "runId": "run-1783114447266-1",
+                  "ts": "2026-07-03T21:34:07.400Z",
+                  "seq": 1,
+                  "text": "Write exactly one short sentence about the color blue, and nothing else.",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:db682785-501c-481d-a4ff-ef90db4f6da0:141d726e-8072-4f83-bc94-507d834f847a:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:db682785-501c-481d-a4ff-ef90db4f6da0:141d726e-8072-4f83-bc94-507d834f847a:user",
+                  "taskId": "task-1783114446249-1",
+                  "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                  "provider": "claude",
+                  "turnKey": "1b5cd66d-9183-4625-b9d9-7212f19d7e30",
+                  "runId": "run-1783114451289-2",
+                  "ts": "2026-07-03T21:34:11.415Z",
+                  "seq": 3,
+                  "text": "Write a short paragraph of four or five sentences about the color red.",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:db682785-501c-481d-a4ff-ef90db4f6da0:19bae114-224a-468e-ae0c-bdaf80626b48:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:db682785-501c-481d-a4ff-ef90db4f6da0:19bae114-224a-468e-ae0c-bdaf80626b48:text-0",
+                  "taskId": "task-1783114446249-1",
+                  "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                  "provider": "claude",
+                  "turnKey": "a6e6bc95-a071-489e-bcfe-b8c1a5164f32",
+                  "runId": "run-1783114447266-1",
+                  "ts": "2026-07-03T21:34:10.818Z",
+                  "seq": 2,
+                  "markdown": "Blue is the color of a clear midday sky."
+                }
+              ],
+              [
+                "claude:db682785-501c-481d-a4ff-ef90db4f6da0:b9121abf-d932-424c-ad97-8ae369046c05:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:db682785-501c-481d-a4ff-ef90db4f6da0:b9121abf-d932-424c-ad97-8ae369046c05:text-0",
+                  "taskId": "task-1783114446249-1",
+                  "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                  "provider": "claude",
+                  "turnKey": "1b5cd66d-9183-4625-b9d9-7212f19d7e30",
+                  "runId": "run-1783114451289-2",
+                  "ts": "2026-07-03T21:34:15.489Z",
+                  "seq": 4,
+                  "markdown": {
+                    "~len": 466,
+                    "~sha256": "f0f97ba708a0781f",
+                    "~head": "Red is the color of intensity — it pulls the eye faster than any",
+                    "~tail": "es into infrared. Warm and insistent, red rarely goes unnoticed."
+                  }
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:db682785-501c-481d-a4ff-ef90db4f6da0:0c60911b-f6a2-47c2-a505-21f30bb71cda:user",
+              "claude:db682785-501c-481d-a4ff-ef90db4f6da0:19bae114-224a-468e-ae0c-bdaf80626b48:text-0",
+              "claude:db682785-501c-481d-a4ff-ef90db4f6da0:141d726e-8072-4f83-bc94-507d834f847a:user",
+              "claude:db682785-501c-481d-a4ff-ef90db4f6da0:b9121abf-d932-424c-ad97-8ae369046c05:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:db682785-501c-481d-a4ff-ef90db4f6da0",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 185,
+                  "~sha256": "14d34020e6403050",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "l-2026-07-03-mr5gaw89/db682785-501c-481d-a4ff-ef90db4f6da0.jsonl"
+                },
+                "providerSessionId": "db682785-501c-481d-a4ff-ef90db4f6da0",
+                "locatedAt": "2026-07-03T21:34:07.522Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114446249-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114455850,
+              "context": {
+                "usedTokens": 34734,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Write sentence about blue color",
+              "costUsd": 0.217412,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:34:15.828Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

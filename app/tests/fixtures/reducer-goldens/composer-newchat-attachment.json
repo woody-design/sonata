@@ -1,0 +1,408 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 93,
+      "directiveCounts": {
+        "none": 15,
+        "report-refresh": 5,
+        "session-index-debounced": 7,
+        "full": 21,
+        "usage-in-place": 3,
+        "sidebar": 2,
+        "transcript-debounced": 31,
+        "strip-in-place": 9
+      },
+      "state": {
+        "activeTaskId": "task-1783114162641-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114162641-1",
+              "title": "DUET_NEWCHAT_IMAGE_RECEIPT",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114162641-1",
+              "providerSessionRef": "12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-newchat-attach-Im8RF7/2026-07-03-mr5g4te9",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-newchat-attach-Im8RF7/2026-07-03-mr5g4te9",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:29:22.641Z",
+              "updatedAt": "2026-07-03T21:29:26.671Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114163661-1",
+                "rawText": {
+                  "~len": 2539,
+                  "~sha256": "49c65a458cabb47f",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Image\u001b[10G#1]\r\u001b[2C\u001b[3B\u001b[K\u001b[34;1H\u001b[31;13H\u001b[?2",
+                  "~tail": ";153m✻\u001b[3GSautéed for 2s\r\u001b[4B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 476,
+                  "~sha256": "d3b63c0fb2fcc70c",
+                  "~head": "[Image#1]\nReplyexactlyDUET_NEWCHAT_IMAGE_RECEIPT.Donotcreateormo",
+                  "~tail": "DUET_NEWCHAT_IMAGE_RECEIPT\nEb(running stop hook)\n✻Sautéed for 2s"
+                },
+                "truncated": false,
+                "receivedChars": 2539
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:5d6ebdf7-f0c1-4385-8095-78f13ad1f2dc:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:5d6ebdf7-f0c1-4385-8095-78f13ad1f2dc:text-0",
+                  "taskId": "task-1783114162641-1",
+                  "sourceId": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                  "provider": "claude",
+                  "turnKey": "c65a150c-98c6-4889-a77d-90e9a7381cc7",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:25.891Z",
+                  "seq": 2,
+                  "markdown": "API Error: an image in the conversation could not be processed and was removed. Double press esc to edit your message, or re-read the file if you still need it."
+                }
+              ],
+              [
+                "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:c8d66bc2-cef1-4467-a7bd-0396bac045ef:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:c8d66bc2-cef1-4467-a7bd-0396bac045ef:text-0",
+                  "taskId": "task-1783114162641-1",
+                  "sourceId": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                  "provider": "claude",
+                  "turnKey": "c65a150c-98c6-4889-a77d-90e9a7381cc7",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:26.380Z",
+                  "seq": 3,
+                  "markdown": "DUET_NEWCHAT_IMAGE_RECEIPT"
+                }
+              ],
+              [
+                "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:cebf9067-4f65-463e-a707-a04272feb7ae:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:cebf9067-4f65-463e-a707-a04272feb7ae:user",
+                  "taskId": "task-1783114162641-1",
+                  "sourceId": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                  "provider": "claude",
+                  "turnKey": "c65a150c-98c6-4889-a77d-90e9a7381cc7",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:23.938Z",
+                  "seq": 1,
+                  "text": "[Image #1]Reply exactly DUET_NEWCHAT_IMAGE_RECEIPT. Do not create or modify any files.",
+                  "command": null,
+                  "attachments": [
+                    {
+                      "kind": "image",
+                      "source": "provider-content",
+                      "path": null,
+                      "mediaType": "image/png"
+                    }
+                  ]
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:cebf9067-4f65-463e-a707-a04272feb7ae:user",
+              "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:5d6ebdf7-f0c1-4385-8095-78f13ad1f2dc:text-0",
+              "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:c8d66bc2-cef1-4467-a7bd-0396bac045ef:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 175,
+                  "~sha256": "1d08e51d4d0619d9",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "7-2026-07-03-mr5g4te9/12a3d8b8-9fec-4a5d-8484-718ef2cc8b80.jsonl"
+                },
+                "providerSessionId": "12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                "locatedAt": "2026-07-03T21:29:24.156Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114162641-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114167218,
+              "context": {
+                "usedTokens": 34791,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "DUET_NEWCHAT_IMAGE_RECEIPT",
+              "costUsd": 0.1483815,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:26.671Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 93,
+      "directiveCounts": {
+        "none": 27,
+        "report-refresh": 5,
+        "session-index-debounced": 7,
+        "unread-only": 24,
+        "sidebar": 2,
+        "transcript-debounced": 28
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114162641-1",
+              "title": "DUET_NEWCHAT_IMAGE_RECEIPT",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114162641-1",
+              "providerSessionRef": "12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-newchat-attach-Im8RF7/2026-07-03-mr5g4te9",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-newchat-attach-Im8RF7/2026-07-03-mr5g4te9",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:29:22.641Z",
+              "updatedAt": "2026-07-03T21:29:26.671Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114163661-1",
+                "rawText": {
+                  "~len": 2539,
+                  "~sha256": "49c65a458cabb47f",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Image\u001b[10G#1]\r\u001b[2C\u001b[3B\u001b[K\u001b[34;1H\u001b[31;13H\u001b[?2",
+                  "~tail": ";153m✻\u001b[3GSautéed for 2s\r\u001b[4B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 476,
+                  "~sha256": "d3b63c0fb2fcc70c",
+                  "~head": "[Image#1]\nReplyexactlyDUET_NEWCHAT_IMAGE_RECEIPT.Donotcreateormo",
+                  "~tail": "DUET_NEWCHAT_IMAGE_RECEIPT\nEb(running stop hook)\n✻Sautéed for 2s"
+                },
+                "truncated": false,
+                "receivedChars": 2539
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:5d6ebdf7-f0c1-4385-8095-78f13ad1f2dc:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:5d6ebdf7-f0c1-4385-8095-78f13ad1f2dc:text-0",
+                  "taskId": "task-1783114162641-1",
+                  "sourceId": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                  "provider": "claude",
+                  "turnKey": "c65a150c-98c6-4889-a77d-90e9a7381cc7",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:25.891Z",
+                  "seq": 2,
+                  "markdown": "API Error: an image in the conversation could not be processed and was removed. Double press esc to edit your message, or re-read the file if you still need it."
+                }
+              ],
+              [
+                "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:c8d66bc2-cef1-4467-a7bd-0396bac045ef:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:c8d66bc2-cef1-4467-a7bd-0396bac045ef:text-0",
+                  "taskId": "task-1783114162641-1",
+                  "sourceId": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                  "provider": "claude",
+                  "turnKey": "c65a150c-98c6-4889-a77d-90e9a7381cc7",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:26.380Z",
+                  "seq": 3,
+                  "markdown": "DUET_NEWCHAT_IMAGE_RECEIPT"
+                }
+              ],
+              [
+                "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:cebf9067-4f65-463e-a707-a04272feb7ae:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:cebf9067-4f65-463e-a707-a04272feb7ae:user",
+                  "taskId": "task-1783114162641-1",
+                  "sourceId": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                  "provider": "claude",
+                  "turnKey": "c65a150c-98c6-4889-a77d-90e9a7381cc7",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:23.938Z",
+                  "seq": 1,
+                  "text": "[Image #1]Reply exactly DUET_NEWCHAT_IMAGE_RECEIPT. Do not create or modify any files.",
+                  "command": null,
+                  "attachments": [
+                    {
+                      "kind": "image",
+                      "source": "provider-content",
+                      "path": null,
+                      "mediaType": "image/png"
+                    }
+                  ]
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:cebf9067-4f65-463e-a707-a04272feb7ae:user",
+              "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:5d6ebdf7-f0c1-4385-8095-78f13ad1f2dc:text-0",
+              "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80:c8d66bc2-cef1-4467-a7bd-0396bac045ef:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 175,
+                  "~sha256": "1d08e51d4d0619d9",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "7-2026-07-03-mr5g4te9/12a3d8b8-9fec-4a5d-8484-718ef2cc8b80.jsonl"
+                },
+                "providerSessionId": "12a3d8b8-9fec-4a5d-8484-718ef2cc8b80",
+                "locatedAt": "2026-07-03T21:29:24.156Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114162641-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114167218,
+              "context": {
+                "usedTokens": 34791,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "DUET_NEWCHAT_IMAGE_RECEIPT",
+              "costUsd": 0.1483815,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:26.671Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

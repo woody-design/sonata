@@ -1,0 +1,430 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 174,
+      "directiveCounts": {
+        "none": 16,
+        "report-refresh": 9,
+        "session-index-debounced": 7,
+        "full": 28,
+        "sidebar": 4,
+        "transcript-debounced": 87,
+        "usage-in-place": 4,
+        "strip-in-place": 19
+      },
+      "state": {
+        "activeTaskId": "task-1783114117468-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114117468-1",
+              "title": "Execute approval command setup",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114117468-1",
+              "providerSessionRef": "591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-approval-surface-e2e-VjDnwz/2026-07-03-mr5g3ujg",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-approval-surface-e2e-VjDnwz/2026-07-03-mr5g3ujg",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:28:37.468Z",
+              "updatedAt": "2026-07-03T21:28:45.509Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114118485-1",
+                "rawText": {
+                  "~len": 15254,
+                  "~sha256": "10403b93bdf64355",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": ";153m✻\u001b[3GSautéed for 6s\r\u001b[1B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3679,
+                  "~sha256": "93c544a65b227163",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Run exactly this shel",
+                  "~tail": "dcontents.\nrunning stop hook · 6s · ↓163 tokens)\n✻Sautéed for 6s"
+                },
+                "truncated": false,
+                "receivedChars": 15254
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:77613de3-ae4d-4629-992c-e7dbadd744fa:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:77613de3-ae4d-4629-992c-e7dbadd744fa:user",
+                  "taskId": "task-1783114117468-1",
+                  "sourceId": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                  "provider": "claude",
+                  "turnKey": "596d7cbb-87d2-41e0-9791-0e2393561e62",
+                  "runId": "run-1783114118485-1",
+                  "ts": "2026-07-03T21:28:38.612Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 251,
+                    "~sha256": "88cf387fa9983e4b",
+                    "~head": "Run exactly this shell command and no other commands.\nDo not use",
+                    "~tail": "text('# Approval Command\\\\nCommand approval surface ready.\\\\n')\""
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:9b95cfed-43b6-4c81-ac96-d3e9d3b812ca:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:9b95cfed-43b6-4c81-ac96-d3e9d3b812ca:text-0",
+                  "taskId": "task-1783114117468-1",
+                  "sourceId": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                  "provider": "claude",
+                  "turnKey": "596d7cbb-87d2-41e0-9791-0e2393561e62",
+                  "runId": "run-1783114118485-1",
+                  "ts": "2026-07-03T21:28:45.329Z",
+                  "seq": 3,
+                  "markdown": "Done. The command ran and created `approval_command.md` with the expected contents."
+                }
+              ],
+              [
+                "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:tool:toolu_01B5H88i1HphEZFrsy5h7v15",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:tool:toolu_01B5H88i1HphEZFrsy5h7v15",
+                  "taskId": "task-1783114117468-1",
+                  "sourceId": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                  "provider": "claude",
+                  "turnKey": "596d7cbb-87d2-41e0-9791-0e2393561e62",
+                  "runId": "run-1783114118485-1",
+                  "ts": "2026-07-03T21:28:43.490Z",
+                  "seq": 2,
+                  "callId": "toolu_01B5H88i1HphEZFrsy5h7v15",
+                  "toolName": "Bash",
+                  "summary": "python3 -c \"from pathlib import Path; Path('approval_command.md').write_text('# Approval Command\\nCommand approval surface ready.\\n')\"",
+                  "inputPreview": {
+                    "~len": 214,
+                    "~sha256": "da45df75bc4de6fa",
+                    "~head": "{\n  \"command\": \"python3 -c \\\"from pathlib import Path; Path('app",
+                    "~tail": "')\\\"\",\n  \"description\": \"Write approval_command.md via Python\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": "(Bash completed with no output)",
+                  "resultTruncated": false,
+                  "durationMs": 354
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:77613de3-ae4d-4629-992c-e7dbadd744fa:user",
+              "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:tool:toolu_01B5H88i1HphEZFrsy5h7v15",
+              "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:9b95cfed-43b6-4c81-ac96-d3e9d3b812ca:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 181,
+                  "~sha256": "8fe1db37b8609c57",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "z-2026-07-03-mr5g3ujg/591b4a4c-ead0-486e-8a6d-2ea64d20b9c1.jsonl"
+                },
+                "providerSessionId": "591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                "locatedAt": "2026-07-03T21:28:38.735Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114117468-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114124219,
+              "context": {
+                "usedTokens": 34288,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 80,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Execute approval command setup",
+              "costUsd": 0.1477545,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:28:45.509Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 174,
+      "directiveCounts": {
+        "none": 39,
+        "report-refresh": 9,
+        "session-index-debounced": 7,
+        "unread-only": 31,
+        "sidebar": 4,
+        "transcript-debounced": 84
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114117468-1",
+              "title": "Execute approval command setup",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114117468-1",
+              "providerSessionRef": "591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-approval-surface-e2e-VjDnwz/2026-07-03-mr5g3ujg",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-approval-surface-e2e-VjDnwz/2026-07-03-mr5g3ujg",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:28:37.468Z",
+              "updatedAt": "2026-07-03T21:28:45.509Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114118485-1",
+                "rawText": {
+                  "~len": 15254,
+                  "~sha256": "10403b93bdf64355",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": ";153m✻\u001b[3GSautéed for 6s\r\u001b[1B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3679,
+                  "~sha256": "93c544a65b227163",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Run exactly this shel",
+                  "~tail": "dcontents.\nrunning stop hook · 6s · ↓163 tokens)\n✻Sautéed for 6s"
+                },
+                "truncated": false,
+                "receivedChars": 15254
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:77613de3-ae4d-4629-992c-e7dbadd744fa:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:77613de3-ae4d-4629-992c-e7dbadd744fa:user",
+                  "taskId": "task-1783114117468-1",
+                  "sourceId": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                  "provider": "claude",
+                  "turnKey": "596d7cbb-87d2-41e0-9791-0e2393561e62",
+                  "runId": "run-1783114118485-1",
+                  "ts": "2026-07-03T21:28:38.612Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 251,
+                    "~sha256": "88cf387fa9983e4b",
+                    "~head": "Run exactly this shell command and no other commands.\nDo not use",
+                    "~tail": "text('# Approval Command\\\\nCommand approval surface ready.\\\\n')\""
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:9b95cfed-43b6-4c81-ac96-d3e9d3b812ca:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:9b95cfed-43b6-4c81-ac96-d3e9d3b812ca:text-0",
+                  "taskId": "task-1783114117468-1",
+                  "sourceId": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                  "provider": "claude",
+                  "turnKey": "596d7cbb-87d2-41e0-9791-0e2393561e62",
+                  "runId": "run-1783114118485-1",
+                  "ts": "2026-07-03T21:28:45.329Z",
+                  "seq": 3,
+                  "markdown": "Done. The command ran and created `approval_command.md` with the expected contents."
+                }
+              ],
+              [
+                "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:tool:toolu_01B5H88i1HphEZFrsy5h7v15",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:tool:toolu_01B5H88i1HphEZFrsy5h7v15",
+                  "taskId": "task-1783114117468-1",
+                  "sourceId": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                  "provider": "claude",
+                  "turnKey": "596d7cbb-87d2-41e0-9791-0e2393561e62",
+                  "runId": "run-1783114118485-1",
+                  "ts": "2026-07-03T21:28:43.490Z",
+                  "seq": 2,
+                  "callId": "toolu_01B5H88i1HphEZFrsy5h7v15",
+                  "toolName": "Bash",
+                  "summary": "python3 -c \"from pathlib import Path; Path('approval_command.md').write_text('# Approval Command\\nCommand approval surface ready.\\n')\"",
+                  "inputPreview": {
+                    "~len": 214,
+                    "~sha256": "da45df75bc4de6fa",
+                    "~head": "{\n  \"command\": \"python3 -c \\\"from pathlib import Path; Path('app",
+                    "~tail": "')\\\"\",\n  \"description\": \"Write approval_command.md via Python\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": "(Bash completed with no output)",
+                  "resultTruncated": false,
+                  "durationMs": 354
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:77613de3-ae4d-4629-992c-e7dbadd744fa:user",
+              "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:tool:toolu_01B5H88i1HphEZFrsy5h7v15",
+              "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1:9b95cfed-43b6-4c81-ac96-d3e9d3b812ca:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 181,
+                  "~sha256": "8fe1db37b8609c57",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "z-2026-07-03-mr5g3ujg/591b4a4c-ead0-486e-8a6d-2ea64d20b9c1.jsonl"
+                },
+                "providerSessionId": "591b4a4c-ead0-486e-8a6d-2ea64d20b9c1",
+                "locatedAt": "2026-07-03T21:28:38.735Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114117468-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114124219,
+              "context": {
+                "usedTokens": 34288,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 80,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Execute approval command setup",
+              "costUsd": 0.1477545,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:28:45.509Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,418 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 92,
+      "directiveCounts": {
+        "none": 16,
+        "report-refresh": 5,
+        "session-index-debounced": 7,
+        "full": 19,
+        "sidebar": 2,
+        "usage-in-place": 5,
+        "transcript-debounced": 31,
+        "strip-in-place": 7
+      },
+      "state": {
+        "activeTaskId": "task-1783114173767-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114173767-1",
+              "title": "Review user documentation files",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114173767-1",
+              "providerSessionRef": "f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-ref-attach-s9A3y1/2026-07-03-mr5g51zb",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-ref-attach-s9A3y1/2026-07-03-mr5g51zb",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:29:33.767Z",
+              "updatedAt": "2026-07-03T21:29:36.792Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114174291-1",
+                "rawText": {
+                  "~len": 3861,
+                  "~sha256": "6154d09a2c33926c",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "3;153m✻\u001b[3GWorked for 2s\r\u001b[2B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 1129,
+                  "~sha256": "28000cffc6d4b84a",
+                  "~head": "ctrl+g to edit in VS Code\n❯ ReplyexactlyDUET_REF_RECEIPT.Donotcr",
+                  "~tail": "bbi(running stop hook)\n✻Ebbing… · 2s · ↓2 tokens)\n✻Worked for 2s"
+                },
+                "truncated": false,
+                "receivedChars": 3861
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:023036c1-5d7d-41a0-b38f-482d3366f9cf:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:023036c1-5d7d-41a0-b38f-482d3366f9cf:text-0",
+                  "taskId": "task-1783114173767-1",
+                  "sourceId": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                  "provider": "claude",
+                  "turnKey": "ec6c72ab-bdae-408b-8c21-a5fe5ce78c2f",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:36.331Z",
+                  "seq": 2,
+                  "markdown": "API Error: an image in the conversation could not be processed and was removed. Double press esc to edit your message, or re-read the file if you still need it."
+                }
+              ],
+              [
+                "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:bb3905b3-c0b7-46ee-8518-717346d4ca28:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:bb3905b3-c0b7-46ee-8518-717346d4ca28:text-0",
+                  "taskId": "task-1783114173767-1",
+                  "sourceId": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                  "provider": "claude",
+                  "turnKey": "ec6c72ab-bdae-408b-8c21-a5fe5ce78c2f",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:36.654Z",
+                  "seq": 3,
+                  "markdown": "DUET_REF_RECEIPT"
+                }
+              ],
+              [
+                "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:e50b9aee-b100-47e3-9fae-a2d4656e92ce:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:e50b9aee-b100-47e3-9fae-a2d4656e92ce:user",
+                  "taskId": "task-1783114173767-1",
+                  "sourceId": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                  "provider": "claude",
+                  "turnKey": "ec6c72ab-bdae-408b-8c21-a5fe5ce78c2f",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:34.573Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 266,
+                    "~sha256": "6e5e36ba0973f9a6",
+                    "~head": "Reply exactly DUET_REF_RECEIPT. Do not create or modify any file",
+                    "~tail": "h0000gn/T/duet-ref-attach-s9A3y1/user docs/src folder\"[Image #1]"
+                  },
+                  "command": null,
+                  "attachments": [
+                    {
+                      "kind": "image",
+                      "source": "provider-content",
+                      "path": null,
+                      "mediaType": "image/png"
+                    }
+                  ]
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:e50b9aee-b100-47e3-9fae-a2d4656e92ce:user",
+              "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:023036c1-5d7d-41a0-b38f-482d3366f9cf:text-0",
+              "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:bb3905b3-c0b7-46ee-8518-717346d4ca28:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 171,
+                  "~sha256": "68c7da15f180c11b",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "1-2026-07-03-mr5g51zb/f522a7b1-76bc-4e93-8e02-31da1cf396a6.jsonl"
+                },
+                "providerSessionId": "f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                "locatedAt": "2026-07-03T21:29:34.783Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114173767-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114177559,
+              "context": {
+                "usedTokens": 34383,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Review user documentation files",
+              "costUsd": 0.1466395,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:36.791Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 92,
+      "directiveCounts": {
+        "none": 28,
+        "report-refresh": 5,
+        "session-index-debounced": 7,
+        "unread-only": 21,
+        "sidebar": 2,
+        "transcript-debounced": 29
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114173767-1",
+              "title": "Review user documentation files",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114173767-1",
+              "providerSessionRef": "f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-ref-attach-s9A3y1/2026-07-03-mr5g51zb",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-ref-attach-s9A3y1/2026-07-03-mr5g51zb",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:29:33.767Z",
+              "updatedAt": "2026-07-03T21:29:36.792Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114174291-1",
+                "rawText": {
+                  "~len": 3861,
+                  "~sha256": "6154d09a2c33926c",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "3;153m✻\u001b[3GWorked for 2s\r\u001b[2B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 1129,
+                  "~sha256": "28000cffc6d4b84a",
+                  "~head": "ctrl+g to edit in VS Code\n❯ ReplyexactlyDUET_REF_RECEIPT.Donotcr",
+                  "~tail": "bbi(running stop hook)\n✻Ebbing… · 2s · ↓2 tokens)\n✻Worked for 2s"
+                },
+                "truncated": false,
+                "receivedChars": 3861
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:023036c1-5d7d-41a0-b38f-482d3366f9cf:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:023036c1-5d7d-41a0-b38f-482d3366f9cf:text-0",
+                  "taskId": "task-1783114173767-1",
+                  "sourceId": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                  "provider": "claude",
+                  "turnKey": "ec6c72ab-bdae-408b-8c21-a5fe5ce78c2f",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:36.331Z",
+                  "seq": 2,
+                  "markdown": "API Error: an image in the conversation could not be processed and was removed. Double press esc to edit your message, or re-read the file if you still need it."
+                }
+              ],
+              [
+                "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:bb3905b3-c0b7-46ee-8518-717346d4ca28:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:bb3905b3-c0b7-46ee-8518-717346d4ca28:text-0",
+                  "taskId": "task-1783114173767-1",
+                  "sourceId": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                  "provider": "claude",
+                  "turnKey": "ec6c72ab-bdae-408b-8c21-a5fe5ce78c2f",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:36.654Z",
+                  "seq": 3,
+                  "markdown": "DUET_REF_RECEIPT"
+                }
+              ],
+              [
+                "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:e50b9aee-b100-47e3-9fae-a2d4656e92ce:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:e50b9aee-b100-47e3-9fae-a2d4656e92ce:user",
+                  "taskId": "task-1783114173767-1",
+                  "sourceId": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                  "provider": "claude",
+                  "turnKey": "ec6c72ab-bdae-408b-8c21-a5fe5ce78c2f",
+                  "runId": null,
+                  "ts": "2026-07-03T21:29:34.573Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 266,
+                    "~sha256": "6e5e36ba0973f9a6",
+                    "~head": "Reply exactly DUET_REF_RECEIPT. Do not create or modify any file",
+                    "~tail": "h0000gn/T/duet-ref-attach-s9A3y1/user docs/src folder\"[Image #1]"
+                  },
+                  "command": null,
+                  "attachments": [
+                    {
+                      "kind": "image",
+                      "source": "provider-content",
+                      "path": null,
+                      "mediaType": "image/png"
+                    }
+                  ]
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:e50b9aee-b100-47e3-9fae-a2d4656e92ce:user",
+              "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:023036c1-5d7d-41a0-b38f-482d3366f9cf:text-0",
+              "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6:bb3905b3-c0b7-46ee-8518-717346d4ca28:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 171,
+                  "~sha256": "68c7da15f180c11b",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "1-2026-07-03-mr5g51zb/f522a7b1-76bc-4e93-8e02-31da1cf396a6.jsonl"
+                },
+                "providerSessionId": "f522a7b1-76bc-4e93-8e02-31da1cf396a6",
+                "locatedAt": "2026-07-03T21:29:34.783Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114173767-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114177559,
+              "context": {
+                "usedTokens": 34383,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Review user documentation files",
+              "costUsd": 0.1466395,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:36.791Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

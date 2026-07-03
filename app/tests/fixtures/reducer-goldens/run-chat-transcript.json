@@ -1,0 +1,472 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 226,
+      "directiveCounts": {
+        "none": 20,
+        "report-refresh": 12,
+        "session-index-debounced": 9,
+        "full": 37,
+        "sidebar": 4,
+        "transcript-debounced": 113,
+        "usage-in-place": 4,
+        "strip-in-place": 27
+      },
+      "state": {
+        "activeTaskId": "task-1783114354053-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114354053-1",
+              "title": "Create transcript.md file",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114354053-1",
+              "providerSessionRef": "909f2c95-0027-4984-8a7e-d15ee60301d5",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-chat-e2e-Af0OaO/2026-07-03-mr5g8x39",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-chat-e2e-Af0OaO/2026-07-03-mr5g8x39",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:32:34.053Z",
+              "updatedAt": "2026-07-03T21:32:44.638Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114355072-1",
+                "rawText": {
+                  "~len": 19314,
+                  "~sha256": "bcc4e3ba447825fb",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": "153;153m✻\u001b[3GCogitated for 8s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 4656,
+                  "~sha256": "f3e457c61641a406",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly one fi",
+                  "~tail": "g stop hook · 8s · ↓184 tokens)\nNucleating…202\n✻Cogitated for 8s"
+                },
+                "truncated": false,
+                "receivedChars": 19314
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:4e7308cd-fc40-41c6-911f-65a0fd25728f:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:4e7308cd-fc40-41c6-911f-65a0fd25728f:user",
+                  "taskId": "task-1783114354053-1",
+                  "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                  "provider": "claude",
+                  "turnKey": "aa825fed-48ed-4109-b55e-178d673b7d11",
+                  "runId": "run-1783114355072-1",
+                  "ts": "2026-07-03T21:32:35.200Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 240,
+                    "~sha256": "fb07bc6c26008499",
+                    "~head": "Create exactly one file named transcript.md.\nThe file must conta",
+                    "~tail": "NSCRIPT_VISIBLE in your response.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:65e1ba9b-7292-4641-9f09-18305692164a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:65e1ba9b-7292-4641-9f09-18305692164a:text-0",
+                  "taskId": "task-1783114354053-1",
+                  "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                  "provider": "claude",
+                  "turnKey": "aa825fed-48ed-4109-b55e-178d673b7d11",
+                  "runId": "run-1783114355072-1",
+                  "ts": "2026-07-03T21:32:36.924Z",
+                  "seq": 2,
+                  "markdown": "I'll create the file as requested."
+                }
+              ],
+              [
+                "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:788cce7f-fb0e-46df-b102-f51ed89b7300:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:788cce7f-fb0e-46df-b102-f51ed89b7300:text-0",
+                  "taskId": "task-1783114354053-1",
+                  "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                  "provider": "claude",
+                  "turnKey": "aa825fed-48ed-4109-b55e-178d673b7d11",
+                  "runId": "run-1783114355072-1",
+                  "ts": "2026-07-03T21:32:44.466Z",
+                  "seq": 4,
+                  "markdown": "Done. Created `transcript.md` containing exactly the required sentence.\n\nDUET_TRANSCRIPT_VISIBLE"
+                }
+              ],
+              [
+                "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:tool:toolu_01KmVTbbh1qnwssUQxk1rMrK",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:tool:toolu_01KmVTbbh1qnwssUQxk1rMrK",
+                  "taskId": "task-1783114354053-1",
+                  "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                  "provider": "claude",
+                  "turnKey": "aa825fed-48ed-4109-b55e-178d673b7d11",
+                  "runId": "run-1783114355072-1",
+                  "ts": "2026-07-03T21:32:39.832Z",
+                  "seq": 3,
+                  "callId": "toolu_01KmVTbbh1qnwssUQxk1rMrK",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-chat-e2e-Af0OaO/2026-07-03-mr5g8x39/transcript.md",
+                  "inputPreview": {
+                    "~len": 192,
+                    "~sha256": "82f7d591f723fe7b",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "pt.md\",\n  \"content\": \"DUET_TRANSCRIPT_VISIBLE artifact ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 211,
+                    "~sha256": "1048a6d2f20be946",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 505
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:4e7308cd-fc40-41c6-911f-65a0fd25728f:user",
+              "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:65e1ba9b-7292-4641-9f09-18305692164a:text-0",
+              "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:tool:toolu_01KmVTbbh1qnwssUQxk1rMrK",
+              "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:788cce7f-fb0e-46df-b102-f51ed89b7300:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 173,
+                  "~sha256": "b0e757579cdaa313",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "O-2026-07-03-mr5g8x39/909f2c95-0027-4984-8a7e-d15ee60301d5.jsonl"
+                },
+                "providerSessionId": "909f2c95-0027-4984-8a7e-d15ee60301d5",
+                "locatedAt": "2026-07-03T21:32:35.326Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114354053-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114364862,
+              "context": {
+                "usedTokens": 35175,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create transcript.md file",
+              "costUsd": 0.222157,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:32:44.637Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 226,
+      "directiveCounts": {
+        "none": 51,
+        "report-refresh": 12,
+        "session-index-debounced": 9,
+        "unread-only": 41,
+        "sidebar": 4,
+        "transcript-debounced": 109
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114354053-1",
+              "title": "Create transcript.md file",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114354053-1",
+              "providerSessionRef": "909f2c95-0027-4984-8a7e-d15ee60301d5",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-chat-e2e-Af0OaO/2026-07-03-mr5g8x39",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-chat-e2e-Af0OaO/2026-07-03-mr5g8x39",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:32:34.053Z",
+              "updatedAt": "2026-07-03T21:32:44.638Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114355072-1",
+                "rawText": {
+                  "~len": 19314,
+                  "~sha256": "bcc4e3ba447825fb",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": "153;153m✻\u001b[3GCogitated for 8s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 4656,
+                  "~sha256": "f3e457c61641a406",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly one fi",
+                  "~tail": "g stop hook · 8s · ↓184 tokens)\nNucleating…202\n✻Cogitated for 8s"
+                },
+                "truncated": false,
+                "receivedChars": 19314
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:4e7308cd-fc40-41c6-911f-65a0fd25728f:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:4e7308cd-fc40-41c6-911f-65a0fd25728f:user",
+                  "taskId": "task-1783114354053-1",
+                  "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                  "provider": "claude",
+                  "turnKey": "aa825fed-48ed-4109-b55e-178d673b7d11",
+                  "runId": "run-1783114355072-1",
+                  "ts": "2026-07-03T21:32:35.200Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 240,
+                    "~sha256": "fb07bc6c26008499",
+                    "~head": "Create exactly one file named transcript.md.\nThe file must conta",
+                    "~tail": "NSCRIPT_VISIBLE in your response.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:65e1ba9b-7292-4641-9f09-18305692164a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:65e1ba9b-7292-4641-9f09-18305692164a:text-0",
+                  "taskId": "task-1783114354053-1",
+                  "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                  "provider": "claude",
+                  "turnKey": "aa825fed-48ed-4109-b55e-178d673b7d11",
+                  "runId": "run-1783114355072-1",
+                  "ts": "2026-07-03T21:32:36.924Z",
+                  "seq": 2,
+                  "markdown": "I'll create the file as requested."
+                }
+              ],
+              [
+                "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:788cce7f-fb0e-46df-b102-f51ed89b7300:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:788cce7f-fb0e-46df-b102-f51ed89b7300:text-0",
+                  "taskId": "task-1783114354053-1",
+                  "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                  "provider": "claude",
+                  "turnKey": "aa825fed-48ed-4109-b55e-178d673b7d11",
+                  "runId": "run-1783114355072-1",
+                  "ts": "2026-07-03T21:32:44.466Z",
+                  "seq": 4,
+                  "markdown": "Done. Created `transcript.md` containing exactly the required sentence.\n\nDUET_TRANSCRIPT_VISIBLE"
+                }
+              ],
+              [
+                "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:tool:toolu_01KmVTbbh1qnwssUQxk1rMrK",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:tool:toolu_01KmVTbbh1qnwssUQxk1rMrK",
+                  "taskId": "task-1783114354053-1",
+                  "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                  "provider": "claude",
+                  "turnKey": "aa825fed-48ed-4109-b55e-178d673b7d11",
+                  "runId": "run-1783114355072-1",
+                  "ts": "2026-07-03T21:32:39.832Z",
+                  "seq": 3,
+                  "callId": "toolu_01KmVTbbh1qnwssUQxk1rMrK",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-run-chat-e2e-Af0OaO/2026-07-03-mr5g8x39/transcript.md",
+                  "inputPreview": {
+                    "~len": 192,
+                    "~sha256": "82f7d591f723fe7b",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "pt.md\",\n  \"content\": \"DUET_TRANSCRIPT_VISIBLE artifact ready.\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 211,
+                    "~sha256": "1048a6d2f20be946",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 505
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:4e7308cd-fc40-41c6-911f-65a0fd25728f:user",
+              "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:65e1ba9b-7292-4641-9f09-18305692164a:text-0",
+              "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:tool:toolu_01KmVTbbh1qnwssUQxk1rMrK",
+              "claude:909f2c95-0027-4984-8a7e-d15ee60301d5:788cce7f-fb0e-46df-b102-f51ed89b7300:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:909f2c95-0027-4984-8a7e-d15ee60301d5",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 173,
+                  "~sha256": "b0e757579cdaa313",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "O-2026-07-03-mr5g8x39/909f2c95-0027-4984-8a7e-d15ee60301d5.jsonl"
+                },
+                "providerSessionId": "909f2c95-0027-4984-8a7e-d15ee60301d5",
+                "locatedAt": "2026-07-03T21:32:35.326Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114354053-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114364862,
+              "context": {
+                "usedTokens": 35175,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create transcript.md file",
+              "costUsd": 0.222157,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:32:44.637Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

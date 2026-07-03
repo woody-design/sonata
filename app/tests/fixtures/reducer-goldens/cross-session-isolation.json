@@ -1,0 +1,1059 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 757,
+      "directiveCounts": {
+        "none": 98,
+        "report-refresh": 26,
+        "session-index-debounced": 21,
+        "full": 61,
+        "unread-only": 29,
+        "sidebar": 8,
+        "transcript-debounced": 427,
+        "usage-in-place": 7,
+        "strip-in-place": 80
+      },
+      "state": {
+        "activeTaskId": "task-1783114184387-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114184387-1",
+              "title": "Create gamma_only.md file with codeword",
+              "provider": "claude",
+              "model": null,
+              "reasoningEffort": null,
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "acceptEdits",
+              "runtimeSessionId": "runtime-task-1783114184387-1",
+              "providerSessionRef": "ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6",
+              "autoWorkspace": false,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:29:44.387Z",
+              "updatedAt": "2026-07-03T21:30:17.512Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114184947-1",
+                "rawText": {
+                  "~len": 12869,
+                  "~sha256": "5fb112eadf8e8bf3",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "3;153;153m✻\u001b[3GCooked for 12s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 2015,
+                  "~sha256": "60f41318c3eaca38",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedalpha_only.",
+                  "~tail": "erspacing…running stop hook · 12s · ↓276 tokens)\n✻Cooked for 12s"
+                },
+                "truncated": false,
+                "receivedChars": 12869
+              },
+              {
+                "runId": "run-1783114198767-2",
+                "rawText": {
+                  "~len": 1473,
+                  "~sha256": "e3394dc456e45578",
+                  "~head": "\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;17",
+                  "~tail": "   \r\u001b[10B\u001b[49m\u001b[K\r\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 470,
+                  "~sha256": "1467b11573f7ccfe",
+                  "~head": "/clear\n/cler Start a new session with empty context; previous se",
+                  "~tail": "ouse a workflwdirectly.\n◉ xhigh · /ffort\n· ← for agents\n❯ /clear"
+                },
+                "truncated": false,
+                "receivedChars": 1473
+              },
+              {
+                "runId": "run-1783114202775-3",
+                "rawText": {
+                  "~len": 18749,
+                  "~sha256": "8dfa1480d2251dd0",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "3mChurned\u001b[11Gfor\u001b[15G14\u001b[18G\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3318,
+                  "~sha256": "18a4888cc3f82e58",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedgamma_only.",
+                  "~tail": "dwiththerequestedcontent.Nootherfilesweretouched.\n✻ Churnedfor14"
+                },
+                "truncated": false,
+                "receivedChars": 18749
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:2b7f7dbb-d0d0-4457-a5c1-e30d64049857:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:2b7f7dbb-d0d0-4457-a5c1-e30d64049857:user",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                  "provider": "claude",
+                  "turnKey": "fc091e6b-c6a4-4496-b5be-389bf3100bc6",
+                  "runId": "run-1783114202775-3",
+                  "ts": "2026-07-03T21:30:02.911Z",
+                  "seq": 2,
+                  "text": {
+                    "~len": 191,
+                    "~sha256": "6abe599c8759706e",
+                    "~head": "Create exactly one file named gamma_only.md containing exactly: ",
+                    "~tail": "nothing about any other codeword.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:6be43300-7ed8-436a-a0ff-d9cf865ac7f4:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:6be43300-7ed8-436a-a0ff-d9cf865ac7f4:user",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                  "provider": "claude",
+                  "turnKey": "16b9547a-149e-49fc-8895-e7be023088d2",
+                  "runId": "run-1783114198767-2",
+                  "ts": "2026-07-03T21:29:58.890Z",
+                  "seq": 1,
+                  "text": "/clear",
+                  "command": "/clear",
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:c2e4c130-8da2-4d53-8efd-953306f98519:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:c2e4c130-8da2-4d53-8efd-953306f98519:text-0",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                  "provider": "claude",
+                  "turnKey": "fc091e6b-c6a4-4496-b5be-389bf3100bc6",
+                  "runId": "run-1783114202775-3",
+                  "ts": "2026-07-03T21:30:17.207Z",
+                  "seq": 4,
+                  "markdown": "CODEWORD_GAMMA\n\n`gamma_only.md` has been created with the requested content. No other files were touched."
+                }
+              ],
+              [
+                "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:tool:toolu_01Gz9YwooXPJvTjKozMxkftW",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:tool:toolu_01Gz9YwooXPJvTjKozMxkftW",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                  "provider": "claude",
+                  "turnKey": "fc091e6b-c6a4-4496-b5be-389bf3100bc6",
+                  "runId": "run-1783114202775-3",
+                  "ts": "2026-07-03T21:30:13.984Z",
+                  "seq": 3,
+                  "callId": "toolu_01Gz9YwooXPJvTjKozMxkftW",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/gamma_only.md",
+                  "inputPreview": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/gamma_only.md\",\n  \"content\": \"CODEWORD_GAMMA ready\"\n}",
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 192,
+                    "~sha256": "015f3fa95cad2578",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 125
+                }
+              ],
+              [
+                "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:5f0ba046-2296-4c37-9d23-d7c65fa9a77a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:5f0ba046-2296-4c37-9d23-d7c65fa9a77a:text-0",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                  "provider": "claude",
+                  "turnKey": "a61b3d51-21ab-4e06-8d33-9d30cbad8646",
+                  "runId": "run-1783114184947-1",
+                  "ts": "2026-07-03T21:29:57.989Z",
+                  "seq": 3,
+                  "markdown": "CODEWORD_ALPHA\n\n`alpha_only.md` has been created with the exact content requested. No other files were touched."
+                }
+              ],
+              [
+                "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:6a9b073e-4a02-499d-8dd5-51da382f33ca:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:6a9b073e-4a02-499d-8dd5-51da382f33ca:user",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                  "provider": "claude",
+                  "turnKey": "a61b3d51-21ab-4e06-8d33-9d30cbad8646",
+                  "runId": "run-1783114184947-1",
+                  "ts": "2026-07-03T21:29:45.073Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 191,
+                    "~sha256": "17b5bdc8f9009e98",
+                    "~head": "Create exactly one file named alpha_only.md containing exactly: ",
+                    "~tail": "nothing about any other codeword.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:tool:toolu_01EMrVXGUsSw3tpNx3Epw4oz",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:tool:toolu_01EMrVXGUsSw3tpNx3Epw4oz",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                  "provider": "claude",
+                  "turnKey": "a61b3d51-21ab-4e06-8d33-9d30cbad8646",
+                  "runId": "run-1783114184947-1",
+                  "ts": "2026-07-03T21:29:52.392Z",
+                  "seq": 2,
+                  "callId": "toolu_01EMrVXGUsSw3tpNx3Epw4oz",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/alpha_only.md",
+                  "inputPreview": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/alpha_only.md\",\n  \"content\": \"CODEWORD_ALPHA ready.\"\n}",
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 192,
+                    "~sha256": "ab9d9a645005574b",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 126
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:6a9b073e-4a02-499d-8dd5-51da382f33ca:user",
+              "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:tool:toolu_01EMrVXGUsSw3tpNx3Epw4oz",
+              "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:5f0ba046-2296-4c37-9d23-d7c65fa9a77a:text-0",
+              "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:6be43300-7ed8-436a-a0ff-d9cf865ac7f4:user",
+              "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:2b7f7dbb-d0d0-4457-a5c1-e30d64049857:user",
+              "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:tool:toolu_01Gz9YwooXPJvTjKozMxkftW",
+              "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:c2e4c130-8da2-4d53-8efd-953306f98519:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18dfnxrkw1rrg5mh0000gn-T-duet-shared-folder-9TO8p6/b799c1f0-89fb-4ebe-abb8-e73218fbdef0.jsonl",
+                "providerSessionId": "b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                "locatedAt": "2026-07-03T21:29:45.151Z"
+              },
+              {
+                "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18dfnxrkw1rrg5mh0000gn-T-duet-shared-folder-9TO8p6/ab32aea1-f38d-4275-b9f9-032c25dc25fb.jsonl",
+                "providerSessionId": "ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                "locatedAt": "2026-07-03T21:29:59.196Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114184387-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114214351,
+              "context": {
+                "usedTokens": 36594,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create gamma_only.md file with codeword",
+              "costUsd": 0.86912,
+              "modelDisplayName": "Fable 5",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:17.511Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          },
+          {
+            "task": {
+              "id": "task-1783114184447-2",
+              "title": "Create beta_only.md file",
+              "provider": "claude",
+              "model": null,
+              "reasoningEffort": null,
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "acceptEdits",
+              "runtimeSessionId": "runtime-task-1783114184447-2",
+              "providerSessionRef": "c85435f4-baa4-47fd-afe0-d06722e2519a",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6",
+              "autoWorkspace": false,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:29:44.447Z",
+              "updatedAt": "2026-07-03T21:29:58.194Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114185455-1",
+                "rawText": {
+                  "~len": 13249,
+                  "~sha256": "ef2e8ae92e2897ed",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "153;153m✻\u001b[3GCrunched for 12s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 2060,
+                  "~sha256": "8975e565df7ed68f",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedbeta_only.m",
+                  "~tail": " hook · 12s · ↓489 tokens)\n✻Philosophising…508\n✻Crunched for 12s"
+                },
+                "truncated": false,
+                "receivedChars": 13249
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:732b4996-0a4b-4b4d-8dec-ea62ec2d0b87:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:732b4996-0a4b-4b4d-8dec-ea62ec2d0b87:text-0",
+                  "taskId": "task-1783114184447-2",
+                  "sourceId": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a",
+                  "provider": "claude",
+                  "turnKey": "ab083cde-ecaa-4cef-aca9-42b5c454613d",
+                  "runId": "run-1783114185455-1",
+                  "ts": "2026-07-03T21:29:57.886Z",
+                  "seq": 3,
+                  "markdown": "CODEWORD_BETA\n\n`beta_only.md` 已创建，内容为 `CODEWORD_BETA ready.`，未改动其他任何文件。"
+                }
+              ],
+              [
+                "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:f36325d5-f06f-4f3e-ae7c-9c9774178994:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:f36325d5-f06f-4f3e-ae7c-9c9774178994:user",
+                  "taskId": "task-1783114184447-2",
+                  "sourceId": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a",
+                  "provider": "claude",
+                  "turnKey": "ab083cde-ecaa-4cef-aca9-42b5c454613d",
+                  "runId": "run-1783114185455-1",
+                  "ts": "2026-07-03T21:29:45.583Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 188,
+                    "~sha256": "5e76cfaebda8e785",
+                    "~head": "Create exactly one file named beta_only.md containing exactly: C",
+                    "~tail": "nothing about any other codeword.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:tool:toolu_015WyhVw4nQJ7HCrMgLNT6kK",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:tool:toolu_015WyhVw4nQJ7HCrMgLNT6kK",
+                  "taskId": "task-1783114184447-2",
+                  "sourceId": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a",
+                  "provider": "claude",
+                  "turnKey": "ab083cde-ecaa-4cef-aca9-42b5c454613d",
+                  "runId": "run-1783114185455-1",
+                  "ts": "2026-07-03T21:29:54.265Z",
+                  "seq": 2,
+                  "callId": "toolu_015WyhVw4nQJ7HCrMgLNT6kK",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/beta_only.md",
+                  "inputPreview": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/beta_only.md\",\n  \"content\": \"CODEWORD_BETA ready.\"\n}",
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 191,
+                    "~sha256": "02a6d47969768fb9",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 118
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:f36325d5-f06f-4f3e-ae7c-9c9774178994:user",
+              "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:tool:toolu_015WyhVw4nQJ7HCrMgLNT6kK",
+              "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:732b4996-0a4b-4b4d-8dec-ea62ec2d0b87:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18dfnxrkw1rrg5mh0000gn-T-duet-shared-folder-9TO8p6/c85435f4-baa4-47fd-afe0-d06722e2519a.jsonl",
+                "providerSessionId": "c85435f4-baa4-47fd-afe0-d06722e2519a",
+                "locatedAt": "2026-07-03T21:29:45.954Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114184447-2",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114198740,
+              "context": {
+                "usedTokens": 36455,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create beta_only.md file",
+              "costUsd": 0.490761,
+              "modelDisplayName": "Fable 5",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:58.193Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 757,
+      "directiveCounts": {
+        "none": 185,
+        "report-refresh": 26,
+        "session-index-debounced": 21,
+        "unread-only": 97,
+        "sidebar": 8,
+        "transcript-debounced": 420
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114184387-1",
+              "title": "Create gamma_only.md file with codeword",
+              "provider": "claude",
+              "model": null,
+              "reasoningEffort": null,
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "acceptEdits",
+              "runtimeSessionId": "runtime-task-1783114184387-1",
+              "providerSessionRef": "ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6",
+              "autoWorkspace": false,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:29:44.387Z",
+              "updatedAt": "2026-07-03T21:30:17.512Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114184947-1",
+                "rawText": {
+                  "~len": 12869,
+                  "~sha256": "5fb112eadf8e8bf3",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "3;153;153m✻\u001b[3GCooked for 12s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 2015,
+                  "~sha256": "60f41318c3eaca38",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedalpha_only.",
+                  "~tail": "erspacing…running stop hook · 12s · ↓276 tokens)\n✻Cooked for 12s"
+                },
+                "truncated": false,
+                "receivedChars": 12869
+              },
+              {
+                "runId": "run-1783114198767-2",
+                "rawText": {
+                  "~len": 1473,
+                  "~sha256": "e3394dc456e45578",
+                  "~head": "\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;17",
+                  "~tail": "   \r\u001b[10B\u001b[49m\u001b[K\r\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 470,
+                  "~sha256": "1467b11573f7ccfe",
+                  "~head": "/clear\n/cler Start a new session with empty context; previous se",
+                  "~tail": "ouse a workflwdirectly.\n◉ xhigh · /ffort\n· ← for agents\n❯ /clear"
+                },
+                "truncated": false,
+                "receivedChars": 1473
+              },
+              {
+                "runId": "run-1783114202775-3",
+                "rawText": {
+                  "~len": 18749,
+                  "~sha256": "8dfa1480d2251dd0",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "3mChurned\u001b[11Gfor\u001b[15G14\u001b[18G\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 3318,
+                  "~sha256": "18a4888cc3f82e58",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedgamma_only.",
+                  "~tail": "dwiththerequestedcontent.Nootherfilesweretouched.\n✻ Churnedfor14"
+                },
+                "truncated": false,
+                "receivedChars": 18749
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:2b7f7dbb-d0d0-4457-a5c1-e30d64049857:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:2b7f7dbb-d0d0-4457-a5c1-e30d64049857:user",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                  "provider": "claude",
+                  "turnKey": "fc091e6b-c6a4-4496-b5be-389bf3100bc6",
+                  "runId": "run-1783114202775-3",
+                  "ts": "2026-07-03T21:30:02.911Z",
+                  "seq": 2,
+                  "text": {
+                    "~len": 191,
+                    "~sha256": "6abe599c8759706e",
+                    "~head": "Create exactly one file named gamma_only.md containing exactly: ",
+                    "~tail": "nothing about any other codeword.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:6be43300-7ed8-436a-a0ff-d9cf865ac7f4:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:6be43300-7ed8-436a-a0ff-d9cf865ac7f4:user",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                  "provider": "claude",
+                  "turnKey": "16b9547a-149e-49fc-8895-e7be023088d2",
+                  "runId": "run-1783114198767-2",
+                  "ts": "2026-07-03T21:29:58.890Z",
+                  "seq": 1,
+                  "text": "/clear",
+                  "command": "/clear",
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:c2e4c130-8da2-4d53-8efd-953306f98519:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:c2e4c130-8da2-4d53-8efd-953306f98519:text-0",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                  "provider": "claude",
+                  "turnKey": "fc091e6b-c6a4-4496-b5be-389bf3100bc6",
+                  "runId": "run-1783114202775-3",
+                  "ts": "2026-07-03T21:30:17.207Z",
+                  "seq": 4,
+                  "markdown": "CODEWORD_GAMMA\n\n`gamma_only.md` has been created with the requested content. No other files were touched."
+                }
+              ],
+              [
+                "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:tool:toolu_01Gz9YwooXPJvTjKozMxkftW",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:tool:toolu_01Gz9YwooXPJvTjKozMxkftW",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                  "provider": "claude",
+                  "turnKey": "fc091e6b-c6a4-4496-b5be-389bf3100bc6",
+                  "runId": "run-1783114202775-3",
+                  "ts": "2026-07-03T21:30:13.984Z",
+                  "seq": 3,
+                  "callId": "toolu_01Gz9YwooXPJvTjKozMxkftW",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/gamma_only.md",
+                  "inputPreview": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/gamma_only.md\",\n  \"content\": \"CODEWORD_GAMMA ready\"\n}",
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 192,
+                    "~sha256": "015f3fa95cad2578",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 125
+                }
+              ],
+              [
+                "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:5f0ba046-2296-4c37-9d23-d7c65fa9a77a:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:5f0ba046-2296-4c37-9d23-d7c65fa9a77a:text-0",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                  "provider": "claude",
+                  "turnKey": "a61b3d51-21ab-4e06-8d33-9d30cbad8646",
+                  "runId": "run-1783114184947-1",
+                  "ts": "2026-07-03T21:29:57.989Z",
+                  "seq": 3,
+                  "markdown": "CODEWORD_ALPHA\n\n`alpha_only.md` has been created with the exact content requested. No other files were touched."
+                }
+              ],
+              [
+                "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:6a9b073e-4a02-499d-8dd5-51da382f33ca:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:6a9b073e-4a02-499d-8dd5-51da382f33ca:user",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                  "provider": "claude",
+                  "turnKey": "a61b3d51-21ab-4e06-8d33-9d30cbad8646",
+                  "runId": "run-1783114184947-1",
+                  "ts": "2026-07-03T21:29:45.073Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 191,
+                    "~sha256": "17b5bdc8f9009e98",
+                    "~head": "Create exactly one file named alpha_only.md containing exactly: ",
+                    "~tail": "nothing about any other codeword.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:tool:toolu_01EMrVXGUsSw3tpNx3Epw4oz",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:tool:toolu_01EMrVXGUsSw3tpNx3Epw4oz",
+                  "taskId": "task-1783114184387-1",
+                  "sourceId": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                  "provider": "claude",
+                  "turnKey": "a61b3d51-21ab-4e06-8d33-9d30cbad8646",
+                  "runId": "run-1783114184947-1",
+                  "ts": "2026-07-03T21:29:52.392Z",
+                  "seq": 2,
+                  "callId": "toolu_01EMrVXGUsSw3tpNx3Epw4oz",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/alpha_only.md",
+                  "inputPreview": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/alpha_only.md\",\n  \"content\": \"CODEWORD_ALPHA ready.\"\n}",
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 192,
+                    "~sha256": "ab9d9a645005574b",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 126
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:6a9b073e-4a02-499d-8dd5-51da382f33ca:user",
+              "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:tool:toolu_01EMrVXGUsSw3tpNx3Epw4oz",
+              "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0:5f0ba046-2296-4c37-9d23-d7c65fa9a77a:text-0",
+              "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:6be43300-7ed8-436a-a0ff-d9cf865ac7f4:user",
+              "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:2b7f7dbb-d0d0-4457-a5c1-e30d64049857:user",
+              "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:tool:toolu_01Gz9YwooXPJvTjKozMxkftW",
+              "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb:c2e4c130-8da2-4d53-8efd-953306f98519:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18dfnxrkw1rrg5mh0000gn-T-duet-shared-folder-9TO8p6/b799c1f0-89fb-4ebe-abb8-e73218fbdef0.jsonl",
+                "providerSessionId": "b799c1f0-89fb-4ebe-abb8-e73218fbdef0",
+                "locatedAt": "2026-07-03T21:29:45.151Z"
+              },
+              {
+                "sourceId": "claude:ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18dfnxrkw1rrg5mh0000gn-T-duet-shared-folder-9TO8p6/ab32aea1-f38d-4275-b9f9-032c25dc25fb.jsonl",
+                "providerSessionId": "ab32aea1-f38d-4275-b9f9-032c25dc25fb",
+                "locatedAt": "2026-07-03T21:29:59.196Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114184387-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114214351,
+              "context": {
+                "usedTokens": 36594,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create gamma_only.md file with codeword",
+              "costUsd": 0.86912,
+              "modelDisplayName": "Fable 5",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:17.511Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          },
+          {
+            "task": {
+              "id": "task-1783114184447-2",
+              "title": "Create beta_only.md file",
+              "provider": "claude",
+              "model": null,
+              "reasoningEffort": null,
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "acceptEdits",
+              "runtimeSessionId": "runtime-task-1783114184447-2",
+              "providerSessionRef": "c85435f4-baa4-47fd-afe0-d06722e2519a",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6",
+              "autoWorkspace": false,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:29:44.447Z",
+              "updatedAt": "2026-07-03T21:29:58.194Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114185455-1",
+                "rawText": {
+                  "~len": 13249,
+                  "~sha256": "ef2e8ae92e2897ed",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": "153;153m✻\u001b[3GCrunched for 12s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 2060,
+                  "~sha256": "8975e565df7ed68f",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedbeta_only.m",
+                  "~tail": " hook · 12s · ↓489 tokens)\n✻Philosophising…508\n✻Crunched for 12s"
+                },
+                "truncated": false,
+                "receivedChars": 13249
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:732b4996-0a4b-4b4d-8dec-ea62ec2d0b87:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:732b4996-0a4b-4b4d-8dec-ea62ec2d0b87:text-0",
+                  "taskId": "task-1783114184447-2",
+                  "sourceId": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a",
+                  "provider": "claude",
+                  "turnKey": "ab083cde-ecaa-4cef-aca9-42b5c454613d",
+                  "runId": "run-1783114185455-1",
+                  "ts": "2026-07-03T21:29:57.886Z",
+                  "seq": 3,
+                  "markdown": "CODEWORD_BETA\n\n`beta_only.md` 已创建，内容为 `CODEWORD_BETA ready.`，未改动其他任何文件。"
+                }
+              ],
+              [
+                "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:f36325d5-f06f-4f3e-ae7c-9c9774178994:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:f36325d5-f06f-4f3e-ae7c-9c9774178994:user",
+                  "taskId": "task-1783114184447-2",
+                  "sourceId": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a",
+                  "provider": "claude",
+                  "turnKey": "ab083cde-ecaa-4cef-aca9-42b5c454613d",
+                  "runId": "run-1783114185455-1",
+                  "ts": "2026-07-03T21:29:45.583Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 188,
+                    "~sha256": "5e76cfaebda8e785",
+                    "~head": "Create exactly one file named beta_only.md containing exactly: C",
+                    "~tail": "nothing about any other codeword.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:tool:toolu_015WyhVw4nQJ7HCrMgLNT6kK",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:tool:toolu_015WyhVw4nQJ7HCrMgLNT6kK",
+                  "taskId": "task-1783114184447-2",
+                  "sourceId": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a",
+                  "provider": "claude",
+                  "turnKey": "ab083cde-ecaa-4cef-aca9-42b5c454613d",
+                  "runId": "run-1783114185455-1",
+                  "ts": "2026-07-03T21:29:54.265Z",
+                  "seq": 2,
+                  "callId": "toolu_015WyhVw4nQJ7HCrMgLNT6kK",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/beta_only.md",
+                  "inputPreview": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-shared-folder-9TO8p6/beta_only.md\",\n  \"content\": \"CODEWORD_BETA ready.\"\n}",
+                  "inputTruncated": false,
+                  "status": "ok",
+                  "resultPreview": {
+                    "~len": 191,
+                    "~sha256": "02a6d47969768fb9",
+                    "~head": "File created successfully at: /private/var/folders/ly/gsssdfkd18",
+                    "~tail": "file state is current in your context — no need to Read it back)"
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 118
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:f36325d5-f06f-4f3e-ae7c-9c9774178994:user",
+              "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:tool:toolu_015WyhVw4nQJ7HCrMgLNT6kK",
+              "claude:c85435f4-baa4-47fd-afe0-d06722e2519a:732b4996-0a4b-4b4d-8dec-ea62ec2d0b87:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:c85435f4-baa4-47fd-afe0-d06722e2519a",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18dfnxrkw1rrg5mh0000gn-T-duet-shared-folder-9TO8p6/c85435f4-baa4-47fd-afe0-d06722e2519a.jsonl",
+                "providerSessionId": "c85435f4-baa4-47fd-afe0-d06722e2519a",
+                "locatedAt": "2026-07-03T21:29:45.954Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114184447-2",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114198740,
+              "context": {
+                "usedTokens": 36455,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Create beta_only.md file",
+              "costUsd": 0.490761,
+              "modelDisplayName": "Fable 5",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:29:58.193Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

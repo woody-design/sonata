@@ -1,0 +1,362 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 85,
+      "directiveCounts": {
+        "none": 15,
+        "report-refresh": 7,
+        "session-index-debounced": 7,
+        "full": 22,
+        "sidebar": 2,
+        "transcript-debounced": 24,
+        "usage-in-place": 2,
+        "strip-in-place": 6
+      },
+      "state": {
+        "activeTaskId": "task-1783114234419-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114234419-1",
+              "title": "Duet folder session ready",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114234419-1",
+              "providerSessionRef": "28980830-d9fa-4800-8c57-5d9e07e76b7b",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-inspector-folder-e2e-BR5J4g/2026-07-03-mr5g6cs3",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-inspector-folder-e2e-BR5J4g/2026-07-03-mr5g6cs3",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:34.419Z",
+              "updatedAt": "2026-07-03T21:30:36.940Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114234934-1",
+                "rawText": {
+                  "~len": 2735,
+                  "~sha256": "07bedfa7ca037a62",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[27B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": ";153m✻\u001b[3GChurned for 1s\r\u001b[7B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 503,
+                  "~sha256": "6d2928ddd354e09e",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Reply exactly DUET_FOLDER_SESSION_RE",
+                  "~tail": "\nDeliberating…\nrunning sp hook · 1s · ↓2 tokens)\n✻Churned for 1s"
+                },
+                "truncated": false,
+                "receivedChars": 2735
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:3aed7c09-1bcd-462a-ab96-5876c0628bdc:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:3aed7c09-1bcd-462a-ab96-5876c0628bdc:text-0",
+                  "taskId": "task-1783114234419-1",
+                  "sourceId": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b",
+                  "provider": "claude",
+                  "turnKey": "3b78faa0-4845-4471-bafb-ee289d9a2548",
+                  "runId": "run-1783114234934-1",
+                  "ts": "2026-07-03T21:30:36.682Z",
+                  "seq": 2,
+                  "markdown": "DUET_FOLDER_SESSION_READY"
+                }
+              ],
+              [
+                "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:940f48e0-f408-42d8-9474-69307024e2bb:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:940f48e0-f408-42d8-9474-69307024e2bb:user",
+                  "taskId": "task-1783114234419-1",
+                  "sourceId": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b",
+                  "provider": "claude",
+                  "turnKey": "3b78faa0-4845-4471-bafb-ee289d9a2548",
+                  "runId": "run-1783114234934-1",
+                  "ts": "2026-07-03T21:30:35.060Z",
+                  "seq": 1,
+                  "text": "Reply exactly DUET_FOLDER_SESSION_READY.\nDo not create or modify any files.",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:940f48e0-f408-42d8-9474-69307024e2bb:user",
+              "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:3aed7c09-1bcd-462a-ab96-5876c0628bdc:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 181,
+                  "~sha256": "f4e6aab2443427fe",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "g-2026-07-03-mr5g6cs3/28980830-d9fa-4800-8c57-5d9e07e76b7b.jsonl"
+                },
+                "providerSessionId": "28980830-d9fa-4800-8c57-5d9e07e76b7b",
+                "locatedAt": "2026-07-03T21:30:35.184Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114234419-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114237103,
+              "context": {
+                "usedTokens": 34093,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Duet folder session ready",
+              "costUsd": 0.14370049999999998,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:36.940Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 85,
+      "directiveCounts": {
+        "none": 23,
+        "report-refresh": 7,
+        "session-index-debounced": 7,
+        "unread-only": 24,
+        "sidebar": 2,
+        "transcript-debounced": 22
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114234419-1",
+              "title": "Duet folder session ready",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114234419-1",
+              "providerSessionRef": "28980830-d9fa-4800-8c57-5d9e07e76b7b",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-inspector-folder-e2e-BR5J4g/2026-07-03-mr5g6cs3",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-inspector-folder-e2e-BR5J4g/2026-07-03-mr5g6cs3",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:34.419Z",
+              "updatedAt": "2026-07-03T21:30:36.940Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114234934-1",
+                "rawText": {
+                  "~len": 2735,
+                  "~sha256": "07bedfa7ca037a62",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[27B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
+                  "~tail": ";153m✻\u001b[3GChurned for 1s\r\u001b[7B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 503,
+                  "~sha256": "6d2928ddd354e09e",
+                  "~head": "ctrl+g to edit in VS Code\n❯ Reply exactly DUET_FOLDER_SESSION_RE",
+                  "~tail": "\nDeliberating…\nrunning sp hook · 1s · ↓2 tokens)\n✻Churned for 1s"
+                },
+                "truncated": false,
+                "receivedChars": 2735
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:3aed7c09-1bcd-462a-ab96-5876c0628bdc:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:3aed7c09-1bcd-462a-ab96-5876c0628bdc:text-0",
+                  "taskId": "task-1783114234419-1",
+                  "sourceId": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b",
+                  "provider": "claude",
+                  "turnKey": "3b78faa0-4845-4471-bafb-ee289d9a2548",
+                  "runId": "run-1783114234934-1",
+                  "ts": "2026-07-03T21:30:36.682Z",
+                  "seq": 2,
+                  "markdown": "DUET_FOLDER_SESSION_READY"
+                }
+              ],
+              [
+                "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:940f48e0-f408-42d8-9474-69307024e2bb:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:940f48e0-f408-42d8-9474-69307024e2bb:user",
+                  "taskId": "task-1783114234419-1",
+                  "sourceId": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b",
+                  "provider": "claude",
+                  "turnKey": "3b78faa0-4845-4471-bafb-ee289d9a2548",
+                  "runId": "run-1783114234934-1",
+                  "ts": "2026-07-03T21:30:35.060Z",
+                  "seq": 1,
+                  "text": "Reply exactly DUET_FOLDER_SESSION_READY.\nDo not create or modify any files.",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:940f48e0-f408-42d8-9474-69307024e2bb:user",
+              "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b:3aed7c09-1bcd-462a-ab96-5876c0628bdc:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:28980830-d9fa-4800-8c57-5d9e07e76b7b",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 181,
+                  "~sha256": "f4e6aab2443427fe",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "g-2026-07-03-mr5g6cs3/28980830-d9fa-4800-8c57-5d9e07e76b7b.jsonl"
+                },
+                "providerSessionId": "28980830-d9fa-4800-8c57-5d9e07e76b7b",
+                "locatedAt": "2026-07-03T21:30:35.184Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114234419-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114237103,
+              "context": {
+                "usedTokens": 34093,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 79,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 59,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Duet folder session ready",
+              "costUsd": 0.14370049999999998,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:36.940Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,638 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 337,
+      "directiveCounts": {
+        "none": 22,
+        "report-refresh": 22,
+        "session-index-debounced": 10,
+        "full": 59,
+        "sidebar": 7,
+        "transcript-debounced": 172,
+        "usage-in-place": 7,
+        "strip-in-place": 38
+      },
+      "state": {
+        "activeTaskId": "task-1783114429557-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114429557-1",
+              "title": "Run Python foreground process with flag files",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114429557-1",
+              "providerSessionRef": "5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-stop-e2e-78MIiy/2026-07-03-mr5gajcl",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-stop-e2e-78MIiy/2026-07-03-mr5gajcl",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:33:49.557Z",
+              "updatedAt": "2026-07-03T21:33:56.711Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114436710-2",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114430072-1",
+                "rawText": {
+                  "~len": 14577,
+                  "~sha256": "0ea43aefa0a02015",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[92C\u001b[24B\u001b[",
+                  "~tail": "119;87m✳\u001b[3G\u001b[38;2;235;159;127mForging…\u001b[39m\u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 4532,
+                  "~sha256": "02290e965941f28b",
+                  "~head": "◉ xhigh · /effort\n❯ Runexactlythisshellcommandandnoothercommands",
+                  "~tail": "kens)\nImage in clipboard · ctrl+v to paste\n← foragents\n✳Forging…"
+                },
+                "truncated": false,
+                "receivedChars": 14577
+              },
+              {
+                "runId": "run-1783114436710-2",
+                "rawText": {
+                  "~len": 24147,
+                  "~sha256": "bd5353bfd486026d",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": "de --resume 5ba9f89e-1451-455e-a6cb-3d0271e1d504\u001b[22m\r\n\u001b[2m\u001b[22m"
+                },
+                "text": {
+                  "~len": 7469,
+                  "~sha256": "648a728dff3d9159",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n│ ▝▜█████▛▘ │ Changed `",
+                  "~tail": "ssion with:\nclaude --resume 5ba9f89e-1451-455e-a6cb-3d0271e1d504"
+                },
+                "truncated": false,
+                "receivedChars": 24147
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:2f3aef94-edbe-4bc1-86e5-dbb24898d6e4:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:2f3aef94-edbe-4bc1-86e5-dbb24898d6e4:user",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1914bc4f-1341-471f-92b5-c1dab13bbcb1",
+                  "runId": "run-1783114436710-2",
+                  "ts": "2026-07-03T21:33:56.836Z",
+                  "seq": 4,
+                  "text": {
+                    "~len": 164,
+                    "~sha256": "d7eb1ad16db00ea1",
+                    "~head": "Create a Markdown file named stop_recovery.md with exactly this ",
+                    "~tail": "dex session continued after Stop.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:4996ae5e-e250-4eab-99e3-ce91c19584a1:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:4996ae5e-e250-4eab-99e3-ce91c19584a1:user",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1003e723-73d2-4c21-901f-da1453b6cc07",
+                  "runId": "run-1783114430072-1",
+                  "ts": "2026-07-03T21:33:56.456Z",
+                  "seq": 3,
+                  "text": "[Request interrupted by user for tool use]",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ac70602b-4506-4aee-9b36-19494c14ee18:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ac70602b-4506-4aee-9b36-19494c14ee18:user",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1003e723-73d2-4c21-901f-da1453b6cc07",
+                  "runId": "run-1783114430072-1",
+                  "ts": "2026-07-03T21:33:50.199Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 410,
+                    "~sha256": "a25ffe65086c5435",
+                    "~head": "Run exactly this shell command and no other commands. Do not use",
+                    "~tail": "d())); time.sleep(120); Path('stop_end.flag').write_text('end')\""
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ddcb623b-2d7b-41de-a5ac-deee29131991:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ddcb623b-2d7b-41de-a5ac-deee29131991:text-0",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1914bc4f-1341-471f-92b5-c1dab13bbcb1",
+                  "runId": "run-1783114436710-2",
+                  "ts": "2026-07-03T21:34:00.509Z",
+                  "seq": 5,
+                  "markdown": "I'll create that file with exactly the content specified."
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01FWcrpmpagmKq18ER1durxN",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01FWcrpmpagmKq18ER1durxN",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1003e723-73d2-4c21-901f-da1453b6cc07",
+                  "runId": "run-1783114430072-1",
+                  "ts": "2026-07-03T21:33:55.969Z",
+                  "seq": 2,
+                  "callId": "toolu_01FWcrpmpagmKq18ER1durxN",
+                  "toolName": "Bash",
+                  "summary": {
+                    "~len": 161,
+                    "~sha256": "765fcfdecd72cca7",
+                    "~head": "python3 -c \"from pathlib import Path; import os, time; Path('sto",
+                    "~tail": "); Path('stop_pid.flag').write_text(str(os.getpid())); time.sle…"
+                  },
+                  "inputPreview": {
+                    "~len": 323,
+                    "~sha256": "c894544beb459acb",
+                    "~head": "{\n  \"command\": \"python3 -c \\\"from pathlib import Path; import os",
+                    "~tail": "script that writes flags and sleeps 120s\",\n  \"timeout\": 130000\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "error",
+                  "resultPreview": {
+                    "~len": 436,
+                    "~sha256": "735cff60fb006a8a",
+                    "~head": "The user doesn't want to proceed with this tool use. The tool us",
+                    "~tail": "you to work, consider saving that to memory for future sessions."
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 486
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01XWN842rqwyWKpQ9jpkckCe",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01XWN842rqwyWKpQ9jpkckCe",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1914bc4f-1341-471f-92b5-c1dab13bbcb1",
+                  "runId": "run-1783114436710-2",
+                  "ts": "2026-07-03T21:34:03.602Z",
+                  "seq": 6,
+                  "callId": "toolu_01XWN842rqwyWKpQ9jpkckCe",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-stop-e2e-78MIiy/2026-07-03-mr5gajcl/stop_recovery.md",
+                  "inputPreview": {
+                    "~len": 247,
+                    "~sha256": "7dfbb840b7a4b2c9",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "ssion continued after Stop.\\nDo not modify any other files.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "running",
+                  "resultPreview": null,
+                  "resultTruncated": false,
+                  "durationMs": null
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ac70602b-4506-4aee-9b36-19494c14ee18:user",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01FWcrpmpagmKq18ER1durxN",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:4996ae5e-e250-4eab-99e3-ce91c19584a1:user",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:2f3aef94-edbe-4bc1-86e5-dbb24898d6e4:user",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ddcb623b-2d7b-41de-a5ac-deee29131991:text-0",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01XWN842rqwyWKpQ9jpkckCe"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 169,
+                  "~sha256": "c8ee3abc71446558",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "y-2026-07-03-mr5gajcl/5ba9f89e-1451-455e-a6cb-3d0271e1d504.jsonl"
+                },
+                "providerSessionId": "5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                "locatedAt": "2026-07-03T21:33:50.324Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114429557-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114443998,
+              "context": {
+                "usedTokens": 35483,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Run Python foreground process with flag files",
+              "costUsd": 0.228124,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": {
+                "line": "✢ Misting… (6s · ↓ 195 tokens)",
+                "subLines": [
+                  "⎿  Tip: Use /config to change your default permission mode (including Plan Mode)",
+                  "◉ xhigh · /effort"
+                ],
+                "troubleLines": []
+              },
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:34:04.243Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Claude is working",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 337,
+      "directiveCounts": {
+        "none": 67,
+        "report-refresh": 22,
+        "session-index-debounced": 10,
+        "unread-only": 63,
+        "sidebar": 7,
+        "transcript-debounced": 168
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114429557-1",
+              "title": "Run Python foreground process with flag files",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114429557-1",
+              "providerSessionRef": "5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-stop-e2e-78MIiy/2026-07-03-mr5gajcl",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-stop-e2e-78MIiy/2026-07-03-mr5gajcl",
+              "autoWorkspace": true,
+              "status": "running",
+              "createdAt": "2026-07-03T21:33:49.557Z",
+              "updatedAt": "2026-07-03T21:33:56.711Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114436710-2",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114430072-1",
+                "rawText": {
+                  "~len": 14577,
+                  "~sha256": "0ea43aefa0a02015",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[92C\u001b[24B\u001b[",
+                  "~tail": "119;87m✳\u001b[3G\u001b[38;2;235;159;127mForging…\u001b[39m\u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 4532,
+                  "~sha256": "02290e965941f28b",
+                  "~head": "◉ xhigh · /effort\n❯ Runexactlythisshellcommandandnoothercommands",
+                  "~tail": "kens)\nImage in clipboard · ctrl+v to paste\n← foragents\n✳Forging…"
+                },
+                "truncated": false,
+                "receivedChars": 14577
+              },
+              {
+                "runId": "run-1783114436710-2",
+                "rawText": {
+                  "~len": 24147,
+                  "~sha256": "bd5353bfd486026d",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
+                  "~tail": "de --resume 5ba9f89e-1451-455e-a6cb-3d0271e1d504\u001b[22m\r\n\u001b[2m\u001b[22m"
+                },
+                "text": {
+                  "~len": 7469,
+                  "~sha256": "648a728dff3d9159",
+                  "~head": "[Pastedtext#1+3lines]\npasteain to expand\n│ ▝▜█████▛▘ │ Changed `",
+                  "~tail": "ssion with:\nclaude --resume 5ba9f89e-1451-455e-a6cb-3d0271e1d504"
+                },
+                "truncated": false,
+                "receivedChars": 24147
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:2f3aef94-edbe-4bc1-86e5-dbb24898d6e4:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:2f3aef94-edbe-4bc1-86e5-dbb24898d6e4:user",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1914bc4f-1341-471f-92b5-c1dab13bbcb1",
+                  "runId": "run-1783114436710-2",
+                  "ts": "2026-07-03T21:33:56.836Z",
+                  "seq": 4,
+                  "text": {
+                    "~len": 164,
+                    "~sha256": "d7eb1ad16db00ea1",
+                    "~head": "Create a Markdown file named stop_recovery.md with exactly this ",
+                    "~tail": "dex session continued after Stop.\nDo not modify any other files."
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:4996ae5e-e250-4eab-99e3-ce91c19584a1:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:4996ae5e-e250-4eab-99e3-ce91c19584a1:user",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1003e723-73d2-4c21-901f-da1453b6cc07",
+                  "runId": "run-1783114430072-1",
+                  "ts": "2026-07-03T21:33:56.456Z",
+                  "seq": 3,
+                  "text": "[Request interrupted by user for tool use]",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ac70602b-4506-4aee-9b36-19494c14ee18:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ac70602b-4506-4aee-9b36-19494c14ee18:user",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1003e723-73d2-4c21-901f-da1453b6cc07",
+                  "runId": "run-1783114430072-1",
+                  "ts": "2026-07-03T21:33:50.199Z",
+                  "seq": 1,
+                  "text": {
+                    "~len": 410,
+                    "~sha256": "a25ffe65086c5435",
+                    "~head": "Run exactly this shell command and no other commands. Do not use",
+                    "~tail": "d())); time.sleep(120); Path('stop_end.flag').write_text('end')\""
+                  },
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ddcb623b-2d7b-41de-a5ac-deee29131991:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ddcb623b-2d7b-41de-a5ac-deee29131991:text-0",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1914bc4f-1341-471f-92b5-c1dab13bbcb1",
+                  "runId": "run-1783114436710-2",
+                  "ts": "2026-07-03T21:34:00.509Z",
+                  "seq": 5,
+                  "markdown": "I'll create that file with exactly the content specified."
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01FWcrpmpagmKq18ER1durxN",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01FWcrpmpagmKq18ER1durxN",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1003e723-73d2-4c21-901f-da1453b6cc07",
+                  "runId": "run-1783114430072-1",
+                  "ts": "2026-07-03T21:33:55.969Z",
+                  "seq": 2,
+                  "callId": "toolu_01FWcrpmpagmKq18ER1durxN",
+                  "toolName": "Bash",
+                  "summary": {
+                    "~len": 161,
+                    "~sha256": "765fcfdecd72cca7",
+                    "~head": "python3 -c \"from pathlib import Path; import os, time; Path('sto",
+                    "~tail": "); Path('stop_pid.flag').write_text(str(os.getpid())); time.sle…"
+                  },
+                  "inputPreview": {
+                    "~len": 323,
+                    "~sha256": "c894544beb459acb",
+                    "~head": "{\n  \"command\": \"python3 -c \\\"from pathlib import Path; import os",
+                    "~tail": "script that writes flags and sleeps 120s\",\n  \"timeout\": 130000\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "error",
+                  "resultPreview": {
+                    "~len": 436,
+                    "~sha256": "735cff60fb006a8a",
+                    "~head": "The user doesn't want to proceed with this tool use. The tool us",
+                    "~tail": "you to work, consider saving that to memory for future sessions."
+                  },
+                  "resultTruncated": false,
+                  "durationMs": 486
+                }
+              ],
+              [
+                "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01XWN842rqwyWKpQ9jpkckCe",
+                {
+                  "kind": "tool-call",
+                  "id": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01XWN842rqwyWKpQ9jpkckCe",
+                  "taskId": "task-1783114429557-1",
+                  "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                  "provider": "claude",
+                  "turnKey": "1914bc4f-1341-471f-92b5-c1dab13bbcb1",
+                  "runId": "run-1783114436710-2",
+                  "ts": "2026-07-03T21:34:03.602Z",
+                  "seq": 6,
+                  "callId": "toolu_01XWN842rqwyWKpQ9jpkckCe",
+                  "toolName": "Write",
+                  "summary": "/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-stop-e2e-78MIiy/2026-07-03-mr5gajcl/stop_recovery.md",
+                  "inputPreview": {
+                    "~len": 247,
+                    "~sha256": "7dfbb840b7a4b2c9",
+                    "~head": "{\n  \"file_path\": \"/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5",
+                    "~tail": "ssion continued after Stop.\\nDo not modify any other files.\\n\"\n}"
+                  },
+                  "inputTruncated": false,
+                  "status": "running",
+                  "resultPreview": null,
+                  "resultTruncated": false,
+                  "durationMs": null
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ac70602b-4506-4aee-9b36-19494c14ee18:user",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01FWcrpmpagmKq18ER1durxN",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:4996ae5e-e250-4eab-99e3-ce91c19584a1:user",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:2f3aef94-edbe-4bc1-86e5-dbb24898d6e4:user",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:ddcb623b-2d7b-41de-a5ac-deee29131991:text-0",
+              "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504:tool:toolu_01XWN842rqwyWKpQ9jpkckCe"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 169,
+                  "~sha256": "c8ee3abc71446558",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "y-2026-07-03-mr5gajcl/5ba9f89e-1451-455e-a6cb-3d0271e1d504.jsonl"
+                },
+                "providerSessionId": "5ba9f89e-1451-455e-a6cb-3d0271e1d504",
+                "locatedAt": "2026-07-03T21:33:50.324Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114429557-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114443998,
+              "context": {
+                "usedTokens": 35483,
+                "windowTokens": 1000000,
+                "remainingPercent": 96
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Run Python foreground process with flag files",
+              "costUsd": 0.228124,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": {
+                "line": "✢ Misting… (6s · ↓ 195 tokens)",
+                "subLines": [
+                  "⎿  Tip: Use /config to change your default permission mode (including Plan Mode)",
+                  "◉ xhigh · /effort"
+                ],
+                "troubleLines": []
+              },
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:34:04.243Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Claude is working",
+            "unread": true,
+            "completedUnseen": false
+          }
+        ]
+      }
+    }
+  }
+}

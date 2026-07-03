@@ -1,0 +1,344 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 185,
+      "directiveCounts": {
+        "none": 22,
+        "report-refresh": 9,
+        "session-index-debounced": 5,
+        "full": 22,
+        "strip-in-place": 5,
+        "sidebar": 3,
+        "transcript-debounced": 118,
+        "usage-in-place": 1
+      },
+      "state": {
+        "activeTaskId": "task-1783114239375-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114239375-1",
+              "title": "Reply with exactly: NEW_CHAT_READY",
+              "provider": "codex",
+              "model": "gpt-5.5",
+              "reasoningEffort": "xhigh",
+              "speedMode": "fast",
+              "sandbox": "read-only",
+              "approval": "on-request",
+              "permissionMode": null,
+              "runtimeSessionId": "runtime-task-1783114239375-1",
+              "providerSessionRef": "019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-new-chat-folder-xlRbB1",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-new-chat-folder-xlRbB1",
+              "autoWorkspace": false,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:39.375Z",
+              "updatedAt": "2026-07-03T21:30:44.138Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114239885-1",
+                "rawText": {
+                  "~len": 21815,
+                  "~sha256": "6346bf5384bb213a",
+                  "~head": "\u001b]0;⠹ duet-new-chat-folder-...\u0007\u001b[?2026h\u001b[1;1H\u001b[J\u001b[1;34r\u001b[1;1H\u001bM\u001b",
+                  "~tail": "t-new-chat-folder-xlRbB1\u001b[39m\u001b[49m\u001b[0m\u001b[0 q\u001b[?25h\u001b[25;3H\u001b[?2026l"
+                },
+                "text": {
+                  "~len": 380,
+                  "~sha256": "d4e2c4e4001cac72",
+                  "~head": "│ >_ OpenAI Codex (v0.142.5) │\n│ model: gpt-5.5 xhigh fast /mode",
+                  "~tail": "/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-new-chat-folder-xlRbB1"
+                },
+                "truncated": false,
+                "receivedChars": 21815
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:text-2",
+                {
+                  "kind": "assistant-text",
+                  "id": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:text-2",
+                  "taskId": "task-1783114239375-1",
+                  "sourceId": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+                  "provider": "codex",
+                  "turnKey": "turn-1",
+                  "runId": "run-1783114239885-1",
+                  "ts": "2026-07-03T21:30:42.308Z",
+                  "seq": 2,
+                  "markdown": "NEW_CHAT_READY"
+                }
+              ],
+              [
+                "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:user-1",
+                {
+                  "kind": "user-message",
+                  "id": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:user-1",
+                  "taskId": "task-1783114239375-1",
+                  "sourceId": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+                  "provider": "codex",
+                  "turnKey": "turn-1",
+                  "runId": "run-1783114239885-1",
+                  "ts": "2026-07-03T21:30:40.516Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: NEW_CHAT_READY",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:user-1",
+              "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:text-2"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+                "provider": "codex",
+                "format": "codex-rollout-jsonl",
+                "path": "/Users/user/.codex/sessions/2026/07/03/rollout-2026-07-03T17-30-39-019f29e4-0e89-71a1-a3ea-ae005b4d7c77.jsonl",
+                "providerSessionId": "019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+                "locatedAt": "2026-07-03T21:30:40.885Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114239375-1",
+              "provider": "codex",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "codex",
+              "capturedAt": 1783114242319,
+              "context": {
+                "usedTokens": 15749,
+                "windowTokens": 258400,
+                "remainingPercent": 98.47849025974025
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 97,
+                  "resetsAt": 1783131358
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 71,
+                  "resetsAt": 1783530376
+                }
+              ]
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:42.600Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 185,
+      "directiveCounts": {
+        "none": 28,
+        "report-refresh": 9,
+        "session-index-debounced": 5,
+        "unread-only": 24,
+        "sidebar": 3,
+        "transcript-debounced": 116
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114239375-1",
+              "title": "Reply with exactly: NEW_CHAT_READY",
+              "provider": "codex",
+              "model": "gpt-5.5",
+              "reasoningEffort": "xhigh",
+              "speedMode": "fast",
+              "sandbox": "read-only",
+              "approval": "on-request",
+              "permissionMode": null,
+              "runtimeSessionId": "runtime-task-1783114239375-1",
+              "providerSessionRef": "019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-new-chat-folder-xlRbB1",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-new-chat-folder-xlRbB1",
+              "autoWorkspace": false,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:30:39.375Z",
+              "updatedAt": "2026-07-03T21:30:44.138Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114239885-1",
+                "rawText": {
+                  "~len": 21815,
+                  "~sha256": "6346bf5384bb213a",
+                  "~head": "\u001b]0;⠹ duet-new-chat-folder-...\u0007\u001b[?2026h\u001b[1;1H\u001b[J\u001b[1;34r\u001b[1;1H\u001bM\u001b",
+                  "~tail": "t-new-chat-folder-xlRbB1\u001b[39m\u001b[49m\u001b[0m\u001b[0 q\u001b[?25h\u001b[25;3H\u001b[?2026l"
+                },
+                "text": {
+                  "~len": 380,
+                  "~sha256": "d4e2c4e4001cac72",
+                  "~head": "│ >_ OpenAI Codex (v0.142.5) │\n│ model: gpt-5.5 xhigh fast /mode",
+                  "~tail": "/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-new-chat-folder-xlRbB1"
+                },
+                "truncated": false,
+                "receivedChars": 21815
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:text-2",
+                {
+                  "kind": "assistant-text",
+                  "id": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:text-2",
+                  "taskId": "task-1783114239375-1",
+                  "sourceId": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+                  "provider": "codex",
+                  "turnKey": "turn-1",
+                  "runId": "run-1783114239885-1",
+                  "ts": "2026-07-03T21:30:42.308Z",
+                  "seq": 2,
+                  "markdown": "NEW_CHAT_READY"
+                }
+              ],
+              [
+                "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:user-1",
+                {
+                  "kind": "user-message",
+                  "id": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:user-1",
+                  "taskId": "task-1783114239375-1",
+                  "sourceId": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+                  "provider": "codex",
+                  "turnKey": "turn-1",
+                  "runId": "run-1783114239885-1",
+                  "ts": "2026-07-03T21:30:40.516Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: NEW_CHAT_READY",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:user-1",
+              "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77:text-2"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "codex:019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+                "provider": "codex",
+                "format": "codex-rollout-jsonl",
+                "path": "/Users/user/.codex/sessions/2026/07/03/rollout-2026-07-03T17-30-39-019f29e4-0e89-71a1-a3ea-ae005b4d7c77.jsonl",
+                "providerSessionId": "019f29e4-0e89-71a1-a3ea-ae005b4d7c77",
+                "locatedAt": "2026-07-03T21:30:40.885Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114239375-1",
+              "provider": "codex",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "codex",
+              "capturedAt": 1783114242319,
+              "context": {
+                "usedTokens": 15749,
+                "windowTokens": 258400,
+                "remainingPercent": 98.47849025974025
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 97,
+                  "resetsAt": 1783131358
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 71,
+                  "resetsAt": 1783530376
+                }
+              ]
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:30:42.600Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  }
+}

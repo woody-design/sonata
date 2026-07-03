@@ -1,0 +1,692 @@
+{
+  "01.jsonl": {
+    "active": {
+      "events": 93,
+      "directiveCounts": {
+        "none": 16,
+        "report-refresh": 6,
+        "session-index-debounced": 5,
+        "full": 22,
+        "usage-in-place": 1,
+        "sidebar": 2,
+        "transcript-debounced": 32,
+        "strip-in-place": 9
+      },
+      "state": {
+        "activeTaskId": "task-1783114345311-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114345311-1",
+              "title": "Reply with exactly: DORMANT_SEED",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114345311-1",
+              "providerSessionRef": "4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-rcdorm-e2e-B1iuks/2026-07-03-mr5g8qcf",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-rcdorm-e2e-B1iuks/2026-07-03-mr5g8qcf",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:32:25.311Z",
+              "updatedAt": "2026-07-03T21:32:29.601Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114346328-1",
+                "rawText": {
+                  "~len": 2439,
+                  "~sha256": "cecdfdac6eca70e3",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GDORMANT_SEED\r\u001b",
+                  "~tail": "3;153m✻\u001b[3GBrewed for 2s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 216,
+                  "~sha256": "5bb713d7212fc9f0",
+                  "~head": "Replywithexactly:DORMANT_SEED\n❯ Reply with exactly: DORMANT_SEED",
+                  "~tail": "…(running stop hook)\n·Sautéing… · 2s · ↓2 tokens)\n✻Brewed for 2s"
+                },
+                "truncated": false,
+                "receivedChars": 2439
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "7cd3db14-4b06-4aeb-a249-33aa37f28135",
+                  "runId": "run-1783114346328-1",
+                  "ts": "2026-07-03T21:32:26.459Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: DORMANT_SEED",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "7cd3db14-4b06-4aeb-a249-33aa37f28135",
+                  "runId": "run-1783114346328-1",
+                  "ts": "2026-07-03T21:32:29.314Z",
+                  "seq": 2,
+                  "markdown": "DORMANT_SEED"
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 171,
+                  "~sha256": "02901d4580a1ae83",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "s-2026-07-03-mr5g8qcf/4dcf4846-2e15-4ad3-98d1-0cdec04dd20b.jsonl"
+                },
+                "providerSessionId": "4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                "locatedAt": "2026-07-03T21:32:26.581Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114345311-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114345922,
+              "context": null,
+              "limits": [],
+              "sessionName": null,
+              "costUsd": null,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:32:29.600Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 93,
+      "directiveCounts": {
+        "none": 26,
+        "report-refresh": 6,
+        "session-index-debounced": 5,
+        "unread-only": 24,
+        "sidebar": 2,
+        "transcript-debounced": 30
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114345311-1",
+              "title": "Reply with exactly: DORMANT_SEED",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": "xhigh",
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": "default",
+              "runtimeSessionId": "runtime-task-1783114345311-1",
+              "providerSessionRef": "4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+              "providerCwd": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-rcdorm-e2e-B1iuks/2026-07-03-mr5g8qcf",
+              "workingDirectory": "/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/duet-rcdorm-e2e-B1iuks/2026-07-03-mr5g8qcf",
+              "autoWorkspace": true,
+              "status": "idle",
+              "createdAt": "2026-07-03T21:32:25.311Z",
+              "updatedAt": "2026-07-03T21:32:29.601Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": null,
+            "runTranscripts": [
+              {
+                "runId": "run-1783114346328-1",
+                "rawText": {
+                  "~len": 2439,
+                  "~sha256": "cecdfdac6eca70e3",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GDORMANT_SEED\r\u001b",
+                  "~tail": "3;153m✻\u001b[3GBrewed for 2s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
+                },
+                "text": {
+                  "~len": 216,
+                  "~sha256": "5bb713d7212fc9f0",
+                  "~head": "Replywithexactly:DORMANT_SEED\n❯ Reply with exactly: DORMANT_SEED",
+                  "~tail": "…(running stop hook)\n·Sautéing… · 2s · ↓2 tokens)\n✻Brewed for 2s"
+                },
+                "truncated": false,
+                "receivedChars": 2439
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "7cd3db14-4b06-4aeb-a249-33aa37f28135",
+                  "runId": "run-1783114346328-1",
+                  "ts": "2026-07-03T21:32:26.459Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: DORMANT_SEED",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "7cd3db14-4b06-4aeb-a249-33aa37f28135",
+                  "runId": "run-1783114346328-1",
+                  "ts": "2026-07-03T21:32:29.314Z",
+                  "seq": 2,
+                  "markdown": "DORMANT_SEED"
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0"
+            ],
+            "transcriptSources": [
+              {
+                "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                "provider": "claude",
+                "format": "claude-session-jsonl",
+                "path": {
+                  "~len": 171,
+                  "~sha256": "02901d4580a1ae83",
+                  "~head": "/Users/user/.claude/projects/-private-var-folders-ly-gsssdfkd18d",
+                  "~tail": "s-2026-07-03-mr5g8qcf/4dcf4846-2e15-4ad3-98d1-0cdec04dd20b.jsonl"
+                },
+                "providerSessionId": "4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                "locatedAt": "2026-07-03T21:32:26.581Z"
+              }
+            ],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114345311-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": false,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114345922,
+              "context": null,
+              "limits": [],
+              "sessionName": null,
+              "costUsd": null,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": null,
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:32:29.600Z"
+            },
+            "cliState": {
+              "activity": "turn-ended",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Ready",
+            "unread": true,
+            "completedUnseen": true
+          }
+        ]
+      }
+    }
+  },
+  "02.jsonl": {
+    "active": {
+      "events": 53,
+      "directiveCounts": {
+        "none": 14,
+        "report-refresh": 6,
+        "full": 19,
+        "usage-in-place": 2,
+        "session-index-debounced": 2,
+        "transcript-debounced": 8,
+        "sidebar": 1,
+        "strip-in-place": 1
+      },
+      "state": {
+        "activeTaskId": "task-1783114345311-1",
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114345311-1",
+              "title": "Reply with exactly: DORMANT_RESUMED",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": null,
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": null,
+              "runtimeSessionId": "rs-task-1783114345311-1",
+              "providerSessionRef": null,
+              "providerCwd": "/workspace/fixture",
+              "workingDirectory": "/workspace/fixture",
+              "status": "running",
+              "createdAt": "2026-07-03T00:00:00.000Z",
+              "updatedAt": "2026-07-03T12:00:00.000Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114351821-1",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114351821-1",
+                "rawText": {
+                  "~len": 712,
+                  "~sha256": "a544d1df0620b592",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GDORMANT_RESUME",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": "Replywithexactly:DORMANT_RESUMED\n❯ Reply with exactly: DORMANT_RESUMED\n✻Accomplishing…\n← for agents\n✽(B78",
+                "truncated": false,
+                "receivedChars": 712
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "7cd3db14-4b06-4aeb-a249-33aa37f28135",
+                  "runId": "run-1783114346328-1",
+                  "ts": "2026-07-03T21:32:26.459Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: DORMANT_SEED",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "7cd3db14-4b06-4aeb-a249-33aa37f28135",
+                  "runId": "run-1783114346328-1",
+                  "ts": "2026-07-03T21:32:29.314Z",
+                  "seq": 2,
+                  "markdown": "DORMANT_SEED"
+                }
+              ],
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:ac46c58f-9ec5-4482-b65c-665a350cd56c:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:ac46c58f-9ec5-4482-b65c-665a350cd56c:user",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "339bc60b-8fc6-4b5a-880e-fbb5a7466c8c",
+                  "runId": "run-1783114351821-1",
+                  "ts": "2026-07-03T21:32:31.948Z",
+                  "seq": 3,
+                  "text": "Reply with exactly: DORMANT_RESUMED",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:ac46c58f-9ec5-4482-b65c-665a350cd56c:user"
+            ],
+            "transcriptSources": [],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114345311-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114351835,
+              "context": {
+                "usedTokens": 34551,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Dormant seed",
+              "costUsd": 0.1456925,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": {
+                "line": "✽ Accomplishing…",
+                "subLines": [],
+                "troubleLines": []
+              },
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:32:32.125Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Claude is working",
+            "unread": false,
+            "completedUnseen": false
+          }
+        ]
+      }
+    },
+    "background": {
+      "events": 53,
+      "directiveCounts": {
+        "none": 17,
+        "report-refresh": 6,
+        "unread-only": 21,
+        "session-index-debounced": 2,
+        "sidebar": 1,
+        "transcript-debounced": 6
+      },
+      "state": {
+        "activeTaskId": null,
+        "taskViews": [
+          {
+            "task": {
+              "id": "task-1783114345311-1",
+              "title": "Reply with exactly: DORMANT_RESUMED",
+              "provider": "claude",
+              "model": "opus",
+              "reasoningEffort": null,
+              "speedMode": null,
+              "sandbox": null,
+              "approval": null,
+              "permissionMode": null,
+              "runtimeSessionId": "rs-task-1783114345311-1",
+              "providerSessionRef": null,
+              "providerCwd": "/workspace/fixture",
+              "workingDirectory": "/workspace/fixture",
+              "status": "running",
+              "createdAt": "2026-07-03T00:00:00.000Z",
+              "updatedAt": "2026-07-03T12:00:00.000Z"
+            },
+            "live": true,
+            "report": null,
+            "composerDraft": "",
+            "pendingApproval": null,
+            "pendingOptionPrompt": null,
+            "optionPromptSelections": [],
+            "optionPromptBusy": false,
+            "optionPromptReceipt": null,
+            "highlightedRunId": null,
+            "liveTranscriptRunId": "run-1783114351821-1",
+            "runTranscripts": [
+              {
+                "runId": "run-1783114351821-1",
+                "rawText": {
+                  "~len": 712,
+                  "~sha256": "a544d1df0620b592",
+                  "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GDORMANT_RESUME",
+                  "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+                },
+                "text": "Replywithexactly:DORMANT_RESUMED\n❯ Reply with exactly: DORMANT_RESUMED\n✻Accomplishing…\n← for agents\n✽(B78",
+                "truncated": false,
+                "receivedChars": 712
+              }
+            ],
+            "transcriptBlocks": [
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "7cd3db14-4b06-4aeb-a249-33aa37f28135",
+                  "runId": "run-1783114346328-1",
+                  "ts": "2026-07-03T21:32:26.459Z",
+                  "seq": 1,
+                  "text": "Reply with exactly: DORMANT_SEED",
+                  "command": null,
+                  "attachments": []
+                }
+              ],
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+                {
+                  "kind": "assistant-text",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "7cd3db14-4b06-4aeb-a249-33aa37f28135",
+                  "runId": "run-1783114346328-1",
+                  "ts": "2026-07-03T21:32:29.314Z",
+                  "seq": 2,
+                  "markdown": "DORMANT_SEED"
+                }
+              ],
+              [
+                "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:ac46c58f-9ec5-4482-b65c-665a350cd56c:user",
+                {
+                  "kind": "user-message",
+                  "id": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:ac46c58f-9ec5-4482-b65c-665a350cd56c:user",
+                  "taskId": "task-1783114345311-1",
+                  "sourceId": "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b",
+                  "provider": "claude",
+                  "turnKey": "339bc60b-8fc6-4b5a-880e-fbb5a7466c8c",
+                  "runId": "run-1783114351821-1",
+                  "ts": "2026-07-03T21:32:31.948Z",
+                  "seq": 3,
+                  "text": "Reply with exactly: DORMANT_RESUMED",
+                  "command": null,
+                  "attachments": []
+                }
+              ]
+            ],
+            "transcriptBlockOrder": [
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:39da87d7-7ea5-4232-b0c2-b3a765678aa5:user",
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:4d053805-b324-4773-82b4-a70588a2e6ec:text-0",
+              "claude:4dcf4846-2e15-4ad3-98d1-0cdec04dd20b:ac46c58f-9ec5-4482-b65c-665a350cd56c:user"
+            ],
+            "transcriptSources": [],
+            "remoteControl": {
+              "active": false,
+              "url": null,
+              "armedOverride": null
+            },
+            "deliveryState": {
+              "taskId": "task-1783114345311-1",
+              "provider": "claude",
+              "deliverable": true,
+              "activeRun": true,
+              "approvalActive": false,
+              "bootLatched": true,
+              "queue": []
+            },
+            "pendingAttachments": [],
+            "usageSnapshot": {
+              "provider": "claude",
+              "capturedAt": 1783114351835,
+              "context": {
+                "usedTokens": 34551,
+                "windowTokens": 1000000,
+                "remainingPercent": 97
+              },
+              "limits": [
+                {
+                  "windowMinutes": 300,
+                  "label": "5h",
+                  "remainingPercent": 78,
+                  "resetsAt": 1783125600
+                },
+                {
+                  "windowMinutes": 10080,
+                  "label": "weekly",
+                  "remainingPercent": 58,
+                  "resetsAt": 1783155600
+                }
+              ],
+              "sessionName": "Dormant seed",
+              "costUsd": 0.1456925,
+              "modelDisplayName": "Opus 4.8",
+              "reasoningEffort": "xhigh"
+            },
+            "workingStatus": {
+              "native": {
+                "line": "✽ Accomplishing…",
+                "subLines": [],
+                "troubleLines": []
+              },
+              "liveness": "fresh",
+              "silentSince": null,
+              "capturedAt": "2026-07-03T21:32:32.125Z"
+            },
+            "cliState": {
+              "activity": "busy",
+              "tool": null,
+              "approvalKind": null
+            },
+            "resumeChoice": null,
+            "slashAttention": null,
+            "approvalExpiredAttention": false,
+            "status": "Claude is working",
+            "unread": true,
+            "completedUnseen": false
+          }
+        ]
+      }
+    }
+  }
+}
