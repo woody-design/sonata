@@ -35,6 +35,11 @@ try {
     "Run exactly this shell command and no other commands.",
     "Do not use apply_patch.",
     "Do not edit files directly.",
+    // Premise pin: the sleep must HOLD THE TURN OPEN so the test can Esc a
+    // live command — newer claude sometimes backgrounds long sleeps
+    // (run_in_background), completing the turn in seconds and leaving
+    // nothing to stop (flake observed 2026-07-03).
+    "Run it in the foreground and wait for it to finish — do NOT run it in the background.",
     `Command: ${commandText}`,
   ].join(" ");
 

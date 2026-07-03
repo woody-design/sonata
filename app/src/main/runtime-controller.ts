@@ -1017,6 +1017,49 @@ export class RuntimeController {
     }
   }
 
+  /**
+   * A turn-terminal signal orphans every broker ask still pending for the
+   * task: PermissionRequest hooks live INSIDE the turn, so an interrupt
+   * kills the holding hook — no reply will ever be read and no expired
+   * marker will ever be written. Without this release the keyed delivery
+   * gate held those ids forever and every later send wedged (stop-continue
+   * caught it on the keyed gate's first Esc run, 2026-07-03; the old
+   * boolean was accidentally rescued by ANY later decision clearing it
+   * globally). The CLI's own model of an interrupt is a rejection ("The
+   * user doesn't want to proceed"), so the asks resolve honestly as
+   * deny/Esc — gate released, report balanced, the shown card cleared.
+   */
+  private abortPendingBrokerApprovals(active: ActiveTaskRuntime): void {
+    for (const [id, pending] of this.pendingBrokerApprovals) {
+      if (pending.taskId !== active.task.id) {
+        continue;
+      }
+      this.pendingBrokerApprovals.delete(id);
+      const decisionEvent: RuntimeEvent = {
+        type: "approval:decision",
+        payload: {
+          taskId: active.task.id,
+          runId: active.terminalHost.activeRunId(),
+          decision: "deny",
+          encodedAs: "Esc",
+          previousKind: classifyApprovalKind(pending.payload),
+          approvalId: id,
+        },
+        ts: new Date().toISOString(),
+      };
+      active.deliveryController.handleRuntimeEvent(decisionEvent); // release the gate key
+      if (active.runIndex.consume(decisionEvent)) {
+        this.emitReportUpdated(active.runIndex);
+      }
+      if (this.shownBrokerApproval.get(active.task.id) === id) {
+        // Only the SHOWN ask concerns the renderer — clearing a card the
+        // user never saw would flash a phantom "Approval denied".
+        this.shownBrokerApproval.delete(active.task.id);
+        this.sendEvent(decisionEvent);
+      }
+    }
+  }
+
   private surfaceNextBrokerApproval(active: ActiveTaskRuntime): void {
     if (this.shownBrokerApproval.has(active.task.id)) {
       return;
@@ -1160,6 +1203,24 @@ export class RuntimeController {
     eventRuntime?.deliveryController.handleRuntimeEvent(event);
     eventRuntime?.statusTracker.handleRuntimeEvent(event);
     eventRuntime?.cliState.applyRuntimeEvent(event);
+
+    // A turn-terminal signal orphans every broker ask still pending for the
+    // task (see abortPendingBrokerApprovals). Covers Duet's ■/Esc
+    // (run:stopped), a native terminal Esc closed by the quiescence
+    // run-closer (completed + terminal-idle-heuristic), and the PTY dying.
+    // Normal hook-Stop completions can't coexist with a live ask — the
+    // holding hook blocks the turn from ending.
+    if (
+      eventRuntime &&
+      (event.type === "run:stopped" ||
+        event.type === "pty:exit" ||
+        (event.type === "run:updated" &&
+          (event.payload.status === "stopped" ||
+            (event.payload.status === "completed" &&
+              event.payload.completionSource === "terminal-idle-heuristic"))))
+    ) {
+      this.abortPendingBrokerApprovals(eventRuntime);
+    }
 
     if (event.type === "pty:exit" && eventRuntime?.pendingOptionPrompt) {
       // The PTY died with a question still open — clear the card (no receipt).

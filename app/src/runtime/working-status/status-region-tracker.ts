@@ -10,7 +10,10 @@ const DEFAULT_SILENT_AFTER_MS = 60_000;
 const DEFAULT_COLS = 120;
 const DEFAULT_ROWS = 36;
 const SCROLLBACK_ROWS = 80;
-const MAX_SUB_LINES = 2;
+// Safety cap only — the mirror follows whatever the CLI paints (a todo
+// sub-block is routinely 4-6 rows); the old cap of 2 was an artifact of the
+// pre-S5 working-detail row's cramped home inside a turn card.
+const MAX_SUB_LINES = 8;
 const TROUBLE_SCAN_ROWS = 8;
 
 const CLAUDE_STATUS_GLYPHS = ["✢", "✳", "✶", "✻", "✽", "·"];
@@ -233,11 +236,25 @@ export class StatusRegionTracker {
 
     const subLines: string[] = [];
     for (let i = statusIndex + 1; i < rows.length && subLines.length < MAX_SUB_LINES; i++) {
-      const text = rows[i]?.trim() ?? "";
-      if (!text.startsWith("⎿")) {
-        break;
+      const raw = rows[i] ?? "";
+      const text = raw.trim();
+      if (!text) {
+        break; // a blank row ends the region
       }
-      subLines.push(text);
+      if (text.startsWith("⎿")) {
+        subLines.push(text);
+        continue;
+      }
+      // Multi-row sub-blocks (todo lists) carry ⎿ on their FIRST row only;
+      // the remaining rows are indented siblings ("  ✔ done", "  ■ current").
+      // Requiring ⎿ on every row relayed exactly one sub-task (Woody,
+      // 2026-07-03). An indented row after at least one ⎿ row continues the
+      // block; a column-0 row (composer border, footer) starts a new one.
+      if (subLines.length > 0 && /^\s/.test(raw)) {
+        subLines.push(text);
+        continue;
+      }
+      break;
     }
 
     const troubleLines: string[] = [];

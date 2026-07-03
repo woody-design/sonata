@@ -1588,16 +1588,21 @@ appElement.innerHTML = `
           <div id="artifact-list" class="artifact-list"></div>
         </section>
 
-        <div id="run-list" class="run-list"></div>
-
-        <!-- Status strip (S5): the slim live-activity surface that replaced the
-             per-turn working-detail row. Spinner region verbatim (display-only,
+        <!-- Status strip (S5; moved into the reading flow 2026-07-03): the
+             slim live-activity surface — spinner region verbatim (display-only,
              StatusRegionTracker) + running-subagent roster (transcript-derived).
-             Visible only while something is actually happening. -->
-        <section id="status-strip" class="status-strip hidden" aria-label="Live activity">
-          <div id="status-strip-status" class="status-strip-status"></div>
-          <div id="status-strip-agents" class="status-strip-agents hidden"></div>
-        </section>
+             It lives INSIDE the scroll container as the run list's LAST child:
+             the conversation's typing indicator — "the next content is being
+             written here" — so completion materializes the reply exactly where
+             the activity stood. A persistent node like the sticky rail: the
+             keyed reconcile and the empty-state path both skip it, so the ~3Hz
+             ticks keep updating it in place and its animations never restart. -->
+        <div id="run-list" class="run-list">
+          <section id="status-strip" class="status-strip hidden" aria-label="Live activity">
+            <div id="status-strip-status" class="status-strip-status"></div>
+            <div id="status-strip-agents" class="status-strip-agents hidden"></div>
+          </section>
+        </div>
 
         <section id="resume-choice" class="resume-choice hidden" aria-label="Resume choice">
           <div class="resume-choice-copy">
@@ -6147,22 +6152,38 @@ function stripRunningAgents(view: TaskViewState): AgentRunItem[] {
   return items;
 }
 
-function renderStatusStrip(view = activeTaskView()): void {
-  const strip = elements.statusStrip;
-  const runningAgents = view?.task ? stripRunningAgents(view) : [];
-  const activeRun = view?.task ? hasActiveRun(view) : false;
-  const visible = Boolean(view?.task && (activeRun || runningAgents.length > 0));
-  strip.classList.toggle("hidden", !visible);
-  if (!visible || !view) {
-    strip.classList.remove("quiet", "silent");
-    elements.statusStripStatus.replaceChildren();
-    elements.statusStripAgents.replaceChildren();
-    elements.statusStripAgents.classList.add("hidden");
-    delete elements.statusStripAgents.dataset.sig;
-    return;
+/** The strip lives inside the reading scroll flow (its last child) — any
+ *  mutation that can change its height must keep a bottom-pinned view pinned
+ *  (the typing-indicator contract: the live edge stays in sight). Reads the
+ *  pin BEFORE mutating, restores it after; a reader scrolled up is left
+ *  exactly where they are. */
+function withReadingBottomPin(mutate: () => void): void {
+  const runList = elements.runList;
+  const nearBottom = runList.scrollHeight - runList.scrollTop - runList.clientHeight < 64;
+  mutate();
+  if (nearBottom) {
+    runList.scrollTop = runList.scrollHeight;
   }
-  renderStripStatus(view, activeRun);
-  renderStripAgents(runningAgents);
+}
+
+function renderStatusStrip(view = activeTaskView()): void {
+  withReadingBottomPin(() => {
+    const strip = elements.statusStrip;
+    const runningAgents = view?.task ? stripRunningAgents(view) : [];
+    const activeRun = view?.task ? hasActiveRun(view) : false;
+    const visible = Boolean(view?.task && (activeRun || runningAgents.length > 0));
+    strip.classList.toggle("hidden", !visible);
+    if (!visible || !view) {
+      strip.classList.remove("quiet", "silent");
+      elements.statusStripStatus.replaceChildren();
+      elements.statusStripAgents.replaceChildren();
+      elements.statusStripAgents.classList.add("hidden");
+      delete elements.statusStripAgents.dataset.sig;
+      return;
+    }
+    renderStripStatus(view, activeRun);
+    renderStripAgents(runningAgents);
+  });
 }
 
 /** The ~3Hz native-relay path: refresh ONLY the status area (text nodes; no
@@ -6175,7 +6196,11 @@ function updateStatusStripStatusInPlace(view: TaskViewState): void {
     renderStatusStrip(view);
     return;
   }
-  renderStripStatus(view, hasActiveRun(view));
+  // Sub-line counts change with the mirror (todo blocks grow/shrink) — a
+  // pinned view must follow the live edge.
+  withReadingBottomPin(() => {
+    renderStripStatus(view, hasActiveRun(view));
+  });
 }
 
 function renderStripStatus(view: TaskViewState, activeRun: boolean): void {
@@ -6420,13 +6445,21 @@ function ensureStickyPromptRail(runList: HTMLElement): HTMLElement {
 }
 
 // The no-task / empty paths are not the streaming path and need no reconcile:
-// drop everything after the persistent rail and set the given nodes.
+// drop everything after the persistent rail and set the given nodes. The
+// status strip is the run list's second persistent node (its live LAST child)
+// — never removed, content always inserted before it.
 function setNonRailChildren(runList: HTMLElement, rail: HTMLElement, nodes: HTMLElement[]): void {
-  while (rail.nextSibling) {
-    runList.removeChild(rail.nextSibling);
+  const strip = elements.statusStrip;
+  let cursor = rail.nextSibling;
+  while (cursor) {
+    const next = cursor.nextSibling;
+    if (cursor !== strip) {
+      runList.removeChild(cursor);
+    }
+    cursor = next;
   }
   for (const node of nodes) {
-    runList.appendChild(node);
+    runList.insertBefore(node, strip);
   }
 }
 
@@ -6449,7 +6482,7 @@ function reconcileKeyedChildren(
 ): void {
   const existing = new Map<string, HTMLElement>();
   for (const child of Array.from(parent.children) as HTMLElement[]) {
-    if (child === rail) {
+    if (child === rail || child === elements.statusStrip) {
       continue;
     }
     const key = child.dataset.key;
@@ -6465,7 +6498,7 @@ function reconcileKeyedChildren(
     plan.ordered.filter((step) => step.action === "reuse").map((step) => step.key),
   );
   for (const child of Array.from(parent.children) as HTMLElement[]) {
-    if (child === rail) {
+    if (child === rail || child === elements.statusStrip) {
       continue;
     }
     const key = child.dataset.key;

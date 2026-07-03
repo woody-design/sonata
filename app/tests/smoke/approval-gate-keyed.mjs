@@ -111,6 +111,28 @@ const expired = (approvalId) => ({
   dc.dispose();
 }
 
+// --- C2. scrape false-positive twin dies with the broker decision ----------
+{
+  // The S5 wedge class at this layer: the scrape fires on the broker-held
+  // preview bytes ~100ms BEFORE the broker ask is read — same ask, two
+  // detections. The broker's id-decision must release the phantom sentinel
+  // too (a genuinely-live panel resurfaces via the settle re-check).
+  const host = makeHost();
+  const dc = makeController(host);
+  dc.handleRuntimeEvent(detected(undefined)); // scrape false-positive twin
+  dc.handleRuntimeEvent(detected("ask-1")); // the real broker ask
+  dc.enqueue("queued during the ask");
+  assert.equal(host.state.submits.length, 0, "gate closed while asking");
+
+  dc.handleRuntimeEvent(decision("ask-1"));
+  assert.equal(
+    host.state.submits.length,
+    1,
+    "the broker decision releases its id AND the phantom scrape sentinel",
+  );
+  dc.dispose();
+}
+
 // --- C. scrape-only lifecycle unchanged (sentinel key) ----------------------
 {
   const host = makeHost();

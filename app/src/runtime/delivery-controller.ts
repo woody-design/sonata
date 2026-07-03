@@ -160,6 +160,14 @@ export class DeliveryController {
       const approvalId = event.payload.approvalId ?? null;
       if (approvalId) {
         this.pendingApprovalKeys.delete(approvalId);
+        // The scrape can false-positive on the broker-held preview bytes
+        // 100ms before the broker file is even read (the S5 wedge class,
+        // re-manifested at this layer: stop-continue, 2026-07-03) — that
+        // phantom sentinel is the SAME ask and dies with its decision. A
+        // genuinely-live panel resurfaces via the S4 settle re-check and
+        // re-adds the sentinel: worst case a ≤1.2s visible delay, never a
+        // held gate.
+        this.pendingApprovalKeys.delete(SCRAPE_APPROVAL_KEY);
       } else {
         // A scrape/native answer resolves the RENDERED panel. If expired
         // broker asks are queued behind it, that panel IS the oldest of them

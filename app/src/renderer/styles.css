@@ -4759,12 +4759,15 @@ h2 {
    language carried over: mono verbatim for the agent's voice, italic UI font
    for Duet's derived voice. */
 .status-strip {
-  flex: 0 0 auto;
+  /* In the reading flow (last child of the scroll container), wearing the
+     flow's clothes: the turn-card measure, centered. Flat with the reading
+     plane — no band tint, no divider line; side padding comes from the
+     scroll container itself. */
+  width: min(100%, var(--measure-prose));
+  margin: 14px auto 4px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 4px 18px 2px;
-  /* Flat with the reading plane — no band tint, no divider line. */
   background: transparent;
 }
 

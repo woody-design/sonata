@@ -102,6 +102,43 @@ await check("claude: retry cluster above the spinner becomes troubleLines", asyn
   h.tracker.dispose();
 });
 
+await check("claude: a multi-row todo sub-block relays in full (⎿ on first row only)", async () => {
+  // The real shape from Woody's screenshot (2026-07-03): claude paints the
+  // live todo list under the spinner with ⎿ on the FIRST row only — the
+  // remaining rows are indented siblings. Requiring ⎿ on every row relayed
+  // exactly one sub-task. The region ends at the blank row before the
+  // composer border.
+  const h = createHarness("claude");
+  h.runStarted();
+  h.feed(
+    [
+      "✢ Implementing S3 slash passthrough… (16m 18s · ↑ 49.3k tokens)",
+      "  ⎿  ✔ Phase 0: map every consumer of slash intent routing + modal machinery",
+      "     ✔ Ask Woody: modal delivery guard decision (A: delete / B: minimal detector)",
+      "     ■ Implement S3: 2-way slash + retire modal machinery per decision",
+      "     □ Verify zero-regression + write S3 findings doc",
+      "",
+      "╭──────────────────────────────╮",
+      "│ ❯                            │",
+      "╰──────────────────────────────╯",
+    ].join("\r\n"),
+  );
+  await delay(450);
+  const latest = h.emitted[h.emitted.length - 1];
+  assert.equal(latest.native.line, "✢ Implementing S3 slash passthrough… (16m 18s · ↑ 49.3k tokens)");
+  assert.deepEqual(
+    latest.native.subLines,
+    [
+      "⎿  ✔ Phase 0: map every consumer of slash intent routing + modal machinery",
+      "✔ Ask Woody: modal delivery guard decision (A: delete / B: minimal detector)",
+      "■ Implement S3: 2-way slash + retire modal machinery per decision",
+      "□ Verify zero-regression + write S3 findings doc",
+    ],
+    "the full todo block relays; the composer border does not leak in",
+  );
+  h.tracker.dispose();
+});
+
 await check("codex: working line and boot stage lines relay", async () => {
   const h = createHarness("codex");
   h.runStarted();
