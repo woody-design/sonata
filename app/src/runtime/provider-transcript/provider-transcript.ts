@@ -128,6 +128,38 @@ export class ProviderTranscript {
     this.startDiscovery(this.discoveryNotBefore);
   }
 
+  /**
+   * Adopt a source by identity: the CLI itself named its session id and
+   * transcript path (a hook payload, routed here via the per-task hook sink),
+   * so no locator inference is involved. Ownership over inference — this is
+   * the safety net that replaced the mtime fallback for Claude (2026-07-03):
+   * it also tracks the session id CHANGING under a live PTY (/clear, a native
+   * /resume), which the spawn-pinned id can never follow. Idempotent per
+   * source; a duplicate adopt is a no-op.
+   */
+  adoptSource(ref: TranscriptSourceRef): void {
+    if (this.disposed || this.sourcesById.has(ref.sourceId)) {
+      return;
+    }
+    for (const source of this.sourcesById.values()) {
+      if (source.ref.path === ref.path) {
+        return;
+      }
+    }
+    this.stopDiscovery();
+    const attached = this.attachSource(ref);
+    this.emitEvent({
+      type: "transcript:located",
+      payload: {
+        taskId: this.options.taskId,
+        source: ref,
+      },
+      ts: new Date().toISOString(),
+    });
+    attached.tailer.drain();
+    attached.tailer.start();
+  }
+
   hasLiveSource(): boolean {
     return this.sourcesById.size > 0;
   }

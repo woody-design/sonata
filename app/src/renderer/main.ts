@@ -111,6 +111,9 @@ interface TaskViewState {
   /** A PTY runtime backs this view; dormant views are read-only until resumed. */
   live: boolean;
   report: RuntimeReportV1 | null;
+  /** Unsent composer text, parked here while another session owns the DOM
+   *  textarea (the attachments counterpart is pendingAttachments). */
+  composerDraft: string;
   pendingApproval: ApprovalDetectedEvent["payload"] | null;
   /** A native AskUserQuestion awaiting an in-view answer (Slice 5). */
   pendingOptionPrompt: OptionPromptDetectedEvent["payload"] | null;
@@ -1387,7 +1390,10 @@ async function deleteSessionFromSidebar(taskId: string, title: string): Promise<
 function removeTaskViewLocally(taskId: string): void {
   state.taskViews = state.taskViews.filter((item) => item.task?.id !== taskId);
   if (state.activeTaskId === taskId) {
+    // The closed view's draft dies with it; the composer hands over to the
+    // New Chat slot.
     state.activeTaskId = null;
+    restoreComposerDraft();
     state.usagePopover = null;
     // The terminal window disposes this task's xterm when it drops out of the
     // active-task broadcast's openTaskIds; nothing terminal-related lingers here.
@@ -1429,7 +1435,11 @@ async function selectSession(taskId: string): Promise<void> {
 function startNewChat(folder?: string | null): void {
   closeSidebarMenu();
   exitPromptNav({ focusComposer: false });
-  state.activeTaskId = null;
+  if (state.activeTaskId !== null) {
+    saveComposerDraft();
+    state.activeTaskId = null;
+    restoreComposerDraft();
+  }
   state.usagePopover = null;
   if (folder) {
     state.taskDraft.cwd = folder;
@@ -4049,6 +4059,7 @@ function createTaskView(task: Task, status: string, live = true): TaskViewState 
     task,
     live,
     report: null,
+    composerDraft: "",
     pendingApproval: null,
     pendingOptionPrompt: null,
     optionPromptSelections: [],
@@ -4152,15 +4163,42 @@ function activateTask(taskId: string): void {
   if (!view) {
     return;
   }
-  if (state.activeTaskId !== taskId) {
+  const switching = state.activeTaskId !== taskId;
+  if (switching) {
+    saveComposerDraft();
     exitPromptNav({ focusComposer: false });
     state.usagePopover = null;
     clearUsagePopoverTimers();
   }
   state.activeTaskId = taskId;
+  if (switching) {
+    restoreComposerDraft();
+  }
   view.unread = false;
   view.completedUnseen = false;
   render();
+}
+
+// The composer text is per-session state, exactly like the attachments beside
+// it (pendingAttachments) — a shared DOM textarea must never carry one
+// session's words into another. While a session is active the DOM stays the
+// live truth (send/slash/reference paths write it directly); these two hooks
+// park and restore it at the only moments the composer changes owners. New
+// Chat (no active task) has its own slot.
+let newChatComposerDraft = "";
+
+function saveComposerDraft(): void {
+  const view = activeTaskView();
+  if (view) {
+    view.composerDraft = elements.promptInput.value;
+  } else {
+    newChatComposerDraft = elements.promptInput.value;
+  }
+}
+
+function restoreComposerDraft(): void {
+  const view = activeTaskView();
+  elements.promptInput.value = view ? view.composerDraft : newChatComposerDraft;
 }
 
 function markViewChanged(view: TaskViewState): void {
@@ -7385,7 +7423,11 @@ function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
     return;
   }
 
-  state.activeTaskId = request.taskId;
+  if (state.activeTaskId !== request.taskId) {
+    saveComposerDraft();
+    state.activeTaskId = request.taskId;
+    restoreComposerDraft();
+  }
   view.unread = false;
   if (request.runId) {
     view.highlightedRunId = request.runId;

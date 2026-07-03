@@ -292,15 +292,23 @@ export class RuntimeController {
     const runIndex = new RunIndex({ taskId, reportPath });
     // Pin a fresh Claude session to an id we choose, so the Task's binding is
     // known at birth — discovery confirms this exact id instead of guessing
-    // the newest jsonl in the cwd (which silently rebinds when several
-    // sessions share a folder). mtime fallback stays on for safety.
+    // the newest jsonl in the cwd. NO mtime fallback for Claude (2026-07-03):
+    // two same-cwd sessions in concurrent discovery could each adopt the
+    // OTHER's freshest jsonl before either had claimed its own — and
+    // persistTranscriptSources then anchored the wrong identity permanently.
+    // The safety net the fallback used to provide (a session id the pin can't
+    // follow — /clear, native /resume) is the hook handshake instead
+    // (adoptTranscriptFromHook): identity-carrying, task-scoped, never a guess.
     const pinnedSessionId = request.provider === "claude" ? randomUUID() : undefined;
     const providerTranscript = this.createProviderTranscript(
       taskId,
       request.provider,
       providerCwd,
       runIndex,
-      { expectedSessionId: pinnedSessionId ?? null, allowMtimeFallback: true },
+      {
+        expectedSessionId: pinnedSessionId ?? null,
+        allowMtimeFallback: request.provider !== "claude",
+      },
     );
     const terminalHost = new TerminalHost({
       taskId,
@@ -424,7 +432,9 @@ export class RuntimeController {
     // Resume: discovery must confirm the resumed id by identity and never
     // fall back to the freshest jsonl — that fallback is exactly how a
     // hand-driven /resume to a sibling conversation hijacked the binding.
-    // No-resume reopen (session gone / resume disabled) pins a fresh id.
+    // No-resume reopen (session gone / resume disabled) pins a fresh id, and
+    // Claude gets no mtime fallback there either (same same-cwd race as
+    // createTask; the hook handshake is the safety net).
     const pinnedSessionId =
       !resumeRef && runningTask.provider === "claude" ? randomUUID() : undefined;
     const providerTranscript = this.createProviderTranscript(
@@ -434,7 +444,7 @@ export class RuntimeController {
       runIndex,
       {
         expectedSessionId: resumeRef ?? pinnedSessionId ?? null,
-        allowMtimeFallback: !resumeRef,
+        allowMtimeFallback: !resumeRef && runningTask.provider !== "claude",
       },
     );
     const terminalHost = new TerminalHost({
@@ -1474,6 +1484,7 @@ export class RuntimeController {
     const resolved = path.resolve(workspace);
     for (const active of this.taskRuntimes.values()) {
       if (active.task.provider === "claude" && pathsEqual(runtimeDir(active.task.id), resolved)) {
+        this.adoptTranscriptFromHook(active, payload);
         active.cliState.applyHook(payload);
         this.applyHookPermissionMode(active, payload);
         this.handleOptionPromptHook(active, payload);
@@ -1512,6 +1523,41 @@ export class RuntimeController {
         return;
       }
     }
+  }
+
+  /**
+   * The transcript identity handshake: every Claude hook payload names its
+   * session (`session_id` + `transcript_path`, base envelope fields), and the
+   * per-task hook sink already routed it to THIS task — so the binding is
+   * ownership, not inference. This is what replaced the locator's mtime
+   * fallback (2026-07-03): it binds a fresh session the moment its first hook
+   * fires, and follows a session id CHANGING under a live PTY (/clear, native
+   * /resume) that the spawn-pinned id can never track. adoptSource is
+   * idempotent, so the per-event cost is a set lookup.
+   */
+  private adoptTranscriptFromHook(active: ActiveTaskRuntime, payload: ClaudeHookPayload): void {
+    const sessionId =
+      typeof payload.session_id === "string" && payload.session_id ? payload.session_id : null;
+    const transcriptPath =
+      typeof payload.transcript_path === "string" && payload.transcript_path
+        ? payload.transcript_path
+        : null;
+    if (!sessionId || !transcriptPath) {
+      return;
+    }
+    // The transcript file can trail the first hook by a beat — skip now, a
+    // later hook of the same session retries (hooks fire per tool call).
+    if (!fs.existsSync(transcriptPath)) {
+      return;
+    }
+    active.providerTranscript.adoptSource({
+      sourceId: `claude:${sessionId}`,
+      provider: "claude",
+      format: "claude-session-jsonl",
+      path: transcriptPath,
+      providerSessionId: sessionId,
+      locatedAt: new Date().toISOString(),
+    });
   }
 
   /**
