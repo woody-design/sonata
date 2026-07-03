@@ -83,6 +83,29 @@ import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
 import { cleanTerminalTranscript } from "../shared/terminal-transcript";
 import { planKeyedReconcile } from "../shared/keyed-reconcile";
 import { classifySlashIntent } from "../shared/slash/intent";
+import {
+  approvalKindLabel,
+  approvalTitle,
+  clamp,
+  compactTokenCount,
+  condensedPromptText,
+  errorMessage,
+  fileExtension,
+  folderName,
+  formatIdleDuration,
+  formatLiveElapsed,
+  formatRelativeAge,
+  formatRelativeUsageTime,
+  formatTokenCount,
+  formatUsagePercent,
+  permissionModeLabel,
+  providerLabel,
+  readingModeLabel,
+  readingThemeLabel,
+  resumePolicyLabel,
+  settingsDateLabel,
+  usageLimitDisplayLabel,
+} from "../reading-core/selectors/formatters";
 
 interface RunTranscript {
   runId: string;
@@ -1456,38 +1479,6 @@ function startNewChat(folder?: string | null): void {
   elements.promptInput.focus();
 }
 
-function formatRelativeAge(iso: string): string {
-  const thenMs = Date.parse(iso);
-  if (!Number.isFinite(thenMs)) {
-    return "";
-  }
-  const deltaMs = Math.max(0, Date.now() - thenMs);
-  const minutes = Math.floor(deltaMs / 60_000);
-  if (minutes < 1) {
-    return "now";
-  }
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h`;
-  }
-  const days = Math.floor(hours / 24);
-  if (days < 7) {
-    return `${days}d`;
-  }
-  const weeks = Math.floor(days / 7);
-  if (weeks < 5) {
-    return `${weeks}w`;
-  }
-  const months = Math.floor(days / 30);
-  if (months < 12) {
-    return `${months}mo`;
-  }
-  return `${Math.floor(days / 365)}y`;
-}
-
 function bootReadingSettingsFromDom(): ReadingSettings {
   const root = document.documentElement;
   return normalizeReadingSettings({
@@ -2653,29 +2644,6 @@ async function persistReadingSettings(nextSettings: ReadingSettings): Promise<vo
   }
 }
 
-function readingThemeLabel(theme: ReadingThemeId): string {
-  if (theme === "paper") {
-    return "Paper";
-  }
-  if (theme === "calm") {
-    return "Calm";
-  }
-  if (theme === "focus") {
-    return "Focus";
-  }
-  return "Duet";
-}
-
-function readingModeLabel(mode: ReadingModeSetting): string {
-  if (mode === "light") {
-    return "Light";
-  }
-  if (mode === "dark") {
-    return "Dark";
-  }
-  return "Auto";
-}
-
 // --- Settings page (centered overlay) ---------------------------------------
 // The review door for moment-born policy. Two doors, one state: the resume
 // chooser writes the same store this page revises. Instant-apply, no OK.
@@ -3032,16 +3000,6 @@ function renderDefaultPermissionModePopup(overlay: SettingsOverlayState): HTMLEl
   return wrap;
 }
 
-function permissionModeLabel(mode: ClaudeDefaultPermissionMode): string {
-  if (mode === "acceptEdits") {
-    return "Accept edits";
-  }
-  if (mode === "auto") {
-    return "Auto";
-  }
-  return "Ask each time";
-}
-
 function renderSessionsSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
   const group = document.createElement("section");
   group.className = "settings-group";
@@ -3206,24 +3164,6 @@ function renderClaudeSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
   box.append(row);
   group.append(heading, territory, box);
   return group;
-}
-
-function resumePolicyLabel(policy: ResumePolicyId): string {
-  if (policy === "summary") {
-    return "Resume from summary";
-  }
-  if (policy === "full") {
-    return "Resume full session";
-  }
-  return "Ask each time";
-}
-
-function settingsDateLabel(at: string): string {
-  const parsed = new Date(at);
-  if (Number.isNaN(parsed.getTime())) {
-    return at;
-  }
-  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 function handlePromptNavigationKeydown(event: KeyboardEvent): void {
@@ -3464,10 +3404,6 @@ function composerSelectionSnapshot(): { start: number; end: number } {
   };
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
 function scheduleStickyPromptSync(): void {
   if (stickyPromptSyncFrame !== null) {
     return;
@@ -3543,11 +3479,6 @@ function scrollToPromptTurn(turnKey: string): void {
   const target = findPromptNavTarget(turnKey);
   target?.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
   scheduleStickyPromptSync();
-}
-
-function condensedPromptText(text: string): string {
-  const trimmed = text.replace(/\s+/g, " ").trim();
-  return trimmed || "(empty prompt)";
 }
 
 elements.runList.addEventListener("click", (event) => {
@@ -4488,26 +4419,6 @@ function resumeCostLabel(idleMs: number | null, totalTokens: number | null): str
     parts.push(`~${formatTokenCount(totalTokens)} tokens`);
   }
   return parts.join(" · ") || "size unknown";
-}
-
-function formatIdleDuration(ms: number): string {
-  const minutes = Math.round(ms / 60_000);
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (hours < 48) {
-    return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
-  }
-  return `${Math.floor(hours / 24)}d`;
-}
-
-function formatTokenCount(tokens: number): string {
-  if (tokens >= 1000) {
-    return `${(tokens / 1000).toFixed(1)}k`;
-  }
-  return String(tokens);
 }
 
 async function decideApproval(decision: ApprovalDecision): Promise<void> {
@@ -5493,61 +5404,6 @@ function positionUsagePopover(popover: HTMLElement): void {
   popover.style.top = `${top}px`;
 }
 
-function formatUsagePercent(value: number): string {
-  const clamped = Math.max(0, Math.min(100, value));
-  const rounded = Math.round(clamped * 10) / 10;
-  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}%`;
-}
-
-function compactTokenCount(value: number): string {
-  if (value >= 1_000_000) {
-    const rounded = value / 1_000_000;
-    return `${rounded >= 10 ? Math.round(rounded) : trimTrailingZero(rounded.toFixed(1))}m`;
-  }
-  if (value >= 1_000) {
-    return `${Math.round(value / 1_000)}k`;
-  }
-  return String(Math.round(value));
-}
-
-function formatRelativeUsageTime(targetMs: number, nowMs = Date.now()): string {
-  const seconds = Math.max(0, Math.round(Math.abs(nowMs - targetMs) / 1000));
-  if (seconds < 45) {
-    return "now";
-  }
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainderMinutes = minutes % 60;
-  if (hours < 24) {
-    return remainderMinutes > 0 ? `${hours}h ${remainderMinutes}m` : `${hours}h`;
-  }
-  const days = Math.round(hours / 24);
-  return `${days}d`;
-}
-
-function usageLimitDisplayLabel(label: string): string {
-  if (label === "5h") {
-    return "5-hour limit";
-  }
-  if (label === "daily") {
-    return "Daily";
-  }
-  if (label === "weekly") {
-    return "Weekly";
-  }
-  if (label === "monthly") {
-    return "Monthly";
-  }
-  return `${label} limit`;
-}
-
-function trimTrailingZero(value: string): string {
-  return value.endsWith(".0") ? value.slice(0, -2) : value;
-}
-
 // Route dropped/pasted Files by the one fact that matters: does it already have
 // a path on disk? A real Electron file (drag/paste of a file, or the picker)
 // has a path → REFERENCE it (no copy). A path-less image (clipboard bitmap /
@@ -5731,11 +5587,6 @@ function isSupportedImageFile(file: File): boolean {
 
 function hasFileTransfer(dataTransfer: DataTransfer | null): boolean {
   return Array.from(dataTransfer?.items ?? []).some((item) => item.kind === "file");
-}
-
-function fileExtension(name: string): string {
-  const index = name.lastIndexOf(".");
-  return index >= 0 ? name.slice(index).toLowerCase() : "";
 }
 
 function sessionPermissionLabel(task: Task | null): string | null {
@@ -6861,20 +6712,6 @@ function deriveCurrentStepForView(view: TaskViewState): string | null {
   return planStep ?? runningTool;
 }
 
-// A settled duration, in the same "Xm Ys" shape the live clock ticks in (not
-// formatElapsed's "284.7 s" — the roster's running and done rows must read the
-// same way).
-function formatLiveElapsed(startedAt: string | null): string {
-  const startedMs = startedAt ? Date.parse(startedAt) : Number.NaN;
-  if (Number.isNaN(startedMs)) {
-    return "";
-  }
-  const totalSeconds = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-}
-
 // The scrape buffer (runTranscripts) remains the EVIDENCE that a reply
 // happened — it just no longer renders. Same family as renderNoAssistantOutput.
 function renderTurnFallback(): HTMLElement {
@@ -7315,10 +7152,6 @@ function folderSummaryLabel(): string {
   return state.taskDraft.cwd ? folderName(state.taskDraft.cwd) : "Duet workspace";
 }
 
-function folderName(folderPath: string): string {
-  return folderPath.split(/[\\/]/).filter(Boolean).at(-1) ?? folderPath;
-}
-
 function appendLiveTranscript(view: TaskViewState, data: string): void {
   if (!view.liveTranscriptRunId) {
     return;
@@ -7620,83 +7453,6 @@ function runTone(run: RuntimeRunReport): string {
   return "active";
 }
 
-function approvalTitle(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
-  if (kind === "workspace-trust") {
-    return "Workspace trust requested";
-  }
-  if (kind === "file-edit") {
-    return "File edit approval requested";
-  }
-  if (kind === "file-read") {
-    return "File read approval requested";
-  }
-  if (kind === "command") {
-    return "Command approval requested";
-  }
-  if (kind === "dangerous-bypass") {
-    return "Bypass Permissions mode — confirm";
-  }
-  return "Native approval requested";
-}
-
-function approvalSummary(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
-  const providerName = activeProviderLabel();
-  if (kind === "workspace-trust") {
-    return `${providerName} is asking whether this Task workspace should be trusted before it continues.`;
-  }
-  if (kind === "file-edit") {
-    return `${providerName} wants to write files in this Task workspace. Review the Run context before approving.`;
-  }
-  if (kind === "file-read") {
-    return `${providerName} wants to read a file path through the native CLI session. Approve only when that access matches the Task.`;
-  }
-  if (kind === "command") {
-    return `${providerName} wants to run a command through the native CLI session. Approve only when the command matches the Task.`;
-  }
-  if (kind === "dangerous-bypass") {
-    return `${providerName} is about to enter Bypass Permissions mode — it will run EVERY command without asking. Intended only for a sandboxed container/VM. Cancel unless you mean it.`;
-  }
-  return `${providerName} is waiting on a native approval screen in the PTY session.`;
-}
-
-function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
-  if (kind === "workspace-trust") {
-    return "Workspace trust";
-  }
-  if (kind === "file-edit") {
-    return "File edit";
-  }
-  if (kind === "file-read") {
-    return "File read";
-  }
-  if (kind === "command") {
-    return "Command";
-  }
-  if (kind === "dangerous-bypass") {
-    return "Bypass mode";
-  }
-  return "Native";
-}
-
-
-function formatElapsed(value: number | null): string {
-  if (value === null) {
-    return "running";
-  }
-  if (value < 1000) {
-    return `${value} ms`;
-  }
-  return `${(value / 1000).toFixed(1)} s`;
-}
-
-
-function providerLabel(provider: RuntimeProvider): string {
-  if (provider === "claude") {
-    return "Claude";
-  }
-  return "Codex";
-}
-
 function activeProviderLabel(): string {
   const provider = activeTaskView()?.task?.provider;
   return provider ? providerLabel(provider) : "Codex";
@@ -7725,20 +7481,10 @@ function taskStatusLabel(task: Task): string {
   return "Ready";
 }
 
-function shortId(value: string): string {
-  return value.length > 18 ? `${value.slice(0, 18)}...` : value;
-}
-
-
 function getElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) {
     throw new Error(`Missing renderer element: ${id}`);
   }
   return element as T;
-}
-
-function errorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/, "");
 }

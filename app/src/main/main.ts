@@ -31,6 +31,7 @@ import {
 } from "../shared/types";
 import { registerIpcHandlers } from "./ipc";
 import { NotificationController } from "./notification-controller";
+import { createRuntimeEventRecorder } from "./runtime-event-recorder";
 import { RuntimeController } from "./runtime-controller";
 import {
   ClaudeSettingsStore,
@@ -757,6 +758,11 @@ function startLocalApiIfEnabled(controller: RuntimeController): void {
   });
 }
 
+// Recorded reality for the reading-core reducer fixtures (map §2.4): default
+// off; set DUET_RUNTIME_EVENT_LOG=<dir> to capture the renderer-bound event
+// stream as JSONL.
+const recordRuntimeEvent = createRuntimeEventRecorder(process.env.DUET_RUNTIME_EVENT_LOG);
+
 app.whenReady().then(() => {
   readingSettingsStore = new ReadingSettingsStore(readingSettingsPath());
   // DUET_NOTIFICATIONS=0 is a hard off (kill switch for test harnesses and for
@@ -779,6 +785,7 @@ app.whenReady().then(() => {
     resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath()),
     claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath()),
     sendEvent: (event) => {
+      recordRuntimeEvent(event);
       handlePreviewRuntimeEvent(event);
       localApiServer?.broadcastEvent(event);
       for (const window of BrowserWindow.getAllWindows()) {
