@@ -3697,6 +3697,15 @@ window.duetRuntime.onRuntimeEvent((event) => {
     if (!isActiveRunStatus(event.payload.status) && view.liveTranscriptRunId === event.payload.id) {
       view.liveTranscriptRunId = null;
     }
+    // A settled run cannot be waiting for approval: if the card on screen is
+    // attributed to this run, it is a stale scrape artifact (the Stop hook
+    // completed the run over a phantom re-detected panel) — retract it.
+    if (
+      !isActiveRunStatus(event.payload.status) &&
+      view.pendingApproval?.runId === event.payload.id
+    ) {
+      view.pendingApproval = null;
+    }
     if (!isActiveRunStatus(event.payload.status) && !isActiveView(view)) {
       // The settled sidebar grammar's fourth state: finished while away.
       view.completedUnseen = true;

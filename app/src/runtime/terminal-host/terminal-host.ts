@@ -361,6 +361,28 @@ export class TerminalHost extends EventEmitter {
   /** decision → key bytes for the CURRENTLY surfaced panel (v2 grammar
    *  parses the panel's own numbered options; digits instant-select). */
   private activeApprovalOptionKeys: Partial<Record<ApprovalDecision, string>> | null = null;
+  /** Cumulative pty bytes since spawn — a stream coordinate that survives the
+   *  rawTail/activeRunRaw suffix trims, so a point in the stream stays
+   *  addressable after buffers are sliced. */
+  private ptyBytesTotal = 0;
+  /** Approval-scrape watermark (stream coordinate): panel bytes at or before
+   *  this point are ANSWERED history and can no longer become candidates.
+   *  Advanced ONLY on hook-broker decisions — the reply went down the CLI's
+   *  own stdout channel and cannot be swallowed, so the painted panel is
+   *  settled fact the moment the reply is written. (claude ≥2.1.186 paints
+   *  the FULL native panel while the broker holds; those bytes stay in the
+   *  linear run buffer forever and re-detected as a phantom "resurfaced"
+   *  ask >1.2s after the decision, wedging the run — 2026-07-03 diagnosis.)
+   *  Native-key decisions do NOT move it: keys can be swallowed, and the
+   *  resurface-after-settle honesty backstop exists exactly for them. */
+  private approvalScanFloor = 0;
+  /** The CLI's own "session is up" declaration (SessionStart hook). Opens
+   *  acceptsPromptInput structurally: claude ≥2.1.186 repaints transcript
+   *  history on --resume (old ❯ prompt lines, "✻ Baked for Ns" summaries),
+   *  which reads as activity-after-prompt in the linear idle scrape and
+   *  starved the boot latch forever (2026-07-03 diagnosis). Hook-less
+   *  spawns (codex, broker-off) keep the scrape path. */
+  private hookSessionStarted = false;
   private persistReceiptTimers: NodeJS.Timeout[] = [];
   private nativeAnswerRecheckTimers: NodeJS.Timeout[] = [];
   private startedAt: number | null = null;
@@ -462,7 +484,21 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess || this.activeRun || this.approvalActive) {
       return false;
     }
+    // Hook-first: SessionStart is the CLI declaring its composer is up — no
+    // scrape can outrank that. Required for resumed sessions on claude
+    // ≥2.1.186, whose history repaint (old ❯ lines + "✻ Baked for Ns"
+    // summaries) permanently defeats the linear prompt-after-activity scrape
+    // below. The busy/panel cases stay covered by the guards above.
+    if (this.hookSessionStarted) {
+      return true;
+    }
     return detectIdlePrompt(this.rawTail, this.profile).ready;
+  }
+
+  /** The SessionStart hook arrived for this PTY's session (startup, resume,
+   *  or /clear) — record the CLI's own boot declaration. */
+  noteHookSessionStart(): void {
+    this.hookSessionStarted = true;
   }
 
   startTask(options: StartTaskOptions = {}): StartedPty {
@@ -480,6 +516,9 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalDecisionAt = null;
     this.approvalSuppressedInSettleWindow = false;
     this.activeApprovalOptionKeys = null;
+    this.ptyBytesTotal = 0;
+    this.approvalScanFloor = 0;
+    this.hookSessionStarted = false;
     this.clearPersistReceiptTimers();
     this.clearNativeAnswerRecheckTimers();
     this.activeRun = null;
@@ -776,8 +815,7 @@ export class TerminalHost extends EventEmitter {
     if (!this.approvalActive) {
       return;
     }
-    const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
-    const candidate = detectApprovalCandidate(approvalSource, this.profile);
+    const candidate = detectApprovalCandidate(this.approvalScanSource(), this.profile);
     if (candidate && !candidate.promptAfterApproval) {
       return;
     }
@@ -1126,6 +1164,13 @@ export class TerminalHost extends EventEmitter {
         approvalKind: kind,
       });
     }
+    // Everything painted so far — including the full native panel claude
+    // ≥2.1.186 renders while the broker holds — is answered history now: the
+    // reply went down the hook's stdout and cannot be swallowed. Below the
+    // watermark it can never re-detect as a phantom "resurfaced" ask (which
+    // used to flip the run back to waiting-for-approval >1.2s after the
+    // decision and drop the Stop hook — the 2026-07-03 wedge).
+    this.approvalScanFloor = this.ptyBytesTotal;
     this.approvalActive = false;
     this.lastApprovalDecision = decision;
     this.lastApprovalDecisionAt = decisionAt;
@@ -1302,6 +1347,7 @@ export class TerminalHost extends EventEmitter {
         `[completion] ${new Date().toISOString()} run=${this.activeRun.id} pty-data len=${data.length} printable=${JSON.stringify(cleanTerminal(data).trim().slice(0, 60))}`,
       );
     }
+    this.ptyBytesTotal += data.length;
     this.rawTail = `${this.rawTail}${data}`.slice(-this.scrollbackLimit);
     // The mirror assigns this chunk's ingest seq; tag it onto the broadcast below
     // so a mid-stream-hydrating terminal window can stitch the chunk onto its
@@ -1333,8 +1379,21 @@ export class TerminalHost extends EventEmitter {
     }
   }
 
+  /** The approval scrape's view of the stream: the run buffer (or idle tail)
+   *  minus everything at or before the broker-decision watermark. A panel the
+   *  broker already answered lies below the floor and cannot re-detect; a
+   *  genuinely NEW ask paints fresh bytes above it. */
+  private approvalScanSource(): string {
+    const base = this.activeRun ? this.activeRunRaw : this.rawTail;
+    const postFloorBytes = this.ptyBytesTotal - this.approvalScanFloor;
+    if (postFloorBytes >= base.length) {
+      return base;
+    }
+    return base.slice(base.length - postFloorBytes);
+  }
+
   private detectApproval(): void {
-    const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
+    const approvalSource = this.approvalScanSource();
     const candidate = detectApprovalCandidate(approvalSource, this.profile);
     if (!candidate || candidate.promptAfterApproval) {
       return;
@@ -1858,15 +1917,34 @@ export class TerminalHost extends EventEmitter {
    * stays as the fallback (for hook-less sessions or a missed Stop), so this is
    * purely additive — Stop completes promptly, the scrape still backstops it.
    *
-   * Guarded exactly like the heuristic: never completes a run that is waiting on
-   * an approval (status is "active" again only once the approval resolved —
-   * lifecyclePhase "resumed-after-approval"), and a no-op when no Duet-owned run
-   * is active (e.g. a take-over turn, or the scrape already finished it — which
-   * also avoids any double-completion).
+   * A no-op when no Duet-owned run is active (a take-over turn, or the scrape
+   * already finished it — which also avoids any double-completion) and for
+   * runs mid-stop. UNLIKE the heuristic it is NOT gated on the approval flag:
+   * a genuinely pending ask holds its turn open, so Stop arriving while we
+   * think an approval is waiting proves that state stale — see the guard
+   * comment in the body (2026-07-03 phantom-resurface wedge).
    */
   completeRunFromTurnEnd(failure?: { errorExcerpt: string }): ActiveRun | null {
-    if (!this.activeRun || this.activeRun.status !== "active" || this.approvalActive) {
+    if (!this.activeRun) {
       return null;
+    }
+    // Stop outranks a stale approval flag. A genuinely pending ask holds its
+    // turn open (the broker blocks inside the PermissionRequest hook; a
+    // native panel blocks the tool call), so Stop CANNOT fire while one is
+    // truly waiting — its arrival proves the waiting-for-approval state is a
+    // scrape artifact (an already-answered panel's bytes re-detected from the
+    // run buffer). Trust the CLI: clear the stale state and complete. Every
+    // other non-active status (stopping/stopped/…) keeps the no-op guard.
+    const staleApproval =
+      this.approvalActive || this.activeRun.status === "waiting-for-approval";
+    if (this.activeRun.status !== "active" && this.activeRun.status !== "waiting-for-approval") {
+      return null;
+    }
+    if (staleApproval) {
+      this.debugCompletion("stop hook while approval flagged — treating as stale scrape state");
+      this.approvalActive = false;
+      this.approvalSuppressedInSettleWindow = false;
+      this.clearApprovalSettleTimer();
     }
     // `StopFailure` (probed S6: fires on API errors with a structured
     // `error` field, while Stop stays silent) rides the same completion

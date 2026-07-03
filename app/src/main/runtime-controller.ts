@@ -1488,6 +1488,15 @@ export class RuntimeController {
         active.cliState.applyHook(payload);
         this.applyHookPermissionMode(active, payload);
         this.handleOptionPromptHook(active, payload);
+        // `SessionStart` is the CLI's own boot declaration (startup, resume,
+        // /clear) — it opens the delivery boot latch structurally. The
+        // idle-prompt scrape cannot do this for resumed sessions on claude
+        // ≥2.1.186: the resume history repaint (old ❯ prompt lines, "✻ Baked
+        // for Ns" summaries) reads as activity-after-prompt forever, so the
+        // latch starved and queued resume messages never delivered.
+        if (payload.hook_event_name === "SessionStart") {
+          active.terminalHost.noteHookSessionStart();
+        }
         // `UserPromptSubmit` is the authoritative "a turn is starting" signal —
         // the CLI just began (or dequeued) a prompt. Begin the run from it
         // (no-op if the idle-send path already began one). This is what makes
