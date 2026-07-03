@@ -68,7 +68,6 @@ import type {
   OptionPromptDetectedEvent,
   TranscriptBlocksEvent,
 } from "../shared/types/events";
-import type { OptionPromptAnswers, OptionPromptQuestion } from "../shared/types/option-prompt";
 import type {
   FocusArtifactInMainRequest,
   TerminalWindowState,
@@ -134,20 +133,30 @@ import {
   type SidebarEntry,
   type SidebarPrefs,
 } from "../reading-core/selectors/sidebar";
-
-interface OptionPromptReceiptLine {
-  header: string;
-  question: string;
-  labels: string[];
-}
-
-interface OptionPromptReceipt {
-  toolUseId: string;
-  lines: OptionPromptReceiptLine[];
-  /** true once reconciled from the provider's own answer (verbatim labels);
-   *  false while showing the optimistic local selection. */
-  reconciled: boolean;
-}
+import {
+  composerPlaceholder,
+  filteredSlashItems,
+  optimisticReceiptLines,
+  optionPromptQuestionMeta,
+  reconcileReceiptLines,
+  sendPromptTitle,
+  sessionModelSummaryLabel,
+  slashFilterScore,
+  type OptionPromptReceipt,
+  type OptionPromptReceiptLine,
+} from "../reading-core/selectors/composer";
+import {
+  completionErrorExcerpt,
+  deliveryStatusLabel,
+  dormantArmed,
+  hasActiveRun,
+  isActiveRunStatus,
+  remoteControlContext,
+  remoteControlOn,
+  runOutcome,
+  runTone,
+  taskStatusLabel,
+} from "../reading-core/selectors/runs";
 
 interface TaskViewState {
   task: Task | null;
@@ -1838,7 +1847,7 @@ elements.readingSettings.addEventListener("click", (event) => {
 
 elements.remoteControlToggle.addEventListener("click", (event) => {
   event.stopPropagation();
-  if (remoteControlContext().mode === "unavailable") {
+  if (remoteControlContext(activeTaskView(), state.taskDraft.provider).mode === "unavailable") {
     return;
   }
   toggleRemoteControlPopover(event.currentTarget as HTMLElement);
@@ -1935,7 +1944,11 @@ elements.promptInput.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (event.key === "Escape" && elements.promptInput.value.trim().length === 0 && hasActiveRun()) {
+  if (
+    event.key === "Escape" &&
+    elements.promptInput.value.trim().length === 0 &&
+    hasActiveRun(activeTaskView())
+  ) {
     event.preventDefault();
     void stopRun();
     return;
@@ -1954,7 +1967,7 @@ elements.promptInput.addEventListener("keydown", (event) => {
 });
 
 elements.sendPrompt.addEventListener("click", () => {
-  if (hasActiveRun()) {
+  if (hasActiveRun(activeTaskView())) {
     void stopRun();
     return;
   }
@@ -2108,56 +2121,17 @@ function closeRemoteControlPopover(): void {
   renderRemoteControlPopover();
 }
 
-type RemoteControlContext =
-  | { mode: "inject" } // a live Claude session — inject `/rc` (works mid-turn)
-  | { mode: "arm-draft" } // New Chat with a Claude draft — arm the spawn flag
-  | { mode: "arm-dormant" } // a dormant Claude session — arm the resume spawn flag
-  | { mode: "unavailable" }; // Codex, or nothing to control
-
-/** What the RC button acts on right now. Claude-only (Codex is out of scope);
- *  when there's no live PTY (New Chat OR a dormant session) it ARMS the
- *  `--remote-control` spawn flag instead of injecting. */
-function remoteControlContext(): RemoteControlContext {
-  const view = activeTaskView();
-  if (view?.task) {
-    if (view.task.provider !== "claude") {
-      return { mode: "unavailable" };
-    }
-    return view.live ? { mode: "inject" } : { mode: "arm-dormant" };
-  }
-  return state.taskDraft.provider === "claude" ? { mode: "arm-draft" } : { mode: "unavailable" };
-}
-
-/** A dormant Claude view's effective armed state: the user's explicit override if
- *  set, else the live global default — so toggling the default applies to
- *  ALREADY-OPEN dormant sessions, not only to ones opened afterward. */
-function dormantArmed(view: TaskViewState): boolean {
-  return view.remoteControl.armedOverride ?? state.remoteControlDefault;
-}
-
-/** Is RC on/armed in the current context (drives the button's active fill)?
- *  inject → live `active`; arm-dormant → effective armed (override ?? default);
- *  arm-draft → the New Chat draft flag. */
-function remoteControlOn(ctx: RemoteControlContext = remoteControlContext()): boolean {
-  const view = activeTaskView();
-  if (ctx.mode === "arm-draft") {
-    return state.taskDraft.remoteControl;
-  }
-  if (ctx.mode === "inject") {
-    return Boolean(view?.remoteControl.active);
-  }
-  if (ctx.mode === "arm-dormant") {
-    return view ? dormantArmed(view) : false;
-  }
-  return false;
-}
-
 /** The header button's persistent on/off indication (active fill = "on") and
  *  availability. Mirrors the reading button's split: state here, popover content
  *  in renderRemoteControlPopover. */
 function renderRemoteControl(): void {
-  const ctx = remoteControlContext();
-  const on = remoteControlOn(ctx);
+  const ctx = remoteControlContext(activeTaskView(), state.taskDraft.provider);
+  const on = remoteControlOn(
+    ctx,
+    activeTaskView(),
+    state.taskDraft.remoteControl,
+    state.remoteControlDefault,
+  );
   elements.remoteControlToggle.classList.toggle("remote-on", on);
   elements.remoteControlToggle.disabled = ctx.mode === "unavailable";
   elements.remoteControlToggle.title =
@@ -2204,9 +2178,14 @@ function renderRemoteControlPopoverContent(): HTMLElement {
 
   // No live PTY yet (New Chat or a dormant session): the button ARMS the spawn
   // flag; the session connects the moment it starts/resumes.
-  const armCtx = remoteControlContext();
+  const armCtx = remoteControlContext(activeTaskView(), state.taskDraft.provider);
   if (armCtx.mode === "arm-draft" || armCtx.mode === "arm-dormant") {
-    const armed = remoteControlOn(armCtx);
+    const armed = remoteControlOn(
+      armCtx,
+      activeTaskView(),
+      state.taskDraft.remoteControl,
+      state.remoteControlDefault,
+    );
     popover.append(remoteControlPopoverHeader(armed ? "Armed" : "Off", armed));
     const armDesc = document.createElement("p");
     armDesc.className = "remote-control-popover-desc";
@@ -2226,7 +2205,7 @@ function renderRemoteControlPopoverContent(): HTMLElement {
       } else {
         const view = activeTaskView();
         if (view) {
-          view.remoteControl.armedOverride = !dormantArmed(view);
+          view.remoteControl.armedOverride = !dormantArmed(view, state.remoteControlDefault);
         }
       }
       render();
@@ -4242,7 +4221,7 @@ async function openDormantSessionAndSend(
     const response = await window.duetRuntime.openTask({
       taskId,
       ...(resumeMode ? { resumeMode } : {}),
-      ...(view.task.provider === "claude" && dormantArmed(view)
+      ...(view.task.provider === "claude" && dormantArmed(view, state.remoteControlDefault)
         ? { remoteControl: true }
         : {}),
     });
@@ -4529,7 +4508,12 @@ function renderComposerControls(view = activeTaskView()): void {
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";
   elements.sendPrompt.classList.toggle("stop-mode", activeRun);
   elements.promptInput.disabled = state.busy && !newChat;
-  elements.promptInput.placeholder = composerPlaceholder(activeRun, pendingApproval);
+  elements.promptInput.placeholder = composerPlaceholder(
+    view,
+    state.taskDraft.provider,
+    activeRun,
+    pendingApproval,
+  );
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
 }
 
@@ -4690,49 +4674,6 @@ function closeSlashPicker(dismissCurrentValue: boolean): void {
     state.slashPicker = null;
     renderComposerPopover();
   }
-}
-
-/** Lower score sorts first; null means no match. */
-function slashFilterScore(entry: SlashCommandEntry, query: string): number | null {
-  if (query.length === 0) {
-    return 0;
-  }
-  const name = entry.name.toLowerCase();
-  if (name === query) {
-    return 0;
-  }
-  if (name.startsWith(query)) {
-    return 1;
-  }
-  if (name.includes(query)) {
-    return 2;
-  }
-  if (entry.description.toLowerCase().includes(query)) {
-    return 3;
-  }
-  return null;
-}
-
-function filteredSlashItems(picker: SlashPickerState): SlashCommandEntry[] {
-  const scored: Array<{ entry: SlashCommandEntry; score: number; order: number }> = [];
-  picker.entries.forEach((entry, order) => {
-    if (!entry.listed) {
-      return;
-    }
-    const score = slashFilterScore(entry, picker.query);
-    if (score !== null) {
-      scored.push({ entry, score, order });
-    }
-  });
-  scored.sort((a, b) => {
-    // Commands before skills, then match quality, then registry order.
-    const kindDelta = Number(a.entry.kind === "skill") - Number(b.entry.kind === "skill");
-    if (kindDelta !== 0) {
-      return kindDelta;
-    }
-    return a.score - b.score || a.order - b.order;
-  });
-  return scored.map((item) => item.entry);
 }
 
 function clampSlashSelection(): void {
@@ -5489,62 +5430,6 @@ function sessionPermissionLabel(task: Task | null): string | null {
   return "Ask for approval";
 }
 
-function sessionModelSummaryLabel(view: TaskViewState | null): string | null {
-  const task = view?.task ?? null;
-  if (!task) {
-    return null;
-  }
-  // The live statusline value wins (contract §2: mid-session /model and
-  // effort switching happens in the Terminal; Reading only DISPLAYS it —
-  // same shape as the S4 permission_mode wiring). Spawn settings are the
-  // fallback before the first statusline event, and for codex, whose
-  // snapshots never carry a model.
-  const live = view?.usageSnapshot ?? null;
-  const model = live?.modelDisplayName ?? modelValueLabel(task.provider, task.model);
-  const effortValue = (live?.reasoningEffort ?? task.reasoningEffort) as ReasoningEffort | null;
-  const parts = [model, reasoningValueLabel(effortValue)].filter((part): part is string =>
-    Boolean(part),
-  );
-  return parts.length > 0 ? parts.join(" ") : null;
-}
-
-function hasActiveRun(view = activeTaskView()): boolean {
-  const latestRun = view?.report?.runs.at(-1);
-  return isActiveRunStatus(latestRun?.status ?? "");
-}
-
-function sendPromptTitle(
-  view: TaskViewState | null,
-  activeRun: boolean,
-  pendingApproval: boolean,
-  promptHasText: boolean,
-): string {
-  if (!view?.task) {
-    return "";
-  }
-  const providerName = providerLabel(view.task.provider);
-  if (activeRun) {
-    return `Stop ${providerName}`;
-  }
-  if (!promptHasText) {
-    return "Type a message before sending.";
-  }
-  if (pendingApproval) {
-    return `Queued — delivers after ${providerName} approval is resolved.`;
-  }
-  if (view.live && !view.deliveryState?.bootLatched) {
-    return `${providerName} is starting — your message sends as soon as it accepts input.`;
-  }
-  if (view.deliveryState && !view.deliveryState.deliverable) {
-    return `Queued — delivers when ${providerName} is ready.`;
-  }
-  return `Send to ${providerName}`;
-}
-
-function isActiveRunStatus(status: string): boolean {
-  return ["active", "waiting-for-approval", "resumed-after-approval", "stopping"].includes(status);
-}
-
 function renderResumeChoice(): void {
   const view = activeTaskView();
   const choice = view?.resumeChoice ?? null;
@@ -5613,42 +5498,6 @@ function renderApproval(): void {
 }
 
 // ── Native option prompt (AskUserQuestion) card (Slice 5) ────────────────────
-
-/** Ordered question metadata, from the live prompt or a prior receipt. */
-function optionPromptQuestionMeta(view: TaskViewState): { header: string; question: string }[] {
-  if (view.pendingOptionPrompt) {
-    return view.pendingOptionPrompt.questions.map((q) => ({ header: q.header, question: q.question }));
-  }
-  if (view.optionPromptReceipt) {
-    return view.optionPromptReceipt.lines.map((l) => ({ header: l.header, question: l.question }));
-  }
-  return [];
-}
-
-/** Build receipt lines from the provider's verbatim answers (keyed by question). */
-function reconcileReceiptLines(
-  meta: { header: string; question: string }[],
-  answers: OptionPromptAnswers,
-): OptionPromptReceiptLine[] {
-  if (meta.length > 0) {
-    return meta.map((m) => ({ header: m.header, question: m.question, labels: answers[m.question] ?? [] }));
-  }
-  // No card context (e.g. answered natively before a card existed) — derive
-  // the lines straight from the answers object.
-  return Object.entries(answers).map(([question, labels]) => ({ header: question, question, labels }));
-}
-
-/** Optimistic receipt lines from the local single-select choice (pre-reconcile). */
-function optimisticReceiptLines(
-  prompt: OptionPromptDetectedEvent["payload"],
-  selections: number[],
-): OptionPromptReceiptLine[] {
-  return prompt.questions.map((q, i) => {
-    const idx = selections[i] ?? -1;
-    const label = idx >= 0 ? q.options[idx]?.label ?? "" : "";
-    return { header: q.header, question: q.question, labels: label ? [label] : [] };
-  });
-}
 
 function renderOptionPrompt(): void {
   const view = activeTaskView();
@@ -6376,7 +6225,7 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
 function renderRunOutcomeNote(run: RuntimeRunReport): HTMLElement {
   const note = document.createElement("div");
   note.className = `turn-outcome-note ${runTone(run)}`;
-  note.textContent = runOutcome(run);
+  note.textContent = runOutcome(run, activeProviderLabel());
   return note;
 }
 
@@ -6974,45 +6823,6 @@ function setViewMode(mode: ViewMode): void {
 }
 
 
-// The persistent delivery-queue PANEL was removed (S1c-followup): with
-// send-is-send write-through, a queued message goes straight into the CLI's
-// native queue (shown in the co-visible terminal). The orphaned item-list
-// renderer + its Edit/Cancel/Retry actions (and their IPC backend) were swept
-// in S6 — an unreceipted item no longer blocks the queue, so the retry
-// affordance had nothing left to unblock (git log -S renderDeliveryItem).
-// The composer status line below is the sole delivery surface.
-function deliveryStatusLabel(deliveryState: DeliveryTaskState): string {
-  const providerName = providerLabel(deliveryState.provider);
-  // Whole-queue derivation (S6): an undelivered item no longer blocks the
-  // queue, so it may sit at the head while later items flow — live activity
-  // (delivering/queued) outranks the stale report; the report shows only
-  // when nothing fresher is happening.
-  if (deliveryState.queue.some((item) => item.status === "delivering")) {
-    return `Delivering to ${providerName}`;
-  }
-  if (deliveryState.queue.some((item) => item.status === "queued")) {
-    return "Queued";
-  }
-  if (deliveryState.queue.some((item) => item.status === "undelivered")) {
-    return "Undelivered";
-  }
-  if (deliveryState.approvalActive) {
-    return `Waiting for ${providerName} approval`;
-  }
-  if (deliveryState.activeRun) {
-    return `${providerName} is working`;
-  }
-  // bootLatched is the honest "still starting?" bit: one-shot, opened by the
-  // delivery pump's structural poll. The old key (idleComposer — a continuous
-  // composer-ready scrape gated on the starved task-ready flag) read
-  // permanently false in the full app, so an idle session could wedge on
-  // "Starting <provider>" (the S5 residual label class; probe s6-diags).
-  if (deliveryState.bootLatched) {
-    return "Ready";
-  }
-  return `Starting ${providerName}`;
-}
-
 // "Show in main" from the Preview window: activate the task and, when the
 // request names a run, highlight and scroll to it. The artifact-strip scroll
 // target retired with the strip (2026-07-03).
@@ -7072,30 +6882,6 @@ function isComposerCompositionShortcut(event: KeyboardEvent): boolean {
   return performance.now() - lastComposerCompositionEndAt < COMPOSITION_END_SHORTCUT_GUARD_MS;
 }
 
-function composerPlaceholder(activeRun: boolean, pendingApproval: boolean): string {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return `Message ${providerLabel(state.taskDraft.provider)} — starts the session`;
-  }
-  const providerName = providerLabel(view.task.provider);
-  if (pendingApproval) {
-    return `${providerName} approval is waiting — Enter queues your message`;
-  }
-  if (activeRun) {
-    return `${providerName} is working — Enter queues your message`;
-  }
-  if (!view.live) {
-    return `Message ${providerName} — resumes this session`;
-  }
-  if (!view.deliveryState?.bootLatched) {
-    return `${providerName} is starting — your message will send when it's ready`;
-  }
-  if ((view.report?.runs.length ?? 0) === 0) {
-    return `Message ${providerName}`;
-  }
-  return "Continue, correct, or redirect this Task";
-}
-
 function sendButtonLabel(activeRun: boolean): string {
   if (activeRun) {
     return "Stop";
@@ -7109,89 +6895,13 @@ function sendButtonLabel(activeRun: boolean): string {
 
 
 
-function runOutcome(run: RuntimeRunReport): string {
-  const providerName = activeProviderLabel();
-  if (run.status === "waiting-for-approval") {
-    return `Waiting for ${approvalKindLabel(run.approvalKind)} approval`;
-  }
-  if (run.status === "resumed-after-approval") {
-    return `Resumed after ${approvalKindLabel(run.approvalKind)} approval`;
-  }
-  if (run.status === "stopped") {
-    return run.stopEvents.some((event) => event.action === "stopped" && event.slashStopSent)
-      ? "Stopped by Esc + /stop"
-      : "Stopped by Esc";
-  }
-  if (run.status === "approval-denied") {
-    return `${approvalKindLabel(run.approvalKind)} approval denied`;
-  }
-  if (run.status === "completed" && run.completionSource === "terminal-idle-heuristic") {
-    return "Completed by terminal idle heuristic";
-  }
-  if (run.status === "completed") {
-    return "Completed";
-  }
-  if (run.status === "pty-exited") {
-    return "PTY exited";
-  }
-  if (run.status === "failed") {
-    return "Failed";
-  }
-  return `${providerName} is working`;
-}
-
 function providerLabelForRun(_run: RuntimeRunReport | null): string {
   return activeProviderLabel();
-}
-
-function completionErrorExcerpt(run: RuntimeRunReport | null): string | null {
-  const hint = run?.completionHint;
-  if (!hint || typeof hint !== "object" || Array.isArray(hint)) {
-    return null;
-  }
-  const excerpt = hint.errorExcerpt;
-  return typeof excerpt === "string" && excerpt.trim() ? excerpt.trim() : null;
-}
-
-function runTone(run: RuntimeRunReport): string {
-  if (run.status === "stopped" || run.status === "approval-denied" || run.status === "failed") {
-    return "attention";
-  }
-  if (run.status === "completed") {
-    return "complete";
-  }
-  if (run.status === "waiting-for-approval") {
-    return "waiting";
-  }
-  return "active";
 }
 
 function activeProviderLabel(): string {
   const provider = activeTaskView()?.task?.provider;
   return provider ? providerLabel(provider) : "Codex";
-}
-
-function taskStatusLabel(task: Task): string {
-  const providerName = providerLabel(task.provider);
-  if (task.status === "running") {
-    return `${providerName} is working`;
-  }
-  if (task.status === "waiting-for-approval") {
-    return "Waiting for approval";
-  }
-  if (task.status === "stopping") {
-    return "Stopping";
-  }
-  if (task.status === "stopped") {
-    return "Stopped";
-  }
-  if (task.status === "failed") {
-    return "Failed";
-  }
-  if (task.status === "starting" || task.status === "new") {
-    return `${providerName} is starting`;
-  }
-  return "Ready";
 }
 
 function getElement<T extends HTMLElement>(id: string): T {
