@@ -66,6 +66,8 @@
     "smoke:slash-registry": "npm run build:main && node tests/smoke/slash-registry.mjs",
     "smoke:slash-intent": "npm run build:main && node tests/smoke/slash-intent.mjs",
     "smoke:cli-signal-state": "npm run build:main && node tests/smoke/cli-signal-state.mjs",
+    "smoke:notification-policy": "npm run build:main && node tests/smoke/notification-policy.mjs",
+    "smoke:notification-controller": "npm run build:main && node tests/smoke/notification-controller.mjs",
     "smoke:cli-hook-sink": "npm run build:main && node tests/smoke/cli-hook-sink.mjs",
     "smoke:option-prompt-parse": "npm run build:main && node tests/smoke/option-prompt-parse.mjs",
     "smoke:delivery-repump": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-repump.mjs",

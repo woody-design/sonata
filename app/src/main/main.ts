@@ -30,6 +30,7 @@ import {
   type WorkspaceOpenFolderRequest,
 } from "../shared/types";
 import { registerIpcHandlers } from "./ipc";
+import { NotificationController } from "./notification-controller";
 import { RuntimeController } from "./runtime-controller";
 import {
   ClaudeSettingsStore,
@@ -54,6 +55,7 @@ let previewWindow: BrowserWindow | null = null;
 let inspectorWindow: BrowserWindow | null = null;
 let terminalWindow: BrowserWindow | null = null;
 let runtimeController: RuntimeController | null = null;
+let notificationController: NotificationController | null = null;
 let readingSettingsStore: ReadingSettingsStore | null = null;
 let terminalWindowSettingsStore: TerminalWindowSettingsStore | null = null;
 let localApiServer: LocalApiServer | null = null;
@@ -347,6 +349,23 @@ function focusArtifactInMain(request: FocusArtifactInMainRequest): void {
   mainWindow.show();
   mainWindow.focus();
   mainWindow.webContents.send(IPC_CHANNELS.mainArtifactFocus, request);
+}
+
+/**
+ * A clicked native notification raises the Reading window and asks its renderer
+ * to select the task the notification was about — the whole point of the
+ * notification in a multi-task host is landing you on the right session.
+ */
+function activateTaskFromNotification(taskId: TaskId): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send(IPC_CHANNELS.notificationActivateTask, taskId);
 }
 
 function handlePreviewRuntimeEvent(event: RuntimeEvent): void {
@@ -740,6 +759,13 @@ function startLocalApiIfEnabled(controller: RuntimeController): void {
 
 app.whenReady().then(() => {
   readingSettingsStore = new ReadingSettingsStore(readingSettingsPath());
+  // DUET_NOTIFICATIONS=0 is a hard off (kill switch for test harnesses and for
+  // anyone who prefers the macOS per-app toggle as their only control).
+  if (process.env.DUET_NOTIFICATIONS !== "0") {
+    notificationController = new NotificationController({
+      activateTask: activateTaskFromNotification,
+    });
+  }
   runtimeController = new RuntimeController({
     projectsStore: new ProjectsStore(projectsStorePath()),
     resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath()),
@@ -752,6 +778,7 @@ app.whenReady().then(() => {
           window.webContents.send(IPC_CHANNELS.runtimeEvent, event);
         }
       }
+      notificationController?.handleEvent(event);
     },
   });
   startLocalApiIfEnabled(runtimeController);

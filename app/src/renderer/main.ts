@@ -4044,6 +4044,12 @@ window.duetRuntime.onMainArtifactFocus((request) => {
   focusArtifactFromPreview(request);
 });
 
+// A clicked native notification lands us on its task (the window was already
+// raised in the main process). activateTask no-ops if the view isn't loaded.
+window.duetRuntime.onNotificationActivateTask((taskId) => {
+  activateTask(taskId);
+});
+
 void hydrateReadingSettings();
 // Load the RC default BEFORE the session index makes dormant sessions clickable:
 // a dormant view arms from `state.remoteControlDefault` at creation, so the

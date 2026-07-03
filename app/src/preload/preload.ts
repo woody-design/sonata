@@ -9,6 +9,7 @@ import {
   type ReadingSettings,
   type ResolvedReadingMode,
   type RuntimeEvent,
+  type TaskId,
   type TerminalActiveTaskState,
   type TerminalWindowState,
   normalizeReadingSettings,
@@ -183,6 +184,13 @@ const duetRuntime: DuetRuntimeBridge = {
     };
     ipcRenderer.on(IPC_CHANNELS.settingsOpen, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.settingsOpen, listener);
+  },
+  onNotificationActivateTask: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, taskId: TaskId) => {
+      callback(taskId);
+    };
+    ipcRenderer.on(IPC_CHANNELS.notificationActivateTask, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.notificationActivateTask, listener);
   },
   onPreviewState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, previewState: PreviewWindowState) => {

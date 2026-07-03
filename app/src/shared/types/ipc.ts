@@ -95,6 +95,7 @@ export const IPC_CHANNELS = {
   instanceLabelReadSync: "instance-label:read-sync",
   readingSystemModeChanged: "reading-settings:system-mode-changed",
   settingsOpen: "settings:open",
+  notificationActivateTask: "notification:activate-task",
   runtimeEvent: "runtime:event",
 } as const;
 
@@ -548,6 +549,8 @@ export interface DuetRuntimeBridge {
   onReadingSystemModeChanged(callback: (mode: ResolvedReadingMode) => void): () => void;
   /** The app menu's "Settings…" (⌘,) asks the main window to open the page. */
   onSettingsOpen(callback: () => void): () => void;
+  /** A clicked native notification asks the main window to select its task. */
+  onNotificationActivateTask(callback: (taskId: TaskId) => void): () => void;
   onInspectorState(callback: (state: InspectorWindowState) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;
 }
