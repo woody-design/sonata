@@ -8,7 +8,11 @@ import os from "node:os";
 // P1): pinned fixtures must never carry account/environment data. This lint
 // is what makes the sanitizer's guarantees durable — a future re-pin that
 // skips sanitization fails here, not in a repo audit.
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../fixtures/runtime-events");
+// Covers BOTH pinned-fixture trees (C2 review): the raw-event corpus and the
+// reducer goldens derived from it — a future golden regen from an unsanitized
+// capture fails here, not in a repo audit.
+const FIXTURES = dirname(fileURLToPath(import.meta.url)) + "/../fixtures";
+const ROOTS = [resolve(FIXTURES, "runtime-events"), resolve(FIXTURES, "reducer-goldens")];
 const HOME = os.homedir();
 const USER = process.env.USER ?? "";
 
@@ -35,8 +39,8 @@ function filesUnder(dir) {
   return out;
 }
 
-const files = filesUnder(ROOT);
-assert.ok(files.length > 0, "pinned corpus exists");
+const files = ROOTS.flatMap((root) => filesUnder(root));
+assert.ok(files.length > 0, "pinned fixtures exist");
 
 const hits = [];
 for (const file of files) {
