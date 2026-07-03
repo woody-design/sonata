@@ -294,7 +294,12 @@ interface PopoverAnchor {
  *  a live task's pending list and the new-chat draft. previewUrl is a thumbnail
  *  (object URL for a bitmap, data URL for a referenced image) or null (icon). */
 interface ComposerAttachment {
-  file: File | null;
+  /** Opaque bitmap handle (a DOM `File` at runtime) or null. Typed `unknown`
+   *  because the state model must stay DOM-type-free (reading-core purity, map
+   *  §2.2): core state = plain data + opaque handles the core never looks
+   *  inside. Only shell code (intake, materialize, object-URL lifecycle)
+   *  narrows it back to `File`. */
+  file: unknown;
   reference: DeliveryAttachment | null;
   previewUrl: string | null;
   name: string;
@@ -450,10 +455,34 @@ function syncTaskViewsFromIndex(index: SessionIndexResponse): boolean {
   return activeViewChanged;
 }
 
+/** Plain snapshot of an element's viewport rect. The state model must stay
+ *  DOM-type-free (reading-core purity, map §2.2); getBoundingClientRect already
+ *  returns a static snapshot, so a plain field copy is semantically identical. */
+interface AnchorRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
+function anchorRectOf(element: HTMLElement): AnchorRect {
+  const rect = element.getBoundingClientRect();
+  return {
+    left: rect.left,
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
 type SidebarMenuState =
-  | { kind: "session"; taskId: string; title: string; archived: boolean; anchor: DOMRect }
-  | { kind: "project"; path: string; name: string; archived: boolean; anchor: DOMRect }
-  | { kind: "filter"; anchor: DOMRect; openSection: FilterMenuSection | null };
+  | { kind: "session"; taskId: string; title: string; archived: boolean; anchor: AnchorRect }
+  | { kind: "project"; path: string; name: string; archived: boolean; anchor: AnchorRect }
+  | { kind: "filter"; anchor: AnchorRect; openSection: FilterMenuSection | null };
 
 type FilterMenuSection = "status" | "project" | "activity" | "group" | "sort";
 
@@ -590,7 +619,7 @@ function renderSidebarListHeader(title: string): HTMLElement {
     }
     sidebarMenu = {
       kind: "filter",
-      anchor: (event.currentTarget as HTMLElement).getBoundingClientRect(),
+      anchor: anchorRectOf(event.currentTarget as HTMLElement),
       openSection: null,
     };
     renderSidebarMenu();
@@ -923,7 +952,7 @@ function openSidebarMenuForSession(
     taskId,
     title,
     archived,
-    anchor: anchorElement.getBoundingClientRect(),
+    anchor: anchorRectOf(anchorElement),
   };
   renderSidebarMenu();
 }
@@ -934,7 +963,7 @@ function openSidebarMenuForProject(project: ProjectGroup, anchorElement: HTMLEle
     path: project.path,
     name: project.name,
     archived: project.archived,
-    anchor: anchorElement.getBoundingClientRect(),
+    anchor: anchorRectOf(anchorElement),
   };
   renderSidebarMenu();
 }
@@ -1235,7 +1264,7 @@ function sidebarMenuItem(
   return item;
 }
 
-function positionSidebarMenu(panel: HTMLElement, anchor: DOMRect): void {
+function positionSidebarMenu(panel: HTMLElement, anchor: AnchorRect): void {
   panel.style.position = "fixed";
   panel.style.left = `${Math.round(anchor.left)}px`;
   panel.style.top = `${Math.round(anchor.bottom + 4)}px`;
@@ -5392,12 +5421,14 @@ async function materializeAttachments(
     if (item.reference) {
       attachments.push(item.reference);
     } else if (item.file) {
-      const bytes = await item.file.arrayBuffer();
+      // Narrow the opaque handle back to File (shell-side; see ComposerAttachment.file).
+      const file = item.file as File;
+      const bytes = await file.arrayBuffer();
       attachments.push(
         await window.duetRuntime.createAttachment({
           taskId,
-          originalName: item.file.name,
-          mediaType: item.file.type,
+          originalName: file.name,
+          mediaType: file.type,
           bytes,
         }),
       );
