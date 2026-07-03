@@ -250,6 +250,10 @@ export type ApprovalDecisionEvent = BaseRuntimeEvent<
     decision: ApprovalDecision;
     encodedAs: ApprovalDecisionEncoding;
     previousKind: ApprovalKind | null;
+    /** The broker ask this decision resolves (reply-channel answers). Absent
+     *  on scrape/native decisions — those resolve the RENDERED panel, keyed
+     *  by the delivery gate's scrape sentinel (S6 review P1). */
+    approvalId?: string | null;
   }
 >;
 

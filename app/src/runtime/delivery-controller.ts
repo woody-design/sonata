@@ -15,6 +15,9 @@ import { cleanTerminal, type PromptSubmission, type TerminalHost } from "./termi
 
 const DEFAULT_RECEIPT_TIMEOUT_MS = 45_000;
 const BACKFILL_RECEIPT_WINDOW_MS = 15 * 60_000;
+// Gate key for id-less approval events (the scraped native panel — Codex,
+// the broker's timeout fallback, resurfaces). One screen, one panel.
+const SCRAPE_APPROVAL_KEY = "scrape-panel";
 // pump() is event-driven, but the boot latch opens with no pump-triggering
 // event: the structural composer check in pump() IS the boot signal (the
 // `task:accepts-input` event that used to announce it was retired in S6 —
@@ -73,14 +76,20 @@ export class DeliveryController {
   // screen; the CLI's own queue absorbs anything mid-turn. Exposed on
   // DeliveryTaskState as the honest "still starting?" display bit (S6).
   private bootLatched = false;
-  // "A question is addressed to the human" — set on approval:detected (scrape OR
-  // hook-broker, the latter fed in by the controller), cleared on
-  // approval:decision. Deliberately NOT cleared on approval:expired: a broker
-  // timeout means the approval is still pending (now the native panel), so the
-  // gate must stay closed through the expiry→scrape gap (reviewer P1/P2). The
-  // scrape flag (isApprovalActive) only sees rendered panels, so it misses the
-  // whole broker-hold window — this flag is what covers it.
-  private approvalPending = false;
+  // "A question is addressed to the human" — KEYED per ask (S6 review P1: a
+  // single boolean reopened the gate on the FIRST decision while a second
+  // broker ask was still pending — and, worse, while an EXPIRED ask's native
+  // panel sat rendered, the digit-swallow class). Broker asks key by their
+  // approvalId; the scrape's rendered panel keys by a sentinel (one panel at
+  // a time on a single screen). An `approval:expired` transitions its key to
+  // "expired" instead of removing it — the ask is still pending (native
+  // panel incoming), so the gate stays closed through the expiry→scrape gap
+  // (S2 reviewer P1/P2 semantics, now per-ask). Ownership transfers when the
+  // scrape side resolves: a no-id decision clears the sentinel AND the
+  // oldest expired key (panels render in ask order — the answered panel IS
+  // that ask). The scrape flag (isApprovalActive) only sees rendered panels,
+  // so it misses the whole broker-hold window — these keys are what cover it.
+  private readonly pendingApprovalKeys = new Map<string, "asked" | "expired">();
   private receiptTimer: NodeJS.Timeout | null = null;
   private readonly pumpRetryIntervalMs: number;
   private pumpRetryTimer: NodeJS.Timeout | null = null;
@@ -146,11 +155,29 @@ export class DeliveryController {
       return;
     }
     if (event.type === "approval:detected") {
-      this.approvalPending = true;
+      this.pendingApprovalKeys.set(event.payload.approvalId ?? SCRAPE_APPROVAL_KEY, "asked");
     } else if (event.type === "approval:decision") {
-      this.approvalPending = false;
+      const approvalId = event.payload.approvalId ?? null;
+      if (approvalId) {
+        this.pendingApprovalKeys.delete(approvalId);
+      } else {
+        // A scrape/native answer resolves the RENDERED panel. If expired
+        // broker asks are queued behind it, that panel IS the oldest of them
+        // (panels render in ask order) — transfer ownership (see the field).
+        this.pendingApprovalKeys.delete(SCRAPE_APPROVAL_KEY);
+        for (const [key, state] of this.pendingApprovalKeys) {
+          if (state === "expired") {
+            this.pendingApprovalKeys.delete(key);
+            break;
+          }
+        }
+      }
+    } else if (event.type === "approval:expired") {
+      // Still pending — the native panel is taking over; the key gates on.
+      if (event.payload.approvalId) {
+        this.pendingApprovalKeys.set(event.payload.approvalId, "expired");
+      }
     }
-    // approval:expired intentionally leaves approvalPending set (see the field).
     this.pump();
   }
 
@@ -257,15 +284,16 @@ export class DeliveryController {
       (this.provider === "claude" || !this.terminalHost.hasActiveRun()) &&
       // Pending-question guard: a pasted prompt's characters would be consumed
       // as answers by a live approval panel (digit-swallow → unintended
-      // approval). `isApprovalActive` is the scrape flag (rendered panels only);
-      // `approvalPending` also covers hook-broker approvals, where no panel
-      // renders while the broker holds (S2, reviewer P1/P2). This is the ONLY
-      // question-guard: slash-opened panels no longer hold delivery (S3,
-      // decision A) — a paste into a panel the user opened themselves is
+      // approval). `isApprovalActive` is the scrape flag (rendered panels
+      // only); the keyed map also covers hook-broker approvals — where no
+      // panel renders while the broker holds — PER ASK, so deciding one of
+      // two concurrent asks cannot reopen the gate (S6 review P1). This is
+      // the ONLY question-guard: slash-opened panels no longer hold delivery
+      // (S3, decision A) — a paste into a panel the user opened themselves is
       // visible in the co-present terminal and recoverable, while a detector
       // false-positive would be an invisible hold (the S1 wedge class).
       !this.terminalHost.isApprovalActive() &&
-      !this.approvalPending
+      this.pendingApprovalKeys.size === 0
     );
   }
 

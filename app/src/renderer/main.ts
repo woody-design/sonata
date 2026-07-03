@@ -3863,6 +3863,12 @@ window.duetRuntime.onRuntimeEvent((event) => {
     // hook card (the scrape surfaces the native one next); the request is still
     // unanswered, so keep the "waiting" truth (cli-state stays waiting-approval)
     // and raise the passive attention banner in the card's place (S5).
+    // Keyed (S6 review P2): only the ask THIS card shows may clear it — the
+    // controller already filters hidden-ask expiries, this is the renderer's
+    // own defense (a queued ask expiring must not blank a live unrelated card).
+    if (view.pendingApproval?.approvalId !== event.payload.approvalId) {
+      return;
+    }
     view.pendingApproval = null;
     view.approvalExpiredAttention = true;
     view.status = "Waiting in the terminal";

@@ -163,10 +163,12 @@ export class RuntimeController {
   private readonly claudeHookWatcher: ClaudeHookWatcher;
   private readonly claudeApprovalWatcher: ClaudeApprovalWatcher;
   /** Live hook-broker approvals awaiting a card answer, keyed by broker id →
-   *  the task + payload needed to build the reply decision. */
+   *  the task + payload needed to build the reply decision, plus the
+   *  detected event built ONCE at ask arrival (its ts/runId are the honest
+   *  arrival-time facts; re-sent verbatim when the card's turn comes). */
   private readonly pendingBrokerApprovals = new Map<
     string,
-    { taskId: TaskId; payload: ClaudeHookPayload }
+    { taskId: TaskId; payload: ClaudeHookPayload; event: RuntimeEvent }
   >();
   /** Per task, the broker approvalId whose card is currently shown — enforces
    *  one card at a time; the rest queue (P3). */
@@ -913,6 +915,8 @@ export class RuntimeController {
           decision,
           encodedAs: "reply-file",
           previousKind: classifyApprovalKind(pending.payload),
+          // The keyed delivery gate releases exactly THIS ask (S6 review P1).
+          approvalId,
         },
         ts: new Date().toISOString(),
       };
@@ -954,51 +958,62 @@ export class RuntimeController {
         continue;
       }
       active.cliState.applyHook(ask.payload);
-      this.pendingBrokerApprovals.set(ask.id, { taskId: active.task.id, payload: ask.payload });
+      // Ask arrival is the ONE moment for gate + record (S6 review P2: doing
+      // this inside the show path recorded a queued-then-shown ask twice —
+      // the run-index appends, it does not dedupe). The event is built here
+      // and stored so the show path re-sends it verbatim.
+      const kind = classifyApprovalKind(ask.payload);
+      const event: RuntimeEvent = {
+        type: "approval:detected",
+        payload: {
+          taskId: active.task.id,
+          // Broker asks carry no runId of their own; attribute to the open
+          // Duet run — the same attribution the scrape path records.
+          runId: active.terminalHost.activeRunId(),
+          kind,
+          source: "hook-broker",
+          answerVia: "reply",
+          approvalId: ask.id,
+          summary: approvalSummary(ask.payload),
+          choices: brokerApprovalChoices(kind, ask.payload),
+        },
+        ts: new Date().toISOString(),
+      };
+      this.pendingBrokerApprovals.set(ask.id, {
+        taskId: active.task.id,
+        payload: ask.payload,
+        event,
+      });
+      // Gate: keyed per approvalId (S6 review P1) — a hidden queued ask
+      // blocks delivery from the moment it exists, and deciding a DIFFERENT
+      // ask cannot release it.
+      active.deliveryController.handleRuntimeEvent(event);
+      // The report is the approval audit trail: broker asks never flow
+      // through the terminal-host eventSink, so consume into the run-index
+      // here or the durable record silently loses hook-broker provenance.
+      if (active.runIndex.consume(event)) {
+        this.emitReportUpdated(active.runIndex);
+      }
       this.surfaceBrokerApproval(active, ask.id);
       return;
     }
   }
 
   /**
-   * Surface a broker approval: feed the delivery gate (ANY pending approval
-   * blocks delivery, so paste can't land in it) + show the card. Only ONE card
-   * per task at a time (P3): a concurrent ask stays in pendingBrokerApprovals
-   * (still answerable + gate-blocking) and surfaces when the current resolves.
+   * SHOW a broker approval card — presentation only; the delivery gate and
+   * the run-index record happened once at ask arrival (handleApprovalAsk).
+   * Only ONE card per task at a time (P3): a concurrent ask stays in
+   * pendingBrokerApprovals (still answerable + gate-blocking) and shows when
+   * the current one resolves.
    */
   private surfaceBrokerApproval(active: ActiveTaskRuntime, id: string): void {
     const pending = this.pendingBrokerApprovals.get(id);
     if (!pending || pending.taskId !== active.task.id) {
       return;
     }
-    const kind = classifyApprovalKind(pending.payload);
-    const event: RuntimeEvent = {
-      type: "approval:detected",
-      payload: {
-        taskId: active.task.id,
-        // Broker asks carry no runId of their own; attribute to the open
-        // Duet run — the same attribution the scrape path records.
-        runId: active.terminalHost.activeRunId(),
-        kind,
-        source: "hook-broker",
-        answerVia: "reply",
-        approvalId: id,
-        summary: approvalSummary(pending.payload),
-        choices: brokerApprovalChoices(kind, pending.payload),
-      },
-      ts: new Date().toISOString(),
-    };
-    active.deliveryController.handleRuntimeEvent(event); // gate blocks while any approval is pending
-    // The report is the approval audit trail: broker asks never flow through
-    // the terminal-host eventSink, so consume into the run-index here or the
-    // durable record silently loses hook-broker provenance (found by the S6
-    // approval-surface rewrite — the report had NO approval events at all).
-    if (active.runIndex.consume(event)) {
-      this.emitReportUpdated(active.runIndex);
-    }
     if (!this.shownBrokerApproval.has(active.task.id)) {
       this.shownBrokerApproval.set(active.task.id, id);
-      this.sendEvent(event); // the card
+      this.sendEvent(pending.event); // the card
     }
   }
 
@@ -1037,10 +1052,15 @@ export class RuntimeController {
         payload: { taskId: active.task.id, approvalId: id },
         ts: new Date().toISOString(),
       };
-      this.sendEvent(expiredEvent); // renderer clears the hook card; scrape surfaces the native panel next
-      active.deliveryController.handleRuntimeEvent(expiredEvent); // gate: no-op → stays blocked
+      // Gate: the key transitions asked→expired and keeps blocking through
+      // the expiry→scrape gap (per-ask since the S6 review).
+      active.deliveryController.handleRuntimeEvent(expiredEvent);
       if (this.shownBrokerApproval.get(active.task.id) === id) {
+        // Only the SHOWN ask's expiry concerns the renderer — a hidden
+        // queued ask expiring must not clear someone else's live card
+        // (S6 review P2); its native panel is the scrape's to surface.
         this.shownBrokerApproval.delete(active.task.id);
+        this.sendEvent(expiredEvent); // renderer clears the hook card + raises the banner
       }
       this.surfaceNextBrokerApproval(active); // a concurrent queued approval, if any
       return;
@@ -2264,15 +2284,18 @@ function truncateMiddle(value: string, max: number): string {
  */
 function brokerApprovalChoices(kind: ApprovalKind, payload: ClaudeHookPayload): ApprovalChoice[] {
   const scope = alwaysAllowScopeLabel(kind, payload); // e.g. "git *", "edits", "reads"
+  // encodedAs "reply-file": these choices answer on the hook channel — no
+  // bytes ever touch the PTY (S6 review P3; the decision event says the
+  // same, so the report's provenance is consistent end to end).
   return [
-    { decision: "approve", label: "Approve", description: "Allow once", encodedAs: "native-keys" },
+    { decision: "approve", label: "Approve", description: "Allow once", encodedAs: "reply-file" },
     {
       decision: "approve-always",
       label: scope ? `Always: ${scope}` : "Always",
       description: scope ? `Persist an allow rule for ${scope}` : "Always allow",
-      encodedAs: "native-keys",
+      encodedAs: "reply-file",
     },
-    { decision: "deny", label: "Deny", description: "Reject this request", encodedAs: "native-keys" },
+    { decision: "deny", label: "Deny", description: "Reject this request", encodedAs: "reply-file" },
   ];
 }
 

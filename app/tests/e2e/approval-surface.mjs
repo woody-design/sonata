@@ -122,9 +122,28 @@ try {
   const brokerDetected = approvalEvents.some(
     (event) => event.action === "detected" && event.kind === "command" && event.source === "hook-broker",
   );
+  // Reply-channel provenance must be consistent end to end (S6 review P3):
+  // the decision AND every detected choice say "reply-file" — no bytes ever
+  // touch the PTY for a broker answer.
   const approveDecision = approvalEvents.some(
-    (event) => event.action === "decision" && event.decision === "approve",
+    (event) =>
+      event.action === "decision" &&
+      event.decision === "approve" &&
+      event.encodedAs === "reply-file",
   );
+  const choicesHonest = approvalEvents
+    .filter((event) => event.action === "detected" && event.source === "hook-broker")
+    .every((event) => (event.choices ?? []).every((choice) => choice.encodedAs === "reply-file"));
+  // Dedupe lock (S6 review P2): every broker ask is recorded exactly once —
+  // the drain loop answers each card once, so detected and decision counts
+  // must match (the old show-path recording double-counted queued asks).
+  const brokerDetectedCount = approvalEvents.filter(
+    (event) => event.action === "detected" && event.source === "hook-broker",
+  ).length;
+  const brokerDecisionCount = approvalEvents.filter(
+    (event) => event.action === "decision" && event.encodedAs === "reply-file",
+  ).length;
+  const recordBalanced = brokerDetectedCount === brokerDecisionCount && brokerDetectedCount > 0;
   const artifactRecorded = (report?.runs ?? []).some((run) =>
     run.artifactCandidates?.some((artifact) => artifact.path === "approval_command.md"),
   );
@@ -135,6 +154,8 @@ try {
     !trustCardEverDetected &&
     brokerDetected &&
     approveDecision &&
+    choicesHonest &&
+    recordBalanced &&
     artifactRecorded &&
     !rawTerminalPersisted;
 
@@ -148,6 +169,10 @@ try {
         trustCardEverDetected,
         brokerDetected,
         approveDecision,
+        choicesHonest,
+        brokerDetectedCount,
+        brokerDecisionCount,
+        recordBalanced,
         artifactRecorded,
         rawTerminalPersisted,
         approvalEvents,
