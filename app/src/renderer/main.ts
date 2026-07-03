@@ -6652,7 +6652,7 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
 
   // A continuation turn (background-workflow reply): transcript blocks with
   // no user-message — the "user" was the CLI's own task-notification, not a
-  // person. No "You" bubble; the muted system-note in the body names what
+  // person. No user bubble; the muted system-note in the body names what
   // came back.
   const hasUserVoice =
     turn.blocks.length === 0 || turn.blocks.some((block) => block.kind === "user-message");
@@ -6715,11 +6715,6 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
   const header = document.createElement("header");
   header.className = "turn-user";
   header.dataset.turnKey = turn.key;
-
-  const role = document.createElement("span");
-  role.className = "turn-role";
-  role.textContent = "You";
-  header.append(role);
 
   const userBlock = turn.blocks.find(
     (block): block is Extract<TranscriptBlock, { kind: "user-message" }> =>

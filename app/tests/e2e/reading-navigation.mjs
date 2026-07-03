@@ -140,16 +140,13 @@ async function injectReadingFixture(page, options = {}) {
       const header = document.createElement("header");
       header.className = "turn-user";
       header.dataset.turnKey = turn.key;
-      const role = document.createElement("span");
-      role.className = "turn-role";
-      role.textContent = "You";
       const prompt = document.createElement("div");
       prompt.className = "turn-user-text turn-prompt";
       prompt.tabIndex = -1;
       prompt.dataset.turnKey = turn.key;
       prompt.textContent = turn.prompt;
       prompt.setAttribute("aria-label", `Prompt: ${turn.prompt}`);
-      header.append(role, prompt);
+      header.append(prompt);
 
       const body = document.createElement("div");
       body.className = "turn-body turn-answer";

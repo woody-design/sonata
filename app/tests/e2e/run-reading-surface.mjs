@@ -39,7 +39,7 @@ try {
   // report on disk stays the durable carrier of changed files and artifact
   // candidates — asserted below, including the eligibility filter.
   const runCard = page.locator(".turn-card").first();
-  await runCard.locator(".turn-user", { hasText: "You" }).waitFor({ state: "visible" });
+  await runCard.locator(".turn-user .turn-prompt").waitFor({ state: "visible" });
   await page.locator('.turn-card[data-run-status="completed"]').waitFor({ state: "visible" });
   await runCard.locator(".turn-body").waitFor({ state: "visible" });
   const processSurfaces = await runCard

@@ -35,9 +35,6 @@ try {
   }
 
   const runCard = page.locator(".turn-card").first();
-  await runCard.locator(".turn-user", { hasText: "You" }).waitFor({
-    state: "visible",
-  });
   await runCard.locator(".turn-user", { hasText: "DUET_TRANSCRIPT_VISIBLE" }).waitFor({
     state: "visible",
   });

@@ -53,7 +53,7 @@ try {
   }
 
   const turnCard = page.locator(".turn-card", { hasText: "Create exactly two files" }).first();
-  await turnCard.locator(".turn-user", { hasText: "You" }).waitFor({ state: "visible" });
+  await turnCard.locator(".turn-user .turn-prompt").waitFor({ state: "visible" });
   const transcriptText = await turnCard.locator(".turn-body").textContent();
   // Readable assistant content, no raw ANSI. Claude's reply to this prompt
   // can be a single short sentence — the length floor guards "non-empty",

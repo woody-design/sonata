@@ -92,7 +92,6 @@
   --ink-disabled: #777169;
   --ink-disabled-soft: #8c867a;
   --ink-disabled-faint: #8b857c;
-  --ink-role: #8a8478;
   --ink-blockquote: #5d574b;
   --ink-work: #736d62;
   --ink-trace: #9a9387;
@@ -289,7 +288,6 @@
   --ink-disabled: color-mix(in srgb, var(--ink) 50%, var(--surface));
   --ink-disabled-soft: color-mix(in srgb, var(--ink) 42%, var(--surface));
   --ink-disabled-faint: color-mix(in srgb, var(--ink) 38%, var(--surface));
-  --ink-role: color-mix(in srgb, var(--ink) 46%, var(--surface));
   --ink-blockquote: color-mix(in srgb, var(--ink) 72%, var(--surface));
   --ink-work: color-mix(in srgb, var(--ink) 58%, var(--surface));
   --ink-trace: color-mix(in srgb, var(--ink) 38%, var(--surface));
@@ -506,7 +504,6 @@
   --ink-disabled: color-mix(in srgb, var(--ink) 44%, var(--surface));
   --ink-disabled-soft: color-mix(in srgb, var(--ink) 38%, var(--surface));
   --ink-disabled-faint: color-mix(in srgb, var(--ink) 34%, var(--surface));
-  --ink-role: color-mix(in srgb, var(--ink) 46%, var(--surface));
   --ink-blockquote: color-mix(in srgb, var(--ink) 68%, var(--surface));
   --ink-work: color-mix(in srgb, var(--ink) 56%, var(--surface));
   --ink-trace: color-mix(in srgb, var(--ink) 34%, var(--surface));
@@ -4334,12 +4331,6 @@ h2 {
   gap: 5px;
   margin-left: auto;
   width: 100%;
-}
-
-.turn-role {
-  color: var(--ink-role);
-  font-size: 12px;
-  font-weight: 650;
 }
 
 .turn-user-text {
