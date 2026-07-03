@@ -289,6 +289,13 @@ function readPreviewState(): PreviewWindowState {
 
 function updatePreviewState(request: OpenPreviewRequest): void {
   if (!request.relativePath) {
+    // A pathless open (the header Preview button) targets a task, not a file.
+    // Preview surfaces are task-scoped: carrying another task's selection
+    // across would show task A's artifact under task B's context — clear to
+    // the honest empty state instead. Same-task reopens keep the selection.
+    if (previewState.selected && previewState.selected.taskId !== request.taskId) {
+      previewState = { ...previewState, selected: null };
+    }
     return;
   }
 

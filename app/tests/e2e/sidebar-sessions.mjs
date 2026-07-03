@@ -14,6 +14,7 @@ import {
   openNewChat,
   selectSidebarSession,
   sendFirstPrompt,
+  waitForWindowByUrl,
 } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-e2e-"));
@@ -67,6 +68,32 @@ try {
   await inspectorPage.locator(".inspector-task-tab", { hasText: shortId(secondTaskId) }).waitFor({
     state: "visible",
   });
+
+  // Task-scoped Preview: open task A's artifact from the Inspector (the one
+  // remaining artifact entry point), then switch to task B and hit the header
+  // Preview button. The pathless open must NOT carry task A's selection
+  // across — it clears to the honest empty state.
+  await inspectorPage.locator(".inspector-window-tab", { hasText: "Artifact" }).click();
+  const inspectorArtifact = inspectorPage
+    .locator(".inspector-artifact-item", { hasText: "report.md" })
+    .first();
+  await inspectorArtifact.waitFor({ state: "visible" });
+  await inspectorArtifact.locator("button", { hasText: "Open Preview" }).click();
+  const previewPage = await waitForWindowByUrl(electronApp, "preview.html");
+  previewPage.setDefaultTimeout(180000);
+  await previewPage.locator("#preview-window-title", { hasText: "report.md" }).waitFor({
+    state: "visible",
+  });
+
+  await selectSidebarSession(page, secondTaskId);
+  await page.locator("#open-preview-window").click();
+  await previewPage.locator("#preview-window-title", { hasText: "No artifact selected" }).waitFor({
+    state: "visible",
+  });
+
+  // Back to task A for the archive leg (archiving the ACTIVE task is what
+  // drives the inspector to "No active Task").
+  await selectSidebarSession(page, firstTaskId);
 
   // Archive replaces tab close: stops the PTY and cleans up surfaces.
   const firstRow = page.locator(`.sidebar-session[data-task-id="${firstTaskId}"]`);
