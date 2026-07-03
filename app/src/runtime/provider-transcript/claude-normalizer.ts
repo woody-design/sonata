@@ -147,25 +147,22 @@ export class ClaudeSessionNormalizer {
       }
     }
 
-    const userText = cleanUserText(textParts.join("\n"));
-    if (!userText && attachments.length === 0) {
-      return upserts;
-    }
-
-    const promptSource = recordPromptSource;
-
-    // `promptSource` is the medium's own provenance signal. A `system` source is
-    // machinery the CLI injects into the user role — task notifications from
-    // background/research workflows ("<task-notification> … came to rest"), and
-    // the like — never the user's words. It must never render as a prompt bubble;
-    // any tool_results it carried are already resolved into `upserts` above.
+    // `promptSource` is the medium's own provenance signal. A `system` source
+    // is machinery the CLI injects into the user role — task notifications
+    // from background/research workflows, /loop wakeups — never the user's
+    // words. It must never render as a prompt bubble; any tool_results it
+    // carried are already resolved into `upserts` above. Checked BEFORE the
+    // empty-userText gate below: cleanUserText can strip a wholly-wrapped
+    // system injection to "", which used to skip the branch and leave the
+    // turn unopened (review 2026-07-03).
     //
     // Deliberately NOT extended to `sdk`: in a Claude-Agent-SDK session every
-    // user message is tagged `sdk` (including the prompts driving this very Duet
-    // workshop), so excluding it would erase the user's own words from the
-    // reading surface — a worse failure than showing a stray notification. `sdk`
-    // and legacy un-tagged records keep the heuristic below.
-    if (promptSource === "system") {
+    // user message is tagged `sdk` (including the prompts driving this very
+    // Duet workshop), so excluding it would erase the user's own words from
+    // the reading surface — a worse failure than showing a stray
+    // notification. `sdk` and legacy un-tagged records keep the heuristic
+    // below.
+    if (recordPromptSource === "system") {
       // It is still the agent-completion signal, though: a `<task-notification>`
       // settles a running roster row even as it produces no user bubble.
       const rawText = textParts.join("\n");
@@ -185,17 +182,23 @@ export class ClaudeSessionNormalizer {
       const promptId = typeof record.promptId === "string" ? record.promptId : null;
       this.currentTurnKey = promptId ?? `turn-${++this.turnSeq}`;
       this.turnHasAssistant = false;
-      // The machinery note. Task-notifications get their <summary>; any
-      // other system prompt (a /loop wakeup — the model's own scheduled
-      // instruction) shows verbatim under a machinery label. Either way the
-      // note carries `sourcePrompt` so run attribution can bridge this turn
-      // to the run the same injection began (and the reading surface can
-      // suppress legacy husks by it). Never a "You" bubble — provenance is
-      // the medium's own field, not a content guess.
+      // The machinery note. Task-notifications get their <summary>; any other
+      // system prompt shows under the provenance-honest generic label
+      // ("Automated" claims exactly what promptSource:"system" declares —
+      // not "scheduled", which only /loop wakeups would justify). The
+      // display is cleaned with the same discipline as user text (reminder
+      // wrappers stripped) and capped for reading hygiene; `sourcePrompt`
+      // carries the cleaned text for run attribution (the hook's prompt
+      // field never contains the appended reminder parts, so cleaned text
+      // is the closer match). Never a "You" bubble — provenance is the
+      // medium's own field, not a content guess.
       const isNotification = rawText.includes("<task-notification>");
       const summary = isNotification
         ? rawText.match(/<summary>([^<]+)<\/summary>/)?.[1]?.trim()
         : null;
+      const bridgeText = cleanUserText(rawText) || rawText.trim();
+      const display =
+        bridgeText.length > 280 ? `${bridgeText.slice(0, 280)}…` : bridgeText;
       upserts.push({
         kind: "system-note",
         id: this.blockId(record, "continuation"),
@@ -208,16 +211,23 @@ export class ClaudeSessionNormalizer {
         seq: ++this.seq,
         text: isNotification
           ? (summary ?? "Background task returned")
-          : `Scheduled prompt: ${rawText.trim()}`,
-        sourcePrompt: rawText,
+          : display
+            ? `Automated prompt: ${display}`
+            : "Automated prompt",
+        sourcePrompt: bridgeText,
       });
+      return upserts;
+    }
+
+    const userText = cleanUserText(textParts.join("\n"));
+    if (!userText && attachments.length === 0) {
       return upserts;
     }
 
     const command = parseCommandInvocation(userText);
     const startsTurn =
-      promptSource === "typed" ||
-      promptSource === "queued" ||
+      recordPromptSource === "typed" ||
+      recordPromptSource === "queued" ||
       command !== null ||
       this.currentTurnKey === null ||
       this.turnHasAssistant;

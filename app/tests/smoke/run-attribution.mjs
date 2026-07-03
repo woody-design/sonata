@@ -60,11 +60,16 @@ assert.equal(
   "prompt_id identity wins over text/time",
 );
 
-// 2) Assigned runs are skipped even for identity matches.
+// 2) An identity verdict is FINAL (review 2026-07-03): re-anchoring a turn
+//    whose run is already assigned returns THAT run — it must never fall
+//    through to the text pass and steal a same-text sibling.
 assert.equal(
-  resolveRunForTurn(runIndex, input({ promptId: "pid-1", assigned: new Set(["run-1"]) })),
-  null,
-  "an already-assigned run never re-attributes",
+  resolveRunForTurn(
+    runIndex,
+    input({ text: "检查 agent 是否完成", promptId: "pid-1", assigned: new Set(["run-1"]) }),
+  ),
+  "run-1",
+  "identity re-anchor returns the same run; the sibling is never stolen",
 );
 
 // 3) Unknown promptId falls back to the text match (pre-bridge coverage).
@@ -74,7 +79,7 @@ assert.equal(
   "unknown id falls through to the legacy text bridge",
 );
 
-// 4) Text match respects the 15-minute window.
+// 4) Text match respects the window — 15 minutes by default.
 assert.equal(
   resolveRunForTurn(
     runIndex,
@@ -82,6 +87,36 @@ assert.equal(
   ),
   null,
   "stale text matches outside the window stay unattributed",
+);
+
+// 5) Machine anchors pass a TIGHT window (review 2026-07-03): recurring
+//    wakeups repeat identical text, so only the near-simultaneous twin may
+//    text-match — a sibling one minute away must NOT.
+assert.equal(
+  resolveRunForTurn(
+    runIndex,
+    input({
+      text: "检查 agent 是否完成",
+      tsMs: Date.parse("2026-07-03T10:00:02.000Z"), // 2s after run-1 started
+      textWindowMs: 30_000,
+      assigned: new Set(),
+    }),
+  ),
+  "run-1",
+  "the tight window pairs the true twin",
+);
+assert.equal(
+  resolveRunForTurn(
+    runIndex,
+    input({
+      text: "检查 agent 是否完成",
+      tsMs: Date.parse("2026-07-03T10:02:00.000Z"), // sibling run-2 is 60s away
+      textWindowMs: 30_000,
+      assigned: new Set(["run-1"]),
+    }),
+  ),
+  null,
+  "the tight window refuses a sibling outside near-simultaneity",
 );
 
 runIndex.dispose?.();

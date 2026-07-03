@@ -377,6 +377,10 @@ export class TerminalHost extends EventEmitter {
   private lastPrintablePtyDataAt = 0;
   private taskReady = false;
   private recentAttributionRun: RecentAttributionRun | null = null;
+  /** The last finished run's trimmed prompt, surviving the next beginRun
+   *  (unlike recentAttributionRun, which beginRun clears): the back-stamp's
+   *  ambiguity guard against a finished same-text twin's late hook echo. */
+  private lastFinishedPrompt: { text: string; expiresAt: number } | null = null;
   private activeRunRaw = "";
   // Remote Control (phone access) — tracked optimistically; no hook/structured
   // signal exists for it, and the footer "/rc active" is a volatile TUI scrape
@@ -970,11 +974,21 @@ export class TerminalHost extends EventEmitter {
       // The hook is the echo of a run the idle-send path already began —
       // stamp the CLI's prompt_id onto it (the exact run↔turn bridge; the
       // write path can never know the id, only the hook does). Text identity
-      // guards against stamping a DIFFERENT prompt's id onto the run.
+      // guards against stamping a DIFFERENT prompt's id — but text alone
+      // cannot tell TWO consecutive sends of identical text apart: a
+      // just-finished twin's LATE echo would stamp ITS id onto this run and
+      // cross-wire both turns' attribution (review 2026-07-03). When a twin
+      // finished inside the attribution window, refuse the stamp — the run
+      // degrades to the text bridge, wrong never.
+      const finishedTwin =
+        this.lastFinishedPrompt !== null &&
+        this.lastFinishedPrompt.expiresAt > Date.now() &&
+        this.lastFinishedPrompt.text === text;
       if (
         options.promptId &&
         !this.activeRun.promptId &&
-        this.activeRun.prompt.trim() === text
+        this.activeRun.prompt.trim() === text &&
+        !finishedTwin
       ) {
         this.updateActiveRun({ promptId: options.promptId });
       }
@@ -1749,6 +1763,10 @@ export class TerminalHost extends EventEmitter {
       id: finished.id,
       expiresAt: Date.now() + this.postCompletionAttributionMs,
       prompt: finished.prompt,
+    };
+    this.lastFinishedPrompt = {
+      text: finished.prompt.trim(),
+      expiresAt: Date.now() + this.postCompletionAttributionMs,
     };
     this.clearCompletionTimer();
     this.emitEvent("run:updated", finished);

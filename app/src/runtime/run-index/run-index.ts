@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { RunId, TaskId } from "../../shared/types/domain";
+import type { ResolveRunIdInput } from "../provider-transcript";
 import type { RunIndexEvent, RuntimeEvent } from "../../shared/types/events";
 import {
   freshRuntimeReportV1,
@@ -446,34 +447,27 @@ function readExistingReport(reportPath: string, taskId: TaskId): RuntimeReportV1
 
 export type { RuntimeArtifactCandidateReport, RuntimeReportV1 };
 
-/** Structural input — matches provider-transcript's ResolveRunIdInput. */
-export interface RunAttributionInput {
-  text: string;
-  command: string | null;
-  tsMs: number;
-  assigned: ReadonlySet<RunId>;
-  promptId: string | null;
-}
-
 /**
  * Match a transcript turn to the Run that caused it. Exact first: the CLI's
  * prompt_id (stamped onto hook-begun runs, S6+) equals the turn's promptId —
- * identity beats every heuristic. Fallback: prompt-text equality inside a
- * 15-minute window (pre-bridge records, idle-path runs whose hook echo was
- * swallowed).
+ * identity beats every heuristic, and an identity verdict is FINAL: when the
+ * matched run is already assigned this is the same turn re-anchoring
+ * (promptIds are unique per turn), so we return it rather than falling
+ * through to the text pass, which could steal a different same-text run
+ * (review 2026-07-03). Fallback: prompt-text equality inside a time window
+ * (pre-bridge records, idle-path runs whose hook echo was swallowed) —
+ * window per anchor kind, see ResolveRunIdInput.textWindowMs.
  */
-export function resolveRunForTurn(runIndex: RunIndex, input: RunAttributionInput): RunId | null {
-  // Exact bridge first: the CLI's prompt_id (stamped onto hook-begun runs)
-  // equals the transcript turn's promptId — no text or time heuristics can
-  // beat identity (2026-07-03 loop-wakeup fix).
+export function resolveRunForTurn(runIndex: RunIndex, input: ResolveRunIdInput): RunId | null {
   if (input.promptId) {
     for (const run of runIndex.read().runs) {
-      if (run.promptId && run.promptId === input.promptId && !input.assigned.has(run.runId)) {
+      if (run.promptId && run.promptId === input.promptId) {
         return run.runId;
       }
     }
   }
   const text = input.text.trim();
+  const windowMs = input.textWindowMs ?? 15 * 60_000;
   let best: { runId: RunId; distance: number } | null = null;
   for (const run of runIndex.read().runs) {
     if (input.assigned.has(run.runId)) {
@@ -490,7 +484,7 @@ export function resolveRunForTurn(runIndex: RunIndex, input: RunAttributionInput
       continue;
     }
     const distance = Math.abs(startedMs - input.tsMs);
-    if (distance > 15 * 60_000) {
+    if (distance > windowMs) {
       continue;
     }
     if (!best || distance < best.distance) {

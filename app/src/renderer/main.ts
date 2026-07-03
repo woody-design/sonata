@@ -6579,18 +6579,10 @@ function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
   const runById = new Map(runs.map((run) => [run.runId, run]));
 
   const groups = new Map<string, TranscriptBlock[]>();
-  // Machine-injected prompts (task-notifications, /loop wakeups) leave their
-  // verbatim text on the continuation turn's system-note. Used below to
-  // suppress a husk run whose turn attribution failed (legacy records
-  // without the promptId bridge).
-  const systemSourcePrompts = new Set<string>();
   for (const id of view.transcriptBlockOrder) {
     const block = view.transcriptBlocks.get(id);
     if (!block) {
       continue;
-    }
-    if (block.kind === "system-note" && block.sourcePrompt) {
-      systemSourcePrompts.add(block.sourcePrompt.trim());
     }
     const key = `${block.sourceId}:${block.turnKey}`;
     const group = groups.get(key);
@@ -6622,18 +6614,17 @@ function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
     if (matchedRunIds.has(run.runId)) {
       continue;
     }
-    // A machine-injected run (task-notification, /loop wakeup) whose turn
-    // attribution failed: its REPLY lives in a continuation turn; the run
-    // itself would render as a husk card — the "user" text is plumbing,
-    // never the user's words — with a terminal-approximation body. Normally
-    // the promptId/text bridge merges run and turn (attributeRun); this
-    // suppression is the defensive layer for records the bridge cannot
-    // reach. The run still drives busy/■/strip state through the report;
-    // this is presentation only.
-    if (
-      run.prompt.trimStart().startsWith("<task-notification>") ||
-      systemSourcePrompts.has(run.prompt.trim())
-    ) {
+    // A task-notification run whose turn attribution failed: its REPLY lives
+    // in a continuation turn; the run itself would render as a husk card
+    // whose "user" text is the raw XML. The prefix is a safe suppression key
+    // (each notification embeds a unique task-id). Other machine runs
+    // (wakeups) are deliberately NOT suppressed by text: recurring wakeups
+    // share identical text, so a text set would silently hide a FAILED
+    // wakeup behind an earlier sibling's note (review 2026-07-03) — an
+    // unmatched wakeup run renders as a visible husk instead, and the
+    // promptId/tight-text bridges make that the rare failure surface, not
+    // the norm.
+    if (run.prompt.trimStart().startsWith("<task-notification>")) {
       continue;
     }
     turns.push({

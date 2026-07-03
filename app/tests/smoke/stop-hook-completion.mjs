@@ -133,6 +133,30 @@ await check("beginRunFromHook titles a task-notification run honestly ON run:sta
   }
 });
 
+await check("back-stamp refuses a finished same-text twin's late echo", async () => {
+  // Review 2026-07-03: text identity cannot tell two consecutive sends of
+  // identical text apart — a just-finished twin's LATE UserPromptSubmit echo
+  // must not stamp ITS prompt_id onto the newer active run (cross-wired
+  // attribution). With a finished twin inside the window: no stamp; without
+  // one: the stamp lands.
+  const events = [];
+  const host = makeHost(events);
+  try {
+    host.ptyProcess = fakePty();
+    host.activeRun = activeRun(); // prompt: "do the thing"
+
+    host.lastFinishedPrompt = { text: "do the thing", expiresAt: Date.now() + 5000 };
+    host.beginRunFromHook("do the thing", { promptId: "pid-late-echo" });
+    assert.equal(host.activeRun.promptId ?? null, null, "ambiguous echo refused");
+
+    host.lastFinishedPrompt = null;
+    host.beginRunFromHook("do the thing", { promptId: "pid-own-echo" });
+    assert.equal(host.activeRun.promptId, "pid-own-echo", "unambiguous echo stamps");
+  } finally {
+    host.dispose();
+  }
+});
+
 function makeHost(events) {
   return new TerminalHost({
     taskId: "stop-hook-completion-smoke",

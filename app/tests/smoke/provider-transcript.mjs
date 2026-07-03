@@ -401,7 +401,7 @@ check("claude: a /loop wakeup (promptSource=system + isMeta) opens its own turn"
     "wakeup = machinery note (never a You bubble); caveat record still skipped",
   );
   assert.equal(upserts[2].turnKey, "p2", "the wakeup opens its own turn, keyed by promptId");
-  assert.equal(upserts[2].text, `Scheduled prompt: ${wakeupText}`);
+  assert.equal(upserts[2].text, `Automated prompt: ${wakeupText}`);
   assert.equal(upserts[2].sourcePrompt, wakeupText, "sourcePrompt bridges to the wakeup's run");
   assert.equal(upserts[3].turnKey, "p2", "the reply lands in the wakeup's turn, not the previous one");
 });

@@ -10,6 +10,11 @@ import { locateSessionFile } from "./session-locator";
 const DISCOVERY_INTERVAL_MS = 1_500;
 const DISCOVERY_TIMEOUT_MS = 120_000;
 const EMIT_CHUNK_SIZE = 250;
+// Text-match window for MACHINE anchors (system-notes): a wakeup's record
+// and its hook-begun run are stamped within a couple of seconds of each
+// other, while sibling wakeups repeat the identical text minutes apart —
+// 30s pairs the true twin and excludes every sibling.
+const SYSTEM_ANCHOR_TEXT_WINDOW_MS = 30_000;
 
 export interface ResolveRunIdInput {
   text: string;
@@ -19,6 +24,12 @@ export interface ResolveRunIdInput {
   /** The turn's promptId (the CLI's prompt_id) when the turnKey carries one —
    *  matched EXACTLY against `run.promptId` before any text/time heuristics. */
   promptId: string | null;
+  /** Cap for the text-match fallback's |run.startedAt − turn.ts| distance.
+   *  Machine anchors (system-notes) pass a TIGHT window: recurring /loop
+   *  wakeups are byte-identical, so only near-simultaneity can pair them —
+   *  a wide window would cross-match siblings (review 2026-07-03). Default:
+   *  the legacy 15 minutes for human prompts. */
+  textWindowMs?: number;
 }
 
 export interface ProviderTranscriptOptions {
@@ -55,6 +66,17 @@ export class ProviderTranscript {
   private readonly blockStore = new Map<string, TranscriptBlock>();
   private readonly blockOrder: string[] = [];
   private readonly turnRunIds = new Map<string, RunId | null>();
+  /** Each turn's attribution anchor, kept so an unattributed turn can RETRY
+   *  on later blocks: hook-begun runs (wakeups, notifications) arrive on a
+   *  channel that can lag the transcript tailer by seconds — a one-shot
+   *  resolve at anchor time would freeze runId=null forever when the record
+   *  wins that race (review 2026-07-03). Any later block that resolves fixes
+   *  the whole turn (the reading surface takes the turn's runId from ANY
+   *  block that carries one). */
+  private readonly turnAnchors = new Map<
+    string,
+    { text: string; command: string | null; tsMs: number; promptId: string | null; textWindowMs?: number }
+  >();
   private readonly assignedRunIds = new Set<RunId>();
   private discoveryTimer: NodeJS.Timeout | null = null;
   private discoveryDeadline = 0;
@@ -237,31 +259,42 @@ export class ProviderTranscript {
     // turn opened by a machine-injected prompt (task-notification, /loop
     // wakeup) — the system-note carrying `sourcePrompt`. Without the latter,
     // machine turns could never match their runs and the run card fell back
-    // to a terminal-approximation husk (2026-07-03).
-    const anchorText =
+    // to a terminal-approximation husk (2026-07-03). Machine anchors get a
+    // TIGHT text window: recurring wakeups are byte-identical, so only
+    // near-simultaneity may pair them (their promptId identity match has no
+    // window at all).
+    const promptId = /^turn-\d+$/.test(block.turnKey) ? null : block.turnKey;
+    const anchor =
       block.kind === "user-message"
-        ? block.text
+        ? { text: block.text, command: block.command, tsMs: Date.parse(block.ts), promptId }
         : block.kind === "system-note" && block.sourcePrompt
-          ? block.sourcePrompt
+          ? {
+              text: block.sourcePrompt,
+              command: null,
+              tsMs: Date.parse(block.ts),
+              promptId,
+              textWindowMs: SYSTEM_ANCHOR_TEXT_WINDOW_MS,
+            }
           : null;
-    if (anchorText !== null) {
-      const runId = this.options.resolveRunId({
-        text: anchorText,
-        command: block.kind === "user-message" ? block.command : null,
-        tsMs: Date.parse(block.ts),
+    if (anchor) {
+      this.turnAnchors.set(turnId, anchor);
+    }
+
+    let runId = this.turnRunIds.get(turnId) ?? null;
+    // Resolve on the anchor block, and RE-resolve on any later block while
+    // the turn is still unattributed (the run may have been created after
+    // the anchor lost the hook-vs-tailer race).
+    const retryAnchor = anchor ?? (runId === null ? this.turnAnchors.get(turnId) : undefined);
+    if (retryAnchor && runId === null) {
+      runId = this.options.resolveRunId({
+        ...retryAnchor,
         assigned: this.assignedRunIds,
-        // Prompt-keyed turnKeys ARE the CLI's prompt_id; synthesized keys
-        // ("turn-N") match no run and fall through to text/time.
-        promptId: /^turn-\d+$/.test(block.turnKey) ? null : block.turnKey,
       });
       if (runId) {
         this.assignedRunIds.add(runId);
       }
       this.turnRunIds.set(turnId, runId);
-      return { ...block, runId };
     }
-
-    const runId = this.turnRunIds.get(turnId) ?? null;
     return runId ? { ...block, runId } : block;
   }
 
