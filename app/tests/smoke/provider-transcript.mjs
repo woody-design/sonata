@@ -426,6 +426,114 @@ check("claude: Agent fan-out becomes one roster block — spawn, bridge, settle"
   assert.equal(rosters[0].items[0].status, "running", "earlier snapshot is frozen");
 });
 
+check("claude: a QUEUED task-notification settles the roster (busy main loop)", () => {
+  // The other delivery path (Woody's 630-minute ghosts, 2026-07-03): a
+  // background agent that finishes while the main loop is BUSY rides the
+  // CLI's message queue — the notification lands as a `queue-operation`
+  // (enqueue) plus an `attachment{type:"queued_command"}` record, NEVER as
+  // the promptSource:"system" user record of the idle path. Record shapes
+  // below are verbatim from the live session transcript (paths redacted).
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s-qn" });
+  const upserts = [];
+  const notificationXml = [
+    "<task-notification>",
+    "<task-id>ae243b1806f681d9d</task-id>",
+    "<tool-use-id>toolu_A</tool-use-id>",
+    "<output-file>/tmp/tasks/ae243b1806f681d9d.output</output-file>",
+    "<status>completed</status>",
+    '<summary>Agent "Audit activityHints usage split" finished</summary>',
+    "<result>Audit complete…</result>",
+    "</task-notification>",
+  ].join("\n");
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      promptSource: "typed",
+      timestamp: "2026-07-02T23:44:00.000Z",
+      message: { role: "user", content: "Audit the consumer surfaces" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-07-02T23:44:02.000Z",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "toolu_A", name: "Agent", input: { description: "Audit activityHints usage split", subagent_type: "Explore", prompt: "…" } },
+          { type: "tool_use", id: "toolu_B", name: "Agent", input: { description: "Audit dead-code candidates", subagent_type: "Explore", prompt: "…" } },
+        ],
+      },
+    }),
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptId: "p1",
+      timestamp: "2026-07-02T23:44:02.300Z",
+      message: {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "toolu_A", content: "Async agent launched successfully.\nagentId: ae243b1806f681d9d (internal ID - do not mention)" },
+          { type: "tool_result", tool_use_id: "toolu_B", content: "Async agent launched successfully.\nagentId: aa45da2ae3d0f3c0a (internal ID - do not mention)" },
+        ],
+      },
+    }),
+    // The queued delivery: enqueue op + the queued_command attachment carry
+    // the SAME notification — settling must be idempotent across the pair.
+    claudeLine({
+      type: "queue-operation",
+      operation: "enqueue",
+      timestamp: "2026-07-02T23:46:28.908Z",
+      content: notificationXml,
+    }),
+    claudeLine({
+      type: "attachment",
+      uuid: "att1",
+      isSidechain: false,
+      timestamp: "2026-07-02T23:46:28.908Z",
+      attachment: { type: "queued_command", commandMode: "prompt", prompt: notificationXml, timestamp: "2026-07-02T23:46:28.908Z" },
+    }),
+    // A normal queued user message must produce nothing.
+    claudeLine({
+      type: "queue-operation",
+      operation: "enqueue",
+      timestamp: "2026-07-02T23:47:00.000Z",
+      content: "please also check the tests",
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  const rosters = upserts.filter((b) => b.kind === "agents");
+  assert.ok(rosters.length >= 2, "spawn + settle each produced a roster upsert");
+  const finalRoster = rosters[rosters.length - 1];
+  assert.deepEqual(
+    finalRoster.items.map((i) => [i.name, i.status]),
+    [
+      ["Audit activityHints usage split", "done"],
+      ["Audit dead-code candidates", "running"],
+    ],
+    "the queued notification settled its agent; the sibling stays running",
+  );
+  const settledItem = finalRoster.items[0];
+  assert.ok(
+    typeof settledItem.durationMs === "number" && settledItem.durationMs > 0,
+    "duration computed from spawn→notification when the CLI reports none",
+  );
+  // Idempotence: the attachment duplicate of the same notification and the
+  // plain queued message add NO further roster churn.
+  const settleUpserts = rosters.filter((b) => b.items.some((i) => i.status === "done"));
+  assert.equal(settleUpserts.length, 1, "settle emitted exactly once across both record shapes");
+  assert.equal(
+    upserts.filter((b) => b.kind === "user-message").length,
+    1,
+    "queued records never render as user bubbles",
+  );
+});
+
 check("claude: a Workflow launch (deep-research) becomes one coarse roster row that settles", () => {
   // The deep-research path: a `Workflow` tool fans out INSIDE its own
   // transcript dir, so the main stream sees only the launch + a single

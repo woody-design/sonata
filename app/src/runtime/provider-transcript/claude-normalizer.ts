@@ -77,6 +77,27 @@ export class ClaudeSessionNormalizer {
     if (type === "assistant") {
       return this.consumeAssistantRecord(record);
     }
+    // A background agent that finishes while the main loop is BUSY delivers
+    // its <task-notification> through the CLI's own message queue — recorded
+    // as a queue-operation (enqueue) plus an attachment{queued_command},
+    // NEVER as the promptSource:"system" user record the idle path writes.
+    // Without consuming these, the roster row stays "running" forever and
+    // survives restarts (transcript-derived) — Woody's 630-minute ghosts,
+    // 2026-07-03. Settling is idempotent, so seeing the same notification in
+    // both shapes is harmless. No continuation turn here: a QUEUED
+    // notification is absorbed into the live turn (mid-turn steering, S6
+    // probe) — there is no new API turn to open.
+    if (type === "queue-operation") {
+      const content = typeof record.content === "string" ? record.content : "";
+      const settled = this.settleAgentFromNotification(content, recordTimestamp(record));
+      return settled ? [settled] : [];
+    }
+    if (type === "attachment") {
+      const attachment = record.attachment as Record<string, unknown> | undefined;
+      const prompt = typeof attachment?.prompt === "string" ? attachment.prompt : "";
+      const settled = this.settleAgentFromNotification(prompt, recordTimestamp(record));
+      return settled ? [settled] : [];
+    }
     return [];
   }
 
