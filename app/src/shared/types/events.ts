@@ -158,6 +158,11 @@ export type RunStartedEvent = BaseRuntimeEvent<
     kind: RunKind;
     prompt: string;
     title: string;
+    /** The CLI's own prompt id (`UserPromptSubmit.prompt_id` — the same id
+     *  the transcript records as `promptId`/turnKey). The EXACT run↔turn
+     *  bridge; null for runs begun before the hook fires (idle-path writes)
+     *  or recorded pre-bridge — those fall back to text/time matching. */
+    promptId?: string | null;
     status: RunStatus;
     lifecyclePhase: RunStatus;
     startedAt: string;

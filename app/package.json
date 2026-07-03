@@ -94,6 +94,7 @@
     "smoke:claude-config-trust": "npm run build:main && node tests/smoke/claude-config-trust.mjs",
     "smoke:approval-resurface-window": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-resurface-window.mjs",
     "smoke:approval-gate-keyed": "npm run build:main && node tests/smoke/approval-gate-keyed.mjs",
+    "smoke:run-attribution": "npm run build:main && node tests/smoke/run-attribution.mjs",
     "smoke:stop-hook-completion": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/stop-hook-completion.mjs"
   },
   "dependencies": {

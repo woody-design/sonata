@@ -961,11 +961,25 @@ export class TerminalHost extends EventEmitter {
    * it. This is the symmetric half of the `Stop`-hook run completion — the run
    * lifecycle is now bracketed by authoritative CLI signals on both edges.
    */
-  beginRunFromHook(prompt: string): void {
-    if (!this.ptyProcess || this.activeRun) {
+  beginRunFromHook(prompt: string, options: { promptId?: string | null } = {}): void {
+    if (!this.ptyProcess) {
       return;
     }
     const text = prompt.trim();
+    if (this.activeRun) {
+      // The hook is the echo of a run the idle-send path already began —
+      // stamp the CLI's prompt_id onto it (the exact run↔turn bridge; the
+      // write path can never know the id, only the hook does). Text identity
+      // guards against stamping a DIFFERENT prompt's id onto the run.
+      if (
+        options.promptId &&
+        !this.activeRun.promptId &&
+        this.activeRun.prompt.trim() === text
+      ) {
+        this.updateActiveRun({ promptId: options.promptId });
+      }
+      return;
+    }
     // A slash run settles by quiescence seconds before its UserPromptSubmit
     // clears the hook file queue (~250ms watcher + fs latency): that late
     // event is the ECHO of the run that already ran, not a new turn — begun,
@@ -991,11 +1005,10 @@ export class TerminalHost extends EventEmitter {
     // event, not a follow-up patch (review P2, 2026-07-02). The prompt stays
     // verbatim — it is the detection key for the reading surface's husk
     // suppression.
-    this.beginRun(
-      text || "(prompt)",
-      kind,
-      text.startsWith("<task-notification>") ? { title: "(background task returned)" } : {},
-    );
+    this.beginRun(text || "(prompt)", kind, {
+      ...(text.startsWith("<task-notification>") ? { title: "(background task returned)" } : {}),
+      promptId: options.promptId ?? null,
+    });
   }
 
 
@@ -1641,7 +1654,11 @@ export class TerminalHost extends EventEmitter {
     this.fileSnapshot = nextSnapshot;
   }
 
-  private beginRun(text: string, kind: RunKind, options: { title?: string } = {}): ActiveRun {
+  private beginRun(
+    text: string,
+    kind: RunKind,
+    options: { title?: string; promptId?: string | null } = {},
+  ): ActiveRun {
     if (this.activeRun) {
       this.finishActiveRun("completed", "closed by next input");
     }
@@ -1653,6 +1670,7 @@ export class TerminalHost extends EventEmitter {
       id: `run-${now.getTime()}-${++this.runSeq}`,
       kind,
       prompt: text,
+      promptId: options.promptId ?? null,
       title: options.title ?? (trimmed.split(/\r?\n/, 1)[0]?.slice(0, 120) || "(empty prompt)"),
       status: "active",
       lifecyclePhase: "active",

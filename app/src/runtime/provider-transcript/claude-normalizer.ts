@@ -102,7 +102,17 @@ export class ClaudeSessionNormalizer {
   }
 
   private consumeUserRecord(record: Record<string, unknown>): TranscriptBlock[] {
-    if (record.isMeta === true) {
+    // `promptSource:"system"` outranks the isMeta skip: a /loop
+    // ScheduleWakeup prompt arrives as promptSource:"system" AND
+    // isMeta:true (unlike task-notifications, which carry no isMeta), yet
+    // it is a REAL turn boundary — the assistant answers it. Skipping it
+    // left the reply attributed to the previous turn and its run rendering
+    // as a terminal-approximation husk (Woody's 调研Codex session,
+    // 2026-07-03). Non-system isMeta records (caveats and the like) keep
+    // the skip.
+    const recordPromptSource =
+      typeof record.promptSource === "string" ? record.promptSource : null;
+    if (record.isMeta === true && recordPromptSource !== "system") {
       return [];
     }
 
@@ -142,7 +152,7 @@ export class ClaudeSessionNormalizer {
       return upserts;
     }
 
-    const promptSource = typeof record.promptSource === "string" ? record.promptSource : null;
+    const promptSource = recordPromptSource;
 
     // `promptSource` is the medium's own provenance signal. A `system` source is
     // machinery the CLI injects into the user role — task notifications from
@@ -175,21 +185,32 @@ export class ClaudeSessionNormalizer {
       const promptId = typeof record.promptId === "string" ? record.promptId : null;
       this.currentTurnKey = promptId ?? `turn-${++this.turnSeq}`;
       this.turnHasAssistant = false;
-      if (rawText.includes("<task-notification>")) {
-        const summary = rawText.match(/<summary>([^<]+)<\/summary>/)?.[1]?.trim();
-        upserts.push({
-          kind: "system-note",
-          id: this.blockId(record, "continuation"),
-          taskId: this.taskId,
-          sourceId: this.sourceId,
-          provider: "claude",
-          turnKey: this.currentTurnKey,
-          runId: null,
-          ts,
-          seq: ++this.seq,
-          text: summary ?? "Background task returned",
-        });
-      }
+      // The machinery note. Task-notifications get their <summary>; any
+      // other system prompt (a /loop wakeup — the model's own scheduled
+      // instruction) shows verbatim under a machinery label. Either way the
+      // note carries `sourcePrompt` so run attribution can bridge this turn
+      // to the run the same injection began (and the reading surface can
+      // suppress legacy husks by it). Never a "You" bubble — provenance is
+      // the medium's own field, not a content guess.
+      const isNotification = rawText.includes("<task-notification>");
+      const summary = isNotification
+        ? rawText.match(/<summary>([^<]+)<\/summary>/)?.[1]?.trim()
+        : null;
+      upserts.push({
+        kind: "system-note",
+        id: this.blockId(record, "continuation"),
+        taskId: this.taskId,
+        sourceId: this.sourceId,
+        provider: "claude",
+        turnKey: this.currentTurnKey,
+        runId: null,
+        ts,
+        seq: ++this.seq,
+        text: isNotification
+          ? (summary ?? "Background task returned")
+          : `Scheduled prompt: ${rawText.trim()}`,
+        sourcePrompt: rawText,
+      });
       return upserts;
     }
 

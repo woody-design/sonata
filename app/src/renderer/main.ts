@@ -6579,10 +6579,18 @@ function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
   const runById = new Map(runs.map((run) => [run.runId, run]));
 
   const groups = new Map<string, TranscriptBlock[]>();
+  // Machine-injected prompts (task-notifications, /loop wakeups) leave their
+  // verbatim text on the continuation turn's system-note. Used below to
+  // suppress a husk run whose turn attribution failed (legacy records
+  // without the promptId bridge).
+  const systemSourcePrompts = new Set<string>();
   for (const id of view.transcriptBlockOrder) {
     const block = view.transcriptBlocks.get(id);
     if (!block) {
       continue;
+    }
+    if (block.kind === "system-note" && block.sourcePrompt) {
+      systemSourcePrompts.add(block.sourcePrompt.trim());
     }
     const key = `${block.sourceId}:${block.turnKey}`;
     const group = groups.get(key);
@@ -6614,13 +6622,18 @@ function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
     if (matchedRunIds.has(run.runId)) {
       continue;
     }
-    // A background-workflow task-notification run: the CLI resumes the
-    // session with an XML system message in the user role. Its REPLY lives in
-    // a continuation turn (transcript blocks); the run itself would render as
-    // a husk card whose "user" text is the raw XML — plumbing, never the
-    // user's words. Suppress the card (the run still drives busy/■/strip
-    // state through the report; this is presentation only).
-    if (run.prompt.trimStart().startsWith("<task-notification>")) {
+    // A machine-injected run (task-notification, /loop wakeup) whose turn
+    // attribution failed: its REPLY lives in a continuation turn; the run
+    // itself would render as a husk card — the "user" text is plumbing,
+    // never the user's words — with a terminal-approximation body. Normally
+    // the promptId/text bridge merges run and turn (attributeRun); this
+    // suppression is the defensive layer for records the bridge cannot
+    // reach. The run still drives busy/■/strip state through the report;
+    // this is presentation only.
+    if (
+      run.prompt.trimStart().startsWith("<task-notification>") ||
+      systemSourcePrompts.has(run.prompt.trim())
+    ) {
       continue;
     }
     turns.push({

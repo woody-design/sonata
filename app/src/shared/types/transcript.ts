@@ -109,6 +109,12 @@ export interface PlanBlock extends TranscriptBlockBase {
 export interface SystemNoteBlock extends TranscriptBlockBase {
   kind: "system-note";
   text: string;
+  /** For continuation turns opened by a machine-injected user record
+   *  (promptSource:"system" — task-notifications, /loop wakeups): the
+   *  verbatim injected prompt. Run attribution matches it against
+   *  `run.prompt` (legacy text bridge) and the reading surface suppresses
+   *  husk runs by it. Absent on ordinary notes. */
+  sourcePrompt?: string | null;
 }
 
 export type AgentRunStatus = "running" | "done";

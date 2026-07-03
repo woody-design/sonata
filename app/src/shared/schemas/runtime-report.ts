@@ -55,6 +55,10 @@ export interface RuntimeRunReport {
   taskId: TaskId;
   kind: RunKind;
   prompt: string;
+  /** The CLI's prompt_id (UserPromptSubmit) — the exact run↔turn bridge;
+   *  absent on pre-bridge records and idle-path runs whose hook echo was
+   *  swallowed (those keep text/time matching). */
+  promptId?: string | null;
   title: string;
   status: RunStatus;
   statusReason?: string;

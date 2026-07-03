@@ -54,6 +54,7 @@ import {
   ProviderTranscript,
   RunIndex,
   isRunIndexEvent,
+  resolveRunForTurn,
   TerminalHost,
   type StartTaskOptions,
   WorkspacePreview,
@@ -68,7 +69,6 @@ import {
   reconcileOptionPromptAnswers,
   optionPromptAnswerSequence,
   readClaudeResumeStats,
-  type ResolveRunIdInput,
   StatusRegionTracker,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
@@ -1474,7 +1474,11 @@ export class RuntimeController {
         // Stop-hook completion below.
         if (payload.hook_event_name === "UserPromptSubmit") {
           const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
-          active.terminalHost.beginRunFromHook(prompt);
+          active.terminalHost.beginRunFromHook(prompt, {
+            // The CLI's prompt_id == the transcript's promptId/turnKey — the
+            // exact run↔turn bridge (2026-07-03 loop-wakeup fix).
+            promptId: typeof payload.prompt_id === "string" ? payload.prompt_id : null,
+          });
         }
         // `Stop` is the authoritative "turn ended" signal — complete the active
         // run from it (structured truth) instead of waiting on the composer-idle
@@ -2103,34 +2107,6 @@ const IMAGE_EXTENSION_MEDIA_TYPES = new Map([
   [".gif", "image/gif"],
   [".webp", "image/webp"],
 ]);
-
-function resolveRunForTurn(runIndex: RunIndex, input: ResolveRunIdInput): RunId | null {
-  const text = input.text.trim();
-  let best: { runId: RunId; distance: number } | null = null;
-  for (const run of runIndex.read().runs) {
-    if (input.assigned.has(run.runId)) {
-      continue;
-    }
-    const prompt = run.prompt.trim();
-    const matches =
-      prompt === text || (input.command !== null && prompt.startsWith(input.command));
-    if (!matches) {
-      continue;
-    }
-    const startedMs = Date.parse(run.startedAt);
-    if (Number.isNaN(startedMs) || Number.isNaN(input.tsMs)) {
-      continue;
-    }
-    const distance = Math.abs(startedMs - input.tsMs);
-    if (distance > 15 * 60_000) {
-      continue;
-    }
-    if (!best || distance < best.distance) {
-      best = { runId: run.runId, distance };
-    }
-  }
-  return best?.runId ?? null;
-}
 
 function assertSupportedProvider(provider: RuntimeProvider): void {
   if (!SUPPORTED_PROVIDERS.has(provider)) {

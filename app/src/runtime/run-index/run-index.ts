@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { TaskId } from "../../shared/types/domain";
+import type { RunId, TaskId } from "../../shared/types/domain";
 import type { RunIndexEvent, RuntimeEvent } from "../../shared/types/events";
 import {
   freshRuntimeReportV1,
@@ -119,6 +119,7 @@ export class RunIndex {
           taskId: event.payload.taskId,
           kind: event.payload.kind,
           prompt: event.payload.prompt,
+          promptId: event.payload.promptId ?? null,
           title: event.payload.title,
           status: event.payload.status,
           lifecyclePhase: event.payload.lifecyclePhase,
@@ -141,6 +142,7 @@ export class RunIndex {
             kind: event.payload.kind,
             prompt: event.payload.prompt,
             title: event.payload.title,
+            ...(event.payload.promptId != null ? { promptId: event.payload.promptId } : {}),
             status: event.payload.status,
             lifecyclePhase: event.payload.lifecyclePhase,
             startedAt: event.payload.startedAt,
@@ -443,3 +445,57 @@ function readExistingReport(reportPath: string, taskId: TaskId): RuntimeReportV1
 }
 
 export type { RuntimeArtifactCandidateReport, RuntimeReportV1 };
+
+/** Structural input — matches provider-transcript's ResolveRunIdInput. */
+export interface RunAttributionInput {
+  text: string;
+  command: string | null;
+  tsMs: number;
+  assigned: ReadonlySet<RunId>;
+  promptId: string | null;
+}
+
+/**
+ * Match a transcript turn to the Run that caused it. Exact first: the CLI's
+ * prompt_id (stamped onto hook-begun runs, S6+) equals the turn's promptId —
+ * identity beats every heuristic. Fallback: prompt-text equality inside a
+ * 15-minute window (pre-bridge records, idle-path runs whose hook echo was
+ * swallowed).
+ */
+export function resolveRunForTurn(runIndex: RunIndex, input: RunAttributionInput): RunId | null {
+  // Exact bridge first: the CLI's prompt_id (stamped onto hook-begun runs)
+  // equals the transcript turn's promptId — no text or time heuristics can
+  // beat identity (2026-07-03 loop-wakeup fix).
+  if (input.promptId) {
+    for (const run of runIndex.read().runs) {
+      if (run.promptId && run.promptId === input.promptId && !input.assigned.has(run.runId)) {
+        return run.runId;
+      }
+    }
+  }
+  const text = input.text.trim();
+  let best: { runId: RunId; distance: number } | null = null;
+  for (const run of runIndex.read().runs) {
+    if (input.assigned.has(run.runId)) {
+      continue;
+    }
+    const prompt = run.prompt.trim();
+    const matches =
+      prompt === text || (input.command !== null && prompt.startsWith(input.command));
+    if (!matches) {
+      continue;
+    }
+    const startedMs = Date.parse(run.startedAt);
+    if (Number.isNaN(startedMs) || Number.isNaN(input.tsMs)) {
+      continue;
+    }
+    const distance = Math.abs(startedMs - input.tsMs);
+    if (distance > 15 * 60_000) {
+      continue;
+    }
+    if (!best || distance < best.distance) {
+      best = { runId: run.runId, distance };
+    }
+  }
+  return best?.runId ?? null;
+}

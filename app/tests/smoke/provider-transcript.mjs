@@ -334,6 +334,76 @@ check("claude: promptSource=system records (task notifications) never render as 
   assert.equal(upserts[2].text, 'Agent "Research Insta360 Luna Ultra" came to rest');
   assert.notEqual(upserts[2].turnKey, upserts[0].turnKey, "continuation turn opens");
   assert.equal(upserts[3].turnKey, upserts[2].turnKey, "reply lands in the continuation turn");
+  assert.ok(
+    upserts[2].sourcePrompt?.includes("<task-notification>"),
+    "the note carries the verbatim injected prompt for run attribution",
+  );
+});
+
+check("claude: a /loop wakeup (promptSource=system + isMeta) opens its own turn", () => {
+  // The 调研Codex bug (2026-07-03): a ScheduleWakeup prompt arrives as
+  // promptSource:"system" AND isMeta:true — the isMeta skip ate the record,
+  // no turn opened, the reply attributed to the PREVIOUS turn, and the
+  // wakeup's run rendered as a terminal-approximation husk with a "You"
+  // bubble of machine text. System provenance must outrank the isMeta skip.
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s-wake" });
+  const upserts = [];
+  const wakeupText = "检查第二个 Codex Mac app 调研 agent (aab922afa61b905ba) 是否完成，完成则汇总两个 agent 结论";
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "p1",
+      promptSource: "typed",
+      timestamp: "2026-07-03T10:00:00.000Z",
+      message: { role: "user", content: "派出两个 research agent" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a1",
+      promptId: "p1",
+      timestamp: "2026-07-03T10:00:02.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "已安排定时检查。" }] },
+    }),
+    // The wakeup — verbatim shape from the live session: system source,
+    // isMeta true, its own promptId.
+    claudeLine({
+      type: "user",
+      uuid: "u2",
+      promptId: "p2",
+      promptSource: "system",
+      isMeta: true,
+      timestamp: "2026-07-03T10:05:00.000Z",
+      message: { role: "user", content: wakeupText },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a2",
+      timestamp: "2026-07-03T10:05:02.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "第二个 agent 已经完成。" }] },
+    }),
+    // A non-system isMeta record must KEEP the skip (caveat class).
+    claudeLine({
+      type: "user",
+      uuid: "u3",
+      isMeta: true,
+      timestamp: "2026-07-03T10:05:03.000Z",
+      message: { role: "user", content: "Caveat: local command output below." },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  assert.deepEqual(
+    upserts.map((block) => block.kind),
+    ["user-message", "assistant-text", "system-note", "assistant-text"],
+    "wakeup = machinery note (never a You bubble); caveat record still skipped",
+  );
+  assert.equal(upserts[2].turnKey, "p2", "the wakeup opens its own turn, keyed by promptId");
+  assert.equal(upserts[2].text, `Scheduled prompt: ${wakeupText}`);
+  assert.equal(upserts[2].sourcePrompt, wakeupText, "sourcePrompt bridges to the wakeup's run");
+  assert.equal(upserts[3].turnKey, "p2", "the reply lands in the wakeup's turn, not the previous one");
 });
 
 check("claude: Agent fan-out becomes one roster block — spawn, bridge, settle", () => {

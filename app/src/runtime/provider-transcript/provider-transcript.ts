@@ -16,6 +16,9 @@ export interface ResolveRunIdInput {
   command: string | null;
   tsMs: number;
   assigned: ReadonlySet<RunId>;
+  /** The turn's promptId (the CLI's prompt_id) when the turnKey carries one —
+   *  matched EXACTLY against `run.promptId` before any text/time heuristics. */
+  promptId: string | null;
 }
 
 export interface ProviderTranscriptOptions {
@@ -230,12 +233,26 @@ export class ProviderTranscript {
   private attributeRun(block: TranscriptBlock): TranscriptBlock {
     const turnId = `${block.sourceId}:${block.turnKey}`;
 
-    if (block.kind === "user-message") {
+    // A turn's attribution anchor: its user-message, or — for a continuation
+    // turn opened by a machine-injected prompt (task-notification, /loop
+    // wakeup) — the system-note carrying `sourcePrompt`. Without the latter,
+    // machine turns could never match their runs and the run card fell back
+    // to a terminal-approximation husk (2026-07-03).
+    const anchorText =
+      block.kind === "user-message"
+        ? block.text
+        : block.kind === "system-note" && block.sourcePrompt
+          ? block.sourcePrompt
+          : null;
+    if (anchorText !== null) {
       const runId = this.options.resolveRunId({
-        text: block.text,
-        command: block.command,
+        text: anchorText,
+        command: block.kind === "user-message" ? block.command : null,
         tsMs: Date.parse(block.ts),
         assigned: this.assignedRunIds,
+        // Prompt-keyed turnKeys ARE the CLI's prompt_id; synthesized keys
+        // ("turn-N") match no run and fall through to text/time.
+        promptId: /^turn-\d+$/.test(block.turnKey) ? null : block.turnKey,
       });
       if (runId) {
         this.assignedRunIds.add(runId);
