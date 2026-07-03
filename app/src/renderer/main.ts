@@ -1550,6 +1550,7 @@ appElement.innerHTML = `
     </header>
     <div id="reading-popover-root"></div>
     <div id="remote-control-popover-root"></div>
+    <div id="task-settings-popover-root"></div>
 
     <section class="workspace">
       <section id="run-column" class="run-column" aria-label="Run reading surface">
@@ -1661,6 +1662,7 @@ const elements = {
   runtimeStatus: getElement<HTMLDivElement>("runtime-status"),
   readingSettings: getElement<HTMLButtonElement>("reading-settings"),
   readingPopoverRoot: getElement<HTMLDivElement>("reading-popover-root"),
+  taskSettingsPopoverRoot: getElement<HTMLDivElement>("task-settings-popover-root"),
   remoteControlToggle: getElement<HTMLButtonElement>("remote-control-toggle"),
   remoteControlPopoverRoot: getElement<HTMLDivElement>("remote-control-popover-root"),
   openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
@@ -3559,6 +3561,7 @@ document.addEventListener("click", (event) => {
     target.closest("#remote-control-toggle") ||
     target.closest(".remote-control-popover") ||
     target.closest(".task-settings-wrap") ||
+    target.closest(".task-settings-popover") ||
     target.closest(".composer-chip") ||
     target.closest("#add-attachment") ||
     target.closest(".composer-menu") ||
@@ -4480,6 +4483,7 @@ function render(): void {
   renderReadingPopover();
   renderRemoteControl();
   renderRemoteControlPopover();
+  renderTaskSettingsPopover();
   renderSettingsOverlay();
   renderAttachmentStrip(view);
   renderComposerControls(view);
@@ -6900,11 +6904,21 @@ function renderLaunchSettingsControl(): HTMLElement {
   });
   wrap.append(button);
 
-  if (state.taskDraft.settingsOpen) {
-    wrap.append(renderLaunchSettingsPopover(state.taskDraft.provider));
-  }
+  // The popover itself renders into #task-settings-popover-root (see
+  // renderTaskSettingsPopover): position:fixed inside the #run-list scroller
+  // gets paint- AND hit-test-clipped to the scroller's box, so the sections
+  // past the run-list's bottom edge were invisible and unclickable.
 
   return wrap;
+}
+
+function renderTaskSettingsPopover(): void {
+  elements.taskSettingsPopoverRoot.replaceChildren();
+  const view = activeTaskView();
+  if (view?.task || !state.taskDraft.settingsOpen) {
+    return;
+  }
+  elements.taskSettingsPopoverRoot.append(renderLaunchSettingsPopover(state.taskDraft.provider));
 }
 
 function renderLaunchSettingsPopover(provider: RuntimeProvider): HTMLElement {
