@@ -39,11 +39,14 @@ try {
   await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor();
 
   await openSettings(page);
-  await page.locator(".settings-popup", { hasText: "Resume from summary" }).waitFor();
+  // Two .settings-popup buttons live in the overlay (Approvals + Sessions);
+  // scope to the Sessions group so strict mode resolves one.
+  const sessionsGroup = page.locator('.settings-group[aria-label="Sessions"]');
+  await sessionsGroup.locator(".settings-popup", { hasText: "Resume from summary" }).waitFor();
   await page.screenshot({ path: path.join(outDir, "01-overlay-moment-born-light.png") });
 
-  await page.locator(".settings-popup").click();
-  await page.locator(".settings-popup-menu").waitFor();
+  await sessionsGroup.locator(".settings-popup").click();
+  await sessionsGroup.locator(".settings-popup-menu").waitFor();
   await page.screenshot({ path: path.join(outDir, "02-policy-menu-open.png") });
   await page.keyboard.press("Escape");
 
