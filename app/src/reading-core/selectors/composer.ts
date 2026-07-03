@@ -8,45 +8,15 @@
  * as a parameter (the shell passes `activeTaskView()` / draft state).
  */
 import type {
-  DeliveryTaskState,
   ReasoningEffort,
   RuntimeProvider,
   SlashCommandEntry,
-  Task,
-  UsageSnapshot,
 } from "../../shared/types";
 import type { OptionPromptDetectedEvent } from "../../shared/types/events";
 import type { OptionPromptAnswers } from "../../shared/types/option-prompt";
-import type { RuntimeReportV1 } from "../../shared/schemas";
+import type { OptionPromptReceiptLine, TaskViewState } from "../state";
 import { providerLabel } from "./formatters";
 import { modelValueLabel, reasoningValueLabel } from "../config";
-
-export interface OptionPromptReceiptLine {
-  header: string;
-  question: string;
-  labels: string[];
-}
-
-export interface OptionPromptReceipt {
-  toolUseId: string;
-  lines: OptionPromptReceiptLine[];
-  /** true once reconciled from the provider's own answer (verbatim labels);
-   *  false while showing the optimistic local selection. */
-  reconciled: boolean;
-}
-
-/** The slice of the renderer's TaskViewState these selectors read. The full
- *  state type moves into reading-core at C1; until then selectors type
- *  against the slice (TaskViewState is structurally assignable). */
-export interface ComposerView {
-  task: Task | null;
-  live: boolean;
-  report: RuntimeReportV1 | null;
-  deliveryState: DeliveryTaskState | null;
-  usageSnapshot: UsageSnapshot | null;
-  pendingOptionPrompt: OptionPromptDetectedEvent["payload"] | null;
-  optionPromptReceipt: OptionPromptReceipt | null;
-}
 
 /** Lower score sorts first; null means no match. */
 export function slashFilterScore(entry: SlashCommandEntry, query: string): number | null {
@@ -94,7 +64,7 @@ export function filteredSlashItems(picker: {
   return scored.map((item) => item.entry);
 }
 
-export function sessionModelSummaryLabel(view: ComposerView | null): string | null {
+export function sessionModelSummaryLabel(view: TaskViewState | null): string | null {
   const task = view?.task ?? null;
   if (!task) {
     return null;
@@ -114,7 +84,7 @@ export function sessionModelSummaryLabel(view: ComposerView | null): string | nu
 }
 
 export function sendPromptTitle(
-  view: ComposerView | null,
+  view: TaskViewState | null,
   activeRun: boolean,
   pendingApproval: boolean,
   promptHasText: boolean,
@@ -142,7 +112,7 @@ export function sendPromptTitle(
 }
 
 export function composerPlaceholder(
-  view: ComposerView | null,
+  view: TaskViewState | null,
   draftProvider: RuntimeProvider,
   activeRun: boolean,
   pendingApproval: boolean,
@@ -171,7 +141,7 @@ export function composerPlaceholder(
 
 /** Ordered question metadata, from the live prompt or a prior receipt. */
 export function optionPromptQuestionMeta(
-  view: ComposerView,
+  view: TaskViewState,
 ): { header: string; question: string }[] {
   if (view.pendingOptionPrompt) {
     return view.pendingOptionPrompt.questions.map((q) => ({ header: q.header, question: q.question }));

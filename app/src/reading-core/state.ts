@@ -1,0 +1,381 @@
+/**
+ * The Reading window's view-state model: the one mutable state atom
+ * (`RendererState`) with per-task projections (`TaskViewState`), the factories
+ * that build them, and the task-view/transcript operations that mutate them.
+ *
+ * reading-core layer rules: plain data in, plain data out — no DOM, no
+ * Electron. The shell (renderer/main.ts) holds the singleton atom and passes
+ * it to the ops that need it; mutation-in-place is deliberate (map R1 — the
+ * reconcile engine depends on reference-identity semantics: upserts replace
+ * changed blocks' refs, unchanged blocks keep theirs).
+ */
+import type {
+  AttachmentKind,
+  CliActivity,
+  ClaudeSettings,
+  DeliveryAttachment,
+  DeliveryTaskState,
+  LaunchSpeedMode,
+  ReadingSettings,
+  ReasoningEffort,
+  ResumeSettings,
+  RuntimeProvider,
+  SlashCommandEntry,
+  Task,
+  UsageSnapshot,
+} from "../shared/types";
+import type {
+  ApprovalDetectedEvent,
+  OptionPromptDetectedEvent,
+  TranscriptBlocksEvent,
+} from "../shared/types/events";
+import type {
+  TranscriptBlock,
+  TranscriptSourceRef,
+} from "../shared/types/transcript";
+import type { WorkingStatusState } from "../shared/types/working-status";
+import type { RuntimeReportV1 } from "../shared/schemas";
+import { cleanTerminalTranscript } from "../shared/terminal-transcript";
+import { MAX_TRANSCRIPT_CHARS, MAX_TRANSCRIPT_RAW_CHARS } from "./config";
+
+export interface RunTranscript {
+  runId: string;
+  rawText: string;
+  text: string;
+  truncated: boolean;
+  receivedChars: number;
+}
+
+export interface OptionPromptReceiptLine {
+  header: string;
+  question: string;
+  labels: string[];
+}
+
+export interface OptionPromptReceipt {
+  toolUseId: string;
+  lines: OptionPromptReceiptLine[];
+  /** true once reconciled from the provider's own answer (verbatim labels);
+   *  false while showing the optimistic local selection. */
+  reconciled: boolean;
+}
+
+export interface TaskViewState {
+  task: Task | null;
+  /** A PTY runtime backs this view; dormant views are read-only until resumed. */
+  live: boolean;
+  report: RuntimeReportV1 | null;
+  /** Unsent composer text, parked here while another session owns the DOM
+   *  textarea (the attachments counterpart is pendingAttachments). */
+  composerDraft: string;
+  pendingApproval: ApprovalDetectedEvent["payload"] | null;
+  /** A native AskUserQuestion awaiting an in-view answer (Slice 5). */
+  pendingOptionPrompt: OptionPromptDetectedEvent["payload"] | null;
+  /** In-progress single-select choice per question (option index; -1 = none). */
+  optionPromptSelections: number[];
+  /** Send-in-flight: keystrokes are being relayed; the card is frozen. */
+  optionPromptBusy: boolean;
+  /** The answered card frozen into a receipt — optimistic on send, then
+   *  reconciled (verbatim labels) from the PostToolUse-driven resolved event. */
+  optionPromptReceipt: OptionPromptReceipt | null;
+  highlightedRunId: string | null;
+  liveTranscriptRunId: string | null;
+  runTranscripts: RunTranscript[];
+  transcriptBlocks: Map<string, TranscriptBlock>;
+  transcriptBlockOrder: string[];
+  transcriptSources: TranscriptSourceRef[];
+  deliveryState: DeliveryTaskState | null;
+  pendingAttachments: ComposerAttachment[];
+  usageSnapshot: UsageSnapshot | null;
+  workingStatus: WorkingStatusState | null;
+  /** Structured CLI activity (Slice 1): hooks-primary busy/idle/approval,
+   *  with terminal-host signals as the safety net. Drives the sidebar
+   *  indicator (approval now also fires from the PermissionRequest hook). */
+  cliState: { activity: CliActivity; tool: string | null; approvalKind: string | null } | null;
+  /** Remote Control (phone access) for this task. `active` is optimistic (we
+   *  injected `/rc`); `url` is the session link scraped from the stream — the
+   *  phone surface is Anthropic's Claude app, not a Duet-built UI. */
+  /** `active`/`url`: the LIVE connected state (from `remote-control:state`). For a
+   *  DORMANT view, `armedOverride` is the "will start with RC" desire — null =
+   *  follow the global default (`state.remoteControlDefault`); true/false = user set. */
+  remoteControl: { active: boolean; url: string | null; armedOverride: boolean | null };
+  /** The pre-spawn resume moment is waiting for the user's choice. */
+  resumeChoice: { idleMs: number | null; totalTokens: number | null; bridgeDismissed: boolean } | null;
+  /** Attention banners (S5) — passive "in the Terminal" pointers. A dispatched
+   *  slash command settled (its panel, if any, lives in the terminal); an
+   *  approval card expired to the native panel. Display-only state: set/cleared
+   *  from runtime events, never drives delivery or runs. */
+  slashAttention: { runId: string; command: string } | null;
+  approvalExpiredAttention: boolean;
+  status: string;
+  unread: boolean;
+  /** A run finished while this session was not the focused view. */
+  completedUnseen: boolean;
+}
+
+export interface RendererState {
+  taskViews: TaskViewState[];
+  activeTaskId: string | null;
+  taskDraft: TaskLaunchDraft;
+  /** New-chat composer attachments, materialized on first send (see ComposerAttachment). */
+  draftAttachments: ComposerAttachment[];
+  composerMenu: ComposerMenuState | null;
+  slashPicker: SlashPickerState | null;
+  usagePopover: UsagePopoverState | null;
+  readingSettings: ReadingSettings;
+  readingPopoverOpen: boolean;
+  readingPopoverAnchor: PopoverAnchor | null;
+  remoteControlPopoverOpen: boolean;
+  remoteControlPopoverAnchor: PopoverAnchor | null;
+  /** Transient note shown in the RC popover (e.g. why Turn on was refused). */
+  remoteControlNote: string | null;
+  /** The global "auto-enable Remote Control" default (Claude settings). Seeds
+   *  the New Chat draft AND newly-opened dormant sessions so both arm on start. */
+  remoteControlDefault: boolean;
+  promptNav: PromptNavState | null;
+  /** The Settings page (centered overlay) is open; null when closed. */
+  settingsOverlay: SettingsOverlayState | null;
+  busy: boolean;
+  status: string;
+}
+
+export interface SettingsOverlayState {
+  /** Snapshot read on open; null while the read is in flight. */
+  resume: { settings: ResumeSettings; bridgeDismissed: boolean } | null;
+  /** Duet-owned Claude launch policy; null while the read is in flight. */
+  claude: { settings: ClaudeSettings } | null;
+  /** The resume-policy popup menu is showing. */
+  policyMenuOpen: boolean;
+  /** The default-permission-mode popup menu is showing. */
+  approvalMenuOpen: boolean;
+  /** The bridge restore write is in flight. */
+  bridgeReverting: boolean;
+  /** The last bridge restore failed (~/.claude.json untouched). */
+  bridgeError: boolean;
+}
+
+export interface PromptNavState {
+  taskId: string;
+  turnKey: string;
+  composerSelectionStart: number;
+  composerSelectionEnd: number;
+}
+
+export interface ComposerMenuState {
+  type: "add";
+  anchor: PopoverAnchor;
+}
+
+export interface SlashPickerState {
+  provider: RuntimeProvider;
+  /** Listed entries for this provider; refreshed via IPC when the picker opens. */
+  entries: SlashCommandEntry[];
+  query: string;
+  selectedIndex: number;
+}
+
+export interface UsagePopoverState {
+  pinned: boolean;
+}
+
+export interface PopoverAnchor {
+  left: number;
+  top: number;
+  width: number;
+}
+
+/** A composer attachment held until send (lazy). A path-less bitmap is held as a
+ *  File and copied (createAttachment) on send; a reference is already a
+ *  DeliveryAttachment (createReference, no copy) and passes through. Nothing
+ *  touches disk until send — so removing a chip or abandoning the composer
+ *  leaves no orphan, and there is no eager-copy cleanup to do. One shape for both
+ *  a live task's pending list and the new-chat draft. previewUrl is a thumbnail
+ *  (object URL for a bitmap, data URL for a referenced image) or null (icon). */
+export interface ComposerAttachment {
+  /** Opaque bitmap handle (a DOM `File` at runtime) or null. Typed `unknown`
+   *  because the state model must stay DOM-type-free (reading-core purity, map
+   *  §2.2): core state = plain data + opaque handles the core never looks
+   *  inside. Only shell code (intake, materialize, object-URL lifecycle)
+   *  narrows it back to `File`. */
+  file: unknown;
+  reference: DeliveryAttachment | null;
+  previewUrl: string | null;
+  name: string;
+  kind: AttachmentKind;
+}
+
+export interface TaskLaunchDraft {
+  provider: RuntimeProvider;
+  cwd: string | null;
+  settingsOpen: boolean;
+  settingsAnchor: { left: number; top: number; width: number } | null;
+  message: TaskEntryMessage | null;
+  model: Record<RuntimeProvider, string | null>;
+  reasoningEffort: Record<RuntimeProvider, ReasoningEffort | null>;
+  speedMode: Record<RuntimeProvider, LaunchSpeedMode | null>;
+  /** New chat: arm Remote Control so the session spawns with `--remote-control`
+   *  (Claude only). The "arm at session start" entry point. */
+  remoteControl: boolean;
+}
+
+export interface TaskEntryMessage {
+  tone: "info" | "error";
+  text: string;
+}
+
+/** The boot-time state atom. `readingSettings` is a parameter because its
+ *  source is a DOM read (the shell's bootReadingSettingsFromDom) — the one
+ *  non-plain-data value in the initial state. */
+export function createInitialState(readingSettings: ReadingSettings): RendererState {
+  return {
+    taskViews: [],
+    activeTaskId: null,
+    taskDraft: {
+      provider: "claude",
+      cwd: null,
+      settingsOpen: false,
+      settingsAnchor: null,
+      message: null,
+      model: {
+        codex: "gpt-5.5",
+        claude: "opus",
+      },
+      reasoningEffort: {
+        codex: "xhigh",
+        claude: "xhigh",
+      },
+      speedMode: {
+        codex: "default",
+        claude: null,
+      },
+      remoteControl: false,
+    },
+    draftAttachments: [],
+    composerMenu: null,
+    slashPicker: null,
+    usagePopover: null,
+    readingSettings,
+    readingPopoverOpen: false,
+    readingPopoverAnchor: null,
+    remoteControlPopoverOpen: false,
+    remoteControlPopoverAnchor: null,
+    remoteControlNote: null,
+    remoteControlDefault: false,
+    promptNav: null,
+    settingsOverlay: null,
+    busy: false,
+    status: "Idle",
+  };
+}
+
+export function createTaskView(task: Task, status: string, live = true): TaskViewState {
+  const view: TaskViewState = {
+    task,
+    live,
+    report: null,
+    composerDraft: "",
+    pendingApproval: null,
+    pendingOptionPrompt: null,
+    optionPromptSelections: [],
+    optionPromptBusy: false,
+    optionPromptReceipt: null,
+    highlightedRunId: null,
+    liveTranscriptRunId: null,
+    runTranscripts: [],
+    transcriptBlocks: new Map(),
+    transcriptBlockOrder: [],
+    transcriptSources: [],
+    // active/url = live connected state; armedOverride = null means a dormant view
+    // FOLLOWS the global default (so changing the default applies to it), until the
+    // user toggles it. createTask sets active optimistically for a live armed spawn.
+    remoteControl: { active: false, url: null, armedOverride: null },
+    deliveryState: null,
+    pendingAttachments: [],
+    usageSnapshot: null,
+    workingStatus: null,
+    cliState: null,
+    resumeChoice: null,
+    slashAttention: null,
+    approvalExpiredAttention: false,
+    status,
+    unread: false,
+    completedUnseen: false,
+  };
+  return view;
+}
+
+export function upsertTaskView(state: RendererState, view: TaskViewState): void {
+  const index = state.taskViews.findIndex((item) => item.task?.id === view.task?.id);
+  if (index === -1) {
+    state.taskViews = [...state.taskViews, view];
+    return;
+  }
+  state.taskViews = state.taskViews.map((item, itemIndex) => (itemIndex === index ? view : item));
+}
+
+export function taskViewForId(state: RendererState, taskId: string): TaskViewState | null {
+  return state.taskViews.find((view) => view.task?.id === taskId) ?? null;
+}
+
+export function applyTranscriptUpserts(
+  view: TaskViewState,
+  payload: TranscriptBlocksEvent["payload"],
+): void {
+  if (payload.reset) {
+    for (const [id, block] of view.transcriptBlocks) {
+      if (block.sourceId === payload.sourceId) {
+        view.transcriptBlocks.delete(id);
+      }
+    }
+    view.transcriptBlockOrder = view.transcriptBlockOrder.filter((id) =>
+      view.transcriptBlocks.has(id),
+    );
+  }
+
+  for (const block of payload.upserts) {
+    if (!view.transcriptBlocks.has(block.id)) {
+      view.transcriptBlockOrder.push(block.id);
+    }
+    view.transcriptBlocks.set(block.id, block);
+  }
+}
+
+/** Returns whether the cleaned transcript now has visible text — the caller's
+ *  render-scheduling condition (map §1.3 pty:data row: schedule the debounced
+ *  transcript render only if the cleaned text is non-empty; the schedule call
+ *  itself is the shell's, and becomes a directive at C2). */
+export function appendLiveTranscript(view: TaskViewState, data: string): boolean {
+  if (!view.liveTranscriptRunId) {
+    return false;
+  }
+
+  const transcript = ensureRunTranscript(view, view.liveTranscriptRunId);
+  transcript.receivedChars += data.length;
+  const nextRawText = `${transcript.rawText}${data}`;
+  transcript.truncated = transcript.truncated || nextRawText.length > MAX_TRANSCRIPT_RAW_CHARS;
+  transcript.rawText = nextRawText.slice(-MAX_TRANSCRIPT_RAW_CHARS);
+
+  const text = cleanTerminalTranscript(transcript.rawText, view.task?.provider);
+  transcript.truncated = transcript.truncated || text.length > MAX_TRANSCRIPT_CHARS;
+  transcript.text = text.slice(-MAX_TRANSCRIPT_CHARS);
+
+  if (!transcript.text.trim()) {
+    return false;
+  }
+  return true;
+}
+
+export function ensureRunTranscript(view: TaskViewState, runId: string): RunTranscript {
+  let transcript = view.runTranscripts.find((item) => item.runId === runId);
+  if (!transcript) {
+    transcript = {
+      runId,
+      rawText: "",
+      text: "",
+      truncated: false,
+      receivedChars: 0,
+    };
+    view.runTranscripts = [...view.runTranscripts, transcript];
+  }
+  return transcript;
+}

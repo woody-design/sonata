@@ -123,7 +123,6 @@ import {
   stripRunningAgents,
   transcriptForRun,
   type ReadingTurn,
-  type RunTranscript,
 } from "../reading-core/selectors/turns";
 import {
   SIDEBAR_PREFS_DEFAULTS,
@@ -142,8 +141,6 @@ import {
   sendPromptTitle,
   sessionModelSummaryLabel,
   slashFilterScore,
-  type OptionPromptReceipt,
-  type OptionPromptReceiptLine,
 } from "../reading-core/selectors/composer";
 import {
   completionErrorExcerpt,
@@ -157,173 +154,30 @@ import {
   runTone,
   taskStatusLabel,
 } from "../reading-core/selectors/runs";
+import {
+  appendLiveTranscript,
+  applyTranscriptUpserts,
+  createInitialState,
+  createTaskView,
+  ensureRunTranscript,
+  taskViewForId,
+  upsertTaskView,
+  type ComposerAttachment,
+  type ComposerMenuState,
+  type OptionPromptReceipt,
+  type PopoverAnchor,
+  type PromptNavState,
+  type RendererState,
+  type SettingsOverlayState,
+  type SlashPickerState,
+  type TaskViewState,
+} from "../reading-core/state";
 
-interface TaskViewState {
-  task: Task | null;
-  /** A PTY runtime backs this view; dormant views are read-only until resumed. */
-  live: boolean;
-  report: RuntimeReportV1 | null;
-  /** Unsent composer text, parked here while another session owns the DOM
-   *  textarea (the attachments counterpart is pendingAttachments). */
-  composerDraft: string;
-  pendingApproval: ApprovalDetectedEvent["payload"] | null;
-  /** A native AskUserQuestion awaiting an in-view answer (Slice 5). */
-  pendingOptionPrompt: OptionPromptDetectedEvent["payload"] | null;
-  /** In-progress single-select choice per question (option index; -1 = none). */
-  optionPromptSelections: number[];
-  /** Send-in-flight: keystrokes are being relayed; the card is frozen. */
-  optionPromptBusy: boolean;
-  /** The answered card frozen into a receipt — optimistic on send, then
-   *  reconciled (verbatim labels) from the PostToolUse-driven resolved event. */
-  optionPromptReceipt: OptionPromptReceipt | null;
-  highlightedRunId: string | null;
-  liveTranscriptRunId: string | null;
-  runTranscripts: RunTranscript[];
-  transcriptBlocks: Map<string, TranscriptBlock>;
-  transcriptBlockOrder: string[];
-  transcriptSources: TranscriptSourceRef[];
-  deliveryState: DeliveryTaskState | null;
-  pendingAttachments: ComposerAttachment[];
-  usageSnapshot: UsageSnapshot | null;
-  workingStatus: WorkingStatusState | null;
-  /** Structured CLI activity (Slice 1): hooks-primary busy/idle/approval,
-   *  with terminal-host signals as the safety net. Drives the sidebar
-   *  indicator (approval now also fires from the PermissionRequest hook). */
-  cliState: { activity: CliActivity; tool: string | null; approvalKind: string | null } | null;
-  /** Remote Control (phone access) for this task. `active` is optimistic (we
-   *  injected `/rc`); `url` is the session link scraped from the stream — the
-   *  phone surface is Anthropic's Claude app, not a Duet-built UI. */
-  /** `active`/`url`: the LIVE connected state (from `remote-control:state`). For a
-   *  DORMANT view, `armedOverride` is the "will start with RC" desire — null =
-   *  follow the global default (`state.remoteControlDefault`); true/false = user set. */
-  remoteControl: { active: boolean; url: string | null; armedOverride: boolean | null };
-  /** The pre-spawn resume moment is waiting for the user's choice. */
-  resumeChoice: { idleMs: number | null; totalTokens: number | null; bridgeDismissed: boolean } | null;
-  /** Attention banners (S5) — passive "in the Terminal" pointers. A dispatched
-   *  slash command settled (its panel, if any, lives in the terminal); an
-   *  approval card expired to the native panel. Display-only state: set/cleared
-   *  from runtime events, never drives delivery or runs. */
-  slashAttention: { runId: string; command: string } | null;
-  approvalExpiredAttention: boolean;
-  status: string;
-  unread: boolean;
-  /** A run finished while this session was not the focused view. */
-  completedUnseen: boolean;
-}
 
 /** The two co-equal surfaces of a task: the crafted reading view and the raw
  *  terminal. Both ARE Duet — the switch picks which lens is in front. */
 type ViewMode = "read" | "terminal";
 
-interface RendererState {
-  taskViews: TaskViewState[];
-  activeTaskId: string | null;
-  taskDraft: TaskLaunchDraft;
-  /** New-chat composer attachments, materialized on first send (see ComposerAttachment). */
-  draftAttachments: ComposerAttachment[];
-  composerMenu: ComposerMenuState | null;
-  slashPicker: SlashPickerState | null;
-  usagePopover: UsagePopoverState | null;
-  readingSettings: ReadingSettings;
-  readingPopoverOpen: boolean;
-  readingPopoverAnchor: PopoverAnchor | null;
-  remoteControlPopoverOpen: boolean;
-  remoteControlPopoverAnchor: PopoverAnchor | null;
-  /** Transient note shown in the RC popover (e.g. why Turn on was refused). */
-  remoteControlNote: string | null;
-  /** The global "auto-enable Remote Control" default (Claude settings). Seeds
-   *  the New Chat draft AND newly-opened dormant sessions so both arm on start. */
-  remoteControlDefault: boolean;
-  promptNav: PromptNavState | null;
-  /** The Settings page (centered overlay) is open; null when closed. */
-  settingsOverlay: SettingsOverlayState | null;
-  busy: boolean;
-  status: string;
-}
-
-interface SettingsOverlayState {
-  /** Snapshot read on open; null while the read is in flight. */
-  resume: { settings: ResumeSettings; bridgeDismissed: boolean } | null;
-  /** Duet-owned Claude launch policy; null while the read is in flight. */
-  claude: { settings: ClaudeSettings } | null;
-  /** The resume-policy popup menu is showing. */
-  policyMenuOpen: boolean;
-  /** The default-permission-mode popup menu is showing. */
-  approvalMenuOpen: boolean;
-  /** The bridge restore write is in flight. */
-  bridgeReverting: boolean;
-  /** The last bridge restore failed (~/.claude.json untouched). */
-  bridgeError: boolean;
-}
-
-interface PromptNavState {
-  taskId: string;
-  turnKey: string;
-  composerSelectionStart: number;
-  composerSelectionEnd: number;
-}
-
-interface ComposerMenuState {
-  type: "add";
-  anchor: PopoverAnchor;
-}
-
-interface SlashPickerState {
-  provider: RuntimeProvider;
-  /** Listed entries for this provider; refreshed via IPC when the picker opens. */
-  entries: SlashCommandEntry[];
-  query: string;
-  selectedIndex: number;
-}
-
-interface UsagePopoverState {
-  pinned: boolean;
-}
-
-interface PopoverAnchor {
-  left: number;
-  top: number;
-  width: number;
-}
-
-/** A composer attachment held until send (lazy). A path-less bitmap is held as a
- *  File and copied (createAttachment) on send; a reference is already a
- *  DeliveryAttachment (createReference, no copy) and passes through. Nothing
- *  touches disk until send — so removing a chip or abandoning the composer
- *  leaves no orphan, and there is no eager-copy cleanup to do. One shape for both
- *  a live task's pending list and the new-chat draft. previewUrl is a thumbnail
- *  (object URL for a bitmap, data URL for a referenced image) or null (icon). */
-interface ComposerAttachment {
-  /** Opaque bitmap handle (a DOM `File` at runtime) or null. Typed `unknown`
-   *  because the state model must stay DOM-type-free (reading-core purity, map
-   *  §2.2): core state = plain data + opaque handles the core never looks
-   *  inside. Only shell code (intake, materialize, object-URL lifecycle)
-   *  narrows it back to `File`. */
-  file: unknown;
-  reference: DeliveryAttachment | null;
-  previewUrl: string | null;
-  name: string;
-  kind: AttachmentKind;
-}
-
-interface TaskLaunchDraft {
-  provider: RuntimeProvider;
-  cwd: string | null;
-  settingsOpen: boolean;
-  settingsAnchor: { left: number; top: number; width: number } | null;
-  message: TaskEntryMessage | null;
-  model: Record<RuntimeProvider, string | null>;
-  reasoningEffort: Record<RuntimeProvider, ReasoningEffort | null>;
-  speedMode: Record<RuntimeProvider, LaunchSpeedMode | null>;
-  /** New chat: arm Remote Control so the session spawns with `--remote-control`
-   *  (Claude only). The "arm at session start" entry point. */
-  remoteControl: boolean;
-}
-
-interface TaskEntryMessage {
-  tone: "info" | "error";
-  text: string;
-}
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "dark" : "light";
@@ -332,45 +186,7 @@ let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "
 // the first render() call (a later declaration lands in the temporal dead zone).
 let lastPushedTerminalTask = "";
 
-const state: RendererState = {
-  taskViews: [],
-  activeTaskId: null,
-  taskDraft: {
-    provider: "claude",
-    cwd: null,
-    settingsOpen: false,
-    settingsAnchor: null,
-    message: null,
-    model: {
-      codex: "gpt-5.5",
-      claude: "opus",
-    },
-    reasoningEffort: {
-      codex: "xhigh",
-      claude: "xhigh",
-    },
-    speedMode: {
-      codex: "default",
-      claude: null,
-    },
-    remoteControl: false,
-  },
-  draftAttachments: [],
-  composerMenu: null,
-  slashPicker: null,
-  usagePopover: null,
-  readingSettings: bootReadingSettingsFromDom(),
-  readingPopoverOpen: false,
-  readingPopoverAnchor: null,
-  remoteControlPopoverOpen: false,
-  remoteControlPopoverAnchor: null,
-  remoteControlNote: null,
-  remoteControlDefault: false,
-  promptNav: null,
-  settingsOverlay: null,
-  busy: false,
-  status: "Idle",
-};
+const state: RendererState = createInitialState(bootReadingSettingsFromDom());
 
 let sessionIndex: SessionIndexResponse | null = null;
 let sessionIndexRefreshTimer: number | null = null;
@@ -860,7 +676,7 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
   // Approval can be surfaced two ways now: the footer scrape (liveStatus) or
   // the PermissionRequest hook (cliState) — Slice 1 makes the hook primary,
   // the scrape the fallback, so either fires the dot.
-  const cli = taskViewForId(session.task.id)?.cliState ?? null;
+  const cli = taskViewForId(state, session.task.id)?.cliState ?? null;
   if (session.liveStatus === "waiting-for-approval" || cli?.activity === "waiting-approval") {
     const dot = document.createElement("span");
     dot.className = "sidebar-session-attention";
@@ -873,7 +689,7 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
     spinner.title = "Working";
     // Evidence-driven, not a bare CSS loop: the animation pauses when the
     // task's PTY goes quiet and turns amber when stall suspicion fires.
-    const liveness = taskViewForId(session.task.id)?.workingStatus?.liveness ?? "fresh";
+    const liveness = taskViewForId(state, session.task.id)?.workingStatus?.liveness ?? "fresh";
     if (liveness === "quiet") {
       spinner.classList.add("quiet");
       spinner.title = "No recent activity";
@@ -884,7 +700,7 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
     spinner.append(lucideIcon(LoaderCircle, 14));
     return spinner;
   }
-  if (taskViewForId(session.task.id)?.completedUnseen) {
+  if (taskViewForId(state, session.task.id)?.completedUnseen) {
     const dot = document.createElement("span");
     dot.className = "sidebar-session-done";
     dot.title = "Finished while you were away";
@@ -1372,7 +1188,7 @@ function removeTaskViewLocally(taskId: string): void {
 
 async function selectSession(taskId: string): Promise<void> {
   closeSidebarMenu();
-  if (taskViewForId(taskId)) {
+  if (taskViewForId(state, taskId)) {
     activateTask(taskId);
     return;
   }
@@ -1391,7 +1207,7 @@ async function selectSession(taskId: string): Promise<void> {
       view.transcriptBlockOrder.push(block.id);
       view.transcriptBlocks.set(block.id, block);
     }
-    upsertTaskView(view);
+    upsertTaskView(state, view);
     activateTask(taskId);
   } catch (error) {
     state.status = errorMessage(error);
@@ -3559,7 +3375,7 @@ function applySystemReadingMode(mode: ResolvedReadingMode): void {
 
 window.duetRuntime.onRuntimeEvent((event) => {
   if (event.type === "pty:data") {
-    const view = taskViewForId(event.payload.taskId);
+    const view = taskViewForId(state, event.payload.taskId);
     if (!view) {
       return;
     }
@@ -3568,7 +3384,9 @@ window.duetRuntime.onRuntimeEvent((event) => {
     if (!isActiveView(view)) {
       view.unread = true;
     }
-    appendLiveTranscript(view, event.payload.data);
+    if (appendLiveTranscript(view, event.payload.data)) {
+      scheduleTranscriptRender();
+    }
     return;
   }
 
@@ -3577,7 +3395,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
     return;
   }
 
-  const view = taskViewForId(event.payload.taskId);
+  const view = taskViewForId(state, event.payload.taskId);
   if (!view) {
     return;
   }
@@ -3885,67 +3703,8 @@ void hydrateClaudeDefaults().finally(() => {
 
 render();
 
-function createTaskView(task: Task, status: string, live = true): TaskViewState {
-  const view: TaskViewState = {
-    task,
-    live,
-    report: null,
-    composerDraft: "",
-    pendingApproval: null,
-    pendingOptionPrompt: null,
-    optionPromptSelections: [],
-    optionPromptBusy: false,
-    optionPromptReceipt: null,
-    highlightedRunId: null,
-    liveTranscriptRunId: null,
-    runTranscripts: [],
-    transcriptBlocks: new Map(),
-    transcriptBlockOrder: [],
-    transcriptSources: [],
-    // active/url = live connected state; armedOverride = null means a dormant view
-    // FOLLOWS the global default (so changing the default applies to it), until the
-    // user toggles it. createTask sets active optimistically for a live armed spawn.
-    remoteControl: { active: false, url: null, armedOverride: null },
-    deliveryState: null,
-    pendingAttachments: [],
-    usageSnapshot: null,
-    workingStatus: null,
-    cliState: null,
-    resumeChoice: null,
-    slashAttention: null,
-    approvalExpiredAttention: false,
-    status,
-    unread: false,
-    completedUnseen: false,
-  };
-  return view;
-}
-
-function applyTranscriptUpserts(
-  view: TaskViewState,
-  payload: TranscriptBlocksEvent["payload"],
-): void {
-  if (payload.reset) {
-    for (const [id, block] of view.transcriptBlocks) {
-      if (block.sourceId === payload.sourceId) {
-        view.transcriptBlocks.delete(id);
-      }
-    }
-    view.transcriptBlockOrder = view.transcriptBlockOrder.filter((id) =>
-      view.transcriptBlocks.has(id),
-    );
-  }
-
-  for (const block of payload.upserts) {
-    if (!view.transcriptBlocks.has(block.id)) {
-      view.transcriptBlockOrder.push(block.id);
-    }
-    view.transcriptBlocks.set(block.id, block);
-  }
-}
-
 async function hydrateTranscript(taskId: string): Promise<void> {
-  const view = taskViewForId(taskId);
+  const view = taskViewForId(state, taskId);
   if (!view?.task) {
     return;
   }
@@ -3961,7 +3720,7 @@ async function hydrateTranscript(taskId: string): Promise<void> {
 }
 
 async function hydrateUsage(taskId: string): Promise<void> {
-  const view = taskViewForId(taskId);
+  const view = taskViewForId(state, taskId);
   if (!view?.task) {
     return;
   }
@@ -3969,28 +3728,15 @@ async function hydrateUsage(taskId: string): Promise<void> {
   markViewChanged(view);
 }
 
-function upsertTaskView(view: TaskViewState): void {
-  const index = state.taskViews.findIndex((item) => item.task?.id === view.task?.id);
-  if (index === -1) {
-    state.taskViews = [...state.taskViews, view];
-    return;
-  }
-  state.taskViews = state.taskViews.map((item, itemIndex) => (itemIndex === index ? view : item));
-}
-
 function activeTaskView(): TaskViewState | null {
   if (!state.activeTaskId) {
     return null;
   }
-  return taskViewForId(state.activeTaskId);
-}
-
-function taskViewForId(taskId: string): TaskViewState | null {
-  return state.taskViews.find((view) => view.task?.id === taskId) ?? null;
+  return taskViewForId(state, state.activeTaskId);
 }
 
 function activateTask(taskId: string): void {
-  const view = taskViewForId(taskId);
+  const view = taskViewForId(state, taskId);
   if (!view) {
     return;
   }
@@ -4089,7 +3835,7 @@ async function createTask(
       // confirms and fills the link a beat later (~1.2s).
       view.remoteControl.active = true;
     }
-    upsertTaskView(view);
+    upsertTaskView(state, view);
     activateTask(response.task.id);
     void hydrateTranscript(response.task.id);
     void hydrateUsage(response.task.id);
@@ -4355,7 +4101,7 @@ async function refreshReport(taskId = state.activeTaskId): Promise<void> {
   if (!taskId) {
     return;
   }
-  const view = taskViewForId(taskId);
+  const view = taskViewForId(state, taskId);
   if (!view?.task) {
     return;
   }
@@ -6749,42 +6495,6 @@ function folderSummaryLabel(): string {
   return state.taskDraft.cwd ? folderName(state.taskDraft.cwd) : "Duet workspace";
 }
 
-function appendLiveTranscript(view: TaskViewState, data: string): void {
-  if (!view.liveTranscriptRunId) {
-    return;
-  }
-
-  const transcript = ensureRunTranscript(view, view.liveTranscriptRunId);
-  transcript.receivedChars += data.length;
-  const nextRawText = `${transcript.rawText}${data}`;
-  transcript.truncated = transcript.truncated || nextRawText.length > MAX_TRANSCRIPT_RAW_CHARS;
-  transcript.rawText = nextRawText.slice(-MAX_TRANSCRIPT_RAW_CHARS);
-
-  const text = cleanTerminalTranscript(transcript.rawText, view.task?.provider);
-  transcript.truncated = transcript.truncated || text.length > MAX_TRANSCRIPT_CHARS;
-  transcript.text = text.slice(-MAX_TRANSCRIPT_CHARS);
-
-  if (!transcript.text.trim()) {
-    return;
-  }
-  scheduleTranscriptRender();
-}
-
-function ensureRunTranscript(view: TaskViewState, runId: string): RunTranscript {
-  let transcript = view.runTranscripts.find((item) => item.runId === runId);
-  if (!transcript) {
-    transcript = {
-      runId,
-      rawText: "",
-      text: "",
-      truncated: false,
-      receivedChars: 0,
-    };
-    view.runTranscripts = [...view.runTranscripts, transcript];
-  }
-  return transcript;
-}
-
 function scheduleTranscriptRender(): void {
   if (transcriptRenderTimer !== null) {
     return;
@@ -6858,7 +6568,7 @@ function setViewMode(mode: ViewMode): void {
 // request names a run, highlight and scroll to it. The artifact-strip scroll
 // target retired with the strip (2026-07-03).
 function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
-  const view = taskViewForId(request.taskId);
+  const view = taskViewForId(state, request.taskId);
   if (!view?.task) {
     return;
   }

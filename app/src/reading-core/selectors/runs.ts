@@ -9,25 +9,15 @@
  * `state.*`).
  */
 import type { DeliveryTaskState, RuntimeProvider, Task } from "../../shared/types";
-import type { RuntimeReportV1, RuntimeRunReport } from "../../shared/schemas";
+import type { RuntimeRunReport } from "../../shared/schemas";
+import type { TaskViewState } from "../state";
 import { approvalKindLabel, providerLabel } from "./formatters";
-
-/** The slice of the renderer's TaskViewState these selectors read. The full
- *  state type moves into reading-core at C1; until then selectors type
- *  against the slice (TaskViewState is structurally assignable). */
-export interface RunsView {
-  task: Task | null;
-  /** A PTY runtime backs this view; dormant views are read-only until resumed. */
-  live: boolean;
-  report: RuntimeReportV1 | null;
-  remoteControl: { active: boolean; url: string | null; armedOverride: boolean | null };
-}
 
 export function isActiveRunStatus(status: string): boolean {
   return ["active", "waiting-for-approval", "resumed-after-approval", "stopping"].includes(status);
 }
 
-export function hasActiveRun(view: RunsView | null): boolean {
+export function hasActiveRun(view: TaskViewState | null): boolean {
   const latestRun = view?.report?.runs.at(-1);
   return isActiveRunStatus(latestRun?.status ?? "");
 }
@@ -156,7 +146,7 @@ export type RemoteControlContext =
  *  when there's no live PTY (New Chat OR a dormant session) it ARMS the
  *  `--remote-control` spawn flag instead of injecting. */
 export function remoteControlContext(
-  view: RunsView | null,
+  view: TaskViewState | null,
   draftProvider: RuntimeProvider,
 ): RemoteControlContext {
   if (view?.task) {
@@ -171,7 +161,7 @@ export function remoteControlContext(
 /** A dormant Claude view's effective armed state: the user's explicit override if
  *  set, else the live global default — so toggling the default applies to
  *  ALREADY-OPEN dormant sessions, not only to ones opened afterward. */
-export function dormantArmed(view: RunsView, remoteControlDefault: boolean): boolean {
+export function dormantArmed(view: TaskViewState, remoteControlDefault: boolean): boolean {
   return view.remoteControl.armedOverride ?? remoteControlDefault;
 }
 
@@ -180,7 +170,7 @@ export function dormantArmed(view: RunsView, remoteControlDefault: boolean): boo
  *  arm-draft → the New Chat draft flag. */
 export function remoteControlOn(
   ctx: RemoteControlContext,
-  view: RunsView | null,
+  view: TaskViewState | null,
   draftRemoteControl: boolean,
   remoteControlDefault: boolean,
 ): boolean {

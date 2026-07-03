@@ -11,15 +11,8 @@ import type {
   AgentRunItem,
   TranscriptBlock,
 } from "../../shared/types/transcript";
-import type { RuntimeReportV1, RuntimeRunReport } from "../../shared/schemas";
-
-export interface RunTranscript {
-  runId: string;
-  rawText: string;
-  text: string;
-  truncated: boolean;
-  receivedChars: number;
-}
+import type { RuntimeRunReport } from "../../shared/schemas";
+import type { RunTranscript, TaskViewState } from "../state";
 
 export interface ReadingTurn {
   key: string;
@@ -30,21 +23,11 @@ export interface ReadingTurn {
   tsMs: number;
 }
 
-/** The slice of the renderer's TaskViewState these selectors read. The full
- *  state type moves into reading-core at C1; until then selectors type
- *  against the slice (TaskViewState is structurally assignable). */
-export interface TurnSourceView {
-  report: RuntimeReportV1 | null;
-  transcriptBlockOrder: string[];
-  transcriptBlocks: Map<string, TranscriptBlock>;
-  runTranscripts: RunTranscript[];
-}
-
-export function transcriptForRun(view: TurnSourceView, runId: string): RunTranscript | null {
+export function transcriptForRun(view: TaskViewState, runId: string): RunTranscript | null {
   return view.runTranscripts.find((item) => item.runId === runId) ?? null;
 }
 
-export function stripRunningAgents(view: TurnSourceView): AgentRunItem[] {
+export function stripRunningAgents(view: TaskViewState): AgentRunItem[] {
   const items: AgentRunItem[] = [];
   for (const id of view.transcriptBlockOrder) {
     const block = view.transcriptBlocks.get(id);
@@ -59,7 +42,7 @@ export function stripRunningAgents(view: TurnSourceView): AgentRunItem[] {
   return items;
 }
 
-export function deriveCurrentStepForView(view: TurnSourceView): string | null {
+export function deriveCurrentStepForView(view: TaskViewState): string | null {
   let planStep: string | null = null;
   let runningTool: string | null = null;
   for (const id of view.transcriptBlockOrder) {
@@ -82,7 +65,7 @@ export function deriveCurrentStepForView(view: TurnSourceView): string | null {
   return planStep ?? runningTool;
 }
 
-export function buildReadingTurns(view: TurnSourceView): ReadingTurn[] {
+export function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
   const runs = view.report?.runs ?? [];
   const runById = new Map(runs.map((run) => [run.runId, run]));
 
