@@ -2829,14 +2829,6 @@ h2 {
   font-weight: 650;
 }
 
-.run-rhythm-label {
-  margin-bottom: 5px;
-  color: var(--ink-label);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
 /* The delivery-queue panel's CSS left with its renderer (S1c removed the
    panel; S6 swept the orphaned item-list renderer + these rules). */
 
@@ -4704,18 +4696,13 @@ h2 {
   font-size: 12px;
 }
 
-.turn-fallback {
-  border-left: 3px solid var(--border-waiting);
-  padding-left: 10px;
-}
-
-.turn-fallback-text {
-  margin: 6px 0 0;
-  color: var(--ink-status);
-  font-size: 13px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+/* Degraded-reply note (the reply exists but could not be read structurally):
+   muted, not alarming - the run completed; only Reading's view of it is
+   reduced. The full text lives in the co-visible Terminal. */
+.turn-system-note.degraded {
+  display: grid;
+  gap: 9px;
+  justify-items: start;
 }
 
 /* Settled-but-not-completed marker (stopped / failed / denied / pty-exited):

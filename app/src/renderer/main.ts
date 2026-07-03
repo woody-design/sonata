@@ -6689,8 +6689,13 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   if (body.childElementCount === 0 && noAssistantOutput && noAssistantErrorExcerpt) {
     body.append(renderNoAssistantOutput(turn.run));
   }
-  if (body.childElementCount === 0 && turn.blocks.length === 0 && turn.fallbackText) {
-    body.append(renderTurnFallback(turn.fallbackText));
+  // A settled turn with terminal output but no structured transcript: state
+  // the degradation instead of impersonating the reply with a scrape dump
+  // (retired 2026-07-03 — Reading = reply + state; the real text is in the
+  // co-visible Terminal). While the run is still live this stays silent: the
+  // status strip owns "working", and blocks usually land moments later.
+  if (body.childElementCount === 0 && turn.blocks.length === 0 && turn.fallbackText && !liveRun) {
+    body.append(renderTurnFallback());
   }
   if (body.childElementCount === 0 && noAssistantOutput) {
     body.append(renderNoAssistantOutput(turn.run));
@@ -6830,15 +6835,22 @@ function formatLiveElapsed(startedAt: string | null): string {
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
-function renderTurnFallback(text: string): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "turn-fallback";
-  wrap.append(runSectionLabel("Terminal approximation"));
-  const pre = document.createElement("pre");
-  pre.className = "turn-fallback-text";
-  pre.textContent = text;
-  wrap.append(pre);
-  return wrap;
+// The scrape buffer (runTranscripts) remains the EVIDENCE that a reply
+// happened — it just no longer renders. Same family as renderNoAssistantOutput.
+function renderTurnFallback(): HTMLElement {
+  const note = document.createElement("div");
+  note.className = "turn-system-note degraded";
+  const copy = document.createElement("div");
+  copy.textContent = `${activeProviderLabel()} replied, but the reply could not be read structurally — the full text is in the Terminal.`;
+  const action = document.createElement("button");
+  action.className = "secondary turn-terminal-action";
+  action.type = "button";
+  action.textContent = "Open terminal";
+  action.addEventListener("click", () => {
+    setViewMode("terminal");
+  });
+  note.append(copy, action);
+  return note;
 }
 
 function renderNoAssistantOutput(run: RuntimeRunReport | null): HTMLElement {
@@ -7511,12 +7523,6 @@ function sendButtonLabel(activeRun: boolean): string {
   return "Send";
 }
 
-function runSectionLabel(value: string): HTMLElement {
-  const label = document.createElement("div");
-  label.className = "run-rhythm-label";
-  label.textContent = value;
-  return label;
-}
 
 
 function runOutcome(

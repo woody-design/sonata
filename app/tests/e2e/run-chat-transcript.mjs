@@ -46,7 +46,7 @@ try {
     .locator(".turn-work-trace, .turn-tool, .turn-thinking, .turn-plan, .turn-agents, .turn-provenance")
     .count();
 
-  const assistantBody = runCard.locator(".turn-body .md-body, .turn-body .turn-fallback-text").first();
+  const assistantBody = runCard.locator(".turn-body .md-body").first();
   await assistantBody.waitFor({ state: "visible" });
   const userText = await runCard.locator(".turn-user-text").textContent();
   const assistantText = await runCard.locator(".turn-body").textContent();
