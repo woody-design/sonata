@@ -1,46 +1,52 @@
-# Runtime-event corpus — pinned snapshot
+# Runtime-event corpus — pinned snapshot (sanitized)
 
-Captured 2026-07-03 at commit c325cc4 by running every e2e with
-`DUET_RUNTIME_EVENT_LOG` (recorder tap at the main-process sendEvent seam,
-landed in map step A1). Files are renamed to stable NN.jsonl per app
-instance; content is verbatim recorded reality — never regenerate silently
-(schema drift must show as a reviewed diff). run-reading-surface timed out
-under back-to-back capture load; its entry is a clean solo re-capture.
-Known-red tests are included deliberately — their streams cover rare paths
-up to the failure point (dormant-open, entry churn).
+Captured 2026-07-03 at commit bc3fb11 (post chip-merges — the code the C2
+reducer extracts from) by running every e2e with DUET_RUNTIME_EVENT_LOG, then
+sanitized via scripts/sanitize-runtime-corpus.mjs (deterministic, shape-
+preserving; emails/home paths/session URLs/greetings replaced, pty:data bytes
+included) — smoke:corpus-lint enforces this stays true. Files are stable
+NN.jsonl per app instance; content is otherwise verbatim recorded reality —
+never regenerate silently (schema drift must show as a reviewed diff).
+Roughly a third of the e2e suite never boots the full app (harness-only or
+ELECTRON_RUN_AS_NODE tests) and therefore records nothing — absence of a
+scenario dir means no app instance ran, not a capture failure.
+window-state-fullscreen timed out under capture load (known flaky, passes
+solo); its stream covers the run up to the kill.
 
-**Total: 36 scenarios, 5810 events, 2501 KB.**
+**Total: 27 recorded scenarios, 5535 events, 2331 KB.**
 
 ## NOT in this corpus (mandatory hand-written adversarial fixtures for C2)
 
 - approval:expired (broker-timeout path; incl. the S6-P2 keyed-expiry case)
 - approval:persisted (Always-rule receipt)
 - file:watch-error
+- keyed pendingApproval retraction on run settle (fix/dormant-resume landed
+  after capture scenarios exercising the old wedge)
 
 ## Global event-type histogram
 
-- pty:data: 2662
-- delivery:state: 1090
-- working-status:updated: 559
-- report:updated: 344
-- sessions:updated: 243
-- cli-state:changed: 155
-- task:updated: 130
-- usage:updated: 113
-- run:updated: 103
-- transcript:blocks: 87
-- delivery:receipt: 43
-- approval:detected: 41
-- prompt:submitted: 36
-- run:started: 35
-- file:watching: 32
-- task:started: 32
-- transcript:located: 28
-- approval:decision: 27
+- pty:data: 2902
+- working-status:updated: 606
+- delivery:state: 605
+- report:updated: 324
+- sessions:updated: 236
+- cli-state:changed: 139
+- task:updated: 117
+- usage:updated: 106
+- run:updated: 90
+- transcript:blocks: 89
+- delivery:receipt: 46
+- prompt:submitted: 38
+- run:started: 37
+- approval:detected: 34
+- file:watching: 33
+- task:started: 33
+- transcript:located: 29
 - file:changed: 25
+- approval:decision: 19
 - remote-control:state: 12
 - task:ready: 5
-- pty:exit: 3
+- pty:exit: 5
 - option-prompt:detected: 2
 - option-prompt:resolved: 1
 - run:stop-requested: 1
@@ -50,39 +56,30 @@ up to the failure point (dormant-open, entry churn).
 
 | scenario | files | events | types present |
 |---|---|---|---|
-| approval-surface | 1 | 152 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| change-summary | 1 | 328 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| cli-slash-dispatch | 0 | 0 |  |
-| cli-slash-semantic | 1 | 160 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| composer-ime | 0 | 0 |  |
-| composer-newchat-attachment | 1 | 91 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| composer-reference-attachment | 1 | 89 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| composer-slash-picker | 0 | 0 |  |
-| cross-session-isolation | 1 | 844 | cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| g1b-claude-hook-external | 1 | 78 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| gui-walking-skeleton | 1 | 306 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| inspector-folder-external | 1 | 86 | cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| new-chat | 0 | 0 |  |
-| open-task | 2 | 422 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| option-prompt-multiselect | 1 | 114 | approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:watching, option-prompt:detected, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| option-prompt-surface | 1 | 127 | approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:watching, option-prompt:detected, option-prompt:resolved, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| provider-locked-task | 1 | 76 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| queue-delivery | 1 | 467 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| reading-navigation | 1 | 85 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| reading-settings | 0 | 0 |  |
-| remote-control | 1 | 95 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, remote-control:state, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| remote-control-arm | 1 | 54 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, remote-control:state, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:located, usage:updated, working-status:updated |
-| remote-control-default | 0 | 0 |  |
-| remote-control-default-resume | 1 | 83 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, remote-control:state, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| remote-control-default-retroactive | 1 | 77 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| remote-control-dormant | 2 | 594 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, remote-control:state, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| run-chat-transcript | 1 | 220 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| run-reading-surface | 1 | 330 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| settings-overlay | 0 | 0 |  |
-| settings-screenshots | 0 | 0 |  |
-| sidebar-sessions | 1 | 417 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| stop-continue | 1 | 300 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:stop-requested, run:stopped, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| approval-surface | 1 | 174 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| change-summary | 1 | 282 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| cli-slash-semantic | 1 | 171 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| composer-newchat-attachment | 1 | 93 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| composer-reference-attachment | 1 | 92 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| cross-session-isolation | 1 | 757 | cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| g1b-claude-hook-external | 1 | 81 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| gui-walking-skeleton | 1 | 240 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| inspector-folder-external | 1 | 85 | cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| new-chat | 1 | 185 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, pty:exit, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| open-task | 2 | 443 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| option-prompt-multiselect | 1 | 120 | approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:watching, option-prompt:detected, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| option-prompt-surface | 1 | 145 | approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:watching, option-prompt:detected, option-prompt:resolved, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| provider-locked-task | 1 | 91 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| queue-delivery | 1 | 502 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| reading-navigation | 1 | 86 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| remote-control | 1 | 97 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, remote-control:state, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| remote-control-arm | 1 | 55 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, remote-control:state, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated |
+| remote-control-default-resume | 1 | 95 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, remote-control:state, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| remote-control-default-retroactive | 1 | 82 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| remote-control-dormant | 2 | 146 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, remote-control:state, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| run-chat-transcript | 1 | 226 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| run-reading-surface | 1 | 308 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| sidebar-sessions | 1 | 416 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, pty:exit, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
+| stop-continue | 1 | 337 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:stop-requested, run:stopped, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
 | task-folder-cwd | 1 | 29 | file:watching, pty:data, pty:exit, report:updated, sessions:updated, task:started |
-| transcript-selection | 1 | 186 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| window-state-fullscreen | 0 | 0 |  |
-| window-state-persistence | 0 | 0 |  |
+| transcript-selection | 1 | 197 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
