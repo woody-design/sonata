@@ -106,6 +106,17 @@ import {
   settingsDateLabel,
   usageLimitDisplayLabel,
 } from "../reading-core/selectors/formatters";
+import {
+  AUTO_TITLE_PLACEHOLDERS,
+  MAX_TRANSCRIPT_CHARS,
+  MAX_TRANSCRIPT_RAW_CHARS,
+  MODEL_OPTIONS,
+  REASONING_OPTIONS,
+  SPEED_OPTIONS,
+  USAGE_CONTEXT_HIGH_USED_PERCENT,
+  modelValueLabel,
+  reasoningValueLabel,
+} from "../reading-core/config";
 
 interface RunTranscript {
   runId: string;
@@ -1698,7 +1709,6 @@ const elements = {
 };
 
 
-const USAGE_CONTEXT_HIGH_USED_PERCENT = 80;
 const USAGE_POPOVER_OPEN_DELAY_MS = 150;
 const USAGE_POPOVER_CLOSE_DELAY_MS = 180;
 
@@ -1730,44 +1740,8 @@ let lastComposerCompositionEndAt = 0;
 let composerSending = false;
 let usagePopoverOpenTimer: number | null = null;
 let usagePopoverCloseTimer: number | null = null;
-const MAX_TRANSCRIPT_CHARS = 120_000;
-const MAX_TRANSCRIPT_RAW_CHARS = 260_000;
 const COMPOSITION_END_SHORTCUT_GUARD_MS = 80;
-const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
-const MODEL_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: string | null }>> = {
-  codex: [
-    { label: "GPT-5.5", value: "gpt-5.5" },
-    { label: "GPT-5.4", value: "gpt-5.4" },
-    { label: "GPT-5.4-Mini", value: "gpt-5.4-mini" },
-    { label: "GPT-5.3-Codex-Spark", value: "gpt-5.3-codex-spark" },
-    { label: "Native Default", value: null },
-  ],
-  claude: [
-    { label: "Fable 5", value: "fable" },
-    { label: "Opus 4.8", value: "opus" },
-    { label: "Sonnet 4.6", value: "sonnet" },
-    { label: "Haiku 4.5", value: "haiku" },
-    { label: "Native Default", value: null },
-  ],
-};
 const PROMPT_NAV_DOM_TASK_ID = "__active-transcript-dom__";
-const REASONING_OPTIONS: Record<RuntimeProvider, Array<{ label: string; value: ReasoningEffort | null }>> = {
-  codex: [
-    { label: "Low", value: "low" },
-    { label: "Medium", value: "medium" },
-    { label: "High", value: "high" },
-    { label: "Extra High", value: "xhigh" },
-    { label: "Native Default", value: null },
-  ],
-  claude: [
-    { label: "Low", value: "low" },
-    { label: "Medium", value: "medium" },
-    { label: "High", value: "high" },
-    { label: "Extra High", value: "xhigh" },
-    { label: "Max", value: "max" },
-    { label: "Native Default", value: null },
-  ],
-};
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
@@ -6957,10 +6931,7 @@ function renderLaunchSettingsPopover(provider: RuntimeProvider): HTMLElement {
     popover.append(
       renderSettingSection(
         "Speed",
-        [
-          { label: "Default", value: "default" },
-          { label: "Fast", value: "fast" },
-        ],
+        SPEED_OPTIONS,
         state.taskDraft.speedMode.codex,
         (value) => {
           state.taskDraft.speedMode.codex = value as LaunchSpeedMode;
@@ -7114,38 +7085,6 @@ function modelSummaryLabel(provider: RuntimeProvider): string {
 
 function reasoningSummaryLabel(provider: RuntimeProvider): string {
   return reasoningValueLabel(state.taskDraft.reasoningEffort[provider]) ?? "Default";
-}
-
-function modelValueLabel(provider: RuntimeProvider, value: string | null): string | null {
-  if (!value) {
-    return null;
-  }
-  if (provider === "codex") {
-    if (value === "gpt-5.5") {
-      return "5.5";
-    }
-    if (value === "gpt-5.4") {
-      return "5.4";
-    }
-    if (value === "gpt-5.4-mini") {
-      return "5.4 Mini";
-    }
-    if (value === "gpt-5.3-codex-spark") {
-      return "5.3 Spark";
-    }
-  }
-  return MODEL_OPTIONS[provider].find((option) => option.value === value)?.label ?? value;
-}
-
-function reasoningValueLabel(value: ReasoningEffort | null): string | null {
-  if (!value) {
-    return null;
-  }
-  return (
-    [...REASONING_OPTIONS.codex, ...REASONING_OPTIONS.claude].find(
-      (option) => option.value === value,
-    )?.label ?? value
-  );
 }
 
 function folderSummaryLabel(): string {
