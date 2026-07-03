@@ -18,33 +18,23 @@ const approval = (taskId, extra = {}) => ({
   payload: { taskId, ...extra },
   ts: at(0),
 });
-const runStarted = (taskId, title) => ({ type: "run:started", payload: { taskId, title }, ts: at(0) });
-const taskUpdated = (taskId, title) => ({
-  type: "task:updated",
-  payload: { taskId, task: { id: taskId, title }, reason: "runtime-status" },
-  ts: at(0),
-});
 
 function harness() {
   const shown = [];
   const activated = [];
   const handles = [];
+  const meta = new Map(); // taskId → { title, provider }
   const notifier = (content) => {
     const handle = {
       content,
       clickCbs: [],
-      closeCbs: [],
-      shown: false,
       show() {
-        this.shown = true;
         shown.push(content);
       },
       onClick(cb) {
         this.clickCbs.push(cb);
       },
-      onClose(cb) {
-        this.closeCbs.push(cb);
-      },
+      onClose() {},
       click() {
         this.clickCbs.forEach((cb) => cb());
       },
@@ -55,76 +45,92 @@ function harness() {
   const controller = new NotificationController({
     notifier,
     activateTask: (taskId) => activated.push(taskId),
+    resolveTaskMeta: (taskId) => meta.get(taskId) ?? null,
   });
-  return { controller, shown, activated, handles };
+  return { controller, shown, activated, handles, meta };
 }
 
-// 1) A completed turn shows "<task title> / Claude finished".
+// 1) A completed Claude turn: "<task title> / Claude finished".
 {
   const h = harness();
-  h.controller.handleEvent(taskUpdated("t1", "Notification feature"));
+  h.meta.set("t1", { title: "Notification feature", provider: "claude" });
   h.controller.handleEvent(cli("t1", "busy", 0));
   h.controller.handleEvent(cli("t1", "turn-ended", 45));
   assert.equal(h.shown.length, 1, "one notification shown");
-  assert.deepEqual(
-    h.shown[0],
-    { title: "Notification feature", body: "Claude finished" },
-    "task title as title, Claude Code-style body",
-  );
+  assert.deepEqual(h.shown[0], { title: "Notification feature", body: "Claude finished" });
 }
 
-// 2) A needs-you shows the approval copy.
+// 2) A needs-you shows the request copy.
 {
   const h = harness();
-  h.controller.handleEvent(taskUpdated("t1", "Fix the parser"));
+  h.meta.set("t1", { title: "Fix the parser", provider: "claude" });
   h.controller.handleEvent(cli("t1", "busy", 0));
   h.controller.handleEvent(approval("t1", { approvalId: "a1" }));
   assert.deepEqual(h.shown[0], { title: "Fix the parser", body: "Claude needs your input" });
 }
 
-// 3) Clicking routes to the task, once (ref dropped on click).
+// 3) Codex copy — provider-aware, never "Claude" (P2a).
 {
   const h = harness();
-  h.controller.handleEvent(taskUpdated("t1", "Fix the parser"));
+  h.meta.set("t1", { title: "Port the CLI", provider: "codex" });
+  h.controller.handleEvent(cli("t1", "busy", 0));
+  h.controller.handleEvent(cli("t1", "turn-ended", 45));
+  assert.deepEqual(h.shown[0], { title: "Port the CLI", body: "Codex finished" });
+}
+
+// 4) Clicking routes to the task, once.
+{
+  const h = harness();
+  h.meta.set("t1", { title: "Fix the parser", provider: "claude" });
   h.controller.handleEvent(cli("t1", "busy", 0));
   h.controller.handleEvent(cli("t1", "turn-ended", 45));
   h.handles[0].click();
   assert.deepEqual(h.activated, ["t1"], "click activates the notification's task");
 }
 
-// 4) The user-editable session name wins over a run title.
+// 5) The name is read at FIRE time — a rename after the turn started still wins
+//    (the whole reason we pull from the registry, not from event inference).
 {
   const h = harness();
-  h.controller.handleEvent(runStarted("t1", "run-derived title"));
-  h.controller.handleEvent(taskUpdated("t1", "Human name"));
+  h.meta.set("t1", { title: "old name", provider: "claude" });
   h.controller.handleEvent(cli("t1", "busy", 0));
+  h.meta.set("t1", { title: "renamed", provider: "claude" }); // renamed mid-turn
   h.controller.handleEvent(cli("t1", "turn-ended", 45));
-  assert.equal(h.shown[0].title, "Human name", "task:updated title beats run:started");
+  assert.equal(h.shown[0].title, "renamed", "title resolved at fire time");
 }
 
-// 5) Auto-title placeholders never surface — fall back to the app name.
+// 6) Placeholder title never surfaces — fall back to the app name.
 {
   const h = harness();
-  h.controller.handleEvent(taskUpdated("t1", "New Task"));
+  h.meta.set("t1", { title: "New Task", provider: "claude" });
   h.controller.handleEvent(cli("t1", "busy", 0));
   h.controller.handleEvent(cli("t1", "turn-ended", 45));
   assert.equal(h.shown[0].title, "Duet", "placeholder title → fallback");
 }
 
-// 6) A sub-floor turn shows nothing (policy wired through).
+// 7) No live meta → neutral copy, no crash.
+{
+  const h = harness(); // meta map empty → resolveTaskMeta returns null
+  h.controller.handleEvent(cli("t1", "busy", 0));
+  h.controller.handleEvent(cli("t1", "turn-ended", 45));
+  assert.deepEqual(h.shown[0], { title: "Duet", body: "Agent finished" });
+}
+
+// 8) A sub-floor turn shows nothing (policy wired through).
 {
   const h = harness();
-  h.controller.handleEvent(taskUpdated("t1", "Fix the parser"));
+  h.meta.set("t1", { title: "Fix the parser", provider: "claude" });
   h.controller.handleEvent(cli("t1", "busy", 0));
   h.controller.handleEvent(cli("t1", "turn-ended", 5));
   assert.equal(h.shown.length, 0, "fast turn → no notification");
 }
 
-// 7) A null notifier (OS can't show) is handled without throwing.
+// 9) A null notifier (OS can't show) is handled without throwing.
 {
   const controller = new NotificationController({
     notifier: () => null,
     activateTask: () => {},
+    resolveTaskMeta: () => null,
   });
   controller.handleEvent(cli("t1", "busy", 0));
   controller.handleEvent(cli("t1", "turn-ended", 45));

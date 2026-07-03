@@ -764,6 +764,14 @@ app.whenReady().then(() => {
   if (process.env.DUET_NOTIFICATIONS !== "0") {
     notificationController = new NotificationController({
       activateTask: activateTaskFromNotification,
+      // Pull the current name + provider from the live task registry at fire
+      // time — authoritative even after a rename, and for tasks the controller
+      // never saw created. `runtimeController` is assigned just below; the
+      // notifier only fires later, so the lazy read is safe.
+      resolveTaskMeta: (taskId) => {
+        const task = runtimeController?.listTasks().find((entry) => entry.id === taskId);
+        return task ? { title: task.title, provider: task.provider } : null;
+      },
     });
   }
   runtimeController = new RuntimeController({

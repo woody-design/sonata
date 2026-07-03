@@ -4045,9 +4045,12 @@ window.duetRuntime.onMainArtifactFocus((request) => {
 });
 
 // A clicked native notification lands us on its task (the window was already
-// raised in the main process). activateTask no-ops if the view isn't loaded.
+// raised in the main process). selectSession, not activateTask: the task may
+// not be materialized yet (opened via the Local API, or not yet hydrated after
+// a reload) — runtime events for an unloaded view are dropped, so activateTask
+// alone would no-op. selectSession loads the session first, then activates.
 window.duetRuntime.onNotificationActivateTask((taskId) => {
-  activateTask(taskId);
+  void selectSession(taskId);
 });
 
 void hydrateReadingSettings();
