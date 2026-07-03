@@ -126,6 +126,14 @@ import {
   type ReadingTurn,
   type RunTranscript,
 } from "../reading-core/selectors/turns";
+import {
+  SIDEBAR_PREFS_DEFAULTS,
+  applySidebarPrefs,
+  sidebarDateBuckets,
+  sidebarEntries,
+  type SidebarEntry,
+  type SidebarPrefs,
+} from "../reading-core/selectors/sidebar";
 
 interface OptionPromptReceiptLine {
   header: string;
@@ -443,23 +451,6 @@ type FilterMenuSection = "status" | "project" | "activity" | "group" | "sort";
 let sidebarMenu: SidebarMenuState | null = null;
 let renamingSessionId: string | null = null;
 
-/** Sidebar organization preferences. View state — persisted per machine. */
-interface SidebarPrefs {
-  status: "active" | "archived" | "all";
-  /** providerCwd of the focused project, or null for all. */
-  project: string | null;
-  activity: "1d" | "3d" | "7d" | "30d" | "all";
-  groupBy: "project" | "date" | "none";
-  sortBy: "recency" | "created" | "alphabetical";
-}
-
-const SIDEBAR_PREFS_DEFAULTS: SidebarPrefs = {
-  status: "active",
-  project: null,
-  activity: "all",
-  groupBy: "project",
-  sortBy: "recency",
-};
 const SIDEBAR_PREFS_KEY = "duet.sidebar.prefs";
 
 let sidebarPrefs: SidebarPrefs = loadSidebarPrefs();
@@ -520,76 +511,6 @@ function renderSidebar(): void {
   renderSidebarMenu();
 }
 
-interface SidebarEntry {
-  session: SessionSummary;
-  /** null = auto-workspace session ("Chats"). */
-  projectPath: string | null;
-  projectName: string | null;
-  projectArchived: boolean;
-}
-
-function sidebarEntries(index: SessionIndexResponse): SidebarEntry[] {
-  const entries: SidebarEntry[] = [];
-  for (const project of index.projects) {
-    for (const session of project.sessions) {
-      entries.push({
-        session,
-        projectPath: project.path,
-        projectName: project.name,
-        projectArchived: project.archived,
-      });
-    }
-  }
-  for (const session of index.chats) {
-    entries.push({ session, projectPath: null, projectName: null, projectArchived: false });
-  }
-  return entries;
-}
-
-const ACTIVITY_WINDOW_MS: Record<Exclude<SidebarPrefs["activity"], "all">, number> = {
-  "1d": 24 * 3_600_000,
-  "3d": 3 * 24 * 3_600_000,
-  "7d": 7 * 24 * 3_600_000,
-  "30d": 30 * 24 * 3_600_000,
-};
-
-function applySidebarPrefs(entries: SidebarEntry[]): SidebarEntry[] {
-  const prefs = sidebarPrefs;
-  const now = Date.now();
-  const filtered = entries.filter((entry) => {
-    const archived = entry.session.archived || entry.projectArchived;
-    if (prefs.status === "active" && archived) {
-      return false;
-    }
-    if (prefs.status === "archived" && !archived) {
-      return false;
-    }
-    if (prefs.project !== null && entry.projectPath !== prefs.project) {
-      return false;
-    }
-    if (prefs.activity !== "all") {
-      const ageMs = now - Date.parse(entry.session.lastActivityAt);
-      if (!(ageMs <= ACTIVITY_WINDOW_MS[prefs.activity])) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  // Sort applies WITHIN groups; group order is fixed by the grouping
-  // (projects by latest activity, date buckets chronologically).
-  filtered.sort((a, b) => {
-    if (prefs.sortBy === "alphabetical") {
-      return a.session.task.title.localeCompare(b.session.task.title);
-    }
-    if (prefs.sortBy === "created") {
-      return b.session.task.createdAt.localeCompare(a.session.task.createdAt);
-    }
-    return b.session.lastActivityAt.localeCompare(a.session.lastActivityAt);
-  });
-  return filtered;
-}
-
 function renderSidebarSections(): void {
   elements.sidebarList.replaceChildren();
   const index = sessionIndex;
@@ -598,7 +519,7 @@ function renderSidebarSections(): void {
   }
 
   const allEntries = sidebarEntries(index);
-  const entries = applySidebarPrefs(allEntries);
+  const entries = applySidebarPrefs(allEntries, sidebarPrefs);
 
   const focusedProject =
     sidebarPrefs.project !== null
@@ -696,23 +617,7 @@ function renderSidebarProjectGroups(entries: SidebarEntry[]): void {
 }
 
 function renderSidebarDateGroups(entries: SidebarEntry[]): void {
-  const buckets: Array<{ label: string; entries: SidebarEntry[] }> = [
-    { label: "Today", entries: [] },
-    { label: "Yesterday", entries: [] },
-    { label: "This week", entries: [] },
-    { label: "Older", entries: [] },
-  ];
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const todayMs = startOfToday.getTime();
-  const dayMs = 24 * 3_600_000;
-  for (const entry of entries) {
-    const ts = Date.parse(entry.session.lastActivityAt);
-    const bucket =
-      ts >= todayMs ? 0 : ts >= todayMs - dayMs ? 1 : ts >= todayMs - 6 * dayMs ? 2 : 3;
-    buckets[bucket]?.entries.push(entry);
-  }
-  for (const bucket of buckets) {
+  for (const bucket of sidebarDateBuckets(entries)) {
     if (bucket.entries.length === 0) {
       continue;
     }

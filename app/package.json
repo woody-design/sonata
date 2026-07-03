@@ -97,6 +97,7 @@
     "smoke:import-fence": "node tests/smoke/import-fence.mjs",
     "smoke:reading-core-formatters": "npm run build:main && node tests/smoke/reading-core-formatters.mjs",
     "smoke:reading-turns": "npm run build:main && node tests/smoke/reading-turns.mjs",
+    "smoke:reading-sidebar-selectors": "npm run build:main && node tests/smoke/reading-sidebar-selectors.mjs",
     "smoke:approval-resurface-window": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-resurface-window.mjs",
     "smoke:approval-gate-keyed": "npm run build:main && node tests/smoke/approval-gate-keyed.mjs",
     "smoke:run-attribution": "npm run build:main && node tests/smoke/run-attribution.mjs",
