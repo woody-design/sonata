@@ -93,6 +93,7 @@
     "smoke:claude-permission-default": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-permission-default.mjs",
     "smoke:claude-config-trust": "npm run build:main && node tests/smoke/claude-config-trust.mjs",
     "smoke:reading-core-purity": "npm run build:main && node tests/smoke/reading-core-purity.mjs",
+    "smoke:corpus-lint": "node tests/smoke/corpus-lint.mjs",
     "smoke:import-fence": "node tests/smoke/import-fence.mjs",
     "smoke:reading-core-formatters": "npm run build:main && node tests/smoke/reading-core-formatters.mjs",
     "smoke:approval-resurface-window": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-resurface-window.mjs",

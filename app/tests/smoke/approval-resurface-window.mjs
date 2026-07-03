@@ -182,7 +182,7 @@ async function runScenario(name, scenario) {
  *  wedges "Waiting for approval" forever and the approval guard blocks every
  *  later send (s5-diags/evidence-walking-skeleton). Locks: the resync
  *  resumes the run AND the Stop-hook completion then lands. */
-async function runBrokerResyncScenario(name) {
+async function runBrokerResyncScenario(name, mode) {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-resurface-broker-"));
   const scriptPath = path.join(workspace, "fake-claude.mjs");
   fs.writeFileSync(
@@ -248,17 +248,41 @@ setInterval(() => {}, 1000);
       (e) => e.type === "run:updated" && e.payload.status === "waiting-for-approval",
     );
     assert(Boolean(wedged), `${name}: run flipped to waiting-for-approval by the scrape`);
-    // Pre-fix truth: a Stop hook landing NOW is a guarded no-op.
-    assert(host.completeRunFromTurnEnd() === null, `${name}: Stop is a no-op while wedged`);
 
-    // The decision arrives on the hook channel — the controller resyncs us.
+    if (mode === "stop-outranks") {
+      // fix/dormant-resume (2026-07-03): Stop arriving while the approval flag
+      // is up proves the flag stale (a truly pending ask blocks the turn, so
+      // Stop cannot race it) — it clears the state and completes, instead of
+      // the pre-fix guarded no-op that wedged the run and dropped the Stop.
+      const finished = host.completeRunFromTurnEnd();
+      assert(finished?.status === "completed", `${name}: Stop completes over the stale flag`);
+      assert(
+        events.some((e) => e.type === "run:updated" && e.payload.status === "completed"),
+        `${name}: completed run:updated is emitted`,
+      );
+      return;
+    }
+
+    // mode === "watermark": the decision arrives on the hook channel — the
+    // watermark advances (the answered panel's bytes are settled history) and
+    // the >1.2s recheck must NOT re-detect them as a phantom "resurfaced" ask.
+    // Pre-decision re-emits of the still-unanswered panel are legitimate; the
+    // contract is zero NEW detections AFTER the decision.
+    const detectionsBeforeDecision = events.filter((e) => e.type === "approval:detected").length;
     host.noteHookApprovalDecision("approve", "file-edit");
     const resumed = events.find(
       (e) => e.type === "run:updated" && e.payload.lifecyclePhase === "resumed-after-approval",
     );
     assert(Boolean(resumed), `${name}: reply-channel decision resumed the run`);
+    await delay(2200); // past the recheck window that used to fire the phantom
+    const detectionsAfterDecision =
+      events.filter((e) => e.type === "approval:detected").length - detectionsBeforeDecision;
+    assert(
+      detectionsAfterDecision === 0,
+      `${name}: the answered panel must not re-detect after the decision (saw ${detectionsAfterDecision})`,
+    );
     const finished = host.completeRunFromTurnEnd();
-    assert(finished?.status === "completed", `${name}: Stop-hook completion lands after resync`);
+    assert(finished?.status === "completed", `${name}: Stop-hook completion lands cleanly`);
   } finally {
     host.dispose();
     fs.rmSync(workspace, { recursive: true, force: true });
@@ -269,7 +293,8 @@ try {
   await runScenario("A/answered", "answered");
   await runScenario("B/still-open", "still-open");
   await runScenario("C/native-still-open", "native-still-open");
-  await runBrokerResyncScenario("D/broker-resync");
+  await runBrokerResyncScenario("D/stop-outranks-stale", "stop-outranks");
+  await runBrokerResyncScenario("E/broker-watermark-no-resurface", "watermark");
 } catch (error) {
   failures.push(String(error));
 }

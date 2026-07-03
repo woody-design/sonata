@@ -33,15 +33,33 @@ function tsFilesUnder(dir) {
   return out;
 }
 
-const IMPORT_RE = /^\s*(?:import|export)\s[^;]*?from\s+["']([^"']+)["']/gm;
+// Three specifier sources (review 2026-07-03: the from-only regex missed
+// side-effect and dynamic imports): `import ... from "x"` / `export ... from
+// "x"`, bare `import "x"`, and `import("x")` / `require("x")` calls.
+// Comments are stripped first so commented-out imports can't false-positive.
+const FROM_RE = /(?:^|\n)\s*(?:import|export)\s[^;]*?from\s+["']([^"']+)["']/g;
+const SIDE_EFFECT_RE = /(?:^|\n)\s*import\s+["']([^"']+)["']/g;
+const DYNAMIC_RE = /\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g;
+
+function stripComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+}
+
+function* specifiersIn(source) {
+  const stripped = stripComments(source);
+  for (const re of [FROM_RE, SIDE_EFFECT_RE, DYNAMIC_RE]) {
+    for (const match of stripped.matchAll(re)) {
+      yield match[1];
+    }
+  }
+}
 
 const violations = [];
 for (const rule of RULES) {
   const layerDir = join(SRC, rule.layer);
   for (const file of tsFilesUnder(layerDir)) {
     const source = readFileSync(file, "utf8");
-    for (const match of source.matchAll(IMPORT_RE)) {
-      const specifier = match[1];
+    for (const specifier of specifiersIn(source)) {
       if (!specifier.startsWith(".")) {
         if (!rule.allowedPackages.includes(specifier)) {
           violations.push(`${file}: package import "${specifier}" not allowed in ${rule.layer}`);

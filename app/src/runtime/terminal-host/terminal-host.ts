@@ -1502,8 +1502,14 @@ export class TerminalHost extends EventEmitter {
       return;
     }
 
-    const approvalSource = this.activeRun ? this.activeRunRaw : this.rawTail;
-    const candidate = detectApprovalCandidate(approvalSource, this.profile);
+    // Floored scan (fix/dormant-resume completion, review 2026-07-03): the
+    // settle re-check is an approval scrape like the others, so it reads the
+    // stream through the broker-decision watermark. The native-key honesty
+    // backstop is preserved by construction — key decisions never advance the
+    // floor, so a genuinely-still-open panel stays above it and resurfaces;
+    // a broker-answered panel lies below it and cannot phantom-resurface
+    // (this was the third scan site; the fix had converted the other two).
+    const candidate = detectApprovalCandidate(this.approvalScanSource(), this.profile);
     if (!candidate || candidate.promptAfterApproval) {
       return;
     }

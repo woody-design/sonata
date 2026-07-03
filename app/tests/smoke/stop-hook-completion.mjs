@@ -56,7 +56,14 @@ await check("StopFailure completes the run carrying the structured error", async
   }
 });
 
-await check("Stop hook does NOT complete a run while an approval is pending", async () => {
+// Contract updated by fix/dormant-resume (2026-07-03): a genuinely pending
+// ask holds its turn open (the broker blocks inside the PermissionRequest
+// hook; a native panel blocks the tool call), so Stop CANNOT fire while one
+// is truly waiting — Stop arriving with the approval flag up proves the flag
+// is a stale scrape artifact. The old "never complete while approval pending"
+// guard is superseded: it was exactly the wedge that dropped Stop on claude
+// ≥2.1.186's repainted panels.
+await check("Stop hook outranks a stale approval flag: clears it and completes", async () => {
   const events = [];
   const host = makeHost(events);
   try {
@@ -66,14 +73,31 @@ await check("Stop hook does NOT complete a run while an approval is pending", as
 
     const result = host.completeRunFromTurnEnd();
 
-    assert.equal(result, null, "must not complete a run that is waiting on an approval");
-    assert.ok(host.activeRun, "active run should be left intact");
-    assert.equal(host.activeRun.status, "active");
+    assert.equal(result?.status, "completed", "stale-approval Stop completes the run");
+    assert.equal(result?.statusReason, "stop hook (turn ended)");
+    assert.equal(host.approvalActive, false, "stale approval flag is cleared");
+    assert.equal(host.activeRun, null, "run is finished, not left wedged");
     assert.equal(
       events.some((event) => event.type === "run:updated" && event.payload.status === "completed"),
-      false,
-      "no completed event should be emitted",
+      true,
+      "completed event is emitted",
     );
+  } finally {
+    host.dispose();
+  }
+});
+
+await check("Stop hook keeps the no-op guard for runs already mid-stop", async () => {
+  const events = [];
+  const host = makeHost(events);
+  try {
+    host.ptyProcess = fakePty();
+    host.activeRun = { ...activeRun(), status: "stopping" };
+
+    const result = host.completeRunFromTurnEnd();
+
+    assert.equal(result, null, "a stopping run is not completed by the Stop hook");
+    assert.ok(host.activeRun, "the stopping run is left for the stop path to finish");
   } finally {
     host.dispose();
   }
