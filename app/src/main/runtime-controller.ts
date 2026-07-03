@@ -1029,7 +1029,7 @@ export class RuntimeController {
    * user doesn't want to proceed"), so the asks resolve honestly as
    * deny/Esc — gate released, report balanced, the shown card cleared.
    */
-  private abortPendingBrokerApprovals(active: ActiveTaskRuntime): void {
+  private abortPendingBrokerApprovals(active: ActiveTaskRuntime, runId: RunId | null): void {
     for (const [id, pending] of this.pendingBrokerApprovals) {
       if (pending.taskId !== active.task.id) {
         continue;
@@ -1039,7 +1039,12 @@ export class RuntimeController {
         type: "approval:decision",
         payload: {
           taskId: active.task.id,
-          runId: active.terminalHost.activeRunId(),
+          // The terminating EVENT's runId — activeRunId() is already null
+          // here (finishActiveRun cleared it before the event was emitted),
+          // which sent these denials to unassignedApprovals while their
+          // detected twins sat on the run: an unbalanced audit trail
+          // (review 2026-07-03).
+          runId: runId ?? active.terminalHost.activeRunId(),
           decision: "deny",
           encodedAs: "Esc",
           previousKind: classifyApprovalKind(pending.payload),
@@ -1219,7 +1224,13 @@ export class RuntimeController {
             (event.payload.status === "completed" &&
               event.payload.completionSource === "terminal-idle-heuristic"))))
     ) {
-      this.abortPendingBrokerApprovals(eventRuntime);
+      const terminalRunId =
+        event.type === "run:stopped"
+          ? event.payload.runId
+          : event.type === "run:updated"
+            ? event.payload.id
+            : null;
+      this.abortPendingBrokerApprovals(eventRuntime, terminalRunId);
     }
 
     if (event.type === "pty:exit" && eventRuntime?.pendingOptionPrompt) {

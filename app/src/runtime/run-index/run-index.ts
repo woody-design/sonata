@@ -473,6 +473,16 @@ export function resolveRunForTurn(runIndex: RunIndex, input: ResolveRunIdInput):
     if (input.assigned.has(run.runId)) {
       continue;
     }
+    // Identity outranks text even in the fallback: when the anchor carries a
+    // promptId and the candidate run carries a DIFFERENT one, they are two
+    // different turns by definition — text similarity must not pair them.
+    // Prevents an early text match (record won the hook race) from latching
+    // a wrong id-bearing sibling before the true run arrives (review
+    // 2026-07-03). Runs without a promptId (pre-bridge, swallowed echoes)
+    // stay text-matchable.
+    if (input.promptId && run.promptId && run.promptId !== input.promptId) {
+      continue;
+    }
     const prompt = run.prompt.trim();
     const matches =
       prompt === text || (input.command !== null && prompt.startsWith(input.command));

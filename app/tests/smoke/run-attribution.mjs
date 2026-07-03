@@ -119,6 +119,34 @@ assert.equal(
   "the tight window refuses a sibling outside near-simultaneity",
 );
 
+// 6) Identity outranks text even in the FALLBACK (review 2026-07-03): an
+//    anchor carrying pid-X must not text-match a run carrying pid-Y — only
+//    id-less (pre-bridge) runs stay text-matchable.
+assert.equal(
+  resolveRunForTurn(
+    runIndex,
+    input({
+      text: "检查 agent 是否完成",
+      promptId: "pid-unknown-to-index", // exact miss → text pass
+      tsMs: Date.parse("2026-07-03T10:00:01.000Z"),
+    }),
+  ),
+  null,
+  "an id-bearing anchor never text-pairs with a differently-id'd run",
+);
+assert.equal(
+  resolveRunForTurn(
+    runIndex,
+    input({
+      text: "unique legacy prompt", // run-3 carries NO promptId
+      promptId: "pid-unknown-to-index",
+      tsMs: Date.parse("2026-07-03T10:02:10.000Z"),
+    }),
+  ),
+  "run-3",
+  "id-less legacy runs remain text-matchable for id-bearing anchors",
+);
+
 runIndex.dispose?.();
 fs.rmSync(dir, { recursive: true, force: true });
 console.log("run-attribution smoke: OK");
