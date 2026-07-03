@@ -20,8 +20,8 @@ try {
   let page = await launchApp();
   await startFixtureTask(page);
   await injectReadingFixture(page);
-  const navResult = await assertPromptNavigation(page);
-  const stickyResult = await assertStickyPromptHeader(page);
+  const navResult = await withLiveFixture(page, () => assertPromptNavigation(page));
+  const stickyResult = await withLiveFixture(page, () => assertStickyPromptHeader(page));
 
   if (evidenceDir) {
     await captureScreenshots(page, evidenceDir);
@@ -220,6 +220,37 @@ async function assertPromptNavigation(page) {
     composerValue,
     newestEntry: "Third prompt",
   };
+}
+
+// The fixture DOM lives inside #run-list, which the app rebuilds from real
+// state whenever a late runtime event (statusline/usage tick from the idle
+// fixture session) triggers a render. A wipe mid-assertion strands the test
+// against a one-card, unscrollable list. Detect the wipe, re-inject, and
+// retry — but only when the fixture actually vanished, so a genuine
+// assertion failure against an intact fixture still fails the test.
+async function withLiveFixture(page, run, attempts = 3) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (!(await fixtureAlive(page))) {
+      console.error(`fixture wiped by app re-render; re-injecting (attempt ${attempt})`);
+      await injectReadingFixture(page);
+    }
+    try {
+      return await run();
+    } catch (error) {
+      if (await fixtureAlive(page)) {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+async function fixtureAlive(page) {
+  return page.evaluate(() =>
+    Boolean(document.querySelector('.turn-card[data-turn-key="fixture-turn-1"]')),
+  );
 }
 
 async function assertStickyPromptHeader(page) {
@@ -426,7 +457,7 @@ async function assertComposerFocused(page, label) {
 }
 
 async function scrollUntilSticky(page, expectedText, options = {}) {
-  const delayMs = options.delayMs ?? 80;
+  const holdMs = options.delayMs ?? 0;
   for (const scrollTop of [120, 180, 240, 320, 420, 560, 720, 900]) {
     await page.evaluate((nextScrollTop) => {
       const runList = document.querySelector("#run-list");
@@ -434,7 +465,10 @@ async function scrollUntilSticky(page, expectedText, options = {}) {
         runList.scrollTop = nextScrollTop;
       }
     }, scrollTop);
-    await page.waitForTimeout(delayMs);
+    await settleStickyPromptSync(page);
+    if (holdMs > 0) {
+      await page.waitForTimeout(holdMs);
+    }
     const visible = await page.evaluate((expected) => {
       const header = document.querySelector(".sticky-prompt-header");
       return (
@@ -447,7 +481,50 @@ async function scrollUntilSticky(page, expectedText, options = {}) {
       return scrollTop;
     }
   }
-  throw new Error(`Sticky prompt header did not appear for ${expectedText}.`);
+  const state = await page.evaluate(() => {
+    const runList = document.querySelector("#run-list");
+    const header = document.querySelector(".sticky-prompt-header");
+    const listRect = runList?.getBoundingClientRect();
+    return {
+      scrollTop: runList?.scrollTop,
+      scrollHeight: runList?.scrollHeight,
+      listRect: listRect ? { top: listRect.top, height: listRect.height } : null,
+      eyeY: listRect ? listRect.top + Math.min(96, listRect.height * 0.28) : null,
+      header: header
+        ? { hidden: header.classList.contains("hidden"), text: header.textContent }
+        : null,
+      cards: Array.from(document.querySelectorAll(".turn-card")).map((card) => {
+        const rect = card.getBoundingClientRect();
+        const prompt = card.querySelector(".turn-prompt");
+        const promptRect = prompt?.getBoundingClientRect();
+        return {
+          key: card.dataset.turnKey,
+          top: Math.round(rect.top),
+          bottom: Math.round(rect.bottom),
+          promptBottom: promptRect ? Math.round(promptRect.bottom) : null,
+        };
+      }),
+    };
+  });
+  throw new Error(
+    `Sticky prompt header did not appear for ${expectedText}. State: ${JSON.stringify(state)}`,
+  );
+}
+
+// The app coalesces sticky-header updates into a requestAnimationFrame
+// (scheduleStickyPromptSync), so a fixed sleep races that frame and loses
+// whenever Electron throttles rendering. Wait for two real frames instead:
+// the scroll event's scheduled sync runs within the first, and the second
+// covers this probe being queued ahead of it in the same frame.
+async function settleStickyPromptSync(page) {
+  await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve(undefined));
+        });
+      }),
+  );
 }
 
 function assertEqual(actual, expected, label) {
