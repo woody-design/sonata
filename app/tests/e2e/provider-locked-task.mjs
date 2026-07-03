@@ -29,9 +29,6 @@ try {
   const workspace = path.join(workspaceRoot, "data", "projects", taskDirectory);
   await waitForRuntimeReady(page, 240000);
 
-  // TODO(sidebar): .task-tab-meta provider label removed with task tabs; the
-  // placeholder assertion above and #runtime-status cover the provider lock.
-  await page.locator("#runtime-status", { hasText: /Ready|Claude PTY/ }).waitFor({ state: "visible" });
   await page.locator("#send-prompt").waitFor({ state: "visible" });
 
   const manifestPath = path.join(workspace, "task.json");
@@ -98,10 +95,12 @@ async function launchApp() {
 }
 
 async function waitForRuntimeReady(page, timeoutMs) {
+  // "Ready" was the retired header pill's copy; the honest turn-done beacon
+  // is the completed run on the turn card (2026-07-03).
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const ready = await page
-      .locator("#runtime-status", { hasText: "Ready" })
+      .locator('.turn-card[data-run-status="completed"]')
       .isVisible({ timeout: 500 })
       .catch(() => false);
     if (ready) {

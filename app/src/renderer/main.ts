@@ -1532,7 +1532,6 @@ appElement.innerHTML = `
       <div class="chrome-center">
       </div>
       <div class="topbar-actions chrome-actions">
-        <span id="runtime-status" class="status">Idle</span>
         <button id="toggle-terminal-window" class="secondary" type="button" aria-pressed="true" title="Close the terminal window">Close Terminal</button>
         <button
           id="reading-settings"
@@ -1643,6 +1642,7 @@ appElement.innerHTML = `
               >↑</button>
             </div>
           </div>
+          <div id="runtime-status" class="composer-status hidden" role="status"></div>
           <div id="composer-popover-root"></div>
         </form>
       </section>
@@ -1656,7 +1656,7 @@ appElement.innerHTML = `
 
 const elements = {
   taskTitle: getElement<HTMLHeadingElement>("task-title"),
-  runtimeStatus: getElement<HTMLSpanElement>("runtime-status"),
+  runtimeStatus: getElement<HTMLDivElement>("runtime-status"),
   readingSettings: getElement<HTMLButtonElement>("reading-settings"),
   readingPopoverRoot: getElement<HTMLDivElement>("reading-popover-root"),
   remoteControlToggle: getElement<HTMLButtonElement>("remote-control-toggle"),
@@ -4576,7 +4576,9 @@ function render(): void {
   const view = activeTaskView();
   pushActiveTerminalTask();
   elements.taskTitle.textContent = view?.task?.title ?? "New chat";
-  elements.runtimeStatus.textContent = view?.status ?? state.status;
+  const composerStatus = composerStatusText(view);
+  elements.runtimeStatus.textContent = composerStatus;
+  elements.runtimeStatus.classList.toggle("hidden", composerStatus === "");
   elements.openPreviewWindow.disabled = !view?.task || state.busy;
   elements.openInspectorWindow.disabled = !view?.task || state.busy;
   elements.sessionMenuTrigger.classList.toggle("hidden", !view?.task);
@@ -5627,6 +5629,32 @@ async function addReferences(paths: string[]): Promise<void> {
 }
 
 /** Surface a composer status on the active view, or globally for a new chat. */
+// view.status is the point-of-action message channel — errors, receipts
+// ("Allow rule saved…", resume-default receipts), hints, delivery states. It
+// renders as a slim line inside the composer (setComposerStatus was always
+// named for it; until 2026-07-03 it rendered as a header chrome pill). Pure
+// activity mirrors are suppressed: the status strip and the sidebar spinner
+// already say "working"/"idle", and repeating them near the send button was
+// the header chip's noise all over again. Suppression is value-based on the
+// handful of mirror strings (inlined — module-level render() runs before any
+// later const initializes) — a new status value SHOWS by default.
+function composerStatusText(view: TaskViewState | null): string {
+  const status = view?.status ?? state.status;
+  if (
+    status === "Idle" ||
+    status === "Ready" ||
+    status === "Running" ||
+    status.endsWith(" is working")
+  ) {
+    return "";
+  }
+  // The spawn receipt ("Claude PTY 12345") is boot plumbing, not a message.
+  if (/^\S+ PTY \d+$/.test(status)) {
+    return "";
+  }
+  return status;
+}
+
 function setComposerStatus(view: TaskViewState | null, message: string): void {
   if (view?.task) {
     view.status = message;

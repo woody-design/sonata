@@ -2897,6 +2897,16 @@ h2 {
   box-shadow: var(--shadow-composer-focus);
 }
 
+/* The point-of-action status line (errors, receipts, hints, delivery states)
+   - view.status's home since the header pill retired (2026-07-03). Hidden
+   when empty; activity mirrors never reach it (composerStatusText). */
+.composer-status {
+  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .composer-control-row {
   display: flex;
   align-items: center;
