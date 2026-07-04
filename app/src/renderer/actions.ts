@@ -20,7 +20,7 @@ import type {
   ReasoningEffort,
   RuntimeProvider,
 } from "../shared/types";
-import type { TaskViewState } from "../reading-core/state";
+import type { SidebarPrefs, TaskViewState } from "../reading-core/state";
 
 /** The two co-equal surfaces of a task: the crafted reading view and the raw
  *  terminal. Both ARE Duet — the switch picks which lens is in front. */
@@ -70,6 +70,21 @@ export interface Actions {
   //   (IPC injection; optimistic receipt) —
   selectOptionPromptChoice(view: TaskViewState, questionIndex: number, optionIndex: number): void;
   answerOptionPrompt(): void;
+  // — Sidebar (view/sidebar.ts): session/project flows and the
+  //   localStorage-backed prefs/collapse ports. One action per handler
+  //   (D-early ruling 3); the IPC bodies are verbatim shell-side. —
+  selectSession(taskId: string): void;
+  startNewChat(folder?: string | null): void;
+  setSidebarPrefs(patch: Partial<SidebarPrefs>): void;
+  toggleProjectCollapsed(path: string): void;
+  renameSession(taskId: string, title: string): void;
+  renameProject(path: string, displayName: string): void;
+  revealSession(taskId: string): void;
+  revealProject(path: string): void;
+  archiveSessionFromSidebar(taskId: string): void;
+  unarchiveSession(taskId: string): void;
+  deleteSessionFromSidebar(taskId: string, title: string): void;
+  archiveProject(path: string, archived: boolean): void;
 }
 
 /** The bound registry. Reading it before initActions() runs is a boot-order
