@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
 import type { Dirent } from "node:fs";
 import type {
   PreviewDocument,
@@ -182,8 +183,14 @@ export class WorkspaceFiles {
    * (or any non-image payload) can never ride this channel into the reader.
    * SVG is included deliberately — it is rendered inside an <img>, where its
    * scripts never execute. Resolution goes through the ONE audited guard.
+   *
+   * The body is a STREAM (`fs.createReadStream` → web ReadableStream), never a
+   * whole-file buffer: a large image must not synchronously load into — or be
+   * copied within — the main process. This is what actually makes "streamed from
+   * disk" true and lets the direct-image tab drop the old size cap safely (the
+   * bytes flow to the renderer chunk by chunk; the fd closes on cancel).
    */
-  readImage(taskId: TaskId, relativePath: string): { mime: string; bytes: Buffer } | null {
+  readImage(taskId: TaskId, relativePath: string): { mime: string; body: ReadableStream } | null {
     const root = this.resolveRoot(taskId);
     if (!root) {
       return null;
@@ -199,14 +206,15 @@ export class WorkspaceFiles {
       return null;
     }
     try {
-      const stat = fs.statSync(absolute);
+      const stat = fs.statSync(absolute); // cheap validation only — no read
       if (!stat.isFile()) {
         return null;
       }
-      return { mime: imageMime(ext), bytes: fs.readFileSync(absolute) };
     } catch {
       return null;
     }
+    const body = Readable.toWeb(fs.createReadStream(absolute)) as unknown as ReadableStream;
+    return { mime: imageMime(ext), body };
   }
 
   /**

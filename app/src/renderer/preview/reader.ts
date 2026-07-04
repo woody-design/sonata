@@ -271,10 +271,13 @@ function assignHeadingIds(root: HTMLElement): void {
 }
 
 function slugify(text: string): string {
+  // Unicode-aware (\p{L}/\p{N}) so CJK and other non-ASCII headings keep an id —
+  // Woody's docs are bilingual, so `## 设计原则` must slug to `设计原则`, not "".
+  // Fragment lookup uses CSS.escape, so non-ASCII ids resolve fine.
   return text
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s-]/g, "")
+    .replace(/[^\p{L}\p{N}\s_-]/gu, "")
     .replace(/[\s_]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");

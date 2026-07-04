@@ -442,9 +442,13 @@ function readWorkspaceDoc(request: WorkspaceReadDocRequest): PreviewDocument {
 }
 
 /** The `duet-file://` handler body: parse `duet-file://<taskId>/<enc-path>`,
- *  resolve to image bytes through WorkspaceFiles' audited guard, and answer 404
- *  for anything that is not a real in-workspace image (a script can never ride
- *  an image content-type). Never throws — a bad URL is just a 404. */
+ *  resolve to an image STREAM through WorkspaceFiles' audited guard, and answer
+ *  404 for anything that is not a real in-workspace image (a script can never
+ *  ride an image content-type). Genuinely never throws — a bad URL (incl.
+ *  malformed percent-encoding) is a 404. The channel is scoped to the Preview's
+ *  bound task: a request for any OTHER task's id is refused even though it would
+ *  still be workspace-guarded, keeping the capability matched to the "one task's
+ *  reading surface" model (least privilege). */
 function serveDuetFileImage(rawUrl: string): Response {
   const notFound = new Response("Not found", {
     status: 404,
@@ -454,21 +458,22 @@ function serveDuetFileImage(rawUrl: string): Response {
     return notFound;
   }
   let url: URL;
+  let relativePath: string;
   try {
     url = new URL(rawUrl);
+    relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, "");
   } catch {
-    return notFound;
+    return notFound; // bad URL or malformed percent-encoding
   }
   const taskId = url.hostname;
-  const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, "");
-  if (!taskId || !relativePath) {
+  if (!taskId || !relativePath || taskId !== previewBoundTaskId) {
     return notFound;
   }
   const image = workspaceFiles.readImage(taskId, relativePath);
   if (!image) {
     return notFound;
   }
-  return new Response(new Uint8Array(image.bytes), {
+  return new Response(image.body, {
     status: 200,
     headers: { "content-type": image.mime, "cache-control": "no-cache" },
   });

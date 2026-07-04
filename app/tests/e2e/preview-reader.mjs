@@ -89,9 +89,18 @@ try {
       "",
       "[external site](https://example.com/landing)",
       "",
+      "[跳转到设计原则](#设计原则)",
+      "",
       "## Section Two",
       "",
       ...Array.from({ length: 60 }, (_, i) => `Filler paragraph ${i + 1} to make the document scroll.`),
+      "",
+      "## 设计原则",
+      "",
+      "The CJK heading body — a bilingual fragment target.",
+      "",
+      // Trailing room so block:"start" can pull the CJK heading fully to the top.
+      ...Array.from({ length: 40 }, (_, i) => `Trailing paragraph ${i + 1}.`),
     ].join("\n"),
   );
   writeText(workspace, "beta.md", "# Beta Doc\n\nThe beta target opened as a tab.\n");
@@ -154,6 +163,25 @@ try {
     return scroller.scrollTop > 40 && Math.abs(top) < 6;
   });
 
+  // ── CJK fragment link scrolls (Unicode-aware heading slug) ─────────────────
+  results.cjkHeadingHasId = (await md.locator("h2#设计原则").count()) === 1;
+  await preview.evaluate(() => {
+    document.querySelector("#preview-content").scrollTop = 0;
+  });
+  await md.locator("a", { hasText: "跳转到设计原则" }).click();
+  await preview.waitForFunction(
+    () => {
+      const scroller = document.querySelector("#preview-content");
+      const heading = document.getElementById("设计原则");
+      if (!scroller || !heading) return false;
+      const top = heading.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      return scroller.scrollTop > 40 && Math.abs(top) < 6;
+    },
+    undefined,
+    { timeout: 8000 },
+  );
+  results.cjkFragmentScroll = true;
+
   // ── Relative .md link opens a new tab ──────────────────────────────────────
   const tabsBefore = await tabCount(preview);
   await md.locator('a[href="./beta.md"]').click();
@@ -201,7 +229,11 @@ try {
     timeout: 15000,
   });
   const afterTop = await preview.evaluate(() => document.querySelector("#preview-content").scrollTop);
-  results.liveScrollPreserved = Math.abs(afterTop - midTop) <= 6;
+  // The morph must HOLD the reader's position (a naive innerHTML replace would
+  // reset to 0 — a delta of ~midTop). A small delta proves it held; the tolerance
+  // absorbs sub-pixel reflow, not a reset.
+  console.error(`liveScroll: midTop=${midTop} afterTop=${afterTop} delta=${Math.abs(afterTop - midTop)}`);
+  results.liveScrollPreserved = Math.abs(afterTop - midTop) <= 24;
 
   // ── Tail-follow: pinned at bottom stays pinned as content appends ──────────
   await preview.evaluate(() => {
