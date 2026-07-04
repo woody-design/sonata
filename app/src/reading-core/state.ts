@@ -197,8 +197,15 @@ export interface RendererState {
   sessionIndex: SessionIndexResponse | null;
   sidebar: SidebarState;
   taskDraft: TaskLaunchDraft;
+  /** The user explicitly chose (or cleared) the New Chat folder this session. */
+  taskDraftFolderTouched: boolean;
   /** New-chat composer attachments, materialized on first send (see ComposerAttachment). */
   draftAttachments: ComposerAttachment[];
+  /** New Chat's parked composer text — a shared DOM textarea must never carry
+   *  one owner's words into another. The live-session slot is
+   *  TaskViewState.composerDraft; the shell's saveComposerDraft /
+   *  restoreComposerDraft park and restore on ownership change. */
+  newChatComposerDraft: string;
   composerMenu: ComposerMenuState | null;
   slashPicker: SlashPickerState | null;
   usagePopover: UsagePopoverState | null;
@@ -338,7 +345,9 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
       },
       remoteControl: false,
     },
+    taskDraftFolderTouched: false,
     draftAttachments: [],
+    newChatComposerDraft: "",
     composerMenu: null,
     slashPicker: null,
     usagePopover: null,

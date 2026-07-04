@@ -200,9 +200,6 @@ function scheduleSessionIndexRefresh(): void {
   }, 150);
 }
 
-/** The user explicitly chose (or cleared) the New Chat folder this session. */
-let taskDraftFolderTouched = false;
-
 async function refreshSessionIndex(): Promise<void> {
   try {
     // Always fetch the full record; status filtering is a view decision.
@@ -211,7 +208,7 @@ async function refreshSessionIndex(): Promise<void> {
     // folder until the user picks one themselves.
     if (
       !state.activeTaskId &&
-      !taskDraftFolderTouched &&
+      !state.taskDraftFolderTouched &&
       state.taskDraft.cwd === null &&
       state.sessionIndex.lastUsedFolder
     ) {
@@ -1173,8 +1170,8 @@ function startNewChat(folder?: string | null): void {
   state.usagePopover = null;
   if (folder) {
     state.taskDraft.cwd = folder;
-    taskDraftFolderTouched = true;
-  } else if (!taskDraftFolderTouched) {
+    state.taskDraftFolderTouched = true;
+  } else if (!state.taskDraftFolderTouched) {
     state.taskDraft.cwd = state.sessionIndex?.lastUsedFolder ?? state.taskDraft.cwd;
   }
   state.taskDraft.message = null;
@@ -3466,21 +3463,20 @@ function activateTask(taskId: string): void {
 // session's words into another. While a session is active the DOM stays the
 // live truth (send/slash/reference paths write it directly); these two hooks
 // park and restore it at the only moments the composer changes owners. New
-// Chat (no active task) has its own slot.
-let newChatComposerDraft = "";
+// Chat (no active task) has its own slot (state.newChatComposerDraft).
 
 function saveComposerDraft(): void {
   const view = activeTaskView();
   if (view) {
     view.composerDraft = elements.promptInput.value;
   } else {
-    newChatComposerDraft = elements.promptInput.value;
+    state.newChatComposerDraft = elements.promptInput.value;
   }
 }
 
 function restoreComposerDraft(): void {
   const view = activeTaskView();
-  elements.promptInput.value = view ? view.composerDraft : newChatComposerDraft;
+  elements.promptInput.value = view ? view.composerDraft : state.newChatComposerDraft;
 }
 
 function markViewChanged(view: TaskViewState): void {
@@ -3610,7 +3606,7 @@ async function createSessionFromComposer(text: string): Promise<void> {
   // session it just created. createTask→activateTask parked the still-visible
   // text into the New Chat slot a moment ago — consume it, or the next New
   // Chat resurrects an already-sent prompt.
-  newChatComposerDraft = "";
+  state.newChatComposerDraft = "";
   try {
     // The session now exists — materialize the held draft (copy bitmaps, pass
     // references through) and deliver with the first prompt.
@@ -5916,7 +5912,7 @@ function renderFolderPicker(): HTMLElement {
     quick.textContent = project.name;
     quick.addEventListener("click", () => {
       state.taskDraft.cwd = project.path;
-      taskDraftFolderTouched = true;
+      state.taskDraftFolderTouched = true;
       state.taskDraft.message = null;
       render();
     });
@@ -5947,7 +5943,7 @@ function renderFolderPicker(): HTMLElement {
     clear.textContent = "Default Workspace";
     clear.addEventListener("click", () => {
       state.taskDraft.cwd = null;
-      taskDraftFolderTouched = true;
+      state.taskDraftFolderTouched = true;
       state.taskDraft.message = {
         tone: "info",
         text: "Using the default Duet workspace for new Tasks.",
@@ -6125,7 +6121,7 @@ async function pickTaskFolder(): Promise<void> {
     const response = await window.duetRuntime.pickFolder();
     if (response.path) {
       state.taskDraft.cwd = response.path;
-      taskDraftFolderTouched = true;
+      state.taskDraftFolderTouched = true;
       state.status = `Selected ${folderName(response.path)}`;
       state.taskDraft.message = {
         tone: "info",
