@@ -108,16 +108,22 @@ export function deliveryStatusLabel(deliveryState: DeliveryTaskState): string {
   const providerName = providerLabel(deliveryState.provider);
   // Whole-queue derivation (S6): an undelivered item no longer blocks the
   // queue, so it may sit at the head while later items flow — live activity
-  // (delivering/queued) outranks the stale report; the report shows only
-  // when nothing fresher is happening.
+  // (delivering/queued) outranks it.
+  //
+  // The "Undelivered" report itself was retired from this line (2026-07-04,
+  // overturning the S6 report-not-gate residue): "undelivered" means "no
+  // receipt observed in the transcript scrape" — an epistemic artifact, not
+  // a failure. With send-is-send the bytes are in the CLI (the co-visible
+  // terminal is the truth surface), there is no user action to offer, and an
+  // undelivered item is never evicted from the queue, so one missed receipt
+  // wore a permanent "Undelivered" badge on an otherwise healthy idle
+  // session. Genuine breakage still surfaces: a dead PTY flips the task to
+  // "Failed", and a write failure keeps its failureReason in delivery state.
   if (deliveryState.queue.some((item) => item.status === "delivering")) {
     return `Delivering to ${providerName}`;
   }
   if (deliveryState.queue.some((item) => item.status === "queued")) {
     return "Queued";
-  }
-  if (deliveryState.queue.some((item) => item.status === "undelivered")) {
-    return "Undelivered";
   }
   if (deliveryState.approvalActive) {
     return `Waiting for ${providerName} approval`;

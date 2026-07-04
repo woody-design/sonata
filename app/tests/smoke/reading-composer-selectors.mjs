@@ -377,7 +377,11 @@ const run = (status, extra = {}) => ({
     "delivering outranks all",
   );
   assert.equal(R.deliveryStatusLabel(delivery({ queue: [item("queued")] })), "Queued");
-  assert.equal(R.deliveryStatusLabel(delivery({ queue: [item("undelivered")] })), "Undelivered");
+  assert.equal(
+    R.deliveryStatusLabel(delivery({ queue: [item("undelivered")] })),
+    "Ready",
+    "missed-receipt report retired 2026-07-04 — an undelivered item is silent, not a badge",
+  );
   assert.equal(
     R.deliveryStatusLabel(delivery({ approvalActive: true })),
     "Waiting for Claude approval",
