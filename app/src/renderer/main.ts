@@ -56,7 +56,6 @@ import type {
   ReasoningEffort,
   ProjectGroup,
   RuntimeProvider,
-  SessionIndexResponse,
   SessionSummary,
   SlashCommandEntry,
   SlashCommandsResponse,
@@ -172,6 +171,10 @@ import {
 } from "../reading-core/state";
 import { reduceRuntimeEvent } from "../reading-core/runtime-reducer";
 import type { Directive } from "../reading-core/directives";
+import * as composerTransitions from "../reading-core/transitions/composer";
+import * as popoverTransitions from "../reading-core/transitions/popovers";
+import * as sessionTransitions from "../reading-core/transitions/session";
+import * as sidebarTransitions from "../reading-core/transitions/sidebar";
 
 
 /** The two co-equal surfaces of a task: the crafted reading view and the raw
@@ -216,7 +219,7 @@ async function refreshSessionIndex(): Promise<void> {
       render();
       return;
     }
-    if (syncTaskViewsFromIndex(state.sessionIndex)) {
+    if (sessionTransitions.syncTaskViewsFromIndex(state, state.sessionIndex)) {
       render();
       return;
     }
@@ -224,47 +227,6 @@ async function refreshSessionIndex(): Promise<void> {
   } catch (error) {
     console.debug("session index read failed", error);
   }
-}
-
-/**
- * The index is the authoritative session record (live runtimes for live
- * sessions, manifests for dormant ones). Open views must follow it, or
- * a dormant rename updates the sidebar while the header keeps the old
- * title. Returns true when the ACTIVE view changed and needs a full
- * re-render.
- */
-function syncTaskViewsFromIndex(index: SessionIndexResponse): boolean {
-  const summaries = new Map<string, SessionSummary>();
-  for (const project of index.projects) {
-    for (const session of project.sessions) {
-      summaries.set(session.task.id, session);
-    }
-  }
-  for (const session of index.chats) {
-    summaries.set(session.task.id, session);
-  }
-
-  let activeViewChanged = false;
-  for (const view of state.taskViews) {
-    if (!view.task) {
-      continue;
-    }
-    const summary = summaries.get(view.task.id);
-    if (!summary) {
-      continue;
-    }
-    const incoming = summary.task;
-    if (
-      incoming.title !== view.task.title ||
-      Boolean(incoming.archived) !== Boolean(view.task.archived)
-    ) {
-      view.task = { ...view.task, title: incoming.title, archived: incoming.archived ?? false };
-      if (isActiveView(view)) {
-        activeViewChanged = true;
-      }
-    }
-  }
-  return activeViewChanged;
 }
 
 const SIDEBAR_PREFS_KEY = "duet.sidebar.prefs";
@@ -295,7 +257,7 @@ function loadSidebarPrefs(): SidebarPrefs {
 }
 
 function setSidebarPrefs(patch: Partial<SidebarPrefs>): void {
-  state.sidebar.prefs = { ...state.sidebar.prefs, ...patch };
+  sidebarTransitions.patchSidebarPrefs(state, patch);
   try {
     localStorage.setItem(SIDEBAR_PREFS_KEY, JSON.stringify(state.sidebar.prefs));
   } catch {
@@ -377,11 +339,7 @@ function renderSidebarListHeader(title: string): HTMLElement {
       closeSidebarMenu();
       return;
     }
-    state.sidebar.menu = {
-      kind: "filter",
-      anchor: anchorRectOf(event.currentTarget as HTMLElement),
-      openSection: null,
-    };
+    sidebarTransitions.openFilterMenu(state, anchorRectOf(event.currentTarget as HTMLElement));
     renderSidebarMenu();
   });
 
@@ -447,11 +405,7 @@ function loadCollapsedProjects(): string[] {
 }
 
 function toggleProjectCollapsed(path: string): void {
-  if (state.sidebar.collapsedProjects.has(path)) {
-    state.sidebar.collapsedProjects.delete(path);
-  } else {
-    state.sidebar.collapsedProjects.add(path);
-  }
+  sidebarTransitions.toggleProjectCollapsed(state, path);
   try {
     localStorage.setItem(COLLAPSED_PROJECTS_KEY, JSON.stringify([...state.sidebar.collapsedProjects]));
   } catch {
@@ -582,7 +536,7 @@ function renderSidebarRenameInput(taskId: string, currentTitle: string): HTMLEle
     if (event.key === "Enter") {
       event.preventDefault();
       const title = input.value.trim();
-      state.sidebar.renamingSessionId = null;
+      sidebarTransitions.endSessionRename(state);
       if (title && title !== currentTitle) {
         void window.duetRuntime
           .renameSession({ taskId, title })
@@ -596,13 +550,13 @@ function renderSidebarRenameInput(taskId: string, currentTitle: string): HTMLEle
     }
     if (event.key === "Escape") {
       event.preventDefault();
-      state.sidebar.renamingSessionId = null;
+      sidebarTransitions.endSessionRename(state);
       renderSidebar();
     }
   });
   input.addEventListener("blur", () => {
     if (state.sidebar.renamingSessionId === taskId) {
-      state.sidebar.renamingSessionId = null;
+      sidebarTransitions.endSessionRename(state);
       renderSidebar();
     }
   });
@@ -707,30 +661,23 @@ function openSidebarMenuForSession(
   archived: boolean,
   anchorElement: HTMLElement,
 ): void {
-  state.sidebar.menu = {
-    kind: "session",
-    taskId,
-    title,
-    archived,
-    anchor: anchorRectOf(anchorElement),
-  };
+  sidebarTransitions.openSessionMenu(state, taskId, title, archived, anchorRectOf(anchorElement));
   renderSidebarMenu();
 }
 
 function openSidebarMenuForProject(project: ProjectGroup, anchorElement: HTMLElement): void {
-  state.sidebar.menu = {
-    kind: "project",
-    path: project.path,
-    name: project.name,
-    archived: project.archived,
-    anchor: anchorRectOf(anchorElement),
-  };
+  sidebarTransitions.openProjectMenu(
+    state,
+    project.path,
+    project.name,
+    project.archived,
+    anchorRectOf(anchorElement),
+  );
   renderSidebarMenu();
 }
 
 function closeSidebarMenu(): void {
-  if (state.sidebar.menu) {
-    state.sidebar.menu = null;
+  if (sidebarTransitions.closeSidebarMenu(state)) {
     renderSidebarMenu();
   }
 }
@@ -756,7 +703,7 @@ function renderSidebarMenu(): void {
   if (menu.kind === "session") {
     panel.append(
       sidebarMenuItem("Rename", () => {
-        state.sidebar.renamingSessionId = menu.taskId;
+        sidebarTransitions.startSessionRename(state, menu.taskId);
         renderSidebar();
       }),
       sidebarMenuItem("Reveal in Finder", () => {
@@ -956,11 +903,7 @@ function filterMenuRow(
   row.append(labelSpan, valueSpan, chevron);
   row.addEventListener("click", (event) => {
     event.stopPropagation();
-    if (state.sidebar.menu?.kind === "filter") {
-      state.sidebar.menu = {
-        ...state.sidebar.menu,
-        openSection: state.sidebar.menu.openSection === section ? null : section,
-      };
+    if (sidebarTransitions.toggleFilterMenuSection(state, section)) {
       renderSidebarMenu();
     }
   });
@@ -1042,7 +985,7 @@ function positionSidebarMenu(panel: HTMLElement, anchor: AnchorRect): void {
 }
 
 function startProjectRename(path: string, currentName: string): void {
-  state.sidebar.projectRenaming = { path, currentName };
+  sidebarTransitions.startProjectRename(state, path, currentName);
   renderSidebar();
 }
 
@@ -1053,7 +996,7 @@ function renderProjectRenameInput(path: string, currentName: string): HTMLElemen
   input.value = currentName;
   const finish = (commit: boolean): void => {
     const nextName = input.value.trim();
-    state.sidebar.projectRenaming = null;
+    sidebarTransitions.endProjectRename(state);
     if (commit && nextName && nextName !== currentName) {
       void window.duetRuntime
         .renameProject({ path, displayName: nextName })
@@ -1115,13 +1058,10 @@ async function deleteSessionFromSidebar(taskId: string, title: string): Promise<
 }
 
 function removeTaskViewLocally(taskId: string): void {
-  state.taskViews = state.taskViews.filter((item) => item.task?.id !== taskId);
-  if (state.activeTaskId === taskId) {
+  if (sessionTransitions.removeTaskView(state, taskId)) {
     // The closed view's draft dies with it; the composer hands over to the
     // New Chat slot.
-    state.activeTaskId = null;
     restoreComposerDraft();
-    state.usagePopover = null;
     // The terminal window disposes this task's xterm when it drops out of the
     // active-task broadcast's openTaskIds; nothing terminal-related lingers here.
   }
@@ -1168,17 +1108,7 @@ function startNewChat(folder?: string | null): void {
     restoreComposerDraft();
   }
   state.usagePopover = null;
-  if (folder) {
-    state.taskDraft.cwd = folder;
-    state.taskDraftFolderTouched = true;
-  } else if (!state.taskDraftFolderTouched) {
-    state.taskDraft.cwd = state.sessionIndex?.lastUsedFolder ?? state.taskDraft.cwd;
-  }
-  state.taskDraft.message = null;
-  // Each New Chat starts from the global default, so a per-chat toggle never
-  // leaks into the next one ("Auto-enable Remote Control" means NEW sessions
-  // come up on, regardless of what the previous draft was set to).
-  state.taskDraft.remoteControl = state.remoteControlDefault;
+  sessionTransitions.resetTaskDraftForNewChat(state, folder);
   render();
   elements.promptInput.focus();
 }
@@ -1804,27 +1734,20 @@ function resolvedReadingMode(settings = state.readingSettings): ResolvedReadingM
 }
 
 function toggleReadingPopover(anchor: HTMLElement): void {
-  const willOpen = !state.readingPopoverOpen;
-  state.readingPopoverOpen = willOpen;
-  state.readingPopoverAnchor = willOpen ? popoverAnchorFromElement(anchor) : null;
-  if (willOpen) {
-    state.composerMenu = null;
-    state.taskDraft.settingsOpen = false;
-    state.taskDraft.settingsAnchor = null;
-    state.remoteControlPopoverOpen = false;
-    state.remoteControlPopoverAnchor = null;
-  }
+  popoverTransitions.toggleReadingPopover(state, () => popoverAnchorFromElement(anchor));
   render();
 }
 
 function closeReadingPopover(): void {
-  state.readingPopoverOpen = false;
-  state.readingPopoverAnchor = null;
+  popoverTransitions.closeReadingPopover(state);
   renderReadingPopover();
 }
 
 function syncReadingPopoverAnchor(): void {
-  state.readingPopoverAnchor = popoverAnchorFromElement(elements.readingSettings);
+  popoverTransitions.setReadingPopoverAnchor(
+    state,
+    popoverAnchorFromElement(elements.readingSettings),
+  );
 }
 
 function popoverAnchorFromElement(anchor: HTMLElement): PopoverAnchor {
@@ -1889,22 +1812,12 @@ function positionReadingPopover(popover: HTMLElement): void {
 // claude's own native panel via the Terminal view (fragility-free management).
 
 function toggleRemoteControlPopover(anchor: HTMLElement): void {
-  const willOpen = !state.remoteControlPopoverOpen;
-  state.remoteControlPopoverOpen = willOpen;
-  state.remoteControlPopoverAnchor = willOpen ? popoverAnchorFromElement(anchor) : null;
-  if (willOpen) {
-    state.remoteControlNote = null;
-    state.readingPopoverOpen = false;
-    state.readingPopoverAnchor = null;
-    state.composerMenu = null;
-  }
+  popoverTransitions.toggleRemoteControlPopover(state, () => popoverAnchorFromElement(anchor));
   render();
 }
 
 function closeRemoteControlPopover(): void {
-  state.remoteControlPopoverOpen = false;
-  state.remoteControlPopoverAnchor = null;
-  state.remoteControlNote = null;
+  popoverTransitions.closeRemoteControlPopover(state);
   renderRemoteControlPopover();
 }
 
@@ -2288,24 +2201,16 @@ async function persistReadingSettings(nextSettings: ReadingSettings): Promise<vo
 // chooser writes the same store this page revises. Instant-apply, no OK.
 
 function openSettingsOverlay(): void {
-  if (state.settingsOverlay) {
+  if (!popoverTransitions.openSettingsOverlay(state)) {
     return;
   }
-  state.settingsOverlay = {
-    resume: null,
-    claude: null,
-    policyMenuOpen: false,
-    approvalMenuOpen: false,
-    bridgeReverting: false,
-    bridgeError: false,
-  };
   render();
   elements.settingsOverlayRoot.querySelector<HTMLElement>(".settings-window")?.focus();
   void refreshSettingsOverlay();
 }
 
 function closeSettingsOverlay(): void {
-  state.settingsOverlay = null;
+  popoverTransitions.closeSettingsOverlay(state);
   render();
 }
 
@@ -3453,8 +3358,7 @@ function activateTask(taskId: string): void {
   if (switching) {
     restoreComposerDraft();
   }
-  view.unread = false;
-  view.completedUnseen = false;
+  sessionTransitions.markViewSeen(view);
   render();
 }
 
@@ -3466,12 +3370,7 @@ function activateTask(taskId: string): void {
 // Chat (no active task) has its own slot (state.newChatComposerDraft).
 
 function saveComposerDraft(): void {
-  const view = activeTaskView();
-  if (view) {
-    view.composerDraft = elements.promptInput.value;
-  } else {
-    state.newChatComposerDraft = elements.promptInput.value;
-  }
+  composerTransitions.parkComposerDraft(state, elements.promptInput.value);
 }
 
 function restoreComposerDraft(): void {
@@ -4081,8 +3980,7 @@ function refreshSlashCommands(): void {
     .then((response) => {
       slashCommandsCache.set(key, { at: Date.now(), response });
       if (state.slashPicker && slashCommandsCacheKey() === key) {
-        state.slashPicker.entries = response.entries;
-        clampSlashSelection();
+        composerTransitions.installSlashEntries(state, response.entries);
         renderComposerPopover();
       }
     })
@@ -4105,27 +4003,17 @@ function syncSlashPicker(): void {
   const shouldOpen =
     /^\/\S*$/.test(value) && slashPickerDismissedValue === null && !elements.promptInput.disabled;
   if (!shouldOpen) {
-    if (state.slashPicker) {
-      state.slashPicker = null;
+    if (composerTransitions.closeSlashPicker(state)) {
       renderComposerPopover();
     }
     return;
   }
-  const provider = composerSlashProvider();
-  const query = value.slice(1).toLowerCase();
-  const previous = state.slashPicker;
-  state.slashPicker = {
-    provider,
-    entries:
-      previous && previous.provider === provider
-        ? previous.entries
-        : cachedSlashCommands()?.entries ?? [],
-    query,
-    selectedIndex: previous && previous.query === query ? previous.selectedIndex : 0,
-  };
-  state.composerMenu = null;
-  state.usagePopover = null;
-  clampSlashSelection();
+  composerTransitions.openOrRefreshSlashPicker(
+    state,
+    composerSlashProvider(),
+    value.slice(1).toLowerCase(),
+    () => cachedSlashCommands()?.entries ?? [],
+  );
   refreshSlashCommands();
   renderComposerPopover();
 }
@@ -4134,32 +4022,15 @@ function closeSlashPicker(dismissCurrentValue: boolean): void {
   if (dismissCurrentValue) {
     slashPickerDismissedValue = elements.promptInput.value;
   }
-  if (state.slashPicker) {
-    state.slashPicker = null;
+  if (composerTransitions.closeSlashPicker(state)) {
     renderComposerPopover();
   }
 }
 
-function clampSlashSelection(): void {
-  const picker = state.slashPicker;
-  if (!picker) {
-    return;
-  }
-  const count = filteredSlashItems(picker).length;
-  picker.selectedIndex = count === 0 ? 0 : Math.min(Math.max(picker.selectedIndex, 0), count - 1);
-}
-
 function moveSlashSelection(delta: number): void {
-  const picker = state.slashPicker;
-  if (!picker) {
-    return;
+  if (composerTransitions.moveSlashSelection(state, delta)) {
+    renderComposerPopover();
   }
-  const count = filteredSlashItems(picker).length;
-  if (count === 0) {
-    return;
-  }
-  picker.selectedIndex = (picker.selectedIndex + delta + count) % count;
-  renderComposerPopover();
 }
 
 function selectedSlashEntry(): SlashCommandEntry | null {
@@ -4178,7 +4049,7 @@ function completeSlashEntry(entry: SlashCommandEntry): void {
     elements.promptInput.value.length,
     elements.promptInput.value.length,
   );
-  state.slashPicker = null;
+  composerTransitions.closeSlashPicker(state);
   renderComposerPopover();
   renderComposerControls();
 }
@@ -4200,7 +4071,7 @@ function executeSlashEntry(entry: SlashCommandEntry): void {
     return;
   }
   elements.promptInput.value = entry.invocation;
-  state.slashPicker = null;
+  composerTransitions.closeSlashPicker(state);
   renderComposerPopover();
   void submitPrompt();
 }
@@ -4388,24 +4259,13 @@ function positionSlashPicker(pickerElement: HTMLElement): void {
 }
 
 function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement): void {
-  // The Add (attachments) menu works in a new chat too — attachments are held
-  // in the draft until send.
   clearUsagePopoverTimers();
-  state.slashPicker = null;
   const rect = anchor.getBoundingClientRect();
-  const current = state.composerMenu;
-  state.composerMenu =
-    current?.type === type
-      ? null
-      : {
-          type,
-          anchor: {
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-          },
-        };
-  state.usagePopover = null;
+  popoverTransitions.toggleComposerMenu(state, type, {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+  });
   render();
 }
 
@@ -4450,20 +4310,15 @@ function openUsagePopover(pinned: boolean): void {
   if (!view?.task) {
     return;
   }
-  const previousPinned = state.usagePopover?.pinned ?? false;
-  state.composerMenu = null;
-  state.usagePopover = {
-    pinned: pinned || previousPinned,
-  };
+  popoverTransitions.openUsagePopover(state, pinned);
   render();
 }
 
 function closeUsagePopover(): void {
   clearUsagePopoverTimers();
-  if (!state.usagePopover) {
+  if (!popoverTransitions.closeUsagePopover(state)) {
     return;
   }
-  state.usagePopover = null;
   render();
 }
 
@@ -5911,9 +5766,7 @@ function renderFolderPicker(): HTMLElement {
     quick.title = project.path;
     quick.textContent = project.name;
     quick.addEventListener("click", () => {
-      state.taskDraft.cwd = project.path;
-      state.taskDraftFolderTouched = true;
-      state.taskDraft.message = null;
+      sessionTransitions.chooseDraftFolder(state, project.path);
       render();
     });
     row.append(quick);
@@ -5942,12 +5795,7 @@ function renderFolderPicker(): HTMLElement {
     clear.disabled = state.busy;
     clear.textContent = "Default Workspace";
     clear.addEventListener("click", () => {
-      state.taskDraft.cwd = null;
-      state.taskDraftFolderTouched = true;
-      state.taskDraft.message = {
-        tone: "info",
-        text: "Using the default Duet workspace for new Tasks.",
-      };
+      sessionTransitions.clearDraftFolder(state);
       render();
     });
     row.append(clear);
@@ -6120,13 +5968,7 @@ async function pickTaskFolder(): Promise<void> {
   try {
     const response = await window.duetRuntime.pickFolder();
     if (response.path) {
-      state.taskDraft.cwd = response.path;
-      state.taskDraftFolderTouched = true;
-      state.status = `Selected ${folderName(response.path)}`;
-      state.taskDraft.message = {
-        tone: "info",
-        text: `Selected ${folderName(response.path)}.`,
-      };
+      sessionTransitions.applyPickedTaskFolder(state, response.path);
     }
   } catch (error) {
     const message = errorMessage(error);
