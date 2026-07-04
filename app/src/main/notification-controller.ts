@@ -128,6 +128,13 @@ function electronNotifier(content: { title: string; body: string }): Notificatio
     return null;
   }
   const notification = new Notification({ title: content.title, body: content.body });
+  // macOS can reject delivery AFTER show() with no thrown error (seen: a
+  // broken-signature Electron.app → UNErrorDomain 1 "not allowed", zero
+  // banners ever, isSupported() still true). Without this log the feature
+  // dies silently and looks identical to "working but unnoticed".
+  notification.on("failed", (_event, error) => {
+    console.error("[notifications] delivery failed:", error);
+  });
   return {
     show: () => notification.show(),
     onClick: (callback) => notification.on("click", callback),
