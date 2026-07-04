@@ -85,6 +85,17 @@ const RULES = [
     allowedPackages: [],
   },
   { layer: "renderer/dom.ts", allowedPrefixes: [], allowedPackages: [] },
+  // The Preview satellite (2026-07 redesign §6.2): a small imperative organism
+  // that deliberately does NOT import the reading-core reducer/directives
+  // machinery. Its view modules may reach the shared icon helper, the DOM-shell
+  // icon wrapper, shared protocol types, and each other (small organism —
+  // composition still flows through preview/main.ts, the registered root). The
+  // markdown pipeline packages are allowed ahead of S2.
+  {
+    layer: "renderer/preview/",
+    allowedPrefixes: ["renderer/preview/", "renderer/view/icons", "shared/"],
+    allowedPackages: ["lucide", "marked", "dompurify"],
+  },
 ];
 
 // Composition roots / separate renderer entries: the only files allowed to
@@ -93,7 +104,7 @@ const RULES = [
 // declarations — no imports to police.)
 const ROOTS = [
   "renderer/main.ts",
-  "renderer/preview.ts",
+  "renderer/preview/main.ts",
   "renderer/inspector.ts",
   "renderer/terminal.ts",
   "renderer/global.d.ts",
@@ -166,8 +177,13 @@ const graph = new Map(); // absolute file path -> [absolute imported file paths]
 
 for (const file of files) {
   const relative = relativeToSrc(file);
-  const rule = ruleFor(relative);
-  if (!rule && !ROOTS.includes(relative.replaceAll(sep, "/"))) {
+  // Composition roots have unrestricted imports (still subject to the main
+  // denylist + acyclicity). A root that ALSO matches a layer prefix — e.g.
+  // renderer/preview/main.ts under the renderer/preview/ rule — must stay
+  // exempt, so resolve its rule to null rather than applying the allowlist.
+  const isRoot = ROOTS.includes(relative.replaceAll(sep, "/"));
+  const rule = isRoot ? null : ruleFor(relative);
+  if (!rule && !isRoot) {
     violations.push(
       `${file}: unclaimed module — add a RULES row for its layer or register it in ROOTS`,
     );

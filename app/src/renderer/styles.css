@@ -4778,3 +4778,400 @@ html[data-instance-label] body::after {
   pointer-events: none;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
 }
+
+/* ============================================================================
+   Preview window (2026-07 redesign, design record §6). A satellite renderer
+   that mirrors the app's layering discipline WITHOUT the reading-core reducer:
+   browser-pure tab semantics, editor-grade persistence, AppKit manners. All
+   colors ride the shared tokens under [data-theme]/[data-mode] (stamped by the
+   preload), so light/dark parity and the paper/calm themes come for free.
+   ========================================================================== */
+
+.preview-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-reading);
+  overflow: hidden;
+}
+
+/* Tab strip — the window's drag region, with a traffic-light inset on the left
+   (macOS lights float over it). Tabs opt back out of the drag with no-drag. */
+.preview-tabstrip {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 42px;
+  padding: 7px 8px 0 78px;
+  background: var(--surface-shell);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-app-region: drag;
+  scrollbar-width: none;
+  flex: 0 0 auto;
+}
+.preview-tabstrip::-webkit-scrollbar {
+  display: none;
+}
+
+.preview-tab {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+  max-width: 220px;
+  flex: 0 1 auto;
+  padding: 0 6px 0 11px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 9px 9px 0 0;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  cursor: default;
+  user-select: none;
+  position: relative;
+}
+.preview-tabstrip.crowded .preview-tab {
+  flex: 0 0 auto;
+}
+.preview-tab:not(.active):hover {
+  background: var(--surface-control-soft);
+  color: var(--ink);
+}
+.preview-tab.active {
+  background: var(--surface);
+  color: var(--ink-strong);
+  border-color: var(--border-subtle);
+}
+
+.preview-tab-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--ink-faint);
+}
+.preview-tab.active .preview-tab-icon {
+  color: var(--ink-muted);
+}
+.preview-tab-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preview-tab-dir {
+  flex: 0 0 auto;
+  color: var(--ink-fainter);
+  font-size: 11px;
+  opacity: 0.7;
+}
+.preview-tab-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.preview-tab-close {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: default;
+  opacity: 0;
+}
+.preview-tab:hover .preview-tab-close,
+.preview-tab.active .preview-tab-close {
+  opacity: 1;
+}
+.preview-tab-close:hover {
+  background: var(--surface-disabled);
+  color: var(--ink-strong);
+}
+
+/* Toolbar — breadcrumb, Open dropdown, folder toggle. */
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 10px 0 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
+  flex: 0 0 auto;
+}
+.preview-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.preview-crumb {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+.preview-crumb-leaf {
+  color: var(--ink-strong);
+  font-weight: 500;
+}
+.preview-crumb-sep {
+  flex: 0 0 auto;
+  color: var(--ink-fainter);
+}
+.preview-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.preview-open {
+  position: relative;
+}
+.preview-open-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border-control);
+  border-radius: 7px;
+  background: var(--surface-control);
+  color: var(--ink-ui);
+  font-size: 12px;
+  font-family: var(--font-reading);
+  cursor: default;
+}
+.preview-open-button:hover:not(:disabled) {
+  background: var(--surface-control-soft);
+}
+.preview-open-button:disabled {
+  opacity: 0.45;
+}
+.preview-open-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  min-width: 184px;
+  padding: 5px;
+  background: var(--surface-menu);
+  border: 1px solid var(--border-menu);
+  border-radius: 9px;
+  box-shadow: var(--shadow-popover);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.preview-open-menu.hidden {
+  display: none;
+}
+.preview-open-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-menu);
+  font-size: 12.5px;
+  font-family: var(--font-reading);
+  text-align: left;
+  cursor: default;
+}
+.preview-open-item:hover {
+  background: var(--surface-menu-hover);
+}
+.preview-open-item svg {
+  color: var(--ink-muted);
+  flex: 0 0 auto;
+}
+
+.preview-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: default;
+}
+.preview-panel-toggle:hover {
+  background: var(--surface-control-soft);
+}
+.preview-panel-toggle.active {
+  background: var(--surface-selected);
+  color: var(--accent-strong);
+  border-color: var(--accent-soft-border);
+}
+
+/* Body — document canvas (left, anchored) + folder panel (right). Toggling the
+   panel never shifts the document. */
+.preview-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.preview-canvas {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  background: var(--surface);
+}
+.preview-canvas:focus-visible {
+  outline: none;
+}
+.preview-panel {
+  flex: 0 0 auto;
+  width: 280px;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+  overflow: auto;
+}
+.preview-panel.hidden {
+  display: none;
+}
+.preview-tree-stub {
+  padding: 16px;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+/* Reader — presenters. */
+.preview-doc {
+  min-height: 100%;
+}
+.preview-doc-pre {
+  margin: 0;
+  padding: 20px 24px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.preview-banner {
+  margin: 0;
+  padding: 10px 24px;
+  background: var(--surface-waiting-quiet);
+  color: var(--status-waiting-label);
+  border-bottom: 1px solid var(--border-waiting-quiet);
+  font-size: 12px;
+}
+.preview-doc[data-doc-kind="image"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.preview-doc[data-doc-kind="html"] {
+  height: 100%;
+}
+.preview-html-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+.preview-typed-state,
+.preview-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 340px;
+  height: 100%;
+  padding: 40px;
+  text-align: center;
+}
+.preview-typed-state svg,
+.preview-empty-state svg {
+  color: var(--ink-fainter);
+  margin-bottom: 4px;
+}
+.preview-typed-title,
+.preview-empty-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.preview-typed-detail,
+.preview-empty-detail {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  max-width: 380px;
+}
+.preview-tombstone .preview-typed-detail {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* Context menu — portaled to <body> so the strip's overflow can't clip it. */
+.preview-context-menu {
+  position: fixed;
+  z-index: 2147483000;
+  min-width: 172px;
+  padding: 5px;
+  background: var(--surface-menu);
+  border: 1px solid var(--border-menu);
+  border-radius: 9px;
+  box-shadow: var(--shadow-popover);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.preview-context-item {
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-menu);
+  font-size: 12.5px;
+  font-family: var(--font-reading);
+  text-align: left;
+  cursor: default;
+}
+.preview-context-item:hover:not(:disabled) {
+  background: var(--surface-menu-hover);
+}
+.preview-context-item:disabled {
+  opacity: 0.4;
+}

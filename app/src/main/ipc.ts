@@ -5,19 +5,30 @@ import {
   type FolderPickResponse,
   type FocusArtifactInMainRequest,
   type InspectorWindowState,
-  type MarkPreviewReviewedRequest,
   type OpenInspectorRequest,
   type OpenPreviewRequest,
   type OpenTerminalLinkRequest,
   type OpenTerminalLinkResponse,
-  type PreviewWindowState,
+  type PreviewActivateRequest,
+  type PreviewBinding,
+  type PreviewCloseRequest,
+  type PreviewDocument,
+  type PreviewReorderRequest,
+  type PreviewSetPanelRequest,
+  type PreviewSetScrollRequest,
+  type ReadingSettings,
   type TaskId,
   type TerminalActiveTaskState,
   type TerminalWindowSettings,
   type TerminalWindowState,
+  type WorkspaceDirEntry,
   type WorkspaceOpenExternalRequest,
   type WorkspaceOpenExternalResponse,
   type WorkspaceOpenFolderRequest,
+  type WorkspaceReadDirRequest,
+  type WorkspaceReadDocRequest,
+  type WorkspaceStatRequest,
+  type WorkspaceStatResult,
 } from "../shared/types";
 
 // Links clicked in the terminal are UNTRUSTED — they come from whatever the CLI
@@ -44,9 +55,17 @@ import type { ReadingSettingsStore } from "./settings-store";
 import type { RuntimeController } from "./runtime-controller";
 
 export interface WindowIpcController {
-  openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;
-  markPreviewReviewed(request: MarkPreviewReviewedRequest): PreviewWindowState;
-  readPreviewState(): PreviewWindowState;
+  openPreview(request: OpenPreviewRequest): Promise<void>;
+  readPreviewBinding(): PreviewBinding;
+  previewCloseTab(request: PreviewCloseRequest): void;
+  previewActivateTab(request: PreviewActivateRequest): void;
+  previewReorderTabs(request: PreviewReorderRequest): void;
+  previewSetScroll(request: PreviewSetScrollRequest): void;
+  previewSetPanel(request: PreviewSetPanelRequest): void;
+  readWorkspaceDoc(request: WorkspaceReadDocRequest): PreviewDocument;
+  readWorkspaceDir(request: WorkspaceReadDirRequest): WorkspaceDirEntry[];
+  statWorkspacePath(request: WorkspaceStatRequest): WorkspaceStatResult;
+  broadcastReadingSettings(settings: ReadingSettings): void;
   focusArtifactInMain(request: FocusArtifactInMainRequest): void;
   openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
   readInspectorState(): InspectorWindowState;
@@ -61,6 +80,7 @@ export interface WindowIpcController {
   pickFolder(): Promise<FolderPickResponse>;
   pickReferences(): Promise<string[]>;
   closeTaskSurfaces(taskId: TaskId): void;
+  forgetPreviewSession(taskId: TaskId): void;
 }
 
 export function registerIpcHandlers(
@@ -108,6 +128,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.sessionDelete, (_event, request) => {
     runtimeController.deleteSession(request.taskId);
     windowController.closeTaskSurfaces(request.taskId);
+    // A deleted session has no dormant record to return to — forget its preview
+    // claims (close/archive keep theirs).
+    windowController.forgetPreviewSession(request.taskId);
   });
   ipcMain.handle(IPC_CHANNELS.sessionReveal, (_event, request) => {
     const folder = runtimeController.sessionWorkingDirectory(request.taskId);
@@ -187,10 +210,22 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.previewOpen, (_event, request) =>
     windowController.openPreview(request),
   );
-  ipcMain.handle(IPC_CHANNELS.previewReviewedMark, (_event, request) =>
-    windowController.markPreviewReviewed(request),
-  );
-  ipcMain.handle(IPC_CHANNELS.previewStateRead, () => windowController.readPreviewState());
+  ipcMain.handle(IPC_CHANNELS.previewBindingRead, () => windowController.readPreviewBinding());
+  ipcMain.handle(IPC_CHANNELS.previewClose, (_event, request) => {
+    windowController.previewCloseTab(request);
+  });
+  ipcMain.handle(IPC_CHANNELS.previewActivate, (_event, request) => {
+    windowController.previewActivateTab(request);
+  });
+  ipcMain.handle(IPC_CHANNELS.previewReorder, (_event, request) => {
+    windowController.previewReorderTabs(request);
+  });
+  ipcMain.handle(IPC_CHANNELS.previewSetScroll, (_event, request) => {
+    windowController.previewSetScroll(request);
+  });
+  ipcMain.handle(IPC_CHANNELS.previewSetPanel, (_event, request) => {
+    windowController.previewSetPanel(request);
+  });
   ipcMain.handle(IPC_CHANNELS.mainArtifactFocusRequest, (_event, request) => {
     windowController.focusArtifactInMain(request);
   });
@@ -222,6 +257,15 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.workspaceFileRead, (_event, request) =>
     runtimeController.readWorkspaceFile(request.taskId, request.relativePath),
   );
+  ipcMain.handle(IPC_CHANNELS.workspaceReadDoc, (_event, request) =>
+    windowController.readWorkspaceDoc(request),
+  );
+  ipcMain.handle(IPC_CHANNELS.workspaceReadDir, (_event, request) =>
+    windowController.readWorkspaceDir(request),
+  );
+  ipcMain.handle(IPC_CHANNELS.workspaceStat, (_event, request) =>
+    windowController.statWorkspacePath(request),
+  );
   ipcMain.handle(IPC_CHANNELS.workspaceOpenExternal, (_event, request) =>
     windowController.openWorkspaceExternal(request),
   );
@@ -242,7 +286,11 @@ export function registerIpcHandlers(
     runtimeController.writeClaudeSettings(request),
   );
   ipcMain.handle(IPC_CHANNELS.readingSettingsRead, () => readingSettingsStore.read());
-  ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) =>
-    readingSettingsStore.write(request),
-  );
+  ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) => {
+    const persisted = readingSettingsStore.write(request);
+    // Satellites that follow the reading appearance (Preview) re-stamp on this
+    // push — the main renderer already applied locally (R6).
+    windowController.broadcastReadingSettings(persisted);
+    return persisted;
+  });
 }

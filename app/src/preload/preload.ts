@@ -5,7 +5,7 @@ import {
   type DuetRuntimeBridge,
   type FocusArtifactInMainRequest,
   type InspectorWindowState,
-  type PreviewWindowState,
+  type PreviewBinding,
   type ReadingSettings,
   type ResolvedReadingMode,
   type RuntimeEvent,
@@ -16,10 +16,16 @@ import {
 } from "../shared/types";
 
 const MAIN_WINDOW_ENTRY = "/index.html";
+const PREVIEW_WINDOW_ENTRY = "/preview.html";
 
-function isMainWindowDocument(): boolean {
+/** The Reading (main) and Preview windows both FOLLOW the reading appearance
+ *  (R6) — the preload stamps both on boot so neither flashes an unthemed frame.
+ *  The terminal window owns its own theme (its Aa picker) and is excluded. */
+function isReadingThemedDocument(): boolean {
+  const pathname = window.location.pathname;
   return (
-    window.location.pathname.endsWith(MAIN_WINDOW_ENTRY) ||
+    pathname.endsWith(MAIN_WINDOW_ENTRY) ||
+    pathname.endsWith(PREVIEW_WINDOW_ENTRY) ||
     document.documentElement?.dataset.theme === DEFAULT_READING_SETTINGS.theme
   );
 }
@@ -87,14 +93,33 @@ function stampInstanceLabel(label: string): void {
   document.title = `Duet — ${label}`;
 }
 
-if (isMainWindowDocument()) {
+if (isReadingThemedDocument()) {
+  // The instance badge + first-frame probe are the Reading window's alone; the
+  // Preview window only needs the theme/mode/textStep stamp.
+  const isMainWindow = window.location.pathname.endsWith(MAIN_WINDOW_ENTRY);
   const bootReadingSettings = readBootReadingSettings();
-  const bootInstanceLabel = readBootInstanceLabel();
   const stampBootSettings = (): void => {
     stampReadingSettings(bootReadingSettings);
-    stampInstanceLabel(bootInstanceLabel);
-    captureFirstReadingFrame();
+    if (isMainWindow) {
+      stampInstanceLabel(readBootInstanceLabel());
+      captureFirstReadingFrame();
+    }
   };
+
+  // Keep the appearance stamp current for the Preview satellite across changes
+  // (R6): a full reading-settings push (theme/mode/textStep) and — while in
+  // auto mode — a system light/dark flip both re-stamp. The Reading window owns
+  // this in its renderer, so this live path is Preview-only.
+  if (!isMainWindow) {
+    ipcRenderer.on(IPC_CHANNELS.readingSettingsChanged, (_event, settings: ReadingSettings) => {
+      stampReadingSettings(normalizeReadingSettings(settings));
+    });
+    ipcRenderer.on(IPC_CHANNELS.readingSystemModeChanged, () => {
+      // Re-resolve "auto" against the current system; an explicit light/dark
+      // choice is pinned and unaffected.
+      stampReadingSettings(readBootReadingSettings());
+    });
+  }
 
   if (document.documentElement) {
     stampBootSettings();
@@ -146,8 +171,15 @@ const duetRuntime: DuetRuntimeBridge = {
   listArtifacts: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactList, request),
   readArtifact: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactRead, request),
   openPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewOpen, request),
-  markPreviewReviewed: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewReviewedMark, request),
-  readPreviewState: () => ipcRenderer.invoke(IPC_CHANNELS.previewStateRead),
+  readPreviewBinding: () => ipcRenderer.invoke(IPC_CHANNELS.previewBindingRead),
+  closePreviewTab: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewClose, request),
+  activatePreviewTab: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewActivate, request),
+  reorderPreviewTabs: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewReorder, request),
+  setPreviewScroll: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewSetScroll, request),
+  setPreviewPanel: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewSetPanel, request),
+  readWorkspaceDoc: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceReadDoc, request),
+  readWorkspaceDir: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceReadDir, request),
+  statWorkspacePath: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceStat, request),
   focusArtifactInMain: (request) => ipcRenderer.invoke(IPC_CHANNELS.mainArtifactFocusRequest, request),
   openInspector: (request) => ipcRenderer.invoke(IPC_CHANNELS.inspectorOpen, request),
   readInspectorState: () => ipcRenderer.invoke(IPC_CHANNELS.inspectorStateRead),
@@ -178,6 +210,13 @@ const duetRuntime: DuetRuntimeBridge = {
     ipcRenderer.on(IPC_CHANNELS.readingSystemModeChanged, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.readingSystemModeChanged, listener);
   },
+  onReadingSettingsChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, settings: ReadingSettings) => {
+      callback(settings);
+    };
+    ipcRenderer.on(IPC_CHANNELS.readingSettingsChanged, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.readingSettingsChanged, listener);
+  },
   onSettingsOpen: (callback) => {
     const listener = () => {
       callback();
@@ -192,12 +231,12 @@ const duetRuntime: DuetRuntimeBridge = {
     ipcRenderer.on(IPC_CHANNELS.notificationActivateTask, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.notificationActivateTask, listener);
   },
-  onPreviewState: (callback) => {
-    const listener = (_event: Electron.IpcRendererEvent, previewState: PreviewWindowState) => {
-      callback(previewState);
+  onPreviewBinding: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, binding: PreviewBinding) => {
+      callback(binding);
     };
-    ipcRenderer.on(IPC_CHANNELS.previewState, listener);
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.previewState, listener);
+    ipcRenderer.on(IPC_CHANNELS.previewBinding, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.previewBinding, listener);
   },
   onMainArtifactFocus: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, request: FocusArtifactInMainRequest) => {

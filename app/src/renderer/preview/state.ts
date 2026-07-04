@@ -1,0 +1,141 @@
+import { Braces, File, FileCode, FileText, Image as ImageIcon, type IconNode } from "lucide";
+import type { PreviewBinding, PreviewDocument, PreviewSession } from "../../shared/types";
+
+/**
+ * The Preview window's renderer state — a projection of (session truth × disk
+ * truth) plus this window's own view truth (design record §6.2). Deliberately
+ * NOT the reading-core reducer machinery: Preview's events arrive at
+ * human-writing pace, so it earns a small imperative organism with the same
+ * discipline (main owns truth, renderer projects, named transitions), not the
+ * corpus-fenced firehose model.
+ */
+export interface PreviewViewState {
+  /** Last binding pushed by main: the bound task's session + breadcrumb root. */
+  binding: PreviewBinding;
+  /** View truth: background tabs whose file changed since last focused. Never
+   *  persisted — after a restart everything projects fresh (§6.0). */
+  dirty: Set<string>;
+  /** The active tab's loaded document, and which path it is for (guards against
+   *  a stale async read landing after a tab switch). */
+  doc: PreviewDocument | null;
+  docPath: string | null;
+  /** Freeze the strip's tab widths while the pointer stays in it after a close,
+   *  so serial closing is click-click-click in place (§4). Keyed by path. */
+  frozenWidths: Map<string, number> | null;
+}
+
+export function createInitialPreviewState(): PreviewViewState {
+  return {
+    binding: { taskId: null, projectDirName: null, session: null },
+    dirty: new Set(),
+    doc: null,
+    docPath: null,
+    frozenWidths: null,
+  };
+}
+
+/** The behaviors the view modules invoke, bound once by the composition root —
+ *  the Preview window's small equivalent of the Reading window's actions seam. */
+export interface PreviewDeps {
+  activate(path: string): void;
+  close(path: string): void;
+  closeOthers(path: string): void;
+  closeToRight(path: string): void;
+  openExternal(target: "folder" | "cursor"): void;
+  togglePanel(): void;
+  closeWindow(): void;
+}
+
+export function activeSession(state: PreviewViewState): PreviewSession | null {
+  return state.binding.session;
+}
+
+export function activePath(state: PreviewViewState): string | null {
+  return state.binding.session?.activePath ?? null;
+}
+
+/**
+ * Same-name tabs get a dimmed parent-dir disambiguator (`brief.md — docs`,
+ * §5.2). Returns a map path → parent-dir label for every path whose basename
+ * collides with another open tab.
+ */
+export function disambiguators(session: PreviewSession | null): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!session) {
+    return out;
+  }
+  const byName = new Map<string, string[]>();
+  for (const tab of session.tabs) {
+    const name = basename(tab.path);
+    const list = byName.get(name) ?? [];
+    list.push(tab.path);
+    byName.set(name, list);
+  }
+  for (const paths of byName.values()) {
+    if (paths.length < 2) {
+      continue;
+    }
+    for (const path of paths) {
+      const parent = parentDirName(path);
+      if (parent) {
+        out.set(path, parent);
+      }
+    }
+  }
+  return out;
+}
+
+export function basename(path: string): string {
+  const parts = path.split("/");
+  return parts[parts.length - 1] ?? path;
+}
+
+function parentDirName(path: string): string | null {
+  const parts = path.split("/");
+  return parts.length >= 2 ? (parts[parts.length - 2] ?? null) : null;
+}
+
+/** Lucide type icon by extension (§5.8): file-text (docs), file-code (source +
+ *  html), braces (json), image, file (fallback). Monochrome ink — the app
+ *  trades color for calm. */
+export function iconForPath(path: string): IconNode {
+  const ext = extensionOf(path);
+  if (ext === "json") {
+    return Braces;
+  }
+  if (IMAGE_EXTENSIONS.has(ext)) {
+    return ImageIcon;
+  }
+  if (SOURCE_EXTENSIONS.has(ext)) {
+    return FileCode;
+  }
+  if (DOC_EXTENSIONS.has(ext)) {
+    return FileText;
+  }
+  return File;
+}
+
+function extensionOf(path: string): string {
+  const name = basename(path);
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+const SOURCE_EXTENSIONS = new Set([
+  "ts", "tsx", "js", "jsx", "mjs", "cjs", "html", "htm", "css", "scss",
+  "py", "go", "rs", "java", "c", "h", "cpp", "hpp", "rb", "sh", "swift",
+  "kt", "php", "sql", "yaml", "yml", "toml", "xml",
+]);
+const DOC_EXTENSIONS = new Set(["md", "markdown", "txt", "text", "csv", "log", "rst"]);
+
+/** Human byte count for the binary/too-large typed states. */
+export function formatBytes(size: number): string {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${Math.round(size / 1024)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}

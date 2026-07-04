@@ -25,6 +25,10 @@ import {
   type WindowStateDocument,
   normalizeWindowStateDocument,
 } from "../shared/types/window-state";
+import {
+  type PreviewSessionsDocument,
+  normalizePreviewSessionsDocument,
+} from "../shared/types/preview-sessions";
 
 /**
  * A settings file backed by JSON: read-with-normalize-fallback and
@@ -121,4 +125,14 @@ export function terminalWindowSettingsPath(): string {
     process.env.DUET_SETTINGS_DIR || duetConfigDir(),
     "terminal-window-settings.json",
   );
+}
+
+export class PreviewSessionsStore extends JsonSettingsStore<PreviewSessionsDocument> {
+  constructor(filePath: string) {
+    super(filePath, normalizePreviewSessionsDocument);
+  }
+}
+
+export function previewSessionsPath(): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "preview-sessions.json");
 }

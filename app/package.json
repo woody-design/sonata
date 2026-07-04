@@ -29,6 +29,8 @@
     "e2e:provider-locked-task": "npm run build && node tests/e2e/provider-locked-task.mjs",
     "e2e:approval-surface": "npm run build && node tests/e2e/approval-surface.mjs",
     "e2e:inspector-folder-external": "npm run build && node tests/e2e/inspector-folder-external.mjs",
+    "e2e:preview-tabs": "npm run build && node tests/e2e/preview-tabs.mjs",
+    "e2e:preview-screenshots": "npm run build && node tests/e2e/preview-screenshots.mjs",
     "e2e:change-summary": "npm run build && node tests/e2e/change-summary.mjs",
     "e2e:stop-continue": "npm run build && node tests/e2e/stop-continue.mjs",
     "e2e:reading-settings": "npm run build && node tests/e2e/reading-settings.mjs",

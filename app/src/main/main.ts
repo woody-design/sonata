@@ -16,32 +16,47 @@ import {
   type FolderPickResponse,
   type FocusArtifactInMainRequest,
   type InspectorWindowState,
-  type MarkPreviewReviewedRequest,
   type OpenInspectorRequest,
   type OpenPreviewRequest,
-  type PreviewWindowState,
+  type PreviewActivateRequest,
+  type PreviewBinding,
+  type PreviewCloseRequest,
+  type PreviewDocument,
+  type PreviewReorderRequest,
+  type PreviewSetPanelRequest,
+  type PreviewSetScrollRequest,
+  type ReadingSettings,
   type RuntimeEvent,
   type TaskId,
   type TerminalActiveTaskState,
   type TerminalWindowSettings,
   type TerminalWindowState,
+  type WorkspaceDirEntry,
   type WorkspaceOpenExternalRequest,
   type WorkspaceOpenExternalResponse,
   type WorkspaceOpenFolderRequest,
+  type WorkspaceReadDirRequest,
+  type WorkspaceReadDocRequest,
+  type WorkspaceStatRequest,
+  type WorkspaceStatResult,
 } from "../shared/types";
 import { registerIpcHandlers } from "./ipc";
 import { NotificationController } from "./notification-controller";
+import { PreviewSessions } from "./preview-sessions";
 import { createRuntimeEventRecorder } from "./runtime-event-recorder";
 import { RuntimeController } from "./runtime-controller";
+import { WorkspaceFiles } from "./workspace-files";
 import {
   ClaudeSettingsStore,
   LocalApiSettingsStore,
+  PreviewSessionsStore,
   ReadingSettingsStore,
   ResumeSettingsStore,
   TerminalWindowSettingsStore,
   WindowStateStore,
   claudeSettingsPath,
   localApiSettingsPath,
+  previewSessionsPath,
   readingSettingsPath,
   resumeSettingsPath,
   terminalWindowSettingsPath,
@@ -63,10 +78,12 @@ let localApiServer: LocalApiServer | null = null;
 // Distinguishes a user closing the terminal window (persist closed) from the
 // app quitting (leave the open preference intact, so it reopens next launch).
 let isQuitting = false;
-let previewState: PreviewWindowState = {
-  tabs: [],
-  selected: null,
-};
+// Preview window session truth + disk seam (design record §6). The window binds
+// ONE task at a time and follows the Reading window's active task; the bound id
+// is the projection key.
+let previewSessions: PreviewSessions | null = null;
+let workspaceFiles: WorkspaceFiles | null = null;
+let previewBoundTaskId: TaskId | null = null;
 let inspectorState: InspectorWindowState = {
   taskId: null,
   lens: "run",
@@ -163,6 +180,12 @@ function createPreviewWindow(): BrowserWindow {
     // disables the macOS fullscreen (green) button.
     ...(decision?.fullScreen ? { fullscreen: true } : {}),
     title: "Duet Preview",
+    // Frameless like the main + terminal windows: the tab strip is the drag
+    // region and reserves a traffic-light inset on its left, so the strip reads
+    // as a peer of the browser tab bars the design borrows from. macOS-only
+    // options; ignored elsewhere.
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 18, y: 14 },
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
@@ -271,76 +294,153 @@ function createTerminalWindow(): BrowserWindow {
   return window;
 }
 
-async function openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState> {
-  updatePreviewState(request);
+/**
+ * Open/focus the Preview window and bind a task (design record §6.1). A bare
+ * `taskId` (the header Eye button) shows that task's restored tabs or its empty
+ * state; a `relativePath` also opens-or-focuses that tab. Binding stays in step
+ * with the active-task relay — clicking a chip in task B implies B is active.
+ */
+async function openPreview(request: OpenPreviewRequest): Promise<void> {
+  bindPreviewTask(request.taskId);
+  if (request.relativePath) {
+    previewSessions?.open(request.taskId, request.relativePath);
+  }
   if (!previewWindow || previewWindow.isDestroyed()) {
     previewWindow = createPreviewWindow();
     previewWindow.webContents.once("did-finish-load", () => {
-      sendPreviewState();
+      pushPreviewBinding();
     });
   } else {
     previewWindow.show();
     previewWindow.focus();
-    sendPreviewState();
+    pushPreviewBinding();
   }
-  return previewState;
 }
 
-function readPreviewState(): PreviewWindowState {
-  return previewState;
-}
-
-function updatePreviewState(request: OpenPreviewRequest): void {
-  if (!request.relativePath) {
-    // A pathless open (the header Preview button) targets a task, not a file.
-    // Preview surfaces are task-scoped: carrying another task's selection
-    // across would show task A's artifact under task B's context — clear to
-    // the honest empty state instead. Same-task reopens keep the selection.
-    if (previewState.selected && previewState.selected.taskId !== request.taskId) {
-      previewState = { ...previewState, selected: null };
-    }
+/**
+ * The window binds ONE task's session and follows the Reading window's active
+ * task (§6.1). Switching tasks swaps the whole strip (tabs, active, scroll all
+ * restore); the previous task's claims persist untouched. Called from both the
+ * active-task relay and an explicit open.
+ */
+function bindPreviewTask(taskId: TaskId | null): void {
+  if (previewBoundTaskId === taskId) {
     return;
   }
+  previewBoundTaskId = taskId;
+  pushPreviewBinding();
+}
 
-  const ref = {
-    taskId: request.taskId,
-    path: request.relativePath,
-  };
-  const existing = previewState.tabs.find((tab) => samePreviewRef(tab, ref));
-  previewState = {
-    tabs: existing
-      ? previewState.tabs.map((tab) =>
-          samePreviewRef(tab, ref) ? { ...tab, dirty: false } : tab,
-        )
-      : [...previewState.tabs, { ...ref, dirty: false, reviewed: false }],
-    selected: ref,
+function readPreviewBinding(): PreviewBinding {
+  return currentPreviewBinding();
+}
+
+/** Push the bound task's session (+ breadcrumb root) to the Preview window
+ *  ONLY — the old state broadcast to every window was unconsumed noise (§6.1). */
+function pushPreviewBinding(): void {
+  if (!previewWindow || previewWindow.isDestroyed()) {
+    return;
+  }
+  previewWindow.webContents.send(IPC_CHANNELS.previewBinding, currentPreviewBinding());
+}
+
+function currentPreviewBinding(): PreviewBinding {
+  const taskId = previewBoundTaskId;
+  if (!taskId || !previewSessions) {
+    return { taskId: null, projectDirName: null, session: null };
+  }
+  return {
+    taskId,
+    projectDirName: previewProjectDirName(taskId),
+    session: previewSessions.session(taskId),
   };
 }
 
-function sendPreviewState(): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) {
-      window.webContents.send(IPC_CHANNELS.previewState, previewState);
-    }
+/** Basename of the bound task's workspace cwd — the breadcrumb root label.
+ *  Resolves for dormant sessions too (disk truth needs no live PTY); null when
+ *  the task is gone (deleted). */
+function previewProjectDirName(taskId: TaskId): string | null {
+  try {
+    const root = runtimeController?.sessionWorkingDirectory(taskId);
+    return root ? path.basename(root) : null;
+  } catch {
+    return null;
   }
 }
 
-function markPreviewReviewed(request: MarkPreviewReviewedRequest): PreviewWindowState {
-  const ref = {
-    taskId: request.taskId,
-    path: request.relativePath,
-  };
-  const existing = previewState.tabs.find((tab) => samePreviewRef(tab, ref));
-  previewState = {
-    tabs: existing
-      ? previewState.tabs.map((tab) =>
-          samePreviewRef(tab, ref) ? { ...tab, dirty: false, reviewed: true } : tab,
-        )
-      : [...previewState.tabs, { ...ref, dirty: false, reviewed: true }],
-    selected: ref,
-  };
-  sendPreviewState();
-  return previewState;
+// Named transitions (renderer → main). Each ignores a taskId that raced a
+// rebind, mutates session truth, and echoes the fresh binding back.
+function previewCloseTab(request: PreviewCloseRequest): void {
+  if (!previewSessions || request.taskId !== previewBoundTaskId) {
+    return;
+  }
+  previewSessions.close(request.taskId, request.path);
+  pushPreviewBinding();
+}
+
+function previewActivateTab(request: PreviewActivateRequest): void {
+  if (!previewSessions || request.taskId !== previewBoundTaskId) {
+    return;
+  }
+  previewSessions.activate(request.taskId, request.path);
+  pushPreviewBinding();
+}
+
+function previewReorderTabs(request: PreviewReorderRequest): void {
+  if (!previewSessions || request.taskId !== previewBoundTaskId) {
+    return;
+  }
+  previewSessions.reorder(request.taskId, request.paths);
+  pushPreviewBinding();
+}
+
+function previewSetScroll(request: PreviewSetScrollRequest): void {
+  // Write-only: no echo (echoing scroll would fight the user's live scrolling).
+  if (!previewSessions || request.taskId !== previewBoundTaskId) {
+    return;
+  }
+  previewSessions.setScroll(request.taskId, request.path, request.scroll);
+}
+
+function previewSetPanel(request: PreviewSetPanelRequest): void {
+  if (!previewSessions || request.taskId !== previewBoundTaskId) {
+    return;
+  }
+  previewSessions.setPanel(request.taskId, request.open);
+  pushPreviewBinding();
+}
+
+function readWorkspaceDoc(request: WorkspaceReadDocRequest): PreviewDocument {
+  if (!workspaceFiles) {
+    throw new Error("Workspace files seam is not ready.");
+  }
+  return workspaceFiles.readDoc(request.taskId, request.relativePath);
+}
+
+function readWorkspaceDir(request: WorkspaceReadDirRequest): WorkspaceDirEntry[] {
+  return workspaceFiles?.readDir(request.taskId, request.relativePath ?? "") ?? [];
+}
+
+function statWorkspacePath(request: WorkspaceStatRequest): WorkspaceStatResult {
+  return (
+    workspaceFiles?.stat(request.taskId, request.relativePath) ?? {
+      exists: false,
+      isFile: false,
+      isDirectory: false,
+      size: 0,
+    }
+  );
+}
+
+/** Broadcast the full reading appearance so satellites that follow it (Preview)
+ *  re-stamp on a theme/mode/textStep change (R6). The system-mode channel only
+ *  covers the auto→light/dark flip; this covers explicit changes. */
+function broadcastReadingSettings(settings: ReadingSettings): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.readingSettingsChanged, settings);
+    }
+  }
 }
 
 function focusArtifactInMain(request: FocusArtifactInMainRequest): void {
@@ -369,55 +469,15 @@ function activateTaskFromNotification(taskId: TaskId): void {
   mainWindow.webContents.send(IPC_CHANNELS.notificationActivateTask, taskId);
 }
 
-function handlePreviewRuntimeEvent(event: RuntimeEvent): void {
-  if (event.type !== "file:changed") {
-    return;
-  }
-
-  const ref = {
-    taskId: event.payload.taskId,
-    path: event.payload.path,
-  };
-  const selected = previewState.selected ? samePreviewRef(previewState.selected, ref) : false;
-  let changed = false;
-  const tabs = previewState.tabs.map((tab) => {
-    if (!samePreviewRef(tab, ref)) {
-      return tab;
-    }
-    changed = true;
-    return {
-      ...tab,
-      dirty: !selected,
-      reviewed: false,
-    };
-  });
-
-  if (changed) {
-    previewState = {
-      ...previewState,
-      tabs,
-    };
-    sendPreviewState();
-  }
-}
-
-function samePreviewRef(
-  left: { taskId: string; path: string },
-  right: { taskId: string; path: string },
-): boolean {
-  return left.taskId === right.taskId && left.path === right.path;
-}
-
+/**
+ * A closed or archived task unbinds the Preview window (the active-task relay
+ * rebinds to whatever the Reading window selects next) but its tab claims
+ * PERSIST — dormant/archived sessions keep their reading position (§6.1).
+ * `file:changed` no longer routes through main for the preview: dirty is view
+ * truth, and the preview renderer receives the runtime event directly and
+ * reconciles (§6.0). The inspector (S5) still clears here.
+ */
 function closeTaskSurfaces(taskId: TaskId): void {
-  const tabs = previewState.tabs.filter((tab) => tab.taskId !== taskId);
-  const selected =
-    previewState.selected?.taskId === taskId ? tabs.at(-1) ?? null : previewState.selected;
-  previewState = {
-    tabs,
-    selected,
-  };
-  sendPreviewState();
-
   if (inspectorState.taskId === taskId) {
     inspectorState = {
       ...inspectorState,
@@ -425,6 +485,16 @@ function closeTaskSurfaces(taskId: TaskId): void {
     };
   }
   sendInspectorState();
+}
+
+/** A deleted session leaves no dormant record to return to, so its preview
+ *  claims are forgotten (close/archive keep theirs). Called only on delete. */
+function forgetPreviewSession(taskId: TaskId): void {
+  previewSessions?.forget(taskId);
+  if (previewBoundTaskId === taskId) {
+    previewBoundTaskId = null;
+    pushPreviewBinding();
+  }
 }
 
 async function openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState> {
@@ -537,6 +607,10 @@ function setActiveTerminalTask(next: TerminalActiveTaskState): void {
       window.webContents.send(IPC_CHANNELS.terminalActiveTask, activeTerminalTask);
     }
   }
+  // The Preview window rides the same active-task signal: it follows whatever
+  // task the Reading window has selected (§6.1). A null task unbinds to the
+  // empty state.
+  bindPreviewTask(next.taskId);
 }
 
 function readActiveTerminalTask(): TerminalActiveTaskState {
@@ -546,11 +620,12 @@ function readActiveTerminalTask(): TerminalActiveTaskState {
 async function openWorkspaceExternal(
   request: WorkspaceOpenExternalRequest,
 ): Promise<WorkspaceOpenExternalResponse> {
-  if (!runtimeController) {
-    throw new Error("Runtime controller is not ready.");
+  if (!workspaceFiles) {
+    throw new Error("Workspace files seam is not ready.");
   }
-  const workspaceRoot = runtimeController.workspacePath(request.taskId);
-  const targetPath = resolveWorkspaceExternalPath(workspaceRoot, request.relativePath);
+  // Route external-open through WorkspaceFiles' single audited resolution (§6.1)
+  // — the same path+symlink guard reads use, no second copy here.
+  const targetPath = workspaceFiles.resolveExternalTarget(request.taskId, request.relativePath);
 
   if (request.target === "folder") {
     await openFolderTarget(targetPath, Boolean(request.relativePath));
@@ -616,36 +691,6 @@ async function openFolderTarget(targetPath: string, revealTarget: boolean): Prom
 
 async function openCursorTarget(targetPath: string): Promise<void> {
   await shell.openExternal(cursorFileUrl(targetPath));
-}
-
-function resolveWorkspaceExternalPath(workspaceRoot: string, relativePath?: string): string {
-  const resolvedRoot = path.resolve(workspaceRoot);
-  if (!relativePath) {
-    return resolvedRoot;
-  }
-
-  if (path.isAbsolute(relativePath)) {
-    throw new Error("Workspace path must be relative to the workspace.");
-  }
-
-  const targetPath = path.resolve(resolvedRoot, relativePath);
-  const rootWithSep = `${resolvedRoot}${path.sep}`;
-  if (targetPath !== resolvedRoot && !targetPath.startsWith(rootWithSep)) {
-    throw new Error("Workspace path escapes the workspace.");
-  }
-
-  const realRoot = safeRealpath(resolvedRoot);
-  const realTarget = safeRealpath(targetPath);
-  const realRootWithSep = `${realRoot}${path.sep}`;
-  if (realTarget !== realRoot && !realTarget.startsWith(realRootWithSep)) {
-    throw new Error("Workspace path escapes the workspace through a symlink.");
-  }
-
-  return targetPath;
-}
-
-function safeRealpath(filePath: string): string {
-  return fs.realpathSync.native ? fs.realpathSync.native(filePath) : fs.realpathSync(filePath);
 }
 
 function cursorFileUrl(filePath: string): string {
@@ -765,6 +810,17 @@ const recordRuntimeEvent = createRuntimeEventRecorder(process.env.DUET_RUNTIME_E
 
 app.whenReady().then(() => {
   readingSettingsStore = new ReadingSettingsStore(readingSettingsPath());
+  previewSessions = new PreviewSessions(new PreviewSessionsStore(previewSessionsPath()));
+  // The disk-truth seam resolves a task's workspace root for LIVE or DORMANT
+  // sessions (sessionWorkingDirectory reads the manifest) — reading a file
+  // never needs a live PTY. A gone task returns null → absent/empty projection.
+  workspaceFiles = new WorkspaceFiles((taskId) => {
+    try {
+      return runtimeController?.sessionWorkingDirectory(taskId) ?? null;
+    } catch {
+      return null;
+    }
+  });
   // DUET_NOTIFICATIONS=0 is a hard off (kill switch for test harnesses and for
   // anyone who prefers the macOS per-app toggle as their only control).
   if (process.env.DUET_NOTIFICATIONS !== "0") {
@@ -786,7 +842,6 @@ app.whenReady().then(() => {
     claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath()),
     sendEvent: (event) => {
       recordRuntimeEvent(event);
-      handlePreviewRuntimeEvent(event);
       localApiServer?.broadcastEvent(event);
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) {
@@ -803,8 +858,16 @@ app.whenReady().then(() => {
   nativeTheme.on("updated", sendReadingSystemMode);
   registerIpcHandlers(runtimeController, {
     openPreview,
-    markPreviewReviewed,
-    readPreviewState,
+    readPreviewBinding,
+    previewCloseTab,
+    previewActivateTab,
+    previewReorderTabs,
+    previewSetScroll,
+    previewSetPanel,
+    readWorkspaceDoc,
+    readWorkspaceDir,
+    statWorkspacePath,
+    broadcastReadingSettings,
     focusArtifactInMain,
     openInspector,
     readInspectorState,
@@ -819,6 +882,7 @@ app.whenReady().then(() => {
     pickFolder,
     pickReferences,
     closeTaskSurfaces,
+    forgetPreviewSession,
   }, readingSettingsStore);
   createApplicationMenu();
   windowState = new WindowStateManager(new WindowStateStore(windowStatePath()));
@@ -870,6 +934,7 @@ app.on("before-quit", () => {
   // preference intact (a quit is not the user choosing to close the terminal).
   isQuitting = true;
   windowState?.flush();
+  previewSessions?.flush();
   localApiServer?.stop();
   localApiServer = null;
   runtimeController?.dispose();

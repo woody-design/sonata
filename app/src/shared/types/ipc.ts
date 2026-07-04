@@ -61,10 +61,18 @@ export const IPC_CHANNELS = {
   remoteControlInject: "remote-control:inject",
   artifactList: "artifact:list",
   artifactRead: "artifact:read",
+  // Preview window (2026-07 redesign, three-truths model §6). `previewOpen`
+  // opens/focuses the window and binds a task (optionally opening a tab);
+  // `previewBinding` is main's push of the bound task's session; the transition
+  // channels are the renderer's named mutations of session truth.
   previewOpen: "preview:open",
-  previewReviewedMark: "preview:reviewed:mark",
-  previewStateRead: "preview:state:read",
-  previewState: "preview:state",
+  previewBinding: "preview:binding",
+  previewBindingRead: "preview:binding:read",
+  previewClose: "preview:close",
+  previewActivate: "preview:activate",
+  previewReorder: "preview:reorder",
+  previewSetScroll: "preview:set-scroll",
+  previewSetPanel: "preview:set-panel",
   mainArtifactFocusRequest: "main:artifact:focus:request",
   mainArtifactFocus: "main:artifact:focus",
   inspectorOpen: "inspector:open",
@@ -80,6 +88,11 @@ export const IPC_CHANNELS = {
   terminalActiveTask: "terminal-active-task",
   workspaceTreeRead: "workspace:tree:read",
   workspaceFileRead: "workspace:file:read",
+  // WorkspaceFiles seam (§6.1): classified single-file read, one-level dir read,
+  // and stat — the renderer never sniffs bytes, classification runs in main.
+  workspaceReadDoc: "workspace:read-doc",
+  workspaceReadDir: "workspace:read-dir",
+  workspaceStat: "workspace:stat",
   workspaceOpenExternal: "workspace:open-external",
   workspaceOpenFolder: "workspace:open-folder",
   folderPick: "folder:pick",
@@ -94,6 +107,10 @@ export const IPC_CHANNELS = {
   readingSettingsReadSync: "reading-settings:read-sync",
   instanceLabelReadSync: "instance-label:read-sync",
   readingSystemModeChanged: "reading-settings:system-mode-changed",
+  // Full reading-settings push (theme/mode/textStep) so satellites that follow
+  // the reading appearance (Preview) re-stamp when the user changes it (R6). The
+  // system-mode channel above only covers the auto→light/dark flip.
+  readingSettingsChanged: "reading-settings:changed",
   settingsOpen: "settings:open",
   notificationActivateTask: "notification:activate-task",
   runtimeEvent: "runtime:event",
@@ -361,27 +378,127 @@ export interface ArtifactPreviewResponse {
   rawTerminalPointer: null;
 }
 
+/** Open/focus the Preview window and bind a task. A bare `taskId` (the header
+ *  Eye button) shows that task's restored tabs or its empty state; a
+ *  `relativePath` also opens-or-focuses that tab. */
 export interface OpenPreviewRequest {
   taskId: TaskId;
   relativePath?: string;
 }
 
-export interface PreviewArtifactRef {
-  taskId: TaskId;
+// ── Preview window: three-truths model (§6.0) ────────────────────────────────
+// Disk truth is observed (WorkspaceFiles), never stored. Session truth (below)
+// is owned by main and durable. View truth (dirty set, tree expansion, filter)
+// lives only in the renderer and never crosses this IPC.
+
+/** A tab is a CLAIM on a disk path within one task — not a copy of disk state.
+ *  Ordered in the strip; keyed by `path` within the bound task's session. */
+export interface PreviewTab {
   path: string;
 }
 
-export interface PreviewWindowTab extends PreviewArtifactRef {
-  dirty: boolean;
-  reviewed: boolean;
+/** Session truth: what the user is reading in ONE task's Preview. No
+ *  dirty/reviewed/content/existence fields — those are disk or view truth. */
+export interface PreviewSession {
+  taskId: TaskId;
+  tabs: PreviewTab[];
+  activePath: string | null;
+  /** path → reader scrollTop (px), restored on activation and across restart. */
+  scroll: Record<string, number>;
+  panelOpen: boolean;
 }
 
-export interface PreviewWindowState {
-  tabs: PreviewWindowTab[];
-  selected: PreviewArtifactRef | null;
+/** Main's push to the Preview window: the bound task's session plus the sliver
+ *  of disk context the chrome needs. A null session ⇒ unbound (no active task) ⇒
+ *  the global empty state. */
+export interface PreviewBinding {
+  taskId: TaskId | null;
+  /** Basename of the bound task's workspace cwd — the breadcrumb root label. */
+  projectDirName: string | null;
+  session: PreviewSession | null;
 }
 
-export interface MarkPreviewReviewedRequest {
+// Named transitions (renderer → main), each on the bound task; a stale taskId
+// (a transition that races a rebind) is ignored by main.
+export interface PreviewCloseRequest {
+  taskId: TaskId;
+  path: string;
+}
+export interface PreviewActivateRequest {
+  taskId: TaskId;
+  path: string;
+}
+export interface PreviewReorderRequest {
+  taskId: TaskId;
+  /** The tabs' paths in their new order. */
+  paths: string[];
+}
+export interface PreviewSetScrollRequest {
+  taskId: TaskId;
+  path: string;
+  scroll: number;
+}
+export interface PreviewSetPanelRequest {
+  taskId: TaskId;
+  open: boolean;
+}
+
+// ── WorkspaceFiles seam (§6.1) ───────────────────────────────────────────────
+
+/** Document classification runs in MAIN (the renderer never sniffs bytes). The
+ *  ladder: absent → empty → binary (NUL in first 8000B) → too-large → by
+ *  extension (markdown/html/image) → text. */
+export type PreviewDocumentKind =
+  | "markdown"
+  | "text"
+  | "html"
+  | "image"
+  | "binary"
+  | "too-large"
+  | "empty"
+  | "absent";
+
+export interface PreviewDocument {
+  path: string;
+  name: string;
+  extension: string;
+  size: number;
+  kind: PreviewDocumentKind;
+  /** text/markdown/html payload (head-sliced when `truncated`). */
+  text?: string;
+  /** image payload — data: URL in S1; duet-file:// lands in S2. */
+  dataUrl?: string;
+  /** a too-large file was head-sliced to the preview cap. */
+  truncated?: boolean;
+}
+
+export interface WorkspaceDirEntry {
+  path: string;
+  name: string;
+  type: "file" | "directory";
+  /** Dot-prefixed / macOS-hidden — shown de-emphasized, interaction unchanged (R4). */
+  hidden: boolean;
+}
+
+export interface WorkspaceStatResult {
+  exists: boolean;
+  isFile: boolean;
+  isDirectory: boolean;
+  size: number;
+}
+
+export interface WorkspaceReadDocRequest {
+  taskId: TaskId;
+  relativePath: string;
+}
+
+/** One-level directory read. Omit `relativePath` (or "") for the workspace root. */
+export interface WorkspaceReadDirRequest {
+  taskId: TaskId;
+  relativePath?: string;
+}
+
+export interface WorkspaceStatRequest {
   taskId: TaskId;
   relativePath: string;
 }
@@ -517,10 +634,20 @@ export interface DuetRuntimeBridge {
   ): Promise<RemoteControlInjectResponse>;
   listArtifacts(request: ListArtifactsRequest): Promise<ArtifactCandidate[]>;
   readArtifact(request: ReadArtifactRequest): Promise<ArtifactPreviewResponse>;
-  openPreview(request: OpenPreviewRequest): Promise<PreviewWindowState>;
-  markPreviewReviewed(request: MarkPreviewReviewedRequest): Promise<PreviewWindowState>;
-  readPreviewState(): Promise<PreviewWindowState>;
-  onPreviewState(callback: (state: PreviewWindowState) => void): () => void;
+  // Preview window (three-truths model §6). `openPreview` opens/focuses + binds
+  // (+ optional tab); the transition methods mutate session truth in main, which
+  // echoes the updated binding back through `onPreviewBinding`.
+  openPreview(request: OpenPreviewRequest): Promise<void>;
+  readPreviewBinding(): Promise<PreviewBinding>;
+  closePreviewTab(request: PreviewCloseRequest): Promise<void>;
+  activatePreviewTab(request: PreviewActivateRequest): Promise<void>;
+  reorderPreviewTabs(request: PreviewReorderRequest): Promise<void>;
+  setPreviewScroll(request: PreviewSetScrollRequest): Promise<void>;
+  setPreviewPanel(request: PreviewSetPanelRequest): Promise<void>;
+  onPreviewBinding(callback: (binding: PreviewBinding) => void): () => void;
+  readWorkspaceDoc(request: WorkspaceReadDocRequest): Promise<PreviewDocument>;
+  readWorkspaceDir(request: WorkspaceReadDirRequest): Promise<WorkspaceDirEntry[]>;
+  statWorkspacePath(request: WorkspaceStatRequest): Promise<WorkspaceStatResult>;
   focusArtifactInMain(request: FocusArtifactInMainRequest): Promise<void>;
   onMainArtifactFocus(callback: (request: FocusArtifactInMainRequest) => void): () => void;
   openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
@@ -547,6 +674,9 @@ export interface DuetRuntimeBridge {
   readClaudeSettings(): Promise<ClaudeSettings>;
   writeClaudeSettings(settings: ClaudeSettings): Promise<ClaudeSettings>;
   onReadingSystemModeChanged(callback: (mode: ResolvedReadingMode) => void): () => void;
+  /** Full reading-settings push so satellites that follow the reading appearance
+   *  (Preview) re-stamp theme/mode/textStep when the user changes it (R6). */
+  onReadingSettingsChanged(callback: (settings: ReadingSettings) => void): () => void;
   /** The app menu's "Settings…" (⌘,) asks the main window to open the page. */
   onSettingsOpen(callback: () => void): () => void;
   /** A clicked native notification asks the main window to select its task. */

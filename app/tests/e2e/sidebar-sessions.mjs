@@ -81,14 +81,21 @@ try {
   await inspectorArtifact.locator("button", { hasText: "Open Preview" }).click();
   const previewPage = await waitForWindowByUrl(electronApp, "preview.html");
   previewPage.setDefaultTimeout(180000);
-  await previewPage.locator("#preview-window-title", { hasText: "report.md" }).waitFor({
+  // New Preview (2026-07 redesign): the open surfaces as a tab keyed by path,
+  // not a titled artifact card.
+  await previewPage.locator(".preview-tab", { hasText: "report.md" }).waitFor({
     state: "visible",
   });
 
   await selectSidebarSession(page, secondTaskId);
   await page.locator("#open-preview-window").click();
-  await previewPage.locator("#preview-window-title", { hasText: "No artifact selected" }).waitFor({
+  // The window follows the active task; task B has no claims, so the strip
+  // swaps to task B's empty state — task A's tab does not carry across.
+  await previewPage.locator("#preview-content[data-preview-reader='empty']").waitFor({
     state: "visible",
+  });
+  await previewPage.locator(".preview-tab", { hasText: "report.md" }).waitFor({
+    state: "detached",
   });
 
   // Back to task A for the archive leg (archiving the ACTIVE task is what
