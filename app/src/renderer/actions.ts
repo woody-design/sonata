@@ -18,6 +18,7 @@
 import type {
   ClaudeDefaultPermissionMode,
   LaunchSpeedMode,
+  ReadingSettings,
   ReasoningEffort,
   ResumePolicyId,
   RuntimeProvider,
@@ -119,6 +120,12 @@ export interface Actions {
   persistResumePolicy(policy: ResumePolicyId): void;
   setDefaultRemoteControl(value: boolean): void;
   restoreResumeBridge(): void;
+  // — Chrome (view/chrome.ts): the reading-settings persist flow, the RC
+  //   arm toggle (pre-spawn desire, draft or dormant), and the RC flows. —
+  persistReadingSettings(settings: ReadingSettings): void;
+  toggleRemoteControlArm(mode: "arm-draft" | "arm-dormant"): void;
+  enableRemoteControl(): void;
+  manageRemoteControl(): void;
 }
 
 /** The bound registry. Reading it before initActions() runs is a boot-order
