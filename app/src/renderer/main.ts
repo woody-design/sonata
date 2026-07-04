@@ -39,13 +39,10 @@ import {
   SIDEBAR_PREFS_DEFAULTS,
   activeTaskView as activeTaskViewOf,
   createInitialState,
-  type ComposerAttachment,
   type ComposerMenuState,
   type PopoverAnchor,
   type RendererState,
-  type SettingsOverlayState,
   type SidebarPrefs,
-  type SlashPickerState,
   type TaskViewState,
 } from "../reading-core/state";
 import { reduceRuntimeEvent } from "../reading-core/runtime-reducer";

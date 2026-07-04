@@ -12,11 +12,12 @@ import { fileURLToPath } from "node:url";
 // promise).
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "../../src");
 
-// Most-specific (longest) matching rule wins. A file with no matching rule is
-// a composition root / separate renderer entry (main.ts, inspector.ts,
-// preview.ts, terminal.ts) — unrestricted imports, but still subject to the
-// main-denylist and the acyclicity check. All mapped layers have landed
-// (D-late complete); new modules must claim a row here.
+// Most-specific (longest) matching rule wins. All mapped layers have landed
+// (D-late complete). A file with no matching rule must be a registered
+// composition root (ROOTS below) — any other unmatched module is an
+// UNCLAIMED layer and fails the fence (external review 2026-07-04: the
+// default-open pass would let a future renderer/foo.ts bypass every layer
+// rule; the fence must be a machine for future files too).
 const RULES = [
   {
     layer: "reading-core/",
@@ -87,6 +88,18 @@ const RULES = [
   { layer: "renderer/dom.ts", allowedPrefixes: [], allowedPackages: [] },
 ];
 
+// Composition roots / separate renderer entries: the only files allowed to
+// carry no RULES row. Unrestricted imports, but still subject to the
+// main-denylist and the acyclicity check. (global.d.ts is ambient
+// declarations — no imports to police.)
+const ROOTS = [
+  "renderer/main.ts",
+  "renderer/preview.ts",
+  "renderer/inspector.ts",
+  "renderer/terminal.ts",
+  "renderer/global.d.ts",
+];
+
 // No module may import the composition root.
 const DENY_TARGETS = ["renderer/main"];
 
@@ -155,6 +168,11 @@ const graph = new Map(); // absolute file path -> [absolute imported file paths]
 for (const file of files) {
   const relative = relativeToSrc(file);
   const rule = ruleFor(relative);
+  if (!rule && !ROOTS.includes(relative.replaceAll(sep, "/"))) {
+    violations.push(
+      `${file}: unclaimed module — add a RULES row for its layer or register it in ROOTS`,
+    );
+  }
   const source = readFileSync(file, "utf8");
   const edges = [];
   for (const specifier of specifiersIn(source)) {
