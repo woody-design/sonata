@@ -50,7 +50,6 @@ const RULES = [
     allowedPrefixes: [
       "renderer/flows/",
       "renderer/render",
-      "renderer/invalidate",
       "renderer/actions",
       "renderer/dom",
       "reading-core/",
@@ -84,7 +83,6 @@ const RULES = [
     allowedPrefixes: ["reading-core/", "shared/"],
     allowedPackages: [],
   },
-  { layer: "renderer/invalidate.ts", allowedPrefixes: [], allowedPackages: [] },
   { layer: "renderer/dom.ts", allowedPrefixes: [], allowedPackages: [] },
 ];
 

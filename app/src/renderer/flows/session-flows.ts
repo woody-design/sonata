@@ -710,17 +710,6 @@ export function focusArtifactFromPreview(request: FocusArtifactInMainRequest): v
   });
 }
 
-function focusRun(runId: string): void {
-  const view = activeTaskView();
-  if (view) {
-    view.highlightedRunId = runId;
-  }
-  render();
-  queueMicrotask(() => {
-    scrollRunIntoView(runId);
-  });
-}
-
 function scrollRunIntoView(runId: string): void {
   const runCard = Array.from(elements.runList.querySelectorAll<HTMLElement>(".turn-card")).find(
     (item) => item.dataset.runId === runId,

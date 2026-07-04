@@ -439,9 +439,7 @@ function sendButtonLabel(activeRun: boolean): string {
   if (activeRun) {
     return "Stop";
   }
-  const view = activeTaskView(state);
-  if (!view?.task) {
-    return "Send";
-  }
+  // Both the task and no-task arms said "Send" — collapsed at the D5 sweep
+  // (the split predated the program; provably identical returns).
   return "Send";
 }

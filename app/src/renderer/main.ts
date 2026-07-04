@@ -80,7 +80,6 @@ import {
   submitPrompt,
   surfaceTerminalWindow,
 } from "./flows/session-flows";
-import { initInvalidate } from "./invalidate";
 import { initRender, performDirective, render, renderTranscriptStream } from "./render";
 import {
   clearUsagePopoverCloseTimer,
@@ -221,7 +220,6 @@ initRender(state, {
   scheduleSessionIndexRefresh: () => scheduleSessionIndexRefresh(),
   refreshReport: (taskId) => refreshReport(taskId),
 });
-initInvalidate(render);
 initSessionFlows(state, {
   closeSidebarMenu: () => closeSidebarMenu(),
   exitPromptNav: (options) => exitPromptNav(options),
@@ -483,7 +481,6 @@ function setSidebarCollapsed(collapsed: boolean): void {
 }
 
 const SIDEBAR_WIDTH_KEY = "duet.sidebar.width";
-const SIDEBAR_WIDTH_DEFAULT = 236;
 const SIDEBAR_WIDTH_MIN = 180;
 const SIDEBAR_WIDTH_MAX = 420;
 
@@ -1550,10 +1547,6 @@ function closeUsagePopover(): void {
   render();
 }
 
-
-function focusComposer(): void {
-  elements.promptInput.focus();
-}
 
 function isComposerCompositionShortcut(event: KeyboardEvent): boolean {
   if (event.key !== "Enter" && event.key !== "Escape") {
