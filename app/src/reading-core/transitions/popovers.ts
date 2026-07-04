@@ -58,7 +58,8 @@ export function closeRemoteControlPopover(state: RendererState): void {
 }
 
 /** The Add (attachments) menu works in a new chat too — attachments are held
- *  in the draft until send. */
+ *  in the draft until send. Opening displaces the whole popover family,
+ *  including the New Chat draft menus (external review P2, 2026-07-04). */
 export function toggleComposerMenu(
   state: RendererState,
   type: ComposerMenuState["type"],
@@ -68,6 +69,7 @@ export function toggleComposerMenu(
   const current = state.composerMenu;
   state.composerMenu = current?.type === type ? null : { type, anchor };
   state.usagePopover = null;
+  state.taskDraft.menu = null;
 }
 
 export function openUsagePopover(state: RendererState, pinned: boolean): void {

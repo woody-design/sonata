@@ -32,6 +32,9 @@ export function openOrRefreshSlashPicker(
   };
   state.composerMenu = null;
   state.usagePopover = null;
+  // Typing "/" with a draft chip menu open displaces it too — one popover
+  // family at a time (external review P2, 2026-07-04).
+  state.taskDraft.menu = null;
   clampSlashSelection(state);
 }
 

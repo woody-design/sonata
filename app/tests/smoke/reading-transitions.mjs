@@ -65,9 +65,11 @@ function task(id, title = `Task ${id}`) {
 {
   const state = freshState();
   state.slashPicker = { provider: "claude", entries: [], query: "", selectedIndex: 0 };
+  state.taskDraft.menu = { kind: "provider", anchor: ANCHOR };
   popovers.toggleComposerMenu(state, "add", ANCHOR);
   assert.deepEqual(state.composerMenu, { type: "add", anchor: ANCHOR }, "opens with anchor");
   assert.equal(state.slashPicker, null, "open displaces the slash picker");
+  assert.equal(state.taskDraft.menu, null, "…and the draft chip menu (review P2)");
   popovers.toggleComposerMenu(state, "add", ANCHOR);
   assert.equal(state.composerMenu, null, "same type toggles closed");
 
@@ -111,9 +113,11 @@ function task(id, title = `Task ${id}`) {
     fallbackReads += 1;
     return cached;
   };
+  state.taskDraft.menu = { kind: "access", anchor: ANCHOR };
   composer.openOrRefreshSlashPicker(state, "claude", "", fallback);
   assert.equal(fallbackReads, 1, "fresh open pulls the fallback entries");
   assert.equal(state.slashPicker.selectedIndex, 0);
+  assert.equal(state.taskDraft.menu, null, "picker open displaces the draft chip menu (review P2)");
 
   composer.moveSlashSelection(state, -1);
   assert.equal(state.slashPicker.selectedIndex, 2, "move wraps modulo");

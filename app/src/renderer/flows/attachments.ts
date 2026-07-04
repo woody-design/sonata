@@ -136,8 +136,8 @@ async function addReferences(paths: string[]): Promise<void> {
 }
 
 /** Surface a composer status on the active view, or globally for a new chat.
- *  (The channel's suppression policy — composerStatusText — lives with the
- *  render orchestrator in render.ts.) */
+ *  (The channel's editorial policy — composerNotice, action feedback only —
+ *  lives in reading-core, pinned by the composer-selectors smoke.) */
 function setComposerStatus(view: TaskViewState | null, message: string): void {
   if (view?.task) {
     view.status = message;
@@ -147,14 +147,12 @@ function setComposerStatus(view: TaskViewState | null, message: string): void {
   render();
 }
 
+/** Point-of-action guard hints (unknown slash, bare "/") ride the same
+ *  composer line as failure reports in EVERY composer context — on a new
+ *  chat too, not the entry panel's draft message half a screen away
+ *  (external review P3, 2026-07-04). */
 export function composerStatusHint(text: string): void {
-  const view = activeTaskView();
-  if (view) {
-    view.status = text;
-  } else {
-    state.taskDraft.message = { tone: "info", text };
-  }
-  render();
+  setComposerStatus(activeTaskView(), text);
 }
 
 /** Remove a held composer attachment. Renderer-only: nothing is on disk yet — a

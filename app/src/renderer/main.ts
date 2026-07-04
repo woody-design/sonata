@@ -686,6 +686,11 @@ function toggleDraftMenuFromChip(kind: TaskDraftMenuKind, event: MouseEvent): vo
     state.taskDraft.menu?.kind === kind
       ? null
       : { kind, anchor: { left: rect.left, top: rect.top, width: rect.width } };
+  // One popover family at a time: displace the Add menu / slash picker
+  // (external review P2, 2026-07-04). The usage popover is task-only, so it
+  // can never coexist with a draft chip.
+  state.composerMenu = null;
+  composerTransitions.closeSlashPicker(state);
   render();
 }
 
@@ -998,6 +1003,11 @@ async function persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): 
     if (state.settingsOverlay?.claude) {
       state.settingsOverlay.claude.settings = persisted;
     }
+    // Keep the renderer mirror live: an untouched New Chat draft
+    // (permissionMode null) shows THIS value on its access chip — without
+    // the sync the chip wears the stale default until relaunch
+    // (external review P2, 2026-07-04).
+    state.claudeDefaultPermissionMode = persisted.defaultPermissionMode;
   } catch (error) {
     state.status = errorMessage(error);
   }
@@ -1399,6 +1409,9 @@ function syncSlashPicker(): void {
     }
     return;
   }
+  // Opening the picker displaces a draft chip menu (its portal lives outside
+  // the composer popover root) — escalate to a full render to unpaint it.
+  const displacedDraftMenu = state.taskDraft.menu !== null;
   composerTransitions.openOrRefreshSlashPicker(
     state,
     composerSlashProvider(),
@@ -1406,6 +1419,10 @@ function syncSlashPicker(): void {
     () => cachedSlashCommands()?.entries ?? [],
   );
   refreshSlashCommands();
+  if (displacedDraftMenu) {
+    render();
+    return;
+  }
   renderComposerPopover();
 }
 

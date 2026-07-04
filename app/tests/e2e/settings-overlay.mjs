@@ -92,6 +92,10 @@ try {
   await page.keyboard.press("Escape");
   await page.locator(".settings-window").waitFor({ state: "hidden" });
 
+  // The New Chat access chip mirrors the new default LIVE (external review
+  // P2, 2026-07-04): an untouched draft follows Settings without a relaunch.
+  await page.locator("#permission-chip", { hasText: "Auto" }).waitFor({ state: "visible" });
+
   // Bridge off -> the row attributes the bridge and offers Restore.
   fs.writeFileSync(claudeConfigPath, `${JSON.stringify({ resumeReturnDismissed: true })}\n`, "utf8");
   await openSettingsFromMenu();
