@@ -20,6 +20,7 @@ import type {
   ReasoningEffort,
   RuntimeProvider,
 } from "../shared/types";
+import type { TaskViewState } from "../reading-core/state";
 
 /** The two co-equal surfaces of a task: the crafted reading view and the raw
  *  terminal. Both ARE Duet — the switch picks which lens is in front. */
@@ -60,6 +61,11 @@ export interface Actions {
   setDraftReasoningEffort(provider: RuntimeProvider, value: ReasoningEffort | null): void;
   setDraftModel(provider: RuntimeProvider, value: string | null): void;
   setCodexSpeedMode(value: LaunchSpeedMode): void;
+  // — Attention banners (view/banners.ts) dismiss mutations: bare
+  //   assignments are grammar (C3 ruling) — implemented shell-side, each the
+  //   verbatim body of the dismiss handler it replaced. —
+  dismissApprovalExpiredAttention(view: TaskViewState): void;
+  dismissSlashAttention(view: TaskViewState): void;
 }
 
 /** The bound registry. Reading it before initActions() runs is a boot-order

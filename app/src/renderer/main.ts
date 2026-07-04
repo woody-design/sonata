@@ -150,6 +150,7 @@ import * as sidebarTransitions from "../reading-core/transitions/sidebar";
 import { initActions, type ViewMode } from "./actions";
 import { elements, initDom } from "./dom";
 import { initInvalidate } from "./invalidate";
+import { initBannersView, renderAttentionBanners } from "./view/banners";
 import { initEntryView, renderTaskEntryPanel, renderTaskSettingsPopover } from "./view/entry";
 import { lucideIcon } from "./view/icons";
 import { positionPopoverElement, positionSidebarMenu } from "./view/popover-geometry";
@@ -1096,6 +1097,7 @@ initDom();
 initInvalidate(render);
 initEntryView(state);
 initTranscriptView(state);
+initBannersView(state);
 initActions({
   setViewMode: (mode) => setViewMode(mode),
   scrollToPromptTurn: (turnKey) => scrollToPromptTurn(turnKey),
@@ -1135,6 +1137,15 @@ initActions({
   setCodexSpeedMode: (value) => {
     state.taskDraft.speedMode.codex = value;
     render();
+  },
+  // Banner dismiss mutations, verbatim from their pre-D3 inline homes.
+  dismissApprovalExpiredAttention: (view) => {
+    view.approvalExpiredAttention = false;
+    renderAttentionBanners(view);
+  },
+  dismissSlashAttention: (view) => {
+    view.slashAttention = null;
+    renderAttentionBanners(view);
   },
 });
 
@@ -5013,63 +5024,6 @@ function renderStripAgents(items: AgentRunItem[]): void {
     row.append(elapsed);
     container.append(row);
   }
-}
-
-// ——— Attention banners (S5) ——————————————————————————————————————————————
-// One family: passive "in the Terminal" pointers (contract §2 — every
-// interaction homed in the Terminal owes Reading a banner). Display-only by
-// design: a banner never drives delivery, runs, or approvals; clicking
-// focuses the terminal window through the single choke point, dismissing
-// only clears the pointer. The third family member — the multiSelect
-// option-prompt's "Answer in terminal" — stays inside its card (the card is
-// the stronger attention surface) and shares the family's action style.
-
-function renderAttentionBanners(view = activeTaskView()): void {
-  const root = elements.attentionBannerRoot;
-  const banners: HTMLElement[] = [];
-  if (view?.task) {
-    if (view.approvalExpiredAttention) {
-      banners.push(
-        attentionBanner("approval-expired", "Approval waiting for you in the Terminal", () => {
-          view.approvalExpiredAttention = false;
-          renderAttentionBanners(view);
-        }),
-      );
-    }
-    if (view.slashAttention) {
-      banners.push(
-        attentionBanner("slash-sent", `${view.slashAttention.command} ran in the Terminal`, () => {
-          view.slashAttention = null;
-          renderAttentionBanners(view);
-        }),
-      );
-    }
-  }
-  root.replaceChildren(...banners);
-}
-
-function attentionBanner(kind: string, copy: string, onDismiss: () => void): HTMLElement {
-  const banner = document.createElement("div");
-  banner.className = "attention-banner";
-  banner.dataset.kind = kind;
-  const text = document.createElement("span");
-  text.className = "attention-banner-copy";
-  text.textContent = copy;
-  const open = document.createElement("button");
-  open.type = "button";
-  open.className = "attention-open-terminal";
-  open.textContent = "Open Terminal →";
-  open.addEventListener("click", () => {
-    setViewMode("terminal");
-  });
-  const dismiss = document.createElement("button");
-  dismiss.type = "button";
-  dismiss.className = "attention-banner-dismiss";
-  dismiss.setAttribute("aria-label", "Dismiss");
-  dismiss.textContent = "✕";
-  dismiss.addEventListener("click", onDismiss);
-  banner.append(text, open, dismiss);
-  return banner;
 }
 
 async function pickTaskFolder(): Promise<void> {
