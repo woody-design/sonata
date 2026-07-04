@@ -15,6 +15,11 @@
 // list, not seamed; selectSession / startNewChat / executeSlashEntry become
 // needed when D3 moves the sidebar and slash-picker families.
 
+import type {
+  LaunchSpeedMode,
+  ReasoningEffort,
+  RuntimeProvider,
+} from "../shared/types";
 import type { TaskViewState } from "../reading-core/state";
 
 /** The two co-equal surfaces of a task: the crafted reading view and the raw
@@ -40,6 +45,21 @@ export interface Actions {
   renderTaskEntryPanel(): HTMLElement;
   /** Folder-picker flow (busy state + IPC dialog + render). */
   pickTaskFolder(): void;
+  // — New Chat entry panel (view/entry.ts) handler mutations: bare draft
+  //   assignments are grammar (C3 ruling) — implemented shell-side, each is
+  //   the verbatim body of the handler it replaced plus the repaint. —
+  chooseDraftProvider(provider: RuntimeProvider): void;
+  chooseDraftFolder(path: string): void;
+  clearDraftFolder(): void;
+  /** Launch-settings popover open/close; the anchor is computed by the view
+   *  from the trigger's live rect (DOM read stays view-side). */
+  setLaunchSettingsOpen(
+    open: boolean,
+    anchor: { left: number; top: number; width: number } | null,
+  ): void;
+  setDraftReasoningEffort(provider: RuntimeProvider, value: ReasoningEffort | null): void;
+  setDraftModel(provider: RuntimeProvider, value: string | null): void;
+  setCodexSpeedMode(value: LaunchSpeedMode): void;
 }
 
 /** The bound registry. Reading it before initActions() runs is a boot-order

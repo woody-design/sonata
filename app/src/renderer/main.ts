@@ -1,4 +1,3 @@
-import DOMPurify from "dompurify";
 import {
   Check,
   ChevronDown,
@@ -20,7 +19,6 @@ import {
   X,
   type IconNode,
 } from "lucide";
-import { marked } from "marked";
 import "./styles.css";
 import {
   CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS,
@@ -70,15 +68,8 @@ import type {
   FocusArtifactInMainRequest,
   TerminalWindowState,
 } from "../shared/types/ipc";
-import type {
-  AgentRunItem,
-  TranscriptBlock,
-  TranscriptSourceRef,
-} from "../shared/types/transcript";
+import type { AgentRunItem } from "../shared/types/transcript";
 import type { WorkingStatusState } from "../shared/types/working-status";
-import type { RuntimeReportV1, RuntimeRunReport } from "../shared/schemas";
-import { cleanTerminalTranscript } from "../shared/terminal-transcript";
-import { planKeyedReconcile } from "../shared/keyed-reconcile";
 import { classifySlashIntent } from "../shared/slash/intent";
 import {
   approvalKindLabel,
@@ -88,7 +79,6 @@ import {
   condensedPromptText,
   errorMessage,
   fileExtension,
-  folderName,
   formatIdleDuration,
   formatLiveElapsed,
   formatRelativeAge,
@@ -103,23 +93,10 @@ import {
   settingsDateLabel,
   usageLimitDisplayLabel,
 } from "../reading-core/selectors/formatters";
+import { USAGE_CONTEXT_HIGH_USED_PERCENT } from "../reading-core/config";
 import {
-  MAX_TRANSCRIPT_CHARS,
-  MAX_TRANSCRIPT_RAW_CHARS,
-  MODEL_OPTIONS,
-  REASONING_OPTIONS,
-  SPEED_OPTIONS,
-  USAGE_CONTEXT_HIGH_USED_PERCENT,
-  modelValueLabel,
-  reasoningValueLabel,
-} from "../reading-core/config";
-import {
-  buildReadingTurns,
-  createTurnSignatureTracker,
   deriveCurrentStepForView,
   stripRunningAgents,
-  transcriptForRun,
-  type ReadingTurn,
 } from "../reading-core/selectors/turns";
 import {
   applySidebarPrefs,
@@ -138,14 +115,10 @@ import {
   slashFilterScore,
 } from "../reading-core/selectors/composer";
 import {
-  completionErrorExcerpt,
   dormantArmed,
   hasActiveRun,
-  isActiveRunStatus,
   remoteControlContext,
   remoteControlOn,
-  runOutcome,
-  runTone,
 } from "../reading-core/selectors/runs";
 import {
   SIDEBAR_PREFS_DEFAULTS,
@@ -176,8 +149,10 @@ import * as sidebarTransitions from "../reading-core/transitions/sidebar";
 import { initActions, type ViewMode } from "./actions";
 import { elements, initDom } from "./dom";
 import { initInvalidate } from "./invalidate";
+import { initEntryView, renderTaskEntryPanel, renderTaskSettingsPopover } from "./view/entry";
 import { lucideIcon } from "./view/icons";
 import { positionPopoverElement, positionSidebarMenu } from "./view/popover-geometry";
+import { renderRuns } from "./view/transcript";
 
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -1118,6 +1093,7 @@ initDom();
 // function declarations, so binding here (before their textual definitions)
 // is safe.
 initInvalidate(render);
+initEntryView(state);
 initActions({
   activeTaskView: () => activeTaskView(),
   setViewMode: (mode) => setViewMode(mode),
@@ -1127,6 +1103,37 @@ initActions({
   renderTaskEntryPanel: () => renderTaskEntryPanel(),
   pickTaskFolder: () => {
     void pickTaskFolder();
+  },
+  // Entry-panel handler mutations, verbatim from their pre-D2 inline homes.
+  chooseDraftProvider: (provider) => {
+    state.taskDraft.provider = provider;
+    state.taskDraft.message = null;
+    render();
+  },
+  chooseDraftFolder: (path) => {
+    sessionTransitions.chooseDraftFolder(state, path);
+    render();
+  },
+  clearDraftFolder: () => {
+    sessionTransitions.clearDraftFolder(state);
+    render();
+  },
+  setLaunchSettingsOpen: (open, anchor) => {
+    state.taskDraft.settingsOpen = open;
+    state.taskDraft.settingsAnchor = anchor;
+    render();
+  },
+  setDraftReasoningEffort: (provider, value) => {
+    state.taskDraft.reasoningEffort[provider] = value;
+    render();
+  },
+  setDraftModel: (provider, value) => {
+    state.taskDraft.model[provider] = value;
+    render();
+  },
+  setCodexSpeedMode: (value) => {
+    state.taskDraft.speedMode.codex = value;
+    render();
   },
 });
 
@@ -5065,663 +5072,6 @@ function attentionBanner(kind: string, copy: string, onDismiss: () => void): HTM
   return banner;
 }
 
-// The turn-signature tracker is process-local (block render versions live in
-// a WeakMap keyed by block reference) — the renderer holds this singleton;
-// fixtures create fresh instances (map §2.4).
-const turnSignatureTracker = createTurnSignatureTracker();
-
-function refreshTurnCardCheap(card: HTMLElement, view: TaskViewState, turn: ReadingTurn): void {
-  if (turn.runId) {
-    card.classList.toggle("highlighted", turn.runId === view.highlightedRunId);
-  }
-}
-
-// R3: the sticky-prompt rail is a persistent node — created once, kept as the
-// runList's first child — so a streaming batch never tears it down.
-function ensureStickyPromptRail(runList: HTMLElement): HTMLElement {
-  let rail = runList.querySelector<HTMLElement>(".sticky-prompt-rail");
-  if (!rail) {
-    rail = renderStickyPromptRail();
-    runList.prepend(rail);
-  } else if (runList.firstChild !== rail) {
-    runList.prepend(rail);
-  }
-  return rail;
-}
-
-// The no-task / empty paths are not the streaming path and need no reconcile:
-// drop everything after the persistent rail and set the given nodes. The
-// status strip is the run list's second persistent node (its live LAST child)
-// — never removed, content always inserted before it.
-function setNonRailChildren(runList: HTMLElement, rail: HTMLElement, nodes: HTMLElement[]): void {
-  const strip = elements.statusStrip;
-  let cursor = rail.nextSibling;
-  while (cursor) {
-    const next = cursor.nextSibling;
-    if (cursor !== strip) {
-      runList.removeChild(cursor);
-    }
-    cursor = next;
-  }
-  for (const node of nodes) {
-    runList.insertBefore(node, strip);
-  }
-}
-
-interface ReconcileChild {
-  key: string;
-  sig: string;
-  render: () => HTMLElement;
-  refresh?: (node: HTMLElement) => void;
-}
-
-// Keyed DOM reconcile of the runList's turn cards against the desired turns.
-// Reused nodes already in order are never detached → their text selection
-// survives across streaming batches. Non-reused nodes (stale, changed, or
-// non-keyed leftovers like the empty-state) are removed up front so the
-// positioning cursor only ever references nodes that stay.
-function reconcileKeyedChildren(
-  parent: HTMLElement,
-  rail: HTMLElement,
-  items: ReconcileChild[],
-): void {
-  const existing = new Map<string, HTMLElement>();
-  for (const child of Array.from(parent.children) as HTMLElement[]) {
-    if (child === rail || child === elements.statusStrip) {
-      continue;
-    }
-    const key = child.dataset.key;
-    if (key !== undefined) {
-      existing.set(key, child);
-    }
-  }
-  const plan = planKeyedReconcile(
-    Array.from(existing, ([key, node]) => ({ key, sig: node.dataset.sig ?? "" })),
-    items.map((item) => ({ key: item.key, sig: item.sig })),
-  );
-  const reuseKeys = new Set(
-    plan.ordered.filter((step) => step.action === "reuse").map((step) => step.key),
-  );
-  for (const child of Array.from(parent.children) as HTMLElement[]) {
-    if (child === rail || child === elements.statusStrip) {
-      continue;
-    }
-    const key = child.dataset.key;
-    if (key === undefined || !reuseKeys.has(key)) {
-      child.remove();
-    }
-  }
-  const itemByKey = new Map(items.map((item) => [item.key, item]));
-  let cursor: ChildNode | null = rail.nextSibling;
-  for (const step of plan.ordered) {
-    const item = itemByKey.get(step.key);
-    if (!item) {
-      continue;
-    }
-    let node: HTMLElement;
-    if (step.action === "reuse") {
-      node = existing.get(step.key)!;
-      item.refresh?.(node);
-    } else {
-      node = item.render();
-      node.dataset.key = item.key;
-      node.dataset.sig = item.sig;
-    }
-    if (node === cursor) {
-      cursor = node.nextSibling;
-    } else {
-      parent.insertBefore(node, cursor);
-    }
-  }
-}
-
-function renderRuns(): void {
-  const runList = elements.runList;
-  const nearBottom = runList.scrollHeight - runList.scrollTop - runList.clientHeight < 64;
-  const previousScrollTop = runList.scrollTop;
-  const rail = ensureStickyPromptRail(runList);
-
-  const view = activeTaskView();
-  if (!view?.task) {
-    setNonRailChildren(runList, rail, [renderTaskEntryPanel()]);
-    finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
-    return;
-  }
-
-  const turns = buildReadingTurns(view);
-  if (turns.length === 0) {
-    const empty = document.createElement("article");
-    empty.className = "empty-state";
-    empty.textContent = "No Runs yet";
-    setNonRailChildren(runList, rail, [empty]);
-    finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
-    return;
-  }
-
-  reconcileKeyedChildren(
-    runList,
-    rail,
-    turns.map((turn) => ({
-      key: turn.key,
-      sig: turnSignatureTracker.turnSignature(turn),
-      render: () => renderTurn(view, turn),
-      refresh: (node) => refreshTurnCardCheap(node, view, turn),
-    })),
-  );
-
-  finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
-}
-
-function finalizeReadingSurfaceRender(nearBottom: boolean, previousScrollTop: number): void {
-  const runList = elements.runList;
-  runList.scrollTop = nearBottom ? runList.scrollHeight : previousScrollTop;
-  restorePromptNavAfterRender();
-  scheduleStickyPromptSync();
-}
-
-function renderStickyPromptRail(): HTMLElement {
-  const rail = document.createElement("div");
-  rail.className = "sticky-prompt-rail";
-
-  const header = document.createElement("button");
-  header.id = "sticky-prompt-header";
-  header.className = "sticky-prompt-header hidden";
-  header.type = "button";
-  header.setAttribute("aria-label", "Scroll to the prompt for this reply");
-  header.addEventListener("click", () => {
-    const turnKey = header.dataset.turnKey;
-    if (!turnKey) {
-      return;
-    }
-    scrollToPromptTurn(turnKey);
-  });
-
-  rail.append(header);
-  return rail;
-}
-
-function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
-  const card = document.createElement("article");
-  card.className = "turn-card";
-  card.dataset.turnKey = turn.key;
-  if (turn.runId) {
-    card.dataset.runId = turn.runId;
-    card.classList.toggle("highlighted", turn.runId === view.highlightedRunId);
-  }
-
-  // A continuation turn (background-workflow reply): transcript blocks with
-  // no user-message — the "user" was the CLI's own task-notification, not a
-  // person. No user bubble; the muted system-note in the body names what
-  // came back.
-  const hasUserVoice =
-    turn.blocks.length === 0 || turn.blocks.some((block) => block.kind === "user-message");
-  if (hasUserVoice) {
-    card.append(renderTurnUser(turn));
-  }
-
-  const answerBlocks = turn.blocks.filter(isAnswerBlock);
-  const noAssistantOutput = turnCompletedWithoutAssistantOutput(turn);
-  const liveRun = Boolean(turn.run && isActiveRunStatus(turn.run.status));
-  // Machine-readable run state on the card itself: the e2e suite's completion
-  // beacon (was `.turn-outcome` in the retired footer) and a debugging hook.
-  if (turn.run) {
-    card.dataset.runStatus = turn.run.status;
-    if (turn.run.completionSource) {
-      card.dataset.completionSource = turn.run.completionSource;
-    }
-  }
-
-  const body = document.createElement("div");
-  body.className = "turn-body turn-answer";
-  for (const block of answerBlocks) {
-    body.append(renderTranscriptBlock(block));
-  }
-  // A reply-less completed turn speaks ONLY when it has something actionable
-  // to say (an API error excerpt). The plain "returned to the prompt without
-  // a reply" self-narration retired 2026-07-03: it was Duet reporting an
-  // observation gap (idle-heuristic completion, zero blocks), not user
-  // information — the co-visible Terminal already shows what happened, and a
-  // slash command producing no reply is simply normal.
-  const noAssistantErrorExcerpt = completionErrorExcerpt(turn.run);
-  if (body.childElementCount === 0 && noAssistantOutput && noAssistantErrorExcerpt) {
-    body.append(renderNoAssistantOutput(turn.run));
-  }
-  // A settled turn with terminal output but no structured transcript: state
-  // the degradation instead of impersonating the reply with a scrape dump
-  // (retired 2026-07-03 — Reading = reply + state; the real text is in the
-  // co-visible Terminal). While the run is still live this stays silent: the
-  // status strip owns "working", and blocks usually land moments later.
-  if (body.childElementCount === 0 && turn.blocks.length === 0 && turn.fallbackText && !liveRun) {
-    body.append(renderTurnFallback());
-  }
-  if (body.childElementCount > 0) {
-    card.append(body);
-  }
-
-  // Reading shows the reply and the state, not the process (2026-07-03): the
-  // work trace, turn footer, and artifact strip retired — the co-visible
-  // Terminal carries process detail live, and forensics live in the provider
-  // transcript. What survives per turn: an attention note when a settled run
-  // did NOT complete (stopped / failed / denied / pty-exited) — failure IS
-  // state, and without it a stopped run would be indistinguishable from a
-  // completed one. Live and waiting states belong to the status strip.
-  if (turn.run && !liveRun && turn.run.status !== "completed") {
-    card.append(renderRunOutcomeNote(turn.run));
-  }
-  return card;
-}
-
-function renderRunOutcomeNote(run: RuntimeRunReport): HTMLElement {
-  const note = document.createElement("div");
-  note.className = `turn-outcome-note ${runTone(run)}`;
-  note.textContent = runOutcome(run, activeProviderLabel());
-  return note;
-}
-
-function renderTurnUser(turn: ReadingTurn): HTMLElement {
-  const header = document.createElement("header");
-  header.className = "turn-user";
-  header.dataset.turnKey = turn.key;
-
-  const userBlock = turn.blocks.find(
-    (block): block is Extract<TranscriptBlock, { kind: "user-message" }> =>
-      block.kind === "user-message",
-  );
-  const text = userBlock?.text ?? turn.run?.prompt ?? "";
-
-  if (userBlock?.command) {
-    // A slash command. Claude logs the whole invocation as `<name> <args>`, and
-    // for a skill like `/architect <brief>` the args ARE the user's prompt. Show
-    // the command name as a small provenance chip, but render that body as the
-    // normal growing bubble — full text, the user's own words, never crammed
-    // into a fixed-size mono pill. Bare commands (no body) stay as just the chip.
-    const name = userBlock.command;
-    const body = text.startsWith(name) ? text.slice(name.length).trim() : "";
-    const chip = document.createElement("span");
-    chip.className = body ? "turn-command-chip" : "turn-command-chip turn-prompt";
-    chip.tabIndex = -1;
-    chip.dataset.turnKey = turn.key;
-    chip.textContent = name;
-    chip.setAttribute("aria-label", body ? `Command: ${name}` : `Prompt: ${name}`);
-    header.append(chip);
-    if (body) {
-      const prompt = document.createElement("div");
-      prompt.className = "turn-user-text turn-prompt";
-      prompt.tabIndex = -1;
-      prompt.dataset.turnKey = turn.key;
-      prompt.textContent = body;
-      prompt.setAttribute("aria-label", `Prompt: ${body}`);
-      header.append(prompt);
-    }
-  } else {
-    const prompt = document.createElement("div");
-    prompt.className = "turn-user-text turn-prompt";
-    prompt.tabIndex = -1;
-    prompt.dataset.turnKey = turn.key;
-    prompt.textContent = text || "(empty prompt)";
-    prompt.setAttribute("aria-label", `Prompt: ${prompt.textContent}`);
-    header.append(prompt);
-  }
-  return header;
-}
-
-function isAnswerBlock(
-  block: TranscriptBlock,
-): block is Extract<TranscriptBlock, { kind: "assistant-text" | "system-note" }> {
-  return block.kind === "assistant-text" || block.kind === "system-note";
-}
-
-function turnCompletedWithoutAssistantOutput(turn: ReadingTurn): boolean {
-  return Boolean(
-    turn.run?.status === "completed" &&
-      turn.run.completionSource === "terminal-idle-heuristic" &&
-      !turn.blocks.some((block) => block.kind !== "user-message"),
-  );
-}
-
-// Only answer blocks reach the card now — the process blocks (thinking,
-// tool calls, plan, agents) stay in the data layer for the status strip and
-// the provider transcript; Reading no longer renders them (2026-07-03).
-function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
-  if (block.kind === "assistant-text") {
-    return markdownBody(block.markdown);
-  }
-  const note = document.createElement("div");
-  note.className = "turn-system-note";
-  note.textContent = block.kind === "system-note" ? block.text : "";
-  return note;
-}
-
-// The scrape buffer (runTranscripts) remains the EVIDENCE that a reply
-// happened — it just no longer renders. Same family as renderNoAssistantOutput.
-function renderTurnFallback(): HTMLElement {
-  const note = document.createElement("div");
-  note.className = "turn-system-note degraded";
-  const copy = document.createElement("div");
-  copy.textContent = `${activeProviderLabel()} replied, but the reply could not be read structurally — the full text is in the Terminal.`;
-  const action = document.createElement("button");
-  action.className = "secondary turn-terminal-action";
-  action.type = "button";
-  action.textContent = "Open terminal";
-  action.addEventListener("click", () => {
-    setViewMode("terminal");
-  });
-  note.append(copy, action);
-  return note;
-}
-
-// Only the error-carrying variant survives (the caller gates on a present
-// excerpt): a reply-less turn WITH an API error is actionable; without one,
-// the card stays quiet — see the renderTurn comment.
-function renderNoAssistantOutput(run: RuntimeRunReport | null): HTMLElement {
-  const errorExcerpt = completionErrorExcerpt(run);
-  const note = document.createElement("div");
-  note.className = "turn-system-note attention";
-
-  const copy = document.createElement("div");
-  copy.textContent = `${providerLabelForRun(run)} returned to the prompt without a reply. A provider/API error likely occurred.`;
-  const excerpt = document.createElement("pre");
-  excerpt.className = "turn-error-excerpt";
-  excerpt.textContent = errorExcerpt;
-  const action = document.createElement("button");
-  action.className = "secondary turn-terminal-action";
-  action.type = "button";
-  action.textContent = "Open terminal";
-  action.addEventListener("click", () => {
-    setViewMode("terminal");
-  });
-  note.append(copy, excerpt, action);
-  return note;
-}
-
-const markdownSanitizerConfig = {
-  USE_PROFILES: { html: true },
-  FORBID_TAGS: ["style", "form", "input", "button"],
-};
-
-const markdownHtmlCache = new Map<string, string>();
-
-function markdownBody(markdown: string): HTMLElement {
-  const body = document.createElement("div");
-  body.className = "md-body";
-  let html = markdownHtmlCache.get(markdown);
-  if (html === undefined) {
-    html = DOMPurify.sanitize(marked.parse(markdown, { async: false }), markdownSanitizerConfig);
-    markdownHtmlCache.set(markdown, html);
-  }
-  body.innerHTML = html;
-  return body;
-}
-
-function renderTaskEntryPanel(): HTMLElement {
-  const panel = document.createElement("article");
-  panel.className = "task-entry-panel";
-
-  const copy = document.createElement("div");
-  copy.className = "task-entry-copy";
-  const eyebrow = document.createElement("p");
-  eyebrow.className = "eyebrow";
-  eyebrow.textContent = "New chat";
-  const title = document.createElement("h2");
-  title.textContent = "What should we work on?";
-  const body = document.createElement("p");
-  body.className = "task-entry-body";
-  body.textContent =
-    "Pick the agent and folder, then type below — your first message starts the session.";
-  copy.append(eyebrow, title, body);
-
-  const controls = document.createElement("div");
-  controls.className = "task-entry-controls";
-  controls.append(renderProviderSegment(), renderFolderPicker(), renderLaunchSettingsControl());
-
-  const message = renderTaskEntryMessage();
-  const facts = document.createElement("div");
-  facts.className = "task-entry-facts";
-  facts.append(
-    taskEntryFact("Provider", providerLabel(state.taskDraft.provider)),
-    taskEntryFact("Model", modelSummaryLabel(state.taskDraft.provider)),
-    taskEntryFact("Folder", folderSummaryLabel()),
-  );
-
-  panel.append(copy, controls);
-  if (message) {
-    panel.append(message);
-  }
-  panel.append(facts);
-  return panel;
-}
-
-function renderProviderSegment(): HTMLElement {
-  const segment = document.createElement("div");
-  segment.className = "task-provider-segment";
-  segment.setAttribute("role", "group");
-  segment.ariaLabel = "Task provider";
-
-  for (const provider of ["codex", "claude"] as const) {
-    const button = document.createElement("button");
-    button.id = `entry-provider-${provider}`;
-    button.className = "secondary";
-    button.classList.toggle("active", provider === state.taskDraft.provider);
-    button.type = "button";
-    button.disabled = state.busy;
-    button.ariaPressed = String(provider === state.taskDraft.provider);
-    button.textContent = providerLabel(provider);
-    button.addEventListener("click", () => {
-      state.taskDraft.provider = provider;
-      state.taskDraft.message = null;
-      render();
-    });
-    segment.append(button);
-  }
-
-  return segment;
-}
-
-function renderFolderPicker(): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "task-folder-row";
-
-  // Known projects are one click away; the file dialog is the fallback.
-  const projects = (state.sessionIndex?.projects ?? []).filter((project) => !project.archived);
-  for (const project of projects.slice(0, 4)) {
-    if (state.taskDraft.cwd === project.path) {
-      continue;
-    }
-    const quick = document.createElement("button");
-    quick.className = "secondary task-folder-quick";
-    quick.type = "button";
-    quick.disabled = state.busy;
-    quick.title = project.path;
-    quick.textContent = project.name;
-    quick.addEventListener("click", () => {
-      sessionTransitions.chooseDraftFolder(state, project.path);
-      render();
-    });
-    row.append(quick);
-  }
-
-  const choose = document.createElement("button");
-  choose.id = "entry-choose-folder";
-  choose.className = "secondary";
-  choose.type = "button";
-  choose.disabled = state.busy;
-  choose.textContent = state.taskDraft.cwd ? folderName(state.taskDraft.cwd) : "Choose Folder";
-  if (state.taskDraft.cwd) {
-    choose.title = state.taskDraft.cwd;
-    choose.classList.add("task-folder-selected");
-  }
-  choose.addEventListener("click", () => {
-    void pickTaskFolder();
-  });
-  row.append(choose);
-
-  if (state.taskDraft.cwd) {
-    const clear = document.createElement("button");
-    clear.id = "entry-clear-folder";
-    clear.className = "secondary";
-    clear.type = "button";
-    clear.disabled = state.busy;
-    clear.textContent = "Default Workspace";
-    clear.addEventListener("click", () => {
-      sessionTransitions.clearDraftFolder(state);
-      render();
-    });
-    row.append(clear);
-  }
-
-  return row;
-}
-
-function renderLaunchSettingsControl(): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "task-settings-wrap";
-
-  const button = document.createElement("button");
-  button.id = "entry-launch-settings";
-  button.className = "secondary task-settings-trigger";
-  button.type = "button";
-  button.disabled = state.busy;
-  button.ariaExpanded = String(state.taskDraft.settingsOpen);
-  button.textContent = `${launchSettingsSummary(state.taskDraft.provider)} v`;
-  button.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const willOpen = !state.taskDraft.settingsOpen;
-    state.taskDraft.settingsOpen = willOpen;
-    state.taskDraft.settingsAnchor = willOpen
-      ? {
-          left: rect.left,
-          top: rect.bottom + 8,
-          width: rect.width,
-        }
-      : null;
-    render();
-  });
-  wrap.append(button);
-
-  // The popover itself renders into #task-settings-popover-root (see
-  // renderTaskSettingsPopover): position:fixed inside the #run-list scroller
-  // gets paint- AND hit-test-clipped to the scroller's box, so the sections
-  // past the run-list's bottom edge were invisible and unclickable.
-
-  return wrap;
-}
-
-function renderTaskSettingsPopover(): void {
-  elements.taskSettingsPopoverRoot.replaceChildren();
-  const view = activeTaskView();
-  if (view?.task || !state.taskDraft.settingsOpen) {
-    return;
-  }
-  elements.taskSettingsPopoverRoot.append(renderLaunchSettingsPopover(state.taskDraft.provider));
-}
-
-function renderLaunchSettingsPopover(provider: RuntimeProvider): HTMLElement {
-  const popover = document.createElement("div");
-  popover.className = "task-settings-popover";
-  popover.setAttribute("role", "menu");
-  positionLaunchSettingsPopover(popover);
-  popover.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
-
-  popover.append(
-    renderSettingSection("Reasoning", REASONING_OPTIONS[provider], state.taskDraft.reasoningEffort[provider], (value) => {
-      state.taskDraft.reasoningEffort[provider] = value as ReasoningEffort | null;
-      render();
-    }),
-    renderSettingSection("Model", MODEL_OPTIONS[provider], state.taskDraft.model[provider], (value) => {
-      state.taskDraft.model[provider] = value;
-      render();
-    }),
-  );
-
-  if (provider === "codex") {
-    popover.append(
-      renderSettingSection(
-        "Speed",
-        SPEED_OPTIONS,
-        state.taskDraft.speedMode.codex,
-        (value) => {
-          state.taskDraft.speedMode.codex = value as LaunchSpeedMode;
-          render();
-        },
-      ),
-    );
-  }
-
-  return popover;
-}
-
-function positionLaunchSettingsPopover(popover: HTMLElement): void {
-  const anchor = state.taskDraft.settingsAnchor;
-  const viewportPadding = 14;
-  const width = Math.min(360, window.innerWidth - viewportPadding * 2);
-  const top = anchor?.top ?? viewportPadding;
-  const canOpenLeft = Boolean(anchor && anchor.left - width - 12 >= viewportPadding);
-  const left =
-    anchor && canOpenLeft
-      ? anchor.left - width - 12
-      : anchor
-        ? Math.min(
-            window.innerWidth - width - viewportPadding,
-            Math.max(viewportPadding, anchor.left + anchor.width - width),
-          )
-        : viewportPadding;
-
-  popover.style.left = `${left}px`;
-  popover.style.top = `${top}px`;
-  popover.style.width = `${width}px`;
-  popover.style.maxHeight = `${Math.max(220, window.innerHeight - top - viewportPadding)}px`;
-}
-
-function renderSettingSection<T extends string | null>(
-  label: string,
-  options: Array<{ label: string; value: T }>,
-  selected: T,
-  onSelect: (value: T) => void,
-): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "task-setting-section";
-
-  const title = document.createElement("p");
-  title.className = "task-setting-heading";
-  title.textContent = label;
-  section.append(title);
-
-  for (const option of options) {
-    const button = document.createElement("button");
-    button.className = "task-setting-option";
-    button.classList.toggle("selected", option.value === selected);
-    button.type = "button";
-    button.setAttribute("role", "menuitemradio");
-    button.ariaChecked = String(option.value === selected);
-    button.textContent = option.label;
-    if (option.value === selected) {
-      const selectedLabel = document.createElement("span");
-      selectedLabel.textContent = "selected";
-      button.append(selectedLabel);
-    }
-    button.addEventListener("click", () => {
-      onSelect(option.value);
-    });
-    section.append(button);
-  }
-
-  return section;
-}
-
-function taskEntryFact(label: string, value: string): HTMLElement {
-  const fact = document.createElement("div");
-  fact.className = "task-entry-fact";
-  const key = document.createElement("span");
-  key.textContent = label;
-  const val = document.createElement("strong");
-  val.textContent = value;
-  fact.append(key, val);
-  return fact;
-}
-
 async function pickTaskFolder(): Promise<void> {
   state.busy = true;
   state.status = "Choosing Task Folder";
@@ -5751,17 +5101,6 @@ async function pickTaskFolder(): Promise<void> {
   }
 }
 
-function renderTaskEntryMessage(): HTMLElement | null {
-  if (!state.taskDraft.message) {
-    return null;
-  }
-
-  const message = document.createElement("div");
-  message.className = `task-entry-message ${state.taskDraft.message.tone}`;
-  message.textContent = state.taskDraft.message.text;
-  return message;
-}
-
 function taskLaunchSettings(provider: RuntimeProvider): {
   model: string | null;
   reasoningEffort: ReasoningEffort | null;
@@ -5772,26 +5111,6 @@ function taskLaunchSettings(provider: RuntimeProvider): {
     reasoningEffort: state.taskDraft.reasoningEffort[provider],
     speedMode: state.taskDraft.speedMode[provider],
   };
-}
-
-function launchSettingsSummary(provider: RuntimeProvider): string {
-  const parts = [modelSummaryLabel(provider), reasoningSummaryLabel(provider)];
-  if (provider === "codex" && state.taskDraft.speedMode.codex === "fast") {
-    parts.push("Fast");
-  }
-  return parts.filter(Boolean).join(" ");
-}
-
-function modelSummaryLabel(provider: RuntimeProvider): string {
-  return modelValueLabel(provider, state.taskDraft.model[provider]) ?? "Default";
-}
-
-function reasoningSummaryLabel(provider: RuntimeProvider): string {
-  return reasoningValueLabel(state.taskDraft.reasoningEffort[provider]) ?? "Default";
-}
-
-function folderSummaryLabel(): string {
-  return state.taskDraft.cwd ? folderName(state.taskDraft.cwd) : "Duet workspace";
 }
 
 function scheduleTranscriptRender(): void {
@@ -5932,15 +5251,3 @@ function sendButtonLabel(activeRun: boolean): string {
   }
   return "Send";
 }
-
-
-
-function providerLabelForRun(_run: RuntimeRunReport | null): string {
-  return activeProviderLabel();
-}
-
-function activeProviderLabel(): string {
-  const provider = activeTaskView()?.task?.provider;
-  return provider ? providerLabel(provider) : "Codex";
-}
-
