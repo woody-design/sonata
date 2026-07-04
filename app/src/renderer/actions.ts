@@ -19,8 +19,13 @@ import type {
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
+  SlashCommandEntry,
 } from "../shared/types";
-import type { SidebarPrefs, TaskViewState } from "../reading-core/state";
+import type {
+  SidebarPrefs,
+  SlashPickerState,
+  TaskViewState,
+} from "../reading-core/state";
 
 /** The two co-equal surfaces of a task: the crafted reading view and the raw
  *  terminal. Both ARE Duet — the switch picks which lens is in front. */
@@ -85,6 +90,11 @@ export interface Actions {
   unarchiveSession(taskId: string): void;
   deleteSessionFromSidebar(taskId: string, title: string): void;
   archiveProject(path: string, archived: boolean): void;
+  // — Slash picker (view/slash-picker.ts): the Enter/click dispatch flow
+  //   (complete-or-execute semantics live in the shell) and the mousemove
+  //   hover grammar (selection follow + composer-popover repaint). —
+  executeSlashEntry(entry: SlashCommandEntry): void;
+  hoverSlashOption(picker: SlashPickerState, index: number): void;
 }
 
 /** The bound registry. Reading it before initActions() runs is a boot-order
