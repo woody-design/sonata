@@ -46,7 +46,6 @@ import type { WorkingStatusState } from "../shared/types/working-status";
 import { classifySlashIntent } from "../shared/slash/intent";
 import {
   clamp,
-  condensedPromptText,
   errorMessage,
   fileExtension,
   formatIdleDuration,
@@ -73,7 +72,6 @@ import {
   type ComposerAttachment,
   type ComposerMenuState,
   type PopoverAnchor,
-  type PromptNavState,
   type RendererState,
   type SettingsOverlayState,
   type SidebarPrefs,
@@ -112,6 +110,14 @@ import {
 } from "./view/composer";
 import { initEntryView, renderTaskEntryPanel, renderTaskSettingsPopover } from "./view/entry";
 import { lucideIcon } from "./view/icons";
+import {
+  exitPromptNav,
+  handlePromptNavigationKeydown,
+  initPromptNavView,
+  restorePromptNavAfterRender,
+  scheduleStickyPromptSync,
+  scrollToPromptTurn,
+} from "./view/prompt-nav";
 import {
   closeSidebarMenu,
   initSidebarView,
@@ -354,6 +360,7 @@ initSidebarView(state);
 initComposerView(state);
 initSettingsView(state);
 initChromeView(state, { resolvedReadingMode: () => resolvedReadingMode() });
+initPromptNavView(state, { isComposerComposing: () => composerIsComposing });
 initActions({
   setViewMode: (mode) => setViewMode(mode),
   scrollToPromptTurn: (turnKey) => scrollToPromptTurn(turnKey),
@@ -579,7 +586,6 @@ window.setInterval(() => {
     });
 }, 1000);
 let transcriptRenderTimer: number | null = null;
-let stickyPromptSyncFrame: number | null = null;
 let composerIsComposing = false;
 let lastComposerCompositionEndAt = 0;
 /** Re-entrancy guard: a send (materialize + submit) is in flight. Blocks a fast
@@ -590,7 +596,6 @@ let composerSending = false;
 let usagePopoverOpenTimer: number | null = null;
 let usagePopoverCloseTimer: number | null = null;
 const COMPOSITION_END_SHORTCUT_GUARD_MS = 80;
-const PROMPT_NAV_DOM_TASK_ID = "__active-transcript-dom__";
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
@@ -1187,321 +1192,6 @@ async function setDefaultRemoteControl(value: boolean): Promise<void> {
     state.status = errorMessage(error);
   }
   render();
-}
-
-function handlePromptNavigationKeydown(event: KeyboardEvent): void {
-  if (event.isComposing || composerIsComposing || event.keyCode === 229) {
-    return;
-  }
-
-  if (state.promptNav) {
-    if (hasStackedUiOpen()) {
-      return;
-    }
-    if (isPromptNavArrow(event)) {
-      event.preventDefault();
-      event.stopPropagation();
-      movePromptNav(event.key === "ArrowUp" ? -1 : 1);
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      exitPromptNav({ focusComposer: true });
-      return;
-    }
-    if (isPrintablePromptNavTyping(event)) {
-      event.preventDefault();
-      event.stopPropagation();
-      exitPromptNav({ focusComposer: true, insertText: event.key });
-    }
-    return;
-  }
-
-  if (!isPromptNavEntryShortcut(event) || hasStackedUiOpen() || !isPromptNavEntryContext(event.target)) {
-    return;
-  }
-  if (enterPromptNav()) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-}
-
-function isPromptNavEntryShortcut(event: KeyboardEvent): boolean {
-  return (
-    event.key === "ArrowUp" &&
-    event.metaKey &&
-    !event.ctrlKey &&
-    !event.altKey &&
-    !event.shiftKey
-  );
-}
-
-function isPromptNavArrow(event: KeyboardEvent): boolean {
-  const arrow = event.key === "ArrowUp" || event.key === "ArrowDown";
-  if (!arrow || event.ctrlKey || event.altKey || event.shiftKey) {
-    return false;
-  }
-  return true;
-}
-
-function isPrintablePromptNavTyping(event: KeyboardEvent): boolean {
-  return event.key.length === 1 && !event.metaKey && !event.ctrlKey;
-}
-
-function isPromptNavEntryContext(target: EventTarget | null): boolean {
-  const node = target instanceof Node ? target : null;
-  if (!node) {
-    return false;
-  }
-  return (
-    elements.composer.contains(node) ||
-    elements.runList.contains(node) ||
-    document.activeElement === document.body
-  );
-}
-
-function hasStackedUiOpen(): boolean {
-  return Boolean(
-    state.readingPopoverOpen ||
-      state.composerMenu ||
-      state.taskDraft.settingsOpen ||
-      state.settingsOverlay,
-  );
-}
-
-function enterPromptNav(): boolean {
-  const targets = promptNavTargets();
-  const target = targets.at(-1) ?? null;
-  if (!target) {
-    return false;
-  }
-  const selection = composerSelectionSnapshot();
-  state.promptNav = {
-    taskId: activePromptNavTaskId(),
-    turnKey: target.dataset.turnKey ?? "",
-    composerSelectionStart: selection.start,
-    composerSelectionEnd: selection.end,
-  };
-  return selectPromptNavTarget(target, { scroll: true });
-}
-
-function movePromptNav(delta: -1 | 1): void {
-  const targets = promptNavTargets();
-  if (targets.length === 0 || !state.promptNav) {
-    exitPromptNav({ focusComposer: false });
-    return;
-  }
-
-  const currentIndex = targets.findIndex((target) => target.dataset.turnKey === state.promptNav?.turnKey);
-  const index = currentIndex === -1 ? targets.length - 1 : currentIndex;
-  const nextIndex = index + delta;
-  if (nextIndex < 0) {
-    selectPromptNavTarget(targets[0], { scroll: false });
-    return;
-  }
-  if (nextIndex >= targets.length) {
-    exitPromptNav({ focusComposer: true });
-    return;
-  }
-  selectPromptNavTarget(targets[nextIndex], { scroll: true });
-}
-
-function selectPromptNavTarget(
-  target: HTMLElement | undefined,
-  options: { scroll: boolean },
-): boolean {
-  if (!target) {
-    return false;
-  }
-  const turnKey = target.dataset.turnKey;
-  if (!turnKey) {
-    return false;
-  }
-  const previous = state.promptNav;
-  const selection = previous ?? {
-    composerSelectionStart: elements.promptInput.selectionStart ?? elements.promptInput.value.length,
-    composerSelectionEnd: elements.promptInput.selectionEnd ?? elements.promptInput.value.length,
-  };
-  state.promptNav = {
-    taskId: activePromptNavTaskId(),
-    turnKey,
-    composerSelectionStart: selection.composerSelectionStart,
-    composerSelectionEnd: selection.composerSelectionEnd,
-  };
-  syncPromptNavDomSelection();
-  if (options.scroll) {
-    target.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
-  }
-  target.focus({ preventScroll: true });
-  return true;
-}
-
-function exitPromptNav(options: { focusComposer: boolean; insertText?: string }): void {
-  const previous = state.promptNav;
-  if (!previous) {
-    return;
-  }
-  state.promptNav = null;
-  syncPromptNavDomSelection();
-  if (!options.focusComposer) {
-    return;
-  }
-  focusComposerFromPromptNav(previous);
-  if (options.insertText !== undefined) {
-    insertTextIntoComposer(options.insertText);
-  }
-}
-
-function focusComposerFromPromptNav(nav: PromptNavState): void {
-  if (elements.promptInput.disabled) {
-    return;
-  }
-  elements.promptInput.focus({ preventScroll: true });
-  const start = clamp(nav.composerSelectionStart, 0, elements.promptInput.value.length);
-  const end = clamp(nav.composerSelectionEnd, start, elements.promptInput.value.length);
-  elements.promptInput.setSelectionRange(start, end);
-}
-
-function insertTextIntoComposer(text: string): void {
-  if (elements.promptInput.disabled) {
-    return;
-  }
-  const start = elements.promptInput.selectionStart ?? elements.promptInput.value.length;
-  const end = elements.promptInput.selectionEnd ?? start;
-  elements.promptInput.setRangeText(text, start, end, "end");
-  elements.promptInput.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-function restorePromptNavAfterRender(): void {
-  const nav = state.promptNav;
-  if (!nav) {
-    return;
-  }
-  if (nav.taskId !== activePromptNavTaskId()) {
-    state.promptNav = null;
-    return;
-  }
-  const target = findPromptNavTarget(nav.turnKey);
-  if (!target) {
-    state.promptNav = null;
-    return;
-  }
-  syncPromptNavDomSelection();
-  target.focus({ preventScroll: true });
-}
-
-function syncPromptNavDomSelection(): void {
-  const nav = state.promptNav;
-  for (const target of promptNavTargets()) {
-    const selected =
-      nav !== null &&
-      nav.taskId === activePromptNavTaskId() &&
-      target.dataset.turnKey === nav.turnKey;
-    target.classList.toggle("prompt-nav-selected", selected);
-    if (selected) {
-      target.setAttribute("aria-current", "true");
-    } else {
-      target.removeAttribute("aria-current");
-    }
-  }
-}
-
-function promptNavTargets(): HTMLElement[] {
-  return Array.from(elements.runList.querySelectorAll<HTMLElement>(".turn-prompt"));
-}
-
-function findPromptNavTarget(turnKey: string): HTMLElement | null {
-  return promptNavTargets().find((target) => target.dataset.turnKey === turnKey) ?? null;
-}
-
-function activePromptNavTaskId(): string {
-  return state.activeTaskId ?? PROMPT_NAV_DOM_TASK_ID;
-}
-
-function composerSelectionSnapshot(): { start: number; end: number } {
-  const fallback = elements.promptInput.value.length;
-  return {
-    start: elements.promptInput.selectionStart ?? fallback,
-    end: elements.promptInput.selectionEnd ?? fallback,
-  };
-}
-
-function scheduleStickyPromptSync(): void {
-  if (stickyPromptSyncFrame !== null) {
-    return;
-  }
-  stickyPromptSyncFrame = window.requestAnimationFrame(() => {
-    stickyPromptSyncFrame = null;
-    syncStickyPromptHeader();
-  });
-}
-
-function syncStickyPromptHeader(): void {
-  const header = elements.runList.querySelector<HTMLButtonElement>(".sticky-prompt-header");
-  if (!header) {
-    return;
-  }
-  const candidate = stickyPromptCandidate();
-  if (!candidate) {
-    hideStickyPromptHeader(header);
-    return;
-  }
-
-  const listRect = elements.runList.getBoundingClientRect();
-  const promptRect = candidate.prompt.getBoundingClientRect();
-  if (promptRect.bottom > listRect.top) {
-    hideStickyPromptHeader(header);
-    return;
-  }
-
-  const text = condensedPromptText(candidate.prompt.textContent ?? "");
-  header.textContent = text;
-  header.title = text;
-  header.dataset.turnKey = candidate.card.dataset.turnKey ?? "";
-  header.classList.remove("hidden");
-}
-
-function hideStickyPromptHeader(header: HTMLButtonElement): void {
-  header.classList.add("hidden");
-  header.textContent = "";
-  header.title = "";
-  delete header.dataset.turnKey;
-}
-
-function stickyPromptCandidate(): { card: HTMLElement; prompt: HTMLElement } | null {
-  const listRect = elements.runList.getBoundingClientRect();
-  if (listRect.height <= 0) {
-    return null;
-  }
-  const eyeY = listRect.top + Math.min(96, listRect.height * 0.28);
-  const cards = Array.from(elements.runList.querySelectorAll<HTMLElement>(".turn-card"));
-
-  for (const card of cards) {
-    const rect = card.getBoundingClientRect();
-    if (rect.top <= eyeY && rect.bottom > eyeY) {
-      const prompt = card.querySelector<HTMLElement>(".turn-prompt");
-      return prompt ? { card, prompt } : null;
-    }
-  }
-
-  for (const card of cards) {
-    const rect = card.getBoundingClientRect();
-    if (rect.top < listRect.bottom && rect.bottom > listRect.top) {
-      const prompt = card.querySelector<HTMLElement>(".turn-prompt");
-      if (prompt && prompt.getBoundingClientRect().bottom <= listRect.top) {
-        return { card, prompt };
-      }
-    }
-  }
-
-  return null;
-}
-
-function scrollToPromptTurn(turnKey: string): void {
-  const target = findPromptNavTarget(turnKey);
-  target?.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
-  scheduleStickyPromptSync();
 }
 
 elements.runList.addEventListener("click", (event) => {
