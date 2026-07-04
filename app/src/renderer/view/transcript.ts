@@ -8,8 +8,10 @@
 // then scheduleStickyPromptSync — in that order), the turn-card e2e beacons
 // (data-key/sig/turnKey/runId/runStatus, .turn-outcome-note), and the
 // markdown render memo. Shell behavior (mode switch, prompt-nav, T4, the
-// entry panel) arrives through the actions seam; the state atom is read only
-// via actions.activeTaskView().
+// entry panel) arrives through the actions seam; state is read through the
+// module-bound atom reference (initTranscriptView, bound by main.ts at boot
+// before the first render — R4) via the activeTaskView(state) helper
+// (D-early ruling 1: one view→state mechanism).
 
 import DOMPurify from "dompurify";
 import { marked } from "marked";
@@ -28,9 +30,20 @@ import {
   runTone,
 } from "../../reading-core/selectors/runs";
 import { providerLabel } from "../../reading-core/selectors/formatters";
-import type { TaskViewState } from "../../reading-core/state";
+import {
+  activeTaskView,
+  type RendererState,
+  type TaskViewState,
+} from "../../reading-core/state";
 import { elements } from "../dom";
 import { actions } from "../actions";
+
+/** The shell's state atom, bound once at boot for the surface's read paths. */
+let state: RendererState;
+
+export function initTranscriptView(stateRef: RendererState): void {
+  state = stateRef;
+}
 
 // The turn-signature tracker is process-local (block render versions live in
 // a WeakMap keyed by block reference) — the renderer holds this singleton;
@@ -148,7 +161,7 @@ export function renderRuns(): void {
   const previousScrollTop = runList.scrollTop;
   const rail = ensureStickyPromptRail(runList);
 
-  const view = actions.activeTaskView();
+  const view = activeTaskView(state);
   if (!view?.task) {
     setNonRailChildren(runList, rail, [actions.renderTaskEntryPanel()]);
     finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
@@ -425,6 +438,6 @@ function providerLabelForRun(_run: RuntimeRunReport | null): string {
 }
 
 function activeProviderLabel(): string {
-  const provider = actions.activeTaskView()?.task?.provider;
+  const provider = activeTaskView(state)?.task?.provider;
   return provider ? providerLabel(provider) : "Codex";
 }

@@ -414,6 +414,17 @@ export function taskViewForId(state: RendererState, taskId: string): TaskViewSta
   return state.taskViews.find((view) => view.task?.id === taskId) ?? null;
 }
 
+/** The active task's view, or null in a New Chat. THE view-module state read
+ *  (D-early ruling 1): views hold an init-bound state reference and call this
+ *  helper — reads are a view's job; routing them through the actions seam
+ *  would mislabel them as behaviors. */
+export function activeTaskView(state: RendererState): TaskViewState | null {
+  if (!state.activeTaskId) {
+    return null;
+  }
+  return taskViewForId(state, state.activeTaskId);
+}
+
 export function applyTranscriptUpserts(
   view: TaskViewState,
   payload: TranscriptBlocksEvent["payload"],

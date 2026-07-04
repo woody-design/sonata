@@ -23,7 +23,7 @@ import {
   reasoningValueLabel,
 } from "../../reading-core/config";
 import { folderName, providerLabel } from "../../reading-core/selectors/formatters";
-import type { RendererState } from "../../reading-core/state";
+import { activeTaskView, type RendererState } from "../../reading-core/state";
 import { elements } from "../dom";
 import { actions } from "../actions";
 
@@ -187,7 +187,7 @@ function renderLaunchSettingsControl(): HTMLElement {
 
 export function renderTaskSettingsPopover(): void {
   elements.taskSettingsPopoverRoot.replaceChildren();
-  const view = actions.activeTaskView();
+  const view = activeTaskView(state);
   if (view?.task || !state.taskDraft.settingsOpen) {
     return;
   }

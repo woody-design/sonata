@@ -20,16 +20,16 @@ import type {
   ReasoningEffort,
   RuntimeProvider,
 } from "../shared/types";
-import type { TaskViewState } from "../reading-core/state";
 
 /** The two co-equal surfaces of a task: the crafted reading view and the raw
  *  terminal. Both ARE Duet — the switch picks which lens is in front. */
 export type ViewMode = "read" | "terminal";
 
 export interface Actions {
-  /** The shell's per-render state read: the active task's view, or null in a
-   *  new chat. Views call it mid-build instead of importing the state atom. */
-  activeTaskView(): TaskViewState | null;
+  // State reads deliberately absent (D-early ruling 1, normalized at
+  // D-mid-0): views read through their init-bound state reference and the
+  // reading-core activeTaskView(state) helper. Actions = behaviors only,
+  // permanently.
   /** Surface switch — the single choke point every "open the terminal"
    *  caller goes through (approvals, banners, fallbacks, stall notices). */
   setViewMode(mode: ViewMode): void;

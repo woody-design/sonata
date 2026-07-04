@@ -122,6 +122,7 @@ import {
 } from "../reading-core/selectors/runs";
 import {
   SIDEBAR_PREFS_DEFAULTS,
+  activeTaskView as activeTaskViewOf,
   anchorRectOf,
   createInitialState,
   createTaskView,
@@ -152,7 +153,7 @@ import { initInvalidate } from "./invalidate";
 import { initEntryView, renderTaskEntryPanel, renderTaskSettingsPopover } from "./view/entry";
 import { lucideIcon } from "./view/icons";
 import { positionPopoverElement, positionSidebarMenu } from "./view/popover-geometry";
-import { renderRuns } from "./view/transcript";
+import { initTranscriptView, renderRuns } from "./view/transcript";
 
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -1094,8 +1095,8 @@ initDom();
 // is safe.
 initInvalidate(render);
 initEntryView(state);
+initTranscriptView(state);
 initActions({
-  activeTaskView: () => activeTaskView(),
   setViewMode: (mode) => setViewMode(mode),
   scrollToPromptTurn: (turnKey) => scrollToPromptTurn(turnKey),
   restorePromptNavAfterRender: () => restorePromptNavAfterRender(),
@@ -3110,11 +3111,10 @@ async function hydrateUsage(taskId: string): Promise<void> {
   markViewChanged(view);
 }
 
+// The shell's zero-arg convenience over the reading-core helper (the logic
+// moved to state.ts at D-mid-0 so views and shell share one definition).
 function activeTaskView(): TaskViewState | null {
-  if (!state.activeTaskId) {
-    return null;
-  }
-  return taskViewForId(state, state.activeTaskId);
+  return activeTaskViewOf(state);
 }
 
 function activateTask(taskId: string): void {
