@@ -466,8 +466,6 @@ export interface PreviewDocument {
   kind: PreviewDocumentKind;
   /** text/markdown/html payload (head-sliced when `truncated`). */
   text?: string;
-  /** image payload — data: URL in S1; duet-file:// lands in S2. */
-  dataUrl?: string;
   /** a too-large file was head-sliced to the preview cap. */
   truncated?: boolean;
 }

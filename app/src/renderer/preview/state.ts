@@ -121,13 +121,41 @@ function extensionOf(path: string): string {
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
 }
 
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"]);
 const SOURCE_EXTENSIONS = new Set([
   "ts", "tsx", "js", "jsx", "mjs", "cjs", "html", "htm", "css", "scss",
   "py", "go", "rs", "java", "c", "h", "cpp", "hpp", "rb", "sh", "swift",
   "kt", "php", "sql", "yaml", "yml", "toml", "xml",
 ]);
 const DOC_EXTENSIONS = new Set(["md", "markdown", "txt", "text", "csv", "log", "rst"]);
+
+/**
+ * The `duet-file://` URL for a workspace-relative path (design record §4). The
+ * task id is the URL host; each path segment is percent-encoded (spaces/unicode)
+ * while the slashes stay real, so main can decode the pathname back to the
+ * workspace-relative path. Used both to point a direct image tab's <img> at the
+ * protocol and to rewrite relative markdown image sources.
+ */
+export function duetFileUrl(taskId: string, relativePath: string): string {
+  const encoded = relativePath.split("/").map(encodeURIComponent).join("/");
+  return `duet-file://${taskId}/${encoded}`;
+}
+
+/**
+ * The base URL for resolving a markdown document's relative links/images —
+ * `duet-file://<taskId>/<dir-of-file>/`. Replaces VS Code's global `<base href>`
+ * trick, which is unsafe in this app: the Preview is a single bundled document
+ * (vite `base: "./"`, relative asset URLs), so a document-global <base> would
+ * hijack the whole app's URL resolution. Instead relative refs resolve
+ * explicitly against this base with `new URL(ref, docBaseUrl(...))` — identical
+ * semantics, scoped to the reader, zero global state.
+ */
+export function docBaseUrl(taskId: string, docPath: string): string {
+  const slash = docPath.lastIndexOf("/");
+  const dir = slash >= 0 ? docPath.slice(0, slash + 1) : "";
+  const encodedDir = dir.split("/").map(encodeURIComponent).join("/");
+  return `duet-file://${taskId}/${encodedDir}`;
+}
 
 /** Human byte count for the binary/too-large typed states. */
 export function formatBytes(size: number): string {

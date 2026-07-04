@@ -6,6 +6,7 @@ import {
   dialog,
   Menu,
   nativeTheme,
+  protocol,
   shell,
   type MenuItemConstructorOptions,
   type OpenDialogOptions,
@@ -65,6 +66,21 @@ import {
 import { WindowStateManager, type WindowDefaults } from "./window-state";
 import { LocalApiServer, localApiSocketPath } from "./local-api/local-api-server";
 import { ProjectsStore, projectsStorePath } from "./projects-store";
+
+// The `duet-file://` scheme serves a task workspace's local images to the
+// Preview reader (design record §4/§6.1). It MUST be registered as privileged
+// BEFORE `app` is ready — this runs at module load, before `whenReady`. It is
+// `standard` so `duet-file://<taskId>/<path>` parses hierarchically (host +
+// path) and relative `./img.png` resolution behaves like a normal URL; `secure`
+// so it is a trustworthy origin; `supportFetchAPI` so <img> subresource loads
+// resolve cleanly. The handler (registered at ready) serves image bytes ONLY —
+// everything else is a 404 (WorkspaceFiles.readImage is the whole gate).
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "duet-file",
+    privileges: { standard: true, secure: true, supportFetchAPI: true },
+  },
+]);
 
 let mainWindow: BrowserWindow | null = null;
 let previewWindow: BrowserWindow | null = null;
@@ -197,6 +213,14 @@ function createPreviewWindow(): BrowserWindow {
   window.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: "deny" };
+  });
+  // The reader intercepts every in-document link click and routes it (fragment /
+  // workspace tab / external), so the window itself must NEVER navigate — a
+  // stray relative href (resolved against the injected doc base) would otherwise
+  // replace the whole app with a `duet-file://` page. Same guard the Reading
+  // window carries.
+  window.webContents.on("will-navigate", (event) => {
+    event.preventDefault();
   });
 
   window.loadFile(path.join(__dirname, "../renderer/preview.html"));
@@ -415,6 +439,39 @@ function readWorkspaceDoc(request: WorkspaceReadDocRequest): PreviewDocument {
     throw new Error("Workspace files seam is not ready.");
   }
   return workspaceFiles.readDoc(request.taskId, request.relativePath);
+}
+
+/** The `duet-file://` handler body: parse `duet-file://<taskId>/<enc-path>`,
+ *  resolve to image bytes through WorkspaceFiles' audited guard, and answer 404
+ *  for anything that is not a real in-workspace image (a script can never ride
+ *  an image content-type). Never throws — a bad URL is just a 404. */
+function serveDuetFileImage(rawUrl: string): Response {
+  const notFound = new Response("Not found", {
+    status: 404,
+    headers: { "content-type": "text/plain" },
+  });
+  if (!workspaceFiles) {
+    return notFound;
+  }
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return notFound;
+  }
+  const taskId = url.hostname;
+  const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, "");
+  if (!taskId || !relativePath) {
+    return notFound;
+  }
+  const image = workspaceFiles.readImage(taskId, relativePath);
+  if (!image) {
+    return notFound;
+  }
+  return new Response(new Uint8Array(image.bytes), {
+    status: 200,
+    headers: { "content-type": image.mime, "cache-control": "no-cache" },
+  });
 }
 
 function readWorkspaceDir(request: WorkspaceReadDirRequest): WorkspaceDirEntry[] {
@@ -821,6 +878,12 @@ app.whenReady().then(() => {
       return null;
     }
   });
+  // Serve `duet-file://<taskId>/<path>` local images to the Preview reader.
+  // The URL host is the task id, the path is the (percent-encoded) workspace-
+  // relative path; resolution + the image-only allowlist live in WorkspaceFiles
+  // (the ONE audited guard). Anything that is not a real, in-workspace image →
+  // 404, so this channel can never serve a script or escape the workspace.
+  protocol.handle("duet-file", (request) => serveDuetFileImage(request.url));
   // DUET_NOTIFICATIONS=0 is a hard off (kill switch for test harnesses and for
   // anyone who prefers the macOS per-app toggle as their only control).
   if (process.env.DUET_NOTIFICATIONS !== "0") {

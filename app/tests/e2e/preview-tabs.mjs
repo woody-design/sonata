@@ -69,8 +69,9 @@ try {
   await preview.locator(".preview-tab").nth(3).waitFor({ state: "visible" });
   results.openedFour = (await tabCount(preview)) === 4;
   results.lastOpenActive = (await activeLabel(preview)) === "delta.md";
-  // The active document actually rendered.
-  await preview.locator('.preview-doc[data-doc-kind="text"]', { hasText: "Delta body." }).waitFor({
+  // The active document actually rendered. delta.md is markdown — S2 renders it
+  // rich (document-scale), no longer raw text.
+  await preview.locator('.preview-doc[data-doc-kind="markdown"] .preview-md', { hasText: "Delta body." }).waitFor({
     state: "visible",
   });
 

@@ -11,9 +11,9 @@ import type {
 
 /**
  * WorkspaceFiles — the single seam that observes disk truth for a task's
- * workspace (design record §6.1). Every read (`stat` / `readDir` / `readDoc`)
- * and every external-open target resolves through ONE audited path+symlink
- * guard (`resolveInside`), retiring the triplicate that lived in
+ * workspace (design record §6.1). Every read (`stat` / `readDir` / `readDoc` /
+ * `readImage`) and every external-open target resolves through ONE audited
+ * path+symlink guard (`resolveInside`), retiring the triplicate that lived in
  * artifact-preview.ts, workspace-preview.ts and main.ts. The renderer never
  * sniffs bytes: the classification ladder (absent → empty → image → binary →
  * too-large → markdown/html/text) runs HERE and the renderer presents by
@@ -27,16 +27,13 @@ import type {
  * tombstone or its empty state instead of an error.
  */
 
-const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"]);
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg"]);
 const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown"]);
 const HTML_EXTENSIONS = new Set([".html", ".htm"]);
 
 /** Text head-slice cutoff: a file larger than this is `too-large` and only its
  *  head is decoded (GitHub's graduated degradation, §4). */
 const TEXT_MAX_BYTES = 1024 * 1024;
-/** Above this an image is `too-large` rather than inlined as a data URL (S1;
- *  duet-file:// streaming lands in S2). */
-const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 /** Git's binary heuristic: a NUL byte in the first 8000 bytes. */
 const BINARY_PROBE_BYTES = 8000;
 
@@ -140,15 +137,11 @@ export class WorkspaceFiles {
 
     const ext = `.${extension}`;
     if (IMAGE_EXTENSIONS.has(ext)) {
-      if (stat.size > IMAGE_MAX_BYTES) {
-        return { ...base, kind: "too-large" };
-      }
-      const bytes = fs.readFileSync(absolute);
-      return {
-        ...base,
-        kind: "image",
-        dataUrl: `data:${imageMime(ext)};base64,${bytes.toString("base64")}`,
-      };
+      // Image bytes no longer ride the IPC as a base64 data URL — the renderer
+      // points the <img> at `duet-file://<taskId>/<path>` and this seam streams
+      // the file through the protocol handler (S2). That drops the old size cap
+      // (a direct image tab is now served from disk, not inlined).
+      return { ...base, kind: "image" };
     }
 
     // Text-ish: probe for binary on the head only (never decode a large blob),
@@ -177,6 +170,42 @@ export class WorkspaceFiles {
       return { ...base, kind: textKind(ext), text };
     } finally {
       fs.closeSync(fd);
+    }
+  }
+
+  /**
+   * Serve a workspace file as image bytes for the `duet-file://` protocol (§4,
+   * S2). Returns null — the handler answers 404 — for ANYTHING that is not a
+   * real, in-workspace image: a guard violation (path escape), a non-image
+   * extension, a missing file, or a directory. This is the whole security
+   * contract of the protocol: it serves image content-types ONLY, so a script
+   * (or any non-image payload) can never ride this channel into the reader.
+   * SVG is included deliberately — it is rendered inside an <img>, where its
+   * scripts never execute. Resolution goes through the ONE audited guard.
+   */
+  readImage(taskId: TaskId, relativePath: string): { mime: string; bytes: Buffer } | null {
+    const root = this.resolveRoot(taskId);
+    if (!root) {
+      return null;
+    }
+    let absolute: string;
+    try {
+      absolute = this.resolveInside(root, relativePath);
+    } catch {
+      return null; // guard violation → 404, never throw across the protocol
+    }
+    const ext = path.extname(absolute).toLowerCase();
+    if (!IMAGE_EXTENSIONS.has(ext)) {
+      return null;
+    }
+    try {
+      const stat = fs.statSync(absolute);
+      if (!stat.isFile()) {
+        return null;
+      }
+      return { mime: imageMime(ext), bytes: fs.readFileSync(absolute) };
+    } catch {
+      return null;
     }
   }
 
@@ -297,6 +326,8 @@ function imageMime(ext: string): string {
       return "image/gif";
     case ".webp":
       return "image/webp";
+    case ".avif":
+      return "image/avif";
     case ".svg":
       return "image/svg+xml";
     default:

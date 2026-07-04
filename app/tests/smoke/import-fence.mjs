@@ -90,11 +90,12 @@ const RULES = [
   // machinery. Its view modules may reach the shared icon helper, the DOM-shell
   // icon wrapper, shared protocol types, and each other (small organism —
   // composition still flows through preview/main.ts, the registered root). The
-  // markdown pipeline packages are allowed ahead of S2.
+  // markdown pipeline packages are allowed ahead of S2; idiomorph (the S2 live-
+  // morph engine) is scoped to this layer alone.
   {
     layer: "renderer/preview/",
     allowedPrefixes: ["renderer/preview/", "renderer/view/icons", "shared/"],
-    allowedPackages: ["lucide", "marked", "dompurify"],
+    allowedPackages: ["lucide", "marked", "dompurify", "idiomorph"],
   },
 ];
 

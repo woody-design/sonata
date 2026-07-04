@@ -3,12 +3,13 @@ import type { PreviewBinding, RuntimeEvent } from "../../shared/types";
 import {
   basename,
   createInitialPreviewState,
+  docBaseUrl,
   type PreviewDeps,
   type PreviewViewState,
 } from "./state";
 import { initTabs, renderTabs } from "./tabs";
 import { initToolbar, renderToolbar, type ToolbarElements } from "./toolbar";
-import { renderReader } from "./reader";
+import { morphReader, renderReader, type ReaderContext } from "./reader";
 import { renderTree } from "./tree";
 
 /**
@@ -138,6 +139,32 @@ const deps: PreviewDeps = {
   },
 };
 
+// ── Reader context: what the presenters reach back into ──────────────────────
+const readerCtx: ReaderContext = {
+  get taskId() {
+    return state.binding.taskId;
+  },
+  openTab(relativePath) {
+    const taskId = state.binding.taskId;
+    if (!taskId) {
+      return;
+    }
+    // A relative doc link opens (or focuses) that file as a Preview tab — the
+    // same open-or-focus bridge chips (S4) use; the task is already the bound
+    // one, so this never crosses tasks.
+    void window.duetRuntime.openPreview({ taskId, relativePath }).catch(() => {});
+  },
+  revealInFinder(relativePath) {
+    const taskId = state.binding.taskId;
+    if (!taskId) {
+      return;
+    }
+    void window.duetRuntime
+      .openWorkspaceExternal({ taskId, target: "folder", relativePath })
+      .catch(() => {});
+  },
+};
+
 // ── Rendering ────────────────────────────────────────────────────────────────
 function renderChrome(): void {
   renderTabs(state, els.tabstrip);
@@ -147,7 +174,7 @@ function renderChrome(): void {
 
 function renderAll(): void {
   renderChrome();
-  renderReader(state, els.content);
+  renderReader(state, els.content, readerCtx);
 }
 
 // ── Binding: main's push of the bound task's session ─────────────────────────
@@ -166,7 +193,7 @@ function applyBinding(binding: PreviewBinding): void {
     state.docPath = null;
     renderAll();
     if (active) {
-      void loadActiveDoc(active);
+      void activateDoc(active);
     }
   } else {
     renderAll();
@@ -184,39 +211,121 @@ function pruneDirty(): void {
   }
 }
 
+/** Within this many px of the bottom counts as "pinned" — the reader stays
+ *  glued to the tail as the agent appends (§4). */
+const TAIL_FOLLOW_PX = 24;
+/** file:changed for the active tab coalesces on this trailing window; the first
+ *  change of a burst renders immediately (§4). */
+const COALESCE_MS = 300;
+
 /**
- * Read the active tab's classified document and project it. Absence is not an
- * error — a missing file returns `kind: "absent"` and draws a tombstone. A
- * `scrollTarget` (a live re-read) holds the current position; otherwise the
- * per-path saved scroll restores.
+ * Read the active tab's classified document into state. Absence is not an error
+ * — a missing file returns `kind: "absent"` and draws a tombstone; only a guard
+ * violation throws. Returns false if a newer tab switch raced this read (the
+ * caller must not project a stale document).
  */
-async function loadActiveDoc(path: string, scrollTarget?: number): Promise<void> {
+async function readActiveDoc(path: string): Promise<boolean> {
   const taskId = state.binding.taskId;
   if (!taskId) {
+    return false;
+  }
+  let doc;
+  try {
+    doc = await window.duetRuntime.readWorkspaceDoc({ taskId, relativePath: path });
+  } catch {
+    // A guard violation (never for a merely-missing file) — draw the tombstone.
+    doc = { path, name: basename(path), extension: "", size: 0, kind: "absent" as const };
+  }
+  // A slower read must not overwrite a newer tab switch (or a task rebind).
+  if (state.binding.taskId !== taskId || state.binding.session?.activePath !== path) {
+    return false;
+  }
+  state.doc = doc;
+  state.docPath = path;
+  return true;
+}
+
+/**
+ * Project a newly-activated tab (tab switch / first load): a clean full render,
+ * then restore that path's saved scroll offset (session truth).
+ */
+async function activateDoc(path: string): Promise<void> {
+  if (!(await readActiveDoc(path))) {
     return;
   }
-  try {
-    const doc = await window.duetRuntime.readWorkspaceDoc({ taskId, relativePath: path });
-    // Guard against a race: a slower read must not overwrite a newer tab switch.
-    if (state.binding.taskId !== taskId || state.binding.session?.activePath !== path) {
-      return;
-    }
-    state.doc = doc;
-    state.docPath = path;
-  } catch {
-    if (state.binding.taskId !== taskId || state.binding.session?.activePath !== path) {
-      return;
-    }
-    // A guard violation (never for a merely-missing file) — draw the tombstone.
-    state.doc = { path, name: basename(path), extension: "", size: 0, kind: "absent" };
-    state.docPath = path;
-  }
-  renderReader(state, els.content);
+  renderReader(state, els.content, readerCtx);
   renderToolbar(state, toolbarEls);
-  const top = scrollTarget ?? state.binding.session?.scroll[path] ?? 0;
+  const top = state.binding.session?.scroll[path] ?? 0;
   requestAnimationFrame(() => {
     els.content.scrollTop = top;
   });
+}
+
+/**
+ * Project a live re-read of the active tab (a `file:changed`). The reader's
+ * position is held across the update (§4): capture the scroll anchor BEFORE the
+ * morph, DOM-morph the fresh render so unchanged nodes keep identity, then —
+ * after images settle (they change scrollHeight) — restore. Tail-follow wins: if
+ * the reader was pinned at the bottom (the "watch the agent write" moment), stay
+ * pinned; otherwise, only if a jump is detected, ratio-restore the prior spot.
+ */
+async function updateDoc(path: string): Promise<void> {
+  const el = els.content;
+  const topBefore = el.scrollTop;
+  const heightBefore = el.scrollHeight;
+  const pinnedToBottom = heightBefore - topBefore - el.clientHeight <= TAIL_FOLLOW_PX;
+  const ratio = heightBefore > 0 ? topBefore / heightBefore : 0;
+
+  if (!(await readActiveDoc(path))) {
+    return;
+  }
+  const { morphed } = morphReader(state, els.content, readerCtx);
+  renderToolbar(state, toolbarEls);
+
+  const settle = (): void => {
+    if (pinnedToBottom) {
+      el.scrollTop = el.scrollHeight; // tail-follow
+    } else if (morphed && Math.abs(el.scrollTop - topBefore) > 2) {
+      // A jump — content changed above the fold. Node identity handled the
+      // dominant append case; ratio-restore the relative position otherwise.
+      el.scrollTop = ratio * el.scrollHeight;
+    }
+  };
+  settle();
+  // Images decode async and change scrollHeight after the synchronous morph —
+  // re-apply the hold once they settle so an append below the fold or a growing
+  // image can't nudge the reader.
+  const pending = Array.from(el.querySelectorAll("img")).filter((img) => !img.complete);
+  if (pending.length > 0) {
+    await Promise.all(pending.map((img) => img.decode().catch(() => {})));
+    settle();
+  }
+}
+
+// file:changed for the active tab: render the leading edge immediately, then
+// coalesce a burst onto a trailing timer so a flurry of writes does not thrash
+// the reader (§4).
+let coalesceTimer: number | null = null;
+let coalescePending: string | null = null;
+function scheduleActiveUpdate(path: string): void {
+  if (coalesceTimer !== null) {
+    coalescePending = path; // in the cooldown window — fold into the trailing run
+    return;
+  }
+  void updateDoc(path);
+  const arm = (): void => {
+    coalesceTimer = window.setTimeout(() => {
+      if (coalescePending !== null) {
+        const next = coalescePending;
+        coalescePending = null;
+        void updateDoc(next);
+        arm();
+      } else {
+        coalesceTimer = null;
+      }
+    }, COALESCE_MS);
+  };
+  arm();
 }
 
 // ── The one event entry: reconcile a claim against disk truth (§6.0) ─────────
@@ -233,10 +342,10 @@ function reconcile(event: RuntimeEvent): void {
     return;
   }
   if (session.activePath === path) {
-    // Active tab: re-read in place, keeping the reader's current scroll. A
-    // reappeared (previously absent) file reloads here too — it falls out of
-    // the same read, no special case.
-    void loadActiveDoc(path, els.content.scrollTop);
+    // Active tab: re-read in place (coalesced), morphing to hold the reader's
+    // position. A reappeared (previously absent) file reloads here too — it
+    // falls out of the same read, no special case.
+    scheduleActiveUpdate(path);
   } else {
     // Background tab: record staleness as a dirty dot (view truth).
     state.dirty.add(path);
@@ -271,6 +380,78 @@ function flushScroll(): void {
     clearTimeout(scrollTimer);
   }
   reportScroll();
+}
+
+// ── In-document links: the window NEVER navigates itself (§4) ─────────────────
+// Every link click inside a rendered doc is intercepted here (the composition
+// root owns the scroll box + the current doc path). Because we inject no global
+// <base>, relative refs are resolved explicitly against the doc's duet-file base
+// — identical semantics, scoped to the reader. Three destinations:
+//   #fragment                      → scroll within the document
+//   workspace-relative file        → open (or focus) it as a Preview tab
+//   http(s) / mailto               → shell.openExternal via window.open (the
+//                                     window's setWindowOpenHandler routes it)
+els.content.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  const anchor = target.closest("a[href]");
+  if (!anchor || !els.content.contains(anchor)) {
+    return;
+  }
+  event.preventDefault();
+  routeDocLink(anchor.getAttribute("href") ?? "");
+});
+
+function routeDocLink(raw: string): void {
+  if (!raw) {
+    return;
+  }
+  if (raw.startsWith("#")) {
+    scrollToFragment(raw.slice(1));
+    return;
+  }
+  const taskId = state.binding.taskId;
+  const docPath = state.docPath;
+  if (!taskId || !docPath) {
+    return;
+  }
+  let url: URL;
+  try {
+    url = new URL(raw, docBaseUrl(taskId, docPath));
+  } catch {
+    return;
+  }
+  if (url.protocol === "duet-file:") {
+    // Relative doc link → a workspace-relative path. The URL host clamps `..` at
+    // the root, and readDoc's guard rejects any escape (tombstone), so this can
+    // never leave the workspace.
+    const relative = decodeURIComponent(url.pathname).replace(/^\/+/, "");
+    if (relative) {
+      readerCtx.openTab(relative);
+    }
+  } else if (url.protocol === "http:" || url.protocol === "https:" || url.protocol === "mailto:") {
+    // window.open is denied+routed to shell.openExternal by the window's open
+    // handler — the preview never navigates itself.
+    window.open(url.href);
+  }
+}
+
+function scrollToFragment(rawId: string): void {
+  let id: string;
+  try {
+    id = decodeURIComponent(rawId);
+  } catch {
+    id = rawId;
+  }
+  if (!id) {
+    return;
+  }
+  const target =
+    els.content.querySelector(`#${CSS.escape(id)}`) ??
+    els.content.querySelector(`[name="${CSS.escape(id)}"]`);
+  target?.scrollIntoView({ block: "start" });
 }
 
 // ── Keyboard (AppKit document-window manners, §4) ────────────────────────────
