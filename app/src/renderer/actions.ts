@@ -16,13 +16,16 @@
 // needed when D3 moves the sidebar and slash-picker families.
 
 import type {
+  ClaudeDefaultPermissionMode,
   LaunchSpeedMode,
   ReasoningEffort,
+  ResumePolicyId,
   RuntimeProvider,
   SlashCommandEntry,
 } from "../shared/types";
 import type {
   ComposerAttachment,
+  SettingsOverlayState,
   SidebarPrefs,
   SlashPickerState,
   TaskViewState,
@@ -106,6 +109,16 @@ export interface Actions {
   scheduleUsagePopoverClose(): void;
   renderSlashPicker(picker: SlashPickerState): HTMLElement;
   positionSlashPicker(pickerElement: HTMLElement): void;
+  // — Settings overlay (view/settings.ts): close transition, popup-menu
+  //   grammar, and the instant-apply persist flows. —
+  closeSettingsOverlay(): void;
+  closeSettingsPopupMenus(overlay: SettingsOverlayState): void;
+  toggleSettingsApprovalMenu(overlay: SettingsOverlayState): void;
+  toggleSettingsPolicyMenu(overlay: SettingsOverlayState): void;
+  persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): void;
+  persistResumePolicy(policy: ResumePolicyId): void;
+  setDefaultRemoteControl(value: boolean): void;
+  restoreResumeBridge(): void;
 }
 
 /** The bound registry. Reading it before initActions() runs is a boot-order
