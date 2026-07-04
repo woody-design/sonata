@@ -4799,6 +4799,21 @@ html[data-instance-label] body::after {
 
 /* Tab strip — the window's drag region, with a traffic-light inset on the left
    (macOS lights float over it). Tabs opt back out of the drag with no-drag. */
+/* Compact preview-chrome controls opt out of the global button metrics
+   (button { min-height: 34px; padding: 0 12px }) — unreset, that padding
+   squeezes a 28px icon button's content box to 2px and the icon vanishes. */
+.preview-tab,
+.preview-tab-close,
+.preview-panel-toggle,
+.preview-open-button,
+.preview-open-item {
+  min-height: 0;
+}
+.preview-tab-close,
+.preview-panel-toggle {
+  padding: 0;
+}
+
 .preview-tabstrip {
   display: flex;
   align-items: stretch;
