@@ -1284,7 +1284,6 @@ function activeTaskView(): TaskViewState | null {
 }
 
 
-
 // --- Slash command picker -------------------------------------------------
 //
 // Input assistance over a pure passthrough pipe: the picker helps discover
