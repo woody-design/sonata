@@ -103,10 +103,19 @@ export async function openNewChat(page) {
   await page.locator("#sidebar-new-chat").click();
 }
 
-/** Switch the New Chat draft provider before the first message. */
+/** Switch the New Chat draft provider before the first message (2026-07-04
+ *  redesign: the provider is a composer chip whose menu portals above it). */
 export async function chooseDraftProvider(page, provider) {
-  const label = provider === "claude" ? "Claude" : "Codex";
-  await page.locator(".task-provider-segment button", { hasText: label }).click();
+  await page.locator("#provider-chip").click();
+  await page.locator(`#provider-option-${provider}`).click();
+}
+
+/** Pick the New Chat working folder through the project chip's menu. The
+ *  "Use an existing folder" item opens the native dialog (DUET_TEST_PICK_FOLDER
+ *  answers it in tests). */
+export async function chooseDraftFolderViaDialog(page) {
+  await page.locator("#project-chip").click();
+  await page.locator("#entry-choose-folder").click();
 }
 
 function asText(lines) {

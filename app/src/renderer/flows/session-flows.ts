@@ -257,8 +257,7 @@ async function createTask(
   const providerName = providerLabel(provider);
   state.busy = true;
   state.status = `Starting ${providerName}`;
-  state.taskDraft.settingsOpen = false;
-  state.taskDraft.settingsAnchor = null;
+  state.taskDraft.menu = null;
   state.taskDraft.message = {
     tone: "info",
     text: `Starting ${providerName} Task...`,
@@ -275,6 +274,12 @@ async function createTask(
       speedMode: launchSettings.speedMode,
       approval: "on-request",
       sandbox: "read-only",
+      // Per-session access mode (2026-07-04): only an explicit chip choice
+      // travels; an untouched draft lets the main process apply the Settings
+      // default itself (single source of truth for "what default means now").
+      ...(provider === "claude" && state.taskDraft.permissionMode
+        ? { permissionMode: state.taskDraft.permissionMode }
+        : {}),
       ...(provider === "claude" && state.taskDraft.remoteControl ? { remoteControl: true } : {}),
     });
     const view = createTaskView(response.task, `${providerName} PTY ${response.runtime.pid}`);
@@ -607,12 +612,8 @@ export async function answerOptionPrompt(): Promise<void> {
 export async function pickTaskFolder(): Promise<void> {
   state.busy = true;
   state.status = "Choosing Task Folder";
-  state.taskDraft.settingsOpen = false;
-  state.taskDraft.settingsAnchor = null;
-  state.taskDraft.message = {
-    tone: "info",
-    text: "Choose the folder where this Task should run.",
-  };
+  state.taskDraft.menu = null;
+  state.taskDraft.message = null;
   render();
 
   try {

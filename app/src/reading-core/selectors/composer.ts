@@ -14,7 +14,7 @@ import type {
 } from "../../shared/types";
 import type { OptionPromptDetectedEvent } from "../../shared/types/events";
 import type { OptionPromptAnswers } from "../../shared/types/option-prompt";
-import type { OptionPromptReceiptLine, TaskViewState } from "../state";
+import type { OptionPromptReceiptLine, TaskLaunchDraft, TaskViewState } from "../state";
 import { providerLabel } from "./formatters";
 import { modelValueLabel, reasoningValueLabel } from "../config";
 
@@ -62,6 +62,20 @@ export function filteredSlashItems(picker: {
     return a.score - b.score || a.order - b.order;
   });
   return scored.map((item) => item.entry);
+}
+
+/** The New Chat model chip's label: model + effort (+ Fast, Codex), from the
+ *  draft's launch settings. The session twin is sessionModelSummaryLabel. */
+export function draftModelSummaryLabel(draft: TaskLaunchDraft): string {
+  const provider = draft.provider;
+  const parts = [
+    modelValueLabel(provider, draft.model[provider]) ?? "Default",
+    reasoningValueLabel(draft.reasoningEffort[provider]) ?? "Default",
+  ];
+  if (provider === "codex" && draft.speedMode.codex === "fast") {
+    parts.push("Fast");
+  }
+  return parts.join(" ");
 }
 
 export function sessionModelSummaryLabel(view: TaskViewState | null): string | null {
@@ -113,12 +127,13 @@ export function sendPromptTitle(
 
 export function composerPlaceholder(
   view: TaskViewState | null,
-  draftProvider: RuntimeProvider,
   activeRun: boolean,
   pendingApproval: boolean,
 ): string {
+  // New chat: the first message births the session; the placeholder invites
+  // intent (ruled 2026-07-04) instead of narrating the mechanism.
   if (!view?.task) {
-    return `Message ${providerLabel(draftProvider)} — starts the session`;
+    return "Describe a task or ask a question";
   }
   const providerName = providerLabel(view.task.provider);
   if (pendingApproval) {

@@ -43,6 +43,7 @@ import {
   type PopoverAnchor,
   type RendererState,
   type SidebarPrefs,
+  type TaskDraftMenuKind,
   type TaskViewState,
 } from "../reading-core/state";
 import { reduceRuntimeEvent } from "../reading-core/runtime-reducer";
@@ -257,6 +258,7 @@ initActions({
   chooseDraftProvider: (provider) => {
     state.taskDraft.provider = provider;
     state.taskDraft.message = null;
+    state.taskDraft.menu = null;
     render();
   },
   chooseDraftFolder: (path) => {
@@ -267,9 +269,9 @@ initActions({
     sessionTransitions.clearDraftFolder(state);
     render();
   },
-  setLaunchSettingsOpen: (open, anchor) => {
-    state.taskDraft.settingsOpen = open;
-    state.taskDraft.settingsAnchor = anchor;
+  setDraftPermissionMode: (mode) => {
+    state.taskDraft.permissionMode = mode;
+    state.taskDraft.menu = null;
     render();
   },
   setDraftReasoningEffort: (provider, value) => {
@@ -669,6 +671,37 @@ elements.addAttachment.addEventListener("click", (event) => {
   toggleComposerMenu("add", event.currentTarget as HTMLElement);
 });
 
+// New Chat launch chips (2026-07-04 redesign): each toggles its draft menu.
+// The model/permission chips are shared with live sessions, where they render
+// disabled (display-only) — a disabled button never fires, so no mode guard.
+// Bare draft assignment in a handler is grammar (C3 ruling): shell-side.
+// stopPropagation is load-bearing: render() rebuilds the chip's children, so
+// by the time the bubble reaches the document click-away the original target
+// is detached and closest(".composer-chip") no longer matches — the menu
+// would close in the same click that opened it.
+function toggleDraftMenuFromChip(kind: TaskDraftMenuKind, event: MouseEvent): void {
+  event.stopPropagation();
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  state.taskDraft.menu =
+    state.taskDraft.menu?.kind === kind
+      ? null
+      : { kind, anchor: { left: rect.left, top: rect.top, width: rect.width } };
+  render();
+}
+
+elements.providerChip.addEventListener("click", (event) => {
+  toggleDraftMenuFromChip("provider", event);
+});
+elements.modelChip.addEventListener("click", (event) => {
+  toggleDraftMenuFromChip("launch", event);
+});
+elements.permissionChip.addEventListener("click", (event) => {
+  toggleDraftMenuFromChip("access", event);
+});
+elements.projectChip.addEventListener("click", (event) => {
+  toggleDraftMenuFromChip("project", event);
+});
+
 elements.composer.addEventListener("paste", (event) => {
   const files = Array.from(event.clipboardData?.files ?? []);
   if (files.length === 0) {
@@ -776,6 +809,7 @@ async function hydrateClaudeDefaults(): Promise<void> {
     const settings = normalizeClaudeSettings(await window.duetRuntime.readClaudeSettings());
     state.remoteControlDefault = settings.defaultRemoteControl;
     state.taskDraft.remoteControl = settings.defaultRemoteControl;
+    state.claudeDefaultPermissionMode = settings.defaultPermissionMode;
     render();
   } catch {
     // Best-effort: the New Chat default just stays off.
@@ -1043,6 +1077,7 @@ async function setDefaultRemoteControl(value: boolean): Promise<void> {
     }
     state.remoteControlDefault = persisted.defaultRemoteControl;
     state.taskDraft.remoteControl = persisted.defaultRemoteControl;
+    state.claudeDefaultPermissionMode = persisted.defaultPermissionMode;
   } catch (error) {
     state.status = errorMessage(error);
   }
@@ -1152,7 +1187,6 @@ document.addEventListener("click", (event) => {
     target.closest(".reading-settings-popover") ||
     target.closest("#remote-control-toggle") ||
     target.closest(".remote-control-popover") ||
-    target.closest(".task-settings-wrap") ||
     target.closest(".task-settings-popover") ||
     target.closest(".composer-chip") ||
     target.closest("#add-attachment") ||
@@ -1171,9 +1205,8 @@ document.addEventListener("click", (event) => {
   if (state.slashPicker) {
     closeSlashPicker(true);
   }
-  if (state.taskDraft.settingsOpen) {
-    state.taskDraft.settingsOpen = false;
-    state.taskDraft.settingsAnchor = null;
+  if (state.taskDraft.menu) {
+    state.taskDraft.menu = null;
     render();
   }
   if (state.readingPopoverOpen) {
@@ -1202,6 +1235,13 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     closeSettingsOverlay();
+    return;
+  }
+  if (state.taskDraft.menu) {
+    event.preventDefault();
+    state.taskDraft.menu = null;
+    render();
+    elements.promptInput.focus();
     return;
   }
   if (state.readingPopoverOpen) {

@@ -32,7 +32,7 @@ try {
   );
 
   const page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
 

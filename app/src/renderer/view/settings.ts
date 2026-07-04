@@ -129,7 +129,7 @@ function renderApprovalsSettingsGroup(overlay: SettingsOverlayState): HTMLElemen
   const footnote = document.createElement("p");
   footnote.className = "settings-footnote";
   footnote.textContent =
-    "Mirrors Claude's Shift+Tab modes. Auto approves every step through Claude's own safety classifier — far fewer prompts, with a guardrail. You can still switch any single session from its permission chip.";
+    "Mirrors Claude's Shift+Tab modes. Auto approves every step through Claude's own safety classifier — far fewer prompts, with a guardrail. You can pick a different mode for any single session from the New Chat access chip.";
 
   group.append(heading, box, footnote);
   return group;

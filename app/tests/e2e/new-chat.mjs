@@ -24,15 +24,27 @@ try {
   const sendEnabledWithText = !(await page.locator("#send-prompt").isDisabled());
   await page.locator("#prompt-input").fill("");
 
-  // Pick the working folder and a launch setting before the first message.
+  // The access chip is Claude-only and follows the Settings default triad:
+  // fresh settings → "Ask each time"; a per-session pick relabels the chip.
+  await page.locator("#permission-chip", { hasText: "Ask each time" }).waitFor({ state: "visible" });
+  await page.locator("#permission-chip").click();
+  await page.locator("#access-option-acceptEdits").click();
+  await page.locator("#permission-chip", { hasText: "Accept edits" }).waitFor({ state: "visible" });
+
+  // Pick the working folder (project chip → "Use an existing folder" → native
+  // dialog, answered by DUET_TEST_PICK_FOLDER) and a launch setting before the
+  // first message.
+  await page.locator("#project-chip").click();
   await page.locator("#entry-choose-folder").click();
-  await page.locator("#entry-choose-folder", { hasText: path.basename(selectedFolder) }).waitFor({
+  await page.locator("#project-chip", { hasText: path.basename(selectedFolder) }).waitFor({
     state: "visible",
   });
   // New sessions now default to Claude; the "Speed" setting below is Codex-only, so
   // select Codex explicitly (this test exercises the Codex launch-settings path).
   await chooseDraftProvider(page, "codex");
-  await page.locator("#entry-launch-settings").click();
+  // Codex draft: the Claude access chip leaves the composer.
+  await page.locator("#permission-chip").waitFor({ state: "hidden" });
+  await page.locator("#model-chip").click();
   await page.locator(".task-settings-popover", { hasText: "Reasoning" }).waitFor({ state: "visible" });
   await page
     .locator(".task-setting-section", { hasText: "Speed" })
@@ -79,9 +91,16 @@ try {
   // listed and readable without spawning anything.
   page = await launchApp();
   await assertNewChatVisible(page);
-  await page.locator("#entry-choose-folder", { hasText: path.basename(selectedFolder) }).waitFor({
+  // Last-used-folder memory shows up twice: the project chip AND the greeting
+  // ("What should we work on in <folder>?" — the greeting IS the state).
+  await page.locator("#project-chip", { hasText: path.basename(selectedFolder) }).waitFor({
     state: "visible",
   });
+  await page
+    .locator(".task-entry-panel h2", {
+      hasText: `What should we work on in ${path.basename(selectedFolder)}?`,
+    })
+    .waitFor({ state: "visible" });
   await page
     .locator(".sidebar-session-title", { hasText: createdManifest.task.title })
     .click();
@@ -93,7 +112,7 @@ try {
     sendDisabledWithoutText &&
     sendEnabledWithText &&
     resurrectedDraft === "" &&
-    Boolean(placeholder?.includes("starts the session")) &&
+    placeholder === "Describe a task or ask a question" &&
     Boolean(dormantPlaceholder?.includes("resumes this session")) &&
     createdManifest.schemaId === "duet.task-manifest.v1" &&
     createdManifest.task.provider === "codex" &&
@@ -158,13 +177,16 @@ async function launchApp() {
   return page;
 }
 
+// The canonical "what the New Chat screen must show" (2026-07-04 redesign):
+// the greeting (folder-aware, so match the invariant prefix) and the three
+// always-present composer chips — provider, model+reasoning, project.
 async function assertNewChatVisible(page) {
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
-  await page.locator("#entry-provider-codex", { hasText: "Codex" }).waitFor({ state: "visible" });
-  await page.locator("#entry-provider-claude", { hasText: "Claude" }).waitFor({ state: "visible" });
-  await page.locator("#entry-launch-settings").waitFor({ state: "visible" });
+  await page.locator("#provider-chip").waitFor({ state: "visible" });
+  await page.locator("#model-chip").waitFor({ state: "visible" });
+  await page.locator("#project-chip").waitFor({ state: "visible" });
 }
 
 async function waitForTaskDirectory(root, timeoutMs) {

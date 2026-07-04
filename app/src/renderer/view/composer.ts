@@ -8,18 +8,22 @@
 // view family) stay shell-side behind the actions seam; main.ts composes
 // slash-picker into this popover root (the renderTaskEntryPanel precedent).
 
-import { File as FileIcon, Folder, Image as ImageIcon, X } from "lucide";
+import { ChevronDown, File as FileIcon, Folder, Image as ImageIcon, X } from "lucide";
 import type { AttachmentKind, Task, UsageSnapshot } from "../../shared/types";
 import { USAGE_CONTEXT_HIGH_USED_PERCENT } from "../../reading-core/config";
 import {
   compactTokenCount,
   fileExtension,
+  folderName,
   formatRelativeUsageTime,
   formatUsagePercent,
+  permissionModeLabel,
+  providerLabel,
   usageLimitDisplayLabel,
 } from "../../reading-core/selectors/formatters";
 import {
   composerPlaceholder,
+  draftModelSummaryLabel,
   sendPromptTitle,
   sessionModelSummaryLabel,
 } from "../../reading-core/selectors/composer";
@@ -27,6 +31,7 @@ import { hasActiveRun } from "../../reading-core/selectors/runs";
 import {
   activeTaskView,
   type RendererState,
+  type TaskDraftMenuKind,
   type TaskViewState,
 } from "../../reading-core/state";
 import { elements } from "../dom";
@@ -140,16 +145,52 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   const hasAttachments = newChat
     ? state.draftAttachments.length > 0
     : (view?.pendingAttachments.length ?? 0) > 0;
-  renderComposerChip(
-    elements.permissionChip,
-    composerChipLabel(view, "permission"),
-    "Switch modes in the terminal — Shift+Tab or /permissions",
-  );
-  renderComposerChip(
-    elements.modelChip,
-    composerChipLabel(view, "model"),
-    "Switch models in the terminal — /model",
-  );
+  if (newChat) {
+    // New chat: the chips ARE the launch controls (2026-07-04 redesign) —
+    // access + provider + model open their draft menus; the project chip
+    // sits on the composer's context row. Sessions never show the provider
+    // chip (the provider can't change mid-session).
+    renderDraftChip(elements.permissionChip, {
+      kind: "access",
+      visible: state.taskDraft.provider === "claude",
+      label: permissionModeLabel(
+        state.taskDraft.permissionMode ?? state.claudeDefaultPermissionMode,
+      ),
+      hint: "How should Claude actions be approved?",
+    });
+    renderDraftChip(elements.providerChip, {
+      kind: "provider",
+      visible: true,
+      label: providerLabel(state.taskDraft.provider),
+      hint: "Choose the agent for this session",
+    });
+    renderDraftChip(elements.modelChip, {
+      kind: "launch",
+      visible: true,
+      label: draftModelSummaryLabel(state.taskDraft),
+      hint: "Model and reasoning for this session",
+    });
+    renderDraftChip(elements.projectChip, {
+      kind: "project",
+      visible: true,
+      label: draftProjectLabel(),
+      hint: "Choose where this session works",
+    });
+    elements.composerContextRow.classList.remove("hidden");
+  } else {
+    elements.providerChip.classList.add("hidden");
+    elements.composerContextRow.classList.add("hidden");
+    renderComposerChip(
+      elements.permissionChip,
+      composerChipLabel(view, "permission"),
+      "Switch modes in the terminal — Shift+Tab or /permissions",
+    );
+    renderComposerChip(
+      elements.modelChip,
+      composerChipLabel(view, "model"),
+      "Switch models in the terminal — /model",
+    );
+  }
   renderUsageIndicator(view);
   // New-chat state (no view): the composer IS the create action — the
   // session is born from the first message, never from an empty spawn.
@@ -165,12 +206,7 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";
   elements.sendPrompt.classList.toggle("stop-mode", activeRun);
   elements.promptInput.disabled = state.busy && !newChat;
-  elements.promptInput.placeholder = composerPlaceholder(
-    view,
-    state.taskDraft.provider,
-    activeRun,
-    pendingApproval,
-  );
+  elements.promptInput.placeholder = composerPlaceholder(view, activeRun, pendingApproval);
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
 }
 
@@ -213,13 +249,68 @@ export function renderUsageIndicator(view: TaskViewState | null): void {
  */
 function renderComposerChip(element: HTMLButtonElement, label: string | null, hint: string): void {
   element.classList.toggle("hidden", !label);
+  element.classList.remove("interactive", "active");
   element.textContent = label ?? "";
   element.disabled = true;
+  element.removeAttribute("aria-haspopup");
+  element.removeAttribute("aria-expanded");
   if (label) {
     element.title = `${label} — ${hint}`;
   } else {
     element.removeAttribute("title");
   }
+}
+
+/** A New Chat launch chip: interactive, carets down, toggles its draft menu
+ *  (the click wiring lives in main.ts — static elements, bound once).
+ *
+ *  Children update IN PLACE — never replaceChildren on an unchanged label.
+ *  A persistent control's nodes must survive renders (the transcript's
+ *  keyed-reconcile lesson): the composer re-renders on textarea blur, which
+ *  runs DURING a chip click's mousedown→mouseup window — detaching the
+ *  mousedown target there means the browser never synthesizes the click,
+ *  and the user's first tap after typing is silently swallowed. */
+function renderDraftChip(
+  element: HTMLButtonElement,
+  options: { kind: TaskDraftMenuKind; visible: boolean; label: string; hint: string },
+): void {
+  element.classList.toggle("hidden", !options.visible);
+  if (!options.visible) {
+    // Drop the display classes too — .composer-chip.interactive{display:…}
+    // outranks a bare .hidden (the .run-column.hidden source-order trap).
+    element.classList.remove("interactive", "active");
+    return;
+  }
+  const open = state.taskDraft.menu?.kind === options.kind;
+  let label = element.querySelector<HTMLSpanElement>(".composer-chip-label");
+  if (!label) {
+    element.replaceChildren();
+    label = document.createElement("span");
+    label.className = "composer-chip-label";
+    element.append(label, lucideIcon(ChevronDown, 12));
+  }
+  if (label.textContent !== options.label) {
+    label.textContent = options.label;
+  }
+  element.classList.add("interactive");
+  element.classList.toggle("active", open);
+  element.disabled = state.busy;
+  element.title = options.hint;
+  element.setAttribute("aria-haspopup", "menu");
+  element.ariaExpanded = String(open);
+}
+
+/** The project chip's label: the chosen project's display name, or the
+ *  explicit "not in a project" state — the chip is the state display. */
+function draftProjectLabel(): string {
+  const cwd = state.taskDraft.cwd;
+  if (!cwd) {
+    return "No project";
+  }
+  const project = (state.sessionIndex?.projects ?? []).find(
+    (candidate) => candidate.path === cwd,
+  );
+  return project?.name ?? folderName(cwd);
 }
 
 function composerChipLabel(view: TaskViewState | null, type: "permission" | "model"): string | null {
@@ -424,7 +515,9 @@ function sessionPermissionLabel(task: Task | null): string | null {
     return null;
   }
   if (task.provider === "claude") {
-    return task.permissionMode ?? null;
+    // One vocabulary with the Settings popup and the New Chat access chip
+    // (2026-07-04) — the raw mode id ("auto") never reaches the surface.
+    return task.permissionMode ? permissionModeLabel(task.permissionMode) : null;
   }
   if (task.sandbox === "danger-full-access") {
     return "Full Access";

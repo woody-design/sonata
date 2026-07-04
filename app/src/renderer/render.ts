@@ -91,7 +91,12 @@ function pushActiveTerminalTask(): void {
 export function render(): void {
   const view = activeTaskView();
   pushActiveTerminalTask();
-  elements.taskTitle.textContent = view?.task?.title ?? "New chat";
+  // New chat: the centered greeting IS the scene's title — an empty header
+  // (2026-07-04 redesign) instead of a third "New chat" label.
+  elements.taskTitle.textContent = view?.task?.title ?? "";
+  // The greeting + composer ride as one centered group on the empty surface;
+  // the class flips the run column out of scroll layout (styles.css).
+  elements.runColumn.classList.toggle("run-column-new-chat", !view);
   const composerStatus = composerStatusText(view);
   elements.runtimeStatus.textContent = composerStatus;
   elements.runtimeStatus.classList.toggle("hidden", composerStatus === "");

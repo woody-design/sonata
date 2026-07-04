@@ -19,7 +19,7 @@ let electronApp = null;
 
 try {
   const page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
 
@@ -37,10 +37,12 @@ try {
     });
   });
 
-  // Normal new-chat path: pick the folder, then send the first message (Claude is the
-  // default provider). The composer send path is what actually starts a run.
+  // Normal new-chat path: pick the folder through the project chip's menu,
+  // then send the first message (Claude is the default provider). The
+  // composer send path is what actually starts a run.
+  await page.locator("#project-chip").click();
   await page.locator("#entry-choose-folder").click();
-  await page.locator("#entry-choose-folder", { hasText: path.basename(selectedFolder) }).waitFor({
+  await page.locator("#project-chip", { hasText: path.basename(selectedFolder) }).waitFor({
     state: "visible",
   });
   await sendFirstPrompt(page, "Reply with exactly: G1B_OK");

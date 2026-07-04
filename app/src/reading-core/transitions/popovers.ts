@@ -21,8 +21,7 @@ export function toggleReadingPopover(
   state.readingPopoverAnchor = willOpen ? anchor() : null;
   if (willOpen) {
     state.composerMenu = null;
-    state.taskDraft.settingsOpen = false;
-    state.taskDraft.settingsAnchor = null;
+    state.taskDraft.menu = null;
     state.remoteControlPopoverOpen = false;
     state.remoteControlPopoverAnchor = null;
   }

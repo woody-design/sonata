@@ -16,7 +16,7 @@ try {
   );
 
   let page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
   const coldBoot = await readReadingDom(page);
@@ -49,7 +49,7 @@ try {
   electronApp = null;
 
   page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
   const relaunched = await readReadingDom(page);
@@ -64,7 +64,7 @@ try {
 
   fs.writeFileSync(settingsPath, "{ not valid json", "utf8");
   page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
   const defaults = await readReadingDom(page);

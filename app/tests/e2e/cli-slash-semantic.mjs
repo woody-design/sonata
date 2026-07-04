@@ -35,10 +35,10 @@ const MULTILINE = [
 
 try {
   const page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
-  await page.locator("#entry-provider-claude").click();
+  await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
 
   // A live, idle Claude session to route slash commands into. The auto
   // workspace is pre-trusted at creation (S4 trust pre-write), so the trust

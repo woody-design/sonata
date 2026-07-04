@@ -10,17 +10,20 @@ let electronApp = null;
 
 try {
   const page = await launchApp();
-  await page.locator(".task-entry-panel", { hasText: "your first message starts the session" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
   await chooseDraftProvider(page, "claude");
-  await page.locator("#entry-launch-settings", { hasText: "Opus 4.8 Extra High" }).waitFor({
+  // Draft state surfaces on the composer chips (2026-07-04 redesign).
+  await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
+  await page.locator("#model-chip", { hasText: "Opus 4.8 Extra High" }).waitFor({
     state: "visible",
   });
-  // Draft state surfaces the chosen provider in the composer placeholder.
-  await page
-    .locator('#prompt-input[placeholder="Message Claude — starts the session"]')
-    .waitFor({ state: "visible" });
+  // Per-session access mode: pick "Accept edits" from the access chip; the
+  // manifest assertion below pins the request→task passthrough.
+  await page.locator("#permission-chip").click();
+  await page.locator("#access-option-acceptEdits").click();
+  await page.locator("#permission-chip", { hasText: "Accept edits" }).waitFor({ state: "visible" });
 
   // The first composer message creates the provider-locked session.
   await sendFirstPrompt(page, "Reply exactly DUET_PROVIDER_LOCKED. Do not create or modify any files.");
@@ -46,6 +49,7 @@ try {
     manifest.task.provider === "claude" &&
     manifest.task.model === "opus" &&
     manifest.task.reasoningEffort === "xhigh" &&
+    manifest.task.permissionMode === "acceptEdits" &&
     manifest.task.speedMode === null &&
     report.runtime?.provider === "claude" &&
     report.runtime?.model === "opus" &&
@@ -63,6 +67,7 @@ try {
         provider: manifest.task.provider,
         model: manifest.task.model,
         reasoningEffort: manifest.task.reasoningEffort,
+        permissionMode: manifest.task.permissionMode,
         speedMode: manifest.task.speedMode,
         reportProvider: report.runtime?.provider ?? null,
         rawTerminalPersisted,

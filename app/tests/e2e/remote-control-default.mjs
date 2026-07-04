@@ -18,7 +18,7 @@ try {
   // ── Launch 1: default is OFF; toggle it ON in Settings. ──
   let page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({ state: "visible" });
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({ state: "visible" });
   const armedBeforeSetting = await page.locator("#remote-control-toggle.remote-on").count();
 
   await openSettings(page);
@@ -41,7 +41,7 @@ try {
   // ── Launch 2: the New Chat button is armed on boot (hydrate from setting). ──
   page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({ state: "visible" });
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({ state: "visible" });
   await page.locator("#remote-control-toggle.remote-on").waitFor({ state: "visible", timeout: 10000 });
   const armedOnBoot = await page.locator("#remote-control-toggle.remote-on").count();
 

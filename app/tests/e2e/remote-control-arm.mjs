@@ -22,7 +22,7 @@ const pageErrors = [];
 try {
   const page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({ state: "visible" });
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({ state: "visible" });
 
   // In New Chat (Claude default) the button is clickable and ARMS the flag.
   const rcButton = page.locator("#remote-control-toggle");

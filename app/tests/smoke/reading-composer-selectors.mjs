@@ -102,8 +102,12 @@ const run = (status, extra = {}) => ({
 // 3) composerPlaceholder — the state table.
 {
   const p = (v, activeRun = false, pendingApproval = false) =>
-    C.composerPlaceholder(v, "codex", activeRun, pendingApproval);
-  assert.equal(p(null), "Message Codex — starts the session", "new chat uses the draft provider");
+    C.composerPlaceholder(v, activeRun, pendingApproval);
+  assert.equal(
+    p(null),
+    "Describe a task or ask a question",
+    "new chat invites intent (2026-07-04 redesign) — provider-independent",
+  );
   assert.equal(
     p(view({ pendingApproval: true }), false, true),
     "Claude approval is waiting — Enter queues your message",

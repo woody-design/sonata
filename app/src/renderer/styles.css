@@ -1191,18 +1191,6 @@ body.sidebar-resizing {
   min-height: 26px;
 }
 
-.task-folder-quick {
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.task-folder-selected {
-  border-color: var(--accent-soft-border);
-  color: var(--accent-strong);
-}
-
 .floating-preview-shell {
   min-height: 100vh;
   display: flex;
@@ -2649,77 +2637,36 @@ h2 {
 }
 
 .empty-state,
-.task-entry-panel,
 .panel{
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-raised);
 }
 
+/* New Chat (2026-07-04 redesign): the panel is only the centered greeting —
+   every launch control is a composer chip. It rides the same measure as the
+   composer so the greeting + composer read as one column. */
 .task-entry-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  gap: 18px;
-  max-width: 860px;
-  padding: 18px;
-}
-
-.task-entry-copy {
-  min-width: 0;
-}
-
-.task-entry-copy h2 {
-  font-size: 18px;
-}
-
-.task-entry-body {
-  max-width: 560px;
-  margin: 9px 0 0;
-  color: var(--ink-status);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.task-entry-controls {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 14px;
+  width: min(100% - 36px, var(--measure-prose));
+  margin: 0 auto;
+  padding: 0 0 18px;
+  text-align: center;
 }
 
-.task-provider-segment,
-.task-folder-row,
-.task-entry-actions {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.task-provider-segment button {
-  flex: 1;
-}
-
-.task-folder-row button,
-.task-entry-actions button {
-  min-width: 0;
-}
-
-.task-folder-row button:first-child {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.task-entry-actions {
-  grid-column: 2 / 3;
-}
-
-.task-entry-actions .primary {
-  flex: 1;
+.task-entry-panel h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  line-height: 1.3;
 }
 
 .task-entry-message {
-  grid-column: 1 / -1;
   border: 1px solid var(--border);
   border-radius: 7px;
   padding: 9px 10px;
@@ -2735,16 +2682,23 @@ h2 {
   background: var(--surface-attention);
 }
 
-.task-settings-wrap {
-  position: relative;
+/* The empty surface centers the greeting + composer as one group: the
+   scroller stops scrolling and the two auto margins split the free space.
+   The 12vh pad biases the group above geometric center (optical). */
+.run-column-new-chat #run-list {
+  flex: 0 0 auto;
+  margin-top: auto;
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
-.task-settings-trigger {
-  width: 100%;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.run-column-new-chat .composer {
+  margin-bottom: auto;
+}
+
+.run-column-new-chat {
+  padding-bottom: 12vh;
 }
 
 .task-settings-popover {
@@ -2791,42 +2745,50 @@ h2 {
   background: var(--surface-menu-hover);
 }
 
-.task-setting-option span {
+.task-setting-badge {
   flex: 0 0 auto;
   margin-left: 12px;
   color: var(--ink-menu-muted);
   font-size: 11px;
 }
 
-.task-entry-facts {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 2px;
+/* Wins the source-order trap against .task-setting-option{display:flex}
+   (see .run-column.hidden) — the project menu's search filter relies on it. */
+.task-setting-option.hidden {
+  display: none;
 }
 
-.task-entry-fact {
+/* Access menu options: a label over a one-line consequence. */
+.task-setting-option-copy {
+  flex: 1 1 auto;
   display: grid;
   gap: 2px;
-  min-width: 130px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 7px;
-  padding: 8px 10px;
-  background: var(--surface-control);
-}
-
-.task-entry-fact span {
-  color: var(--ink-label);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.task-entry-fact strong {
-  color: var(--ink-ui);
+  min-width: 0;
+  color: var(--ink-menu);
   font-size: 13px;
-  font-weight: 650;
+}
+
+.task-setting-option-desc {
+  color: var(--ink-menu-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* The project menu's local search — filters the options in place. */
+.task-menu-search {
+  width: 100%;
+  margin-bottom: 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--ink-menu);
+  background: var(--surface-input);
+  font-size: 13px;
+}
+
+.task-menu-search:focus {
+  outline: 0;
+  border-color: var(--accent-soft-border);
 }
 
 /* The delivery-queue panel's CSS left with its renderer (S1c removed the
@@ -2963,6 +2925,60 @@ h2 {
 .composer-chip:disabled {
   color: var(--ink-status);
   cursor: default;
+}
+
+/* New Chat launch chips (2026-07-04 redesign): interactive — label + caret,
+   toggling the draft menu portalled above the composer. */
+.composer-chip.interactive {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+/* Explicit override — display:inline-flex above outranks a bare .hidden
+   (the .run-column.hidden source-order trap). */
+.composer-chip.hidden {
+  display: none;
+}
+
+.composer-chip.interactive svg {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.composer-chip .composer-chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The composer's context row: where this session will work. A quiet footer —
+   hairline above, ghost chip — mirroring the greeting's project name. */
+.composer-context-row {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 2px;
+  padding-top: 6px;
+}
+
+/* Explicit override — same source-order trap as .composer-chip.hidden. */
+.composer-context-row.hidden {
+  display: none;
+}
+
+.composer-context-row .project-chip {
+  max-width: 260px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.composer-context-row .project-chip:hover,
+.composer-context-row .project-chip.active {
+  border-color: var(--accent-soft-border);
+  background: var(--surface-complete-active);
 }
 
 .composer-icon-button {
@@ -4242,15 +4258,6 @@ h2 {
 @media (max-width: 980px) {
   .workspace {
     grid-template-columns: 1fr;
-  }
-
-  .task-entry-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .task-entry-actions {
-    grid-column: 1 / -1;
-    flex-wrap: wrap;
   }
 
   .approval-banner {

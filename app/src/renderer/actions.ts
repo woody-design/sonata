@@ -17,6 +17,7 @@
 
 import type {
   ClaudeDefaultPermissionMode,
+  ClaudePermissionMode,
   LaunchSpeedMode,
   ReadingSettings,
   ReasoningEffort,
@@ -58,15 +59,11 @@ export interface Actions {
   chooseDraftProvider(provider: RuntimeProvider): void;
   chooseDraftFolder(path: string): void;
   clearDraftFolder(): void;
-  /** Launch-settings popover open/close; the anchor is computed by the view
-   *  from the trigger's live rect (DOM read stays view-side). */
-  setLaunchSettingsOpen(
-    open: boolean,
-    anchor: { left: number; top: number; width: number } | null,
-  ): void;
   setDraftReasoningEffort(provider: RuntimeProvider, value: ReasoningEffort | null): void;
   setDraftModel(provider: RuntimeProvider, value: string | null): void;
   setCodexSpeedMode(value: LaunchSpeedMode): void;
+  /** Per-session access mode (the Settings triad; closes the access menu). */
+  setDraftPermissionMode(mode: ClaudePermissionMode): void;
   // — Attention banners (view/banners.ts) dismiss mutations: bare
   //   assignments are grammar (C3 ruling) — implemented shell-side, each the
   //   verbatim body of the dismiss handler it replaced. —

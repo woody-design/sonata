@@ -12,6 +12,8 @@
 import type {
   AttachmentKind,
   CliActivity,
+  ClaudeDefaultPermissionMode,
+  ClaudePermissionMode,
   ClaudeSettings,
   DeliveryAttachment,
   DeliveryTaskState,
@@ -219,6 +221,10 @@ export interface RendererState {
   /** The global "auto-enable Remote Control" default (Claude settings). Seeds
    *  the New Chat draft AND newly-opened dormant sessions so both arm on start. */
   remoteControlDefault: boolean;
+  /** The Settings "New Claude sessions start in" default, mirrored at boot and
+   *  on Settings save. The New Chat access chip shows this until the user picks
+   *  a per-session mode (taskDraft.permissionMode). */
+  claudeDefaultPermissionMode: ClaudeDefaultPermissionMode;
   promptNav: PromptNavState | null;
   /** The Settings page (centered overlay) is open; null when closed. */
   settingsOverlay: SettingsOverlayState | null;
@@ -291,15 +297,23 @@ export interface ComposerAttachment {
   kind: AttachmentKind;
 }
 
+/** Which draft dropdown is open on the New Chat composer. One menu at a time;
+ *  every menu renders as a fixed portal above its chip (#task-settings-popover-root
+ *  — position:fixed inside the #run-list scroller gets paint/hit-test clipped). */
+export type TaskDraftMenuKind = "launch" | "provider" | "access" | "project";
+
 export interface TaskLaunchDraft {
   provider: RuntimeProvider;
   cwd: string | null;
-  settingsOpen: boolean;
-  settingsAnchor: { left: number; top: number; width: number } | null;
+  menu: { kind: TaskDraftMenuKind; anchor: PopoverAnchor } | null;
   message: TaskEntryMessage | null;
   model: Record<RuntimeProvider, string | null>;
   reasoningEffort: Record<RuntimeProvider, ReasoningEffort | null>;
   speedMode: Record<RuntimeProvider, LaunchSpeedMode | null>;
+  /** Claude permission mode for THIS session; null = follow the Settings
+   *  default (state.claudeDefaultPermissionMode), so an untouched draft
+   *  tracks a Settings change live. Sent with createTask only when set. */
+  permissionMode: ClaudePermissionMode | null;
   /** New chat: arm Remote Control so the session spawns with `--remote-control`
    *  (Claude only). The "arm at session start" entry point. */
   remoteControl: boolean;
@@ -328,8 +342,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     taskDraft: {
       provider: "claude",
       cwd: null,
-      settingsOpen: false,
-      settingsAnchor: null,
+      menu: null,
       message: null,
       model: {
         codex: "gpt-5.5",
@@ -343,6 +356,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
         codex: "default",
         claude: null,
       },
+      permissionMode: null,
       remoteControl: false,
     },
     taskDraftFolderTouched: false,
@@ -358,6 +372,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     remoteControlPopoverAnchor: null,
     remoteControlNote: null,
     remoteControlDefault: false,
+    claudeDefaultPermissionMode: "default",
     promptNav: null,
     settingsOverlay: null,
     busy: false,

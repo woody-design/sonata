@@ -36,7 +36,7 @@ try {
   });
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(60000);
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor();
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor();
 
   await openSettings(page);
   // Two .settings-popup buttons live in the overlay (Approvals + Sessions);

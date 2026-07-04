@@ -90,28 +90,31 @@ export function resetTaskDraftForNewChat(state: RendererState, folder?: string |
     state.taskDraft.cwd = state.sessionIndex?.lastUsedFolder ?? state.taskDraft.cwd;
   }
   state.taskDraft.message = null;
-  // Each New Chat starts from the global default, so a per-chat toggle never
+  state.taskDraft.menu = null;
+  // Each New Chat starts from the global defaults, so a per-chat choice never
   // leaks into the next one ("Auto-enable Remote Control" means NEW sessions
-  // come up on, regardless of what the previous draft was set to).
+  // come up on, regardless of what the previous draft was set to; the access
+  // chip falls back to the Settings default the same way).
   state.taskDraft.remoteControl = state.remoteControlDefault;
+  state.taskDraft.permissionMode = null;
 }
 
-/** A known project chosen from the quick row. */
+/** A known project chosen from the project menu — choosing closes it. */
 export function chooseDraftFolder(state: RendererState, path: string): void {
   state.taskDraft.cwd = path;
   state.taskDraftFolderTouched = true;
   state.taskDraft.message = null;
+  state.taskDraft.menu = null;
 }
 
 /** Back to the default Duet workspace — an explicit clear also counts as
- *  touching the folder. */
+ *  touching the folder. The greeting and the project chip both restate the
+ *  choice, so no draft message (2026-07-04: state speaks once, in place). */
 export function clearDraftFolder(state: RendererState): void {
   state.taskDraft.cwd = null;
   state.taskDraftFolderTouched = true;
-  state.taskDraft.message = {
-    tone: "info",
-    text: "Using the default Duet workspace for new Tasks.",
-  };
+  state.taskDraft.message = null;
+  state.taskDraft.menu = null;
 }
 
 /** The folder dialog returned a path (pickTaskFolder flow). */
@@ -119,8 +122,5 @@ export function applyPickedTaskFolder(state: RendererState, path: string): void 
   state.taskDraft.cwd = path;
   state.taskDraftFolderTouched = true;
   state.status = `Selected ${folderName(path)}`;
-  state.taskDraft.message = {
-    tone: "info",
-    text: `Selected ${folderName(path)}.`,
-  };
+  state.taskDraft.message = null;
 }

@@ -1,8 +1,10 @@
-// The New Chat task-entry panel family (map §3.1 renderer/view/entry.ts,
-// D2, moved verbatim from main.ts): the entry panel, provider segment,
-// folder picker, launch-settings control + popover (incl. its state-reading
-// positioner — position:fixed portal into #task-settings-popover-root, see
-// fix/new-chat-churn 2026-07-03), and the draft facts/message rows.
+// The New Chat entry family (map §3.1 renderer/view/entry.ts): the greeting
+// panel and the draft dropdown menus. Redesigned 2026-07-04 (composer-centric
+// new chat): the panel is ONLY the folder-aware greeting + the draft message —
+// every launch control (provider / model+reasoning / access / project) lives
+// on the composer as a chip, and each chip's menu renders here, portalled
+// into #task-settings-popover-root (position:fixed inside the #run-list
+// scroller gets paint- AND hit-test-clipped — fix/new-chat-churn 2026-07-03).
 //
 // State access: read-only through the module-bound atom reference below
 // (initEntryView, bound by main.ts at boot before the first render — R4).
@@ -11,18 +13,22 @@
 // the folder-picker flow stays in the shell behind actions.pickTaskFolder.
 
 import type {
+  ClaudeDefaultPermissionMode,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
 } from "../../shared/types";
+import { CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS } from "../../shared/types";
 import {
   MODEL_OPTIONS,
   REASONING_OPTIONS,
   SPEED_OPTIONS,
-  modelValueLabel,
-  reasoningValueLabel,
 } from "../../reading-core/config";
-import { folderName, providerLabel } from "../../reading-core/selectors/formatters";
+import {
+  newChatGreeting,
+  permissionModeLabel,
+  providerLabel,
+} from "../../reading-core/selectors/formatters";
 import { activeTaskView, type RendererState } from "../../reading-core/state";
 import { elements } from "../dom";
 import { actions } from "../actions";
@@ -38,170 +44,58 @@ export function renderTaskEntryPanel(): HTMLElement {
   const panel = document.createElement("article");
   panel.className = "task-entry-panel";
 
-  const copy = document.createElement("div");
-  copy.className = "task-entry-copy";
-  const eyebrow = document.createElement("p");
-  eyebrow.className = "eyebrow";
-  eyebrow.textContent = "New chat";
   const title = document.createElement("h2");
-  title.textContent = "What should we work on?";
-  const body = document.createElement("p");
-  body.className = "task-entry-body";
-  body.textContent =
-    "Pick the agent and folder, then type below — your first message starts the session.";
-  copy.append(eyebrow, title, body);
-
-  const controls = document.createElement("div");
-  controls.className = "task-entry-controls";
-  controls.append(renderProviderSegment(), renderFolderPicker(), renderLaunchSettingsControl());
+  title.textContent = newChatGreeting(
+    state.taskDraft.cwd,
+    state.sessionIndex?.projects ?? [],
+  );
+  panel.append(title);
 
   const message = renderTaskEntryMessage();
-  const facts = document.createElement("div");
-  facts.className = "task-entry-facts";
-  facts.append(
-    taskEntryFact("Provider", providerLabel(state.taskDraft.provider)),
-    taskEntryFact("Model", modelSummaryLabel(state.taskDraft.provider)),
-    taskEntryFact("Folder", folderSummaryLabel()),
-  );
-
-  panel.append(copy, controls);
   if (message) {
     panel.append(message);
   }
-  panel.append(facts);
   return panel;
 }
 
-function renderProviderSegment(): HTMLElement {
-  const segment = document.createElement("div");
-  segment.className = "task-provider-segment";
-  segment.setAttribute("role", "group");
-  segment.ariaLabel = "Task provider";
-
-  for (const provider of ["codex", "claude"] as const) {
-    const button = document.createElement("button");
-    button.id = `entry-provider-${provider}`;
-    button.className = "secondary";
-    button.classList.toggle("active", provider === state.taskDraft.provider);
-    button.type = "button";
-    button.disabled = state.busy;
-    button.ariaPressed = String(provider === state.taskDraft.provider);
-    button.textContent = providerLabel(provider);
-    button.addEventListener("click", () => {
-      actions.chooseDraftProvider(provider);
-    });
-    segment.append(button);
-  }
-
-  return segment;
-}
-
-function renderFolderPicker(): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "task-folder-row";
-
-  // Known projects are one click away; the file dialog is the fallback.
-  const projects = (state.sessionIndex?.projects ?? []).filter((project) => !project.archived);
-  for (const project of projects.slice(0, 4)) {
-    if (state.taskDraft.cwd === project.path) {
-      continue;
-    }
-    const quick = document.createElement("button");
-    quick.className = "secondary task-folder-quick";
-    quick.type = "button";
-    quick.disabled = state.busy;
-    quick.title = project.path;
-    quick.textContent = project.name;
-    quick.addEventListener("click", () => {
-      actions.chooseDraftFolder(project.path);
-    });
-    row.append(quick);
-  }
-
-  const choose = document.createElement("button");
-  choose.id = "entry-choose-folder";
-  choose.className = "secondary";
-  choose.type = "button";
-  choose.disabled = state.busy;
-  choose.textContent = state.taskDraft.cwd ? folderName(state.taskDraft.cwd) : "Choose Folder";
-  if (state.taskDraft.cwd) {
-    choose.title = state.taskDraft.cwd;
-    choose.classList.add("task-folder-selected");
-  }
-  choose.addEventListener("click", () => {
-    actions.pickTaskFolder();
-  });
-  row.append(choose);
-
-  if (state.taskDraft.cwd) {
-    const clear = document.createElement("button");
-    clear.id = "entry-clear-folder";
-    clear.className = "secondary";
-    clear.type = "button";
-    clear.disabled = state.busy;
-    clear.textContent = "Default Workspace";
-    clear.addEventListener("click", () => {
-      actions.clearDraftFolder();
-    });
-    row.append(clear);
-  }
-
-  return row;
-}
-
-function renderLaunchSettingsControl(): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "task-settings-wrap";
-
-  const button = document.createElement("button");
-  button.id = "entry-launch-settings";
-  button.className = "secondary task-settings-trigger";
-  button.type = "button";
-  button.disabled = state.busy;
-  button.ariaExpanded = String(state.taskDraft.settingsOpen);
-  button.textContent = `${launchSettingsSummary(state.taskDraft.provider)} v`;
-  button.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const willOpen = !state.taskDraft.settingsOpen;
-    actions.setLaunchSettingsOpen(
-      willOpen,
-      willOpen
-        ? {
-            left: rect.left,
-            top: rect.bottom + 8,
-            width: rect.width,
-          }
-        : null,
-    );
-  });
-  wrap.append(button);
-
-  // The popover itself renders into #task-settings-popover-root (see
-  // renderTaskSettingsPopover): position:fixed inside the #run-list scroller
-  // gets paint- AND hit-test-clipped to the scroller's box, so the sections
-  // past the run-list's bottom edge were invisible and unclickable.
-
-  return wrap;
-}
-
+/** The one open draft menu (launch / provider / access / project), keyed on
+ *  taskDraft.menu and anchored above its composer chip. */
 export function renderTaskSettingsPopover(): void {
   elements.taskSettingsPopoverRoot.replaceChildren();
   const view = activeTaskView(state);
-  if (view?.task || !state.taskDraft.settingsOpen) {
+  const menu = state.taskDraft.menu;
+  if (view?.task || !menu) {
     return;
   }
-  elements.taskSettingsPopoverRoot.append(renderLaunchSettingsPopover(state.taskDraft.provider));
+  if (menu.kind === "launch") {
+    elements.taskSettingsPopoverRoot.append(renderLaunchSettingsPopover(state.taskDraft.provider));
+    return;
+  }
+  if (menu.kind === "provider") {
+    elements.taskSettingsPopoverRoot.append(renderProviderMenu());
+    return;
+  }
+  if (menu.kind === "access") {
+    elements.taskSettingsPopoverRoot.append(renderAccessMenu());
+    return;
+  }
+  elements.taskSettingsPopoverRoot.append(renderProjectMenu());
 }
 
-function renderLaunchSettingsPopover(provider: RuntimeProvider): HTMLElement {
+function draftMenuShell(width: number, menuLabel: string): HTMLElement {
   const popover = document.createElement("div");
   popover.className = "task-settings-popover";
   popover.setAttribute("role", "menu");
-  positionLaunchSettingsPopover(popover);
+  popover.ariaLabel = menuLabel;
+  positionDraftMenu(popover, width);
   popover.addEventListener("click", (event) => {
     event.stopPropagation();
   });
+  return popover;
+}
+
+function renderLaunchSettingsPopover(provider: RuntimeProvider): HTMLElement {
+  const popover = draftMenuShell(340, "Model and reasoning");
 
   popover.append(
     renderSettingSection("Reasoning", REASONING_OPTIONS[provider], state.taskDraft.reasoningEffort[provider], (value) => {
@@ -228,26 +122,192 @@ function renderLaunchSettingsPopover(provider: RuntimeProvider): HTMLElement {
   return popover;
 }
 
-function positionLaunchSettingsPopover(popover: HTMLElement): void {
-  const anchor = state.taskDraft.settingsAnchor;
+function renderProviderMenu(): HTMLElement {
+  const popover = draftMenuShell(220, "Agent");
+  const section = document.createElement("div");
+  section.className = "task-setting-section";
+
+  for (const provider of ["claude", "codex"] as const) {
+    const selected = provider === state.taskDraft.provider;
+    const button = document.createElement("button");
+    button.id = `provider-option-${provider}`;
+    button.className = "task-setting-option";
+    button.classList.toggle("selected", selected);
+    button.type = "button";
+    button.setAttribute("role", "menuitemradio");
+    button.ariaChecked = String(selected);
+    button.textContent = providerLabel(provider);
+    if (selected) {
+      button.append(selectedBadge());
+    }
+    button.addEventListener("click", () => {
+      actions.chooseDraftProvider(provider);
+    });
+    section.append(button);
+  }
+
+  popover.append(section);
+  return popover;
+}
+
+/** One-line consequence per mode (the Settings triad verbatim — ruled
+ *  2026-07-04: the per-session chip offers exactly the standing options). */
+function accessModeDescription(mode: ClaudeDefaultPermissionMode): string {
+  if (mode === "acceptEdits") {
+    return "Approve file edits automatically; ask for the rest";
+  }
+  if (mode === "auto") {
+    return "Approve through Claude's safety classifier — asks only when risky";
+  }
+  return "Ask before edits and commands";
+}
+
+function renderAccessMenu(): HTMLElement {
+  const popover = draftMenuShell(340, "Approvals");
+  const section = document.createElement("div");
+  section.className = "task-setting-section";
+
+  const heading = document.createElement("p");
+  heading.className = "task-setting-heading";
+  heading.textContent = "How should Claude actions be approved?";
+  section.append(heading);
+
+  const effective = state.taskDraft.permissionMode ?? state.claudeDefaultPermissionMode;
+  for (const mode of CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS) {
+    const selected = mode === effective;
+    const button = document.createElement("button");
+    button.id = `access-option-${mode}`;
+    button.className = "task-setting-option task-setting-option-tall";
+    button.classList.toggle("selected", selected);
+    button.type = "button";
+    button.setAttribute("role", "menuitemradio");
+    button.ariaChecked = String(selected);
+
+    const copy = document.createElement("span");
+    copy.className = "task-setting-option-copy";
+    const label = document.createElement("span");
+    label.textContent = permissionModeLabel(mode);
+    const description = document.createElement("span");
+    description.className = "task-setting-option-desc";
+    description.textContent = accessModeDescription(mode);
+    copy.append(label, description);
+    button.append(copy);
+    if (selected) {
+      button.append(selectedBadge());
+    }
+    button.addEventListener("click", () => {
+      actions.setDraftPermissionMode(mode);
+    });
+    section.append(button);
+  }
+
+  popover.append(section);
+  return popover;
+}
+
+function renderProjectMenu(): HTMLElement {
+  const popover = draftMenuShell(300, "Project");
+
+  const projects = (state.sessionIndex?.projects ?? []).filter((project) => !project.archived);
+
+  // Local, ephemeral filtering: the query lives in the input and filters the
+  // option nodes in place — routing each keystroke through a global render
+  // would rebuild the menu and drop focus/IME composition mid-word.
+  const search = document.createElement("input");
+  search.type = "search";
+  search.className = "task-menu-search";
+  search.placeholder = "Search projects";
+  search.setAttribute("aria-label", "Search projects");
+
+  const section = document.createElement("div");
+  section.className = "task-setting-section task-project-options";
+
+  for (const project of projects) {
+    const selected = state.taskDraft.cwd === project.path;
+    const button = document.createElement("button");
+    button.className = "task-setting-option task-project-option";
+    button.classList.toggle("selected", selected);
+    button.type = "button";
+    button.setAttribute("role", "menuitemradio");
+    button.ariaChecked = String(selected);
+    button.title = project.path;
+    button.dataset.projectName = project.name.toLowerCase();
+    button.textContent = project.name;
+    if (selected) {
+      button.append(selectedBadge());
+    }
+    button.addEventListener("click", () => {
+      actions.chooseDraftFolder(project.path);
+    });
+    section.append(button);
+  }
+
+  search.addEventListener("input", () => {
+    const query = search.value.trim().toLowerCase();
+    section.querySelectorAll<HTMLElement>(".task-project-option").forEach((option) => {
+      option.classList.toggle(
+        "hidden",
+        query.length > 0 && !(option.dataset.projectName ?? "").includes(query),
+      );
+    });
+  });
+
+  const footer = document.createElement("div");
+  footer.className = "task-setting-section";
+
+  const choose = document.createElement("button");
+  choose.id = "entry-choose-folder";
+  choose.className = "task-setting-option";
+  choose.type = "button";
+  choose.setAttribute("role", "menuitem");
+  choose.textContent = "Use an existing folder…";
+  choose.addEventListener("click", () => {
+    actions.pickTaskFolder();
+  });
+  footer.append(choose);
+
+  if (state.taskDraft.cwd) {
+    const clear = document.createElement("button");
+    clear.id = "entry-clear-folder";
+    clear.className = "task-setting-option";
+    clear.type = "button";
+    clear.setAttribute("role", "menuitem");
+    clear.textContent = "Don't work in a project";
+    clear.addEventListener("click", () => {
+      actions.clearDraftFolder();
+    });
+    footer.append(clear);
+  }
+
+  if (projects.length > 0) {
+    popover.append(search, section);
+  }
+  popover.append(footer);
+  if (projects.length > 0) {
+    queueMicrotask(() => search.focus());
+  }
+  return popover;
+}
+
+/** Above-the-chip placement: the chips sit on the composer near the bottom
+ *  edge, so every draft menu opens upward — left edge aligned to the chip,
+ *  clamped to the viewport, growing toward the top. */
+function positionDraftMenu(popover: HTMLElement, preferredWidth: number): void {
+  const anchor = state.taskDraft.menu?.anchor;
   const viewportPadding = 14;
-  const width = Math.min(360, window.innerWidth - viewportPadding * 2);
-  const top = anchor?.top ?? viewportPadding;
-  const canOpenLeft = Boolean(anchor && anchor.left - width - 12 >= viewportPadding);
-  const left =
-    anchor && canOpenLeft
-      ? anchor.left - width - 12
-      : anchor
-        ? Math.min(
-            window.innerWidth - width - viewportPadding,
-            Math.max(viewportPadding, anchor.left + anchor.width - width),
-          )
-        : viewportPadding;
+  const width = Math.min(preferredWidth, window.innerWidth - viewportPadding * 2);
+  const left = anchor
+    ? Math.min(
+        window.innerWidth - width - viewportPadding,
+        Math.max(viewportPadding, anchor.left),
+      )
+    : viewportPadding;
+  const anchorTop = anchor?.top ?? window.innerHeight - viewportPadding;
 
   popover.style.left = `${left}px`;
-  popover.style.top = `${top}px`;
+  popover.style.bottom = `${window.innerHeight - anchorTop + 8}px`;
   popover.style.width = `${width}px`;
-  popover.style.maxHeight = `${Math.max(220, window.innerHeight - top - viewportPadding)}px`;
+  popover.style.maxHeight = `${Math.max(200, anchorTop - viewportPadding - 8)}px`;
 }
 
 function renderSettingSection<T extends string | null>(
@@ -273,9 +333,7 @@ function renderSettingSection<T extends string | null>(
     button.ariaChecked = String(option.value === selected);
     button.textContent = option.label;
     if (option.value === selected) {
-      const selectedLabel = document.createElement("span");
-      selectedLabel.textContent = "selected";
-      button.append(selectedLabel);
+      button.append(selectedBadge());
     }
     button.addEventListener("click", () => {
       onSelect(option.value);
@@ -286,15 +344,11 @@ function renderSettingSection<T extends string | null>(
   return section;
 }
 
-function taskEntryFact(label: string, value: string): HTMLElement {
-  const fact = document.createElement("div");
-  fact.className = "task-entry-fact";
-  const key = document.createElement("span");
-  key.textContent = label;
-  const val = document.createElement("strong");
-  val.textContent = value;
-  fact.append(key, val);
-  return fact;
+function selectedBadge(): HTMLElement {
+  const badge = document.createElement("span");
+  badge.className = "task-setting-badge";
+  badge.textContent = "selected";
+  return badge;
 }
 
 function renderTaskEntryMessage(): HTMLElement | null {
@@ -306,24 +360,4 @@ function renderTaskEntryMessage(): HTMLElement | null {
   message.className = `task-entry-message ${state.taskDraft.message.tone}`;
   message.textContent = state.taskDraft.message.text;
   return message;
-}
-
-function launchSettingsSummary(provider: RuntimeProvider): string {
-  const parts = [modelSummaryLabel(provider), reasoningSummaryLabel(provider)];
-  if (provider === "codex" && state.taskDraft.speedMode.codex === "fast") {
-    parts.push("Fast");
-  }
-  return parts.filter(Boolean).join(" ");
-}
-
-function modelSummaryLabel(provider: RuntimeProvider): string {
-  return modelValueLabel(provider, state.taskDraft.model[provider]) ?? "Default";
-}
-
-function reasoningSummaryLabel(provider: RuntimeProvider): string {
-  return reasoningValueLabel(state.taskDraft.reasoningEffort[provider]) ?? "Default";
-}
-
-function folderSummaryLabel(): string {
-  return state.taskDraft.cwd ? folderName(state.taskDraft.cwd) : "Duet workspace";
 }

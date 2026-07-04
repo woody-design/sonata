@@ -66,7 +66,7 @@ async function launchApp(options = {}) {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(60000);
   await page.setViewportSize({ width: 1280, height: 820 });
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
   await page.waitForFunction(() => Boolean(document.documentElement.dataset.readingFirstFrame));

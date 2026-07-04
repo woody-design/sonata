@@ -38,8 +38,7 @@ function task(id, title = `Task ${id}`) {
 {
   const state = freshState();
   state.composerMenu = { type: "add", anchor: ANCHOR };
-  state.taskDraft.settingsOpen = true;
-  state.taskDraft.settingsAnchor = ANCHOR;
+  state.taskDraft.menu = { kind: "launch", anchor: ANCHOR };
   state.remoteControlPopoverOpen = true;
   state.remoteControlPopoverAnchor = ANCHOR;
 
@@ -52,7 +51,7 @@ function task(id, title = `Task ${id}`) {
   assert.equal(state.readingPopoverOpen, true, "opens");
   assert.equal(anchorReads, 1, "anchor read on open");
   assert.equal(state.composerMenu, null, "open displaces the composer menu");
-  assert.equal(state.taskDraft.settingsOpen, false, "…and the launch-settings popover");
+  assert.equal(state.taskDraft.menu, null, "…and the draft menu");
   assert.equal(state.remoteControlPopoverOpen, false, "…and the RC popover");
 
   popovers.toggleReadingPopover(state, anchor);
@@ -282,11 +281,15 @@ function task(id, title = `Task ${id}`) {
   session.clearDraftFolder(s2);
   assert.equal(s2.taskDraft.cwd, null);
   assert.equal(s2.taskDraftFolderTouched, true, "clearing also counts as touching");
-  assert.equal(s2.taskDraft.message.text, "Using the default Duet workspace for new Tasks.");
+  assert.equal(
+    s2.taskDraft.message,
+    null,
+    "no draft message — the greeting + project chip restate the choice (2026-07-04)",
+  );
   session.applyPickedTaskFolder(s2, "/Users/x/proj");
   assert.equal(s2.taskDraft.cwd, "/Users/x/proj");
   assert.equal(s2.status, "Selected proj", "status uses the folder's basename");
-  assert.equal(s2.taskDraft.message.text, "Selected proj.");
+  assert.equal(s2.taskDraft.message, null, "picked folder shows on the chip, not as a message");
 }
 
 console.log("reading-transitions: 9 fixture groups pass");

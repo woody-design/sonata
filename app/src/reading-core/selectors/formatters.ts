@@ -8,7 +8,7 @@
  * sites keep today's behavior, fixtures pass explicit values.
  */
 import type {
-  ClaudeDefaultPermissionMode,
+  ClaudePermissionMode,
   ReadingModeSetting,
   ReadingThemeId,
   ResumePolicyId,
@@ -189,14 +189,41 @@ export function readingModeLabel(mode: ReadingModeSetting): string {
   return "Auto";
 }
 
-export function permissionModeLabel(mode: ClaudeDefaultPermissionMode): string {
+/** One vocabulary for every permission surface (Settings popup, New Chat
+ *  access chip, live-session chip). The standing triad reads as answers to
+ *  "how should Claude actions be approved?"; the tail modes only ever appear
+ *  on a live session's chip after a terminal-side switch (Shift+Tab / CI). */
+export function permissionModeLabel(mode: ClaudePermissionMode): string {
   if (mode === "acceptEdits") {
     return "Accept edits";
   }
   if (mode === "auto") {
     return "Auto";
   }
+  if (mode === "plan") {
+    return "Plan mode";
+  }
+  if (mode === "bypassPermissions") {
+    return "Bypass permissions";
+  }
+  if (mode === "dontAsk") {
+    return "Don't ask";
+  }
   return "Ask each time";
+}
+
+/** The New Chat greeting IS the folder state display: it names the project
+ *  when one is chosen (exact strings ruled 2026-07-04), so no FOLDER label
+ *  row exists anywhere else on the surface. */
+export function newChatGreeting(
+  cwd: string | null,
+  projects: ReadonlyArray<{ path: string; name: string }>,
+): string {
+  if (!cwd) {
+    return "What should we work on?";
+  }
+  const project = projects.find((candidate) => candidate.path === cwd);
+  return `What should we work on in ${project?.name ?? folderName(cwd)}?`;
 }
 
 export function resumePolicyLabel(policy: ResumePolicyId): string {

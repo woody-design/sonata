@@ -24,10 +24,10 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
 
-  await page.locator(".task-entry-panel", { hasText: "What should we work on?" }).waitFor({
+  await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
-  await page.locator("#entry-provider-claude").click();
+  await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
 
   // Explicitly induce a prompt that INCLUDES a multiSelect question (the shape
   // that broke). One multiSelect + one single-select mirrors a real mix.

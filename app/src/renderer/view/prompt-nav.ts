@@ -112,7 +112,7 @@ function hasStackedUiOpen(): boolean {
   return Boolean(
     state.readingPopoverOpen ||
       state.composerMenu ||
-      state.taskDraft.settingsOpen ||
+      state.taskDraft.menu ||
       state.settingsOverlay,
   );
 }

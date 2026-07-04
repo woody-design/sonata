@@ -51,7 +51,10 @@ function queryElements() {
     attachmentStrip: getElement<HTMLDivElement>("attachment-strip"),
     addAttachment: getElement<HTMLButtonElement>("add-attachment"),
     permissionChip: getElement<HTMLButtonElement>("permission-chip"),
+    providerChip: getElement<HTMLButtonElement>("provider-chip"),
     modelChip: getElement<HTMLButtonElement>("model-chip"),
+    composerContextRow: getElement<HTMLDivElement>("composer-context-row"),
+    projectChip: getElement<HTMLButtonElement>("project-chip"),
     usageIndicator: getElement<HTMLButtonElement>("usage-indicator"),
     composerPopoverRoot: getElement<HTMLDivElement>("composer-popover-root"),
     sendPrompt: getElement<HTMLButtonElement>("send-prompt"),
@@ -187,6 +190,7 @@ export function initDom(): void {
               <button id="permission-chip" class="composer-chip hidden" type="button"></button>
             </div>
             <div class="composer-actions">
+              <button id="provider-chip" class="composer-chip hidden" type="button" aria-haspopup="menu" aria-expanded="false"></button>
               <button id="model-chip" class="composer-chip hidden" type="button"></button>
               <button
                 id="usage-indicator"
@@ -210,6 +214,12 @@ export function initDom(): void {
                 aria-label="Send prompt"
               >↑</button>
             </div>
+          </div>
+          <!-- New-chat context row (2026-07-04 redesign): the project chip —
+               where this session will work — as the composer's footer, mirroring
+               the greeting. Hidden for live/dormant sessions (cwd is fixed). -->
+          <div id="composer-context-row" class="composer-context-row hidden">
+            <button id="project-chip" class="composer-chip project-chip" type="button" aria-haspopup="menu" aria-expanded="false"></button>
           </div>
           <div id="runtime-status" class="composer-status hidden" role="status"></div>
           <div id="composer-popover-root"></div>
