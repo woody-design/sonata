@@ -182,45 +182,53 @@ export function initDom(): void {
         </section>
 
         <form id="composer" class="composer">
-          <div id="attachment-strip" class="attachment-strip hidden" aria-label="Attachments"></div>
-          <textarea id="prompt-input" placeholder="Start or open a Task"></textarea>
-          <div class="composer-control-row">
-            <div class="composer-control-left">
-              <button id="add-attachment" class="composer-icon-button" type="button" aria-label="Add photos & files">+</button>
-              <button id="permission-chip" class="composer-chip hidden" type="button"></button>
-            </div>
-            <div class="composer-actions">
-              <button id="provider-chip" class="composer-chip hidden" type="button" aria-haspopup="menu" aria-expanded="false"></button>
-              <button id="model-chip" class="composer-chip hidden" type="button"></button>
-              <button
-                id="usage-indicator"
-                class="usage-indicator empty"
-                type="button"
-                aria-label="Usage data"
-                aria-haspopup="dialog"
-                aria-expanded="false"
-                disabled
-              >
-                <svg class="usage-ring" viewBox="0 0 20 20" aria-hidden="true">
-                  <circle class="usage-ring-track" cx="10" cy="10" r="7.5"></circle>
-                  <circle class="usage-ring-fill" cx="10" cy="10" r="7.5" pathLength="100"></circle>
-                </svg>
-              </button>
-              <button
-                id="send-prompt"
-                class="primary send-button"
-                type="button"
-                disabled
-                aria-label="Send prompt"
-              >↑</button>
+          <!-- The white card: the message and its controls. The context row
+               below is a SEPARATE tinted layer (ref parity, 2026-07-04):
+               "where this runs" is the stage the card sits on, not a line
+               inside the message. -->
+          <div class="composer-card">
+            <div id="attachment-strip" class="attachment-strip hidden" aria-label="Attachments"></div>
+            <textarea id="prompt-input" placeholder="Start or open a Task"></textarea>
+            <div class="composer-control-row">
+              <div class="composer-control-left">
+                <button id="add-attachment" class="composer-icon-button" type="button" aria-label="Add photos & files">+</button>
+                <button id="permission-chip" class="composer-chip hidden" type="button"></button>
+              </div>
+              <div class="composer-actions">
+                <button id="provider-chip" class="composer-chip hidden" type="button" aria-haspopup="menu" aria-expanded="false"></button>
+                <button id="model-chip" class="composer-chip hidden" type="button"></button>
+                <button
+                  id="usage-indicator"
+                  class="usage-indicator empty"
+                  type="button"
+                  aria-label="Usage data"
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  disabled
+                >
+                  <svg class="usage-ring" viewBox="0 0 20 20" aria-hidden="true">
+                    <circle class="usage-ring-track" cx="10" cy="10" r="7.5"></circle>
+                    <circle class="usage-ring-fill" cx="10" cy="10" r="7.5" pathLength="100"></circle>
+                  </svg>
+                </button>
+                <button
+                  id="send-prompt"
+                  class="primary send-button"
+                  type="button"
+                  disabled
+                  aria-label="Send prompt"
+                >↑</button>
+              </div>
             </div>
           </div>
-          <!-- New-chat context row (2026-07-04 redesign): the project chip —
-               where this session will work — as the composer's footer, mirroring
-               the greeting. Hidden for live/dormant sessions (cwd is fixed). -->
+          <!-- New-chat context row: the project chip — where this session will
+               work — on the tinted band beneath the card. Hidden for live and
+               dormant sessions (cwd is fixed). -->
           <div id="composer-context-row" class="composer-context-row hidden">
             <button id="project-chip" class="composer-chip project-chip" type="button" aria-haspopup="menu" aria-expanded="false"></button>
           </div>
+          <!-- Action feedback ONLY (2026-07-04 ruling): lifecycle narration
+               never renders here — composerNotice suppresses it. -->
           <div id="runtime-status" class="composer-status hidden" role="status"></div>
           <div id="composer-popover-root"></div>
         </form>

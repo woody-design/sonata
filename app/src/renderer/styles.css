@@ -2796,18 +2796,25 @@ h2 {
 
 .composer {
   flex: 0 0 auto;
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
   /* Track the reading column (.turn-card uses the same measure, centered) so the
      composer stays aligned with the transcript above and never balloons when the
      sidebar is collapsed and the pane widens. 100% - 36px mirrors the run-list's
      18px side padding at narrow widths. */
   width: min(100% - 36px, var(--measure-prose));
   margin: 2px auto 12px;
-  /* A distinct filled field (Apple text-field pattern): its own elevated fill
-     (--surface-panel, the brightest rung) + a hairline ring set it apart from
-     the reading surface around it. position:relative anchors the ::before frost
-     to the field's top edge. */
+  position: relative;
+  z-index: 2;
+}
+
+/* The white card — the message and its controls. A distinct filled field
+   (Apple text-field pattern): its own elevated fill (--surface-panel, the
+   brightest rung) + a hairline ring set it apart from the reading surface.
+   The context row below is a separate tinted layer the card sits on. */
+.composer-card {
+  display: grid;
+  gap: 6px;
   position: relative;
   z-index: 2;
   border: 1px solid var(--border);
@@ -2854,16 +2861,18 @@ h2 {
   -webkit-text-fill-color: var(--ink-disabled);
 }
 
-.composer:focus-within {
+.composer-card:focus-within {
   border-color: var(--accent-soft-border);
   box-shadow: var(--shadow-composer-focus);
 }
 
-/* The point-of-action status line (errors, receipts, hints, delivery states)
-   - view.status's home since the header pill retired (2026-07-03). Hidden
-   when empty; activity mirrors never reach it (composerStatusText). */
+/* Action feedback only (2026-07-04 ruling — composerNotice suppresses all
+   lifecycle narration): what remains is failure reports and guard hints, so
+   the line reads as attention, not ambience. */
 .composer-status {
-  color: var(--ink-faint);
+  margin-top: 6px;
+  padding: 0 6px;
+  color: var(--status-attention-text);
   font-size: 12px;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -2954,14 +2963,19 @@ h2 {
   white-space: nowrap;
 }
 
-/* The composer's context row: where this session will work. A quiet footer —
-   hairline above, ghost chip — mirroring the greeting's project name. */
+/* The composer's context row: where this session will work. Not a line
+   inside the message — a tinted stage the card sits on (ref parity,
+   2026-07-04): it tucks under the card and shows below it. */
 .composer-context-row {
   display: flex;
   align-items: center;
-  border-top: 1px solid var(--border-subtle);
-  margin-top: 2px;
-  padding-top: 6px;
+  position: relative;
+  z-index: 1;
+  margin-top: -14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0 0 16px 16px;
+  padding: 20px 10px 5px;
+  background: var(--surface-raised);
 }
 
 /* Explicit override — same source-order trap as .composer-chip.hidden. */
@@ -2970,7 +2984,7 @@ h2 {
 }
 
 .composer-context-row .project-chip {
-  max-width: 260px;
+  max-width: 300px;
   border-color: transparent;
   background: transparent;
 }
@@ -4299,6 +4313,9 @@ h2 {
 
   .composer {
     margin: 10px 12px 12px;
+  }
+
+  .composer-card {
     border-radius: 20px;
   }
 

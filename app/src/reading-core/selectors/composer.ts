@@ -125,6 +125,38 @@ export function sendPromptTitle(
   return `Send to ${providerName}`;
 }
 
+/** The composer line's editorial policy (2026-07-04 ruling): it speaks ONLY
+ *  when the user's own action needs a response — a failure report ("Attached
+ *  3 of 4 — …", "Couldn't restore …", free-form errors) or an actionable
+ *  guard hint (unknown slash: "press Enter again"). Lifecycle narration
+ *  ("Starting Claude", "Queued", "Selected proj", …) never renders: liveness
+ *  already lives in the status strip, outcomes on the turn cards. Returns ""
+ *  for suppressed messages. */
+export function composerNotice(status: string): string {
+  const narration: RegExp[] = [
+    /^(Idle|Ready|Running|Queued|Stopping|Stopped|Failed)$/,
+    /^\S+ (is working|is starting)$/,
+    /^Starting /,
+    /^Delivering to /,
+    /^Waiting for /,
+    // The spawn receipt ("Claude PTY 12345") is boot plumbing, not a message.
+    /^\S+ PTY \d+$/,
+    /^Opening session$/,
+    /^Choosing Task Folder$/,
+    /^Selected /,
+    /^Resuming session$/,
+    /^Resumed — /,
+    /^Choose how to resume$/,
+    /^Answer sent$/,
+    // Dead affordance: send is disabled while the composer is empty.
+    /^Type a message before sending$/,
+  ];
+  if (narration.some((pattern) => pattern.test(status))) {
+    return "";
+  }
+  return status;
+}
+
 export function composerPlaceholder(
   view: TaskViewState | null,
   activeRun: boolean,

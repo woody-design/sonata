@@ -175,6 +175,7 @@ export function renderComposerControls(view = activeTaskView(state)): void {
       visible: true,
       label: draftProjectLabel(),
       hint: "Choose where this session works",
+      icon: Folder,
     });
     elements.composerContextRow.classList.remove("hidden");
   } else {
@@ -272,7 +273,13 @@ function renderComposerChip(element: HTMLButtonElement, label: string | null, hi
  *  and the user's first tap after typing is silently swallowed. */
 function renderDraftChip(
   element: HTMLButtonElement,
-  options: { kind: TaskDraftMenuKind; visible: boolean; label: string; hint: string },
+  options: {
+    kind: TaskDraftMenuKind;
+    visible: boolean;
+    label: string;
+    hint: string;
+    icon?: typeof Folder;
+  },
 ): void {
   element.classList.toggle("hidden", !options.visible);
   if (!options.visible) {
@@ -287,6 +294,9 @@ function renderDraftChip(
     element.replaceChildren();
     label = document.createElement("span");
     label.className = "composer-chip-label";
+    if (options.icon) {
+      element.append(lucideIcon(options.icon, 13));
+    }
     element.append(label, lucideIcon(ChevronDown, 12));
   }
   if (label.textContent !== options.label) {

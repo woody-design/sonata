@@ -99,6 +99,46 @@ const run = (status, extra = {}) => ({
   );
 }
 
+// 2b) composerNotice — the composer line's editorial policy (2026-07-04):
+// action feedback shows, lifecycle narration never does.
+{
+  const suppressed = [
+    "Idle",
+    "Ready",
+    "Queued",
+    "Stopping",
+    "Stopped",
+    "Failed",
+    "Claude is working",
+    "Codex is starting",
+    "Starting Claude",
+    "Delivering to Codex",
+    "Waiting for Claude approval",
+    "Claude PTY 12345",
+    "Opening session",
+    "Choosing Task Folder",
+    "Selected proj",
+    "Resuming session",
+    "Resumed — your message will send when the agent is ready",
+    "Choose how to resume",
+    "Answer sent",
+    "Type a message before sending",
+  ];
+  for (const status of suppressed) {
+    assert.equal(C.composerNotice(status), "", `narration suppressed: ${status}`);
+  }
+  const shown = [
+    // The fenced Invariant 5: partial attachment failure surfaced, not silent.
+    "Attached 3 of 4 — the rest were unavailable.",
+    "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable",
+    "Unknown Claude command — press Enter again to send it anyway",
+    "Something exploded: ENOENT",
+  ];
+  for (const status of shown) {
+    assert.equal(C.composerNotice(status), status, `action feedback shows: ${status}`);
+  }
+}
+
 // 3) composerPlaceholder — the state table.
 {
   const p = (v, activeRun = false, pendingApproval = false) =>
