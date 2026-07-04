@@ -182,7 +182,6 @@ let lastPushedTerminalTask = "";
 
 const state: RendererState = createInitialState(bootReadingSettingsFromDom());
 
-let sessionIndex: SessionIndexResponse | null = null;
 let sessionIndexRefreshTimer: number | null = null;
 
 function scheduleSessionIndexRefresh(): void {
@@ -201,20 +200,20 @@ let taskDraftFolderTouched = false;
 async function refreshSessionIndex(): Promise<void> {
   try {
     // Always fetch the full record; status filtering is a view decision.
-    sessionIndex = await window.duetRuntime.readSessionIndex({ includeArchived: true });
+    state.sessionIndex = await window.duetRuntime.readSessionIndex({ includeArchived: true });
     // The boot screen IS a New Chat entry: preselect the last-used
     // folder until the user picks one themselves.
     if (
       !state.activeTaskId &&
       !taskDraftFolderTouched &&
       state.taskDraft.cwd === null &&
-      sessionIndex.lastUsedFolder
+      state.sessionIndex.lastUsedFolder
     ) {
-      state.taskDraft.cwd = sessionIndex.lastUsedFolder;
+      state.taskDraft.cwd = state.sessionIndex.lastUsedFolder;
       render();
       return;
     }
-    if (syncTaskViewsFromIndex(sessionIndex)) {
+    if (syncTaskViewsFromIndex(state.sessionIndex)) {
       render();
       return;
     }
@@ -361,7 +360,7 @@ function renderSidebar(): void {
 
 function renderSidebarSections(): void {
   elements.sidebarList.replaceChildren();
-  const index = sessionIndex;
+  const index = state.sessionIndex;
   if (!index) {
     return;
   }
@@ -440,7 +439,7 @@ function renderSidebarListHeader(title: string): HTMLElement {
 }
 
 function renderSidebarProjectGroups(entries: SidebarEntry[]): void {
-  const index = sessionIndex;
+  const index = state.sessionIndex;
   if (!index) {
     return;
   }
@@ -882,7 +881,7 @@ function renderSidebarFilterMenu(
     created: "Created time",
     alphabetical: "Alphabetically",
   };
-  const projects = sessionIndex?.projects ?? [];
+  const projects = state.sessionIndex?.projects ?? [];
   const projectValueLabel =
     sidebarPrefs.project === null
       ? "All"
@@ -1224,7 +1223,7 @@ function startNewChat(folder?: string | null): void {
     state.taskDraft.cwd = folder;
     taskDraftFolderTouched = true;
   } else if (!taskDraftFolderTouched) {
-    state.taskDraft.cwd = sessionIndex?.lastUsedFolder ?? state.taskDraft.cwd;
+    state.taskDraft.cwd = state.sessionIndex?.lastUsedFolder ?? state.taskDraft.cwd;
   }
   state.taskDraft.message = null;
   // Each New Chat starts from the global default, so a per-chat toggle never
@@ -5952,7 +5951,7 @@ function renderFolderPicker(): HTMLElement {
   row.className = "task-folder-row";
 
   // Known projects are one click away; the file dialog is the fallback.
-  const projects = (sessionIndex?.projects ?? []).filter((project) => !project.archived);
+  const projects = (state.sessionIndex?.projects ?? []).filter((project) => !project.archived);
   for (const project of projects.slice(0, 4)) {
     if (state.taskDraft.cwd === project.path) {
       continue;

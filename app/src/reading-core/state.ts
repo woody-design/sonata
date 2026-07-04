@@ -20,6 +20,7 @@ import type {
   ReasoningEffort,
   ResumeSettings,
   RuntimeProvider,
+  SessionIndexResponse,
   SlashCommandEntry,
   Task,
   UsageSnapshot,
@@ -116,6 +117,11 @@ export interface TaskViewState {
 export interface RendererState {
   taskViews: TaskViewState[];
   activeTaskId: string | null;
+  /** The authoritative session record (live runtimes for live sessions,
+   *  manifests for dormant ones), read whole from the main process. The
+   *  shell's refreshSessionIndex (IPC) writes it; the 150 ms refresh debounce
+   *  (T2) stays shell-side. */
+  sessionIndex: SessionIndexResponse | null;
   taskDraft: TaskLaunchDraft;
   /** New-chat composer attachments, materialized on first send (see ComposerAttachment). */
   draftAttachments: ComposerAttachment[];
@@ -230,6 +236,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
   return {
     taskViews: [],
     activeTaskId: null,
+    sessionIndex: null,
     taskDraft: {
       provider: "claude",
       cwd: null,
