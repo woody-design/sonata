@@ -124,12 +124,12 @@ import {
   type ReadingTurn,
 } from "../reading-core/selectors/turns";
 import {
-  SIDEBAR_PREFS_DEFAULTS,
   applySidebarPrefs,
   sidebarDateBuckets,
   sidebarEntries,
+  sidebarFiltersNonDefault,
+  sidebarPrefsNonDefault,
   type SidebarEntry,
-  type SidebarPrefs,
 } from "../reading-core/selectors/sidebar";
 import {
   composerPlaceholder,
@@ -150,17 +150,23 @@ import {
   runTone,
 } from "../reading-core/selectors/runs";
 import {
+  SIDEBAR_PREFS_DEFAULTS,
+  anchorRectOf,
   createInitialState,
   createTaskView,
   taskViewForId,
   upsertTaskView,
+  type AnchorRect,
   type ComposerAttachment,
   type ComposerMenuState,
+  type FilterMenuSection,
   type OptionPromptReceipt,
   type PopoverAnchor,
   type PromptNavState,
   type RendererState,
   type SettingsOverlayState,
+  type SidebarMenuState,
+  type SidebarPrefs,
   type SlashPickerState,
   type TaskViewState,
 } from "../reading-core/state";
@@ -264,43 +270,9 @@ function syncTaskViewsFromIndex(index: SessionIndexResponse): boolean {
   return activeViewChanged;
 }
 
-/** Plain snapshot of an element's viewport rect. The state model must stay
- *  DOM-type-free (reading-core purity, map §2.2); getBoundingClientRect already
- *  returns a static snapshot, so a plain field copy is semantically identical. */
-interface AnchorRect {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-  width: number;
-  height: number;
-}
-
-function anchorRectOf(element: HTMLElement): AnchorRect {
-  const rect = element.getBoundingClientRect();
-  return {
-    left: rect.left,
-    top: rect.top,
-    right: rect.right,
-    bottom: rect.bottom,
-    width: rect.width,
-    height: rect.height,
-  };
-}
-
-type SidebarMenuState =
-  | { kind: "session"; taskId: string; title: string; archived: boolean; anchor: AnchorRect }
-  | { kind: "project"; path: string; name: string; archived: boolean; anchor: AnchorRect }
-  | { kind: "filter"; anchor: AnchorRect; openSection: FilterMenuSection | null };
-
-type FilterMenuSection = "status" | "project" | "activity" | "group" | "sort";
-
-let sidebarMenu: SidebarMenuState | null = null;
-let renamingSessionId: string | null = null;
-
 const SIDEBAR_PREFS_KEY = "duet.sidebar.prefs";
 
-let sidebarPrefs: SidebarPrefs = loadSidebarPrefs();
+state.sidebar.prefs = loadSidebarPrefs();
 
 function loadSidebarPrefs(): SidebarPrefs {
   try {
@@ -326,31 +298,13 @@ function loadSidebarPrefs(): SidebarPrefs {
 }
 
 function setSidebarPrefs(patch: Partial<SidebarPrefs>): void {
-  sidebarPrefs = { ...sidebarPrefs, ...patch };
+  state.sidebar.prefs = { ...state.sidebar.prefs, ...patch };
   try {
-    localStorage.setItem(SIDEBAR_PREFS_KEY, JSON.stringify(sidebarPrefs));
+    localStorage.setItem(SIDEBAR_PREFS_KEY, JSON.stringify(state.sidebar.prefs));
   } catch {
     // View preference only.
   }
   renderSidebar();
-}
-
-function sidebarPrefsNonDefault(): boolean {
-  return (
-    sidebarPrefs.status !== SIDEBAR_PREFS_DEFAULTS.status ||
-    sidebarPrefs.project !== SIDEBAR_PREFS_DEFAULTS.project ||
-    sidebarPrefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity ||
-    sidebarPrefs.groupBy !== SIDEBAR_PREFS_DEFAULTS.groupBy ||
-    sidebarPrefs.sortBy !== SIDEBAR_PREFS_DEFAULTS.sortBy
-  );
-}
-
-function sidebarFiltersNonDefault(): boolean {
-  return (
-    sidebarPrefs.status !== SIDEBAR_PREFS_DEFAULTS.status ||
-    sidebarPrefs.project !== SIDEBAR_PREFS_DEFAULTS.project ||
-    sidebarPrefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity
-  );
 }
 
 function renderSidebar(): void {
@@ -366,15 +320,15 @@ function renderSidebarSections(): void {
   }
 
   const allEntries = sidebarEntries(index);
-  const entries = applySidebarPrefs(allEntries, sidebarPrefs);
+  const entries = applySidebarPrefs(allEntries, state.sidebar.prefs);
 
   const focusedProject =
-    sidebarPrefs.project !== null
-      ? index.projects.find((project) => project.path === sidebarPrefs.project)
+    state.sidebar.prefs.project !== null
+      ? index.projects.find((project) => project.path === state.sidebar.prefs.project)
       : null;
   const headerTitle = focusedProject
     ? focusedProject.name
-    : sidebarPrefs.groupBy === "project"
+    : state.sidebar.prefs.groupBy === "project"
       ? "Projects"
       : "Sessions";
   elements.sidebarList.append(renderSidebarListHeader(headerTitle));
@@ -387,14 +341,14 @@ function renderSidebarSections(): void {
     return;
   }
 
-  if (focusedProject || sidebarPrefs.groupBy === "none") {
+  if (focusedProject || state.sidebar.prefs.groupBy === "none") {
     for (const entry of entries) {
       elements.sidebarList.append(renderSidebarSessionRow(entry.session));
     }
     return;
   }
 
-  if (sidebarPrefs.groupBy === "date") {
+  if (state.sidebar.prefs.groupBy === "date") {
     renderSidebarDateGroups(entries);
     return;
   }
@@ -418,15 +372,15 @@ function renderSidebarListHeader(title: string): HTMLElement {
   filterButton.setAttribute("aria-haspopup", "menu");
   // Blue whenever anything departs from the default setup — the
   // persistent "your view is shaped" signal.
-  filterButton.classList.toggle("active", sidebarPrefsNonDefault());
+  filterButton.classList.toggle("active", sidebarPrefsNonDefault(state.sidebar.prefs));
   filterButton.append(lucideIcon(ListFilter, 14));
   filterButton.addEventListener("click", (event) => {
     event.stopPropagation();
-    if (sidebarMenu?.kind === "filter") {
+    if (state.sidebar.menu?.kind === "filter") {
       closeSidebarMenu();
       return;
     }
-    sidebarMenu = {
+    state.sidebar.menu = {
       kind: "filter",
       anchor: anchorRectOf(event.currentTarget as HTMLElement),
       openSection: null,
@@ -484,7 +438,7 @@ function sidebarSectionLabel(text: string): HTMLElement {
 
 const COLLAPSED_PROJECTS_KEY = "duet.sidebar.collapsed-projects";
 
-const collapsedProjects = new Set<string>(loadCollapsedProjects());
+state.sidebar.collapsedProjects = new Set<string>(loadCollapsedProjects());
 
 function loadCollapsedProjects(): string[] {
   try {
@@ -496,13 +450,13 @@ function loadCollapsedProjects(): string[] {
 }
 
 function toggleProjectCollapsed(path: string): void {
-  if (collapsedProjects.has(path)) {
-    collapsedProjects.delete(path);
+  if (state.sidebar.collapsedProjects.has(path)) {
+    state.sidebar.collapsedProjects.delete(path);
   } else {
-    collapsedProjects.add(path);
+    state.sidebar.collapsedProjects.add(path);
   }
   try {
-    localStorage.setItem(COLLAPSED_PROJECTS_KEY, JSON.stringify([...collapsedProjects]));
+    localStorage.setItem(COLLAPSED_PROJECTS_KEY, JSON.stringify([...state.sidebar.collapsedProjects]));
   } catch {
     // View preference only.
   }
@@ -516,13 +470,13 @@ function renderSidebarProject(project: ProjectGroup): HTMLElement {
   const header = document.createElement("div");
   header.className = "sidebar-project-header";
 
-  if (projectRenaming?.path === project.path) {
+  if (state.sidebar.projectRenaming?.path === project.path) {
     header.append(renderProjectRenameInput(project.path, project.name));
     container.append(header);
     return container;
   }
 
-  const expanded = !collapsedProjects.has(project.path);
+  const expanded = !state.sidebar.collapsedProjects.has(project.path);
 
   const labelButton = document.createElement("button");
   labelButton.type = "button";
@@ -580,7 +534,7 @@ function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
   // Distinguishes archived rows when the status filter mixes them in.
   row.classList.toggle("archived", session.archived);
 
-  if (renamingSessionId === task.id) {
+  if (state.sidebar.renamingSessionId === task.id) {
     row.append(renderSidebarRenameInput(task.id, task.title));
     return row;
   }
@@ -631,7 +585,7 @@ function renderSidebarRenameInput(taskId: string, currentTitle: string): HTMLEle
     if (event.key === "Enter") {
       event.preventDefault();
       const title = input.value.trim();
-      renamingSessionId = null;
+      state.sidebar.renamingSessionId = null;
       if (title && title !== currentTitle) {
         void window.duetRuntime
           .renameSession({ taskId, title })
@@ -645,13 +599,13 @@ function renderSidebarRenameInput(taskId: string, currentTitle: string): HTMLEle
     }
     if (event.key === "Escape") {
       event.preventDefault();
-      renamingSessionId = null;
+      state.sidebar.renamingSessionId = null;
       renderSidebar();
     }
   });
   input.addEventListener("blur", () => {
-    if (renamingSessionId === taskId) {
-      renamingSessionId = null;
+    if (state.sidebar.renamingSessionId === taskId) {
+      state.sidebar.renamingSessionId = null;
       renderSidebar();
     }
   });
@@ -756,7 +710,7 @@ function openSidebarMenuForSession(
   archived: boolean,
   anchorElement: HTMLElement,
 ): void {
-  sidebarMenu = {
+  state.sidebar.menu = {
     kind: "session",
     taskId,
     title,
@@ -767,7 +721,7 @@ function openSidebarMenuForSession(
 }
 
 function openSidebarMenuForProject(project: ProjectGroup, anchorElement: HTMLElement): void {
-  sidebarMenu = {
+  state.sidebar.menu = {
     kind: "project",
     path: project.path,
     name: project.name,
@@ -778,15 +732,15 @@ function openSidebarMenuForProject(project: ProjectGroup, anchorElement: HTMLEle
 }
 
 function closeSidebarMenu(): void {
-  if (sidebarMenu) {
-    sidebarMenu = null;
+  if (state.sidebar.menu) {
+    state.sidebar.menu = null;
     renderSidebarMenu();
   }
 }
 
 function renderSidebarMenu(): void {
   elements.sidebarMenuRoot.replaceChildren();
-  const menu = sidebarMenu;
+  const menu = state.sidebar.menu;
   if (!menu) {
     return;
   }
@@ -805,7 +759,7 @@ function renderSidebarMenu(): void {
   if (menu.kind === "session") {
     panel.append(
       sidebarMenuItem("Rename", () => {
-        renamingSessionId = menu.taskId;
+        state.sidebar.renamingSessionId = menu.taskId;
         renderSidebar();
       }),
       sidebarMenuItem("Reveal in Finder", () => {
@@ -883,20 +837,20 @@ function renderSidebarFilterMenu(
   };
   const projects = state.sessionIndex?.projects ?? [];
   const projectValueLabel =
-    sidebarPrefs.project === null
+    state.sidebar.prefs.project === null
       ? "All"
-      : (projects.find((project) => project.path === sidebarPrefs.project)?.name ?? "1 project");
+      : (projects.find((project) => project.path === state.sidebar.prefs.project)?.name ?? "1 project");
 
   panel.append(
     filterMenuRow(
       menu,
       "status",
       "Status",
-      statusLabels[sidebarPrefs.status],
-      sidebarPrefs.status !== SIDEBAR_PREFS_DEFAULTS.status,
+      statusLabels[state.sidebar.prefs.status],
+      state.sidebar.prefs.status !== SIDEBAR_PREFS_DEFAULTS.status,
       () =>
         (["active", "archived", "all"] as const).map((value) =>
-          filterMenuOption(statusLabels[value], sidebarPrefs.status === value, () =>
+          filterMenuOption(statusLabels[value], state.sidebar.prefs.status === value, () =>
             setSidebarPrefs({ status: value }),
           ),
         ),
@@ -906,13 +860,13 @@ function renderSidebarFilterMenu(
       "project",
       "Project",
       projectValueLabel,
-      sidebarPrefs.project !== SIDEBAR_PREFS_DEFAULTS.project,
+      state.sidebar.prefs.project !== SIDEBAR_PREFS_DEFAULTS.project,
       () => [
-        filterMenuOption("All projects", sidebarPrefs.project === null, () =>
+        filterMenuOption("All projects", state.sidebar.prefs.project === null, () =>
           setSidebarPrefs({ project: null }),
         ),
         ...projects.map((project) =>
-          filterMenuOption(project.name, sidebarPrefs.project === project.path, () =>
+          filterMenuOption(project.name, state.sidebar.prefs.project === project.path, () =>
             setSidebarPrefs({ project: project.path }),
           ),
         ),
@@ -922,11 +876,11 @@ function renderSidebarFilterMenu(
       menu,
       "activity",
       "Last activity",
-      activityLabels[sidebarPrefs.activity],
-      sidebarPrefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity,
+      activityLabels[state.sidebar.prefs.activity],
+      state.sidebar.prefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity,
       () =>
         (["1d", "3d", "7d", "30d", "all"] as const).map((value) =>
-          filterMenuOption(activityLabels[value], sidebarPrefs.activity === value, () =>
+          filterMenuOption(activityLabels[value], state.sidebar.prefs.activity === value, () =>
             setSidebarPrefs({ activity: value }),
           ),
         ),
@@ -936,11 +890,11 @@ function renderSidebarFilterMenu(
       menu,
       "group",
       "Group by",
-      groupLabels[sidebarPrefs.groupBy],
-      sidebarPrefs.groupBy !== SIDEBAR_PREFS_DEFAULTS.groupBy,
+      groupLabels[state.sidebar.prefs.groupBy],
+      state.sidebar.prefs.groupBy !== SIDEBAR_PREFS_DEFAULTS.groupBy,
       () =>
         (["date", "project", "none"] as const).map((value) =>
-          filterMenuOption(groupLabels[value], sidebarPrefs.groupBy === value, () =>
+          filterMenuOption(groupLabels[value], state.sidebar.prefs.groupBy === value, () =>
             setSidebarPrefs({ groupBy: value }),
           ),
         ),
@@ -949,11 +903,11 @@ function renderSidebarFilterMenu(
       menu,
       "sort",
       "Sort by",
-      sortLabels[sidebarPrefs.sortBy],
-      sidebarPrefs.sortBy !== SIDEBAR_PREFS_DEFAULTS.sortBy,
+      sortLabels[state.sidebar.prefs.sortBy],
+      state.sidebar.prefs.sortBy !== SIDEBAR_PREFS_DEFAULTS.sortBy,
       () =>
         (["alphabetical", "created", "recency"] as const).map((value) =>
-          filterMenuOption(sortLabels[value], sidebarPrefs.sortBy === value, () =>
+          filterMenuOption(sortLabels[value], state.sidebar.prefs.sortBy === value, () =>
             setSidebarPrefs({ sortBy: value }),
           ),
         ),
@@ -969,7 +923,7 @@ function renderSidebarFilterMenu(
       activity: SIDEBAR_PREFS_DEFAULTS.activity,
     });
   });
-  clear.disabled = !sidebarFiltersNonDefault();
+  clear.disabled = !sidebarFiltersNonDefault(state.sidebar.prefs);
   panel.append(clear);
 }
 
@@ -1005,10 +959,10 @@ function filterMenuRow(
   row.append(labelSpan, valueSpan, chevron);
   row.addEventListener("click", (event) => {
     event.stopPropagation();
-    if (sidebarMenu?.kind === "filter") {
-      sidebarMenu = {
-        ...sidebarMenu,
-        openSection: sidebarMenu.openSection === section ? null : section,
+    if (state.sidebar.menu?.kind === "filter") {
+      state.sidebar.menu = {
+        ...state.sidebar.menu,
+        openSection: state.sidebar.menu.openSection === section ? null : section,
       };
       renderSidebarMenu();
     }
@@ -1090,10 +1044,8 @@ function positionSidebarMenu(panel: HTMLElement, anchor: AnchorRect): void {
   });
 }
 
-let projectRenaming: { path: string; currentName: string } | null = null;
-
 function startProjectRename(path: string, currentName: string): void {
-  projectRenaming = { path, currentName };
+  state.sidebar.projectRenaming = { path, currentName };
   renderSidebar();
 }
 
@@ -1104,7 +1056,7 @@ function renderProjectRenameInput(path: string, currentName: string): HTMLElemen
   input.value = currentName;
   const finish = (commit: boolean): void => {
     const nextName = input.value.trim();
-    projectRenaming = null;
+    state.sidebar.projectRenaming = null;
     if (commit && nextName && nextName !== currentName) {
       void window.duetRuntime
         .renameProject({ path, displayName: nextName })
@@ -1127,7 +1079,7 @@ function renderProjectRenameInput(path: string, currentName: string): HTMLElemen
     }
   });
   input.addEventListener("blur", () => {
-    if (projectRenaming?.path === path) {
+    if (state.sidebar.projectRenaming?.path === path) {
       finish(false);
     }
   });
@@ -3307,7 +3259,7 @@ document.addEventListener("click", (event) => {
   if (state.usagePopover) {
     closeUsagePopover();
   }
-  if (sidebarMenu && !target.closest(".sidebar-menu")) {
+  if (state.sidebar.menu && !target.closest(".sidebar-menu")) {
     closeSidebarMenu();
   }
 });

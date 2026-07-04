@@ -3,29 +3,35 @@
  * the prefs filter/sort pipeline, and the date-bucket grouping.
  *
  * reading-core layer rules: plain data in, plain data out — no DOM, no
- * Electron, no renderer state. Prefs come in as a parameter (the shell owns
- * the localStorage-backed instance until C3b); "now" is a default-param clock
- * (call sites keep today's behavior, fixtures pass explicit values).
+ * Electron, no renderer state. Prefs come in as a parameter (the instance
+ * lives in state.sidebar since C3b; localStorage load/save stays in the
+ * shell); "now" is a default-param clock (call sites keep today's behavior,
+ * fixtures pass explicit values).
  */
 import type { SessionIndexResponse, SessionSummary } from "../../shared/types";
+import { SIDEBAR_PREFS_DEFAULTS, type SidebarPrefs } from "../state";
 
-/** Sidebar organization preferences. View state — persisted per machine. */
-export interface SidebarPrefs {
-  status: "active" | "archived" | "all";
-  /** providerCwd of the focused project, or null for all. */
-  project: string | null;
-  activity: "1d" | "3d" | "7d" | "30d" | "all";
-  groupBy: "project" | "date" | "none";
-  sortBy: "recency" | "created" | "alphabetical";
+/** Anything departs from the default setup — drives the filter button's
+ *  persistent "your view is shaped" accent. */
+export function sidebarPrefsNonDefault(prefs: SidebarPrefs): boolean {
+  return (
+    prefs.status !== SIDEBAR_PREFS_DEFAULTS.status ||
+    prefs.project !== SIDEBAR_PREFS_DEFAULTS.project ||
+    prefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity ||
+    prefs.groupBy !== SIDEBAR_PREFS_DEFAULTS.groupBy ||
+    prefs.sortBy !== SIDEBAR_PREFS_DEFAULTS.sortBy
+  );
 }
 
-export const SIDEBAR_PREFS_DEFAULTS: SidebarPrefs = {
-  status: "active",
-  project: null,
-  activity: "all",
-  groupBy: "project",
-  sortBy: "recency",
-};
+/** The filter subset only (status/project/activity) — group/sort are view
+ *  shape, not filters, so "Clear filters" ignores them. */
+export function sidebarFiltersNonDefault(prefs: SidebarPrefs): boolean {
+  return (
+    prefs.status !== SIDEBAR_PREFS_DEFAULTS.status ||
+    prefs.project !== SIDEBAR_PREFS_DEFAULTS.project ||
+    prefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity
+  );
+}
 
 export interface SidebarEntry {
   session: SessionSummary;

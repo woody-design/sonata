@@ -8,6 +8,9 @@ import { createRequire } from "node:module";
 // MEASURED behavior (A1 lesson).
 const require = createRequire(import.meta.url);
 const S = require("../../dist/reading-core/selectors/sidebar");
+// SidebarPrefs + defaults live in the state model since C3b (type-home
+// ruling: state-model types live in state.ts, no re-exports).
+const { SIDEBAR_PREFS_DEFAULTS } = require("../../dist/reading-core/state");
 
 const NOW = Date.parse("2026-07-03T12:00:00.000Z");
 const HOUR = 3_600_000;
@@ -79,7 +82,7 @@ const entryOf = (session, projectPath = null) => ({
   const all = [activeS, archivedS, inArchivedProject];
   const titles = (entries) => entries.map((e) => e.session.task.title);
 
-  const prefs = { ...S.SIDEBAR_PREFS_DEFAULTS, sortBy: "alphabetical" };
+  const prefs = { ...SIDEBAR_PREFS_DEFAULTS, sortBy: "alphabetical" };
   assert.deepEqual(
     titles(S.applySidebarPrefs(all, prefs, NOW)),
     ["active"],
@@ -102,7 +105,7 @@ const entryOf = (session, projectPath = null) => ({
   const a = entryOf(session("in p1"), "/p1");
   const b = entryOf(session("in p2"), "/p2");
   const chat = entryOf(session("chat"));
-  const prefs = { ...S.SIDEBAR_PREFS_DEFAULTS, project: "/p1" };
+  const prefs = { ...SIDEBAR_PREFS_DEFAULTS, project: "/p1" };
   assert.deepEqual(
     S.applySidebarPrefs([a, b, chat], prefs, NOW).map((e) => e.session.task.title),
     ["in p1"],
@@ -116,7 +119,7 @@ const entryOf = (session, projectPath = null) => ({
   const edge = entryOf(session("edge", { lastActivityAt: agoMs(24 * HOUR) }));
   const stale = entryOf(session("stale", { lastActivityAt: agoMs(25 * HOUR) }));
   const invalid = entryOf(session("invalid", { lastActivityAt: "not-a-date" }));
-  const prefs = { ...S.SIDEBAR_PREFS_DEFAULTS, activity: "1d", sortBy: "alphabetical" };
+  const prefs = { ...SIDEBAR_PREFS_DEFAULTS, activity: "1d", sortBy: "alphabetical" };
   assert.deepEqual(
     S.applySidebarPrefs([fresh, edge, stale, invalid], prefs, NOW).map((e) => e.session.task.title),
     ["edge", "fresh"],
@@ -140,7 +143,7 @@ const entryOf = (session, projectPath = null) => ({
   const b = entryOf(session("alpha", { lastActivityAt: agoMs(1 * HOUR), createdAt: agoMs(3 * DAY) }));
   const c = entryOf(session("Gamma", { lastActivityAt: agoMs(2 * HOUR), createdAt: agoMs(2 * DAY) }));
   const titles = (prefs) =>
-    S.applySidebarPrefs([a, b, c], { ...S.SIDEBAR_PREFS_DEFAULTS, ...prefs }, NOW).map(
+    S.applySidebarPrefs([a, b, c], { ...SIDEBAR_PREFS_DEFAULTS, ...prefs }, NOW).map(
       (e) => e.session.task.title,
     );
   assert.deepEqual(titles({}), ["alpha", "Gamma", "Beta"], "recency: latest activity first");
@@ -190,4 +193,33 @@ const entryOf = (session, projectPath = null) => ({
   );
 }
 
-console.log("reading-sidebar-selectors: 6 fixture groups pass");
+// 7) Non-default predicates (moved from the shell at C3b) — nonDefault covers
+// all five prefs; the filter subset ignores groupBy/sortBy ("Clear filters"
+// leaves the view shape alone).
+{
+  assert.equal(S.sidebarPrefsNonDefault({ ...SIDEBAR_PREFS_DEFAULTS }), false, "defaults → false");
+  assert.equal(
+    S.sidebarFiltersNonDefault({ ...SIDEBAR_PREFS_DEFAULTS }),
+    false,
+    "defaults → filters false",
+  );
+
+  const cases = [
+    ["status", "all", true],
+    ["project", "/p1", true],
+    ["activity", "7d", true],
+    ["groupBy", "date", false],
+    ["sortBy", "created", false],
+  ];
+  for (const [key, value, isFilter] of cases) {
+    const prefs = { ...SIDEBAR_PREFS_DEFAULTS, [key]: value };
+    assert.equal(S.sidebarPrefsNonDefault(prefs), true, `${key} departs → nonDefault`);
+    assert.equal(
+      S.sidebarFiltersNonDefault(prefs),
+      isFilter,
+      `${key} departs → filters ${isFilter} (group/sort are view shape, not filters)`,
+    );
+  }
+}
+
+console.log("reading-sidebar-selectors: 7 fixture groups pass");

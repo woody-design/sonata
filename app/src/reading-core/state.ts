@@ -114,6 +114,79 @@ export interface TaskViewState {
   completedUnseen: boolean;
 }
 
+/** Plain snapshot of an element's viewport rect. The state model must stay
+ *  DOM-type-free (reading-core purity, map §2.2); getBoundingClientRect already
+ *  returns a static snapshot, so a plain field copy is semantically identical. */
+export interface AnchorRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
+/** Captures an AnchorRect from anything that reports its viewport rect (an
+ *  Element at runtime — typed structurally so this module never names a DOM
+ *  type; the shell passes HTMLElements). */
+export function anchorRectOf(element: {
+  getBoundingClientRect(): {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+    width: number;
+    height: number;
+  };
+}): AnchorRect {
+  const rect = element.getBoundingClientRect();
+  return {
+    left: rect.left,
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+/** Sidebar organization preferences. View state — persisted per machine. */
+export interface SidebarPrefs {
+  status: "active" | "archived" | "all";
+  /** providerCwd of the focused project, or null for all. */
+  project: string | null;
+  activity: "1d" | "3d" | "7d" | "30d" | "all";
+  groupBy: "project" | "date" | "none";
+  sortBy: "recency" | "created" | "alphabetical";
+}
+
+export const SIDEBAR_PREFS_DEFAULTS: SidebarPrefs = {
+  status: "active",
+  project: null,
+  activity: "all",
+  groupBy: "project",
+  sortBy: "recency",
+};
+
+export type SidebarMenuState =
+  | { kind: "session"; taskId: string; title: string; archived: boolean; anchor: AnchorRect }
+  | { kind: "project"; path: string; name: string; archived: boolean; anchor: AnchorRect }
+  | { kind: "filter"; anchor: AnchorRect; openSection: FilterMenuSection | null };
+
+export type FilterMenuSection = "status" | "project" | "activity" | "group" | "sort";
+
+/** The sidebar UI cluster (map C3b): the open menu (session / project /
+ *  filter), in-flight renames, and the persisted view prefs. localStorage
+ *  load/save for `prefs` and `collapsedProjects` stays in the shell (ports);
+ *  the shell hydrates both at boot. */
+export interface SidebarState {
+  menu: SidebarMenuState | null;
+  renamingSessionId: string | null;
+  projectRenaming: { path: string; currentName: string } | null;
+  prefs: SidebarPrefs;
+  collapsedProjects: Set<string>;
+}
+
 export interface RendererState {
   taskViews: TaskViewState[];
   activeTaskId: string | null;
@@ -122,6 +195,7 @@ export interface RendererState {
    *  shell's refreshSessionIndex (IPC) writes it; the 150 ms refresh debounce
    *  (T2) stays shell-side. */
   sessionIndex: SessionIndexResponse | null;
+  sidebar: SidebarState;
   taskDraft: TaskLaunchDraft;
   /** New-chat composer attachments, materialized on first send (see ComposerAttachment). */
   draftAttachments: ComposerAttachment[];
@@ -237,6 +311,13 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     taskViews: [],
     activeTaskId: null,
     sessionIndex: null,
+    sidebar: {
+      menu: null,
+      renamingSessionId: null,
+      projectRenaming: null,
+      prefs: { ...SIDEBAR_PREFS_DEFAULTS },
+      collapsedProjects: new Set(),
+    },
     taskDraft: {
       provider: "claude",
       cwd: null,
