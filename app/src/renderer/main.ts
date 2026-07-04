@@ -49,7 +49,6 @@ import {
   errorMessage,
   fileExtension,
   formatIdleDuration,
-  formatLiveElapsed,
   formatTokenCount,
   providerLabel,
 } from "../reading-core/selectors/formatters";
@@ -87,6 +86,16 @@ import { initActions, type ViewMode } from "./actions";
 import { elements, initDom } from "./dom";
 import { initInvalidate } from "./invalidate";
 import { initRender, performDirective, render, renderTranscriptStream } from "./render";
+import {
+  clearUsagePopoverCloseTimer,
+  clearUsagePopoverTimers,
+  initScheduler,
+  scheduleSessionIndexRefresh,
+  scheduleTranscriptRender,
+  scheduleUsagePopoverClose,
+  scheduleUsagePopoverOpen,
+  startStripClockTicker,
+} from "./scheduler";
 import { initApprovalsView, renderOptionPrompt } from "./view/approvals";
 import { initBannersView, renderAttentionBanners } from "./view/banners";
 import {
@@ -126,18 +135,6 @@ const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "dark" : "light";
 
 const state: RendererState = createInitialState(bootReadingSettingsFromDom());
-
-let sessionIndexRefreshTimer: number | null = null;
-
-function scheduleSessionIndexRefresh(): void {
-  if (sessionIndexRefreshTimer !== null) {
-    return;
-  }
-  sessionIndexRefreshTimer = window.setTimeout(() => {
-    sessionIndexRefreshTimer = null;
-    void refreshSessionIndex();
-  }, 150);
-}
 
 async function refreshSessionIndex(): Promise<void> {
   try {
@@ -338,6 +335,12 @@ initRender(state, {
   refreshReport: (taskId) => refreshReport(taskId),
 });
 initInvalidate(render);
+initScheduler(state, {
+  renderTranscriptStream: () => renderTranscriptStream(),
+  refreshSessionIndex: () => refreshSessionIndex(),
+  openUsagePopover: (pinned) => openUsagePopover(pinned),
+  closeUsagePopover: () => closeUsagePopover(),
+});
 initEntryView(state);
 initTranscriptView(state, { composeEntryPanel: renderTaskEntryPanel });
 initBannersView(state);
@@ -551,27 +554,9 @@ initActions({
   },
 });
 
-const USAGE_POPOVER_OPEN_DELAY_MS = 150;
-const USAGE_POPOVER_CLOSE_DELAY_MS = 180;
-
-
-// Ticks the live clocks (status strip + work-trace agent rows) without
-// re-rendering the transcript.
-window.setInterval(() => {
-  elements.statusStrip
-    .querySelectorAll<HTMLElement>(
-      ".strip-status-elapsed[data-started-at], .strip-agent-elapsed[data-started-at]",
-    )
-    .forEach((node) => {
-      node.textContent = formatLiveElapsed(node.dataset.startedAt ?? null);
-    });
-  elements.statusStrip
-    .querySelectorAll<HTMLElement>(".strip-stall-elapsed[data-silent-since]")
-    .forEach((node) => {
-      node.textContent = formatLiveElapsed(node.dataset.silentSince ?? null);
-    });
-}, 1000);
-let transcriptRenderTimer: number | null = null;
+// T1 — the live-clock ticker (scheduler.ts), started at its original boot
+// position.
+startStripClockTicker();
 let composerIsComposing = false;
 let lastComposerCompositionEndAt = 0;
 /** Re-entrancy guard: a send (materialize + submit) is in flight. Blocks a fast
@@ -579,8 +564,6 @@ let lastComposerCompositionEndAt = 0;
  *  double delivery) on the live path, which — unlike new-chat/dormant — has no
  *  state.busy gate. */
 let composerSending = false;
-let usagePopoverOpenTimer: number | null = null;
-let usagePopoverCloseTimer: number | null = null;
 const COMPOSITION_END_SHORTCUT_GUARD_MS = 80;
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
@@ -2039,29 +2022,6 @@ function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement
   render();
 }
 
-function scheduleUsagePopoverOpen(): void {
-  clearUsagePopoverCloseTimer();
-  if (usagePopoverOpenTimer !== null) {
-    window.clearTimeout(usagePopoverOpenTimer);
-  }
-  usagePopoverOpenTimer = window.setTimeout(() => {
-    usagePopoverOpenTimer = null;
-    openUsagePopover(false);
-  }, USAGE_POPOVER_OPEN_DELAY_MS);
-}
-
-function scheduleUsagePopoverClose(): void {
-  clearUsagePopoverOpenTimer();
-  if (state.usagePopover?.pinned) {
-    return;
-  }
-  clearUsagePopoverCloseTimer();
-  usagePopoverCloseTimer = window.setTimeout(() => {
-    usagePopoverCloseTimer = null;
-    closeUsagePopover();
-  }, USAGE_POPOVER_CLOSE_DELAY_MS);
-}
-
 function toggleUsagePopover(): void {
   const view = activeTaskView();
   if (!view?.task) {
@@ -2090,25 +2050,6 @@ function closeUsagePopover(): void {
     return;
   }
   render();
-}
-
-function clearUsagePopoverTimers(): void {
-  clearUsagePopoverOpenTimer();
-  clearUsagePopoverCloseTimer();
-}
-
-function clearUsagePopoverOpenTimer(): void {
-  if (usagePopoverOpenTimer !== null) {
-    window.clearTimeout(usagePopoverOpenTimer);
-    usagePopoverOpenTimer = null;
-  }
-}
-
-function clearUsagePopoverCloseTimer(): void {
-  if (usagePopoverCloseTimer !== null) {
-    window.clearTimeout(usagePopoverCloseTimer);
-    usagePopoverCloseTimer = null;
-  }
 }
 
 async function pickAndAddReferences(): Promise<void> {
@@ -2368,16 +2309,6 @@ function taskLaunchSettings(provider: RuntimeProvider): {
     reasoningEffort: state.taskDraft.reasoningEffort[provider],
     speedMode: state.taskDraft.speedMode[provider],
   };
-}
-
-function scheduleTranscriptRender(): void {
-  if (transcriptRenderTimer !== null) {
-    return;
-  }
-  transcriptRenderTimer = window.setTimeout(() => {
-    transcriptRenderTimer = null;
-    renderTranscriptStream();
-  }, 160);
 }
 
 async function openFloatingPreview(): Promise<void> {

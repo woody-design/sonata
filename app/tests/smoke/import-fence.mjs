@@ -15,8 +15,8 @@ const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "../../src");
 // Most-specific (longest) matching rule wins. A file with no matching rule is
 // a composition root / separate renderer entry (main.ts, inspector.ts,
 // preview.ts, terminal.ts) — unrestricted imports, but still subject to the
-// main-denylist and the acyclicity check. Future layers (renderer/flows/,
-// renderer/scheduler.ts) get rows here as D-late lands them.
+// main-denylist and the acyclicity check. The renderer/flows/ layer gets its
+// row when D4d lands it.
 const RULES = [
   {
     layer: "reading-core/",
@@ -47,6 +47,15 @@ const RULES = [
   {
     layer: "renderer/render.ts",
     allowedPrefixes: ["renderer/view/", "renderer/dom", "reading-core/", "shared/"],
+    allowedPackages: [],
+  },
+  // The scheduling layer (D4b): timing glue only — DOM shell (T1 reads the
+  // strip clocks) and the pure core (formatters, state type). Fire targets
+  // are init-bound deps, so the scheduler never imports paint or flow
+  // modules.
+  {
+    layer: "renderer/scheduler.ts",
+    allowedPrefixes: ["renderer/dom", "reading-core/", "shared/"],
     allowedPackages: [],
   },
   // The seams and the DOM shell are leaves: they import nothing renderer-
