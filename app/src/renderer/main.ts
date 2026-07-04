@@ -175,11 +175,8 @@ import * as composerTransitions from "../reading-core/transitions/composer";
 import * as popoverTransitions from "../reading-core/transitions/popovers";
 import * as sessionTransitions from "../reading-core/transitions/session";
 import * as sidebarTransitions from "../reading-core/transitions/sidebar";
-
-
-/** The two co-equal surfaces of a task: the crafted reading view and the raw
- *  terminal. Both ARE Duet — the switch picks which lens is in front. */
-type ViewMode = "read" | "terminal";
+import { initActions, type ViewMode } from "./actions";
+import { initInvalidate } from "./invalidate";
 
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -1333,6 +1330,28 @@ const elements = {
   runColumn: getElement<HTMLElement>("run-column"),
 };
 
+// ── Boot sequence (map R4) ───────────────────────────────────────────────────
+// Module evaluation order is load-bearing: state atom → shell template →
+// `elements` registry → seam binding (here) → icon/pref hydrates + listener
+// binding → runtime subscriptions → async hydrates → first render(). The
+// seams MUST be bound before the first render — moved view modules call them
+// mid-render — and extraction never moves initialization into import-time
+// side effects of new modules (R4; the TDZ landmine is documented at
+// `lastPushedTerminalTask`). The referenced implementations are hoisted
+// function declarations, so binding here (before their textual definitions)
+// is safe.
+initInvalidate(render);
+initActions({
+  activeTaskView: () => activeTaskView(),
+  setViewMode: (mode) => setViewMode(mode),
+  scrollToPromptTurn: (turnKey) => scrollToPromptTurn(turnKey),
+  restorePromptNavAfterRender: () => restorePromptNavAfterRender(),
+  scheduleStickyPromptSync: () => scheduleStickyPromptSync(),
+  renderTaskEntryPanel: () => renderTaskEntryPanel(),
+  pickTaskFolder: () => {
+    void pickTaskFolder();
+  },
+});
 
 const USAGE_POPOVER_OPEN_DELAY_MS = 150;
 const USAGE_POPOVER_CLOSE_DELAY_MS = 180;
