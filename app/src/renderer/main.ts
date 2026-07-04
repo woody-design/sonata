@@ -13,49 +13,23 @@ import {
   normalizeResumeSettings,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
-  type ReadingModeSetting,
   type ReadingSettings,
   type ResolvedReadingMode,
   type ResumePolicyId,
   type ResumeSettings,
 } from "../shared/types";
 import type {
-  ApprovalDecision,
-  CliActivity,
-  AttachmentKind,
-  DeliveryAttachment,
-  ReferenceResult,
-  DeliveryQueueItem,
-  DeliveryTaskState,
-  LaunchSpeedMode,
-  ReasoningEffort,
   RuntimeProvider,
   SlashCommandEntry,
   SlashCommandsResponse,
 } from "../shared/types";
-import type {
-  ApprovalDetectedEvent,
-  OptionPromptDetectedEvent,
-  TranscriptBlocksEvent,
-} from "../shared/types/events";
-import type {
-  FocusArtifactInMainRequest,
-  TerminalWindowState,
-} from "../shared/types/ipc";
-import type { WorkingStatusState } from "../shared/types/working-status";
 import { classifySlashIntent } from "../shared/slash/intent";
 import {
   clamp,
   errorMessage,
-  fileExtension,
-  formatIdleDuration,
-  formatTokenCount,
   providerLabel,
 } from "../reading-core/selectors/formatters";
-import {
-  filteredSlashItems,
-  optimisticReceiptLines,
-} from "../reading-core/selectors/composer";
+import { filteredSlashItems } from "../reading-core/selectors/composer";
 import {
   dormantArmed,
   hasActiveRun,
@@ -65,9 +39,6 @@ import {
   SIDEBAR_PREFS_DEFAULTS,
   activeTaskView as activeTaskViewOf,
   createInitialState,
-  createTaskView,
-  taskViewForId,
-  upsertTaskView,
   type ComposerAttachment,
   type ComposerMenuState,
   type PopoverAnchor,
@@ -82,8 +53,36 @@ import * as composerTransitions from "../reading-core/transitions/composer";
 import * as popoverTransitions from "../reading-core/transitions/popovers";
 import * as sessionTransitions from "../reading-core/transitions/session";
 import * as sidebarTransitions from "../reading-core/transitions/sidebar";
-import { initActions, type ViewMode } from "./actions";
+import { initActions } from "./actions";
 import { elements, initDom } from "./dom";
+import {
+  composerStatusHint,
+  hasFileTransfer,
+  initAttachmentFlows,
+  intakeFiles,
+  pickAndAddReferences,
+  removeComposerAttachment,
+} from "./flows/attachments";
+import {
+  answerOptionPrompt,
+  archiveSessionFromSidebar,
+  decideApproval,
+  deleteSessionFromSidebar,
+  focusArtifactFromPreview,
+  initSessionFlows,
+  openFloatingInspector,
+  openFloatingPreview,
+  pickTaskFolder,
+  refreshReport,
+  refreshSessionIndex,
+  resolveResumeChoice,
+  selectSession,
+  setViewMode,
+  startNewChat,
+  stopRun,
+  submitPrompt,
+  surfaceTerminalWindow,
+} from "./flows/session-flows";
 import { initInvalidate } from "./invalidate";
 import { initRender, performDirective, render, renderTranscriptStream } from "./render";
 import {
@@ -135,32 +134,6 @@ const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "dark" : "light";
 
 const state: RendererState = createInitialState(bootReadingSettingsFromDom());
-
-async function refreshSessionIndex(): Promise<void> {
-  try {
-    // Always fetch the full record; status filtering is a view decision.
-    state.sessionIndex = await window.duetRuntime.readSessionIndex({ includeArchived: true });
-    // The boot screen IS a New Chat entry: preselect the last-used
-    // folder until the user picks one themselves.
-    if (
-      !state.activeTaskId &&
-      !state.taskDraftFolderTouched &&
-      state.taskDraft.cwd === null &&
-      state.sessionIndex.lastUsedFolder
-    ) {
-      state.taskDraft.cwd = state.sessionIndex.lastUsedFolder;
-      render();
-      return;
-    }
-    if (sessionTransitions.syncTaskViewsFromIndex(state, state.sessionIndex)) {
-      render();
-      return;
-    }
-    renderSidebar();
-  } catch (error) {
-    console.debug("session index read failed", error);
-  }
-}
 
 const SIDEBAR_PREFS_KEY = "duet.sidebar.prefs";
 
@@ -224,89 +197,6 @@ function toggleProjectCollapsed(path: string): void {
 }
 
 
-async function archiveSessionFromSidebar(taskId: string): Promise<void> {
-  try {
-    await window.duetRuntime.archiveSession({ taskId, archived: true });
-    // The main process stopped the PTY; drop the local view either way.
-    removeTaskViewLocally(taskId);
-  } catch (error) {
-    state.status = errorMessage(error);
-    render();
-  }
-}
-
-async function deleteSessionFromSidebar(taskId: string, title: string): Promise<void> {
-  const confirmed = window.confirm(
-    `Delete "${title}"?\n\nThis removes the session from Duet. The provider transcript and your working folder are kept.`,
-  );
-  if (!confirmed) {
-    return;
-  }
-  try {
-    await window.duetRuntime.deleteSession({ taskId });
-    removeTaskViewLocally(taskId);
-  } catch (error) {
-    state.status = errorMessage(error);
-    render();
-  }
-}
-
-function removeTaskViewLocally(taskId: string): void {
-  if (sessionTransitions.removeTaskView(state, taskId)) {
-    // The closed view's draft dies with it; the composer hands over to the
-    // New Chat slot.
-    restoreComposerDraft();
-    // The terminal window disposes this task's xterm when it drops out of the
-    // active-task broadcast's openTaskIds; nothing terminal-related lingers here.
-  }
-  render();
-}
-
-async function selectSession(taskId: string): Promise<void> {
-  closeSidebarMenu();
-  if (taskViewForId(state, taskId)) {
-    activateTask(taskId);
-    return;
-  }
-
-  // Dormant session: the read path is pure file reads — render the
-  // transcript immediately, never spawn a PTY for browsing.
-  state.busy = true;
-  state.status = "Opening session";
-  render();
-  try {
-    const snapshot = await window.duetRuntime.readSession({ taskId });
-    const view = createTaskView(snapshot.task, snapshot.live ? "Ready" : "Idle", snapshot.live);
-    view.report = snapshot.report;
-    view.transcriptSources = snapshot.sources;
-    for (const block of snapshot.blocks) {
-      view.transcriptBlockOrder.push(block.id);
-      view.transcriptBlocks.set(block.id, block);
-    }
-    upsertTaskView(state, view);
-    activateTask(taskId);
-  } catch (error) {
-    state.status = errorMessage(error);
-  } finally {
-    state.busy = false;
-    render();
-  }
-}
-
-function startNewChat(folder?: string | null): void {
-  closeSidebarMenu();
-  exitPromptNav({ focusComposer: false });
-  if (state.activeTaskId !== null) {
-    saveComposerDraft();
-    state.activeTaskId = null;
-    restoreComposerDraft();
-  }
-  state.usagePopover = null;
-  sessionTransitions.resetTaskDraftForNewChat(state, folder);
-  render();
-  elements.promptInput.focus();
-}
-
 function bootReadingSettingsFromDom(): ReadingSettings {
   const root = document.documentElement;
   return normalizeReadingSettings({
@@ -335,6 +225,15 @@ initRender(state, {
   refreshReport: (taskId) => refreshReport(taskId),
 });
 initInvalidate(render);
+initSessionFlows(state, {
+  closeSidebarMenu: () => closeSidebarMenu(),
+  exitPromptNav: (options) => exitPromptNav(options),
+  renderOptionPrompt: () => renderOptionPrompt(),
+  renderSidebar: () => renderSidebar(),
+  clearUsagePopoverTimers: () => clearUsagePopoverTimers(),
+  consumeSlashSubmitGuard: (text) => consumeSlashSubmitGuard(text),
+});
+initAttachmentFlows(state);
 initScheduler(state, {
   renderTranscriptStream: () => renderTranscriptStream(),
   refreshSessionIndex: () => refreshSessionIndex(),
@@ -559,14 +458,7 @@ initActions({
 startStripClockTicker();
 let composerIsComposing = false;
 let lastComposerCompositionEndAt = 0;
-/** Re-entrancy guard: a send (materialize + submit) is in flight. Blocks a fast
- *  double-Enter from re-materializing the same attachments (duplicate blob +
- *  double delivery) on the live path, which — unlike new-chat/dormant — has no
- *  state.busy gate. */
-let composerSending = false;
 const COMPOSITION_END_SHORTCUT_GUARD_MS = 80;
-const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
-const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
 elements.sidebarToggle.append(lucideIcon(PanelLeft));
 elements.sidebarCollapse.append(lucideIcon(PanelLeft));
@@ -1391,392 +1283,12 @@ void hydrateClaudeDefaults().finally(() => {
 
 render();
 
-async function hydrateTranscript(taskId: string): Promise<void> {
-  const view = taskViewForId(state, taskId);
-  if (!view?.task) {
-    return;
-  }
-  const response = await window.duetRuntime.readTranscript({ taskId });
-  view.transcriptSources = response.sources;
-  view.transcriptBlocks = new Map();
-  view.transcriptBlockOrder = [];
-  for (const block of response.blocks) {
-    view.transcriptBlockOrder.push(block.id);
-    view.transcriptBlocks.set(block.id, block);
-  }
-  markViewChanged(view);
-}
-
-async function hydrateUsage(taskId: string): Promise<void> {
-  const view = taskViewForId(state, taskId);
-  if (!view?.task) {
-    return;
-  }
-  view.usageSnapshot = await window.duetRuntime.readUsage({ taskId });
-  markViewChanged(view);
-}
-
 // The shell's zero-arg convenience over the reading-core helper (the logic
 // moved to state.ts at D-mid-0 so views and shell share one definition).
 function activeTaskView(): TaskViewState | null {
   return activeTaskViewOf(state);
 }
 
-function activateTask(taskId: string): void {
-  const view = taskViewForId(state, taskId);
-  if (!view) {
-    return;
-  }
-  const switching = state.activeTaskId !== taskId;
-  if (switching) {
-    saveComposerDraft();
-    exitPromptNav({ focusComposer: false });
-    state.usagePopover = null;
-    clearUsagePopoverTimers();
-  }
-  state.activeTaskId = taskId;
-  if (switching) {
-    restoreComposerDraft();
-  }
-  sessionTransitions.markViewSeen(view);
-  render();
-}
-
-// The composer text is per-session state, exactly like the attachments beside
-// it (pendingAttachments) — a shared DOM textarea must never carry one
-// session's words into another. While a session is active the DOM stays the
-// live truth (send/slash/reference paths write it directly); these two hooks
-// park and restore it at the only moments the composer changes owners. New
-// Chat (no active task) has its own slot (state.newChatComposerDraft).
-
-function saveComposerDraft(): void {
-  composerTransitions.parkComposerDraft(state, elements.promptInput.value);
-}
-
-function restoreComposerDraft(): void {
-  const view = activeTaskView();
-  elements.promptInput.value = view ? view.composerDraft : state.newChatComposerDraft;
-}
-
-function markViewChanged(view: TaskViewState): void {
-  if (isActiveView(view)) {
-    render();
-    return;
-  }
-  view.unread = true;
-}
-
-function isActiveView(view: TaskViewState): boolean {
-  return Boolean(view.task && view.task.id === state.activeTaskId);
-}
-
-async function createTask(
-  provider: RuntimeProvider,
-  options: { cwd?: string | null } = {},
-): Promise<void> {
-  const providerName = providerLabel(provider);
-  state.busy = true;
-  state.status = `Starting ${providerName}`;
-  state.taskDraft.settingsOpen = false;
-  state.taskDraft.settingsAnchor = null;
-  state.taskDraft.message = {
-    tone: "info",
-    text: `Starting ${providerName} Task...`,
-  };
-  render();
-
-  try {
-    const launchSettings = taskLaunchSettings(provider);
-    const response = await window.duetRuntime.createTask({
-      provider,
-      ...(options.cwd ? { cwd: options.cwd } : {}),
-      model: launchSettings.model,
-      reasoningEffort: launchSettings.reasoningEffort,
-      speedMode: launchSettings.speedMode,
-      approval: "on-request",
-      sandbox: "read-only",
-      ...(provider === "claude" && state.taskDraft.remoteControl ? { remoteControl: true } : {}),
-    });
-    const view = createTaskView(response.task, `${providerName} PTY ${response.runtime.pid}`);
-    if (provider === "claude" && state.taskDraft.remoteControl) {
-      // Spawned with --remote-control: reflect "on" immediately; the scraped URL
-      // confirms and fills the link a beat later (~1.2s).
-      view.remoteControl.active = true;
-    }
-    upsertTaskView(state, view);
-    activateTask(response.task.id);
-    void hydrateTranscript(response.task.id);
-    void hydrateUsage(response.task.id);
-  } catch (error) {
-    const message = errorMessage(error);
-    state.status = message;
-    state.taskDraft.message = {
-      tone: "error",
-      text: message,
-    };
-  } finally {
-    state.busy = false;
-    render();
-  }
-}
-
-async function submitPrompt(): Promise<void> {
-  const view = activeTaskView();
-  const text = elements.promptInput.value.trim();
-
-  if (consumeSlashSubmitGuard(text)) {
-    return;
-  }
-  // A send is already in flight — drop this one (a fast double-Enter would
-  // otherwise re-materialize the same attachments: duplicate blob + double send).
-  if (composerSending) {
-    return;
-  }
-  // Nothing-to-send checks first, so the guard is never held for a no-op.
-  if (!view) {
-    if (!text && state.draftAttachments.length === 0) {
-      return;
-    }
-  } else if (!view.task) {
-    return;
-  } else if (!text && view.pendingAttachments.length === 0) {
-    view.status = "Type a message before sending";
-    render();
-    return;
-  }
-
-  composerSending = true;
-  try {
-    if (!view) {
-      // New chat: the first message (text and/or attachments) creates the session.
-      await createSessionFromComposer(text);
-    } else if (!view.live) {
-      // Dormant session: lazy spawn + native resume, then queue the message.
-      await resumeSessionAndSend(view, text);
-    } else if (view.task) {
-      const taskId = view.task.id;
-      view.status = "Queued";
-      render();
-      const attachments = await materializeAttachments(view.pendingAttachments, taskId);
-      await window.duetRuntime.submitPrompt({ taskId, text, attachments });
-      elements.promptInput.value = "";
-      clearComposerAttachments(view.pendingAttachments);
-    }
-  } catch (error) {
-    if (view?.task) {
-      view.status = errorMessage(error);
-    } else {
-      state.status = errorMessage(error);
-    }
-  } finally {
-    composerSending = false;
-    render();
-  }
-}
-
-async function createSessionFromComposer(text: string): Promise<void> {
-  await createTask(state.taskDraft.provider, { cwd: state.taskDraft.cwd });
-  const view = activeTaskView();
-  if (!view?.task) {
-    // Creation failed; createTask already surfaced the error.
-    return;
-  }
-  // Deferred creation is an ownership handover: this draft now belongs to the
-  // session it just created. createTask→activateTask parked the still-visible
-  // text into the New Chat slot a moment ago — consume it, or the next New
-  // Chat resurrects an already-sent prompt.
-  state.newChatComposerDraft = "";
-  try {
-    // The session now exists — materialize the held draft (copy bitmaps, pass
-    // references through) and deliver with the first prompt.
-    const attachments = await materializeAttachments(state.draftAttachments, view.task.id);
-    await window.duetRuntime.submitPrompt({ taskId: view.task.id, text, attachments });
-    elements.promptInput.value = "";
-    clearComposerAttachments(state.draftAttachments);
-  } catch (error) {
-    view.status = errorMessage(error);
-    // The session was created but delivery failed — don't lose the user's
-    // words or attachments. The text goes back into the composer the user is
-    // now standing in (the new task's), visible and retriable; the attachment
-    // draft moves into the task's pending list the same way (keep their
-    // preview URLs; don't revoke).
-    elements.promptInput.value = text;
-    view.pendingAttachments.push(...state.draftAttachments);
-    state.draftAttachments.length = 0;
-  } finally {
-    render();
-  }
-}
-
-async function resumeSessionAndSend(view: TaskViewState, text: string): Promise<void> {
-  if (!view.task) {
-    return;
-  }
-  const taskId = view.task.id;
-
-  // The resume moment (slice C): for a large dormant Claude session with
-  // policy "ask", the first send CONVERTS into the choice — the message
-  // stays composed and sends right after the user decides.
-  let resumeMode: "full" | "summary" | undefined;
-  try {
-    const preparation = await window.duetRuntime.prepareResume({ taskId });
-    if (preparation.needsChoice) {
-      view.resumeChoice = {
-        idleMs: preparation.idleMs,
-        totalTokens: preparation.totalTokens,
-        bridgeDismissed: preparation.bridgeDismissed,
-      };
-      view.status = "Choose how to resume";
-      render();
-      return;
-    }
-    if (preparation.overThreshold && preparation.policy !== "ask") {
-      resumeMode = preparation.policy;
-      // The applied default stays visible — a receipt, not a silent policy.
-      view.status =
-        preparation.policy === "full"
-          ? `Resuming in full (your default · ⌘, to change) — ${resumeCostLabel(preparation.idleMs, preparation.totalTokens)}`
-          : `Resuming from summary (your default · ⌘, to change) — /compact runs first`;
-      render();
-    }
-  } catch {
-    // Preparation is best-effort context; resume itself proceeds.
-  }
-
-  await openDormantSessionAndSend(view, text, resumeMode);
-}
-
-async function openDormantSessionAndSend(
-  view: TaskViewState,
-  text: string,
-  resumeMode: "full" | "summary" | undefined,
-): Promise<void> {
-  if (!view.task) {
-    return;
-  }
-  const taskId = view.task.id;
-  state.busy = true;
-  if (!view.status.startsWith("Resuming")) {
-    view.status = "Resuming session";
-  }
-  render();
-  try {
-    const response = await window.duetRuntime.openTask({
-      taskId,
-      ...(resumeMode ? { resumeMode } : {}),
-      ...(view.task.provider === "claude" && dormantArmed(view, state.remoteControlDefault)
-        ? { remoteControl: true }
-        : {}),
-    });
-    view.task = response.task;
-    view.live = true;
-    view.resumeChoice = null;
-    view.status = response.resumedProviderSession
-      ? "Resumed — your message will send when the agent is ready"
-      : "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable";
-    // The session is live now — materialize the held items (copy bitmaps, pass
-    // references through) and deliver.
-    const attachments = await materializeAttachments(view.pendingAttachments, taskId);
-    if (text || attachments.length > 0) {
-      await window.duetRuntime.submitPrompt({ taskId, text, attachments });
-      elements.promptInput.value = "";
-      clearComposerAttachments(view.pendingAttachments);
-    }
-    void hydrateUsage(taskId);
-  } catch (error) {
-    view.status = errorMessage(error);
-  } finally {
-    state.busy = false;
-    render();
-  }
-}
-
-async function resolveResumeChoice(mode: "full" | "summary"): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task || !view.resumeChoice) {
-    return;
-  }
-  if (elements.resumeRemember.checked) {
-    // The moment is where the setting is born; the chooser collapses for
-    // future resumes and the policy lives in Duet's own settings store.
-    // Provenance marks the birth so the Settings page can attribute it.
-    try {
-      await window.duetRuntime.writeResumeSettings({
-        policy: mode,
-        provenance: { source: "moment", at: new Date().toISOString() },
-      });
-    } catch {
-      // Remembering is best-effort; the chosen resume still proceeds.
-    }
-  }
-  view.resumeChoice = null;
-  elements.resumeRemember.checked = false;
-  const text = elements.promptInput.value.trim();
-  await openDormantSessionAndSend(view, text, mode);
-}
-
-function resumeCostLabel(idleMs: number | null, totalTokens: number | null): string {
-  const parts: string[] = [];
-  if (idleMs !== null) {
-    parts.push(`idle ${formatIdleDuration(idleMs)}`);
-  }
-  if (totalTokens !== null) {
-    parts.push(`~${formatTokenCount(totalTokens)} tokens`);
-  }
-  return parts.join(" · ") || "size unknown";
-}
-
-async function decideApproval(decision: ApprovalDecision): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-
-  state.busy = true;
-  render();
-  try {
-    await window.duetRuntime.decideApproval({
-      taskId: view.task.id,
-      decision,
-      approvalId: view.pendingApproval?.approvalId ?? null,
-    });
-  } catch (error) {
-    view.status = errorMessage(error);
-  } finally {
-    state.busy = false;
-    render();
-  }
-}
-
-async function stopRun(): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-
-  view.status = "Stopped";
-  render();
-  try {
-    await window.duetRuntime.stopRun({ taskId: view.task.id, inspectDelayMs: 6000 });
-  } catch (error) {
-    view.status = errorMessage(error);
-  } finally {
-    render();
-  }
-}
-
-async function refreshReport(taskId = state.activeTaskId): Promise<void> {
-  if (!taskId) {
-    return;
-  }
-  const view = taskViewForId(state, taskId);
-  if (!view?.task) {
-    return;
-  }
-
-  view.report = await window.duetRuntime.readReport({ taskId: view.task.id });
-  markViewChanged(view);
-}
 
 
 // --- Slash command picker -------------------------------------------------
@@ -2000,17 +1512,6 @@ function consumeSlashSubmitGuard(text: string): boolean {
   return true;
 }
 
-function composerStatusHint(text: string): void {
-  const view = activeTaskView();
-  if (view) {
-    view.status = text;
-  } else {
-    state.taskDraft.message = { tone: "info", text };
-  }
-  render();
-}
-
-
 function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement): void {
   clearUsagePopoverTimers();
   const rect = anchor.getBoundingClientRect();
@@ -2052,349 +1553,6 @@ function closeUsagePopover(): void {
   render();
 }
 
-async function pickAndAddReferences(): Promise<void> {
-  let paths: string[];
-  try {
-    paths = await window.duetRuntime.pickReferences();
-  } catch (error) {
-    setComposerStatus(activeTaskView(), errorMessage(error));
-    return;
-  }
-  if (paths.length > 0) {
-    await addReferences(paths);
-  }
-}
-
-// Route dropped/pasted Files by the one fact that matters: does it already have
-// a path on disk? A real Electron file (drag/paste of a file, or the picker)
-// has a path → REFERENCE it (no copy). A path-less image (clipboard bitmap /
-// screenshot) has no path → COPY it. webUtils.getPathForFile returns "" for a
-// bitmap — that is the discriminator.
-async function intakeFiles(files: File[]): Promise<void> {
-  if (files.length === 0) {
-    return;
-  }
-  const bitmaps: File[] = [];
-  const referencePaths: string[] = [];
-  for (const file of files) {
-    const filePath = window.duetRuntime.getPathForFile(file);
-    if (filePath) {
-      referencePaths.push(filePath);
-    } else if (isSupportedImageFile(file)) {
-      bitmaps.push(file);
-    }
-  }
-  if (referencePaths.length === 0 && bitmaps.length === 0) {
-    // We prevented the default paste/drop but found nothing attachable (e.g. a
-    // path-less, unsupported clipboard item) — say so instead of doing nothing.
-    setComposerStatus(activeTaskView(), "Nothing attachable here — try a file, folder, or image.");
-    return;
-  }
-  if (referencePaths.length > 0) {
-    await addReferences(referencePaths);
-  }
-  if (bitmaps.length > 0) {
-    addBitmaps(bitmaps);
-  }
-}
-
-/** The composer attachment list for the current surface: a live task's pending
- *  list, or the new-chat draft. */
-function composerAttachmentList(): ComposerAttachment[] {
-  const view = activeTaskView();
-  return view?.task ? view.pendingAttachments : state.draftAttachments;
-}
-
-// Path-less image bitmaps (screenshots, copied images) → held as a File and
-// copied into the blob dir only on send (lazy). Chipped with a thumbnail.
-function addBitmaps(files: File[]): void {
-  const list = composerAttachmentList();
-  for (const file of files) {
-    list.push({
-      file,
-      reference: null,
-      previewUrl: URL.createObjectURL(file),
-      name: file.name,
-      kind: "image",
-    });
-  }
-  render();
-}
-
-// User paths (dragged/pasted files, picked files/folders) → referenced by
-// absolute path, never copied. createReference classifies + returns a capped
-// thumbnail for images; files/folders fall back to a kind icon.
-async function addReferences(paths: string[]): Promise<void> {
-  let references: ReferenceResult[];
-  try {
-    references = await window.duetRuntime.createReference({ paths });
-  } catch (error) {
-    setComposerStatus(activeTaskView(), errorMessage(error));
-    return;
-  }
-  const list = composerAttachmentList();
-  for (const { attachment, previewDataUrl } of references) {
-    list.push({
-      file: null,
-      reference: attachment,
-      previewUrl: previewDataUrl,
-      name: attachment.originalName,
-      kind: attachment.kind,
-    });
-  }
-  // createReference skips paths that vanished / are inaccessible — don't drop them
-  // silently (Invariant 5): say how many made it.
-  if (references.length < paths.length) {
-    setComposerStatus(
-      activeTaskView(),
-      `Attached ${references.length} of ${paths.length} — the rest were unavailable.`,
-    );
-    return;
-  }
-  render();
-}
-
-/** Surface a composer status on the active view, or globally for a new chat.
- *  (The channel's suppression policy — composerStatusText — lives with the
- *  render orchestrator in render.ts.) */
-function setComposerStatus(view: TaskViewState | null, message: string): void {
-  if (view?.task) {
-    view.status = message;
-  } else {
-    state.status = message;
-  }
-  render();
-}
-
-/** Remove a held composer attachment. Renderer-only: nothing is on disk yet — a
- *  bitmap is copied only on send, a reference is never copied — so dropping the
- *  chip (and revoking any object URL) is the entire removal. Never touches a
- *  user's original (Invariant 4). */
-function removeComposerAttachment(list: ComposerAttachment[], target: ComposerAttachment): void {
-  const index = list.indexOf(target);
-  if (index === -1) {
-    return;
-  }
-  const [removed] = list.splice(index, 1);
-  if (removed?.previewUrl) {
-    URL.revokeObjectURL(removed.previewUrl);
-  }
-  render();
-}
-
-function clearComposerAttachments(list: ComposerAttachment[]): void {
-  for (const item of list) {
-    if (item.previewUrl) {
-      URL.revokeObjectURL(item.previewUrl);
-    }
-  }
-  list.length = 0;
-}
-
-/** Turn the held items into DeliveryAttachments for the prompt: a bitmap is
- *  copied into the (now live) task's blob dir; a reference passes through (never
- *  copied). The runtime is always live by the time this runs (createTask /
- *  openTask have spawned it). */
-async function materializeAttachments(
-  items: ComposerAttachment[],
-  taskId: string,
-): Promise<DeliveryAttachment[]> {
-  const attachments: DeliveryAttachment[] = [];
-  for (const item of items) {
-    if (item.reference) {
-      attachments.push(item.reference);
-    } else if (item.file) {
-      // Narrow the opaque handle back to File (shell-side; see ComposerAttachment.file).
-      const file = item.file as File;
-      const bytes = await file.arrayBuffer();
-      attachments.push(
-        await window.duetRuntime.createAttachment({
-          taskId,
-          originalName: file.name,
-          mediaType: file.type,
-          bytes,
-        }),
-      );
-    }
-  }
-  return attachments;
-}
-
-function isSupportedImageFile(file: File): boolean {
-  return SUPPORTED_IMAGE_MIME_TYPES.has(file.type) || SUPPORTED_IMAGE_EXTENSIONS.has(fileExtension(file.name));
-}
-
-function hasFileTransfer(dataTransfer: DataTransfer | null): boolean {
-  return Array.from(dataTransfer?.items ?? []).some((item) => item.kind === "file");
-}
-
-
-async function answerOptionPrompt(): Promise<void> {
-  const view = activeTaskView();
-  const prompt = view?.pendingOptionPrompt ?? null;
-  if (!view?.task || !prompt) {
-    return;
-  }
-  const selections = view.optionPromptSelections;
-  if (
-    selections.length !== prompt.questions.length ||
-    selections.some((selection) => selection < 0)
-  ) {
-    return; // not every question answered yet
-  }
-
-  view.optionPromptBusy = true;
-  renderOptionPrompt();
-  try {
-    await window.duetRuntime.answerOptionPrompt({
-      taskId: view.task.id,
-      toolUseId: prompt.toolUseId,
-      optionIndices: [...selections],
-    });
-    // Optimistic receipt from the local choice; the resolved event upgrades it
-    // to the provider's verbatim labels (receipt-by-observation).
-    view.optionPromptReceipt = {
-      toolUseId: prompt.toolUseId,
-      reconciled: false,
-      lines: optimisticReceiptLines(prompt, selections),
-    };
-    view.pendingOptionPrompt = null;
-    view.optionPromptBusy = false;
-    view.status = "Answer sent";
-    markViewChanged(view);
-  } catch (error) {
-    view.optionPromptBusy = false;
-    view.status = errorMessage(error);
-    markViewChanged(view);
-  }
-}
-
-
-async function pickTaskFolder(): Promise<void> {
-  state.busy = true;
-  state.status = "Choosing Task Folder";
-  state.taskDraft.settingsOpen = false;
-  state.taskDraft.settingsAnchor = null;
-  state.taskDraft.message = {
-    tone: "info",
-    text: "Choose the folder where this Task should run.",
-  };
-  render();
-
-  try {
-    const response = await window.duetRuntime.pickFolder();
-    if (response.path) {
-      sessionTransitions.applyPickedTaskFolder(state, response.path);
-    }
-  } catch (error) {
-    const message = errorMessage(error);
-    state.status = message;
-    state.taskDraft.message = {
-      tone: "error",
-      text: message,
-    };
-  } finally {
-    state.busy = false;
-    render();
-  }
-}
-
-function taskLaunchSettings(provider: RuntimeProvider): {
-  model: string | null;
-  reasoningEffort: ReasoningEffort | null;
-  speedMode: LaunchSpeedMode | null;
-} {
-  return {
-    model: state.taskDraft.model[provider],
-    reasoningEffort: state.taskDraft.reasoningEffort[provider],
-    speedMode: state.taskDraft.speedMode[provider],
-  };
-}
-
-async function openFloatingPreview(): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-
-  await window.duetRuntime.openPreview({ taskId: view.task.id });
-}
-
-async function openFloatingInspector(): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-
-  await window.duetRuntime.openInspector({
-    taskId: view.task.id,
-  });
-}
-
-
-/** Switch the active task's surface (Read ⇄ Terminal). Per-task: only the active
- *  task is touched. Leaving Terminal hands the keys back — control must never be
- *  held where the human can't type (model Y). Entering Terminal attaches + fits
- *  the xterm once the pane is visible. */
-function surfaceTerminalWindow(): void {
-  void window.duetRuntime.setTerminalWindowOpen(true).catch(() => {});
-}
-
-function setViewMode(mode: ViewMode): void {
-  // The terminal is its own window now: "switch to terminal" opens and focuses
-  // it, and there is no in-pane Read/Terminal switch to toggle. Keeping this as
-  // the single choke point lets every "surface the terminal" caller (approvals,
-  // modals, slash commands, the delivery queue) keep working unchanged.
-  if (mode === "terminal") {
-    surfaceTerminalWindow();
-  }
-}
-
-
-// "Show in main" from the Preview window: activate the task and, when the
-// request names a run, highlight and scroll to it. The artifact-strip scroll
-// target retired with the strip (2026-07-03).
-function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
-  const view = taskViewForId(state, request.taskId);
-  if (!view?.task) {
-    return;
-  }
-
-  if (state.activeTaskId !== request.taskId) {
-    saveComposerDraft();
-    state.activeTaskId = request.taskId;
-    restoreComposerDraft();
-  }
-  view.unread = false;
-  if (request.runId) {
-    view.highlightedRunId = request.runId;
-  }
-  render();
-
-  queueMicrotask(() => {
-    if (request.runId) {
-      scrollRunIntoView(request.runId);
-    }
-  });
-}
-
-function focusRun(runId: string): void {
-  const view = activeTaskView();
-  if (view) {
-    view.highlightedRunId = runId;
-  }
-  render();
-  queueMicrotask(() => {
-    scrollRunIntoView(runId);
-  });
-}
-
-function scrollRunIntoView(runId: string): void {
-  const runCard = Array.from(elements.runList.querySelectorAll<HTMLElement>(".turn-card")).find(
-    (item) => item.dataset.runId === runId,
-  );
-  runCard?.scrollIntoView({ block: "center" });
-}
 
 function focusComposer(): void {
   elements.promptInput.focus();

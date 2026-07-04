@@ -15,8 +15,8 @@ const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "../../src");
 // Most-specific (longest) matching rule wins. A file with no matching rule is
 // a composition root / separate renderer entry (main.ts, inspector.ts,
 // preview.ts, terminal.ts) — unrestricted imports, but still subject to the
-// main-denylist and the acyclicity check. The renderer/flows/ layer gets its
-// row when D4d lands it.
+// main-denylist and the acyclicity check. All mapped layers have landed
+// (D-late complete); new modules must claim a row here.
 const RULES = [
   {
     layer: "reading-core/",
@@ -38,6 +38,24 @@ const RULES = [
       "shared/",
     ],
     allowedPackages: ["lucide", "dompurify", "marked"],
+  },
+  // Flows (D4d): async orchestrations (create/submit/resume/approve…). May
+  // import the paint layer (render), the invalidate seam, the actions
+  // INTERFACE (types only in practice), the DOM shell, and the pure core —
+  // never view families, the scheduler, or main; their calls into those
+  // arrive as init-bound deps from the composition root.
+  {
+    layer: "renderer/flows/",
+    allowedPrefixes: [
+      "renderer/flows/",
+      "renderer/render",
+      "renderer/invalidate",
+      "renderer/actions",
+      "renderer/dom",
+      "reading-core/",
+      "shared/",
+    ],
+    allowedPackages: [],
   },
   // The paint orchestrator (D4a): full render / transcript stream / directive
   // performer. May reach every view family, the DOM shell, and the pure core;
