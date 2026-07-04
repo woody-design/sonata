@@ -41,10 +41,11 @@ const RULES = [
     allowedPackages: ["lucide", "dompurify", "marked"],
   },
   // Flows (D4d): async orchestrations (create/submit/resume/approve…). May
-  // import the paint layer (render), the invalidate seam, the actions
-  // INTERFACE (types only in practice), the DOM shell, and the pure core —
-  // never view families, the scheduler, or main; their calls into those
-  // arrive as init-bound deps from the composition root.
+  // import the paint layer (render), the actions INTERFACE (types only in
+  // practice), the DOM shell, and the pure core — never view families, the
+  // scheduler, or main; their calls into those arrive as init-bound deps
+  // from the composition root. (The invalidate seam this row once allowed
+  // was retired at D5 — flows import render directly.)
   {
     layer: "renderer/flows/",
     allowedPrefixes: [
