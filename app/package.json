@@ -97,6 +97,7 @@
     "smoke:reading-core-purity": "npm run build:main && node tests/smoke/reading-core-purity.mjs",
     "smoke:corpus-lint": "node tests/smoke/corpus-lint.mjs",
     "smoke:import-fence": "node tests/smoke/import-fence.mjs",
+    "smoke:preview-sessions": "npm run build:main && node tests/smoke/preview-sessions.mjs",
     "smoke:reading-core-formatters": "npm run build:main && node tests/smoke/reading-core-formatters.mjs",
     "smoke:reading-turns": "npm run build:main && node tests/smoke/reading-turns.mjs",
     "smoke:reading-sidebar-selectors": "npm run build:main && node tests/smoke/reading-sidebar-selectors.mjs",
