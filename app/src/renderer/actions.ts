@@ -66,6 +66,10 @@ export interface Actions {
   //   verbatim body of the dismiss handler it replaced. —
   dismissApprovalExpiredAttention(view: TaskViewState): void;
   dismissSlashAttention(view: TaskViewState): void;
+  // — Option-prompt card (view/approvals.ts): select grammar + answer flow
+  //   (IPC injection; optimistic receipt) —
+  selectOptionPromptChoice(view: TaskViewState, questionIndex: number, optionIndex: number): void;
+  answerOptionPrompt(): void;
 }
 
 /** The bound registry. Reading it before initActions() runs is a boot-order
