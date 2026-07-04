@@ -31,6 +31,8 @@
     "e2e:inspector-folder-external": "npm run build && node tests/e2e/inspector-folder-external.mjs",
     "e2e:preview-tabs": "npm run build && node tests/e2e/preview-tabs.mjs",
     "e2e:preview-reader": "npm run build && node tests/e2e/preview-reader.mjs",
+    "e2e:preview-tree": "npm run build && node tests/e2e/preview-tree.mjs",
+    "e2e:preview-tree-screenshots": "npm run build && node tests/e2e/preview-tree-screenshots.mjs",
     "e2e:preview-screenshots": "npm run build && node tests/e2e/preview-screenshots.mjs",
     "e2e:preview-reader-screenshots": "npm run build && node tests/e2e/preview-reader-screenshots.mjs",
     "e2e:terminal-theme-independence": "npm run build && node tests/e2e/terminal-theme-independence.mjs",

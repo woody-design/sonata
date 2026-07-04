@@ -10,7 +10,7 @@ import {
 import { initTabs, renderTabs } from "./tabs";
 import { initToolbar, renderToolbar, type ToolbarElements } from "./toolbar";
 import { morphReader, renderReader, type ReaderContext } from "./reader";
-import { renderTree } from "./tree";
+import { initTree, notifyFileChanged, renderTree, type TreeDeps } from "./tree";
 
 /**
  * The Preview window's composition root (design record §6.2). It owns the state
@@ -162,6 +162,26 @@ const readerCtx: ReaderContext = {
     void window.duetRuntime
       .openWorkspaceExternal({ taskId, target: "folder", relativePath })
       .catch(() => {});
+  },
+};
+
+// ── Tree bridges: a per-directory listing read + the open-or-focus a file takes
+// (the same openPreview path chips/links use). Bound to the current task at call
+// time, so the tree module stays decoupled from the runtime. ─────────────────
+const treeDeps: TreeDeps = {
+  async readDir(relativePath) {
+    const taskId = state.binding.taskId;
+    if (!taskId) {
+      return [];
+    }
+    try {
+      return await window.duetRuntime.readWorkspaceDir({ taskId, relativePath });
+    } catch {
+      return [];
+    }
+  },
+  openFile(relativePath) {
+    readerCtx.openTab(relativePath);
   },
 };
 
@@ -337,6 +357,10 @@ function reconcile(event: RuntimeEvent): void {
   if (taskId !== state.binding.taskId) {
     return;
   }
+  // The tree observes EVERY change for the bound task (not just tab-backed
+  // paths): it decides whether the affected directory is expanded and worth a
+  // refresh. Its coalescer is its own, independent of the reader's below.
+  notifyFileChanged(path);
   const session = state.binding.session;
   if (!session || !session.tabs.some((tab) => tab.path === path)) {
     return;
@@ -530,6 +554,7 @@ function switchToIndex(index: number | "last"): void {
 // ── Boot ─────────────────────────────────────────────────────────────────────
 initTabs(els.tabstrip, deps);
 initToolbar(toolbarEls, deps);
+initTree(els.panel, treeDeps);
 window.duetRuntime.onPreviewBinding(applyBinding);
 window.duetRuntime.onRuntimeEvent(reconcile);
 void window.duetRuntime
