@@ -16,8 +16,7 @@ const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "../../src");
 // a composition root / separate renderer entry (main.ts, inspector.ts,
 // preview.ts, terminal.ts) — unrestricted imports, but still subject to the
 // main-denylist and the acyclicity check. Future layers (renderer/flows/,
-// renderer/render.ts, renderer/scheduler.ts) get rows here as D-mid/D-late
-// land them.
+// renderer/scheduler.ts) get rows here as D-late lands them.
 const RULES = [
   {
     layer: "reading-core/",
@@ -39,6 +38,16 @@ const RULES = [
       "shared/",
     ],
     allowedPackages: ["lucide", "dompurify", "marked"],
+  },
+  // The paint orchestrator (D4a): full render / transcript stream / directive
+  // performer. May reach every view family, the DOM shell, and the pure core;
+  // its outward calls (schedulers, report-refresh flow) are init-bound deps —
+  // render never imports upward (flows/scheduler import render, never the
+  // reverse).
+  {
+    layer: "renderer/render.ts",
+    allowedPrefixes: ["renderer/view/", "renderer/dom", "reading-core/", "shared/"],
+    allowedPackages: [],
   },
   // The seams and the DOM shell are leaves: they import nothing renderer-
   // internal (actions/dom types come from core/shared only).

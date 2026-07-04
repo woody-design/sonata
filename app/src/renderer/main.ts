@@ -79,7 +79,6 @@ import {
   type TaskViewState,
 } from "../reading-core/state";
 import { reduceRuntimeEvent } from "../reading-core/runtime-reducer";
-import type { Directive } from "../reading-core/directives";
 import * as composerTransitions from "../reading-core/transitions/composer";
 import * as popoverTransitions from "../reading-core/transitions/popovers";
 import * as sessionTransitions from "../reading-core/transitions/session";
@@ -87,28 +86,21 @@ import * as sidebarTransitions from "../reading-core/transitions/sidebar";
 import { initActions, type ViewMode } from "./actions";
 import { elements, initDom } from "./dom";
 import { initInvalidate } from "./invalidate";
-import {
-  initApprovalsView,
-  renderApproval,
-  renderOptionPrompt,
-  renderResumeChoice,
-} from "./view/approvals";
+import { initRender, performDirective, render, renderTranscriptStream } from "./render";
+import { initApprovalsView, renderOptionPrompt } from "./view/approvals";
 import { initBannersView, renderAttentionBanners } from "./view/banners";
 import {
   applyTerminalWindowState,
   initChromeView,
   renderReadingPopover,
-  renderRemoteControl,
   renderRemoteControlPopover,
 } from "./view/chrome";
 import {
   initComposerView,
-  renderAttachmentStrip,
   renderComposerControls,
   renderComposerPopover,
-  renderUsageIndicator,
 } from "./view/composer";
-import { initEntryView, renderTaskEntryPanel, renderTaskSettingsPopover } from "./view/entry";
+import { initEntryView, renderTaskEntryPanel } from "./view/entry";
 import { lucideIcon } from "./view/icons";
 import {
   exitPromptNav,
@@ -123,24 +115,15 @@ import {
   initSidebarView,
   openSidebarMenuForSession,
   renderSidebar,
-  updateSidebarSpinnerLiveness,
 } from "./view/sidebar";
-import { initSettingsView, renderSettingsOverlay } from "./view/settings";
+import { initSettingsView } from "./view/settings";
 import { positionSlashPicker, renderSlashPicker } from "./view/slash-picker";
-import {
-  initStatusStripView,
-  renderStatusStrip,
-  updateStatusStripStatusInPlace,
-} from "./view/status-strip";
-import { initTranscriptView, renderRuns } from "./view/transcript";
+import { initStatusStripView } from "./view/status-strip";
+import { initTranscriptView } from "./view/transcript";
 
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "dark" : "light";
-// Dedup key for the terminal-window active-task relay (see pushActiveTerminalTask).
-// Declared here — with the other early module state — so it is initialized before
-// the first render() call (a later declaration lands in the temporal dead zone).
-let lastPushedTerminalTask = "";
 
 const state: RendererState = createInitialState(bootReadingSettingsFromDom());
 
@@ -346,10 +329,14 @@ initDom();
 // binding → runtime subscriptions → async hydrates → first render(). The
 // seams MUST be bound before the first render — moved view modules call them
 // mid-render — and extraction never moves initialization into import-time
-// side effects of new modules (R4; the TDZ landmine is documented at
-// `lastPushedTerminalTask`). The referenced implementations are hoisted
-// function declarations, so binding here (before their textual definitions)
-// is safe.
+// side effects of new modules (R4). The referenced implementations are
+// hoisted function declarations, so binding here (before their textual
+// definitions) is safe.
+initRender(state, {
+  scheduleTranscriptRender: () => scheduleTranscriptRender(),
+  scheduleSessionIndexRefresh: () => scheduleSessionIndexRefresh(),
+  refreshReport: (taskId) => refreshReport(taskId),
+});
 initInvalidate(render);
 initEntryView(state);
 initTranscriptView(state, { composeEntryPanel: renderTaskEntryPanel });
@@ -1398,63 +1385,6 @@ window.duetRuntime.onRuntimeEvent((event) => {
   }
 });
 
-function performDirective(directive: Directive): void {
-  switch (directive.kind) {
-    case "full":
-      render();
-      return;
-    case "unread-only":
-    case "none":
-      // State-only outcomes: the reducer already applied any mutation
-      // (unread-only = markViewChanged's background branch).
-      return;
-    case "sidebar":
-      renderSidebar();
-      return;
-    case "strip-in-place": {
-      const view = taskViewForId(state, directive.taskId);
-      if (view) {
-        updateStatusStripStatusInPlace(view);
-      }
-      return;
-    }
-    case "strip-full": {
-      const view = taskViewForId(state, directive.taskId);
-      if (!view) {
-        return;
-      }
-      updateSidebarSpinnerLiveness(view);
-      if (directive.statusStrip) {
-        renderStatusStrip(view);
-      }
-      return;
-    }
-    case "usage-in-place": {
-      const view = taskViewForId(state, directive.taskId);
-      if (!view) {
-        return;
-      }
-      renderUsageIndicator(view);
-      if (directive.chipChanged) {
-        renderComposerControls(view);
-      }
-      if (directive.popoverOpen) {
-        renderComposerPopover(view);
-      }
-      return;
-    }
-    case "transcript-debounced":
-      scheduleTranscriptRender();
-      return;
-    case "session-index-debounced":
-      scheduleSessionIndexRefresh();
-      return;
-    case "report-refresh":
-      void refreshReport(directive.taskId);
-      return;
-  }
-}
-
 window.duetRuntime.onMainArtifactFocus((request) => {
   focusArtifactFromPreview(request);
 });
@@ -1865,53 +1795,6 @@ async function refreshReport(taskId = state.activeTaskId): Promise<void> {
   markViewChanged(view);
 }
 
-
-// Relay the active task (and its live-ness) to the terminal window, deduped so
-// render()'s frequent calls don't spam IPC. The terminal window shows this
-// task's terminal and forwards keystrokes only while it is live.
-// (`lastPushedTerminalTask` is declared with the early module state above.)
-function pushActiveTerminalTask(): void {
-  const taskId = state.activeTaskId ?? null;
-  const live = Boolean(activeTaskView()?.live);
-  const openTaskIds = state.taskViews
-    .map((view) => view.task?.id)
-    .filter((id): id is string => Boolean(id));
-  const key = `${taskId}:${live}:${openTaskIds.join(",")}`;
-  if (key === lastPushedTerminalTask) {
-    return;
-  }
-  lastPushedTerminalTask = key;
-  void window.duetRuntime.setActiveTerminalTask({ taskId, live, openTaskIds }).catch(() => {});
-}
-
-function render(): void {
-  const view = activeTaskView();
-  pushActiveTerminalTask();
-  elements.taskTitle.textContent = view?.task?.title ?? "New chat";
-  const composerStatus = composerStatusText(view);
-  elements.runtimeStatus.textContent = composerStatus;
-  elements.runtimeStatus.classList.toggle("hidden", composerStatus === "");
-  elements.openPreviewWindow.disabled = !view?.task || state.busy;
-  elements.openInspectorWindow.disabled = !view?.task || state.busy;
-  elements.sessionMenuTrigger.classList.toggle("hidden", !view?.task);
-  elements.sidebarNewChat.disabled = state.busy;
-  renderReadingPopover();
-  renderRemoteControl();
-  renderRemoteControlPopover();
-  renderTaskSettingsPopover();
-  renderSettingsOverlay();
-  renderAttachmentStrip(view);
-  renderComposerControls(view);
-  renderComposerPopover(view);
-
-  renderSidebar();
-  renderApproval();
-  renderOptionPrompt();
-  renderResumeChoice();
-  renderAttentionBanners(view);
-  renderStatusStrip(view);
-  renderRuns();
-}
 
 // --- Slash command picker -------------------------------------------------
 //
@@ -2330,33 +2213,9 @@ async function addReferences(paths: string[]): Promise<void> {
   render();
 }
 
-/** Surface a composer status on the active view, or globally for a new chat. */
-// view.status is the point-of-action message channel — errors, receipts
-// ("Allow rule saved…", resume-default receipts), hints, delivery states. It
-// renders as a slim line inside the composer (setComposerStatus was always
-// named for it; until 2026-07-03 it rendered as a header chrome pill). Pure
-// activity mirrors are suppressed: the status strip and the sidebar spinner
-// already say "working"/"idle", and repeating them near the send button was
-// the header chip's noise all over again. Suppression is value-based on the
-// handful of mirror strings (inlined — module-level render() runs before any
-// later const initializes) — a new status value SHOWS by default.
-function composerStatusText(view: TaskViewState | null): string {
-  const status = view?.status ?? state.status;
-  if (
-    status === "Idle" ||
-    status === "Ready" ||
-    status === "Running" ||
-    status.endsWith(" is working")
-  ) {
-    return "";
-  }
-  // The spawn receipt ("Claude PTY 12345") is boot plumbing, not a message.
-  if (/^\S+ PTY \d+$/.test(status)) {
-    return "";
-  }
-  return status;
-}
-
+/** Surface a composer status on the active view, or globally for a new chat.
+ *  (The channel's suppression policy — composerStatusText — lives with the
+ *  render orchestrator in render.ts.) */
 function setComposerStatus(view: TaskViewState | null, message: string): void {
   if (view?.task) {
     view.status = message;
@@ -2519,26 +2378,6 @@ function scheduleTranscriptRender(): void {
     transcriptRenderTimer = null;
     renderTranscriptStream();
   }, 160);
-}
-
-// The transcript-streaming render path — decoupled from full render() so a
-// content batch never rebuilds the sidebar (which would restart the spinner's
-// CSS animation on every batch). Refresh only what new transcript content can
-// change: the reading surface (renderRuns), and the status strip's
-// transcript-derived pieces (the running-agent roster and the derived
-// "current step" fallback — its agents area is signature-guarded, so a batch
-// that doesn't change roster membership never restarts the dots). Run
-// lifecycle, approvals, delivery, usage, and status each arrive as their own
-// events and render themselves, so nothing else goes stale between batches.
-//
-// Boundary note (S0.2 close-out, since retired by S1): renderRuns now
-// keyed-reconciles the turn cards — reused nodes are never detached, so a
-// text selection survives content batches (fenced by e2e transcript-
-// selection). This path's remaining job is exactly the pairing above.
-// (Comment corrected 2026-07-04 — it predated S1 and had gone stale.)
-function renderTranscriptStream(): void {
-  renderRuns();
-  renderStatusStrip();
 }
 
 async function openFloatingPreview(): Promise<void> {
