@@ -17,12 +17,21 @@ import {
 
 const MAIN_WINDOW_ENTRY = "/index.html";
 const PREVIEW_WINDOW_ENTRY = "/preview.html";
+const TERMINAL_WINDOW_ENTRY = "/terminal.html";
+const INSPECTOR_WINDOW_ENTRY = "/inspector.html";
 
 /** The Reading (main) and Preview windows both FOLLOW the reading appearance
  *  (R6) — the preload stamps both on boot so neither flashes an unthemed frame.
- *  The terminal window owns its own theme (its Aa picker) and is excluded. */
+ *  The terminal owns its own theme (its Aa picker); the inspector is theme-
+ *  agnostic. Both are excluded EXPLICITLY and first: terminal.html ships a
+ *  static `data-theme="duet"` that equals the reading default, so the content
+ *  fallback below would otherwise sweep it into the reading-stamp path and
+ *  fight terminal.ts's independent theme ownership. */
 function isReadingThemedDocument(): boolean {
   const pathname = window.location.pathname;
+  if (pathname.endsWith(TERMINAL_WINDOW_ENTRY) || pathname.endsWith(INSPECTOR_WINDOW_ENTRY)) {
+    return false;
+  }
   return (
     pathname.endsWith(MAIN_WINDOW_ENTRY) ||
     pathname.endsWith(PREVIEW_WINDOW_ENTRY) ||

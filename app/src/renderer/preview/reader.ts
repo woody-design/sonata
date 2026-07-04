@@ -72,7 +72,12 @@ function presentTooLarge(doc: PreviewDocument): HTMLElement {
 function presentHtml(doc: PreviewDocument): HTMLElement {
   const wrap = docWrap("html");
   // Sandboxed, isolated srcdoc — the existing preview pattern. No same-origin,
-  // no scripts: an inert render of agent-written HTML.
+  // no scripts: an inert render of agent-written HTML. NOTE (S1 limitation): the
+  // iframe fills the canvas and scrolls INTERNALLY, so the reader's per-path
+  // scroll (which tracks the outer #preview-content) does not capture or restore
+  // an HTML tab's position — the sandbox deliberately blocks reading the frame's
+  // scroll, and weakening it for scroll tracking isn't worth it. Revisit with
+  // the S2 render/scroll model; text/markdown scroll is unaffected.
   const frame = document.createElement("iframe");
   frame.className = "preview-html-frame";
   frame.sandbox.value = "";
