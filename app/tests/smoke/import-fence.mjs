@@ -129,7 +129,10 @@ for (const file of files) {
       continue;
     }
     const target = resolve(dirname(file), specifier);
-    const targetRelative = relativeToSrc(target);
+    // Normalize the resolved module id (review 2026-07-04): "./main.ts" and
+    // the ESM-style "./main.js" must match the same rules as "./main" — an
+    // extension must never tunnel through the denylist or an allowlist.
+    const targetRelative = relativeToSrc(target).replace(/\.(ts|js)$/, "");
     for (const deny of DENY_TARGETS) {
       if (targetRelative === deny.replaceAll("/", sep)) {
         violations.push(`${file}: imports the composition root "${specifier}" (${deny})`);

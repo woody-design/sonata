@@ -50,10 +50,6 @@ export interface Actions {
   restorePromptNavAfterRender(): void;
   /** Sticky-header rAF coalesce (T4) — second half of the finalize contract. */
   scheduleStickyPromptSync(): void;
-  /** The run list's no-task empty state — the New Chat entry panel. Provided
-   *  by the shell so the transcript view never imports a sibling view
-   *  (view→view stays outside the import fence; main.ts composes). */
-  renderTaskEntryPanel(): HTMLElement;
   /** Folder-picker flow (busy state + IPC dialog + render). */
   pickTaskFolder(): void;
   // — New Chat entry panel (view/entry.ts) handler mutations: bare draft

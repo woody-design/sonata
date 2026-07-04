@@ -352,7 +352,7 @@ initDom();
 // is safe.
 initInvalidate(render);
 initEntryView(state);
-initTranscriptView(state);
+initTranscriptView(state, { composeEntryPanel: renderTaskEntryPanel });
 initBannersView(state);
 initStatusStripView(state);
 initApprovalsView(state);
@@ -366,7 +366,6 @@ initActions({
   scrollToPromptTurn: (turnKey) => scrollToPromptTurn(turnKey),
   restorePromptNavAfterRender: () => restorePromptNavAfterRender(),
   scheduleStickyPromptSync: () => scheduleStickyPromptSync(),
-  renderTaskEntryPanel: () => renderTaskEntryPanel(),
   pickTaskFolder: () => {
     void pickTaskFolder();
   },
@@ -2532,10 +2531,11 @@ function scheduleTranscriptRender(): void {
 // lifecycle, approvals, delivery, usage, and status each arrive as their own
 // events and render themselves, so nothing else goes stale between batches.
 //
-// Boundary (S0.2 close-out): this closes the *spinner* during streaming, NOT
-// the *selection* — renderRuns still replaceChildren the whole runList, so a
-// selection is cleared on each content batch. Selection-surviving incremental
-// run rendering is S1.
+// Boundary note (S0.2 close-out, since retired by S1): renderRuns now
+// keyed-reconciles the turn cards — reused nodes are never detached, so a
+// text selection survives content batches (fenced by e2e transcript-
+// selection). This path's remaining job is exactly the pairing above.
+// (Comment corrected 2026-07-04 — it predated S1 and had gone stale.)
 function renderTranscriptStream(): void {
   renderRuns();
   renderStatusStrip();

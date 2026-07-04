@@ -40,9 +40,18 @@ import { actions } from "../actions";
 
 /** The shell's state atom, bound once at boot for the surface's read paths. */
 let state: RendererState;
+/** Cross-view composition dep (D-early ruling 2 refined at review 2026-07-04):
+ *  the no-task empty state composes the New Chat entry panel, but view→view
+ *  imports stay outside the fence — main.ts provides the composer at boot.
+ *  An init-bound DEP, not an Action: composition is wiring, not behavior. */
+let composeEntryPanel: () => HTMLElement;
 
-export function initTranscriptView(stateRef: RendererState): void {
+export function initTranscriptView(
+  stateRef: RendererState,
+  deps: { composeEntryPanel: () => HTMLElement },
+): void {
   state = stateRef;
+  composeEntryPanel = deps.composeEntryPanel;
 }
 
 // The turn-signature tracker is process-local (block render versions live in
@@ -163,7 +172,7 @@ export function renderRuns(): void {
 
   const view = activeTaskView(state);
   if (!view?.task) {
-    setNonRailChildren(runList, rail, [actions.renderTaskEntryPanel()]);
+    setNonRailChildren(runList, rail, [composeEntryPanel()]);
     finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
     return;
   }
