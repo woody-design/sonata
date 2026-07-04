@@ -22,6 +22,7 @@ import type {
   SlashCommandEntry,
 } from "../shared/types";
 import type {
+  ComposerAttachment,
   SidebarPrefs,
   SlashPickerState,
   TaskViewState,
@@ -95,6 +96,16 @@ export interface Actions {
   //   hover grammar (selection follow + composer-popover repaint). —
   executeSlashEntry(entry: SlashCommandEntry): void;
   hoverSlashOption(picker: SlashPickerState, index: number): void;
+  // — Composer (view/composer.ts): attachment-removal port (object-URL
+  //   revoke), the Add-menu reference-picker flow, the T5/T6 usage-popover
+  //   hover timers, and the slash-picker composition into the popover root
+  //   (sibling view families compose through main.ts — D-early ruling 2). —
+  removeComposerAttachment(list: ComposerAttachment[], target: ComposerAttachment): void;
+  pickReferencesFromAddMenu(): void;
+  clearUsagePopoverCloseTimer(): void;
+  scheduleUsagePopoverClose(): void;
+  renderSlashPicker(picker: SlashPickerState): HTMLElement;
+  positionSlashPicker(pickerElement: HTMLElement): void;
 }
 
 /** The bound registry. Reading it before initActions() runs is a boot-order
