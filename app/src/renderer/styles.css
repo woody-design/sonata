@@ -2145,7 +2145,10 @@ h2 {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 16px 18px 4px;
+  /* Bottom padding (32px) clears the 24px bottom mask fade below, so the last
+     turn — and the status strip, which is the run list's last child — rests
+     fully opaque above the fade instead of dissolving into the composer. */
+  padding: 16px 18px 32px;
   /* Scroll-edge fade applied to the scroll container itself: content dissolves
      to transparent over the top and bottom 24px instead of hard-clipping at
      either edge. Because it rides run-list's OWN box (top just below the header,
@@ -2675,6 +2678,9 @@ h2 {
   flex: 0 0 auto;
   margin-top: auto;
   overflow: visible;
+  /* No fade here (mask off) → no clearance needed. Keep the original bottom
+     padding so the centered greeting + composer group is unchanged. */
+  padding-bottom: 4px;
   -webkit-mask-image: none;
   mask-image: none;
 }
