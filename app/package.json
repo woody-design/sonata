@@ -21,6 +21,8 @@
     "e2e:run-chat-transcript": "npm run build && node tests/e2e/run-chat-transcript.mjs",
     "e2e:run-reading-surface": "npm run build && node tests/e2e/run-reading-surface.mjs",
     "e2e:transcript-selection": "npm run build && node tests/e2e/transcript-selection.mjs",
+    "e2e:transcript-chips": "npm run build && node tests/e2e/transcript-chips.mjs",
+    "e2e:transcript-chips-screenshots": "npm run build && node tests/e2e/transcript-chips-screenshots.mjs",
     "e2e:new-chat": "npm run build && node tests/e2e/new-chat.mjs",
     "e2e:queue-delivery": "npm run build && node tests/e2e/queue-delivery.mjs",
     "e2e:composer-ime": "npm run build && node tests/e2e/composer-ime.mjs",

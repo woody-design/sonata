@@ -37,6 +37,10 @@ const HTML_EXTENSIONS = new Set([".html", ".htm"]);
 const TEXT_MAX_BYTES = 1024 * 1024;
 /** Git's binary heuristic: a NUL byte in the first 8000 bytes. */
 const BINARY_PROBE_BYTES = 8000;
+/** Chip resolution is batched per turn, but a single chatty reply must not fan
+ *  out an unbounded stat storm — the renderer already dedupes; this is the
+ *  main-side backstop (§8 S4, "per-call cap ~64 candidates"). */
+const RESOLVE_PATHS_CAP = 64;
 
 export type ResolveWorkspaceRoot = (taskId: TaskId) => string | null;
 
@@ -63,6 +67,48 @@ export class WorkspaceFiles {
     } catch {
       return { exists: false, isFile: false, isDirectory: false, size: 0 };
     }
+  }
+
+  /**
+   * Batch-resolve path-like inline-code mentions (S4 transcript chips) against
+   * disk truth: return the workspace-relative paths of the candidates that are
+   * real files. A candidate may be workspace-relative or absolute — an absolute
+   * inside the root is relativized; anything outside the root, a directory, or
+   * nonexistent is omitted (existence is a projection, not an error). Capped at
+   * RESOLVE_PATHS_CAP. Every candidate routes through the ONE audited guard
+   * (`resolveInside`); a guard violation on a single candidate is an omission,
+   * never a throw — resolution is best-effort entry-point discovery, not a
+   * security decision the caller can observe.
+   */
+  resolvePaths(taskId: TaskId, candidates: string[]): string[] {
+    const root = this.resolveRoot(taskId);
+    if (!root) {
+      return [];
+    }
+    const resolvedRoot = path.resolve(root);
+    const existing: string[] = [];
+    const seen = new Set<string>();
+    for (const candidate of candidates.slice(0, RESOLVE_PATHS_CAP)) {
+      const relative = toWorkspaceRelative(resolvedRoot, candidate);
+      if (relative === null || seen.has(relative)) {
+        continue;
+      }
+      seen.add(relative);
+      let absolute: string;
+      try {
+        absolute = this.resolveInside(resolvedRoot, relative);
+      } catch {
+        continue; // escapes the workspace → omit, never throw across the batch
+      }
+      try {
+        if (fs.statSync(absolute).isFile()) {
+          existing.push(relative);
+        }
+      } catch {
+        // nonexistent → omit
+      }
+    }
+    return existing;
   }
 
   /**
@@ -298,6 +344,28 @@ function safeRealpath(filePath: string): string {
 
 function toRelative(root: string, absolute: string): string {
   return normalizeRelative(path.relative(path.resolve(root), absolute));
+}
+
+/**
+ * Map a chip candidate to a workspace-relative path, or null if it can't be
+ * one. Absolute candidates are kept only when they land inside the root, and
+ * are returned RELATIVE so `resolveInside` (which rejects absolutes) can
+ * re-validate them through the audited guard. Separators normalize to "/"; a
+ * leading "./" is fine and "../" escapes fall through to `resolveInside`.
+ */
+function toWorkspaceRelative(resolvedRoot: string, candidate: string): string | null {
+  const trimmed = candidate.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (path.isAbsolute(trimmed)) {
+    const rel = path.relative(resolvedRoot, path.resolve(trimmed));
+    if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+      return null; // the root itself (a directory) or outside it
+    }
+    return normalizeRelative(rel);
+  }
+  return normalizeRelative(trimmed);
 }
 
 function normalizeRelative(relativePath: string): string {

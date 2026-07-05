@@ -125,6 +125,7 @@ import { initSettingsView } from "./view/settings";
 import { positionSlashPicker, renderSlashPicker } from "./view/slash-picker";
 import { initStatusStripView } from "./view/status-strip";
 import { initTranscriptView } from "./view/transcript";
+import { initTranscriptChips } from "./view/transcript-chips";
 
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -238,6 +239,10 @@ initScheduler(state, {
 });
 initEntryView(state);
 initTranscriptView(state, { composeEntryPanel: renderTaskEntryPanel });
+initTranscriptChips(state, {
+  resolvePaths: (taskId, candidates) =>
+    window.duetRuntime.resolveWorkspacePaths({ taskId, candidates }).then((r) => r.existing),
+});
 initBannersView(state);
 initStatusStripView(state);
 initApprovalsView(state);
@@ -1094,9 +1099,27 @@ async function setDefaultRemoteControl(value: boolean): Promise<void> {
   render();
 }
 
+// Open a transcript file chip's file in the Preview window. The chip carries the
+// task + workspace-relative path as data-* (stamped by view/transcript-chips);
+// openPreview binds/focuses the window and opens-or-focuses the tab (dedup lives
+// in the bridge). A stale chip (file since deleted) opens into a tombstone — the
+// correct three-truths projection, not an error.
+function openPreviewForChip(chip: HTMLElement): void {
+  const relativePath = chip.dataset.chipPath;
+  const taskId = chip.dataset.chipTask;
+  if (relativePath && taskId) {
+    void window.duetRuntime.openPreview({ taskId, relativePath }).catch(() => {});
+  }
+}
+
 elements.runList.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) {
+    return;
+  }
+  const chip = target.closest<HTMLElement>("[data-chip-path]");
+  if (chip) {
+    openPreviewForChip(chip);
     return;
   }
   const anchor = target.closest("a[href]");
@@ -1108,6 +1131,23 @@ elements.runList.addEventListener("click", (event) => {
   if (/^https?:\/\//i.test(href)) {
     window.open(href);
   }
+});
+
+// Keyboard activation for the focusable chips (role=button, tabindex=0).
+elements.runList.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  const chip = target.closest<HTMLElement>("[data-chip-path]");
+  if (!chip) {
+    return;
+  }
+  event.preventDefault();
+  openPreviewForChip(chip);
 });
 
 elements.runList.addEventListener("scroll", () => {

@@ -27,6 +27,8 @@ import {
   type WorkspaceOpenFolderRequest,
   type WorkspaceReadDirRequest,
   type WorkspaceReadDocRequest,
+  type WorkspaceResolvePathsRequest,
+  type WorkspaceResolvePathsResult,
   type WorkspaceStatRequest,
   type WorkspaceStatResult,
 } from "../shared/types";
@@ -64,6 +66,7 @@ export interface WindowIpcController {
   previewSetPanel(request: PreviewSetPanelRequest): void;
   readWorkspaceDoc(request: WorkspaceReadDocRequest): PreviewDocument;
   readWorkspaceDir(request: WorkspaceReadDirRequest): WorkspaceDirEntry[];
+  resolveWorkspacePaths(request: WorkspaceResolvePathsRequest): WorkspaceResolvePathsResult;
   statWorkspacePath(request: WorkspaceStatRequest): WorkspaceStatResult;
   broadcastReadingSettings(settings: ReadingSettings): void;
   focusArtifactInMain(request: FocusArtifactInMainRequest): void;
@@ -262,6 +265,9 @@ export function registerIpcHandlers(
   );
   ipcMain.handle(IPC_CHANNELS.workspaceReadDir, (_event, request) =>
     windowController.readWorkspaceDir(request),
+  );
+  ipcMain.handle(IPC_CHANNELS.workspaceResolvePaths, (_event, request) =>
+    windowController.resolveWorkspacePaths(request),
   );
   ipcMain.handle(IPC_CHANNELS.workspaceStat, (_event, request) =>
     windowController.statWorkspacePath(request),

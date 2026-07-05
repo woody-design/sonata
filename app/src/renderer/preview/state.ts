@@ -1,5 +1,9 @@
-import { Braces, File, FileCode, FileText, Image as ImageIcon, type IconNode } from "lucide";
 import type { PreviewBinding, PreviewDocument, PreviewSession } from "../../shared/types";
+
+// The path→type-icon mapping lives in view/icons.ts — ONE mapping, two
+// consumers (the Preview tabs/tree here, and the transcript file chips in the
+// Reading window, S4). Preview modules keep importing `iconForPath` from state.
+export { iconForPath } from "../view/icons";
 
 /**
  * The Preview window's renderer state — a projection of (session truth × disk
@@ -94,40 +98,6 @@ function parentDirName(path: string): string | null {
   const parts = path.split("/");
   return parts.length >= 2 ? (parts[parts.length - 2] ?? null) : null;
 }
-
-/** Lucide type icon by extension (§5.8): file-text (docs), file-code (source +
- *  html), braces (json), image, file (fallback). Monochrome ink — the app
- *  trades color for calm. */
-export function iconForPath(path: string): IconNode {
-  const ext = extensionOf(path);
-  if (ext === "json") {
-    return Braces;
-  }
-  if (IMAGE_EXTENSIONS.has(ext)) {
-    return ImageIcon;
-  }
-  if (SOURCE_EXTENSIONS.has(ext)) {
-    return FileCode;
-  }
-  if (DOC_EXTENSIONS.has(ext)) {
-    return FileText;
-  }
-  return File;
-}
-
-function extensionOf(path: string): string {
-  const name = basename(path);
-  const dot = name.lastIndexOf(".");
-  return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
-}
-
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"]);
-const SOURCE_EXTENSIONS = new Set([
-  "ts", "tsx", "js", "jsx", "mjs", "cjs", "html", "htm", "css", "scss",
-  "py", "go", "rs", "java", "c", "h", "cpp", "hpp", "rb", "sh", "swift",
-  "kt", "php", "sql", "yaml", "yml", "toml", "xml",
-]);
-const DOC_EXTENSIONS = new Set(["md", "markdown", "txt", "text", "csv", "log", "rst"]);
 
 /**
  * The `duet-file://` URL for a workspace-relative path (design record §4). The

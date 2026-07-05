@@ -4502,6 +4502,45 @@ h2 {
   line-height: var(--leading-code);
 }
 
+/* Transcript file chips (S4, design record §5.6 / R2): an inline-code mention
+   of a real workspace file, upgraded post-sanitize into a clickable Preview
+   entry (view/transcript-chips.ts). The plain .md-body code base still applies;
+   this restyles it into an accent-tinted chip with a Lucide type icon + the
+   filename. All colors route through tokens, so light/dark and all four themes
+   read correctly for free. */
+.md-body code.transcript-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent) 12%);
+  color: var(--accent-strong);
+  padding: 1px 6px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.md-body code.transcript-file-chip svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.md-body code.transcript-file-chip:hover {
+  background: color-mix(in srgb, var(--surface) 80%, var(--accent) 20%);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.md-body code.transcript-file-chip:hover .transcript-file-chip-name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md-body code.transcript-file-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .md-body blockquote {
   border-left: 3px solid var(--border);
   padding-left: 12px;

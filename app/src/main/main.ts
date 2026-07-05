@@ -38,6 +38,8 @@ import {
   type WorkspaceOpenFolderRequest,
   type WorkspaceReadDirRequest,
   type WorkspaceReadDocRequest,
+  type WorkspaceResolvePathsRequest,
+  type WorkspaceResolvePathsResult,
   type WorkspaceStatRequest,
   type WorkspaceStatResult,
 } from "../shared/types";
@@ -481,6 +483,12 @@ function serveDuetFileImage(rawUrl: string): Response {
 
 function readWorkspaceDir(request: WorkspaceReadDirRequest): WorkspaceDirEntry[] {
   return workspaceFiles?.readDir(request.taskId, request.relativePath ?? "") ?? [];
+}
+
+function resolveWorkspacePaths(
+  request: WorkspaceResolvePathsRequest,
+): WorkspaceResolvePathsResult {
+  return { existing: workspaceFiles?.resolvePaths(request.taskId, request.candidates) ?? [] };
 }
 
 function statWorkspacePath(request: WorkspaceStatRequest): WorkspaceStatResult {
@@ -934,6 +942,7 @@ app.whenReady().then(() => {
     previewSetPanel,
     readWorkspaceDoc,
     readWorkspaceDir,
+    resolveWorkspacePaths,
     statWorkspacePath,
     broadcastReadingSettings,
     focusArtifactInMain,

@@ -188,6 +188,8 @@ const duetRuntime: DuetRuntimeBridge = {
   setPreviewPanel: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewSetPanel, request),
   readWorkspaceDoc: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceReadDoc, request),
   readWorkspaceDir: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceReadDir, request),
+  resolveWorkspacePaths: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.workspaceResolvePaths, request),
   statWorkspacePath: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceStat, request),
   focusArtifactInMain: (request) => ipcRenderer.invoke(IPC_CHANNELS.mainArtifactFocusRequest, request),
   openInspector: (request) => ipcRenderer.invoke(IPC_CHANNELS.inspectorOpen, request),

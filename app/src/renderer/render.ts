@@ -42,6 +42,7 @@ import {
   updateStatusStripStatusInPlace,
 } from "./view/status-strip";
 import { renderRuns } from "./view/transcript";
+import { enhanceTranscriptChips } from "./view/transcript-chips";
 
 interface RenderDeps {
   /** T3 — 160 ms transcript-stream debounce (scheduler side). */
@@ -121,6 +122,7 @@ export function render(): void {
   renderAttentionBanners(view);
   renderStatusStrip(view);
   renderRuns();
+  enhanceTranscriptChips();
 }
 
 // view.status is the point-of-action message channel; its editorial policy
@@ -144,6 +146,7 @@ export function render(): void {
 // (Comment corrected 2026-07-04 — it predated S1 and had gone stale.)
 export function renderTranscriptStream(): void {
   renderRuns();
+  enhanceTranscriptChips();
   renderStatusStrip();
 }
 

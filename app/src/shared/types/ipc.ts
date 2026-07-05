@@ -89,10 +89,12 @@ export const IPC_CHANNELS = {
   workspaceTreeRead: "workspace:tree:read",
   workspaceFileRead: "workspace:file:read",
   // WorkspaceFiles seam (§6.1): classified single-file read, one-level dir read,
-  // and stat — the renderer never sniffs bytes, classification runs in main.
+  // stat, and the batched chip-mention resolver — the renderer never sniffs
+  // bytes, classification and existence resolution run in main.
   workspaceReadDoc: "workspace:read-doc",
   workspaceReadDir: "workspace:read-dir",
   workspaceStat: "workspace:stat",
+  workspaceResolvePaths: "workspace:resolve-paths",
   workspaceOpenExternal: "workspace:open-external",
   workspaceOpenFolder: "workspace:open-folder",
   folderPick: "folder:pick",
@@ -496,6 +498,21 @@ export interface WorkspaceReadDirRequest {
   relativePath?: string;
 }
 
+/** Batch-resolve path-like inline-code mentions from an assistant reply against
+ *  disk truth (S4 transcript chips). Candidates may be workspace-relative or
+ *  absolute; the answer returns the workspace-relative paths of the ones that
+ *  are real files — an absolute inside the root is relativized, and anything
+ *  outside the root, a non-file, or nonexistent is simply omitted. Capped per
+ *  call (WorkspaceFiles.resolvePaths) so a chatty reply can't fan out an
+ *  unbounded stat storm. */
+export interface WorkspaceResolvePathsRequest {
+  taskId: TaskId;
+  candidates: string[];
+}
+export interface WorkspaceResolvePathsResult {
+  existing: string[];
+}
+
 export interface WorkspaceStatRequest {
   taskId: TaskId;
   relativePath: string;
@@ -646,6 +663,9 @@ export interface DuetRuntimeBridge {
   readWorkspaceDoc(request: WorkspaceReadDocRequest): Promise<PreviewDocument>;
   readWorkspaceDir(request: WorkspaceReadDirRequest): Promise<WorkspaceDirEntry[]>;
   statWorkspacePath(request: WorkspaceStatRequest): Promise<WorkspaceStatResult>;
+  resolveWorkspacePaths(
+    request: WorkspaceResolvePathsRequest,
+  ): Promise<WorkspaceResolvePathsResult>;
   focusArtifactInMain(request: FocusArtifactInMainRequest): Promise<void>;
   onMainArtifactFocus(callback: (request: FocusArtifactInMainRequest) => void): () => void;
   openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
