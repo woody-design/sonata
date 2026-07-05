@@ -4478,6 +4478,8 @@ body.preview-panel-resizing {
   min-height: 0;
 }
 .preview-tree-filter {
+  /* Outline-only (no fill): the field sits directly on the panel surface and is
+     defined by its border alone, matching the flat header pass. */
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -4487,15 +4489,16 @@ body.preview-panel-resizing {
   height: 28px;
   border: 1px solid var(--border-control);
   border-radius: 7px;
-  background: var(--surface-input);
   color: var(--ink-faint);
 }
 .preview-tree-filter:focus-within {
   border-color: var(--accent-soft-border, var(--border-control));
 }
 .preview-tree-filter svg {
+  /* The search icon is the field's only fill-less affordance cue, so it reads
+     one rung stronger (--ink-muted) than the calm placeholder (--ink-faint). */
   flex: 0 0 auto;
-  color: var(--ink-faint);
+  color: var(--ink-muted);
 }
 .preview-tree-filter-input {
   flex: 1 1 auto;

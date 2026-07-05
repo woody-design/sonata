@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FolderOpen, SquareArrowOutUpRight } from "lucide";
+import { ChevronDown, ChevronRight, Folder, FolderOpen, SquareArrowOutUpRight } from "lucide";
 import { lucideIcon } from "../view/icons";
 import { activePath, type PreviewDeps, type PreviewViewState } from "./state";
 
@@ -18,14 +18,20 @@ export interface ToolbarElements {
 
 let deps: PreviewDeps | null = null;
 let menuOpen = false;
+// Tracks which glyph the panel toggle currently shows, so renderToolbar only
+// rebuilds the icon when the panel's open/closed state actually flips (it runs
+// on every chrome render). `null` forces the first render to paint it.
+let panelToggleGlyphOpen: boolean | null = null;
 
 export function initToolbar(toolbar: ToolbarElements, bound: PreviewDeps): void {
   deps = bound;
   toolbar.openButton.append(
-    textSpan("Open"),
+    textSpan("Open in"),
     lucideIcon(ChevronDown, 14),
   );
-  toolbar.panelToggle.append(lucideIcon(FolderOpen, 16));
+  // Default (closed) glyph; renderToolbar swaps to FolderOpen when the panel is
+  // open. Painting one here avoids an empty button before the first binding.
+  toolbar.panelToggle.append(lucideIcon(Folder, 16));
 
   toolbar.openButton.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -70,6 +76,10 @@ export function renderToolbar(state: PreviewViewState, toolbar: ToolbarElements)
   const panelOpen = state.binding.session?.panelOpen ?? false;
   toolbar.panelToggle.setAttribute("aria-pressed", String(panelOpen));
   toolbar.panelToggle.classList.toggle("active", panelOpen);
+  if (panelOpen !== panelToggleGlyphOpen) {
+    panelToggleGlyphOpen = panelOpen;
+    toolbar.panelToggle.replaceChildren(lucideIcon(panelOpen ? FolderOpen : Folder, 16));
+  }
 }
 
 function renderBreadcrumb(state: PreviewViewState, breadcrumb: HTMLElement): void {
