@@ -567,14 +567,27 @@ function switchToIndex(index: number | "last"): void {
 const PANEL_WIDTH_KEY = "duet.preview.panel.width";
 const PANEL_WIDTH_MIN = 220;
 const PANEL_WIDTH_MAX = 560;
+const PANEL_WIDTH_DEFAULT = 280; // matches the CSS .preview-panel width
+// The document canvas must never be squeezed below this. The window's own
+// minWidth is 560 (== PANEL_WIDTH_MAX), so without a dynamic cap a persisted or
+// dragged 560px panel could erase the canvas entirely on a narrow window.
+const MIN_CANVAS_WIDTH = 320;
 
-function applyPanelWidth(width: number | null): void {
-  if (width === null) {
-    els.panel.style.removeProperty("width");
-    els.panel.style.removeProperty("flex-basis");
-    return;
-  }
-  const clamped = Math.round(clamp(width, PANEL_WIDTH_MIN, PANEL_WIDTH_MAX));
+// The panel's max is dynamic: never wide enough to drop the canvas below
+// MIN_CANVAS_WIDTH. Floored at PANEL_WIDTH_MIN so the [min, max] range stays
+// valid on the narrowest window (there the panel simply pins to its min).
+function panelWidthMax(): number {
+  return Math.max(PANEL_WIDTH_MIN, Math.min(PANEL_WIDTH_MAX, window.innerWidth - MIN_CANVAS_WIDTH));
+}
+
+// The width the user chose (persisted intent), kept independent of what the
+// current window can show — so widening the window restores the intended width
+// instead of stranding it at a value some earlier narrow window clamped it to.
+let desiredPanelWidth: number | null = null;
+
+function applyPanelWidth(): void {
+  const target = desiredPanelWidth ?? PANEL_WIDTH_DEFAULT;
+  const clamped = Math.round(clamp(target, PANEL_WIDTH_MIN, panelWidthMax()));
   els.panel.style.width = `${clamped}px`;
   els.panel.style.flexBasis = `${clamped}px`;
 }
@@ -594,11 +607,16 @@ function persistPanelWidth(width: number | null): void {
 try {
   const stored = Number(localStorage.getItem(PANEL_WIDTH_KEY));
   if (Number.isFinite(stored) && stored > 0) {
-    applyPanelWidth(stored);
+    desiredPanelWidth = stored;
   }
 } catch {
-  // Default width (CSS) stays.
+  // Default width stays.
 }
+applyPanelWidth();
+
+// A narrowing window squeezes the panel (down to its min) rather than the
+// canvas; a widening one restores the intended width.
+window.addEventListener("resize", applyPanelWidth);
 
 els.panelResizer.addEventListener("pointerdown", (event) => {
   if (event.button !== 0) {
@@ -609,16 +627,16 @@ els.panelResizer.addEventListener("pointerdown", (event) => {
   resizer.setPointerCapture(event.pointerId);
   document.body.classList.add("preview-panel-resizing");
   let frame = 0;
-  let lastWidth = els.panel.getBoundingClientRect().width;
 
   const onMove = (moveEvent: PointerEvent): void => {
-    lastWidth = window.innerWidth - moveEvent.clientX;
+    // Right-anchored: width is the pointer's distance from the window's edge.
+    desiredPanelWidth = window.innerWidth - moveEvent.clientX;
     if (frame) {
       return;
     }
     frame = window.requestAnimationFrame(() => {
       frame = 0;
-      applyPanelWidth(lastWidth);
+      applyPanelWidth();
     });
   };
   const onUp = (): void => {
@@ -630,8 +648,11 @@ els.panelResizer.addEventListener("pointerdown", (event) => {
       window.cancelAnimationFrame(frame);
       frame = 0;
     }
-    applyPanelWidth(lastWidth);
-    persistPanelWidth(clamp(lastWidth, PANEL_WIDTH_MIN, PANEL_WIDTH_MAX));
+    // Store intent within the absolute bounds (not the window-dependent max) so
+    // a wide choice survives a narrow spell.
+    desiredPanelWidth = clamp(desiredPanelWidth ?? PANEL_WIDTH_DEFAULT, PANEL_WIDTH_MIN, PANEL_WIDTH_MAX);
+    applyPanelWidth();
+    persistPanelWidth(desiredPanelWidth);
   };
   resizer.addEventListener("pointermove", onMove);
   resizer.addEventListener("pointerup", onUp);
@@ -639,7 +660,8 @@ els.panelResizer.addEventListener("pointerdown", (event) => {
 });
 
 els.panelResizer.addEventListener("dblclick", () => {
-  applyPanelWidth(null);
+  desiredPanelWidth = null;
+  applyPanelWidth();
   persistPanelWidth(null);
 });
 

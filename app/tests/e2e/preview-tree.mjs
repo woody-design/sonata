@@ -256,6 +256,57 @@ try {
   results.panelToggleKeepsCanvasAnchored =
     before.left === after.left && before.scrollLeft === after.scrollLeft;
 
+  // ── Phase 10: folder-panel resize — drag widens + persists, double-click
+  //    resets, and a wide panel can never crush the document canvas below its
+  //    floor when the window shrinks to its minimum (P2 review finding). ───────
+  await preview.locator("#preview-panel-toggle").click(); // re-open the panel
+  await preview.locator(".preview-panel:not(.hidden)").waitFor({ state: "visible" });
+  await preview.locator("#preview-panel-resizer:not(.hidden)").waitFor({ state: "visible" });
+
+  const panelWidth = () =>
+    preview.evaluate(() => Math.round(document.querySelector("#preview-panel").getBoundingClientRect().width));
+  const canvasWidth = () =>
+    preview.evaluate(() => Math.round(document.querySelector("#preview-content").getBoundingClientRect().width));
+  const storedWidth = () => preview.evaluate(() => localStorage.getItem("duet.preview.panel.width"));
+  const dragResizerTo = async (targetClientX) => {
+    const box = await preview.locator("#preview-panel-resizer").boundingBox();
+    const cy = box.y + box.height / 2;
+    await preview.mouse.move(box.x + box.width / 2, cy);
+    await preview.mouse.down();
+    await preview.mouse.move((box.x + box.width / 2 + targetClientX) / 2, cy, { steps: 6 });
+    await preview.mouse.move(targetClientX, cy, { steps: 6 });
+    await preview.mouse.up();
+    await preview.waitForTimeout(120);
+  };
+
+  // Drag the sash left → wider panel, persisted to localStorage.
+  const startWidth = await panelWidth();
+  const seamX = await preview.evaluate(
+    () => document.querySelector("#preview-panel-resizer").getBoundingClientRect().x,
+  );
+  await dragResizerTo(seamX - 150);
+  const draggedWidth = await panelWidth();
+  results.resizeDragWidens = draggedWidth > startWidth + 40;
+  results.resizePersists = Number(await storedWidth()) === draggedWidth;
+
+  // Double-click the sash → reset to the CSS default (280) + clear persistence.
+  await preview.locator("#preview-panel-resizer").dblclick();
+  await preview.waitForTimeout(120);
+  results.resizeResets = (await panelWidth()) === 280 && (await storedWidth()) === null;
+
+  // Narrow-window clamp: max out the panel, then shrink the window to its
+  // minWidth (560) — the canvas must keep a usable floor and the panel gives way.
+  await dragResizerTo(2); // far left = the widest the panel can go
+  await app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes("preview.html"));
+    win.setContentSize(560, 620);
+  });
+  await preview.waitForTimeout(250);
+  const narrowCanvas = await canvasWidth();
+  const narrowPanel = await panelWidth();
+  results.narrowWindowKeepsCanvas = narrowCanvas >= 300;
+  results.narrowWindowSqueezesPanel = narrowPanel <= 260;
+
   const success = Object.values(results).every(Boolean);
   console.log(JSON.stringify({ dataRoot, taskId, workspace, results, success }, null, 2));
   process.exitCode = success ? 0 : 1;
