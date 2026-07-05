@@ -4,6 +4,7 @@ import path from "node:path";
 import type { RunId, TaskId } from "../../shared/types/domain";
 import type { ResolveRunIdInput } from "../provider-transcript";
 import type { RunIndexEvent, RuntimeEvent } from "../../shared/types/events";
+import { normalizePromptForMatch } from "../../shared/prompt-markers";
 import {
   freshRuntimeReportV1,
   RUNTIME_REPORT_SCHEMA_ID,
@@ -466,7 +467,13 @@ export function resolveRunForTurn(runIndex: RunIndex, input: ResolveRunIdInput):
       }
     }
   }
-  const text = input.text.trim();
+  // Read through the CLI's `[Image #N]` decoration on BOTH sides: the turn text
+  // (transcript `user-message`) carries the markers, the run prompt (raw typed
+  // text Duet stored) does not. Without this, an image prompt whose promptId
+  // never bridged (the stage-1 miss above) fell through to an un-attributed run
+  // and a second husk card (2026-07-05). Same canonical rule as the delivery
+  // matcher and the hook back-stamp guards.
+  const text = normalizePromptForMatch(input.text);
   const windowMs = input.textWindowMs ?? 15 * 60_000;
   let best: { runId: RunId; distance: number } | null = null;
   for (const run of runIndex.read().runs) {
@@ -483,7 +490,7 @@ export function resolveRunForTurn(runIndex: RunIndex, input: ResolveRunIdInput):
     if (input.promptId && run.promptId && run.promptId !== input.promptId) {
       continue;
     }
-    const prompt = run.prompt.trim();
+    const prompt = normalizePromptForMatch(run.prompt);
     const matches =
       prompt === text || (input.command !== null && prompt.startsWith(input.command));
     if (!matches) {

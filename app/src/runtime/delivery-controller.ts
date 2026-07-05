@@ -10,6 +10,7 @@ import type {
 } from "../shared/types/domain";
 import type { RuntimeEvent } from "../shared/types/events";
 import type { TranscriptBlock } from "../shared/types/transcript";
+import { IMAGE_MARKER_RE, normalizePromptForMatch } from "../shared/prompt-markers";
 import { quotePathForText } from "./shell-quote";
 import { cleanTerminal, type PromptSubmission, type TerminalHost } from "./terminal-host";
 
@@ -582,8 +583,8 @@ function matchesReceipt(
   item: { text: string; attachments: DeliveryAttachment[] },
   block: Extract<TranscriptBlock, { kind: "user-message" }>,
 ): boolean {
-  const prompt = normalizeReceiptText(item.text);
-  const received = normalizeReceiptText(block.text);
+  const prompt = normalizePromptForMatch(item.text);
+  const received = normalizePromptForMatch(block.text);
   const textMatches =
     prompt.length === 0 ||
     prompt === received ||
@@ -609,12 +610,8 @@ function normalizeText(value: string): string {
   return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
 }
 
-function normalizeReceiptText(value: string): string {
-  return normalizeText(value).replace(/\[Image\s+#\d+\]/gi, "").replace(/[ \t]+/g, " ").trim();
-}
-
 function imageMarkerCount(value: string): number {
-  return value.match(/\[Image\s+#\d+\]/gi)?.length ?? 0;
+  return value.match(IMAGE_MARKER_RE)?.length ?? 0;
 }
 
 /**

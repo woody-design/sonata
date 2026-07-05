@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 import * as pty from "node-pty";
+import { normalizePromptForMatch } from "../../shared/prompt-markers";
 import type {
   ApprovalChoice,
   ApprovalDecision,
@@ -1021,11 +1022,11 @@ export class TerminalHost extends EventEmitter {
       const finishedTwin =
         this.lastFinishedPrompt !== null &&
         this.lastFinishedPrompt.expiresAt > Date.now() &&
-        this.lastFinishedPrompt.text === text;
+        samePromptModuloCliDecoration(this.lastFinishedPrompt.text, text);
       if (
         options.promptId &&
         !this.activeRun.promptId &&
-        this.activeRun.prompt.trim() === text &&
+        samePromptModuloCliDecoration(this.activeRun.prompt, text) &&
         !finishedTwin
       ) {
         this.updateActiveRun({ promptId: options.promptId });
@@ -1042,7 +1043,7 @@ export class TerminalHost extends EventEmitter {
     if (
       this.recentAttributionRun &&
       this.recentAttributionRun.expiresAt > Date.now() &&
-      this.recentAttributionRun.prompt.trim() === text
+      samePromptModuloCliDecoration(this.recentAttributionRun.prompt, text)
     ) {
       this.debugCompletion(`hook-echo swallowed "${text.slice(0, 40)}"`);
       return;
@@ -2211,6 +2212,17 @@ function rawTailSince(snapshot: string, current: string): string {
 
 function attachmentPromptTitle(count: number): string {
   return count === 1 ? "[Image attachment]" : `[${count} image attachments]`;
+}
+
+// "This hook echo is that stored prompt" — the equivalence relation for every
+// UserPromptSubmit-hook comparison in beginRunFromHook. Reads through the CLI's
+// [Image #N] decoration: the hook payload carries it, the run prompt Duet stored
+// does not. All three call sites (finishedTwin, back-stamp guard, echo-swallow)
+// share it, so the image back-stamp fix can never outrun the twin-safety guard —
+// normalizing only the back-stamp would let a just-finished twin's late image
+// echo cross-wire its prompt_id onto the next run (review 2026-07-05).
+function samePromptModuloCliDecoration(stored: string, hookText: string): boolean {
+  return normalizePromptForMatch(stored) === normalizePromptForMatch(hookText);
 }
 
 export function cleanTerminal(text: string): string {

@@ -181,6 +181,60 @@ await check("back-stamp refuses a finished same-text twin's late echo", async ()
   }
 });
 
+await check("back-stamp reads through [Image #N]: image echo stamps, image twin refused", async () => {
+  // 2026-07-05: the CLI decorates the hook prompt with [Image #N] while the run
+  // stored the raw text. The back-stamp guard AND the twin guard must both read
+  // through that decoration — else normalizing only the back-stamp (site 3)
+  // leaves the twin guard (site 4) blind to image echoes and a finished twin's
+  // prompt_id cross-wires onto the next run.
+  const events = [];
+  const host = makeHost(events);
+  try {
+    host.ptyProcess = fakePty();
+    host.activeRun = activeRun(); // raw prompt: "do the thing"
+
+    // Finished same-text twin in-window + a DECORATED late echo: the twin guard
+    // must still fire (pre-fix it did not, because raw !== decorated) → no stamp.
+    host.lastFinishedPrompt = { text: "do the thing", expiresAt: Date.now() + 5000 };
+    host.beginRunFromHook("[Image #1] do the thing", { promptId: "pid-late-echo" });
+    assert.equal(host.activeRun.promptId ?? null, null, "decorated twin echo refused");
+
+    // No twin: the decorated echo of THIS run stamps — the back-stamp itself now
+    // reads through the markers (the actual image double-card fix).
+    host.lastFinishedPrompt = null;
+    host.beginRunFromHook("[Image #2] do the thing", { promptId: "pid-own-echo" });
+    assert.equal(host.activeRun.promptId, "pid-own-echo", "decorated own echo stamps");
+  } finally {
+    host.dispose();
+  }
+});
+
+await check("echo-swallow reads through [Image #N]: a settled run's image echo spawns no phantom run", async () => {
+  // 2026-07-05: a run that settled by quiescence before its UserPromptSubmit
+  // fired gets its late echo swallowed. An image echo is decorated; unless
+  // swallow reads through the markers it falls through to beginRun and spawns a
+  // phantom run (decorated prompt, no output to ever close it) → another
+  // un-attributed run → another husk card.
+  const events = [];
+  const host = makeHost(events);
+  try {
+    host.ptyProcess = fakePty();
+    host.activeRun = null;
+    host.recentAttributionRun = {
+      id: "run-settled",
+      prompt: "do the thing",
+      expiresAt: Date.now() + 5000,
+    };
+    host.beginRunFromHook("[Image #1] do the thing", { promptId: "pid-echo" });
+    assert.ok(
+      !events.some((event) => event.type === "run:started"),
+      "decorated echo of a settled run is swallowed — no phantom run",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
 function makeHost(events) {
   return new TerminalHost({
     taskId: "stop-hook-completion-smoke",

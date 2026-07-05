@@ -147,6 +147,42 @@ assert.equal(
   "id-less legacy runs remain text-matchable for id-bearing anchors",
 );
 
+// 7) Image prompt (2026-07-05): the CLI prepends `[Image #N]` to the turn text
+//    (transcript user-message), but Duet stored the raw typed prompt and the
+//    typed run never got a promptId. Before the shared normalizer this fell
+//    through to an un-attributed run → a second husk card. The equivalence
+//    relation must read through the markers. run-img carries NO promptId, so an
+//    id-bearing anchor still text-pairs with it (case 6, second assertion).
+runIndex.consume(
+  runStarted("run-img", "我刚做完一系列重构 Preview 的工作", null, "2026-07-03T10:03:00.000Z"),
+);
+assert.equal(
+  resolveRunForTurn(
+    runIndex,
+    input({
+      text: "[Image #1] [Image #2] [Image #3]我刚做完一系列重构 Preview 的工作",
+      promptId: "a837862a-eccc-4b84-be3b-0ba4ef2ceede",
+      tsMs: Date.parse("2026-07-03T10:03:01.000Z"),
+    }),
+  ),
+  "run-img",
+  "image prompt attributes despite the [Image #N] prefix the run prompt lacks",
+);
+
+// 8) Whitespace is canonicalized on both sides (review 2026-07-05): a run whose
+//    stored text differs only by collapsed spaces still matches its turn.
+runIndex.consume(
+  runStarted("run-ws", "spaced    out   prompt", null, "2026-07-03T10:04:00.000Z"),
+);
+assert.equal(
+  resolveRunForTurn(
+    runIndex,
+    input({ text: "spaced out prompt", tsMs: Date.parse("2026-07-03T10:04:01.000Z") }),
+  ),
+  "run-ws",
+  "horizontal whitespace differences no longer block attribution",
+);
+
 runIndex.dispose?.();
 fs.rmSync(dir, { recursive: true, force: true });
 console.log("run-attribution smoke: OK");

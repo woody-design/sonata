@@ -272,6 +272,72 @@ check("claude: isMeta user records are skipped", () => {
   assert.equal(upserts[1].turnKey, "p1");
 });
 
+check("claude: image prompt attributes to its raw-text run through the real chain (2026-07-05)", () => {
+  // The seam the image double-card bug lived in: the normalizer emits a
+  // user-message whose text carries the CLI's `[Image #N]` prefix, but the run
+  // Duet's idle-send path created stored the RAW typed text with no promptId.
+  // resolveRunForTurn must attribute the one to the other — pre-fix it returned
+  // null (raw !== decorated) and the run rendered as a second husk card.
+  const { RunIndex, resolveRunForTurn } = require("../../dist/runtime");
+  const dir = fs.mkdtempSync(path.join(tempRoot, "img-chain-"));
+  const runIndex = new RunIndex({ taskId: "t", reportPath: path.join(dir, "report.json") });
+  runIndex.consume({
+    type: "run:started",
+    payload: {
+      taskId: "t",
+      id: "run-img",
+      kind: "prompt",
+      prompt: "我刚做完一系列重构 Preview 的工作", // raw typed text — no [Image #N]
+      promptId: null, // the typed-prompt back-stamp had nothing to stamp yet
+      title: "img",
+      status: "active",
+      lifecyclePhase: "active",
+      startedAt: "2026-07-05T11:20:15.324Z",
+      endedAt: null,
+      elapsedMs: null,
+      completionSource: null,
+      completionConfidence: null,
+    },
+    ts: "2026-07-05T11:20:15.324Z",
+  });
+
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "t", sourceId: "s" });
+  const blocks = normalizer.consumeLine(
+    claudeLine({
+      type: "user",
+      uuid: "u1",
+      promptId: "a837862a",
+      promptSource: "typed",
+      timestamp: "2026-07-05T11:20:15.679Z",
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: "[Image #1] [Image #2] [Image #3]我刚做完一系列重构 Preview 的工作" },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+        ],
+      },
+    }),
+  );
+  const user = blocks.find((block) => block.kind === "user-message");
+  assert.ok(user, "normalizer emitted the user-message block");
+  assert.equal(user.attachments.length, 1, "image attachment carried onto the block");
+
+  // Reproduce the anchor ProviderTranscript.attributeRun builds from the block,
+  // then resolve through the REAL matcher.
+  const promptId = /^turn-\d+$/.test(user.turnKey) ? null : user.turnKey;
+  const runId = resolveRunForTurn(runIndex, {
+    text: user.text,
+    command: user.command,
+    tsMs: Date.parse(user.ts),
+    promptId,
+    assigned: new Set(),
+  });
+  assert.equal(runId, "run-img", "image turn attributes to its raw-text run (no husk)");
+
+  runIndex.dispose?.();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 check("claude: promptSource=system records (task notifications) never render as the user's prompt", () => {
   // The research-session bug: a deep-research / Workflow run injects a
   // `<task-notification>` as a `type:"user"` record with `promptSource:"system"`
