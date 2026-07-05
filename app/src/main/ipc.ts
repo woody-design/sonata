@@ -229,12 +229,6 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.terminalWindowSettingsWrite, (_event, settings) =>
     windowController.writeTerminalWindowSettings(settings),
   );
-  ipcMain.handle(IPC_CHANNELS.workspaceTreeRead, (_event, request) =>
-    runtimeController.readWorkspaceTree(request.taskId),
-  );
-  ipcMain.handle(IPC_CHANNELS.workspaceFileRead, (_event, request) =>
-    runtimeController.readWorkspaceFile(request.taskId, request.relativePath),
-  );
   ipcMain.handle(IPC_CHANNELS.workspaceReadDoc, (_event, request) =>
     windowController.readWorkspaceDoc(request),
   );

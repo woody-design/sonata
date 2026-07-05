@@ -4,7 +4,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { ArtifactPreview, RunIndex, TerminalHost, WorkspacePreview } = require("../../dist/runtime");
+const { RunIndex, TerminalHost } = require("../../dist/runtime");
 
 const taskId = "task-runtime-smoke";
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-runtime-smoke-"));
@@ -58,28 +58,11 @@ try {
 
   const report = runIndex.read();
   const latestRun = report.runs[report.runs.length - 1] ?? null;
-  const preview = new ArtifactPreview({ taskId, workspaceRoot: workspace, report });
-  const artifacts = preview.listArtifacts();
-  const artifact = preview.readArtifact(artifactName);
 
-  let unknownBlocked = false;
-  fs.writeFileSync(path.join(workspace, "notes.txt"), "Not report-listed.\n");
-  try {
-    preview.readArtifact("notes.txt");
-  } catch {
-    unknownBlocked = true;
-  }
-
-  const workspacePreview = new WorkspacePreview({ workspaceRoot: workspace });
-  const workspaceTree = workspacePreview.readTree();
-  const workspaceNotes = workspacePreview.readFile("notes.txt");
-  let workspaceEscapeBlocked = false;
-  try {
-    workspacePreview.readFile("../outside.txt");
-  } catch {
-    workspaceEscapeBlocked = true;
-  }
-
+  // The recorder's report is the surviving contract: a live PTY run attributes
+  // the written file to its run, and the report carries changedFiles +
+  // artifactCandidates (isArtifactCandidate is a recorder concern; the old
+  // ArtifactPreview/WorkspacePreview reader modules retired in S5).
   const success =
     Boolean(runId) &&
     fileAttributedToRun &&
@@ -87,16 +70,6 @@ try {
     latestRun?.rawTerminalPointer === null &&
     latestRun?.changedFiles.some((file) => file.path === artifactName) &&
     latestRun?.artifactCandidates.some((artifactCandidate) => artifactCandidate.path === artifactName) &&
-    artifacts.some((artifactCandidate) => artifactCandidate.path === artifactName) &&
-    artifact.previewKind === "text" &&
-    artifact.content.includes("Artifact candidate content.") &&
-    artifact.rawTerminalPointer === null &&
-    unknownBlocked &&
-    workspaceTree.some((entry) => entry.path === artifactName) &&
-    workspaceTree.some((entry) => entry.path === "notes.txt") &&
-    workspaceNotes.previewKind === "text" &&
-    workspaceNotes.content.includes("Not report-listed.") &&
-    workspaceEscapeBlocked &&
     !JSON.stringify(report).includes("pty:data");
 
   console.log(
@@ -109,12 +82,6 @@ try {
         latestRunStatus: latestRun?.status,
         changedFiles: latestRun?.changedFiles.length ?? 0,
         artifactCandidates: latestRun?.artifactCandidates.length ?? 0,
-        previewKind: artifact.previewKind,
-        rawTerminalPointer: artifact.rawTerminalPointer,
-        unknownBlocked,
-        workspaceTreeEntries: workspaceTree.map((entry) => entry.path),
-        workspacePreviewKind: workspaceNotes.previewKind,
-        workspaceEscapeBlocked,
         eventTypes: [...new Set(eventTypes)],
       },
       null,

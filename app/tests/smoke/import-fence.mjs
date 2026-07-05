@@ -106,7 +106,6 @@ const RULES = [
 const ROOTS = [
   "renderer/main.ts",
   "renderer/preview/main.ts",
-  "renderer/inspector.ts",
   "renderer/terminal.ts",
   "renderer/global.d.ts",
 ];

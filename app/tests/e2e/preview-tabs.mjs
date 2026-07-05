@@ -133,6 +133,29 @@ try {
   await preview.locator(".preview-tab").nth(2).waitFor({ state: "visible" });
   await clickTab(preview, "alpha.md");
   await waitForActive(preview, "alpha.md");
+
+  // ── Re-homed external-open fence (was inspector-folder-external) ───────────
+  // The Open dropdown routes through WorkspaceFiles' single audited resolution
+  // to the shell: "Reveal in Finder" → showItemInFolder(file), "Open in Cursor"
+  // → shell.openExternal(cursor://…). alpha.md is the active, on-disk tab.
+  await installExternalOpenProbe(app);
+  const alphaPath = path.join(workspace, "alpha.md");
+  await preview.locator("#preview-open-button").click();
+  await preview.locator('.preview-open-item[data-open-target="folder"]').click();
+  await preview.locator("#preview-open-button").click();
+  await preview.locator('.preview-open-item[data-open-target="cursor"]').click();
+  await preview.waitForTimeout(300);
+  const externalCalls = await readExternalOpenCalls(app);
+  results.revealInFinder = externalCalls.some(
+    (call) => call.method === "showItemInFolder" && call.path === alphaPath,
+  );
+  results.openInCursor = externalCalls.some(
+    (call) =>
+      call.method === "openExternal" &&
+      call.url.startsWith("cursor://file") &&
+      call.url.includes("alpha.md"),
+  );
+
   const beforeRestart = await tabLabels(preview);
 
   // Let the debounced session write land, then quit.
@@ -179,6 +202,20 @@ try {
   await waitForWindowGone(app, "preview.html");
   results.lastTabClosesWindow = true;
 
+  // ── Owed IPC fence (S5): archive PRESERVES the preview session; delete FORGETS.
+  // §6.1 task reading memory — a dormant/archived task keeps its tab claims (they
+  // return on reopen); only a true delete drops them. Drives the real ipc.ts wiring
+  // (sessionArchive → no forget; sessionDelete → forgetPreviewSession) against the
+  // on-disk store — the layer the store-level smoke:preview-sessions can't reach.
+  const previewSessionFor = () =>
+    JSON.parse(fs.readFileSync(sessionsFile, "utf8"))?.sessions?.[taskId] ?? null;
+  await page.evaluate((id) => window.duetRuntime.archiveSession({ taskId: id, archived: true }), taskId);
+  await page.waitForTimeout(700);
+  results.archivePreservesSession = (previewSessionFor()?.tabs?.length ?? 0) > 0;
+  await page.evaluate((id) => window.duetRuntime.deleteSession({ taskId: id }), taskId);
+  await page.waitForTimeout(700);
+  results.deleteForgetsSession = previewSessionFor() === null;
+
   const success = Object.values(results).every(Boolean);
   console.log(JSON.stringify({ dataRoot, taskId, workspace, results, success }, null, 2));
   process.exitCode = success ? 0 : 1;
@@ -198,6 +235,30 @@ function writeFile(root, relative, contents) {
   const target = path.join(root, relative);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, contents, "utf8");
+}
+
+// Stub the OS-opener in main so external-open assertions observe the call
+// instead of launching Finder/Cursor (harvested from the retired
+// inspector-folder-external e2e; the consolidated WorkspaceFiles path now
+// keeps this fence here).
+async function installExternalOpenProbe(electronApp) {
+  await electronApp.evaluate(({ shell }) => {
+    globalThis.__duetExternalOpenCalls = [];
+    shell.openPath = async (targetPath) => {
+      globalThis.__duetExternalOpenCalls.push({ method: "openPath", path: targetPath });
+      return "";
+    };
+    shell.openExternal = async (url) => {
+      globalThis.__duetExternalOpenCalls.push({ method: "openExternal", url });
+    };
+    shell.showItemInFolder = (targetPath) => {
+      globalThis.__duetExternalOpenCalls.push({ method: "showItemInFolder", path: targetPath });
+    };
+  });
+}
+
+async function readExternalOpenCalls(electronApp) {
+  return electronApp.evaluate(() => globalThis.__duetExternalOpenCalls ?? []);
 }
 
 async function openTab(page, taskId, relativePath) {

@@ -30,8 +30,6 @@ import type {
   Task,
   TaskId,
   UsageSnapshot,
-  WorkspaceFilePreviewResponse,
-  WorkspaceTreeEntry,
 } from "../shared/types";
 import { TaskNotFoundError } from "./errors";
 import {
@@ -55,7 +53,6 @@ import {
   resolveRunForTurn,
   TerminalHost,
   type StartTaskOptions,
-  WorkspacePreview,
   ClaudeStatuslineUsageWatcher,
   ClaudeHookWatcher,
   ClaudeApprovalWatcher,
@@ -1163,16 +1160,6 @@ export class RuntimeController {
     return this.usageSnapshots.get(taskId) ?? null;
   }
 
-  readWorkspaceTree(taskId: TaskId): WorkspaceTreeEntry[] {
-    const active = this.requireTaskRuntime(taskId);
-    return this.currentWorkspacePreview(active).readTree();
-  }
-
-  readWorkspaceFile(taskId: TaskId, relativePath: string): WorkspaceFilePreviewResponse {
-    const active = this.requireTaskRuntime(taskId);
-    return this.currentWorkspacePreview(active).readFile(relativePath);
-  }
-
   workspacePath(taskId: TaskId): string {
     const active = this.requireTaskRuntime(taskId);
     return this.workspaceRoot(active);
@@ -1368,12 +1355,6 @@ export class RuntimeController {
       ts: new Date().toISOString(),
     };
     this.sendEvent(reportEvent);
-  }
-
-  private currentWorkspacePreview(active: ActiveTaskRuntime): WorkspacePreview {
-    return new WorkspacePreview({
-      workspaceRoot: this.workspaceRoot(active),
-    });
   }
 
   private workspaceRoot(active: ActiveTaskRuntime): string {

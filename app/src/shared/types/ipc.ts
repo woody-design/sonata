@@ -78,8 +78,6 @@ export const IPC_CHANNELS = {
   terminalActiveTaskSet: "terminal-active-task:set",
   terminalActiveTaskRead: "terminal-active-task:read",
   terminalActiveTask: "terminal-active-task",
-  workspaceTreeRead: "workspace:tree:read",
-  workspaceFileRead: "workspace:file:read",
   // WorkspaceFiles seam (§6.1): classified single-file read, one-level dir read,
   // stat, and the batched chip-mention resolver — the renderer never sniffs
   // bytes, classification and existence resolution run in main.
@@ -513,35 +511,6 @@ export interface TerminalActiveTaskState {
   openTaskIds: TaskId[];
 }
 
-export interface WorkspaceTreeRequest {
-  taskId: TaskId;
-}
-
-export interface WorkspaceTreeEntry {
-  path: string;
-  name: string;
-  type: "file" | "directory";
-  depth: number;
-  children?: WorkspaceTreeEntry[];
-}
-
-export interface WorkspaceFileReadRequest {
-  taskId: TaskId;
-  relativePath: string;
-}
-
-export type PreviewKind = "html" | "text" | "image" | "metadata";
-
-export interface WorkspaceFilePreviewResponse {
-  path: string;
-  extension: string;
-  size: number;
-  truncated: boolean;
-  previewKind: PreviewKind;
-  content?: string;
-  dataUrl?: string;
-}
-
 export interface WorkspaceOpenFolderRequest {
   taskId: TaskId;
 }
@@ -625,8 +594,6 @@ export interface DuetRuntimeBridge {
   setActiveTerminalTask(state: TerminalActiveTaskState): Promise<void>;
   readActiveTerminalTask(): Promise<TerminalActiveTaskState>;
   onActiveTerminalTask(callback: (state: TerminalActiveTaskState) => void): () => void;
-  readWorkspaceTree(request: WorkspaceTreeRequest): Promise<WorkspaceTreeEntry[]>;
-  readWorkspaceFile(request: WorkspaceFileReadRequest): Promise<WorkspaceFilePreviewResponse>;
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   pickFolder(): Promise<FolderPickResponse>;

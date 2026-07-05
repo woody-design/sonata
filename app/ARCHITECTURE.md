@@ -4,7 +4,7 @@ This document describes the renderer architecture that emerged from the
 2026-07 decomposition program (design record:
 `product-thinking/2026-07-03-renderer-decomposition-map-v1.md`, execution
 history: `…-execution-log.md`). It covers the Reading window — the main
-surface. The satellite renderers (terminal, preview, inspector) are separate
+surface. The satellite renderers (terminal, preview) are separate
 vite entries with their own, smaller files.
 
 ## The one-paragraph version
@@ -163,3 +163,36 @@ The recorder that feeds the corpus is env-gated main-process instrumentation
 (`DUET_RUNTIME_EVENT_LOG=<dir>`) tapped at the `sendEvent` broadcast seam —
 test/dev capture semantics, synchronous by design (lossless beats latency;
 measured overhead is noise).
+
+## The Preview window (satellite)
+
+The reading surface for *files* (the Reading window reads the conversation; the
+Terminal carries raw process). It rebuilt the old Preview + Inspector satellites
+on a **three-truths** model (design record:
+`product-thinking/2026-07-04-preview-window-redesign-map-v1.md`), each truth with
+one honest owner:
+
+- **Disk truth** — what exists and what its bytes are. Observed, never stored,
+  through `main/workspace-files.ts` (`WorkspaceFiles`: the single audited
+  path/symlink guard, the read + classification ladder, the `duet-file://` image
+  protocol, and Finder/Cursor external-open).
+- **Session truth** — the ordered tab claims, active path, per-path scroll, and
+  panel-open flag. Owned by main and durable in `main/preview-sessions.ts`
+  (`PreviewSessions`); close/archive keep a task's claims, only delete forgets
+  them (§6.1 task reading memory).
+- **View truth** — the dirty set, tree expansion, loaded-children cache, and
+  filter text. Owned by the renderer (`renderer/preview/` — `main.ts` root +
+  `tabs`/`toolbar`/`tree`/`reader`/`state`), never persisted, never across IPC.
+
+Every feature is one operation — *reconcile a claim against disk truth* — so
+tombstone, dirty dot, live morph, restore, and resurrection are five renderings
+of one mechanism. The window binds one task and follows the Reading window's
+active task. Deliberately smaller than the Reading window: no reducer, no corpus
+replay (its event rate is human-writing-pace, not an event firehose).
+
+**Freshness caveat (do not "fix"):** the tree shows every entry including hidden
+ones (R4), but the per-task `fs.watch` stream excludes `.git`, `.duet`,
+`node_modules`, `__pycache__`, etc. (`shouldIgnorePath`). Those directories
+render and give a correct one-shot listing on expand, but emit no `file:changed`,
+so they will not *live-refresh* in place. That is intended noise control, not a
+bug.

@@ -82,96 +82,9 @@ try {
   await page.locator("#toggle-terminal-window").click();
   await page.locator("#toggle-terminal-window", { hasText: "Close Terminal" }).waitFor({ state: "visible" });
 
-  // Acquire the inspector window by URL, not by the next "window" event —
-  // the terminal-window toggles just above can leave a queued window event
-  // that waitForEvent would mistake for the inspector.
-  await page.locator("#open-inspector-window").click();
-  const inspectorDeadline = Date.now() + 30000;
-  let inspectorPage = null;
-  while (!inspectorPage && Date.now() < inspectorDeadline) {
-    inspectorPage = electronApp.windows().find((w) => w.url().includes("inspector.html")) ?? null;
-    if (!inspectorPage) {
-      await page.waitForTimeout(250);
-    }
-  }
-  if (!inspectorPage) {
-    throw new Error("Inspector window did not open.");
-  }
-  inspectorPage.setDefaultTimeout(180000);
-  await inspectorPage.locator(".floating-inspector-shell", { hasText: "Inspector" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-window-tab", { hasText: "Run" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-window-tab", { hasText: "Change" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-window-tab", { hasText: "Artifact" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-window-tab", { hasText: "Folder" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-section", { hasText: "Runtime report summary" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-section", { hasText: "Run 1" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-section", { hasText: "report.md" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-section", { hasText: "page.html" }).waitFor({
-    state: "visible",
-  });
-
-  await inspectorPage.locator(".inspector-window-tab", { hasText: "Change" }).click();
-  await inspectorPage.locator(".change-summary", { hasText: "Changed files summary" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".change-summary", { hasText: "current file snapshots, not Git diffs" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".change-metric", { hasText: "Changed" }).locator("strong", { hasText: "2" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".change-metric", { hasText: "Artifacts" }).locator("strong", { hasText: "2" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-review-list", { hasText: "report.md" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-review-list", { hasText: "page.html" }).waitFor({
-    state: "visible",
-  });
-
-  await inspectorPage.locator(".inspector-window-tab", { hasText: "Artifact" }).click();
-  await inspectorPage.locator(".inspector-section", { hasText: "Artifact candidates" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-section", { hasText: "report-listed candidates only" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".artifact-item", { hasText: "report.md" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".artifact-item", { hasText: "page.html" }).waitFor({
-    state: "visible",
-  });
-
-  await inspectorPage.locator(".inspector-window-tab", { hasText: "Folder" }).click();
-  await inspectorPage.locator(".workspace-tree-item", { hasText: "report.md" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".workspace-tree-item", { hasText: "page.html" }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".workspace-tree-item", { hasText: "report.md" }).click();
-  await inspectorPage.locator(".workspace-file-preview", { hasText: "Markdown artifact ready." }).waitFor({
-    state: "visible",
-  });
-
+  // Process detail lives on disk, not in a window (the Inspector satellite that
+  // once showed the four lenses retired in S5). The runtime report is the
+  // surviving contract: changed files + artifact candidates + no raw-terminal leak.
   const projectsRoot = path.join(workspaceRoot, "data", "projects");
   const workspaceEntries = fs.existsSync(projectsRoot)
     ? fs.readdirSync(projectsRoot, { withFileTypes: true })

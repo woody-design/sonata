@@ -13,7 +13,11 @@ scenario dir means no app instance ran, not a capture failure.
 window-state-fullscreen timed out under capture load (known flaky, passes
 solo); its stream covers the run up to the kill.
 
-**Total: 27 recorded scenarios, 5535 events, 2331 KB.**
+**Total: 26 recorded scenarios, 5450 events, 2297 KB.**
+
+_(inspector-folder-external retired in S5 — the Inspector window it drove is
+deleted; its 85-event stream + reducer golden were removed together. Totals and
+the histogram below are recomputed from the remaining 26 scenarios.)_
 
 ## NOT in this corpus (mandatory hand-written adversarial fixtures for C2)
 
@@ -25,24 +29,24 @@ solo); its stream covers the run up to the kill.
 
 ## Global event-type histogram
 
-- pty:data: 2902
-- working-status:updated: 606
-- delivery:state: 605
-- report:updated: 324
-- sessions:updated: 236
-- cli-state:changed: 139
-- task:updated: 117
-- usage:updated: 106
-- run:updated: 90
-- transcript:blocks: 89
-- delivery:receipt: 46
-- prompt:submitted: 38
-- run:started: 37
+- pty:data: 2869
+- working-status:updated: 600
+- delivery:state: 591
+- report:updated: 317
+- sessions:updated: 229
+- cli-state:changed: 137
+- task:updated: 114
+- usage:updated: 104
+- run:updated: 88
+- transcript:blocks: 87
+- delivery:receipt: 45
+- prompt:submitted: 37
+- run:started: 36
 - approval:detected: 34
-- file:watching: 33
-- task:started: 33
-- transcript:located: 29
-- file:changed: 25
+- file:watching: 32
+- task:started: 32
+- transcript:located: 28
+- file:changed: 24
 - approval:decision: 19
 - remote-control:state: 12
 - task:ready: 5
@@ -64,7 +68,6 @@ solo); its stream covers the run up to the kill.
 | cross-session-isolation | 1 | 757 | cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
 | g1b-claude-hook-external | 1 | 81 | cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
 | gui-walking-skeleton | 1 | 240 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
-| inspector-folder-external | 1 | 85 | cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
 | new-chat | 1 | 185 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:watching, prompt:submitted, pty:data, pty:exit, report:updated, run:started, run:updated, sessions:updated, task:ready, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
 | open-task | 2 | 443 | approval:decision, approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:changed, file:watching, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |
 | option-prompt-multiselect | 1 | 120 | approval:detected, cli-state:changed, delivery:receipt, delivery:state, file:watching, option-prompt:detected, prompt:submitted, pty:data, report:updated, run:started, run:updated, sessions:updated, task:started, task:updated, transcript:blocks, transcript:located, usage:updated, working-status:updated |

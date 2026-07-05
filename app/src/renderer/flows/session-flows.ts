@@ -671,4 +671,3 @@ export function setViewMode(mode: ViewMode): void {
     surfaceTerminalWindow();
   }
 }
-

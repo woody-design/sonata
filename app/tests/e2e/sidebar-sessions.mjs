@@ -1,9 +1,10 @@
 // Sidebar multi-session e2e: two sessions born from first messages, switched
-// via the sidebar with isolated reading surfaces, the Inspector following the
-// active session, and archive cleaning up the surfaces (the sidebar-era
-// successor of tab close). The Preview-tab scoping legs retired with the
-// artifact strip (2026-07-03) — the strip was the only entry point they
-// exercised.
+// via the sidebar with isolated reading surfaces, the Preview window following
+// the active task (§6.1 — a tab opened for task A does NOT carry across when
+// task B, which has no claims, is selected), and archive cleaning up the
+// surfaces (the sidebar-era successor of tab close). The Inspector this once
+// rode for its Preview entry point retired in S5; the openPreview bridge (what
+// chips/tree/links use) drives the tab open now.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -56,33 +57,15 @@ try {
   await page.locator(".turn-card", { hasText: "Beta artifact ready." }).waitFor({ state: "visible" });
   await page.locator(".turn-card", { hasText: "Alpha artifact ready." }).waitFor({ state: "hidden" });
 
-  // Inspector follows the active session and lists both.
+  // Task-scoped Preview (§6.1): open task A's report.md as a tab through the
+  // openPreview bridge (the same open-or-focus path chips/tree/links use), then
+  // switch to task B and hit the header Preview button. The pathless open must
+  // NOT carry task A's tab across — task B has no claims, so it clears to the
+  // honest empty state.
   await selectSidebarSession(page, firstTaskId);
-  const inspectorWindowPromise = electronApp.waitForEvent("window");
-  await page.locator("#open-inspector-window").click();
-  const inspectorPage = await inspectorWindowPromise;
-  inspectorPage.setDefaultTimeout(180000);
-  await inspectorPage.locator("#inspector-window-title", { hasText: shortId(firstTaskId) }).waitFor({
-    state: "visible",
-  });
-  await inspectorPage.locator(".inspector-task-tab", { hasText: shortId(secondTaskId) }).waitFor({
-    state: "visible",
-  });
-
-  // Task-scoped Preview: open task A's artifact from the Inspector (the one
-  // remaining artifact entry point), then switch to task B and hit the header
-  // Preview button. The pathless open must NOT carry task A's selection
-  // across — it clears to the honest empty state.
-  await inspectorPage.locator(".inspector-window-tab", { hasText: "Artifact" }).click();
-  const inspectorArtifact = inspectorPage
-    .locator(".inspector-artifact-item", { hasText: "report.md" })
-    .first();
-  await inspectorArtifact.waitFor({ state: "visible" });
-  await inspectorArtifact.locator("button", { hasText: "Open Preview" }).click();
+  await openPreviewTab(page, firstTaskId, "report.md");
   const previewPage = await waitForWindowByUrl(electronApp, "preview.html");
   previewPage.setDefaultTimeout(180000);
-  // New Preview (2026-07 redesign): the open surfaces as a tab keyed by path,
-  // not a titled artifact card.
   await previewPage.locator(".preview-tab", { hasText: "report.md" }).waitFor({
     state: "visible",
   });
@@ -98,19 +81,17 @@ try {
     state: "detached",
   });
 
-  // Back to task A for the archive leg (archiving the ACTIVE task is what
-  // drives the inspector to "No active Task").
+  // Back to task A for the archive leg.
   await selectSidebarSession(page, firstTaskId);
 
-  // Archive replaces tab close: stops the PTY and cleans up surfaces.
+  // Archive replaces tab close: stops the PTY and cleans up surfaces. The
+  // archived task's row detaches; its report + manifest (asserted below on disk)
+  // are the surviving contract.
   const firstRow = page.locator(`.sidebar-session[data-task-id="${firstTaskId}"]`);
   await firstRow.hover();
   await firstRow.locator(".sidebar-row-hover-action").click();
   await page.locator(".sidebar-menu-item", { hasText: "Archive" }).click();
   await firstRow.waitFor({ state: "detached" });
-  await inspectorPage.locator("#inspector-window-title", { hasText: "No active Task" }).waitFor({
-    state: "visible",
-  });
 
   const reports = readReports(workspaceRoot);
   const alphaReport = reports.find((report) =>
@@ -179,6 +160,15 @@ async function startFileSession(page, options) {
   });
 }
 
+// Open (or focus) a Preview tab through the same bridge the header Eye button,
+// transcript chips, folder tree, and in-doc links all use.
+async function openPreviewTab(page, taskId, relativePath) {
+  await page.evaluate(
+    (args) => window.duetRuntime.openPreview(args),
+    { taskId, relativePath },
+  );
+}
+
 function readReports(root) {
   const projectsRoot = path.join(root, "data", "projects");
   if (!fs.existsSync(projectsRoot)) {
@@ -198,8 +188,4 @@ function readManifest(root, taskId) {
   }
   const manifestPath = path.join(root, "data", "projects", taskId, "task.json");
   return fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, "utf8")) : null;
-}
-
-function shortId(value) {
-  return value.length > 18 ? `${value.slice(0, 18)}...` : value;
 }

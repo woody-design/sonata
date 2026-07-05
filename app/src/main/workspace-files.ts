@@ -14,8 +14,9 @@ import type {
  * WorkspaceFiles — the single seam that observes disk truth for a task's
  * workspace (design record §6.1). Every read (`stat` / `readDir` / `readDoc` /
  * `readImage`) and every external-open target resolves through ONE audited
- * path+symlink guard (`resolveInside`), retiring the triplicate that lived in
- * artifact-preview.ts, workspace-preview.ts and main.ts. The renderer never
+ * path+symlink guard (`resolveInside`), which retired the guard triplicate that
+ * once lived in the artifact-preview and workspace-preview readers and main.ts
+ * (both readers deleted in S5). The renderer never
  * sniffs bytes: the classification ladder (absent → empty → image → binary →
  * too-large → markdown/html/text) runs HERE and the renderer presents by
  * `kind`.
