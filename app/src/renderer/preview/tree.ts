@@ -195,19 +195,17 @@ export function renderTree(state: PreviewViewState, panel: HTMLElement): void {
 
 /**
  * A `file:changed` for the bound task (routed from the composition root's
- * reconcile). Refresh the AFFECTED directory (the changed path's parent) only
- * if it is currently expanded — a change inside a collapsed directory spawns no
- * fetch (the tree only tracks what it is showing). Coalesced on its own timer.
+ * reconcile). Refresh the changed path's PARENT (its listing may have gained or
+ * lost this entry) AND — when the changed path is itself a shown directory — the
+ * directory ITSELF (a delete/recreate/rename in place leaves its own cached
+ * children stale; re-fetching that one level reconciles them). Both gate on
+ * "loaded and shown", so a change inside a collapsed/unloaded directory still
+ * spawns no fetch. Coalesced on its own timer, independent of the reader's.
  */
 export function notifyFileChanged(changedPath: string): void {
-  const dir = parentOf(changedPath);
-  const qualifies =
-    model.children.has(dir) && (dir === "" || model.expanded.has(dir));
-  if (!qualifies) {
-    return;
-  }
-  pendingRefresh.add(dir);
-  if (refreshTimer !== null) {
+  queueRefresh(parentOf(changedPath));
+  queueRefresh(changedPath);
+  if (pendingRefresh.size === 0 || refreshTimer !== null) {
     return;
   }
   refreshTimer = window.setTimeout(() => {
@@ -220,56 +218,106 @@ export function notifyFileChanged(changedPath: string): void {
   }, REFRESH_COALESCE_MS);
 }
 
+/** Queue a directory for a coalesced refresh iff it is currently loaded and
+ *  shown — root, or an expanded directory. A file path (never a cache key) or a
+ *  collapsed/unloaded directory does not qualify: no wasted fetch. */
+function queueRefresh(dir: string): void {
+  if (model.children.has(dir) && (dir === "" || model.expanded.has(dir))) {
+    pendingRefresh.add(dir);
+  }
+}
+
 // ── Fetch (lazy children) ─────────────────────────────────────────────────────
 
 /** Load one directory's children into the cache (once), guarding a re-root that
  *  races the read. A no-op if already cached or already in flight. */
-async function loadChildren(dirPath: string, forTask: string | null): Promise<void> {
-  if (!deps || model.children.has(dirPath) || model.loading.has(dirPath)) {
+async function loadChildren(dirPath: string): Promise<void> {
+  const m = model;
+  if (!deps || m.children.has(dirPath) || m.loading.has(dirPath)) {
     return;
   }
-  model.loading.add(dirPath);
+  m.loading.add(dirPath);
   let kids: WorkspaceDirEntry[];
   try {
     kids = await deps.readDir(dirPath);
   } catch {
     kids = [];
   }
-  model.loading.delete(dirPath);
-  if (model.rootTaskId !== forTask) {
-    return; // re-rooted mid-fetch — drop the stale listing
+  // A re-root during the read swapped `model` for a fresh generation. This fetch
+  // belongs to the dead one, so touch ONLY the captured model (now unreferenced,
+  // GC'd) — never the live one. Guarding AFTER `loading.delete` was the bug: it
+  // cleared the NEW task's in-flight marker for the same path, letting a
+  // duplicate fetch slip past "one fetch per first expand".
+  if (model !== m) {
+    return;
   }
-  model.children.set(dirPath, kids);
+  m.loading.delete(dirPath);
+  m.children.set(dirPath, kids);
 }
 
 /** Fetch + repaint (the expand path). */
 async function fetchDir(dirPath: string): Promise<void> {
-  const forTask = model.rootTaskId;
-  await loadChildren(dirPath, forTask);
-  if (model.rootTaskId !== forTask) {
-    return;
+  const m = model;
+  await loadChildren(dirPath);
+  if (model === m) {
+    renderBodyIfOpen();
   }
-  renderBodyIfOpen();
 }
 
 /** Forced re-fetch of an already-loaded directory (the freshness path): replace
- *  its listing so created/removed entries reflect, then repaint. */
+ *  its listing so created/removed entries reflect, reconcile vanished
+ *  subdirectories, then repaint. */
 async function refreshDir(dirPath: string): Promise<void> {
   if (!deps) {
     return;
   }
-  const forTask = model.rootTaskId;
+  const m = model;
   let kids: WorkspaceDirEntry[];
   try {
     kids = await deps.readDir(dirPath);
   } catch {
     return;
   }
-  if (model.rootTaskId !== forTask) {
+  if (model !== m) {
     return;
   }
-  model.children.set(dirPath, kids);
+  const previous = m.children.get(dirPath);
+  m.children.set(dirPath, kids);
+  // Reconcile child directories against disk truth: any previously-listed
+  // subdirectory now absent from the fresh listing was deleted or renamed away —
+  // drop its whole cached subtree so it can neither resurrect with stale
+  // children nor leak (three-truths: view truth answers to disk truth).
+  if (previous) {
+    const present = new Set(kids.map((entry) => entry.path));
+    for (const entry of previous) {
+      if (entry.type === "directory" && !present.has(entry.path)) {
+        purgeSubtree(entry.path);
+      }
+    }
+  }
   renderBodyIfOpen();
+}
+
+/** Drop a directory and all its descendants from every view-truth map — used
+ *  when a refresh reveals the directory has vanished from disk. */
+function purgeSubtree(dirPath: string): void {
+  const prefix = `${dirPath}/`;
+  const owns = (key: string): boolean => key === dirPath || key.startsWith(prefix);
+  for (const key of [...model.children.keys()]) {
+    if (owns(key)) {
+      model.children.delete(key);
+    }
+  }
+  for (const key of [...model.expanded]) {
+    if (owns(key)) {
+      model.expanded.delete(key);
+    }
+  }
+  for (const key of [...model.shown.keys()]) {
+    if (owns(key)) {
+      model.shown.delete(key);
+    }
+  }
 }
 
 // ── Interaction ────────────────────────────────────────────────────────────────
@@ -313,16 +361,26 @@ function handleFilterInput(): void {
  *  scroll to its row. Selection falls out of the render (data-tree-selected on
  *  the active path); this only needs to open the branch and bring it into view. */
 async function revealPath(path: string): Promise<void> {
-  const forTask = model.rootTaskId;
+  const m = model;
+  // Load the ROOT listing FIRST: renderBody bails to "Loading…" until root is
+  // cached, so a deep row cannot exist (nor be scrolled to) before then. Without
+  // this, a root read that lands AFTER this render leaves the row selected but
+  // never scrolled into view — and nothing retries (lastRevealed is already set).
+  if (!m.children.has("")) {
+    await loadChildren("");
+    if (model !== m) {
+      return;
+    }
+  }
   const parts = path.split("/");
   let prefix = "";
   for (let i = 0; i < parts.length - 1; i += 1) {
     const segment = parts[i] ?? "";
     prefix = prefix ? `${prefix}/${segment}` : segment;
-    model.expanded.add(prefix);
-    if (!model.children.has(prefix)) {
-      await loadChildren(prefix, forTask);
-      if (model.rootTaskId !== forTask) {
+    m.expanded.add(prefix);
+    if (!m.children.has(prefix)) {
+      await loadChildren(prefix);
+      if (model !== m) {
         return;
       }
     }

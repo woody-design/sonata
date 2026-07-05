@@ -191,6 +191,10 @@ try {
   const moreLabel = (await preview.locator('[data-tree-more="big"]').textContent())?.trim();
   results.guardShows500 = shownFirst === 500;
   results.guardMoreRowCounts = moreLabel === "Show 100 more";
+  // The Show-more row must sit at tree-row density, not balloon to the global
+  // button min-height (34px) — it opts out (min-height:0). Review P3(b).
+  const moreHeight = await preview.locator('[data-tree-more="big"]').evaluate((el) => el.offsetHeight);
+  results.showMoreCompactHeight = moreHeight > 0 && moreHeight <= 28;
 
   await preview.locator('[data-tree-more="big"]').click();
   await preview.locator('[data-tree-path="big/f599.md"]').waitFor({ state: "visible" });
@@ -221,6 +225,26 @@ try {
   await preview.locator('[data-tree-path="lonely/newfile.ts"]').waitFor({ state: "visible" });
   results.expandFetchesFresh =
     (await preview.locator('[data-tree-path="lonely/existing.ts"]').count()) === 1;
+
+  // ── Phase 8b: an EXPANDED directory deleted → its row + subtree vanish;
+  //    recreated at the same path → fresh listing, no stale resurrection (proves
+  //    the subtree purge on a directory refresh). Review P2(b). ────────────────
+  await ensureExpanded(preview, "docs");
+  await ensureExpanded(preview, "docs/research");
+  await preview.locator('[data-tree-path="docs/research/deep.md"]').waitFor({ state: "visible" });
+  fs.rmSync(path.join(workspace, "docs/research"), { recursive: true, force: true });
+  await preview.locator('[data-tree-path="docs/research"]').waitFor({ state: "detached", timeout: 15000 });
+  results.deletedDirVanishes =
+    (await preview.locator('[data-tree-path="docs/research/deep.md"]').count()) === 0;
+  // Recreate the same path with DIFFERENT content — it must come back fresh, not
+  // resurrect the purged deep.md from a stale cache.
+  writeFile(workspace, "docs/research/other.md", "# Other\n");
+  await preview.locator('[data-tree-path="docs/research"]').waitFor({ state: "visible", timeout: 15000 });
+  await ensureExpanded(preview, "docs/research");
+  await preview.locator('[data-tree-path="docs/research/other.md"]').waitFor({ state: "visible" });
+  results.recreatedDirIsFresh =
+    (await preview.locator('[data-tree-path="docs/research/other.md"]').count()) === 1 &&
+    (await preview.locator('[data-tree-path="docs/research/deep.md"]').count()) === 0;
 
   // ── Phase 9: panel toggle keeps the (left-anchored) document unshifted ──────
   await preview.locator('.preview-tab:has-text("alpha.md")').click();
@@ -255,6 +279,20 @@ function writeFile(root, relative, contents) {
 
 async function openTab(page, taskId, relativePath) {
   await page.evaluate((args) => window.duetRuntime.openPreview(args), { taskId, relativePath });
+}
+
+/** Expand a directory row only if it is currently collapsed (clicking blindly
+ *  would toggle an already-open dir shut). */
+async function ensureExpanded(preview, treePath) {
+  const collapsed = await preview
+    .locator(`[data-tree-path="${treePath}"][data-tree-expanded="false"]`)
+    .count();
+  if (collapsed > 0) {
+    await preview.locator(`[data-tree-path="${treePath}"]`).click();
+  }
+  await preview
+    .locator(`[data-tree-path="${treePath}"][data-tree-expanded="true"]`)
+    .waitFor({ state: "visible" });
 }
 
 /** True iff every root-level directory row precedes every root-level file row. */

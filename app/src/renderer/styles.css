@@ -5174,7 +5174,10 @@ html[data-instance-label] body::after {
   display: flex;
   align-items: center;
   height: 24px;
-  padding-left: calc(6px + 16px + 6px + var(--depth, 0) * 14px);
+  /* Opt out of the global button metrics (min-height:34px; padding:0 12px),
+     which would otherwise inflate this row past the 26px tree-row density. */
+  min-height: 0;
+  padding: 0 6px 0 calc(6px + 16px + 6px + var(--depth, 0) * 14px);
   border: none;
   background: transparent;
   color: var(--ink-muted);
