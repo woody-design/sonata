@@ -22,6 +22,7 @@ import type { RuntimeRunReport } from "../../shared/schemas";
 import {
   buildReadingTurns,
   createTurnSignatureTracker,
+  imageAttachmentLabel,
   userPromptDisplay,
   type ReadingTurn,
 } from "../../reading-core/selectors/turns";
@@ -307,21 +308,33 @@ function renderRunOutcomeNote(run: RuntimeRunReport): HTMLElement {
   return note;
 }
 
-// The attachment affordance for the reading bubble: an image glyph, plus a
-// count when more than one. Same lucide icon the composer's attachment chip
-// uses, so a sent image reads the same on both sides of the send.
-function imageChip(turnKey: string, count: number): HTMLElement {
+// The attachment affordance for the reading bubble. Decorative (icon + count)
+// when the turn also has text or a command; the SOLE prompt affordance when the
+// prompt was images only — then it carries `.turn-prompt` + a real label so
+// prompt-nav can target it and the sticky header shows words, not a bare count
+// (review 2026-07-05 P2). Same lucide icon the composer's attachment chip uses.
+function imageChip(turnKey: string, count: number, asPrompt = false): HTMLElement {
   const chip = document.createElement("span");
-  chip.className = "turn-image-chip";
+  chip.className = asPrompt ? "turn-image-chip turn-prompt" : "turn-image-chip";
   chip.dataset.turnKey = turnKey;
   chip.append(lucideIcon(ImageIcon, 14));
-  if (count > 1) {
-    const badge = document.createElement("span");
-    badge.className = "turn-image-chip-count";
-    badge.textContent = String(count);
-    chip.append(badge);
+  const label = imageAttachmentLabel(count);
+  if (asPrompt) {
+    chip.tabIndex = -1;
+    const text = document.createElement("span");
+    text.className = "turn-image-chip-label";
+    text.textContent = label;
+    chip.append(text);
+    chip.setAttribute("aria-label", `Prompt: ${label}`);
+  } else {
+    if (count > 1) {
+      const badge = document.createElement("span");
+      badge.className = "turn-image-chip-count";
+      badge.textContent = String(count);
+      chip.append(badge);
+    }
+    chip.setAttribute("aria-label", label);
   }
-  chip.setAttribute("aria-label", count === 1 ? "1 image attached" : `${count} images attached`);
   return chip;
 }
 
@@ -338,8 +351,11 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
   // the view only builds DOM from them. Marker stripping there is display-only
   // and attachment-gated — matching reads through markers separately.
   const { text: displayText, imageCount } = userPromptDisplay(userBlock, turn.run?.prompt ?? "");
+  // "Images, no words": the chip must BE the prompt affordance (nav target +
+  // sticky label), not a decoration beside a text bubble that isn't there.
+  const imageOnly = imageCount > 0 && !displayText && !userBlock?.command;
   if (imageCount > 0) {
-    header.append(imageChip(turn.key, imageCount));
+    header.append(imageChip(turn.key, imageCount, imageOnly));
   }
 
   if (userBlock?.command) {
@@ -368,9 +384,9 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
       prompt.setAttribute("aria-label", `Prompt: ${body}`);
       header.append(prompt);
     }
-  } else if (displayText || imageCount === 0) {
-    // The text bubble, unless the prompt was images only (the chip stands alone
-    // then — never a stray "(empty prompt)" beside an image).
+  } else if (!imageOnly) {
+    // The text bubble. `(empty prompt)` shows only when there was neither text
+    // nor image; an image-only turn is served by the chip affordance above.
     const prompt = document.createElement("div");
     prompt.className = "turn-user-text turn-prompt";
     prompt.tabIndex = -1;

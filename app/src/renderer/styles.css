@@ -3743,6 +3743,13 @@ h2 {
   line-height: 1;
 }
 
+/* The label shown when the chip is the sole prompt affordance (image-only turn):
+ * words, not a bare count, so nav/sticky read it. */
+.turn-image-chip-label {
+  font-size: 12px;
+  line-height: 1;
+}
+
 .turn-body {
   display: flex;
   flex-direction: column;

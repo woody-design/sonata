@@ -347,4 +347,12 @@ function view({ runs = [], blocks = [], runTranscripts = [] } = {}) {
   );
 }
 
-console.log("reading-turns: 10 fixture groups pass");
+// 11) imageAttachmentLabel — the sticky/nav label an image-only prompt shows in
+//     place of a text bubble (review 2026-07-05 P2: a bare count chip would be
+//     non-navigable and would blank the sticky header).
+{
+  assert.equal(T.imageAttachmentLabel(1), "1 image attached", "singular");
+  assert.equal(T.imageAttachmentLabel(3), "3 images attached", "plural");
+}
+
+console.log("reading-turns: 11 fixture groups pass");

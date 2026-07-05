@@ -160,6 +160,13 @@ export function userPromptDisplay(
   };
 }
 
+/** Human label for an image-only prompt. When the prompt has no text, this IS
+ *  the prompt's accessible/sticky-header text (review 2026-07-05 P2) — a bubble
+ *  showing only a count chip would otherwise be non-navigable and headerless. */
+export function imageAttachmentLabel(count: number): string {
+  return count === 1 ? "1 image attached" : `${count} images attached`;
+}
+
 export interface TurnSignatureTracker {
   blockRenderVersion(block: TranscriptBlock): number;
   turnSignature(turn: ReadingTurn): string;
