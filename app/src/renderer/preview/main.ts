@@ -1,5 +1,6 @@
 import "../styles.css";
 import type { PreviewBinding, RuntimeEvent } from "../../shared/types";
+import { clamp } from "../../reading-core/selectors/formatters";
 import {
   basename,
   createInitialPreviewState,
@@ -42,6 +43,9 @@ appElement.innerHTML = `
     </div>
     <div class="preview-body">
       <section class="preview-canvas" id="preview-content" tabindex="0" aria-label="Document"></section>
+      <div class="preview-panel-resizer hidden" id="preview-panel-resizer" role="separator"
+        aria-orientation="vertical" aria-label="Resize folder panel"
+        title="Drag to resize · double-click to reset"></div>
       <aside class="preview-panel hidden" id="preview-panel" aria-label="Folder"></aside>
     </div>
   </div>
@@ -55,6 +59,7 @@ const els = {
   panelToggle: requireEl<HTMLButtonElement>("#preview-panel-toggle"),
   content: requireEl("#preview-content"),
   panel: requireEl("#preview-panel"),
+  panelResizer: requireEl("#preview-panel-resizer"),
 };
 
 const toolbarEls: ToolbarElements = {
@@ -190,6 +195,9 @@ function renderChrome(): void {
   renderTabs(state, els.tabstrip);
   renderToolbar(state, toolbarEls);
   renderTree(state, els.panel);
+  // The resizer straddles the canvas/panel seam, so it lives and dies with the
+  // panel (renderTree toggles the panel's own `hidden` from the same source).
+  els.panelResizer.classList.toggle("hidden", !(state.binding.session?.panelOpen ?? false));
 }
 
 function renderAll(): void {
@@ -550,6 +558,90 @@ function switchToIndex(index: number | "last"): void {
     deps.activate(tab.path);
   }
 }
+
+// ── Folder panel resize (§5.6) ───────────────────────────────────────────────
+// Mirrors the main window's sidebar sash: a zero-layout 8px handle over the
+// seam, pointer capture + rAF-throttled apply, localStorage-persisted width,
+// double-click to reset. Right-anchored — the panel hugs the window's right
+// edge, so its width is the pointer's distance from that edge.
+const PANEL_WIDTH_KEY = "duet.preview.panel.width";
+const PANEL_WIDTH_MIN = 220;
+const PANEL_WIDTH_MAX = 560;
+
+function applyPanelWidth(width: number | null): void {
+  if (width === null) {
+    els.panel.style.removeProperty("width");
+    els.panel.style.removeProperty("flex-basis");
+    return;
+  }
+  const clamped = Math.round(clamp(width, PANEL_WIDTH_MIN, PANEL_WIDTH_MAX));
+  els.panel.style.width = `${clamped}px`;
+  els.panel.style.flexBasis = `${clamped}px`;
+}
+
+function persistPanelWidth(width: number | null): void {
+  try {
+    if (width === null) {
+      localStorage.removeItem(PANEL_WIDTH_KEY);
+    } else {
+      localStorage.setItem(PANEL_WIDTH_KEY, String(Math.round(width)));
+    }
+  } catch {
+    // View preference only.
+  }
+}
+
+try {
+  const stored = Number(localStorage.getItem(PANEL_WIDTH_KEY));
+  if (Number.isFinite(stored) && stored > 0) {
+    applyPanelWidth(stored);
+  }
+} catch {
+  // Default width (CSS) stays.
+}
+
+els.panelResizer.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) {
+    return;
+  }
+  event.preventDefault();
+  const resizer = event.currentTarget as HTMLElement;
+  resizer.setPointerCapture(event.pointerId);
+  document.body.classList.add("preview-panel-resizing");
+  let frame = 0;
+  let lastWidth = els.panel.getBoundingClientRect().width;
+
+  const onMove = (moveEvent: PointerEvent): void => {
+    lastWidth = window.innerWidth - moveEvent.clientX;
+    if (frame) {
+      return;
+    }
+    frame = window.requestAnimationFrame(() => {
+      frame = 0;
+      applyPanelWidth(lastWidth);
+    });
+  };
+  const onUp = (): void => {
+    resizer.removeEventListener("pointermove", onMove);
+    resizer.removeEventListener("pointerup", onUp);
+    resizer.removeEventListener("pointercancel", onUp);
+    document.body.classList.remove("preview-panel-resizing");
+    if (frame) {
+      window.cancelAnimationFrame(frame);
+      frame = 0;
+    }
+    applyPanelWidth(lastWidth);
+    persistPanelWidth(clamp(lastWidth, PANEL_WIDTH_MIN, PANEL_WIDTH_MAX));
+  };
+  resizer.addEventListener("pointermove", onMove);
+  resizer.addEventListener("pointerup", onUp);
+  resizer.addEventListener("pointercancel", onUp);
+});
+
+els.panelResizer.addEventListener("dblclick", () => {
+  applyPanelWidth(null);
+  persistPanelWidth(null);
+});
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 initTabs(els.tabstrip, deps);

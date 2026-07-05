@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FolderOpen, PanelRight, SquareArrowOutUpRight } from "lucide";
+import { ChevronDown, ChevronRight, FolderOpen, SquareArrowOutUpRight } from "lucide";
 import { lucideIcon } from "../view/icons";
 import { activePath, type PreviewDeps, type PreviewViewState } from "./state";
 
@@ -25,7 +25,7 @@ export function initToolbar(toolbar: ToolbarElements, bound: PreviewDeps): void 
     textSpan("Open"),
     lucideIcon(ChevronDown, 14),
   );
-  toolbar.panelToggle.append(lucideIcon(PanelRight, 16));
+  toolbar.panelToggle.append(lucideIcon(FolderOpen, 16));
 
   toolbar.openButton.addEventListener("click", (event) => {
     event.stopPropagation();

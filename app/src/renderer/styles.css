@@ -4183,9 +4183,13 @@ html[data-instance-label] body::after {
   align-items: stretch;
   gap: 2px;
   height: 42px;
-  padding: 7px 8px 0 78px;
-  background: var(--surface-shell);
-  border-bottom: 1px solid var(--border-subtle);
+  /* Left inset = the app-wide traffic-light zone (~76px, see .sidebar-top L708)
+     + a 12px gap to the first tab. Symmetric top/bottom padding floats the tabs
+     as pills within the strip. The strip carries no band of its own — it shares
+     --surface with the breadcrumb + reading plane, so the whole header reads as
+     one flat field. */
+  padding: 6px 8px 6px 88px;
+  background: var(--surface);
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-app-region: drag;
@@ -4206,8 +4210,7 @@ html[data-instance-label] body::after {
   flex: 0 1 auto;
   padding: 0 6px 0 11px;
   border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 9px 9px 0 0;
+  border-radius: 9px;
   background: transparent;
   color: var(--ink-muted);
   font-size: 12.5px;
@@ -4223,7 +4226,10 @@ html[data-instance-label] body::after {
   color: var(--ink);
 }
 .preview-tab.active {
-  background: var(--surface);
+  /* Active tab = a raised pill (one rung up the surface ladder) floating on the
+     flat --surface strip; the subtle border defines the pill edge. Inactive
+     tabs stay transparent (background color IS the only active affordance). */
+  background: var(--surface-raised);
   color: var(--ink-strong);
   border-color: var(--border-subtle);
 }
@@ -4433,6 +4439,35 @@ html[data-instance-label] body::after {
 }
 .preview-panel.hidden {
   display: none;
+}
+
+/* Folder-panel resize handle — the main window's sidebar sash, mirrored onto the
+   canvas/panel seam (styles.css .sidebar-resizer). Zero-layout 8px overlay
+   (8px basis, -4px margins net to 0) so canvas + panel abut; the accent line
+   paints centered on the seam on hover/drag. */
+.preview-panel-resizer {
+  flex: 0 0 8px;
+  margin: 0 -4px;
+  z-index: 5;
+  cursor: col-resize;
+  background: transparent;
+}
+.preview-panel-resizer:hover,
+body.preview-panel-resizing .preview-panel-resizer {
+  background: linear-gradient(
+    to right,
+    transparent 3px,
+    var(--accent-soft-border) 3px,
+    var(--accent-soft-border) 5px,
+    transparent 5px
+  );
+}
+.preview-panel-resizer.hidden {
+  display: none;
+}
+body.preview-panel-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 /* Folder tree (S3) — a fixed filter box above a scrolling body. */
