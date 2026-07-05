@@ -12,7 +12,6 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, "src/renderer/index.html"),
         preview: path.resolve(__dirname, "src/renderer/preview.html"),
-        inspector: path.resolve(__dirname, "src/renderer/inspector.html"),
         terminal: path.resolve(__dirname, "src/renderer/terminal.html"),
       },
     },

@@ -3,8 +3,6 @@ import {
   DEFAULT_READING_SETTINGS,
   IPC_CHANNELS,
   type DuetRuntimeBridge,
-  type FocusArtifactInMainRequest,
-  type InspectorWindowState,
   type PreviewBinding,
   type ReadingSettings,
   type ResolvedReadingMode,
@@ -18,18 +16,16 @@ import {
 const MAIN_WINDOW_ENTRY = "/index.html";
 const PREVIEW_WINDOW_ENTRY = "/preview.html";
 const TERMINAL_WINDOW_ENTRY = "/terminal.html";
-const INSPECTOR_WINDOW_ENTRY = "/inspector.html";
 
 /** The Reading (main) and Preview windows both FOLLOW the reading appearance
  *  (R6) — the preload stamps both on boot so neither flashes an unthemed frame.
- *  The terminal owns its own theme (its Aa picker); the inspector is theme-
- *  agnostic. Both are excluded EXPLICITLY and first: terminal.html ships a
- *  static `data-theme="duet"` that equals the reading default, so the content
- *  fallback below would otherwise sweep it into the reading-stamp path and
- *  fight terminal.ts's independent theme ownership. */
+ *  The terminal owns its own theme (its Aa picker); it is excluded EXPLICITLY
+ *  and first: terminal.html ships a static `data-theme="duet"` that equals the
+ *  reading default, so the content fallback below would otherwise sweep it into
+ *  the reading-stamp path and fight terminal.ts's independent theme ownership. */
 function isReadingThemedDocument(): boolean {
   const pathname = window.location.pathname;
-  if (pathname.endsWith(TERMINAL_WINDOW_ENTRY) || pathname.endsWith(INSPECTOR_WINDOW_ENTRY)) {
+  if (pathname.endsWith(TERMINAL_WINDOW_ENTRY)) {
     return false;
   }
   return (
@@ -177,8 +173,6 @@ const duetRuntime: DuetRuntimeBridge = {
   readSlashCommands: (request) => ipcRenderer.invoke(IPC_CHANNELS.slashCommandsRead, request),
   injectRemoteControl: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.remoteControlInject, request),
-  listArtifacts: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactList, request),
-  readArtifact: (request) => ipcRenderer.invoke(IPC_CHANNELS.artifactRead, request),
   openPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewOpen, request),
   readPreviewBinding: () => ipcRenderer.invoke(IPC_CHANNELS.previewBindingRead),
   closePreviewTab: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewClose, request),
@@ -191,9 +185,6 @@ const duetRuntime: DuetRuntimeBridge = {
   resolveWorkspacePaths: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.workspaceResolvePaths, request),
   statWorkspacePath: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspaceStat, request),
-  focusArtifactInMain: (request) => ipcRenderer.invoke(IPC_CHANNELS.mainArtifactFocusRequest, request),
-  openInspector: (request) => ipcRenderer.invoke(IPC_CHANNELS.inspectorOpen, request),
-  readInspectorState: () => ipcRenderer.invoke(IPC_CHANNELS.inspectorStateRead),
   setTerminalWindowOpen: (open) => ipcRenderer.invoke(IPC_CHANNELS.terminalWindowSetOpen, open),
   readTerminalWindowState: () => ipcRenderer.invoke(IPC_CHANNELS.terminalWindowStateRead),
   setActiveTerminalTask: (state) => ipcRenderer.invoke(IPC_CHANNELS.terminalActiveTaskSet, state),
@@ -248,20 +239,6 @@ const duetRuntime: DuetRuntimeBridge = {
     };
     ipcRenderer.on(IPC_CHANNELS.previewBinding, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.previewBinding, listener);
-  },
-  onMainArtifactFocus: (callback) => {
-    const listener = (_event: Electron.IpcRendererEvent, request: FocusArtifactInMainRequest) => {
-      callback(request);
-    };
-    ipcRenderer.on(IPC_CHANNELS.mainArtifactFocus, listener);
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.mainArtifactFocus, listener);
-  },
-  onInspectorState: (callback) => {
-    const listener = (_event: Electron.IpcRendererEvent, inspectorState: InspectorWindowState) => {
-      callback(inspectorState);
-    };
-    ipcRenderer.on(IPC_CHANNELS.inspectorState, listener);
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.inspectorState, listener);
   },
   onTerminalWindowState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, state: TerminalWindowState) => {

@@ -14,7 +14,6 @@ function queryElements() {
     remoteControlToggle: getElement<HTMLButtonElement>("remote-control-toggle"),
     remoteControlPopoverRoot: getElement<HTMLDivElement>("remote-control-popover-root"),
     openPreviewWindow: getElement<HTMLButtonElement>("open-preview-window"),
-    openInspectorWindow: getElement<HTMLButtonElement>("open-inspector-window"),
     toggleTerminalWindow: getElement<HTMLButtonElement>("toggle-terminal-window"),
     sidebar: getElement<HTMLElement>("sidebar"),
     sidebarResizer: getElement<HTMLDivElement>("sidebar-resizer"),
@@ -114,7 +113,6 @@ export function initDom(): void {
         >Aa</button>
         <button id="remote-control-toggle" class="chrome-icon-button" type="button" aria-haspopup="dialog" aria-expanded="false" title="Remote control" aria-label="Remote control"></button>
         <button id="open-preview-window" class="chrome-icon-button" type="button" title="Preview" aria-label="Open Preview"></button>
-        <button id="open-inspector-window" class="chrome-icon-button" type="button" title="Inspector" aria-label="Open Inspector"></button>
       </div>
     </header>
     <div id="reading-popover-root"></div>

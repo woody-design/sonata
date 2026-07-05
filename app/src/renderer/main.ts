@@ -2,7 +2,6 @@ import {
   Ellipsis,
   Eye,
   PanelLeft,
-  SearchCode,
   Smartphone,
   SquarePen,
 } from "lucide";
@@ -66,9 +65,7 @@ import {
   archiveSessionFromSidebar,
   decideApproval,
   deleteSessionFromSidebar,
-  focusArtifactFromPreview,
   initSessionFlows,
-  openFloatingInspector,
   openFloatingPreview,
   pickTaskFolder,
   refreshReport,
@@ -466,7 +463,6 @@ elements.sidebarToggle.append(lucideIcon(PanelLeft));
 elements.sidebarCollapse.append(lucideIcon(PanelLeft));
 elements.sessionMenuTrigger.append(lucideIcon(Ellipsis));
 elements.openPreviewWindow.append(lucideIcon(Eye));
-elements.openInspectorWindow.append(lucideIcon(SearchCode));
 elements.remoteControlToggle.append(lucideIcon(Smartphone));
 elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIcon(SquarePen));
 
@@ -598,10 +594,6 @@ elements.sessionMenuTrigger.addEventListener("click", (event) => {
 
 elements.openPreviewWindow.addEventListener("click", () => {
   void openFloatingPreview();
-});
-
-elements.openInspectorWindow.addEventListener("click", () => {
-  void openFloatingInspector();
 });
 
 elements.toggleTerminalWindow.addEventListener("click", () => {
@@ -1335,10 +1327,6 @@ window.duetRuntime.onRuntimeEvent((event) => {
   for (const directive of reduceRuntimeEvent(state, event)) {
     performDirective(directive);
   }
-});
-
-window.duetRuntime.onMainArtifactFocus((request) => {
-  focusArtifactFromPreview(request);
 });
 
 // A clicked native notification lands us on its task (the window was already

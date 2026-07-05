@@ -5,7 +5,6 @@ import { app } from "electron";
 import type {
   DeliveryAttachment,
   ReferenceResult,
-  ArtifactCandidate,
   ApprovalDecision,
   ApprovalKind,
   ApprovalChoice,
@@ -49,7 +48,6 @@ import {
   type TaskManifestV1,
 } from "../shared/schemas";
 import {
-  ArtifactPreview,
   DeliveryController,
   ProviderTranscript,
   RunIndex,
@@ -1165,16 +1163,6 @@ export class RuntimeController {
     return this.usageSnapshots.get(taskId) ?? null;
   }
 
-  listArtifacts(taskId: TaskId): ArtifactCandidate[] {
-    const active = this.requireTaskRuntime(taskId);
-    return this.currentArtifactPreview(active).listArtifacts();
-  }
-
-  readArtifact(taskId: TaskId, relativePath: string): ReturnType<ArtifactPreview["readArtifact"]> {
-    const active = this.requireTaskRuntime(taskId);
-    return this.currentArtifactPreview(active).readArtifact(relativePath);
-  }
-
   readWorkspaceTree(taskId: TaskId): WorkspaceTreeEntry[] {
     const active = this.requireTaskRuntime(taskId);
     return this.currentWorkspacePreview(active).readTree();
@@ -1380,14 +1368,6 @@ export class RuntimeController {
       ts: new Date().toISOString(),
     };
     this.sendEvent(reportEvent);
-  }
-
-  private currentArtifactPreview(active: ActiveTaskRuntime): ArtifactPreview {
-    return new ArtifactPreview({
-      taskId: active.task.id,
-      workspaceRoot: this.workspaceRoot(active),
-      report: active.runIndex.read(),
-    });
   }
 
   private currentWorkspacePreview(active: ActiveTaskRuntime): WorkspacePreview {

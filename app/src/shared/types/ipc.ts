@@ -1,5 +1,4 @@
 import type {
-  ArtifactCandidate,
   ApprovalDecision,
   ClaudePermissionMode,
   CodexApprovalMode,
@@ -59,8 +58,6 @@ export const IPC_CHANNELS = {
   usageRead: "usage:read",
   slashCommandsRead: "slash:commands:read",
   remoteControlInject: "remote-control:inject",
-  artifactList: "artifact:list",
-  artifactRead: "artifact:read",
   // Preview window (2026-07 redesign, three-truths model §6). `previewOpen`
   // opens/focuses the window and binds a task (optionally opening a tab);
   // `previewBinding` is main's push of the bound task's session; the transition
@@ -73,11 +70,6 @@ export const IPC_CHANNELS = {
   previewReorder: "preview:reorder",
   previewSetScroll: "preview:set-scroll",
   previewSetPanel: "preview:set-panel",
-  mainArtifactFocusRequest: "main:artifact:focus:request",
-  mainArtifactFocus: "main:artifact:focus",
-  inspectorOpen: "inspector:open",
-  inspectorStateRead: "inspector:state:read",
-  inspectorState: "inspector:state",
   terminalWindowSetOpen: "terminal-window:set-open",
   terminalWindowStateRead: "terminal-window:state:read",
   terminalWindowState: "terminal-window:state",
@@ -358,28 +350,6 @@ export interface ReadUsageRequest {
 
 export type ReadUsageResponse = UsageSnapshot | null;
 
-export interface ListArtifactsRequest {
-  taskId: TaskId;
-}
-
-export interface ReadArtifactRequest {
-  taskId: TaskId;
-  relativePath: string;
-}
-
-export type PreviewKind = "html" | "text" | "image" | "metadata";
-
-export interface ArtifactPreviewResponse {
-  path: string;
-  extension: string;
-  size: number;
-  truncated: boolean;
-  previewKind: PreviewKind;
-  content?: string;
-  dataUrl?: string;
-  rawTerminalPointer: null;
-}
-
 /** Open/focus the Preview window and bind a task. A bare `taskId` (the header
  *  Eye button) shows that task's restored tabs or its empty state; a
  *  `relativePath` also opens-or-focuses that tab. */
@@ -518,25 +488,6 @@ export interface WorkspaceStatRequest {
   relativePath: string;
 }
 
-export interface FocusArtifactInMainRequest {
-  taskId: TaskId;
-  relativePath?: string;
-  runId?: string;
-  mode: "artifact" | "run";
-}
-
-export type InspectorLens = "run" | "change" | "artifact" | "folder";
-
-export interface OpenInspectorRequest {
-  taskId: TaskId;
-  lens?: InspectorLens;
-}
-
-export interface InspectorWindowState {
-  taskId: TaskId | null;
-  lens: InspectorLens;
-}
-
 /**
  * The live open/closed state of the terminal satellite window, broadcast to
  * every window so the main-window toggle button's label tracks reality
@@ -578,6 +529,8 @@ export interface WorkspaceFileReadRequest {
   taskId: TaskId;
   relativePath: string;
 }
+
+export type PreviewKind = "html" | "text" | "image" | "metadata";
 
 export interface WorkspaceFilePreviewResponse {
   path: string;
@@ -647,8 +600,6 @@ export interface DuetRuntimeBridge {
   injectRemoteControl(
     request: RemoteControlInjectRequest,
   ): Promise<RemoteControlInjectResponse>;
-  listArtifacts(request: ListArtifactsRequest): Promise<ArtifactCandidate[]>;
-  readArtifact(request: ReadArtifactRequest): Promise<ArtifactPreviewResponse>;
   // Preview window (three-truths model §6). `openPreview` opens/focuses + binds
   // (+ optional tab); the transition methods mutate session truth in main, which
   // echoes the updated binding back through `onPreviewBinding`.
@@ -666,10 +617,6 @@ export interface DuetRuntimeBridge {
   resolveWorkspacePaths(
     request: WorkspaceResolvePathsRequest,
   ): Promise<WorkspaceResolvePathsResult>;
-  focusArtifactInMain(request: FocusArtifactInMainRequest): Promise<void>;
-  onMainArtifactFocus(callback: (request: FocusArtifactInMainRequest) => void): () => void;
-  openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
-  readInspectorState(): Promise<InspectorWindowState>;
   setTerminalWindowOpen(open: boolean): Promise<TerminalWindowState>;
   readTerminalWindowState(): Promise<TerminalWindowState>;
   onTerminalWindowState(callback: (state: TerminalWindowState) => void): () => void;
@@ -699,7 +646,6 @@ export interface DuetRuntimeBridge {
   onSettingsOpen(callback: () => void): () => void;
   /** A clicked native notification asks the main window to select its task. */
   onNotificationActivateTask(callback: (taskId: TaskId) => void): () => void;
-  onInspectorState(callback: (state: InspectorWindowState) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;
 }
 

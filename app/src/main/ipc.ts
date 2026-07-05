@@ -3,9 +3,6 @@ import {
   IPC_CHANNELS,
   type ClipboardReadTextResponse,
   type FolderPickResponse,
-  type FocusArtifactInMainRequest,
-  type InspectorWindowState,
-  type OpenInspectorRequest,
   type OpenPreviewRequest,
   type OpenTerminalLinkRequest,
   type OpenTerminalLinkResponse,
@@ -69,9 +66,6 @@ export interface WindowIpcController {
   resolveWorkspacePaths(request: WorkspaceResolvePathsRequest): WorkspaceResolvePathsResult;
   statWorkspacePath(request: WorkspaceStatRequest): WorkspaceStatResult;
   broadcastReadingSettings(settings: ReadingSettings): void;
-  focusArtifactInMain(request: FocusArtifactInMainRequest): void;
-  openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState>;
-  readInspectorState(): InspectorWindowState;
   setTerminalWindowOpen(open: boolean): Promise<TerminalWindowState>;
   readTerminalWindowState(): TerminalWindowState;
   readTerminalWindowSettings(): TerminalWindowSettings;
@@ -82,7 +76,6 @@ export interface WindowIpcController {
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   pickFolder(): Promise<FolderPickResponse>;
   pickReferences(): Promise<string[]>;
-  closeTaskSurfaces(taskId: TaskId): void;
   forgetPreviewSession(taskId: TaskId): void;
 }
 
@@ -110,7 +103,6 @@ export function registerIpcHandlers(
   );
   ipcMain.handle(IPC_CHANNELS.taskClose, (_event, request) => {
     runtimeController.closeTask(request.taskId);
-    windowController.closeTaskSurfaces(request.taskId);
   });
   ipcMain.handle(IPC_CHANNELS.taskList, () => runtimeController.listTasks());
   ipcMain.handle(IPC_CHANNELS.sessionIndexRead, (_event, request) =>
@@ -124,15 +116,11 @@ export function registerIpcHandlers(
   });
   ipcMain.handle(IPC_CHANNELS.sessionArchive, (_event, request) => {
     runtimeController.archiveSession(request.taskId, request.archived);
-    if (request.archived) {
-      windowController.closeTaskSurfaces(request.taskId);
-    }
   });
   ipcMain.handle(IPC_CHANNELS.sessionDelete, (_event, request) => {
     runtimeController.deleteSession(request.taskId);
-    windowController.closeTaskSurfaces(request.taskId);
     // A deleted session has no dormant record to return to — forget its preview
-    // claims (close/archive keep theirs).
+    // claims (close/archive keep theirs, per §6.1 task reading memory).
     windowController.forgetPreviewSession(request.taskId);
   });
   ipcMain.handle(IPC_CHANNELS.sessionReveal, (_event, request) => {
@@ -204,12 +192,6 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.remoteControlInject, (_event, request) =>
     runtimeController.injectRemoteControl(request.taskId),
   );
-  ipcMain.handle(IPC_CHANNELS.artifactList, (_event, request) =>
-    runtimeController.listArtifacts(request.taskId),
-  );
-  ipcMain.handle(IPC_CHANNELS.artifactRead, (_event, request) =>
-    runtimeController.readArtifact(request.taskId, request.relativePath),
-  );
   ipcMain.handle(IPC_CHANNELS.previewOpen, (_event, request) =>
     windowController.openPreview(request),
   );
@@ -229,13 +211,6 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.previewSetPanel, (_event, request) => {
     windowController.previewSetPanel(request);
   });
-  ipcMain.handle(IPC_CHANNELS.mainArtifactFocusRequest, (_event, request) => {
-    windowController.focusArtifactInMain(request);
-  });
-  ipcMain.handle(IPC_CHANNELS.inspectorOpen, (_event, request) =>
-    windowController.openInspector(request),
-  );
-  ipcMain.handle(IPC_CHANNELS.inspectorStateRead, () => windowController.readInspectorState());
   ipcMain.handle(IPC_CHANNELS.terminalWindowSetOpen, (_event, open: boolean) =>
     windowController.setTerminalWindowOpen(open),
   );

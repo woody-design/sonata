@@ -15,9 +15,6 @@ import {
   DEFAULT_TERMINAL_WINDOW_SETTINGS,
   IPC_CHANNELS,
   type FolderPickResponse,
-  type FocusArtifactInMainRequest,
-  type InspectorWindowState,
-  type OpenInspectorRequest,
   type OpenPreviewRequest,
   type PreviewActivateRequest,
   type PreviewBinding,
@@ -86,7 +83,6 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow: BrowserWindow | null = null;
 let previewWindow: BrowserWindow | null = null;
-let inspectorWindow: BrowserWindow | null = null;
 let terminalWindow: BrowserWindow | null = null;
 let runtimeController: RuntimeController | null = null;
 let notificationController: NotificationController | null = null;
@@ -102,10 +98,6 @@ let isQuitting = false;
 let previewSessions: PreviewSessions | null = null;
 let workspaceFiles: WorkspaceFiles | null = null;
 let previewBoundTaskId: TaskId | null = null;
-let inspectorState: InspectorWindowState = {
-  taskId: null,
-  lens: "run",
-};
 // Which task the terminal window shows. Owned by the main renderer (the
 // selected-task concept is its UI state); relayed here for the terminal window.
 let activeTerminalTask: TerminalActiveTaskState = { taskId: null, live: false, openTaskIds: [] };
@@ -122,12 +114,6 @@ const PREVIEW_WINDOW_DEFAULTS: WindowDefaults = {
   height: 760,
   minWidth: 560,
   minHeight: 420,
-};
-const INSPECTOR_WINDOW_DEFAULTS: WindowDefaults = {
-  width: 1080,
-  height: 760,
-  minWidth: 620,
-  minHeight: 460,
 };
 const TERMINAL_WINDOW_DEFAULTS: WindowDefaults = {
   width: 900,
@@ -230,43 +216,6 @@ function createPreviewWindow(): BrowserWindow {
   window.on("closed", () => {
     if (previewWindow === window) {
       previewWindow = null;
-    }
-  });
-
-  return window;
-}
-
-function createInspectorWindow(): BrowserWindow {
-  const decision = windowState?.restore("inspector", INSPECTOR_WINDOW_DEFAULTS);
-  const window = new BrowserWindow({
-    ...(decision?.bounds ?? {
-      width: INSPECTOR_WINDOW_DEFAULTS.width,
-      height: INSPECTOR_WINDOW_DEFAULTS.height,
-    }),
-    minWidth: INSPECTOR_WINDOW_DEFAULTS.minWidth,
-    minHeight: INSPECTOR_WINDOW_DEFAULTS.minHeight,
-    // Only set fullscreen when restoring into it — passing `false` explicitly
-    // disables the macOS fullscreen (green) button.
-    ...(decision?.fullScreen ? { fullscreen: true } : {}),
-    title: "Duet Inspector",
-    webPreferences: {
-      preload: path.join(__dirname, "../preload/preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
-    return { action: "deny" };
-  });
-
-  window.loadFile(path.join(__dirname, "../renderer/inspector.html"));
-  windowState?.track(window, "inspector");
-  window.on("closed", () => {
-    if (inspectorWindow === window) {
-      inspectorWindow = null;
     }
   });
 
@@ -513,15 +462,6 @@ function broadcastReadingSettings(settings: ReadingSettings): void {
   }
 }
 
-function focusArtifactInMain(request: FocusArtifactInMainRequest): void {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-  mainWindow.show();
-  mainWindow.focus();
-  mainWindow.webContents.send(IPC_CHANNELS.mainArtifactFocus, request);
-}
-
 /**
  * A clicked native notification raises the Reading window and asks its renderer
  * to select the task the notification was about — the whole point of the
@@ -539,24 +479,6 @@ function activateTaskFromNotification(taskId: TaskId): void {
   mainWindow.webContents.send(IPC_CHANNELS.notificationActivateTask, taskId);
 }
 
-/**
- * A closed or archived task unbinds the Preview window (the active-task relay
- * rebinds to whatever the Reading window selects next) but its tab claims
- * PERSIST — dormant/archived sessions keep their reading position (§6.1).
- * `file:changed` no longer routes through main for the preview: dirty is view
- * truth, and the preview renderer receives the runtime event directly and
- * reconciles (§6.0). The inspector (S5) still clears here.
- */
-function closeTaskSurfaces(taskId: TaskId): void {
-  if (inspectorState.taskId === taskId) {
-    inspectorState = {
-      ...inspectorState,
-      taskId: null,
-    };
-  }
-  sendInspectorState();
-}
-
 /** A deleted session leaves no dormant record to return to, so its preview
  *  claims are forgotten (close/archive keep theirs). Called only on delete. */
 function forgetPreviewSession(taskId: TaskId): void {
@@ -567,37 +489,6 @@ function forgetPreviewSession(taskId: TaskId): void {
   }
 }
 
-async function openInspector(request: OpenInspectorRequest): Promise<InspectorWindowState> {
-  updateInspectorState(request);
-  if (!inspectorWindow || inspectorWindow.isDestroyed()) {
-    inspectorWindow = createInspectorWindow();
-    inspectorWindow.webContents.once("did-finish-load", () => {
-      sendInspectorState();
-    });
-  } else {
-    inspectorWindow.show();
-    inspectorWindow.focus();
-    sendInspectorState();
-  }
-  return inspectorState;
-}
-
-function readInspectorState(): InspectorWindowState {
-  return inspectorState;
-}
-
-function updateInspectorState(request: OpenInspectorRequest): void {
-  inspectorState = {
-    taskId: request.taskId,
-    lens: request.lens ?? inspectorState.lens,
-  };
-}
-
-function sendInspectorState(): void {
-  if (inspectorWindow && !inspectorWindow.isDestroyed()) {
-    inspectorWindow.webContents.send(IPC_CHANNELS.inspectorState, inspectorState);
-  }
-}
 
 /**
  * The terminal window's toggle. Opening creates-or-focuses the window and
@@ -945,9 +836,6 @@ app.whenReady().then(() => {
     resolveWorkspacePaths,
     statWorkspacePath,
     broadcastReadingSettings,
-    focusArtifactInMain,
-    openInspector,
-    readInspectorState,
     setTerminalWindowOpen,
     readTerminalWindowState,
     readTerminalWindowSettings,
@@ -958,7 +846,6 @@ app.whenReady().then(() => {
     openWorkspaceFolder,
     pickFolder,
     pickReferences,
-    closeTaskSurfaces,
     forgetPreviewSession,
   }, readingSettingsStore);
   createApplicationMenu();
@@ -998,7 +885,6 @@ app.on("window-all-closed", () => {
   runtimeController?.dispose();
   runtimeController = null;
   previewWindow = null;
-  inspectorWindow = null;
   terminalWindow = null;
 
   if (process.platform !== "darwin") {

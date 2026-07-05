@@ -3,7 +3,6 @@ export type RunId = string;
 export type DeliveryItemId = string;
 export type RuntimeSessionId = string;
 export type ProviderSessionRef = string;
-export type ArtifactId = string;
 export type ApprovalId = string;
 
 export type RuntimeProvider = "codex" | "claude";
@@ -210,7 +209,6 @@ export interface Run {
   elapsedMs: number | null;
   completion: CompletionEvidence | null;
   approvalIds: ApprovalId[];
-  artifactIds: ArtifactId[];
   changedFilePaths: string[];
   rawTerminalPointer: null;
 }
@@ -277,27 +275,5 @@ export interface ChangedFile {
   type: "file" | "directory" | "other" | "missing" | "error";
   size: number | null;
   sha256: string | null;
-  updatedAt: string;
-}
-
-export type ArtifactKind =
-  | "html"
-  | "markdown"
-  | "pdf"
-  | "image"
-  | "spreadsheet"
-  | "document"
-  | "presentation"
-  | "text"
-  | "unknown";
-
-export interface ArtifactCandidate {
-  id: ArtifactId;
-  taskId: TaskId;
-  runId: RunId;
-  path: string;
-  kind: ArtifactKind;
-  changeKind: ChangeKind;
-  title: string;
   updatedAt: string;
 }

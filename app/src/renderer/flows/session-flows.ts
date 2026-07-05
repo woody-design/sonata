@@ -14,7 +14,6 @@ import type {
   ReasoningEffort,
   RuntimeProvider,
 } from "../../shared/types";
-import type { FocusArtifactInMainRequest } from "../../shared/types/ipc";
 import {
   errorMessage,
   formatIdleDuration,
@@ -655,17 +654,6 @@ export async function openFloatingPreview(): Promise<void> {
   await window.duetRuntime.openPreview({ taskId: view.task.id });
 }
 
-export async function openFloatingInspector(): Promise<void> {
-  const view = activeTaskView();
-  if (!view?.task) {
-    return;
-  }
-
-  await window.duetRuntime.openInspector({
-    taskId: view.task.id,
-  });
-}
-
 /** Switch the active task's surface (Read ⇄ Terminal). Per-task: only the active
  *  task is touched. Leaving Terminal hands the keys back — control must never be
  *  held where the human can't type (model Y). Entering Terminal attaches + fits
@@ -684,36 +672,3 @@ export function setViewMode(mode: ViewMode): void {
   }
 }
 
-// "Show in main" from the Preview window: activate the task and, when the
-// request names a run, highlight and scroll to it. The artifact-strip scroll
-// target retired with the strip (2026-07-03).
-export function focusArtifactFromPreview(request: FocusArtifactInMainRequest): void {
-  const view = taskViewForId(state, request.taskId);
-  if (!view?.task) {
-    return;
-  }
-
-  if (state.activeTaskId !== request.taskId) {
-    saveComposerDraft();
-    state.activeTaskId = request.taskId;
-    restoreComposerDraft();
-  }
-  view.unread = false;
-  if (request.runId) {
-    view.highlightedRunId = request.runId;
-  }
-  render();
-
-  queueMicrotask(() => {
-    if (request.runId) {
-      scrollRunIntoView(request.runId);
-    }
-  });
-}
-
-function scrollRunIntoView(runId: string): void {
-  const runCard = Array.from(elements.runList.querySelectorAll<HTMLElement>(".turn-card")).find(
-    (item) => item.dataset.runId === runId,
-  );
-  runCard?.scrollIntoView({ block: "center" });
-}

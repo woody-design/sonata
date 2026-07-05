@@ -40,7 +40,7 @@ export type TerminalDataEvent = BaseRuntimeEvent<
     /** 0-based index of this chunk in the mirror's ingest order. The terminal
      *  window stitches live chunks onto a mid-stream hydration snapshot with it
      *  (write iff seq >= snapshot.seq) — no loss, no duplication. The other
-     *  consumers (transcript, inspector, idle heuristic, local-api) ignore it. */
+     *  consumers (transcript, idle heuristic, local-api) ignore it. */
     seq: number;
   }
 >;

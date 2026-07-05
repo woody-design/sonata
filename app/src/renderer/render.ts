@@ -103,7 +103,6 @@ export function render(): void {
   elements.runtimeStatus.textContent = notice;
   elements.runtimeStatus.classList.toggle("hidden", notice === "");
   elements.openPreviewWindow.disabled = !view?.task || state.busy;
-  elements.openInspectorWindow.disabled = !view?.task || state.busy;
   elements.sessionMenuTrigger.classList.toggle("hidden", !view?.task);
   elements.sidebarNewChat.disabled = state.busy;
   renderReadingPopover();
