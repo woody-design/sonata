@@ -65,11 +65,13 @@ try {
   // ── Fixtures: two real files the chips must resolve to ────────────────────
   fs.writeFileSync(path.join(workspace, "README.md"), "# Readme\n\nThe readme body.\n");
   fs.writeFileSync(path.join(workspace, "doomed.ts"), "export const doomed = true;\n");
+  // A filename WITH a space — real for docs; the inline-code backticks delimit it.
+  fs.writeFileSync(path.join(workspace, "My Notes.md"), "# My Notes\n\nSpaced filename.\n");
 
-  // ── Turn 2: a reply that mentions all three in inline code ────────────────
+  // ── Turn 2: a reply that mentions the files in inline code ─────────────────
   await sendPrompt(page, [
     "Reply with exactly this text, preserving every backtick character, and nothing else:",
-    "Open `README.md` and `doomed.ts` to begin. The file `nope.ts` does not exist yet.",
+    "Open `README.md` and `doomed.ts` to begin, then `My Notes.md`. The file `nope.ts` does not exist yet.",
   ]);
   await waitForCompletedTurns(page, 2);
 
@@ -79,6 +81,11 @@ try {
   await readmeChip.first().waitFor({ state: "visible", timeout: 30000 });
   await doomedChip.first().waitFor({ state: "visible", timeout: 30000 });
   results.existingFileBecomesChip = (await readmeChip.count()) >= 1 && (await doomedChip.count()) >= 1;
+
+  // A valid path containing a space becomes a chip too (not rejected as noise).
+  const spacedChip = page.locator('code[data-chip-path="My Notes.md"]');
+  await spacedChip.first().waitFor({ state: "visible", timeout: 30000 });
+  results.spacedFilenameBecomesChip = (await spacedChip.count()) >= 1;
 
   // The chip carries a Lucide type icon + the filename, and is keyboard-openable.
   results.chipHasIconAndName = await readmeChip.first().evaluate((el) => {
@@ -137,6 +144,29 @@ try {
     .locator(".preview-tombstone", { hasText: "no longer exists" })
     .waitFor({ state: "visible", timeout: 15000 });
   results.staleChipOpensTombstone = true;
+
+  // ── A FORGED chip (class + data-chip-*, never resolver-validated — as raw
+  //    assistant HTML could inject) is ignored: the click trust boundary is the
+  //    module registry (node identity), NOT the forgeable attribute. Observed by
+  //    effect: the forged click must add NO Preview tab. (Real chips are already
+  //    proven to open, above; window.duetRuntime is a frozen contextBridge object
+  //    so it can't be stubbed in the renderer — we watch the real outcome.)
+  const tabsBefore = await preview.locator(".preview-tab").count();
+  await page.evaluate(() => {
+    const anchor = document.querySelector("code[data-chip-path]");
+    const fake = document.createElement("code");
+    fake.className = "transcript-file-chip";
+    fake.setAttribute("data-chip-path", "etc/passwd");
+    fake.setAttribute("data-chip-task", "task-anything");
+    fake.textContent = "passwd";
+    anchor?.parentElement?.appendChild(fake);
+    fake.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    fake.remove();
+  });
+  await page.waitForTimeout(400);
+  const tabsAfter = await preview.locator(".preview-tab").count();
+  const forgedTab = await preview.locator('.preview-tab:has-text("passwd")').count();
+  results.forgedChipIgnored = tabsAfter === tabsBefore && forgedTab === 0;
 
   const success = Object.values(results).every(Boolean);
   console.log(JSON.stringify({ dataRoot, taskId, workspace, results, success }, null, 2));

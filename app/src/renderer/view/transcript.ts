@@ -426,6 +426,11 @@ function renderNoAssistantOutput(run: RuntimeRunReport | null): HTMLElement {
 const markdownSanitizerConfig = {
   USE_PROFILES: { html: true },
   FORBID_TAGS: ["style", "form", "input", "button"],
+  // DOMPurify allows data-* by default. The S4 file-chip enhancement adds
+  // data-chip-* AFTER sanitize; forbidding them here means raw assistant HTML
+  // can never forge a node that looks like a resolver-validated chip (the click
+  // trust boundary also lives in chipRegistry — view/transcript-chips.ts).
+  FORBID_ATTR: ["data-chip-path", "data-chip-task", "data-chip-state", "data-chip-mention"],
 };
 
 const markdownHtmlCache = new Map<string, string>();

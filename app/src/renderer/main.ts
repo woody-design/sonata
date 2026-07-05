@@ -125,7 +125,7 @@ import { initSettingsView } from "./view/settings";
 import { positionSlashPicker, renderSlashPicker } from "./view/slash-picker";
 import { initStatusStripView } from "./view/status-strip";
 import { initTranscriptView } from "./view/transcript";
-import { initTranscriptChips } from "./view/transcript-chips";
+import { initTranscriptChips, transcriptChipTarget } from "./view/transcript-chips";
 
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -1099,27 +1099,24 @@ async function setDefaultRemoteControl(value: boolean): Promise<void> {
   render();
 }
 
-// Open a transcript file chip's file in the Preview window. The chip carries the
-// task + workspace-relative path as data-* (stamped by view/transcript-chips);
-// openPreview binds/focuses the window and opens-or-focuses the tab (dedup lives
-// in the bridge). A stale chip (file since deleted) opens into a tombstone — the
-// correct three-truths projection, not an error.
-function openPreviewForChip(chip: HTMLElement): void {
-  const relativePath = chip.dataset.chipPath;
-  const taskId = chip.dataset.chipTask;
-  if (relativePath && taskId) {
-    void window.duetRuntime.openPreview({ taskId, relativePath }).catch(() => {});
-  }
-}
-
+// Open a transcript file chip's file in the Preview window. Trust ONLY the
+// module-owned chip registry (transcriptChipTarget), never the raw data-chip-*
+// attribute — raw assistant HTML could forge one past DOMPurify. openPreview
+// binds/focuses the window and opens-or-focuses the tab (dedup in the bridge); a
+// stale chip (file since deleted) opens into a tombstone, the correct
+// three-truths projection, not an error.
 elements.runList.addEventListener("click", (event) => {
-  const target = event.target;
-  if (!(target instanceof Element)) {
+  const chipTarget = transcriptChipTarget(event.target);
+  if (chipTarget) {
+    // Consume the click so a chip nested inside a markdown link never ALSO
+    // triggers the anchor's default navigation (the main window's will-navigate
+    // guard would swallow it, but the chip should own its own activation).
+    event.preventDefault();
+    void window.duetRuntime.openPreview(chipTarget).catch(() => {});
     return;
   }
-  const chip = target.closest<HTMLElement>("[data-chip-path]");
-  if (chip) {
-    openPreviewForChip(chip);
+  const target = event.target;
+  if (!(target instanceof Element)) {
     return;
   }
   const anchor = target.closest("a[href]");
@@ -1138,16 +1135,12 @@ elements.runList.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" && event.key !== " ") {
     return;
   }
-  const target = event.target;
-  if (!(target instanceof Element)) {
-    return;
-  }
-  const chip = target.closest<HTMLElement>("[data-chip-path]");
-  if (!chip) {
+  const chipTarget = transcriptChipTarget(event.target);
+  if (!chipTarget) {
     return;
   }
   event.preventDefault();
-  openPreviewForChip(chip);
+  void window.duetRuntime.openPreview(chipTarget).catch(() => {});
 });
 
 elements.runList.addEventListener("scroll", () => {

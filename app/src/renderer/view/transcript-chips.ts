@@ -43,6 +43,26 @@ interface TaskChipCache {
 
 const chipCaches = new Map<string, TaskChipCache>();
 
+/** The open target of a real chip (taskId + workspace-relative path). */
+export interface ChipTarget {
+  taskId: string;
+  relativePath: string;
+}
+
+/** The trust boundary for chip CLICKS. `data-chip-path` is a presentation + test
+ *  hook and — since DOMPurify allows `data-*` — raw assistant HTML could forge
+ *  one past the sanitizer; the click must NOT trust it. This registry holds only
+ *  the nodes THIS module upgraded, keyed by node identity (a WeakMap so a
+ *  reconcile-discarded chip is collected automatically). `transcriptChipTarget`
+ *  is the only way the composition root turns a click into an open. */
+const chipRegistry = new WeakMap<Element, ChipTarget>();
+
+/** Set when an upgrade was skipped because the live selection intersected the
+ *  node (see upgradeToChip). Cleared by the selectionchange retry, which re-runs
+ *  applyChipsFromCache once the selection collapses — so a chip that resolved
+ *  under a selection doesn't stall until the next unrelated render. */
+let deferredBySelection = false;
+
 /** The dep the composition root binds at boot: the batched existence resolver
  *  (main serves it through WorkspaceFiles.resolvePaths). */
 export interface TranscriptChipsDeps {
@@ -56,6 +76,39 @@ let resolvePaths: TranscriptChipsDeps["resolvePaths"];
 export function initTranscriptChips(state: RendererState, deps: TranscriptChipsDeps): void {
   stateRef = state;
   resolvePaths = deps.resolvePaths;
+  document.addEventListener("selectionchange", retryDeferredChips);
+}
+
+/**
+ * The click trust boundary: return the open target ONLY for a node this module
+ * upgraded into a chip. A forged `.transcript-file-chip` / `data-chip-path` node
+ * (raw assistant HTML) is not in the registry → null → ignored. The composition
+ * root's delegated listener calls this; nothing else may open a chip.
+ */
+export function transcriptChipTarget(target: EventTarget | null): ChipTarget | null {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+  const chip = target.closest(".transcript-file-chip");
+  return chip ? (chipRegistry.get(chip) ?? null) : null;
+}
+
+/** Re-attempt selection-deferred upgrades once the selection collapses. Guarded
+ *  by the flag so the (high-frequency) selectionchange event is a cheap no-op
+ *  the rest of the time — including every caret move in the composer. */
+function retryDeferredChips(): void {
+  if (!deferredBySelection) {
+    return;
+  }
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed) {
+    return; // still selecting — don't mutate under a live selection
+  }
+  deferredBySelection = false;
+  const taskId = activeTaskView(stateRef)?.task?.id;
+  if (taskId) {
+    applyChipsFromCache(taskId);
+  }
 }
 
 // Inline-code mentions ONLY (`:not(pre) > code`), in the assistant answer body
@@ -157,8 +210,9 @@ function applyChipsFromCache(taskId: string): void {
   }
 }
 
-/** Decorate the <code> node in place into a chip. `data-chip-path` is the test
- *  contract + the click target's payload; `data-chip-task` scopes the open. */
+/** Decorate the <code> node in place into a chip and REGISTER it as the trusted
+ *  open target. `data-chip-path` is the presentation/test hook; the click reads
+ *  the CLICK from `chipRegistry` (node identity), never the forgeable attribute. */
 function upgradeToChip(
   span: HTMLElement,
   taskId: string,
@@ -166,17 +220,19 @@ function upgradeToChip(
   selection: Range | null,
 ): void {
   // Never mutate a node inside the live selection — replacing its children
-  // would collapse the selection. Leave it unmarked so a later render (once the
-  // selection has moved) upgrades it. transcript-selection.mjs guards this.
+  // would collapse the selection. Leave it unmarked and arm the selectionchange
+  // retry so it upgrades once the selection collapses (not just on the next
+  // unrelated render). transcript-selection.mjs guards this.
   if (selection && rangeIntersects(selection, span)) {
     delete span.dataset.chipState;
     delete span.dataset.chipMention;
+    deferredBySelection = true;
     return;
   }
   delete span.dataset.chipMention;
   span.dataset.chipState = "chip";
   span.dataset.chipPath = relativePath;
-  span.dataset.chipTask = taskId;
+  chipRegistry.set(span, { taskId, relativePath });
   span.classList.add("transcript-file-chip");
   span.setAttribute("role", "button");
   span.setAttribute("tabindex", "0");
@@ -231,9 +287,12 @@ const KNOWN_EXTENSION =
 /**
  * Normalize an inline-code span's text to a path candidate, or null if it isn't
  * one. Trims backtick residue, surrounding quotes/brackets, and trailing prose
- * punctuation; rejects whitespace and shell/code noise (globs, calls, redirects)
- * and URLs. A candidate is path-like if it contains "/" OR ends in a known file
- * extension (design record §5.6, S4 brief B).
+ * punctuation; rejects newlines/tabs and shell/code noise (globs, calls,
+ * redirects) and URLs — but ALLOWS interior spaces, since real doc filenames
+ * (`Product Brief.md`, `My Notes.md`) carry them and the inline-code backticks
+ * already delimit the mention. A candidate is path-like if it contains "/" OR
+ * ends in a known file extension; existence (resolvePaths) is the real filter,
+ * so being liberal here is safe (design record §5.6, S4 brief B).
  */
 export function normalizeCandidate(raw: string | null): string | null {
   if (!raw) {
@@ -241,7 +300,7 @@ export function normalizeCandidate(raw: string | null): string | null {
   }
   let s = raw.trim();
   s = s.replace(/^[`'"([<]+/, "").replace(/[`'")\]>.,:;!?]+$/, "");
-  if (!s || /\s/.test(s)) {
+  if (!s || /[\n\r\t]/.test(s)) {
     return null;
   }
   if (/[()<>|*?"'`]/.test(s)) {
