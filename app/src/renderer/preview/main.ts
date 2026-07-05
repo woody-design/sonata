@@ -275,10 +275,10 @@ async function activateDoc(path: string): Promise<void> {
   }
   renderReader(state, els.content, readerCtx);
   renderToolbar(state, toolbarEls);
-  const top = state.binding.session?.scroll[path] ?? 0;
-  requestAnimationFrame(() => {
-    els.content.scrollTop = top;
-  });
+  // Synchronous restore: renderReader builds the DOM synchronously, and a
+  // deferred (rAF) restore opens a one-frame window where it stomps a scroll
+  // that happened after activation — any later scroll must always win.
+  els.content.scrollTop = state.binding.session?.scroll[path] ?? 0;
 }
 
 /**
