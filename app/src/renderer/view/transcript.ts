@@ -2,7 +2,7 @@
 // — R1 territory, moved VERBATIM from main.ts). This module owns the run
 // list's streaming render path: the keyed reference-identity reconcile, the
 // two persistent nodes (sticky-prompt rail FIRST child, status strip LAST
-// child — both skipped by the reconcile and the empty-state paths), the
+// child — both skipped by the reconcile and setNonRailChildren paths), the
 // scroll contract (nearBottom <64px captured BEFORE reconcile,
 // previousScrollTop restored after, finalize = restorePromptNavAfterRender
 // then scheduleStickyPromptSync — in that order), the turn-card e2e beacons
@@ -78,7 +78,7 @@ function ensureStickyPromptRail(runList: HTMLElement): HTMLElement {
   return rail;
 }
 
-// The no-task / empty paths are not the streaming path and need no reconcile:
+// The no-task (entry panel) path is not the streaming path and needs no reconcile:
 // drop everything after the persistent rail and set the given nodes. The
 // status strip is the run list's second persistent node (its live LAST child)
 // — never removed, content always inserted before it.
@@ -107,7 +107,7 @@ interface ReconcileChild {
 // Keyed DOM reconcile of the runList's turn cards against the desired turns.
 // Reused nodes already in order are never detached → their text selection
 // survives across streaming batches. Non-reused nodes (stale, changed, or
-// non-keyed leftovers like the empty-state) are removed up front so the
+// non-keyed leftovers like the entry panel) are removed up front so the
 // positioning cursor only ever references nodes that stay.
 function reconcileKeyedChildren(
   parent: HTMLElement,
@@ -178,15 +178,12 @@ export function renderRuns(): void {
   }
 
   const turns = buildReadingTurns(view);
-  if (turns.length === 0) {
-    const empty = document.createElement("article");
-    empty.className = "empty-state";
-    empty.textContent = "No Runs yet";
-    setNonRailChildren(runList, rail, [empty]);
-    finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
-    return;
-  }
-
+  // Zero turns on an active task is normally just the sub-second gap before the
+  // first run lands (deferred creation) — but a failed first delivery or a
+  // persisted empty session can leave it durably empty too. Either way the keyed
+  // reconcile below clears to just the rail + strip on an empty list, so 0 turns
+  // renders as nothing. No placeholder: an "empty" banner only ever flashed, and
+  // blank is the honest render for a genuinely empty task (removed 2026-07-05).
   reconcileKeyedChildren(
     runList,
     rail,

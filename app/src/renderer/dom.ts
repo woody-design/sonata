@@ -154,7 +154,7 @@ export function initDom(): void {
              the conversation's typing indicator — "the next content is being
              written here" — so completion materializes the reply exactly where
              the activity stood. A persistent node like the sticky rail: the
-             keyed reconcile and the empty-state path both skip it, so the ~3Hz
+             keyed reconcile and setNonRailChildren both skip it, so the ~3Hz
              ticks keep updating it in place and its animations never restart. -->
         <div id="run-list" class="run-list">
           <section id="status-strip" class="status-strip hidden" aria-label="Live activity">

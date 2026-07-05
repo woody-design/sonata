@@ -2625,13 +2625,6 @@ h2 {
   display: none;
 }
 
-.empty-state,
-.panel{
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-raised);
-}
-
 /* New Chat (2026-07-04 redesign): the panel is only the centered greeting —
    every launch control is a composer chip. It rides the same measure as the
    composer so the greeting + composer read as one column. */
@@ -3595,18 +3588,6 @@ h2 {
   cursor: pointer;
   font-size: inherit;
   text-decoration: underline;
-}
-
-.empty-state {
-  padding: 16px;
-  color: var(--ink-muted-warm);
-  font-size: 14px;
-}
-
-.empty-state.compact {
-  border: 0;
-  padding: 6px;
-  background: transparent;
 }
 
 @media (max-width: 980px) {
