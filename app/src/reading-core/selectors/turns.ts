@@ -12,6 +12,7 @@ import type {
   TranscriptBlock,
 } from "../../shared/types/transcript";
 import type { RuntimeRunReport } from "../../shared/schemas";
+import { stripImageMarkers } from "../../shared/prompt-markers";
 import type { RunTranscript, TaskViewState } from "../state";
 
 export interface ReadingTurn {
@@ -129,6 +130,34 @@ export function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
   }
 
   return turns.sort((a, b) => a.tsMs - b.tsMs);
+}
+
+export interface UserPromptDisplay {
+  /** The bubble text: the CLI's `[Image #N]` markers lifted out when — and only
+   *  when — the block carries real image attachments. A user who literally typed
+   *  "[Image #1]" with none keeps their words verbatim (review 2026-07-05). */
+  text: string;
+  /** Image attachments on the prompt; drives the reading bubble's count chip. */
+  imageCount: number;
+}
+
+/**
+ * Derive what a sent prompt shows in the reading bubble. Pure (no DOM): the view
+ * builds the chip and the text element from this. Marker stripping here is DISPLAY
+ * only and attachment-gated — run↔turn matching reads through markers separately
+ * and unconditionally (runtime layer), so the two never inform each other.
+ */
+export function userPromptDisplay(
+  userBlock: Extract<TranscriptBlock, { kind: "user-message" }> | undefined,
+  fallbackText: string,
+): UserPromptDisplay {
+  const text = userBlock?.text ?? fallbackText;
+  const imageCount =
+    userBlock?.attachments?.filter((attachment) => attachment.kind === "image").length ?? 0;
+  return {
+    text: imageCount > 0 ? stripImageMarkers(text).replace(/^[ \t]+/, "") : text,
+    imageCount,
+  };
 }
 
 export interface TurnSignatureTracker {

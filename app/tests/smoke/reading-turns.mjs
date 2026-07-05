@@ -301,4 +301,50 @@ function view({ runs = [], blocks = [], runTranscripts = [] } = {}) {
   assert.equal(T.transcriptForRun(v, "run-2"), null, "missing → null");
 }
 
-console.log("reading-turns: 9 fixture groups pass");
+// 10) userPromptDisplay — image markers lift out of DISPLAY text ONLY with real
+//     attachments; the count feeds the reading bubble's chip (2026-07-05).
+{
+  const userBlock = (extra) =>
+    block("user-message", "t1", "run-1", { text: "", command: null, attachments: [], ...extra });
+
+  // Real image attachment: marker stripped, leading space tidied, count = 1.
+  assert.deepEqual(
+    T.userPromptDisplay(userBlock({ text: "[Image #1] 我刚做完重构", attachments: [{ kind: "image" }] }), ""),
+    { text: "我刚做完重构", imageCount: 1 },
+    "image prompt: marker stripped, counted",
+  );
+
+  // Multiple images: all markers gone, the user's text preserved, count = 2.
+  assert.deepEqual(
+    T.userPromptDisplay(
+      userBlock({ text: "[Image #1] [Image #2]看这两张", attachments: [{ kind: "image" }, { kind: "image" }] }),
+      "",
+    ),
+    { text: "看这两张", imageCount: 2 },
+    "multi-image: all markers stripped, count = 2",
+  );
+
+  // NEGATIVE (review 2026-07-05): a user who literally typed "[Image #1]" with
+  // NO attachment keeps their words verbatim — nothing to strip, no chip.
+  assert.deepEqual(
+    T.userPromptDisplay(userBlock({ text: "[Image #1] foo", attachments: [] }), ""),
+    { text: "[Image #1] foo", imageCount: 0 },
+    "literal marker without an attachment stays verbatim",
+  );
+
+  // Husk turn (no user-message block): falls back to the run prompt, no chip.
+  assert.deepEqual(
+    T.userPromptDisplay(undefined, "raw run prompt"),
+    { text: "raw run prompt", imageCount: 0 },
+    "no user block → fallback text, no chip",
+  );
+
+  // A file/folder attachment is not an image: no strip, no chip.
+  assert.deepEqual(
+    T.userPromptDisplay(userBlock({ text: "look at this", attachments: [{ kind: "file" }] }), ""),
+    { text: "look at this", imageCount: 0 },
+    "file attachment is not an image; text untouched",
+  );
+}
+
+console.log("reading-turns: 10 fixture groups pass");

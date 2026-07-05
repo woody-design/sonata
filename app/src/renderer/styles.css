@@ -3717,6 +3717,32 @@ h2 {
   font-size: 12px;
 }
 
+/* Attachment indicator on a sent prompt — the CLI's `[Image #N]` markers are
+ * lifted out of the bubble text and shown as this one chip (icon + count).
+ * Same pill as the command chip so the two read as one family. */
+.turn-image-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-code-inline);
+  padding: 3px 9px;
+  color: var(--ink-status);
+}
+
+.turn-image-chip svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.turn-image-chip-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+}
+
 .turn-body {
   display: flex;
   flex-direction: column;

@@ -15,12 +15,14 @@
 
 import DOMPurify from "dompurify";
 import { marked } from "marked";
+import { Image as ImageIcon } from "lucide";
 import { planKeyedReconcile } from "../../shared/keyed-reconcile";
 import type { TranscriptBlock } from "../../shared/types/transcript";
 import type { RuntimeRunReport } from "../../shared/schemas";
 import {
   buildReadingTurns,
   createTurnSignatureTracker,
+  userPromptDisplay,
   type ReadingTurn,
 } from "../../reading-core/selectors/turns";
 import {
@@ -37,6 +39,7 @@ import {
 } from "../../reading-core/state";
 import { elements } from "../dom";
 import { actions } from "../actions";
+import { lucideIcon } from "./icons";
 
 /** The shell's state atom, bound once at boot for the surface's read paths. */
 let state: RendererState;
@@ -304,6 +307,24 @@ function renderRunOutcomeNote(run: RuntimeRunReport): HTMLElement {
   return note;
 }
 
+// The attachment affordance for the reading bubble: an image glyph, plus a
+// count when more than one. Same lucide icon the composer's attachment chip
+// uses, so a sent image reads the same on both sides of the send.
+function imageChip(turnKey: string, count: number): HTMLElement {
+  const chip = document.createElement("span");
+  chip.className = "turn-image-chip";
+  chip.dataset.turnKey = turnKey;
+  chip.append(lucideIcon(ImageIcon, 14));
+  if (count > 1) {
+    const badge = document.createElement("span");
+    badge.className = "turn-image-chip-count";
+    badge.textContent = String(count);
+    chip.append(badge);
+  }
+  chip.setAttribute("aria-label", count === 1 ? "1 image attached" : `${count} images attached`);
+  return chip;
+}
+
 function renderTurnUser(turn: ReadingTurn): HTMLElement {
   const header = document.createElement("header");
   header.className = "turn-user";
@@ -313,7 +334,13 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
     (block): block is Extract<TranscriptBlock, { kind: "user-message" }> =>
       block.kind === "user-message",
   );
-  const text = userBlock?.text ?? turn.run?.prompt ?? "";
+  // Bubble text + attachment count derive in the pure selector (reading-core);
+  // the view only builds DOM from them. Marker stripping there is display-only
+  // and attachment-gated — matching reads through markers separately.
+  const { text: displayText, imageCount } = userPromptDisplay(userBlock, turn.run?.prompt ?? "");
+  if (imageCount > 0) {
+    header.append(imageChip(turn.key, imageCount));
+  }
 
   if (userBlock?.command) {
     // A slash command. Claude logs the whole invocation as `<name> <args>`, and
@@ -321,8 +348,10 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
     // the command name as a small provenance chip, but render that body as the
     // normal growing bubble — full text, the user's own words, never crammed
     // into a fixed-size mono pill. Bare commands (no body) stay as just the chip.
+    // The split runs on displayText (markers already stripped) so an image
+    // attached to a slash command no longer hides the body behind the prefix.
     const name = userBlock.command;
-    const body = text.startsWith(name) ? text.slice(name.length).trim() : "";
+    const body = displayText.startsWith(name) ? displayText.slice(name.length).trim() : "";
     const chip = document.createElement("span");
     chip.className = body ? "turn-command-chip" : "turn-command-chip turn-prompt";
     chip.tabIndex = -1;
@@ -339,12 +368,14 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
       prompt.setAttribute("aria-label", `Prompt: ${body}`);
       header.append(prompt);
     }
-  } else {
+  } else if (displayText || imageCount === 0) {
+    // The text bubble, unless the prompt was images only (the chip stands alone
+    // then — never a stray "(empty prompt)" beside an image).
     const prompt = document.createElement("div");
     prompt.className = "turn-user-text turn-prompt";
     prompt.tabIndex = -1;
     prompt.dataset.turnKey = turn.key;
-    prompt.textContent = text || "(empty prompt)";
+    prompt.textContent = displayText || "(empty prompt)";
     prompt.setAttribute("aria-label", `Prompt: ${prompt.textContent}`);
     header.append(prompt);
   }
