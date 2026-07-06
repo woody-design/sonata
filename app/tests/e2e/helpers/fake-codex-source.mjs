@@ -17,13 +17,18 @@ const argv = process.argv.slice(2);
 const cIndex = argv.indexOf("-C");
 const cwd = cIndex >= 0 && argv[cIndex + 1] ? argv[cIndex + 1] : process.cwd();
 const runtimeDir = process.env.DUET_RUNTIME_DIR;
+// A native resume reads \`codex resume <ref>\` as the leading positional (see
+// codexArgs). Capture the ref so a reopen fence can prove Duet reconstructed it
+// from the persisted transcript-sources tail; startup spawns have neither.
+const isResume = argv[0] === "resume";
+const resumeArg = isResume ? (argv[1] ?? null) : null;
 
 if (runtimeDir) {
   try {
     fs.mkdirSync(runtimeDir, { recursive: true });
     fs.writeFileSync(
       path.join(runtimeDir, "spawn-record.json"),
-      JSON.stringify({ argv, duetRuntimeDir: runtimeDir, cwd, hasProfileFlag: argv.includes("-p") && argv[argv.indexOf("-p") + 1] === "duet" }),
+      JSON.stringify({ argv, duetRuntimeDir: runtimeDir, cwd, resumeArg, hasProfileFlag: argv.includes("-p") && argv[argv.indexOf("-p") + 1] === "duet" }),
     );
   } catch (_e) {}
 }
@@ -42,10 +47,25 @@ if (runtimeDir && !silent) {
     const sessionId = "codexsess-" + path.basename(runtimeDir);
     const now = new Date().toISOString();
     const rolloutPath = path.join(runtimeDir, "rollout-" + sessionId + ".jsonl");
-    fs.writeFileSync(
-      rolloutPath,
-      JSON.stringify({ timestamp: now, type: "session_meta", payload: { id: sessionId, cwd, timestamp: now } }) + "\\n",
-    );
+    if (isResume) {
+      // Resume CONTINUES the same session file (real codex appends). Don't
+      // clobber; append a fresh post-resume line so a reopen fence can prove
+      // the re-attached tailer keeps following the rollout.
+      fs.appendFileSync(
+        rolloutPath,
+        JSON.stringify({ timestamp: now, type: "event_msg", payload: { type: "agent_message", message: "resumed and continuing", phase: "final_answer" } }) + "\\n",
+      );
+    } else {
+      fs.writeFileSync(
+        rolloutPath,
+        JSON.stringify({ timestamp: now, type: "session_meta", payload: { id: sessionId, cwd, timestamp: now } }) + "\\n",
+      );
+    }
+    // Observable proof of the emitted handshake source (hook files are consumed
+    // by Duet's watcher, so a durable marker lets the fence read it).
+    try {
+      fs.writeFileSync(path.join(runtimeDir, "last-session-start.json"), JSON.stringify({ source: isResume ? "resume" : "startup", sessionId }));
+    } catch (_e) {}
     const hooksDir = path.join(runtimeDir, "hooks");
     fs.mkdirSync(hooksDir, { recursive: true });
     const payload = {
@@ -55,7 +75,10 @@ if (runtimeDir && !silent) {
       cwd: cwd,
       model: "gpt-5.5",
       permission_mode: "default",
-      source: "startup",
+      // Real codex re-fires SessionStart on \`codex resume\` with source:"resume"
+      // (probe-verified); mirror it so a reopen fence can assert re-adoption
+      // rode a genuine resume handshake, not a fresh start.
+      source: isResume ? "resume" : "startup",
     };
     const seq = Date.now().toString(36) + "-" + process.hrtime.bigint().toString(36) + "-" + process.pid;
     const file = path.join(hooksDir, "hook-" + seq + ".json");

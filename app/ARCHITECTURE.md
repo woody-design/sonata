@@ -5,7 +5,10 @@ This document describes the renderer architecture that emerged from the
 `product-thinking/2026-07-03-renderer-decomposition-map-v1.md`, execution
 history: `…-execution-log.md`). It covers the Reading window — the main
 surface. The satellite renderers (terminal, preview) are separate
-vite entries with their own, smaller files.
+vite entries with their own, smaller files. Two subsystems beyond the reading
+renderer have their own sections below: **the signal layer** (the main-process
+control plane that produces the runtime events the reducer consumes) and **the
+Preview window**.
 
 ## The one-paragraph version
 
@@ -163,6 +166,96 @@ The recorder that feeds the corpus is env-gated main-process instrumentation
 (`DUET_RUNTIME_EVENT_LOG=<dir>`) tapped at the `sendEvent` broadcast seam —
 test/dev capture semantics, synchronous by design (lossless beats latency;
 measured overhead is noise).
+
+## The signal layer (control plane)
+
+The event path above starts with "main process ──runtime event──▶". This is where
+those events are *born*: the main-process subsystem that turns two live CLIs
+(Claude, Codex) into one stream of structured signals — busy/idle, turn
+boundaries, identity, usage, approvals — without either CLI losing a feature
+(design record: `product-thinking/2026-07-06-codex-control-plane-plan-v0.md`).
+Duet is an experience shell over the user's *real* CLI, so the rule is additive:
+observe the process, never replace or reconfigure it.
+
+**The hook contract is an adopted industry standard, not a Duet invention.**
+Codex GA'd a hooks system that clones Claude Code's field-for-field (envelope,
+values vocabulary, `tool_name:"Bash"`). We consume that wire schema verbatim —
+snake_case field names and all (`shared/types/cli-signal.ts: HookPayload`). Duet
+metadata lives *outside* the payload in an envelope
+(`HookEnvelope { provider, taskId, receivedAt, payload }`), so "aligned with the
+standard or not" stays greppable forever. Boundary validation is **tolerant**:
+validate only the fields we consume, pass unknown fields through, never hard-fail
+on additions — the two CLIs iterate, and additive drift must cost nothing. The
+probes (`spikes/codex-hooks-probe`, `spikes/codex-injection-probe`) are the
+regression assets that catch the NON-additive drift; re-run on CLI major bumps
+(plan §7.5).
+
+**Provider difference collapses to two true edges.** Everything else — the
+watcher, the state model, the broker, the notification policy — is
+provider-neutral and shared:
+
+```
+runtime/cli-signal/
+  hook-sink.ts            the shim's write protocol (payload → <runtimeDir>/hooks)
+  hook-watcher.ts         provider-neutral; sink-dir injected, watches both
+  cli-state.ts            applyHook is standard-schema-agnostic — one model
+  approval-broker.ts      provider-neutral echo (writes reply-<id>.json)
+  approval-watcher.ts     provider-neutral (<runtimeDir>/approvals resolver)
+  approval-protocol.ts    single-sourced ask/reply/expired/answered prefixes
+runtime/providers/claude/ claude-runtime-settings.ts  — EDGE 1a: --settings file
+runtime/providers/codex/
+  codex-runtime-settings.ts  EDGE 1b: writes ~/.codex/duet.config.toml + shims
+  codex-approvals.ts         EDGE 2b: decision JSON shape + answering marker
+```
+
+- **Edge 1 — injection** (how our hooks get registered). Claude takes a
+  `--settings` file; Codex takes a `-p duet` profile
+  (`$CODEX_HOME/duet.config.toml`, `CONFIG_PROFILE_V2`) that layers onto — never
+  clobbers — the user's own config, unioning with their hooks both ways. ONE
+  additive, Duet-named file; inert unless Duet passes `-p duet`; the user's files
+  are never edited.
+- **Edge 2 — decision shape** (what JSON answers an approval). The broker echoes
+  whatever Duet writes; only the reply JSON differs per provider (Codex =
+  `{hookSpecificOutput:{hookEventName:"PermissionRequest",decision:{behavior}}}`),
+  and it fails **closed** (only an explicit approve-family value allows).
+
+**Trust: one stable shim, one-time ceremony, never the bypass flag.** Codex binds
+hook trust to the *exact* command-string text — change the string and that hook
+is silently untrusted. So all Duet hooks route through **stable shim paths with
+task-invariant args** (`~/.duet/bin/*.js`, path+args frozen, content refreshed
+behind them); per-task binding travels via **environment** (`DUET_RUNTIME_DIR`),
+which hook processes inherit (probe-verified), never via argv. Consequence: trust
+is a one-time onboarding moment that survives app updates. The full frozen hook
+set (5 core events → sink; `PermissionRequest` → broker, `timeout=120`) is
+registered up front; interim behavior is gated by runtime **marker files** the
+shims check (the broker exits 0 immediately — instant native card — until the
+answering marker exists), never by editing a definition. Generating the profile
+is deterministic and **byte-stable** (`smoke:codex-runtime-settings` sha-pins it)
+— the sha the trust ceremony is granted against.
+
+**Liveness is the honesty valve.** Misconfigured or untrusted hooks are silently
+skipped, so absence is the only signal — Duet never guesses. The `SessionStart`
+handshake doubles as the liveness check: no handshake within a beat of spawn ⇒ a
+renderer-local banner points the user at the Terminal trust ceremony (a codex
+task's 12s window; a late handshake clears it; `pty:exit` retires it). A codex
+spawn whose profile write fails **degrades to a hookless Terminal-driven session**
+(loud log + liveness banner + a needs-you notification) rather than aborting — an
+accepted degrade, surfaced not silent.
+
+**Identity by ownership, not inference.** The handshake carries `session_id` +
+`transcript_path`; adoption binds the task to THAT rollout/jsonl by id, with **no
+mtime/cwd fallback** for either provider — the fix for two same-cwd sessions
+cross-binding. Native resume rides the same seam: the persisted
+`transcript-sources` tail becomes the `resumeRef`, the spawn is `codex resume
+<ref> -p duet` / `claude --resume`, and SessionStart re-fires (`source:"resume"`
+on codex) to re-confirm the *same* id — identity continues, the rollout is
+re-tailed, no fork (`e2e:codex-resume-reopen`).
+
+**One scrape net is deliberately kept.** Hooks retired codex's TUI-scrape
+heuristics (busy/idle, turn-end, approval hints, PTY-key replays). The lone
+survivor for both providers is the composer-quiescence `task:ready` fallback:
+codex has no `StopFailure` event, so an API-failed turn would otherwise sit busy
+forever. This is the honest asymmetry with Claude, not an oversight.
 
 ## The Preview window (satellite)
 

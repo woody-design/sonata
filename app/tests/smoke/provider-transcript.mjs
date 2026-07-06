@@ -13,6 +13,7 @@ const {
   claudeProjectSlug,
   locateSessionFile,
 } = require("../../dist/runtime/provider-transcript/index");
+const { userPromptDisplay } = require("../../dist/reading-core/selectors/turns");
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-provider-transcript-"));
 const failures = [];
@@ -978,6 +979,96 @@ check("codex: event text, tool pairing, exit-code status, no duplication (0.142.
   assert.equal(toolFinal.status, "error");
   assert.equal(toolFinal.summary, "npm test");
   assert.equal(toolFinal.durationMs, 6000);
+});
+
+// --- Codex usage → display wiring (S6) ---------------------------------------
+// The usage PARSER (parseCodexTokenCountPayload) is fenced in usage-adapters;
+// this fence guards the LINK the display path actually depends on — the codex
+// normalizer firing onUsageSnapshot when it consumes a rollout `token_count`
+// event. Without this, the parser could be perfect and the composer's usage
+// chip would still stay dark for codex ("verify the effect, not the artifact").
+check("codex: token_count event fires onUsageSnapshot (display-path wiring)", () => {
+  const snapshots = [];
+  const normalizer = new CodexRolloutNormalizer({
+    taskId: "task-1",
+    sourceId: "codex:s1",
+    onUsageSnapshot: (snapshot) => snapshots.push(snapshot),
+  });
+  const blocks = normalizer.consumeLine(
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:00.000Z",
+      type: "event_msg",
+      payload: {
+        type: "token_count",
+        info: {
+          last_token_usage: { total_tokens: 18111 },
+          model_context_window: 258400,
+        },
+        rate_limits: {
+          primary: { used_percent: 29, window_minutes: 300, resets_at: 1781138289 },
+          secondary: { used_percent: 60, window_minutes: 10080, resets_at: 1781175155 },
+        },
+      },
+    }),
+  );
+  // A token_count line is usage-only; it emits no transcript block.
+  assert.equal(blocks.length, 0, "token_count is not a transcript block");
+  assert.equal(snapshots.length, 1, "onUsageSnapshot fired exactly once");
+  const snapshot = snapshots[0];
+  assert.equal(snapshot.provider, "codex");
+  assert.equal(snapshot.context.usedTokens, 18111);
+  assert.equal(snapshot.context.windowTokens, 258400);
+  assert.equal(snapshot.limits[0]?.label, "5h");
+  assert.equal(snapshot.limits[0]?.remainingPercent, 71);
+  assert.equal(snapshot.limits[1]?.label, "weekly");
+});
+
+// --- Codex image prompts join the [Image #N] reading rule (S6, S5 carry C1) ---
+// Real codex (0.137–0.142) decorates an attached image as an `[Image #N]`
+// placeholder at the head of `user_message.message`, with the file in
+// `local_images`. The normalizer keeps the marker verbatim in the block text
+// (stripping is a DISPLAY concern) and lifts local_images into attachments; the
+// reading-layer userPromptDisplay then reads THROUGH the marker exactly as it
+// does for Claude — one provider-neutral rule, no renderer work needed.
+check("codex: user_message [Image #N] joins the reading display rule", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const turnId = "019f36e2-2222-7000-8000-000000000002";
+  const imagePath = "/tmp/work/screenshots/blue square.png";
+  const blocks = [];
+  for (const line of [
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:00.000Z",
+      type: "event_msg",
+      payload: { type: "task_started", turn_id: turnId },
+    }),
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:01.000Z",
+      type: "event_msg",
+      payload: {
+        type: "user_message",
+        message: "[Image #1] Describe the attached image.",
+        images: [],
+        local_images: [imagePath],
+        text_elements: [{ byte_range: { start: 0, end: 10 }, placeholder: "[Image #1]" }],
+      },
+    }),
+  ]) {
+    blocks.push(...normalizer.consumeLine(line));
+  }
+  const userBlock = blocks.find((block) => block.kind === "user-message");
+  assert.ok(userBlock, "codex user_message emitted a user-message block");
+  // The normalizer preserves the CLI decoration verbatim — display strips it.
+  assert.ok(userBlock.text.includes("[Image #1]"), "marker kept verbatim in block text");
+  assert.equal(userBlock.attachments.length, 1, "local_images became one attachment");
+  assert.equal(userBlock.attachments[0].kind, "image");
+  assert.equal(userBlock.attachments[0].path, imagePath);
+
+  // The reading rule joins: markers lift out ONLY because a real attachment
+  // exists, and the count chip reflects it.
+  const display = userPromptDisplay(userBlock, "");
+  assert.equal(display.imageCount, 1, "attachment count drives the chip");
+  assert.equal(display.text, "Describe the attached image.", "marker lifted from display text");
+  assert.ok(!display.text.includes("[Image #1]"), "no raw marker leaks into the bubble");
 });
 
 // --- Locator ------------------------------------------------------------------
