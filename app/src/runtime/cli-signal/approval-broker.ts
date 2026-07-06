@@ -74,12 +74,23 @@ process.stdin.on("end", () => {
     }
   };
   const answer = (decision: string): never => {
+    // The ask cleanup MUST be independent of the audit write: if writeAtomic
+    // throws (ENOSPC), a nested rmSync would be skipped → the ask-<id>.json
+    // lingers and Duet's card never clears. Each step gets its own try.
     try {
       writeAtomic(answeredPath, decision);
+    } catch {
+      // audit best-effort
+    }
+    try {
       fs.rmSync(replyPath, { force: true });
+    } catch {
+      // best-effort
+    }
+    try {
       fs.rmSync(askPath, { force: true });
     } catch {
-      // best-effort cleanup; the decision below is what matters
+      // best-effort
     }
     process.stdout.write(decision);
     process.exit(0);
@@ -101,8 +112,14 @@ process.stdin.on("end", () => {
       if (late !== null) {
         answer(late);
       }
+      // Cleanup independent of the marker write (see answer()): the ask must be
+      // removed even if writeAtomic throws, or the card never clears.
       try {
         writeAtomic(expiredPath, "{}");
+      } catch {
+        // best-effort
+      }
+      try {
         fs.rmSync(askPath, { force: true });
       } catch {
         // best-effort

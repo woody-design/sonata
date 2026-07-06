@@ -1512,6 +1512,15 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalKind = candidate.kind;
     this.lastApprovalFingerprint = candidate.fingerprint;
     this.activeApprovalOptionKeys = candidate.optionKeys ?? null;
+    // DESIGNED PROVIDER ASYMMETRY (S4): this is the only writer of run.status
+    // "waiting-for-approval", and `detectApproval` gates it to Claude — so a
+    // CODEX run.status NEVER becomes waiting-for-approval, even during a broker
+    // hold (cli-state / view.status still says "Waiting for approval", fed by
+    // the PermissionRequest hook). This asymmetry is load-bearing: run.status
+    // stays "active" through a hold, which is exactly what lets
+    // checkCompletionHeuristic complete a no-Stop codex turn via the D6
+    // quiescence net (it guards on status === "active"). Do not "fix" the
+    // asymmetry by writing waiting-for-approval on the codex broker path.
     this.updateActiveRun({
       status: "waiting-for-approval",
       lifecyclePhase: "waiting-for-approval",
@@ -2217,9 +2226,12 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       // a test) → no injection, no `-p duet`.
       //
       // If the write fails (unwritable dir, ENOSPC, a shell-unsafe shim path),
-      // DEGRADE to a hookless spawn — exactly pre-S2 behavior, where the scrape
-      // drives codex — rather than aborting the launch. The missing handshake
-      // then raises the liveness banner (honest: hooks are genuinely dead).
+      // DEGRADE to a hookless spawn rather than aborting the launch. Post-S4
+      // there is NO scrape beneath: hookless codex degrades to Terminal-driven
+      // use — the missing handshake raises the liveness banner AND a needs-you
+      // notification (notification-policy: cli-hooks:liveness→missing), and any
+      // approval is answered natively in the Terminal (no per-approval Duet
+      // card in this state; recorded in the plan's negative space).
       let profile: string | undefined;
       if (options.codexHookPaths) {
         try {

@@ -64,8 +64,19 @@ if (runtimeDir && !silent) {
   } catch (_e) {}
 }
 
-// Stay alive — a real TUI holds the PTY open until the user quits.
+// Stay alive — a real TUI holds the PTY open until the user quits. Raw mode
+// (like a real TUI) so PTY input surfaces as data events byte-by-byte — Duet
+// terminates prompts with CSI-u Enter (\\x1b[13u), not a newline, so a
+// canonical-mode TTY would line-buffer them forever and never emit "data".
+if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch (_e) {} }
 process.stdin.resume();
+// Record what Duet writes to the PTY (delivered prompts, answer keys) so a test
+// can prove a send actually reached the CLI — i.e. the delivery gate was open.
+process.stdin.on("data", (chunk) => {
+  try {
+    fs.appendFileSync(path.join(cwd, "DUET_FAKE_STDIN.log"), chunk);
+  } catch (_e) {}
+});
 setInterval(() => {}, 1 << 30);
 
 // --- S3 approval flow (opt-in) ---------------------------------------------
@@ -131,8 +142,27 @@ if (runtimeDir && brokerShim) {
         // still live waiting on the user — no Stop fires until they answer it.
         if (out) {
           emitHook({ ...base, hook_event_name: "Stop", turn_id: "turn-1", stop_hook_active: false, last_assistant_message: "done" });
+          handling = false;
+        } else if (trigger.afterExpiry === "stop") {
+          // Simulate: user answered the native card in the Terminal → the turn
+          // resumes and ends via the Stop hook (the hook-Stop turn-end path).
+          setTimeout(() => {
+            emitHook({ ...base, hook_event_name: "Stop", turn_id: "turn-1", stop_hook_active: false, last_assistant_message: "done" });
+            handling = false;
+          }, 700);
+        } else if (trigger.afterExpiry === "quiescence") {
+          // Simulate: an API-failed turn after the expiry — NO Stop ever fires;
+          // the composer just returns. Paint a codex idle composer to stdout so
+          // Duet's D6 quiescence net (checkCompletionHeuristic) closes the run.
+          setTimeout(() => {
+            try {
+              process.stdout.write("• Working (1s · esc to interrupt)\\r\\ngpt-5.5 · medium\\r\\n\\u203a \\r\\n");
+            } catch (_e) {}
+            handling = false;
+          }, 300);
+        } else {
+          handling = false;
         }
-        handling = false;
       });
       child.stdin.write(JSON.stringify(permissionPayload));
       child.stdin.end();

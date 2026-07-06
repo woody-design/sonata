@@ -122,6 +122,17 @@ const SINK_EVENTS = [
  */
 const APPROVAL_HOOK_TIMEOUT_S = 120;
 
+/**
+ * Hard ceiling on the shim's hold, regardless of the `DUET_BROKER_HOLD_MS`
+ * override. The override is env-delivered (tests use it), but an env var
+ * inherited into production above the frozen hook `timeout` (120s) would let
+ * Codex KILL the hook mid-poll BEFORE the shim writes `expired-<id>.json` — no
+ * graceful native-card takeover, the card wedges. Clamp 20s below the hook
+ * timeout so the shim always reaches its own expiry + cleanup first. Shim BYTES
+ * only — the frozen command string (what trust binds to) is untouched.
+ */
+const APPROVAL_BROKER_HOLD_CEILING_MS = (APPROVAL_HOOK_TIMEOUT_S - 20) * 1000;
+
 /** Path the sink drops `hook-*.json` into, under a task's runtime dir. The
  *  shim derives this from `DUET_RUNTIME_DIR` — same layout Claude's sink
  *  writes, so the same HookWatcher consumes both. */
@@ -311,7 +322,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 const runtimeDir = process.env.DUET_RUNTIME_DIR;
 const POLL_MS = ${APPROVAL_POLL_MS};
-const holdMs = Number(process.env.DUET_BROKER_HOLD_MS) || ${APPROVAL_BROKER_HOLD_MS};
+const holdMs = Math.min(
+  Number(process.env.DUET_BROKER_HOLD_MS) || ${APPROVAL_BROKER_HOLD_MS},
+  ${APPROVAL_BROKER_HOLD_CEILING_MS},
+);
 let raw = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", function (chunk) { raw += chunk; });
@@ -347,13 +361,12 @@ process.stdin.on("end", function () {
     try { return fs.existsSync(replyPath) ? fs.readFileSync(replyPath, "utf8") : null; } catch (_e) { return null; }
   }
   function answer(decision) {
-    try {
-      writeAtomic(answeredPath, decision);
-      fs.rmSync(replyPath, { force: true });
-      fs.rmSync(askPath, { force: true });
-    } catch (_e) {
-      // best-effort cleanup; the decision below is what matters
-    }
+    // The ask cleanup MUST be independent of the audit write: if writeAtomic
+    // throws (ENOSPC), a nested rmSync would be skipped → the ask-<id>.json
+    // lingers and Duet's card never clears. Each step gets its own try.
+    try { writeAtomic(answeredPath, decision); } catch (_e) { /* audit best-effort */ }
+    try { fs.rmSync(replyPath, { force: true }); } catch (_e) { /* best-effort */ }
+    try { fs.rmSync(askPath, { force: true }); } catch (_e) { /* best-effort */ }
     process.stdout.write(decision);
     process.exit(0);
   }
@@ -378,12 +391,10 @@ process.stdin.on("end", function () {
       // wedges (reviewer C2). Mirrors approval-broker.ts.
       const late = readReply();
       if (late !== null) { answer(late); }
-      try {
-        writeAtomic(expiredPath, "{}");
-        fs.rmSync(askPath, { force: true });
-      } catch (_e) {
-        // best-effort
-      }
+      // Cleanup independent of the marker write (see answer()): the ask must be
+      // removed even if writeAtomic throws, or the card never clears.
+      try { writeAtomic(expiredPath, "{}"); } catch (_e) { /* best-effort */ }
+      try { fs.rmSync(askPath, { force: true }); } catch (_e) { /* best-effort */ }
       process.exit(0); // no stdout → Codex renders its native card
     }
   }, POLL_MS);

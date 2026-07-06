@@ -116,6 +116,33 @@ check("shims read DUET_RUNTIME_DIR from the env (task binding via env, not argv)
   assert.ok(broker.includes("reply"), "broker polls for the reply file");
 });
 
+check("broker CLAMPS the hold override below the hook timeout (S4 #6)", () => {
+  const broker = fs.readFileSync(brokerShim, "utf8");
+  // A DUET_BROKER_HOLD_MS inherited into production above the 120s hook timeout
+  // would let Codex kill the hook before the shim writes `expired` — clamp it.
+  assert.ok(broker.includes("Math.min("), "holdMs is clamped with Math.min");
+  // The ceiling must be < the 120s hook timeout (its interpolated ms literal).
+  const m = broker.match(/Math\.min\([\s\S]*?,\s*(\d+),?\s*\)/);
+  assert.ok(m, "the Math.min ceiling is a numeric literal");
+  const ceilingMs = Number(m[1]);
+  assert.ok(ceilingMs < 120_000, `hold ceiling ${ceilingMs}ms must be below the 120s hook timeout`);
+});
+
+check("broker cleanup is INDEPENDENT of the marker write (S4 #7)", () => {
+  const broker = fs.readFileSync(brokerShim, "utf8");
+  // If writeAtomic(answered/expired) throws (ENOSPC), the ask cleanup rmSync
+  // must still run or the ask lingers + the card never clears. Each rmSync gets
+  // its OWN try — no nesting under the marker write.
+  assert.ok(
+    /try\s*{\s*writeAtomic\(answeredPath[\s\S]*?}\s*catch[\s\S]*?try\s*{\s*fs\.rmSync\(askPath/.test(broker),
+    "answer(): askPath rmSync is in its own try, after the writeAtomic try",
+  );
+  assert.ok(
+    /try\s*{\s*writeAtomic\(expiredPath[\s\S]*?}\s*catch[\s\S]*?try\s*{\s*fs\.rmSync\(askPath/.test(broker),
+    "expiry: askPath rmSync is in its own try, after the writeAtomic try",
+  );
+});
+
 check("shim writes are idempotent (write-if-changed leaves stable bytes)", () => {
   const before = sha(sinkShim);
   ensureCodexRuntimeSettings({ binDir });

@@ -195,6 +195,16 @@ export class RuntimeController {
   /** Per task, the broker approvalId whose card is currently shown — enforces
    *  one card at a time; the rest queue (P3). */
   private readonly shownBrokerApproval = new Map<TaskId, string>();
+  /** Per task: broker asks that TIMED OUT (id → detected kind) and degraded to
+   *  the CLI's native card, awaiting conclusion at turn-end. For CLAUDE the
+   *  scrape re-detects the native card and emits `approval:decision`
+   *  (answered-natively) to release the delivery gate + expiry banner; CODEX
+   *  has no scrape (S4 funeral), so nothing else would ever clear those — the
+   *  keyed delivery gate would wedge every later send and the "Waiting in the
+   *  terminal" banner would ride forever. We remember them here and conclude
+   *  them at turn-end (the turn cannot end while a native card still blocks, so
+   *  turn-end PROVES the card was resolved). Populated for codex only. */
+  private readonly expiredBrokerApprovals = new Map<TaskId, Map<string, ApprovalKind>>();
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
   private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
   private readonly pendingClaudeUsage = new Map<string, UsageSnapshot>();
@@ -1152,6 +1162,55 @@ export class RuntimeController {
     }
   }
 
+  private rememberExpiredBrokerApproval(taskId: TaskId, id: string, kind: ApprovalKind): void {
+    let byId = this.expiredBrokerApprovals.get(taskId);
+    if (!byId) {
+      byId = new Map();
+      this.expiredBrokerApprovals.set(taskId, byId);
+    }
+    byId.set(id, kind);
+  }
+
+  /**
+   * Conclude a codex task's TIMED-OUT broker asks at turn-end. The broker gave
+   * up and the CLI's native card took over; a turn cannot end while a native
+   * card still blocks the tool call, so reaching turn-end PROVES the user
+   * resolved it. One `approval:decision(answered-natively)` per expired ask
+   * repairs all three consumers through their existing contracts: the keyed
+   * delivery gate releases (approvalId path, delivery-controller), the reducer
+   * clears `approvalExpiredAttention` + the "Waiting in the terminal" status,
+   * and the run-index records a balanced decision row for the earlier detected
+   * ask. Covers BOTH turn-end paths (Stop hook AND the D6 quiescence net) —
+   * called from the turn-terminal branch of handleRuntimeEvent for both. Idempotent:
+   * the per-task map is cleared, so a re-emitted turn-end is a no-op.
+   */
+  private concludeExpiredBrokerApprovals(active: ActiveTaskRuntime, runId: RunId | null): void {
+    const expired = this.expiredBrokerApprovals.get(active.task.id);
+    if (!expired || expired.size === 0) {
+      return;
+    }
+    this.expiredBrokerApprovals.delete(active.task.id);
+    for (const [approvalId, kind] of expired) {
+      const decisionEvent: RuntimeEvent = {
+        type: "approval:decision",
+        payload: {
+          taskId: active.task.id,
+          runId: runId ?? active.terminalHost.activeRunId(),
+          decision: "answered-natively",
+          encodedAs: "native-keys",
+          previousKind: kind,
+          approvalId,
+        },
+        ts: new Date().toISOString(),
+      };
+      active.deliveryController.handleRuntimeEvent(decisionEvent); // release the keyed gate
+      this.sendEvent(decisionEvent); // reducer clears the expiry banner + status
+      if (active.runIndex.consume(decisionEvent)) {
+        this.emitReportUpdated(active.runIndex);
+      }
+    }
+  }
+
   private surfaceNextBrokerApproval(active: ActiveTaskRuntime): void {
     if (this.shownBrokerApproval.has(active.task.id)) {
       return;
@@ -1207,6 +1266,13 @@ export class RuntimeController {
       // nothing to arm — the field would never be read.
       if (active.task.provider === "claude") {
         active.terminalHost.noteBrokerApprovalExpiry();
+      } else {
+        // Codex: no scrape will ever re-detect this native card to conclude it
+        // (S4 funeral). Remember the ask (with its kind for the report row) so
+        // the turn-end hook releases the keyed delivery gate + the expiry
+        // banner — otherwise every later send wedges Queued and a stale
+        // "Waiting in the terminal" rides the healthy session forever.
+        this.rememberExpiredBrokerApproval(active.task.id, id, classifyApprovalKind(pending.payload));
       }
       if (this.shownBrokerApproval.get(active.task.id) === id) {
         // Only the SHOWN ask's expiry concerns the renderer — a hidden
@@ -1295,28 +1361,41 @@ export class RuntimeController {
     eventRuntime?.statusTracker.handleRuntimeEvent(event);
     eventRuntime?.cliState.applyRuntimeEvent(event);
 
-    // A turn-terminal signal orphans every broker ask still pending for the
-    // task (see abortPendingBrokerApprovals). Covers Duet's ■/Esc
-    // (run:stopped), a native terminal Esc closed by the quiescence
-    // run-closer (completed + terminal-idle-heuristic), and the PTY dying.
-    // Normal hook-Stop completions can't coexist with a live ask — the
-    // holding hook blocks the turn from ending.
-    if (
-      eventRuntime &&
-      (event.type === "run:stopped" ||
+    // Turn-terminal signals drive two broker-approval release paths with
+    // DIFFERENT scopes. `abortPendingBrokerApprovals` orphans still-PENDING asks
+    // — a live holding hook blocks the turn, so a normal hook-Stop completion
+    // can't coexist with one; it fires only on Duet's ■/Esc (run:stopped), the
+    // quiescence run-closer (completed + terminal-idle-heuristic), or the PTY
+    // dying. `concludeExpiredBrokerApprovals` handles EXPIRED codex asks — the
+    // broker already gave up and the native card was answered in the Terminal,
+    // which let the turn RESUME and then end via EITHER path (hook-Stop OR
+    // quiescence), so it must also fire on a hook-Stop completion (the retired
+    // scrape was these asks' only clearer — S4 event-flow gap).
+    if (eventRuntime) {
+      const isPendingTurnEnd =
+        event.type === "run:stopped" ||
         event.type === "pty:exit" ||
         (event.type === "run:updated" &&
           (event.payload.status === "stopped" ||
             (event.payload.status === "completed" &&
-              event.payload.completionSource === "terminal-idle-heuristic"))))
-    ) {
-      const terminalRunId =
-        event.type === "run:stopped"
-          ? event.payload.runId
-          : event.type === "run:updated"
-            ? event.payload.id
-            : null;
-      this.abortPendingBrokerApprovals(eventRuntime, terminalRunId);
+              event.payload.completionSource === "terminal-idle-heuristic")));
+      const isExpiredTurnEnd =
+        isPendingTurnEnd ||
+        (event.type === "run:updated" &&
+          event.payload.status === "completed" &&
+          event.payload.completionSource === "hook-stop");
+      if (isExpiredTurnEnd) {
+        const terminalRunId =
+          event.type === "run:stopped"
+            ? event.payload.runId
+            : event.type === "run:updated"
+              ? event.payload.id
+              : null;
+        this.concludeExpiredBrokerApprovals(eventRuntime, terminalRunId);
+        if (isPendingTurnEnd) {
+          this.abortPendingBrokerApprovals(eventRuntime, terminalRunId);
+        }
+      }
     }
 
     if (event.type === "pty:exit" && eventRuntime) {
@@ -1493,6 +1572,18 @@ export class RuntimeController {
     this.unwatchClaudeUsage(active);
     this.unwatchHooks(active);
     this.usageSnapshots.delete(active.task.id);
+    // Broker-approval bookkeeping is keyed by the PERSISTENT taskId, so it
+    // survives a close and a stale `shownBrokerApproval` slot would suppress
+    // EVERY future card on reopen (surfaceBrokerApproval sees the id still
+    // "shown"). Clear all three maps for the task (pending is keyed by broker
+    // id → walk by taskId). Mirrors the S2 stale-liveness-banner fix.
+    for (const [id, pending] of this.pendingBrokerApprovals) {
+      if (pending.taskId === active.task.id) {
+        this.pendingBrokerApprovals.delete(id);
+      }
+    }
+    this.shownBrokerApproval.delete(active.task.id);
+    this.expiredBrokerApprovals.delete(active.task.id);
   }
 
   private publishUsageSnapshot(taskId: TaskId, snapshot: UsageSnapshot): void {

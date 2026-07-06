@@ -120,4 +120,20 @@ const option = (taskId, toolUseId) => ({
   assert.ok(p.observe(cli("t1", "turn-ended", 2)), "2s turn fires under a 1s floor");
 }
 
+// 12) Codex hooks failing to go live IS a needs-you (S4): a hookless/untrusted
+//     spawn has no card channel, so the user must act in the Terminal. Fire-once
+//     per task; a "live" liveness event never notifies.
+const liveness = (taskId, status) => ({
+  type: "cli-hooks:liveness",
+  payload: { taskId, status },
+  ts: at(0),
+});
+{
+  const p = new NotificationPolicy();
+  const d = p.observe(liveness("t1", "missing"));
+  assert.ok(d && d.kind === "needs-you" && d.reason === "hooks-missing", "hooks-missing → needs-you");
+  assert.equal(p.observe(liveness("t1", "missing")), null, "re-emitted missing is deduped (fire-once)");
+  assert.equal(p.observe(liveness("t2", "live")), null, "a live handshake never notifies");
+}
+
 console.log("notification-policy smoke: OK");

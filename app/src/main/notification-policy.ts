@@ -18,10 +18,14 @@ import type { CliActivity } from "../shared/types/cli-signal";
  *                  long enough that you may have drifted away. Failed turns land
  *                  here too (StopFailure → turn-ended), so a silent failure still
  *                  reaches you as "your turn."
- *  - `needs-you` — the agent is blocked on a decision: an approval
- *                  (`approval:detected`) or a multiple-choice question
- *                  (`option-prompt:detected`). No floor — a block is worth
- *                  surfacing whenever it happens.
+ *  - `needs-you` — the agent is blocked and the user must act: an approval
+ *                  (`approval:detected`), a multiple-choice question
+ *                  (`option-prompt:detected`), or codex hooks failing to go
+ *                  live (`cli-hooks:liveness → missing` — a pending trust
+ *                  ceremony or a hookless-degraded spawn, where a native
+ *                  approval has no card channel and must be answered in the
+ *                  Terminal). No floor — a block is worth surfacing whenever it
+ *                  happens.
  *
  * This layer only READS the already-settled signals and returns a decision; it
  * writes nothing back into app state. Keeping it a pure leaf is deliberate — a
@@ -35,7 +39,7 @@ export interface NotificationDecision {
   taskId: string;
   /** What drove a `needs-you` (or the `turn-ended` for complete). Reserved for
    *  future copy differentiation / telemetry; the MVP body is uniform per kind. */
-  reason: "turn-ended" | "approval" | "option-prompt";
+  reason: "turn-ended" | "approval" | "option-prompt" | "hooks-missing";
 }
 
 interface TaskState {
@@ -85,6 +89,17 @@ export class NotificationPolicy {
         );
       case "option-prompt:detected":
         return this.onAsk(event.payload.taskId, askId("option", event.payload.toolUseId), "option-prompt");
+      case "cli-hooks:liveness":
+        // Hooks not live (codex): the SessionStart handshake never arrived
+        // within the window — a one-time trust ceremony is pending, OR the
+        // spawn degraded hookless. Either way the user must go to the Terminal:
+        // there is NO card channel for a native approval in this state (S4), so
+        // hooks-missing IS a genuine needs-you. Fire-once per task (the id is
+        // stable), so a re-emitted `missing` does not re-notify.
+        if (event.payload.status !== "missing") {
+          return null;
+        }
+        return this.onAsk(event.payload.taskId, askId("hooks-missing", event.payload.taskId), "hooks-missing");
       default:
         return null;
     }
@@ -133,7 +148,7 @@ export class NotificationPolicy {
   private onAsk(
     taskId: string,
     id: string,
-    reason: "approval" | "option-prompt",
+    reason: "approval" | "option-prompt" | "hooks-missing",
   ): NotificationDecision | null {
     const state = this.stateFor(taskId);
     if (state.notifiedAsks.has(id)) {
