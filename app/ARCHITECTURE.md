@@ -202,7 +202,9 @@ runtime/cli-signal/
   approval-broker.ts      provider-neutral echo (writes reply-<id>.json)
   approval-watcher.ts     provider-neutral (<runtimeDir>/approvals resolver)
   approval-protocol.ts    single-sourced ask/reply/expired/answered prefixes
-runtime/providers/claude/ claude-runtime-settings.ts  — EDGE 1a: --settings file
+runtime/cli-signal/claude-runtime-settings.ts — EDGE 1a: --settings file
+                          (historically homed with the shared core; the codex
+                          edge got the providers/ home — a future tidy, not a rule)
 runtime/providers/codex/
   codex-runtime-settings.ts  EDGE 1b: writes ~/.codex/duet.config.toml + shims
   codex-approvals.ts         EDGE 2b: decision JSON shape + answering marker
