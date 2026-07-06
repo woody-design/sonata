@@ -90,7 +90,7 @@ import {
   startStripClockTicker,
 } from "./scheduler";
 import { initApprovalsView, renderOptionPrompt } from "./view/approvals";
-import { initBannersView, renderAttentionBanners } from "./view/banners";
+import { initBannersView, renderAttentionBanners, setCodexHooksMissing } from "./view/banners";
 import {
   applyTerminalWindowState,
   initChromeView,
@@ -1324,6 +1324,15 @@ function applySystemReadingMode(mode: ResolvedReadingMode): void {
 // the returned directive list 1:1, in order. No logic beyond the mapping
 // lives here — a directive's payload already carries the reducer's decisions.
 window.duetRuntime.onRuntimeEvent((event) => {
+  // Codex hooks-liveness is display-only shell chrome, handled OUTSIDE the
+  // reading-core reducer (renderer-local banner store, never a view field).
+  // renderAttentionBanners() re-reads the ACTIVE view, so a background task's
+  // liveness change is recorded now and painted when it becomes active.
+  if (event.type === "cli-hooks:liveness") {
+    setCodexHooksMissing(event.payload.taskId, event.payload.status === "missing");
+    renderAttentionBanners();
+    return;
+  }
   for (const directive of reduceRuntimeEvent(state, event)) {
     performDirective(directive);
   }

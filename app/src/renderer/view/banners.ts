@@ -25,6 +25,24 @@ export function initBannersView(stateRef: RendererState): void {
   state = stateRef;
 }
 
+/**
+ * Codex hooks-liveness banner state (S2). Renderer-LOCAL by design: hook
+ * liveness is shell chrome, not reading content, so it never becomes a
+ * reading-core view field (which the reducer owns + the crown fence pins).
+ * Keyed by taskId so a background task's missing-handshake is remembered and
+ * shown when it becomes active. Fed by main.ts from the `cli-hooks:liveness`
+ * runtime event.
+ */
+const codexHooksMissing = new Set<string>();
+
+export function setCodexHooksMissing(taskId: string, missing: boolean): void {
+  if (missing) {
+    codexHooksMissing.add(taskId);
+  } else {
+    codexHooksMissing.delete(taskId);
+  }
+}
+
 export function renderAttentionBanners(view = activeTaskView(state)): void {
   const root = elements.attentionBannerRoot;
   const banners: HTMLElement[] = [];
@@ -41,6 +59,24 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
         attentionBanner("slash-sent", `${view.slashAttention.command} ran in the Terminal`, () => {
           actions.dismissSlashAttention(view);
         }),
+      );
+    }
+    // Codex's injected hooks never handshook within the spawn window — they are
+    // untrusted (silently skipped). Point at the one-time Terminal trust
+    // ceremony; the copy is user-facing, deliberately silent on hook internals.
+    // Dismiss clears the renderer-local flag (not a view field, so handled here
+    // rather than through the actions seam).
+    if (codexHooksMissing.has(view.task.id)) {
+      const taskId = view.task.id;
+      banners.push(
+        attentionBanner(
+          "codex-hooks-liveness",
+          "Codex needs a one-time trust confirmation in the Terminal",
+          () => {
+            codexHooksMissing.delete(taskId);
+            renderAttentionBanners();
+          },
+        ),
       );
     }
   }

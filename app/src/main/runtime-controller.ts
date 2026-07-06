@@ -73,6 +73,7 @@ import {
   projectRecordRoot,
   projectsDataDir,
   runtimeDir,
+  duetBinDir,
   attachmentsRootForTask,
 } from "./duet-paths";
 import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
@@ -105,6 +106,14 @@ const RESUME_PANEL_SUPPRESS_ENV: Record<string, string> = {
   CLAUDE_CODE_RESUME_THRESHOLD_MINUTES: "999999999",
   CLAUDE_CODE_RESUME_TOKEN_THRESHOLD: "999999999",
 };
+// Codex hooks-liveness window (S2): how long after spawn we wait for the
+// `SessionStart` handshake before concluding Codex is silently skipping our
+// hooks. Generous enough to clear a slow Codex boot (MCP servers, the `apps`
+// feature) without false-positives; short enough that an untrusted session
+// surfaces the trust-ceremony banner promptly. The trust ceremony itself is a
+// human step that may exceed this — that is the point: the banner appears, and
+// a late handshake clears it.
+const CODEX_HOOKS_LIVENESS_WINDOW_MS = 12_000;
 const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
 const REASONING_EFFORTS = new Set<ReasoningEffort>(["low", "medium", "high", "xhigh", "max"]);
 const CODEX_SANDBOX_MODES = new Set<CodexSandboxMode>([
@@ -156,8 +165,19 @@ export class RuntimeController {
   private readonly resumeSettingsStore: ResumeSettingsStore;
   private readonly claudeSettingsStore: ClaudeSettingsStore;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
-  private readonly claudeHookWatcher: HookWatcher;
+  /** Provider-neutral now (S2): the same sink layout (`runtimeDir/hooks`) serves
+   *  Claude AND Codex, so ONE watcher observes both — routed to the task by the
+   *  runtime dir it saw the payload under. */
+  private readonly hookWatcher: HookWatcher;
   private readonly claudeApprovalWatcher: ClaudeApprovalWatcher;
+  /** Codex hooks-liveness (S2): the SessionStart handshake is the effect-check
+   *  that Codex's injected hooks are trusted and firing. Per codex task: a timer
+   *  armed at spawn, and whether we've flagged the renderer that the handshake
+   *  is missing. Cleared when the handshake arrives (even late) or on dispose. */
+  private readonly codexHookLiveness = new Map<
+    TaskId,
+    { timer: NodeJS.Timeout | null; sawSessionStart: boolean; flaggedMissing: boolean }
+  >();
   /** Live hook-broker approvals awaiting a card answer, keyed by broker id →
    *  the task + payload needed to build the reply decision, plus the
    *  detected event built ONCE at ask arrival (its ts/runId are the honest
@@ -189,12 +209,14 @@ export class RuntimeController {
         );
       },
     });
-    this.claudeHookWatcher = new HookWatcher({
+    this.hookWatcher = new HookWatcher({
+      // `runtimeDir/hooks` for both providers — Codex's sink writes the identical
+      // tmp+rename `hook-*.json` protocol into the same subdir (S2).
       sinkDir: claudeHooksDirectory,
       onPayload: (payload, workspace) => this.handleHookPayload(payload, workspace),
       onError: (error, filePath) => {
         console.debug(
-          `[signal] skipped Claude hook payload${filePath ? ` ${filePath}` : ""}: ${error.message}`,
+          `[signal] skipped hook payload${filePath ? ` ${filePath}` : ""}: ${error.message}`,
         );
       },
     });
@@ -289,13 +311,15 @@ export class RuntimeController {
     const runIndex = new RunIndex({ taskId, reportPath });
     // Pin a fresh Claude session to an id we choose, so the Task's binding is
     // known at birth — discovery confirms this exact id instead of guessing
-    // the newest jsonl in the cwd. NO mtime fallback for Claude (2026-07-03):
-    // two same-cwd sessions in concurrent discovery could each adopt the
-    // OTHER's freshest jsonl before either had claimed its own — and
-    // persistTranscriptSources then anchored the wrong identity permanently.
-    // The safety net the fallback used to provide (a session id the pin can't
-    // follow — /clear, native /resume) is the hook handshake instead
-    // (adoptTranscriptFromHook): identity-carrying, task-scoped, never a guess.
+    // the newest jsonl in the cwd. NO mtime fallback for EITHER provider now
+    // (Claude 2026-07-03; Codex S2): two same-cwd sessions in concurrent
+    // discovery could each adopt the OTHER's freshest transcript before either
+    // had claimed its own — and persistTranscriptSources then anchored the
+    // wrong identity permanently. Identity comes from the per-task hook
+    // handshake (adoptTranscriptFromHook): identity-carrying, task-scoped,
+    // never a guess. Codex cannot pin its id up front (no --session-id flag),
+    // so it relies wholly on the SessionStart handshake — and the liveness
+    // banner surfaces an untrusted session where that handshake never fires.
     const pinnedSessionId = request.provider === "claude" ? randomUUID() : undefined;
     const providerTranscript = this.createProviderTranscript(
       taskId,
@@ -304,7 +328,7 @@ export class RuntimeController {
       runIndex,
       {
         expectedSessionId: pinnedSessionId ?? null,
-        allowMtimeFallback: request.provider !== "claude",
+        allowMtimeFallback: false,
       },
     );
     const terminalHost = new TerminalHost({
@@ -365,7 +389,7 @@ export class RuntimeController {
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
     this.watchClaudeUsage(activeTask);
-    this.watchClaudeHooks(activeTask);
+    this.watchHooks(activeTask);
     this.persistTaskManifest(activeTask.task, activeTask.storageRoot);
     providerTranscript.startDiscovery(ptyStartedAt);
 
@@ -429,9 +453,9 @@ export class RuntimeController {
     // Resume: discovery must confirm the resumed id by identity and never
     // fall back to the freshest jsonl — that fallback is exactly how a
     // hand-driven /resume to a sibling conversation hijacked the binding.
-    // No-resume reopen (session gone / resume disabled) pins a fresh id, and
-    // Claude gets no mtime fallback there either (same same-cwd race as
-    // createTask; the hook handshake is the safety net).
+    // No-resume reopen (session gone / resume disabled) pins a fresh Claude id;
+    // NEITHER provider gets an mtime fallback now (same same-cwd race as
+    // createTask; the hook handshake is the safety net — Codex S2).
     const pinnedSessionId =
       !resumeRef && runningTask.provider === "claude" ? randomUUID() : undefined;
     const providerTranscript = this.createProviderTranscript(
@@ -441,7 +465,7 @@ export class RuntimeController {
       runIndex,
       {
         expectedSessionId: resumeRef ?? pinnedSessionId ?? null,
-        allowMtimeFallback: !resumeRef && runningTask.provider !== "claude",
+        allowMtimeFallback: false,
       },
     );
     const terminalHost = new TerminalHost({
@@ -504,7 +528,7 @@ export class RuntimeController {
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
     this.watchClaudeUsage(activeTask);
-    this.watchClaudeHooks(activeTask);
+    this.watchHooks(activeTask);
     this.persistTaskManifest(runningTask, storageRoot);
 
     if (claudeResume && request.resumeMode === "summary") {
@@ -1175,7 +1199,7 @@ export class RuntimeController {
     this.usageSnapshots.clear();
     this.pendingClaudeUsage.clear();
     this.claudeUsageWatcher.dispose();
-    this.claudeHookWatcher.dispose();
+    this.hookWatcher.dispose();
     this.claudeApprovalWatcher.dispose();
     this.pendingBrokerApprovals.clear();
   }
@@ -1385,7 +1409,7 @@ export class RuntimeController {
     // longer re-create the record dir we are about to (for a delete) remove.
     active.runIndex.dispose();
     this.unwatchClaudeUsage(active);
-    this.unwatchClaudeHooks(active);
+    this.unwatchHooks(active);
     this.usageSnapshots.delete(active.task.id);
   }
 
@@ -1421,91 +1445,192 @@ export class RuntimeController {
     }
   }
 
-  private watchClaudeHooks(active: ActiveTaskRuntime): void {
+  private watchHooks(active: ActiveTaskRuntime): void {
+    // Both providers feed the same sink layout, so both get watched (S2). The
+    // approval BROKER channel stays Claude-only — Codex's broker is inert until
+    // S3, so there are no ask/reply files to observe yet.
+    if (active.task.provider === "claude" || active.task.provider === "codex") {
+      this.hookWatcher.watchWorkspace(runtimeDir(active.task.id));
+    }
     if (active.task.provider === "claude") {
-      this.claudeHookWatcher.watchWorkspace(runtimeDir(active.task.id));
       this.claudeApprovalWatcher.watchWorkspace(runtimeDir(active.task.id));
     }
+    if (active.task.provider === "codex") {
+      this.armCodexHooksLiveness(active);
+    }
   }
 
-  private unwatchClaudeHooks(active: ActiveTaskRuntime): void {
+  private unwatchHooks(active: ActiveTaskRuntime): void {
+    if (active.task.provider === "claude" || active.task.provider === "codex") {
+      this.hookWatcher.unwatchWorkspace(runtimeDir(active.task.id));
+    }
     if (active.task.provider === "claude") {
-      this.claudeHookWatcher.unwatchWorkspace(runtimeDir(active.task.id));
       this.claudeApprovalWatcher.unwatchWorkspace(runtimeDir(active.task.id));
     }
-  }
-
-  /**
-   * Route a Claude hook payload to its task by workspace (cwd) — more reliable
-   * than session-id matching, which lags transcript discovery. The hook fires
-   * only after the PTY is up, by which point the task is registered, so a
-   * pending buffer isn't needed (unmatched payloads are simply dropped).
-   */
-  private handleHookPayload(payload: HookPayload, workspace: string): void {
-    // The watcher is keyed by the session's runtime dir (D8), not its cwd — route
-    // the payload back to the task by the same key.
-    const resolved = path.resolve(workspace);
-    for (const active of this.taskRuntimes.values()) {
-      if (active.task.provider === "claude" && pathsEqual(runtimeDir(active.task.id), resolved)) {
-        this.adoptTranscriptFromHook(active, payload);
-        active.cliState.applyHook(payload);
-        this.applyHookPermissionMode(active, payload);
-        this.handleOptionPromptHook(active, payload);
-        // `SessionStart` is the CLI's own boot declaration (startup, resume,
-        // /clear) — it opens the delivery boot latch structurally. The
-        // idle-prompt scrape cannot do this for resumed sessions on claude
-        // ≥2.1.186: the resume history repaint (old ❯ prompt lines, "✻ Baked
-        // for Ns" summaries) reads as activity-after-prompt forever, so the
-        // latch starved and queued resume messages never delivered.
-        if (payload.hook_event_name === "SessionStart") {
-          active.terminalHost.noteHookSessionStart();
-        }
-        // `UserPromptSubmit` is the authoritative "a turn is starting" signal —
-        // the CLI just began (or dequeued) a prompt. Begin the run from it
-        // (no-op if the idle-send path already began one). This is what makes
-        // mid-turn write-through honest: a queued send's run starts exactly when
-        // the CLI dequeues it, not when Duet wrote the bytes. Symmetric with the
-        // Stop-hook completion below.
-        if (payload.hook_event_name === "UserPromptSubmit") {
-          const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
-          active.terminalHost.beginRunFromHook(prompt, {
-            // The CLI's prompt_id == the transcript's promptId/turnKey — the
-            // exact run↔turn bridge (2026-07-03 loop-wakeup fix).
-            promptId: typeof payload.prompt_id === "string" ? payload.prompt_id : null,
-          });
-        }
-        // `Stop` is the authoritative "turn ended" signal — complete the active
-        // run from it (structured truth) instead of waiting on the composer-idle
-        // scrape, which lagged and could be fooled (spinner/timer ran on after
-        // the reply). The terminal-host heuristic stays as the fallback, so this
-        // is additive: prompt completion when Stop fires, scrape otherwise.
-        if (payload.hook_event_name === "Stop") {
-          active.terminalHost.completeRunFromTurnEnd();
-        }
-        // `StopFailure` is the turn's other honest ending: the API errored
-        // out after retries and Stop will never fire (probed S6). Complete
-        // the run with the structured error — the scrape-side excerpt
-        // extraction remains the fallback for hook-less sessions.
-        if (payload.hook_event_name === "StopFailure") {
-          const error = typeof payload.error === "string" && payload.error.trim()
-            ? payload.error.trim()
-            : "API error";
-          active.terminalHost.completeRunFromTurnEnd({ errorExcerpt: error });
-        }
-        return;
-      }
+    if (active.task.provider === "codex") {
+      this.clearCodexHooksLiveness(active.task.id);
     }
   }
 
   /**
-   * The transcript identity handshake: every Claude hook payload names its
-   * session (`session_id` + `transcript_path`, base envelope fields), and the
-   * per-task hook sink already routed it to THIS task — so the binding is
-   * ownership, not inference. This is what replaced the locator's mtime
-   * fallback (2026-07-03): it binds a fresh session the moment its first hook
-   * fires, and follows a session id CHANGING under a live PTY (/clear, native
-   * /resume) that the spawn-pinned id can never track. adoptSource is
-   * idempotent, so the per-event cost is a set lookup.
+   * Arm the Codex hooks-liveness check (S2). If no `SessionStart` handshake
+   * arrives within a spawn-scaled window, Codex is silently skipping our hooks
+   * (untrusted or misconfigured) — raise the Terminal trust-ceremony banner.
+   * The timer is unref'd: it must never keep the process alive on its own.
+   */
+  private armCodexHooksLiveness(active: ActiveTaskRuntime): void {
+    const taskId = active.task.id;
+    this.clearCodexHooksLiveness(taskId);
+    const timer = setTimeout(() => {
+      const entry = this.codexHookLiveness.get(taskId);
+      if (!entry || entry.sawSessionStart) {
+        return;
+      }
+      entry.timer = null;
+      entry.flaggedMissing = true;
+      this.sendEvent({
+        type: "cli-hooks:liveness",
+        payload: { taskId, status: "missing" },
+        ts: new Date().toISOString(),
+      });
+    }, CODEX_HOOKS_LIVENESS_WINDOW_MS);
+    timer.unref?.();
+    this.codexHookLiveness.set(taskId, { timer, sawSessionStart: false, flaggedMissing: false });
+  }
+
+  /**
+   * The handshake arrived (`SessionStart`) — Codex's hooks are trusted and
+   * firing. Cancel the pending window; if the banner was already raised (a LATE
+   * handshake, i.e. the user completed the trust ceremony after the window),
+   * clear it.
+   */
+  private noteCodexHooksAlive(active: ActiveTaskRuntime): void {
+    const taskId = active.task.id;
+    const entry = this.codexHookLiveness.get(taskId);
+    if (!entry) {
+      return;
+    }
+    if (entry.timer) {
+      clearTimeout(entry.timer);
+      entry.timer = null;
+    }
+    const wasFlagged = entry.flaggedMissing;
+    entry.sawSessionStart = true;
+    entry.flaggedMissing = false;
+    if (wasFlagged) {
+      this.sendEvent({
+        type: "cli-hooks:liveness",
+        payload: { taskId, status: "live" },
+        ts: new Date().toISOString(),
+      });
+    }
+  }
+
+  private clearCodexHooksLiveness(taskId: TaskId): void {
+    const entry = this.codexHookLiveness.get(taskId);
+    if (entry?.timer) {
+      clearTimeout(entry.timer);
+    }
+    this.codexHookLiveness.delete(taskId);
+  }
+
+  /**
+   * Route a hook payload to its task by the runtime dir it was observed under
+   * (D8) — ownership, not inference. The per-task sink dir travels via the
+   * environment, so sink-dir ownership IS the nonce: two same-cwd tasks never
+   * cross-adopt. The hook fires only after the PTY is up, by which point the
+   * task is registered, so unmatched payloads are simply dropped.
+   */
+  private handleHookPayload(payload: HookPayload, workspace: string): void {
+    const resolved = path.resolve(workspace);
+    for (const active of this.taskRuntimes.values()) {
+      if (!pathsEqual(runtimeDir(active.task.id), resolved)) {
+        continue;
+      }
+      if (active.task.provider === "claude") {
+        this.handleClaudeHookPayload(active, payload);
+      } else if (active.task.provider === "codex") {
+        this.handleCodexHookPayload(active, payload);
+      }
+      return;
+    }
+  }
+
+  /**
+   * Codex hook handling (S2): consume ONLY `SessionStart` — the transcript
+   * identity handshake plus the hooks-liveness effect-check. Every OTHER Codex
+   * event is delivered by the watcher and DELIBERATELY dropped this slice; the
+   * scrape remains Codex's busy/idle/turn source until S3 routes the full set
+   * into cli-state. (Remove this gate in S3.)
+   */
+  private handleCodexHookPayload(active: ActiveTaskRuntime, payload: HookPayload): void {
+    if (payload.hook_event_name !== "SessionStart") {
+      return;
+    }
+    // The handshake arrived → Codex's injected hooks are trusted and firing.
+    this.noteCodexHooksAlive(active);
+    this.adoptTranscriptFromHook(active, payload);
+  }
+
+  private handleClaudeHookPayload(active: ActiveTaskRuntime, payload: HookPayload): void {
+    this.adoptTranscriptFromHook(active, payload);
+    active.cliState.applyHook(payload);
+    this.applyHookPermissionMode(active, payload);
+    this.handleOptionPromptHook(active, payload);
+    // `SessionStart` is the CLI's own boot declaration (startup, resume,
+    // /clear) — it opens the delivery boot latch structurally. The
+    // idle-prompt scrape cannot do this for resumed sessions on claude
+    // ≥2.1.186: the resume history repaint (old ❯ prompt lines, "✻ Baked
+    // for Ns" summaries) reads as activity-after-prompt forever, so the
+    // latch starved and queued resume messages never delivered.
+    if (payload.hook_event_name === "SessionStart") {
+      active.terminalHost.noteHookSessionStart();
+    }
+    // `UserPromptSubmit` is the authoritative "a turn is starting" signal —
+    // the CLI just began (or dequeued) a prompt. Begin the run from it
+    // (no-op if the idle-send path already began one). This is what makes
+    // mid-turn write-through honest: a queued send's run starts exactly when
+    // the CLI dequeues it, not when Duet wrote the bytes. Symmetric with the
+    // Stop-hook completion below.
+    if (payload.hook_event_name === "UserPromptSubmit") {
+      const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
+      active.terminalHost.beginRunFromHook(prompt, {
+        // The CLI's prompt_id == the transcript's promptId/turnKey — the
+        // exact run↔turn bridge (2026-07-03 loop-wakeup fix).
+        promptId: typeof payload.prompt_id === "string" ? payload.prompt_id : null,
+      });
+    }
+    // `Stop` is the authoritative "turn ended" signal — complete the active
+    // run from it (structured truth) instead of waiting on the composer-idle
+    // scrape, which lagged and could be fooled (spinner/timer ran on after
+    // the reply). The terminal-host heuristic stays as the fallback, so this
+    // is additive: prompt completion when Stop fires, scrape otherwise.
+    if (payload.hook_event_name === "Stop") {
+      active.terminalHost.completeRunFromTurnEnd();
+    }
+    // `StopFailure` is the turn's other honest ending: the API errored
+    // out after retries and Stop will never fire (probed S6). Complete
+    // the run with the structured error — the scrape-side excerpt
+    // extraction remains the fallback for hook-less sessions.
+    if (payload.hook_event_name === "StopFailure") {
+      const error =
+        typeof payload.error === "string" && payload.error.trim()
+          ? payload.error.trim()
+          : "API error";
+      active.terminalHost.completeRunFromTurnEnd({ errorExcerpt: error });
+    }
+  }
+
+  /**
+   * The transcript identity handshake, both providers (S2). Every hook payload
+   * names its session (`session_id` + `transcript_path` — Claude's session
+   * jsonl, Codex's rollout jsonl; both base envelope fields, verified codex
+   * 0.142.5), and the per-task hook sink already routed it to THIS task — so
+   * the binding is ownership, not inference. This is what replaced the locator's
+   * mtime fallback (Claude 2026-07-03; Codex S2): it binds a fresh session the
+   * moment its first hook fires, and follows a session id CHANGING under a live
+   * PTY (/clear, native /resume) that a spawn-pinned id can never track.
+   * adoptSource is idempotent, so the per-event cost is a set lookup.
    */
   private adoptTranscriptFromHook(active: ActiveTaskRuntime, payload: HookPayload): void {
     const sessionId =
@@ -1536,17 +1661,22 @@ export class RuntimeController {
         payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
         ts: new Date().toISOString(),
       });
-      this.flushPendingClaudeUsage(active);
+      // Pending statusline usage is a Claude-only concern (Codex has no
+      // statusline sink); harmless but pointless for Codex, so gate it.
+      if (active.task.provider === "claude") {
+        this.flushPendingClaudeUsage(active);
+      }
     }
     // The transcript file can trail the first hook by a beat — skip now, a
     // later hook of the same session retries (hooks fire per tool call).
     if (!fs.existsSync(transcriptPath)) {
       return;
     }
+    const provider = active.task.provider;
     active.providerTranscript.adoptSource({
-      sourceId: `claude:${sessionId}`,
-      provider: "claude",
-      format: "claude-session-jsonl",
+      sourceId: `${provider}:${sessionId}`,
+      provider,
+      format: provider === "codex" ? "codex-rollout-jsonl" : "claude-session-jsonl",
       path: transcriptPath,
       providerSessionId: sessionId,
       locatedAt: new Date().toISOString(),
@@ -1860,10 +1990,27 @@ export class RuntimeController {
         ? { permissionMode: args.permissionSettings.permissionMode ?? "default" }
         : {}),
       ...(args.provider === "claude" && args.remoteControl ? { remoteControl: true } : {}),
+      // Codex hook injection (S2): buildArgs writes the profile+shims and adds
+      // `-p duet`. The controller supplies the global paths because it owns
+      // Duet-home; the runtime layer stays pure.
+      ...(args.provider === "codex"
+        ? { codexHookPaths: { binDir: duetBinDir(), profilePath: codexProfilePath() } }
+        : {}),
       ...(args.resumeRef ? { resumeRef: args.resumeRef } : {}),
       // --session-id pins a fresh session only; --resume already owns the id.
       ...(!args.resumeRef && args.sessionId ? { sessionId: args.sessionId } : {}),
-      ...(args.extraEnv ? { extraEnv: args.extraEnv } : {}),
+      // Per-task hook binding travels via env (D4): Codex hooks inherit the
+      // spawn env, so the frozen shim commands read DUET_RUNTIME_DIR to find
+      // THIS task's sink — sink-dir ownership is the nonce that keeps two
+      // same-cwd Codex tasks isolated. Merged ahead of any caller extraEnv
+      // (e.g. Claude's resume-panel suppression) so both can coexist.
+      ...(() => {
+        const extraEnv = {
+          ...(args.provider === "codex" ? { DUET_RUNTIME_DIR: runtimeDir(args.taskId) } : {}),
+          ...(args.extraEnv ?? {}),
+        };
+        return Object.keys(extraEnv).length > 0 ? { extraEnv } : {};
+      })(),
       ...(args.rows !== undefined ? { rows: args.rows } : {}),
       ...(args.cols !== undefined ? { cols: args.cols } : {}),
     };
@@ -2103,6 +2250,18 @@ function runtimeReportPath(recordRoot: string): string {
 
 function transcriptSourcesPath(recordRoot: string): string {
   return path.join(recordRoot, "transcript-sources.json");
+}
+
+/**
+ * The Duet Codex hook profile file — an ADDITIVE, Duet-named file inside the
+ * user's Codex home, layered by `codex -p duet`. Honors `$CODEX_HOME` (so the
+ * user's real Codex world is respected, and tests/live-passes can isolate to a
+ * temp home) and defaults to `~/.codex`. Duet writes ONLY this file; the user's
+ * own `config.toml` is never read or modified.
+ */
+function codexProfilePath(): string {
+  const home = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), ".codex");
+  return path.join(home, "duet.config.toml");
 }
 
 function normalizeImageMediaType(mediaType: string, originalName: string, bytes: Buffer): string | null {

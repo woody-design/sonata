@@ -89,6 +89,25 @@ export type TaskReadyEvent = BaseRuntimeEvent<
   }
 >;
 
+/**
+ * Codex hooks-liveness (control plane S2). Codex silently skips untrusted or
+ * misconfigured hooks, so the SessionStart handshake IS the effect-check that
+ * Duet's injected hooks are trusted and firing. `missing` = no handshake within
+ * the spawn-scaled window (the renderer raises the one-time Terminal
+ * trust-ceremony banner); `live` = a late handshake arrived, clear it.
+ *
+ * Display-only shell chrome: the renderer handles this OUTSIDE the reading-core
+ * reducer (a renderer-local banner store), never as a task-view field — hook
+ * liveness is not reading content.
+ */
+export type CliHooksLivenessEvent = BaseRuntimeEvent<
+  "cli-hooks:liveness",
+  {
+    taskId: TaskId;
+    status: "missing" | "live";
+  }
+>;
+
 export type WorkingStatusUpdatedEvent = BaseRuntimeEvent<
   "working-status:updated",
   {
@@ -409,6 +428,7 @@ export type ProductRuntimeEvent =
   | TaskStartedEvent
   | TaskReadyEvent
   | WorkingStatusUpdatedEvent
+  | CliHooksLivenessEvent
   | CliStateChangedEvent
   | TaskUpdatedEvent
   | PromptSubmittedEvent
@@ -444,6 +464,7 @@ export type RunIndexEvent = Exclude<
   | UsageUpdatedEvent
   | SessionsUpdatedEvent
   | CliStateChangedEvent
+  | CliHooksLivenessEvent
   | DeliveryStateEvent
   | DeliveryReceiptEvent
   | TaskUpdatedEvent

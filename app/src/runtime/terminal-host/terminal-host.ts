@@ -27,6 +27,7 @@ import type {
 import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
 import type { RemoteControlInjectResponse, TerminalReplaySnapshot } from "../../shared/types/ipc";
 import { ensureClaudeRuntimeSettings } from "../cli-signal";
+import { CODEX_DUET_PROFILE, ensureCodexRuntimeSettings } from "../providers/codex";
 import { shellQuotePath } from "../shell-quote";
 import { TerminalScrollback } from "./terminal-scrollback";
 
@@ -241,6 +242,12 @@ export interface StartTaskOptions {
    *  to the scrape/keys fallback instead of the hook-intercept broker (S2).
    *  Default (undefined) is broker-on. */
   approvalBroker?: boolean;
+  /** Codex only: the global paths (Duet-home shim dir + `$CODEX_HOME` profile
+   *  file) for the injected hook profile. Present → buildArgs writes the
+   *  profile+shims (write-if-changed) and spawns with `-p duet`. The controller
+   *  computes these because it owns Duet-home paths; the runtime layer stays
+   *  pure. */
+  codexHookPaths?: { binDir: string; profilePath: string };
   resumeLast?: boolean;
   /** Provider session id to resume natively (claude --resume / codex resume). */
   resumeRef?: string;
@@ -2046,6 +2053,9 @@ export function codexArgs(options: {
   speedMode?: LaunchSpeedMode | null | undefined;
   resumeLast?: boolean;
   resumeRef?: string | undefined;
+  /** Layer the Duet hook profile via `-p <profile>` (CONFIG_PROFILE_V2). Unset
+   *  → no profile flag (bare TerminalHost in a test still works). */
+  profile?: string | undefined;
 }): string[] {
   const base = options.resumeRef
     ? ["resume", options.resumeRef]
@@ -2061,6 +2071,10 @@ export function codexArgs(options: {
   }
   return [
     ...base,
+    // `-p duet` layers Duet's hook profile onto the user's own config (union,
+    // never clobber — verified). Placed ahead of the run flags; Codex accepts
+    // it on both the TUI and exec forms.
+    ...(options.profile ? ["-p", options.profile] : []),
     "--no-alt-screen",
     ...(options.model?.trim() ? ["-m", options.model.trim()] : []),
     ...configOverrides,
@@ -2154,8 +2168,15 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
     supportsSlashStop: true,
     activityHints: ["working", "esc to interrupt"],
     idlePromptModelHints: /gpt[-\w.]*|xhigh|high|medium|low|~/i,
-    buildArgs: (options) =>
-      codexArgs({
+    buildArgs: (options) => {
+      // Spawn-prep the injected hook profile + stable shims (write-if-changed).
+      // Byte-stable and task-invariant: the SessionStart handshake then carries
+      // identity + hook liveness. Absent codexHookPaths (a bare TerminalHost in
+      // a test) → no injection, no `-p duet`.
+      if (options.codexHookPaths) {
+        ensureCodexRuntimeSettings(options.codexHookPaths);
+      }
+      return codexArgs({
         cwd: options.cwd,
         sandbox: options.sandbox ?? "read-only",
         approval: options.approval ?? "on-request",
@@ -2164,7 +2185,9 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         speedMode: options.speedMode,
         resumeLast: Boolean(options.resumeLast),
         resumeRef: options.resumeRef,
-      }),
+        profile: options.codexHookPaths ? CODEX_DUET_PROFILE : undefined,
+      });
+    },
     approvalHints: {
       fileRead: [],
       fileEdit: CODEX_FILE_EDIT_APPROVAL_HINTS,
