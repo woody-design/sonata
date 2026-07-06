@@ -17,6 +17,7 @@
     "e2e:sidebar-sessions": "npm run build && node tests/e2e/sidebar-sessions.mjs",
     "e2e:cross-session-isolation": "npm run build && node tests/e2e/cross-session-isolation.mjs",
     "e2e:codex-hooks-identity": "npm run build && node tests/e2e/codex-hooks-identity.mjs",
+    "e2e:codex-approvals": "npm run build && node tests/e2e/codex-approvals.mjs",
     "e2e:window-state-persistence": "npm run build && node tests/e2e/window-state-persistence.mjs",
     "e2e:window-state-fullscreen": "npm run build && node tests/e2e/window-state-fullscreen.mjs",
     "e2e:run-chat-transcript": "npm run build && node tests/e2e/run-chat-transcript.mjs",

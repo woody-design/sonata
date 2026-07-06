@@ -67,4 +67,76 @@ if (runtimeDir && !silent) {
 // Stay alive — a real TUI holds the PTY open until the user quits.
 process.stdin.resume();
 setInterval(() => {}, 1 << 30);
+
+// --- S3 approval flow (opt-in) ---------------------------------------------
+// When DUET_FAKE_BROKER_SHIM is set, poll cwd for a DUET_FAKE_ASK.json trigger.
+// On trigger: emit a UserPromptSubmit hook (busy), spawn the REAL generated
+// broker shim with a PermissionRequest payload (the path a live Codex takes —
+// the shim holds, surfaces ask-<id>.json, and echoes Duet's reply), then on the
+// broker's exit record its stdout (the decision, or empty on native fallback)
+// and emit a Stop hook (turn-ended). This exercises Duet's full card→reply
+// channel, the busy/turn-end cli-state, and the expiry→native-fallback path.
+const brokerShim = process.env.DUET_FAKE_BROKER_SHIM;
+if (runtimeDir && brokerShim) {
+  const { spawn } = require("node:child_process");
+  const emitHook = (payload) => {
+    try {
+      const hooksDir = path.join(runtimeDir, "hooks");
+      fs.mkdirSync(hooksDir, { recursive: true });
+      const seq = Date.now().toString(36) + "-" + process.hrtime.bigint().toString(36) + "-h";
+      const file = path.join(hooksDir, "hook-" + seq + ".json");
+      fs.writeFileSync(file + ".tmp", JSON.stringify(payload), "utf8");
+      fs.renameSync(file + ".tmp", file);
+    } catch (_e) {}
+  };
+  const sessionId = "codexsess-" + path.basename(runtimeDir);
+  const rolloutPath = path.join(runtimeDir, "rollout-" + sessionId + ".jsonl");
+  const base = { session_id: sessionId, transcript_path: rolloutPath, cwd: cwd, model: "gpt-5.5", permission_mode: "default" };
+  const triggerPath = path.join(cwd, "DUET_FAKE_ASK.json");
+  let handling = false;
+  setInterval(() => {
+    if (handling) return;
+    let trigger = null;
+    try {
+      if (fs.existsSync(triggerPath)) { trigger = JSON.parse(fs.readFileSync(triggerPath, "utf8")); }
+    } catch (_e) { return; }
+    if (!trigger) return;
+    handling = true;
+    try { fs.rmSync(triggerPath, { force: true }); } catch (_e) {}
+
+    emitHook({ ...base, hook_event_name: "UserPromptSubmit", turn_id: "turn-1", prompt: trigger.prompt || "do the thing" });
+
+    // Let the UserPromptSubmit hook be consumed (→ beginRunFromHook) before the
+    // broker's ask arrives, so the approval attributes to the open run — mirrors
+    // the real ordering (a PermissionRequest lives INSIDE a turn already begun).
+    setTimeout(() => {
+      const permissionPayload = {
+        ...base,
+        hook_event_name: "PermissionRequest",
+        turn_id: "turn-1",
+        tool_name: trigger.tool_name || "Bash",
+        tool_input: trigger.tool_input || { command: "echo hi", description: "Allow this?" },
+      };
+      const child = spawn("node", [brokerShim], {
+        env: { ...process.env, DUET_RUNTIME_DIR: runtimeDir, DUET_BROKER_HOLD_MS: String(trigger.holdMs || 60000) },
+      });
+      let out = "";
+      child.stdout.on("data", (c) => { out += c.toString(); });
+      child.on("close", () => {
+        try {
+          fs.writeFileSync(path.join(cwd, "DUET_FAKE_ASK_RESULT.json"), JSON.stringify({ stdout: out }));
+        } catch (_e) {}
+        // A card answer (allow/deny) ends the turn → Stop. A broker timeout
+        // (empty stdout) means Codex's NATIVE card is now up and the turn is
+        // still live waiting on the user — no Stop fires until they answer it.
+        if (out) {
+          emitHook({ ...base, hook_event_name: "Stop", turn_id: "turn-1", stop_hook_active: false, last_assistant_message: "done" });
+        }
+        handling = false;
+      });
+      child.stdin.write(JSON.stringify(permissionPayload));
+      child.stdin.end();
+    }, 500);
+  }, 200);
+}
 `;

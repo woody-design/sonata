@@ -22,9 +22,14 @@ const {
   ensureCodexRuntimeSettings,
   codexProfilePath,
   CODEX_DUET_PROFILE,
+  CODEX_ANSWERING_MARKER,
   codexHooksDirectory,
   codexApprovalsDirectory,
+  codexBrokerDecisionJson,
+  enableCodexAnswering,
+  disableCodexAnswering,
 } = require("../../dist/runtime/providers/codex/index");
+const { spawn } = require("node:child_process");
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-settings-"));
 // Isolate the profile file to a temp CODEX_HOME — NEVER touch the real ~/.codex.
@@ -105,8 +110,10 @@ check("shims read DUET_RUNTIME_DIR from the env (task binding via env, not argv)
   assert.ok(broker.includes("process.env.DUET_RUNTIME_DIR"), "broker reads DUET_RUNTIME_DIR");
   // The sink writes into runtimeDir/hooks (same layout the HookWatcher polls).
   assert.ok(sink.includes('"hooks"'), "sink writes into the hooks/ subdir");
-  // The broker is inert in S2 — checks the answering marker, no hold/stdout.
-  assert.ok(broker.includes("answering-enabled"), "broker gates on the S3 marker");
+  // The broker gates on the answering marker, then holds-and-answers (S3).
+  assert.ok(broker.includes(CODEX_ANSWERING_MARKER), "broker gates on the answering marker");
+  assert.ok(broker.includes("ask-"), "broker surfaces ask-<id>.json (hold path)");
+  assert.ok(broker.includes("reply"), "broker polls for the reply file");
 });
 
 check("shim writes are idempotent (write-if-changed leaves stable bytes)", () => {
@@ -149,6 +156,109 @@ check("inert broker exits 0 with no stdout when the marker is absent", () => {
     env: { ...process.env, DUET_RUNTIME_DIR: runtimeDir },
   });
   assert.equal(out.toString(), "", "broker emitted no stdout (native card takes over)");
+});
+
+// ── S3: the decision-JSON shape + the answering-marker lifecycle ─────────────
+
+check("codexBrokerDecisionJson emits the Codex allow/deny shape (no Always rule)", () => {
+  const allow = codexBrokerDecisionJson("approve");
+  assert.deepEqual(allow, {
+    hookSpecificOutput: { hookEventName: "PermissionRequest", decision: { behavior: "allow" } },
+  });
+  const deny = codexBrokerDecisionJson("deny");
+  assert.equal(deny.hookSpecificOutput.decision.behavior, "deny");
+  // approve-always degrades to a one-shot allow — Codex rule support is an
+  // UNVERIFIED open probe, so we never emit a guessed updatedPermissions shape.
+  const always = codexBrokerDecisionJson("approve-always");
+  assert.equal(always.hookSpecificOutput.decision.behavior, "allow");
+  assert.ok(
+    !("updatedPermissions" in always.hookSpecificOutput.decision),
+    "no persistent-rule vocabulary leaks into the Codex decision",
+  );
+});
+
+check("enable/disableCodexAnswering writes and clears the marker", () => {
+  const rd = path.join(tempRoot, "rt-marker");
+  const markerPath = path.join(codexApprovalsDirectory(rd), CODEX_ANSWERING_MARKER);
+  enableCodexAnswering(rd);
+  assert.ok(fs.existsSync(markerPath), "marker present after enable");
+  disableCodexAnswering(rd);
+  assert.ok(!fs.existsSync(markerPath), "marker cleared after disable");
+});
+
+// The frozen broker shim must actually implement the hold-and-answer protocol
+// the ApprovalWatcher consumes — drive it end-to-end as a subprocess.
+function runBroker(runtimeDir, payload, holdMs) {
+  return new Promise((resolve) => {
+    const child = spawn("node", [brokerShim], {
+      env: { ...process.env, DUET_RUNTIME_DIR: runtimeDir, DUET_BROKER_HOLD_MS: String(holdMs) },
+    });
+    let out = "";
+    child.stdout.on("data", (c) => (out += c.toString()));
+    child.on("close", () => resolve(out));
+    child.stdin.write(JSON.stringify(payload));
+    child.stdin.end();
+  });
+}
+
+async function acheck(name, fn) {
+  try {
+    await fn();
+    console.log(`ok   ${name}`);
+  } catch (error) {
+    failures.push(name);
+    console.error(`FAIL ${name}`);
+    console.error(error);
+  }
+}
+
+await acheck("armed broker surfaces ask-<id>, echoes the reply, then cleans up", async () => {
+  const rd = path.join(tempRoot, "rt-broker-answer");
+  const approvals = codexApprovalsDirectory(rd);
+  fs.mkdirSync(approvals, { recursive: true });
+  enableCodexAnswering(rd);
+  const brokerDone = runBroker(
+    rd,
+    { hook_event_name: "PermissionRequest", tool_name: "Bash", tool_input: { command: "echo hi", description: "Allow echo?" } },
+    5000,
+  );
+  // Wait for the ask, then answer it (mirrors Duet's ApprovalWatcher → decideApproval).
+  const decisionJson = JSON.stringify(codexBrokerDecisionJson("approve"));
+  let askId = null;
+  for (let i = 0; i < 100 && !askId; i += 1) {
+    const asks = fs.readdirSync(approvals).filter((f) => /^ask-.+\.json$/.test(f));
+    if (asks.length > 0) askId = asks[0].slice("ask-".length, -".json".length);
+    else await new Promise((r) => setTimeout(r, 50));
+  }
+  assert.ok(askId, "broker wrote ask-<id>.json while holding");
+  const ask = JSON.parse(fs.readFileSync(path.join(approvals, `ask-${askId}.json`), "utf8"));
+  assert.equal(ask.payload.tool_input.description, "Allow echo?", "ask carries the payload verbatim");
+  // Write the reply the way writeApprovalReply does (tmp+rename).
+  const replyPath = path.join(approvals, `reply-${askId}.json`);
+  fs.writeFileSync(`${replyPath}.tmp`, decisionJson);
+  fs.renameSync(`${replyPath}.tmp`, replyPath);
+  const stdout = await brokerDone;
+  assert.equal(stdout, decisionJson, "broker emitted the reply decision verbatim to stdout");
+  assert.ok(fs.existsSync(path.join(approvals, `answered-${askId}.json`)), "answered audit written");
+  assert.ok(!fs.existsSync(path.join(approvals, `ask-${askId}.json`)), "ask cleaned up");
+  assert.ok(!fs.existsSync(replyPath), "reply consumed");
+});
+
+await acheck("armed broker times out to expired-<id> with NO stdout (native fallback)", async () => {
+  const rd = path.join(tempRoot, "rt-broker-expire");
+  const approvals = codexApprovalsDirectory(rd);
+  fs.mkdirSync(approvals, { recursive: true });
+  enableCodexAnswering(rd);
+  const stdout = await runBroker(
+    rd,
+    { hook_event_name: "PermissionRequest", tool_name: "Bash", tool_input: { command: "echo hi" } },
+    400,
+  );
+  assert.equal(stdout, "", "no stdout on timeout → Codex renders its native card");
+  const expired = fs.readdirSync(approvals).filter((f) => /^expired-.+\.json$/.test(f));
+  assert.equal(expired.length, 1, "exactly one expired marker written");
+  const asks = fs.readdirSync(approvals).filter((f) => /^ask-.+\.json$/.test(f));
+  assert.equal(asks.length, 0, "ask cleaned up on expiry");
 });
 
 fs.rmSync(tempRoot, { recursive: true, force: true });

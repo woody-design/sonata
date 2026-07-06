@@ -90,7 +90,7 @@ function buildHooks(
   return hooks;
 }
 
-/** Where the broker drops ask/reply/expired files; watched by ClaudeApprovalWatcher. */
+/** Where the broker drops ask/reply/expired files; watched by ApprovalWatcher. */
 export function claudeApprovalsDirectory(runtimeDir: string): string {
   return path.join(runtimeDir, "approvals");
 }

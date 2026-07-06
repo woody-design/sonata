@@ -11,7 +11,7 @@ export interface ApprovalAsk {
   payload: HookPayload;
 }
 
-export interface ClaudeApprovalWatcherOptions {
+export interface ApprovalWatcherOptions {
   pollMs?: number;
   /** A broker surfaced a permission request (once per id). Route by runtime dir → task. */
   onAsk: (ask: ApprovalAsk, runtimeDir: string) => void;
@@ -27,15 +27,22 @@ export interface ClaudeApprovalWatcherOptions {
  * (see `writeApprovalReply`), which the broker consumes and deletes along with
  * the ask; a vanished ask therefore needs no watcher action. Mirrors
  * HookWatcher's per-workspace refcount + crash-residue prune.
+ *
+ * Provider-NEUTRAL: both Claude and Codex brokers write the identical
+ * ask/reply/expired protocol into the SAME `<runtimeDir>/approvals` layout, so
+ * one watcher serves both. `claudeApprovalsDirectory` is reused as that one
+ * neutral path resolver (Codex's `codexApprovalsDirectory` computes the same
+ * path); the per-provider difference is only the reply JSON shape, chosen by the
+ * caller at reply-write time.
  */
-export class ClaudeApprovalWatcher {
-  private readonly options: ClaudeApprovalWatcherOptions;
+export class ApprovalWatcher {
+  private readonly options: ApprovalWatcherOptions;
   private readonly pollMs: number;
   private readonly workspaceRefs = new Map<string, number>();
   private readonly seenAsks = new Set<string>();
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(options: ClaudeApprovalWatcherOptions) {
+  constructor(options: ApprovalWatcherOptions) {
     this.options = options;
     this.pollMs = options.pollMs ?? DEFAULT_POLL_MS;
   }

@@ -56,9 +56,12 @@ import {
   ClaudeStatuslineUsageWatcher,
   HookWatcher,
   claudeHooksDirectory,
-  ClaudeApprovalWatcher,
+  ApprovalWatcher,
   writeApprovalReply,
   type ApprovalAsk,
+  codexBrokerDecisionJson,
+  enableCodexAnswering,
+  disableCodexAnswering,
   CliStateModel,
   parseClaudeStatuslinePayload,
   parseOptionPrompt,
@@ -169,7 +172,7 @@ export class RuntimeController {
    *  Claude AND Codex, so ONE watcher observes both — routed to the task by the
    *  runtime dir it saw the payload under. */
   private readonly hookWatcher: HookWatcher;
-  private readonly claudeApprovalWatcher: ClaudeApprovalWatcher;
+  private readonly approvalWatcher: ApprovalWatcher;
   /** Codex hooks-liveness (S2): the SessionStart handshake is the effect-check
    *  that Codex's injected hooks are trusted and firing. Per codex task, a
    *  timer armed at spawn + a 3-state status: `pending` (window open), `missing`
@@ -223,7 +226,7 @@ export class RuntimeController {
         );
       },
     });
-    this.claudeApprovalWatcher = new ClaudeApprovalWatcher({
+    this.approvalWatcher = new ApprovalWatcher({
       onAsk: (ask, workspace) => this.handleApprovalAsk(ask, workspace),
       onExpired: (id, workspace) => this.handleApprovalExpired(id, workspace),
       onError: (error, filePath) => {
@@ -940,7 +943,16 @@ export class RuntimeController {
     const pending = approvalId ? this.pendingBrokerApprovals.get(approvalId) : null;
     if (approvalId && pending && pending.taskId === taskId) {
       this.pendingBrokerApprovals.delete(approvalId);
-      writeApprovalReply(runtimeDir(taskId), approvalId, brokerDecisionJson(decision, pending.payload));
+      // The decision JSON shape is the one true per-provider seam of the
+      // approval channel (plan §2): Claude carries persistent-rule vocabulary
+      // (`updatedPermissions`/`addRules`), Codex honors only `behavior:
+      // allow|deny` (its "Always" rule support is an UNVERIFIED open probe — see
+      // codex-approvals.ts). The broker echoes whatever Duet writes verbatim.
+      const decisionJson =
+        active.task.provider === "codex"
+          ? codexBrokerDecisionJson(decision)
+          : brokerDecisionJson(decision, pending.payload);
+      writeApprovalReply(runtimeDir(taskId), approvalId, decisionJson);
       const decisionEvent: RuntimeEvent = {
         type: "approval:decision",
         payload: {
@@ -988,9 +1000,10 @@ export class RuntimeController {
   private handleApprovalAsk(ask: ApprovalAsk, workspace: string): void {
     const resolved = path.resolve(workspace);
     for (const active of this.taskRuntimes.values()) {
-      if (active.task.provider !== "claude" || !pathsEqual(runtimeDir(active.task.id), resolved)) {
+      if (!isHookCapable(active.task.provider) || !pathsEqual(runtimeDir(active.task.id), resolved)) {
         continue;
       }
+      const provider = active.task.provider;
       active.cliState.applyHook(ask.payload);
       // Ask arrival is the ONE moment for gate + record (S6 review P2: doing
       // this inside the show path recorded a queued-then-shown ask twice —
@@ -1008,8 +1021,8 @@ export class RuntimeController {
           source: "hook-broker",
           answerVia: "reply",
           approvalId: ask.id,
-          summary: approvalSummary(ask.payload),
-          choices: brokerApprovalChoices(kind, ask.payload),
+          summary: approvalSummary(ask.payload, provider),
+          choices: brokerApprovalChoices(kind, ask.payload, provider),
         },
         ts: new Date().toISOString(),
       };
@@ -1123,7 +1136,7 @@ export class RuntimeController {
     this.pendingBrokerApprovals.delete(id);
     const resolved = path.resolve(workspace);
     for (const active of this.taskRuntimes.values()) {
-      if (active.task.provider !== "claude" || !pathsEqual(runtimeDir(active.task.id), resolved)) {
+      if (!isHookCapable(active.task.provider) || !pathsEqual(runtimeDir(active.task.id), resolved)) {
         continue;
       }
       if (!pending || pending.taskId !== active.task.id) {
@@ -1203,7 +1216,7 @@ export class RuntimeController {
     this.pendingClaudeUsage.clear();
     this.claudeUsageWatcher.dispose();
     this.hookWatcher.dispose();
-    this.claudeApprovalWatcher.dispose();
+    this.approvalWatcher.dispose();
     this.pendingBrokerApprovals.clear();
   }
 
@@ -1456,16 +1469,17 @@ export class RuntimeController {
   }
 
   private watchHooks(active: ActiveTaskRuntime): void {
-    // Hook-capable providers feed the same sink layout, so they get watched
-    // (S2). The approval BROKER channel stays Claude-only — Codex's broker is
-    // inert until S3, so there are no ask/reply files to observe yet.
+    // Hook-capable providers feed the same sink + approvals layout (S3), so both
+    // get watched. The broker's hold-and-answer path is armed per provider:
+    // Codex's broker shim is inert-until-marker (D4), so dropping the
+    // answering-enabled marker here — exactly when Duet's card wiring goes live —
+    // is what turns its native-card fallback into the Reading approval channel.
     if (isHookCapable(active.task.provider)) {
       this.hookWatcher.watchWorkspace(runtimeDir(active.task.id));
-    }
-    if (active.task.provider === "claude") {
-      this.claudeApprovalWatcher.watchWorkspace(runtimeDir(active.task.id));
+      this.approvalWatcher.watchWorkspace(runtimeDir(active.task.id));
     }
     if (active.task.provider === "codex") {
+      enableCodexAnswering(runtimeDir(active.task.id));
       this.armCodexHooksLiveness(active);
     }
   }
@@ -1473,11 +1487,10 @@ export class RuntimeController {
   private unwatchHooks(active: ActiveTaskRuntime): void {
     if (isHookCapable(active.task.provider)) {
       this.hookWatcher.unwatchWorkspace(runtimeDir(active.task.id));
-    }
-    if (active.task.provider === "claude") {
-      this.claudeApprovalWatcher.unwatchWorkspace(runtimeDir(active.task.id));
+      this.approvalWatcher.unwatchWorkspace(runtimeDir(active.task.id));
     }
     if (active.task.provider === "codex") {
+      disableCodexAnswering(runtimeDir(active.task.id));
       this.clearCodexHooksLiveness(active.task.id);
     }
   }
@@ -1575,72 +1588,103 @@ export class RuntimeController {
       if (!pathsEqual(runtimeDir(active.task.id), resolved)) {
         continue;
       }
-      if (active.task.provider === "claude") {
-        this.handleClaudeHookPayload(active, payload);
-      } else if (active.task.provider === "codex") {
-        this.handleCodexHookPayload(active, payload);
+      if (isHookCapable(active.task.provider)) {
+        this.applyHookToTask(active, payload);
       }
       return;
     }
   }
 
   /**
-   * Codex hook handling (S2): consume ONLY `SessionStart` — the transcript
-   * identity handshake plus the hooks-liveness effect-check. Every OTHER Codex
-   * event is delivered by the watcher and DELIBERATELY dropped this slice; the
-   * scrape remains Codex's busy/idle/turn source until S3 routes the full set
-   * into cli-state. (Remove this gate in S3.)
+   * One converged hook handler for every hook-capable provider (S3). Codex GA'd
+   * a hook contract that clones Claude's field-for-field (plan §2), so the SPINE
+   * is shared — identity handshake, cli-state, and the run lifecycle all speak
+   * the standard schema — and only the genuine per-provider edges branch. This
+   * collapses the S1/S2 two-handler fork (the convergence license recorded at
+   * the S2 gate).
+   *
+   * `PermissionRequest` is DELIBERATELY absent here for BOTH providers: it is
+   * owned by the broker shim, so it arrives via the ApprovalWatcher →
+   * `handleApprovalAsk` (which drives cli-state to waiting-approval), never the
+   * sink. Everything else routes below.
    */
-  private handleCodexHookPayload(active: ActiveTaskRuntime, payload: HookPayload): void {
-    if (payload.hook_event_name !== "SessionStart") {
-      return;
-    }
-    // The handshake arrived → Codex's injected hooks are trusted and firing.
-    this.noteCodexHooksAlive(active);
-    this.adoptTranscriptFromHook(active, payload);
-  }
+  private applyHookToTask(active: ActiveTaskRuntime, payload: HookPayload): void {
+    const provider = active.task.provider;
+    const event = payload.hook_event_name;
 
-  private handleClaudeHookPayload(active: ActiveTaskRuntime, payload: HookPayload): void {
+    // Identity handshake — both providers, every event (a session id can change
+    // under a live PTY: /clear, native resume). Idempotent.
     this.adoptTranscriptFromHook(active, payload);
+
+    // CLI-state — the schema-agnostic primary signal for busy/idle/turn-end.
     active.cliState.applyHook(payload);
-    this.applyHookPermissionMode(active, payload);
-    this.handleOptionPromptHook(active, payload);
-    // `SessionStart` is the CLI's own boot declaration (startup, resume,
-    // /clear) — it opens the delivery boot latch structurally. The
-    // idle-prompt scrape cannot do this for resumed sessions on claude
-    // ≥2.1.186: the resume history repaint (old ❯ prompt lines, "✻ Baked
-    // for Ns" summaries) reads as activity-after-prompt forever, so the
-    // latch starved and queued resume messages never delivered.
-    if (payload.hook_event_name === "SessionStart") {
+
+    // Permission-mode display and AskUserQuestion option-prompts are CLAUDE-ONLY
+    // vocabulary. Codex's permission model is sandbox + approval-policy (a
+    // distinct vocabulary Reading does not surface as `permissionMode`), and
+    // `AskUserQuestion` is a Claude tool with no verified Codex equivalent — so
+    // both are skipped for Codex with the reason declared, not force-mapped.
+    if (provider === "claude") {
+      this.applyHookPermissionMode(active, payload);
+      this.handleOptionPromptHook(active, payload);
+    }
+
+    // The Codex hooks-liveness effect-check: a `SessionStart` handshake proves
+    // Codex's injected hooks are trusted and firing (untrusted hooks are
+    // silently skipped — the only detector is the handshake's presence).
+    if (provider === "codex" && event === "SessionStart") {
+      this.noteCodexHooksAlive(active);
+    }
+
+    // `SessionStart` is the CLI's own boot declaration (startup, resume, /clear)
+    // — it opens the delivery boot latch structurally for BOTH providers. The
+    // idle-prompt scrape cannot do this for a resumed session whose history
+    // repaint reads as activity-after-prompt forever (Claude ≥2.1.186; the same
+    // starvation class applies to a resumed Codex TUI), so the latch would
+    // starve and queued resume messages never deliver. Opening it only ever
+    // makes `acceptsPromptInput` MORE permissive earlier; the busy/panel guards
+    // still protect delivery.
+    if (event === "SessionStart") {
       active.terminalHost.noteHookSessionStart();
     }
-    // `UserPromptSubmit` is the authoritative "a turn is starting" signal —
-    // the CLI just began (or dequeued) a prompt. Begin the run from it
-    // (no-op if the idle-send path already began one). This is what makes
-    // mid-turn write-through honest: a queued send's run starts exactly when
-    // the CLI dequeues it, not when Duet wrote the bytes. Symmetric with the
-    // Stop-hook completion below.
-    if (payload.hook_event_name === "UserPromptSubmit") {
+
+    // `UserPromptSubmit` is the authoritative "a turn is starting" signal — the
+    // CLI just began (or dequeued) a prompt. Begin the run from it (no-op if the
+    // idle-send path already began one). This is what makes mid-turn
+    // write-through honest: a queued send's run starts when the CLI dequeues it,
+    // not when Duet wrote the bytes. Symmetric with the Stop-hook completion.
+    if (event === "UserPromptSubmit") {
       const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
       active.terminalHost.beginRunFromHook(prompt, {
-        // The CLI's prompt_id == the transcript's promptId/turnKey — the
-        // exact run↔turn bridge (2026-07-03 loop-wakeup fix).
-        promptId: typeof payload.prompt_id === "string" ? payload.prompt_id : null,
+        // The run↔turn bridge: Claude's `prompt_id` == the transcript's
+        // promptId/turnKey (2026-07-03 loop-wakeup fix). Codex carries `turn_id`
+        // instead, but its normalizer keys turnKey off an internal `turn-N`
+        // sequence (not the hook id), so no Codex block would ever match a
+        // stamped `turn_id` — the anchor's promptId is always null for Codex
+        // (provider-transcript.ts). Passing null is therefore the honest state
+        // (Codex runs stay text/time-matchable, exactly as today); wiring the
+        // `turn_id → turnKey` bridge is S5 normalizer work.
+        promptId:
+          provider === "claude" && typeof payload.prompt_id === "string"
+            ? payload.prompt_id
+            : null,
       });
     }
-    // `Stop` is the authoritative "turn ended" signal — complete the active
-    // run from it (structured truth) instead of waiting on the composer-idle
-    // scrape, which lagged and could be fooled (spinner/timer ran on after
-    // the reply). The terminal-host heuristic stays as the fallback, so this
-    // is additive: prompt completion when Stop fires, scrape otherwise.
-    if (payload.hook_event_name === "Stop") {
+
+    // `Stop` is the authoritative "turn ended" signal — complete the active run
+    // from it (structured truth) instead of waiting on the composer-idle scrape,
+    // which lagged and could be fooled. Additive: the terminal-host heuristic
+    // stays as the fallback (and is Codex's ONLY turn-failure net — D6 — since
+    // Codex has no StopFailure event).
+    if (event === "Stop") {
       active.terminalHost.completeRunFromTurnEnd();
     }
-    // `StopFailure` is the turn's other honest ending: the API errored
-    // out after retries and Stop will never fire (probed S6). Complete
-    // the run with the structured error — the scrape-side excerpt
-    // extraction remains the fallback for hook-less sessions.
-    if (payload.hook_event_name === "StopFailure") {
+
+    // `StopFailure` is the turn's other honest ending on CLAUDE: the API errored
+    // after retries and Stop will never fire (probed S6). Complete with the
+    // structured error. Codex emits no such event (verified) — the quiescence
+    // `task:ready` net (D6) is its turn-failure fallback; do not synthesize one.
+    if (provider === "claude" && event === "StopFailure") {
       const error =
         typeof payload.error === "string" && payload.error.trim()
           ? payload.error.trim()
@@ -1695,12 +1739,12 @@ export class RuntimeController {
         this.flushPendingClaudeUsage(active);
       }
     }
-    // The transcript file can trail the hook by a beat. Claude re-adopts on a
-    // later hook (they fire per tool call), but Codex reaches here ONLY on
-    // SessionStart (S2 gate) — so hand the CLI-declared id to discovery, which
-    // binds it by identity the moment the rollout lands (no mtime guess). The
-    // providerSessionRef was already persisted above, so the manifest is
-    // correct either way; this recovers the transcript SOURCE.
+    // The transcript file can trail the hook by a beat. Both providers now
+    // re-adopt on every later hook (they fire per tool call / turn), so hand the
+    // CLI-declared id to discovery, which binds it by identity the moment the
+    // rollout/jsonl lands (no mtime guess). The providerSessionRef was already
+    // persisted above, so the manifest is correct either way; this recovers the
+    // transcript SOURCE.
     if (!fs.existsSync(transcriptPath)) {
       active.providerTranscript.setExpectedSessionId(sessionId);
       active.providerTranscript.ensureDiscovery();
@@ -2525,12 +2569,23 @@ function classifyApprovalKind(payload: HookPayload): ApprovalKind {
   return "unknown";
 }
 
-/** The one-line "what the agent wants to do", from tool_name/tool_input. */
-function approvalSummary(payload: HookPayload): string {
-  const tool = typeof payload.tool_name === "string" ? payload.tool_name : "tool";
+/** The one-line "what the agent wants to do", from tool_name/tool_input.
+ *  Codex's `tool_input.description` is ready-made human approval copy ("Do you
+ *  want to allow writing …?") — render it verbatim (probe-verified). Claude
+ *  payloads have no such field, so they keep the tool-derived summary below;
+ *  the description preference is Codex-scoped to leave Claude's card copy
+ *  byte-identical. */
+function approvalSummary(payload: HookPayload, provider: RuntimeProvider): string {
   const input = toolInputRecord(payload);
   const str = (key: string): string | null =>
     typeof input[key] === "string" ? (input[key] as string) : null;
+  if (provider === "codex") {
+    const description = str("description");
+    if (description && description.trim()) {
+      return truncateMiddle(description, 120);
+    }
+  }
+  const tool = typeof payload.tool_name === "string" ? payload.tool_name : "tool";
   if (tool === "Bash") return `Run  ${truncateMiddle(str("command") ?? "(command)", 80)}`;
   const filePath = str("file_path") ?? str("path") ?? str("notebook_path");
   if (tool === "Edit" || tool === "Write" || tool === "MultiEdit" || tool === "NotebookEdit")
@@ -2549,27 +2604,49 @@ function truncateMiddle(value: string, max: number): string {
 }
 
 /**
- * The three fixed choices on a hook-broker card (answered via the reply file).
- * The "Always" label/description states the ACTUAL persisted rule, not a vague
- * "this command" — because for Bash the rule is `Bash(<firstToken>:*)`
- * (approving `git status` allows all git commands; the label renders it as
- * "git *" for humans). The button must not promise narrower than it grants
- * (reviewer P2, trust boundary).
+ * The choices on a hook-broker card (answered via the reply file). The "Always"
+ * label/description states the ACTUAL persisted rule, not a vague "this command"
+ * — because for Bash the rule is `Bash(<firstToken>:*)` (approving `git status`
+ * allows all git commands; the label renders it as "git *" for humans). The
+ * button must not promise narrower than it grants (reviewer P2, trust boundary).
+ *
+ * Codex omits "Always": its decision protocol honors only `behavior: allow|deny`
+ * — persistent-rule support (`updatedPermissions`) is an UNVERIFIED open probe
+ * (see codex-approvals.ts), so we never offer a button we cannot honor.
  */
-function brokerApprovalChoices(kind: ApprovalKind, payload: HookPayload): ApprovalChoice[] {
-  const scope = alwaysAllowScopeLabel(kind, payload); // e.g. "git *", "edits", "reads"
+function brokerApprovalChoices(
+  kind: ApprovalKind,
+  payload: HookPayload,
+  provider: RuntimeProvider,
+): ApprovalChoice[] {
   // encodedAs "reply-file": these choices answer on the hook channel — no
   // bytes ever touch the PTY (S6 review P3; the decision event says the
   // same, so the report's provenance is consistent end to end).
+  const approve: ApprovalChoice = {
+    decision: "approve",
+    label: "Approve",
+    description: "Allow once",
+    encodedAs: "reply-file",
+  };
+  const deny: ApprovalChoice = {
+    decision: "deny",
+    label: "Deny",
+    description: "Reject this request",
+    encodedAs: "reply-file",
+  };
+  if (provider === "codex") {
+    return [approve, deny];
+  }
+  const scope = alwaysAllowScopeLabel(kind, payload); // e.g. "git *", "edits", "reads"
   return [
-    { decision: "approve", label: "Approve", description: "Allow once", encodedAs: "reply-file" },
+    approve,
     {
       decision: "approve-always",
       label: scope ? `Always: ${scope}` : "Always",
       description: scope ? `Persist an allow rule for ${scope}` : "Always allow",
       encodedAs: "reply-file",
     },
-    { decision: "deny", label: "Deny", description: "Reject this request", encodedAs: "reply-file" },
+    deny,
   ];
 }
 
