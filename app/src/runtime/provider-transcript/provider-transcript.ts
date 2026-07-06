@@ -78,6 +78,9 @@ export class ProviderTranscript {
     { text: string; command: string | null; tsMs: number; promptId: string | null; textWindowMs?: number }
   >();
   private readonly assignedRunIds = new Set<RunId>();
+  /** Turns already flagged as "carried a real promptId that never matched a
+   *  run" — so the diagnostic below logs once per turn, not once per block. */
+  private readonly diagnosedUnattributed = new Set<string>();
   private discoveryTimer: NodeJS.Timeout | null = null;
   private discoveryDeadline = 0;
   private discoveryNotBefore: string | null = null;
@@ -343,6 +346,25 @@ export class ProviderTranscript {
         this.assignedRunIds.add(runId);
       }
       this.turnRunIds.set(turnId, runId);
+      // Observability for the codex turn_id bridge: a turn that carries a REAL
+      // promptId (the rollout turn_id) yet resolves to no run is the exact
+      // failure the null-promptId era silently avoided — an identity mismatch
+      // (hook turn_id ≠ rollout turn_id: version skew, an abort before
+      // task_started, a future protocol change) now ends in an unattributed
+      // husk instead of a text/time fallback (the identity-outranks-text guard
+      // skips id-mismatched runs by design — unchanged here). Surface it once
+      // per turn so a future violation is visible in logs, not a mystery card.
+      if (
+        runId === null &&
+        block.provider === "codex" &&
+        retryAnchor.promptId !== null &&
+        !this.diagnosedUnattributed.has(turnId)
+      ) {
+        this.diagnosedUnattributed.add(turnId);
+        console.debug(
+          `[signal] codex turn ${turnId} anchor promptId ${retryAnchor.promptId} matched no run — check the turn_id bridge`,
+        );
+      }
     }
     return runId ? { ...block, runId } : block;
   }

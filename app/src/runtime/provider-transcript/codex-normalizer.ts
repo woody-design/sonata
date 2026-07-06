@@ -5,6 +5,7 @@ import type {
   ToolCallBlock,
   TranscriptAttachment,
   TranscriptBlock,
+  UserMessageBlock,
 } from "../../shared/types/transcript";
 import type { UsageSnapshot } from "../../shared/types/usage";
 import { parseCodexTokenCountPayload } from "../usage";
@@ -37,6 +38,20 @@ export class CodexRolloutNormalizer {
    *  turn_id. Distinguishes "a real turn was just opened, awaiting its prompt"
    *  from "a prompt with no preceding task_started" (older/edge rollouts). */
   private turnAwaitingUser = false;
+  /** True once ANY `task_started` has been seen this session — the signal that
+   *  turns are boundary-driven. Legacy rollouts without it keep the older
+   *  "each prompt opens a turn" fallback. */
+  private sawTaskStarted = false;
+  /** The current turn's prompt block WHILE that turn is a synthetic (turn-N)
+   *  user-only turn with no reply yet — the reconciliation token for a late
+   *  `task_started` (user_message-then-task_started edge ordering). Cleared the
+   *  moment any content block lands (ensureTurn) or a new prompt opens. */
+  private lastUserBlock: UserMessageBlock | null = null;
+  /** Every turn_id already minted into a turnKey — guarantees turnKey stays
+   *  unique-per-parse even if a rollback+redo ever reused a task_started id
+   *  (never observed in the corpus; the attribution map and run-index exact
+   *  match both rest on uniqueness, so this is cheap insurance). */
+  private readonly seenTurnIds = new Set<string>();
   private readonly pendingToolCalls = new Map<string, ToolCallBlock>();
   private readonly turnPlans = new Map<string, PlanBlock>();
 
@@ -96,7 +111,27 @@ export class CodexRolloutNormalizer {
     // by identity (a non-`turn-N` key is treated as a promptId) exactly as
     // Claude's `prompt_id` does. A boundary is not content, so no block emits.
     if (payload.type === "task_started" && typeof payload.turn_id === "string") {
-      this.currentTurnKey = payload.turn_id;
+      this.sawTaskStarted = true;
+      const turnKey = this.uniqueTurnKey(payload.turn_id);
+      // Reconcile the user_message-then-task_started edge ordering: if the
+      // current turn is a synthetic user-only turn with no reply yet, this
+      // task_started belongs to THAT prompt — re-key the prompt block onto the
+      // real turn_id (upsert, same id) instead of forking prompt and reply into
+      // two turns. Verified corpus ordering is task_started-first, so this only
+      // fires on older/edge rollouts, but the split it prevents is a real bug.
+      if (
+        this.lastUserBlock &&
+        this.currentTurnKey !== null &&
+        this.lastUserBlock.turnKey === this.currentTurnKey &&
+        /^turn-\d+$/.test(this.currentTurnKey)
+      ) {
+        const reconciled: UserMessageBlock = { ...this.lastUserBlock, turnKey };
+        this.lastUserBlock = null;
+        this.currentTurnKey = turnKey;
+        this.turnAwaitingUser = false;
+        return [reconciled];
+      }
+      this.currentTurnKey = turnKey;
       this.turnAwaitingUser = true;
       return [];
     }
@@ -107,30 +142,38 @@ export class CodexRolloutNormalizer {
       if (!text && attachments.length === 0) {
         return [];
       }
-      // Adopt the turn_id `task_started` opened; only mint a synthetic key when
-      // no `task_started` preceded (older/edge rollouts) — a synthetic key can
-      // never anchor a Run by id, so this is the honest fallback, unchanged.
-      this.currentTurnKey =
-        this.turnAwaitingUser && this.currentTurnKey
-          ? this.currentTurnKey
-          : `turn-${++this.turnSeq}`;
+      // Turn key, three ways: (1) adopt the turn_id `task_started` just opened;
+      // (2) legacy/first — no task_started ever, or no turn yet — mint a
+      // synthetic key so each prompt still opens a turn (a synthetic key can
+      // never anchor a Run by id, the honest fallback); (3) a SECOND prompt
+      // inside one task_started turn joins that turn rather than forking to an
+      // unanchorable synthetic key (forward-proofing; ≤1 prompt/turn today).
+      let synthetic = false;
+      if (this.turnAwaitingUser && this.currentTurnKey) {
+        // adopt — currentTurnKey is already the real turn_id
+      } else if (!this.sawTaskStarted || this.currentTurnKey === null) {
+        this.currentTurnKey = `turn-${++this.turnSeq}`;
+        synthetic = true;
+      } // else: join the current task_started turn (keep currentTurnKey)
       this.turnAwaitingUser = false;
-      return [
-        {
-          kind: "user-message",
-          id: this.nextBlockId("user"),
-          taskId: this.taskId,
-          sourceId: this.sourceId,
-          provider: "codex",
-          turnKey: this.currentTurnKey,
-          runId: null,
-          ts,
-          seq: ++this.seq,
-          text,
-          command: text.startsWith("/") ? text.split(/\s/, 1)[0] ?? null : null,
-          attachments,
-        },
-      ];
+      const block: UserMessageBlock = {
+        kind: "user-message",
+        id: this.nextBlockId("user"),
+        taskId: this.taskId,
+        sourceId: this.sourceId,
+        provider: "codex",
+        turnKey: this.currentTurnKey,
+        runId: null,
+        ts,
+        seq: ++this.seq,
+        text,
+        command: text.startsWith("/") ? text.split(/\s/, 1)[0] ?? null : null,
+        attachments,
+      };
+      // Only a synthetic user-only turn is reconciliation-eligible for a late
+      // task_started; a real-keyed prompt is already correctly anchored.
+      this.lastUserBlock = synthetic ? block : null;
+      return [block];
     }
 
     if (payload.type === "agent_message" && typeof payload.message === "string") {
@@ -154,12 +197,19 @@ export class CodexRolloutNormalizer {
       ];
     }
 
-    // `turn_aborted` (Esc mid-turn): settle the stuck turn. The pending
-    // tool-call's pairing output never arrives after an abort, so it would
-    // read "running" forever; a system-note gives the reader the stopped
-    // outcome and every pending call is driven to a terminal state.
+    // `turn_aborted` (Esc mid-turn): settle the stuck turn. Anchor to the
+    // abort's OWN turn_id — an abort-only rollout (aborted before task_started
+    // was written) has no other turn signal, and keying the note to that id is
+    // what lets it match the run the hook stamped with the same turn_id.
     if (payload.type === "turn_aborted") {
-      return this.abortTurn(ts);
+      const turnId = typeof payload.turn_id === "string" ? payload.turn_id : null;
+      const abortedTurn = turnId ?? this.currentTurnKey ?? this.ensureTurn();
+      if (turnId) {
+        // Register it so a later task_started can't re-mint a colliding key.
+        this.seenTurnIds.add(turnId);
+      }
+      this.currentTurnKey = abortedTurn;
+      return this.abortTurn(abortedTurn, ts);
     }
 
     // `thread_rolled_back`: the user undid the last N turns. The blocks already
@@ -189,15 +239,22 @@ export class CodexRolloutNormalizer {
   }
 
   /**
-   * Settle a turn aborted mid-flight: a stopped-outcome note plus a terminal
-   * state for every tool call still awaiting its pairing output (which an abort
-   * never delivers). Clears the pending map so a stray late output can't revive
-   * a settled call.
+   * Settle the aborted turn: a stopped-outcome note plus a terminal state for
+   * every tool call OF THAT TURN still awaiting its pairing output (which an
+   * abort never delivers). Scoped to `turnKey` so an abort in a later turn can
+   * never stamp a spurious error onto a lingering orphan from an earlier one.
+   * The pending entries are intentionally NOT deleted: JSONL can carry the real
+   * `function_call_output` AFTER the abort record (call → abort → output), and
+   * that later result must supersede this synthesized error — out-of-order
+   * truth wins.
    */
-  private abortTurn(ts: string): TranscriptBlock[] {
+  private abortTurn(turnKey: string, ts: string): TranscriptBlock[] {
     const blocks: TranscriptBlock[] = [this.systemNote("Turn stopped before it finished.", ts)];
     const endedMs = Date.parse(ts);
     for (const pending of this.pendingToolCalls.values()) {
+      if (pending.turnKey !== turnKey) {
+        continue;
+      }
       const result = boundText("Stopped before the tool returned.", RESULT_PREVIEW_LIMIT);
       const startedMs = Date.parse(pending.ts);
       blocks.push({
@@ -209,7 +266,6 @@ export class CodexRolloutNormalizer {
           Number.isNaN(startedMs) || Number.isNaN(endedMs) ? null : Math.max(0, endedMs - startedMs),
       });
     }
-    this.pendingToolCalls.clear();
     return blocks;
   }
 
@@ -399,12 +455,42 @@ export class CodexRolloutNormalizer {
     if (this.currentTurnKey === null) {
       this.currentTurnKey = `turn-${++this.turnSeq}`;
     }
+    // Any content block placed in the turn closes the reconciliation window:
+    // the prompt now has a reply, so a later task_started must open a NEW turn
+    // rather than re-key this one.
+    this.lastUserBlock = null;
     return this.currentTurnKey;
+  }
+
+  /**
+   * A turnKey for a `task_started` turn_id, guaranteed unique-per-parse. Returns
+   * the id itself on first sight (so it equals the hook's `turn_id` and anchors
+   * the Run by identity); a repeat — never seen in the corpus, but a
+   * rollback+redo could in principle reuse an id — is suffixed so it can't
+   * clobber the earlier turn's attribution.
+   */
+  private uniqueTurnKey(turnId: string): string {
+    if (!this.seenTurnIds.has(turnId)) {
+      this.seenTurnIds.add(turnId);
+      return turnId;
+    }
+    let n = 2;
+    while (this.seenTurnIds.has(`${turnId}#${n}`)) {
+      n += 1;
+    }
+    const key = `${turnId}#${n}`;
+    this.seenTurnIds.add(key);
+    return key;
   }
 
   private nextBlockId(suffix: string): string {
     return `${this.sourceId}:${suffix}-${this.seq + 1}`;
   }
+}
+
+function balanceFences(text: string): string {
+  const fences = (text.match(/```/g) ?? []).length;
+  return fences % 2 === 1 ? `${text}\n\`\`\`` : text;
 }
 
 function rolledBackNote(numTurns: number): string {
@@ -430,7 +516,7 @@ function formatReviewMarkdown(output: Record<string, unknown>): string {
   }
   const explanation = typeof output.overall_explanation === "string" ? output.overall_explanation.trim() : "";
   if (explanation) {
-    parts.push(explanation);
+    parts.push(balanceFences(explanation));
   }
 
   const findings = Array.isArray(output.findings) ? output.findings : [];
@@ -447,7 +533,9 @@ function formatReviewMarkdown(output: Record<string, unknown>): string {
     }
     const body = typeof finding.body === "string" ? finding.body.trim() : "";
     if (body) {
-      parts.push(body);
+      // Contain an unbalanced ``` fence so a single finding can't swallow every
+      // finding after it into one code block.
+      parts.push(balanceFences(body));
     }
     const meta: string[] = [];
     if (typeof finding.priority === "number") {
