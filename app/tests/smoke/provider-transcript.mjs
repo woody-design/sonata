@@ -877,28 +877,52 @@ check("claude: legacy user records without promptSource keep fallback heuristic"
 
 // --- Codex normalizer --------------------------------------------------------
 
-check("codex: event text, tool pairing, exit-code status, no duplication", () => {
+check("codex: event text, tool pairing, exit-code status, no duplication (0.142.5)", () => {
   const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
   const upserts = [];
+  const turnId = "019f36e2-1111-7000-8000-000000000001";
   const lines = [
     JSON.stringify({
-      timestamp: "2026-06-09T10:00:00.000Z",
+      timestamp: "2026-07-06T10:00:00.000Z",
       type: "session_meta",
-      payload: { id: "sess-1", cwd: "/tmp/work", timestamp: "2026-06-09T10:00:00.000Z" },
+      payload: { id: "sess-1", cwd: "/tmp/work", timestamp: "2026-07-06T10:00:00.000Z" },
+    }),
+    // 0.142.5: task_started opens the turn and carries the real turn_id, and it
+    // precedes the user_message that adopts it.
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:00.500Z",
+      type: "event_msg",
+      payload: {
+        type: "task_started",
+        turn_id: turnId,
+        model_context_window: 272000,
+        collaboration_mode_kind: "solo",
+      },
     }),
     JSON.stringify({
-      timestamp: "2026-06-09T10:00:01.000Z",
+      timestamp: "2026-07-06T10:00:01.000Z",
       type: "event_msg",
-      payload: { type: "user_message", message: "Fix the bug" },
+      payload: {
+        type: "user_message",
+        message: "Fix the bug",
+        images: [],
+        local_images: [],
+        text_elements: [],
+      },
     }),
     JSON.stringify({
-      timestamp: "2026-06-09T10:00:02.000Z",
+      timestamp: "2026-07-06T10:00:02.000Z",
       type: "event_msg",
-      payload: { type: "agent_message", message: "Looking at the failure first.", phase: "commentary" },
+      payload: {
+        type: "agent_message",
+        message: "Looking at the failure first.",
+        phase: "commentary",
+        memory_citation: null,
+      },
     }),
     // Duplicate of the agent_message through the protocol stream: must be ignored.
     JSON.stringify({
-      timestamp: "2026-06-09T10:00:02.100Z",
+      timestamp: "2026-07-06T10:00:02.100Z",
       type: "response_item",
       payload: {
         type: "message",
@@ -907,26 +931,31 @@ check("codex: event text, tool pairing, exit-code status, no duplication", () =>
       },
     }),
     JSON.stringify({
-      timestamp: "2026-06-09T10:00:03.000Z",
+      timestamp: "2026-07-06T10:00:03.000Z",
       type: "response_item",
       payload: {
         type: "function_call",
         name: "exec_command",
         call_id: "call-1",
-        arguments: JSON.stringify({ cmd: "npm test", workdir: "/tmp/work" }),
+        arguments: JSON.stringify({
+          cmd: "npm test",
+          workdir: "/tmp/work",
+          justification: "run the suite",
+          sandbox_permissions: [],
+        }),
       },
     }),
     JSON.stringify({
-      timestamp: "2026-06-09T10:00:09.000Z",
+      timestamp: "2026-07-06T10:00:09.000Z",
       type: "response_item",
       payload: {
         type: "function_call_output",
         call_id: "call-1",
-        output: "Process exited with code 1\nOutput:\n1 failing test",
+        output: "Wall time: 6 seconds\nProcess exited with code 1\nOutput:\n1 failing test",
       },
     }),
     JSON.stringify({
-      timestamp: "2026-06-09T10:00:10.000Z",
+      timestamp: "2026-07-06T10:00:10.000Z",
       type: "compacted",
       payload: { message: "compacted" },
     }),
@@ -940,6 +969,11 @@ check("codex: event text, tool pairing, exit-code status, no duplication", () =>
     ["user-message", "assistant-text", "tool-call", "tool-call", "system-note"],
   );
   assert.equal(upserts[0].text, "Fix the bug");
+  // The turn is keyed by the rollout's real turn_id (the run↔turn bridge), not
+  // a synthesized `turn-N` — every block in the turn shares it.
+  assert.equal(upserts[0].turnKey, turnId, "user-message keyed by task_started turn_id");
+  assert.equal(upserts[1].turnKey, turnId, "assistant-text shares the turn_id");
+  assert.equal(upserts[2].turnKey, turnId, "tool-call shares the turn_id");
   const toolFinal = upserts[3];
   assert.equal(toolFinal.status, "error");
   assert.equal(toolFinal.summary, "npm test");
@@ -1488,6 +1522,173 @@ check("codex: update_plan with stringified args and non-ASCII steps", () => {
     0,
     "no raw update_plan card; the orphan output drops",
   );
+});
+
+check("codex: task_started splits non-user-initiated turns (B1) — no fold into predecessor", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const turnA = "019f0000-aaaa-7000-8000-00000000000a";
+  const turnB = "019f0000-bbbb-7000-8000-00000000000b";
+  const upserts = [];
+  const lines = [
+    // Turn A: a normal user-initiated turn.
+    JSON.stringify({ timestamp: "2026-07-06T10:00:00.000Z", type: "event_msg", payload: { type: "task_started", turn_id: turnA } }),
+    JSON.stringify({ timestamp: "2026-07-06T10:00:01.000Z", type: "event_msg", payload: { type: "user_message", message: "первый" } }),
+    JSON.stringify({ timestamp: "2026-07-06T10:00:02.000Z", type: "event_msg", payload: { type: "agent_message", message: "reply A", phase: "final_answer" } }),
+    // Turn B: NO user_message (a review/compaction continuation). Pre-fix this
+    // agent_message would fold into turn A; now it gets its own turn_id group.
+    JSON.stringify({ timestamp: "2026-07-06T10:00:03.000Z", type: "event_msg", payload: { type: "task_started", turn_id: turnB } }),
+    JSON.stringify({ timestamp: "2026-07-06T10:00:04.000Z", type: "event_msg", payload: { type: "agent_message", message: "reply B", phase: "commentary" } }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  const replyA = upserts.find((b) => b.kind === "assistant-text" && b.markdown === "reply A");
+  const replyB = upserts.find((b) => b.kind === "assistant-text" && b.markdown === "reply B");
+  assert.equal(replyA.turnKey, turnA);
+  assert.equal(replyB.turnKey, turnB, "orphan (no user_message) turn is NOT merged into turn A");
+  assert.notEqual(replyA.turnKey, replyB.turnKey);
+});
+
+check("codex: user_message without a preceding task_started falls back to synthetic turn-N", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const upserts = [];
+  const lines = [
+    JSON.stringify({ timestamp: "2026-06-11T10:00:01.000Z", type: "event_msg", payload: { type: "user_message", message: "no task_started here" } }),
+    JSON.stringify({ timestamp: "2026-06-11T10:00:02.000Z", type: "event_msg", payload: { type: "agent_message", message: "ok" } }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  const user = upserts.find((b) => b.kind === "user-message");
+  // The synthetic key is what provider-transcript reads as "no promptId" (the
+  // /^turn-\d+$/ guard), so runs stay text/time-matchable exactly as before.
+  assert.match(user.turnKey, /^turn-\d+$/, "no turn_id → synthetic fallback key");
+});
+
+check("codex: turn_aborted settles the stuck tool call and notes the stopped turn (A4)", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const turnId = "019f0000-cccc-7000-8000-00000000000c";
+  const upserts = [];
+  const lines = [
+    JSON.stringify({ timestamp: "2026-07-06T10:00:00.000Z", type: "event_msg", payload: { type: "task_started", turn_id: turnId } }),
+    JSON.stringify({ timestamp: "2026-07-06T10:00:01.000Z", type: "event_msg", payload: { type: "user_message", message: "run the long thing" } }),
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:02.000Z",
+      type: "response_item",
+      payload: { type: "function_call", name: "exec_command", call_id: "call-x", arguments: JSON.stringify({ cmd: "sleep 999" }) },
+    }),
+    // Esc mid-tool: no function_call_output ever arrives; abort instead.
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:05.000Z",
+      type: "event_msg",
+      payload: { type: "turn_aborted", reason: "interrupted", turn_id: turnId, completed_at: 0, duration_ms: 0 },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  const running = upserts.filter((b) => b.kind === "tool-call" && b.status === "running");
+  const runningStillPending = running.filter(
+    (b) => !upserts.some((later) => later.id === b.id && later.status !== "running"),
+  );
+  assert.equal(runningStillPending.length, 0, "no tool call left running forever");
+  const settled = upserts.filter((b) => b.kind === "tool-call" && b.callId === "call-x").pop();
+  assert.equal(settled.status, "error");
+  assert.equal(settled.durationMs, 3000);
+  const note = upserts.filter((b) => b.kind === "system-note").pop();
+  assert.ok(note.text.toLowerCase().includes("stopped"), "stopped outcome note present");
+  assert.equal(note.turnKey, turnId, "note attributed to the aborted turn");
+});
+
+check("codex: thread_rolled_back names the rollback (A3)", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const turnId = "019f0000-dddd-7000-8000-00000000000d";
+  const upserts = [];
+  const lines = [
+    JSON.stringify({ timestamp: "2026-07-05T10:00:00.000Z", type: "event_msg", payload: { type: "task_started", turn_id: turnId } }),
+    JSON.stringify({ timestamp: "2026-07-05T10:00:01.000Z", type: "event_msg", payload: { type: "user_message", message: "do X" } }),
+    JSON.stringify({ timestamp: "2026-07-05T10:00:02.000Z", type: "event_msg", payload: { type: "thread_rolled_back", num_turns: 1 } }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  const note = upserts.filter((b) => b.kind === "system-note").pop();
+  assert.ok(note.text.toLowerCase().includes("rolled back"));
+  assert.ok(note.text.includes("1"), "num_turns surfaced");
+});
+
+check("codex: exited_review_mode renders /review findings as the reply (A1)", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const turnId = "019f0000-eeee-7000-8000-00000000000e";
+  const upserts = [];
+  const lines = [
+    JSON.stringify({ timestamp: "2026-07-06T10:00:00.000Z", type: "event_msg", payload: { type: "task_started", turn_id: turnId } }),
+    JSON.stringify({ timestamp: "2026-07-06T10:00:01.000Z", type: "event_msg", payload: { type: "user_message", message: "/review" } }),
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:02.000Z",
+      type: "event_msg",
+      payload: { type: "entered_review_mode", target: { type: "uncommitted" }, user_facing_hint: "reviewing" },
+    }),
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:20.000Z",
+      type: "event_msg",
+      payload: {
+        type: "exited_review_mode",
+        review_output: {
+          findings: [
+            {
+              title: "Off-by-one in loop bound",
+              body: "The loop iterates one element past the end.",
+              confidence_score: 0.8,
+              priority: 1,
+              code_location: { absolute_file_path: "/tmp/work/loop.ts", line_range: { start: 10, end: 12 } },
+            },
+          ],
+          overall_confidence_score: 0.8,
+          overall_correctness: "patch is incorrect",
+          overall_explanation: "One real bug found.",
+        },
+      },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  const started = upserts.find((b) => b.kind === "system-note" && b.text.toLowerCase().includes("review started"));
+  assert.ok(started, "entered_review_mode → started note");
+  const review = upserts.find((b) => b.kind === "assistant-text" && b.markdown.includes("Off-by-one"));
+  assert.ok(review, "findings render as an assistant-text reply, not dropped");
+  assert.ok(review.markdown.includes("patch is incorrect"), "overall verdict included");
+  assert.ok(review.markdown.includes("/tmp/work/loop.ts:10-12"), "code location included");
+  assert.equal(review.turnKey, turnId, "review reply keyed to the /review turn");
+});
+
+check("codex: reasoning summary renders when present, silent when empty (A2 provider-knob)", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const upserts = [];
+  const lines = [
+    JSON.stringify({ timestamp: "2026-07-06T10:00:00.000Z", type: "event_msg", payload: { type: "task_started", turn_id: "019f0000-ffff-7000-8000-00000000000f" } }),
+    JSON.stringify({ timestamp: "2026-07-06T10:00:01.000Z", type: "event_msg", payload: { type: "user_message", message: "think" } }),
+    // Encrypted-only (real corpus default): summary empty → no thinking block.
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:02.000Z",
+      type: "response_item",
+      payload: { type: "reasoning", id: "r1", summary: [], encrypted_content: "…" },
+    }),
+    // With model_reasoning_summary=detailed the summary carries summary_text
+    // (verified live via a headless `codex exec` probe): the existing path lights up.
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:03.000Z",
+      type: "response_item",
+      payload: { type: "reasoning", id: "r2", summary: [{ type: "summary_text", text: "First, factor the number." }], encrypted_content: "…" },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  const thinking = upserts.filter((b) => b.kind === "thinking");
+  assert.equal(thinking.length, 1, "empty summary stays silent; summary_text renders");
+  assert.equal(thinking[0].text, "First, factor the number.");
 });
 
 check("claude: TaskCreate/TaskUpdate (2.1.17x) accumulate session task state", () => {

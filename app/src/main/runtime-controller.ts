@@ -1815,16 +1815,17 @@ export class RuntimeController {
       active.terminalHost.beginRunFromHook(prompt, {
         // The run↔turn bridge: Claude's `prompt_id` == the transcript's
         // promptId/turnKey (2026-07-03 loop-wakeup fix). Codex carries `turn_id`
-        // instead, but its normalizer keys turnKey off an internal `turn-N`
-        // sequence (not the hook id), so no Codex block would ever match a
-        // stamped `turn_id` — the anchor's promptId is always null for Codex
-        // (provider-transcript.ts). Passing null is therefore the honest state
-        // (Codex runs stay text/time-matchable, exactly as today); wiring the
-        // `turn_id → turnKey` bridge is S5 normalizer work.
+        // instead, and as of S5 its normalizer keys turnKey off exactly that
+        // rollout `turn_id` (task_started), so a Codex Run now anchors by
+        // identity like Claude's — provider-transcript treats a non-`turn-N`
+        // turnKey as a promptId and matches it against `run.promptId`. Both
+        // ids share the `019f…` UUID namespace (hook payload == rollout).
         promptId:
           provider === "claude" && typeof payload.prompt_id === "string"
             ? payload.prompt_id
-            : null,
+            : provider === "codex" && typeof payload.turn_id === "string"
+              ? payload.turn_id
+              : null,
       });
     }
 
