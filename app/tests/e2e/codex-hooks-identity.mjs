@@ -20,10 +20,13 @@ import { FAKE_CODEX_SOURCE } from "./helpers/fake-codex-source.mjs";
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-hooks-e2e-"));
 const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-home-"));
 const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-fake-bin-"));
-// ONE shared folder for the isolation pair; a separate silent folder for liveness.
+// ONE shared folder for the isolation pair; a separate silent folder for
+// liveness; an exit folder for the crash-before-window case.
 const sharedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-shared-"));
 const silentFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-silent-"));
+const exitFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-exit-"));
 fs.writeFileSync(path.join(silentFolder, "DUET_FAKE_SILENT"), "");
+fs.writeFileSync(path.join(exitFolder, "DUET_FAKE_EXIT"), "");
 
 const fakeCodex = path.join(fakeBinDir, "codex");
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
@@ -118,7 +121,21 @@ try {
   await banner.waitFor({ state: "hidden", timeout: 30000 });
   const bannerCleared = !(await banner.isVisible());
 
+  // --- Liveness #3: a codex crash BEFORE the window must NOT raise a banner ----
+  const delta = await page.evaluate(
+    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    exitFolder,
+  );
+  await selectSidebarSession(page, delta.task.id);
+  // The fake exits at ~800ms (< the 12s window) emitting no hook. pty:exit must
+  // retire the pending liveness so the banner never appears. Wait past 12s.
+  await page.waitForTimeout(15000);
+  const deltaBanner = page.locator('.attention-banner[data-kind="codex-hooks-liveness"]');
+  const noBannerAfterExit = !(await deltaBanner.isVisible().catch(() => false));
+
   Object.assign(results, {
+    deltaTask: delta.task.id,
+    noBannerAfterExit,
     workspaceRoot,
     codexHome,
     alphaTask: alpha.task.id,
@@ -138,7 +155,8 @@ try {
   });
 
   const success =
-    bindingsDistinct && spawnWired && profileWritten && shimsWritten && bannerAppeared && bannerCleared;
+    bindingsDistinct && spawnWired && profileWritten && shimsWritten && bannerAppeared &&
+    bannerCleared && noBannerAfterExit;
   results.success = success;
   console.log(JSON.stringify(results, null, 2));
   process.exitCode = success ? 0 : 1;
@@ -146,7 +164,7 @@ try {
   if (electronApp) {
     await electronApp.close();
   }
-  for (const dir of [workspaceRoot, codexHome, fakeBinDir, sharedFolder, silentFolder]) {
+  for (const dir of [workspaceRoot, codexHome, fakeBinDir, sharedFolder, silentFolder, exitFolder]) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }

@@ -242,12 +242,11 @@ export interface StartTaskOptions {
    *  to the scrape/keys fallback instead of the hook-intercept broker (S2).
    *  Default (undefined) is broker-on. */
   approvalBroker?: boolean;
-  /** Codex only: the global paths (Duet-home shim dir + `$CODEX_HOME` profile
-   *  file) for the injected hook profile. Present → buildArgs writes the
-   *  profile+shims (write-if-changed) and spawns with `-p duet`. The controller
-   *  computes these because it owns Duet-home paths; the runtime layer stays
-   *  pure. */
-  codexHookPaths?: { binDir: string; profilePath: string };
+  /** Codex only: the Duet-home shim dir for the injected hook profile. Present →
+   *  buildArgs writes the profile+shims (write-if-changed) and spawns with
+   *  `-p duet`. The controller supplies binDir because it owns Duet-home; the
+   *  codex edge owns the `$CODEX_HOME` profile-file location. */
+  codexHookPaths?: { binDir: string };
   resumeLast?: boolean;
   /** Provider session id to resume natively (claude --resume / codex resume). */
   resumeRef?: string;
@@ -2173,8 +2172,23 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       // Byte-stable and task-invariant: the SessionStart handshake then carries
       // identity + hook liveness. Absent codexHookPaths (a bare TerminalHost in
       // a test) → no injection, no `-p duet`.
+      //
+      // If the write fails (unwritable dir, ENOSPC, a shell-unsafe shim path),
+      // DEGRADE to a hookless spawn — exactly pre-S2 behavior, where the scrape
+      // drives codex — rather than aborting the launch. The missing handshake
+      // then raises the liveness banner (honest: hooks are genuinely dead).
+      let profile: string | undefined;
       if (options.codexHookPaths) {
-        ensureCodexRuntimeSettings(options.codexHookPaths);
+        try {
+          ensureCodexRuntimeSettings(options.codexHookPaths);
+          profile = CODEX_DUET_PROFILE;
+        } catch (error) {
+          console.error(
+            `[codex] hook profile write failed; launching hookless (scrape-driven): ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
       }
       return codexArgs({
         cwd: options.cwd,
@@ -2185,7 +2199,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         speedMode: options.speedMode,
         resumeLast: Boolean(options.resumeLast),
         resumeRef: options.resumeRef,
-        profile: options.codexHookPaths ? CODEX_DUET_PROFILE : undefined,
+        profile,
       });
     },
     approvalHints: {

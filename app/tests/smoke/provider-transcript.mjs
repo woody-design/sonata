@@ -1022,6 +1022,54 @@ check("locator: finds codex rollout by session_meta cwd", () => {
   assert.equal(otherCwd, null);
 });
 
+check("locator: codex null id + fallback OFF returns null — NO recency cross-bind (S2 review #1)", () => {
+  // The same-cwd corruption codex is exposed to: it cannot pin a session id up
+  // front, so it passes expectedSessionId=null + allowMtimeFallback=false and
+  // relies wholly on the SessionStart hook. Two sibling rollouts in one cwd must
+  // NOT let the locator cross-bind by recency — the flag must be authoritative
+  // even with a null id (the pre-fix bug only honored it inside `if(id)`).
+  const sessionsDir = path.join(tempRoot, "codex-null-id-fallback");
+  const cwd = path.join(tempRoot, "workspace-null-id");
+  fs.mkdirSync(cwd, { recursive: true });
+  const now = new Date();
+  const dayDir = path.join(
+    sessionsDir,
+    String(now.getFullYear()),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  );
+  fs.mkdirSync(dayDir, { recursive: true });
+  for (const id of ["sib-A", "sib-B"]) {
+    fs.writeFileSync(
+      path.join(dayDir, `rollout-2026-07-06T10-00-00-${id}.jsonl`),
+      `${JSON.stringify({ timestamp: now.toISOString(), type: "session_meta", payload: { id, cwd, timestamp: now.toISOString() } })}\n`,
+    );
+  }
+  const base = {
+    provider: "codex",
+    providerCwd: cwd,
+    notBefore: new Date(Date.now() - 60_000).toISOString(),
+    codexSessionsDir: sessionsDir,
+  };
+  // Fallback OFF + no id → null (wait for the handshake), never a recency guess.
+  assert.equal(
+    locateSessionFile({ ...base, allowMtimeFallback: false }),
+    null,
+    "codex fresh (null id) must NOT mtime-adopt when fallback is disabled",
+  );
+  // Fallback ON + no id keeps legacy discovery (a sibling is returned).
+  assert.ok(
+    locateSessionFile({ ...base, allowMtimeFallback: true }),
+    "fallback ON still discovers by recency",
+  );
+  // Fallback OFF + exact id → binds that exact rollout.
+  assert.equal(
+    locateSessionFile({ ...base, expectedSessionId: "sib-B", allowMtimeFallback: false })
+      ?.providerSessionId,
+    "sib-B",
+  );
+});
+
 check("locator: identity wins over recency — resume never rebinds to a sibling session", () => {
   // The incident topology: two Claude sessions live in the SAME cwd slug, and
   // the unrelated one (a hand /resume to another conversation) is the freshest.
@@ -1169,6 +1217,71 @@ await (async () => {
     const blockEvents = events.filter((event) => event.type === "transcript:blocks");
     assert.ok(blockEvents.length >= 2, "expected initial drain plus tailed update");
     assert.equal(blockEvents[0].payload.reset, true);
+    console.log(`ok   ${name}`);
+  } catch (error) {
+    failures.push(name);
+    console.error(`FAIL ${name}`);
+    console.error(error);
+  }
+})();
+
+// Codex adoption self-heal (S2 review #2): only SessionStart reaches adoption
+// for codex, so a rollout that TRAILS the handshake would be lost forever
+// without discovery binding by the CLI-declared id. setExpectedSessionId points
+// discovery at it; the poll adopts by identity once the file lands — no mtime.
+await (async () => {
+  const name = "provider-transcript: codex setExpectedSessionId self-heals when the rollout trails";
+  try {
+    const sessionsDir = path.join(tempRoot, "codex-selfheal-sessions");
+    const cwd = path.join(tempRoot, "workspace-selfheal");
+    fs.mkdirSync(cwd, { recursive: true });
+    const now = new Date();
+    const dayDir = path.join(
+      sessionsDir,
+      String(now.getFullYear()),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    );
+    fs.mkdirSync(dayDir, { recursive: true });
+
+    const events = [];
+    const transcript = new ProviderTranscript({
+      taskId: "task-codex-selfheal",
+      provider: "codex",
+      providerCwd: cwd,
+      eventSink: (event) => events.push(event),
+      resolveRunId: () => null,
+      // Codex fresh: no pinned id, no mtime fallback — hooks are the identity.
+      expectedSessionId: null,
+      allowMtimeFallback: false,
+      locate: (options) => locateSessionFile({ ...options, codexSessionsDir: sessionsDir }),
+      pollMs: 50,
+    });
+
+    // Discovery polls every 1.5s (DISCOVERY_INTERVAL_MS); the immediate first
+    // pass finds nothing (no id + fallback off).
+    transcript.startDiscovery(new Date(Date.now() - 5_000).toISOString());
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(
+      events.filter((e) => e.type === "transcript:located").length,
+      0,
+      "no id + fallback off must not adopt anything yet",
+    );
+
+    // SessionStart arrived with an id, but the rollout has not landed — the
+    // controller calls setExpectedSessionId, then the file appears a beat later.
+    transcript.setExpectedSessionId("sess-heal-1");
+    fs.writeFileSync(
+      path.join(dayDir, "rollout-2026-07-06T11-00-00-sess-heal-1.jsonl"),
+      `${JSON.stringify({ timestamp: now.toISOString(), type: "session_meta", payload: { id: "sess-heal-1", cwd, timestamp: now.toISOString() } })}\n`,
+    );
+    // Wait past the next discovery poll (>1.5s) so it binds by identity.
+    await new Promise((resolve) => setTimeout(resolve, 1_900));
+    transcript.dispose();
+
+    const located = events.filter((e) => e.type === "transcript:located");
+    assert.equal(located.length, 1, "discovery bound the rollout once it landed");
+    assert.equal(located[0].payload.source.providerSessionId, "sess-heal-1");
     console.log(`ok   ${name}`);
   } catch (error) {
     failures.push(name);

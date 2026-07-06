@@ -20,12 +20,15 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const {
   ensureCodexRuntimeSettings,
+  codexProfilePath,
   CODEX_DUET_PROFILE,
   codexHooksDirectory,
   codexApprovalsDirectory,
 } = require("../../dist/runtime/providers/codex/index");
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-settings-"));
+// Isolate the profile file to a temp CODEX_HOME — NEVER touch the real ~/.codex.
+process.env.CODEX_HOME = path.join(tempRoot, "codex-home");
 const failures = [];
 
 function check(name, fn) {
@@ -40,7 +43,7 @@ function check(name, fn) {
 }
 
 const binDir = path.join(tempRoot, "bin");
-const profilePath = path.join(tempRoot, "codex-home", "duet.config.toml");
+const profilePath = codexProfilePath(); // resolves under our temp CODEX_HOME
 const sinkShim = path.join(binDir, "codex-hook-sink.js");
 const brokerShim = path.join(binDir, "codex-approval-broker.js");
 
@@ -53,7 +56,7 @@ check("profile name is the layered profile flag value", () => {
 });
 
 check("ensure writes profile + both shims", () => {
-  ensureCodexRuntimeSettings({ binDir, profilePath });
+  ensureCodexRuntimeSettings({ binDir });
   assert.ok(fs.existsSync(profilePath), "profile written");
   assert.ok(fs.existsSync(sinkShim), "sink shim written");
   assert.ok(fs.existsSync(brokerShim), "broker shim written");
@@ -61,8 +64,8 @@ check("ensure writes profile + both shims", () => {
 
 check("profile is BYTE-STABLE across two spawn-preps (sha unchanged)", () => {
   const first = sha(profilePath);
-  ensureCodexRuntimeSettings({ binDir, profilePath });
-  ensureCodexRuntimeSettings({ binDir, profilePath });
+  ensureCodexRuntimeSettings({ binDir });
+  ensureCodexRuntimeSettings({ binDir });
   const second = sha(profilePath);
   assert.equal(second, first, "duet.config.toml sha drifted across spawn-preps");
 });
@@ -108,7 +111,7 @@ check("shims read DUET_RUNTIME_DIR from the env (task binding via env, not argv)
 
 check("shim writes are idempotent (write-if-changed leaves stable bytes)", () => {
   const before = sha(sinkShim);
-  ensureCodexRuntimeSettings({ binDir, profilePath });
+  ensureCodexRuntimeSettings({ binDir });
   assert.equal(sha(sinkShim), before, "sink shim sha drifted");
 });
 

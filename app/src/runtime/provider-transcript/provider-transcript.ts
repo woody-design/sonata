@@ -81,11 +81,28 @@ export class ProviderTranscript {
   private discoveryTimer: NodeJS.Timeout | null = null;
   private discoveryDeadline = 0;
   private discoveryNotBefore: string | null = null;
+  /** The session id discovery matches by. Mutable (unlike the option snapshot)
+   *  so a hook that declares an id BEFORE its transcript file lands can point
+   *  discovery at it (setExpectedSessionId) — the Codex self-heal. */
+  private expectedSessionId: string | null;
   private disposed = false;
 
   constructor(options: ProviderTranscriptOptions) {
     this.options = options;
     this.locate = options.locate ?? locateSessionFile;
+    this.expectedSessionId = options.expectedSessionId ?? null;
+  }
+
+  /**
+   * Point discovery at a session id the CLI declared via a hook whose transcript
+   * file has NOT landed yet. Claude re-adopts on every subsequent hook (its file
+   * usually already exists); Codex reaches adoption ONLY on SessionStart (S2
+   * gate), so without this a rollout that trails the handshake would never bind.
+   * The discovery poll then adopts it by identity the moment the file appears —
+   * one binding mechanism, no bespoke timer, and no mtime guess.
+   */
+  setExpectedSessionId(sessionId: string): void {
+    this.expectedSessionId = sessionId;
   }
 
   /**
@@ -201,7 +218,7 @@ export class ProviderTranscript {
       providerCwd: this.options.providerCwd,
       notBefore: this.discoveryNotBefore,
       excludePaths: claimed,
-      expectedSessionId: this.options.expectedSessionId ?? null,
+      expectedSessionId: this.expectedSessionId,
       allowMtimeFallback: this.options.allowMtimeFallback ?? true,
     });
     if (!ref) {

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 /**
@@ -35,14 +36,11 @@ import path from "node:path";
  * `type = "command"`, and a per-hook `timeout` in seconds.
  */
 
-/** Global paths the controller (which owns Duet-home paths) computes and
- *  passes in — this module stays pure Node with no ~/.duet knowledge, mirroring
- *  how the Claude edge receives its runtimeDir. */
+/** The stable shim home (`duetBinDir()`, e.g. `~/.duet/bin`) — the ONE input
+ *  the controller supplies, because Duet-home is the controller's path truth.
+ *  The profile file location is THIS module's truth (codexProfilePath). */
 export interface CodexHookPaths {
-  /** Stable shim home (`duetBinDir()`), e.g. `~/.duet/bin`. */
   binDir: string;
-  /** The Duet profile file, `$CODEX_HOME/duet.config.toml`. */
-  profilePath: string;
 }
 
 /** The profile name Duet layers via `codex -p <name>`. */
@@ -52,6 +50,24 @@ export const CODEX_DUET_PROFILE = "duet";
  *  accepting a Codex re-trust for every user. */
 const SINK_SHIM = "codex-hook-sink.js";
 const BROKER_SHIM = "codex-approval-broker.js";
+
+/** The sink subdir under a task's runtime dir — single-sourced so the two
+ *  path helpers AND the shim template agree by construction. */
+const HOOKS_SUBDIR = "hooks";
+const APPROVALS_SUBDIR = "approvals";
+
+/**
+ * The Duet Codex hook profile file — an ADDITIVE, Duet-named file inside the
+ * user's Codex home, layered by `codex -p duet`. Honors `$CODEX_HOME` (so the
+ * user's real Codex world is respected, and tests/live-passes can isolate to a
+ * temp home) and defaults to `~/.codex`. Duet writes ONLY this file; the user's
+ * own `config.toml` is never read or modified. This module owns the resolution
+ * (the declared owner of Codex path truth).
+ */
+export function codexProfilePath(): string {
+  const home = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), ".codex");
+  return path.join(home, "duet.config.toml");
+}
 
 /** Fire-and-forget sink events (the 5 core events Codex emits and Duet's
  *  watcher consumes). PermissionRequest is DELIBERATELY absent — it is owned by
@@ -80,12 +96,12 @@ const APPROVAL_HOOK_TIMEOUT_S = 120;
  *  shim derives this from `DUET_RUNTIME_DIR` — same layout Claude's sink
  *  writes, so the same HookWatcher consumes both. */
 export function codexHooksDirectory(runtimeDir: string): string {
-  return path.join(runtimeDir, "hooks");
+  return path.join(runtimeDir, HOOKS_SUBDIR);
 }
 
 /** Path the broker uses for ask/reply/expired/marker files (S3). */
 export function codexApprovalsDirectory(runtimeDir: string): string {
-  return path.join(runtimeDir, "approvals");
+  return path.join(runtimeDir, APPROVALS_SUBDIR);
 }
 
 /**
@@ -94,14 +110,18 @@ export function codexApprovalsDirectory(runtimeDir: string): string {
  * depends only on `binDir`, and the shims read their per-task binding from the
  * environment — so repeated spawn-prep calls converge on byte-identical files,
  * which is what makes the profile sha-stable and the trust ceremony one-time.
+ *
+ * Throws only on a genuinely unsafe state (unwritable dir, ENOSPC, or a
+ * shell-unsafe shim path) — the caller degrades to a hookless spawn.
  */
 export function ensureCodexRuntimeSettings(paths: CodexHookPaths): void {
+  const profilePath = codexProfilePath();
   fs.mkdirSync(paths.binDir, { recursive: true });
   writeIfChanged(path.join(paths.binDir, SINK_SHIM), SINK_SHIM_SOURCE);
   writeIfChanged(path.join(paths.binDir, BROKER_SHIM), BROKER_SHIM_SOURCE);
 
-  fs.mkdirSync(path.dirname(paths.profilePath), { recursive: true });
-  writeIfChanged(paths.profilePath, buildProfileToml(paths.binDir));
+  fs.mkdirSync(path.dirname(profilePath), { recursive: true });
+  writeIfChanged(profilePath, buildProfileToml(paths.binDir));
 }
 
 /** The frozen command strings the user trusts once. `node "<abs path>"`:
@@ -109,11 +129,24 @@ export function ensureCodexRuntimeSettings(paths: CodexHookPaths): void {
  *  an absolute interpreter path) so the string stays stable across app updates
  *  — the whole point of the stable-shim design. */
 function sinkCommand(binDir: string): string {
-  return `node "${path.join(binDir, SINK_SHIM)}"`;
+  return `node "${guardShimPath(path.join(binDir, SINK_SHIM))}"`;
 }
 
 function brokerCommand(binDir: string): string {
-  return `node "${path.join(binDir, BROKER_SHIM)}"`;
+  return `node "${guardShimPath(path.join(binDir, BROKER_SHIM))}"`;
+}
+
+/** The shim path is embedded inside a shell double-quoted argument. Reject the
+ *  characters that would break OUT of that quoting or trigger shell expansion
+ *  (`"` $ backtick backslash) — a homedir with one is effectively impossible,
+ *  but fail LOUDLY (the caller degrades to a hookless spawn) rather than emit a
+ *  command string that mis-parses or expands. The single-quote guard for the
+ *  TOML literal wrapper lives in tomlLiteralString. */
+function guardShimPath(shimPath: string): string {
+  if (/["$`\\]/.test(shimPath)) {
+    throw new Error(`Codex shim path has a shell-unsafe character: ${shimPath}`);
+  }
+  return shimPath;
 }
 
 /** Emit the profile TOML deterministically (stable event order, stable
@@ -211,7 +244,7 @@ process.stdin.on("end", function () {
   const trimmed = raw.replace(/\\s+$/, "");
   if (!trimmed) return;
   try {
-    const dir = path.join(runtimeDir, "hooks");
+    const dir = path.join(runtimeDir, "${HOOKS_SUBDIR}");
     fs.mkdirSync(dir, { recursive: true });
     const seq = Date.now().toString(36) + "-" + process.hrtime.bigint().toString(36) + "-" + process.pid;
     const file = path.join(dir, "hook-" + seq + ".json");
@@ -245,14 +278,18 @@ process.stdin.on("end", function () {
   let answering = false;
   try {
     if (runtimeDir) {
-      answering = fs.existsSync(path.join(runtimeDir, "approvals", "answering-enabled"));
+      answering = fs.existsSync(path.join(runtimeDir, "${APPROVALS_SUBDIR}", "answering-enabled"));
     }
   } catch (_e) {
     answering = false;
   }
-  // S2: marker never exists → no stdout → Codex's native card takes over
-  // instantly. (S3 implements the hold-and-answer loop under this flag.)
-  void answering;
+  if (!answering) {
+    // S2 always lands here (the marker never exists): no stdout → Codex renders
+    // its native approval card instantly, zero stall.
+    process.exit(0);
+  }
+  // S3: the hold-and-answer loop (surface ask-<id>.json, poll reply-<id>.json,
+  // emit the decision JSON to stdout) lands here, gated on the marker above.
   process.exit(0);
 });
 `;

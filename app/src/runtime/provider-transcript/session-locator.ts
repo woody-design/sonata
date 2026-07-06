@@ -99,9 +99,14 @@ function locateClaudeSession(options: LocateSessionOptions): TranscriptSourceRef
     if (exact) {
       return claudeRef(exact.path);
     }
-    if (!allowFallback) {
-      return null;
-    }
+  }
+  // The mtime fallback is authoritative whether or not an id was expected:
+  // fallback OFF + no exact id match ⇒ null, wait for the id (or the hook
+  // handshake) to land. Checked HERE, not only inside the id branch, so a
+  // NULL expected id (a provider that cannot pin one up front — Codex) also
+  // honors it instead of silently cross-binding by recency.
+  if (!allowFallback) {
+    return null;
   }
 
   const match = present
@@ -115,6 +120,7 @@ function locateClaudeSession(options: LocateSessionOptions): TranscriptSourceRef
 function locateCodexSession(options: LocateSessionOptions): TranscriptSourceRef | null {
   const sessionsDir = options.codexSessionsDir ?? path.join(os.homedir(), ".codex", "sessions");
   const notBeforeMs = Date.parse(options.notBefore) - LOCATE_SLACK_MS;
+  const allowFallback = options.allowMtimeFallback ?? true;
 
   const candidates: Array<{ path: string; mtimeMs: number; sessionId: string | null }> = [];
   for (const dayDir of codexDayDirectories(sessionsDir, notBeforeMs)) {
@@ -149,9 +155,13 @@ function locateCodexSession(options: LocateSessionOptions): TranscriptSourceRef 
     if (exact) {
       return codexRef(exact);
     }
-    if (!(options.allowMtimeFallback ?? true)) {
-      return null;
-    }
+  }
+  // Authoritative regardless of expectedSessionId (see the Claude path): Codex
+  // cannot pin an id up front, so it passes a NULL id + fallback OFF and relies
+  // wholly on the SessionStart hook handshake. Returning null here (instead of
+  // the recency sort below) is what actually closes the same-cwd cross-bind.
+  if (!allowFallback) {
+    return null;
   }
 
   const match = candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];

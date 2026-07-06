@@ -171,12 +171,13 @@ export class RuntimeController {
   private readonly hookWatcher: HookWatcher;
   private readonly claudeApprovalWatcher: ClaudeApprovalWatcher;
   /** Codex hooks-liveness (S2): the SessionStart handshake is the effect-check
-   *  that Codex's injected hooks are trusted and firing. Per codex task: a timer
-   *  armed at spawn, and whether we've flagged the renderer that the handshake
-   *  is missing. Cleared when the handshake arrives (even late) or on dispose. */
+   *  that Codex's injected hooks are trusted and firing. Per codex task, a
+   *  timer armed at spawn + a 3-state status: `pending` (window open), `missing`
+   *  (banner raised), `alive` (handshake seen). Cleared on the handshake, PTY
+   *  exit, or teardown. */
   private readonly codexHookLiveness = new Map<
     TaskId,
-    { timer: NodeJS.Timeout | null; sawSessionStart: boolean; flaggedMissing: boolean }
+    { timer: NodeJS.Timeout | null; status: "pending" | "missing" | "alive" }
   >();
   /** Live hook-broker approvals awaiting a card answer, keyed by broker id →
    *  the task + payload needed to build the reply decision, plus the
@@ -210,8 +211,10 @@ export class RuntimeController {
       },
     });
     this.hookWatcher = new HookWatcher({
-      // `runtimeDir/hooks` for both providers — Codex's sink writes the identical
-      // tmp+rename `hook-*.json` protocol into the same subdir (S2).
+      // The sink layout is provider-NEUTRAL: `runtimeDir/hooks` for both. Codex's
+      // sink writes the identical tmp+rename `hook-*.json` protocol into the same
+      // subdir (codexHooksDirectory computes the same path); claudeHooksDirectory
+      // is reused here as that one resolver, not as a Claude-specific one.
       sinkDir: claudeHooksDirectory,
       onPayload: (payload, workspace) => this.handleHookPayload(payload, workspace),
       onError: (error, filePath) => {
@@ -1244,6 +1247,13 @@ export class RuntimeController {
       this.abortPendingBrokerApprovals(eventRuntime, terminalRunId);
     }
 
+    if (event.type === "pty:exit" && eventRuntime) {
+      // The PTY died — retire any codex hooks-liveness window so the trust
+      // banner never shows (or is cleared) over a dead terminal. No-op for
+      // Claude (no entry) and for a codex task whose handshake already landed.
+      this.retireCodexHooksLiveness(event.payload.taskId);
+    }
+
     if (event.type === "pty:exit" && eventRuntime?.pendingOptionPrompt) {
       // The PTY died with a question still open — clear the card (no receipt).
       const toolUseId = eventRuntime.pendingOptionPrompt.toolUseId;
@@ -1446,10 +1456,10 @@ export class RuntimeController {
   }
 
   private watchHooks(active: ActiveTaskRuntime): void {
-    // Both providers feed the same sink layout, so both get watched (S2). The
-    // approval BROKER channel stays Claude-only — Codex's broker is inert until
-    // S3, so there are no ask/reply files to observe yet.
-    if (active.task.provider === "claude" || active.task.provider === "codex") {
+    // Hook-capable providers feed the same sink layout, so they get watched
+    // (S2). The approval BROKER channel stays Claude-only — Codex's broker is
+    // inert until S3, so there are no ask/reply files to observe yet.
+    if (isHookCapable(active.task.provider)) {
       this.hookWatcher.watchWorkspace(runtimeDir(active.task.id));
     }
     if (active.task.provider === "claude") {
@@ -1461,7 +1471,7 @@ export class RuntimeController {
   }
 
   private unwatchHooks(active: ActiveTaskRuntime): void {
-    if (active.task.provider === "claude" || active.task.provider === "codex") {
+    if (isHookCapable(active.task.provider)) {
       this.hookWatcher.unwatchWorkspace(runtimeDir(active.task.id));
     }
     if (active.task.provider === "claude") {
@@ -1483,26 +1493,27 @@ export class RuntimeController {
     this.clearCodexHooksLiveness(taskId);
     const timer = setTimeout(() => {
       const entry = this.codexHookLiveness.get(taskId);
-      if (!entry || entry.sawSessionStart) {
+      // Only a still-`pending` window raises the banner: if a handshake or a PTY
+      // exit already resolved it, this fired-but-not-yet-dequeued callback is a
+      // no-op (the same-tick race clearTimeout cannot unwind).
+      if (!entry || entry.status !== "pending") {
         return;
       }
       entry.timer = null;
-      entry.flaggedMissing = true;
-      this.sendEvent({
-        type: "cli-hooks:liveness",
-        payload: { taskId, status: "missing" },
-        ts: new Date().toISOString(),
-      });
+      entry.status = "missing";
+      this.emitCodexHooksLiveness(taskId, "missing");
     }, CODEX_HOOKS_LIVENESS_WINDOW_MS);
     timer.unref?.();
-    this.codexHookLiveness.set(taskId, { timer, sawSessionStart: false, flaggedMissing: false });
+    this.codexHookLiveness.set(taskId, { timer, status: "pending" });
   }
 
   /**
    * The handshake arrived (`SessionStart`) — Codex's hooks are trusted and
-   * firing. Cancel the pending window; if the banner was already raised (a LATE
-   * handshake, i.e. the user completed the trust ceremony after the window),
-   * clear it.
+   * firing. Cancel the pending window and clear the banner UNCONDITIONALLY:
+   * emitting `live` on every handshake (not only when THIS entry raised the
+   * banner) makes the renderer's missing-set self-correcting — a reopen after a
+   * prior close, whose old missing-flag the renderer still holds, is cleared by
+   * the fresh session's own handshake. Idempotent for the common fast path.
    */
   private noteCodexHooksAlive(active: ActiveTaskRuntime): void {
     const taskId = active.task.id;
@@ -1514,16 +1525,25 @@ export class RuntimeController {
       clearTimeout(entry.timer);
       entry.timer = null;
     }
-    const wasFlagged = entry.flaggedMissing;
-    entry.sawSessionStart = true;
-    entry.flaggedMissing = false;
-    if (wasFlagged) {
-      this.sendEvent({
-        type: "cli-hooks:liveness",
-        payload: { taskId, status: "live" },
-        ts: new Date().toISOString(),
-      });
+    entry.status = "alive";
+    this.emitCodexHooksLiveness(taskId, "live");
+  }
+
+  /**
+   * The PTY died (crash/quit). Retire the liveness window so the trust-ceremony
+   * banner never appears over — or is cleared off — a dead terminal. Distinct
+   * from teardown (dispose): the task runtime survives a PTY exit (reopenable),
+   * so this fires from the pty:exit path, not unwatchHooks.
+   */
+  private retireCodexHooksLiveness(taskId: TaskId): void {
+    const entry = this.codexHookLiveness.get(taskId);
+    if (!entry) {
+      return;
     }
+    if (entry.status === "missing") {
+      this.emitCodexHooksLiveness(taskId, "live"); // clear the shown banner
+    }
+    this.clearCodexHooksLiveness(taskId);
   }
 
   private clearCodexHooksLiveness(taskId: TaskId): void {
@@ -1532,6 +1552,14 @@ export class RuntimeController {
       clearTimeout(entry.timer);
     }
     this.codexHookLiveness.delete(taskId);
+  }
+
+  private emitCodexHooksLiveness(taskId: TaskId, status: "missing" | "live"): void {
+    this.sendEvent({
+      type: "cli-hooks:liveness",
+      payload: { taskId, status },
+      ts: new Date().toISOString(),
+    });
   }
 
   /**
@@ -1667,9 +1695,15 @@ export class RuntimeController {
         this.flushPendingClaudeUsage(active);
       }
     }
-    // The transcript file can trail the first hook by a beat — skip now, a
-    // later hook of the same session retries (hooks fire per tool call).
+    // The transcript file can trail the hook by a beat. Claude re-adopts on a
+    // later hook (they fire per tool call), but Codex reaches here ONLY on
+    // SessionStart (S2 gate) — so hand the CLI-declared id to discovery, which
+    // binds it by identity the moment the rollout lands (no mtime guess). The
+    // providerSessionRef was already persisted above, so the manifest is
+    // correct either way; this recovers the transcript SOURCE.
     if (!fs.existsSync(transcriptPath)) {
+      active.providerTranscript.setExpectedSessionId(sessionId);
+      active.providerTranscript.ensureDiscovery();
       return;
     }
     const provider = active.task.provider;
@@ -1974,6 +2008,15 @@ export class RuntimeController {
     rows?: number | undefined;
     cols?: number | undefined;
   }): StartTaskOptions {
+    // Per-task hook binding travels via env (D4): Codex hooks inherit the spawn
+    // env, so the frozen shim commands read DUET_RUNTIME_DIR to find THIS task's
+    // sink — sink-dir ownership is the nonce that keeps two same-cwd Codex tasks
+    // isolated. Merged ahead of any caller extraEnv (e.g. Claude's resume-panel
+    // suppression) so both can coexist.
+    const extraEnv: Record<string, string> = {
+      ...(args.provider === "codex" ? { DUET_RUNTIME_DIR: runtimeDir(args.taskId) } : {}),
+      ...(args.extraEnv ?? {}),
+    };
     return {
       cwd: args.cwd,
       // Claude's hooks/usage/settings live HERE (D8) — Duet-owned, outside the
@@ -1991,26 +2034,13 @@ export class RuntimeController {
         : {}),
       ...(args.provider === "claude" && args.remoteControl ? { remoteControl: true } : {}),
       // Codex hook injection (S2): buildArgs writes the profile+shims and adds
-      // `-p duet`. The controller supplies the global paths because it owns
-      // Duet-home; the runtime layer stays pure.
-      ...(args.provider === "codex"
-        ? { codexHookPaths: { binDir: duetBinDir(), profilePath: codexProfilePath() } }
-        : {}),
+      // `-p duet`. The controller supplies the Duet-home shim dir because it
+      // owns Duet-home; the codex edge owns the profile-file location.
+      ...(args.provider === "codex" ? { codexHookPaths: { binDir: duetBinDir() } } : {}),
       ...(args.resumeRef ? { resumeRef: args.resumeRef } : {}),
       // --session-id pins a fresh session only; --resume already owns the id.
       ...(!args.resumeRef && args.sessionId ? { sessionId: args.sessionId } : {}),
-      // Per-task hook binding travels via env (D4): Codex hooks inherit the
-      // spawn env, so the frozen shim commands read DUET_RUNTIME_DIR to find
-      // THIS task's sink — sink-dir ownership is the nonce that keeps two
-      // same-cwd Codex tasks isolated. Merged ahead of any caller extraEnv
-      // (e.g. Claude's resume-panel suppression) so both can coexist.
-      ...(() => {
-        const extraEnv = {
-          ...(args.provider === "codex" ? { DUET_RUNTIME_DIR: runtimeDir(args.taskId) } : {}),
-          ...(args.extraEnv ?? {}),
-        };
-        return Object.keys(extraEnv).length > 0 ? { extraEnv } : {};
-      })(),
+      ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
       ...(args.rows !== undefined ? { rows: args.rows } : {}),
       ...(args.cols !== undefined ? { cols: args.cols } : {}),
     };
@@ -2252,18 +2282,6 @@ function transcriptSourcesPath(recordRoot: string): string {
   return path.join(recordRoot, "transcript-sources.json");
 }
 
-/**
- * The Duet Codex hook profile file — an ADDITIVE, Duet-named file inside the
- * user's Codex home, layered by `codex -p duet`. Honors `$CODEX_HOME` (so the
- * user's real Codex world is respected, and tests/live-passes can isolate to a
- * temp home) and defaults to `~/.codex`. Duet writes ONLY this file; the user's
- * own `config.toml` is never read or modified.
- */
-function codexProfilePath(): string {
-  const home = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), ".codex");
-  return path.join(home, "duet.config.toml");
-}
-
 function normalizeImageMediaType(mediaType: string, originalName: string, bytes: Buffer): string | null {
   const sniffed = sniffImageMediaType(bytes);
   if (sniffed) {
@@ -2324,6 +2342,13 @@ function assertSupportedProvider(provider: RuntimeProvider): void {
   if (!SUPPORTED_PROVIDERS.has(provider)) {
     throw new Error(`Unsupported Task provider: ${provider}`);
   }
+}
+
+/** Providers whose sessions Duet injects hooks into (Claude via `--settings`,
+ *  Codex via `-p duet`). Both currently, but a named capability — not a
+ *  provider list — so a future non-hook provider is opted OUT by default. */
+function isHookCapable(provider: RuntimeProvider): boolean {
+  return provider === "claude" || provider === "codex";
 }
 
 function normalizeTaskForProviderCwd(task: Task, providerCwd: string): Task {

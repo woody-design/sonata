@@ -28,7 +28,14 @@ if (runtimeDir) {
   } catch (_e) {}
 }
 
-const silent = (() => { try { return fs.existsSync(path.join(cwd, "DUET_FAKE_SILENT")); } catch (_e) { return true; } })();
+const has = (marker) => { try { return fs.existsSync(path.join(cwd, marker)); } catch (_e) { return false; } };
+const silent = has("DUET_FAKE_SILENT") || has("DUET_FAKE_EXIT");
+
+// A crash/quit stand-in: exit before the liveness window elapses, emitting no
+// hook — the PTY exit must retire the pending liveness so no banner appears.
+if (has("DUET_FAKE_EXIT")) {
+  setTimeout(() => process.exit(0), 800);
+}
 
 if (runtimeDir && !silent) {
   try {
