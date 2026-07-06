@@ -75,6 +75,11 @@ const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
+/** After a hook-broker approval TIMEOUT, the CLI's native card for the same
+ *  request repaints within a beat (probe: ~200ms). A scraped candidate inside
+ *  this window is that resurface, not a new ask — mark it so, so the notification
+ *  layer stays quiet (the user was already told). Generous; one-shot. */
+const BROKER_EXPIRY_RESURFACE_MS = 5000;
 /** Gap between option-prompt keystrokes so the native form's per-question
  *  auto-advance (and the final Submit-tab render) settles before the next key.
  *  Phase 0 saw the advance repaint well under this; generous = robust. */
@@ -360,6 +365,13 @@ export class TerminalHost extends EventEmitter {
   private lastApprovalFingerprint: string | null = null;
   private lastApprovalDecision: ApprovalDecision | null = null;
   private lastApprovalDecisionAt: number | null = null;
+  /** Epoch ms of the most recent hook-broker approval TIMEOUT (Duet answered
+   *  nothing → the CLI's native card is taking over). One-shot: the next scraped
+   *  candidate within the resurface window is the SAME request reappearing, so it
+   *  is marked `resurfacedAfterDecision` (a broker payload can never share the
+   *  scrape's text-derived fingerprint, so the fingerprint path cannot recognize
+   *  it — this timing signal does). Consumed on use. */
+  private brokerExpiryResurfaceAt: number | null = null;
   /** A same-kind candidate was swallowed inside the post-decision settle
    *  window (the phantom-repaint class). Gates the settle re-check's re-arm:
    *  only a suppressed candidate needs the extra look — every other path
@@ -521,6 +533,7 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalFingerprint = null;
     this.lastApprovalDecision = null;
     this.lastApprovalDecisionAt = null;
+    this.brokerExpiryResurfaceAt = null;
     this.approvalSuppressedInSettleWindow = false;
     this.activeApprovalOptionKeys = null;
     this.ptyBytesTotal = 0;
@@ -1189,6 +1202,18 @@ export class TerminalHost extends EventEmitter {
     this.scheduleCompletionCheck();
   }
 
+  /**
+   * A hook-broker approval TIMED OUT (Duet answered nothing; the CLI's native
+   * card is taking over for the SAME request). Arm the resurface recognition so
+   * the scrape's imminent re-detection of that native card is marked as a
+   * resurface, not a fresh ask — else the user gets a second "needs you"
+   * notification for a request they were already told about. One-shot; the next
+   * candidate within the resurface window consumes it.
+   */
+  noteBrokerApprovalExpiry(): void {
+    this.brokerExpiryResurfaceAt = Date.now();
+  }
+
   sendDeny(): void {
     const previousKind = this.lastApprovalKind;
     this.writeRaw(ESC);
@@ -1439,11 +1464,23 @@ export class TerminalHost extends EventEmitter {
       }
       return;
     }
+    // A hook-broker timeout leaves NO scrape fingerprint (the broker ask never
+    // painted a native panel), so the fingerprint path below cannot recognize
+    // the native card that now repaints for the same request. This one-shot
+    // timing signal does: the first candidate within the window after a broker
+    // expiry IS that resurface.
+    const brokerExpiryResurface =
+      this.brokerExpiryResurfaceAt !== null &&
+      Date.now() - this.brokerExpiryResurfaceAt < BROKER_EXPIRY_RESURFACE_MS;
+    if (brokerExpiryResurface) {
+      this.brokerExpiryResurfaceAt = null; // consume — one native repaint only
+    }
     const resurfacedAfterDecision =
-      Boolean(this.lastApprovalDecisionAt) &&
-      Boolean(candidate.fingerprint) &&
-      candidate.fingerprint === this.lastApprovalFingerprint &&
-      (decisionAgeMs ?? 0) >= DEFAULT_APPROVAL_SETTLE_MS;
+      brokerExpiryResurface ||
+      (Boolean(this.lastApprovalDecisionAt) &&
+        Boolean(candidate.fingerprint) &&
+        candidate.fingerprint === this.lastApprovalFingerprint &&
+        (decisionAgeMs ?? 0) >= DEFAULT_APPROVAL_SETTLE_MS);
     if (candidate.fingerprint && candidate.fingerprint === this.lastApprovalFingerprint && !resurfacedAfterDecision) {
       return;
     }

@@ -59,6 +59,8 @@ import {
   ApprovalWatcher,
   writeApprovalReply,
   type ApprovalAsk,
+  approvalsDirectory,
+  EXPIRED_PREFIX,
   codexBrokerDecisionJson,
   enableCodexAnswering,
   disableCodexAnswering,
@@ -942,6 +944,17 @@ export class RuntimeController {
     // reply the broker is polling for. No native keys, no scrape.
     const pending = approvalId ? this.pendingBrokerApprovals.get(approvalId) : null;
     if (approvalId && pending && pending.taskId === taskId) {
+      // Orphan-reply guard (reviewer C2): if the broker already self-expired in
+      // the poll gap (its `expired-<id>.json` is on disk), its native card is now
+      // the live surface and no broker will ever read a reply. Writing one would
+      // let Duet record a decision the CLI never received and release the delivery
+      // gate over a wedged turn. Leave the pending entry so the watcher's expiry
+      // path (handleApprovalExpired) clears the card + raises the banner; the user
+      // answers the native card in the Terminal. (The broker's own final
+      // reply-check closes the symmetric window on its side.)
+      if (this.brokerAlreadyExpired(taskId, approvalId)) {
+        return;
+      }
       this.pendingBrokerApprovals.delete(approvalId);
       // The decision JSON shape is the one true per-provider seam of the
       // approval channel (plan §2): Claude carries persistent-rule vocabulary
@@ -989,6 +1002,22 @@ export class RuntimeController {
       return;
     }
     active.terminalHost.sendDeny();
+  }
+
+  /** True iff the broker for this ask already wrote its expired marker (it gave
+   *  up before Duet answered) — the synchronous signal that a reply would be
+   *  orphaned. The watcher consumes+deletes the marker on its next poll, so this
+   *  is a narrow window; the broker's own final reply-check covers the other side. */
+  private brokerAlreadyExpired(taskId: TaskId, approvalId: string): boolean {
+    const expiredPath = path.join(
+      approvalsDirectory(runtimeDir(taskId)),
+      `${EXPIRED_PREFIX}${approvalId}.json`,
+    );
+    try {
+      return fs.existsSync(expiredPath);
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -1150,6 +1179,14 @@ export class RuntimeController {
       // Gate: the key transitions asked→expired and keeps blocking through
       // the expiry→scrape gap (per-ask since the S6 review).
       active.deliveryController.handleRuntimeEvent(expiredEvent);
+      // Arm the scrape's resurface recognition (reviewer C1): the native card
+      // that appears when this broker gave up IS the same request the user was
+      // already notified about. Without this, the scrape re-detects it as a
+      // FRESH approval → a duplicate needs-you notification (the policy's
+      // "stay quiet after a decision" promise silently unmet, since a timeout is
+      // not a decision and the broker ask set no scrape fingerprint). The mark
+      // suppresses the second notification and records the row as a resurface.
+      active.terminalHost.noteBrokerApprovalExpiry();
       if (this.shownBrokerApproval.get(active.task.id) === id) {
         // Only the SHOWN ask's expiry concerns the renderer — a hidden
         // queued ask expiring must not clear someone else's live card
@@ -1619,11 +1656,18 @@ export class RuntimeController {
     // CLI-state — the schema-agnostic primary signal for busy/idle/turn-end.
     active.cliState.applyHook(payload);
 
-    // Permission-mode display and AskUserQuestion option-prompts are CLAUDE-ONLY
-    // vocabulary. Codex's permission model is sandbox + approval-policy (a
-    // distinct vocabulary Reading does not surface as `permissionMode`), and
-    // `AskUserQuestion` is a Claude tool with no verified Codex equivalent — so
-    // both are skipped for Codex with the reason declared, not force-mapped.
+    // Plan §4's "capability-driven, not provider-name-driven" applies to the
+    // DISPATCH/watch gates (now `isHookCapable`). The three edges below are a
+    // different class: each encodes a SPECIFIC Claude-only capability — a
+    // permission-mode vocabulary, the `AskUserQuestion` tool, and the
+    // `StopFailure` event — that a `=== "claude"` gate auto-excludes any future
+    // provider from anyway. Minting three predicates for a two-provider world is
+    // premature abstraction; the capability is named in each comment instead.
+    //
+    // Permission-mode display and AskUserQuestion option-prompts: Codex's
+    // permission model is sandbox + approval-policy (Reading does not surface it
+    // as `permissionMode`), and `AskUserQuestion` has no verified Codex
+    // equivalent — both skipped for Codex, declared, not force-mapped.
     if (provider === "claude") {
       this.applyHookPermissionMode(active, payload);
       this.handleOptionPromptHook(active, payload);

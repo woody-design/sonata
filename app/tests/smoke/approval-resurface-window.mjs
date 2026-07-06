@@ -289,12 +289,84 @@ setInterval(() => {}, 1000);
   }
 }
 
+/** Scenario F (S3 review C1): a hook-broker approval TIMED OUT, so the CLI's
+ *  native card now repaints for the SAME request. The broker ask painted no
+ *  native panel, so it left NO scrape fingerprint — the fingerprint path can't
+ *  recognize the resurface. `noteBrokerApprovalExpiry()` arms a one-shot timing
+ *  signal so the scrape's re-detection is marked `resurfacedAfterDecision`
+ *  (notification-policy then stays quiet — the user was already told). Locks the
+ *  no-double-notification contract. */
+async function runBrokerExpiryResurfaceScenario(name) {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-resurface-bexpire-"));
+  const scriptPath = path.join(workspace, "fake-claude.mjs");
+  fs.writeFileSync(
+    scriptPath,
+    `
+if (process.stdin.isTTY) { process.stdin.setRawMode(true); }
+process.stdin.resume();
+process.stdout.write("\\u276F opus xhigh ~\\n");
+let ran = false;
+const paintPanel = () => {${PANEL_PAINT}};
+process.stdin.on("data", (data) => {
+  const text = data.toString("utf8");
+  if (ran || !(text.includes("\\r") || text.includes("201~") || text.includes("[13"))) { return; }
+  ran = true;
+  process.stdout.write("\\nRunning Bash(echo hi) \\u00B7 Computing\\u2026\\n");
+  setTimeout(paintPanel, 400); // the NATIVE card codex renders after the broker gave up
+});
+setInterval(() => {}, 1000);
+`,
+    "utf8",
+  );
+
+  const events = [];
+  const host = new TerminalHost({
+    taskId: "task-resurface-bexpire",
+    provider: "claude",
+    defaultWorkspace: workspace,
+    eventSink: (event) => {
+      if (event.type === "approval:detected") events.push(event);
+    },
+    completionQuietMs: 600,
+  });
+
+  try {
+    host.startTask({
+      approvalBroker: false,
+      cwd: workspace,
+      command: process.execPath,
+      args: [scriptPath],
+      approval: "never",
+      rows: 24,
+      cols: 110,
+    });
+    await delay(400);
+    host.submitPrompt("run echo");
+    // The broker held this request, timed out, and Duet is about to raise its
+    // native card — arm the resurface recognition BEFORE the card paints.
+    host.noteBrokerApprovalExpiry();
+    const detected = await waitUntil(
+      () => events.find((e) => e.type === "approval:detected"),
+      6000,
+      `${name}: native card detected after broker expiry`,
+    );
+    assert(
+      detected.payload.resurfacedAfterDecision === true,
+      `${name}: the post-expiry native card is marked as a resurface (no double needs-you)`,
+    );
+  } finally {
+    host.dispose();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
 try {
   await runScenario("A/answered", "answered");
   await runScenario("B/still-open", "still-open");
   await runScenario("C/native-still-open", "native-still-open");
   await runBrokerResyncScenario("D/stop-outranks-stale", "stop-outranks");
   await runBrokerResyncScenario("E/broker-watermark-no-resurface", "watermark");
+  await runBrokerExpiryResurfaceScenario("F/broker-expiry-resurface");
 } catch (error) {
   failures.push(String(error));
 }

@@ -175,6 +175,34 @@ check("codexBrokerDecisionJson emits the Codex allow/deny shape (no Always rule)
     !("updatedPermissions" in always.hookSpecificOutput.decision),
     "no persistent-rule vocabulary leaks into the Codex decision",
   );
+  // Fail-CLOSED: an unrecognized decision value must block, never auto-approve.
+  const unknown = codexBrokerDecisionJson("answered-natively");
+  assert.equal(unknown.hookSpecificOutput.decision.behavior, "deny", "unknown decision fails closed");
+});
+
+// The Codex broker shim (frozen TEXT, interpolates the protocol) and the Claude
+// broker (compiled, imports it) MUST agree on the ask/reply/expired/answered
+// prefixes — a desync would silently break cards (reviewer R2/C3). Assert both
+// carry every shared prefix.
+check("shim and Claude broker agree on the shared approval protocol prefixes", () => {
+  const {
+    ASK_PREFIX,
+    REPLY_PREFIX,
+    EXPIRED_PREFIX,
+    ANSWERED_PREFIX,
+  } = require("../../dist/runtime/cli-signal/approval-protocol");
+  const shim = fs.readFileSync(brokerShim, "utf8");
+  const claudeBroker = fs.readFileSync(
+    require.resolve("../../dist/runtime/cli-signal/approval-broker.js"),
+    "utf8",
+  );
+  for (const prefix of [ASK_PREFIX, REPLY_PREFIX, EXPIRED_PREFIX, ANSWERED_PREFIX]) {
+    assert.ok(shim.includes(`"${prefix}"`), `shim carries the shared prefix ${prefix}`);
+    assert.ok(claudeBroker.includes(prefix), `Claude broker carries the shared prefix ${prefix}`);
+  }
+  // The shim's final reply-check (the orphan-reply guard's broker side).
+  assert.ok(shim.includes("readReply"), "shim has the reusable reply reader");
+  assert.ok(claudeBroker.includes("readReply"), "Claude broker has the reusable reply reader");
 });
 
 check("enable/disableCodexAnswering writes and clears the marker", () => {

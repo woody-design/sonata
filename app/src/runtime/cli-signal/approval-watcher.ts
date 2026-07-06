@@ -1,9 +1,25 @@
 import fs from "node:fs";
 import path from "node:path";
-import { claudeApprovalsDirectory } from "./claude-runtime-settings";
+import {
+  ANSWERED_PREFIX,
+  APPROVAL_POLL_MS,
+  ASK_PREFIX,
+  EXPIRED_PREFIX,
+  REPLY_PREFIX,
+  approvalsDirectory,
+} from "./approval-protocol";
 import type { HookPayload } from "../../shared/types/cli-signal";
 
-const DEFAULT_POLL_MS = 100;
+const DEFAULT_POLL_MS = APPROVAL_POLL_MS;
+
+// Match the broker's control files by the SHARED prefixes (single-sourced with
+// the producers via approval-protocol — a prefix rename can never desync).
+const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const ASK_FILE_RE = new RegExp(`^${esc(ASK_PREFIX)}.+\\.json$`);
+const EXPIRED_FILE_RE = new RegExp(`^${esc(EXPIRED_PREFIX)}.+\\.json$`);
+const PROTOCOL_FILE_RE = new RegExp(
+  `^(?:${[ASK_PREFIX, REPLY_PREFIX, EXPIRED_PREFIX, ANSWERED_PREFIX].map(esc).join("|")}).+\\.json(?:\\.\\d+\\.tmp)?$`,
+);
 
 export interface ApprovalAsk {
   id: string;
@@ -30,10 +46,10 @@ export interface ApprovalWatcherOptions {
  *
  * Provider-NEUTRAL: both Claude and Codex brokers write the identical
  * ask/reply/expired protocol into the SAME `<runtimeDir>/approvals` layout, so
- * one watcher serves both. `claudeApprovalsDirectory` is reused as that one
- * neutral path resolver (Codex's `codexApprovalsDirectory` computes the same
- * path); the per-provider difference is only the reply JSON shape, chosen by the
- * caller at reply-write time.
+ * one watcher serves both. The dir + file prefixes come from the neutral
+ * `approval-protocol` module (no provider module owns the layout); the only
+ * per-provider difference is the reply JSON shape, chosen by the caller at
+ * reply-write time.
  */
 export class ApprovalWatcher {
   private readonly options: ApprovalWatcherOptions;
@@ -101,7 +117,7 @@ export class ApprovalWatcher {
   }
 
   private pollWorkspace(workspace: string): void {
-    const dir = claudeApprovalsDirectory(workspace);
+    const dir = approvalsDirectory(workspace);
     let entries: string[];
     try {
       entries = fs.readdirSync(dir);
@@ -109,16 +125,16 @@ export class ApprovalWatcher {
       return;
     }
     for (const entry of entries) {
-      if (/^ask-.+\.json$/.test(entry)) {
+      if (ASK_FILE_RE.test(entry)) {
         this.consumeAsk(dir, entry, workspace);
-      } else if (/^expired-.+\.json$/.test(entry)) {
+      } else if (EXPIRED_FILE_RE.test(entry)) {
         this.consumeExpired(dir, entry, workspace);
       }
     }
   }
 
   private consumeAsk(dir: string, entry: string, workspace: string): void {
-    const id = entry.slice("ask-".length, -".json".length);
+    const id = entry.slice(ASK_PREFIX.length, -".json".length);
     if (this.seenAsks.has(id)) {
       return; // surface each ask exactly once; the broker owns the file's lifecycle
     }
@@ -136,7 +152,7 @@ export class ApprovalWatcher {
   }
 
   private consumeExpired(dir: string, entry: string, workspace: string): void {
-    const id = entry.slice("expired-".length, -".json".length);
+    const id = entry.slice(EXPIRED_PREFIX.length, -".json".length);
     try {
       fs.rmSync(path.join(dir, entry), { force: true });
     } catch {
@@ -147,7 +163,7 @@ export class ApprovalWatcher {
   }
 
   private pruneWorkspace(workspace: string): void {
-    const dir = claudeApprovalsDirectory(workspace);
+    const dir = approvalsDirectory(workspace);
     let entries: string[];
     try {
       entries = fs.readdirSync(dir);
@@ -155,7 +171,7 @@ export class ApprovalWatcher {
       return;
     }
     for (const entry of entries) {
-      if (/^(ask|reply|expired|answered)-.+\.json(\.\d+\.tmp)?$/.test(entry)) {
+      if (PROTOCOL_FILE_RE.test(entry)) {
         try {
           fs.rmSync(path.join(dir, entry), { force: true });
         } catch {
@@ -172,9 +188,9 @@ export class ApprovalWatcher {
  * a complete file.
  */
 export function writeApprovalReply(runtimeDir: string, id: string, decision: unknown): void {
-  const dir = claudeApprovalsDirectory(runtimeDir);
+  const dir = approvalsDirectory(runtimeDir);
   fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, `reply-${id}.json`);
+  const filePath = path.join(dir, `${REPLY_PREFIX}${id}.json`);
   const tmpPath = `${filePath}.${process.pid}.tmp`;
   fs.writeFileSync(tmpPath, JSON.stringify(decision), "utf8");
   fs.renameSync(tmpPath, filePath);

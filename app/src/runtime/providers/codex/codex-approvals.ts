@@ -20,12 +20,23 @@ import { CODEX_ANSWERING_MARKER, codexApprovalsDirectory } from "./codex-runtime
  *     approvals dir). Single-sourced with the shim via `CODEX_ANSWERING_MARKER`.
  */
 
+/** The approve variants Codex maps to a one-shot `allow` (all persist nothing —
+ *  "Always" rule support is the unverified open probe above). Any OTHER value —
+ *  a future/unknown decision — must fail CLOSED to `deny`: a trust boundary
+ *  never auto-approves on a value it does not recognize (reviewer A2). */
+const CODEX_ALLOW_DECISIONS = new Set<ApprovalDecision>([
+  "approve",
+  "approve-for-session",
+  "approve-always",
+]);
+
 /**
  * Build the `PermissionRequest` decision JSON the Codex broker emits to the CLI.
- * `deny` → block; everything else → one-shot allow (see the "Always" note above).
+ * An explicit approve → one-shot `allow`; `deny` OR anything unrecognized →
+ * `deny` (fail-closed).
  */
 export function codexBrokerDecisionJson(decision: ApprovalDecision): unknown {
-  const behavior = decision === "deny" ? "deny" : "allow";
+  const behavior = CODEX_ALLOW_DECISIONS.has(decision) ? "allow" : "deny";
   return {
     hookSpecificOutput: {
       hookEventName: "PermissionRequest",
@@ -45,10 +56,9 @@ export function codexAnsweringMarkerPath(runtimeDir: string): string {
  * starts watching the task's approvals (i.e. the card channel is live).
  */
 export function enableCodexAnswering(runtimeDir: string): void {
-  const dir = codexApprovalsDirectory(runtimeDir);
   try {
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, CODEX_ANSWERING_MARKER), "");
+    fs.mkdirSync(codexApprovalsDirectory(runtimeDir), { recursive: true });
+    fs.writeFileSync(codexAnsweringMarkerPath(runtimeDir), "");
   } catch {
     // Best-effort: an unwritable marker just means the broker stays inert (the
     // native card takes over) — the honest degrade, never a thrown spawn.

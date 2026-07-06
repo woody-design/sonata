@@ -6,6 +6,7 @@ import {
   shellQuote,
   writeJsonIfChanged,
 } from "../usage/claude-statusline";
+import { approvalsDirectory } from "./approval-protocol";
 import type { HookEventName } from "../../shared/types/cli-signal";
 
 /**
@@ -90,9 +91,11 @@ function buildHooks(
   return hooks;
 }
 
-/** Where the broker drops ask/reply/expired files; watched by ApprovalWatcher. */
+/** Where the broker drops ask/reply/expired files; watched by ApprovalWatcher.
+ *  Delegates to the neutral `approvalsDirectory` — the layout is a shared
+ *  protocol constant, not a Claude-owned one. */
 export function claudeApprovalsDirectory(runtimeDir: string): string {
-  return path.join(runtimeDir, "approvals");
+  return approvalsDirectory(runtimeDir);
 }
 
 /**

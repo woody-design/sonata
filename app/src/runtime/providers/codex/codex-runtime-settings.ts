@@ -1,6 +1,15 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {
+  ANSWERED_PREFIX,
+  APPROVALS_SUBDIR,
+  APPROVAL_POLL_MS,
+  ASK_PREFIX,
+  EXPIRED_PREFIX,
+  REPLY_PREFIX,
+  approvalsDirectory,
+} from "../../cli-signal/approval-protocol";
 
 /**
  * The Codex injection edge (control-plane S2) — the mirror of
@@ -52,9 +61,11 @@ const SINK_SHIM = "codex-hook-sink.js";
 const BROKER_SHIM = "codex-approval-broker.js";
 
 /** The sink subdir under a task's runtime dir — single-sourced so the two
- *  path helpers AND the shim template agree by construction. */
+ *  path helpers AND the shim template agree by construction. The approvals
+ *  subdir + broker file prefixes come from the shared `approval-protocol`
+ *  module (interpolated into the broker shim below) so the Codex broker can
+ *  never desync from the Claude broker / the ApprovalWatcher. */
 const HOOKS_SUBDIR = "hooks";
-const APPROVALS_SUBDIR = "approvals";
 
 /** The marker file Duet drops in a task's approvals dir to arm the broker shim's
  *  hold-and-answer path. Absent (S2, or any task whose card wiring is not live)
@@ -118,9 +129,10 @@ export function codexHooksDirectory(runtimeDir: string): string {
   return path.join(runtimeDir, HOOKS_SUBDIR);
 }
 
-/** Path the broker uses for ask/reply/expired/marker files (S3). */
+/** Path the broker uses for ask/reply/expired/marker files (S3). Delegates to
+ *  the shared neutral resolver — the approvals layout is a protocol constant. */
 export function codexApprovalsDirectory(runtimeDir: string): string {
-  return path.join(runtimeDir, APPROVALS_SUBDIR);
+  return approvalsDirectory(runtimeDir);
 }
 
 /**
@@ -298,7 +310,7 @@ const BROKER_SHIM_SOURCE = `"use strict";
 const fs = require("node:fs");
 const path = require("node:path");
 const runtimeDir = process.env.DUET_RUNTIME_DIR;
-const POLL_MS = 100;
+const POLL_MS = ${APPROVAL_POLL_MS};
 const holdMs = Number(process.env.DUET_BROKER_HOLD_MS) || ${APPROVAL_BROKER_HOLD_MS};
 let raw = "";
 process.stdin.setEncoding("utf8");
@@ -322,14 +334,28 @@ process.stdin.on("end", function () {
   // Sortable, collision-free id across concurrent brokers (parallel tool
   // approvals): wall clock + hrtime + pid.
   const id = Date.now().toString(36) + "-" + process.hrtime.bigint().toString(36) + "-" + process.pid;
-  const askPath = path.join(controlDir, "ask-" + id + ".json");
-  const replyPath = path.join(controlDir, "reply-" + id + ".json");
-  const expiredPath = path.join(controlDir, "expired-" + id + ".json");
-  const answeredPath = path.join(controlDir, "answered-" + id + ".json");
+  const askPath = path.join(controlDir, "${ASK_PREFIX}" + id + ".json");
+  const replyPath = path.join(controlDir, "${REPLY_PREFIX}" + id + ".json");
+  const expiredPath = path.join(controlDir, "${EXPIRED_PREFIX}" + id + ".json");
+  const answeredPath = path.join(controlDir, "${ANSWERED_PREFIX}" + id + ".json");
   function writeAtomic(filePath, contents) {
     const tmp = filePath + "." + process.pid + ".tmp";
     fs.writeFileSync(tmp, contents, "utf8");
     fs.renameSync(tmp, filePath);
+  }
+  function readReply() {
+    try { return fs.existsSync(replyPath) ? fs.readFileSync(replyPath, "utf8") : null; } catch (_e) { return null; }
+  }
+  function answer(decision) {
+    try {
+      writeAtomic(answeredPath, decision);
+      fs.rmSync(replyPath, { force: true });
+      fs.rmSync(askPath, { force: true });
+    } catch (_e) {
+      // best-effort cleanup; the decision below is what matters
+    }
+    process.stdout.write(decision);
+    process.exit(0);
   }
   try {
     fs.mkdirSync(controlDir, { recursive: true });
@@ -340,24 +366,18 @@ process.stdin.on("end", function () {
   }
   const deadline = Date.now() + holdMs;
   const timer = setInterval(function () {
-    let decision = null;
-    try {
-      if (fs.existsSync(replyPath)) { decision = fs.readFileSync(replyPath, "utf8"); }
-    } catch (_e) { decision = null; }
+    const decision = readReply();
     if (decision !== null) {
       clearInterval(timer);
-      try {
-        writeAtomic(answeredPath, decision);
-        fs.rmSync(replyPath, { force: true });
-        fs.rmSync(askPath, { force: true });
-      } catch (_e) {
-        // best-effort cleanup; the decision below is what matters
-      }
-      process.stdout.write(decision);
-      process.exit(0);
+      answer(decision);
     }
     if (Date.now() > deadline) {
       clearInterval(timer);
+      // FINAL reply check before giving up: a reply written in the poll gap must
+      // still win, else Duet records an answer the CLI never received and the turn
+      // wedges (reviewer C2). Mirrors approval-broker.ts.
+      const late = readReply();
+      if (late !== null) { answer(late); }
       try {
         writeAtomic(expiredPath, "{}");
         fs.rmSync(askPath, { force: true });

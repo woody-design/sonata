@@ -1,5 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  ANSWERED_PREFIX,
+  APPROVAL_POLL_MS,
+  ASK_PREFIX,
+  EXPIRED_PREFIX,
+  REPLY_PREFIX,
+} from "./approval-protocol";
 
 /**
  * Duet's approval broker — the single hook Duet installs on `PermissionRequest`
@@ -24,7 +31,7 @@ import path from "node:path";
 
 const controlDir = process.argv[2];
 const timeoutMs = Number(process.argv[3]) || 60_000;
-const POLL_MS = 100;
+const POLL_MS = APPROVAL_POLL_MS;
 
 let raw = "";
 process.stdin.setEncoding("utf8");
@@ -46,10 +53,10 @@ process.stdin.on("end", () => {
   // Sortable, collision-free id across concurrent brokers (parallel tool
   // approvals from subagents): wall clock + hrtime + pid.
   const id = `${Date.now().toString(36)}-${process.hrtime.bigint().toString(36)}-${process.pid}`;
-  const askPath = path.join(controlDir, `ask-${id}.json`);
-  const replyPath = path.join(controlDir, `reply-${id}.json`);
-  const expiredPath = path.join(controlDir, `expired-${id}.json`);
-  const answeredPath = path.join(controlDir, `answered-${id}.json`);
+  const askPath = path.join(controlDir, `${ASK_PREFIX}${id}.json`);
+  const replyPath = path.join(controlDir, `${REPLY_PREFIX}${id}.json`);
+  const expiredPath = path.join(controlDir, `${EXPIRED_PREFIX}${id}.json`);
+  const answeredPath = path.join(controlDir, `${ANSWERED_PREFIX}${id}.json`);
 
   try {
     fs.mkdirSync(controlDir, { recursive: true });
@@ -59,30 +66,41 @@ process.stdin.on("end", () => {
     process.exit(0);
   }
 
+  const readReply = (): string | null => {
+    try {
+      return fs.existsSync(replyPath) ? fs.readFileSync(replyPath, "utf8") : null;
+    } catch {
+      return null;
+    }
+  };
+  const answer = (decision: string): never => {
+    try {
+      writeAtomic(answeredPath, decision);
+      fs.rmSync(replyPath, { force: true });
+      fs.rmSync(askPath, { force: true });
+    } catch {
+      // best-effort cleanup; the decision below is what matters
+    }
+    process.stdout.write(decision);
+    process.exit(0);
+  };
+
   const deadline = Date.now() + timeoutMs;
   const timer = setInterval(() => {
-    let decision: string | null = null;
-    try {
-      if (fs.existsSync(replyPath)) {
-        decision = fs.readFileSync(replyPath, "utf8");
-      }
-    } catch {
-      decision = null;
-    }
+    const decision = readReply();
     if (decision !== null) {
       clearInterval(timer);
-      try {
-        writeAtomic(answeredPath, decision);
-        fs.rmSync(replyPath, { force: true });
-        fs.rmSync(askPath, { force: true });
-      } catch {
-        // best-effort cleanup; the decision below is what matters
-      }
-      process.stdout.write(decision);
-      process.exit(0);
+      answer(decision);
     }
     if (Date.now() > deadline) {
       clearInterval(timer);
+      // FINAL reply check before giving up: a reply written in the poll gap must
+      // still win, else Duet records an allow the CLI never received and the turn
+      // wedges (a reply is orphaned into a dead broker's absence — reviewer C2).
+      const late = readReply();
+      if (late !== null) {
+        answer(late);
+      }
       try {
         writeAtomic(expiredPath, "{}");
         fs.rmSync(askPath, { force: true });
