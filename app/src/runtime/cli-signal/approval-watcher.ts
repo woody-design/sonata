@@ -1,14 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { claudeApprovalsDirectory } from "./claude-runtime-settings";
-import type { ClaudeHookPayload } from "../../shared/types/cli-signal";
+import type { HookPayload } from "../../shared/types/cli-signal";
 
 const DEFAULT_POLL_MS = 100;
 
 export interface ApprovalAsk {
   id: string;
   receivedAt: string;
-  payload: ClaudeHookPayload;
+  payload: HookPayload;
 }
 
 export interface ClaudeApprovalWatcherOptions {
@@ -26,7 +26,7 @@ export interface ClaudeApprovalWatcherOptions {
  * (the broker gave up → native panel). Duet answers by writing `reply-<id>.json`
  * (see `writeApprovalReply`), which the broker consumes and deletes along with
  * the ask; a vanished ask therefore needs no watcher action. Mirrors
- * ClaudeHookWatcher's per-workspace refcount + crash-residue prune.
+ * HookWatcher's per-workspace refcount + crash-residue prune.
  */
 export class ClaudeApprovalWatcher {
   private readonly options: ClaudeApprovalWatcherOptions;

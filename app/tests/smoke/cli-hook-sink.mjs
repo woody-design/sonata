@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 // Direct requires (no node-pty via the runtime barrel).
 const require = createRequire(import.meta.url);
 const distRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../dist");
-const { ensureClaudeRuntimeSettings, claudeHooksDirectory, ClaudeHookWatcher } = require(
+const { ensureClaudeRuntimeSettings, claudeHooksDirectory, HookWatcher } = require(
   path.join(distRoot, "runtime/cli-signal"),
 );
 const { CliStateModel } = require(path.join(distRoot, "runtime/cli-signal/cli-state"));
@@ -70,8 +70,9 @@ assert.equal(hookFiles().length, 3, "one file per hook invocation");
 const observed = [];
 const model = new CliStateModel((s) => observed.push(s.activity));
 let lastWorkspace = null;
-const watcher = new ClaudeHookWatcher({
+const watcher = new HookWatcher({
   pollMs: 20,
+  sinkDir: claudeHooksDirectory,
   onPayload: (payload, workspace) => {
     lastWorkspace = workspace;
     model.applyHook(payload);

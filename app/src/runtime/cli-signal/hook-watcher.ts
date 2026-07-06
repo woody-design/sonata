@@ -1,32 +1,36 @@
 import fs from "node:fs";
 import path from "node:path";
-import { claudeHooksDirectory } from "./claude-runtime-settings";
-import type { ClaudeHookPayload } from "../../shared/types/cli-signal";
+import type { HookPayload } from "../../shared/types/cli-signal";
 
 const DEFAULT_POLL_MS = 250;
 
-export interface ClaudeHookWatcherOptions {
+export interface HookWatcherOptions {
   pollMs?: number;
+  /** Resolves the sink dir to poll for a watched workspace. Injected rather than
+   *  imported so the watcher stays provider-neutral — the caller passes the
+   *  provider's edge (e.g. Claude's `claudeHooksDirectory`). */
+  sinkDir: (workspace: string) => string;
   /** Called once per hook payload, in filename (≈ emission) order, with the
    *  RUNTIME DIR it was observed under (~/.duet/data/runtime/<taskId> since D8;
    *  route by runtime dir → task — NOT the agent cwd). */
-  onPayload: (payload: ClaudeHookPayload, runtimeDir: string) => void;
+  onPayload: (payload: HookPayload, runtimeDir: string) => void;
   onError?: (error: Error, filePath?: string) => void;
 }
 
 /**
- * Polls Duet-owned Claude hook sink dirs (`.duet/hooks/`), mirroring the
- * statusline watcher's per-workspace poll. Each `hook-*.json` is a single hook
- * payload written via tmp+rename; the watcher reads it in name order, hands it
- * off, then DELETES it (the dir is a queue, not a log — bounded growth).
+ * Polls Duet-owned hook sink dirs (`.duet/hooks/`), mirroring the statusline
+ * watcher's per-workspace poll. Each `hook-*.json` is a single hook payload
+ * written via tmp+rename; the watcher reads it in name order, hands it off, then
+ * DELETES it (the dir is a queue, not a log — bounded growth). Provider-neutral:
+ * the sink-dir resolver is injected via options.
  */
-export class ClaudeHookWatcher {
-  private readonly options: ClaudeHookWatcherOptions;
+export class HookWatcher {
+  private readonly options: HookWatcherOptions;
   private readonly pollMs: number;
   private readonly workspaceRefs = new Map<string, number>();
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(options: ClaudeHookWatcherOptions) {
+  constructor(options: HookWatcherOptions) {
     this.options = options;
     this.pollMs = options.pollMs ?? DEFAULT_POLL_MS;
   }
@@ -86,7 +90,7 @@ export class ClaudeHookWatcher {
   }
 
   private pollWorkspace(workspace: string): void {
-    const dir = claudeHooksDirectory(workspace);
+    const dir = this.options.sinkDir(workspace);
     let entries: string[];
     try {
       entries = fs.readdirSync(dir);
@@ -114,9 +118,9 @@ export class ClaudeHookWatcher {
     } catch {
       // best-effort
     }
-    let payload: ClaudeHookPayload;
+    let payload: HookPayload;
     try {
-      payload = JSON.parse(contents) as ClaudeHookPayload;
+      payload = JSON.parse(contents) as HookPayload;
     } catch (error) {
       this.options.onError?.(toError(error), filePath);
       return;
@@ -125,7 +129,7 @@ export class ClaudeHookWatcher {
   }
 
   private pruneWorkspace(workspace: string): void {
-    const dir = claudeHooksDirectory(workspace);
+    const dir = this.options.sinkDir(workspace);
     let entries: string[];
     try {
       entries = fs.readdirSync(dir);

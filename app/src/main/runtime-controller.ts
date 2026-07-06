@@ -54,7 +54,8 @@ import {
   TerminalHost,
   type StartTaskOptions,
   ClaudeStatuslineUsageWatcher,
-  ClaudeHookWatcher,
+  HookWatcher,
+  claudeHooksDirectory,
   ClaudeApprovalWatcher,
   writeApprovalReply,
   type ApprovalAsk,
@@ -78,7 +79,7 @@ import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
 import type { ResumeSettingsStore, ClaudeSettingsStore } from "./settings-store";
 import type { ClaudeSettings } from "../shared/types/claude-settings";
-import type { ClaudeHookPayload, CliStateSnapshot } from "../shared/types/cli-signal";
+import type { HookPayload, CliStateSnapshot } from "../shared/types/cli-signal";
 import type { OptionPrompt } from "../shared/types/option-prompt";
 import {
   RESUME_PROMPT_MIN_IDLE_MS,
@@ -155,7 +156,7 @@ export class RuntimeController {
   private readonly resumeSettingsStore: ResumeSettingsStore;
   private readonly claudeSettingsStore: ClaudeSettingsStore;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
-  private readonly claudeHookWatcher: ClaudeHookWatcher;
+  private readonly claudeHookWatcher: HookWatcher;
   private readonly claudeApprovalWatcher: ClaudeApprovalWatcher;
   /** Live hook-broker approvals awaiting a card answer, keyed by broker id →
    *  the task + payload needed to build the reply decision, plus the
@@ -163,7 +164,7 @@ export class RuntimeController {
    *  arrival-time facts; re-sent verbatim when the card's turn comes). */
   private readonly pendingBrokerApprovals = new Map<
     string,
-    { taskId: TaskId; payload: ClaudeHookPayload; event: RuntimeEvent }
+    { taskId: TaskId; payload: HookPayload; event: RuntimeEvent }
   >();
   /** Per task, the broker approvalId whose card is currently shown — enforces
    *  one card at a time; the rest queue (P3). */
@@ -188,8 +189,9 @@ export class RuntimeController {
         );
       },
     });
-    this.claudeHookWatcher = new ClaudeHookWatcher({
-      onPayload: (payload, workspace) => this.handleClaudeHookPayload(payload, workspace),
+    this.claudeHookWatcher = new HookWatcher({
+      sinkDir: claudeHooksDirectory,
+      onPayload: (payload, workspace) => this.handleHookPayload(payload, workspace),
       onError: (error, filePath) => {
         console.debug(
           `[signal] skipped Claude hook payload${filePath ? ` ${filePath}` : ""}: ${error.message}`,
@@ -1439,7 +1441,7 @@ export class RuntimeController {
    * only after the PTY is up, by which point the task is registered, so a
    * pending buffer isn't needed (unmatched payloads are simply dropped).
    */
-  private handleClaudeHookPayload(payload: ClaudeHookPayload, workspace: string): void {
+  private handleHookPayload(payload: HookPayload, workspace: string): void {
     // The watcher is keyed by the session's runtime dir (D8), not its cwd — route
     // the payload back to the task by the same key.
     const resolved = path.resolve(workspace);
@@ -1505,7 +1507,7 @@ export class RuntimeController {
    * /resume) that the spawn-pinned id can never track. adoptSource is
    * idempotent, so the per-event cost is a set lookup.
    */
-  private adoptTranscriptFromHook(active: ActiveTaskRuntime, payload: ClaudeHookPayload): void {
+  private adoptTranscriptFromHook(active: ActiveTaskRuntime, payload: HookPayload): void {
     const sessionId =
       typeof payload.session_id === "string" && payload.session_id ? payload.session_id : null;
     const transcriptPath =
@@ -1560,7 +1562,7 @@ export class RuntimeController {
    * activity — not instantly on the keypress; the statusline payload has no
    * mode field, so hooks are the only structured source.
    */
-  private applyHookPermissionMode(active: ActiveTaskRuntime, payload: ClaudeHookPayload): void {
+  private applyHookPermissionMode(active: ActiveTaskRuntime, payload: HookPayload): void {
     const mode = payload.permission_mode;
     if (
       typeof mode !== "string" ||
@@ -1587,7 +1589,7 @@ export class RuntimeController {
    * means it was cancelled (or finished without a PostToolUse) → clear the card.
    * Detection is structured, not scraped; the floor stays a valid alternative.
    */
-  private handleOptionPromptHook(active: ActiveTaskRuntime, payload: ClaudeHookPayload): void {
+  private handleOptionPromptHook(active: ActiveTaskRuntime, payload: HookPayload): void {
     const event = typeof payload.hook_event_name === "string" ? payload.hook_event_name : "";
     const tool = typeof payload.tool_name === "string" ? payload.tool_name : "";
 
@@ -2322,7 +2324,7 @@ function taskStatusFromRunStatus(status: RunStatus): Task["status"] {
 
 // ── Hook-broker approval helpers (S2) ────────────────────────────────────────
 
-function toolInputRecord(payload: ClaudeHookPayload): Record<string, unknown> {
+function toolInputRecord(payload: HookPayload): Record<string, unknown> {
   const input = payload.tool_input;
   return input && typeof input === "object" && !Array.isArray(input)
     ? (input as Record<string, unknown>)
@@ -2330,7 +2332,7 @@ function toolInputRecord(payload: ClaudeHookPayload): Record<string, unknown> {
 }
 
 /** Map the hook's tool to Duet's ApprovalKind (mirrors the scrape grammar). */
-function classifyApprovalKind(payload: ClaudeHookPayload): ApprovalKind {
+function classifyApprovalKind(payload: HookPayload): ApprovalKind {
   const tool = typeof payload.tool_name === "string" ? payload.tool_name : "";
   if (tool === "Bash") return "command";
   if (tool === "Edit" || tool === "Write" || tool === "MultiEdit" || tool === "NotebookEdit")
@@ -2340,7 +2342,7 @@ function classifyApprovalKind(payload: ClaudeHookPayload): ApprovalKind {
 }
 
 /** The one-line "what the agent wants to do", from tool_name/tool_input. */
-function approvalSummary(payload: ClaudeHookPayload): string {
+function approvalSummary(payload: HookPayload): string {
   const tool = typeof payload.tool_name === "string" ? payload.tool_name : "tool";
   const input = toolInputRecord(payload);
   const str = (key: string): string | null =>
@@ -2370,7 +2372,7 @@ function truncateMiddle(value: string, max: number): string {
  * "git *" for humans). The button must not promise narrower than it grants
  * (reviewer P2, trust boundary).
  */
-function brokerApprovalChoices(kind: ApprovalKind, payload: ClaudeHookPayload): ApprovalChoice[] {
+function brokerApprovalChoices(kind: ApprovalKind, payload: HookPayload): ApprovalChoice[] {
   const scope = alwaysAllowScopeLabel(kind, payload); // e.g. "git *", "edits", "reads"
   // encodedAs "reply-file": these choices answer on the hook channel — no
   // bytes ever touch the PTY (S6 review P3; the decision event says the
@@ -2388,7 +2390,7 @@ function brokerApprovalChoices(kind: ApprovalKind, payload: ClaudeHookPayload): 
 }
 
 /** Human label for what "Always" actually persists — matches `alwaysAllowRule`. */
-function alwaysAllowScopeLabel(kind: ApprovalKind, payload: ClaudeHookPayload): string | null {
+function alwaysAllowScopeLabel(kind: ApprovalKind, payload: HookPayload): string | null {
   if (kind === "command") {
     const command = typeof toolInputRecord(payload).command === "string"
       ? (toolInputRecord(payload).command as string).trim()
@@ -2407,7 +2409,7 @@ function alwaysAllowScopeLabel(kind: ApprovalKind, payload: ClaudeHookPayload): 
  * updatedPermissions — next-turn semantics (Woody, 2026-07-02): the rule
  * persists so subsequent matching calls skip the prompt.
  */
-function brokerDecisionJson(decision: ApprovalDecision, payload: ClaudeHookPayload): unknown {
+function brokerDecisionJson(decision: ApprovalDecision, payload: HookPayload): unknown {
   const out = (d: Record<string, unknown>): unknown => ({
     hookSpecificOutput: { hookEventName: "PermissionRequest", decision: d },
   });
@@ -2423,7 +2425,7 @@ function brokerDecisionJson(decision: ApprovalDecision, payload: ClaudeHookPaylo
 }
 
 /** A conservative "always allow" rule from the tool call (tunable). */
-function alwaysAllowRule(payload: ClaudeHookPayload): Record<string, unknown> | null {
+function alwaysAllowRule(payload: HookPayload): Record<string, unknown> | null {
   const tool = typeof payload.tool_name === "string" ? payload.tool_name : "";
   const input = toolInputRecord(payload);
   if (tool === "Bash") {

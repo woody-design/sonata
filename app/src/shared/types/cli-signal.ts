@@ -1,6 +1,13 @@
 /**
  * CLI signal layer (Slice 1) — structured-first observation of the hosted CLI.
  *
+ * The payload below is NOT "Claude's" — it is the hook contract both Claude Code
+ * and Codex speak, wire-field-for-wire-field (verified 2026-07-06 on codex
+ * 0.142.5: same envelope, same values vocabulary, `tool_name:"Bash"`). Duet
+ * treats it as an emerging industry standard and adopts it verbatim (snake_case
+ * wire names, no Duet renames); provider metadata lives OUTSIDE the payload in
+ * `HookEnvelope`.
+ *
  * Phase 0 (2026-06-13, real claude 2.1.177 under duet's spawn) established the
  * medium truths this layer is built on:
  *  - Hooks UNION across every settings source, so duet injects its own hooks
@@ -13,8 +20,18 @@
  *    `Stop` and `PermissionRequest` instead.
  */
 
-/** Claude hook events duet injects + observes. Discriminator = `hook_event_name`. */
-export type ClaudeHookEventName =
+import type { RuntimeProvider, TaskId } from "./domain";
+
+/**
+ * Hook events duet injects + observes. Discriminator = `hook_event_name`.
+ *
+ * The first six — `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
+ * `PostToolUse`, `PermissionRequest`, `Stop` — are the shared core BOTH
+ * providers emit (Codex's verified set, 2026-07-06). The rest are
+ * Claude-observed only: `StopFailure` (structured API error — Codex has no
+ * equivalent), `Notification`, `SubagentStop`.
+ */
+export type HookEventName =
   | "SessionStart"
   | "UserPromptSubmit"
   | "PreToolUse"
@@ -26,11 +43,12 @@ export type ClaudeHookEventName =
   | "SubagentStop";
 
 /**
- * A Claude hook payload (stdin JSON), keyed by the fields observed in Phase 0.
- * Permissive on purpose: the CLI may add fields and we only read a few.
+ * A hook payload (stdin JSON), keyed by the fields observed in Phase 0.
+ * Permissive on purpose: the CLI may add fields and we only read a few — the
+ * boundary validates only consumed fields and passes unknown ones through.
  */
-export interface ClaudeHookPayload {
-  hook_event_name?: ClaudeHookEventName | string;
+export interface HookPayload {
+  hook_event_name?: HookEventName | string;
   session_id?: string;
   transcript_path?: string;
   cwd?: string;
@@ -53,6 +71,23 @@ export interface ClaudeHookPayload {
   notification_type?: string;
   message?: string;
   [key: string]: unknown;
+}
+
+/**
+ * A provider-stamped hook payload. The `payload` stays the verbatim standard
+ * contract (above); everything Duet knows ABOUT it — which provider emitted it,
+ * which task it belongs to, when we saw it — lives here, OUTSIDE the wire shape,
+ * so "aligned with the standard or not" stays greppable forever.
+ *
+ * Type-only for now: the watcher still delivers a bare `HookPayload` + runtime
+ * dir. Stamping the envelope (provider/taskId at the controller) is a later
+ * slice's job — this type declares the target shape without wiring it.
+ */
+export interface HookEnvelope {
+  provider: RuntimeProvider;
+  taskId: TaskId;
+  receivedAt: string;
+  payload: HookPayload;
 }
 
 /**

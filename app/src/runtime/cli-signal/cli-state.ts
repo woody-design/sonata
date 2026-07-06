@@ -2,7 +2,7 @@ import type { RuntimeEvent } from "../../shared/types/events";
 import type {
   CliActivity,
   CliStateSnapshot,
-  ClaudeHookPayload,
+  HookPayload,
 } from "../../shared/types/cli-signal";
 
 /**
@@ -10,8 +10,9 @@ import type {
  * two input streams into a single `busy | idle | waiting-approval | turn-ended`
  * activity that the renderer subscribes to.
  *
- *  - PRIMARY: Claude hooks — `UserPromptSubmit`/`PreToolUse`→busy,
- *    `PermissionRequest`→waiting-approval (names the tool), `Stop`→turn-ended.
+ *  - PRIMARY: standard-contract hooks (Claude Code today, Codex on the same
+ *    schema) — `UserPromptSubmit`/`PreToolUse`→busy, `PermissionRequest`→
+ *    waiting-approval (names the tool), `Stop`→turn-ended.
  *  - SAFETY NET: existing terminal-host signals — `prompt:submitted`→busy,
  *    `approval:detected`→waiting-approval, `approval:decision`→busy,
  *    `task:ready`→turn-ended (fallback if the Stop hook is absent), `pty:exit`
@@ -43,8 +44,8 @@ export class CliStateModel {
     return this.snapshot;
   }
 
-  /** Feed a parsed Claude hook payload (the primary signal). */
-  applyHook(payload: ClaudeHookPayload): void {
+  /** Feed a parsed standard-contract hook payload (the primary signal). */
+  applyHook(payload: HookPayload): void {
     const event = typeof payload.hook_event_name === "string" ? payload.hook_event_name : "";
     const tool = typeof payload.tool_name === "string" ? payload.tool_name : null;
     switch (event) {

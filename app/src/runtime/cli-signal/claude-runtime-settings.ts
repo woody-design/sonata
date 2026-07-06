@@ -6,7 +6,7 @@ import {
   shellQuote,
   writeJsonIfChanged,
 } from "../usage/claude-statusline";
-import type { ClaudeHookEventName } from "../../shared/types/cli-signal";
+import type { HookEventName } from "../../shared/types/cli-signal";
 
 /**
  * The single `--settings` file duet injects into every Claude spawn. It carries
@@ -16,7 +16,7 @@ import type { ClaudeHookEventName } from "../../shared/types/cli-signal";
  * we deliberately write ONLY duet's entries and let Claude merge.
  */
 
-/** Where the hook sink drops payload files; watched by ClaudeHookWatcher. */
+/** Where the hook sink drops payload files; watched by HookWatcher. */
 export function claudeHooksDirectory(runtimeDir: string): string {
   return path.join(runtimeDir, "hooks");
 }
@@ -35,7 +35,7 @@ const APPROVAL_HOOK_TIMEOUT_S = 120;
  * BROKER (S2), which holds the CLI and answers from the Reading card; a second
  * fire-and-forget sink on it would double-write the payload.
  */
-const INJECTED_HOOK_EVENTS: ClaudeHookEventName[] = [
+const INJECTED_HOOK_EVENTS: HookEventName[] = [
   "SessionStart",
   "UserPromptSubmit",
   "PreToolUse",
@@ -50,7 +50,7 @@ const INJECTED_HOOK_EVENTS: ClaudeHookEventName[] = [
 ];
 
 /** Events scoped by a tool/notification matcher; the rest take a bare entry. */
-const MATCHER_EVENTS = new Set<ClaudeHookEventName>(["PreToolUse", "PostToolUse", "Notification"]);
+const MATCHER_EVENTS = new Set<HookEventName>(["PreToolUse", "PostToolUse", "Notification"]);
 
 interface ClaudeHookCommandEntry {
   type: "command";
