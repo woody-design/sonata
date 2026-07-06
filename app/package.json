@@ -70,8 +70,6 @@
     "smoke:terminal-scrollback": "npm run build:main && node tests/smoke/terminal-scrollback.mjs",
     "smoke:terminal-hydration-stitch": "npm run build:main && node tests/smoke/terminal-hydration-stitch.mjs",
     "smoke:terminal-hydration-counter": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-hydration-counter.mjs",
-    "smoke:command-approval": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/command-approval.mjs",
-    "smoke:approval-reliability": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-reliability.mjs",
     "rebuild:electron": "electron-rebuild -f -w node-pty",
     "smoke:status-region-tracker": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/status-region-tracker.mjs",
     "smoke:slash-registry": "npm run build:main && node tests/smoke/slash-registry.mjs",

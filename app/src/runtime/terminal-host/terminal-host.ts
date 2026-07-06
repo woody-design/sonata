@@ -145,23 +145,11 @@ export function isNonTypingTerminalInput(data: string): boolean {
   return data.replace(TERMINAL_NON_TYPING_RE, "").length === 0;
 }
 
-const CODEX_FILE_EDIT_APPROVAL_HINTS = [
-  "would you like to make the following edits",
-  "don't ask again for these files",
-  "press enter to confirm",
-];
-
-const CODEX_COMMAND_APPROVAL_HINTS = [
-  "would you like to run the following command",
-  "don't ask again for commands that start with",
-  "press enter to confirm",
-];
-
-const CODEX_WORKSPACE_TRUST_APPROVAL_HINTS = [
-  "do you trust the contents of this directory",
-  "trusting the directory",
-  "press enter to continue",
-];
+// Codex approval hint-strings retired in S4 (the scrape funeral): the hook
+// PermissionRequest broker is codex's SOLE approval channel now (D5/D6). The
+// native-panel scrape below is Claude-only — codex never populates
+// `approvalHints`, and `detectApproval` refuses to scrape non-Claude providers.
+// History: git log -S CODEX_COMMAND_APPROVAL_HINTS.
 
 const CLAUDE_FILE_EDIT_APPROVAL_HINTS = [
   "do you want to make this edit",
@@ -1110,6 +1098,15 @@ export class TerminalHost extends EventEmitter {
   sendApprovalDecision(
     decision: Extract<ApprovalDecision, "approve" | "approve-for-session" | "approve-always">,
   ): void {
+    // CSI-u Enter / ArrowDown are Claude's native-panel grammar — WRONG for
+    // codex's card (S4). Codex answers exclusively via the broker reply channel;
+    // no code path should ever replay panel keys to a codex PTY. Fail loudly
+    // rather than corrupt the codex TUI with foreign keystrokes.
+    if (this.profile.provider !== "claude") {
+      throw new Error(
+        `Native approval-key replay is Claude-only; ${this.profile.provider} answers via the hook broker.`,
+      );
+    }
     const panelKey = this.activeApprovalOptionKeys?.[decision];
     const legacyKey =
       decision === "approve"
@@ -1425,6 +1422,15 @@ export class TerminalHost extends EventEmitter {
   }
 
   private detectApproval(): void {
+    // The native-panel approval scrape is Claude-only (S4 funeral). Codex (and
+    // any future hook-capable provider whose approvals arrive via the
+    // PermissionRequest broker) never surfaces a scraped card — the broker owns
+    // that channel end-to-end (ask → card → reply). A codex native card only
+    // appears AFTER a broker timeout, and it is answered in the Terminal, not
+    // re-scraped into a phantom Duet card (see handleApprovalExpired).
+    if (this.profile.provider !== "claude") {
+      return;
+    }
     const approvalSource = this.approvalScanSource();
     const candidate = detectApprovalCandidate(approvalSource, this.profile);
     if (!candidate || candidate.promptAfterApproval) {
@@ -2239,11 +2245,15 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         profile,
       });
     },
+    // Codex approvals flow through the hook PermissionRequest broker (D5); the
+    // native-panel scrape is retired for codex (S4). Empty hints keep the
+    // shared scrape functions inert for codex even if `detectApproval`'s
+    // provider guard is ever relaxed — belt and suspenders.
     approvalHints: {
       fileRead: [],
-      fileEdit: CODEX_FILE_EDIT_APPROVAL_HINTS,
-      command: CODEX_COMMAND_APPROVAL_HINTS,
-      workspaceTrust: CODEX_WORKSPACE_TRUST_APPROVAL_HINTS,
+      fileEdit: [],
+      command: [],
+      workspaceTrust: [],
     },
     approvalEndMarkers: [],
   };

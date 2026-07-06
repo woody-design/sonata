@@ -996,7 +996,18 @@ export class RuntimeController {
       this.surfaceNextBrokerApproval(active); // P3: show the next queued approval, if any
       return;
     }
-    // Fallback / Codex: the scraped native panel — replay keys.
+    // Fallback: the scraped native panel — Claude only. Codex answers
+    // exclusively via the broker reply channel (S4 funeral): the scrape that
+    // surfaced a codex card is retired, so a codex task reaching here has no
+    // scraped native card to replay keys against, and CSI-u/Arrow are Claude's
+    // panel grammar (wrong for codex). Ignore rather than corrupt its TUI — the
+    // native card, if any, is answered by the user in the Terminal.
+    if (active.task.provider !== "claude") {
+      console.warn(
+        `[approval] ignoring non-broker ${decision} for ${active.task.provider} task ${taskId}: no scraped native card to answer (broker is the sole channel)`,
+      );
+      return;
+    }
     if (decision === "approve" || decision === "approve-for-session" || decision === "approve-always") {
       active.terminalHost.sendApprovalDecision(decision);
       return;
@@ -1154,11 +1165,17 @@ export class RuntimeController {
   }
 
   /**
-   * A broker gave up (timeout) — the CLI's native panel is taking over, and the
-   * scrape will surface it. Clear the hook card, but emit `approval:expired`
-   * (NOT a false "answered-natively" decision): nothing was answered, so
-   * cli-state stays waiting-approval and the delivery gate stays blocked through
-   * the expiry→scrape gap (reviewer P1/P2).
+   * A broker gave up (timeout) — the CLI's native panel is taking over. Clear
+   * the hook card, but emit `approval:expired` (NOT a false "answered-natively"
+   * decision): nothing was answered, so cli-state stays waiting-approval and the
+   * delivery gate stays blocked (reviewer P1/P2).
+   *
+   * Provider asymmetry after the S4 funeral: for CLAUDE the scrape re-detects
+   * the native card, so we arm the one-shot resurface recognition below to keep
+   * it from double-notifying. For CODEX the approval scrape is retired — the
+   * native card is answered by the user in the Terminal and is never re-scraped
+   * into a Duet card, so no resurface arming is needed (nor possible to trip):
+   * the expired banner is the whole of Duet's post-expiry role.
    */
   private handleApprovalExpired(id: string, workspace: string): void {
     const pending = this.pendingBrokerApprovals.get(id);
@@ -1179,18 +1196,23 @@ export class RuntimeController {
       // Gate: the key transitions asked→expired and keeps blocking through
       // the expiry→scrape gap (per-ask since the S6 review).
       active.deliveryController.handleRuntimeEvent(expiredEvent);
-      // Arm the scrape's resurface recognition (reviewer C1): the native card
-      // that appears when this broker gave up IS the same request the user was
-      // already notified about. Without this, the scrape re-detects it as a
-      // FRESH approval → a duplicate needs-you notification (the policy's
-      // "stay quiet after a decision" promise silently unmet, since a timeout is
-      // not a decision and the broker ask set no scrape fingerprint). The mark
-      // suppresses the second notification and records the row as a resurface.
-      active.terminalHost.noteBrokerApprovalExpiry();
+      // Arm the scrape's resurface recognition (reviewer C1) — Claude only. The
+      // native card that appears when this broker gave up IS the same request
+      // the user was already notified about; without this, Claude's scrape
+      // re-detects it as a FRESH approval → a duplicate needs-you notification
+      // (the policy's "stay quiet after a decision" promise silently unmet,
+      // since a timeout is not a decision and the broker ask set no scrape
+      // fingerprint). The mark suppresses the second notification and records
+      // the row as a resurface. Codex has no approval scrape (S4), so there is
+      // nothing to arm — the field would never be read.
+      if (active.task.provider === "claude") {
+        active.terminalHost.noteBrokerApprovalExpiry();
+      }
       if (this.shownBrokerApproval.get(active.task.id) === id) {
         // Only the SHOWN ask's expiry concerns the renderer — a hidden
         // queued ask expiring must not clear someone else's live card
-        // (S6 review P2); its native panel is the scrape's to surface.
+        // (S6 review P2); its native panel is surfaced by Claude's scrape or,
+        // for codex, left to the user in the Terminal.
         this.shownBrokerApproval.delete(active.task.id);
         this.sendEvent(expiredEvent); // renderer clears the hook card + raises the banner
       }

@@ -37,10 +37,13 @@ const host = new TerminalHost({
     if (event.type === "pty:exit") {
       ptyExited = true;
     }
-    if (event.type === "approval:detected" && event.payload.kind === "workspace-trust") {
-      workspaceTrustApproved = true;
-      host.sendApprove();
-    }
+    // The codex native-panel approval scrape + PTY-key replay were retired in
+    // S4 (the funeral): a bare hookless TerminalHost no longer surfaces a
+    // `workspace-trust` approval:detected, and `host.sendApprove()` (Claude
+    // panel grammar) now throws for codex. Codex approvals flow through the hook
+    // broker; a hookless codex trust prompt is answered by the human in the
+    // Terminal. This live smoke drives a pre-trusted temp workspace, so no dir
+    // trust prompt is expected. (workspaceTrustApproved stays false by design.)
   },
 });
 

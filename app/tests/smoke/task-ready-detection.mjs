@@ -107,6 +107,53 @@ await check(
   },
 );
 
+await check(
+  "codex: a no-Stop turn ends via the KEPT composer-quiescence net (task:ready → cli-state)",
+  async () => {
+    // D6 safety net, re-proven scrape-free (S4): codex has no StopFailure hook,
+    // so an API-failed turn emits neither Stop nor StopFailure and would sit
+    // busy forever. The composer-quiescence net (checkCompletionHeuristic →
+    // detectIdleComposer on codex `›` + "working"/activity, → finishActiveRun
+    // terminal-idle-heuristic → task:ready → cli-state busy→turn-ended) is the
+    // ONLY path off busy for it. This must survive the approval-scrape funeral —
+    // the codex approval hints are gone but the completion net is deliberately
+    // kept.
+    const events = [];
+    const host = makeHost(events, { provider: "codex", completionQuietMs: 250 });
+    try {
+      host.ptyProcess = fakePty();
+      host.startedAt = Date.now() - 60_000;
+      host.activeRun = codexPromptRun();
+
+      // The turn worked, then the composer `›` came back with NO Stop hook (the
+      // API-failure shape). A printable paint arms the debounce; then the TUI
+      // falls to control-only housekeeping — the net must still fire.
+      host.handlePtyData("• Working (2s · esc to interrupt)\r\n");
+      host.handlePtyData("gpt-5.5 · medium\r\n› \r\n");
+      for (let i = 0; i < 14; i++) {
+        host.handlePtyData(HEARTBEAT_CHUNK);
+        await delay(50);
+      }
+
+      const completed = events.filter(
+        (event) => event.type === "run:updated" && event.payload.status === "completed",
+      );
+      assert.equal(completed.length, 1, "exactly one completed run:updated");
+      assert.equal(
+        completed[0].payload.completionSource,
+        "terminal-idle-heuristic",
+        "codex no-Stop turn completes via the quiescence heuristic, not a hook",
+      );
+
+      const ready = events.filter((event) => event.type === "task:ready");
+      assert.equal(ready.length, 1, "exactly one task:ready — the cli-state busy→turn-ended net");
+      assert.equal(ready[0].payload.source, "terminal-idle-composer-heuristic");
+    } finally {
+      host.dispose();
+    }
+  },
+);
+
 await check("Claude welcome screen still does not complete a run", async () => {
   const hint = detectIdleComposerForProvider(claudePlaceholderTail(), "claude");
 
@@ -135,6 +182,22 @@ function slashRun() {
     kind: "slash",
     prompt: "/zzz-not-a-command",
     title: "/zzz-not-a-command",
+    status: "active",
+    lifecyclePhase: "active",
+    startedAt: new Date(now).toISOString(),
+    endedAt: null,
+    elapsedMs: null,
+  };
+}
+
+function codexPromptRun() {
+  const now = Date.now();
+  return {
+    taskId: "task-ready-detection-smoke",
+    id: `run-${now}-1`,
+    kind: "prompt",
+    prompt: "do the thing",
+    title: "do the thing",
     status: "active",
     lifecyclePhase: "active",
     startedAt: new Date(now).toISOString(),

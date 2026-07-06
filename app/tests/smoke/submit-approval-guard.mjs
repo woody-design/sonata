@@ -24,10 +24,9 @@ if (process.stdin.isTTY) {
   process.stdin.setRawMode(true);
 }
 process.stdin.resume();
-process.stdout.write("\\nWould you like to make the following edits?\\n");
+process.stdout.write("\\nAllow this edit?\\n");
 process.stdout.write("- submit-approval-guard.txt\\n");
-process.stdout.write("Don't ask again for these files\\n");
-process.stdout.write("Press Enter to confirm\\n");
+process.stdout.write("Enter to confirm\\n");
 process.stdin.on("data", (data) => {
   fs.appendFileSync(inputLogPath, data);
 });
@@ -37,8 +36,16 @@ process.stdin.on("data", (data) => {
 
 const events = [];
 const runIndex = new RunIndex({ taskId, reportPath });
+// Repointed to Claude in S4: the terminal-host submitPrompt guard (throw while
+// a native approval screen is up) is a Claude-scrape contract. Codex approvals
+// arrive via the hook broker and never set terminal-host `approvalActive`, so
+// the codex scrape that used to drive this test is retired (the funeral). The
+// fake paints a Claude file-edit panel (legacy hint grammar; "Allow this edit?"
+// avoids the v2 "do you want to" anchor, so the shared detector takes the
+// hint-fallback path and sets approvalActive).
 const host = new TerminalHost({
   taskId,
+  provider: "claude",
   defaultWorkspace: workspace,
   eventSink: (event) => {
     if (event.type === "pty:data" || event.type === "report:updated") {
@@ -52,7 +59,7 @@ const host = new TerminalHost({
 });
 const delivery = new DeliveryController({
   taskId,
-  provider: "codex",
+  provider: "claude",
   terminalHost: host,
   eventSink: (event) => {
     events.push(event);
