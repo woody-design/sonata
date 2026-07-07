@@ -242,32 +242,86 @@ export class ProviderTranscript {
     attached.tailer.start();
   }
 
-  private attachSource(ref: TranscriptSourceRef): AttachedSource {
-    const normalizer =
-      ref.format === "claude-session-jsonl"
-        ? new ClaudeSessionNormalizer({ taskId: this.options.taskId, sourceId: ref.sourceId })
-        : new CodexRolloutNormalizer({
-            taskId: this.options.taskId,
-            sourceId: ref.sourceId,
-            onUsageSnapshot: (snapshot) => this.emitUsageSnapshot(snapshot),
-          });
+  private createNormalizer(
+    ref: TranscriptSourceRef,
+  ): ClaudeSessionNormalizer | CodexRolloutNormalizer {
+    return ref.format === "claude-session-jsonl"
+      ? new ClaudeSessionNormalizer({ taskId: this.options.taskId, sourceId: ref.sourceId })
+      : new CodexRolloutNormalizer({
+          taskId: this.options.taskId,
+          sourceId: ref.sourceId,
+          onUsageSnapshot: (snapshot) => this.emitUsageSnapshot(snapshot),
+        });
+  }
 
+  private attachSource(ref: TranscriptSourceRef): AttachedSource {
     const attached: AttachedSource = {
       ref,
-      normalizer,
+      normalizer: this.createNormalizer(ref),
       emittedOnce: false,
       tailer: new JsonlTailer({
         path: ref.path,
         ...(this.options.pollMs !== undefined ? { pollMs: this.options.pollMs } : {}),
         onLines: (lines) => this.consumeLines(attached, lines),
         onTruncated: () => {
-          // Source files are append-only; truncation means replacement.
+          // Truncation means the file was REPLACED (sources are otherwise
+          // append-only). The reset:true batch that follows tells consumers to
+          // drop this source's blocks — so blocks() (the sessionSnapshot
+          // source, runtime-controller.ts:706-715) must drop them too, or
+          // snapshot ≢ replay across this trigger (S1 INV-5; contract A1.5
+          // trigger b). Rebuild the normalizer fresh so its accumulated state
+          // (seq counter, turn map) cannot leak across the replacement and
+          // shift codex re-read ids, then evict the source's stale blocks and
+          // turn attribution before the full re-read repopulates them.
           attached.emittedOnce = false;
+          attached.normalizer = this.createNormalizer(attached.ref);
+          this.dropSource(attached.ref.sourceId);
         },
       }),
     };
     this.sourcesById.set(ref.sourceId, attached);
     return attached;
+  }
+
+  /**
+   * Evict every trace of one source after a truncation-replacement: its blocks
+   * (so blocks() matches the reset:true the event stream emits) and its turn
+   * attribution. Turn ids are `${sourceId}:${turnKey}`, so a replacement file
+   * that reuses a turnKey with different content must not inherit the old
+   * turn's run (turnRunIds short-circuits re-resolution when a runId is already
+   * set), stale anchor, or once-logged diagnostic. Any run the dropped turns
+   * had claimed is released back to the assignment pool so the re-read can
+   * re-claim it. The source ATTACHMENT stays — the same file keeps being tailed.
+   */
+  private dropSource(sourceId: string): void {
+    for (const [id, block] of this.blockStore) {
+      if (block.sourceId === sourceId) {
+        this.blockStore.delete(id);
+      }
+    }
+    const surviving = this.blockOrder.filter((id) => this.blockStore.has(id));
+    this.blockOrder.length = 0;
+    this.blockOrder.push(...surviving);
+
+    const prefix = `${sourceId}:`;
+    for (const [turnId, runId] of [...this.turnRunIds]) {
+      if (turnId.startsWith(prefix)) {
+        if (runId) {
+          this.assignedRunIds.delete(runId);
+        }
+        this.turnRunIds.delete(turnId);
+      }
+    }
+    for (const turnId of [...this.turnAnchors.keys()]) {
+      if (turnId.startsWith(prefix)) {
+        this.turnAnchors.delete(turnId);
+      }
+    }
+    for (const turnId of [...this.diagnosedUnattributed]) {
+      if (turnId.startsWith(prefix)) {
+        this.diagnosedUnattributed.delete(turnId);
+      }
+    }
   }
 
   private consumeLines(source: AttachedSource, lines: string[]): void {
