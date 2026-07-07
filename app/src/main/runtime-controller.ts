@@ -31,7 +31,7 @@ import type {
   TaskId,
   UsageSnapshot,
 } from "../shared/types";
-import { TaskNotFoundError } from "./errors";
+import { TaskNotFoundError, TaskNotLiveError } from "./errors";
 import {
   TRANSCRIPT_SOURCES_SCHEMA_ID,
   TRANSCRIPT_SOURCES_SCHEMA_VERSION,
@@ -886,7 +886,7 @@ export class RuntimeController {
   }
 
   submitPrompt(taskId: TaskId, text: string, attachments: DeliveryAttachment[] = []): void {
-    const active = this.requireTaskRuntime(taskId);
+    const active = this.requireLiveTaskRuntime(taskId);
     let normalized: DeliveryAttachment[];
     try {
       normalized = this.normalizeDeliveryAttachments(active, attachments);
@@ -1577,6 +1577,30 @@ export class RuntimeController {
       throw new TaskNotFoundError("No runtime task matches the requested taskId.");
     }
     return active;
+  }
+
+  /**
+   * Like requireTaskRuntime, but distinguishes "never existed" from "exists
+   * on disk, just not live right now" — the difference the Local API renders
+   * as taskNotFound (-32001) vs taskNotLive (-32002). Used only where a
+   * dormant session is a meaningful, recoverable state for the caller (a
+   * companion that can openTask first): submitPrompt targets a running PTY,
+   * so a persisted-but-dormant task is a distinct, actionable answer rather
+   * than a not-found. The missing-task branch keeps requireTaskRuntime's
+   * exact error type and message, so callers that only ever act on live
+   * tasks (the renderer) see byte-identical behavior.
+   */
+  private requireLiveTaskRuntime(taskId: TaskId): ActiveTaskRuntime {
+    const active = this.taskRuntimes.get(taskId);
+    if (active) {
+      return active;
+    }
+    if (this.persistedSessionRecord(taskId)) {
+      throw new TaskNotLiveError(
+        "The requested task exists but is not live; open it before submitting.",
+      );
+    }
+    throw new TaskNotFoundError("No runtime task matches the requested taskId.");
   }
 
   private disposeTaskRuntime(active: ActiveTaskRuntime): void {

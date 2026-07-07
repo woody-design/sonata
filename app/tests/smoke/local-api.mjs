@@ -7,9 +7,10 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { LocalApiServer } = require("../../dist/main/local-api/local-api-server");
-// The REAL error class — so the test validates the real contract, not a
-// message string written to fit a matcher.
-const { TaskNotFoundError } = require("../../dist/main/errors");
+// The REAL error classes — so the test validates the real contract, not a
+// message string written to fit a matcher. TaskNotLiveError is the dormant-but-
+// persisted case the server must map to -32002 (distinct from -32001).
+const { TaskNotFoundError, TaskNotLiveError } = require("../../dist/main/errors");
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-local-api-smoke-"));
 const socketPath = path.join(tmpDir, "control.sock");
@@ -39,11 +40,18 @@ const fakeIndex = {
   lastUsedFolder: null,
 };
 
+// Captures the options the server threads into readSessionIndex, so the
+// includeArchived pass-through (H3) is observable at the facade boundary.
+let lastIndexOptions = "unset";
+
 const server = new LocalApiServer({
   socketPath,
   appVersion: "0.0.0-smoke",
   facade: {
-    readSessionIndex: () => fakeIndex,
+    readSessionIndex: (options) => {
+      lastIndexOptions = options;
+      return fakeIndex;
+    },
     readSessionSnapshot: (taskId) => {
       // Throw the REAL class with the REAL controller message. If the
       // controller ever reverts to a plain Error, withTask's typed
@@ -53,7 +61,21 @@ const server = new LocalApiServer({
       }
       return { task: fakeTask, live: true, blocks: [] };
     },
-    submitPrompt: (taskId, text) => submitted.push({ taskId, text }),
+    submitPrompt: (taskId, text) => {
+      // The two typed errors the server must map to DISTINCT wire codes:
+      // a persisted-but-dormant task (-32002) vs one that never existed
+      // (-32001). Throwing the REAL classes proves withTask's mapping, not
+      // a message match.
+      if (taskId === "dormant-1") {
+        throw new TaskNotLiveError(
+          "The requested task exists but is not live; open it before submitting.",
+        );
+      }
+      if (taskId === "ghost-1") {
+        throw new TaskNotFoundError("No runtime task matches the requested taskId.");
+      }
+      submitted.push({ taskId, text });
+    },
     openTask: (taskId) => opened.push(taskId),
   },
   log: () => {},
@@ -103,9 +125,28 @@ const hello = await request("hello", { protocolVersion: 1, client: "smoke" });
 assert.equal(hello.result.app, "duet");
 assert.equal(hello.result.protocolVersion, 1);
 
-// sessionIndex passes through
+// sessionIndex passes through; absent includeArchived → undefined options
+// (today's call shape — the controller then applies its own default).
 const index = await request("sessionIndex", {});
 assert.equal(index.result.chats[0].task.id, "task-1");
+assert.equal(lastIndexOptions, undefined, "absent includeArchived → undefined options");
+
+// sessionIndex with includeArchived:true reaches the facade with the flag (H3).
+const archivedIndex = await request("sessionIndex", { includeArchived: true });
+assert.equal(archivedIndex.result.chats[0].task.id, "task-1");
+assert.deepEqual(lastIndexOptions, { includeArchived: true });
+
+// includeArchived:false is threaded explicitly too — a companion can force the
+// default without relying on the absent-param behavior.
+const unarchivedIndex = await request("sessionIndex", { includeArchived: false });
+assert.equal(unarchivedIndex.result.chats[0].task.id, "task-1");
+assert.deepEqual(lastIndexOptions, { includeArchived: false });
+
+// A malformed includeArchived is rejected (-32602) and never reaches the facade.
+lastIndexOptions = "unset";
+const badFlag = await request("sessionIndex", { includeArchived: "yes" });
+assert.equal(badFlag.error.code, -32602);
+assert.equal(lastIndexOptions, "unset", "malformed param never reaches the facade");
 
 // snapshot of unknown task → taskNotFound (-32001) via the typed error
 const missing = await request("sessionSnapshot", { taskId: "nope" });
@@ -134,6 +175,30 @@ const empty = await request("submitPrompt", {
   commandId: "cmd-2",
 });
 assert.equal(empty.error.code, -32602);
+
+// submitPrompt on a dormant-but-persisted task → taskNotLive (-32002), the new
+// distinct code so a companion can render "open it first" instead of "gone".
+const dormant = await request("submitPrompt", {
+  taskId: "dormant-1",
+  text: "wake up",
+  commandId: "cmd-dormant",
+});
+assert.equal(dormant.error.code, -32002);
+assert.equal(
+  dormant.error.message,
+  "The requested task exists but is not live; open it before submitting.",
+);
+
+// submitPrompt on a task that never existed → taskNotFound (-32001), unchanged.
+const ghost = await request("submitPrompt", {
+  taskId: "ghost-1",
+  text: "anyone home",
+  commandId: "cmd-ghost",
+});
+assert.equal(ghost.error.code, -32001);
+
+// Neither error path executed the send.
+assert.equal(submitted.length, 1);
 
 // openTask resumes
 const open = await request("openTask", { taskId: "task-1", commandId: "cmd-3" });

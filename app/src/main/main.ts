@@ -752,7 +752,7 @@ function startLocalApiIfEnabled(controller: RuntimeController): void {
     socketPath: localApiSocketPath(app.getPath("userData")),
     appVersion: app.getVersion(),
     facade: {
-      readSessionIndex: () => controller.readSessionIndex(),
+      readSessionIndex: (options) => controller.readSessionIndex(options),
       readSessionSnapshot: (taskId: TaskId) => controller.readSessionSnapshot(taskId),
       submitPrompt: (taskId: TaskId, text: string) => controller.submitPrompt(taskId, text),
       openTask: (taskId: TaskId) => {

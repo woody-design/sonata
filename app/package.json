@@ -102,6 +102,7 @@
     "smoke:remote-control-disconnect": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/remote-control-disconnect.mjs",
     "smoke:resume-moment-units": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/resume-moment-units.mjs",
     "smoke:local-api": "npm run build:main && node tests/smoke/local-api.mjs",
+    "smoke:local-api-controller": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/local-api-controller.mjs",
     "smoke:claude-permission-default": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-permission-default.mjs",
     "smoke:codex-approval-default-store": "npm run build:main && node tests/smoke/codex-approval-default-store.mjs",
     "smoke:codex-approval-injection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-approval-injection.mjs",

@@ -14,7 +14,7 @@ import {
   type LocalApiRequestFrame,
   type LocalApiResponseFrame,
 } from "../../shared/types/local-api";
-import { TaskNotFoundError } from "../errors";
+import { TaskNotFoundError, TaskNotLiveError } from "../errors";
 
 /**
  * The slice of RuntimeController the Local API may touch. Keeping the
@@ -22,7 +22,7 @@ import { TaskNotFoundError } from "../errors";
  * events, submit prompts, and resume tasks — nothing else.
  */
 export interface LocalApiFacade {
-  readSessionIndex(): SessionIndexResponse;
+  readSessionIndex(options?: { includeArchived?: boolean }): SessionIndexResponse;
   readSessionSnapshot(taskId: TaskId): SessionSnapshotResponse;
   submitPrompt(taskId: TaskId, text: string): void;
   openTask(taskId: TaskId): void;
@@ -249,7 +249,7 @@ export class LocalApiServer {
           protocolVersion: LOCAL_API_PROTOCOL_VERSION,
         };
       case "sessionIndex":
-        return this.facade.readSessionIndex();
+        return this.facade.readSessionIndex(sessionIndexOptions(params));
       case "sessionSnapshot": {
         const taskId = stringParam(params, "taskId");
         return this.withTask(taskId, () => this.facade.readSessionSnapshot(taskId));
@@ -313,6 +313,9 @@ export class LocalApiServer {
     } catch (error) {
       // Match the typed error, not its wording — the controller may
       // reword these messages without telling us.
+      if (error instanceof TaskNotLiveError) {
+        throw new LocalApiError(LOCAL_API_ERRORS.taskNotLive, error.message);
+      }
       if (error instanceof TaskNotFoundError) {
         throw new LocalApiError(LOCAL_API_ERRORS.taskNotFound, error.message);
       }
@@ -328,6 +331,26 @@ class LocalApiError extends Error {
     super(message);
     this.code = code;
   }
+}
+
+/** Optional `includeArchived` on `sessionIndex`: absent → today's behavior
+ *  (undefined, so the controller applies its default); present must be a
+ *  boolean. Mirrors stringParam's strictness for a malformed present value. */
+function sessionIndexOptions(params: unknown): { includeArchived?: boolean } | undefined {
+  const value =
+    params && typeof params === "object"
+      ? (params as Record<string, unknown>).includeArchived
+      : undefined;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new LocalApiError(
+      LOCAL_API_ERRORS.invalidParams,
+      "includeArchived must be a boolean",
+    );
+  }
+  return { includeArchived: value };
 }
 
 function stringParam(params: unknown, key: string): string {
