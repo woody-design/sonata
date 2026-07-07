@@ -842,6 +842,43 @@ function workingStatus(liveness) {
   assert.equal(view.unread, false, "cli activity is never unread content");
 }
 
+// 11) Contract fence (S1 INV-2 consumer side) — transcript:blocks reset is
+//     SOURCE-SCOPED: it drops ONLY blocks of the reset's sourceId, leaving a
+//     concurrent source's blocks on the same task untouched (audit A1.5;
+//     applyTranscriptUpserts, state.ts:448-469). A task holds multiple sources
+//     (/clear, resume chains), so a source's own re-drain must never wipe the
+//     others. Frozen 2026-07-07 (Product/duet-eink/docs/contracts-v2.md Part A).
+{
+  const blk = (id, sourceId) => ({
+    kind: "assistant-text",
+    id,
+    taskId: "task-A",
+    sourceId,
+    provider: "claude",
+    turnKey: `${sourceId}:t1`,
+    runId: null,
+    ts: "2026-07-03T12:00:00.000Z",
+    seq: 0,
+    markdown: id,
+  });
+  const blocks = (sourceId, reset, upserts) =>
+    evt("transcript:blocks", { taskId: "task-A", sourceId, reset, upserts });
+
+  const { state, view } = seedView();
+  // Two sources land their initial drains (each a source-scoped reset).
+  R.reduceRuntimeEvent(state, blocks("src-A", true, [blk("A1", "src-A"), blk("A2", "src-A")]), NOW_MS);
+  R.reduceRuntimeEvent(state, blocks("src-B", true, [blk("B1", "src-B")]), NOW_MS);
+  assert.deepEqual(view.transcriptBlockOrder, ["A1", "A2", "B1"], "both sources' blocks are present");
+
+  // Source A re-drains (truncation/replacement): reset must drop A1/A2 ONLY.
+  const d = R.reduceRuntimeEvent(state, blocks("src-A", true, [blk("A3", "src-A")]), NOW_MS);
+  assert.deepEqual(d, [{ kind: "transcript-debounced", taskId: "task-A" }], "active view schedules the transcript render");
+  assert.equal(view.transcriptBlocks.has("A1"), false, "source A's stale blocks dropped");
+  assert.equal(view.transcriptBlocks.has("A2"), false, "source A's stale blocks dropped");
+  assert.equal(view.transcriptBlocks.has("B1"), true, "the OTHER source survives its sibling's reset");
+  assert.deepEqual(view.transcriptBlockOrder, ["B1", "A3"], "surviving-then-fresh order, no stale ids");
+}
+
 if (WRITE_GOLDENS) {
   console.log(
     `reading-runtime-reducer: goldens REGENERATED for ${scenarios.length} scenarios (${totalEvents} events replayed ×2 variants) — review the diff before committing`,
