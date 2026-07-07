@@ -2126,6 +2126,18 @@ export function codexArgs(options: {
     // never clobber — verified). Placed ahead of the run flags; Codex accepts
     // it on both the TUI and exec forms.
     ...(options.profile ? ["-p", options.profile] : []),
+    // `--dangerously-bypass-hook-trust` is REQUIRED whenever we inject the
+    // profile: Codex does NOT persist hook trust for a `-p` PROFILE layer (only
+    // User/SessionFlags layers can carry `[hooks.state]`), compounded by a known
+    // silent trust-write failure under node-pty (openai/codex #22847, PR #17595).
+    // Without it, EVERY new session re-prompts "N hooks need review" and our
+    // control plane never runs. The flag is codex's documented path for
+    // "automation that already vets its own hook sources" (we generate our own
+    // shims); it does NOT un-gate an untrusted repo's `.codex/hooks.json` (those
+    // load only for an already-trusted project). Full analysis + Woody's decision:
+    // spikes/codex-hook-trust-research/findings.md (D4 overturn, 2026-07-06).
+    // Gated on `profile` so a bare-TerminalHost test spawn (no hooks) stays clean.
+    ...(options.profile ? ["--dangerously-bypass-hook-trust"] : []),
     "--no-alt-screen",
     ...(options.model?.trim() ? ["-m", options.model.trim()] : []),
     ...configOverrides,

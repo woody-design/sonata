@@ -62,16 +62,20 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
       );
     }
     // Codex's injected hooks never handshook within the spawn window — they are
-    // untrusted (silently skipped). Point at the one-time Terminal trust
-    // ceremony; the copy is user-facing, deliberately silent on hook internals.
-    // Dismiss clears the renderer-local flag (not a view field, so handled here
-    // rather than through the actions seam).
+    // not running. Since Duet passes `--dangerously-bypass-hook-trust` on every
+    // codex spawn (D4 overturn: trust can't persist through a profile layer),
+    // this is no longer a trust-ceremony gap — it means the hook shim itself
+    // failed to fire (e.g. its interpreter isn't on PATH in a non-login launch).
+    // The copy is user-facing, deliberately silent on hook internals; it points
+    // at the Terminal because that's where the failure is visible. Dismiss clears
+    // the renderer-local flag (not a view field, so handled here rather than
+    // through the actions seam).
     if (codexHooksMissing.has(view.task.id)) {
       const taskId = view.task.id;
       banners.push(
         attentionBanner(
           "codex-hooks-liveness",
-          "Codex needs a one-time trust confirmation in the Terminal",
+          "Codex hooks aren't running — check the Terminal",
           () => {
             codexHooksMissing.delete(taskId);
             renderAttentionBanners();
