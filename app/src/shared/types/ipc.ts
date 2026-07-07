@@ -16,6 +16,7 @@ import type { ReadingSettings, ResolvedReadingMode } from "./reading-settings";
 import type { TerminalWindowSettings } from "./terminal-window-settings";
 import type { ResumePolicyId, ResumeSettings } from "./resume-settings";
 import type { ClaudeSettings } from "./claude-settings";
+import type { CodexSettings } from "./codex-settings";
 import type {
   ReadSessionIndexRequest,
   ReadSessionSnapshotRequest,
@@ -95,6 +96,8 @@ export const IPC_CHANNELS = {
   resumeBridgeRevert: "resume:bridge:revert",
   claudeSettingsRead: "claude-settings:read",
   claudeSettingsWrite: "claude-settings:write",
+  codexSettingsRead: "codex-settings:read",
+  codexSettingsWrite: "codex-settings:write",
   readingSettingsWrite: "reading-settings:write",
   readingSettingsReadSync: "reading-settings:read-sync",
   instanceLabelReadSync: "instance-label:read-sync",
@@ -605,6 +608,8 @@ export interface DuetRuntimeBridge {
   revertResumeBridge(): Promise<RevertResumeBridgeResponse>;
   readClaudeSettings(): Promise<ClaudeSettings>;
   writeClaudeSettings(settings: ClaudeSettings): Promise<ClaudeSettings>;
+  readCodexSettings(): Promise<CodexSettings>;
+  writeCodexSettings(settings: CodexSettings): Promise<CodexSettings>;
   onReadingSystemModeChanged(callback: (mode: ResolvedReadingMode) => void): () => void;
   /** Full reading-settings push so satellites that follow the reading appearance
    *  (Preview) re-stamp theme/mode/textStep when the user changes it (R6). */

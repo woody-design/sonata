@@ -83,8 +83,13 @@ import {
 } from "./duet-paths";
 import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
-import type { ResumeSettingsStore, ClaudeSettingsStore } from "./settings-store";
+import type {
+  ResumeSettingsStore,
+  ClaudeSettingsStore,
+  CodexSettingsStore,
+} from "./settings-store";
 import type { ClaudeSettings } from "../shared/types/claude-settings";
+import type { CodexSettings } from "../shared/types/codex-settings";
 import type { HookPayload, CliStateSnapshot } from "../shared/types/cli-signal";
 import type { OptionPrompt } from "../shared/types/option-prompt";
 import {
@@ -126,7 +131,12 @@ const CODEX_SANDBOX_MODES = new Set<CodexSandboxMode>([
   "workspace-write",
   "danger-full-access",
 ]);
-const CODEX_APPROVAL_MODES = new Set<CodexApprovalMode>(["never", "on-request"]);
+const CODEX_APPROVAL_MODES = new Set<CodexApprovalMode>([
+  "untrusted",
+  "on-request",
+  "on-failure",
+  "never",
+]);
 const CLAUDE_PERMISSION_MODES = new Set<ClaudePermissionMode>([
   "acceptEdits",
   "auto",
@@ -141,6 +151,7 @@ interface RuntimeControllerOptions {
   projectsStore: ProjectsStore;
   resumeSettingsStore: ResumeSettingsStore;
   claudeSettingsStore: ClaudeSettingsStore;
+  codexSettingsStore: CodexSettingsStore;
 }
 
 interface ActiveTaskRuntime {
@@ -169,6 +180,7 @@ export class RuntimeController {
   private readonly projectsStore: ProjectsStore;
   private readonly resumeSettingsStore: ResumeSettingsStore;
   private readonly claudeSettingsStore: ClaudeSettingsStore;
+  private readonly codexSettingsStore: CodexSettingsStore;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
   /** Provider-neutral now (S2): the same sink layout (`runtimeDir/hooks`) serves
    *  Claude AND Codex, so ONE watcher observes both — routed to the task by the
@@ -216,6 +228,7 @@ export class RuntimeController {
     this.projectsStore = options.projectsStore;
     this.resumeSettingsStore = options.resumeSettingsStore;
     this.claudeSettingsStore = options.claudeSettingsStore;
+    this.codexSettingsStore = options.codexSettingsStore;
     this.claudeUsageWatcher = new ClaudeStatuslineUsageWatcher({
       onPayload: (payload, _filePath, mtimeMs) =>
         this.handleClaudeStatuslinePayload(payload, mtimeMs),
@@ -289,17 +302,19 @@ export class RuntimeController {
       );
     }
     const launchSettings = normalizeLaunchSettings(request.provider, request);
-    // New Claude sessions inherit the Duet-owned default permission mode
-    // (Settings → Approvals) unless the request names one explicitly. This
-    // is the "set it once" that keeps a trusted session from prompting on
-    // every tool call.
-    const permissionModeRequest =
+    // New sessions inherit the Duet-owned default approval policy (Settings →
+    // Approvals for Claude, Settings → Codex for Codex) unless the request
+    // names one explicitly. This is the "set it once" that keeps a trusted
+    // session from prompting on every tool call / command.
+    const permissionRequest =
       request.provider === "claude" && request.permissionMode == null
         ? { ...request, permissionMode: this.claudeSettingsStore.read().defaultPermissionMode }
-        : request;
+        : request.provider === "codex" && request.approval == null
+          ? { ...request, approval: this.codexSettingsStore.read().defaultApprovalMode }
+          : request;
     const permissionSettings = normalizePermissionSettings(
       request.provider,
-      permissionModeRequest,
+      permissionRequest,
     );
 
     if (request.cwd) {
@@ -644,6 +659,14 @@ export class RuntimeController {
 
   writeClaudeSettings(settings: unknown): ClaudeSettings {
     return this.claudeSettingsStore.write(settings);
+  }
+
+  readCodexSettings(): CodexSettings {
+    return this.codexSettingsStore.read();
+  }
+
+  writeCodexSettings(settings: unknown): CodexSettings {
+    return this.codexSettingsStore.write(settings);
   }
 
   /**

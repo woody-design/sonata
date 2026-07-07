@@ -18,6 +18,7 @@
 import type {
   ClaudeDefaultPermissionMode,
   ClaudePermissionMode,
+  CodexDefaultApprovalMode,
   LaunchSpeedMode,
   ReadingSettings,
   ReasoningEffort,
@@ -108,8 +109,10 @@ export interface Actions {
   closeSettingsOverlay(): void;
   closeSettingsPopupMenus(overlay: SettingsOverlayState): void;
   toggleSettingsApprovalMenu(overlay: SettingsOverlayState): void;
+  toggleSettingsCodexApprovalMenu(overlay: SettingsOverlayState): void;
   toggleSettingsPolicyMenu(overlay: SettingsOverlayState): void;
   persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): void;
+  persistDefaultApprovalMode(mode: CodexDefaultApprovalMode): void;
   persistResumePolicy(policy: ResumePolicyId): void;
   setDefaultRemoteControl(value: boolean): void;
   restoreResumeBridge(): void;

@@ -10,11 +10,13 @@
 import { Check, ChevronDown, X } from "lucide";
 import {
   CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS,
+  CODEX_DEFAULT_APPROVAL_MODE_OPTIONS,
   RESUME_POLICY_IDS,
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
 } from "../../shared/types";
 import {
+  codexApprovalModeLabel,
   formatTokenCount,
   permissionModeLabel,
   resumePolicyLabel,
@@ -63,7 +65,10 @@ export function renderSettingsOverlay(): void {
   dialog.addEventListener("mousedown", (event) => {
     const outsidePopup =
       event.target instanceof Element && !event.target.closest(".settings-popup-wrap");
-    if (outsidePopup && (overlay.policyMenuOpen || overlay.approvalMenuOpen)) {
+    if (
+      outsidePopup &&
+      (overlay.policyMenuOpen || overlay.approvalMenuOpen || overlay.codexApprovalMenuOpen)
+    ) {
       actions.closeSettingsPopupMenus(overlay);
     }
   });
@@ -71,6 +76,7 @@ export function renderSettingsOverlay(): void {
   dialog.append(
     renderSettingsHeader(),
     renderApprovalsSettingsGroup(overlay),
+    renderCodexSettingsGroup(overlay),
     renderRemoteControlSettingsGroup(overlay),
     renderSessionsSettingsGroup(overlay),
     renderClaudeSettingsGroup(overlay),
@@ -228,6 +234,90 @@ function renderDefaultPermissionModePopup(overlay: SettingsOverlayState): HTMLEl
       option.append(check, optionLabel);
       option.addEventListener("click", () => {
         actions.persistDefaultPermissionMode(mode);
+      });
+      menu.append(option);
+    }
+    wrap.append(menu);
+  }
+
+  return wrap;
+}
+
+function renderCodexSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
+  const group = document.createElement("section");
+  group.className = "settings-group";
+  group.setAttribute("aria-label", "Codex");
+
+  const heading = document.createElement("p");
+  heading.className = "settings-group-heading";
+  heading.textContent = "Codex";
+
+  const box = document.createElement("div");
+  box.className = "settings-box";
+
+  const row = document.createElement("div");
+  row.className = "settings-row";
+  const copy = document.createElement("div");
+  copy.className = "settings-row-copy";
+  const title = document.createElement("span");
+  title.className = "settings-row-title";
+  title.textContent = "New Codex sessions start in";
+  copy.append(title);
+  row.append(copy, renderDefaultApprovalModePopup(overlay));
+  box.append(row);
+
+  const footnote = document.createElement("p");
+  footnote.className = "settings-footnote";
+  footnote.textContent =
+    "The default approval policy for new Codex sessions. Ask for everything prompts before almost every command; Approve for me runs everything in the sandbox without asking. You can pick a different policy for any single session from the New Chat access chip.";
+
+  group.append(heading, box, footnote);
+  return group;
+}
+
+function renderDefaultApprovalModePopup(overlay: SettingsOverlayState): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "settings-popup-wrap";
+
+  const button = document.createElement("button");
+  button.className = "settings-popup";
+  button.type = "button";
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", String(overlay.codexApprovalMenuOpen));
+  button.disabled = !overlay.codex;
+  const label = document.createElement("span");
+  label.textContent = overlay.codex
+    ? codexApprovalModeLabel(overlay.codex.settings.defaultApprovalMode)
+    : "Loading…";
+  button.append(label, lucideIcon(ChevronDown, 14));
+  button.addEventListener("click", () => {
+    actions.toggleSettingsCodexApprovalMenu(overlay);
+  });
+  wrap.append(button);
+
+  if (overlay.codexApprovalMenuOpen && overlay.codex) {
+    const menu = document.createElement("div");
+    menu.className = "settings-popup-menu";
+    menu.setAttribute("role", "menu");
+    for (const mode of CODEX_DEFAULT_APPROVAL_MODE_OPTIONS) {
+      const selected = overlay.codex.settings.defaultApprovalMode === mode;
+      const option = document.createElement("button");
+      option.className = "settings-popup-option";
+      option.classList.toggle("selected", selected);
+      option.type = "button";
+      option.setAttribute("role", "menuitemradio");
+      option.setAttribute("aria-checked", String(selected));
+      const check = document.createElement("span");
+      check.className = "settings-popup-option-check";
+      if (selected) {
+        check.append(lucideIcon(Check, 13));
+      }
+      const optionLabel = document.createElement("span");
+      optionLabel.className = "settings-popup-option-label";
+      optionLabel.textContent = codexApprovalModeLabel(mode);
+      option.append(check, optionLabel);
+      option.addEventListener("click", () => {
+        actions.persistDefaultApprovalMode(mode);
       });
       menu.append(option);
     }

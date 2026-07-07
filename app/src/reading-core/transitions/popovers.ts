@@ -97,8 +97,10 @@ export function openSettingsOverlay(state: RendererState): boolean {
   state.settingsOverlay = {
     resume: null,
     claude: null,
+    codex: null,
     policyMenuOpen: false,
     approvalMenuOpen: false,
+    codexApprovalMenuOpen: false,
     bridgeReverting: false,
     bridgeError: false,
   };

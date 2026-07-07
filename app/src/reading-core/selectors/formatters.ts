@@ -9,6 +9,7 @@
  */
 import type {
   ClaudePermissionMode,
+  CodexApprovalMode,
   ReadingModeSetting,
   ReadingThemeId,
   ResumePolicyId,
@@ -210,6 +211,23 @@ export function permissionModeLabel(mode: ClaudePermissionMode): string {
     return "Don't ask";
   }
   return "Ask each time";
+}
+
+/** One vocabulary for every Codex approval surface (the Settings default
+ *  popup; the same phrasing the live-session chip coins in composer.ts).
+ *  Answers "how should Codex actions be approved?" from most prompts to
+ *  fewest, mapping each of Codex's official `-a` values to human copy. */
+export function codexApprovalModeLabel(mode: CodexApprovalMode): string {
+  if (mode === "untrusted") {
+    return "Ask for everything";
+  }
+  if (mode === "on-failure") {
+    return "Ask only on failure";
+  }
+  if (mode === "never") {
+    return "Approve for me";
+  }
+  return "Ask for approval";
 }
 
 /** The New Chat greeting IS the folder state display: it names the project

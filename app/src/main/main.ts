@@ -48,6 +48,7 @@ import { RuntimeController } from "./runtime-controller";
 import { WorkspaceFiles } from "./workspace-files";
 import {
   ClaudeSettingsStore,
+  CodexSettingsStore,
   LocalApiSettingsStore,
   PreviewSessionsStore,
   ReadingSettingsStore,
@@ -55,6 +56,7 @@ import {
   TerminalWindowSettingsStore,
   WindowStateStore,
   claudeSettingsPath,
+  codexSettingsPath,
   localApiSettingsPath,
   previewSessionsPath,
   readingSettingsPath,
@@ -807,6 +809,7 @@ app.whenReady().then(() => {
     projectsStore: new ProjectsStore(projectsStorePath()),
     resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath()),
     claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath()),
+    codexSettingsStore: new CodexSettingsStore(codexSettingsPath()),
     sendEvent: (event) => {
       recordRuntimeEvent(event);
       localApiServer?.broadcastEvent(event);

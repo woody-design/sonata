@@ -15,6 +15,7 @@ import type {
   ClaudeDefaultPermissionMode,
   ClaudePermissionMode,
   ClaudeSettings,
+  CodexSettings,
   DeliveryAttachment,
   DeliveryTaskState,
   LaunchSpeedMode,
@@ -237,10 +238,14 @@ export interface SettingsOverlayState {
   resume: { settings: ResumeSettings; bridgeDismissed: boolean } | null;
   /** Duet-owned Claude launch policy; null while the read is in flight. */
   claude: { settings: ClaudeSettings } | null;
+  /** Duet-owned Codex launch policy; null while the read is in flight. */
+  codex: { settings: CodexSettings } | null;
   /** The resume-policy popup menu is showing. */
   policyMenuOpen: boolean;
   /** The default-permission-mode popup menu is showing. */
   approvalMenuOpen: boolean;
+  /** The default-Codex-approval-mode popup menu is showing. */
+  codexApprovalMenuOpen: boolean;
   /** The bridge restore write is in flight. */
   bridgeReverting: boolean;
   /** The last bridge restore failed (~/.claude.json untouched). */

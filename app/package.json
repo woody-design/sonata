@@ -102,6 +102,8 @@
     "smoke:resume-moment-units": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/resume-moment-units.mjs",
     "smoke:local-api": "npm run build:main && node tests/smoke/local-api.mjs",
     "smoke:claude-permission-default": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-permission-default.mjs",
+    "smoke:codex-approval-default-store": "npm run build:main && node tests/smoke/codex-approval-default-store.mjs",
+    "smoke:codex-approval-injection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-approval-injection.mjs",
     "smoke:claude-config-trust": "npm run build:main && node tests/smoke/claude-config-trust.mjs",
     "smoke:reading-core-purity": "npm run build:main && node tests/smoke/reading-core-purity.mjs",
     "smoke:corpus-lint": "node tests/smoke/corpus-lint.mjs",

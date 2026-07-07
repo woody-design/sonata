@@ -6,6 +6,10 @@ import {
   normalizeClaudeSettings,
 } from "../shared/types/claude-settings";
 import {
+  type CodexSettings,
+  normalizeCodexSettings,
+} from "../shared/types/codex-settings";
+import {
   type LocalApiSettings,
   normalizeLocalApiSettings,
 } from "../shared/types/local-api";
@@ -102,6 +106,16 @@ export class ClaudeSettingsStore extends JsonSettingsStore<ClaudeSettings> {
 
 export function claudeSettingsPath(): string {
   return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "claude-settings.json");
+}
+
+export class CodexSettingsStore extends JsonSettingsStore<CodexSettings> {
+  constructor(filePath: string) {
+    super(filePath, normalizeCodexSettings);
+  }
+}
+
+export function codexSettingsPath(): string {
+  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "codex-settings.json");
 }
 
 export class WindowStateStore extends JsonSettingsStore<WindowStateDocument> {

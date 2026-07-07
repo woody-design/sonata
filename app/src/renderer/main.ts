@@ -8,10 +8,13 @@ import {
 import "./styles.css";
 import {
   normalizeClaudeSettings,
+  normalizeCodexSettings,
   normalizeReadingSettings,
   normalizeResumeSettings,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
+  type CodexDefaultApprovalMode,
+  type CodexSettings,
   type ReadingSettings,
   type ResolvedReadingMode,
   type ResumePolicyId,
@@ -406,10 +409,15 @@ initActions({
   closeSettingsPopupMenus: (overlay) => {
     overlay.policyMenuOpen = false;
     overlay.approvalMenuOpen = false;
+    overlay.codexApprovalMenuOpen = false;
     render();
   },
   toggleSettingsApprovalMenu: (overlay) => {
     overlay.approvalMenuOpen = !overlay.approvalMenuOpen;
+    render();
+  },
+  toggleSettingsCodexApprovalMenu: (overlay) => {
+    overlay.codexApprovalMenuOpen = !overlay.codexApprovalMenuOpen;
     render();
   },
   toggleSettingsPolicyMenu: (overlay) => {
@@ -418,6 +426,9 @@ initActions({
   },
   persistDefaultPermissionMode: (mode) => {
     void persistDefaultPermissionMode(mode);
+  },
+  persistDefaultApprovalMode: (mode) => {
+    void persistDefaultApprovalMode(mode);
   },
   persistResumePolicy: (policy) => {
     void persistResumePolicy(policy);
@@ -962,9 +973,10 @@ function closeSettingsOverlay(): void {
 
 async function refreshSettingsOverlay(): Promise<void> {
   try {
-    const [resumeResponse, claudeResponse] = await Promise.all([
+    const [resumeResponse, claudeResponse, codexResponse] = await Promise.all([
       window.duetRuntime.readResumeSettings(),
       window.duetRuntime.readClaudeSettings(),
+      window.duetRuntime.readCodexSettings(),
     ]);
     if (!state.settingsOverlay) {
       return;
@@ -975,6 +987,9 @@ async function refreshSettingsOverlay(): Promise<void> {
     };
     state.settingsOverlay.claude = {
       settings: normalizeClaudeSettings(claudeResponse),
+    };
+    state.settingsOverlay.codex = {
+      settings: normalizeCodexSettings(codexResponse),
     };
   } catch (error) {
     state.status = errorMessage(error);
@@ -1005,6 +1020,30 @@ async function persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): 
     // the sync the chip wears the stale default until relaunch
     // (external review P2, 2026-07-04).
     state.claudeDefaultPermissionMode = persisted.defaultPermissionMode;
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
+}
+
+async function persistDefaultApprovalMode(mode: CodexDefaultApprovalMode): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.codex) {
+    return;
+  }
+  overlay.codexApprovalMenuOpen = false;
+  if (overlay.codex.settings.defaultApprovalMode === mode) {
+    render();
+    return;
+  }
+  const next: CodexSettings = { ...overlay.codex.settings, defaultApprovalMode: mode };
+  overlay.codex.settings = next;
+  render();
+  try {
+    const persisted = normalizeCodexSettings(await window.duetRuntime.writeCodexSettings(next));
+    if (state.settingsOverlay?.codex) {
+      state.settingsOverlay.codex.settings = persisted;
+    }
   } catch (error) {
     state.status = errorMessage(error);
   }

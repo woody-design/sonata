@@ -9,7 +9,7 @@ export type RuntimeProvider = "codex" | "claude";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type LaunchSpeedMode = "default" | "fast";
 export type CodexSandboxMode = "read-only" | "workspace-write" | "danger-full-access";
-export type CodexApprovalMode = "never" | "on-request";
+export type CodexApprovalMode = "untrusted" | "on-request" | "on-failure" | "never";
 export type CodexPermissionPreset = "askForApproval" | "approveForMe" | "fullAccess";
 export type ClaudePermissionMode =
   | "acceptEdits"

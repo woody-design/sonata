@@ -260,6 +260,10 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.claudeSettingsWrite, (_event, request) =>
     runtimeController.writeClaudeSettings(request),
   );
+  ipcMain.handle(IPC_CHANNELS.codexSettingsRead, () => runtimeController.readCodexSettings());
+  ipcMain.handle(IPC_CHANNELS.codexSettingsWrite, (_event, request) =>
+    runtimeController.writeCodexSettings(request),
+  );
   ipcMain.handle(IPC_CHANNELS.readingSettingsRead, () => readingSettingsStore.read());
   ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) => {
     const persisted = readingSettingsStore.write(request);
