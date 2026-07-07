@@ -269,7 +269,7 @@ function renderCodexSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
   const footnote = document.createElement("p");
   footnote.className = "settings-footnote";
   footnote.textContent =
-    "The default approval policy for new Codex sessions. Ask for everything prompts before almost every command; Approve for me runs everything in the sandbox without asking. You can pick a different policy for any single session from the New Chat access chip.";
+    "The default approval policy for new Codex sessions. Ask for everything prompts before almost every command; Approve for me runs everything in the sandbox without asking.";
 
   group.append(heading, box, footnote);
   return group;
