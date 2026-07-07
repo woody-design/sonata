@@ -91,8 +91,10 @@ export class NotificationPolicy {
         return this.onAsk(event.payload.taskId, askId("option", event.payload.toolUseId), "option-prompt");
       case "cli-hooks:liveness":
         // Hooks not live (codex): the SessionStart handshake never arrived
-        // within the window — a one-time trust ceremony is pending, OR the
-        // spawn degraded hookless. Either way the user must go to the Terminal:
+        // within the window — the hook shim failed to fire (e.g. interpreter not
+        // on PATH), OR the spawn degraded hookless. (D4 overturned: hooks bypass
+        // trust review, so this is no longer a pending trust ceremony.) Either
+        // way the user must go to the Terminal:
         // there is NO card channel for a native approval in this state (S4), so
         // hooks-missing IS a genuine needs-you. Fire-once per task (the id is
         // stable), so a re-emitted `missing` does not re-notify.

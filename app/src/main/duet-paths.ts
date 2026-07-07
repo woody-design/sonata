@@ -49,14 +49,15 @@ export function duetLogsDir(): string {
 
 /**
  * Stable executable-shim home (Codex control plane, S2). The Codex hook
- * profile registers `node <this dir>/codex-*-shim.js` command strings, and
- * Codex trust binds to the EXACT command text — so these paths must be
- * task-invariant AND survive app updates. Rooting them at duetDataRoot()
- * (homedir-stable, per the one-root rule above) is what lets the one-time
- * trust ceremony persist: Duet refreshes the shim FILE bytes freely
- * (trust binds to the command string, not the script contents), but the
- * path never moves. Task binding travels via the DUET_RUNTIME_DIR env var
- * the shims read at runtime, never argv.
+ * profile registers `node <this dir>/codex-*-shim.js` command strings. These
+ * paths are task-invariant and homedir-stable (rooted at duetDataRoot(), per
+ * the one-root rule above) so the hook command hash stays constant — Duet
+ * refreshes the shim FILE bytes freely (the command string, not the script
+ * contents, is what the profile names), and the path never moves. (D4
+ * overturned 2026-07-06: this stability once aimed to persist a trust grant;
+ * codex doesn't persist trust for a profile layer, so Duet bypasses trust —
+ * the stability now only keeps the bypassed hooks byte-identical.) Task binding
+ * travels via the DUET_RUNTIME_DIR env var the shims read at runtime, never argv.
  */
 export function duetBinDir(): string {
   return path.join(duetDataRoot(), "bin");

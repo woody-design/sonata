@@ -90,11 +90,14 @@ export type TaskReadyEvent = BaseRuntimeEvent<
 >;
 
 /**
- * Codex hooks-liveness (control plane S2). Codex silently skips untrusted or
- * misconfigured hooks, so the SessionStart handshake IS the effect-check that
- * Duet's injected hooks are trusted and firing. `missing` = no handshake within
- * the spawn-scaled window (the renderer raises the one-time Terminal
- * trust-ceremony banner); `live` = a late handshake arrived, clear it.
+ * Codex hooks-liveness (control plane S2; D4 overturned 2026-07-06). Duet passes
+ * `--dangerously-bypass-hook-trust` on every codex spawn (trust can't persist
+ * through a profile layer), so hooks should fire on every spawn — the
+ * SessionStart handshake IS the effect-check that they are. `missing` = no
+ * handshake within the spawn-scaled window, i.e. the hook shim FAILED to fire
+ * (e.g. its interpreter isn't on PATH in a non-login launch) — NOT a trust gap;
+ * the renderer raises the "hooks aren't running" banner. `live` = a late
+ * handshake arrived, clear it.
  *
  * Display-only shell chrome: the renderer handles this OUTSIDE the reading-core
  * reducer (a renderer-local banner store), never as a task-view field — hook

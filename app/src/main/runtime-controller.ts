@@ -116,13 +116,13 @@ const RESUME_PANEL_SUPPRESS_ENV: Record<string, string> = {
   CLAUDE_CODE_RESUME_THRESHOLD_MINUTES: "999999999",
   CLAUDE_CODE_RESUME_TOKEN_THRESHOLD: "999999999",
 };
-// Codex hooks-liveness window (S2): how long after spawn we wait for the
-// `SessionStart` handshake before concluding Codex is silently skipping our
-// hooks. Generous enough to clear a slow Codex boot (MCP servers, the `apps`
-// feature) without false-positives; short enough that an untrusted session
-// surfaces the trust-ceremony banner promptly. The trust ceremony itself is a
-// human step that may exceed this — that is the point: the banner appears, and
-// a late handshake clears it.
+// Codex hooks-liveness window (S2; D4 overturned 2026-07-06 — hooks now bypass
+// trust review, so they fire on every spawn): how long after spawn we wait for
+// the `SessionStart` handshake before concluding the hook shim failed to fire
+// (e.g. its interpreter isn't on PATH). Generous enough to clear a slow Codex
+// boot (MCP servers, the `apps` feature) without false-positives; short enough
+// that a genuine hook failure surfaces the "hooks aren't running" banner
+// promptly. A late handshake (slow boot) clears it.
 const CODEX_HOOKS_LIVENESS_WINDOW_MS = 12_000;
 const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
 const REASONING_EFFORTS = new Set<ReasoningEffort>(["low", "medium", "high", "xhigh", "max"]);
@@ -1669,10 +1669,11 @@ export class RuntimeController {
   }
 
   /**
-   * Arm the Codex hooks-liveness check (S2). If no `SessionStart` handshake
-   * arrives within a spawn-scaled window, Codex is silently skipping our hooks
-   * (untrusted or misconfigured) — raise the Terminal trust-ceremony banner.
-   * The timer is unref'd: it must never keep the process alive on its own.
+   * Arm the Codex hooks-liveness check (S2; D4 overturned — hooks bypass trust,
+   * so they fire on every spawn). If no `SessionStart` handshake arrives within
+   * a spawn-scaled window, the hook shim failed to fire (e.g. interpreter not on
+   * PATH) — raise the "hooks aren't running" banner. The timer is unref'd: it
+   * must never keep the process alive on its own.
    */
   private armCodexHooksLiveness(active: ActiveTaskRuntime): void {
     const taskId = active.task.id;

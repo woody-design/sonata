@@ -15,6 +15,15 @@ import {
  * The Codex injection edge (control-plane S2) — the mirror of
  * `cli-signal/claude-runtime-settings.ts` in ROLE, not mechanism.
  *
+ * D4 OVERTURNED (2026-07-06): the "one-time trust ceremony survives every task /
+ * app update" framing below is MOOT. Field use proved codex does NOT persist
+ * hook trust for a `-p duet` PROFILE layer (only User/SessionFlags layers can),
+ * so Duet passes `--dangerously-bypass-hook-trust` on every spawn (in
+ * `codexArgs`). The stable shim path still matters — it keeps the hook COMMAND
+ * HASH constant so the bypassed hooks stay identical — but it no longer persists
+ * a trust grant. Wherever the comments below say "trust ceremony persists," read
+ * "shim stays hash-stable." Research: `spikes/codex-hook-trust-research/`.
+ *
  * Codex GA'd a hook system that clones Claude Code's hook contract
  * field-for-field (verified 2026-07-06, codex-cli 0.142.5), but its injection
  * seam and trust model differ, so this edge is Codex-specific:

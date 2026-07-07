@@ -226,19 +226,28 @@ hook trust to the *exact* command-string text — change the string and that hoo
 is silently untrusted. So all Duet hooks route through **stable shim paths with
 task-invariant args** (`~/.duet/bin/*.js`, path+args frozen, content refreshed
 behind them); per-task binding travels via **environment** (`DUET_RUNTIME_DIR`),
-which hook processes inherit (probe-verified), never via argv. Consequence: trust
-is a one-time onboarding moment that survives app updates. The full frozen hook
-set (5 core events → sink; `PermissionRequest` → broker, `timeout=120`) is
+which hook processes inherit (probe-verified), never via argv. The full frozen
+hook set (5 core events → sink; `PermissionRequest` → broker, `timeout=120`) is
 registered up front; interim behavior is gated by runtime **marker files** the
 shims check (the broker exits 0 immediately — instant native card — until the
 answering marker exists), never by editing a definition. Generating the profile
-is deterministic and **byte-stable** (`smoke:codex-runtime-settings` sha-pins it)
-— the sha the trust ceremony is granted against.
+is deterministic and **byte-stable** (`smoke:codex-runtime-settings` sha-pins it).
 
-**Liveness is the honesty valve.** Misconfigured or untrusted hooks are silently
-skipped, so absence is the only signal — Duet never guesses. The `SessionStart`
-handshake doubles as the liveness check: no handshake within a beat of spawn ⇒ a
-renderer-local banner points the user at the Terminal trust ceremony (a codex
+> **D4 overturned (2026-07-06).** The shim-stability design above was motivated
+> by making a hook-trust grant persist — but field use proved codex does NOT
+> persist hook trust for a `-p duet` PROFILE layer (only User/SessionFlags
+> layers can; compounded by a silent write bug under node-pty). So Duet now
+> passes `--dangerously-bypass-hook-trust` on every codex spawn (codex's
+> documented path for automation that vets its own hooks; it does NOT un-gate
+> untrusted-repo hooks). The stable shim stays (still tidy, keeps the hook
+> command hash constant), but its trust-persistence motivation is moot. Research:
+> `spikes/codex-hook-trust-research/`.
+
+**Liveness is the honesty valve.** With trust bypassed, hooks fire on every
+spawn, so absence is the only failure signal — Duet never guesses. The
+`SessionStart` handshake doubles as the liveness check: no handshake within a
+beat of spawn ⇒ the hook shim failed to fire (e.g. its interpreter isn't on
+PATH), and a renderer-local banner points the user at the Terminal (a codex
 task's 12s window; a late handshake clears it; `pty:exit` retires it). A codex
 spawn whose profile write fails **degrades to a hookless Terminal-driven session**
 (loud log + liveness banner + a needs-you notification) rather than aborting — an
