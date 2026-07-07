@@ -246,6 +246,31 @@ const run = (status, extra = {}) => ({
   );
 }
 
+// 5b) Live-chip switch hints — the display-only chip names each CLI's native
+// switch. Codex has no Shift+Tab permission cycle; its /model covers effort.
+{
+  assert.equal(
+    C.sessionModelSwitchHint("claude"),
+    "Switch models in the terminal — /model",
+    "claude model hint names /model",
+  );
+  assert.equal(
+    C.sessionModelSwitchHint("codex"),
+    "Switch model and effort in the terminal — /model",
+    "codex model hint names /model and calls out effort",
+  );
+  assert.equal(
+    C.sessionPermissionSwitchHint("claude"),
+    "Switch modes in the terminal — Shift+Tab or /permissions",
+    "claude permission hint keeps Shift+Tab",
+  );
+  assert.equal(
+    C.sessionPermissionSwitchHint("codex"),
+    "Switch permissions in the terminal — /permissions",
+    "codex permission hint drops Shift+Tab, names /permissions",
+  );
+}
+
 // 6) Option-prompt receipt builders.
 {
   const q = (header, question, labels) => ({

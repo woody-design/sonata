@@ -97,6 +97,27 @@ export function sessionModelSummaryLabel(view: TaskViewState | null): string | n
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
+/** The live model chip's tooltip: mid-session model/effort switching is a
+ *  terminal action, and each CLI names it its own way. Claude's /model swaps
+ *  the model; Codex's /model ("Select Model and Effort") covers both — the
+ *  chip is display-only either way (contract §2), so the copy points at the
+ *  native command instead of implying an in-composer switch. */
+export function sessionModelSwitchHint(provider: RuntimeProvider): string {
+  return provider === "codex"
+    ? "Switch model and effort in the terminal — /model"
+    : "Switch models in the terminal — /model";
+}
+
+/** The live permission chip's tooltip. Claude cycles modes with Shift+Tab or
+ *  /permissions; Codex has no Shift+Tab cycle — only /permissions ("choose
+ *  what Codex is allowed to do"). Naming Shift+Tab for a Codex session would
+ *  point at an affordance that doesn't exist. */
+export function sessionPermissionSwitchHint(provider: RuntimeProvider): string {
+  return provider === "codex"
+    ? "Switch permissions in the terminal — /permissions"
+    : "Switch modes in the terminal — Shift+Tab or /permissions";
+}
+
 export function sendPromptTitle(
   view: TaskViewState | null,
   activeRun: boolean,

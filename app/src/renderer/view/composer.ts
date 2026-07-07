@@ -26,6 +26,8 @@ import {
   draftModelSummaryLabel,
   sendPromptTitle,
   sessionModelSummaryLabel,
+  sessionModelSwitchHint,
+  sessionPermissionSwitchHint,
 } from "../../reading-core/selectors/composer";
 import { hasActiveRun } from "../../reading-core/selectors/runs";
 import {
@@ -181,15 +183,20 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   } else {
     elements.providerChip.classList.add("hidden");
     elements.composerContextRow.classList.add("hidden");
+    // The live chip is display-only for both CLIs; only the native switch it
+    // names differs (Codex has no Shift+Tab permission cycle, and its /model
+    // covers effort too). Provider is read off the task; when there is no task
+    // the chip is hidden anyway, so the fallback never surfaces.
+    const provider = view.task?.provider ?? "claude";
     renderComposerChip(
       elements.permissionChip,
       composerChipLabel(view, "permission"),
-      "Switch modes in the terminal — Shift+Tab or /permissions",
+      sessionPermissionSwitchHint(provider),
     );
     renderComposerChip(
       elements.modelChip,
       composerChipLabel(view, "model"),
-      "Switch models in the terminal — /model",
+      sessionModelSwitchHint(provider),
     );
   }
   renderUsageIndicator(view);
