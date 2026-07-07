@@ -2491,7 +2491,19 @@ export class RuntimeController {
     const direct = projectRecordRoot(taskId);
     if (fs.existsSync(taskManifestPath(direct))) {
       try {
-        return { storageRoot: direct, manifest: this.readTaskManifest(direct) };
+        const manifest = this.readTaskManifest(direct);
+        // Trust the direct path only when the record it holds is actually
+        // THIS task's. projectRecordRoot is a bare path.join, so a crafted or
+        // stale taskId can land on a different task's record dir; without this
+        // guard that mismatched record would be returned as "persisted" — a
+        // wrong answer for every caller (a bogus dormant snapshot, a rename or
+        // archive against the wrong task, a delete of the wrong record dir, and
+        // -32002 taskNotLive where -32001 taskNotFound is correct). On mismatch,
+        // fall through to the id-matched candidates scan exactly like an
+        // unreadable manifest does.
+        if (manifest.task.id === taskId) {
+          return { storageRoot: direct, manifest };
+        }
       } catch {
         // Fall through to the scan for unreadable direct manifests.
       }

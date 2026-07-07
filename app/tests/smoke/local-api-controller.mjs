@@ -107,6 +107,32 @@ try {
     ghostError?.message === "No runtime task matches the requested taskId.",
     "unknown-task message is unchanged",
   );
+
+  // 3. A crafted taskId whose direct path RESOLVES onto a DIFFERENT task's
+  //    record dir (projectRecordRoot is a bare path.join) but whose id is not
+  //    that record's id. persistedSessionRecord must NOT accept the mismatched
+  //    direct record — the id-equality guard falls through to the id-matched
+  //    candidates scan, which finds nothing → TaskNotFoundError (-32001), never
+  //    a false taskNotLive (-32002).
+  const collidingId = `foo/../${dormantId}`; // path-joins to dormant-1's dir
+  assert(
+    projectRecordRoot(collidingId) === projectRecordRoot(dormantId),
+    "crafted id genuinely resolves onto the real record dir (guard is exercised)",
+  );
+  const collisionError = caught(() => controller.submitPrompt(collidingId, "impersonate"));
+  assert(
+    collisionError instanceof TaskNotLiveError === false &&
+      collisionError instanceof TaskNotFoundError,
+    "a mismatched direct record is NOT taskNotLive — it is taskNotFound",
+  );
+
+  // 4. A plain traversal-shaped id pointing at nothing → TaskNotFoundError too.
+  const traversalError = caught(() => controller.submitPrompt("../ghost-xyz", "escape"));
+  assert(
+    traversalError instanceof TaskNotLiveError === false &&
+      traversalError instanceof TaskNotFoundError,
+    "a traversal-shaped nonexistent id is taskNotFound, not taskNotLive",
+  );
 } finally {
   controller.dispose();
   fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 5 });
