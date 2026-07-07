@@ -14,6 +14,7 @@ import { USAGE_CONTEXT_HIGH_USED_PERCENT } from "../../reading-core/config";
 import {
   compactTokenCount,
   fileExtension,
+  codexApprovalModeLabel,
   folderName,
   formatRelativeUsageTime,
   formatUsagePercent,
@@ -539,10 +540,10 @@ function sessionPermissionLabel(task: Task | null): string | null {
   if (task.sandbox === "danger-full-access") {
     return "Full Access";
   }
-  if (task.approval === "never") {
-    return "Approve for me";
-  }
-  return "Ask for approval";
+  // One vocabulary with the Settings "Codex" popup — cover all four official
+  // approval values (Slice A widened the enum; this is the shared label).
+  // Null approval mirrors Claude's null permissionMode → no chip label.
+  return task.approval ? codexApprovalModeLabel(task.approval) : null;
 }
 
 function sendButtonLabel(activeRun: boolean): string {
