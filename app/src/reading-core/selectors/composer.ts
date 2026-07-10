@@ -70,7 +70,7 @@ export function draftModelSummaryLabel(draft: TaskLaunchDraft): string {
   const provider = draft.provider;
   const parts = [
     modelValueLabel(provider, draft.model[provider]) ?? "Default",
-    reasoningValueLabel(draft.reasoningEffort[provider]) ?? "Default",
+    reasoningValueLabel(provider, draft.reasoningEffort[provider]) ?? "Default",
   ];
   if (provider === "codex" && draft.speedMode.codex === "fast") {
     parts.push("Fast");
@@ -91,8 +91,8 @@ export function sessionModelSummaryLabel(view: TaskViewState | null): string | n
   const live = view?.usageSnapshot ?? null;
   const model = live?.modelDisplayName ?? modelValueLabel(task.provider, task.model);
   const effortValue = (live?.reasoningEffort ?? task.reasoningEffort) as ReasoningEffort | null;
-  const parts = [model, reasoningValueLabel(effortValue)].filter((part): part is string =>
-    Boolean(part),
+  const parts = [model, reasoningValueLabel(task.provider, effortValue)].filter(
+    (part): part is string => Boolean(part),
   );
   return parts.length > 0 ? parts.join(" ") : null;
 }

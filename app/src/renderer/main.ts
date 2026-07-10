@@ -32,6 +32,7 @@ import {
   providerLabel,
 } from "../reading-core/selectors/formatters";
 import { filteredSlashItems } from "../reading-core/selectors/composer";
+import { reasoningOptionsForModel } from "../reading-core/config";
 import {
   dormantArmed,
   hasActiveRun,
@@ -285,6 +286,15 @@ initActions({
   },
   setDraftModel: (provider, value) => {
     state.taskDraft.model[provider] = value;
+    const reasoningEffort = state.taskDraft.reasoningEffort[provider];
+    const effortStillSupported = reasoningOptionsForModel(provider, value).some(
+      (option) => option.value === reasoningEffort,
+    );
+    if (!effortStillSupported) {
+      // Ultra is the only current model-specific option. Extra High is the
+      // nearest universally supported level, preserving the user's intent.
+      state.taskDraft.reasoningEffort[provider] = "xhigh";
+    }
     render();
   },
   setCodexSpeedMode: (value) => {

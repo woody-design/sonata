@@ -7,8 +7,8 @@ const codexFast = codexArgs({
   cwd: "/tmp/duet launch settings",
   sandbox: "read-only",
   approval: "on-request",
-  model: "gpt-5.5",
-  reasoningEffort: "xhigh",
+  model: "gpt-5.6-sol",
+  reasoningEffort: "ultra",
   speedMode: "fast",
 });
 const codexDefaultSpeed = codexArgs({
@@ -43,8 +43,8 @@ const claudeWithSettings = claudeArgs({
 });
 
 const success =
-  includesSequence(codexFast, ["-m", "gpt-5.5"]) &&
-  includesSequence(codexFast, ["-c", 'model_reasoning_effort="xhigh"']) &&
+  includesSequence(codexFast, ["-m", "gpt-5.6-sol"]) &&
+  includesSequence(codexFast, ["-c", 'model_reasoning_effort="ultra"']) &&
   includesSequence(codexFast, ["-c", 'service_tier="priority"']) &&
   includesSequence(codexFast, ["-C", "/tmp/duet launch settings"]) &&
   includesSequence(codexFast, ["-s", "read-only"]) &&

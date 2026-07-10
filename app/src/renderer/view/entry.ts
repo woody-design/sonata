@@ -21,8 +21,8 @@ import type {
 import { CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS } from "../../shared/types";
 import {
   MODEL_OPTIONS,
-  REASONING_OPTIONS,
   SPEED_OPTIONS,
+  reasoningOptionsForModel,
 } from "../../reading-core/config";
 import {
   newChatGreeting,
@@ -98,9 +98,14 @@ function renderLaunchSettingsPopover(provider: RuntimeProvider): HTMLElement {
   const popover = draftMenuShell(340, "Model and reasoning");
 
   popover.append(
-    renderSettingSection("Reasoning", REASONING_OPTIONS[provider], state.taskDraft.reasoningEffort[provider], (value) => {
-      actions.setDraftReasoningEffort(provider, value as ReasoningEffort | null);
-    }),
+    renderSettingSection(
+      "Reasoning",
+      reasoningOptionsForModel(provider, state.taskDraft.model[provider]),
+      state.taskDraft.reasoningEffort[provider],
+      (value) => {
+        actions.setDraftReasoningEffort(provider, value as ReasoningEffort | null);
+      },
+    ),
     renderSettingSection("Model", MODEL_OPTIONS[provider], state.taskDraft.model[provider], (value) => {
       actions.setDraftModel(provider, value);
     }),

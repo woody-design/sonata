@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 // Assertions pin MEASURED behavior (A1 lesson).
 const require = createRequire(import.meta.url);
 const C = require("../../dist/reading-core/selectors/composer");
+const CFG = require("../../dist/reading-core/config");
 const R = require("../../dist/reading-core/selectors/runs");
 
 const entry = (name, extra = {}) => ({
@@ -208,6 +209,57 @@ const run = (status, extra = {}) => ({
 
 // 5) sessionModelSummaryLabel — live statusline wins; spawn settings fallback.
 {
+  assert.deepEqual(
+    CFG.MODEL_OPTIONS.codex.map(({ label, value }) => ({ label, value })),
+    [
+      { label: "5.6 Sol", value: "gpt-5.6-sol" },
+      { label: "5.6 Terra", value: "gpt-5.6-terra" },
+      { label: "5.6 Luna", value: "gpt-5.6-luna" },
+      { label: "5.5", value: "gpt-5.5" },
+      { label: "5.4", value: "gpt-5.4" },
+      { label: "5.4 Mini", value: "gpt-5.4-mini" },
+      { label: "5.3 Codex Spark", value: "gpt-5.3-codex-spark" },
+      { label: "Native Default", value: null },
+    ],
+    "codex model list follows the current native order and slugs",
+  );
+  assert.deepEqual(
+    CFG.MODEL_OPTIONS.claude.map(({ label, value }) => ({ label, value })),
+    [
+      { label: "Fable 5", value: "fable" },
+      { label: "Opus 4.8", value: "opus" },
+      { label: "Sonnet 5", value: "sonnet" },
+      { label: "Haiku 4.5", value: "haiku" },
+      { label: "Native Default", value: null },
+    ],
+    "claude model list follows the current native order while retaining stable aliases",
+  );
+  assert.deepEqual(
+    CFG.reasoningOptionsForModel("codex", "gpt-5.6-sol").map(({ label, value }) => ({
+      label,
+      value,
+    })),
+    [
+      { label: "Light", value: "low" },
+      { label: "Medium", value: "medium" },
+      { label: "High", value: "high" },
+      { label: "Extra High", value: "xhigh" },
+      { label: "Ultra", value: "ultra" },
+      { label: "Native Default", value: null },
+    ],
+    "Sol exposes Ultra and the Codex-app Light label",
+  );
+  assert.equal(
+    CFG.reasoningOptionsForModel("codex", "gpt-5.6-luna").some(
+      ({ value }) => value === "ultra",
+    ),
+    false,
+    "Luna does not expose an unsupported Ultra launch combination",
+  );
+  assert.equal(CFG.reasoningValueLabel("codex", "low"), "Light", "Codex low label");
+  assert.equal(CFG.reasoningValueLabel("claude", "low"), "Low", "Claude low label");
+  assert.equal(CFG.SPEED_OPTIONS[0].label, "Standard", "default speed label follows Codex");
+
   assert.equal(C.sessionModelSummaryLabel(null), null, "no view");
   assert.equal(C.sessionModelSummaryLabel(view({ task: null })), null, "no task");
   assert.equal(
@@ -225,7 +277,14 @@ const run = (status, extra = {}) => ({
       view({ task: task({ provider: "codex", model: "gpt-5.4-mini", reasoningEffort: "max" }) }),
     ),
     "5.4 Mini Max",
-    "codex short label; unknown effort value passes through the claude table",
+    "codex short label; a known value outside the current picker still has a friendly label",
+  );
+  assert.equal(
+    C.sessionModelSummaryLabel(
+      view({ task: task({ provider: "codex", model: "gpt-5.6-sol", reasoningEffort: "ultra" }) }),
+    ),
+    "5.6 Sol Ultra",
+    "new Codex model and Ultra labels",
   );
   assert.equal(
     C.sessionModelSummaryLabel(

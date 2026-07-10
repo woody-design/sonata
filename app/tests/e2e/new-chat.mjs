@@ -116,14 +116,14 @@ try {
     Boolean(dormantPlaceholder?.includes("resumes this session")) &&
     createdManifest.schemaId === "duet.task-manifest.v1" &&
     createdManifest.task.provider === "codex" &&
-    createdManifest.task.model === "gpt-5.5" &&
+    createdManifest.task.model === "gpt-5.6-sol" &&
     createdManifest.task.reasoningEffort === "xhigh" &&
     createdManifest.task.speedMode === "fast" &&
     createdManifest.task.sandbox === "read-only" &&
     createdManifest.task.approval === "on-request" &&
     createdManifest.task.providerCwd === selectedFolder &&
     createdManifest.task.title === firstPrompt &&
-    createdReport?.runtime?.model === "gpt-5.5" &&
+    createdReport?.runtime?.model === "gpt-5.6-sol" &&
     createdReport?.runtime?.speedMode === "fast" &&
     !selectedFolderManifestExists &&
     projectsFile.lastUsedFolder === selectedFolder;

@@ -350,7 +350,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
       menu: null,
       message: null,
       model: {
-        codex: "gpt-5.5",
+        codex: "gpt-5.6-sol",
         claude: "opus",
       },
       reasoningEffort: {

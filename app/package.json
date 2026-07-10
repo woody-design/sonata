@@ -28,6 +28,7 @@
     "e2e:transcript-chips": "npm run build && node tests/e2e/transcript-chips.mjs",
     "e2e:transcript-chips-screenshots": "npm run build && node tests/e2e/transcript-chips-screenshots.mjs",
     "e2e:new-chat": "npm run build && node tests/e2e/new-chat.mjs",
+    "e2e:model-settings-options": "npm run build && node tests/e2e/model-settings-options.mjs",
     "e2e:queue-delivery": "npm run build && node tests/e2e/queue-delivery.mjs",
     "e2e:composer-ime": "npm run build && node tests/e2e/composer-ime.mjs",
     "e2e:task-folder-cwd": "npm run build && node tests/e2e/task-folder-cwd.mjs",

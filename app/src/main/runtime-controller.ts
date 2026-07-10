@@ -125,7 +125,14 @@ const RESUME_PANEL_SUPPRESS_ENV: Record<string, string> = {
 // promptly. A late handshake (slow boot) clears it.
 const CODEX_HOOKS_LIVENESS_WINDOW_MS = 12_000;
 const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
-const REASONING_EFFORTS = new Set<ReasoningEffort>(["low", "medium", "high", "xhigh", "max"]);
+const REASONING_EFFORTS = new Set<ReasoningEffort>([
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+]);
 const CODEX_SANDBOX_MODES = new Set<CodexSandboxMode>([
   "read-only",
   "workspace-write",

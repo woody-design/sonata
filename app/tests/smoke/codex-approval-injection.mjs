@@ -1,12 +1,13 @@
-// Layer-1 smoke — the Codex approval default reaches the SPAWN ARGV.
+// Layer-1 smoke — Codex launch settings reach the SPAWN ARGV.
 //
 // Proves the createTask injection end-to-end: a fresh Codex task with NO
 // explicit approval inherits the stored Codex default (Settings → Codex) and
 // that value reaches the `-a <value>` spawn argument; an explicit per-request
-// approval still overrides the stored default. Drives the REAL RuntimeController
-// (not a copy of its logic) against a fake `codex` on PATH, so it needs neither
-// a real Codex install nor the network — the argv is captured synchronously at
-// spawn, before the child does anything.
+// approval still overrides the stored default. It also pins the newest model
+// and Ultra effort through request normalization into both task state and argv.
+// Drives the REAL RuntimeController (not a copy of its logic) against a fake
+// `codex` on PATH, so it needs neither a real Codex install nor the network —
+// the argv is captured synchronously at spawn, before the child does anything.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -69,6 +70,7 @@ function includesSequence(values, sequence) {
 
 let inheritedArgs = [];
 let overrideArgs = [];
+let ultraArgs = [];
 try {
   // 1. No explicit approval → inherits the stored default ("on-failure").
   const inherited = controller.createTask({ provider: "codex", cwd: workspace });
@@ -99,11 +101,30 @@ try {
     !includesSequence(overrideArgs, ["-a", "on-failure"]),
     "override argv does NOT carry the stored default",
   );
+
+  // 3. The GPT-5.6 model and Ultra effort survive controller normalization.
+  const ultra = controller.createTask({
+    provider: "codex",
+    cwd: workspace,
+    model: "gpt-5.6-sol",
+    reasoningEffort: "ultra",
+  });
+  ultraArgs = ultra.runtime.args;
+  assert(ultra.task.model === "gpt-5.6-sol", "GPT-5.6 Sol survives normalization");
+  assert(ultra.task.reasoningEffort === "ultra", "Ultra survives normalization");
+  assert(
+    includesSequence(ultraArgs, ["-m", "gpt-5.6-sol"]),
+    "GPT-5.6 Sol reaches spawn argv",
+  );
+  assert(
+    includesSequence(ultraArgs, ["-c", 'model_reasoning_effort="ultra"']),
+    "Ultra reaches spawn argv",
+  );
 } finally {
   controller.dispose();
   fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 5 });
 }
 
 const success = failures.length === 0;
-console.log(JSON.stringify({ success, failures, inheritedArgs, overrideArgs }, null, 2));
+console.log(JSON.stringify({ success, failures, inheritedArgs, overrideArgs, ultraArgs }, null, 2));
 process.exitCode = success ? 0 : 1;
