@@ -12,9 +12,11 @@ import { createSidebarFixture } from "./helpers/sidebar-fixture.mjs";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "../../..");
 const appRoot = path.join(repoRoot, "app");
+// Output defaults to a throwaway directory; the committed evidence tree
+// (product-thinking/sidebar-refactor-evidence/) is historical and must not
+// churn on verification runs — publishing there is an explicit argv[2] act.
 const outputDir = path.resolve(
-  process.argv[2] ??
-    path.join(repoRoot, "product-thinking", "sidebar-refactor-evidence", "slice-5-rename"),
+  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-rename-out-")),
 );
 const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-rename-"));
 const viewport = { width: 1280, height: 800 };

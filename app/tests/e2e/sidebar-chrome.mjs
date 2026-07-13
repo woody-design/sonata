@@ -28,9 +28,11 @@ const beforeManifest = JSON.parse(
     "utf8",
   ),
 );
+// Output defaults to a throwaway directory; the committed evidence tree
+// (product-thinking/sidebar-refactor-evidence/) is historical and must not
+// churn on verification runs — publishing there is an explicit argv[2] act.
 const outputDir = path.resolve(
-  process.argv[2] ??
-    path.join(repoRoot, "product-thinking", "sidebar-refactor-evidence", "slice-1-visual"),
+  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-chrome-out-")),
 );
 const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-chrome-evidence-"));
 const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-chrome-codex-home-"));
