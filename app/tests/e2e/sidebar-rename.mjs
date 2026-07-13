@@ -936,7 +936,9 @@ async function openHeaderSessionRename(page) {
 
 async function openProjectRename(page, name) {
   const project = projectByName(page, name);
-  await project.locator(".sidebar-project-header .sidebar-row-actions button").first().click({ force: true });
+  const header = project.locator(".sidebar-project-header");
+  await header.hover();
+  await header.locator(".sidebar-row-actions button").first().click();
   await page.locator("#sidebar-menu-root").getByRole("menuitem", { name: "Rename project" }).click();
   await renameInput(page, "sidebar").waitFor({ state: "visible" });
 }

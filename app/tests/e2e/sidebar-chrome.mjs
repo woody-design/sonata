@@ -148,7 +148,7 @@ try {
       for (const textStep of textSteps) {
         const label = `${theme}/${mode}/${textStep}`;
         await setReadingSettingsViaUi(page, { theme, mode, textStep });
-        await liveRow.scrollIntoViewIfNeeded();
+        await scrollSessionRowIntoView(page, liveTaskId);
         const snapshot = await collectChromeSnapshot(page, liveTaskId);
         assertChromeSnapshot(snapshot, expectedByMode[mode], label);
         const liveness = await assertProductionSpinnerLiveness(
@@ -159,7 +159,7 @@ try {
           label,
         );
         results.push({ theme, mode, textStep, snapshot, liveness });
-        await liveRow.scrollIntoViewIfNeeded();
+        await scrollSessionRowIntoView(page, liveTaskId);
         await settleFrames(page);
         await page.locator(".sidebar").screenshot({
           path: path.join(stagingDir, `${theme}-${mode}-${textStep}-sidebar.png`),
@@ -960,6 +960,27 @@ async function settleFrames(page) {
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
+}
+
+async function scrollSessionRowIntoView(page, taskId) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      // Settings and runtime events can legitimately reconcile the Sidebar
+      // between locator resolution and the browser's scroll action. Resolve by
+      // semantic identity on every attempt; never reuse an ElementHandle.
+      await page
+        .locator(`.sidebar-session[data-task-id="${taskId}"]`)
+        .scrollIntoViewIfNeeded();
+      return;
+    } catch (error) {
+      const detached =
+        error instanceof Error && /not attached|detached from the DOM/i.test(error.message);
+      if (!detached || attempt === 2) {
+        throw error;
+      }
+      await settleFrames(page);
+    }
+  }
 }
 
 function publishEvidence({ metadata }) {
