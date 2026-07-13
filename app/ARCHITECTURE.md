@@ -46,7 +46,10 @@ src/renderer/               DOM SHELL
   render.ts                 paint orchestrator: render(), transcript stream,
                             performDirective
   scheduler.ts              every debounce/interval (T-numbered, see below)
-  flows/                    async orchestrations (create/submit/resume/approve…)
+  flows/                    async orchestrations (create/submit/resume/approve/
+                            rename…) — shell-bound; the pure single-flight
+                            rename lifecycle stays in reading-core/rename-flow.ts
+                            (rename-flows.ts is its shell-bound controller)
   view/                     one module per surface family; imperative DOM
 ```
 
@@ -162,8 +165,8 @@ T7 1200 ms copy-reset (chrome) · T8 resizer rAF (main.ts wiring) · T9–T11
 menu/rename rAFs (sidebar) · T12 post-render scroll microtask (flows) ·
 T13 300 ms rename progress reveal (rename-editor) · T14/T15 rename-editor Tab
 focusin-cleanup timeout-0 / initial-focus rAF · T16 rename pointer-boundary
-timeout-0 (main.ts) · G1 slash-cache TTL · G2 IME 80 ms composition guard
-(main.ts).
+timeout-0 (flows/rename-flows) · G1 slash-cache TTL · G2 IME 80 ms composition
+guard (main.ts).
 
 ## Boot order (load-bearing)
 
