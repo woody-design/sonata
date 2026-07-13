@@ -8,8 +8,19 @@
  * shell); "now" is a default-param clock (call sites keep today's behavior,
  * fixtures pass explicit values).
  */
-import type { SessionIndexResponse, SessionSummary } from "../../shared/types";
-import { SIDEBAR_PREFS_DEFAULTS, type SidebarPrefs } from "../state";
+import type {
+  ProjectGroup,
+  SessionIndexResponse,
+  SessionSummary,
+} from "../../shared/types";
+import {
+  SIDEBAR_DISCLOSURE_INCREMENT,
+  SIDEBAR_INITIAL_VISIBLE_COUNT,
+  SIDEBAR_PREFS_DEFAULTS,
+  type SidebarDisclosureGroupKey,
+  type SidebarDisclosureState,
+  type SidebarPrefs,
+} from "../state";
 
 /** Anything departs from the default setup — drives the filter button's
  *  persistent "your view is shaped" accent. */
@@ -39,6 +50,53 @@ export interface SidebarEntry {
   projectPath: string | null;
   projectName: string | null;
   projectArchived: boolean;
+}
+
+export interface SidebarDisclosureMetrics {
+  totalCount: number;
+  visibleLimit: number;
+  effectiveVisibleCount: number;
+  nextIncrementCount: number;
+  canShowMore: boolean;
+  isEffectivelyExpanded: boolean;
+}
+
+export interface SidebarDisclosureSessionGroup {
+  key: SidebarDisclosureGroupKey;
+  label: string;
+  entries: SidebarEntry[];
+  visibleEntries: SidebarEntry[];
+  disclosure: SidebarDisclosureMetrics;
+}
+
+export type SidebarDisclosureProject = Omit<ProjectGroup, "sessions">;
+
+export interface SidebarDisclosureProjectGroup extends SidebarDisclosureSessionGroup {
+  /** Metadata only. All renderable sessions must come through visibleEntries. */
+  project: SidebarDisclosureProject;
+}
+
+export type SidebarDisclosureMode = "project" | "date" | "flat" | "focused";
+
+export interface SidebarOuterDisclosure {
+  projectVisibility: SidebarDisclosureMetrics;
+  eligibleProjectCount: number;
+  showLess: boolean;
+  showMore: boolean;
+}
+
+/** Complete pure projection consumed by the renderer in Slice 3. `entries`
+ *  has already passed filter + within-group sorting. Project groups remain in
+ *  the index's canonical order; only their session prefixes are disclosed. */
+export interface SidebarDisclosureModel {
+  mode: SidebarDisclosureMode;
+  entries: SidebarEntry[];
+  projectGroups: SidebarDisclosureProjectGroup[];
+  visibleProjectGroups: SidebarDisclosureProjectGroup[];
+  /** Chats for project mode; Date buckets or the single flat/focused group for
+   *  the other modes. Empty groups are omitted. */
+  sessionGroups: SidebarDisclosureSessionGroup[];
+  outer: SidebarOuterDisclosure;
 }
 
 export function sidebarEntries(index: SessionIndexResponse): SidebarEntry[] {
@@ -105,19 +163,33 @@ export function applySidebarPrefs(
   return filtered;
 }
 
+export interface SidebarDateBucket {
+  key: Extract<SidebarDisclosureGroupKey, `date:${string}`>;
+  label: string;
+  entries: SidebarEntry[];
+}
+
+const SIDEBAR_DATE_BUCKETS: ReadonlyArray<
+  Pick<SidebarDateBucket, "key" | "label">
+> = [
+  { key: "date:today", label: "Today" },
+  { key: "date:yesterday", label: "Yesterday" },
+  { key: "date:this-week", label: "This week" },
+  { key: "date:older", label: "Older" },
+];
+
 /** The date-group partition (groupBy: "date"). Buckets are returned in fixed
- *  chronological order; empty buckets are the render side's to skip. Bucket
- *  edges are local-midnight-based, matching the sidebar's human day sense. */
+ *  chronological order with stable semantic keys; empty buckets are the
+ *  render side's to skip. Bucket edges are local-midnight-based, matching the
+ *  sidebar's human day sense. */
 export function sidebarDateBuckets(
   entries: SidebarEntry[],
   nowMs = Date.now(),
-): Array<{ label: string; entries: SidebarEntry[] }> {
-  const buckets: Array<{ label: string; entries: SidebarEntry[] }> = [
-    { label: "Today", entries: [] },
-    { label: "Yesterday", entries: [] },
-    { label: "This week", entries: [] },
-    { label: "Older", entries: [] },
-  ];
+): SidebarDateBucket[] {
+  const buckets: SidebarDateBucket[] = SIDEBAR_DATE_BUCKETS.map((bucket) => ({
+    ...bucket,
+    entries: [],
+  }));
   const startOfToday = new Date(nowMs);
   startOfToday.setHours(0, 0, 0, 0);
   const todayMs = startOfToday.getTime();
@@ -129,4 +201,191 @@ export function sidebarDateBuckets(
     buckets[bucket]?.entries.push(entry);
   }
   return buckets;
+}
+
+export function projectDisclosureGroupKey(path: string): SidebarDisclosureGroupKey {
+  return `project:${path}`;
+}
+
+export function focusedDisclosureGroupKey(path: string): SidebarDisclosureGroupKey {
+  return `focused:${path}`;
+}
+
+/** Exact 5/+10 arithmetic shared by group and outer-project disclosure. */
+export function sidebarDisclosureMetrics(
+  totalCount: number,
+  visibleLimit = SIDEBAR_INITIAL_VISIBLE_COUNT,
+): SidebarDisclosureMetrics {
+  if (!Number.isInteger(totalCount) || totalCount < 0) {
+    throw new RangeError("Sidebar disclosure totalCount must be a non-negative integer");
+  }
+  if (!Number.isInteger(visibleLimit) || visibleLimit < SIDEBAR_INITIAL_VISIBLE_COUNT) {
+    throw new RangeError(
+      `Sidebar disclosure visibleLimit must be an integer >= ${SIDEBAR_INITIAL_VISIBLE_COUNT}`,
+    );
+  }
+  const effectiveVisibleCount = Math.min(visibleLimit, totalCount);
+  const remaining = totalCount - effectiveVisibleCount;
+  return {
+    totalCount,
+    visibleLimit,
+    effectiveVisibleCount,
+    nextIncrementCount: Math.min(SIDEBAR_DISCLOSURE_INCREMENT, remaining),
+    canShowMore: remaining > 0,
+    isEffectivelyExpanded: effectiveVisibleCount > SIDEBAR_INITIAL_VISIBLE_COUNT,
+  };
+}
+
+export function sidebarGroupDisclosureMetrics(
+  disclosure: SidebarDisclosureState,
+  key: SidebarDisclosureGroupKey,
+  totalCount: number,
+): SidebarDisclosureMetrics {
+  return sidebarDisclosureMetrics(
+    totalCount,
+    disclosure.groupVisibleLimits.get(key) ?? SIDEBAR_INITIAL_VISIBLE_COUNT,
+  );
+}
+
+/** One source of truth for filter → within-group sort → canonical grouping →
+ *  disclosure. The renderer receives already-keyed prefixes and cannot grow a
+ *  second limit state machine from rendered child counts. */
+export function sidebarDisclosureModel(
+  index: SessionIndexResponse,
+  prefs: SidebarPrefs,
+  disclosure: SidebarDisclosureState,
+  now = Date.now(),
+): SidebarDisclosureModel {
+  const entries = applySidebarPrefs(sidebarEntries(index), prefs, now);
+
+  if (prefs.project !== null) {
+    const project = index.projects.find((candidate) => candidate.path === prefs.project);
+    const group = disclosureSessionGroup(
+      focusedDisclosureGroupKey(prefs.project),
+      project?.name ?? "Sessions",
+      entries,
+      disclosure,
+    );
+    return disclosureModelWithoutProjects("focused", entries, group, disclosure);
+  }
+
+  if (prefs.groupBy === "none") {
+    const group = disclosureSessionGroup("flat", "Sessions", entries, disclosure);
+    return disclosureModelWithoutProjects("flat", entries, group, disclosure);
+  }
+
+  if (prefs.groupBy === "date") {
+    const groups = sidebarDateBuckets(entries, now)
+      .filter((bucket) => bucket.entries.length > 0)
+      .map((bucket) =>
+        disclosureSessionGroup(bucket.key, bucket.label, bucket.entries, disclosure),
+      );
+    return disclosureModelWithoutProjects("date", entries, groups, disclosure);
+  }
+
+  const entriesByProject = new Map<string, SidebarEntry[]>();
+  const chats: SidebarEntry[] = [];
+  for (const entry of entries) {
+    if (entry.projectPath === null) {
+      chats.push(entry);
+      continue;
+    }
+    const group = entriesByProject.get(entry.projectPath);
+    if (group) {
+      group.push(entry);
+    } else {
+      entriesByProject.set(entry.projectPath, [entry]);
+    }
+  }
+
+  const projectGroups: SidebarDisclosureProjectGroup[] = [];
+  for (const project of index.projects) {
+    const projectEntries = entriesByProject.get(project.path) ?? [];
+    if (projectEntries.length === 0) {
+      continue;
+    }
+    projectGroups.push({
+      ...disclosureSessionGroup(
+        projectDisclosureGroupKey(project.path),
+        project.name,
+        projectEntries,
+        disclosure,
+      ),
+      project: {
+        path: project.path,
+        name: project.name,
+        archived: project.archived,
+        lastActivityAt: project.lastActivityAt,
+      },
+    });
+  }
+
+  const sessionGroups =
+    chats.length > 0
+      ? [disclosureSessionGroup("chats", "Chats", chats, disclosure)]
+      : [];
+  const projectVisibility = sidebarDisclosureMetrics(
+    projectGroups.length,
+    disclosure.visibleProjectLimit,
+  );
+  const anyGroupExpanded = [...projectGroups, ...sessionGroups].some(
+    (group) => group.disclosure.isEffectivelyExpanded,
+  );
+  return {
+    mode: "project",
+    entries,
+    projectGroups,
+    visibleProjectGroups: projectGroups.slice(0, projectVisibility.effectiveVisibleCount),
+    sessionGroups,
+    outer: {
+      projectVisibility,
+      eligibleProjectCount: projectGroups.length,
+      showLess: projectVisibility.isEffectivelyExpanded || anyGroupExpanded,
+      showMore: projectVisibility.canShowMore,
+    },
+  };
+}
+
+function disclosureSessionGroup(
+  key: SidebarDisclosureGroupKey,
+  label: string,
+  entries: SidebarEntry[],
+  disclosure: SidebarDisclosureState,
+): SidebarDisclosureSessionGroup {
+  const metrics = sidebarGroupDisclosureMetrics(disclosure, key, entries.length);
+  return {
+    key,
+    label,
+    entries,
+    visibleEntries: entries.slice(0, metrics.effectiveVisibleCount),
+    disclosure: metrics,
+  };
+}
+
+function disclosureModelWithoutProjects(
+  mode: Exclude<SidebarDisclosureMode, "project">,
+  entries: SidebarEntry[],
+  groups: SidebarDisclosureSessionGroup | SidebarDisclosureSessionGroup[],
+  disclosure: SidebarDisclosureState,
+): SidebarDisclosureModel {
+  const sessionGroups = (Array.isArray(groups) ? groups : [groups]).filter(
+    (group) => group.entries.length > 0,
+  );
+  const projectVisibility = sidebarDisclosureMetrics(
+    0,
+    disclosure.visibleProjectLimit,
+  );
+  return {
+    mode,
+    entries,
+    projectGroups: [],
+    visibleProjectGroups: [],
+    sessionGroups,
+    outer: {
+      projectVisibility,
+      eligibleProjectCount: 0,
+      showLess: sessionGroups.some((group) => group.disclosure.isEffectivelyExpanded),
+      showMore: false,
+    },
+  };
 }

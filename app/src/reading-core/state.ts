@@ -171,6 +171,27 @@ export const SIDEBAR_PREFS_DEFAULTS: SidebarPrefs = {
   sortBy: "recency",
 };
 
+export const SIDEBAR_INITIAL_VISIBLE_COUNT = 5;
+export const SIDEBAR_DISCLOSURE_INCREMENT = 10;
+
+export type SidebarDisclosureGroupKey =
+  | `project:${string}`
+  | "chats"
+  | "date:today"
+  | "date:yesterday"
+  | "date:this-week"
+  | "date:older"
+  | "flat"
+  | `focused:${string}`;
+
+/** Ephemeral progressive-disclosure intent. Missing group keys mean the
+ *  initial five. Stored limits deliberately remain unclamped so a user's
+ *  expansion survives background insert/delete/reorder. */
+export interface SidebarDisclosureState {
+  visibleProjectLimit: number;
+  groupVisibleLimits: Map<SidebarDisclosureGroupKey, number>;
+}
+
 export type SidebarMenuState =
   | { kind: "session"; taskId: string; title: string; archived: boolean; anchor: AnchorRect }
   | { kind: "project"; path: string; name: string; archived: boolean; anchor: AnchorRect }
@@ -188,6 +209,7 @@ export interface SidebarState {
   projectRenaming: { path: string; currentName: string } | null;
   prefs: SidebarPrefs;
   collapsedProjects: Set<string>;
+  disclosure: SidebarDisclosureState;
 }
 
 export interface RendererState {
@@ -343,6 +365,10 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
       projectRenaming: null,
       prefs: { ...SIDEBAR_PREFS_DEFAULTS },
       collapsedProjects: new Set(),
+      disclosure: {
+        visibleProjectLimit: SIDEBAR_INITIAL_VISIBLE_COUNT,
+        groupVisibleLimits: new Map(),
+      },
     },
     taskDraft: {
       provider: "claude",
