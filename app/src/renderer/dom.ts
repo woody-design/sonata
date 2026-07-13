@@ -6,7 +6,9 @@
 
 function queryElements() {
   return {
+    taskTitleSlot: getElement<HTMLDivElement>("task-title-slot"),
     taskTitle: getElement<HTMLHeadingElement>("task-title"),
+    headerRenameNotice: getElement<HTMLDivElement>("header-rename-notice"),
     runtimeStatus: getElement<HTMLDivElement>("runtime-status"),
     readingSettings: getElement<HTMLButtonElement>("reading-settings"),
     readingPopoverRoot: getElement<HTMLDivElement>("reading-popover-root"),
@@ -19,6 +21,7 @@ function queryElements() {
     sidebarResizer: getElement<HTMLDivElement>("sidebar-resizer"),
     sidebarNewChat: getElement<HTMLButtonElement>("sidebar-new-chat"),
     sidebarList: getElement<HTMLDivElement>("sidebar-list"),
+    sidebarRenameNotice: getElement<HTMLDivElement>("sidebar-rename-notice"),
     sidebarToggle: getElement<HTMLButtonElement>("sidebar-toggle"),
     sidebarCollapse: getElement<HTMLButtonElement>("sidebar-collapse"),
     sidebarMenuRoot: getElement<HTMLDivElement>("sidebar-menu-root"),
@@ -87,6 +90,7 @@ export function initDom(): void {
           <span class="sidebar-new-chat-icon"></span><span>New chat</span>
         </button>
       </div>
+      <div id="sidebar-rename-notice" class="rename-surface-notice hidden" role="alert"></div>
       <nav id="sidebar-sections" class="sidebar-sections" aria-label="Session list">
         <div id="sidebar-list"></div>
       </nav>
@@ -96,8 +100,11 @@ export function initDom(): void {
     <header class="task-chrome">
       <div class="chrome-left">
         <button id="sidebar-toggle" class="chrome-icon-button" type="button" title="Toggle sidebar" aria-label="Toggle sidebar"></button>
-        <h1 id="task-title" class="header-title">No active session</h1>
+        <div id="task-title-slot" class="header-title-slot">
+          <h1 id="task-title" class="header-title">No active session</h1>
+        </div>
         <button id="session-menu-trigger" class="chrome-icon-button session-menu-trigger hidden" type="button" title="Session actions" aria-haspopup="menu" aria-label="Session actions"></button>
+        <div id="header-rename-notice" class="rename-surface-notice hidden" role="alert"></div>
       </div>
       <div class="chrome-center">
       </div>

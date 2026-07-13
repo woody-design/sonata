@@ -21,8 +21,6 @@ import type {
   CodexDefaultApprovalMode,
   LaunchSpeedMode,
   ReadingSettings,
-  RenameProjectResponse,
-  RenameSessionResponse,
   ReasoningEffort,
   ResumePolicyId,
   RuntimeProvider,
@@ -34,6 +32,7 @@ import type {
   ComposerAttachment,
   SettingsOverlayState,
   SidebarPrefs,
+  SidebarRenameEditor,
   SlashPickerState,
   TaskViewState,
 } from "../reading-core/state";
@@ -85,9 +84,20 @@ export interface Actions {
   startNewChat(folder?: string | null): void;
   setSidebarPrefs(patch: Partial<SidebarPrefs>): void;
   toggleProjectCollapsed(path: string): void;
-  renameSession(taskId: string, title: string): Promise<RenameSessionResponse>;
-  renameProject(path: string, displayName: string): Promise<RenameProjectResponse>;
+  startSessionRename(
+    taskId: string,
+    surface: "header" | "sidebar",
+    original: string,
+  ): void;
+  startProjectRename(path: string, original: string): void;
+  cancelRename(): void;
   commitRename(trigger: RenameCommitTrigger): Promise<RenameFlowResult>;
+  /** Releases commit/continuation intents that arrived while an IME owned the
+   * protected input. Identity keeps an old composition from waking a new edit. */
+  completeRenameComposition(editor: SidebarRenameEditor): void;
+  /** Resolves only after a Sidebar-origin editor is safely closed. Header
+   *  editors do not block independent Sidebar view changes. */
+  prepareSidebarStructureChange(): Promise<boolean>;
   revealSession(taskId: string): void;
   revealProject(path: string): void;
   archiveSessionFromSidebar(taskId: string): void;

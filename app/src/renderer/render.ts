@@ -38,6 +38,10 @@ import { renderTaskSettingsPopover } from "./view/entry";
 import { renderSidebar, updateSidebarSpinnerLiveness } from "./view/sidebar";
 import { renderSettingsOverlay } from "./view/settings";
 import {
+  reconcileProtectedRenameEditor,
+  renderProtectedRenameEditor,
+} from "./view/rename-editor";
+import {
   renderStatusStrip,
   updateStatusStripStatusInPlace,
 } from "./view/status-strip";
@@ -95,7 +99,8 @@ export function render(): void {
   pushActiveTerminalTask();
   // New chat: the centered greeting IS the scene's title — an empty header
   // (2026-07-04 redesign) instead of a third "New chat" label.
-  elements.taskTitle.textContent = view?.task?.title ?? "";
+  renderHeaderTitle(view);
+  renderRenameNotices();
   // The greeting + composer ride as one centered group on the empty surface;
   // the class flips the run column out of scroll layout (styles.css).
   elements.runColumn.classList.toggle("run-column-new-chat", !view);
@@ -122,6 +127,40 @@ export function render(): void {
   renderStatusStrip(view);
   renderRuns();
   enhanceTranscriptChips();
+}
+
+function renderHeaderTitle(view: TaskViewState | null): void {
+  const editor = state.sidebar.renameEditor;
+  if (
+    editor?.kind === "session" &&
+    editor.surface === "header" &&
+    editor.taskId === view?.task?.id
+  ) {
+    const editorNode = renderProtectedRenameEditor(editor, { surface: "header" });
+    if (elements.taskTitleSlot.firstElementChild !== editorNode) {
+      elements.taskTitleSlot.replaceChildren(editorNode);
+    }
+    return;
+  }
+
+  reconcileProtectedRenameEditor(editor);
+  if (elements.taskTitleSlot.firstElementChild !== elements.taskTitle) {
+    elements.taskTitleSlot.replaceChildren(elements.taskTitle);
+  }
+  const title = view?.task?.title ?? "";
+  if (elements.taskTitle.textContent !== title) {
+    elements.taskTitle.textContent = title;
+  }
+}
+
+function renderRenameNotices(): void {
+  const notice = state.sidebar.renameNotice;
+  const headerMessage = notice?.surface === "header" ? notice.message : "";
+  const sidebarMessage = notice?.surface === "sidebar" ? notice.message : "";
+  elements.headerRenameNotice.textContent = headerMessage;
+  elements.headerRenameNotice.classList.toggle("hidden", !headerMessage);
+  elements.sidebarRenameNotice.textContent = sidebarMessage;
+  elements.sidebarRenameNotice.classList.toggle("hidden", !sidebarMessage);
 }
 
 // view.status is the point-of-action message channel; its editorial policy

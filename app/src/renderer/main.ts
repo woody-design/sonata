@@ -46,6 +46,7 @@ import {
   type PopoverAnchor,
   type RendererState,
   type SidebarPrefs,
+  type SidebarRenameEditor,
   type TaskDraftMenuKind,
   type TaskViewState,
 } from "../reading-core/state";
@@ -54,6 +55,7 @@ import * as composerTransitions from "../reading-core/transitions/composer";
 import * as popoverTransitions from "../reading-core/transitions/popovers";
 import * as sessionTransitions from "../reading-core/transitions/session";
 import * as sidebarTransitions from "../reading-core/transitions/sidebar";
+import * as renameTransitions from "../reading-core/transitions/rename";
 import type { RenameCommitTrigger } from "../reading-core/transitions/rename";
 import { initActions } from "./actions";
 import { elements, initDom } from "./dom";
@@ -127,6 +129,12 @@ import {
   openSidebarMenuForSession,
   renderSidebar,
 } from "./view/sidebar";
+import {
+  focusProtectedRenameEditor,
+  initRenameEditorView,
+  refreshProtectedRenameEditor,
+  restoreRenameTabFocusIntent,
+} from "./view/rename-editor";
 import { initSettingsView } from "./view/settings";
 import { positionSlashPicker, renderSlashPicker } from "./view/slash-picker";
 import { initStatusStripView } from "./view/status-strip";
@@ -200,19 +208,189 @@ function toggleProjectCollapsed(path: string): void {
   renderSidebar();
 }
 
-async function commitActiveRename(trigger: RenameCommitTrigger): Promise<RenameFlowResult> {
-  const result = await commitRenameFlow(state, trigger, {
+const activeRenameCommitPromises = new Map<number, Promise<RenameFlowResult>>();
+const renameCompositionWaiters = new WeakMap<
+  SidebarRenameEditor,
+  { promise: Promise<void>; resolve: () => void }
+>();
+const activeRenamePointers = new Set<number>();
+const renamePointerReleaseWaiters = new Set<() => void>();
+let renamePointerBoundaryPending = false;
+
+function commitActiveRename(trigger: RenameCommitTrigger): Promise<RenameFlowResult> {
+  const editorAtTrigger = state.sidebar.renameEditor;
+  if (editorAtTrigger?.status === "committing") {
+    const active = activeRenameCommitPromises.get(editorAtTrigger.requestVersion);
+    if (active) {
+      return active;
+    }
+  }
+
+  const statusBefore = state.sidebar.renameEditor?.status ?? null;
+  const compositionBoundary = editorAtTrigger?.composing
+    ? waitForRenameCompositionEnd(editorAtTrigger)
+    : null;
+  const flowPromise = commitRenameFlow(state, trigger, {
     renameSession: (taskId, title) => window.duetRuntime.renameSession({ taskId, title }),
     renameProject: (path, displayName) =>
       window.duetRuntime.renameProject({ path, displayName }),
   });
-  // A duplicate trigger while another request owns the single-flight slot
-  // must not structurally rebuild (and therefore detach) its active editor.
-  if (result.kind === "ignored") {
+  // The flow claims committing synchronously. Patch only the protected node;
+  // a full render inside blur/pointerdown could destroy the eventual click
+  // target before its click event is dispatched.
+  refreshProtectedRenameEditor(state.sidebar.renameEditor);
+  const claimedPersistence =
+    statusBefore !== "committing" && state.sidebar.renameEditor?.status === "committing";
+  const requestVersion = claimedPersistence
+    ? (state.sidebar.renameEditor?.requestVersion ?? null)
+    : null;
+
+  let pending!: Promise<RenameFlowResult>;
+  pending = (async (): Promise<RenameFlowResult> => {
+    const result = await flowPromise;
+    if (result.kind === "ignored" && result.reason === "composing" && compositionBoundary) {
+      await compositionBoundary;
+      if (state.sidebar.renameEditor !== editorAtTrigger) {
+        return { kind: "ignored", reason: "missing" };
+      }
+      return commitActiveRename(trigger);
+    }
+    // Missing/composing/duplicate commands do not own the persistence slot and
+    // do not mutate presentation. In particular, an IME blur ignored while
+    // composing must not swallow compositionend's immediate real retry.
+    if (result.kind === "ignored") {
+      return result;
+    }
+    await waitForRenameInteractionBoundary(trigger);
+    if (requestVersion !== null && activeRenameCommitPromises.get(requestVersion) === pending) {
+      activeRenameCommitPromises.delete(requestVersion);
+    }
+    render();
+    restoreRenameTabFocusIntent(editorAtTrigger);
     return result;
+  })();
+  if (requestVersion !== null) {
+    activeRenameCommitPromises.set(requestVersion, pending);
   }
-  render();
-  return result;
+  return pending;
+}
+
+function waitForRenameCompositionEnd(editor: SidebarRenameEditor): Promise<void> {
+  const existing = renameCompositionWaiters.get(editor);
+  if (existing) {
+    return existing.promise;
+  }
+  let resolve!: () => void;
+  const promise = new Promise<void>((complete) => {
+    resolve = complete;
+  });
+  renameCompositionWaiters.set(editor, { promise, resolve });
+  return promise;
+}
+
+function completeRenameComposition(editor: SidebarRenameEditor): void {
+  const waiter = renameCompositionWaiters.get(editor);
+  if (!waiter) {
+    return;
+  }
+  renameCompositionWaiters.delete(editor);
+  waiter.resolve();
+}
+
+async function waitForRenameInteractionBoundary(trigger: RenameCommitTrigger): Promise<void> {
+  if (renamePointerBoundaryPending || activeRenamePointers.size > 0) {
+    await new Promise<void>((resolve) => renamePointerReleaseWaiters.add(resolve));
+  }
+  if (trigger === "tab") {
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  }
+}
+
+function releaseRenamePointerWaiters(): void {
+  if (renamePointerBoundaryPending || activeRenamePointers.size > 0) {
+    return;
+  }
+  for (const resolve of renamePointerReleaseWaiters) {
+    resolve();
+  }
+  renamePointerReleaseWaiters.clear();
+}
+
+function renameResultAllowsContinuation(result: RenameFlowResult): boolean {
+  return (
+    result.kind === "succeeded" ||
+    result.kind === "unchanged" ||
+    result.kind === "reverted-empty" ||
+    (result.kind === "ignored" && result.reason === "missing")
+  );
+}
+
+async function finishRenameForContinuation(trigger: RenameCommitTrigger): Promise<boolean> {
+  const editorAtTrigger = state.sidebar.renameEditor;
+  if (!editorAtTrigger) {
+    return true;
+  }
+  const allowed = renameResultAllowsContinuation(await commitActiveRename(trigger));
+  if (!allowed && state.sidebar.renameEditor === editorAtTrigger) {
+    // The intended destination never became active. Keep recovery local by
+    // returning focus to the exact draft that blocked the queued action.
+    refreshProtectedRenameEditor(editorAtTrigger);
+    focusProtectedRenameEditor(editorAtTrigger);
+  }
+  return allowed;
+}
+
+async function prepareSidebarStructureChange(): Promise<boolean> {
+  if (state.sidebar.renameEditor?.surface !== "sidebar") {
+    return true;
+  }
+  return finishRenameForContinuation("destructive-action");
+}
+
+function runAfterRename(
+  continuation: () => void | Promise<void>,
+  options: { sidebarOnly?: boolean } = {},
+): void {
+  void (async () => {
+    const allowed = options.sidebarOnly
+      ? await prepareSidebarStructureChange()
+      : await finishRenameForContinuation("destructive-action");
+    if (allowed) {
+      await continuation();
+    }
+  })();
+}
+
+function startSessionRename(
+  taskId: string,
+  surface: "header" | "sidebar",
+  original: string,
+): void {
+  void (async () => {
+    if (state.sidebar.renameEditor) {
+      const allowed = await finishRenameForContinuation("second-intent");
+      if (!allowed) {
+        return;
+      }
+    }
+    if (renameTransitions.startSessionRename(state, taskId, surface, original)) {
+      render();
+    }
+  })();
+}
+
+function startProjectRename(path: string, original: string): void {
+  void (async () => {
+    if (state.sidebar.renameEditor) {
+      const allowed = await finishRenameForContinuation("second-intent");
+      if (!allowed) {
+        return;
+      }
+    }
+    if (renameTransitions.startProjectRename(state, path, original)) {
+      render();
+    }
+  })();
 }
 
 
@@ -268,6 +446,7 @@ initBannersView(state);
 initStatusStripView(state);
 initApprovalsView(state);
 initSidebarView(state);
+initRenameEditorView(state);
 initComposerView(state);
 initSettingsView(state);
 initChromeView(state, { resolvedReadingMode: () => resolvedReadingMode() });
@@ -342,21 +521,31 @@ initActions({
   // Sidebar flows and ports. Rename IPC stays Promise-based end-to-end; the
   // shared flow owns its single-flight lifecycle and canonical synchronization.
   selectSession: (taskId) => {
-    void selectSession(taskId);
+    runAfterRename(() => selectSession(taskId));
   },
   startNewChat: (folder) => {
-    startNewChat(folder);
+    runAfterRename(() => startNewChat(folder));
   },
   setSidebarPrefs: (patch) => {
-    setSidebarPrefs(patch);
+    runAfterRename(() => setSidebarPrefs(patch), { sidebarOnly: true });
   },
   toggleProjectCollapsed: (path) => {
-    toggleProjectCollapsed(path);
+    runAfterRename(() => toggleProjectCollapsed(path), { sidebarOnly: true });
   },
-  renameSession: (taskId, title) => window.duetRuntime.renameSession({ taskId, title }),
-  renameProject: (path, displayName) =>
-    window.duetRuntime.renameProject({ path, displayName }),
+  startSessionRename: (taskId, surface, original) => {
+    startSessionRename(taskId, surface, original);
+  },
+  startProjectRename: (path, original) => {
+    startProjectRename(path, original);
+  },
+  cancelRename: () => {
+    if (renameTransitions.cancelRename(state)) {
+      render();
+    }
+  },
   commitRename: (trigger) => commitActiveRename(trigger),
+  completeRenameComposition: (editor) => completeRenameComposition(editor),
+  prepareSidebarStructureChange: () => prepareSidebarStructureChange(),
   revealSession: (taskId) => {
     void window.duetRuntime.revealSession({ taskId });
   },
@@ -364,26 +553,26 @@ initActions({
     void window.duetRuntime.revealProject({ path });
   },
   archiveSessionFromSidebar: (taskId) => {
-    void archiveSessionFromSidebar(taskId);
+    runAfterRename(() => archiveSessionFromSidebar(taskId));
   },
   unarchiveSession: (taskId) => {
-    void window.duetRuntime
-      .archiveSession({ taskId, archived: false })
-      .catch((error) => {
+    runAfterRename(() =>
+      window.duetRuntime.archiveSession({ taskId, archived: false }).catch((error) => {
         state.status = errorMessage(error);
         render();
-      });
+      }),
+    );
   },
   deleteSessionFromSidebar: (taskId, title) => {
-    void deleteSessionFromSidebar(taskId, title);
+    runAfterRename(() => deleteSessionFromSidebar(taskId, title));
   },
   archiveProject: (path, archived) => {
-    void window.duetRuntime
-      .archiveProject({ path, archived })
-      .catch((error) => {
+    runAfterRename(() =>
+      window.duetRuntime.archiveProject({ path, archived }).catch((error) => {
         state.status = errorMessage(error);
         render();
-      });
+      }),
+    );
   },
   // Slash picker (view/slash-picker.ts): dispatch flow + hover grammar
   // (verbatim from its pre-D3 inline home).
@@ -480,6 +669,46 @@ initActions({
   },
 });
 
+document.addEventListener(
+  "pointerdown",
+  (event) => {
+    activeRenamePointers.add(event.pointerId);
+    renamePointerBoundaryPending = true;
+  },
+  true,
+);
+const finishRenamePointer = (event: PointerEvent): void => {
+  activeRenamePointers.delete(event.pointerId);
+  // Native click is dispatched after pointerup. Keep the boundary closed
+  // through that click so a successful rename cannot rebuild its target first.
+  window.setTimeout(() => {
+    if (activeRenamePointers.size === 0) {
+      renamePointerBoundaryPending = false;
+      releaseRenamePointerWaiters();
+    }
+  }, 0);
+};
+window.addEventListener("pointerup", finishRenamePointer, true);
+window.addEventListener("pointercancel", finishRenamePointer, true);
+document.addEventListener(
+  "click",
+  () => {
+    if (activeRenamePointers.size === 0) {
+      renamePointerBoundaryPending = false;
+      releaseRenamePointerWaiters();
+    }
+  },
+  true,
+);
+window.addEventListener("blur", () => {
+  activeRenamePointers.clear();
+  renamePointerBoundaryPending = false;
+  releaseRenamePointerWaiters();
+  if (state.sidebar.renameEditor) {
+    void commitActiveRename("window-blur");
+  }
+});
+
 // T1 — the live-clock ticker (scheduler.ts), started at its original boot
 // position.
 startStripClockTicker();
@@ -490,6 +719,7 @@ const COMPOSITION_END_SHORTCUT_GUARD_MS = 80;
 elements.sidebarToggle.append(lucideIcon(PanelLeft));
 elements.sidebarCollapse.append(lucideIcon(PanelLeft));
 elements.sessionMenuTrigger.append(lucideIcon(Ellipsis));
+elements.sessionMenuTrigger.dataset.sidebarFocusKey = "header:session-menu";
 elements.openPreviewWindow.append(lucideIcon(Eye));
 elements.remoteControlToggle.append(lucideIcon(Smartphone));
 elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIcon(SquarePen));
@@ -597,14 +827,15 @@ try {
 }
 
 elements.sidebarCollapse.addEventListener("click", () => {
-  setSidebarCollapsed(true);
+  runAfterRename(() => setSidebarCollapsed(true), { sidebarOnly: true });
 });
 elements.sidebarToggle.addEventListener("click", () => {
-  setSidebarCollapsed(!elements.sidebar.classList.contains("collapsed"));
+  const collapsed = !elements.sidebar.classList.contains("collapsed");
+  runAfterRename(() => setSidebarCollapsed(collapsed), { sidebarOnly: true });
 });
 
 elements.sidebarNewChat.addEventListener("click", () => {
-  startNewChat();
+  runAfterRename(() => startNewChat());
 });
 
 elements.sessionMenuTrigger.addEventListener("click", (event) => {
@@ -616,6 +847,7 @@ elements.sessionMenuTrigger.addEventListener("click", (event) => {
       view.task.title,
       Boolean(view.task.archived),
       event.currentTarget as HTMLElement,
+      "header",
     );
   }
 });
@@ -1400,7 +1632,7 @@ window.duetRuntime.onRuntimeEvent((event) => {
 // a reload) — runtime events for an unloaded view are dropped, so activateTask
 // alone would no-op. selectSession loads the session first, then activates.
 window.duetRuntime.onNotificationActivateTask((taskId) => {
-  void selectSession(taskId);
+  runAfterRename(() => selectSession(taskId));
 });
 
 void hydrateReadingSettings();

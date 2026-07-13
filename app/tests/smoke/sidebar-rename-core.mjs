@@ -212,6 +212,10 @@ function deferred() {
   assert.equal(stale.kind, "commit");
   const orphan = rename.terminateRenameForMissingEntity(state);
   assert.equal(orphan.taskId, "gone");
+  assert.deepEqual(state.sidebar.renameNotice, {
+    surface: "sidebar",
+    message: "This session is no longer available, so its new name could not be saved.",
+  });
   assert.equal(rename.currentRenameRequestMatches(state, stale.request), false);
   assert.equal(rename.completeRenameCommit(state, stale.request), false);
   assert.equal(rename.failRenameCommit(state, stale.request, "late"), false);
@@ -257,6 +261,24 @@ function deferred() {
   assert.equal(failed.kind, "failed");
   assert.equal(state.sidebar.renameEditor.status, "error");
   assert.equal(state.sidebar.renameEditor.draft, "Beta");
+
+  rename.cancelRename(state);
+  rename.startSessionRename(state, "transport", "header", "Original");
+  rename.updateRenameDraft(state, "Transport draft");
+  const transportFailure = await renameFlow.commitRename(state, "enter", {
+    renameSession: async () => {
+      throw new Error(
+        "Error invoking remote method 'session:rename': Error: EISDIR /private/data/task.json.tmp",
+      );
+    },
+    renameProject: ports.renameProject,
+  });
+  assert.equal(transportFailure.kind, "failed");
+  assert.equal(
+    state.sidebar.renameEditor.errorMessage,
+    "Couldn’t save this name. Your draft is still here—try again.",
+    "transport details and private paths stay out of the inline UI",
+  );
 
   const stalePending = deferred();
   const newestPending = deferred();

@@ -1229,12 +1229,90 @@ body.sidebar-resizing {
   /* Fits the fixed 28px row exactly: 24px box + 2px vertical margins. */
   height: 24px;
   margin: 2px 4px;
-  padding: 0 6px;
+  padding: 0 58px 0 6px;
   border: 1px solid var(--sidebar-border);
   border-radius: 6px;
   background: var(--sidebar-input-surface);
   color: var(--sidebar-ink);
   font-size: 13px;
+}
+
+.rename-editor {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.rename-editor-sidebar {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.rename-progress {
+  position: absolute;
+  right: 11px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.rename-editor-sidebar .rename-progress {
+  color: var(--sidebar-ink-muted);
+}
+
+.rename-progress.visible {
+  opacity: 1;
+}
+
+.rename-error {
+  position: absolute;
+  z-index: 65;
+  top: calc(100% + 3px);
+  left: 4px;
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 5px 7px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--status-attention);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 12%);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.rename-editor-sidebar .rename-error {
+  background: var(--sidebar-menu-surface);
+  color: var(--sidebar-danger);
+}
+
+.sidebar-session:has(.rename-error.visible),
+.sidebar-project-header:has(.rename-error.visible) {
+  margin-bottom: 30px;
+}
+
+.rename-error.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.rename-surface-notice {
+  color: var(--status-attention);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+#sidebar-rename-notice {
+  margin: 0 12px 6px;
+  color: var(--sidebar-danger);
 }
 
 .sidebar-menu {
@@ -1316,9 +1394,18 @@ body.sidebar-resizing {
   .sidebar-session-spinner svg {
     animation: none;
   }
+
+  .rename-progress {
+    transition: none;
+  }
 }
 
 /* ------------------------------------------------------------ main header */
+
+.header-title-slot {
+  flex: 0 1 360px;
+  min-width: 0;
+}
 
 .header-title {
   margin: 0;
@@ -1329,6 +1416,34 @@ body.sidebar-resizing {
   font-size: 13.5px;
   font-weight: 650;
   color: var(--ink);
+}
+
+.rename-editor-header {
+  width: min(360px, 34vw);
+}
+
+.header-rename-input {
+  width: 100%;
+  min-width: 120px;
+  height: 26px;
+  padding: 0 60px 0 7px;
+  border: 1px solid var(--border-control);
+  border-radius: 6px;
+  background: var(--surface-input);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.header-rename-input:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 1px;
+}
+
+#header-rename-notice {
+  max-width: 320px;
 }
 
 .chrome-icon-button {

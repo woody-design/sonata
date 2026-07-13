@@ -32,6 +32,7 @@ import {
 } from "../../reading-core/state";
 import * as composerTransitions from "../../reading-core/transitions/composer";
 import * as sessionTransitions from "../../reading-core/transitions/session";
+import * as renameTransitions from "../../reading-core/transitions/rename";
 import type { ViewMode } from "../actions";
 import { elements } from "../dom";
 import { render } from "../render";
@@ -71,6 +72,11 @@ export async function refreshSessionIndex(): Promise<void> {
   try {
     // Always fetch the full record; status filtering is a view decision.
     state.sessionIndex = await window.duetRuntime.readSessionIndex({ includeArchived: true });
+    if (renameTargetDisappeared()) {
+      renameTransitions.terminateRenameForMissingEntity(state);
+      render();
+      return;
+    }
     // The boot screen IS a New Chat entry: preselect the last-used
     // folder until the user picks one themselves.
     if (
@@ -91,6 +97,21 @@ export async function refreshSessionIndex(): Promise<void> {
   } catch (error) {
     console.debug("session index read failed", error);
   }
+}
+
+function renameTargetDisappeared(): boolean {
+  const editor = state.sidebar.renameEditor;
+  const index = state.sessionIndex;
+  if (!editor || !index) {
+    return false;
+  }
+  if (editor.kind === "project") {
+    return !index.projects.some((project) => project.path === editor.path);
+  }
+  return ![
+    ...index.chats,
+    ...index.projects.flatMap((project) => project.sessions),
+  ].some((session) => session.task.id === editor.taskId);
 }
 
 export async function archiveSessionFromSidebar(taskId: string): Promise<void> {

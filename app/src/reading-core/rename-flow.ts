@@ -70,6 +70,13 @@ export async function commitRename(
 
 function renameErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) {
+    // Electron's invoke wrapper includes channel names, OS codes and absolute
+    // data paths. Those details are useful in logs, not in a compact inline
+    // editor. Preserve intentional domain errors while translating transport
+    // failures into a stable recovery message.
+    if (error.message.includes("Error invoking remote method")) {
+      return "Couldn’t save this name. Your draft is still here—try again.";
+    }
     return error.message;
   }
   return "Rename could not be saved.";

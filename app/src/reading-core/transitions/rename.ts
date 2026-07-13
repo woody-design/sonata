@@ -31,6 +31,7 @@ export function startSessionRename(
   if (state.sidebar.renameEditor) {
     return false;
   }
+  state.sidebar.renameNotice = null;
   state.sidebar.renameEditor = {
     kind: "session",
     taskId,
@@ -48,6 +49,7 @@ export function startProjectRename(
   if (state.sidebar.renameEditor) {
     return false;
   }
+  state.sidebar.renameNotice = null;
   state.sidebar.renameEditor = {
     kind: "project",
     path,
@@ -202,6 +204,13 @@ export function terminateRenameForMissingEntity(state: RendererState): SidebarRe
     return null;
   }
   state.sidebar.renameEditor = null;
+  state.sidebar.renameNotice = {
+    surface: editor.surface,
+    message:
+      editor.kind === "session"
+        ? "This session is no longer available, so its new name could not be saved."
+        : "This project is no longer available, so its new name could not be saved.",
+  };
   return editor;
 }
 

@@ -187,6 +187,16 @@ export function createSidebarFixture(options = {}) {
         fs.rmSync(blockerPath, { recursive: true, force: true });
       };
     },
+    /** Forces the production ProjectsStore atomic temp write to fail until
+     * the returned cleanup runs. */
+    blockProjectSettingsWrites() {
+      const blockerPath = path.join(settingsRoot, "projects.json.tmp");
+      fs.rmSync(blockerPath, { recursive: true, force: true });
+      fs.mkdirSync(blockerPath, { recursive: false });
+      return () => {
+        fs.rmSync(blockerPath, { recursive: true, force: true });
+      };
+    },
     cleanup() {
       fs.rmSync(root, { recursive: true, force: true });
     },

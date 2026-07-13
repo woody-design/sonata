@@ -193,7 +193,14 @@ export interface SidebarDisclosureState {
 }
 
 export type SidebarMenuState =
-  | { kind: "session"; taskId: string; title: string; archived: boolean; anchor: AnchorRect }
+  | {
+      kind: "session";
+      taskId: string;
+      title: string;
+      archived: boolean;
+      renameSurface: "header" | "sidebar";
+      anchor: AnchorRect;
+    }
   | { kind: "project"; path: string; name: string; archived: boolean; anchor: AnchorRect }
   | { kind: "filter"; anchor: AnchorRect; openSection: FilterMenuSection | null };
 
@@ -231,6 +238,10 @@ export interface SidebarState {
   /** Monotonic request epoch across editor close/reopen, preventing an old
    *  completion from matching a new editor for the same entity. */
   renameRequestVersion: number;
+  /** A rename target can disappear during an index refresh. The local editor
+   *  then has no owner, so its last error is promoted to the originating
+   *  surface until the next rename intent. */
+  renameNotice: { surface: "header" | "sidebar"; message: string } | null;
   prefs: SidebarPrefs;
   collapsedProjects: Set<string>;
   disclosure: SidebarDisclosureState;
@@ -387,6 +398,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
       menu: null,
       renameEditor: null,
       renameRequestVersion: 0,
+      renameNotice: null,
       prefs: { ...SIDEBAR_PREFS_DEFAULTS },
       collapsedProjects: new Set(),
       disclosure: {

@@ -26,12 +26,14 @@ export function openSessionMenu(
   title: string,
   archived: boolean,
   anchor: AnchorRect,
+  renameSurface: "header" | "sidebar" = "sidebar",
 ): void {
   state.sidebar.menu = {
     kind: "session",
     taskId,
     title,
     archived,
+    renameSurface,
     anchor,
   };
 }
