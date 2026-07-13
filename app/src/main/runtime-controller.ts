@@ -19,6 +19,8 @@ import type {
   ReadSlashCommandsRequest,
   ReadTranscriptResponse,
   ReasoningEffort,
+  RenameProjectResponse,
+  RenameSessionResponse,
   RunId,
   RunStatus,
   RuntimeEvent,
@@ -772,7 +774,7 @@ export class RuntimeController {
     });
   }
 
-  renameSession(taskId: TaskId, title: string): void {
+  renameSession(taskId: TaskId, title: string): RenameSessionResponse {
     const trimmed = title.trim();
     if (!trimmed) {
       throw new Error("Session title must not be empty.");
@@ -781,17 +783,23 @@ export class RuntimeController {
     // session keeps its place in the sidebar ordering.
     const live = this.taskRuntimes.get(taskId);
     if (live) {
-      live.task = { ...live.task, title: trimmed };
-      this.persistTaskManifest(live.task, live.storageRoot);
+      // Persist the candidate before publishing it to the live runtime. A
+      // failed atomic write must leave both memory and the old manifest intact.
+      const candidate = { ...live.task, title: trimmed };
+      this.persistTaskManifest(candidate, live.storageRoot, "session-renamed", false);
+      live.task = candidate;
+      this.emitSessionsUpdated("session-renamed");
       this.sendEvent({
         type: "task:updated",
-        payload: { taskId, task: live.task, reason: "runtime-status" },
+        payload: { taskId, task: candidate, reason: "session-renamed" },
         ts: new Date().toISOString(),
       });
-      return;
+      return { task: candidate };
     }
     const record = this.requirePersistedSession(taskId);
-    this.persistTaskManifest({ ...record.manifest.task, title: trimmed }, record.storageRoot);
+    const candidate = { ...record.manifest.task, title: trimmed };
+    this.persistTaskManifest(candidate, record.storageRoot, "session-renamed");
+    return { task: candidate };
   }
 
   archiveSession(taskId: TaskId, archived: boolean): void {
@@ -872,9 +880,16 @@ export class RuntimeController {
     return taskProviderCwd(record.manifest.task, record.storageRoot);
   }
 
-  renameProject(folderPath: string, displayName: string | null): void {
-    this.projectsStore.setDisplayName(path.resolve(folderPath), displayName);
+  renameProject(folderPath: string, displayName: string | null): RenameProjectResponse {
+    const resolved = path.resolve(folderPath);
+    const canonicalDisplayName = displayName?.trim() || null;
+    this.projectsStore.setDisplayName(resolved, canonicalDisplayName);
     this.emitSessionsUpdated("project-updated");
+    return {
+      path: resolved,
+      displayName: canonicalDisplayName,
+      name: canonicalDisplayName ?? path.basename(resolved),
+    };
   }
 
   archiveProject(folderPath: string, archived: boolean): void {
@@ -2466,14 +2481,21 @@ export class RuntimeController {
     return manifest;
   }
 
-  private persistTaskManifest(task: Task, storageRoot: string): void {
+  private persistTaskManifest(
+    task: Task,
+    storageRoot: string,
+    reason: "session-updated" | "session-renamed" = "session-updated",
+    emitUpdate = true,
+  ): void {
     const manifest = freshTaskManifestV1(task);
     const manifestPath = taskManifestPath(storageRoot);
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
     const tmpPath = `${manifestPath}.tmp`;
     fs.writeFileSync(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`);
     fs.renameSync(tmpPath, manifestPath);
-    this.emitSessionsUpdated("session-updated");
+    if (emitUpdate) {
+      this.emitSessionsUpdated(reason);
+    }
   }
 
   private emitSessionsUpdated(

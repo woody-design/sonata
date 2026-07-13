@@ -39,9 +39,11 @@ import {
   type SidebarDisclosureGroupKey,
   type SidebarMenuState,
   type SidebarPrefs,
+  type SidebarRenameEditor,
   type TaskViewState,
 } from "../../reading-core/state";
 import * as sidebarTransitions from "../../reading-core/transitions/sidebar";
+import * as renameTransitions from "../../reading-core/transitions/rename";
 import { elements } from "../dom";
 import { lucideIcon } from "./icons";
 import { positionSidebarMenu } from "./popover-geometry";
@@ -75,6 +77,8 @@ interface SidebarRenderSnapshot {
 const OUTER_SHOW_LESS_FOCUS_KEY = "disclosure:outer:less";
 const OUTER_SHOW_MORE_FOCUS_KEY = "disclosure:outer:more";
 let lastRenderedPrefs: SidebarPrefs | null = null;
+type SessionRenameEditor = Extract<SidebarRenameEditor, { kind: "session" }>;
+type ProjectRenameEditor = Extract<SidebarRenameEditor, { kind: "project" }>;
 
 export function renderSidebar(options: SidebarRenderOptions = {}): void {
   const snapshot = captureSidebarRenderSnapshot();
@@ -216,8 +220,13 @@ function renderSidebarProject(group: SidebarDisclosureProjectGroup): HTMLElement
   const header = document.createElement("div");
   header.className = "sidebar-project-header";
 
-  if (state.sidebar.projectRenaming?.path === project.path) {
-    header.append(renderProjectRenameInput(project.path, project.name));
+  const projectEditor = state.sidebar.renameEditor;
+  if (
+    projectEditor?.kind === "project" &&
+    projectEditor.surface === "sidebar" &&
+    projectEditor.path === project.path
+  ) {
+    header.append(renderProjectRenameInput(projectEditor));
     container.append(header);
     return container;
   }
@@ -621,8 +630,13 @@ function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
   // Distinguishes archived rows when the status filter mixes them in.
   row.classList.toggle("archived", session.archived);
 
-  if (state.sidebar.renamingSessionId === task.id) {
-    row.append(renderSidebarRenameInput(task.id, task.title));
+  const sessionEditor = state.sidebar.renameEditor;
+  if (
+    sessionEditor?.kind === "session" &&
+    sessionEditor.surface === "sidebar" &&
+    sessionEditor.taskId === task.id
+  ) {
+    row.append(renderSidebarRenameInput(sessionEditor));
     return row;
   }
 
@@ -672,33 +686,47 @@ function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
   return row;
 }
 
-function renderSidebarRenameInput(taskId: string, currentTitle: string): HTMLElement {
+function renderSidebarRenameInput(editor: SessionRenameEditor): HTMLElement {
   const input = document.createElement("input");
   input.type = "text";
   input.className = "sidebar-rename-input";
-  input.value = currentTitle;
-  setSidebarFocusKey(input, `${sessionFocusKey(taskId)}:rename`);
+  input.value = editor.draft;
+  input.readOnly = editor.status === "committing";
+  input.setAttribute("aria-busy", String(editor.status === "committing"));
+  setSidebarFocusKey(input, `${sessionFocusKey(editor.taskId)}:rename`);
+  input.addEventListener("input", () => {
+    renameTransitions.updateRenameDraft(state, input.value);
+  });
+  input.addEventListener("compositionstart", () => {
+    renameTransitions.setRenameComposing(state, true);
+  });
+  input.addEventListener("compositionend", () => {
+    renameTransitions.updateRenameDraft(state, input.value);
+    renameTransitions.setRenameComposing(state, false);
+  });
   input.addEventListener("keydown", (event) => {
+    if (renameTransitions.renameCommandSuppressed(state, event)) {
+      return;
+    }
     if (event.key === "Enter") {
       event.preventDefault();
-      const title = input.value.trim();
-      sidebarTransitions.endSessionRename(state);
-      if (title && title !== currentTitle) {
-        actions.renameSession(taskId, title);
-      } else {
-        renderSidebar();
+      void actions.commitRename("enter");
+      if (state.sidebar.renameEditor?.status === "committing") {
+        input.readOnly = true;
+        input.setAttribute("aria-busy", "true");
       }
     }
     if (event.key === "Escape") {
       event.preventDefault();
-      sidebarTransitions.endSessionRename(state);
-      renderSidebar();
+      if (renameTransitions.cancelRename(state)) {
+        renderSidebar();
+      }
     }
   });
   input.addEventListener("blur", () => {
-    if (state.sidebar.renamingSessionId === taskId) {
-      sidebarTransitions.endSessionRename(state);
-      renderSidebar();
+    const activeEditor = state.sidebar.renameEditor;
+    if (activeEditor?.kind === "session" && activeEditor.taskId === editor.taskId) {
+      void actions.commitRename("blur");
     }
   });
   window.requestAnimationFrame(() => {
@@ -870,8 +898,9 @@ function renderSidebarMenuContents(): void {
   if (menu.kind === "session") {
     panel.append(
       sidebarMenuItem("Rename", () => {
-        sidebarTransitions.startSessionRename(state, menu.taskId);
-        renderSidebar();
+        if (renameTransitions.startSessionRename(state, menu.taskId, "sidebar", menu.title)) {
+          renderSidebar();
+        }
       }, "default", `menu:session:${menu.taskId}:rename`),
       sidebarMenuItem("Reveal in Finder", () => {
         actions.revealSession(menu.taskId);
@@ -1154,38 +1183,52 @@ function sidebarMenuItem(
 }
 
 function startProjectRename(path: string, currentName: string): void {
-  sidebarTransitions.startProjectRename(state, path, currentName);
-  renderSidebar();
+  if (renameTransitions.startProjectRename(state, path, currentName)) {
+    renderSidebar();
+  }
 }
 
-function renderProjectRenameInput(path: string, currentName: string): HTMLElement {
+function renderProjectRenameInput(editor: ProjectRenameEditor): HTMLElement {
   const input = document.createElement("input");
   input.type = "text";
   input.className = "sidebar-rename-input";
-  input.value = currentName;
-  setSidebarFocusKey(input, `${projectFocusKey(path)}:rename`);
-  const finish = (commit: boolean): void => {
-    const nextName = input.value.trim();
-    sidebarTransitions.endProjectRename(state);
-    if (commit && nextName && nextName !== currentName) {
-      actions.renameProject(path, nextName);
-    } else {
-      renderSidebar();
-    }
-  };
+  input.value = editor.draft;
+  input.readOnly = editor.status === "committing";
+  input.setAttribute("aria-busy", String(editor.status === "committing"));
+  setSidebarFocusKey(input, `${projectFocusKey(editor.path)}:rename`);
+  input.addEventListener("input", () => {
+    renameTransitions.updateRenameDraft(state, input.value);
+  });
+  input.addEventListener("compositionstart", () => {
+    renameTransitions.setRenameComposing(state, true);
+  });
+  input.addEventListener("compositionend", () => {
+    renameTransitions.updateRenameDraft(state, input.value);
+    renameTransitions.setRenameComposing(state, false);
+  });
   input.addEventListener("keydown", (event) => {
+    if (renameTransitions.renameCommandSuppressed(state, event)) {
+      return;
+    }
     if (event.key === "Enter") {
       event.preventDefault();
-      finish(true);
+      void actions.commitRename("enter");
+      if (state.sidebar.renameEditor?.status === "committing") {
+        input.readOnly = true;
+        input.setAttribute("aria-busy", "true");
+      }
     }
     if (event.key === "Escape") {
       event.preventDefault();
-      finish(false);
+      if (renameTransitions.cancelRename(state)) {
+        renderSidebar();
+      }
     }
   });
   input.addEventListener("blur", () => {
-    if (state.sidebar.projectRenaming?.path === path) {
-      finish(false);
+    const activeEditor = state.sidebar.renameEditor;
+    if (activeEditor?.kind === "project" && activeEditor.path === editor.path) {
+      void actions.commitRename("blur");
     }
   });
   window.requestAnimationFrame(() => {

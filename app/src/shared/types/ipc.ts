@@ -207,6 +207,10 @@ export interface RenameSessionRequest {
   title: string;
 }
 
+export interface RenameSessionResponse {
+  task: Task;
+}
+
 export interface ArchiveSessionRequest {
   taskId: TaskId;
   archived: boolean;
@@ -223,6 +227,14 @@ export interface RevealSessionRequest {
 export interface RenameProjectRequest {
   path: string;
   displayName: string | null;
+}
+
+export interface RenameProjectResponse {
+  path: string;
+  /** Canonical persisted override; null means use the folder basename. */
+  displayName: string | null;
+  /** Canonical display value for immediate renderer synchronization. */
+  name: string;
 }
 
 export interface ArchiveProjectRequest {
@@ -542,11 +554,11 @@ export interface DuetRuntimeBridge {
   listTasks(): Promise<ListTasksResponse>;
   readSessionIndex(request?: ReadSessionIndexRequest): Promise<SessionIndexResponse>;
   readSession(request: ReadSessionSnapshotRequest): Promise<SessionSnapshotResponse>;
-  renameSession(request: RenameSessionRequest): Promise<void>;
+  renameSession(request: RenameSessionRequest): Promise<RenameSessionResponse>;
   archiveSession(request: ArchiveSessionRequest): Promise<void>;
   deleteSession(request: DeleteSessionRequest): Promise<void>;
   revealSession(request: RevealSessionRequest): Promise<void>;
-  renameProject(request: RenameProjectRequest): Promise<void>;
+  renameProject(request: RenameProjectRequest): Promise<RenameProjectResponse>;
   archiveProject(request: ArchiveProjectRequest): Promise<void>;
   revealProject(request: RevealProjectRequest): Promise<void>;
   submitPrompt(request: SubmitPromptRequest): Promise<void>;

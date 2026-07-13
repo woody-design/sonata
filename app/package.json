@@ -71,6 +71,7 @@
     "smoke:session-index": "npm run build:main && node tests/smoke/session-index.mjs",
     "smoke:sidebar-fixture": "node tests/smoke/sidebar-fixture.mjs",
     "smoke:sidebar-disclosure-core": "npm run build:main && node tests/smoke/sidebar-disclosure-core.mjs",
+    "smoke:sidebar-rename-core": "npm run build:main && node tests/smoke/sidebar-rename-core.mjs && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/sidebar-rename-persistence.mjs",
     "smoke:duet-paths": "npm run build:main && node tests/smoke/duet-paths.mjs",
     "smoke:task-ready-detection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/task-ready-detection.mjs",
     "smoke:native-image-attachments": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/native-image-attachments.mjs",

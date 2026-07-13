@@ -54,6 +54,7 @@ import * as composerTransitions from "../reading-core/transitions/composer";
 import * as popoverTransitions from "../reading-core/transitions/popovers";
 import * as sessionTransitions from "../reading-core/transitions/session";
 import * as sidebarTransitions from "../reading-core/transitions/sidebar";
+import type { RenameCommitTrigger } from "../reading-core/transitions/rename";
 import { initActions } from "./actions";
 import { elements, initDom } from "./dom";
 import {
@@ -82,6 +83,10 @@ import {
   submitPrompt,
   surfaceTerminalWindow,
 } from "./flows/session-flows";
+import {
+  commitRename as commitRenameFlow,
+  type RenameFlowResult,
+} from "../reading-core/rename-flow";
 import { initRender, performDirective, render, renderTranscriptStream } from "./render";
 import {
   clearUsagePopoverCloseTimer,
@@ -193,6 +198,21 @@ function toggleProjectCollapsed(path: string): void {
     // View preference only.
   }
   renderSidebar();
+}
+
+async function commitActiveRename(trigger: RenameCommitTrigger): Promise<RenameFlowResult> {
+  const result = await commitRenameFlow(state, trigger, {
+    renameSession: (taskId, title) => window.duetRuntime.renameSession({ taskId, title }),
+    renameProject: (path, displayName) =>
+      window.duetRuntime.renameProject({ path, displayName }),
+  });
+  // A duplicate trigger while another request owns the single-flight slot
+  // must not structurally rebuild (and therefore detach) its active editor.
+  if (result.kind === "ignored") {
+    return result;
+  }
+  render();
+  return result;
 }
 
 
@@ -319,9 +339,8 @@ initActions({
   answerOptionPrompt: () => {
     void answerOptionPrompt();
   },
-  // Sidebar flows and ports. The IPC menu-item bodies are verbatim from
-  // their pre-D3 inline homes (fire-and-forget with the status/render
-  // error catch); prefs/collapse carry the localStorage port.
+  // Sidebar flows and ports. Rename IPC stays Promise-based end-to-end; the
+  // shared flow owns its single-flight lifecycle and canonical synchronization.
   selectSession: (taskId) => {
     void selectSession(taskId);
   },
@@ -334,22 +353,10 @@ initActions({
   toggleProjectCollapsed: (path) => {
     toggleProjectCollapsed(path);
   },
-  renameSession: (taskId, title) => {
-    void window.duetRuntime
-      .renameSession({ taskId, title })
-      .catch((error) => {
-        state.status = errorMessage(error);
-        render();
-      });
-  },
-  renameProject: (path, displayName) => {
-    void window.duetRuntime
-      .renameProject({ path, displayName })
-      .catch((error) => {
-        state.status = errorMessage(error);
-        render();
-      });
-  },
+  renameSession: (taskId, title) => window.duetRuntime.renameSession({ taskId, title }),
+  renameProject: (path, displayName) =>
+    window.duetRuntime.renameProject({ path, displayName }),
+  commitRename: (trigger) => commitActiveRename(trigger),
   revealSession: (taskId) => {
     void window.duetRuntime.revealSession({ taskId });
   },

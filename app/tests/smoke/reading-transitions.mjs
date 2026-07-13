@@ -12,6 +12,7 @@ const { createInitialState, createTaskView, upsertTaskView } = require("../../di
 const popovers = require("../../dist/reading-core/transitions/popovers");
 const composer = require("../../dist/reading-core/transitions/composer");
 const sidebar = require("../../dist/reading-core/transitions/sidebar");
+const rename = require("../../dist/reading-core/transitions/rename");
 const session = require("../../dist/reading-core/transitions/session");
 
 const READING_SETTINGS = { theme: "paper", mode: "system", textStep: 0 };
@@ -182,14 +183,14 @@ function task(id, title = `Task ${id}`) {
   sidebar.toggleProjectCollapsed(state, "/p");
   assert.equal(state.sidebar.collapsedProjects.has("/p"), false);
 
-  sidebar.startSessionRename(state, "t1");
-  assert.equal(state.sidebar.renamingSessionId, "t1");
-  sidebar.endSessionRename(state);
-  assert.equal(state.sidebar.renamingSessionId, null);
-  sidebar.startProjectRename(state, "/p", "P");
-  assert.deepEqual(state.sidebar.projectRenaming, { path: "/p", currentName: "P" });
-  sidebar.endProjectRename(state);
-  assert.equal(state.sidebar.projectRenaming, null);
+  assert.equal(rename.startSessionRename(state, "t1", "sidebar", "Title"), true);
+  assert.equal(state.sidebar.renameEditor.taskId, "t1");
+  assert.equal(rename.cancelRename(state), true);
+  assert.equal(state.sidebar.renameEditor, null);
+  assert.equal(rename.startProjectRename(state, "/p", "P"), true);
+  assert.equal(state.sidebar.renameEditor.path, "/p");
+  assert.equal(rename.cancelRename(state), true);
+  assert.equal(state.sidebar.renameEditor, null);
 }
 
 // 7) syncTaskViewsFromIndex — open views follow the index's title/archived;

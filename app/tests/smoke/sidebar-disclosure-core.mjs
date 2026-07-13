@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const selectors = require("../../dist/reading-core/selectors/sidebar");
 const transitions = require("../../dist/reading-core/transitions/sidebar");
+const renameTransitions = require("../../dist/reading-core/transitions/rename");
 const stateModule = require("../../dist/reading-core/state");
 
 const {
@@ -175,7 +176,12 @@ function makeIndex(projects = [], chats = []) {
   for (const [field, value] of changedCases) {
     const state = freshState();
     state.activeTaskId = "selected-hidden-is-allowed";
-    state.sidebar.renamingSessionId = "rename-survives-core-reset";
+    renameTransitions.startSessionRename(
+      state,
+      "rename-survives-core-reset",
+      "sidebar",
+      "Rename survives",
+    );
     state.sidebar.collapsedProjects.add("/alpha");
     transitions.showMoreSidebarProjects(state);
     transitions.showMoreSidebarGroup(state, "project:/latent");
@@ -183,7 +189,13 @@ function makeIndex(projects = [], chats = []) {
     assert.equal(state.sidebar.disclosure.visibleProjectLimit, 5, `${field}: projects reset`);
     assert.equal(state.sidebar.disclosure.groupVisibleLimits.size, 0, `${field}: groups reset`);
     assert.equal(state.activeTaskId, "selected-hidden-is-allowed", `${field}: selection preserved`);
-    assert.equal(state.sidebar.renamingSessionId, "rename-survives-core-reset", `${field}: rename preserved`);
+    assert.equal(
+      state.sidebar.renameEditor?.kind === "session"
+        ? state.sidebar.renameEditor.taskId
+        : null,
+      "rename-survives-core-reset",
+      `${field}: rename preserved`,
+    );
     assert.equal(state.sidebar.collapsedProjects.has("/alpha"), true, `${field}: collapse preserved`);
   }
 

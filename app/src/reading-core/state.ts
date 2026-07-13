@@ -199,14 +199,38 @@ export type SidebarMenuState =
 
 export type FilterMenuSection = "status" | "project" | "activity" | "group" | "sort";
 
+interface RenameEditorBase {
+  original: string;
+  draft: string;
+  status: "editing" | "committing" | "error";
+  requestVersion: number;
+  errorMessage: string | null;
+  composing: boolean;
+}
+
+export type SidebarRenameEditor =
+  | (RenameEditorBase & {
+      kind: "session";
+      taskId: string;
+      surface: "header" | "sidebar";
+    })
+  | (RenameEditorBase & {
+      kind: "project";
+      path: string;
+      surface: "sidebar";
+    });
+
 /** The sidebar UI cluster (map C3b): the open menu (session / project /
  *  filter), in-flight renames, and the persisted view prefs. localStorage
  *  load/save for `prefs` and `collapsedProjects` stays in the shell (ports);
  *  the shell hydrates both at boot. */
 export interface SidebarState {
   menu: SidebarMenuState | null;
-  renamingSessionId: string | null;
-  projectRenaming: { path: string; currentName: string } | null;
+  /** The single state-backed inline editor, regardless of origin surface. */
+  renameEditor: SidebarRenameEditor | null;
+  /** Monotonic request epoch across editor close/reopen, preventing an old
+   *  completion from matching a new editor for the same entity. */
+  renameRequestVersion: number;
   prefs: SidebarPrefs;
   collapsedProjects: Set<string>;
   disclosure: SidebarDisclosureState;
@@ -361,8 +385,8 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     sessionIndex: null,
     sidebar: {
       menu: null,
-      renamingSessionId: null,
-      projectRenaming: null,
+      renameEditor: null,
+      renameRequestVersion: 0,
       prefs: { ...SIDEBAR_PREFS_DEFAULTS },
       collapsedProjects: new Set(),
       disclosure: {

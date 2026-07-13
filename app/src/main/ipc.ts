@@ -111,9 +111,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.sessionRead, (_event, request) =>
     runtimeController.readSessionSnapshot(request.taskId),
   );
-  ipcMain.handle(IPC_CHANNELS.sessionRename, (_event, request) => {
-    runtimeController.renameSession(request.taskId, request.title);
-  });
+  ipcMain.handle(IPC_CHANNELS.sessionRename, (_event, request) =>
+    runtimeController.renameSession(request.taskId, request.title),
+  );
   ipcMain.handle(IPC_CHANNELS.sessionArchive, (_event, request) => {
     runtimeController.archiveSession(request.taskId, request.archived);
   });
@@ -127,9 +127,9 @@ export function registerIpcHandlers(
     const folder = runtimeController.sessionWorkingDirectory(request.taskId);
     return shell.openPath(folder);
   });
-  ipcMain.handle(IPC_CHANNELS.projectRename, (_event, request) => {
-    runtimeController.renameProject(request.path, request.displayName);
-  });
+  ipcMain.handle(IPC_CHANNELS.projectRename, (_event, request) =>
+    runtimeController.renameProject(request.path, request.displayName),
+  );
   ipcMain.handle(IPC_CHANNELS.projectArchive, (_event, request) => {
     runtimeController.archiveProject(request.path, request.archived);
   });

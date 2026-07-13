@@ -21,11 +21,15 @@ import type {
   CodexDefaultApprovalMode,
   LaunchSpeedMode,
   ReadingSettings,
+  RenameProjectResponse,
+  RenameSessionResponse,
   ReasoningEffort,
   ResumePolicyId,
   RuntimeProvider,
   SlashCommandEntry,
 } from "../shared/types";
+import type { RenameCommitTrigger } from "../reading-core/transitions/rename";
+import type { RenameFlowResult } from "../reading-core/rename-flow";
 import type {
   ComposerAttachment,
   SettingsOverlayState,
@@ -81,8 +85,9 @@ export interface Actions {
   startNewChat(folder?: string | null): void;
   setSidebarPrefs(patch: Partial<SidebarPrefs>): void;
   toggleProjectCollapsed(path: string): void;
-  renameSession(taskId: string, title: string): void;
-  renameProject(path: string, displayName: string): void;
+  renameSession(taskId: string, title: string): Promise<RenameSessionResponse>;
+  renameProject(path: string, displayName: string): Promise<RenameProjectResponse>;
+  commitRename(trigger: RenameCommitTrigger): Promise<RenameFlowResult>;
   revealSession(taskId: string): void;
   revealProject(path: string): void;
   archiveSessionFromSidebar(taskId: string): void;

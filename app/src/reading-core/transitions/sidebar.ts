@@ -139,19 +139,3 @@ export function toggleProjectCollapsed(state: RendererState, path: string): void
     state.sidebar.collapsedProjects.add(path);
   }
 }
-
-export function startSessionRename(state: RendererState, taskId: string): void {
-  state.sidebar.renamingSessionId = taskId;
-}
-
-export function endSessionRename(state: RendererState): void {
-  state.sidebar.renamingSessionId = null;
-}
-
-export function startProjectRename(state: RendererState, path: string, currentName: string): void {
-  state.sidebar.projectRenaming = { path, currentName };
-}
-
-export function endProjectRename(state: RendererState): void {
-  state.sidebar.projectRenaming = null;
-}

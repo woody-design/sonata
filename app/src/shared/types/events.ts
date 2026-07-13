@@ -145,7 +145,7 @@ export type TaskUpdatedEvent = BaseRuntimeEvent<
   {
     taskId: TaskId;
     task: Task;
-    reason: "runtime-status";
+    reason: "runtime-status" | "session-renamed";
   }
 >;
 
