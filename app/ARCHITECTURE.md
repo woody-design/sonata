@@ -28,6 +28,13 @@ src/reading-core/           PURE MODEL — no DOM, no Electron (compiler-enforce
   runtime-reducer.ts        is a build error)
   directives.ts
   config.ts
+  rename-flow.ts            core-owned async flow: the single-flight rename
+                            lifecycle, driven through injected ports
+                            (`RenamePorts`) so it carries no Electron knowledge
+                            and unit-tests in plain node. `flows/` stays the
+                            home for shell-BOUND orchestration; a flow whose
+                            only outside contact is a narrow injected port lives
+                            in the pure core instead.
   selectors/                pure state → derived data
   transitions/              named state mutations (policy-bearing)
 
@@ -50,19 +57,32 @@ graph). The essentials:
 - `reading-core` imports only itself + `shared/`.
 - `view/*` may import dom/icons/popover-geometry/reading-core/shared and the
   actions **interface** — never flows, render, scheduler, main, or a sibling
-  view family (cross-view composition goes through the composition root).
+  view family (cross-view composition goes through the composition root). The
+  sole intra-view import allowed is `view/rename-editor`, a cross-surface
+  protected-widget (icons/popover-geometry class) that both the header (via
+  render.ts) and the sidebar rows/projects mount; it owns no surface of its
+  own, so it is an importable view utility, not a sibling family.
 - `flows/` may import render, actions (types), dom, reading-core — never view
   families or the scheduler; those arrive as init-bound deps.
 - `render.ts` imports every view family; nothing imports `main.ts`.
 - A new module MUST claim a RULES row (or be a registered composition root) —
   the fence fails on unclaimed files.
 
+`view/rename-editor` earns its shared-utility status through a **protected-node
+pattern**: it hands out exactly one `<input>` per editor lifetime, and repeated
+renders move that node into a freshly reconciled host but never recreate it —
+so caret, selection, focus, and the browser's IME composition owner survive
+background paints. It is the transcript reconcile engine's identity-preservation
+philosophy (below) narrowed to a single widget that two surfaces both mount.
+
 ## State
 
 One mutable atom (`RendererState`, created by `createInitialState`) with two
 regions: per-task runtime projections (`state.taskViews: TaskViewState[]` —
 runs, transcript blocks, approvals, delivery, usage) and global UI state
-(drafts, popovers, sidebar, settings overlay). **Mutation-in-place is
+(drafts, popovers, sidebar, settings overlay). The sidebar cluster carries the
+inline-rename lifecycle (`renameEditor`, `renameRequestVersion`, `renameNotice`)
+alongside its progressive-`disclosure` intent. **Mutation-in-place is
 deliberate and load-bearing**: the transcript reconcile engine detects change
 by reference identity (`transcriptBlocks.set` replaces changed block refs;
 unchanged blocks keep theirs), captured as version numbers in a WeakMap
@@ -140,7 +160,10 @@ T2 150 ms session-index debounce · T3 160 ms transcript render debounce ·
 T4 sticky-header rAF (prompt-nav) · T5/T6 usage-popover hover 150/180 ms ·
 T7 1200 ms copy-reset (chrome) · T8 resizer rAF (main.ts wiring) · T9–T11
 menu/rename rAFs (sidebar) · T12 post-render scroll microtask (flows) ·
-G1 slash-cache TTL · G2 IME 80 ms composition guard (main.ts).
+T13 300 ms rename progress reveal (rename-editor) · T14/T15 rename-editor Tab
+focusin-cleanup timeout-0 / initial-focus rAF · T16 rename pointer-boundary
+timeout-0 (main.ts) · G1 slash-cache TTL · G2 IME 80 ms composition guard
+(main.ts).
 
 ## Boot order (load-bearing)
 

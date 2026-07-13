@@ -28,11 +28,16 @@ const RULES = [
   // pure core, shared protocol types, and the late-binding actions INTERFACE
   // — never flows/render/scheduler/main, and never a sibling view family
   // (cross-view composition goes through main.ts via the actions seam).
+  // rename-editor is the exception: a cross-surface protected-widget (icons/
+  // popover-geometry class) mounted by BOTH header (via render.ts) and sidebar
+  // rows/projects; it owns no surface of its own, so it is an importable view
+  // utility, NOT a sibling family. The other view families stay forbidden.
   {
     layer: "renderer/view/",
     allowedPrefixes: [
       "renderer/view/icons",
       "renderer/view/popover-geometry",
+      "renderer/view/rename-editor",
       "renderer/dom",
       "renderer/actions",
       "reading-core/",
