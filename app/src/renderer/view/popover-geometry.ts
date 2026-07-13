@@ -36,9 +36,17 @@ export function positionSidebarMenu(panel: HTMLElement, anchor: AnchorRect): voi
     if (overflowX > 0) {
       panel.style.left = `${Math.round(rect.left - overflowX)}px`;
     }
-    const overflowY = rect.bottom - (window.innerHeight - 8);
-    if (overflowY > 0) {
-      panel.style.top = `${Math.round(anchor.top - rect.height - 4)}px`;
+    const belowTop = anchor.bottom + 4;
+    const belowSpace = Math.max(0, window.innerHeight - belowTop - 8);
+    const aboveBottom = anchor.top - 4;
+    const aboveSpace = Math.max(0, aboveBottom - 8);
+    if (rect.height > belowSpace) {
+      const useAbove = aboveSpace > belowSpace;
+      const available = useAbove ? aboveSpace : belowSpace;
+      panel.style.maxHeight = `${Math.floor(available)}px`;
+      panel.style.top = useAbove
+        ? `${Math.round(Math.max(8, aboveBottom - Math.min(rect.height, available)))}px`
+        : `${Math.round(belowTop)}px`;
     }
   });
 }

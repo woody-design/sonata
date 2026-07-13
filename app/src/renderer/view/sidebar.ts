@@ -19,15 +19,16 @@ import {
   Plus,
   type IconNode,
 } from "lucide";
-import type { ProjectGroup, SessionSummary } from "../../shared/types";
+import type { SessionSummary } from "../../shared/types";
 import { formatRelativeAge } from "../../reading-core/selectors/formatters";
 import {
-  applySidebarPrefs,
-  sidebarDateBuckets,
-  sidebarEntries,
+  sidebarDisclosureModel,
   sidebarFiltersNonDefault,
   sidebarPrefsNonDefault,
-  type SidebarEntry,
+  type SidebarDisclosureModel,
+  type SidebarDisclosureProject,
+  type SidebarDisclosureProjectGroup,
+  type SidebarDisclosureSessionGroup,
 } from "../../reading-core/selectors/sidebar";
 import {
   SIDEBAR_PREFS_DEFAULTS,
@@ -35,6 +36,7 @@ import {
   taskViewForId,
   type FilterMenuSection,
   type RendererState,
+  type SidebarDisclosureGroupKey,
   type SidebarMenuState,
   type SidebarPrefs,
   type TaskViewState,
@@ -52,9 +54,39 @@ export function initSidebarView(stateRef: RendererState): void {
   state = stateRef;
 }
 
-export function renderSidebar(): void {
+interface SidebarRenderOptions {
+  /** Keyboard-only destination used when the activating disclosure control
+   *  disappears. Normal rebuilds restore the captured semantic key. */
+  preferredFocusKey?: string;
+  allowFallback?: boolean;
+  revealPreferredFocus?: boolean;
+  resetScroll?: boolean;
+}
+
+interface SidebarRenderSnapshot {
+  focusKey: string | null;
+  fallbackFocusKeys: string[];
+  focusOffsetTop: number | null;
+  scrollTop: number;
+  menuFocusOffsetTop: number | null;
+  menuScrollTop: number | null;
+}
+
+const OUTER_SHOW_LESS_FOCUS_KEY = "disclosure:outer:less";
+const OUTER_SHOW_MORE_FOCUS_KEY = "disclosure:outer:more";
+let lastRenderedPrefs: SidebarPrefs | null = null;
+
+export function renderSidebar(options: SidebarRenderOptions = {}): void {
+  const snapshot = captureSidebarRenderSnapshot();
+  const prefsChanged =
+    lastRenderedPrefs !== null && !sidebarPrefsEqual(lastRenderedPrefs, state.sidebar.prefs);
   renderSidebarSections();
-  renderSidebarMenu();
+  renderSidebarMenuContents();
+  restoreSidebarRenderSnapshot(snapshot, {
+    ...options,
+    resetScroll: options.resetScroll ?? prefsChanged,
+  });
+  lastRenderedPrefs = { ...state.sidebar.prefs };
 }
 
 function renderSidebarSections(): void {
@@ -64,41 +96,51 @@ function renderSidebarSections(): void {
     return;
   }
 
-  const allEntries = sidebarEntries(index);
-  const entries = applySidebarPrefs(allEntries, state.sidebar.prefs);
-
-  const focusedProject =
-    state.sidebar.prefs.project !== null
-      ? index.projects.find((project) => project.path === state.sidebar.prefs.project)
-      : null;
-  const headerTitle = focusedProject
-    ? focusedProject.name
-    : state.sidebar.prefs.groupBy === "project"
-      ? "Projects"
-      : "Sessions";
+  const model = sidebarDisclosureModel(index, state.sidebar.prefs, state.sidebar.disclosure);
+  const focusedProject = index.projects.find(
+    (project) => project.path === state.sidebar.prefs.project,
+  );
+  const headerTitle =
+    model.mode === "focused"
+      ? (focusedProject?.name ?? "Sessions")
+      : model.mode === "project"
+        ? "Projects"
+        : "Sessions";
   elements.sidebarList.append(renderSidebarListHeader(headerTitle));
 
-  if (entries.length === 0) {
+  if (model.entries.length === 0) {
     const empty = document.createElement("p");
     empty.className = "sidebar-empty";
-    empty.textContent = allEntries.length === 0 ? "No sessions yet" : "No sessions match the filters";
+    const hasAnySessions =
+      index.chats.length > 0 || index.projects.some((project) => project.sessions.length > 0);
+    empty.textContent = hasAnySessions ? "No sessions match the filters" : "No sessions yet";
     elements.sidebarList.append(empty);
     return;
   }
 
-  if (focusedProject || state.sidebar.prefs.groupBy === "none") {
-    for (const entry of entries) {
-      elements.sidebarList.append(renderSidebarSessionRow(entry.session));
+  const groups = document.createElement("div");
+  groups.id = "sidebar-disclosure-groups";
+  groups.className = "sidebar-disclosure-groups";
+
+  if (model.mode === "project") {
+    for (const projectGroup of model.visibleProjectGroups) {
+      groups.append(renderSidebarProject(projectGroup));
     }
-    return;
+    for (const sessionGroup of model.sessionGroups) {
+      groups.append(renderSidebarSessionGroup(sessionGroup, true));
+    }
+  } else {
+    const showLabels = model.mode === "date";
+    for (const sessionGroup of model.sessionGroups) {
+      groups.append(renderSidebarSessionGroup(sessionGroup, showLabels));
+    }
   }
 
-  if (state.sidebar.prefs.groupBy === "date") {
-    renderSidebarDateGroups(entries);
-    return;
+  elements.sidebarList.append(groups);
+  const outer = renderOuterDisclosure(model);
+  if (outer) {
+    elements.sidebarList.append(outer);
   }
-
-  renderSidebarProjectGroups(entries);
 }
 
 function renderSidebarListHeader(title: string): HTMLElement {
@@ -115,6 +157,7 @@ function renderSidebarListHeader(title: string): HTMLElement {
   filterButton.title = "Filter, group, and sort";
   filterButton.setAttribute("aria-label", "Filter, group, and sort sessions");
   filterButton.setAttribute("aria-haspopup", "menu");
+  setSidebarFocusKey(filterButton, "filter");
   // Blue whenever anything departs from the default setup — the
   // persistent "your view is shaped" signal.
   filterButton.classList.toggle("active", sidebarPrefsNonDefault(state.sidebar.prefs));
@@ -133,43 +176,6 @@ function renderSidebarListHeader(title: string): HTMLElement {
   return header;
 }
 
-function renderSidebarProjectGroups(entries: SidebarEntry[]): void {
-  const index = state.sessionIndex;
-  if (!index) {
-    return;
-  }
-  // Rebuild groups from the FILTERED entries; empty groups disappear.
-  for (const project of index.projects) {
-    const sessions = entries
-      .filter((entry) => entry.projectPath === project.path)
-      .map((entry) => entry.session);
-    if (sessions.length === 0) {
-      continue;
-    }
-    elements.sidebarList.append(renderSidebarProject({ ...project, sessions }));
-  }
-
-  const chats = entries.filter((entry) => entry.projectPath === null);
-  if (chats.length > 0) {
-    elements.sidebarList.append(sidebarSectionLabel("Chats"));
-    for (const entry of chats) {
-      elements.sidebarList.append(renderSidebarSessionRow(entry.session));
-    }
-  }
-}
-
-function renderSidebarDateGroups(entries: SidebarEntry[]): void {
-  for (const bucket of sidebarDateBuckets(entries)) {
-    if (bucket.entries.length === 0) {
-      continue;
-    }
-    elements.sidebarList.append(sidebarSectionLabel(bucket.label));
-    for (const entry of bucket.entries) {
-      elements.sidebarList.append(renderSidebarSessionRow(entry.session));
-    }
-  }
-}
-
 function sidebarSectionLabel(text: string): HTMLElement {
   const label = document.createElement("p");
   label.className = "sidebar-section-label";
@@ -177,9 +183,35 @@ function sidebarSectionLabel(text: string): HTMLElement {
   return label;
 }
 
-function renderSidebarProject(project: ProjectGroup): HTMLElement {
+function renderSidebarSessionGroup(
+  group: SidebarDisclosureSessionGroup,
+  showLabel: boolean,
+): HTMLElement {
+  const container = document.createElement("div");
+  container.className = "sidebar-session-group";
+  container.dataset.disclosureGroupKey = group.key;
+  if (showLabel) {
+    container.append(sidebarSectionLabel(group.label));
+  }
+
+  const items = document.createElement("div");
+  items.id = disclosureItemsId(group.key);
+  items.className = "sidebar-disclosure-items";
+  for (const entry of group.visibleEntries) {
+    items.append(renderSidebarSessionRow(entry.session));
+  }
+  container.append(items);
+  if (group.disclosure.canShowMore) {
+    container.append(renderLocalShowMore(group, false));
+  }
+  return container;
+}
+
+function renderSidebarProject(group: SidebarDisclosureProjectGroup): HTMLElement {
+  const project = group.project;
   const container = document.createElement("div");
   container.className = "sidebar-project";
+  container.dataset.disclosureGroupKey = group.key;
 
   const header = document.createElement("div");
   header.className = "sidebar-project-header";
@@ -197,6 +229,7 @@ function renderSidebarProject(project: ProjectGroup): HTMLElement {
   labelButton.className = "sidebar-project-label";
   labelButton.title = project.path;
   labelButton.setAttribute("aria-expanded", String(expanded));
+  setSidebarFocusKey(labelButton, projectFocusKey(project.path));
   labelButton.append(lucideIcon(expanded ? FolderOpen : Folder, 14));
   const name = document.createElement("span");
   name.className = "sidebar-project-name";
@@ -217,12 +250,22 @@ function renderSidebarProject(project: ProjectGroup): HTMLElement {
 
   const rowActions = document.createElement("span");
   rowActions.className = "sidebar-row-actions";
-  const menuButton = sidebarIconButton(Ellipsis, `${project.name} actions`, (anchorElement) => {
-    openSidebarMenuForProject(project, anchorElement);
-  });
-  const newChatButton = sidebarIconButton(Plus, `New chat in ${project.name}`, () => {
-    actions.startNewChat(project.path);
-  });
+  const menuButton = sidebarIconButton(
+    Ellipsis,
+    `${project.name} actions`,
+    (anchorElement) => {
+      openSidebarMenuForProject(project, anchorElement);
+    },
+    `${projectFocusKey(project.path)}:menu`,
+  );
+  const newChatButton = sidebarIconButton(
+    Plus,
+    `New chat in ${project.name}`,
+    () => {
+      actions.startNewChat(project.path);
+    },
+    `${projectFocusKey(project.path)}:new-chat`,
+  );
   rowActions.append(menuButton, newChatButton);
 
   header.append(labelButton, rowActions);
@@ -231,12 +274,341 @@ function renderSidebarProject(project: ProjectGroup): HTMLElement {
   if (expanded) {
     const list = document.createElement("div");
     list.className = "sidebar-project-sessions";
-    for (const session of project.sessions) {
-      list.append(renderSidebarSessionRow(session));
+    const items = document.createElement("div");
+    items.id = disclosureItemsId(group.key);
+    items.className = "sidebar-disclosure-items";
+    for (const entry of group.visibleEntries) {
+      items.append(renderSidebarSessionRow(entry.session));
+    }
+    list.append(items);
+    if (group.disclosure.canShowMore) {
+      list.append(renderLocalShowMore(group, true));
     }
     container.append(list);
   }
   return container;
+}
+
+function renderLocalShowMore(
+  group: SidebarDisclosureSessionGroup,
+  projectSessionAlignment: boolean,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "sidebar-disclosure-action sidebar-disclosure-local";
+  button.classList.toggle("project-sessions", projectSessionAlignment);
+  button.textContent = "Show more";
+  button.setAttribute(
+    "aria-label",
+    `Show ${group.disclosure.nextIncrementCount} more ${pluralize("session", group.disclosure.nextIncrementCount)} in ${group.label}`,
+  );
+  button.setAttribute("aria-controls", disclosureItemsId(group.key));
+  setSidebarFocusKey(button, localShowMoreFocusKey(group.key));
+  button.addEventListener("click", (event) => {
+    const keyboardOrigin = event.detail === 0;
+    const firstNewEntry = group.entries[group.disclosure.effectiveVisibleCount];
+    const completesGroup =
+      group.disclosure.effectiveVisibleCount + group.disclosure.nextIncrementCount >=
+      group.disclosure.totalCount;
+    sidebarTransitions.showMoreSidebarGroup(state, group.key);
+    renderSidebar({
+      ...(keyboardOrigin && completesGroup && firstNewEntry
+        ? { preferredFocusKey: sessionFocusKey(firstNewEntry.session.task.id) }
+        : {}),
+      allowFallback: keyboardOrigin,
+      revealPreferredFocus: keyboardOrigin && completesGroup,
+    });
+  });
+  return button;
+}
+
+function renderOuterDisclosure(model: SidebarDisclosureModel): HTMLElement | null {
+  if (!model.outer.showLess && !model.outer.showMore) {
+    return null;
+  }
+  const footer = document.createElement("div");
+  footer.className = "sidebar-disclosure-footer";
+
+  if (model.outer.showLess) {
+    const showLess = document.createElement("button");
+    showLess.type = "button";
+    showLess.className = "sidebar-disclosure-action sidebar-disclosure-outer";
+    showLess.textContent = "Show less";
+    showLess.setAttribute(
+      "aria-label",
+      "Show less and reset all project and session lists to 5 items",
+    );
+    showLess.setAttribute("aria-controls", "sidebar-disclosure-groups");
+    setSidebarFocusKey(showLess, OUTER_SHOW_LESS_FOCUS_KEY);
+    showLess.addEventListener("click", (event) => {
+      const keyboardOrigin = event.detail === 0;
+      sidebarTransitions.resetSidebarDisclosure(state);
+      const preferredFocusKey =
+        model.mode === "project" && model.outer.eligibleProjectCount > 5
+          ? OUTER_SHOW_MORE_FOCUS_KEY
+          : firstModelRowFocusKey(model);
+      renderSidebar({
+        ...(keyboardOrigin && preferredFocusKey ? { preferredFocusKey } : {}),
+        allowFallback: keyboardOrigin,
+        revealPreferredFocus: keyboardOrigin,
+      });
+    });
+    footer.append(showLess);
+  }
+
+  if (model.outer.showMore) {
+    const showMore = document.createElement("button");
+    showMore.type = "button";
+    showMore.className = "sidebar-disclosure-action sidebar-disclosure-outer";
+    showMore.textContent = "Show more";
+    showMore.setAttribute(
+      "aria-label",
+      `Show ${model.outer.projectVisibility.nextIncrementCount} more ${pluralize("project", model.outer.projectVisibility.nextIncrementCount)}`,
+    );
+    showMore.setAttribute("aria-controls", "sidebar-disclosure-groups");
+    setSidebarFocusKey(showMore, OUTER_SHOW_MORE_FOCUS_KEY);
+    showMore.addEventListener("click", (event) => {
+      const keyboardOrigin = event.detail === 0;
+      const firstNewProject =
+        model.projectGroups[model.outer.projectVisibility.effectiveVisibleCount];
+      const completesProjects =
+        model.outer.projectVisibility.effectiveVisibleCount +
+          model.outer.projectVisibility.nextIncrementCount >=
+        model.outer.projectVisibility.totalCount;
+      sidebarTransitions.showMoreSidebarProjects(state);
+      renderSidebar({
+        ...(keyboardOrigin && completesProjects && firstNewProject
+          ? { preferredFocusKey: projectFocusKey(firstNewProject.project.path) }
+          : {}),
+        allowFallback: keyboardOrigin,
+        revealPreferredFocus: keyboardOrigin && completesProjects,
+      });
+    });
+    footer.append(showMore);
+  }
+
+  return footer;
+}
+
+function firstModelRowFocusKey(model: SidebarDisclosureModel): string | null {
+  const firstProject = model.visibleProjectGroups[0];
+  if (firstProject) {
+    return projectFocusKey(firstProject.project.path);
+  }
+  const firstSession = model.sessionGroups[0]?.visibleEntries[0];
+  return firstSession ? sessionFocusKey(firstSession.session.task.id) : "filter";
+}
+
+function pluralize(noun: string, count: number): string {
+  return count === 1 ? noun : `${noun}s`;
+}
+
+function disclosureItemsId(key: SidebarDisclosureGroupKey): string {
+  return `sidebar-disclosure-items-${encodeURIComponent(key)}`;
+}
+
+function localShowMoreFocusKey(key: SidebarDisclosureGroupKey): string {
+  return `disclosure:${key}:more`;
+}
+
+function projectFocusKey(path: string): string {
+  return `project:${path}`;
+}
+
+function sessionFocusKey(taskId: string): string {
+  return `session:${taskId}`;
+}
+
+function setSidebarFocusKey(element: HTMLElement, key: string): void {
+  element.dataset.sidebarFocusKey = key;
+}
+
+function sidebarScroller(): HTMLElement {
+  return elements.sidebarList.parentElement ?? elements.sidebarList;
+}
+
+function captureSidebarRenderSnapshot(): SidebarRenderSnapshot {
+  const scroller = sidebarScroller();
+  const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const menu = elements.sidebarMenuRoot.querySelector<HTMLElement>(".sidebar-menu");
+  const ownsFocus =
+    active !== null &&
+    (elements.sidebarList.contains(active) || elements.sidebarMenuRoot.contains(active));
+  return {
+    focusKey: ownsFocus ? (active.dataset.sidebarFocusKey ?? null) : null,
+    fallbackFocusKeys: ownsFocus ? sidebarFallbackFocusKeys(active) : [],
+    focusOffsetTop:
+      ownsFocus && elements.sidebarList.contains(active)
+        ? active.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+        : null,
+    scrollTop: scroller.scrollTop,
+    menuFocusOffsetTop:
+      ownsFocus && menu?.contains(active)
+        ? active.getBoundingClientRect().top - menu.getBoundingClientRect().top
+        : null,
+    menuScrollTop: menu?.scrollTop ?? null,
+  };
+}
+
+function restoreSidebarRenderSnapshot(
+  snapshot: SidebarRenderSnapshot,
+  options: SidebarRenderOptions,
+): void {
+  const scroller = sidebarScroller();
+  scroller.scrollTop = options.resetScroll ? 0 : snapshot.scrollTop;
+  const menu = elements.sidebarMenuRoot.querySelector<HTMLElement>(".sidebar-menu");
+  if (menu && snapshot.menuScrollTop !== null) {
+    menu.scrollTop = snapshot.menuScrollTop;
+  }
+  const desiredKey = options.preferredFocusKey ?? snapshot.focusKey;
+  if (!desiredKey) {
+    return;
+  }
+
+  let target = sidebarFocusTarget(desiredKey);
+  let usingFallback = false;
+  if (!target && snapshot.focusKey && options.allowFallback !== false) {
+    target =
+      snapshot.fallbackFocusKeys
+        .map((key) => sidebarFocusTarget(key))
+        .find((candidate): candidate is HTMLElement => candidate !== null) ??
+      firstSidebarRowFocusTarget() ??
+      sidebarFocusTarget("filter");
+    usingFallback = target !== null;
+  }
+  if (!target) {
+    return;
+  }
+
+  target.focus({ preventScroll: true });
+  if (
+    !options.preferredFocusKey &&
+    !usingFallback &&
+    snapshot.menuFocusOffsetTop !== null &&
+    menu?.contains(target)
+  ) {
+    const nextOffset =
+      target.getBoundingClientRect().top - menu.getBoundingClientRect().top;
+    menu.scrollTop += nextOffset - snapshot.menuFocusOffsetTop;
+    return;
+  }
+  if (
+    !options.preferredFocusKey &&
+    !usingFallback &&
+    !options.resetScroll &&
+    snapshot.focusOffsetTop !== null &&
+    elements.sidebarList.contains(target)
+  ) {
+    const nextOffset =
+      target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTop += nextOffset - snapshot.focusOffsetTop;
+    return;
+  }
+  if (
+    options.revealPreferredFocus ||
+    usingFallback ||
+    (options.resetScroll && elements.sidebarList.contains(target))
+  ) {
+    target.scrollIntoView({ block: "nearest" });
+  }
+}
+
+function sidebarPrefsEqual(left: SidebarPrefs, right: SidebarPrefs): boolean {
+  return (
+    left.status === right.status &&
+    left.project === right.project &&
+    left.activity === right.activity &&
+    left.groupBy === right.groupBy &&
+    left.sortBy === right.sortBy
+  );
+}
+
+function sidebarFocusTarget(key: string): HTMLElement | null {
+  const candidates = [
+    ...Array.from(
+      elements.sidebarList.querySelectorAll<HTMLElement>("[data-sidebar-focus-key]"),
+    ),
+    ...Array.from(
+      elements.sidebarMenuRoot.querySelectorAll<HTMLElement>("[data-sidebar-focus-key]"),
+    ),
+  ];
+  return candidates.find((candidate) => candidate.dataset.sidebarFocusKey === key) ?? null;
+}
+
+function firstSidebarRowFocusTarget(): HTMLElement | null {
+  return elements.sidebarList.querySelector<HTMLElement>(
+    ".sidebar-project-label, .sidebar-session-button",
+  );
+}
+
+function sidebarFallbackFocusKeys(active: HTMLElement): string[] {
+  const keys: string[] = [];
+  const pushKey = (element: HTMLElement | null): void => {
+    const key = element?.dataset.sidebarFocusKey;
+    if (key && key !== active.dataset.sidebarFocusKey && !keys.includes(key)) {
+      keys.push(key);
+    }
+  };
+
+  const menu = active.closest<HTMLElement>(".sidebar-menu");
+  if (menu) {
+    const triggerKey = menu.dataset.sidebarMenuTriggerFocusKey;
+    if (triggerKey) {
+      keys.push(triggerKey);
+    }
+    return keys;
+  }
+
+  const sessionRow = active.closest<HTMLElement>(".sidebar-session");
+  if (sessionRow) {
+    const sessionButton = sessionRow.querySelector<HTMLElement>(".sidebar-session-button");
+    const items = sessionRow.closest<HTMLElement>(".sidebar-disclosure-items");
+    const rows = items
+      ? Array.from(items.querySelectorAll<HTMLElement>(":scope > .sidebar-session"))
+      : [];
+    const index = rows.indexOf(sessionRow);
+    for (let distance = 1; index >= 0 && distance < rows.length; distance += 1) {
+      pushKey(rows[index + distance]?.querySelector<HTMLElement>(".sidebar-session-button") ?? null);
+      pushKey(rows[index - distance]?.querySelector<HTMLElement>(".sidebar-session-button") ?? null);
+    }
+    pushKey(
+      sessionRow
+        .closest<HTMLElement>(".sidebar-project")
+        ?.querySelector<HTMLElement>(".sidebar-project-label") ?? null,
+    );
+    const globalRows = Array.from(
+      elements.sidebarList.querySelectorAll<HTMLElement>(
+        ".sidebar-project-label, .sidebar-session-button",
+      ),
+    );
+    const globalIndex = sessionButton ? globalRows.indexOf(sessionButton) : -1;
+    for (
+      let distance = 1;
+      globalIndex >= 0 && distance < globalRows.length;
+      distance += 1
+    ) {
+      pushKey(globalRows[globalIndex + distance] ?? null);
+      pushKey(globalRows[globalIndex - distance] ?? null);
+    }
+    return keys;
+  }
+
+  const project = active.closest<HTMLElement>(".sidebar-project");
+  if (project) {
+    const projects = Array.from(
+      elements.sidebarList.querySelectorAll<HTMLElement>(".sidebar-project"),
+    );
+    const index = projects.indexOf(project);
+    for (let distance = 1; index >= 0 && distance < projects.length; distance += 1) {
+      pushKey(
+        projects[index + distance]?.querySelector<HTMLElement>(".sidebar-project-label") ?? null,
+      );
+      pushKey(
+        projects[index - distance]?.querySelector<HTMLElement>(".sidebar-project-label") ?? null,
+      );
+    }
+  }
+  return keys;
 }
 
 function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
@@ -258,6 +630,7 @@ function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
   button.type = "button";
   button.className = "sidebar-session-button";
   button.title = task.title;
+  setSidebarFocusKey(button, sessionFocusKey(task.id));
   if (active) {
     button.setAttribute("aria-current", "page");
   }
@@ -284,9 +657,14 @@ function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
     time.textContent = formatRelativeAge(session.lastActivityAt);
     trailing.append(time);
   }
-  const menuButton = sidebarIconButton(Ellipsis, `${task.title} actions`, (anchorElement) => {
-    openSidebarMenuForSession(task.id, task.title, session.archived, anchorElement);
-  });
+  const menuButton = sidebarIconButton(
+    Ellipsis,
+    `${task.title} actions`,
+    (anchorElement) => {
+      openSidebarMenuForSession(task.id, task.title, session.archived, anchorElement);
+    },
+    `${sessionFocusKey(task.id)}:menu`,
+  );
   menuButton.classList.add("sidebar-row-hover-action");
   trailing.append(menuButton);
 
@@ -299,6 +677,7 @@ function renderSidebarRenameInput(taskId: string, currentTitle: string): HTMLEle
   input.type = "text";
   input.className = "sidebar-rename-input";
   input.value = currentTitle;
+  setSidebarFocusKey(input, `${sessionFocusKey(taskId)}:rename`);
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -410,12 +789,16 @@ function sidebarIconButton(
   iconNode: IconNode,
   label: string,
   onClick: (anchorElement: HTMLElement) => void,
+  focusKey?: string,
 ): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "sidebar-icon-button";
   button.setAttribute("aria-label", label);
   button.title = label;
+  if (focusKey) {
+    setSidebarFocusKey(button, focusKey);
+  }
   button.append(lucideIcon(iconNode, 14));
   button.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -434,7 +817,10 @@ export function openSidebarMenuForSession(
   renderSidebarMenu();
 }
 
-function openSidebarMenuForProject(project: ProjectGroup, anchorElement: HTMLElement): void {
+function openSidebarMenuForProject(
+  project: SidebarDisclosureProject,
+  anchorElement: HTMLElement,
+): void {
   sidebarTransitions.openProjectMenu(
     state,
     project.path,
@@ -445,13 +831,19 @@ function openSidebarMenuForProject(project: ProjectGroup, anchorElement: HTMLEle
   renderSidebarMenu();
 }
 
-export function closeSidebarMenu(): void {
+export function closeSidebarMenu(options: SidebarRenderOptions = {}): void {
   if (sidebarTransitions.closeSidebarMenu(state)) {
-    renderSidebarMenu();
+    renderSidebarMenu(options);
   }
 }
 
-function renderSidebarMenu(): void {
+function renderSidebarMenu(options: SidebarRenderOptions = {}): void {
+  const snapshot = captureSidebarRenderSnapshot();
+  renderSidebarMenuContents();
+  restoreSidebarRenderSnapshot(snapshot, options);
+}
+
+function renderSidebarMenuContents(): void {
   elements.sidebarMenuRoot.replaceChildren();
   const menu = state.sidebar.menu;
   if (!menu) {
@@ -461,6 +853,12 @@ function renderSidebarMenu(): void {
   const panel = document.createElement("div");
   panel.className = "sidebar-menu";
   panel.setAttribute("role", "menu");
+  panel.dataset.sidebarMenuTriggerFocusKey =
+    menu.kind === "filter"
+      ? "filter"
+      : menu.kind === "session"
+        ? `${sessionFocusKey(menu.taskId)}:menu`
+        : `${projectFocusKey(menu.path)}:menu`;
 
   if (menu.kind === "filter") {
     renderSidebarFilterMenu(panel, menu);
@@ -474,35 +872,35 @@ function renderSidebarMenu(): void {
       sidebarMenuItem("Rename", () => {
         sidebarTransitions.startSessionRename(state, menu.taskId);
         renderSidebar();
-      }),
+      }, "default", `menu:session:${menu.taskId}:rename`),
       sidebarMenuItem("Reveal in Finder", () => {
         actions.revealSession(menu.taskId);
-      }),
+      }, "default", `menu:session:${menu.taskId}:reveal`),
       menu.archived
         ? sidebarMenuItem("Unarchive", () => {
             actions.unarchiveSession(menu.taskId);
-          })
+          }, "default", `menu:session:${menu.taskId}:unarchive`)
         : sidebarMenuItem("Archive", () => {
             actions.archiveSessionFromSidebar(menu.taskId);
-          }),
+          }, "default", `menu:session:${menu.taskId}:archive`),
       sidebarMenuItem("Delete", () => {
         actions.deleteSessionFromSidebar(menu.taskId, menu.title);
-      }, "danger"),
+      }, "danger", `menu:session:${menu.taskId}:delete`),
     );
   } else {
     panel.append(
       sidebarMenuItem("New chat here", () => {
         actions.startNewChat(menu.path);
-      }),
+      }, "default", `menu:project:${menu.path}:new-chat`),
       sidebarMenuItem("Rename project", () => {
         startProjectRename(menu.path, menu.name);
-      }),
+      }, "default", `menu:project:${menu.path}:rename`),
       sidebarMenuItem("Reveal in Finder", () => {
         actions.revealProject(menu.path);
-      }),
+      }, "default", `menu:project:${menu.path}:reveal`),
       sidebarMenuItem(menu.archived ? "Unarchive project" : "Archive project", () => {
         actions.archiveProject(menu.path, !menu.archived);
-      }, menu.archived ? "default" : "danger"),
+      }, menu.archived ? "default" : "danger", `menu:project:${menu.path}:archive`),
     );
   }
 
@@ -553,8 +951,11 @@ function renderSidebarFilterMenu(
       state.sidebar.prefs.status !== SIDEBAR_PREFS_DEFAULTS.status,
       () =>
         (["active", "archived", "all"] as const).map((value) =>
-          filterMenuOption(statusLabels[value], state.sidebar.prefs.status === value, () =>
-            actions.setSidebarPrefs({ status: value }),
+          filterMenuOption(
+            statusLabels[value],
+            state.sidebar.prefs.status === value,
+            () => actions.setSidebarPrefs({ status: value }),
+            `menu:filter:status:${value}`,
           ),
         ),
     ),
@@ -565,12 +966,18 @@ function renderSidebarFilterMenu(
       projectValueLabel,
       state.sidebar.prefs.project !== SIDEBAR_PREFS_DEFAULTS.project,
       () => [
-        filterMenuOption("All projects", state.sidebar.prefs.project === null, () =>
-          actions.setSidebarPrefs({ project: null }),
+        filterMenuOption(
+          "All projects",
+          state.sidebar.prefs.project === null,
+          () => actions.setSidebarPrefs({ project: null }),
+          "menu:filter:project:all",
         ),
         ...projects.map((project) =>
-          filterMenuOption(project.name, state.sidebar.prefs.project === project.path, () =>
-            actions.setSidebarPrefs({ project: project.path }),
+          filterMenuOption(
+            project.name,
+            state.sidebar.prefs.project === project.path,
+            () => actions.setSidebarPrefs({ project: project.path }),
+            `menu:filter:project:${project.path}`,
           ),
         ),
       ],
@@ -583,8 +990,11 @@ function renderSidebarFilterMenu(
       state.sidebar.prefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity,
       () =>
         (["1d", "3d", "7d", "30d", "all"] as const).map((value) =>
-          filterMenuOption(activityLabels[value], state.sidebar.prefs.activity === value, () =>
-            actions.setSidebarPrefs({ activity: value }),
+          filterMenuOption(
+            activityLabels[value],
+            state.sidebar.prefs.activity === value,
+            () => actions.setSidebarPrefs({ activity: value }),
+            `menu:filter:activity:${value}`,
           ),
         ),
     ),
@@ -597,8 +1007,11 @@ function renderSidebarFilterMenu(
       state.sidebar.prefs.groupBy !== SIDEBAR_PREFS_DEFAULTS.groupBy,
       () =>
         (["date", "project", "none"] as const).map((value) =>
-          filterMenuOption(groupLabels[value], state.sidebar.prefs.groupBy === value, () =>
-            actions.setSidebarPrefs({ groupBy: value }),
+          filterMenuOption(
+            groupLabels[value],
+            state.sidebar.prefs.groupBy === value,
+            () => actions.setSidebarPrefs({ groupBy: value }),
+            `menu:filter:group:${value}`,
           ),
         ),
     ),
@@ -610,8 +1023,11 @@ function renderSidebarFilterMenu(
       state.sidebar.prefs.sortBy !== SIDEBAR_PREFS_DEFAULTS.sortBy,
       () =>
         (["alphabetical", "created", "recency"] as const).map((value) =>
-          filterMenuOption(sortLabels[value], state.sidebar.prefs.sortBy === value, () =>
-            actions.setSidebarPrefs({ sortBy: value }),
+          filterMenuOption(
+            sortLabels[value],
+            state.sidebar.prefs.sortBy === value,
+            () => actions.setSidebarPrefs({ sortBy: value }),
+            `menu:filter:sort:${value}`,
           ),
         ),
     ),
@@ -625,7 +1041,7 @@ function renderSidebarFilterMenu(
       project: SIDEBAR_PREFS_DEFAULTS.project,
       activity: SIDEBAR_PREFS_DEFAULTS.activity,
     });
-  });
+  }, "default", "menu:filter:clear");
   clear.disabled = !sidebarFiltersNonDefault(state.sidebar.prefs);
   panel.append(clear);
 }
@@ -650,6 +1066,7 @@ function filterMenuRow(
   row.classList.toggle("non-default", nonDefault);
   row.setAttribute("role", "menuitem");
   row.setAttribute("aria-haspopup", "menu");
+  setSidebarFocusKey(row, `menu:filter:${section}`);
   const labelSpan = document.createElement("span");
   labelSpan.className = "sidebar-filter-label";
   labelSpan.textContent = label;
@@ -678,12 +1095,18 @@ function filterMenuRow(
   return wrap;
 }
 
-function filterMenuOption(label: string, selected: boolean, onSelect: () => void): HTMLElement {
+function filterMenuOption(
+  label: string,
+  selected: boolean,
+  onSelect: () => void,
+  focusKey: string,
+): HTMLElement {
   const option = document.createElement("button");
   option.type = "button";
   option.className = "sidebar-menu-item sidebar-filter-option";
   option.setAttribute("role", "menuitemradio");
   option.setAttribute("aria-checked", String(selected));
+  setSidebarFocusKey(option, focusKey);
   const labelSpan = document.createElement("span");
   labelSpan.className = "sidebar-filter-label";
   labelSpan.textContent = label;
@@ -712,6 +1135,7 @@ function sidebarMenuItem(
   label: string,
   onSelect: () => void,
   tone: "default" | "danger" = "default",
+  focusKey?: string,
 ): HTMLButtonElement {
   const item = document.createElement("button");
   item.type = "button";
@@ -719,8 +1143,11 @@ function sidebarMenuItem(
   item.classList.toggle("danger", tone === "danger");
   item.setAttribute("role", "menuitem");
   item.textContent = label;
-  item.addEventListener("click", () => {
-    closeSidebarMenu();
+  if (focusKey) {
+    setSidebarFocusKey(item, focusKey);
+  }
+  item.addEventListener("click", (event) => {
+    closeSidebarMenu({ allowFallback: event.detail === 0 });
     onSelect();
   });
   return item;
@@ -736,6 +1163,7 @@ function renderProjectRenameInput(path: string, currentName: string): HTMLElemen
   input.type = "text";
   input.className = "sidebar-rename-input";
   input.value = currentName;
+  setSidebarFocusKey(input, `${projectFocusKey(path)}:rename`);
   const finish = (commit: boolean): void => {
     const nextName = input.value.trim();
     sidebarTransitions.endProjectRename(state);

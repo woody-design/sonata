@@ -137,7 +137,7 @@ try {
   );
   const liveTaskId = liveTask.task.id;
   const liveRow = page.locator(`.sidebar-session[data-task-id="${liveTaskId}"]`);
-  await liveRow.waitFor({ state: "attached" });
+  await revealSessionInProject(page, fixture.projects[0].name, liveRow);
   await liveRow.locator(".sidebar-session-button").click();
   await liveRow.locator(".sidebar-session-spinner").waitFor({ state: "attached" });
   await sendCliState(electronApp, liveTaskId, "busy");
@@ -557,6 +557,27 @@ async function openFirstSessionMenu(page) {
   await row.locator(".sidebar-row-hover-action").click();
   await page.locator("#sidebar-menu-root .sidebar-menu").waitFor({ state: "visible" });
   await page.mouse.move(1100, 700);
+}
+
+async function revealSessionInProject(page, projectName, sessionRow) {
+  const project = page.locator(".sidebar-project").filter({
+    has: page.locator(".sidebar-project-name", { hasText: projectName }),
+  });
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if ((await sessionRow.count()) > 0) {
+      return;
+    }
+    const showMore = project.locator(".sidebar-disclosure-local");
+    if ((await showMore.count()) > 0) {
+      await showMore.click();
+    } else {
+      // task:created schedules the authoritative session-index refresh after
+      // 150 ms. The existing fixture corpus may be fully disclosed before the
+      // new live row arrives; retain the stored depth and wait for that refresh.
+      await page.waitForTimeout(100);
+    }
+  }
+  throw new Error(`Session was not disclosed in ${projectName}`);
 }
 
 async function closeSidebarMenu(page) {

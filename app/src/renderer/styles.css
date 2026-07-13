@@ -940,6 +940,51 @@ body.sidebar-resizing {
   font-size: 12px;
 }
 
+.sidebar-disclosure-groups,
+.sidebar-session-group,
+.sidebar-disclosure-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-disclosure-action {
+  min-height: 28px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--sidebar-disclosure-ink);
+  font-family: var(--sidebar-font);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.sidebar-disclosure-action:hover {
+  background: transparent;
+  color: var(--sidebar-disclosure-ink-hover);
+}
+
+.sidebar-disclosure-local {
+  width: 100%;
+  padding-left: 6px;
+}
+
+.sidebar-disclosure-local.project-sessions {
+  padding-left: 27px;
+}
+
+.sidebar-disclosure-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+}
+
 .sidebar-project {
   display: flex;
   flex-direction: column;
@@ -1195,8 +1240,11 @@ body.sidebar-resizing {
 .sidebar-menu {
   z-index: 60;
   min-width: 178px;
+  max-height: calc(100vh - 16px);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   border: 1px solid var(--sidebar-border);
   border-radius: 9px;
@@ -1258,6 +1306,10 @@ body.sidebar-resizing {
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-project-chevron {
+    transition: none;
+  }
+
+  .sidebar-disclosure-action {
     transition: none;
   }
 
