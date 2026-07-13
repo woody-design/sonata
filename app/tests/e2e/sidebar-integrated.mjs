@@ -31,6 +31,10 @@ try {
   runNode("tests/smoke/session-index.mjs");
   runNode("tests/smoke/reading-runtime-reducer.mjs");
   runNode("tests/smoke/sidebar-integrated-evidence.mjs");
+  // Standing repo fence: a program gate must include the architecture's own
+  // laws, not just the program's focused oracles (the sidebar program shipped
+  // with import-fence red because this gate never ran it).
+  runNode("tests/smoke/import-fence.mjs");
   runNode("tests/e2e/sidebar-chrome.mjs", [chromeDir]);
   runNode("tests/e2e/terminal-theme-independence.mjs");
   runNode("tests/e2e/sidebar-disclosure.mjs", [disclosureDir]);
