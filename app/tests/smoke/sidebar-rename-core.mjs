@@ -215,6 +215,7 @@ function deferred() {
   assert.deepEqual(state.sidebar.renameNotice, {
     surface: "sidebar",
     message: "This session is no longer available, so its new name could not be saved.",
+    entity: { kind: "session", taskId: "gone" },
   });
   assert.equal(rename.currentRenameRequestMatches(state, stale.request), false);
   assert.equal(rename.completeRenameCommit(state, stale.request), false);
@@ -266,8 +267,10 @@ function deferred() {
   rename.startSessionRename(state, "transport", "header", "Original");
   rename.updateRenameDraft(state, "Transport draft");
   const transportFailure = await renameFlow.commitRename(state, "enter", {
+    // The Electron-invoke sniff now lives in the shell (main.ts port binding);
+    // the core classifies transport failures purely by type.
     renameSession: async () => {
-      throw new Error(
+      throw new renameFlow.RenameTransportFailure(
         "Error invoking remote method 'session:rename': Error: EISDIR /private/data/task.json.tmp",
       );
     },
@@ -313,4 +316,152 @@ function deferred() {
   assert.equal(state.sidebar.renameEditor, null);
 }
 
-console.log("sidebar-rename-core: 6 lifecycle groups pass");
+// 7) Error classification is type-based (no Electron string sniffing in the
+// core), and a stale-but-successful commit still repairs canonical state and
+// retracts only its OWN now-false "could not be saved" notice.
+{
+  // 7a) An intentional domain error reaches the inline editor verbatim.
+  {
+    const state = freshState();
+    rename.startProjectRename(state, "/workspace/alpha", "Alpha");
+    rename.updateRenameDraft(state, "Renamed");
+    const domainFailure = await renameFlow.commitRename(state, "enter", {
+      renameSession: async () => {
+        throw new Error("unexpected session port");
+      },
+      renameProject: async () => {
+        throw new Error("Atomic write failed: ENOSPC");
+      },
+    });
+    assert.equal(domainFailure.kind, "failed");
+    assert.equal(
+      state.sidebar.renameEditor.errorMessage,
+      "Atomic write failed: ENOSPC",
+      "an intentional domain error passes through verbatim",
+    );
+  }
+
+  // 7b) A transport failure (classified by type) collapses to the stable copy,
+  // even though its message carries the leaky invoke-wrapped detail.
+  {
+    const state = freshState();
+    rename.startSessionRename(state, "s-transport", "header", "Original");
+    rename.updateRenameDraft(state, "New title");
+    const transportFailure = await renameFlow.commitRename(state, "enter", {
+      renameSession: async () => {
+        throw new renameFlow.RenameTransportFailure(
+          "Error invoking remote method 'session:rename': Error: EACCES /private/data/x",
+        );
+      },
+      renameProject: async () => {
+        throw new Error("unexpected project port");
+      },
+    });
+    assert.equal(transportFailure.kind, "failed");
+    assert.equal(
+      state.sidebar.renameEditor.errorMessage,
+      "Couldn’t save this name. Your draft is still here—try again.",
+    );
+  }
+
+  // 7c) The editor is orphaned mid-flight and a "could not be saved" notice is
+  // promoted — but the disk save actually succeeds. The stale completion still
+  // lands its canonical data everywhere and retracts the now-false notice.
+  {
+    const state = freshState();
+    const keep = task("keep", "Original");
+    state.taskViews = [{ task: keep }];
+    state.sessionIndex = {
+      projects: [
+        {
+          path: "/workspace/alpha",
+          name: "Alpha",
+          archived: false,
+          lastActivityAt: keep.updatedAt,
+          sessions: [summary(keep)],
+        },
+      ],
+      chats: [summary(keep)],
+      lastUsedFolder: "/workspace/alpha",
+    };
+    rename.startSessionRename(state, "keep", "sidebar", "Original");
+    rename.updateRenameDraft(state, "Saved on disk");
+    const pending = deferred();
+    const flow = renameFlow.commitRename(state, "enter", {
+      renameSession: () => pending.promise,
+      renameProject: async () => {
+        throw new Error("unexpected project port");
+      },
+    });
+    const orphan = rename.terminateRenameForMissingEntity(state);
+    assert.equal(orphan.taskId, "keep");
+    assert.equal(state.sidebar.renameNotice.entity.taskId, "keep");
+    pending.resolve({ task: task("keep", "Saved on disk") });
+    const result = await flow;
+    assert.equal(result.kind, "stale", "the editor had closed, so the flow is stale");
+    assert.equal(
+      state.taskViews[0].task.title,
+      "Saved on disk",
+      "canonical sync runs even on a stale success",
+    );
+    assert.equal(state.sessionIndex.projects[0].sessions[0].task.title, "Saved on disk");
+    assert.equal(state.sessionIndex.chats[0].task.title, "Saved on disk");
+    assert.equal(
+      state.sidebar.renameNotice,
+      null,
+      "the now-false 'could not be saved' notice is retracted",
+    );
+  }
+
+  // 7d) Two overlapping flows: A is orphaned, then B is orphaned so B's notice
+  // is the live one. A's late success must NOT retract B's notice; B's own
+  // success then does. A notice about a different entity survives.
+  {
+    const state = freshState();
+    const a = task("a", "A original");
+    const b = task("b", "B original");
+    state.taskViews = [{ task: a }, { task: b }];
+    const pendingA = deferred();
+    const pendingB = deferred();
+
+    rename.startSessionRename(state, "a", "sidebar", "A original");
+    rename.updateRenameDraft(state, "A saved");
+    const flowA = renameFlow.commitRename(state, "enter", {
+      renameSession: () => pendingA.promise,
+      renameProject: async () => {
+        throw new Error("unexpected project port");
+      },
+    });
+    rename.terminateRenameForMissingEntity(state); // notice about "a"
+
+    rename.startSessionRename(state, "b", "sidebar", "B original");
+    rename.updateRenameDraft(state, "B saved");
+    const flowB = renameFlow.commitRename(state, "enter", {
+      renameSession: () => pendingB.promise,
+      renameProject: async () => {
+        throw new Error("unexpected project port");
+      },
+    });
+    rename.terminateRenameForMissingEntity(state); // notice about "b"
+    assert.equal(state.sidebar.renameNotice.entity.taskId, "b");
+
+    pendingA.resolve({ task: task("a", "A saved") });
+    assert.equal((await flowA).kind, "stale");
+    assert.equal(state.taskViews[0].task.title, "A saved", "A's canonical data still lands");
+    assert.deepEqual(
+      state.sidebar.renameNotice,
+      {
+        surface: "sidebar",
+        message: "This session is no longer available, so its new name could not be saved.",
+        entity: { kind: "session", taskId: "b" },
+      },
+      "a notice about a different entity survives an unrelated late success",
+    );
+
+    pendingB.resolve({ task: task("b", "B saved") });
+    assert.equal((await flowB).kind, "stale");
+    assert.equal(state.sidebar.renameNotice, null, "B's own success retracts B's notice");
+  }
+}
+
+console.log("sidebar-rename-core: 7 lifecycle groups pass");

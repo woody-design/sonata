@@ -87,6 +87,7 @@ import {
 } from "./flows/session-flows";
 import {
   commitRename as commitRenameFlow,
+  RenameTransportFailure,
   type RenameFlowResult,
 } from "../reading-core/rename-flow";
 import { initRender, performDirective, render, renderTranscriptStream } from "./render";
@@ -217,6 +218,20 @@ const activeRenamePointers = new Set<number>();
 const renamePointerReleaseWaiters = new Set<() => void>();
 let renamePointerBoundaryPending = false;
 
+/**
+ * Electron's ipcRenderer.invoke rejects with an Error whose message is prefixed
+ * `Error invoking remote method '<channel>'` (plus OS codes and absolute data
+ * paths). Classifying that Electron-specific shape here — at the port seam —
+ * keeps transport knowledge in the shell; the pure flow only sees the
+ * RenameTransportFailure type and picks its stable recovery copy.
+ */
+function asRenameTransportFailure(error: unknown): unknown {
+  if (error instanceof Error && error.message.includes("Error invoking remote method")) {
+    return new RenameTransportFailure(error.message, { cause: error });
+  }
+  return error;
+}
+
 function commitActiveRename(trigger: RenameCommitTrigger): Promise<RenameFlowResult> {
   const editorAtTrigger = state.sidebar.renameEditor;
   if (editorAtTrigger?.status === "committing") {
@@ -231,9 +246,20 @@ function commitActiveRename(trigger: RenameCommitTrigger): Promise<RenameFlowRes
     ? waitForRenameCompositionEnd(editorAtTrigger)
     : null;
   const flowPromise = commitRenameFlow(state, trigger, {
-    renameSession: (taskId, title) => window.duetRuntime.renameSession({ taskId, title }),
-    renameProject: (path, displayName) =>
-      window.duetRuntime.renameProject({ path, displayName }),
+    renameSession: async (taskId, title) => {
+      try {
+        return await window.duetRuntime.renameSession({ taskId, title });
+      } catch (error) {
+        throw asRenameTransportFailure(error);
+      }
+    },
+    renameProject: async (path, displayName) => {
+      try {
+        return await window.duetRuntime.renameProject({ path, displayName });
+      } catch (error) {
+        throw asRenameTransportFailure(error);
+      }
+    },
   });
   // The flow claims committing synchronously. Patch only the protected node;
   // a full render inside blur/pointerdown could destroy the eventual click

@@ -27,7 +27,11 @@ const PROGRESS_DELAY_MS = 300;
 let state: RendererState;
 let protectedEditor: ProtectedRenameEditor | null = null;
 let editorSerial = 0;
-const pendingTabFocusIntents = new Map<SidebarRenameEditor, RenameTabFocusIntent>();
+// Keyed by the live editor object, which is discarded when the editor closes.
+// A WeakMap lets a cancelled-after-Tab-capture editor's intent be collected
+// with it; a strong Map leaked one entry per such editor (no iteration or size
+// read exists, so the swap is behavior-identical).
+const pendingTabFocusIntents = new WeakMap<SidebarRenameEditor, RenameTabFocusIntent>();
 
 export function initRenameEditorView(stateRef: RendererState): void {
   state = stateRef;

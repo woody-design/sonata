@@ -210,8 +210,34 @@ export function terminateRenameForMissingEntity(state: RendererState): SidebarRe
       editor.kind === "session"
         ? "This session is no longer available, so its new name could not be saved."
         : "This project is no longer available, so its new name could not be saved.",
+    entity:
+      editor.kind === "session"
+        ? { kind: "session", taskId: editor.taskId }
+        : { kind: "project", path: editor.path },
   };
   return editor;
+}
+
+/**
+ * Retracts a "could not be saved" notice once its own entity's save is proven
+ * to have succeeded. A late-arriving successful commit calls this so its notice
+ * no longer lies; a notice about a DIFFERENT entity is left untouched.
+ */
+export function clearRenameNoticeForCommittedEntity(
+  state: RendererState,
+  request: RenameCommitRequest,
+): void {
+  const notice = state.sidebar.renameNotice;
+  if (!notice) {
+    return;
+  }
+  const speaksForCommitted =
+    request.kind === "session"
+      ? notice.entity.kind === "session" && notice.entity.taskId === request.taskId
+      : notice.entity.kind === "project" && notice.entity.path === request.path;
+  if (speaksForCommitted) {
+    state.sidebar.renameNotice = null;
+  }
 }
 
 export function synchronizeCanonicalSessionRename(

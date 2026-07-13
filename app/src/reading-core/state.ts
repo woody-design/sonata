@@ -240,8 +240,17 @@ export interface SidebarState {
   renameRequestVersion: number;
   /** A rename target can disappear during an index refresh. The local editor
    *  then has no owner, so its last error is promoted to the originating
-   *  surface until the next rename intent. */
-  renameNotice: { surface: "header" | "sidebar"; message: string } | null;
+   *  surface until the next rename intent. `entity` records which target the
+   *  notice speaks about, so a late-arriving successful save can retract only
+   *  its own now-false "could not be saved" claim (a notice for a different
+   *  entity survives). */
+  renameNotice: {
+    surface: "header" | "sidebar";
+    message: string;
+    entity:
+      | { kind: "session"; taskId: string }
+      | { kind: "project"; path: string };
+  } | null;
   prefs: SidebarPrefs;
   collapsedProjects: Set<string>;
   disclosure: SidebarDisclosureState;
