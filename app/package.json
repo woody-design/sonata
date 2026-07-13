@@ -16,6 +16,7 @@
     "e2e:gui-walking-skeleton": "npm run build && node tests/e2e/gui-walking-skeleton.mjs",
     "e2e:sidebar-sessions": "npm run build && node tests/e2e/sidebar-sessions.mjs",
     "e2e:sidebar-screenshots": "npm run build && node tests/e2e/sidebar-screenshots.mjs",
+    "e2e:sidebar-chrome": "npm run build && node tests/e2e/sidebar-chrome.mjs && node tests/e2e/terminal-theme-independence.mjs",
     "e2e:cross-session-isolation": "npm run build && node tests/e2e/cross-session-isolation.mjs",
     "e2e:codex-hooks-identity": "npm run build && node tests/e2e/codex-hooks-identity.mjs",
     "e2e:codex-approvals": "npm run build && node tests/e2e/codex-approvals.mjs",

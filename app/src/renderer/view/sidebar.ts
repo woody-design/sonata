@@ -241,10 +241,11 @@ function renderSidebarProject(project: ProjectGroup): HTMLElement {
 
 function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
   const task = session.task;
+  const active = task.id === state.activeTaskId;
   const row = document.createElement("div");
   row.className = "sidebar-session";
   row.dataset.taskId = task.id;
-  row.classList.toggle("active", task.id === state.activeTaskId);
+  row.classList.toggle("active", active);
   // Distinguishes archived rows when the status filter mixes them in.
   row.classList.toggle("archived", session.archived);
 
@@ -257,6 +258,9 @@ function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
   button.type = "button";
   button.className = "sidebar-session-button";
   button.title = task.title;
+  if (active) {
+    button.setAttribute("aria-current", "page");
+  }
   const title = document.createElement("span");
   title.className = "sidebar-session-title";
   title.textContent = task.title;
@@ -337,14 +341,17 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
     const dot = document.createElement("span");
     dot.className = "sidebar-session-attention";
     dot.title = cli?.tool ? `Waiting for approval — ${cli.tool}` : "Waiting for approval";
+    dot.setAttribute("role", "img");
+    dot.setAttribute("aria-label", dot.title);
     return dot;
   }
   if (["running", "starting", "stopping"].includes(session.liveStatus) || cli?.activity === "busy") {
     const spinner = document.createElement("span");
     spinner.className = "sidebar-session-spinner";
     spinner.title = "Working";
-    // Evidence-driven, not a bare CSS loop: the animation pauses when the
-    // task's PTY goes quiet and turns amber when stall suspicion fires.
+    spinner.setAttribute("role", "img");
+    // Evidence-driven, not a bare CSS loop: quiet/silent pause the animation
+    // and lower opacity while preserving the row's current text color.
     const liveness = taskViewForId(state, session.task.id)?.workingStatus?.liveness ?? "fresh";
     if (liveness === "quiet") {
       spinner.classList.add("quiet");
@@ -353,6 +360,7 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
       spinner.classList.add("silent");
       spinner.title = "No sign of activity — check the terminal";
     }
+    spinner.setAttribute("aria-label", spinner.title);
     spinner.append(lucideIcon(LoaderCircle, 14));
     return spinner;
   }
@@ -360,6 +368,8 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
     const dot = document.createElement("span");
     dot.className = "sidebar-session-done";
     dot.title = "Finished while you were away";
+    dot.setAttribute("role", "img");
+    dot.setAttribute("aria-label", dot.title);
     return dot;
   }
   return null;
@@ -393,6 +403,7 @@ export function updateSidebarSpinnerLiveness(view: TaskViewState): void {
       : liveness === "silent"
         ? "No sign of activity — check the terminal"
         : "Working";
+  spinner.setAttribute("aria-label", spinner.title);
 }
 
 function sidebarIconButton(
