@@ -1403,7 +1403,10 @@ body.sidebar-resizing {
 /* ------------------------------------------------------------ main header */
 
 .header-title-slot {
-  flex: 0 1 360px;
+  /* Size to the title so the session-menu trigger sits beside it (chrome-left
+     gap), not parked at a fixed 360px basis. The header rename editor carries
+     its own width (.rename-editor-header), so editing keeps a stable box. */
+  flex: 0 1 auto;
   min-width: 0;
 }
 
