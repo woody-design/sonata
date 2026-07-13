@@ -1,136 +1,404 @@
-// Visual-review screenshots of the sidebar architecture on REAL data.
-// Read-only: selects sessions (dormant reads), opens menus and the New Chat
-// surface. Sends nothing, archives nothing, deletes nothing.
+// Deterministic visual evidence for the Sidebar. The corpus, settings,
+// Chromium userData, clock, and Duet-specific environment are isolated; this
+// generator never reads or mutates real Duet sessions or preferences.
 //
 //   node tests/e2e/sidebar-screenshots.mjs [outputDir]
+import crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { _electron as electron } from "playwright-core";
+import { createSidebarFixture } from "./helpers/sidebar-fixture.mjs";
 
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "../../..");
+const appRoot = path.join(repoRoot, "app");
 const outputDir = path.resolve(
-  process.argv[2] ?? "../product-thinking/sidebar-refactor-evidence",
+  process.argv[2] ??
+    path.join(repoRoot, "product-thinking", "sidebar-refactor-evidence", "slice-0-before"),
 );
-fs.mkdirSync(outputDir, { recursive: true });
-
+const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-evidence-"));
+const themes = ["duet", "paper", "calm", "focus"];
+const modes = ["light", "dark"];
+const viewport = { width: 1280, height: 800 };
+const capturedFiles = [];
+const visualBaselines = [];
+const pageErrors = [];
+let fixture = null;
 let electronApp = null;
 
 try {
+  fixture = createSidebarFixture();
   electronApp = await electron.launch({
-    args: ["dist/main/main.js"],
-    env: { ...process.env },
+    args: [
+      path.join(appRoot, "dist", "main", "main.js"),
+      `--user-data-dir=${fixture.userDataDir}`,
+    ],
+    env: isolatedElectronEnv(fixture.env),
   });
   const page = await electronApp.firstWindow();
-  page.setDefaultTimeout(60000);
-
-  // localStorage is shared with the real app's userData — start clean and
-  // restore at the end so screenshot runs never pollute real view prefs.
-  await page.evaluate(() => localStorage.removeItem("duet.sidebar.prefs"));
-
-  // 1 — boot state: sidebar + New Chat surface.
+  page.on("pageerror", (error) => {
+    pageErrors.push(error.stack ?? error.message);
+  });
+  page.setDefaultTimeout(60_000);
+  await page.setViewportSize(viewport);
+  await installFixedClock(page, fixture.fixedNowMs);
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
-  await page.waitForTimeout(1200); // session index + relative times settle
-  await shoot(page, "01-new-chat-boot");
+  await page.locator(".sidebar-session").first().waitFor({ state: "visible" });
+  await page.evaluate(() => document.fonts.ready);
+  assertEqual(await page.evaluate(() => Date.now()), fixture.fixedNowMs, "renderer fixed clock");
+  assertEqual(
+    await page.locator("html").getAttribute("data-instance-label"),
+    null,
+    "inherited Duet instance label is stripped",
+  );
+  await assertFixtureIndex(page, fixture.expectations);
+  await disableVisualNondeterminism(page);
 
-  // 2 — dormant session selected (pure read path).
+  for (const theme of themes) {
+    for (const mode of modes) {
+      await setReadingSettings(page, { theme, mode, textStep: 16 });
+      await openFirstSessionMenu(page);
+      visualBaselines.push({
+        theme,
+        mode,
+        styles: await collectVisualBaseline(page),
+      });
+      await closeSidebarMenu(page);
+      await shoot(page, `${theme}-${mode}-full`);
+      await shoot(page, `${theme}-${mode}-sidebar`, page.locator(".sidebar"));
+    }
+  }
+
+  await setReadingSettings(page, { theme: "duet", mode: "light", textStep: 16 });
+
   const firstSession = page.locator(".sidebar-session-button").first();
-  if (await firstSession.isVisible().catch(() => false)) {
-    await firstSession.click();
-    await page.waitForTimeout(1500);
-    await shoot(page, "02-dormant-session-reading");
+  await firstSession.click();
+  await page.locator(".run-column-new-chat").waitFor({ state: "hidden" });
+  await shoot(page, "detail-dormant-session-reading");
 
-    // 3 — session context menu.
-    const row = page.locator(".sidebar-session").first();
-    await row.hover();
-    await row.locator(".sidebar-row-hover-action").click();
-    await page.waitForTimeout(300);
-    await shoot(page, "03-session-menu");
-    await page.keyboard.press("Escape");
-    await page.mouse.click(640, 400);
-    await page.waitForTimeout(200);
-  }
+  await openFirstSessionMenu(page);
+  await shoot(page, "detail-session-menu");
+  await closeSidebarMenu(page);
 
-  // 4 — project header menu (if any project exists).
   const projectHeader = page.locator(".sidebar-project-header").first();
-  if (await projectHeader.isVisible().catch(() => false)) {
-    await projectHeader.hover();
-    await projectHeader.locator(".sidebar-icon-button").first().click();
-    await page.waitForTimeout(300);
-    await shoot(page, "04-project-menu");
-    await page.mouse.click(640, 400);
-    await page.waitForTimeout(200);
-  }
+  await projectHeader.hover();
+  await projectHeader.locator(".sidebar-icon-button").first().click();
+  await page.locator("#sidebar-menu-root .sidebar-menu").waitFor({ state: "visible" });
+  await shoot(page, "detail-project-menu");
+  await closeSidebarMenu(page);
 
-  // 10 — collapse a project via its header (chevron area).
   const projectLabel = page.locator(".sidebar-project-label").first();
-  if (await projectLabel.isVisible().catch(() => false)) {
-    await projectLabel.hover();
-    await page.waitForTimeout(150);
-    await shoot(page, "10a-project-chevron-hover");
-    await projectLabel.click();
-    await page.waitForTimeout(250);
-    await shoot(page, "10b-project-collapsed");
-    await projectLabel.click();
-    await page.waitForTimeout(200);
-  }
+  await projectLabel.hover();
+  await shoot(page, "detail-project-chevron-hover");
+  await projectLabel.click();
+  await page.locator(".sidebar-project").first().locator(".sidebar-project-sessions").waitFor({
+    state: "detached",
+  });
+  await shoot(page, "detail-project-collapsed");
+  await projectLabel.click();
 
-  // 5 — back to New Chat via sidebar button.
   await page.locator("#sidebar-new-chat").click();
-  await page.waitForTimeout(400);
-  await shoot(page, "05-new-chat-preselected");
+  await page.locator(".task-entry-panel").waitFor({ state: "visible" });
 
-  // 7 — filter menu with a submenu open.
   const filterButton = page.locator("#sidebar-filter");
-  if (await filterButton.isVisible().catch(() => false)) {
-    await filterButton.click();
-    await page.waitForTimeout(250);
-    await page.locator(".sidebar-filter-row", { hasText: "Status" }).click();
-    await page.waitForTimeout(250);
-    await shoot(page, "07-filter-menu-status");
+  await filterButton.click();
+  await page.locator(".sidebar-filter-row", { hasText: "Status" }).click();
+  await shoot(page, "detail-filter-menu-status");
 
-    // 8 — group by date view (8a: non-default row highlighted in the
-    // still-open menu; 8b: the resulting list).
-    await page.locator(".sidebar-filter-row", { hasText: "Group by" }).click();
-    await page.waitForTimeout(200);
-    await page.locator(".sidebar-filter-option", { hasText: "Date" }).click();
-    await page.waitForTimeout(300);
-    await shoot(page, "08a-filter-menu-nondefault");
-    await page.mouse.click(900, 600);
-    await page.waitForTimeout(250);
-    await shoot(page, "08-group-by-date");
+  await page.locator(".sidebar-filter-row", { hasText: "Group by" }).click();
+  await page.locator(".sidebar-filter-option", { hasText: "Date" }).click();
+  await shoot(page, "detail-filter-menu-nondefault");
+  await closeSidebarMenu(page);
+  await page.locator(".sidebar-section-label", { hasText: "Today" }).waitFor({ state: "visible" });
+  await shoot(page, "detail-group-by-date");
 
-    // 9 — archived filter view (Unarchive path visible).
-    await filterButton.click();
-    await page.waitForTimeout(200);
-    await page.locator(".sidebar-filter-row", { hasText: "Status" }).click();
-    await page.waitForTimeout(200);
-    await page.locator(".sidebar-filter-option", { hasText: "Archived" }).click();
-    await page.waitForTimeout(300);
-    await page.mouse.click(900, 600);
-    await page.waitForTimeout(250);
-    await shoot(page, "09-filter-archived");
-  }
+  await filterButton.click();
+  await page.locator(".sidebar-filter-row", { hasText: "Status" }).click();
+  await page.locator(".sidebar-filter-option", { hasText: "Archived" }).click();
+  await closeSidebarMenu(page);
+  await page.locator(".sidebar-session.archived").first().waitFor({ state: "visible" });
+  await shoot(page, "detail-filter-archived");
 
-  // 6 — collapsed sidebar. Collapse from the in-sidebar rail button; expand
-  // from the header button that only appears once collapsed.
   await page.locator("#sidebar-collapse").click();
-  await page.waitForTimeout(300);
-  await shoot(page, "06-sidebar-collapsed");
+  await page.locator(".sidebar.collapsed").waitFor({ state: "attached" });
+  await shoot(page, "detail-sidebar-collapsed");
   await page.locator("#sidebar-toggle").click();
 
-  console.log(JSON.stringify({ outputDir, success: true }, null, 2));
+  assertDeepEqual(pageErrors, [], "renderer page errors");
+  const manifest = publishEvidence({
+    stagingDir,
+    outputDir,
+    metadata: {
+      schemaVersion: 1,
+      slice: "0-before",
+      purpose: "Pre-change Sidebar characterization; PNGs are human-review evidence.",
+      command: "npm run e2e:sidebar-screenshots",
+      sourceRevision: readGitHead(repoRoot),
+      sourceFiles: fingerprintSourceFiles(repoRoot, [
+        "app/src/reading-core/selectors/sidebar.ts",
+        "app/src/renderer/main.ts",
+        "app/src/renderer/styles.css",
+        "app/src/renderer/view/sidebar.ts",
+        "app/tests/e2e/helpers/sidebar-fixture.mjs",
+        "app/tests/e2e/sidebar-screenshots.mjs",
+      ]),
+      fixtureClock: fixture.fixedNowIso,
+      viewport,
+      themes,
+      modes,
+      projectOrder: fixture.expectations.projectOrder,
+      projectCounts: fixture.expectations.projectCounts,
+      visualBaselines,
+    },
+  });
+
+  console.log(
+    JSON.stringify(
+      {
+        outputDir,
+        evidenceFiles: manifest.files.length,
+        themes,
+        modes,
+        projectOrder: fixture.expectations.projectOrder,
+        success: true,
+      },
+      null,
+      2,
+    ),
+  );
+} catch (error) {
+  console.error(error);
+  process.exitCode = 1;
 } finally {
-  if (electronApp) {
-    try {
-      const page = await electronApp.firstWindow();
-      await page.evaluate(() => localStorage.removeItem("duet.sidebar.prefs"));
-    } catch {
-      // Window already gone; nothing to clean.
+  try {
+    if (electronApp) {
+      await electronApp.close();
     }
-    await electronApp.close();
+  } catch (error) {
+    console.error("Failed to close Sidebar evidence Electron app:", error);
+    process.exitCode = 1;
+  } finally {
+    fixture?.cleanup();
+    fs.rmSync(stagingDir, { recursive: true, force: true });
   }
 }
 
-async function shoot(page, name) {
-  await page.screenshot({ path: path.join(outputDir, `${name}.png`) });
+function isolatedElectronEnv(overrides) {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("DUET_")) {
+      delete env[key];
+    }
+  }
+  return {
+    ...env,
+    ...overrides,
+    DUET_LOCAL_API: "0",
+    DUET_NOTIFICATIONS: "0",
+  };
+}
+
+async function installFixedClock(page, nowMs) {
+  await page.addInitScript((fixedNowMs) => {
+    const NativeDate = globalThis.Date;
+    function FixedDate(...args) {
+      if (new.target) {
+        return Reflect.construct(
+          NativeDate,
+          args.length === 0 ? [fixedNowMs] : args,
+          new.target,
+        );
+      }
+      return new NativeDate(fixedNowMs).toString();
+    }
+    Object.setPrototypeOf(FixedDate, NativeDate);
+    FixedDate.prototype = NativeDate.prototype;
+    FixedDate.now = () => fixedNowMs;
+    globalThis.Date = FixedDate;
+  }, nowMs);
+}
+
+async function assertFixtureIndex(page, expectations) {
+  const index = await page.evaluate(() =>
+    window.duetRuntime.readSessionIndex({ includeArchived: true }),
+  );
+  const projectOrder = index.projects.map((project) => project.name);
+  assertDeepEqual(projectOrder, expectations.projectOrder, "fixture project order");
+  assertDeepEqual(
+    Object.fromEntries(index.projects.map((project) => [project.name, project.sessions.length])),
+    expectations.projectCounts,
+    "fixture project counts",
+  );
+  assertEqual(index.chats.length, expectations.allChatCount, "fixture all-chat count");
+}
+
+async function setReadingSettings(page, settings) {
+  // The Reading renderer applies its own write before IPC; a raw preload write
+  // intentionally broadcasts only to satellite windows. For this CSS evidence
+  // harness, stamp the same root attributes directly after persisting the
+  // isolated settings store so the main window and cold-relaunch record agree.
+  await page.evaluate(async (next) => {
+    await window.duetRuntime.writeReadingSettings(next);
+    const root = document.documentElement;
+    root.dataset.theme = next.theme;
+    root.dataset.mode = next.mode;
+    root.dataset.readingModeSetting = next.mode;
+    root.dataset.textStep = String(next.textStep);
+  }, settings);
+  await page.waitForFunction(
+    (expected) => {
+      const root = document.documentElement;
+      return root.dataset.theme === expected.theme && root.dataset.mode === expected.mode;
+    },
+    settings,
+  );
+  await page.waitForTimeout(50);
+}
+
+async function disableVisualNondeterminism(page) {
+  await page.addStyleTag({
+    content: `
+      *, *::before, *::after {
+        caret-color: transparent !important;
+        transition-duration: 0s !important;
+        animation-duration: 0s !important;
+      }
+    `,
+  });
+}
+
+async function openFirstSessionMenu(page) {
+  const firstRow = page.locator(".sidebar-session").first();
+  await firstRow.hover();
+  await firstRow.locator(".sidebar-row-hover-action").click();
+  await page.locator("#sidebar-menu-root .sidebar-menu").waitFor({ state: "visible" });
+  await page.mouse.move(1100, 700);
+}
+
+async function closeSidebarMenu(page) {
+  await page.mouse.click(1100, 700);
+  await page.locator("#sidebar-menu-root .sidebar-menu").waitFor({ state: "detached" });
+}
+
+async function collectVisualBaseline(page) {
+  return page.evaluate(() => {
+    const properties = {
+      sidebar: ["backgroundColor", "borderRightColor", "color", "fontFamily", "fontSize"],
+      sectionLabel: ["color", "fontFamily", "fontSize", "fontWeight"],
+      projectHeader: ["backgroundColor", "color", "fontFamily"],
+      sessionButton: ["backgroundColor", "color", "fontFamily", "fontSize"],
+      resizer: ["backgroundColor", "borderColor"],
+      menu: ["backgroundColor", "borderColor", "boxShadow", "color", "fontFamily"],
+      mainPane: ["backgroundColor", "color", "fontFamily"],
+    };
+    const selectors = {
+      sidebar: ".sidebar",
+      sectionLabel: ".sidebar-section-label",
+      projectHeader: ".sidebar-project-header",
+      sessionButton: ".sidebar-session-button",
+      resizer: "#sidebar-resizer",
+      menu: "#sidebar-menu-root .sidebar-menu",
+      mainPane: ".task-entry-panel",
+    };
+    return Object.fromEntries(
+      Object.entries(selectors).map(([key, selector]) => {
+        const element = document.querySelector(selector);
+        if (!(element instanceof HTMLElement)) {
+          throw new Error(`Missing visual-baseline element: ${selector}`);
+        }
+        const style = getComputedStyle(element);
+        return [
+          key,
+          Object.fromEntries(properties[key].map((property) => [property, style[property]])),
+        ];
+      }),
+    );
+  });
+}
+
+async function shoot(page, name, locator = null) {
+  const fileName = `${name}.png`;
+  const filePath = path.join(stagingDir, fileName);
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  if (locator) {
+    await locator.screenshot({ path: filePath, animations: "disabled" });
+  } else {
+    await page.screenshot({ path: filePath, animations: "disabled" });
+  }
+  capturedFiles.push(fileName);
   console.log(`captured ${name}`);
+}
+
+function publishEvidence({ stagingDir: sourceDir, outputDir: targetDir, metadata }) {
+  const files = [...new Set(capturedFiles)].sort();
+  if (files.length !== capturedFiles.length) {
+    throw new Error("Duplicate Sidebar evidence filename");
+  }
+  fs.mkdirSync(targetDir, { recursive: true });
+  const manifestPath = path.join(targetDir, "manifest.json");
+  fs.rmSync(manifestPath, { force: true });
+
+  const publishedFiles = [];
+  for (const fileName of files) {
+    const sourcePath = path.join(sourceDir, fileName);
+    const targetPath = path.join(targetDir, fileName);
+    const tempPath = `${targetPath}.tmp-${process.pid}`;
+    fs.copyFileSync(sourcePath, tempPath);
+    fs.renameSync(tempPath, targetPath);
+    publishedFiles.push({
+      name: fileName,
+      sha256: crypto.createHash("sha256").update(fs.readFileSync(targetPath)).digest("hex"),
+    });
+  }
+
+  const currentNames = new Set(files);
+  for (const entry of fs.readdirSync(targetDir, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith(".png") && !currentNames.has(entry.name)) {
+      fs.rmSync(path.join(targetDir, entry.name));
+    }
+  }
+
+  const manifest = { ...metadata, files: publishedFiles };
+  const tempManifestPath = `${manifestPath}.tmp-${process.pid}`;
+  fs.writeFileSync(tempManifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  fs.renameSync(tempManifestPath, manifestPath);
+  return manifest;
+}
+
+function readGitHead(cwd) {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function fingerprintSourceFiles(root, relativePaths) {
+  return relativePaths.map((relativePath) => ({
+    path: relativePath,
+    sha256: crypto
+      .createHash("sha256")
+      .update(fs.readFileSync(path.join(root, relativePath)))
+      .digest("hex"),
+  }));
+}
+
+function assertEqual(actual, expected, label) {
+  if (actual !== expected) {
+    throw new Error(`${label}: expected ${expected}, got ${actual}`);
+  }
+}
+
+function assertDeepEqual(actual, expected, label) {
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  if (actualJson !== expectedJson) {
+    throw new Error(`${label}: expected ${expectedJson}, got ${actualJson}`);
+  }
 }
