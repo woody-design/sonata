@@ -212,12 +212,39 @@ export async function archiveProjectFromSidebar(
   render();
   try {
     await window.duetRuntime.archiveProject({ path, archived });
+    if (archived) {
+      clearParkedResumeChoicesForArchivedProject(path);
+    }
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
     releaseSessionLifecycle(state, ownerToken);
     render();
   }
+}
+
+/** De-modalization lets a project be archived while one of its sessions holds a
+ *  parked resume choice. `openTask` has no archived-project guard, so confirming
+ *  that stale choice would respawn a runtime inside the just-archived project.
+ *  Drop the parked choice on every affected view (narrow fix — project-archive
+ *  view semantics are otherwise unchanged; unarchive re-derives the choice on the
+ *  next resume attempt, so nothing is lost). */
+function clearParkedResumeChoicesForArchivedProject(projectPath: string): void {
+  const target = normalizeProjectPath(projectPath);
+  for (const view of state.taskViews) {
+    if (!view.resumeChoice || !view.task) {
+      continue;
+    }
+    const cwd = normalizeProjectPath(view.task.providerCwd || view.task.workingDirectory);
+    if (cwd === target) {
+      view.resumeChoice = null;
+      view.status = "Project archived";
+    }
+  }
+}
+
+function normalizeProjectPath(value: string): string {
+  return value.replace(/[/\\]+$/, "");
 }
 
 function removeTaskViewLocally(taskId: string): void {
@@ -487,7 +514,6 @@ export async function submitPrompt(): Promise<void> {
     return;
   }
 
-  let retainForResumeChoice = false;
   // Focus repair (D1) applies only to the draft-moving dormant-resume branch —
   // the live path never disables the input, and the new-chat path is not repaired
   // (the caller re-focuses after creation). Captured before the disabling render.
@@ -504,12 +530,10 @@ export async function submitPrompt(): Promise<void> {
       await createSessionFromComposer(text, ownerToken);
     } else if (!view.live) {
       // Dormant session: lazy spawn + native resume, then queue the message.
+      // When resume needs a choice, resumeSession releases the claim itself and
+      // leaves the panel on the view; the finally-release below is then a no-op.
       enteredDormantResume = true;
-      retainForResumeChoice = await resumeSession(
-        view,
-        { sendAfterResume: true, promptText: text },
-        ownerToken,
-      );
+      await resumeSession(view, { sendAfterResume: true, promptText: text }, ownerToken);
     } else if (view.task) {
       const taskId = view.task.id;
       // Clear before the first await so the send reads as instant; keep the raw
@@ -536,13 +560,13 @@ export async function submitPrompt(): Promise<void> {
       elements.promptInput.value = current ? `${liveSendRawInput}${current}` : liveSendRawInput;
     }
   } finally {
-    if (!retainForResumeChoice) {
-      releaseSessionLifecycle(state, ownerToken);
-    }
+    // Release is idempotent: when resumeSession already released on the needs-
+    // choice path (state now idle) this is a no-op; otherwise it ends the flight.
+    releaseSessionLifecycle(state, ownerToken);
     render();
     // Draft-moving freeze blurred the composer; return focus once idle+enabled.
-    // Skipped while a resume choice is retained (still active — Slice C owns
-    // that focus story) via the isSessionLifecycleActive gate in the helper.
+    // On the needs-choice path the lifecycle is now idle and the composer
+    // enabled, so focus returns to it — the panel is shown and editable (WYSIWYG).
     if (enteredDormantResume) {
       repairComposerFocusIfOrphaned(composerHadFocus);
     }
@@ -661,24 +685,19 @@ export async function resumeTaskWithoutPrompt(expectedTaskId: string): Promise<v
   if (!ownerToken) {
     return;
   }
-  let retainForResumeChoice = false;
   const composerHadFocus = document.activeElement === elements.promptInput;
   render();
   try {
-    retainForResumeChoice = await resumeSession(
-      view,
-      { sendAfterResume: false, promptText: "" },
-      ownerToken,
-    );
+    // needs-choice releases the claim inside resumeSession and parks the panel
+    // on the view; the finally-release below is then a no-op.
+    await resumeSession(view, { sendAfterResume: false, promptText: "" }, ownerToken);
   } catch (error) {
     view.status = errorMessage(error);
   } finally {
-    if (!retainForResumeChoice) {
-      releaseSessionLifecycle(state, ownerToken);
-    }
+    releaseSessionLifecycle(state, ownerToken);
     render();
     // The draft-moving freeze blurred the composer; return focus once idle and
-    // enabled (helper skips it while a resume choice is retained — Slice C).
+    // enabled (idle after either the direct resume or a needs-choice release).
     repairComposerFocusIfOrphaned(composerHadFocus);
   }
 }
@@ -687,15 +706,19 @@ async function resumeSession(
   view: TaskViewState,
   intent: { sendAfterResume: boolean; promptText: string },
   ownerToken: string,
-): Promise<boolean> {
+): Promise<void> {
   if (!view.task) {
-    return false;
+    return;
   }
   const taskId = view.task.id;
 
-  // The resume moment (slice C): for a large dormant Claude session with
-  // policy "ask", the first send CONVERTS into the choice — the message
-  // stays composed and sends right after the user decides.
+  // The resume moment (D3): for a large dormant Claude session with policy
+  // "ask", the first send CONVERTS into a choice. The choice is pure view
+  // state — we park it on the view (with the sendAfterResume intent bit) and
+  // RELEASE the claim so the app stays fully interactive; switching away is the
+  // natural escape and returning shows the panel again. `resolveResumeChoice`
+  // claims a fresh lifecycle at confirm time. The prompt text is NOT stored: it
+  // is read from the composer at confirm (WYSIWYG).
   let resumeMode: "full" | "summary" | undefined;
   const preparation = await window.duetRuntime.prepareResume({ taskId });
   if (preparation.needsChoice) {
@@ -703,17 +726,12 @@ async function resumeSession(
       idleMs: preparation.idleMs,
       totalTokens: preparation.totalTokens,
       bridgeDismissed: preparation.bridgeDismissed,
+      sendAfterResume: intent.sendAfterResume,
     };
     view.status = "Choose how to resume";
-    transitionSessionLifecycle(state, ownerToken, {
-      phase: "awaiting-resume-choice",
-      ownerToken,
-      taskId,
-      sendAfterResume: intent.sendAfterResume,
-      promptText: intent.promptText,
-    });
+    releaseSessionLifecycle(state, ownerToken);
     render();
-    return true;
+    return;
   }
   if (preparation.overThreshold && preparation.policy !== "ask") {
     resumeMode = preparation.policy;
@@ -738,7 +756,6 @@ async function resumeSession(
     resumeMode,
     intent.sendAfterResume,
   );
-  return false;
 }
 
 async function openDormantSessionAndSend(
@@ -796,27 +813,30 @@ async function openDormantSessionAndSend(
 
 export async function resolveResumeChoice(mode: "full" | "summary"): Promise<void> {
   const view = activeTaskView();
-  const lifecycle = state.sessionLifecycle;
-  if (
-    !view?.task ||
-    !view.resumeChoice ||
-    lifecycle.phase !== "awaiting-resume-choice" ||
-    lifecycle.taskId !== view.task.id
-  ) {
+  if (!view?.task || !view.resumeChoice) {
     return;
   }
-  const { ownerToken, promptText, sendAfterResume, taskId } = lifecycle;
-  if (
-    !transitionSessionLifecycle(state, ownerToken, {
-      phase: "resuming",
-      ownerToken,
-      taskId,
-      sendAfterResume,
-      promptText,
-    })
-  ) {
+  const taskId = view.task.id;
+  const sendAfterResume = view.resumeChoice.sendAfterResume;
+  // WYSIWYG: for a composer-initiated (sendAfterResume) choice the prompt is
+  // whatever the composer shows right now — read it at confirm time. A bare
+  // "Resume task" (sendAfterResume=false) sends nothing and never touches the
+  // draft or attachments (the no-prompt invariant), so its prompt is empty.
+  const promptText = sendAfterResume ? elements.promptInput.value.trim() : "";
+  // Claim a fresh lifecycle SYNCHRONOUSLY, before any await — that claim IS the
+  // double-click protection: the second click finds the lifecycle active
+  // (claim returns null) and returns.
+  const ownerToken = claimSessionLifecycle(state, (token) => ({
+    phase: "resuming",
+    ownerToken: token,
+    taskId,
+    sendAfterResume,
+    promptText,
+  }));
+  if (!ownerToken) {
     return;
   }
+  // Clear the panel + remember checkbox only after the claim succeeds.
   const remember = elements.resumeRemember.checked;
   view.resumeChoice = null;
   elements.resumeRemember.checked = false;

@@ -15,6 +15,7 @@ import {
 } from "../../reading-core/selectors/formatters";
 import {
   activeTaskView,
+  isSessionLifecycleActive,
   type OptionPromptReceipt,
   type RendererState,
   type TaskViewState,
@@ -25,6 +26,13 @@ import { actions } from "../actions";
 /** The shell's state atom, bound once at boot for the cards' read paths. */
 let state: RendererState;
 
+/** `#resume-remember` is one shared DOM checkbox (view-truth, not core state).
+ *  Since the choice is now per-view and de-modalized, the checkbox must never
+ *  carry a check set on one task's choice into another's — we track which task's
+ *  choice it is currently bound to and reset it whenever that identity changes
+ *  (or the panel closes). */
+let resumeRememberBoundTaskId: string | null = null;
+
 export function initApprovalsView(stateRef: RendererState): void {
   state = stateRef;
 }
@@ -34,11 +42,26 @@ export function renderResumeChoice(): void {
   const choice = view?.resumeChoice ?? null;
   elements.resumeChoice.classList.toggle("hidden", !choice);
   if (!choice) {
+    // Panel closed (resolved, cleared, or no dormant view): drop any lingering
+    // check so it can't ride into the next task's choice, and unbind.
+    if (resumeRememberBoundTaskId !== null) {
+      elements.resumeRemember.checked = false;
+      resumeRememberBoundTaskId = null;
+    }
     return;
   }
-  const choiceInteractive =
-    state.sessionLifecycle.phase === "awaiting-resume-choice" &&
-    state.sessionLifecycle.taskId === view?.task?.id;
+  const choiceTaskId = view?.task?.id ?? null;
+  if (choiceTaskId !== resumeRememberBoundTaskId) {
+    // The visible choice belongs to a different task than the checkbox was last
+    // bound to — reset the shared check and rebind, so a remember set on task A
+    // never persists a resume policy the user never chose for task B.
+    elements.resumeRemember.checked = false;
+    resumeRememberBoundTaskId = choiceTaskId;
+  }
+  // The choice lives on the view (D3); the buttons are live whenever it is set
+  // AND no lifecycle op is in flight — so they disable during the resuming
+  // flight (and any other active lifecycle op) and re-enable afterwards.
+  const choiceInteractive = !isSessionLifecycleActive(state);
   elements.resumeFull.disabled = !choiceInteractive;
   elements.resumeSummary.disabled = !choiceInteractive;
   elements.resumeRemember.disabled = !choiceInteractive;

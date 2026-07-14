@@ -37,15 +37,14 @@ import { modelValueLabel, reasoningValueLabel } from "../config";
  * Disabling a focused textarea blurs it with nothing to restore focus — the
  * confirmed live-send regression — so the set here is exactly the phases where
  * the draft is being parked/restored anyway: `starting`, `preparing-resume`,
- * and `resuming`. `awaiting-resume-choice` is included until Slice C removes
- * that phase (its panel holds the same snapshot); once it is gone this arm can
- * drop with it.
+ * and `resuming`. The resume CHOICE no longer holds a lifecycle phase (D3,
+ * 2026-07-14): it lives on `view.resumeChoice` with the app fully interactive
+ * and the composer typable, so there is no `awaiting-resume-choice` arm here.
  */
 export function lifecycleFreezesComposerText(state: RendererState): boolean {
   switch (state.sessionLifecycle.phase) {
     case "starting":
     case "preparing-resume":
-    case "awaiting-resume-choice":
     case "resuming":
       return true;
     default:

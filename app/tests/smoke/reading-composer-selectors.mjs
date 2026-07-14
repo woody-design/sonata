@@ -574,7 +574,9 @@ const run = (status, extra = {}) => ({
 // (and idle) leaves typing enabled, so mutual exclusion never blurs the input.
 {
   const freezes = (phase) => C.lifecycleFreezesComposerText({ sessionLifecycle: { phase } });
-  const draftMoving = ["starting", "preparing-resume", "awaiting-resume-choice", "resuming"];
+  // The resume choice no longer holds a lifecycle phase (D3): it is view state,
+  // so `awaiting-resume-choice` is gone and the composer stays typable through it.
+  const draftMoving = ["starting", "preparing-resume", "resuming"];
   const typingAllowed = [
     "idle",
     "sending",
@@ -588,11 +590,11 @@ const run = (status, extra = {}) => ({
   for (const phase of typingAllowed) {
     assert.equal(freezes(phase), false, `${phase} leaves the composer typable`);
   }
-  // The two sets partition the full SessionLifecycle union (nine phases).
+  // The two sets partition the full SessionLifecycle union (eight phases).
   assert.equal(
     draftMoving.length + typingAllowed.length,
-    9,
-    "all nine lifecycle phases are covered by the freeze partition",
+    8,
+    "all eight lifecycle phases are covered by the freeze partition",
   );
 }
 

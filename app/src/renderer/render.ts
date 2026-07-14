@@ -141,10 +141,11 @@ function cliEmptySurface(view: TaskViewState | null): CliEmptySurface {
   if (view.live || !view.task) {
     return { kind: "none" };
   }
-  if (
-    lifecycle.phase === "awaiting-resume-choice" &&
-    lifecycle.taskId === view.task.id
-  ) {
+  // The resume choice is pure view state (D3), so key off it — not a lifecycle
+  // phase — and check it BEFORE the dormant-ready branch: a dormant task with a
+  // pending choice reads resume-choice even while another lifecycle op is in
+  // flight (the CLI side keeps showing "Choose how to resume in Duet").
+  if (view.resumeChoice) {
     return { kind: "resume-choice", taskId: view.task.id };
   }
   const phase =

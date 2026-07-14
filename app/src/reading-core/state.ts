@@ -103,8 +103,19 @@ export interface TaskViewState {
    *  DORMANT view, `armedOverride` is the "will start with RC" desire — null =
    *  follow the global default (`state.remoteControlDefault`); true/false = user set. */
   remoteControl: { active: boolean; url: string | null; armedOverride: boolean | null };
-  /** The pre-spawn resume moment is waiting for the user's choice. */
-  resumeChoice: { idleMs: number | null; totalTokens: number | null; bridgeDismissed: boolean } | null;
+  /** The pre-spawn resume moment is waiting for the user's choice. Pure view
+   *  state (D3): set when `prepareResume` returns `needsChoice`, it holds no
+   *  lifecycle claim — the app stays fully interactive and switching away is
+   *  the natural escape. `sendAfterResume` is the intent bit captured at claim
+   *  time (composer send → true; a bare terminal "Resume task" → false) and is
+   *  never reconstructed later; the prompt text itself is read from the composer
+   *  at confirm time (WYSIWYG), so it does NOT live here. */
+  resumeChoice: {
+    idleMs: number | null;
+    totalTokens: number | null;
+    bridgeDismissed: boolean;
+    sendAfterResume: boolean;
+  } | null;
   /** Attention banners (S5) — passive "in the Terminal" pointers. A dispatched
    *  slash command settled (its panel, if any, lives in the terminal); an
    *  approval card expired to the native panel. Display-only state: set/cleared
@@ -339,13 +350,6 @@ export type SessionLifecycle =
     }
   | {
       phase: "preparing-resume";
-      ownerToken: string;
-      taskId: string;
-      sendAfterResume: boolean;
-      promptText: string;
-    }
-  | {
-      phase: "awaiting-resume-choice";
       ownerToken: string;
       taskId: string;
       sendAfterResume: boolean;

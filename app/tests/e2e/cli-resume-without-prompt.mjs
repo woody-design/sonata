@@ -1,6 +1,13 @@
-// Slice 3: Resume task reuses Duet's prepare/choice/open lifecycle. This pins
-// the full/summary × sendAfterResume true/false matrix, single-flight choice,
-// ownership, and lifecycle release after preparation/open/settings failures.
+// Slice 3 + Slice C: Resume task reuses Duet's prepare/choice/open lifecycle.
+// This pins the full/summary × sendAfterResume true/false matrix, ownership, and
+// lifecycle release after preparation/open/settings failures. Slice C (D3)
+// de-modalized the choice: it is pure view state holding no lifecycle claim, so
+// the app stays fully interactive while it is pending — this test also asserts
+// the composer + New task stay ENABLED, that switching away hides the panel and
+// returning shows it intact, and that WYSIWYG applies to the confirm (a
+// sendAfterResume=true choice sends the composer's CURRENT text; a =false choice
+// sends nothing even if text is typed mid-choice). Double-click protection is now
+// the fresh SYNCHRONOUS claim in resolveResumeChoice, not a held claim.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -52,6 +59,11 @@ try {
   await main.locator("#entry-choose-folder").click();
 
   const heldDraft = "HELD RESUME DRAFT — never send this";
+  // Distinct markers typed INTO the composer while a choice is pending, to pin
+  // WYSIWYG: the false-intent edit must never reach stdin; the true-intent edit
+  // is exactly what confirm delivers.
+  const falseEdit = "FALSE-INTENT MID-CHOICE EDIT — must never send";
+  const trueEdit = "TRUE-INTENT MID-CHOICE EDIT — this one must send";
   setClipboardImage();
   await main.locator("#prompt-input").fill(heldDraft);
   await main.locator("#prompt-input").click();
@@ -124,6 +136,10 @@ try {
     ]);
   }
   const choiceDidNotSpawn = spawnCount(taskId) === 2;
+  // A second CLI resume intent DURING a pending choice still spawns nothing —
+  // now because the choice holds no claim, so the intent simply re-runs
+  // prepareResume, gets needsChoice again, and re-sets the same view choice
+  // (not because a held claim blocks it). The lifecycle is idle throughout.
   await cli.evaluate((id) =>
     window.duetRuntime.requestCliAction({ action: "resume", expectedTaskId: id }),
     taskId,
@@ -131,10 +147,48 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 150));
   const secondResumeIgnoredDuringChoice = spawnCount(taskId) === 2;
 
-  // Two same-tick clicks exercise the synchronous awaiting-choice→resuming
-  // transition. Only the first may own the openTask call. Remembering is
-  // deliberately rejected at IPC; that preference write is best-effort and
-  // must not strand or suppress the chosen resume.
+  // D3 de-modalization: while the choice is pending the app stays fully
+  // interactive — the composer and the sidebar New task button are ENABLED (the
+  // old app-modal lock disabled both).
+  const composerEnabledDuringChoice = await main
+    .locator("#prompt-input:not(:disabled)")
+    .isVisible();
+  const newTaskEnabledDuringChoice = await main
+    .locator("#sidebar-new-chat:not(:disabled)")
+    .isVisible();
+
+  // FINDING 1 (remember-checkbox leak): the shared #resume-remember check must
+  // not survive a change in the panel's task identity. Check it on the parked
+  // choice, then abandon-and-return; it must arrive UNCHECKED, and the abandoned
+  // check must have written NO resume policy.
+  await main.locator("#resume-remember").check();
+  const policyBeforeAbandon = readResumePolicy();
+
+  // Abandon-and-return: switching away (the New task surface stands in for
+  // "another task" — the panel is per-view state) HIDES the panel; returning to
+  // the dormant session shows it again, intact and interactive. No spawn either way.
+  await main.locator("#sidebar-new-chat").click();
+  await main.locator("#resume-choice").waitFor({ state: "hidden" });
+  const panelHidAfterSwitchAway = await main.locator("#resume-choice").isHidden();
+  await main.locator(`.sidebar-session[data-task-id="${taskId}"] .sidebar-session-button`).click();
+  await main.locator("#resume-choice").waitFor({ state: "visible" });
+  const panelIntactAfterReturn =
+    (await main.locator("#resume-choice").isVisible()) &&
+    (await main.locator("#resume-full:not(:disabled)").isVisible()) &&
+    (await main.locator("#resume-summary:not(:disabled)").isVisible());
+  const abandonReturnDidNotSpawn = spawnCount(taskId) === 2;
+  const rememberResetOnReturn = !(await main.locator("#resume-remember").isChecked());
+  const abandonedRememberWroteNoPolicy = readResumePolicy() === policyBeforeAbandon;
+
+  // WYSIWYG does NOT apply to a sendAfterResume=false choice: type into the
+  // composer mid-choice, then confirm full — nothing the user typed may reach
+  // stdin, and the draft/attachment stay put (the no-prompt invariant).
+  await main.locator("#prompt-input").fill(falseEdit);
+  // Two same-tick clicks exercise the fresh SYNCHRONOUS claim in
+  // resolveResumeChoice: the first click claims `resuming` and nulls the choice;
+  // the second finds no choice and returns, so only ONE openTask fires.
+  // Remembering is deliberately rejected at IPC; that preference write is
+  // best-effort and must not strand or suppress the chosen resume.
   await main.locator("#resume-remember").check();
   await setMainProcessEnv(app, "DUET_TEST_RESUME_SETTINGS_WRITE_FAIL", "1");
   await main.locator("#resume-full").evaluate((button) => {
@@ -150,22 +204,28 @@ try {
   const fullAttachmentBlobCount = attachmentBlobCount(taskId);
   const fullChoiceSpawnCount = spawnCount(taskId);
   const compactRuns = fullReport.runs.filter((run) => run.prompt === "/compact");
-  const userDraftRuns = fullReport.runs.filter((run) => run.prompt.includes(heldDraft));
+  const userDraftRuns = fullReport.runs.filter(
+    (run) => run.prompt.includes(heldDraft) || run.prompt.includes(falseEdit),
+  );
   const rememberFailureDidNotBlockResume =
     spawnCount(taskId) === 3 && readResumePolicy() === "ask";
 
-  // sendAfterResume=true, policy=full: the held user draft and bitmap now send
-  // exactly once, with no additional system /compact operation.
+  // sendAfterResume=true CHOICE (policy=ask): the composer-initiated send
+  // converts into a choice; editing the composer mid-choice and confirming full
+  // delivers the EDITED text exactly once (WYSIWYG APPLIES), with no /compact.
   await main.evaluate((id) => window.duetRuntime.closeTask({ taskId: id }), taskId);
   await waitForCliActionReady(cli, "Resume task");
-  writeResumePolicy("full");
+  writeResumePolicy("ask");
   await main.locator("#send-prompt:not(:disabled)").click();
+  await main.locator("#resume-choice").waitFor({ state: "visible" });
+  await main.locator("#prompt-input").fill(trueEdit);
+  await main.locator("#resume-full").click();
   await waitFor(() => spawnCount(taskId) === 4, "full resume-and-send spawn");
   await waitFor(
-    () => readReport(taskId).runs.some((run) => run.prompt.includes(heldDraft)),
+    () => readReport(taskId).runs.some((run) => run.prompt.includes(trueEdit)),
     "full resume user run",
   );
-  await completeTurn(taskId, "full-send", heldDraft);
+  await completeTurn(taskId, "full-send", trueEdit);
   const fullSendReport = readReport(taskId);
   const fullSendStdin = readStdin(taskId);
   const fullSendOwnership = await readOwnership(main);
@@ -230,6 +290,40 @@ try {
     persistenceCountsEqual(readPersistenceCounts(taskId), failureBaseline);
   fs.writeFileSync(manifestPath, validManifest, "utf8");
 
+  // FINDING 3 (parked choice armed after project archive): de-modalization lets
+  // the user archive a project while one of its sessions holds a parked choice —
+  // and openTask has no archived-project guard, so a stale confirm would respawn
+  // inside the just-archived project. Archiving must disarm the choice. Refresh
+  // the over-threshold source so the choice re-derives regardless of prior cycles.
+  writeLargeDormantTranscript(taskId);
+  writeResumePolicy("ask");
+  await cli.locator("#terminal-empty-action", { hasText: "Resume task" }).click();
+  await main.locator("#resume-choice").waitFor({ state: "visible" });
+  const choiceArmedBeforeArchive =
+    (await main.locator("#resume-choice").isVisible()) && spawnCount(taskId) === 5;
+  // Archive through the REAL sidebar flow (right-click the project label →
+  // "Archive project") so archiveProjectFromSidebar runs its choice-clearing.
+  await main.locator(".sidebar-project-label").first().click({ button: "right" });
+  await main
+    .locator("#sidebar-menu-root .sidebar-menu-item", { hasText: "Archive project" })
+    .click();
+  await main.locator("#resume-choice").waitFor({ state: "hidden" });
+  const archiveClearedChoice =
+    (await main.locator("#resume-choice").isHidden()) &&
+    (await main.locator("#resume-full").isHidden()) &&
+    spawnCount(taskId) === 5;
+  // Unarchive (raw IPC — unarchive has no renderer-side clearing to exercise) and
+  // prove a fresh resume RE-DERIVES the choice; nothing was permanently lost.
+  await main.evaluate(
+    (p) => window.duetRuntime.archiveProject({ path: p, archived: false }),
+    path.resolve(project),
+  );
+  await waitForCliActionReady(cli, "Resume task");
+  await cli.locator("#terminal-empty-action", { hasText: "Resume task" }).click();
+  await main.locator("#resume-choice").waitFor({ state: "visible" });
+  const unarchiveResumeRederivedChoice =
+    (await main.locator("#resume-choice").isVisible()) && spawnCount(taskId) === 5;
+
   const checks = {
     initialStartHadNoRun: initialReport.runs.length === 0,
     initialOwnershipHeld:
@@ -247,22 +341,33 @@ try {
     staleResumeRejected,
     choiceDidNotSpawn,
     secondResumeIgnoredDuringChoice,
+    composerEnabledDuringChoice,
+    newTaskEnabledDuringChoice,
+    panelHidAfterSwitchAway,
+    panelIntactAfterReturn,
+    abandonReturnDidNotSpawn,
+    rememberResetOnReturn,
+    abandonedRememberWroteNoPolicy,
+    choiceArmedBeforeArchive,
+    archiveClearedChoice,
+    unarchiveResumeRederivedChoice,
     fullChoiceSingleFlight: fullChoiceSpawnCount === 3,
     rememberFailureDidNotBlockResume,
     fullResumeAddedNoRun:
       compactRuns.length === 1 && userDraftRuns.length === 0 && fullReport.runs.length === 1,
     fullResumeDidNotDeliverUserDraft:
       !fullStdin.includes(heldDraft) &&
+      !fullStdin.includes(falseEdit) &&
       occurrences(fullStdin, "/compact") === 1 &&
-      fullOwnership.text === heldDraft &&
+      fullOwnership.text === falseEdit &&
       fullOwnership.attachmentCount === 1 &&
       fullAttachmentBlobCount === 0,
     fullSendDeliveredUserWithoutCompact:
       fullSendReport.runs.length === fullReport.runs.length + 1 &&
-      fullSendReport.runs.at(-1)?.prompt.includes(heldDraft) &&
+      fullSendReport.runs.at(-1)?.prompt.includes(trueEdit) &&
       fullSendReport.runs.at(-1)?.status === "completed" &&
       fullSendReport.runs.filter((run) => run.prompt === "/compact").length === 1 &&
-      occurrences(fullSendStdin, heldDraft) === 1 &&
+      occurrences(fullSendStdin, trueEdit) === 1 &&
       occurrences(fullSendStdin, "/compact") === 1,
     fullSendConsumedOwnership:
       fullSendOwnership.text === "" && fullSendOwnership.attachmentCount === 0,

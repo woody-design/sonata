@@ -1299,15 +1299,19 @@ elements.resumeSummary.addEventListener("click", () => {
 
 elements.resumeBridgeRevert.addEventListener("click", () => {
   elements.resumeBridgeRevert.disabled = true;
+  // Capture the originating view synchronously: the choice is de-modalized, so
+  // the user can switch tasks during the await and activeTaskView() would then
+  // resolve to the wrong view. Update THIS view after the await, iff its choice
+  // still exists (object-identity survival check).
+  const originView = activeTaskView();
   void window.duetRuntime
     .revertResumeBridge()
     .then((result) => {
-      const view = activeTaskView();
-      if (view?.resumeChoice) {
-        view.resumeChoice = { ...view.resumeChoice, bridgeDismissed: !result.cleared };
+      if (originView?.resumeChoice) {
+        originView.resumeChoice = { ...originView.resumeChoice, bridgeDismissed: !result.cleared };
       }
-      if (view) {
-        view.status = result.cleared
+      if (originView) {
+        originView.status = result.cleared
           ? "Claude's own resume warning is back on (outside Duet)"
           : "Couldn't update ~/.claude.json — check it manually";
       }
