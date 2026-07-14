@@ -1265,11 +1265,6 @@ body.sidebar-resizing {
   scrollbar-gutter: stable;
 }
 
-.sidebar-hover-card:focus-visible {
-  outline: 2px solid var(--sidebar-focus-ring);
-  outline-offset: -3px;
-}
-
 .sidebar-hover-card-content {
   display: flex;
   flex-direction: column;

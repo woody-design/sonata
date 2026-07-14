@@ -793,7 +793,14 @@ function bindSidebarHoverCardTrigger(
   row.addEventListener("pointerenter", () => requestPointerSidebarHoverCard(owner));
   row.addEventListener("pointerleave", () => leaveSidebarHoverOwner(owner));
   row.addEventListener("focusin", (event) => {
-    cancelSidebarHoverClose();
+    // Only the row that owns the open card may cancel its scheduled close. A
+    // different row's focusin — e.g. Shift+Tab landing on a neighbour's
+    // (pointer-revealed) trailing menu button — must let this row's focusout
+    // close the stale card; otherwise the previous owner keeps a dangling
+    // aria-describedby while focus lives elsewhere (§5.2 focus-leaves-owner).
+    if (openSidebarHoverCard?.row === row) {
+      cancelSidebarHoverClose();
+    }
     if (event.target === button) {
       if (sidebarStructuralRenderInProgress) {
         return;

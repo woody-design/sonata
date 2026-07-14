@@ -69,6 +69,8 @@ try {
 
   await assertPointerIntentAndContent(page);
   await assertKeyboardAndDismissal(page);
+  await assertFocusWithinOwnerRowKeepsCard(page);
+  await assertFocusLeavingOwnerRowClosesCard(page);
   await assertSingleOwnerAndStaleTimer(page);
   await assertTimeProjectAndGeometry(page);
   await assertThemeAndMotionEvidence(page);
@@ -221,6 +223,91 @@ async function assertKeyboardAndDismissal(page) {
   );
   await page.keyboard.press("Escape");
   await hoverCard(page).waitFor({ state: "detached" });
+}
+
+async function assertFocusWithinOwnerRowKeepsCard(page) {
+  // §5.2 hoverable/persistent: focus moving WITHIN the owning row (session
+  // button -> its own trailing menu button) keeps the card open. This is the
+  // legitimate keep-open path the focus-leak guard must not break.
+  const row = rowFor(page, primaryTask.id);
+  const button = row.locator(".sidebar-session-button");
+  const ownMenu = row.locator(".sidebar-row-hover-action");
+  await moveAway(page);
+  await page.locator("#sidebar-filter").focus();
+  await button.focus();
+  const card = hoverCard(page);
+  await card.waitFor({ state: "visible" });
+  assertEqual(await card.getAttribute("tabindex"), null, "owner card is on the plain non-overflow path");
+  await page.keyboard.press("Tab");
+  assertEqual(
+    await ownMenu.evaluate((element) => element === document.activeElement),
+    true,
+    "Tab from the session button reaches the owning row's own trailing menu button",
+  );
+  assertEqual(await hoverCard(page).count(), 1, "focus staying within the owner row keeps its card open");
+  assertEqual(await card.getAttribute("data-task-id"), primaryTask.id, "same owner keeps the same card");
+  await page.keyboard.press("Escape");
+  await card.waitFor({ state: "detached" });
+}
+
+async function assertFocusLeavingOwnerRowClosesCard(page) {
+  // §5.2 focus-leaves-owner: a card owned by keyboard focus must close when
+  // focus moves to ANOTHER row — including that row's trailing menu button,
+  // which opens no card of its own. Regression guard for the unconditional
+  // focusin cancel: a foreign row's focusin must not keep the stale card (and
+  // its dangling aria-describedby) alive. A neighbour's menu button is
+  // visibility:hidden until its row is hovered, so this leak only manifests
+  // with mixed pointer+keyboard input; pure Shift+Tab lands on the neighbour's
+  // session button, which hands the card off instead.
+  const pair = await page.evaluate(() => {
+    for (const container of document.querySelectorAll(".sidebar-disclosure-items")) {
+      const rows = Array.from(container.querySelectorAll(":scope > .sidebar-session"))
+        .map((element) => element.dataset.taskId)
+        .filter(Boolean);
+      if (rows.length >= 2) {
+        return { prevId: rows[rows.length - 2], ownerId: rows[rows.length - 1] };
+      }
+    }
+    return null;
+  });
+  assertEqual(Boolean(pair), true, "fixture provides two adjacent session rows in one container");
+  const { prevId, ownerId } = pair;
+  const ownerButton = rowFor(page, ownerId).locator(".sidebar-session-button");
+  const prevMenu = rowFor(page, prevId).locator(".sidebar-row-hover-action");
+
+  await moveAway(page);
+  await page.locator("#sidebar-filter").focus();
+  await ownerButton.focus();
+  const card = hoverCard(page);
+  await card.waitFor({ state: "visible" });
+  assertEqual(await card.getAttribute("data-task-id"), ownerId, "keyboard focus owns the card");
+  assertEqual(await card.getAttribute("tabindex"), null, "owner card is on the plain non-overflow path");
+
+  // Reveal the previous row's trailing menu button without disturbing the
+  // keyboard-owned card: a pointer merely passing over a neighbour is ignored
+  // while keyboard ownership holds.
+  await rowFor(page, prevId).hover();
+  assertEqual(
+    await card.getAttribute("data-task-id"),
+    ownerId,
+    "pointer over a neighbour cannot replace the keyboard-owned card",
+  );
+
+  await page.keyboard.press("Shift+Tab");
+  await card.waitFor({ state: "detached" });
+  assertEqual(
+    await prevMenu.evaluate((element) => element === document.activeElement),
+    true,
+    "Shift+Tab moves focus to the previous row's trailing menu button",
+  );
+  assertEqual(await hoverCard(page).count(), 0, "focus leaving the owner row closes its card");
+  assertEqual(
+    await ownerButton.getAttribute("aria-describedby"),
+    null,
+    "the closed card leaves no dangling description on the former owner",
+  );
+  await page.locator("#sidebar-filter").focus();
+  await moveAway(page);
 }
 
 async function assertSingleOwnerAndStaleTimer(page) {
