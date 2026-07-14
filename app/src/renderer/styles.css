@@ -656,10 +656,11 @@ pre {
 .sidebar,
 .sidebar-resizer,
 #sidebar-menu-root,
+#sidebar-hover-card-root,
 #sidebar-toggle {
   /* The Sidebar is application chrome, not reading content. These roles are
      intentionally mode-aware but theme-invariant; keep the scope mirrored on
-     the portaled menu root and the two controls that sit outside <aside>. */
+     the portaled menu/hover roots and the two controls outside <aside>. */
   --sidebar-surface: #f9f8f7;
   --sidebar-ink: #343536;
   --sidebar-ink-strong: #242526;
@@ -688,6 +689,7 @@ pre {
 [data-mode="dark"] .sidebar,
 [data-mode="dark"] .sidebar-resizer,
 [data-mode="dark"] #sidebar-menu-root,
+[data-mode="dark"] #sidebar-hover-card-root,
 [data-mode="dark"] #sidebar-toggle {
   --sidebar-surface: #202020;
   --sidebar-ink: #e8e8e8;

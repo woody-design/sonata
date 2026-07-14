@@ -25,6 +25,7 @@ function queryElements() {
     sidebarToggle: getElement<HTMLButtonElement>("sidebar-toggle"),
     sidebarCollapse: getElement<HTMLButtonElement>("sidebar-collapse"),
     sidebarMenuRoot: getElement<HTMLDivElement>("sidebar-menu-root"),
+    sidebarHoverCardRoot: getElement<HTMLDivElement>("sidebar-hover-card-root"),
     settingsOverlayRoot: getElement<HTMLDivElement>("settings-overlay-root"),
     sessionMenuTrigger: getElement<HTMLButtonElement>("session-menu-trigger"),
     approvalBanner: getElement<HTMLDivElement>("approval-banner"),
@@ -255,6 +256,7 @@ export function initDom(): void {
     </section>
     </div>
     <div id="sidebar-menu-root"></div>
+    <div id="sidebar-hover-card-root"></div>
     <div id="settings-overlay-root"></div>
   </section>
 `;

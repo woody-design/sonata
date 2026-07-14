@@ -53,6 +53,101 @@ export function formatRelativeAge(iso: string, nowMs = Date.now()): string {
   return `${Math.floor(days / 365)}y`;
 }
 
+const SIDEBAR_HOVER_RELATIVE_THRESHOLD_MS = 7 * 24 * 60 * 60_000;
+
+export interface SidebarHoverActivity {
+  display: string;
+  dateTime: string;
+  accessibleLabel: string;
+}
+
+/**
+ * Last-activity copy for the Sidebar hover card. This is deliberately
+ * separate from `formatRelativeAge`: the compact row keeps its established
+ * week/month/year buckets, while the card switches to an exact local date at
+ * seven elapsed days.
+ */
+export function formatSidebarHoverActivity(
+  iso: string,
+  nowMs = Date.now(),
+  timeZone?: string,
+): SidebarHoverActivity | null {
+  const activityMs = Date.parse(iso);
+  if (!Number.isFinite(activityMs)) {
+    return null;
+  }
+  if (!Number.isFinite(nowMs)) {
+    throw new RangeError("Sidebar hover clock must be valid.");
+  }
+
+  const effectiveMs = Math.min(activityMs, nowMs);
+  const deltaMs = nowMs - effectiveMs;
+  const localDate = formatLocalIsoDate(effectiveMs, timeZone);
+  const dateTime = new Date(effectiveMs).toISOString();
+  if (deltaMs >= SIDEBAR_HOVER_RELATIVE_THRESHOLD_MS) {
+    return {
+      display: localDate,
+      dateTime,
+      accessibleLabel: `Last active ${localDate}`,
+    };
+  }
+
+  const display = compactHoverRelativeAge(deltaMs);
+  return {
+    display,
+    dateTime,
+    accessibleLabel: `Last active ${expandedHoverRelativeAge(deltaMs)} — ${localDate}`,
+  };
+}
+
+function compactHoverRelativeAge(deltaMs: number): string {
+  const minutes = Math.floor(deltaMs / 60_000);
+  if (minutes < 1) {
+    return "now";
+  }
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+  return `${Math.floor(hours / 24)}d`;
+}
+
+function expandedHoverRelativeAge(deltaMs: number): string {
+  const minutes = Math.floor(deltaMs / 60_000);
+  if (minutes < 1) {
+    return "now";
+  }
+  if (minutes < 60) {
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
+function formatLocalIsoDate(timestampMs: number, timeZone?: string): string {
+  const options: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    ...(timeZone === undefined ? {} : { timeZone }),
+  };
+  const parts = new Intl.DateTimeFormat("en-US", options).formatToParts(timestampMs);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  if (!year || !month || !day) {
+    throw new Error("Sidebar hover activity date could not be formatted.");
+  }
+  return `${year}-${month}-${day}`;
+}
+
 export function formatIdleDuration(ms: number): string {
   const minutes = Math.round(ms / 60_000);
   if (minutes < 60) {

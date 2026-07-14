@@ -74,6 +74,31 @@ const entryOf = (session, projectPath = null) => ({
   );
 }
 
+// 1b) Hover-card projection keeps the canonical title, chosen-project display
+// name, Tasks fallback, and invalid-time absence in one DOM-free model.
+{
+  const chosen = entryOf(session("0714-Research", { lastActivityAt: agoMs(2 * DAY) }), "/p1");
+  chosen.projectName = "Video Lab";
+  assert.deepEqual(S.sidebarHoverCardModel(chosen, NOW, "UTC"), {
+    taskId: chosen.session.task.id,
+    title: "0714-Research",
+    projectLabel: "Video Lab",
+    activity: {
+      display: "2d",
+      dateTime: agoMs(2 * DAY),
+      accessibleLabel: "Last active 2 days ago — 2026-07-01",
+    },
+  });
+
+  const task = entryOf(session("0714-Loose task", { lastActivityAt: "invalid" }));
+  assert.deepEqual(S.sidebarHoverCardModel(task, NOW, "UTC"), {
+    taskId: task.session.task.id,
+    title: "0714-Loose task",
+    projectLabel: "Tasks",
+    activity: null,
+  });
+}
+
 // 2) Status filter — archived comes from the session OR its project.
 {
   const activeS = entryOf(session("active"));
@@ -222,4 +247,4 @@ const entryOf = (session, projectPath = null) => ({
   }
 }
 
-console.log("reading-sidebar-selectors: 7 fixture groups pass");
+console.log("reading-sidebar-selectors: 8 fixture groups pass");

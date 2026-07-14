@@ -29,6 +29,7 @@ import {
   type SidebarDisclosureProject,
   type SidebarDisclosureProjectGroup,
   type SidebarDisclosureSessionGroup,
+  type SidebarEntry,
 } from "../../reading-core/selectors/sidebar";
 import {
   SIDEBAR_PREFS_DEFAULTS,
@@ -227,7 +228,7 @@ function renderSidebarSessionGroup(
   items.id = disclosureItemsId(group.key);
   items.className = "sidebar-disclosure-items";
   for (const entry of group.visibleEntries) {
-    items.append(renderSidebarSessionRow(entry.session));
+    items.append(renderSidebarSessionRow(entry));
   }
   container.append(items);
   if (group.disclosure.canShowMore) {
@@ -318,7 +319,7 @@ function renderSidebarProject(group: SidebarDisclosureProjectGroup): HTMLElement
     items.id = disclosureItemsId(group.key);
     items.className = "sidebar-disclosure-items";
     for (const entry of group.visibleEntries) {
-      items.append(renderSidebarSessionRow(entry.session));
+      items.append(renderSidebarSessionRow(entry));
     }
     list.append(items);
     if (group.disclosure.canShowMore) {
@@ -669,7 +670,8 @@ function sidebarFallbackFocusKeys(active: HTMLElement): string[] {
   return keys;
 }
 
-function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
+function renderSidebarSessionRow(entry: SidebarEntry): HTMLElement {
+  const session = entry.session;
   const task = session.task;
   const active = task.id === state.activeTaskId;
   const row = document.createElement("div");

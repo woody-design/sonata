@@ -138,6 +138,7 @@
     "smoke:reading-scroll": "npm run build:main && node tests/smoke/reading-scroll.mjs",
     "smoke:reading-turns": "npm run build:main && node tests/smoke/reading-turns.mjs",
     "smoke:reading-sidebar-selectors": "npm run build:main && node tests/smoke/reading-sidebar-selectors.mjs",
+    "smoke:popover-geometry": "npm run build:main && node tests/smoke/popover-geometry.mjs",
     "smoke:reading-composer-selectors": "npm run build:main && node tests/smoke/reading-composer-selectors.mjs",
     "smoke:reading-runtime-reducer": "npm run build:main && node tests/smoke/reading-runtime-reducer.mjs",
     "smoke:reading-transitions": "npm run build:main && node tests/smoke/reading-transitions.mjs",
