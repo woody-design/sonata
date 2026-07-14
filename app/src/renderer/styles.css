@@ -952,6 +952,7 @@ body.sidebar-resizing {
 .sidebar-disclosure-groups,
 .sidebar-session-group,
 .sidebar-disclosure-items {
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1102,6 +1103,8 @@ body.sidebar-resizing {
 }
 
 .sidebar-session {
+  width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   height: 28px;
@@ -1109,7 +1112,8 @@ body.sidebar-resizing {
 }
 
 .sidebar-session:hover,
-.sidebar-session:focus-within {
+.sidebar-session:focus-within,
+.sidebar-session.hover-card-open {
   background: var(--sidebar-row-hover);
 }
 
@@ -1174,7 +1178,8 @@ body.sidebar-resizing {
 }
 
 .sidebar-session:hover .sidebar-row-hover-action,
-.sidebar-session:focus-within .sidebar-row-hover-action {
+.sidebar-session:focus-within .sidebar-row-hover-action,
+.sidebar-session.hover-card-open .sidebar-row-hover-action {
   visibility: visible;
 }
 
@@ -1183,7 +1188,10 @@ body.sidebar-resizing {
 .sidebar-session:hover .sidebar-session-attention,
 .sidebar-session:focus-within .sidebar-session-time,
 .sidebar-session:focus-within .sidebar-session-spinner,
-.sidebar-session:focus-within .sidebar-session-attention {
+.sidebar-session:focus-within .sidebar-session-attention,
+.sidebar-session.hover-card-open .sidebar-session-time,
+.sidebar-session.hover-card-open .sidebar-session-spinner,
+.sidebar-session.hover-card-open .sidebar-session-attention {
   visibility: hidden;
 }
 
@@ -1228,8 +1236,92 @@ body.sidebar-resizing {
 }
 
 .sidebar-session:hover .sidebar-session-done,
-.sidebar-session:focus-within .sidebar-session-done {
+.sidebar-session:focus-within .sidebar-session-done,
+.sidebar-session.hover-card-open .sidebar-session-done {
   visibility: hidden;
+}
+
+#sidebar-hover-card-root {
+  position: relative;
+  z-index: 80;
+  flex: 0 0 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.sidebar-hover-card {
+  z-index: 80;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 14px 16px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: 12px;
+  background: var(--sidebar-menu-surface);
+  box-shadow: var(--sidebar-menu-shadow);
+  color: var(--sidebar-ink);
+  font-family: var(--sidebar-font);
+  pointer-events: auto;
+  scrollbar-gutter: stable;
+}
+
+.sidebar-hover-card:focus-visible {
+  outline: 2px solid var(--sidebar-focus-ring);
+  outline-offset: -3px;
+}
+
+.sidebar-hover-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  min-width: 0;
+}
+
+.sidebar-hover-card-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.sidebar-hover-card-title {
+  min-width: 0;
+  color: var(--sidebar-ink-strong);
+  font-size: 15px;
+  font-weight: 620;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.sidebar-hover-card-time {
+  flex: 0 0 auto;
+  color: var(--sidebar-ink-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.sidebar-hover-card-project {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  color: var(--sidebar-ink-muted);
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.sidebar-hover-card-project svg {
+  flex: 0 0 auto;
+}
+
+.sidebar-hover-card-project-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-rename-input {
@@ -1380,6 +1472,7 @@ body.sidebar-resizing {
 .sidebar input:focus-visible,
 #sidebar-menu-root button:focus-visible,
 #sidebar-menu-root input:focus-visible,
+#sidebar-hover-card-root [tabindex="0"]:focus-visible,
 #sidebar-toggle:focus-visible {
   outline: 2px solid var(--sidebar-focus-ring);
   outline-offset: -2px;

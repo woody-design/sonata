@@ -18,6 +18,7 @@
     "e2e:sidebar-screenshots": "npm run build && node tests/e2e/sidebar-screenshots.mjs",
     "e2e:sidebar-chrome": "npm run build && node tests/e2e/sidebar-chrome.mjs && node tests/e2e/terminal-theme-independence.mjs",
     "e2e:sidebar-disclosure": "npm run build && node tests/e2e/sidebar-disclosure.mjs",
+    "e2e:sidebar-hover-card": "npm run build && node tests/e2e/sidebar-hover-card.mjs",
     "e2e:sidebar-rename": "npm run build && node tests/e2e/sidebar-rename.mjs",
     "e2e:sidebar-integrated": "npm run build && node tests/e2e/sidebar-integrated.mjs",
     "e2e:cross-session-isolation": "npm run build && node tests/e2e/cross-session-isolation.mjs",

@@ -143,6 +143,7 @@ import {
   scrollToPromptTurn,
 } from "./view/prompt-nav";
 import {
+  closeSidebarHoverCard,
   closeSidebarMenu,
   initSidebarView,
   openSidebarMenuForSession,
@@ -542,6 +543,7 @@ elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIc
 const SIDEBAR_COLLAPSED_KEY = "duet.sidebar.collapsed";
 
 function setSidebarCollapsed(collapsed: boolean): void {
+  closeSidebarHoverCard();
   elements.sidebar.classList.toggle("collapsed", collapsed);
   elements.sidebarResizer.classList.toggle("hidden", collapsed);
   // Drives the collapsed-only CSS: the main header reserves the traffic-light

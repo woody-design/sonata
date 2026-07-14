@@ -702,7 +702,7 @@ async function assertProductionSpinnerLiveness(
     },
     {
       liveness: "silent",
-      title: "No sign of activity — check the terminal",
+      title: "No sign of activity — check the CLI",
       className: "silent",
       opacity: "0.4",
       playState: "paused",
