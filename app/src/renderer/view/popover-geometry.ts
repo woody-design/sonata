@@ -5,11 +5,6 @@
 // move in D2/D3.
 
 import type { AnchorRect, PopoverAnchor } from "../../reading-core/state";
-import { calculateSideCardGeometry } from "../../reading-core/side-card-geometry";
-
-const SIDEBAR_HOVER_CARD_WIDTH = 320;
-const SIDEBAR_HOVER_CARD_GAP = 8;
-const SIDEBAR_HOVER_CARD_MARGIN = 8;
 
 export function positionPopoverElement(
   popover: HTMLElement,
@@ -82,30 +77,4 @@ export function positionCenteredAbove(
   const top = above >= margin ? above : anchor.bottom + gap;
   element.style.left = `${Math.round(left)}px`;
   element.style.top = `${Math.round(top)}px`;
-}
-
-/** DOM adapter for the pure side-card calculation. Call after mounting. */
-export function positionSidebarHoverCard(panel: HTMLElement, anchor: AnchorRect): void {
-  panel.style.position = "fixed";
-  panel.style.width = `${Math.min(
-    SIDEBAR_HOVER_CARD_WIDTH,
-    Math.max(0, window.innerWidth - SIDEBAR_HOVER_CARD_MARGIN * 2),
-  )}px`;
-  panel.style.maxHeight = `${Math.max(
-    0,
-    window.innerHeight - SIDEBAR_HOVER_CARD_MARGIN * 2,
-  )}px`;
-
-  const measured = panel.getBoundingClientRect();
-  const geometry = calculateSideCardGeometry(
-    anchor,
-    { width: SIDEBAR_HOVER_CARD_WIDTH, height: measured.height },
-    { width: window.innerWidth, height: window.innerHeight },
-    SIDEBAR_HOVER_CARD_GAP,
-    SIDEBAR_HOVER_CARD_MARGIN,
-  );
-  panel.style.left = `${geometry.left}px`;
-  panel.style.top = `${geometry.top}px`;
-  panel.style.width = `${Math.round(geometry.width)}px`;
-  panel.style.maxHeight = `${Math.floor(geometry.maxHeight)}px`;
 }

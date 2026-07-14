@@ -145,6 +145,16 @@ try {
   await sendCliState(electronApp, liveTaskId, "busy");
   await liveRow.locator(".sidebar-session-spinner").waitFor({ state: "attached" });
 
+  // Native tooltip fence: with the session hover card retired (2026-07-14), the
+  // quiet baseline for reading a truncated title is the button's native `title`
+  // attribute. It carries the canonical task title verbatim; this attribute was
+  // silently dropped once before, so pin it here.
+  assertEqual(
+    await liveRow.locator(".sidebar-session-button").getAttribute("title"),
+    liveTask.task.title,
+    "session button exposes the canonical title as a native tooltip",
+  );
+
   for (const theme of themes) {
     for (const mode of modes) {
       for (const textStep of textSteps) {

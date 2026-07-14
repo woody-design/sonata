@@ -24,13 +24,11 @@ import { formatRelativeAge } from "../../reading-core/selectors/formatters";
 import {
   sidebarDisclosureModel,
   sidebarFiltersNonDefault,
-  sidebarHoverCardModel,
   sidebarPrefsNonDefault,
   type SidebarDisclosureModel,
   type SidebarDisclosureProject,
   type SidebarDisclosureProjectGroup,
   type SidebarDisclosureSessionGroup,
-  type SidebarEntry,
 } from "../../reading-core/selectors/sidebar";
 import {
   SIDEBAR_PREFS_DEFAULTS,
@@ -47,7 +45,7 @@ import {
 import * as sidebarTransitions from "../../reading-core/transitions/sidebar";
 import { elements } from "../dom";
 import { lucideIcon } from "./icons";
-import { positionSidebarHoverCard, positionSidebarMenu } from "./popover-geometry";
+import { positionSidebarMenu } from "./popover-geometry";
 import { actions } from "../actions";
 import {
   renderProtectedRenameEditor,
@@ -56,17 +54,9 @@ import {
 
 /** The shell's state atom, bound once at boot for the sidebar's read paths. */
 let state: RendererState;
-let sidebarHoverListenersBound = false;
-let sidebarStructuralRenderInProgress = false;
 
 export function initSidebarView(stateRef: RendererState): void {
   state = stateRef;
-  if (!sidebarHoverListenersBound) {
-    sidebarHoverListenersBound = true;
-    window.addEventListener("resize", repositionOpenSidebarHoverCard);
-    window.addEventListener("blur", () => closeSidebarHoverCard());
-    document.addEventListener("keydown", handleSidebarHoverDocumentKeydown);
-  }
 }
 
 interface SidebarRenderOptions {
@@ -92,37 +82,31 @@ const OUTER_SHOW_MORE_FOCUS_KEY = "disclosure:outer:more";
 let lastRenderedPrefs: SidebarPrefs | null = null;
 
 export function renderSidebar(options: SidebarRenderOptions = {}): void {
-  sidebarStructuralRenderInProgress = true;
-  try {
-    closeSidebarHoverCard();
-    renderSidebarRenameNotice();
-    const editor = state.sidebar.renameEditor;
-    if (editor && sidebarRenameEditorIsProtected(editor)) {
-      // Background state continues to advance, but rebuilding the list here
-      // would detach the browser's active composition/caret owner. Structural
-      // changes that could hide this editor are queued by the actions seam.
-      renderProtectedRenameEditor(editor, {
-        surface: "sidebar",
-        focusKey:
-          editor.kind === "session"
-            ? `${sessionFocusKey(editor.taskId)}:rename`
-            : `${projectFocusKey(editor.path)}:rename`,
-      });
-      return;
-    }
-    const snapshot = captureSidebarRenderSnapshot();
-    const prefsChanged =
-      lastRenderedPrefs !== null && !sidebarPrefsEqual(lastRenderedPrefs, state.sidebar.prefs);
-    renderSidebarSections();
-    renderSidebarMenuContents();
-    restoreSidebarRenderSnapshot(snapshot, {
-      ...options,
-      resetScroll: options.resetScroll ?? prefsChanged,
+  renderSidebarRenameNotice();
+  const editor = state.sidebar.renameEditor;
+  if (editor && sidebarRenameEditorIsProtected(editor)) {
+    // Background state continues to advance, but rebuilding the list here
+    // would detach the browser's active composition/caret owner. Structural
+    // changes that could hide this editor are queued by the actions seam.
+    renderProtectedRenameEditor(editor, {
+      surface: "sidebar",
+      focusKey:
+        editor.kind === "session"
+          ? `${sessionFocusKey(editor.taskId)}:rename`
+          : `${projectFocusKey(editor.path)}:rename`,
     });
-    lastRenderedPrefs = { ...state.sidebar.prefs };
-  } finally {
-    sidebarStructuralRenderInProgress = false;
+    return;
   }
+  const snapshot = captureSidebarRenderSnapshot();
+  const prefsChanged =
+    lastRenderedPrefs !== null && !sidebarPrefsEqual(lastRenderedPrefs, state.sidebar.prefs);
+  renderSidebarSections();
+  renderSidebarMenuContents();
+  restoreSidebarRenderSnapshot(snapshot, {
+    ...options,
+    resetScroll: options.resetScroll ?? prefsChanged,
+  });
+  lastRenderedPrefs = { ...state.sidebar.prefs };
 }
 
 function renderSidebarRenameNotice(): void {
@@ -209,7 +193,6 @@ function renderSidebarListHeader(title: string): HTMLElement {
   filterButton.append(lucideIcon(ListFilter, 14));
   filterButton.addEventListener("click", (event) => {
     event.stopPropagation();
-    closeSidebarHoverCard();
     if (state.sidebar.menu?.kind === "filter") {
       closeSidebarMenu();
       return;
@@ -244,7 +227,7 @@ function renderSidebarSessionGroup(
   items.id = disclosureItemsId(group.key);
   items.className = "sidebar-disclosure-items";
   for (const entry of group.visibleEntries) {
-    items.append(renderSidebarSessionRow(entry));
+    items.append(renderSidebarSessionRow(entry.session));
   }
   container.append(items);
   if (group.disclosure.canShowMore) {
@@ -335,7 +318,7 @@ function renderSidebarProject(group: SidebarDisclosureProjectGroup): HTMLElement
     items.id = disclosureItemsId(group.key);
     items.className = "sidebar-disclosure-items";
     for (const entry of group.visibleEntries) {
-      items.append(renderSidebarSessionRow(entry));
+      items.append(renderSidebarSessionRow(entry.session));
     }
     list.append(items);
     if (group.disclosure.canShowMore) {
@@ -686,8 +669,7 @@ function sidebarFallbackFocusKeys(active: HTMLElement): string[] {
   return keys;
 }
 
-function renderSidebarSessionRow(entry: SidebarEntry): HTMLElement {
-  const session = entry.session;
+function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
   const task = session.task;
   const active = task.id === state.activeTaskId;
   const row = document.createElement("div");
@@ -715,6 +697,7 @@ function renderSidebarSessionRow(entry: SidebarEntry): HTMLElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "sidebar-session-button";
+  button.title = task.title;
   button.disabled = isSessionLifecycleActive(state);
   setSidebarFocusKey(button, sessionFocusKey(task.id));
   if (active) {
@@ -725,12 +708,10 @@ function renderSidebarSessionRow(entry: SidebarEntry): HTMLElement {
   title.textContent = task.title;
   button.append(title);
   button.addEventListener("click", () => {
-    closeSidebarHoverCard();
     actions.selectSession(task.id);
   });
   button.addEventListener("contextmenu", (event) => {
     event.preventDefault();
-    closeSidebarHoverCard();
     openSidebarMenuForSession(task.id, task.title, session.archived, event.currentTarget as HTMLElement);
   });
 
@@ -757,405 +738,7 @@ function renderSidebarSessionRow(entry: SidebarEntry): HTMLElement {
   trailing.append(menuButton);
 
   row.append(button, trailing);
-  bindSidebarHoverCardTrigger(entry, row, button);
   return row;
-}
-
-const SIDEBAR_HOVER_OPEN_DELAY_MS = 400;
-const SIDEBAR_HOVER_CLOSE_GRACE_MS = 100;
-
-interface SidebarHoverOwner {
-  taskId: string;
-  entry: SidebarEntry;
-  row: HTMLElement;
-  button: HTMLButtonElement;
-}
-
-interface OpenSidebarHoverCard extends SidebarHoverOwner {
-  card: HTMLDivElement;
-  tooltip: HTMLDivElement;
-  overflow: boolean;
-}
-
-let pendingSidebarHoverOwner: SidebarHoverOwner | null = null;
-let pendingSidebarHoverTimer: number | null = null;
-let sidebarHoverCloseTimer: number | null = null;
-let openSidebarHoverCard: OpenSidebarHoverCard | null = null;
-let sidebarHoverCardSerial = 0;
-let suppressedSidebarHoverFocusButton: HTMLButtonElement | null = null;
-
-function bindSidebarHoverCardTrigger(
-  entry: SidebarEntry,
-  row: HTMLElement,
-  button: HTMLButtonElement,
-): void {
-  const owner: SidebarHoverOwner = { taskId: entry.session.task.id, entry, row, button };
-  row.addEventListener("pointerenter", () => requestPointerSidebarHoverCard(owner));
-  row.addEventListener("pointerleave", () => leaveSidebarHoverOwner(owner));
-  row.addEventListener("focusin", (event) => {
-    // Only the row that owns the open card may cancel its scheduled close. A
-    // different row's focusin — e.g. Shift+Tab landing on a neighbour's
-    // (pointer-revealed) trailing menu button — must let this row's focusout
-    // close the stale card; otherwise the previous owner keeps a dangling
-    // aria-describedby while focus lives elsewhere (§5.2 focus-leaves-owner).
-    if (openSidebarHoverCard?.row === row) {
-      cancelSidebarHoverClose();
-    }
-    if (event.target === button) {
-      if (sidebarStructuralRenderInProgress) {
-        return;
-      }
-      if (suppressedSidebarHoverFocusButton === button) {
-        suppressedSidebarHoverFocusButton = null;
-        return;
-      }
-      openSidebarHoverCardFor(owner);
-    }
-  });
-  row.addEventListener("focusout", (event) => {
-    const destination = event.relatedTarget;
-    if (
-      destination instanceof Node &&
-      (row.contains(destination) || openSidebarHoverCard?.card.contains(destination))
-    ) {
-      return;
-    }
-    scheduleSidebarHoverClose(0);
-  });
-  button.addEventListener("keydown", (event) => {
-    if (
-      event.key !== "Tab" ||
-      event.shiftKey ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      openSidebarHoverCard?.button !== button ||
-      !openSidebarHoverCard.overflow
-    ) {
-      return;
-    }
-    event.preventDefault();
-    openSidebarHoverCard.card.focus({ preventScroll: true });
-  });
-}
-
-function requestPointerSidebarHoverCard(owner: SidebarHoverOwner): void {
-  cancelSidebarHoverClose();
-  if (openSidebarHoverCard?.button === owner.button) {
-    return;
-  }
-  // Keyboard focus is the stronger ownership signal. A pointer merely passing
-  // over another row must not replace information attached to the focused row
-  // (or to the scrollport the user explicitly entered).
-  if (openSidebarHoverCard && sidebarHoverKeyboardOwnershipActive(openSidebarHoverCard)) {
-    return;
-  }
-  if (openSidebarHoverCard) {
-    closeSidebarHoverCard();
-  }
-  cancelPendingSidebarHoverOpen();
-  pendingSidebarHoverOwner = owner;
-  pendingSidebarHoverTimer = window.setTimeout(() => {
-    pendingSidebarHoverTimer = null;
-    const pending = pendingSidebarHoverOwner;
-    pendingSidebarHoverOwner = null;
-    if (pending && sidebarHoverOwnerEligible(pending)) {
-      openSidebarHoverCardFor(pending);
-    }
-  }, SIDEBAR_HOVER_OPEN_DELAY_MS);
-}
-
-function leaveSidebarHoverOwner(owner: SidebarHoverOwner): void {
-  if (pendingSidebarHoverOwner?.button === owner.button) {
-    cancelPendingSidebarHoverOpen();
-  }
-  if (openSidebarHoverCard?.button === owner.button) {
-    scheduleSidebarHoverClose(SIDEBAR_HOVER_CLOSE_GRACE_MS);
-  }
-}
-
-function openSidebarHoverCardFor(owner: SidebarHoverOwner): void {
-  cancelPendingSidebarHoverOpen();
-  cancelSidebarHoverClose();
-  if (!sidebarHoverOwnerEligible(owner)) {
-    return;
-  }
-  if (openSidebarHoverCard?.button === owner.button) {
-    repositionOpenSidebarHoverCard();
-    return;
-  }
-  closeSidebarHoverCard();
-
-  const model = sidebarHoverCardModel(owner.entry);
-  const card = document.createElement("div");
-  card.className = "sidebar-hover-card";
-  card.dataset.taskId = model.taskId;
-
-  const tooltip = document.createElement("div");
-  tooltip.id = `sidebar-hover-card-tooltip-${++sidebarHoverCardSerial}`;
-  tooltip.className = "sidebar-hover-card-content";
-  tooltip.setAttribute("role", "tooltip");
-
-  const top = document.createElement("div");
-  top.className = "sidebar-hover-card-top";
-  const title = document.createElement("div");
-  title.className = "sidebar-hover-card-title";
-  title.textContent = model.title;
-  top.append(title);
-  if (model.activity) {
-    const time = document.createElement("time");
-    time.className = "sidebar-hover-card-time";
-    time.dateTime = model.activity.dateTime;
-    time.setAttribute("aria-label", model.activity.accessibleLabel);
-    time.textContent = model.activity.display;
-    top.append(time);
-  }
-
-  const project = document.createElement("div");
-  project.className = "sidebar-hover-card-project";
-  project.append(lucideIcon(Folder, 16));
-  const projectLabel = document.createElement("span");
-  projectLabel.className = "sidebar-hover-card-project-label";
-  projectLabel.textContent = model.projectLabel;
-  project.append(projectLabel);
-  tooltip.append(top, project);
-  card.append(tooltip);
-
-  card.addEventListener("pointerenter", cancelSidebarHoverClose);
-  card.addEventListener("pointerleave", () =>
-    scheduleSidebarHoverClose(SIDEBAR_HOVER_CLOSE_GRACE_MS),
-  );
-  card.addEventListener("focusin", cancelSidebarHoverClose);
-  card.addEventListener("focusout", (event) => {
-    const destination = event.relatedTarget;
-    if (
-      destination instanceof Node &&
-      (card.contains(destination) || owner.row.contains(destination))
-    ) {
-      return;
-    }
-    scheduleSidebarHoverClose(0);
-  });
-  card.addEventListener("keydown", (event) => handleSidebarHoverCardKeydown(event, owner));
-
-  openSidebarHoverCard = { ...owner, card, tooltip, overflow: false };
-  owner.row.classList.add("hover-card-open");
-  owner.button.setAttribute("aria-describedby", tooltip.id);
-  elements.sidebarHoverCardRoot.replaceChildren(card);
-  positionSidebarHoverCard(card, anchorRectOf(owner.row));
-  updateSidebarHoverOverflow();
-}
-
-function sidebarHoverOwnerEligible(owner: SidebarHoverOwner): boolean {
-  return (
-    owner.row.isConnected &&
-    owner.button.isConnected &&
-    owner.row.dataset.taskId === owner.taskId &&
-    !owner.button.disabled &&
-    !elements.sidebar.classList.contains("collapsed") &&
-    state.sidebar.menu === null &&
-    !(
-      state.sidebar.renameEditor?.kind === "session" &&
-      state.sidebar.renameEditor.taskId === owner.taskId
-    )
-  );
-}
-
-function updateSidebarHoverOverflow(): void {
-  const open = openSidebarHoverCard;
-  if (!open) {
-    return;
-  }
-  open.overflow = open.card.scrollHeight > open.card.clientHeight + 1;
-  if (open.overflow) {
-    open.card.tabIndex = 0;
-    open.card.setAttribute("role", "region");
-    open.card.setAttribute("aria-label", "Session details");
-  } else {
-    open.card.removeAttribute("tabindex");
-    open.card.removeAttribute("role");
-    open.card.removeAttribute("aria-label");
-  }
-}
-
-function repositionOpenSidebarHoverCard(): void {
-  const open = openSidebarHoverCard;
-  if (!open) {
-    return;
-  }
-  if (!sidebarHoverOwnerEligible(open)) {
-    closeSidebarHoverCard();
-    return;
-  }
-  positionSidebarHoverCard(open.card, anchorRectOf(open.row));
-  updateSidebarHoverOverflow();
-}
-
-function handleSidebarHoverCardKeydown(
-  event: KeyboardEvent,
-  owner: SidebarHoverOwner,
-): void {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    closeSidebarHoverCard();
-    focusSidebarHoverOriginOrFallback(owner, true);
-    return;
-  }
-  if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) {
-    return;
-  }
-  event.preventDefault();
-  if (event.shiftKey) {
-    if (sidebarHoverOwnerEligible(owner)) {
-      owner.button.focus({ preventScroll: true });
-    } else {
-      closeSidebarHoverCard();
-      focusSidebarHoverFallback(owner);
-    }
-    return;
-  }
-
-  const next = nextSidebarSemanticFocusTarget(owner.button);
-  if (next) {
-    next.focus({ preventScroll: true });
-  }
-  closeSidebarHoverCard();
-  if (!next) {
-    focusSidebarHoverFallback(owner);
-  }
-}
-
-function handleSidebarHoverDocumentKeydown(event: KeyboardEvent): void {
-  if (event.key !== "Escape" || (!openSidebarHoverCard && !pendingSidebarHoverOwner)) {
-    return;
-  }
-  if (!openSidebarHoverCard) {
-    cancelPendingSidebarHoverOpen();
-    return;
-  }
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  const owner = openSidebarHoverCard;
-  const restoreFocus = owner?.card.contains(document.activeElement) ?? false;
-  closeSidebarHoverCard();
-  if (restoreFocus && owner) {
-    focusSidebarHoverOriginOrFallback(owner, true);
-  }
-}
-
-function nextSidebarSemanticFocusTarget(origin: HTMLElement): HTMLElement | null {
-  const targets = Array.from(
-    elements.sidebarList.querySelectorAll<HTMLElement>("[data-sidebar-focus-key]"),
-  );
-  const index = targets.indexOf(origin);
-  for (let candidateIndex = index + 1; index >= 0 && candidateIndex < targets.length; candidateIndex += 1) {
-    const candidate = targets[candidateIndex];
-    if (candidate && sidebarFocusTargetEligible(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
-function focusSidebarHoverOriginOrFallback(
-  owner: SidebarHoverOwner,
-  suppressOpen = false,
-): void {
-  if (sidebarHoverOwnerEligible(owner)) {
-    if (suppressOpen) {
-      suppressedSidebarHoverFocusButton = owner.button;
-    }
-    owner.button.focus({ preventScroll: true });
-    if (suppressOpen) {
-      queueMicrotask(() => {
-        if (suppressedSidebarHoverFocusButton === owner.button) {
-          suppressedSidebarHoverFocusButton = null;
-        }
-      });
-    }
-    return;
-  }
-  focusSidebarHoverFallback(owner);
-}
-
-function focusSidebarHoverFallback(owner: SidebarHoverOwner): void {
-  const keys = sidebarFallbackFocusKeys(owner.button);
-  const target = keys
-    .map((key) => sidebarFocusTarget(key))
-    .find((candidate): candidate is HTMLElement =>
-      candidate !== null && sidebarFocusTargetEligible(candidate),
-    ) ?? firstSidebarRowFocusTarget() ?? sidebarFocusTarget("filter");
-  target?.focus({ preventScroll: true });
-}
-
-function sidebarFocusTargetEligible(target: HTMLElement): boolean {
-  return (
-    target.isConnected &&
-    (!(target instanceof HTMLButtonElement) || !target.disabled) &&
-    target.getClientRects().length > 0 &&
-    getComputedStyle(target).visibility !== "hidden"
-  );
-}
-
-function scheduleSidebarHoverClose(delayMs: number): void {
-  cancelSidebarHoverClose();
-  sidebarHoverCloseTimer = window.setTimeout(() => {
-    sidebarHoverCloseTimer = null;
-    if (sidebarHoverOwnershipActive()) {
-      return;
-    }
-    closeSidebarHoverCard();
-  }, delayMs);
-}
-
-function sidebarHoverOwnershipActive(): boolean {
-  const open = openSidebarHoverCard;
-  if (!open) {
-    return false;
-  }
-  const active = document.activeElement;
-  return (
-    open.row.matches(":hover") ||
-    open.card.matches(":hover") ||
-    sidebarHoverKeyboardOwnershipActive(open, active)
-  );
-}
-
-function sidebarHoverKeyboardOwnershipActive(
-  open: OpenSidebarHoverCard,
-  active: Element | null = document.activeElement,
-): boolean {
-  return active instanceof Node && (open.row.contains(active) || open.card.contains(active));
-}
-
-function cancelSidebarHoverClose(): void {
-  if (sidebarHoverCloseTimer !== null) {
-    window.clearTimeout(sidebarHoverCloseTimer);
-    sidebarHoverCloseTimer = null;
-  }
-}
-
-function cancelPendingSidebarHoverOpen(): void {
-  if (pendingSidebarHoverTimer !== null) {
-    window.clearTimeout(pendingSidebarHoverTimer);
-    pendingSidebarHoverTimer = null;
-  }
-  pendingSidebarHoverOwner = null;
-}
-
-export function closeSidebarHoverCard(): void {
-  cancelPendingSidebarHoverOpen();
-  cancelSidebarHoverClose();
-  const open = openSidebarHoverCard;
-  openSidebarHoverCard = null;
-  if (open) {
-    open.row.classList.remove("hover-card-open");
-    if (open.button.getAttribute("aria-describedby") === open.tooltip.id) {
-      open.button.removeAttribute("aria-describedby");
-    }
-  }
-  elements.sidebarHoverCardRoot.replaceChildren();
 }
 
 function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
@@ -1264,7 +847,6 @@ export function openSidebarMenuForSession(
   anchorElement: HTMLElement,
   renameSurface: "header" | "sidebar" = "sidebar",
 ): void {
-  closeSidebarHoverCard();
   sidebarTransitions.openSessionMenu(
     state,
     taskId,
@@ -1280,7 +862,6 @@ function openSidebarMenuForProject(
   project: SidebarDisclosureProject,
   anchorElement: HTMLElement,
 ): void {
-  closeSidebarHoverCard();
   sidebarTransitions.openProjectMenu(
     state,
     project.path,

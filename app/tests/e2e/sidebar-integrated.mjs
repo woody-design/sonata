@@ -2,7 +2,6 @@
 // oracle; this runner proves they all pass against one built product revision
 // without overwriting the canonical evidence published by earlier Slices.
 import { spawnSync } from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -22,7 +21,6 @@ try {
   const chromeDir = path.join(outputRoot, "chrome");
   const disclosureDir = path.join(outputRoot, "disclosure");
   const renameDir = path.join(outputRoot, "rename");
-  const hoverDir = path.join(outputRoot, "hover");
 
   runNode("tests/smoke/sidebar-fixture.mjs");
   runNode("tests/smoke/sidebar-disclosure-core.mjs");
@@ -47,13 +45,11 @@ try {
   runNode("tests/e2e/terminal-theme-independence.mjs");
   runNode("tests/e2e/sidebar-disclosure.mjs", [disclosureDir]);
   runNode("tests/e2e/sidebar-rename.mjs", [renameDir]);
-  runNode("tests/e2e/sidebar-hover-card.mjs", [hoverDir]);
   runNode("tests/e2e/sidebar-sessions.mjs");
 
   const chrome = readManifest(chromeDir);
   const disclosure = readManifest(disclosureDir);
   const rename = readManifest(renameDir);
-  const hover = readManifest(hoverDir);
   assertExactVisualMatrix(chrome.results, "generated visual matrix");
   assertEqual(chrome.files.length, 16, "visual evidence files");
   assertExactTrueAssertions(
@@ -68,7 +64,6 @@ try {
     "generated rename assertions",
   );
   assertEqual(rename.files.length, 3, "rename evidence files");
-  const hoverEvidence = validateHoverEvidence(hoverDir, hover);
 
   console.log(
     JSON.stringify(
@@ -79,7 +74,6 @@ try {
         visualCombinations: chrome.results.length,
         disclosureAssertions: Object.keys(disclosure.assertions).length,
         renameAssertions: Object.keys(rename.assertions).length,
-        hoverVisualEvidence: hoverEvidence,
       },
       null,
       2,
@@ -130,54 +124,6 @@ function runProcess(command, args, label, env = process.env) {
 
 function readManifest(directory) {
   return JSON.parse(fs.readFileSync(path.join(directory, "manifest.json"), "utf8"));
-}
-
-function validateHoverEvidence(directory, manifest) {
-  const expected = new Map([
-    ["narrow-dark.png", { width: 500, height: 420 }],
-    ["narrow-light.png", { width: 500, height: 420 }],
-    ["normal-dark.png", { width: 1280, height: 800 }],
-    ["normal-light.png", { width: 1280, height: 800 }],
-  ]);
-  const expectedNames = [...expected.keys()];
-  assertEqual(
-    JSON.stringify(manifest.matrix),
-    JSON.stringify({ widths: ["normal", "narrow"], modes: ["light", "dark"] }),
-    "hover visual matrix dimensions",
-  );
-  assertEqual(Array.isArray(manifest.files), true, "hover manifest files array");
-  const manifestNames = manifest.files.map((entry) => entry.name).sort();
-  assertEqual(JSON.stringify(manifestNames), JSON.stringify(expectedNames), "exact hover manifest files");
-  const diskNames = fs.readdirSync(directory).filter((name) => name.endsWith(".png")).sort();
-  assertEqual(JSON.stringify(diskNames), JSON.stringify(expectedNames), "exact hover PNG files on disk");
-
-  const dimensions = {};
-  const hashes = new Set();
-  for (const entry of manifest.files) {
-    assertEqual(
-      typeof entry.sha256 === "string" && /^[a-f0-9]{64}$/.test(entry.sha256),
-      true,
-      `${entry.name} manifest SHA-256 shape`,
-    );
-    const bytes = fs.readFileSync(path.join(directory, entry.name));
-    assertEqual(
-      bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])),
-      true,
-      `${entry.name} PNG signature`,
-    );
-    const actualHash = crypto.createHash("sha256").update(bytes).digest("hex");
-    assertEqual(actualHash, entry.sha256, `${entry.name} independently recomputed SHA-256`);
-    hashes.add(actualHash);
-    const actualSize = { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
-    assertEqual(
-      JSON.stringify(actualSize),
-      JSON.stringify(expected.get(entry.name)),
-      `${entry.name} dimensions`,
-    );
-    dimensions[entry.name] = actualSize;
-  }
-  assertEqual(hashes.size, expected.size, "hover screenshots are four distinct images");
-  return { files: expectedNames, dimensions, uniqueHashes: hashes.size };
 }
 
 function assertEqual(actual, expected, label) {

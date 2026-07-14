@@ -21,10 +21,6 @@ import {
   type SidebarDisclosureState,
   type SidebarPrefs,
 } from "../state";
-import {
-  formatSidebarHoverActivity,
-  type SidebarHoverActivity,
-} from "./formatters";
 
 /** Anything departs from the default setup — drives the filter button's
  *  persistent "your view is shaped" accent. */
@@ -58,26 +54,6 @@ export type SidebarEntry = SidebarEntryBase & (
   | { projectPath: string; projectName: string }
   | { projectPath: null; projectName: null }
 );
-
-export interface SidebarHoverCardModel {
-  taskId: string;
-  title: string;
-  projectLabel: string;
-  activity: SidebarHoverActivity | null;
-}
-
-export function sidebarHoverCardModel(
-  entry: SidebarEntry,
-  nowMs = Date.now(),
-  timeZone?: string,
-): SidebarHoverCardModel {
-  return {
-    taskId: entry.session.task.id,
-    title: entry.session.task.title,
-    projectLabel: entry.projectPath === null ? "Tasks" : entry.projectName,
-    activity: formatSidebarHoverActivity(entry.session.lastActivityAt, nowMs, timeZone),
-  };
-}
 
 export interface SidebarDisclosureMetrics {
   totalCount: number;

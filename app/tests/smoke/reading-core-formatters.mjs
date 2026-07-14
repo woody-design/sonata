@@ -34,58 +34,6 @@ const DAY = 24 * HOUR;
   assert.equal(F.formatRelativeAge(new Date(NOW + HOUR).toISOString(), NOW), "now", "future → now");
 }
 
-// 1b) Hover activity has its own seven-day contract; the row formatter above
-// remains pinned independently and unchanged.
-{
-  assert.equal(F.formatSidebarHoverActivity("not-a-date", NOW, "UTC"), null, "invalid → no time");
-  assert.deepEqual(
-    F.formatSidebarHoverActivity(new Date(NOW + HOUR).toISOString(), NOW, "UTC"),
-    {
-      display: "now",
-      dateTime: new Date(NOW).toISOString(),
-      accessibleLabel: "Last active now — 2026-07-03",
-    },
-    "future activity clamps all presentation values to now",
-  );
-
-  const relativeCases = [
-    [30_000, "now", "Last active now — 2026-07-03"],
-    [59 * MIN, "59m", "Last active 59 minutes ago — 2026-07-03"],
-    [HOUR, "1h", "Last active 1 hour ago — 2026-07-03"],
-    [23 * HOUR, "23h", "Last active 23 hours ago — 2026-07-02"],
-    [DAY, "1d", "Last active 1 day ago — 2026-07-02"],
-    [7 * DAY - 1, "6d", "Last active 6 days ago — 2026-06-26"],
-  ];
-  for (const [ageMs, display, accessibleLabel] of relativeCases) {
-    const result = F.formatSidebarHoverActivity(agoMs(ageMs), NOW, "UTC");
-    assert.equal(result?.display, display, `${ageMs}ms display`);
-    assert.equal(result?.accessibleLabel, accessibleLabel, `${ageMs}ms accessible label`);
-  }
-
-  assert.equal(
-    F.formatSidebarHoverActivity(agoMs(7 * DAY), NOW, "UTC")?.display,
-    "2026-06-26",
-    "exactly seven elapsed days switches to an absolute date",
-  );
-  assert.equal(
-    F.formatSidebarHoverActivity(agoMs(8 * DAY), NOW, "UTC")?.display,
-    "2026-06-25",
-    "above seven days remains absolute",
-  );
-
-  const nearUtcMidnight = "2026-07-01T00:30:00.000Z";
-  const absoluteNow = Date.parse("2026-07-08T00:30:00.000Z");
-  assert.equal(
-    F.formatSidebarHoverActivity(nearUtcMidnight, absoluteNow, "America/Los_Angeles")?.display,
-    "2026-06-30",
-    "absolute date uses the requested local zone, not the UTC substring",
-  );
-  assert.equal(
-    F.formatSidebarHoverActivity(nearUtcMidnight, absoluteNow, "Asia/Tokyo")?.display,
-    "2026-07-01",
-  );
-}
-
 // 1c) Transcript timestamps are exact, fixed facts (not relative ages). Locale
 // and time zone are injected so the visible separator/date/time contract pins
 // independently of the machine running the fixture.
