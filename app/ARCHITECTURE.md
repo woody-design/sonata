@@ -165,8 +165,9 @@ T7 1200 ms copy-reset (chrome) · T8 resizer rAF (main.ts wiring) · T9–T11
 menu/rename rAFs (sidebar) · T12 post-render scroll microtask (flows) ·
 T13 300 ms rename progress reveal (rename-editor) · T14/T15 rename-editor Tab
 focusin-cleanup timeout-0 / initial-focus rAF · T16 rename pointer-boundary
-timeout-0 (flows/rename-flows) · G1 slash-cache TTL · G2 IME 80 ms composition
-guard (main.ts).
+timeout-0 (flows/rename-flows) · T17 150 ms quote-comment selection debounce /
+T18 quote-comment reposition rAF (view/quote-comment) · G1 slash-cache TTL ·
+G2 IME 80 ms composition guard (main.ts).
 
 ## Boot order (load-bearing)
 

@@ -56,6 +56,34 @@ export function positionSidebarMenu(panel: HTMLElement, anchor: AnchorRect): voi
   });
 }
 
+/**
+ * Center a fixed-position element horizontally over an anchor rect and float it
+ * just ABOVE the anchor, clamped to the viewport. If there is no room above (the
+ * anchor sits near the top edge), it flips below. Used by the Quote & Comment
+ * trigger and its input bar, whose anchor is the last client rect of the text
+ * selection — a shape the below-anchor / side-anchor positioners above do not
+ * fit. Reads live element + window geometry, writes style out; call after the
+ * element is mounted so its measured size is real.
+ */
+export function positionCenteredAbove(
+  element: HTMLElement,
+  anchor: AnchorRect,
+  gap = 8,
+  margin = 8,
+): void {
+  element.style.position = "fixed";
+  const size = element.getBoundingClientRect();
+  const centerX = anchor.left + anchor.width / 2;
+  const left = Math.min(
+    window.innerWidth - size.width - margin,
+    Math.max(margin, centerX - size.width / 2),
+  );
+  const above = anchor.top - gap - size.height;
+  const top = above >= margin ? above : anchor.bottom + gap;
+  element.style.left = `${Math.round(left)}px`;
+  element.style.top = `${Math.round(top)}px`;
+}
+
 /** DOM adapter for the pure side-card calculation. Call after mounting. */
 export function positionSidebarHoverCard(panel: HTMLElement, anchor: AnchorRect): void {
   panel.style.position = "fixed";

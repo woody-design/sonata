@@ -24,6 +24,43 @@ export function lucideIcon(node: IconNode, size = 16): SVGElement {
   return svg;
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/**
+ * Woody's Comment glyph (`Temp/Comment/Comment.svg`): a rounded speech bubble
+ * with a centered plus. The path data is inlined verbatim (240×240 viewBox).
+ * The bubble and plus carry class hooks rather than baked-in fills so the color
+ * flows from CSS tokens — the bubble reads `--quote-comment-accent`, the plus
+ * stays white (styles.css). This lives in icons.ts because it is the shared
+ * icon home; the Quote & Comment view mounts it in its trigger.
+ */
+export function commentGlyph(size = 28): SVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+  svg.setAttribute("viewBox", "0 0 240 240");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("quote-comment-glyph");
+
+  const bubble = document.createElementNS(SVG_NS, "path");
+  bubble.setAttribute(
+    "d",
+    "M119.961 0.00169398C54.3036 0.00169398 0.91347 53.8447 0.923999 120.021V240H0.914103C0.914103 240 -3.39922 240 0.923999 240L119.99 240C185.648 240 239 186.178 239 120.019C239.01 53.8493 185.65 0.00847054 119.99 0L119.961 0.00169398Z",
+  );
+  bubble.classList.add("quote-comment-glyph-bubble");
+
+  const plus = document.createElementNS(SVG_NS, "path");
+  plus.setAttribute(
+    "d",
+    "M69.7928 128.333H111.46V170H128.126V128.333H169.793V111.667H128.126V70H111.46V111.667H69.7928V128.333Z",
+  );
+  plus.classList.add("quote-comment-glyph-plus");
+
+  svg.append(bubble, plus);
+  return svg;
+}
+
 /**
  * Lucide type icon by extension (§5.8): file-text (docs), file-code (source +
  * html), braces (json), image, file (fallback). Monochrome ink — the app

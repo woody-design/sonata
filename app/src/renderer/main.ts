@@ -52,6 +52,7 @@ import {
   type TaskViewState,
 } from "../reading-core/state";
 import { reduceRuntimeEvent } from "../reading-core/runtime-reducer";
+import { appendToDraft } from "../reading-core/quote-comment";
 import * as composerTransitions from "../reading-core/transitions/composer";
 import * as popoverTransitions from "../reading-core/transitions/popovers";
 import * as sessionTransitions from "../reading-core/transitions/session";
@@ -160,6 +161,7 @@ import { positionSlashPicker, renderSlashPicker } from "./view/slash-picker";
 import { initStatusStripView } from "./view/status-strip";
 import { initTranscriptView } from "./view/transcript";
 import { initTranscriptChips, transcriptChipTarget } from "./view/transcript-chips";
+import { initQuoteComment } from "./view/quote-comment";
 import { initReadingNavigation } from "./view/reading-navigation";
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -276,6 +278,23 @@ initTranscriptView(state, { composeEntryPanel: renderTaskEntryPanel });
 initTranscriptChips(state, {
   resolvePaths: (taskId, candidates) =>
     window.duetRuntime.resolveWorkspacePaths({ taskId, candidates }).then((r) => r.existing),
+});
+initQuoteComment({
+  appendToComposer: (paragraph) => {
+    // D5 — append at the end (blank-line separated). Set the value, then run the
+    // SAME post-input path as typing (D6 — no focus steal): the input event
+    // drives renderComposerControls + syncSlashPicker (the listener at
+    // main.ts's composer wiring below).
+    elements.promptInput.value = appendToDraft(elements.promptInput.value, paragraph);
+    elements.promptInput.dispatchEvent(new Event("input"));
+  },
+  // Identity of whose draft the shared textarea currently holds (same shape as
+  // slashCommandsCacheKey): a live task by id, else the new-chat draft. A confirm
+  // whose captured token no longer matches is dropped (cross-session guard).
+  composerOwnerToken: () => {
+    const view = activeTaskView();
+    return view?.task ? `task:${view.task.id}` : "draft";
+  },
 });
 initBannersView(state);
 initStatusStripView(state);

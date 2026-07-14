@@ -136,6 +136,7 @@
     "smoke:import-fence": "node tests/smoke/import-fence.mjs",
     "smoke:preview-sessions": "npm run build:main && node tests/smoke/preview-sessions.mjs",
     "smoke:reading-core-formatters": "npm run build:main && node tests/smoke/reading-core-formatters.mjs",
+    "smoke:quote-comment": "npm run build:main && node tests/smoke/quote-comment.mjs",
     "smoke:reading-scroll": "npm run build:main && node tests/smoke/reading-scroll.mjs",
     "smoke:reading-turns": "npm run build:main && node tests/smoke/reading-turns.mjs",
     "smoke:reading-sidebar-selectors": "npm run build:main && node tests/smoke/reading-sidebar-selectors.mjs",
