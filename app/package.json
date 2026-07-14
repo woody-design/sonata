@@ -32,6 +32,7 @@
     "e2e:run-reading-surface": "npm run build && node tests/e2e/run-reading-surface.mjs",
     "e2e:transcript-selection": "npm run build && node tests/e2e/transcript-selection.mjs",
     "e2e:copy-to-clipboard": "npm run build && node tests/e2e/copy-to-clipboard.mjs",
+    "e2e:copy-to-clipboard-screenshots": "npm run build && DUET_COPY_EVIDENCE=1 node tests/e2e/copy-to-clipboard.mjs",
     "e2e:transcript-chips": "npm run build && node tests/e2e/transcript-chips.mjs",
     "e2e:quote-comment": "npm run build && node tests/e2e/quote-comment.mjs",
     "e2e:transcript-chips-screenshots": "npm run build && node tests/e2e/transcript-chips-screenshots.mjs",

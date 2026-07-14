@@ -5,6 +5,8 @@
 // prompt (hover/focus row), Markdown <pre> (permanent control), and one whole
 // assistant reply (settled/runless transcript fixture). The assertions witness
 // the system clipboard itself through the preload read bridge — not a stub.
+// DUET_COPY_EVIDENCE=1 appends an isolated, color-normalized light/dark visual
+// matrix only after the full functional path has passed.
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -19,6 +21,7 @@ const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-copy-codex-home-")
 const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-copy-bin-"));
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-copy-workspace-"));
 const fakeCodex = path.join(fakeBinDir, "codex");
+const evidenceDir = resolveEvidenceDir();
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
 fs.chmodSync(fakeCodex, 0o755);
 
@@ -32,6 +35,7 @@ const FINAL_REPLY = "Second paragraph.";
 
 let app = null;
 const results = {};
+const screenshots = [];
 try {
   app = await electron.launch({
     args: ["dist/main/main.js"],
@@ -42,6 +46,7 @@ try {
       DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
       CODEX_HOME: codexHome,
       PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+      ...(evidenceDir ? { TZ: "UTC", LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" } : {}),
     },
   });
   const page = await app.firstWindow();
@@ -220,12 +225,17 @@ try {
     (await imageOnlyCard.locator(".turn-user-meta .transcript-copy-button").count()) === 0;
 
   const success = Object.values(results).every(Boolean);
-  console.log(JSON.stringify({ dataRoot, taskId, results, success }, null, 2));
   assert.ok(success, "all copy-to-clipboard interaction checks passed");
+  if (evidenceDir) {
+    await captureVisualEvidence(page, updatedCard);
+  }
+  console.log(
+    JSON.stringify({ dataRoot, taskId, evidenceDir, screenshots, results, success }, null, 2),
+  );
   console.log("copy-to-clipboard e2e: OK — three copy surfaces hold their contracts");
 } catch (error) {
   console.error("copy-to-clipboard e2e FAILED:", error);
-  console.log(JSON.stringify({ results }, null, 2));
+  console.log(JSON.stringify({ evidenceDir, screenshots, results }, null, 2));
   process.exitCode = 1;
 } finally {
   await app?.close();
@@ -260,6 +270,168 @@ function readSources(taskId) {
 async function readClipboard(page) {
   const response = await page.evaluate(() => window.duetRuntime.readClipboardText());
   return response.text;
+}
+
+function resolveEvidenceDir() {
+  const configured = process.env.DUET_COPY_EVIDENCE_DIR?.trim();
+  if (configured) {
+    const directory = path.resolve(configured);
+    fs.mkdirSync(directory, { recursive: true });
+    return directory;
+  }
+  if (process.env.DUET_COPY_EVIDENCE !== "1") {
+    return null;
+  }
+  return fs.mkdtempSync(path.join(os.tmpdir(), "duet-copy-evidence-"));
+}
+
+async function captureVisualEvidence(page, card) {
+  await page.addStyleTag({
+    content:
+      "*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }",
+  });
+  await setMode(page, "light");
+  await page.keyboard.press("Escape");
+
+  // The functional path deliberately ends with a failed reply-copy retry.
+  // Restore a real successful/idle state before recording the visual matrix.
+  const replyCopy = card.locator(".turn-assistant-meta .transcript-copy-button");
+  await replyCopy.click();
+  await waitForCopyState(replyCopy, "copied");
+  await page.waitForTimeout(3200);
+  await waitForCopyState(replyCopy, "idle");
+
+  await movePointerToNeutral(page, 300);
+  await capture(page, card, "01-card-idle-light.png", "light");
+  await capturePromptCopyHover(
+    page,
+    card,
+    "02-prompt-copy-hover-light.png",
+    "light",
+  );
+
+  const codeCopy = card.locator(".code-block-copy").first();
+  await codeCopy.click();
+  await waitForCopyState(codeCopy, "copied");
+  await movePointerToNeutral(page, 150);
+  await capture(page, card, "03-code-copied-light.png", "light");
+  await page.waitForTimeout(3200);
+  await waitForCopyState(codeCopy, "idle");
+
+  await replyCopy.click();
+  await waitForCopyState(replyCopy, "copied");
+  await setMode(page, "dark");
+  await capturePromptCopyHover(
+    page,
+    card,
+    "04-prompt-copy-hover-reply-copied-dark.png",
+    "dark",
+  );
+
+  assert.deepEqual(screenshots, [
+    "01-card-idle-light.png",
+    "02-prompt-copy-hover-light.png",
+    "03-code-copied-light.png",
+    "04-prompt-copy-hover-reply-copied-dark.png",
+  ]);
+}
+
+async function capture(page, locator, fileName, expectedMode, prepare = null) {
+  await locator.scrollIntoViewIfNeeded();
+  assert.ok(await locator.boundingBox(), `visual target is measurable: ${fileName}`);
+  assert.equal(
+    await page.locator("html").getAttribute("data-mode"),
+    expectedMode,
+    `visual mode for ${fileName}`,
+  );
+
+  const filePath = path.join(evidenceDir, fileName);
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    if (prepare) await prepare();
+    const rawPng = await page.screenshot({ fullPage: false });
+    const normalized = await normalizeScreenshot(page, rawPng);
+    fs.writeFileSync(filePath, normalized.png);
+    const nearBlackRatio = normalized.nearBlackRatio;
+    if (nearBlackRatio < 0.15) {
+      screenshots.push(fileName);
+      return;
+    }
+    await movePointerToNeutral(page, 300);
+  }
+  throw new Error(`Corrupt visual evidence retained at ${filePath}: repeated black frames`);
+}
+
+async function capturePromptCopyHover(page, card, fileName, expectedMode) {
+  const header = card.locator(".turn-user");
+  const meta = header.locator(".turn-user-meta");
+  const copy = meta.locator(".transcript-copy-button");
+  await capture(page, card, fileName, expectedMode, async () => {
+    await header.hover();
+    await page.waitForFunction(
+      (node) => getComputedStyle(node).opacity === "1",
+      await meta.elementHandle(),
+    );
+    await copy.hover();
+  });
+}
+
+async function normalizeScreenshot(page, png) {
+  const normalized = await page.evaluate(async (base64) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${base64}`;
+    await image.decode();
+    const output = document.createElement("canvas");
+    output.width = image.naturalWidth;
+    output.height = image.naturalHeight;
+    const outputContext = output.getContext("2d");
+    if (!outputContext) return null;
+    outputContext.drawImage(image, 0, 0);
+
+    const sample = document.createElement("canvas");
+    sample.width = 180;
+    sample.height = Math.max(1, Math.round((image.naturalHeight / image.naturalWidth) * 180));
+    const sampleContext = sample.getContext("2d", { willReadFrequently: true });
+    if (!sampleContext) return null;
+    sampleContext.drawImage(output, 0, 0, sample.width, sample.height);
+    const pixels = sampleContext.getImageData(0, 0, sample.width, sample.height).data;
+    let nearBlack = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index] < 8 && pixels[index + 1] < 8 && pixels[index + 2] < 8) {
+        nearBlack += 1;
+      }
+    }
+    return {
+      nearBlackRatio: nearBlack / (pixels.length / 4),
+      pngBase64: output.toDataURL("image/png").split(",")[1],
+    };
+  }, png.toString("base64"));
+  assert.ok(normalized, "browser can normalize visual evidence");
+  return {
+    nearBlackRatio: normalized.nearBlackRatio,
+    png: Buffer.from(normalized.pngBase64, "base64"),
+  };
+}
+
+async function waitForCopyState(locator, state) {
+  await locator.page().waitForFunction(
+    ([element, expected]) => element?.getAttribute("data-copy-state") === expected,
+    [await locator.elementHandle(), state],
+  );
+}
+
+async function movePointerToNeutral(page, settleMs) {
+  const point = await page.evaluate(() => ({ x: innerWidth / 2, y: innerHeight - 2 }));
+  await page.mouse.move(point.x, point.y);
+  await page.waitForTimeout(settleMs);
+}
+
+async function setMode(page, mode) {
+  const label = mode === "dark" ? "Dark" : "Light";
+  await page.locator("#reading-settings").click();
+  await page.locator(".reading-segment", { hasText: label }).click();
+  await page.keyboard.press("Escape");
+  await page.locator(`html[data-mode="${mode}"]`).waitFor({ state: "attached" });
+  await page.waitForTimeout(150);
 }
 
 async function waitFor(predicate, timeoutMs, label) {
