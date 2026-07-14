@@ -141,7 +141,8 @@ try {
       claudeRecord.task.model === "sonnet" &&
       claudeRecord.task.reasoningEffort === "high" &&
       claudeRecord.task.permissionMode === "auto" &&
-      claudeRecord.task.title === "New task" &&
+      claudeRecord.task.title === datedPlaceholder(claudeRecord.task) &&
+      claudeRecord.task.titleOrigin === "automatic" &&
       hasArgPair(claudeProjection.argv, "--permission-mode", "auto") &&
       hasArgPair(claudeProjection.argv, "--model", "sonnet") &&
       hasArgPair(claudeProjection.argv, "--effort", "high") &&
@@ -163,14 +164,14 @@ try {
     claudeDraftNotDelivered:
       claudeOwnership.text === claudeDraft &&
       claudeOwnership.attachmentCount === 1 &&
-      claudeRecord.task.title === "New task" &&
+      claudeRecord.task.title === datedPlaceholder(claudeRecord.task) &&
       claudeProjection.stdin.length === 0 &&
       claudeRecord.report.runs.length === 0 &&
       attachmentBlobCount(claudeTaskId) === 0,
     codexDraftNotDelivered:
       codexOwnership.text === codexDraft &&
       codexOwnership.attachmentCount === 1 &&
-      codexRecord.task.title === "New task" &&
+      codexRecord.task.title === datedPlaceholder(codexRecord.task) &&
       codexProjection.stdin.length === 0 &&
       codexRecord.report.runs.length === 0 &&
       attachmentBlobCount(codexTaskId) === 0,
@@ -236,6 +237,13 @@ setInterval(() => {}, 1 << 30);
     { mode: 0o755 },
   );
   fs.chmodSync(filePath, 0o755);
+}
+
+function datedPlaceholder(task) {
+  const date = new Date(task.createdAt);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${month}${day}-New task`;
 }
 
 async function chooseProject(page) {

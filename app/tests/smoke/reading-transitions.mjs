@@ -209,7 +209,11 @@ function task(id, title = `Task ${id}`) {
         name: "P",
         archived: false,
         sessions: [
-          { task: { ...task("t1", "New"), archived: false }, archived: false, live: true },
+          {
+            task: { ...task("t1", "New"), titleOrigin: "user", archived: false },
+            archived: false,
+            live: true,
+          },
           { task: task("t2", "Stable"), archived: false, live: true },
         ],
       },
@@ -218,6 +222,15 @@ function task(id, title = `Task ${id}`) {
   };
   assert.equal(session.syncTaskViewsFromIndex(state, index), true, "active title change → full");
   assert.equal(state.taskViews[0].task.title, "New");
+  assert.equal(state.taskViews[0].task.titleOrigin, "user", "title ownership follows the index");
+
+  index.projects[0].sessions[0].task.titleOrigin = "automatic";
+  assert.equal(
+    session.syncTaskViewsFromIndex(state, index),
+    true,
+    "active origin-only correction requests a full render",
+  );
+  assert.equal(state.taskViews[0].task.titleOrigin, "automatic");
 
   state.activeTaskId = "t2";
   index.projects[0].sessions[0].task.title = "Newer";

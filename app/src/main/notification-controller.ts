@@ -1,6 +1,7 @@
 import { Notification } from "electron";
 import type { RuntimeEvent } from "../shared/types/events";
-import type { RuntimeProvider, TaskId } from "../shared/types/domain";
+import type { RuntimeProvider, TaskId, TaskTitleOrigin } from "../shared/types/domain";
+import { isAutomaticSessionPlaceholder } from "../shared/session-title";
 import { NotificationPolicy, type NotificationDecision } from "./notification-policy";
 
 /** A shown notification, abstracted so the controller is testable and
@@ -17,6 +18,7 @@ export type Notifier = (content: { title: string; body: string }) => Notificatio
 /** The bits of a task the copy needs, resolved from the live task registry. */
 export interface TaskMeta {
   title: string | null;
+  titleOrigin?: TaskTitleOrigin;
   provider: RuntimeProvider;
 }
 
@@ -48,7 +50,6 @@ const NEUTRAL_LABEL = "Agent";
 /** Fall back to the app name when a task has no human-readable title yet, and
  *  never surface the auto-title placeholders (they read as noise). */
 const FALLBACK_TITLE = "Duet";
-const PLACEHOLDER_TITLES = new Set(["New Task", "Walking Skeleton Task", "New Chat"]);
 
 /**
  * Turns the pure {@link NotificationPolicy}'s decisions into native macOS
@@ -97,7 +98,7 @@ export class NotificationController {
     const meta = this.resolveTaskMeta(decision.taskId);
     const agent = meta ? AGENT_LABEL[meta.provider] ?? NEUTRAL_LABEL : NEUTRAL_LABEL;
     const handle = this.notify({
-      title: cleanTitle(meta?.title) ?? FALLBACK_TITLE,
+      title: cleanTitle(meta?.title, meta?.titleOrigin) ?? FALLBACK_TITLE,
       body: decision.kind === "complete" ? `${agent} finished` : `${agent} needs your input`,
     });
     if (!handle) {
@@ -116,9 +117,12 @@ export class NotificationController {
   }
 }
 
-function cleanTitle(raw: string | null | undefined): string | null {
+function cleanTitle(
+  raw: string | null | undefined,
+  titleOrigin?: TaskTitleOrigin,
+): string | null {
   const title = raw?.trim();
-  return title && !PLACEHOLDER_TITLES.has(title) ? title : null;
+  return title && !isAutomaticSessionPlaceholder(title, titleOrigin) ? title : null;
 }
 
 /** The default notifier: a native macOS notification with the system sound

@@ -826,7 +826,13 @@ app.whenReady().then(() => {
       // notifier only fires later, so the lazy read is safe.
       resolveTaskMeta: (taskId) => {
         const task = runtimeController?.listTasks().find((entry) => entry.id === taskId);
-        return task ? { title: task.title, provider: task.provider } : null;
+        return task
+          ? {
+              title: task.title,
+              provider: task.provider,
+              ...(task.titleOrigin === undefined ? {} : { titleOrigin: task.titleOrigin }),
+            }
+          : null;
       },
     });
   }

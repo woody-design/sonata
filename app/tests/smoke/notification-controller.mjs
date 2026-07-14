@@ -110,13 +110,35 @@ function harness() {
 
 // 7) No live meta → neutral copy, no crash.
 {
+  const h = harness();
+  h.meta.set("t1", {
+    title: "0714-New task",
+    titleOrigin: "automatic",
+    provider: "claude",
+  });
+  h.controller.handleEvent(cli("t1", "busy", 0));
+  h.controller.handleEvent(cli("t1", "turn-ended", 45));
+  assert.equal(h.shown[0].title, "Duet", "dated automatic placeholder → fallback");
+}
+
+// 8) The same text under user ownership is intentional and must surface.
+{
+  const h = harness();
+  h.meta.set("t1", { title: "0714-New task", titleOrigin: "user", provider: "claude" });
+  h.controller.handleEvent(cli("t1", "busy", 0));
+  h.controller.handleEvent(cli("t1", "turn-ended", 45));
+  assert.equal(h.shown[0].title, "0714-New task", "manual automatic-looking title is respected");
+}
+
+// 9) No live meta → neutral copy, no crash.
+{
   const h = harness(); // meta map empty → resolveTaskMeta returns null
   h.controller.handleEvent(cli("t1", "busy", 0));
   h.controller.handleEvent(cli("t1", "turn-ended", 45));
   assert.deepEqual(h.shown[0], { title: "Duet", body: "Agent finished" });
 }
 
-// 8) A sub-floor turn shows nothing (policy wired through).
+// 10) A sub-floor turn shows nothing (policy wired through).
 {
   const h = harness();
   h.meta.set("t1", { title: "Fix the parser", provider: "claude" });
@@ -125,7 +147,7 @@ function harness() {
   assert.equal(h.shown.length, 0, "fast turn → no notification");
 }
 
-// 9) A null notifier (OS can't show) is handled without throwing.
+// 11) A null notifier (OS can't show) is handled without throwing.
 {
   const controller = new NotificationController({
     notifier: () => null,

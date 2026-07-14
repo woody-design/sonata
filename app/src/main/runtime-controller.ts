@@ -106,10 +106,12 @@ import type {
   RevertResumeBridgeResponse,
   TerminalReplaySnapshot,
 } from "../shared/types/ipc";
+import {
+  adoptAutomaticSessionTitle,
+  initialSessionTitle,
+} from "../shared/session-title";
 import os from "node:os";
 
-const DEFAULT_TASK_TITLE = "New task";
-const AUTO_TITLE_PLACEHOLDERS = new Set(["New task", "New Task", "Walking Skeleton Task"]);
 // Undocumented but botmux-proven per-process levers (research §2.1). Both
 // force the full-session path, which is exactly what we want: the panel
 // never renders in the hidden PTY; Duet owns the choice. Version-fragile —
@@ -178,9 +180,11 @@ interface ActiveTaskRuntime {
    *  controller can answer it, bound-check the selection, and emit a
    *  cancellation when the turn ends or the PTY exits unanswered. */
   pendingOptionPrompt: OptionPrompt | null;
-  /** Last automatically applied title (run prompt or provider session
-   *  name). null = unknown provenance (e.g. reopened task) → never
-   *  auto-rename. A user rename makes title diverge from this. */
+  /**
+   * Legacy-only compatibility: the last automatically applied undated title.
+   * New tasks persist titleOrigin; old manifests deliberately retain their
+   * process-local auto-title semantics instead of being migrated on resume.
+   */
   autoTitle: string | null;
 }
 
@@ -274,9 +278,10 @@ export class RuntimeController {
   createTask(request: CreateTaskRequest): CreateTaskResponse {
     assertSupportedProvider(request.provider);
 
-    const now = new Date().toISOString();
+    const creationInstant = new Date();
+    const now = creationInstant.toISOString();
     const taskId = this.nextTaskId();
-    const title = request.title?.trim() || DEFAULT_TASK_TITLE;
+    const initialTitle = initialSessionTitle(request.title, creationInstant);
     // Duet's own records live under ~/.duet (hidden, Duet-owned), keyed by taskId
     // and fully decoupled from where the agent works. providerCwd is the user's
     // work: a chosen folder, or — for a project-less session — a VISIBLE generated
@@ -332,7 +337,7 @@ export class RuntimeController {
 
     const task: Task = {
       id: taskId,
-      title,
+      ...initialTitle,
       provider: request.provider,
       model: launchSettings.model,
       reasoningEffort: launchSettings.reasoningEffort,
@@ -784,9 +789,10 @@ export class RuntimeController {
     if (live) {
       // Persist the candidate before publishing it to the live runtime. A
       // failed atomic write must leave both memory and the old manifest intact.
-      const candidate = { ...live.task, title: trimmed };
+      const candidate = { ...live.task, title: trimmed, titleOrigin: "user" as const };
       this.persistTaskManifest(candidate, live.storageRoot, "session-renamed", false);
       live.task = candidate;
+      live.autoTitle = null;
       this.emitSessionsUpdated("session-renamed");
       this.sendEvent({
         type: "task:updated",
@@ -796,7 +802,11 @@ export class RuntimeController {
       return { task: candidate };
     }
     const record = this.requirePersistedSession(taskId);
-    const candidate = { ...record.manifest.task, title: trimmed };
+    const candidate = {
+      ...record.manifest.task,
+      title: trimmed,
+      titleOrigin: "user" as const,
+    };
     this.persistTaskManifest(candidate, record.storageRoot, "session-renamed");
     return { task: candidate };
   }
@@ -1546,39 +1556,51 @@ export class RuntimeController {
 
   private updateTaskTitleFromRun(taskId: TaskId, title: string): void {
     const active = this.taskRuntimes.get(taskId);
-    const nextTitle = title.trim();
-    if (!active || !nextTitle || !AUTO_TITLE_PLACEHOLDERS.has(active.task.title)) {
+    if (!active) {
+      return;
+    }
+    const adoption = adoptAutomaticSessionTitle(
+      active.task,
+      title,
+      "first-prompt",
+      active.autoTitle,
+    );
+    if (!adoption) {
       return;
     }
 
     active.task = {
       ...active.task,
-      title: nextTitle,
+      ...adoption,
       updatedAt: new Date().toISOString(),
     };
-    active.autoTitle = nextTitle;
+    active.autoTitle = adoption.title;
     this.persistTaskManifest(active.task, active.storageRoot);
   }
 
   /**
    * Claude's statusline carries a provider-generated session title. It only
-   * ever replaces an AUTOMATIC title (placeholder or the last auto-applied
-   * value) — a user rename diverges from autoTitle and wins forever. Like
-   * manual rename, this is metadata: updatedAt stays untouched.
+   * ever replaces an AUTOMATIC title. New tasks persist that ownership; legacy
+   * tasks retain the old placeholder/last-auto runtime seam. A user rename
+   * persists user ownership and wins forever. Like manual rename, this is
+   * metadata: updatedAt stays untouched.
    */
   private maybeApplyProviderSessionName(taskId: TaskId, sessionName: string | null | undefined): void {
     const active = this.taskRuntimes.get(taskId);
-    const nextTitle = sessionName?.trim();
-    if (!active || !nextTitle || active.task.title === nextTitle) {
+    if (!active) {
       return;
     }
-    const isAutomaticTitle =
-      AUTO_TITLE_PLACEHOLDERS.has(active.task.title) || active.task.title === active.autoTitle;
-    if (!isAutomaticTitle) {
+    const adoption = adoptAutomaticSessionTitle(
+      active.task,
+      sessionName,
+      "provider",
+      active.autoTitle,
+    );
+    if (!adoption) {
       return;
     }
-    active.task = { ...active.task, title: nextTitle };
-    active.autoTitle = nextTitle;
+    active.task = { ...active.task, ...adoption };
+    active.autoTitle = adoption.title;
     this.persistTaskManifest(active.task, active.storageRoot);
     this.sendEvent({
       type: "task:updated",

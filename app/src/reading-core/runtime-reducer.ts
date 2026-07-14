@@ -11,6 +11,7 @@
  * default param, map §2.4) so replay fixtures are deterministic.
  */
 import type { RuntimeEvent } from "../shared/types/events";
+import { adoptAutomaticSessionTitle } from "../shared/session-title";
 import type { Directive } from "./directives";
 import type { RendererState, TaskViewState } from "./state";
 import {
@@ -19,7 +20,6 @@ import {
   ensureRunTranscript,
   taskViewForId,
 } from "./state";
-import { AUTO_TITLE_PLACEHOLDERS } from "./config";
 import { deliveryStatusLabel, isActiveRunStatus, taskStatusLabel } from "./selectors/runs";
 import {
   optionPromptQuestionMeta,
@@ -51,13 +51,16 @@ function viewChangedDirective(
 /** Ruled into the reducer at the C1 review (called only from the run:started
  *  branch); clock-injected per map §2.4 "title auto-adopt". */
 function updateTaskTitleFromRun(view: TaskViewState, title: string, nowMs: number): void {
-  const nextTitle = title.trim();
-  if (!view.task || !nextTitle || !AUTO_TITLE_PLACEHOLDERS.has(view.task.title)) {
+  if (!view.task) {
+    return;
+  }
+  const adoption = adoptAutomaticSessionTitle(view.task, title, "first-prompt");
+  if (!adoption) {
     return;
   }
   view.task = {
     ...view.task,
-    title: nextTitle,
+    ...adoption,
     updatedAt: new Date(nowMs).toISOString(),
   };
 }

@@ -122,7 +122,8 @@ try {
     createdManifest.task.sandbox === "read-only" &&
     createdManifest.task.approval === "on-request" &&
     createdManifest.task.providerCwd === selectedFolder &&
-    createdManifest.task.title === firstPrompt &&
+    createdManifest.task.title === `${localDatePrefix(createdManifest.task.createdAt)}${firstPrompt}` &&
+    createdManifest.task.titleOrigin === "automatic" &&
     createdReport?.runtime?.model === "gpt-5.6-sol" &&
     createdReport?.runtime?.speedMode === "fast" &&
     !selectedFolderManifestExists &&
@@ -175,6 +176,11 @@ async function launchApp() {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
   return page;
+}
+
+function localDatePrefix(iso) {
+  const date = new Date(iso);
+  return `${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}-`;
 }
 
 // The canonical "what the New Chat screen must show" (2026-07-04 redesign):

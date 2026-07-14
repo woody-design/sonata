@@ -39,8 +39,8 @@ const READING_SETTINGS = { theme: "duet", mode: "auto", textStep: 16 };
 function syntheticTask(taskId) {
   // Minimal synthetic Task (corpus-seeding gotcha: task views are created by
   // IPC responses, not events, so the replay seeds them). Title is an
-  // AUTO_TITLE_PLACEHOLDERS member so recorded run:started events exercise
-  // the title auto-adopt path under the fixed clock.
+  // legacy automatic placeholder so recorded run:started events exercise the
+  // title auto-adopt path under the fixed clock.
   return {
     id: taskId,
     title: "New Task",
@@ -785,6 +785,37 @@ function optionPrompt() {
   );
   assert.equal(view.task.title, "My named session", "user titles are never overwritten");
   assert.equal(view.task, task, "…and the task object is not replaced (same ref)");
+}
+{
+  // A new dated automatic title keeps its creation prefix and ownership.
+  const task = {
+    ...syntheticTask("task-A"),
+    title: "0703-New task",
+    titleOrigin: "automatic",
+  };
+  const { state, view } = seedView({ task });
+  R.reduceRuntimeEvent(
+    state,
+    evt("run:started", { taskId: "task-A", id: "run-dated", title: "Research", status: "active" }),
+    NOW_MS,
+  );
+  assert.equal(view.task.title, "0703-Research", "dated automatic title preserves prefix");
+  assert.equal(view.task.titleOrigin, "automatic", "automatic ownership survives adoption");
+}
+{
+  // A user-owned automatic-looking title is never replaced.
+  const task = {
+    ...syntheticTask("task-A"),
+    title: "0703-New task",
+    titleOrigin: "user",
+  };
+  const { state, view } = seedView({ task });
+  R.reduceRuntimeEvent(
+    state,
+    evt("run:started", { taskId: "task-A", id: "run-user", title: "Research", status: "active" }),
+    NOW_MS,
+  );
+  assert.equal(view.task, task, "user-owned title keeps object identity and content");
 }
 
 // 9) Recommended — working-status liveness edges.

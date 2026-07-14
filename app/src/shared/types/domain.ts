@@ -6,6 +6,7 @@ export type ProviderSessionRef = string;
 export type ApprovalId = string;
 
 export type RuntimeProvider = "codex" | "claude";
+export type TaskTitleOrigin = "automatic" | "user";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 export type LaunchSpeedMode = "default" | "fast";
 export type CodexSandboxMode = "read-only" | "workspace-write" | "danger-full-access";
@@ -32,6 +33,12 @@ export type TaskStatus =
 export interface Task {
   id: TaskId;
   title: string;
+  /**
+   * Ownership of the canonical title. Absent on legacy manifests: legacy
+   * auto-title eligibility keeps its pre-dated, process-local behavior and is
+   * never upgraded merely by reading/resuming the task.
+   */
+  titleOrigin?: TaskTitleOrigin;
   provider: RuntimeProvider;
   model: string | null;
   reasoningEffort: ReasoningEffort | null;

@@ -48,10 +48,21 @@ export function syncTaskViewsFromIndex(
     const incoming = summary.task;
     const taskChanged =
       incoming.title !== view.task.title ||
+      incoming.titleOrigin !== view.task.titleOrigin ||
       Boolean(incoming.archived) !== Boolean(view.task.archived);
     const liveChanged = summary.live !== view.live;
     if (taskChanged) {
-      view.task = { ...view.task, title: incoming.title, archived: incoming.archived ?? false };
+      const nextTask = {
+        ...view.task,
+        title: incoming.title,
+        archived: incoming.archived ?? false,
+      };
+      if (incoming.titleOrigin === undefined) {
+        delete nextTask.titleOrigin;
+      } else {
+        nextTask.titleOrigin = incoming.titleOrigin;
+      }
+      view.task = nextTask;
     }
     if (liveChanged) {
       view.live = summary.live;

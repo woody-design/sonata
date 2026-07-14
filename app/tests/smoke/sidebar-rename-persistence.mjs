@@ -96,6 +96,7 @@ try {
   assert.ok(liveFailure instanceof Error, "blocked live manifest write rejects rename");
   assert.equal(controller.taskRuntimes.get(liveTask.id).task.title, "Live original");
   assert.equal(readTask(liveRoot).title, "Live original");
+  assert.equal(readTask(liveRoot).titleOrigin, undefined, "failed rename does not leak ownership");
   assert.equal(events.length, eventsBeforeFailure, "failed live rename emits no success event");
 
   restoreLiveWrites();
@@ -103,6 +104,7 @@ try {
   assert.equal(liveResponse.task.title, "Live canonical");
   assert.equal(controller.taskRuntimes.get(liveTask.id).task.title, "Live canonical");
   assert.equal(readTask(liveRoot).title, "Live canonical");
+  assert.equal(readTask(liveRoot).titleOrigin, "user", "successful live rename persists ownership");
   assert.deepEqual(
     events.slice(-2).map((event) => [event.type, event.payload.reason]),
     [
@@ -122,6 +124,7 @@ try {
   const dormantResponse = controller.renameSession(dormantTask.id, " Dormant canonical ");
   assert.equal(dormantResponse.task.title, "Dormant canonical");
   assert.equal(readTask(dormantRoot).title, "Dormant canonical");
+  assert.equal(readTask(dormantRoot).titleOrigin, "user", "dormant rename persists ownership");
   assert.deepEqual(
     events.slice(dormantEventStart).map((event) => [event.type, event.payload.reason]),
     [["sessions:updated", "session-renamed"]],
