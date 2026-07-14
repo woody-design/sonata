@@ -178,6 +178,20 @@ const entryOf = (session, projectPath = null) => ({
     ["alpha", "Beta", "Gamma"],
     "alphabetical: localeCompare (case-insensitive here)",
   );
+  const dated = [
+    entryOf(session("0715-Alpha")),
+    entryOf(session("Legacy title")),
+    entryOf(session("0714-Zulu")),
+  ];
+  assert.deepEqual(
+    S.applySidebarPrefs(
+      dated,
+      { ...SIDEBAR_PREFS_DEFAULTS, sortBy: "alphabetical" },
+      NOW,
+    ).map((entry) => entry.session.task.title),
+    ["0714-Zulu", "0715-Alpha", "Legacy title"],
+    "canonical date prefix intentionally participates in alphabetical sorting",
+  );
 }
 
 // 6) sidebarDateBuckets — local-midnight edges, fixed order, empties kept.

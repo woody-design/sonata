@@ -64,6 +64,7 @@ try {
     .locator(".sidebar-project-name", { hasText: path.basename(selectedFolder) })
     .waitFor({ state: "visible" });
   await page.locator(".sidebar-session.active").waitFor({ state: "visible" });
+  const activeHeaderTitle = (await page.locator("#task-title").textContent())?.trim();
 
   // Deferred creation consumes the New Chat draft: a fresh New Chat must NOT
   // resurrect the already-sent first prompt (the createTask→activateTask
@@ -105,6 +106,7 @@ try {
     .locator(".sidebar-session-title", { hasText: createdManifest.task.title })
     .click();
   await page.locator(".turn-card", { hasText: "NEW_CHAT_READY" }).waitFor({ state: "visible" });
+  const reopenedHeaderTitle = (await page.locator("#task-title").textContent())?.trim();
   const dormantPlaceholder = await page.locator("#prompt-input").getAttribute("placeholder");
 
   const success =
@@ -124,6 +126,8 @@ try {
     createdManifest.task.providerCwd === selectedFolder &&
     createdManifest.task.title === `${localDatePrefix(createdManifest.task.createdAt)}${firstPrompt}` &&
     createdManifest.task.titleOrigin === "automatic" &&
+    activeHeaderTitle === createdManifest.task.title &&
+    reopenedHeaderTitle === createdManifest.task.title &&
     createdReport?.runtime?.model === "gpt-5.6-sol" &&
     createdReport?.runtime?.speedMode === "fast" &&
     !selectedFolderManifestExists &&

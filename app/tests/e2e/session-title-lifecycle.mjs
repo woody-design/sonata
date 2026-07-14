@@ -187,6 +187,56 @@ try {
     "main event stream and renderer reducer preserve the same ownership",
   );
 
+  // Prefix removal follows the same real lifecycle, then survives archival.
+  // This is deliberately not a seeded user-owned fixture: it proves the public
+  // rename operation establishes ownership for an unprefixed value.
+  const prefixRemoved = task("manual-prefix-removal", "0714-Initial", "automatic");
+  const prefixRemovedRoot = writeTask(prefixRemoved);
+  const beforePrefixRemovalRestart = controllerHarness();
+  const prefixRemovalRename = beforePrefixRemovalRestart.controller.renameSession(
+    prefixRemoved.id,
+    "  Research without prefix  ",
+  ).task;
+  assert.deepEqual(
+    [prefixRemovalRename.title, prefixRemovalRename.titleOrigin],
+    ["Research without prefix", "user"],
+    "manual rename may remove the complete creation prefix",
+  );
+  const afterPrefixRemovalRestart = controllerHarness();
+  const prefixRemovalOpen = reopen(afterPrefixRemovalRestart, prefixRemoved.id);
+  routeProviderName(
+    afterPrefixRemovalRestart,
+    prefixRemovalOpen.active,
+    prefixRemoved.id,
+    "Provider overwrite",
+  );
+  routeRunStart(
+    afterPrefixRemovalRestart,
+    prefixRemovalOpen.active,
+    prefixRemoved.id,
+    "Run overwrite",
+  );
+  assert.deepEqual(
+    [readTask(prefixRemovedRoot).title, readTask(prefixRemovedRoot).titleOrigin],
+    ["Research without prefix", "user"],
+    "prefix removal survives restart and later automatic candidates",
+  );
+  assert.deepEqual(
+    [prefixRemovalOpen.view.task.title, prefixRemovalOpen.view.task.titleOrigin],
+    ["Research without prefix", "user"],
+    "renderer preserves the restarted unprefixed user title",
+  );
+  afterPrefixRemovalRestart.controller.archiveSession(prefixRemoved.id, true);
+  assert.deepEqual(
+    [
+      readTask(prefixRemovedRoot).title,
+      readTask(prefixRemovedRoot).titleOrigin,
+      readTask(prefixRemovedRoot).archived,
+    ],
+    ["Research without prefix", "user", true],
+    "archive preserves the renamed title and ownership",
+  );
+
   // 2) Persisted automatic ownership intentionally survives reopen: provider
   // naming may improve it, preserves the original date, and task:updated drives
   // the renderer to the same canonical value. The reopen running transition may
@@ -254,8 +304,76 @@ try {
   assert.equal(readTask(malformedRoot).title, "Quarterly plan", "malformed automatic state fails closed");
   assert.equal(malformedOpen.view.task.title, "Quarterly plan");
 
+  // 5) One disk-backed mixed index keeps every ownership/presentation class
+  // distinct: legacy, new automatic, user-renamed (including prefix removal),
+  // chosen-project, project-less, live, and archived. This is the migration
+  // fence: indexing may project those records, never normalize them into one
+  // naming generation.
+  const projectless = {
+    ...task("projectless-automatic", "0714-Loose research", "automatic"),
+    autoWorkspace: true,
+  };
+  writeTask(projectless);
+  new ProjectsStore(path.join(settingsRoot, "projects.json")).setDisplayName(
+    workspace,
+    "Chosen Project",
+  );
+
+  const mixedDefault = providerRestart.controller.readSessionIndex();
+  const mixed = providerRestart.controller.readSessionIndex({ includeArchived: true });
+  const everySummary = [
+    ...mixed.projects.flatMap((project) => project.sessions),
+    ...mixed.chats,
+  ];
+  const summary = (id) => everySummary.find((entry) => entry.task.id === id);
+  assert.equal(
+    mixed.projects.find((project) => project.path === workspace)?.name,
+    "Chosen Project",
+    "chosen-folder display identity is independent of title generation",
+  );
+  assert.deepEqual(
+    [summary(legacy.id)?.task.title, summary(legacy.id)?.task.titleOrigin],
+    ["New Task", undefined],
+    "legacy record remains unowned and undated inside a mixed index",
+  );
+  assert.deepEqual(
+    [summary(providerAutomatic.id)?.task.title, summary(providerAutomatic.id)?.task.titleOrigin],
+    ["0714-Provider title after midnight", "automatic"],
+    "live automatic record retains its canonical creation prefix",
+  );
+  assert.equal(summary(providerAutomatic.id)?.live, true, "mixed fixture includes a live session");
+  assert.deepEqual(
+    [summary(automatic.id)?.task.title, summary(automatic.id)?.task.titleOrigin],
+    ["0714-New task", "user"],
+    "manual automatic-looking title remains user-owned",
+  );
+  assert.deepEqual(
+    [summary(projectless.id)?.task.title, summary(projectless.id)?.task.titleOrigin],
+    ["0714-Loose research", "automatic"],
+    "project-less automatic title remains canonical",
+  );
+  assert.equal(
+    mixed.chats.some((entry) => entry.task.id === projectless.id),
+    true,
+    "auto workspace projects into Tasks rather than a chosen project",
+  );
+  assert.deepEqual(
+    [summary(prefixRemoved.id)?.task.title, summary(prefixRemoved.id)?.task.titleOrigin],
+    ["Research without prefix", "user"],
+    "real manual prefix removal remains canonical after archive",
+  );
+  assert.equal(summary(prefixRemoved.id)?.archived, true, "mixed fixture includes archive state");
+  assert.equal(
+    [
+      ...mixedDefault.projects.flatMap((project) => project.sessions),
+      ...mixedDefault.chats,
+    ].some((entry) => entry.task.id === prefixRemoved.id),
+    false,
+    "default index filtering hides archived without rewriting its title",
+  );
+
   console.log(
-    "session-title-lifecycle: real reopen/runtime/router/renderer ownership and priority pass",
+    "session-title-lifecycle: reopen/runtime/renderer priority and mixed-index ownership pass",
   );
 } finally {
   for (const controller of controllers) {

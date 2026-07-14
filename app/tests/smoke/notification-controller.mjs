@@ -130,7 +130,24 @@ function harness() {
   assert.equal(h.shown[0].title, "0714-New task", "manual automatic-looking title is respected");
 }
 
-// 9) No live meta → neutral copy, no crash.
+// 9) A meaningful automatic title keeps its canonical prefix in notifications.
+{
+  const h = harness();
+  h.meta.set("t1", {
+    title: "0714-Research workflow",
+    titleOrigin: "automatic",
+    provider: "claude",
+  });
+  h.controller.handleEvent(cli("t1", "busy", 0));
+  h.controller.handleEvent(cli("t1", "turn-ended", 45));
+  assert.equal(
+    h.shown[0].title,
+    "0714-Research workflow",
+    "meaningful automatic title remains canonical",
+  );
+}
+
+// 10) No live meta → neutral copy, no crash.
 {
   const h = harness(); // meta map empty → resolveTaskMeta returns null
   h.controller.handleEvent(cli("t1", "busy", 0));
@@ -138,7 +155,7 @@ function harness() {
   assert.deepEqual(h.shown[0], { title: "Duet", body: "Agent finished" });
 }
 
-// 10) A sub-floor turn shows nothing (policy wired through).
+// 11) A sub-floor turn shows nothing (policy wired through).
 {
   const h = harness();
   h.meta.set("t1", { title: "Fix the parser", provider: "claude" });

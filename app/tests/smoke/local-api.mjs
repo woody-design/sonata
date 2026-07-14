@@ -19,7 +19,8 @@ const submitted = [];
 const opened = [];
 const fakeTask = {
   id: "task-1",
-  title: "Smoke session",
+  title: "0714-Smoke session",
+  titleOrigin: "automatic",
   provider: "claude",
   status: "idle",
   providerCwd: tmpDir,
@@ -129,6 +130,11 @@ assert.equal(hello.result.protocolVersion, 1);
 // (today's call shape — the controller then applies its own default).
 const index = await request("sessionIndex", {});
 assert.equal(index.result.chats[0].task.id, "task-1");
+assert.deepEqual(
+  [index.result.chats[0].task.title, index.result.chats[0].task.titleOrigin],
+  ["0714-Smoke session", "automatic"],
+  "sessionIndex preserves the canonical title and ownership",
+);
 assert.equal(lastIndexOptions, undefined, "absent includeArchived → undefined options");
 
 // sessionIndex with includeArchived:true reaches the facade with the flag (H3).
@@ -141,6 +147,13 @@ assert.deepEqual(lastIndexOptions, { includeArchived: true });
 const unarchivedIndex = await request("sessionIndex", { includeArchived: false });
 assert.equal(unarchivedIndex.result.chats[0].task.id, "task-1");
 assert.deepEqual(lastIndexOptions, { includeArchived: false });
+
+const snapshot = await request("sessionSnapshot", { taskId: "task-1" });
+assert.deepEqual(
+  [snapshot.result.task.title, snapshot.result.task.titleOrigin],
+  ["0714-Smoke session", "automatic"],
+  "sessionSnapshot preserves the canonical title and ownership",
+);
 
 // A malformed includeArchived is rejected (-32602) and never reaches the facade.
 lastIndexOptions = "unset";

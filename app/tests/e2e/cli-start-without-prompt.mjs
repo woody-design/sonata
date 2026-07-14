@@ -65,6 +65,10 @@ try {
   const claudeRecord = await waitForRecord(claudeTaskId);
   const claudeProjection = readProjection(claudeTaskId);
   const claudeOwnership = await readActiveOwnership(main);
+  await cli.locator("#terminal-session-title", { hasText: claudeRecord.task.title }).waitFor({
+    state: "visible",
+  });
+  const claudeTerminalTitle = (await cli.locator("#terminal-session-title").textContent())?.trim();
 
   // A second New task can start while Claude stays alive in the background.
   // Its draft must not inherit Claude's text/bitmap, and switching back later
@@ -96,6 +100,10 @@ try {
   const codexRecord = await waitForRecord(codexTaskId);
   const codexProjection = readProjection(codexTaskId);
   const codexOwnership = await readActiveOwnership(main);
+  await cli.locator("#terminal-session-title", { hasText: codexRecord.task.title }).waitFor({
+    state: "visible",
+  });
+  const codexTerminalTitle = (await cli.locator("#terminal-session-title").textContent())?.trim();
   await new Promise((resolve) => setTimeout(resolve, 300));
   const taskIdsAfterDoubleStart = listTaskIds();
 
@@ -143,6 +151,7 @@ try {
       claudeRecord.task.permissionMode === "auto" &&
       claudeRecord.task.title === datedPlaceholder(claudeRecord.task) &&
       claudeRecord.task.titleOrigin === "automatic" &&
+      claudeTerminalTitle === claudeRecord.task.title &&
       hasArgPair(claudeProjection.argv, "--permission-mode", "auto") &&
       hasArgPair(claudeProjection.argv, "--model", "sonnet") &&
       hasArgPair(claudeProjection.argv, "--effort", "high") &&
@@ -156,6 +165,7 @@ try {
       codexRecord.task.speedMode === "fast" &&
       codexRecord.task.approval === "never" &&
       codexRecord.task.sandbox === "read-only" &&
+      codexTerminalTitle === codexRecord.task.title &&
       hasArgPair(codexProjection.argv, "-m", "gpt-5.6-luna") &&
       hasArgPair(codexProjection.argv, "-c", 'model_reasoning_effort="high"') &&
       hasArgPair(codexProjection.argv, "-c", 'service_tier="priority"') &&

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,10 @@ const fixture = createSidebarFixture({
   chatCount: 2,
   archivedChatCount: 0,
 });
+const evidenceDir = path.resolve(
+  process.argv[2] ?? path.join(fixture.root, "hover-card-evidence"),
+);
+const evidenceFiles = [];
 const now = fixture.fixedNowMs;
 const day = 24 * 60 * 60_000;
 const projectTasks = fixture.projects[0].sessions;
@@ -60,6 +65,7 @@ try {
   await installFixedClock(page, fixture.fixedNowMs);
   await page.reload({ waitUntil: "domcontentloaded" });
   await rowFor(page, primaryTask.id).waitFor({ state: "visible" });
+  await waitForSidebarStructureToSettle(page);
 
   await assertPointerIntentAndContent(page);
   await assertKeyboardAndDismissal(page);
@@ -72,8 +78,9 @@ try {
   await assertSelectionAndWindowBlur(page);
 
   assertDeepEqual(pageErrors, [], "renderer page errors");
+  publishHoverEvidence();
   console.log(
-    "sidebar-hover-card: pointer, keyboard, a11y, dismissal, geometry, and overflow contracts pass",
+    `sidebar-hover-card: pointer, keyboard, a11y, dismissal, geometry, overflow, and ${evidenceFiles.length} visual contracts pass`,
   );
 } finally {
   try {
@@ -153,6 +160,35 @@ async function assertPointerIntentAndContent(page) {
   assertEqual(await button.getAttribute("aria-describedby"), null, "description removed on close");
 }
 
+async function waitForSidebarStructureToSettle(page) {
+  await page.locator("#sidebar-list").waitFor({ state: "visible" });
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const root = document.querySelector("#sidebar-list");
+    if (!root) {
+      reject(new Error("Sidebar list disappeared before hover-card verification."));
+      return;
+    }
+    let quietTimer = 0;
+    const finish = () => {
+      window.clearTimeout(quietTimer);
+      observer.disconnect();
+      resolve(undefined);
+    };
+    const armQuietWindow = () => {
+      window.clearTimeout(quietTimer);
+      quietTimer = window.setTimeout(finish, 1_200);
+    };
+    const observer = new MutationObserver(armQuietWindow);
+    observer.observe(root, { childList: true, subtree: true });
+    armQuietWindow();
+  }));
+  assertEqual(
+    await rowFor(page, primaryTask.id).evaluate((element) => element.isConnected),
+    true,
+    "initial hover owner remains connected after Sidebar startup settles",
+  );
+}
+
 async function assertKeyboardAndDismissal(page) {
   const row = rowFor(page, primaryTask.id);
   const button = rowFor(page, primaryTask.id).locator(".sidebar-session-button");
@@ -227,11 +263,18 @@ async function assertTimeProjectAndGeometry(page) {
   assertEqual(box.x + box.width <= 492.5, true, "narrow card respects right margin");
   assertEqual(box.y >= 7.5, true, "card respects top margin");
   assertEqual(box.y + box.height <= 412.5, true, "card respects bottom margin");
+  // The visual matrix changes mode while the pointer remains near the narrow
+  // card. Give the trigger explicit focus so both screenshots share a stable,
+  // contract-owned card rather than racing pointer dismissal.
+  await looseRow.locator(".sidebar-session-button").focus();
+  await captureHoverEvidence(page, "narrow-light");
+  await page.locator("html").evaluate((element) => { element.dataset.mode = "dark"; });
+  await captureHoverEvidence(page, "narrow-dark");
+  await page.locator("html").evaluate((element) => { element.dataset.mode = "light"; });
   await page.setViewportSize(viewport);
   // Moving a pointer-owned anchor legitimately starts the close grace. Give
   // this synthetic geometry probe explicit keyboard ownership so the card's
   // persistence is contractual rather than a race against that timer.
-  await looseRow.locator(".sidebar-session-button").focus();
   await page.locator("#sidebar").evaluate((element) => {
     element.style.transform = "translateX(900px)";
     window.dispatchEvent(new Event("resize"));
@@ -277,6 +320,7 @@ async function assertThemeAndMotionEvidence(page) {
     },
     "light hover card uses Sidebar chrome tokens",
   );
+  await captureHoverEvidence(page, "normal-light");
   await root.evaluate((element) => {
     element.dataset.theme = "focus";
   });
@@ -298,6 +342,7 @@ async function assertThemeAndMotionEvidence(page) {
     },
     "dark hover card uses Sidebar chrome tokens",
   );
+  await captureHoverEvidence(page, "normal-dark");
   await page.emulateMedia({ reducedMotion: "reduce" });
   assertDeepEqual(
     await card.evaluate((element) => {
@@ -344,6 +389,24 @@ async function assertOverflowKeyboardHandoff(page) {
 
   await page.keyboard.press("Tab");
   assertEqual(await card.evaluate((element) => element === document.activeElement), true, "row Tab explicitly enters overflow scrollport");
+  assertDeepEqual(
+    await card.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        focusVisible: element.matches(":focus-visible"),
+        color: style.outlineColor,
+        style: style.outlineStyle,
+        width: style.outlineWidth,
+      };
+    }),
+    {
+      focusVisible: true,
+      color: "rgb(79, 119, 109)",
+      style: "solid",
+      width: "2px",
+    },
+    "keyboard-owned overflow card has a visible Sidebar focus ring",
+  );
   const beforeScroll = await card.evaluate((element) => element.scrollTop);
   for (let index = 0; index < 4; index += 1) {
     await page.keyboard.press("ArrowDown");
@@ -487,6 +550,39 @@ async function hoverCardChromeSnapshot(card) {
       title: title ? getComputedStyle(title).color : null,
     };
   });
+}
+
+async function captureHoverEvidence(page, name) {
+  fs.mkdirSync(evidenceDir, { recursive: true });
+  await hoverCard(page).waitFor({ state: "visible" });
+  const fileName = `${name}.png`;
+  await page.screenshot({
+    path: path.join(evidenceDir, fileName),
+    animations: "disabled",
+  });
+  evidenceFiles.push(fileName);
+}
+
+function publishHoverEvidence() {
+  assertDeepEqual(
+    [...evidenceFiles].sort(),
+    ["narrow-dark.png", "narrow-light.png", "normal-dark.png", "normal-light.png"],
+    "exact hover visual matrix",
+  );
+  const files = evidenceFiles.map((name) => ({
+    name,
+    sha256: crypto.createHash("sha256").update(fs.readFileSync(path.join(evidenceDir, name))).digest("hex"),
+  }));
+  fs.writeFileSync(
+    path.join(evidenceDir, "manifest.json"),
+    `${JSON.stringify({
+      generatedAt: new Date(fixture.fixedNowMs).toISOString(),
+      fixedNow: fixture.fixedNowIso,
+      matrix: { widths: ["normal", "narrow"], modes: ["light", "dark"] },
+      files,
+    }, null, 2)}\n`,
+    "utf8",
+  );
 }
 
 async function moveAway(page) {
