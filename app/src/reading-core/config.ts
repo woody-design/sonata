@@ -42,6 +42,7 @@ export const REASONING_OPTIONS: Record<
     { label: "Medium", value: "medium" },
     { label: "High", value: "high" },
     { label: "Extra High", value: "xhigh" },
+    { label: "Max", value: "max" },
     { label: "Ultra", value: "ultra" },
     { label: "Native Default", value: null },
   ],
@@ -60,24 +61,40 @@ export const SPEED_OPTIONS: Array<{ label: string; value: LaunchSpeedMode }> = [
   { label: "Fast", value: "fast" },
 ];
 
+// Codex gates its top reasoning tiers per model, surfaced in the CLI's own
+// `/model` picker (verified against codex 0.144.4, spikes/codex-effort-max-ultra/):
+// Sol/Terra offer both Max and Ultra; Luna offers Max but NOT Ultra; the 5.5
+// and 5.4 families offer neither. The CLI does not validate `-c
+// model_reasoning_effort` at launch (it echoes any string), so this menu — not
+// the launch — is where an unsupported combination must be kept off the table.
+const CODEX_MAX_MODELS = new Set(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);
 const CODEX_ULTRA_MODELS = new Set(["gpt-5.6-sol", "gpt-5.6-terra"]);
 
 /**
- * Codex publishes effort support per model. Keep the old Duet menu shape, but
- * do not offer a launch combination the selected model cannot accept.
- *
- * Max remains Claude-only in Duet: the Codex app exposes it only behind a
- * separate user setting, while Ultra is part of the current default picker.
+ * Keep the old Duet menu shape, but do not offer a launch combination the
+ * selected model cannot accept. Native Default (null model) shows neither
+ * gated tier — the conservative menu until a model is chosen.
  */
 export function reasoningOptionsForModel(
   provider: RuntimeProvider,
   model: string | null,
 ): Array<{ label: string; value: ReasoningEffort | null }> {
   const options = REASONING_OPTIONS[provider];
-  if (provider !== "codex" || CODEX_ULTRA_MODELS.has(model ?? "")) {
+  if (provider !== "codex") {
     return options;
   }
-  return options.filter((option) => option.value !== "ultra");
+  const key = model ?? "";
+  const maxAllowed = CODEX_MAX_MODELS.has(key);
+  const ultraAllowed = CODEX_ULTRA_MODELS.has(key);
+  return options.filter((option) => {
+    if (option.value === "max") {
+      return maxAllowed;
+    }
+    if (option.value === "ultra") {
+      return ultraAllowed;
+    }
+    return true;
+  });
 }
 
 export function modelValueLabel(provider: RuntimeProvider, value: string | null): string | null {

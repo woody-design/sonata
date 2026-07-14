@@ -2227,7 +2227,15 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         "✻",
         "✽",
       ],
-      idlePromptModelHints: /opus|sonnet|haiku|xhigh|high|medium|low|effort|~/i,
+      // Verified against claude 2.1.209 idle layout (spikes/claude-idle-prompt-fable/):
+      // the model/effort/cwd line renders ABOVE the composer, outside the
+      // forward-700 promptTail window, so the model tokens never match there on
+      // 2.1.x. `shortcuts` (from the idle footer "? for shortcuts") is what
+      // actually lands post-glyph at a true idle composer and is absent while
+      // working ("esc to interrupt") — it, not the model name, restores the
+      // medium-confidence signal. Model/effort tokens kept as a harmless
+      // superset for other layouts; `fable` added for completeness.
+      idlePromptModelHints: /opus|sonnet|haiku|fable|xhigh|high|medium|low|effort|shortcuts|for agents|~/i,
       buildArgs: (options) =>
         claudeArgs({
           permissionMode: options.permissionMode,

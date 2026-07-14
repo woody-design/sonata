@@ -7,22 +7,32 @@ import type { CodexApprovalMode } from "./domain";
  * launch with, so a user who trusts the direction can set it once instead
  * of answering every command.
  *
- * All four of Codex's official `--ask-for-approval` (`-a`) values are
- * exposed as standing options — unlike Claude, none of them is a gated
- * power mode, so the whole vocabulary is a coherent everyday default.
+ * The offered pool excludes `on-failure`: Codex 0.144 marks it deprecated in
+ * its docs. It stays a valid PERSISTED value, though — a user who set it
+ * before keeps launching with `-a on-failure` (still parses) and the Settings
+ * UI renders their stored value as a legacy entry until they pick another.
+ * Offered pool and persistable union are therefore deliberately distinct.
  */
 export const CODEX_DEFAULT_APPROVAL_MODE_OPTIONS = [
   "untrusted",
   "on-request",
-  "on-failure",
   "never",
 ] as const satisfies readonly CodexApprovalMode[];
 
 export type CodexDefaultApprovalMode =
   (typeof CODEX_DEFAULT_APPROVAL_MODE_OPTIONS)[number];
 
+/** Every `-a` value Duet will persist and spawn with, including the deprecated
+ *  `on-failure` (kept for back-compat). Superset of the offered pool. */
+const CODEX_PERSISTABLE_APPROVAL_MODES = [
+  "untrusted",
+  "on-request",
+  "on-failure",
+  "never",
+] as const satisfies readonly CodexApprovalMode[];
+
 export interface CodexSettings {
-  defaultApprovalMode: CodexDefaultApprovalMode;
+  defaultApprovalMode: CodexApprovalMode;
 }
 
 export const DEFAULT_CODEX_SETTINGS: CodexSettings = {
@@ -31,6 +41,8 @@ export const DEFAULT_CODEX_SETTINGS: CodexSettings = {
   defaultApprovalMode: "on-request",
 };
 
+/** True for a value the Settings menu currently OFFERS (excludes the
+ *  deprecated `on-failure`). Drives the "(legacy)" marking of a stored value. */
 export function isCodexDefaultApprovalMode(
   value: unknown,
 ): value is CodexDefaultApprovalMode {
@@ -39,12 +51,21 @@ export function isCodexDefaultApprovalMode(
   );
 }
 
+/** True for any value Duet will persist and spawn with (offered pool +
+ *  deprecated `on-failure`). Normalize validates against THIS so a pre-existing
+ *  `on-failure` default is never silently rewritten. */
+export function isCodexPersistableApprovalMode(
+  value: unknown,
+): value is CodexApprovalMode {
+  return CODEX_PERSISTABLE_APPROVAL_MODES.includes(value as CodexApprovalMode);
+}
+
 export function normalizeCodexSettings(value: unknown): CodexSettings {
   if (!isRecord(value)) {
     return { ...DEFAULT_CODEX_SETTINGS };
   }
   return {
-    defaultApprovalMode: isCodexDefaultApprovalMode(value.defaultApprovalMode)
+    defaultApprovalMode: isCodexPersistableApprovalMode(value.defaultApprovalMode)
       ? value.defaultApprovalMode
       : DEFAULT_CODEX_SETTINGS.defaultApprovalMode,
   };

@@ -14,7 +14,7 @@ import {
   isCliActionRequest,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
-  type CodexDefaultApprovalMode,
+  type CodexApprovalMode,
   type CodexSettings,
   type ReadingSettings,
   type ResolvedReadingMode,
@@ -349,7 +349,7 @@ initActions({
       (option) => option.value === reasoningEffort,
     );
     if (!effortStillSupported) {
-      // Ultra is the only current model-specific option. Extra High is the
+      // Max and Ultra are the model-gated tiers (codex). Extra High is the
       // nearest universally supported level, preserving the user's intent.
       state.taskDraft.reasoningEffort[provider] = "xhigh";
     }
@@ -1131,7 +1131,7 @@ async function persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): 
   render();
 }
 
-async function persistDefaultApprovalMode(mode: CodexDefaultApprovalMode): Promise<void> {
+async function persistDefaultApprovalMode(mode: CodexApprovalMode): Promise<void> {
   const overlay = state.settingsOverlay;
   if (!overlay?.codex) {
     return;

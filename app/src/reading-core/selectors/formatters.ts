@@ -275,7 +275,10 @@ export function permissionModeLabel(mode: ClaudePermissionMode): string {
   if (mode === "dontAsk") {
     return "Don't ask";
   }
-  return "Ask each time";
+  // The `default` mode's display label. Claude 2.1.200 relabeled this mode
+  // "Manual" across its own surfaces (identifier unchanged — Duet still
+  // reads/writes `default`); the display follows suit.
+  return "Manual";
 }
 
 /** One vocabulary for every Codex approval surface (the Settings default

@@ -489,8 +489,8 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
         claude: "opus",
       },
       reasoningEffort: {
-        codex: "xhigh",
-        claude: "xhigh",
+        codex: "high",
+        claude: "high",
       },
       speedMode: {
         codex: "default",

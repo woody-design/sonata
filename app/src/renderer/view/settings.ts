@@ -11,9 +11,11 @@ import { Check, ChevronDown, X } from "lucide";
 import {
   CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS,
   CODEX_DEFAULT_APPROVAL_MODE_OPTIONS,
+  isCodexDefaultApprovalMode,
   RESUME_POLICY_IDS,
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
+  type CodexApprovalMode,
 } from "../../shared/types";
 import {
   codexApprovalModeLabel,
@@ -275,6 +277,15 @@ function renderCodexSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
   return group;
 }
 
+/** The Codex approval label, suffixed "(legacy)" when the value has fallen out
+ *  of the offered pool (a deprecated `on-failure` default). Shared by the
+ *  collapsed button and the menu so the deprecation shows at a glance. */
+function codexApprovalMenuLabel(mode: CodexApprovalMode): string {
+  return isCodexDefaultApprovalMode(mode)
+    ? codexApprovalModeLabel(mode)
+    : `${codexApprovalModeLabel(mode)} (legacy)`;
+}
+
 function renderDefaultApprovalModePopup(overlay: SettingsOverlayState): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "settings-popup-wrap";
@@ -287,7 +298,7 @@ function renderDefaultApprovalModePopup(overlay: SettingsOverlayState): HTMLElem
   button.disabled = !overlay.codex;
   const label = document.createElement("span");
   label.textContent = overlay.codex
-    ? codexApprovalModeLabel(overlay.codex.settings.defaultApprovalMode)
+    ? codexApprovalMenuLabel(overlay.codex.settings.defaultApprovalMode)
     : "Loading…";
   button.append(label, lucideIcon(ChevronDown, 14));
   button.addEventListener("click", () => {
@@ -299,8 +310,15 @@ function renderDefaultApprovalModePopup(overlay: SettingsOverlayState): HTMLElem
     const menu = document.createElement("div");
     menu.className = "settings-popup-menu";
     menu.setAttribute("role", "menu");
-    for (const mode of CODEX_DEFAULT_APPROVAL_MODE_OPTIONS) {
-      const selected = overlay.codex.settings.defaultApprovalMode === mode;
+    // Offer the standing pool, plus the stored value itself when it has fallen
+    // out of the pool (a deprecated `on-failure` default) — marked "(legacy)"
+    // so the user sees where they are and can switch off it.
+    const stored = overlay.codex.settings.defaultApprovalMode;
+    const modes: CodexApprovalMode[] = isCodexDefaultApprovalMode(stored)
+      ? [...CODEX_DEFAULT_APPROVAL_MODE_OPTIONS]
+      : [stored, ...CODEX_DEFAULT_APPROVAL_MODE_OPTIONS];
+    for (const mode of modes) {
+      const selected = stored === mode;
       const option = document.createElement("button");
       option.className = "settings-popup-option";
       option.classList.toggle("selected", selected);
@@ -314,7 +332,7 @@ function renderDefaultApprovalModePopup(overlay: SettingsOverlayState): HTMLElem
       }
       const optionLabel = document.createElement("span");
       optionLabel.className = "settings-popup-option-label";
-      optionLabel.textContent = codexApprovalModeLabel(mode);
+      optionLabel.textContent = codexApprovalMenuLabel(mode);
       option.append(check, optionLabel);
       option.addEventListener("click", () => {
         actions.persistDefaultApprovalMode(mode);
