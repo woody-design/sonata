@@ -89,7 +89,6 @@ import {
   surfaceTerminalWindow,
   unarchiveSessionFromSidebar,
 } from "./flows/session-flows";
-import { initSessionLifecycle } from "./flows/session-lifecycle";
 import {
   commitActiveRename,
   completeRenameComposition,
@@ -250,7 +249,6 @@ initDom();
 // side effects of new modules (R4). The referenced implementations are
 // hoisted function declarations, so binding here (before their textual
 // definitions) is safe.
-initSessionLifecycle(state);
 initRender(state, {
   scheduleTranscriptRender: () => scheduleTranscriptRender(),
   scheduleSessionIndexRefresh: () => scheduleSessionIndexRefresh(),

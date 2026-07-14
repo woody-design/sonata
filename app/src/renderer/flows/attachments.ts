@@ -19,11 +19,11 @@ import {
   type RendererState,
   type TaskViewState,
 } from "../../reading-core/state";
-import { render } from "../render";
 import {
   claimSessionLifecycle,
   releaseSessionLifecycle,
-} from "./session-lifecycle";
+} from "../../reading-core/transitions/session-lifecycle";
+import { render } from "../render";
 
 let state: RendererState;
 
@@ -53,7 +53,7 @@ function captureComposerOwner(): ComposerOwner {
 
 export async function pickAndAddReferences(): Promise<void> {
   const owner = captureComposerOwner();
-  const ownerToken = claimSessionLifecycle((token) => ({
+  const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "attaching",
     ownerToken: token,
     taskId: owner.taskId,
@@ -70,7 +70,7 @@ export async function pickAndAddReferences(): Promise<void> {
   } catch (error) {
     setComposerOwnerStatus(owner, errorMessage(error));
   } finally {
-    releaseSessionLifecycle(ownerToken);
+    releaseSessionLifecycle(state, ownerToken);
     render();
   }
 }
@@ -85,7 +85,7 @@ export async function intakeFiles(files: File[]): Promise<void> {
     return;
   }
   const owner = captureComposerOwner();
-  const ownerToken = claimSessionLifecycle((token) => ({
+  const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "attaching",
     ownerToken: token,
     taskId: owner.taskId,
@@ -121,7 +121,7 @@ export async function intakeFiles(files: File[]): Promise<void> {
       addBitmaps(owner.attachments, bitmaps);
     }
   } finally {
-    releaseSessionLifecycle(ownerToken);
+    releaseSessionLifecycle(state, ownerToken);
     render();
   }
 }

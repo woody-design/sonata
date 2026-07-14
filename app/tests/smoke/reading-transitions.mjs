@@ -14,6 +14,7 @@ const composer = require("../../dist/reading-core/transitions/composer");
 const sidebar = require("../../dist/reading-core/transitions/sidebar");
 const rename = require("../../dist/reading-core/transitions/rename");
 const session = require("../../dist/reading-core/transitions/session");
+const lifecycle = require("../../dist/reading-core/transitions/session-lifecycle");
 
 const READING_SETTINGS = { theme: "paper", mode: "system", textStep: 0 };
 const ANCHOR = { left: 10, top: 20, width: 30 };
@@ -313,4 +314,98 @@ function task(id, title = `Task ${id}`) {
   assert.equal(s2.taskDraft.message, null, "picked folder shows on the chip, not as a message");
 }
 
-console.log("reading-transitions: 9 fixture groups pass");
+// 10) The task-lifecycle single-flight — claim / transition / release under a
+// token. The claim guard is the mutual exclusion; transition pins the owner to
+// the CLAIMING token (a mismatched next.ownerToken can never swap owners);
+// release is a token-owned no-op once idle or when someone else holds it.
+{
+  const state = freshState();
+  assert.equal(state.sessionLifecycle.phase, "idle", "starts idle");
+
+  // Claim when idle → a token, and the atom carries the created phase.
+  const token = lifecycle.claimSessionLifecycle(state, (owner) => ({
+    phase: "sending",
+    ownerToken: owner,
+    taskId: null,
+  }));
+  assert.ok(token, "claim when idle returns a token");
+  assert.equal(state.sessionLifecycle.phase, "sending", "…and installs the phase");
+  assert.equal(state.sessionLifecycle.ownerToken, token, "…owned by the claiming token");
+  assert.equal(state.sessionLifecycle.taskId, null, "sending.taskId honours string | null");
+
+  // A second claim while active → null, state untouched (the second caller backs off).
+  const claimed = state.sessionLifecycle;
+  const second = lifecycle.claimSessionLifecycle(state, () => ({
+    phase: "starting",
+    ownerToken: "intruder",
+    sendAfterStart: true,
+  }));
+  assert.equal(second, null, "claim while active returns null");
+  assert.equal(state.sessionLifecycle, claimed, "…and leaves the active lifecycle in place");
+
+  // Transition with the WRONG token → false, state unchanged.
+  assert.equal(
+    lifecycle.transitionSessionLifecycle(state, "wrong-token", {
+      phase: "resuming",
+      ownerToken: "wrong-token",
+      taskId: "t1",
+      sendAfterResume: false,
+      promptText: "",
+    }),
+    false,
+    "transition with a wrong token is rejected",
+  );
+  assert.equal(state.sessionLifecycle, claimed, "…and does not mutate the atom");
+
+  // Transition with the owning token → true, and the stored owner is pinned to
+  // the CLAIMING token even though `next` carries a bogus ownerToken.
+  assert.equal(
+    lifecycle.transitionSessionLifecycle(state, token, {
+      phase: "resuming",
+      ownerToken: "spoofed",
+      taskId: "t1",
+      sendAfterResume: false,
+      promptText: "",
+    }),
+    true,
+    "transition with the owning token succeeds",
+  );
+  assert.equal(state.sessionLifecycle.phase, "resuming", "…advances the phase");
+  assert.equal(
+    state.sessionLifecycle.ownerToken,
+    token,
+    "…and pins the owner to the claiming token, never the spoofed next.ownerToken",
+  );
+
+  // Release with the WRONG token → no-op (someone else's finally can't release us).
+  lifecycle.releaseSessionLifecycle(state, "wrong-token");
+  assert.equal(state.sessionLifecycle.phase, "resuming", "release with a wrong token is a no-op");
+
+  // Release with the owning token → back to idle.
+  lifecycle.releaseSessionLifecycle(state, token);
+  assert.equal(state.sessionLifecycle.phase, "idle", "release with the owning token returns to idle");
+
+  // Release / transition once idle → no-ops (false / unchanged).
+  lifecycle.releaseSessionLifecycle(state, token);
+  assert.equal(state.sessionLifecycle.phase, "idle", "release when idle is a no-op");
+  assert.equal(
+    lifecycle.transitionSessionLifecycle(state, token, {
+      phase: "sending",
+      ownerToken: token,
+      taskId: null,
+    }),
+    false,
+    "transition when idle is rejected",
+  );
+  assert.equal(state.sessionLifecycle.phase, "idle", "…and leaves it idle");
+
+  // A fresh claim after release hands out a DISTINCT token (module sequence).
+  const next = lifecycle.claimSessionLifecycle(state, (owner) => ({
+    phase: "starting",
+    ownerToken: owner,
+    sendAfterStart: false,
+  }));
+  assert.ok(next && next !== token, "a fresh claim yields a distinct token");
+}
+
+console.log("reading-transitions: 10 fixture groups pass");

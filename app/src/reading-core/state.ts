@@ -318,7 +318,7 @@ export type SessionLifecycle =
   | {
       phase: "sending";
       ownerToken: string;
-      taskId: string;
+      taskId: string | null;
     }
   | {
       phase: "attaching";

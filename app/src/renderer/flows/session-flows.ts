@@ -33,16 +33,16 @@ import {
 } from "../../reading-core/state";
 import * as composerTransitions from "../../reading-core/transitions/composer";
 import * as sessionTransitions from "../../reading-core/transitions/session";
+import {
+  claimSessionLifecycle,
+  releaseSessionLifecycle,
+  transitionSessionLifecycle,
+} from "../../reading-core/transitions/session-lifecycle";
 import * as renameTransitions from "../../reading-core/transitions/rename";
 import type { ViewMode } from "../actions";
 import { elements } from "../dom";
 import { render } from "../render";
 import { clearComposerAttachments, materializeAttachments } from "./attachments";
-import {
-  claimSessionLifecycle,
-  releaseSessionLifecycle,
-  transitionSessionLifecycle,
-} from "./session-lifecycle";
 
 interface SessionFlowDeps {
   /** Sidebar menu close (view/sidebar) — session ops start by dismissing it. */
@@ -125,7 +125,7 @@ function renameTargetDisappeared(): boolean {
 }
 
 export async function archiveSessionFromSidebar(taskId: string): Promise<void> {
-  const ownerToken = claimSessionLifecycle((token) => ({
+  const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "session-mutation",
     ownerToken: token,
     taskId,
@@ -142,13 +142,13 @@ export async function archiveSessionFromSidebar(taskId: string): Promise<void> {
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
-    releaseSessionLifecycle(ownerToken);
+    releaseSessionLifecycle(state, ownerToken);
     render();
   }
 }
 
 export async function unarchiveSessionFromSidebar(taskId: string): Promise<void> {
-  const ownerToken = claimSessionLifecycle((token) => ({
+  const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "session-mutation",
     ownerToken: token,
     taskId,
@@ -163,7 +163,7 @@ export async function unarchiveSessionFromSidebar(taskId: string): Promise<void>
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
-    releaseSessionLifecycle(ownerToken);
+    releaseSessionLifecycle(state, ownerToken);
     render();
   }
 }
@@ -175,7 +175,7 @@ export async function deleteSessionFromSidebar(taskId: string, title: string): P
   if (!confirmed) {
     return;
   }
-  const ownerToken = claimSessionLifecycle((token) => ({
+  const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "session-mutation",
     ownerToken: token,
     taskId,
@@ -191,7 +191,7 @@ export async function deleteSessionFromSidebar(taskId: string, title: string): P
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
-    releaseSessionLifecycle(ownerToken);
+    releaseSessionLifecycle(state, ownerToken);
     render();
   }
 }
@@ -200,7 +200,7 @@ export async function archiveProjectFromSidebar(
   path: string,
   archived: boolean,
 ): Promise<void> {
-  const ownerToken = claimSessionLifecycle((token) => ({
+  const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "project-mutation",
     ownerToken: token,
     path,
@@ -215,7 +215,7 @@ export async function archiveProjectFromSidebar(
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
-    releaseSessionLifecycle(ownerToken);
+    releaseSessionLifecycle(state, ownerToken);
     render();
   }
 }
@@ -444,7 +444,7 @@ export async function submitPrompt(): Promise<void> {
     return;
   }
 
-  const ownerToken = claimSessionLifecycle((token) => {
+  const ownerToken = claimSessionLifecycle(state, (token) => {
     if (!view) {
       return { phase: "starting", ownerToken: token, sendAfterStart: true };
     }
@@ -460,7 +460,7 @@ export async function submitPrompt(): Promise<void> {
     return {
       phase: "sending",
       ownerToken: token,
-      taskId: view.task?.id ?? "",
+      taskId: view.task?.id ?? null,
     };
   });
   if (!ownerToken) {
@@ -497,7 +497,7 @@ export async function submitPrompt(): Promise<void> {
     }
   } finally {
     if (!retainForResumeChoice) {
-      releaseSessionLifecycle(ownerToken);
+      releaseSessionLifecycle(state, ownerToken);
     }
     render();
   }
@@ -556,7 +556,7 @@ export async function startCliWithoutPrompt(): Promise<void> {
   ) {
     return;
   }
-  const ownerToken = claimSessionLifecycle((token) => ({
+  const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "starting",
     ownerToken: token,
     sendAfterStart: false,
@@ -586,7 +586,7 @@ export async function startCliWithoutPrompt(): Promise<void> {
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
-    releaseSessionLifecycle(ownerToken);
+    releaseSessionLifecycle(state, ownerToken);
     render();
   }
 }
@@ -602,7 +602,7 @@ export async function resumeTaskWithoutPrompt(expectedTaskId: string): Promise<v
   ) {
     return;
   }
-  const ownerToken = claimSessionLifecycle((token) => ({
+  const ownerToken = claimSessionLifecycle(state, (token) => ({
     phase: "preparing-resume",
     ownerToken: token,
     taskId: expectedTaskId,
@@ -624,7 +624,7 @@ export async function resumeTaskWithoutPrompt(expectedTaskId: string): Promise<v
     view.status = errorMessage(error);
   } finally {
     if (!retainForResumeChoice) {
-      releaseSessionLifecycle(ownerToken);
+      releaseSessionLifecycle(state, ownerToken);
     }
     render();
   }
@@ -652,7 +652,7 @@ async function resumeSession(
       bridgeDismissed: preparation.bridgeDismissed,
     };
     view.status = "Choose how to resume";
-    transitionSessionLifecycle(ownerToken, {
+    transitionSessionLifecycle(state, ownerToken, {
       phase: "awaiting-resume-choice",
       ownerToken,
       taskId,
@@ -672,7 +672,7 @@ async function resumeSession(
     render();
   }
 
-  transitionSessionLifecycle(ownerToken, {
+  transitionSessionLifecycle(state, ownerToken, {
     phase: "resuming",
     ownerToken,
     taskId,
@@ -754,7 +754,7 @@ export async function resolveResumeChoice(mode: "full" | "summary"): Promise<voi
   }
   const { ownerToken, promptText, sendAfterResume, taskId } = lifecycle;
   if (
-    !transitionSessionLifecycle(ownerToken, {
+    !transitionSessionLifecycle(state, ownerToken, {
       phase: "resuming",
       ownerToken,
       taskId,
@@ -785,7 +785,7 @@ export async function resolveResumeChoice(mode: "full" | "summary"): Promise<voi
     }
     await openDormantSessionAndSend(view, promptText, mode, sendAfterResume);
   } finally {
-    releaseSessionLifecycle(ownerToken);
+    releaseSessionLifecycle(state, ownerToken);
     render();
   }
 }
