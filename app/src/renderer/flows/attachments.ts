@@ -13,11 +13,17 @@ import {
 } from "../../reading-core/selectors/formatters";
 import {
   activeTaskView as activeTaskViewOf,
+  isSessionLifecycleActive,
+  taskViewForId,
   type ComposerAttachment,
   type RendererState,
   type TaskViewState,
 } from "../../reading-core/state";
 import { render } from "../render";
+import {
+  claimSessionLifecycle,
+  releaseSessionLifecycle,
+} from "./session-lifecycle";
 
 let state: RendererState;
 
@@ -33,16 +39,39 @@ function activeTaskView(): TaskViewState | null {
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
 
+interface ComposerOwner {
+  taskId: string | null;
+  attachments: ComposerAttachment[];
+}
+
+function captureComposerOwner(): ComposerOwner {
+  const view = activeTaskView();
+  return view?.task
+    ? { taskId: view.task.id, attachments: view.pendingAttachments }
+    : { taskId: null, attachments: state.draftAttachments };
+}
+
 export async function pickAndAddReferences(): Promise<void> {
-  let paths: string[];
-  try {
-    paths = await window.duetRuntime.pickReferences();
-  } catch (error) {
-    setComposerStatus(activeTaskView(), errorMessage(error));
+  const owner = captureComposerOwner();
+  const ownerToken = claimSessionLifecycle((token) => ({
+    phase: "attaching",
+    ownerToken: token,
+    taskId: owner.taskId,
+  }));
+  if (!ownerToken) {
     return;
   }
-  if (paths.length > 0) {
-    await addReferences(paths);
+  render();
+  try {
+    const paths = await window.duetRuntime.pickReferences();
+    if (paths.length > 0) {
+      await addReferences(paths, owner);
+    }
+  } catch (error) {
+    setComposerOwnerStatus(owner, errorMessage(error));
+  } finally {
+    releaseSessionLifecycle(ownerToken);
+    render();
   }
 }
 
@@ -52,44 +81,54 @@ export async function pickAndAddReferences(): Promise<void> {
 // screenshot) has no path → COPY it. webUtils.getPathForFile returns "" for a
 // bitmap — that is the discriminator.
 export async function intakeFiles(files: File[]): Promise<void> {
-  if (files.length === 0) {
+  if (files.length === 0 || isSessionLifecycleActive(state)) {
     return;
   }
+  const owner = captureComposerOwner();
+  const ownerToken = claimSessionLifecycle((token) => ({
+    phase: "attaching",
+    ownerToken: token,
+    taskId: owner.taskId,
+  }));
+  if (!ownerToken) {
+    return;
+  }
+  render();
   const bitmaps: File[] = [];
   const referencePaths: string[] = [];
-  for (const file of files) {
-    const filePath = window.duetRuntime.getPathForFile(file);
-    if (filePath) {
-      referencePaths.push(filePath);
-    } else if (isSupportedImageFile(file)) {
-      bitmaps.push(file);
+  try {
+    for (const file of files) {
+      const filePath = window.duetRuntime.getPathForFile(file);
+      if (filePath) {
+        referencePaths.push(filePath);
+      } else if (isSupportedImageFile(file)) {
+        bitmaps.push(file);
+      }
     }
+    if (referencePaths.length === 0 && bitmaps.length === 0) {
+      // We prevented the default paste/drop but found nothing attachable (e.g.
+      // a path-less unsupported clipboard item) — say so instead of vanishing.
+      setComposerOwnerStatus(
+        owner,
+        "Nothing attachable here — try a file, folder, or image.",
+      );
+      return;
+    }
+    if (referencePaths.length > 0) {
+      await addReferences(referencePaths, owner);
+    }
+    if (bitmaps.length > 0) {
+      addBitmaps(owner.attachments, bitmaps);
+    }
+  } finally {
+    releaseSessionLifecycle(ownerToken);
+    render();
   }
-  if (referencePaths.length === 0 && bitmaps.length === 0) {
-    // We prevented the default paste/drop but found nothing attachable (e.g. a
-    // path-less, unsupported clipboard item) — say so instead of doing nothing.
-    setComposerStatus(activeTaskView(), "Nothing attachable here — try a file, folder, or image.");
-    return;
-  }
-  if (referencePaths.length > 0) {
-    await addReferences(referencePaths);
-  }
-  if (bitmaps.length > 0) {
-    addBitmaps(bitmaps);
-  }
-}
-
-/** The composer attachment list for the current surface: a live task's pending
- *  list, or the new-chat draft. */
-function composerAttachmentList(): ComposerAttachment[] {
-  const view = activeTaskView();
-  return view?.task ? view.pendingAttachments : state.draftAttachments;
 }
 
 // Path-less image bitmaps (screenshots, copied images) → held as a File and
 // copied into the blob dir only on send (lazy). Chipped with a thumbnail.
-function addBitmaps(files: File[]): void {
-  const list = composerAttachmentList();
+function addBitmaps(list: ComposerAttachment[], files: File[]): void {
   for (const file of files) {
     list.push({
       file,
@@ -99,23 +138,21 @@ function addBitmaps(files: File[]): void {
       kind: "image",
     });
   }
-  render();
 }
 
 // User paths (dragged/pasted files, picked files/folders) → referenced by
 // absolute path, never copied. createReference classifies + returns a capped
 // thumbnail for images; files/folders fall back to a kind icon.
-async function addReferences(paths: string[]): Promise<void> {
+async function addReferences(paths: string[], owner: ComposerOwner): Promise<void> {
   let references: ReferenceResult[];
   try {
     references = await window.duetRuntime.createReference({ paths });
   } catch (error) {
-    setComposerStatus(activeTaskView(), errorMessage(error));
+    setComposerOwnerStatus(owner, errorMessage(error));
     return;
   }
-  const list = composerAttachmentList();
   for (const { attachment, previewDataUrl } of references) {
-    list.push({
+    owner.attachments.push({
       file: null,
       reference: attachment,
       previewUrl: previewDataUrl,
@@ -126,12 +163,24 @@ async function addReferences(paths: string[]): Promise<void> {
   // createReference skips paths that vanished / are inaccessible — don't drop them
   // silently (Invariant 5): say how many made it.
   if (references.length < paths.length) {
-    setComposerStatus(
-      activeTaskView(),
+    setComposerOwnerStatus(
+      owner,
       `Attached ${references.length} of ${paths.length} — the rest were unavailable.`,
     );
     return;
   }
+}
+
+function setComposerOwnerStatus(owner: ComposerOwner, message: string): void {
+  if (owner.taskId) {
+    const view = taskViewForId(state, owner.taskId);
+    if (view) {
+      view.status = message;
+      render();
+      return;
+    }
+  }
+  state.status = message;
   render();
 }
 
@@ -160,6 +209,9 @@ export function composerStatusHint(text: string): void {
  *  chip (and revoking any object URL) is the entire removal. Never touches a
  *  user's original (Invariant 4). */
 export function removeComposerAttachment(list: ComposerAttachment[], target: ComposerAttachment): void {
+  if (isSessionLifecycleActive(state)) {
+    return;
+  }
   const index = list.indexOf(target);
   if (index === -1) {
     return;

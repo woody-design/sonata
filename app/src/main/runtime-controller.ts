@@ -108,8 +108,8 @@ import type {
 } from "../shared/types/ipc";
 import os from "node:os";
 
-const DEFAULT_TASK_TITLE = "New Task";
-const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
+const DEFAULT_TASK_TITLE = "New task";
+const AUTO_TITLE_PLACEHOLDERS = new Set(["New task", "New Task", "Walking Skeleton Task"]);
 // Undocumented but botmux-proven per-process levers (research §2.1). Both
 // force the full-session path, which is exactly what we want: the panel
 // never renders in the hidden PTY; Duet owns the choice. Version-fragile —
@@ -598,8 +598,7 @@ export class RuntimeController {
 
   closeTask(taskId: TaskId): void {
     const active = this.requireTaskRuntime(taskId);
-    this.disposeTaskRuntime(active);
-    this.taskRuntimes.delete(taskId);
+    this.retireTaskRuntime(active);
   }
 
   /**
@@ -810,8 +809,7 @@ export class RuntimeController {
       // persists the manifest with the flag already applied.
       live.task = { ...live.task, archived };
       if (archived) {
-        this.disposeTaskRuntime(live);
-        this.taskRuntimes.delete(taskId);
+        this.retireTaskRuntime(live);
       } else {
         this.persistTaskManifest(live.task, live.storageRoot);
       }
@@ -824,8 +822,7 @@ export class RuntimeController {
   deleteSession(taskId: TaskId): void {
     const live = this.taskRuntimes.get(taskId);
     if (live) {
-      this.disposeTaskRuntime(live);
-      this.taskRuntimes.delete(taskId);
+      this.retireTaskRuntime(live);
     }
     const record = this.persistedSessionRecord(taskId);
     if (record) {
@@ -898,8 +895,7 @@ export class RuntimeController {
       // Stop any live sessions working in this folder before hiding it.
       for (const active of [...this.taskRuntimes.values()]) {
         if (pathsEqual(taskProviderCwd(active.task, active.storageRoot), resolved)) {
-          this.disposeTaskRuntime(active);
-          this.taskRuntimes.delete(active.task.id);
+          this.retireTaskRuntime(active);
         }
       }
     }
@@ -1378,10 +1374,9 @@ export class RuntimeController {
   }
 
   dispose(): void {
-    for (const active of this.taskRuntimes.values()) {
-      this.disposeTaskRuntime(active);
+    for (const active of [...this.taskRuntimes.values()]) {
+      this.retireTaskRuntime(active);
     }
-    this.taskRuntimes.clear();
     this.usageSnapshots.clear();
     this.pendingClaudeUsage.clear();
     this.claudeUsageWatcher.dispose();
@@ -1391,6 +1386,20 @@ export class RuntimeController {
   }
 
   private handleRuntimeEvent(event: RuntimeEvent, runIndex: RunIndex): void {
+    // Runtime event sinks outlive an explicit teardown briefly: node-pty
+    // reports the killed process through an asynchronous onExit callback. If
+    // the persistent task is reopened before that callback arrives, taskId now
+    // names a NEW runtime. Fence by the source RunIndex (our generation token),
+    // not taskId alone, or the old pty:exit/final run events can mutate and
+    // retire the replacement runtime. No current entry is allowed because
+    // startTask emits its initial events synchronously before create/open has
+    // installed the freshly constructed ActiveTaskRuntime in the map.
+    const sourceTaskId = runIndex.summary().taskId;
+    const currentRuntime = this.taskRuntimes.get(sourceTaskId);
+    if (currentRuntime && currentRuntime.runIndex !== runIndex) {
+      return;
+    }
+
     if (event.type === "usage:updated") {
       this.publishUsageSnapshot(event.payload.taskId, event.payload.snapshot);
       this.maybeApplyProviderSessionName(event.payload.taskId, event.payload.snapshot.sessionName);
@@ -1448,6 +1457,17 @@ export class RuntimeController {
       // banner never shows (or is cleared) over a dead terminal. No-op for
       // Claude (no entry) and for a codex task whose handshake already landed.
       this.retireCodexHooksLiveness(event.payload.taskId);
+
+      // TerminalHost emits pty:exit from inside node-pty's onExit callback and
+      // then finishes the active run. Retire on the next microtask so that
+      // callback can publish its final run event first. Removing the runtime
+      // makes the session index authoritative (`live: false`) and lets a later
+      // openTask construct a new host instead of returning a dead one.
+      queueMicrotask(() => {
+        if (this.taskRuntimes.get(event.payload.taskId) === eventRuntime) {
+          this.retireTaskRuntime(eventRuntime);
+        }
+      });
     }
 
     if (event.type === "pty:exit" && eventRuntime?.pendingOptionPrompt) {
@@ -1653,6 +1673,20 @@ export class RuntimeController {
     }
     this.shownBrokerApproval.delete(active.task.id);
     this.expiredBrokerApprovals.delete(active.task.id);
+  }
+
+  /**
+   * Atomically remove a live runtime from the authoritative map before its
+   * resources are torn down. A killed PTY may report a late pty:exit; with the
+   * map cleared first that event cannot retire the runtime twice or resurrect
+   * live state while close/archive/delete is already in progress.
+   */
+  private retireTaskRuntime(active: ActiveTaskRuntime): void {
+    if (this.taskRuntimes.get(active.task.id) !== active) {
+      return;
+    }
+    this.taskRuntimes.delete(active.task.id);
+    this.disposeTaskRuntime(active);
   }
 
   private publishUsageSnapshot(taskId: TaskId, snapshot: UsageSnapshot): void {
@@ -2282,12 +2316,14 @@ export class RuntimeController {
   }): StartTaskOptions {
     // Per-task hook binding travels via env (D4): Codex hooks inherit the spawn
     // env, so the frozen shim commands read DUET_RUNTIME_DIR to find THIS task's
-    // sink — sink-dir ownership is the nonce that keeps two same-cwd Codex tasks
-    // isolated. Merged ahead of any caller extraEnv (e.g. Claude's resume-panel
-    // suppression) so both can coexist.
+    // sink — sink-dir ownership is the nonce that keeps two same-cwd tasks
+    // isolated. Force the binding for BOTH providers: Duet itself may have been
+    // launched inside a Codex session, and a Claude child must not inherit that
+    // parent task's DUET_RUNTIME_DIR. The forced binding follows caller overlays
+    // (e.g. Claude's resume-panel suppression), so no call site can replace it.
     const extraEnv: Record<string, string> = {
-      ...(args.provider === "codex" ? { DUET_RUNTIME_DIR: runtimeDir(args.taskId) } : {}),
       ...(args.extraEnv ?? {}),
+      DUET_RUNTIME_DIR: runtimeDir(args.taskId),
     };
     return {
       cwd: args.cwd,

@@ -36,6 +36,10 @@ export type TerminalDataEvent = BaseRuntimeEvent<
   "pty:data",
   {
     taskId: TaskId;
+    /** Main-process-monotonic identity of the TerminalHost that emitted this
+     *  chunk. A task id persists across close/reopen; generation does not.
+     *  Terminal consumers must never append or hydrate across boundaries. */
+    generation: number;
     data: string;
     /** 0-based index of this chunk in the mirror's ingest order. The terminal
      *  window stitches live chunks onto a mid-stream hydration snapshot with it
@@ -49,6 +53,8 @@ export type PtyExitEvent = BaseRuntimeEvent<
   "pty:exit",
   {
     taskId: TaskId;
+    /** Matches the emitting TerminalHost's pty:data/replay generation. */
+    generation: number;
     runId: RunId | null;
     exitCode: number | null;
     signal: number | null;

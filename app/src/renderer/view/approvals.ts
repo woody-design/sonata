@@ -36,6 +36,12 @@ export function renderResumeChoice(): void {
   if (!choice) {
     return;
   }
+  const choiceInteractive =
+    state.sessionLifecycle.phase === "awaiting-resume-choice" &&
+    state.sessionLifecycle.taskId === view?.task?.id;
+  elements.resumeFull.disabled = !choiceInteractive;
+  elements.resumeSummary.disabled = !choiceInteractive;
+  elements.resumeRemember.disabled = !choiceInteractive;
   elements.resumeChoiceBody.textContent =
     `This session has been idle for ${choice.idleMs !== null ? formatIdleDuration(choice.idleMs) : "a while"}` +
     `${choice.totalTokens !== null ? ` and holds ~${formatTokenCount(choice.totalTokens)} tokens` : ""}. ` +
@@ -222,7 +228,7 @@ function renderOptionPromptForm(
   if (cardAnswerable) {
     const hint = document.createElement("span");
     hint.className = "option-prompt-hint";
-    hint.textContent = "Or answer in the terminal";
+    hint.textContent = "Or answer in the CLI";
     const send = document.createElement("button");
     send.type = "button";
     send.className = "primary";
@@ -242,11 +248,11 @@ function renderOptionPromptForm(
     // ("waiting for you in the Terminal"), same visual voice (S5).
     const note = document.createElement("span");
     note.className = "option-prompt-hint";
-    note.textContent = "Multiple-choice — choose in the terminal, then submit";
+    note.textContent = "Multiple-choice — choose in the CLI, then submit";
     const open = document.createElement("button");
     open.type = "button";
     open.className = "attention-open-terminal";
-    open.textContent = "Answer in Terminal →";
+    open.textContent = "Answer in CLI →";
     open.addEventListener("click", () => {
       actions.setViewMode("terminal");
     });

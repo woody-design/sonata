@@ -29,6 +29,7 @@ import {
   stripRunningAgents,
 } from "../../reading-core/selectors/turns";
 import { hasActiveRun } from "../../reading-core/selectors/runs";
+import { isReadingNearBottom } from "../../reading-core/reading-scroll";
 import {
   activeTaskView,
   type RendererState,
@@ -51,7 +52,7 @@ export function initStatusStripView(stateRef: RendererState): void {
  *  exactly where they are. */
 function withReadingBottomPin(mutate: () => void): void {
   const runList = elements.runList;
-  const nearBottom = runList.scrollHeight - runList.scrollTop - runList.clientHeight < 64;
+  const nearBottom = isReadingNearBottom(runList);
   mutate();
   if (nearBottom) {
     runList.scrollTop = runList.scrollHeight;
@@ -165,7 +166,7 @@ function applyStripLiveness(view: TaskViewState): void {
   stall.append(
     document.createTextNode("No sign of activity for "),
     seconds,
-    document.createTextNode(" — check the terminal"),
+    document.createTextNode(" — check the CLI"),
   );
   stall.addEventListener("click", () => {
     actions.setViewMode("terminal");

@@ -19,8 +19,8 @@ function isActiveView(state: RendererState, view: TaskViewState): boolean {
  * The index is the authoritative session record (live runtimes for live
  * sessions, manifests for dormant ones). Open views must follow it, or
  * a dormant rename updates the sidebar while the header keeps the old
- * title. Returns true when the ACTIVE view changed and needs a full
- * re-render.
+ * title, and a dead PTY can leave the CLI rendering a stale live surface.
+ * Returns true when the ACTIVE view changed and needs a full re-render.
  */
 export function syncTaskViewsFromIndex(
   state: RendererState,
@@ -46,14 +46,18 @@ export function syncTaskViewsFromIndex(
       continue;
     }
     const incoming = summary.task;
-    if (
+    const taskChanged =
       incoming.title !== view.task.title ||
-      Boolean(incoming.archived) !== Boolean(view.task.archived)
-    ) {
+      Boolean(incoming.archived) !== Boolean(view.task.archived);
+    const liveChanged = summary.live !== view.live;
+    if (taskChanged) {
       view.task = { ...view.task, title: incoming.title, archived: incoming.archived ?? false };
-      if (isActiveView(state, view)) {
-        activeViewChanged = true;
-      }
+    }
+    if (liveChanged) {
+      view.live = summary.live;
+    }
+    if ((taskChanged || liveChanged) && isActiveView(state, view)) {
+      activeViewChanged = true;
     }
   }
   return activeViewChanged;

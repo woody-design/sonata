@@ -81,7 +81,7 @@ export class TerminalScrollback {
    * counted by `seq` (no drop), nor present in `data` yet uncounted (no dup):
    * the boundary is captured atomically by construction, not by write-timing.
    */
-  snapshot(): Promise<TerminalReplaySnapshot> {
+  snapshot(): Promise<Omit<TerminalReplaySnapshot, "generation">> {
     return new Promise((resolve) => {
       const seq = this.ingested;
       this.terminal.write("", () => {

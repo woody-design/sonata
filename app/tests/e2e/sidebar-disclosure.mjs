@@ -139,7 +139,7 @@ async function assertInitialProjectDisclosure(page, fixture) {
   for (const name of fixture.expectations.activeProjectOrder.slice(0, 5)) {
     assertEqual(await projectSessionCount(page, name), 5, `${name} initial session prefix`);
   }
-  assertEqual(await chatsGroup(page).locator(".sidebar-session").count(), 5, "Chats initial prefix");
+  assertEqual(await chatsGroup(page).locator(".sidebar-session").count(), 5, "Tasks initial prefix");
   assertDeepEqual(await outerLabels(page), ["Show more"], "initial outer actions");
   assertEqual(await outerAction(page, "Show less").count(), 0, "initial Show less absent");
 }
@@ -246,9 +246,9 @@ async function assertLocalAndOuterProjectBehavior(page, fixture) {
   );
 
   await chatsGroup(page).locator(".sidebar-disclosure-local").click();
-  assertEqual(await chatsGroup(page).locator(".sidebar-session").count(), 6, "Chats expands independently");
-  assertEqual(await projectSessionCount(page, "Mango"), 15, "Chats does not change project group depth");
-  assertEqual((await visibleProjectNames(page)).length, 5, "Chats do not count as projects");
+  assertEqual(await chatsGroup(page).locator(".sidebar-session").count(), 6, "Tasks expands independently");
+  assertEqual(await projectSessionCount(page, "Mango"), 15, "Tasks does not change project group depth");
+  assertEqual((await visibleProjectNames(page)).length, 5, "Tasks do not count as projects");
 
   await mango.locator(".sidebar-project-label").click();
   assertEqual(await mango.locator(".sidebar-project-sessions").count(), 0, "project collapses");
@@ -280,7 +280,7 @@ async function assertProjectKeyboardFocusBehavior(page, fixture) {
   });
   await outerAction(page, "Show less").click();
   assertEqual(await projectSessionCount(page, "Mango"), 5, "outer reset restores local count");
-  assertEqual(await chatsGroup(page).locator(".sidebar-session").count(), 5, "outer reset restores Chats");
+  assertEqual(await chatsGroup(page).locator(".sidebar-session").count(), 5, "outer reset restores Tasks");
   assertEqual(
     await page.locator(`.sidebar-session[data-task-id="${selectedToHideId}"]`).count(),
     0,
@@ -573,7 +573,7 @@ function projectByName(page, name) {
 
 function chatsGroup(page) {
   return page.locator(".sidebar-session-group").filter({
-    has: page.locator(".sidebar-section-label", { hasText: "Chats" }),
+    has: page.locator(".sidebar-section-label", { hasText: "Tasks" }),
   });
 }
 

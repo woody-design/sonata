@@ -10,11 +10,16 @@
 
 import {
   activeTaskView as activeTaskViewOf,
+  isSessionLifecycleActive,
   taskViewForId,
   type RendererState,
   type TaskViewState,
 } from "../reading-core/state";
 import type { Directive } from "../reading-core/directives";
+import type {
+  CliEmptySurface,
+  TerminalActiveTaskState,
+} from "../shared/types";
 import { elements } from "./dom";
 import {
   renderApproval,
@@ -47,6 +52,7 @@ import {
 } from "./view/status-strip";
 import { renderRuns } from "./view/transcript";
 import { enhanceTranscriptChips } from "./view/transcript-chips";
+import { syncReadingNavigation } from "./view/reading-navigation";
 
 interface RenderDeps {
   /** T3 — 160 ms transcript-stream debounce (scheduler side). */
@@ -80,23 +86,88 @@ let lastPushedTerminalTask = "";
 // render()'s frequent calls don't spam IPC. The terminal window shows this
 // task's terminal and forwards keystrokes only while it is live.
 // (`lastPushedTerminalTask` is declared with the module state above.)
-function pushActiveTerminalTask(): void {
+export function syncActiveTerminalTaskBinding(): void {
+  const view = activeTaskView();
   const taskId = state.activeTaskId ?? null;
-  const live = Boolean(activeTaskView()?.live);
+  const live = Boolean(view?.live);
   const openTaskIds = state.taskViews
     .map((view) => view.task?.id)
     .filter((id): id is string => Boolean(id));
-  const key = `${taskId}:${live}:${openTaskIds.join(",")}`;
+  const binding: TerminalActiveTaskState = {
+    taskId,
+    live,
+    openTaskIds,
+    projectName: cliProjectName(view),
+    sessionTitle: view?.task?.title ?? "New task",
+    emptySurface: cliEmptySurface(view),
+  };
+  const key = JSON.stringify(binding);
   if (key === lastPushedTerminalTask) {
     return;
   }
   lastPushedTerminalTask = key;
-  void window.duetRuntime.setActiveTerminalTask({ taskId, live, openTaskIds }).catch(() => {});
+  void window.duetRuntime.setActiveTerminalTask(binding).catch(() => {});
+}
+
+function cliProjectName(view: TaskViewState | null): string {
+  if (view?.task?.autoWorkspace) {
+    return "Tasks";
+  }
+  const cwd = view?.task?.workingDirectory ?? state.taskDraft.cwd;
+  if (!cwd) {
+    return "Tasks";
+  }
+  const project = state.sessionIndex?.projects.find((candidate) => candidate.path === cwd);
+  if (project) {
+    return project.name;
+  }
+  return cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? cwd;
+}
+
+function cliEmptySurface(view: TaskViewState | null): CliEmptySurface {
+  const lifecycle = state.sessionLifecycle;
+  if (!view) {
+    const disabledReason = !state.launchSettingsHydrated
+      ? "Loading task settings"
+      : state.busy || lifecycle.phase !== "idle"
+        ? "Task lifecycle in progress"
+        : undefined;
+    return {
+      kind: "fresh",
+      phase: lifecycle.phase === "starting" ? "starting" : "ready",
+      ...(disabledReason ? { disabledReason } : {}),
+    };
+  }
+  if (view.live || !view.task) {
+    return { kind: "none" };
+  }
+  if (
+    lifecycle.phase === "awaiting-resume-choice" &&
+    lifecycle.taskId === view.task.id
+  ) {
+    return { kind: "resume-choice", taskId: view.task.id };
+  }
+  const phase =
+    lifecycle.phase === "preparing-resume" && lifecycle.taskId === view.task.id
+      ? "preparing"
+      : lifecycle.phase === "resuming" && lifecycle.taskId === view.task.id
+        ? "resuming"
+        : "ready";
+  const disabledReason =
+    state.busy || (lifecycle.phase !== "idle" && phase === "ready")
+      ? "Task lifecycle in progress"
+      : undefined;
+  return {
+    kind: "dormant",
+    phase,
+    taskId: view.task.id,
+    ...(disabledReason ? { disabledReason } : {}),
+  };
 }
 
 export function render(): void {
   const view = activeTaskView();
-  pushActiveTerminalTask();
+  syncActiveTerminalTaskBinding();
   // New chat: the centered greeting IS the scene's title — an empty header
   // (2026-07-04 redesign) instead of a third "New chat" label.
   renderHeaderTitle(view);
@@ -109,7 +180,7 @@ export function render(): void {
   elements.runtimeStatus.classList.toggle("hidden", notice === "");
   elements.openPreviewWindow.disabled = !view?.task || state.busy;
   elements.sessionMenuTrigger.classList.toggle("hidden", !view?.task);
-  elements.sidebarNewChat.disabled = state.busy;
+  elements.sidebarNewChat.disabled = state.busy || isSessionLifecycleActive(state);
   renderReadingPopover();
   renderRemoteControl();
   renderRemoteControlPopover();
@@ -127,6 +198,7 @@ export function render(): void {
   renderStatusStrip(view);
   renderRuns();
   enhanceTranscriptChips();
+  syncReadingNavigation();
 }
 
 function renderHeaderTitle(view: TaskViewState | null): void {
@@ -186,6 +258,7 @@ export function renderTranscriptStream(): void {
   renderRuns();
   enhanceTranscriptChips();
   renderStatusStrip();
+  syncReadingNavigation();
 }
 
 export function performDirective(directive: Directive): void {

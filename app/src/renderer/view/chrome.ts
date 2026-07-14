@@ -49,15 +49,13 @@ export function initChromeView(
   resolvedReadingMode = deps.resolvedReadingMode;
 }
 
-// The terminal satellite window's toggle. Unlike the icon window-openers, it's
-// a labelled button that flips between "Open Terminal" and "Close Terminal".
-// The label tracks the window's real state — the toggle and an OS-close both
-// drive the broadcast this subscribes to — so it stays honest either way.
+// The CLI satellite window's stable-label toggle. The label never changes;
+// aria-pressed plus the selected treatment carry its real open/closed state.
 export function applyTerminalWindowState(state: TerminalWindowState): void {
   const button = elements.toggleTerminalWindow;
-  button.textContent = state.open ? "Close Terminal" : "Open Terminal";
+  button.textContent = "CLI";
   button.setAttribute("aria-pressed", state.open ? "true" : "false");
-  button.title = state.open ? "Close the terminal window" : "Open the terminal window";
+  button.title = state.open ? "Hide CLI" : "Show CLI";
 }
 
 export function renderReadingPopover(): void {
@@ -251,7 +249,7 @@ function renderRemoteControlPopoverContent(): HTMLElement {
   const manage = document.createElement("button");
   manage.type = "button";
   manage.className = "remote-control-popover-action";
-  manage.textContent = "Manage / disconnect in terminal →";
+  manage.textContent = "Manage / disconnect in CLI →";
   manage.addEventListener("click", () => actions.manageRemoteControl());
   popover.append(manage);
   return popover;

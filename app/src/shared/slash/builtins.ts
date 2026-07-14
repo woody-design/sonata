@@ -46,17 +46,17 @@ const CLAUDE_BUILTINS: BuiltinSpec[] = [
   // Listed: shown in the picker.
   {
     name: "model",
-    description: "Model & reasoning effort — opens the picker in the terminal",
+    description: "Model & reasoning effort — opens the picker in the CLI",
     listed: true,
   },
   {
     name: "effort",
-    description: "Reasoning effort — opens the picker in the terminal",
+    description: "Reasoning effort — opens the picker in the CLI",
     listed: true,
   },
   {
     name: "permissions",
-    description: "Permission mode — opens the picker in the terminal",
+    description: "Permission mode — opens the picker in the CLI",
     listed: true,
   },
   {
@@ -156,12 +156,12 @@ const CLAUDE_BUILTINS: BuiltinSpec[] = [
 const CODEX_BUILTINS: BuiltinSpec[] = [
   {
     name: "model",
-    description: "Model & reasoning effort — opens the picker in the terminal",
+    description: "Model & reasoning effort — opens the picker in the CLI",
     listed: true,
   },
   {
     name: "permissions",
-    description: "Permissions — opens the picker in the terminal",
+    description: "Permissions — opens the picker in the CLI",
     listed: true,
   },
   {

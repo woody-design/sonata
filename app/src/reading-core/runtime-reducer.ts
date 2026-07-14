@@ -170,7 +170,7 @@ export function reduceRuntimeEvent(
       event.payload.decision === "deny"
         ? "Approval denied"
         : event.payload.decision === "answered-natively"
-          ? "Answered in terminal"
+          ? "Answered in CLI"
           : "Approval sent";
     return [viewChangedDirective(state, view, taskId)];
   }
@@ -188,7 +188,7 @@ export function reduceRuntimeEvent(
     }
     view.pendingApproval = null;
     view.approvalExpiredAttention = true;
-    view.status = "Waiting in the terminal";
+    view.status = "Waiting in the CLI";
     return [viewChangedDirective(state, view, taskId)];
   }
 

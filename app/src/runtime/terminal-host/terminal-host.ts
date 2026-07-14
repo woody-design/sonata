@@ -75,6 +75,16 @@ const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
+let terminalGenerationSequence = 0;
+
+function nextTerminalGeneration(explicit?: number): number {
+  if (explicit !== undefined) {
+    terminalGenerationSequence = Math.max(terminalGenerationSequence, explicit);
+    return explicit;
+  }
+  terminalGenerationSequence += 1;
+  return terminalGenerationSequence;
+}
 /** After a hook-broker approval TIMEOUT, the CLI's native card for the same
  *  request repaints within a beat (probe: ~200ms). A scraped candidate inside
  *  this window is that resurface, not a new ask — mark it so, so the notification
@@ -203,6 +213,9 @@ const PROVIDER_ERROR_LINE_RE =
 
 export interface TerminalHostOptions {
   taskId: TaskId;
+  /** Stable for one TerminalHost and monotonically newer for every host in
+   *  this main-process lifetime. Tests may inject a deterministic value. */
+  generation?: number;
   defaultWorkspace: string;
   provider?: RuntimeProvider;
   eventSink?: (event: RuntimeEvent) => void;
@@ -334,6 +347,7 @@ interface TerminalProviderProfile {
 
 export class TerminalHost extends EventEmitter {
   private readonly taskId: TaskId;
+  private readonly generation: number;
   private readonly profile: TerminalProviderProfile;
   private readonly defaultWorkspace: string;
   private readonly eventSink: ((event: RuntimeEvent) => void) | null;
@@ -442,6 +456,7 @@ export class TerminalHost extends EventEmitter {
   constructor(options: TerminalHostOptions) {
     super();
     this.taskId = options.taskId;
+    this.generation = nextTerminalGeneration(options.generation);
     this.profile = terminalProviderProfile(options.provider ?? "codex");
     this.defaultWorkspace = options.defaultWorkspace;
     this.eventSink = options.eventSink ?? null;
@@ -570,6 +585,7 @@ export class TerminalHost extends EventEmitter {
       }
       this.emitEvent("pty:exit", {
         taskId: this.taskId,
+        generation: this.generation,
         runId: this.activeRun ? this.activeRun.id : null,
         exitCode: exit.exitCode,
         signal: exit.signal ?? null,
@@ -1325,7 +1341,13 @@ export class TerminalHost extends EventEmitter {
   /** Snapshot the terminal for replay into a (re)opening window, or null when
    *  there is no live terminal yet. */
   async serializeScrollback(): Promise<TerminalReplaySnapshot | null> {
-    return this.scrollback ? this.scrollback.snapshot() : null;
+    if (!this.scrollback) {
+      return null;
+    }
+    return {
+      ...(await this.scrollback.snapshot()),
+      generation: this.generation,
+    };
   }
 
   dispose(): void {
@@ -1390,7 +1412,12 @@ export class TerminalHost extends EventEmitter {
     if (this.activeRun) {
       this.activeRunRaw = `${this.activeRunRaw}${data}`.slice(-this.scrollbackLimit);
     }
-    this.emitEvent("pty:data", { taskId: this.taskId, data, seq });
+    this.emitEvent("pty:data", {
+      taskId: this.taskId,
+      generation: this.generation,
+      data,
+      seq,
+    });
     this.detectRemoteControlState(data);
     this.detectApproval();
     if (this.isHumanActivelyTyping()) {

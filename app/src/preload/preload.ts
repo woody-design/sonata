@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import {
   DEFAULT_READING_SETTINGS,
   IPC_CHANNELS,
+  type CliActionRequest,
   type DuetRuntimeBridge,
   type PreviewBinding,
   type ReadingSettings,
@@ -189,6 +190,7 @@ const duetRuntime: DuetRuntimeBridge = {
   readTerminalWindowState: () => ipcRenderer.invoke(IPC_CHANNELS.terminalWindowStateRead),
   setActiveTerminalTask: (state) => ipcRenderer.invoke(IPC_CHANNELS.terminalActiveTaskSet, state),
   readActiveTerminalTask: () => ipcRenderer.invoke(IPC_CHANNELS.terminalActiveTaskRead),
+  requestCliAction: (request) => ipcRenderer.invoke(IPC_CHANNELS.cliActionRequest, request),
   readTerminalWindowSettings: () => ipcRenderer.invoke(IPC_CHANNELS.terminalWindowSettingsRead),
   writeTerminalWindowSettings: (settings) =>
     ipcRenderer.invoke(IPC_CHANNELS.terminalWindowSettingsWrite, settings),
@@ -253,6 +255,13 @@ const duetRuntime: DuetRuntimeBridge = {
     };
     ipcRenderer.on(IPC_CHANNELS.terminalActiveTask, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.terminalActiveTask, listener);
+  },
+  onCliAction: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: CliActionRequest) => {
+      callback(request);
+    };
+    ipcRenderer.on(IPC_CHANNELS.cliAction, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.cliAction, listener);
   },
   onRuntimeEvent: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, runtimeEvent: RuntimeEvent) => {

@@ -3,7 +3,7 @@
 // list's streaming render path: the keyed reference-identity reconcile, the
 // two persistent nodes (sticky-prompt rail FIRST child, status strip LAST
 // child — both skipped by the reconcile and setNonRailChildren paths), the
-// scroll contract (nearBottom <64px captured BEFORE reconcile,
+// scroll contract (nearBottom <=64px captured BEFORE reconcile,
 // previousScrollTop restored after, finalize = restorePromptNavAfterRender
 // then scheduleStickyPromptSync — in that order), the turn-card e2e beacons
 // (data-key/sig/turnKey/runId/runStatus, .turn-outcome-note), and the
@@ -38,6 +38,7 @@ import {
   type RendererState,
   type TaskViewState,
 } from "../../reading-core/state";
+import { isReadingNearBottom } from "../../reading-core/reading-scroll";
 import { elements } from "../dom";
 import { actions } from "../actions";
 import { lucideIcon } from "./icons";
@@ -170,7 +171,7 @@ function reconcileKeyedChildren(
 
 export function renderRuns(): void {
   const runList = elements.runList;
-  const nearBottom = runList.scrollHeight - runList.scrollTop - runList.clientHeight < 64;
+  const nearBottom = isReadingNearBottom(runList);
   const previousScrollTop = runList.scrollTop;
   const rail = ensureStickyPromptRail(runList);
 
@@ -431,11 +432,11 @@ function renderTurnFallback(): HTMLElement {
   const note = document.createElement("div");
   note.className = "turn-system-note degraded";
   const copy = document.createElement("div");
-  copy.textContent = `${activeProviderLabel()} replied, but the reply could not be read structurally — the full text is in the Terminal.`;
+  copy.textContent = `${activeProviderLabel()} replied, but the reply could not be read structurally — the full text is in the CLI.`;
   const action = document.createElement("button");
   action.className = "secondary turn-terminal-action";
   action.type = "button";
-  action.textContent = "Open terminal";
+  action.textContent = "Open CLI";
   action.addEventListener("click", () => {
     actions.setViewMode("terminal");
   });
@@ -459,7 +460,7 @@ function renderNoAssistantOutput(run: RuntimeRunReport | null): HTMLElement {
   const action = document.createElement("button");
   action.className = "secondary turn-terminal-action";
   action.type = "button";
-  action.textContent = "Open terminal";
+  action.textContent = "Open CLI";
   action.addEventListener("click", () => {
     actions.setViewMode("terminal");
   });

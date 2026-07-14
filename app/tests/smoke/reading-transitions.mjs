@@ -193,7 +193,7 @@ function task(id, title = `Task ${id}`) {
   assert.equal(state.sidebar.renameEditor, null);
 }
 
-// 7) syncTaskViewsFromIndex — open views follow the index's title/archived;
+// 7) syncTaskViewsFromIndex — open views follow the index's title/archived/live;
 // only an ACTIVE view's change requests the full re-render.
 {
   const state = freshState();
@@ -208,8 +208,8 @@ function task(id, title = `Task ${id}`) {
         name: "P",
         archived: false,
         sessions: [
-          { task: { ...task("t1", "New"), archived: false }, archived: false },
-          { task: task("t2", "Stable"), archived: false },
+          { task: { ...task("t1", "New"), archived: false }, archived: false, live: true },
+          { task: task("t2", "Stable"), archived: false, live: true },
         ],
       },
     ],
@@ -226,6 +226,22 @@ function task(id, title = `Task ${id}`) {
     "background-only change → no full render request",
   );
   assert.equal(state.taskViews[0].task.title, "Newer", "…but the view still follows");
+
+  index.projects[0].sessions[1].live = false;
+  assert.equal(
+    session.syncTaskViewsFromIndex(state, index),
+    true,
+    "active live→dormant transition → full render request",
+  );
+  assert.equal(state.taskViews[1].live, false, "active view follows dormant index state");
+
+  index.projects[0].sessions[1].live = true;
+  assert.equal(
+    session.syncTaskViewsFromIndex(state, index),
+    true,
+    "active dormant→live transition → full render request",
+  );
+  assert.equal(state.taskViews[1].live, true, "active view follows resumed index state");
 }
 
 // 8) removeTaskView / markViewSeen — active close hands the composer over

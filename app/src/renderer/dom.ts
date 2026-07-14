@@ -50,6 +50,7 @@ function queryElements() {
     resumeSummary: getElement<HTMLButtonElement>("resume-summary"),
     composer: getElement<HTMLFormElement>("composer"),
     promptInput: getElement<HTMLTextAreaElement>("prompt-input"),
+    scrollToBottom: getElement<HTMLButtonElement>("scroll-to-bottom"),
     attachmentStrip: getElement<HTMLDivElement>("attachment-strip"),
     addAttachment: getElement<HTMLButtonElement>("add-attachment"),
     permissionChip: getElement<HTMLButtonElement>("permission-chip"),
@@ -86,8 +87,8 @@ export function initDom(): void {
         <div class="sidebar-rail">
           <button id="sidebar-collapse" class="chrome-icon-button" type="button" title="Collapse sidebar" aria-label="Collapse sidebar"></button>
         </div>
-        <button id="sidebar-new-chat" class="sidebar-new-chat" type="button" title="New chat">
-          <span class="sidebar-new-chat-icon"></span><span>New chat</span>
+        <button id="sidebar-new-chat" class="sidebar-new-chat" type="button" title="New task">
+          <span class="sidebar-new-chat-icon"></span><span>New task</span>
         </button>
       </div>
       <div id="sidebar-rename-notice" class="rename-surface-notice hidden" role="alert"></div>
@@ -109,7 +110,7 @@ export function initDom(): void {
       <div class="chrome-center">
       </div>
       <div class="topbar-actions chrome-actions">
-        <button id="toggle-terminal-window" class="secondary" type="button" aria-pressed="true" title="Close the terminal window">Close Terminal</button>
+        <button id="toggle-terminal-window" class="secondary cli-toggle" type="button" aria-pressed="true" title="Hide CLI">CLI</button>
         <button
           id="reading-settings"
           class="secondary reading-settings-trigger"
@@ -170,6 +171,18 @@ export function initDom(): void {
           </section>
         </div>
 
+        <div class="scroll-to-bottom-anchor">
+          <button
+            id="scroll-to-bottom"
+            class="scroll-to-bottom hidden"
+            type="button"
+            aria-label="Scroll to bottom"
+            aria-hidden="true"
+            tabindex="-1"
+            title="Scroll to bottom"
+          ></button>
+        </div>
+
         <section id="resume-choice" class="resume-choice hidden" aria-label="Resume choice">
           <div class="resume-choice-copy">
             <strong id="resume-choice-title">Resume this session?</strong>
@@ -186,7 +199,7 @@ export function initDom(): void {
           </div>
         </section>
 
-        <form id="composer" class="composer">
+        <form id="composer" class="composer" aria-label="Composer" tabindex="-1">
           <!-- The white card: the message and its controls. The context row
                below is a SEPARATE tinted layer (ref parity, 2026-07-04):
                "where this runs" is the stage the card sits on, not a line

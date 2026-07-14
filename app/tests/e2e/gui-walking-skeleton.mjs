@@ -76,11 +76,11 @@ try {
 
   // The terminal is its own satellite window now (default-on). Exercise the
   // header toggle via its label, which tracks the window's real open state.
-  await page.locator("#toggle-terminal-window", { hasText: "Close Terminal" }).waitFor({ state: "visible" });
+  await page.locator('#toggle-terminal-window[aria-pressed="true"]', { hasText: "CLI" }).waitFor({ state: "visible" });
   await page.locator("#toggle-terminal-window").click();
-  await page.locator("#toggle-terminal-window", { hasText: "Open Terminal" }).waitFor({ state: "visible" });
+  await page.locator('#toggle-terminal-window[aria-pressed="false"]', { hasText: "CLI" }).waitFor({ state: "visible" });
   await page.locator("#toggle-terminal-window").click();
-  await page.locator("#toggle-terminal-window", { hasText: "Close Terminal" }).waitFor({ state: "visible" });
+  await page.locator('#toggle-terminal-window[aria-pressed="true"]', { hasText: "CLI" }).waitFor({ state: "visible" });
 
   // Process detail lives on disk, not in a window (the Inspector satellite that
   // once showed the four lenses retired in S5). The runtime report is the

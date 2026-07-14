@@ -14,6 +14,7 @@ import {
 import {
   DEFAULT_TERMINAL_WINDOW_SETTINGS,
   IPC_CHANNELS,
+  type CliActionRequest,
   type FolderPickResponse,
   type OpenPreviewRequest,
   type PreviewActivateRequest,
@@ -102,7 +103,14 @@ let workspaceFiles: WorkspaceFiles | null = null;
 let previewBoundTaskId: TaskId | null = null;
 // Which task the terminal window shows. Owned by the main renderer (the
 // selected-task concept is its UI state); relayed here for the terminal window.
-let activeTerminalTask: TerminalActiveTaskState = { taskId: null, live: false, openTaskIds: [] };
+let activeTerminalTask: TerminalActiveTaskState = {
+  taskId: null,
+  live: false,
+  openTaskIds: [],
+  projectName: "Tasks",
+  sessionTitle: "New task",
+  emptySurface: { kind: "fresh", phase: "ready", disabledReason: "Loading task settings" },
+};
 let windowState: WindowStateManager | null = null;
 
 const MAIN_WINDOW_DEFAULTS: WindowDefaults = {
@@ -234,13 +242,13 @@ function createTerminalWindow(): BrowserWindow {
     minWidth: TERMINAL_WINDOW_DEFAULTS.minWidth,
     minHeight: TERMINAL_WINDOW_DEFAULTS.minHeight,
     ...(decision?.fullScreen ? { fullscreen: true } : {}),
-    title: "Duet Terminal",
+    title: "Duet CLI",
     // Frameless like the main window: the renderer owns the whole surface and
     // the traffic lights float over the topbar's reserved left corner, so the
-    // terminal reads as a peer of the main column (its "Terminal" label sits
+    // CLI reads as a peer of the main column (its "CLI" label sits
     // right of the lights). macOS-only options; ignored elsewhere.
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 18, y: 15 },
+    trafficLightPosition: { x: 18, y: 18 },
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
@@ -563,7 +571,10 @@ function persistTerminalWindowOpen(open: boolean): void {
   }
 }
 
-function setActiveTerminalTask(next: TerminalActiveTaskState): void {
+function setActiveTerminalTask(next: TerminalActiveTaskState, senderId: number): void {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.id !== senderId) {
+    throw new Error("Only the Reading window may set the CLI binding.");
+  }
   activeTerminalTask = next;
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
@@ -574,6 +585,20 @@ function setActiveTerminalTask(next: TerminalActiveTaskState): void {
   // task the Reading window has selected (§6.1). A null task unbinds to the
   // empty state.
   bindPreviewTask(next.taskId);
+}
+
+function requestCliAction(request: CliActionRequest, senderId: number): void {
+  if (
+    !terminalWindow ||
+    terminalWindow.isDestroyed() ||
+    terminalWindow.webContents.id !== senderId
+  ) {
+    throw new Error("Only the CLI window may request a CLI action.");
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    throw new Error("The Reading window is unavailable.");
+  }
+  mainWindow.webContents.send(IPC_CHANNELS.cliAction, request);
 }
 
 function readActiveTerminalTask(): TerminalActiveTaskState {
@@ -845,6 +870,7 @@ app.whenReady().then(() => {
     writeTerminalWindowSettings,
     setActiveTerminalTask,
     readActiveTerminalTask,
+    requestCliAction,
     openWorkspaceExternal,
     openWorkspaceFolder,
     pickFolder,

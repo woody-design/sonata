@@ -292,12 +292,72 @@ export interface RendererState {
    *  on Settings save. The New Chat access chip shows this until the user picks
    *  a per-session mode (taskDraft.permissionMode). */
   claudeDefaultPermissionMode: ClaudeDefaultPermissionMode;
+  /** True after the boot-time launch defaults have either loaded or failed
+   *  closed to their local defaults. Empty-task CLI actions wait for this so
+   *  they never race an in-flight settings projection. */
+  launchSettingsHydrated: boolean;
   promptNav: PromptNavState | null;
   /** The Settings page (centered overlay) is open; null when closed. */
   settingsOverlay: SettingsOverlayState | null;
+  /** One synchronous owner for every task lifecycle entered from the
+   *  Composer or a satellite surface. Unlike `busy` (which also covers
+   *  folder pickers and unrelated IPC), this state is specifically the
+   *  create/send/resume single-flight and is claimed before the first await. */
+  sessionLifecycle: SessionLifecycle;
   busy: boolean;
   status: string;
 }
+
+export type SessionLifecycle =
+  | { phase: "idle" }
+  | {
+      phase: "starting";
+      ownerToken: string;
+      sendAfterStart: boolean;
+    }
+  | {
+      phase: "sending";
+      ownerToken: string;
+      taskId: string;
+    }
+  | {
+      phase: "attaching";
+      ownerToken: string;
+      taskId: string | null;
+    }
+  | {
+      phase: "session-mutation";
+      ownerToken: string;
+      taskId: string;
+      action: "archive" | "unarchive" | "delete";
+    }
+  | {
+      phase: "project-mutation";
+      ownerToken: string;
+      path: string;
+      action: "archive" | "unarchive";
+    }
+  | {
+      phase: "preparing-resume";
+      ownerToken: string;
+      taskId: string;
+      sendAfterResume: boolean;
+      promptText: string;
+    }
+  | {
+      phase: "awaiting-resume-choice";
+      ownerToken: string;
+      taskId: string;
+      sendAfterResume: boolean;
+      promptText: string;
+    }
+  | {
+      phase: "resuming";
+      ownerToken: string;
+      taskId: string;
+      sendAfterResume: boolean;
+      promptText: string;
+    };
 
 export interface SettingsOverlayState {
   /** Snapshot read on open; null while the read is in flight. */
@@ -449,8 +509,10 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     remoteControlNote: null,
     remoteControlDefault: false,
     claudeDefaultPermissionMode: "default",
+    launchSettingsHydrated: false,
     promptNav: null,
     settingsOverlay: null,
+    sessionLifecycle: { phase: "idle" },
     busy: false,
     status: "Idle",
   };
@@ -514,6 +576,10 @@ export function activeTaskView(state: RendererState): TaskViewState | null {
     return null;
   }
   return taskViewForId(state, state.activeTaskId);
+}
+
+export function isSessionLifecycleActive(state: RendererState): boolean {
+  return state.sessionLifecycle.phase !== "idle";
 }
 
 export function applyTranscriptUpserts(

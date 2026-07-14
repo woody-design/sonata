@@ -416,7 +416,7 @@ function hookApproval(overrides = {}) {
   assert.deepEqual(match, [{ kind: "full", taskId: "task-A" }], "matching expiry → full render");
   assert.equal(view.pendingApproval, null, "matching expiry clears the card");
   assert.equal(view.approvalExpiredAttention, true, "…and raises the passive banner");
-  assert.equal(view.status, "Waiting in the terminal", "…with the S5 status voice");
+  assert.equal(view.status, "Waiting in the CLI", "…with the S5 status voice");
 }
 {
   // Background variant: the expiry marks unread instead of painting.

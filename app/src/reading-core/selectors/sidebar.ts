@@ -46,7 +46,7 @@ export function sidebarFiltersNonDefault(prefs: SidebarPrefs): boolean {
 
 export interface SidebarEntry {
   session: SessionSummary;
-  /** null = auto-workspace session ("Chats"). */
+  /** null = auto-workspace session ("Tasks"). */
   projectPath: string | null;
   projectName: string | null;
   projectArchived: boolean;
@@ -322,7 +322,7 @@ export function sidebarDisclosureModel(
 
   const sessionGroups =
     chats.length > 0
-      ? [disclosureSessionGroup("chats", "Chats", chats, disclosure)]
+      ? [disclosureSessionGroup("chats", "Tasks", chats, disclosure)]
       : [];
   const projectVisibility = sidebarDisclosureMetrics(
     projectGroups.length,

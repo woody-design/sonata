@@ -9,7 +9,10 @@
  * buffered chunks the snapshot does not already contain.
  *
  * This module is the pure decision core of that stitch — no xterm, no DOM — so
- * the no-loss / no-duplication contract is unit-provable in isolation.
+ * the no-loss / no-duplication contract is unit-provable in isolation. Task ids
+ * persist across runtime reopen, so the snapshot and tail also carry a
+ * main-process-monotonic TerminalHost generation. Only the newest generation
+ * represented on either side may contribute bytes.
  *
  * The invariant, from the seq-tagged mirror: every live chunk carries its
  * 0-based ingest `seq`, and `snapshot.seq` is the count of chunks already folded
@@ -24,8 +27,29 @@
 /** A live `pty:data` chunk the renderer buffered while hydrating: the raw bytes
  *  plus the mirror's ingest seq that tags them. */
 export interface HydrationChunk {
+  generation: number;
   data: string;
   seq: number;
+}
+
+export interface HydrationSnapshot {
+  generation: number;
+  data: string;
+  seq: number;
+}
+
+/** The newest runtime represented by either side of an in-flight replay. Main
+ *  assigns generations monotonically, so a reopen that races hydration wins
+ *  without relying on task id, IPC arrival timing, or a late exit event. */
+export function hydrationGeneration(
+  snapshot: HydrationSnapshot | null,
+  buffered: readonly HydrationChunk[],
+): number | null {
+  let generation = snapshot?.generation ?? null;
+  for (const chunk of buffered) {
+    generation = generation === null ? chunk.generation : Math.max(generation, chunk.generation);
+  }
+  return generation;
 }
 
 /**
@@ -40,16 +64,18 @@ export interface HydrationChunk {
  * Pure: callers apply the returned strings via `terminal.write` in order.
  */
 export function stitchHydration(
-  snapshot: { data: string; seq: number } | null,
+  snapshot: HydrationSnapshot | null,
   buffered: readonly HydrationChunk[],
 ): string[] {
-  const seqFloor = snapshot ? snapshot.seq : 0;
+  const generation = hydrationGeneration(snapshot, buffered);
+  const compatibleSnapshot = snapshot?.generation === generation ? snapshot : null;
+  const seqFloor = compatibleSnapshot ? compatibleSnapshot.seq : 0;
   const writes: string[] = [];
-  if (snapshot) {
-    writes.push(snapshot.data);
+  if (compatibleSnapshot) {
+    writes.push(compatibleSnapshot.data);
   }
   for (const chunk of buffered) {
-    if (chunk.seq >= seqFloor) {
+    if (chunk.generation === generation && chunk.seq >= seqFloor) {
       writes.push(chunk.data);
     }
   }

@@ -11,6 +11,7 @@ import {
   normalizeCodexSettings,
   normalizeReadingSettings,
   normalizeResumeSettings,
+  isCliActionRequest,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
   type CodexDefaultApprovalMode,
@@ -42,6 +43,7 @@ import {
   SIDEBAR_PREFS_DEFAULTS,
   activeTaskView as activeTaskViewOf,
   createInitialState,
+  isSessionLifecycleActive,
   type ComposerMenuState,
   type PopoverAnchor,
   type RendererState,
@@ -67,6 +69,7 @@ import {
 } from "./flows/attachments";
 import {
   answerOptionPrompt,
+  archiveProjectFromSidebar,
   archiveSessionFromSidebar,
   decideApproval,
   deleteSessionFromSidebar,
@@ -76,13 +79,17 @@ import {
   refreshReport,
   refreshSessionIndex,
   resolveResumeChoice,
+  resumeTaskWithoutPrompt,
   selectSession,
   setViewMode,
   startNewChat,
+  startCliWithoutPrompt,
   stopRun,
   submitPrompt,
   surfaceTerminalWindow,
+  unarchiveSessionFromSidebar,
 } from "./flows/session-flows";
+import { initSessionLifecycle } from "./flows/session-lifecycle";
 import {
   commitActiveRename,
   completeRenameComposition,
@@ -96,7 +103,13 @@ import {
   startProjectRename,
   startSessionRename,
 } from "./flows/rename-flows";
-import { initRender, performDirective, render, renderTranscriptStream } from "./render";
+import {
+  initRender,
+  performDirective,
+  render,
+  renderTranscriptStream,
+  syncActiveTerminalTaskBinding,
+} from "./render";
 import {
   clearUsagePopoverCloseTimer,
   clearUsagePopoverTimers,
@@ -147,7 +160,7 @@ import { positionSlashPicker, renderSlashPicker } from "./view/slash-picker";
 import { initStatusStripView } from "./view/status-strip";
 import { initTranscriptView } from "./view/transcript";
 import { initTranscriptChips, transcriptChipTarget } from "./view/transcript-chips";
-
+import { initReadingNavigation } from "./view/reading-navigation";
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "dark" : "light";
@@ -237,6 +250,7 @@ initDom();
 // side effects of new modules (R4). The referenced implementations are
 // hoisted function declarations, so binding here (before their textual
 // definitions) is safe.
+initSessionLifecycle(state);
 initRender(state, {
   scheduleTranscriptRender: () => scheduleTranscriptRender(),
   scheduleSessionIndexRefresh: () => scheduleSessionIndexRefresh(),
@@ -247,6 +261,7 @@ initSessionFlows(state, {
   exitPromptNav: (options) => exitPromptNav(options),
   renderOptionPrompt: () => renderOptionPrompt(),
   renderSidebar: () => renderSidebar(),
+  syncActiveTerminalTaskBinding: () => syncActiveTerminalTaskBinding(),
   clearUsagePopoverTimers: () => clearUsagePopoverTimers(),
   consumeSlashSubmitGuard: (text) => consumeSlashSubmitGuard(text),
 });
@@ -277,6 +292,7 @@ initComposerView(state);
 initSettingsView(state);
 initChromeView(state, { resolvedReadingMode: () => resolvedReadingMode() });
 initPromptNavView(state, { isComposerComposing: () => composerIsComposing });
+initReadingNavigation();
 initActions({
   setViewMode: (mode) => setViewMode(mode),
   scrollToPromptTurn: (turnKey) => scrollToPromptTurn(turnKey),
@@ -382,23 +398,13 @@ initActions({
     runAfterRename(() => archiveSessionFromSidebar(taskId));
   },
   unarchiveSession: (taskId) => {
-    runAfterRename(() =>
-      window.duetRuntime.archiveSession({ taskId, archived: false }).catch((error) => {
-        state.status = errorMessage(error);
-        render();
-      }),
-    );
+    runAfterRename(() => unarchiveSessionFromSidebar(taskId));
   },
   deleteSessionFromSidebar: (taskId, title) => {
     runAfterRename(() => deleteSessionFromSidebar(taskId, title));
   },
   archiveProject: (path, archived) => {
-    runAfterRename(() =>
-      window.duetRuntime.archiveProject({ path, archived }).catch((error) => {
-        state.status = errorMessage(error);
-        render();
-      }),
-    );
+    runAfterRename(() => archiveProjectFromSidebar(path, archived));
   },
   // Slash picker (view/slash-picker.ts): dispatch flow + hover grammar
   // (verbatim from its pre-D3 inline home).
@@ -748,6 +754,9 @@ elements.addAttachment.addEventListener("click", (event) => {
 // is detached and closest(".composer-chip") no longer matches — the menu
 // would close in the same click that opened it.
 function toggleDraftMenuFromChip(kind: TaskDraftMenuKind, event: MouseEvent): void {
+  if (isSessionLifecycleActive(state)) {
+    return;
+  }
   event.stopPropagation();
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
   state.taskDraft.menu =
@@ -776,6 +785,9 @@ elements.projectChip.addEventListener("click", (event) => {
 });
 
 elements.composer.addEventListener("paste", (event) => {
+  if (isSessionLifecycleActive(state)) {
+    return;
+  }
   const files = Array.from(event.clipboardData?.files ?? []);
   if (files.length === 0) {
     return;
@@ -785,12 +797,18 @@ elements.composer.addEventListener("paste", (event) => {
 });
 
 elements.composer.addEventListener("dragover", (event) => {
+  if (isSessionLifecycleActive(state)) {
+    return;
+  }
   if (hasFileTransfer(event.dataTransfer)) {
     event.preventDefault();
   }
 });
 
 elements.composer.addEventListener("drop", (event) => {
+  if (isSessionLifecycleActive(state)) {
+    return;
+  }
   const files = Array.from(event.dataTransfer?.files ?? []);
   if (files.length === 0) {
     return;
@@ -824,6 +842,9 @@ elements.usageIndicator.addEventListener("blur", () => {
 });
 
 elements.promptInput.addEventListener("keydown", (event) => {
+  if (isSessionLifecycleActive(state)) {
+    return;
+  }
   if (isComposerCompositionShortcut(event)) {
     return;
   }
@@ -962,7 +983,7 @@ async function enableRemoteControl(): Promise<void> {
     if (!result.ok) {
       state.remoteControlNote =
         result.reason === "panel-open"
-          ? "Claude is waiting on something in the terminal — answer that first."
+          ? "Claude is waiting on something in the CLI — answer that first."
           : result.reason === "busy"
             ? "Claude is mid-delivery — try again in a moment."
             : "Couldn't enable remote control.";
@@ -1446,11 +1467,29 @@ window.duetRuntime.onNotificationActivateTask((taskId) => {
   runAfterRename(() => selectSession(taskId));
 });
 
+window.duetRuntime.onCliAction((request) => {
+  // The main process validates both sender and shape; Reading validates the
+  // shape again at its own trust boundary and the flow revalidates current
+  // selection/liveness before claiming lifecycle ownership.
+  if (!isCliActionRequest(request)) {
+    return;
+  }
+  if (request.action === "start") {
+    if (state.activeTaskId === request.expectedTaskId) {
+      void startCliWithoutPrompt();
+    }
+    return;
+  }
+  void resumeTaskWithoutPrompt(request.expectedTaskId);
+});
+
 void hydrateReadingSettings();
 // Load the RC default BEFORE the session index makes dormant sessions clickable:
 // a dormant view arms from `state.remoteControlDefault` at creation, so the
 // default must be in place first (otherwise a fast click arms from a stale off).
 void hydrateClaudeDefaults().finally(() => {
+  state.launchSettingsHydrated = true;
+  render();
   void refreshSessionIndex();
 });
 

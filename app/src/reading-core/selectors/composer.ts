@@ -104,8 +104,8 @@ export function sessionModelSummaryLabel(view: TaskViewState | null): string | n
  *  native command instead of implying an in-composer switch. */
 export function sessionModelSwitchHint(provider: RuntimeProvider): string {
   return provider === "codex"
-    ? "Switch model and effort in the terminal — /model"
-    : "Switch models in the terminal — /model";
+    ? "Switch model and effort in the CLI — /model"
+    : "Switch models in the CLI — /model";
 }
 
 /** The live permission chip's tooltip. Claude cycles modes with Shift+Tab or
@@ -114,8 +114,8 @@ export function sessionModelSwitchHint(provider: RuntimeProvider): string {
  *  point at an affordance that doesn't exist. */
 export function sessionPermissionSwitchHint(provider: RuntimeProvider): string {
   return provider === "codex"
-    ? "Switch permissions in the terminal — /permissions"
-    : "Switch modes in the terminal — Shift+Tab or /permissions";
+    ? "Switch permissions in the CLI — /permissions"
+    : "Switch modes in the CLI — Shift+Tab or /permissions";
 }
 
 export function sendPromptTitle(

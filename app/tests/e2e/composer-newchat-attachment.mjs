@@ -69,8 +69,9 @@ try {
   // ("image could not be processed") — that is orthogonal to delivery; real
   // screenshots read fine. blob->[Image #N] on both CLIs is covered by
   // native-image-attachments.mjs; here we only prove the new-chat path delivers.
-  checks.imageDeliveredAsChip =
-    (await page.locator(".turn-user-text", { hasText: "[Image" }).count()) > 0;
+  // Reading intentionally lifts the provider's `[Image #N]` marker out of the
+  // bubble text into the sent-prompt attachment affordance.
+  checks.imageDeliveredAsChip = (await page.locator(".turn-image-chip").count()) > 0;
 
   // Post-send: the blob now exists under the per-task dir, chip cleared.
   const blobs = listBlobs(path.join(attachmentsDir, taskId));

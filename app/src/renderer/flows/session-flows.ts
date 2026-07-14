@@ -25,6 +25,7 @@ import { dormantArmed } from "../../reading-core/selectors/runs";
 import {
   activeTaskView as activeTaskViewOf,
   createTaskView,
+  isSessionLifecycleActive,
   taskViewForId,
   upsertTaskView,
   type RendererState,
@@ -37,6 +38,11 @@ import type { ViewMode } from "../actions";
 import { elements } from "../dom";
 import { render } from "../render";
 import { clearComposerAttachments, materializeAttachments } from "./attachments";
+import {
+  claimSessionLifecycle,
+  releaseSessionLifecycle,
+  transitionSessionLifecycle,
+} from "./session-lifecycle";
 
 interface SessionFlowDeps {
   /** Sidebar menu close (view/sidebar) — session ops start by dismissing it. */
@@ -49,6 +55,9 @@ interface SessionFlowDeps {
   /** Targeted sidebar repaint (view/sidebar) — the session-index refresh's
    *  cheap path. */
   renderSidebar(): void;
+  /** Metadata-only index refreshes still update the CLI breadcrumb binding
+   *  without forcing a full Reading render. */
+  syncActiveTerminalTaskBinding(): void;
   /** T5/T6 teardown (scheduler) — activation clears hover timers. */
   clearUsagePopoverTimers(): void;
   /** The slash-command submit guard (main.ts slash-assistance satellite). */
@@ -94,6 +103,7 @@ export async function refreshSessionIndex(): Promise<void> {
       return;
     }
     deps.renderSidebar();
+    deps.syncActiveTerminalTaskBinding();
   } catch (error) {
     console.debug("session index read failed", error);
   }
@@ -115,12 +125,45 @@ function renameTargetDisappeared(): boolean {
 }
 
 export async function archiveSessionFromSidebar(taskId: string): Promise<void> {
+  const ownerToken = claimSessionLifecycle((token) => ({
+    phase: "session-mutation",
+    ownerToken: token,
+    taskId,
+    action: "archive",
+  }));
+  if (!ownerToken) {
+    return;
+  }
+  render();
   try {
     await window.duetRuntime.archiveSession({ taskId, archived: true });
     // The main process stopped the PTY; drop the local view either way.
     removeTaskViewLocally(taskId);
   } catch (error) {
     state.status = errorMessage(error);
+  } finally {
+    releaseSessionLifecycle(ownerToken);
+    render();
+  }
+}
+
+export async function unarchiveSessionFromSidebar(taskId: string): Promise<void> {
+  const ownerToken = claimSessionLifecycle((token) => ({
+    phase: "session-mutation",
+    ownerToken: token,
+    taskId,
+    action: "unarchive",
+  }));
+  if (!ownerToken) {
+    return;
+  }
+  render();
+  try {
+    await window.duetRuntime.archiveSession({ taskId, archived: false });
+  } catch (error) {
+    state.status = errorMessage(error);
+  } finally {
+    releaseSessionLifecycle(ownerToken);
     render();
   }
 }
@@ -132,11 +175,47 @@ export async function deleteSessionFromSidebar(taskId: string, title: string): P
   if (!confirmed) {
     return;
   }
+  const ownerToken = claimSessionLifecycle((token) => ({
+    phase: "session-mutation",
+    ownerToken: token,
+    taskId,
+    action: "delete",
+  }));
+  if (!ownerToken) {
+    return;
+  }
+  render();
   try {
     await window.duetRuntime.deleteSession({ taskId });
     removeTaskViewLocally(taskId);
   } catch (error) {
     state.status = errorMessage(error);
+  } finally {
+    releaseSessionLifecycle(ownerToken);
+    render();
+  }
+}
+
+export async function archiveProjectFromSidebar(
+  path: string,
+  archived: boolean,
+): Promise<void> {
+  const ownerToken = claimSessionLifecycle((token) => ({
+    phase: "project-mutation",
+    ownerToken: token,
+    path,
+    action: archived ? "archive" : "unarchive",
+  }));
+  if (!ownerToken) {
+    return;
+  }
+  render();
+  try {
+    await window.duetRuntime.archiveProject({ path, archived });
+  } catch (error) {
+    state.status = errorMessage(error);
+  } finally {
+    releaseSessionLifecycle(ownerToken);
     render();
   }
 }
@@ -153,6 +232,9 @@ function removeTaskViewLocally(taskId: string): void {
 }
 
 export async function selectSession(taskId: string): Promise<void> {
+  if (isSessionLifecycleActive(state)) {
+    return;
+  }
   deps.closeSidebarMenu();
   if (taskViewForId(state, taskId)) {
     activateTask(taskId);
@@ -184,6 +266,9 @@ export async function selectSession(taskId: string): Promise<void> {
 }
 
 export function startNewChat(folder?: string | null): void {
+  if (isSessionLifecycleActive(state)) {
+    return;
+  }
   deps.closeSidebarMenu();
   deps.exitPromptNav({ focusComposer: false });
   if (state.activeTaskId !== null) {
@@ -222,7 +307,14 @@ async function hydrateUsage(taskId: string): Promise<void> {
   markViewChanged(view);
 }
 
-export function activateTask(taskId: string): void {
+export function activateTask(taskId: string, lifecycleOwnerToken?: string): void {
+  const lifecycle = state.sessionLifecycle;
+  if (
+    lifecycle.phase !== "idle" &&
+    lifecycle.ownerToken !== lifecycleOwnerToken
+  ) {
+    return;
+  }
   const view = taskViewForId(state, taskId);
   if (!view) {
     return;
@@ -272,8 +364,9 @@ function isActiveView(view: TaskViewState): boolean {
 
 async function createTask(
   provider: RuntimeProvider,
+  lifecycleOwnerToken: string,
   options: { cwd?: string | null } = {},
-): Promise<void> {
+): Promise<{ taskId: string; view: TaskViewState } | null> {
   const providerName = providerLabel(provider);
   state.busy = true;
   state.status = `Starting ${providerName}`;
@@ -310,9 +403,10 @@ async function createTask(
       view.remoteControl.active = true;
     }
     upsertTaskView(state, view);
-    activateTask(response.task.id);
+    activateTask(response.task.id, lifecycleOwnerToken);
     void hydrateTranscript(response.task.id);
     void hydrateUsage(response.task.id);
+    return { taskId: response.task.id, view };
   } catch (error) {
     const message = errorMessage(error);
     state.status = message;
@@ -320,17 +414,12 @@ async function createTask(
       tone: "error",
       text: message,
     };
+    return null;
   } finally {
     state.busy = false;
     render();
   }
 }
-
-/** Re-entrancy guard: a send (materialize + submit) is in flight. Blocks a fast
- *  double-Enter from re-materializing the same attachments (duplicate blob +
- *  double delivery) on the live path, which — unlike new-chat/dormant — has no
- *  state.busy gate. */
-let composerSending = false;
 
 export async function submitPrompt(): Promise<void> {
   const view = activeTaskView();
@@ -339,9 +428,7 @@ export async function submitPrompt(): Promise<void> {
   if (deps.consumeSlashSubmitGuard(text)) {
     return;
   }
-  // A send is already in flight — drop this one (a fast double-Enter would
-  // otherwise re-materialize the same attachments: duplicate blob + double send).
-  if (composerSending) {
+  if (isSessionLifecycleActive(state)) {
     return;
   }
   // Nothing-to-send checks first, so the guard is never held for a no-op.
@@ -357,14 +444,42 @@ export async function submitPrompt(): Promise<void> {
     return;
   }
 
-  composerSending = true;
+  const ownerToken = claimSessionLifecycle((token) => {
+    if (!view) {
+      return { phase: "starting", ownerToken: token, sendAfterStart: true };
+    }
+    if (!view.live && view.task) {
+      return {
+        phase: "preparing-resume",
+        ownerToken: token,
+        taskId: view.task.id,
+        sendAfterResume: true,
+        promptText: text,
+      };
+    }
+    return {
+      phase: "sending",
+      ownerToken: token,
+      taskId: view.task?.id ?? "",
+    };
+  });
+  if (!ownerToken) {
+    return;
+  }
+
+  let retainForResumeChoice = false;
+  render();
   try {
     if (!view) {
       // New chat: the first message (text and/or attachments) creates the session.
-      await createSessionFromComposer(text);
+      await createSessionFromComposer(text, ownerToken);
     } else if (!view.live) {
       // Dormant session: lazy spawn + native resume, then queue the message.
-      await resumeSessionAndSend(view, text);
+      retainForResumeChoice = await resumeSession(
+        view,
+        { sendAfterResume: true, promptText: text },
+        ownerToken,
+      );
     } else if (view.task) {
       const taskId = view.task.id;
       view.status = "Queued";
@@ -381,18 +496,24 @@ export async function submitPrompt(): Promise<void> {
       state.status = errorMessage(error);
     }
   } finally {
-    composerSending = false;
+    if (!retainForResumeChoice) {
+      releaseSessionLifecycle(ownerToken);
+    }
     render();
   }
 }
 
-async function createSessionFromComposer(text: string): Promise<void> {
-  await createTask(state.taskDraft.provider, { cwd: state.taskDraft.cwd });
-  const view = activeTaskView();
-  if (!view?.task) {
+async function createSessionFromComposer(text: string, ownerToken: string): Promise<void> {
+  const created = await createTask(
+    state.taskDraft.provider,
+    ownerToken,
+    { cwd: state.taskDraft.cwd },
+  );
+  if (!created?.view.task) {
     // Creation failed; createTask already surfaced the error.
     return;
   }
+  const { view, taskId } = created;
   // Deferred creation is an ownership handover: this draft now belongs to the
   // session it just created. createTask→activateTask parked the still-visible
   // text into the New Chat slot a moment ago — consume it, or the next New
@@ -401,9 +522,12 @@ async function createSessionFromComposer(text: string): Promise<void> {
   try {
     // The session now exists — materialize the held draft (copy bitmaps, pass
     // references through) and deliver with the first prompt.
-    const attachments = await materializeAttachments(state.draftAttachments, view.task.id);
-    await window.duetRuntime.submitPrompt({ taskId: view.task.id, text, attachments });
-    elements.promptInput.value = "";
+    const attachments = await materializeAttachments(state.draftAttachments, taskId);
+    await window.duetRuntime.submitPrompt({ taskId, text, attachments });
+    view.composerDraft = "";
+    if (state.activeTaskId === taskId) {
+      elements.promptInput.value = "";
+    }
     clearComposerAttachments(state.draftAttachments);
   } catch (error) {
     view.status = errorMessage(error);
@@ -412,7 +536,10 @@ async function createSessionFromComposer(text: string): Promise<void> {
     // now standing in (the new task's), visible and retriable; the attachment
     // draft moves into the task's pending list the same way (keep their
     // preview URLs; don't revoke).
-    elements.promptInput.value = text;
+    view.composerDraft = text;
+    if (state.activeTaskId === taskId) {
+      elements.promptInput.value = text;
+    }
     view.pendingAttachments.push(...state.draftAttachments);
     state.draftAttachments.length = 0;
   } finally {
@@ -420,9 +547,96 @@ async function createSessionFromComposer(text: string): Promise<void> {
   }
 }
 
-async function resumeSessionAndSend(view: TaskViewState, text: string): Promise<void> {
-  if (!view.task) {
+export async function startCliWithoutPrompt(): Promise<void> {
+  if (
+    state.activeTaskId !== null ||
+    state.busy ||
+    !state.launchSettingsHydrated ||
+    isSessionLifecycleActive(state)
+  ) {
     return;
+  }
+  const ownerToken = claimSessionLifecycle((token) => ({
+    phase: "starting",
+    ownerToken: token,
+    sendAfterStart: false,
+  }));
+  if (!ownerToken) {
+    return;
+  }
+  const draftText = elements.promptInput.value;
+  render();
+  try {
+    const created = await createTask(
+      state.taskDraft.provider,
+      ownerToken,
+      { cwd: state.taskDraft.cwd },
+    );
+    if (!created) {
+      return;
+    }
+    const { taskId, view } = created;
+    view.composerDraft = draftText;
+    view.pendingAttachments.push(...state.draftAttachments);
+    state.draftAttachments.length = 0;
+    state.newChatComposerDraft = "";
+    if (state.activeTaskId === taskId) {
+      elements.promptInput.value = draftText;
+    }
+  } catch (error) {
+    state.status = errorMessage(error);
+  } finally {
+    releaseSessionLifecycle(ownerToken);
+    render();
+  }
+}
+
+export async function resumeTaskWithoutPrompt(expectedTaskId: string): Promise<void> {
+  const view = activeTaskView();
+  if (
+    !view?.task ||
+    view.task.id !== expectedTaskId ||
+    view.live ||
+    state.busy ||
+    isSessionLifecycleActive(state)
+  ) {
+    return;
+  }
+  const ownerToken = claimSessionLifecycle((token) => ({
+    phase: "preparing-resume",
+    ownerToken: token,
+    taskId: expectedTaskId,
+    sendAfterResume: false,
+    promptText: "",
+  }));
+  if (!ownerToken) {
+    return;
+  }
+  let retainForResumeChoice = false;
+  render();
+  try {
+    retainForResumeChoice = await resumeSession(
+      view,
+      { sendAfterResume: false, promptText: "" },
+      ownerToken,
+    );
+  } catch (error) {
+    view.status = errorMessage(error);
+  } finally {
+    if (!retainForResumeChoice) {
+      releaseSessionLifecycle(ownerToken);
+    }
+    render();
+  }
+}
+
+async function resumeSession(
+  view: TaskViewState,
+  intent: { sendAfterResume: boolean; promptText: string },
+  ownerToken: string,
+): Promise<boolean> {
+  if (!view.task) {
+    return false;
   }
   const taskId = view.task.id;
 
@@ -430,38 +644,55 @@ async function resumeSessionAndSend(view: TaskViewState, text: string): Promise<
   // policy "ask", the first send CONVERTS into the choice — the message
   // stays composed and sends right after the user decides.
   let resumeMode: "full" | "summary" | undefined;
-  try {
-    const preparation = await window.duetRuntime.prepareResume({ taskId });
-    if (preparation.needsChoice) {
-      view.resumeChoice = {
-        idleMs: preparation.idleMs,
-        totalTokens: preparation.totalTokens,
-        bridgeDismissed: preparation.bridgeDismissed,
-      };
-      view.status = "Choose how to resume";
-      render();
-      return;
-    }
-    if (preparation.overThreshold && preparation.policy !== "ask") {
-      resumeMode = preparation.policy;
-      // The applied default stays visible — a receipt, not a silent policy.
-      view.status =
-        preparation.policy === "full"
-          ? `Resuming in full (your default · ⌘, to change) — ${resumeCostLabel(preparation.idleMs, preparation.totalTokens)}`
-          : `Resuming from summary (your default · ⌘, to change) — /compact runs first`;
-      render();
-    }
-  } catch {
-    // Preparation is best-effort context; resume itself proceeds.
+  const preparation = await window.duetRuntime.prepareResume({ taskId });
+  if (preparation.needsChoice) {
+    view.resumeChoice = {
+      idleMs: preparation.idleMs,
+      totalTokens: preparation.totalTokens,
+      bridgeDismissed: preparation.bridgeDismissed,
+    };
+    view.status = "Choose how to resume";
+    transitionSessionLifecycle(ownerToken, {
+      phase: "awaiting-resume-choice",
+      ownerToken,
+      taskId,
+      sendAfterResume: intent.sendAfterResume,
+      promptText: intent.promptText,
+    });
+    render();
+    return true;
+  }
+  if (preparation.overThreshold && preparation.policy !== "ask") {
+    resumeMode = preparation.policy;
+    // The applied default stays visible — a receipt, not a silent policy.
+    view.status =
+      preparation.policy === "full"
+        ? `Resuming in full (your default · ⌘, to change) — ${resumeCostLabel(preparation.idleMs, preparation.totalTokens)}`
+        : `Resuming from summary (your default · ⌘, to change) — /compact runs first`;
+    render();
   }
 
-  await openDormantSessionAndSend(view, text, resumeMode);
+  transitionSessionLifecycle(ownerToken, {
+    phase: "resuming",
+    ownerToken,
+    taskId,
+    sendAfterResume: intent.sendAfterResume,
+    promptText: intent.promptText,
+  });
+  await openDormantSessionAndSend(
+    view,
+    intent.promptText,
+    resumeMode,
+    intent.sendAfterResume,
+  );
+  return false;
 }
 
 async function openDormantSessionAndSend(
   view: TaskViewState,
   text: string,
   resumeMode: "full" | "summary" | undefined,
+  sendAfterResume: boolean,
 ): Promise<void> {
   if (!view.task) {
     return;
@@ -484,15 +715,22 @@ async function openDormantSessionAndSend(
     view.live = true;
     view.resumeChoice = null;
     view.status = response.resumedProviderSession
-      ? "Resumed — your message will send when the agent is ready"
+      ? sendAfterResume
+        ? "Resumed — your message will send when the agent is ready"
+        : "Resumed"
       : "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable";
-    // The session is live now — materialize the held items (copy bitmaps, pass
-    // references through) and deliver.
-    const attachments = await materializeAttachments(view.pendingAttachments, taskId);
-    if (text || attachments.length > 0) {
-      await window.duetRuntime.submitPrompt({ taskId, text, attachments });
-      elements.promptInput.value = "";
-      clearComposerAttachments(view.pendingAttachments);
+    if (sendAfterResume) {
+      // The session is live now — materialize the held items (copy bitmaps,
+      // pass references through) and deliver.
+      const attachments = await materializeAttachments(view.pendingAttachments, taskId);
+      if (text || attachments.length > 0) {
+        await window.duetRuntime.submitPrompt({ taskId, text, attachments });
+        view.composerDraft = "";
+        if (state.activeTaskId === taskId) {
+          elements.promptInput.value = "";
+        }
+        clearComposerAttachments(view.pendingAttachments);
+      }
     }
     void hydrateUsage(taskId);
   } catch (error) {
@@ -505,26 +743,51 @@ async function openDormantSessionAndSend(
 
 export async function resolveResumeChoice(mode: "full" | "summary"): Promise<void> {
   const view = activeTaskView();
-  if (!view?.task || !view.resumeChoice) {
+  const lifecycle = state.sessionLifecycle;
+  if (
+    !view?.task ||
+    !view.resumeChoice ||
+    lifecycle.phase !== "awaiting-resume-choice" ||
+    lifecycle.taskId !== view.task.id
+  ) {
     return;
   }
-  if (elements.resumeRemember.checked) {
+  const { ownerToken, promptText, sendAfterResume, taskId } = lifecycle;
+  if (
+    !transitionSessionLifecycle(ownerToken, {
+      phase: "resuming",
+      ownerToken,
+      taskId,
+      sendAfterResume,
+      promptText,
+    })
+  ) {
+    return;
+  }
+  const remember = elements.resumeRemember.checked;
+  view.resumeChoice = null;
+  elements.resumeRemember.checked = false;
+  render();
+
+  try {
+    if (remember) {
     // The moment is where the setting is born; the chooser collapses for
     // future resumes and the policy lives in Duet's own settings store.
     // Provenance marks the birth so the Settings page can attribute it.
-    try {
-      await window.duetRuntime.writeResumeSettings({
-        policy: mode,
-        provenance: { source: "moment", at: new Date().toISOString() },
-      });
-    } catch {
-      // Remembering is best-effort; the chosen resume still proceeds.
+      try {
+        await window.duetRuntime.writeResumeSettings({
+          policy: mode,
+          provenance: { source: "moment", at: new Date().toISOString() },
+        });
+      } catch {
+        // Remembering is best-effort; the chosen resume still proceeds.
+      }
     }
+    await openDormantSessionAndSend(view, promptText, mode, sendAfterResume);
+  } finally {
+    releaseSessionLifecycle(ownerToken);
+    render();
   }
-  view.resumeChoice = null;
-  elements.resumeRemember.checked = false;
-  const text = elements.promptInput.value.trim();
-  await openDormantSessionAndSend(view, text, mode);
 }
 
 function resumeCostLabel(idleMs: number | null, totalTokens: number | null): string {

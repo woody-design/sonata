@@ -310,22 +310,22 @@ const run = (status, extra = {}) => ({
 {
   assert.equal(
     C.sessionModelSwitchHint("claude"),
-    "Switch models in the terminal — /model",
+    "Switch models in the CLI — /model",
     "claude model hint names /model",
   );
   assert.equal(
     C.sessionModelSwitchHint("codex"),
-    "Switch model and effort in the terminal — /model",
+    "Switch model and effort in the CLI — /model",
     "codex model hint names /model and calls out effort",
   );
   assert.equal(
     C.sessionPermissionSwitchHint("claude"),
-    "Switch modes in the terminal — Shift+Tab or /permissions",
+    "Switch modes in the CLI — Shift+Tab or /permissions",
     "claude permission hint keeps Shift+Tab",
   );
   assert.equal(
     C.sessionPermissionSwitchHint("codex"),
-    "Switch permissions in the terminal — /permissions",
+    "Switch permissions in the CLI — /permissions",
     "codex permission hint drops Shift+Tab, names /permissions",
   );
 }

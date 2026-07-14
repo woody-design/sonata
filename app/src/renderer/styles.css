@@ -153,6 +153,13 @@
      Resolved to rgb() in terminalTheme() via a probe element. Woody dials live. */
   --term-bg: var(--surface);
   --term-fg: var(--ink);
+  /* Small CLI chrome/support copy must remain WCAG-AA readable in every
+     theme/mode. Keep this opaque and semantic: alpha-over-background muted
+     text fell below 4.5:1 in several light palettes. */
+  --term-muted: color-mix(in srgb, var(--term-fg) 74%, var(--term-bg));
+  /* The empty action is the pane's local affordance. Its edge must remain
+     distinguishable from the continuous CLI surface (3:1 non-text contrast). */
+  --term-control-border: color-mix(in srgb, var(--term-fg) 58%, var(--term-bg));
   --term-cursor: var(--accent-strong);
   --term-cursor-accent: var(--ink-on-accent);
   --term-selection-bg: color-mix(in srgb, var(--surface) 72%, var(--accent) 28%);
@@ -771,7 +778,7 @@ body.sidebar-resizing {
    occupy the left ~76px; the in-sidebar collapse button sits just past them.
    The whole strip is a window-drag handle (buttons opt back out). */
 .sidebar-rail {
-  height: 44px;
+  height: 48px;
   display: flex;
   align-items: center;
   padding-left: 78px;
@@ -1486,21 +1493,22 @@ body.sidebar-resizing {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--surface-shell);
-  color: var(--text-body);
+  background: var(--term-bg);
+  color: var(--term-fg);
 }
 
 .terminal-window-topbar {
   -webkit-app-region: drag;
   flex: 0 0 auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
-  min-height: 44px;
-  padding: 8px 16px 8px 82px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-raised);
+  height: 48px;
+  min-height: 48px;
+  padding: 0 12px;
+  border-bottom: 0;
+  background: var(--term-bg);
 }
 
 .terminal-window-topbar .eyebrow {
@@ -1508,10 +1516,53 @@ body.sidebar-resizing {
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.01em;
-  color: var(--text-body);
+  color: var(--term-fg);
+}
+
+.terminal-window-label {
+  justify-self: start;
+  /* Keep native traffic-light space inside the left grid zone so the equal
+     outer columns still center the breadcrumb in the WINDOW, not in an
+     asymmetrically padded remainder. 12px topbar padding + 70px = x82. */
+  padding-left: 70px;
+}
+
+.terminal-window-breadcrumb {
+  min-width: 0;
+  max-width: min(52vw, 560px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--term-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.terminal-window-breadcrumb-project,
+.terminal-window-breadcrumb-session {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-window-breadcrumb-project {
+  flex: 0 1 auto;
+}
+
+.terminal-window-breadcrumb-session {
+  flex: 1 1 auto;
+  color: var(--term-fg);
+  font-weight: 600;
+}
+
+.terminal-window-breadcrumb-separator {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--term-fg) 42%, transparent);
 }
 
 .terminal-window-topbar-actions {
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1529,6 +1580,7 @@ body.sidebar-resizing {
   display: flex;
   flex-direction: column;
   position: relative;
+  background: var(--term-bg);
 }
 
 /* Mirrors the main window's #terminal wrapper: FitAddon measures this padded
@@ -1537,6 +1589,7 @@ body.sidebar-resizing {
   flex: 1;
   min-height: 0;
   padding: 12px;
+  background: var(--term-bg);
 }
 
 .terminal-window-placeholder {
@@ -1544,12 +1597,45 @@ body.sidebar-resizing {
   inset: 0;
   margin: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   padding: 20px;
   font-size: 13px;
-  color: var(--text-muted, var(--text-body));
-  pointer-events: none;
+  color: var(--term-muted);
+}
+
+.terminal-empty-action {
+  min-height: 36px;
+  border: 1px solid var(--term-control-border);
+  border-radius: 8px;
+  padding: 0 15px;
+  color: var(--term-fg);
+  background: color-mix(in srgb, var(--term-fg) 10%, var(--term-bg));
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.terminal-empty-action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--term-fg) 64%, var(--term-bg));
+  background: color-mix(in srgb, var(--term-fg) 15%, var(--term-bg));
+}
+
+.terminal-empty-action:focus-visible {
+  outline: 2px solid var(--term-fg);
+  outline-offset: 2px;
+}
+
+.terminal-empty-action:disabled {
+  opacity: 0.56;
+}
+
+.terminal-empty-detail {
+  max-width: 360px;
+  margin: 0;
+  text-align: center;
+  line-height: 1.45;
 }
 
 /* The terminal's own Aa theme picker — a compact popover under the header
@@ -1687,6 +1773,12 @@ body.sidebar-resizing {
 .task-chrome input,
 .task-chrome [role="button"] {
   -webkit-app-region: no-drag;
+}
+
+.cli-toggle[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-control));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-control));
+  color: var(--ink-strong);
 }
 
 /* The header's expand button only exists while collapsed (the in-sidebar
@@ -2458,6 +2550,64 @@ h2 {
   );
 }
 
+/* Zero-height bridge between the transcript scroller and Composer. The button
+   floats inside the reading edge without reserving layout space or changing
+   the user's distance-from-bottom calculation. */
+.scroll-to-bottom-anchor {
+  position: relative;
+  z-index: 6;
+  flex: 0 0 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.scroll-to-bottom {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  transform: translateX(-50%);
+  border: 1px solid var(--border-control);
+  border-radius: 999px;
+  color: var(--ink-ui-strong);
+  background: var(--surface-panel);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 12%);
+  pointer-events: auto;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.scroll-to-bottom.hidden {
+  display: none;
+}
+
+.scroll-to-bottom:hover {
+  transform: translate(-50%, -1px);
+  border-color: var(--accent-soft-border);
+  background: var(--surface-raised);
+}
+
+.scroll-to-bottom:active {
+  transform: translateX(-50%);
+}
+
+.scroll-to-bottom:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-to-bottom {
+    transition: none;
+  }
+}
+
 .sticky-prompt-rail {
   position: sticky;
   top: 0;
@@ -3078,6 +3228,21 @@ h2 {
   margin: 2px auto 12px;
   position: relative;
   z-index: 2;
+}
+
+.composer:focus {
+  outline: 0;
+}
+
+.composer:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 16px;
+}
+
+.composer:focus-visible .composer-card {
+  border-color: var(--accent-soft-border);
+  box-shadow: var(--shadow-composer-focus);
 }
 
 /* The white card — the message and its controls. A distinct filled field
@@ -3800,6 +3965,16 @@ h2 {
 .task-terminal {
   width: 100%;
   height: 100%;
+  background: var(--term-bg);
+}
+
+/* xterm's package CSS owns the viewport gutter independently of the canvas.
+   Pin both DOM layers to the same token as the shell/header so scrollback and
+   the padded frame cannot reveal a second surface color. The theme object uses
+   this token for the canvas itself (terminal.ts::terminalTheme). */
+.terminal-window-term .task-terminal .xterm,
+.terminal-window-term .task-terminal .xterm .xterm-viewport {
+  background-color: var(--term-bg);
 }
 
 /* Programming ligatures (D8). The character joiner (main.ts) groups a sequence

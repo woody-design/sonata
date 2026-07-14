@@ -79,6 +79,8 @@ export const IPC_CHANNELS = {
   terminalActiveTaskSet: "terminal-active-task:set",
   terminalActiveTaskRead: "terminal-active-task:read",
   terminalActiveTask: "terminal-active-task",
+  cliActionRequest: "cli-action:request",
+  cliAction: "cli-action",
   // WorkspaceFiles seam (§6.1): classified single-file read, one-level dir read,
   // stat, and the batched chip-mention resolver — the renderer never sniffs
   // bytes, classification and existence resolution run in main.
@@ -320,6 +322,9 @@ export interface TerminalReplayRequest {
  * task has no live terminal to replay.
  */
 export interface TerminalReplaySnapshot {
+  /** Main-process-monotonic TerminalHost identity. Replay and buffered live
+   *  chunks may only be stitched within the newest represented generation. */
+  generation: number;
   data: string;
   cols: number;
   rows: number;
@@ -524,6 +529,125 @@ export interface TerminalActiveTaskState {
   /** Every open task's id. The terminal window keeps a live xterm per task for
    *  instant switching and disposes any whose task has closed. */
   openTaskIds: TaskId[];
+  projectName: string;
+  sessionTitle: string;
+  emptySurface: CliEmptySurface;
+}
+
+export type CliEmptySurface =
+  | { kind: "none" }
+  | {
+      kind: "fresh";
+      phase: "ready" | "starting";
+      disabledReason?: string;
+    }
+  | {
+      kind: "dormant";
+      phase: "ready" | "preparing" | "resuming";
+      taskId: TaskId;
+      disabledReason?: string;
+    }
+  | { kind: "resume-choice"; taskId: TaskId };
+
+export type CliActionRequest =
+  | { action: "start"; expectedTaskId: null }
+  | { action: "resume"; expectedTaskId: TaskId };
+
+export function isCliActionRequest(value: unknown): value is CliActionRequest {
+  if (!isUnknownRecord(value) || !hasOnlyKeys(value, ["action", "expectedTaskId"])) {
+    return false;
+  }
+  if (value.action === "start") {
+    return value.expectedTaskId === null;
+  }
+  return value.action === "resume" && isNonEmptyString(value.expectedTaskId);
+}
+
+export function isTerminalActiveTaskState(value: unknown): value is TerminalActiveTaskState {
+  if (
+    !isUnknownRecord(value) ||
+    !hasOnlyKeys(value, [
+      "taskId",
+      "live",
+      "openTaskIds",
+      "projectName",
+      "sessionTitle",
+      "emptySurface",
+    ])
+  ) {
+    return false;
+  }
+  if (value.taskId !== null && !isNonEmptyString(value.taskId)) {
+    return false;
+  }
+  if (
+    typeof value.live !== "boolean" ||
+    !Array.isArray(value.openTaskIds) ||
+    !value.openTaskIds.every(isNonEmptyString) ||
+    new Set(value.openTaskIds).size !== value.openTaskIds.length ||
+    !isNonEmptyString(value.projectName) ||
+    !isNonEmptyString(value.sessionTitle) ||
+    !isCliEmptySurface(value.emptySurface)
+  ) {
+    return false;
+  }
+  if (value.taskId === null) {
+    return value.live === false && value.emptySurface.kind === "fresh";
+  }
+  if (!value.openTaskIds.includes(value.taskId)) {
+    return false;
+  }
+  return value.live
+    ? value.emptySurface.kind === "none"
+    : (
+        (value.emptySurface.kind === "dormant" ||
+          value.emptySurface.kind === "resume-choice") &&
+        value.emptySurface.taskId === value.taskId
+      );
+}
+
+function isCliEmptySurface(value: unknown): value is CliEmptySurface {
+  if (!isUnknownRecord(value) || typeof value.kind !== "string") {
+    return false;
+  }
+  if (value.kind === "none") {
+    return hasOnlyKeys(value, ["kind"]);
+  }
+  const validDisabledReason =
+    value.disabledReason === undefined || typeof value.disabledReason === "string";
+  if (value.kind === "fresh") {
+    return (
+      hasOnlyKeys(value, ["kind", "phase", "disabledReason"]) &&
+      (value.phase === "ready" || value.phase === "starting") &&
+      validDisabledReason
+    );
+  }
+  if (value.kind === "dormant") {
+    return (
+      hasOnlyKeys(value, ["kind", "phase", "taskId", "disabledReason"]) &&
+      (value.phase === "ready" || value.phase === "preparing" || value.phase === "resuming") &&
+      isNonEmptyString(value.taskId) &&
+      validDisabledReason
+    );
+  }
+  return (
+    value.kind === "resume-choice" &&
+    hasOnlyKeys(value, ["kind", "taskId"]) &&
+    isNonEmptyString(value.taskId)
+  );
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: string[]): boolean {
+  const allowedKeys = new Set(allowed);
+  return Object.keys(value).every((key) => allowedKeys.has(key));
 }
 
 export interface WorkspaceOpenFolderRequest {
@@ -609,6 +733,8 @@ export interface DuetRuntimeBridge {
   setActiveTerminalTask(state: TerminalActiveTaskState): Promise<void>;
   readActiveTerminalTask(): Promise<TerminalActiveTaskState>;
   onActiveTerminalTask(callback: (state: TerminalActiveTaskState) => void): () => void;
+  requestCliAction(request: CliActionRequest): Promise<void>;
+  onCliAction(callback: (request: CliActionRequest) => void): () => void;
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   pickFolder(): Promise<FolderPickResponse>;

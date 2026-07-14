@@ -1,6 +1,9 @@
 import { clipboard, ipcMain, shell } from "electron";
 import {
   IPC_CHANNELS,
+  isCliActionRequest,
+  isTerminalActiveTaskState,
+  type CliActionRequest,
   type ClipboardReadTextResponse,
   type FolderPickResponse,
   type OpenPreviewRequest,
@@ -37,6 +40,22 @@ import {
 // can't bypass it, and we open the re-serialized parsed URL, never the raw string.
 const TERMINAL_LINK_ALLOWED_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
+type IpcTestGate = "TASK_CREATE" | "TASK_OPEN" | "RESUME_SETTINGS_WRITE";
+
+// End-to-end lifecycle tests need to hold or reject an IPC boundary after the
+// renderer has synchronously claimed ownership. Keep that seam at the real
+// process boundary (rather than mocking renderer APIs) and inert unless an
+// explicitly test-scoped launch variable is present.
+async function passIpcTestGate(gate: IpcTestGate): Promise<void> {
+  const delay = Number(process.env[`DUET_TEST_${gate}_DELAY_MS`] ?? "0");
+  if (Number.isFinite(delay) && delay > 0) {
+    await new Promise<void>((resolve) => setTimeout(resolve, Math.min(delay, 10_000)));
+  }
+  if (process.env[`DUET_TEST_${gate}_FAIL`] === "1") {
+    throw new Error(`Injected ${gate.toLowerCase()} failure.`);
+  }
+}
+
 function openExternalIfAllowed(rawUrl: string): boolean {
   let parsed: URL;
   try {
@@ -70,8 +89,9 @@ export interface WindowIpcController {
   readTerminalWindowState(): TerminalWindowState;
   readTerminalWindowSettings(): TerminalWindowSettings;
   writeTerminalWindowSettings(settings: TerminalWindowSettings): TerminalWindowSettings;
-  setActiveTerminalTask(state: TerminalActiveTaskState): void;
+  setActiveTerminalTask(state: TerminalActiveTaskState, senderId: number): void;
   readActiveTerminalTask(): TerminalActiveTaskState;
+  requestCliAction(request: CliActionRequest, senderId: number): void;
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   pickFolder(): Promise<FolderPickResponse>;
@@ -95,12 +115,14 @@ export function registerIpcHandlers(
     event.returnValue = (process.env.DUET_INSTANCE_LABEL ?? "").trim();
   });
 
-  ipcMain.handle(IPC_CHANNELS.taskCreate, (_event, request) =>
-    runtimeController.createTask(request),
-  );
-  ipcMain.handle(IPC_CHANNELS.taskOpen, (_event, request) =>
-    runtimeController.openTask(request),
-  );
+  ipcMain.handle(IPC_CHANNELS.taskCreate, async (_event, request) => {
+    await passIpcTestGate("TASK_CREATE");
+    return runtimeController.createTask(request);
+  });
+  ipcMain.handle(IPC_CHANNELS.taskOpen, async (_event, request) => {
+    await passIpcTestGate("TASK_OPEN");
+    return runtimeController.openTask(request);
+  });
   ipcMain.handle(IPC_CHANNELS.taskClose, (_event, request) => {
     runtimeController.closeTask(request.taskId);
   });
@@ -217,12 +239,21 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.terminalWindowStateRead, () =>
     windowController.readTerminalWindowState(),
   );
-  ipcMain.handle(IPC_CHANNELS.terminalActiveTaskSet, (_event, state) => {
-    windowController.setActiveTerminalTask(state);
+  ipcMain.handle(IPC_CHANNELS.terminalActiveTaskSet, (event, state: unknown) => {
+    if (!isTerminalActiveTaskState(state)) {
+      throw new Error("Invalid CLI binding.");
+    }
+    windowController.setActiveTerminalTask(state, event.sender.id);
   });
   ipcMain.handle(IPC_CHANNELS.terminalActiveTaskRead, () =>
     windowController.readActiveTerminalTask(),
   );
+  ipcMain.handle(IPC_CHANNELS.cliActionRequest, (event, request: unknown) => {
+    if (!isCliActionRequest(request)) {
+      throw new Error("Invalid CLI action.");
+    }
+    windowController.requestCliAction(request, event.sender.id);
+  });
   ipcMain.handle(IPC_CHANNELS.terminalWindowSettingsRead, () =>
     windowController.readTerminalWindowSettings(),
   );
@@ -252,9 +283,10 @@ export function registerIpcHandlers(
     runtimeController.prepareResume(request.taskId),
   );
   ipcMain.handle(IPC_CHANNELS.resumeSettingsRead, () => runtimeController.readResumeSettings());
-  ipcMain.handle(IPC_CHANNELS.resumeSettingsWrite, (_event, request) =>
-    runtimeController.writeResumeSettings(request),
-  );
+  ipcMain.handle(IPC_CHANNELS.resumeSettingsWrite, async (_event, request) => {
+    await passIpcTestGate("RESUME_SETTINGS_WRITE");
+    return runtimeController.writeResumeSettings(request);
+  });
   ipcMain.handle(IPC_CHANNELS.resumeBridgeRevert, () => runtimeController.revertResumeBridge());
   ipcMain.handle(IPC_CHANNELS.claudeSettingsRead, () => runtimeController.readClaudeSettings());
   ipcMain.handle(IPC_CHANNELS.claudeSettingsWrite, (_event, request) =>

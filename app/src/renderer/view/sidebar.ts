@@ -33,6 +33,7 @@ import {
 import {
   SIDEBAR_PREFS_DEFAULTS,
   anchorRectOf,
+  isSessionLifecycleActive,
   taskViewForId,
   type FilterMenuSection,
   type RendererState,
@@ -298,12 +299,13 @@ function renderSidebarProject(group: SidebarDisclosureProjectGroup): HTMLElement
   );
   const newChatButton = sidebarIconButton(
     Plus,
-    `New chat in ${project.name}`,
+    `New task in ${project.name}`,
     () => {
       actions.startNewChat(project.path);
     },
     `${projectFocusKey(project.path)}:new-chat`,
   );
+  newChatButton.disabled = isSessionLifecycleActive(state);
   rowActions.append(menuButton, newChatButton);
 
   header.append(labelButton, rowActions);
@@ -696,6 +698,7 @@ function renderSidebarSessionRow(session: SessionSummary): HTMLElement {
   button.type = "button";
   button.className = "sidebar-session-button";
   button.title = task.title;
+  button.disabled = isSessionLifecycleActive(state);
   setSidebarFocusKey(button, sessionFocusKey(task.id));
   if (active) {
     button.setAttribute("aria-current", "page");
@@ -767,7 +770,7 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
       spinner.title = "No recent activity";
     } else if (liveness === "silent") {
       spinner.classList.add("silent");
-      spinner.title = "No sign of activity — check the terminal";
+      spinner.title = "No sign of activity — check the CLI";
     }
     spinner.setAttribute("aria-label", spinner.title);
     spinner.append(lucideIcon(LoaderCircle, 14));
@@ -810,7 +813,7 @@ export function updateSidebarSpinnerLiveness(view: TaskViewState): void {
     liveness === "quiet"
       ? "No recent activity"
       : liveness === "silent"
-        ? "No sign of activity — check the terminal"
+        ? "No sign of activity — check the CLI"
         : "Working";
   spinner.setAttribute("aria-label", spinner.title);
 }
@@ -928,7 +931,7 @@ function renderSidebarMenuContents(): void {
     );
   } else {
     panel.append(
-      sidebarMenuItem("New chat here", () => {
+      sidebarMenuItem("New task here", () => {
         actions.startNewChat(menu.path);
       }, "default", `menu:project:${menu.path}:new-chat`),
       sidebarMenuItem("Rename project", () => {
@@ -941,6 +944,12 @@ function renderSidebarMenuContents(): void {
         actions.archiveProject(menu.path, !menu.archived);
       }, menu.archived ? "default" : "danger", `menu:project:${menu.path}:archive`),
     );
+  }
+
+  if (isSessionLifecycleActive(state)) {
+    panel.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+      button.disabled = true;
+    });
   }
 
   positionSidebarMenu(panel, menu.anchor);

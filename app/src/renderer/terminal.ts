@@ -14,7 +14,11 @@ import {
   type TerminalReplaySnapshot,
   type TerminalWindowSettings,
 } from "../shared/types";
-import { stitchHydration, type HydrationChunk } from "../shared/terminal-hydration";
+import {
+  hydrationGeneration,
+  stitchHydration,
+  type HydrationChunk,
+} from "../shared/terminal-hydration";
 
 // The terminal satellite window's xterm view. The PTY lives in the main
 // process; this renders it. One xterm per LIVE task (kept alive so switching
@@ -36,30 +40,42 @@ function requireEl<T extends HTMLElement>(selector: string): T {
 
 const appElement = requireEl<HTMLDivElement>("#app");
 appElement.innerHTML = `
-  <section class="terminal-window-shell" aria-label="Duet Terminal">
+  <section class="terminal-window-shell" aria-label="Duet CLI">
     <header class="terminal-window-topbar">
-      <p class="eyebrow">Terminal</p>
+      <p class="eyebrow terminal-window-label">CLI</p>
+      <div class="terminal-window-breadcrumb" aria-label="Active project and task">
+        <span id="terminal-project-name" class="terminal-window-breadcrumb-project">Tasks</span>
+        <span class="terminal-window-breadcrumb-separator" aria-hidden="true">›</span>
+        <span id="terminal-session-title" class="terminal-window-breadcrumb-session">New task</span>
+      </div>
       <div class="terminal-window-topbar-actions">
-        <button id="terminal-theme-trigger" class="secondary" type="button" aria-haspopup="dialog" aria-expanded="false" title="Terminal theme">Aa</button>
+        <button id="terminal-theme-trigger" class="secondary" type="button" aria-haspopup="dialog" aria-expanded="false" title="CLI theme">Aa</button>
       </div>
     </header>
     <section class="terminal-window-content">
       <div id="terminal-window-term" class="terminal-window-term"></div>
       <div id="terminal-window-search" class="terminal-search hidden" role="search">
-        <input id="terminal-window-search-input" class="terminal-search-input" type="text" placeholder="Find" aria-label="Find in terminal" spellcheck="false" autocomplete="off" />
+        <input id="terminal-window-search-input" class="terminal-search-input" type="text" placeholder="Find" aria-label="Find in CLI" spellcheck="false" autocomplete="off" />
         <span id="terminal-window-search-count" class="terminal-search-count" aria-live="polite"></span>
         <button id="terminal-window-search-prev" class="terminal-search-btn" type="button" title="Previous (⇧⏎)" aria-label="Previous match">↑</button>
         <button id="terminal-window-search-next" class="terminal-search-btn" type="button" title="Next (⏎)" aria-label="Next match">↓</button>
         <button id="terminal-window-search-close" class="terminal-search-btn" type="button" title="Close (Esc)" aria-label="Close find">✕</button>
       </div>
-      <p id="terminal-window-empty" class="terminal-window-placeholder">No active task — start or select one in Duet.</p>
+      <div id="terminal-window-empty" class="terminal-window-placeholder" aria-live="polite">
+        <button id="terminal-empty-action" class="terminal-empty-action" type="button">Start CLI</button>
+        <p id="terminal-empty-detail" class="terminal-empty-detail">Start with the current task settings without sending a prompt.</p>
+      </div>
     </section>
-    <div id="terminal-theme-popover" class="terminal-theme-popover hidden" role="dialog" aria-label="Terminal theme"></div>
+    <div id="terminal-theme-popover" class="terminal-theme-popover hidden" role="dialog" aria-label="CLI theme"></div>
   </section>
 `;
 
 const termMount = requireEl<HTMLDivElement>("#terminal-window-term");
-const emptyState = requireEl<HTMLParagraphElement>("#terminal-window-empty");
+const emptyState = requireEl<HTMLDivElement>("#terminal-window-empty");
+const emptyAction = requireEl<HTMLButtonElement>("#terminal-empty-action");
+const emptyDetail = requireEl<HTMLParagraphElement>("#terminal-empty-detail");
+const projectName = requireEl<HTMLSpanElement>("#terminal-project-name");
+const sessionTitle = requireEl<HTMLSpanElement>("#terminal-session-title");
 const themeTrigger = requireEl<HTMLButtonElement>("#terminal-theme-trigger");
 const themePopover = requireEl<HTMLDivElement>("#terminal-theme-popover");
 const searchBox = requireEl<HTMLDivElement>("#terminal-window-search");
@@ -167,6 +183,9 @@ function terminalTheme(): ITheme {
 
 interface TaskTerminal {
   taskId: string;
+  /** Runtime identity currently rendered. Null only until replay/live data
+   *  identifies a just-created entry. */
+  generation: number | null;
   terminal: Terminal;
   fit: FitAddon;
   search: SearchAddon;
@@ -186,8 +205,17 @@ interface TaskTerminal {
 }
 
 const terminals = new Map<string, TaskTerminal>();
+// A persistent task id may outlive many TerminalHosts. Keep the newest retired
+// generation after its xterm is gone so no-entry data can distinguish a stale
+// tail (ignore) from a genuinely newer runtime (recreate if this task is active).
+const retiredTerminalGenerations = new Map<string, number>();
 let activeTaskId: string | null = null;
 let activeLive = false;
+let activeBinding: TerminalActiveTaskState | null = null;
+// Monotonic renderer-local diagnostic beacon. Generation-race E2E uses this
+// to distinguish recovery driven by fresh pty:data from recovery that merely
+// happened to coincide with a delayed Reading binding refresh.
+let activeBindingRevision = 0;
 // The task the open find box is bound to (declared early — a render-time
 // reference to a later `let` would hit the temporal dead zone).
 let searchBoundTaskId: string | null = null;
@@ -248,6 +276,7 @@ function createTaskTerminal(taskId: string): TaskTerminal {
   // issued before open(), so a hidden terminal keeps a faithful mirror.
   const element = document.createElement("div");
   element.className = "task-terminal hidden";
+  element.dataset.taskId = taskId;
   termMount.append(element);
 
   const dataListener = term.onData((data) => forwardUserInput(taskId, data));
@@ -293,6 +322,7 @@ function createTaskTerminal(taskId: string): TaskTerminal {
 
   const entry: TaskTerminal = {
     taskId,
+    generation: null,
     terminal: term,
     fit,
     search,
@@ -342,13 +372,19 @@ async function hydrateData(entry: TaskTerminal): Promise<void> {
   // buffered tail are applied in one synchronous run, so no live chunk can slip
   // in mid-drain and reorder. xterm's write queue is FIFO, so call-order is
   // apply-order.
-  if (snapshot) {
+  const generation = hydrationGeneration(snapshot, entry.buffer);
+  const compatibleSnapshot = snapshot?.generation === generation ? snapshot : null;
+  if (compatibleSnapshot) {
     // Restore at the captured geometry BEFORE open() so wrapping matches; the
     // fit on first show reflows to the window size.
-    entry.terminal.resize(snapshot.cols, snapshot.rows);
+    entry.terminal.resize(compatibleSnapshot.cols, compatibleSnapshot.rows);
   }
   for (const chunk of stitchHydration(snapshot, entry.buffer)) {
     entry.terminal.write(chunk);
+  }
+  entry.generation = generation;
+  if (generation !== null) {
+    entry.element.dataset.generation = String(generation);
   }
   entry.buffer.length = 0;
   entry.bufferedChars = 0;
@@ -368,8 +404,13 @@ const HYDRATION_BUFFER_MAX_CHARS = 8_000_000;
 /** Append a live chunk to a hydrating terminal's buffer, enforcing the size cap
  *  with drop-oldest + a logged warning (never a silent cap). Keeps at least the
  *  newest chunk so a lone oversized chunk can't empty the buffer. */
-function bufferDuringHydration(entry: TaskTerminal, data: string, seq: number): void {
-  entry.buffer.push({ data, seq });
+function bufferDuringHydration(
+  entry: TaskTerminal,
+  generation: number,
+  data: string,
+  seq: number,
+): void {
+  entry.buffer.push({ generation, data, seq });
   entry.bufferedChars += data.length;
   if (entry.bufferedChars <= HYDRATION_BUFFER_MAX_CHARS) {
     return;
@@ -415,6 +456,15 @@ function disposeTaskTerminal(taskId: string): void {
   if (!entry) {
     return;
   }
+  const generation = hydrationGeneration(null, entry.buffer) ?? entry.generation;
+  if (generation !== null) {
+    retireTerminalGeneration(taskId, generation);
+  }
+  if (searchBoundTaskId === taskId) {
+    entry.search.clearDecorations();
+    searchBoundTaskId = null;
+    searchBox.classList.add("hidden");
+  }
   terminals.delete(taskId);
   for (const dispose of entry.disposers) {
     dispose();
@@ -423,9 +473,12 @@ function disposeTaskTerminal(taskId: string): void {
   entry.element.remove();
 }
 
-// Placeholders for when there is no live terminal to show.
-const EMPTY_NO_TASK = "No active task — start or select one in Duet.";
-const EMPTY_DORMANT = "This session isn't running — send a message in Duet to resume it.";
+function retireTerminalGeneration(taskId: string, generation: number): void {
+  retiredTerminalGenerations.set(
+    taskId,
+    Math.max(retiredTerminalGenerations.get(taskId) ?? -1, generation),
+  );
+}
 
 /** Show the active task's terminal; hide the rest (no DOM re-parenting — the v6
  *  re-render-on-reopen regression bites there). Open the active one lazily. When
@@ -434,11 +487,11 @@ const EMPTY_DORMANT = "This session isn't running — send a message in Duet to 
  *  which, rather than a blank grid. */
 function showActiveTerminal(): void {
   for (const [id, entry] of terminals) {
-    entry.element.classList.toggle("hidden", id !== activeTaskId);
+    entry.element.classList.toggle("hidden", id !== activeTaskId || !activeLive);
   }
-  const entry = activeTaskId ? terminals.get(activeTaskId) ?? null : null;
+  const entry = activeTaskId && activeLive ? terminals.get(activeTaskId) ?? null : null;
   if (!entry) {
-    emptyState.textContent = activeTaskId ? EMPTY_DORMANT : EMPTY_NO_TASK;
+    renderEmptySurface();
     emptyState.classList.remove("hidden");
     return;
   }
@@ -450,20 +503,96 @@ function showActiveTerminal(): void {
   }
 }
 
+function renderEmptySurface(): void {
+  const surface = activeBinding?.emptySurface ?? {
+    kind: "fresh",
+    phase: "ready",
+    disabledReason: "Loading task settings",
+  };
+  emptyAction.classList.remove("hidden");
+  emptyAction.disabled = false;
+  if (surface.kind === "fresh") {
+    const starting = surface.phase === "starting";
+    emptyAction.textContent = starting ? "Starting…" : "Start CLI";
+    emptyAction.disabled = starting || Boolean(surface.disabledReason);
+    emptyDetail.textContent =
+      surface.disabledReason ??
+      "Start with the current task settings without sending a prompt.";
+    return;
+  }
+  if (surface.kind === "dormant") {
+    const progressing = surface.phase !== "ready";
+    emptyAction.textContent =
+      surface.phase === "preparing"
+        ? "Preparing…"
+        : surface.phase === "resuming"
+          ? "Resuming…"
+          : "Resume task";
+    emptyAction.disabled = progressing || Boolean(surface.disabledReason);
+    emptyDetail.textContent =
+      surface.disabledReason ?? "Resume this task without sending the Composer draft.";
+    return;
+  }
+  emptyAction.classList.add("hidden");
+  emptyAction.disabled = true;
+  emptyDetail.textContent =
+    surface.kind === "resume-choice"
+      ? "Choose how to resume in Duet. Summary mode compacts first."
+      : "CLI is getting ready…";
+}
+
+emptyAction.addEventListener("click", () => {
+  const surface = activeBinding?.emptySurface;
+  if (!surface || emptyAction.disabled) {
+    return;
+  }
+  const request =
+    surface.kind === "fresh" && surface.phase === "ready"
+      ? { action: "start" as const, expectedTaskId: null }
+      : surface.kind === "dormant" && surface.phase === "ready"
+        ? { action: "resume" as const, expectedTaskId: surface.taskId }
+        : null;
+  if (!request) {
+    return;
+  }
+  // Close the pre-binding double-click window locally. Reading remains the
+  // authoritative state owner and will shortly push the claimed phase back.
+  emptyAction.disabled = true;
+  emptyDetail.textContent = request.action === "start" ? "Starting CLI…" : "Preparing resume…";
+  void window.duetRuntime.requestCliAction(request).catch(() => {
+    renderEmptySurface();
+  });
+});
+
 function applyActiveTask(next: TerminalActiveTaskState): void {
-  if (searchBoundTaskId && searchBoundTaskId !== next.taskId) {
-    // The find box lives on one terminal's decorations; a task switch closes it.
+  activeBindingRevision += 1;
+  appElement.dataset.activeTaskBindingRevision = String(activeBindingRevision);
+  if (searchBoundTaskId && (searchBoundTaskId !== next.taskId || !next.live)) {
+    // The find box lives on one terminal's decorations; a task switch or PTY
+    // retirement closes it before that xterm is disposed.
     terminals.get(searchBoundTaskId)?.search.clearDecorations();
     searchBoundTaskId = null;
     searchBox.classList.add("hidden");
   }
   activeTaskId = next.taskId;
   activeLive = next.live;
+  activeBinding = next;
+  projectName.textContent = next.projectName;
+  projectName.title = next.projectName;
+  sessionTitle.textContent = next.sessionTitle;
+  sessionTitle.title = next.sessionTitle;
   // Dispose terminals whose task has closed.
   for (const id of [...terminals.keys()]) {
     if (!next.openTaskIds.includes(id)) {
       disposeTaskTerminal(id);
     }
+  }
+  // A task can remain open in Reading after its PTY exits or its project is
+  // archived. Its old xterm buffer belongs to that dead PTY: dispose it as
+  // soon as the authoritative binding says dormant. A later live=true binding
+  // creates and hydrates a fresh xterm for the newly resumed process.
+  if (next.taskId && !next.live) {
+    disposeTaskTerminal(next.taskId);
   }
   // Only a live task has a PTY to mirror; creating an xterm for a dormant
   // (history-loaded) session would just show a blank grid and linger in the map.
@@ -679,18 +808,96 @@ document.addEventListener("click", (event) => {
 });
 
 window.duetRuntime.onRuntimeEvent((event) => {
+  if (event.type === "pty:exit") {
+    const entry = terminals.get(event.payload.taskId);
+    const knownGeneration = entry
+      ? (hydrationGeneration(null, entry.buffer) ?? entry.generation)
+      : null;
+    const newestKnownGeneration = Math.max(
+      knownGeneration ?? -1,
+      retiredTerminalGenerations.get(event.payload.taskId) ?? -1,
+    );
+    // Main's RunIndex fence already drops stale exits. The comparison is a
+    // second renderer-side guard for IPC reordering: an older exit can never
+    // retire an entry that has already observed a newer generation.
+    if (event.payload.generation >= newestKnownGeneration) {
+      retireTerminalGeneration(event.payload.taskId, event.payload.generation);
+      if (entry) {
+        disposeTaskTerminal(event.payload.taskId);
+      }
+      if (event.payload.taskId === activeTaskId) {
+        activeLive = false;
+        showActiveTerminal();
+      }
+    }
+    return;
+  }
   if (event.type !== "pty:data") {
     return;
   }
-  const entry = terminals.get(event.payload.taskId);
+  const retiredGeneration = retiredTerminalGenerations.get(event.payload.taskId) ?? -1;
+  if (event.payload.generation <= retiredGeneration) {
+    return;
+  }
+  let entry = terminals.get(event.payload.taskId);
   if (!entry) {
+    // close→immediate reopen can coalesce Reading's idle/running refresh into
+    // live→live, so no binding edge arrives after the accepted old exit. Newer
+    // PTY data is itself sufficient proof that the still-selected task owns a
+    // live replacement runtime; rebuild and restore forwarding immediately.
+    if (
+      event.payload.taskId !== activeTaskId ||
+      activeBinding?.taskId !== event.payload.taskId ||
+      !activeBinding.live
+    ) {
+      return;
+    }
+    activeLive = true;
+    entry = ensureTaskTerminal(event.payload.taskId);
+    bufferDuringHydration(
+      entry,
+      event.payload.generation,
+      event.payload.data,
+      event.payload.seq,
+    );
+    showActiveTerminal();
+    return;
+  }
+  const knownGeneration = hydrationGeneration(null, entry.buffer) ?? entry.generation;
+  if (knownGeneration !== null && event.payload.generation < knownGeneration) {
+    return;
+  }
+  if (knownGeneration !== null && event.payload.generation > knownGeneration) {
+    // A persistent task id has acquired a new TerminalHost before the old
+    // renderer entry saw an exit (close→immediate reopen). Rebuild now; mixing
+    // even one chunk or one replay body across generations is forbidden.
+    disposeTaskTerminal(event.payload.taskId);
+    const replacement = ensureTaskTerminal(event.payload.taskId);
+    bufferDuringHydration(
+      replacement,
+      event.payload.generation,
+      event.payload.data,
+      event.payload.seq,
+    );
+    if (event.payload.taskId === activeTaskId && activeLive) {
+      showActiveTerminal();
+    }
     return;
   }
   if (entry.hydrating) {
     // Buffer (don't drop) live chunks racing the in-flight replay IPC; hydrateData
     // stitches them onto the snapshot by seq once it lands.
-    bufferDuringHydration(entry, event.payload.data, event.payload.seq);
+    bufferDuringHydration(
+      entry,
+      event.payload.generation,
+      event.payload.data,
+      event.payload.seq,
+    );
     return;
+  }
+  if (entry.generation === null) {
+    entry.generation = event.payload.generation;
+    entry.element.dataset.generation = String(event.payload.generation);
   }
   entry.terminal.write(event.payload.data);
 });

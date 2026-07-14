@@ -76,7 +76,7 @@ async function waitForBuffered(target) {
 
 const AT_RE = new RegExp(`(^|[^0-9])${HYDRATE_AT}([^0-9]|$)`);
 
-function onPtyData(data, seq) {
+function onPtyData(data, seq, generation) {
   if (!entryCreated) {
     // Pre-entry: the terminal window isn't open yet, so these bytes are only in
     // the main-process mirror (the snapshot will replay them). Detect the point
@@ -90,7 +90,7 @@ function onPtyData(data, seq) {
     return;
   }
   if (hydrating) {
-    buffer.push({ data, seq }); // buffer (don't drop) the live tail racing the snapshot
+    buffer.push({ data, seq, generation }); // buffer (don't drop) the live tail racing the snapshot
     return;
   }
   view.write(data); // hydrated: live path writes straight through
@@ -128,7 +128,7 @@ host = new TerminalHost({
   defaultWorkspace: workspace,
   eventSink: (event) => {
     if (event.type === "pty:data") {
-      onPtyData(event.payload.data, event.payload.seq);
+      onPtyData(event.payload.data, event.payload.seq, event.payload.generation);
     } else if (event.type === "pty:exit") {
       streamEnded = true;
       setTimeout(resolveDone, 80); // let any final chunk settle

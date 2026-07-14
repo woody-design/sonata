@@ -33,6 +33,7 @@ import {
 import { hasActiveRun } from "../../reading-core/selectors/runs";
 import {
   activeTaskView,
+  isSessionLifecycleActive,
   type RendererState,
   type TaskDraftMenuKind,
   type TaskViewState,
@@ -132,6 +133,7 @@ export function renderAttachmentStrip(view = activeTaskView(state)): void {
     remove.type = "button";
     remove.className = "attachment-remove";
     remove.setAttribute("aria-label", `Remove ${item.name}`);
+    remove.disabled = isSessionLifecycleActive(state);
     remove.append(lucideIcon(X, 12));
     remove.addEventListener("click", item.remove);
     chip.append(remove);
@@ -141,6 +143,7 @@ export function renderAttachmentStrip(view = activeTaskView(state)): void {
 }
 
 export function renderComposerControls(view = activeTaskView(state)): void {
+  const lifecycleBusy = isSessionLifecycleActive(state);
   const activeRun = hasActiveRun(view) || Boolean(view?.deliveryState?.activeRun);
   const pendingApproval = Boolean(view?.pendingApproval);
   const promptHasText = elements.promptInput.value.trim().length > 0;
@@ -208,13 +211,14 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   // Attachments are held lazily (materialized on send), so a live runtime is no
   // longer required — enable for a new chat and for any session, incl. dormant
   // (paste/drop already add there; resume-send materializes them).
-  elements.addAttachment.disabled = newChat ? false : !view.task;
+  elements.addAttachment.disabled = lifecycleBusy || (newChat ? false : !view.task);
   elements.addAttachment.classList.toggle("active", state.composerMenu?.type === "add");
-  elements.sendPrompt.disabled = state.busy || (!activeRun && !promptHasText && !hasAttachments);
+  elements.sendPrompt.disabled =
+    state.busy || lifecycleBusy || (!activeRun && !promptHasText && !hasAttachments);
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText || hasAttachments);
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";
   elements.sendPrompt.classList.toggle("stop-mode", activeRun);
-  elements.promptInput.disabled = state.busy && !newChat;
+  elements.promptInput.disabled = lifecycleBusy || (state.busy && !newChat);
   elements.promptInput.placeholder = composerPlaceholder(view, activeRun, pendingApproval);
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
 }
@@ -312,7 +316,7 @@ function renderDraftChip(
   }
   element.classList.add("interactive");
   element.classList.toggle("active", open);
-  element.disabled = state.busy;
+  element.disabled = state.busy || isSessionLifecycleActive(state);
   element.title = options.hint;
   element.setAttribute("aria-haspopup", "menu");
   element.ariaExpanded = String(open);

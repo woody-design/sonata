@@ -49,14 +49,14 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
   if (view?.task) {
     if (view.approvalExpiredAttention) {
       banners.push(
-        attentionBanner("approval-expired", "Approval waiting for you in the Terminal", () => {
+        attentionBanner("approval-expired", "Approval waiting for you in the CLI", () => {
           actions.dismissApprovalExpiredAttention(view);
         }),
       );
     }
     if (view.slashAttention) {
       banners.push(
-        attentionBanner("slash-sent", `${view.slashAttention.command} ran in the Terminal`, () => {
+        attentionBanner("slash-sent", `${view.slashAttention.command} ran in the CLI`, () => {
           actions.dismissSlashAttention(view);
         }),
       );
@@ -75,7 +75,7 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
       banners.push(
         attentionBanner(
           "codex-hooks-liveness",
-          "Codex hooks aren't running — check the Terminal",
+          "Codex hooks aren't running — check the CLI",
           () => {
             codexHooksMissing.delete(taskId);
             renderAttentionBanners();
@@ -97,7 +97,7 @@ function attentionBanner(kind: string, copy: string, onDismiss: () => void): HTM
   const open = document.createElement("button");
   open.type = "button";
   open.className = "attention-open-terminal";
-  open.textContent = "Open Terminal →";
+  open.textContent = "Open CLI →";
   open.addEventListener("click", () => {
     actions.setViewMode("terminal");
   });

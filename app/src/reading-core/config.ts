@@ -10,7 +10,7 @@ export const USAGE_CONTEXT_HIGH_USED_PERCENT = 80;
 export const MAX_TRANSCRIPT_CHARS = 120_000;
 export const MAX_TRANSCRIPT_RAW_CHARS = 260_000;
 
-export const AUTO_TITLE_PLACEHOLDERS = new Set(["New Task", "Walking Skeleton Task"]);
+export const AUTO_TITLE_PLACEHOLDERS = new Set(["New task", "New Task", "Walking Skeleton Task"]);
 
 export const MODEL_OPTIONS: Record<
   RuntimeProvider,
