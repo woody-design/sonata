@@ -14,9 +14,44 @@ import type {
 } from "../../shared/types";
 import type { OptionPromptDetectedEvent } from "../../shared/types/events";
 import type { OptionPromptAnswers } from "../../shared/types/option-prompt";
-import type { OptionPromptReceiptLine, TaskLaunchDraft, TaskViewState } from "../state";
+import type {
+  OptionPromptReceiptLine,
+  RendererState,
+  TaskLaunchDraft,
+  TaskViewState,
+} from "../state";
 import { providerLabel } from "./formatters";
 import { modelValueLabel, reasoningValueLabel } from "../config";
+
+/**
+ * Ownership protection has two grains (D1, 2026-07-14). This selector picks the
+ * NARROW grain: the lifecycle phases that actually MOVE the visible composer
+ * draft (snapshot on entry, restore on exit) and therefore must disable the
+ * textarea. The BROAD grain — operation mutual exclusion (no second lifecycle,
+ * no attachment-list mutation, no selection change) — stays with
+ * `isSessionLifecycleActive` and does NOT disable typing: a live `sending`,
+ * `attaching`, or a background `session-mutation`/`project-mutation` leaves the
+ * composer usable, and the double-submit is blocked by the claim guard at
+ * `submitPrompt` entry rather than by a disabled textarea.
+ *
+ * Disabling a focused textarea blurs it with nothing to restore focus — the
+ * confirmed live-send regression — so the set here is exactly the phases where
+ * the draft is being parked/restored anyway: `starting`, `preparing-resume`,
+ * and `resuming`. `awaiting-resume-choice` is included until Slice C removes
+ * that phase (its panel holds the same snapshot); once it is gone this arm can
+ * drop with it.
+ */
+export function lifecycleFreezesComposerText(state: RendererState): boolean {
+  switch (state.sessionLifecycle.phase) {
+    case "starting":
+    case "preparing-resume":
+    case "awaiting-resume-choice":
+    case "resuming":
+      return true;
+    default:
+      return false;
+  }
+}
 
 /** Lower score sorts first; null means no match. */
 export function slashFilterScore(entry: SlashCommandEntry, query: string): number | null {

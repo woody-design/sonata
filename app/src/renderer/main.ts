@@ -840,9 +840,11 @@ elements.usageIndicator.addEventListener("blur", () => {
 });
 
 elements.promptInput.addEventListener("keydown", (event) => {
-  if (isSessionLifecycleActive(state)) {
-    return;
-  }
+  // No blanket lifecycle guard here (D1): for draft-moving phases the input is
+  // disabled, so keydown never fires; for `sending`/`attaching`/mutation phases
+  // the grammar must run normally — plain Enter is still preventDefault'd and
+  // routed to submitPrompt, whose claim guard drops the double-send, so no
+  // stray newline and no second submission slips through.
   if (isComposerCompositionShortcut(event)) {
     return;
   }
@@ -864,12 +866,17 @@ elements.promptInput.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.shiftKey) {
     return;
   }
+  // Plain Enter is the send key — always suppress the browser's newline BEFORE
+  // the nothing-to-send check. With the D2 optimistic clear the composer can be
+  // empty mid-send, so a fast second Enter would otherwise fall through to the
+  // early return and the browser default would insert a stray "\n" that the
+  // next message starts with.
+  event.preventDefault();
   const submitView = activeTaskView();
   const attachmentCount = submitView ? submitView.pendingAttachments.length : state.draftAttachments.length;
   if (elements.promptInput.value.trim().length === 0 && attachmentCount === 0) {
     return;
   }
-  event.preventDefault();
   elements.composer.requestSubmit();
 });
 

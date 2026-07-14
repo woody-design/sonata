@@ -569,4 +569,31 @@ const run = (status, extra = {}) => ({
   assert.equal(on({ mode: "unavailable" }, view(), true, true), false, "unavailable is never on");
 }
 
-console.log("reading-composer-selectors: 10 fixture groups pass");
+// 11) lifecycleFreezesComposerText — D1's narrow freeze grain. Only the
+// draft-moving phases disable the composer textarea; every other active phase
+// (and idle) leaves typing enabled, so mutual exclusion never blurs the input.
+{
+  const freezes = (phase) => C.lifecycleFreezesComposerText({ sessionLifecycle: { phase } });
+  const draftMoving = ["starting", "preparing-resume", "awaiting-resume-choice", "resuming"];
+  const typingAllowed = [
+    "idle",
+    "sending",
+    "attaching",
+    "session-mutation",
+    "project-mutation",
+  ];
+  for (const phase of draftMoving) {
+    assert.equal(freezes(phase), true, `${phase} freezes the composer text`);
+  }
+  for (const phase of typingAllowed) {
+    assert.equal(freezes(phase), false, `${phase} leaves the composer typable`);
+  }
+  // The two sets partition the full SessionLifecycle union (nine phases).
+  assert.equal(
+    draftMoving.length + typingAllowed.length,
+    9,
+    "all nine lifecycle phases are covered by the freeze partition",
+  );
+}
+
+console.log("reading-composer-selectors: 11 fixture groups pass");

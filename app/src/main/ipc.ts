@@ -40,7 +40,7 @@ import {
 // can't bypass it, and we open the re-serialized parsed URL, never the raw string.
 const TERMINAL_LINK_ALLOWED_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
 
-type IpcTestGate = "TASK_CREATE" | "TASK_OPEN" | "RESUME_SETTINGS_WRITE";
+type IpcTestGate = "TASK_CREATE" | "TASK_OPEN" | "PROMPT_SUBMIT" | "RESUME_SETTINGS_WRITE";
 
 // End-to-end lifecycle tests need to hold or reject an IPC boundary after the
 // renderer has synchronously claimed ownership. Keep that seam at the real
@@ -158,7 +158,8 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.projectReveal, (_event, request) => {
     return shell.openPath(request.path);
   });
-  ipcMain.handle(IPC_CHANNELS.promptSubmit, (_event, request) => {
+  ipcMain.handle(IPC_CHANNELS.promptSubmit, async (_event, request) => {
+    await passIpcTestGate("PROMPT_SUBMIT");
     runtimeController.submitPrompt(request.taskId, request.text, request.attachments ?? []);
   });
   ipcMain.handle(IPC_CHANNELS.attachmentCreate, (_event, request) => {

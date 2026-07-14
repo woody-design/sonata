@@ -25,6 +25,7 @@ import {
 import {
   composerPlaceholder,
   draftModelSummaryLabel,
+  lifecycleFreezesComposerText,
   sendPromptTitle,
   sessionModelSummaryLabel,
   sessionModelSwitchHint,
@@ -218,7 +219,10 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText || hasAttachments);
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";
   elements.sendPrompt.classList.toggle("stop-mode", activeRun);
-  elements.promptInput.disabled = lifecycleBusy || (state.busy && !newChat);
+  // D1 (two grains of freeze): only the draft-moving phases disable typing.
+  // Every other active phase keeps the composer usable — mutual exclusion is
+  // enforced by the claim guards, not by blurring a focused textarea.
+  elements.promptInput.disabled = lifecycleFreezesComposerText(state) || (state.busy && !newChat);
   elements.promptInput.placeholder = composerPlaceholder(view, activeRun, pendingApproval);
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
 }

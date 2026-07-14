@@ -350,6 +350,26 @@ function restoreComposerDraft(): void {
   elements.promptInput.value = view ? view.composerDraft : state.newChatComposerDraft;
 }
 
+/** Return focus to the composer after a draft-moving phase disabled (and thus
+ *  blurred) it — but ONLY when it held focus at claim AND focus is still
+ *  orphaned exactly as a disable leaves it (on <body>/<html>, or nowhere). A
+ *  user who moved focus to another control during the held window (Reading
+ *  Settings, a sidebar row — none of which are lifecycle-disabled) still owns
+ *  it; never yank it back from them. Idle + enabled are required so we never
+ *  fight the render that re-enables the input. */
+function repairComposerFocusIfOrphaned(hadFocus: boolean): void {
+  const active = document.activeElement;
+  const orphaned = active === null || active === document.body || active === document.documentElement;
+  if (
+    hadFocus &&
+    orphaned &&
+    !isSessionLifecycleActive(state) &&
+    !elements.promptInput.disabled
+  ) {
+    elements.promptInput.focus({ preventScroll: true });
+  }
+}
+
 function markViewChanged(view: TaskViewState): void {
   if (isActiveView(view)) {
     render();
@@ -468,6 +488,15 @@ export async function submitPrompt(): Promise<void> {
   }
 
   let retainForResumeChoice = false;
+  // Focus repair (D1) applies only to the draft-moving dormant-resume branch —
+  // the live path never disables the input, and the new-chat path is not repaired
+  // (the caller re-focuses after creation). Captured before the disabling render.
+  const composerHadFocus = document.activeElement === elements.promptInput;
+  let enteredDormantResume = false;
+  // D2 optimistic clear: on the live path the composer is emptied synchronously
+  // (direct-manipulation feedback), and the raw value is held so an error can
+  // restore it without destroying anything typed since.
+  let liveSendRawInput: string | null = null;
   render();
   try {
     if (!view) {
@@ -475,6 +504,7 @@ export async function submitPrompt(): Promise<void> {
       await createSessionFromComposer(text, ownerToken);
     } else if (!view.live) {
       // Dormant session: lazy spawn + native resume, then queue the message.
+      enteredDormantResume = true;
       retainForResumeChoice = await resumeSession(
         view,
         { sendAfterResume: true, promptText: text },
@@ -482,11 +512,14 @@ export async function submitPrompt(): Promise<void> {
       );
     } else if (view.task) {
       const taskId = view.task.id;
+      // Clear before the first await so the send reads as instant; keep the raw
+      // (untrimmed) value for error restore.
+      liveSendRawInput = elements.promptInput.value;
+      elements.promptInput.value = "";
       view.status = "Queued";
       render();
       const attachments = await materializeAttachments(view.pendingAttachments, taskId);
       await window.duetRuntime.submitPrompt({ taskId, text, attachments });
-      elements.promptInput.value = "";
       clearComposerAttachments(view.pendingAttachments);
     }
   } catch (error) {
@@ -495,11 +528,24 @@ export async function submitPrompt(): Promise<void> {
     } else {
       state.status = errorMessage(error);
     }
+    if (liveSendRawInput !== null) {
+      // D2 restore invariant: no error path may destroy user text. If the input
+      // is empty the sent text goes back verbatim; if the user typed something
+      // during the window, prepend the sent text to what they typed.
+      const current = elements.promptInput.value;
+      elements.promptInput.value = current ? `${liveSendRawInput}${current}` : liveSendRawInput;
+    }
   } finally {
     if (!retainForResumeChoice) {
       releaseSessionLifecycle(state, ownerToken);
     }
     render();
+    // Draft-moving freeze blurred the composer; return focus once idle+enabled.
+    // Skipped while a resume choice is retained (still active — Slice C owns
+    // that focus story) via the isSessionLifecycleActive gate in the helper.
+    if (enteredDormantResume) {
+      repairComposerFocusIfOrphaned(composerHadFocus);
+    }
   }
 }
 
@@ -565,6 +611,7 @@ export async function startCliWithoutPrompt(): Promise<void> {
     return;
   }
   const draftText = elements.promptInput.value;
+  const composerHadFocus = document.activeElement === elements.promptInput;
   render();
   try {
     const created = await createTask(
@@ -588,6 +635,8 @@ export async function startCliWithoutPrompt(): Promise<void> {
   } finally {
     releaseSessionLifecycle(state, ownerToken);
     render();
+    // The `starting` freeze blurred the composer if it held focus; return it.
+    repairComposerFocusIfOrphaned(composerHadFocus);
   }
 }
 
@@ -613,6 +662,7 @@ export async function resumeTaskWithoutPrompt(expectedTaskId: string): Promise<v
     return;
   }
   let retainForResumeChoice = false;
+  const composerHadFocus = document.activeElement === elements.promptInput;
   render();
   try {
     retainForResumeChoice = await resumeSession(
@@ -627,6 +677,9 @@ export async function resumeTaskWithoutPrompt(expectedTaskId: string): Promise<v
       releaseSessionLifecycle(state, ownerToken);
     }
     render();
+    // The draft-moving freeze blurred the composer; return focus once idle and
+    // enabled (helper skips it while a resume choice is retained — Slice C).
+    repairComposerFocusIfOrphaned(composerHadFocus);
   }
 }
 
@@ -824,6 +877,15 @@ export async function decideApproval(decision: ApprovalDecision): Promise<void> 
 }
 
 export async function stopRun(): Promise<void> {
+  // Mutual exclusion (D1): with the blanket keydown guard gone, Escape→stopRun
+  // is reachable during an active lifecycle. Drop it — a stop must never race a
+  // create/send/resume/mutation. No legitimate long-lived stop-during-lifecycle
+  // path exists (draft-moving phases disable the input so Escape can't fire;
+  // sending/attaching/mutation windows are ms-scale), so this is at worst a
+  // silent, immediately-retryable drop.
+  if (isSessionLifecycleActive(state)) {
+    return;
+  }
   const view = activeTaskView();
   if (!view?.task) {
     return;
