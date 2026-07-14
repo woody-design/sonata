@@ -208,6 +208,9 @@ const terminals = new Map<string, TaskTerminal>();
 // A persistent task id may outlive many TerminalHosts. Keep the newest retired
 // generation after its xterm is gone so no-entry data can distinguish a stale
 // tail (ignore) from a genuinely newer runtime (recreate if this task is active).
+// Deliberately never pruned: one string→number entry per task per window
+// lifetime is bounded and harmless, and dropping a tombstone would re-admit the
+// stale-tail data this map exists to reject.
 const retiredTerminalGenerations = new Map<string, number>();
 let activeTaskId: string | null = null;
 let activeLive = false;
@@ -560,7 +563,11 @@ emptyAction.addEventListener("click", () => {
   emptyAction.disabled = true;
   emptyDetail.textContent = request.action === "start" ? "Starting CLI…" : "Preparing resume…";
   void window.duetRuntime.requestCliAction(request).catch(() => {
+    // The relay never reached Reading, so no claimed phase is coming to replace
+    // the local optimistic state. Restore the ready surface (re-enabling the
+    // button so retry works), then leave an honest receipt in its place.
     renderEmptySurface();
+    emptyDetail.textContent = "Couldn’t reach Duet — try again.";
   });
 });
 
