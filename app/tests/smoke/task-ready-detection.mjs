@@ -34,6 +34,42 @@ await check("Claude suggestion placeholder is an idle composer prompt", async ()
   assert.ok(hint.lastPromptIndex >= 0, "expected Claude prompt glyph to be detected");
 });
 
+// Real claude 2.1.209 idle promptTail regions, byte-derived from
+// spikes/claude-idle-prompt-fable/capture-{fable,opus,none}.json (probe P1,
+// 2026-07-14). On 2.1.x the model/effort/cwd line renders ABOVE the composer,
+// so the forward-scan window after the prompt glyph holds ONLY the idle footer
+// ("? for shortcuts", "← for agents") — none of the pre-2.1.x model/effort
+// tokens (the driver's OLD regex matched nothing on all three captures). The
+// `shortcuts`/`for agents` needles are what restore the medium-confidence
+// signal; reverting terminal-host.ts idlePromptModelHints drops these to "low"
+// and fails these checks. (The synthetic claudePlaceholderTail below keeps
+// model tokens after the glyph, so it can't discriminate old vs new regex.)
+const CLAUDE_2_1_209_IDLE_RULE = "─".repeat(120);
+const CLAUDE_2_1_209_IDLE_TAILS = {
+  fable: `❯ Try "create a util logging.py that..."\n${CLAUDE_2_1_209_IDLE_RULE}\n⏸ manual mode on · ? for shortcuts · ← for agents\n`,
+  opus: `❯ Try "fix typecheck errors"\n${CLAUDE_2_1_209_IDLE_RULE}\n⏸ manual mode on · ? for shortcuts · ← for agents\n`,
+  none: `> to..."\n${CLAUDE_2_1_209_IDLE_RULE}\n⏸ manual mode on · ? for shortcuts · ← for agents\n`,
+};
+for (const [model, tail] of Object.entries(CLAUDE_2_1_209_IDLE_TAILS)) {
+  await check(
+    `claude 2.1.209 idle footer restores medium confidence (${model})`,
+    async () => {
+      const hint = detectIdlePromptForProvider(tail, "claude");
+      assert.equal(hint.ready, true, "real idle composer is ready");
+      assert.equal(
+        hint.hasModelOrCwdHint,
+        true,
+        "the idle footer token matches idlePromptModelHints",
+      );
+      assert.equal(
+        hint.confidence,
+        "medium",
+        "shortcuts/for-agents footer restores medium (reverting the regex → low)",
+      );
+    },
+  );
+}
+
 await check(
   "between runs, the control-only heartbeat produces NO readiness events (poller retired)",
   async () => {

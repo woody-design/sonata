@@ -16,7 +16,7 @@ try {
   await chooseDraftProvider(page, "claude");
   // Draft state surfaces on the composer chips (2026-07-04 redesign).
   await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
-  await page.locator("#model-chip", { hasText: "Opus 4.8 Extra High" }).waitFor({
+  await page.locator("#model-chip", { hasText: "Opus 4.8 High" }).waitFor({
     state: "visible",
   });
   // Per-session access mode: pick "Accept edits" from the access chip; the
@@ -48,12 +48,12 @@ try {
   const success =
     manifest.task.provider === "claude" &&
     manifest.task.model === "opus" &&
-    manifest.task.reasoningEffort === "xhigh" &&
+    manifest.task.reasoningEffort === "high" &&
     manifest.task.permissionMode === "acceptEdits" &&
     manifest.task.speedMode === null &&
     report.runtime?.provider === "claude" &&
     report.runtime?.model === "opus" &&
-    report.runtime?.reasoningEffort === "xhigh" &&
+    report.runtime?.reasoningEffort === "high" &&
     report.runtime?.speedMode === null &&
     report.rawTerminalPointer === null &&
     !rawTerminalPersisted;

@@ -161,7 +161,7 @@ const DAY = 24 * HOUR;
   assert.equal(F.readingModeLabel("auto"), "Auto");
   assert.equal(F.permissionModeLabel("acceptEdits"), "Accept edits");
   assert.equal(F.permissionModeLabel("auto"), "Auto");
-  assert.equal(F.permissionModeLabel("default"), "Ask each time");
+  assert.equal(F.permissionModeLabel("default"), "Manual");
   assert.equal(F.resumePolicyLabel("summary"), "Resume from summary");
   assert.equal(F.resumePolicyLabel("full"), "Resume full session");
   assert.equal(F.resumePolicyLabel("ask"), "Ask each time");

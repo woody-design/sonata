@@ -25,7 +25,7 @@ try {
     state: "visible",
   });
 
-  await page.locator("#model-chip", { hasText: "Opus 4.8 Extra High" }).click();
+  await page.locator("#model-chip", { hasText: "Opus 4.8 High" }).click();
   assert.deepEqual(await settingOptionLabels(page, "Model"), [
     "Fable 5",
     "Opus 4.8",
@@ -35,7 +35,7 @@ try {
   ]);
 
   await chooseDraftProvider(page, "codex");
-  await page.locator("#model-chip", { hasText: "5.6 Sol Extra High" }).click();
+  await page.locator("#model-chip", { hasText: "5.6 Sol High" }).click();
   assert.deepEqual(await settingOptionLabels(page, "Model"), [
     "5.6 Sol",
     "5.6 Terra",
@@ -46,11 +46,14 @@ try {
     "5.3 Codex Spark",
     "Native Default",
   ]);
+  // Sol offers both gated top tiers (Max between Extra High and Ultra) — codex
+  // 0.144.4 /model picker, spikes/codex-effort-max-ultra/.
   assert.deepEqual(await settingOptionLabels(page, "Reasoning"), [
     "Light",
     "Medium",
     "High",
     "Extra High",
+    "Max",
     "Ultra",
     "Native Default",
   ]);
@@ -65,11 +68,33 @@ try {
   await page.locator("#model-chip", { hasText: "5.6 Luna Extra High" }).waitFor({
     state: "visible",
   });
+  const lunaReasoning = await settingOptionLabels(page, "Reasoning");
   assert.equal(
-    (await settingOptionLabels(page, "Reasoning")).includes("Ultra"),
+    lunaReasoning.includes("Ultra"),
     false,
     "switching to Luna removes Ultra and falls back to Extra High",
   );
+  assert.equal(
+    lunaReasoning.includes("Max"),
+    true,
+    "Luna keeps Max (offers Max but not Ultra)",
+  );
+
+  // Max-fallback path (distinct from the Ultra-fallback above): pick Max on
+  // Luna, then switch to a model that offers NEITHER gated tier. If the
+  // model-change fallback in renderer/main.ts only unwound `ultra`, Max would
+  // survive here as an unsupported launch combination.
+  await settingSection(page, "Reasoning").locator("button", { hasText: "Max" }).click();
+  await page.locator("#model-chip", { hasText: "5.6 Luna Max" }).waitFor({ state: "visible" });
+  await settingSection(page, "Model").locator("button", { hasText: /^5\.4$/ }).click();
+  await page.locator("#model-chip", { hasText: "5.4 Extra High" }).waitFor({ state: "visible" });
+  const fiveFourReasoning = await settingOptionLabels(page, "Reasoning");
+  assert.equal(
+    fiveFourReasoning.includes("Max"),
+    false,
+    "switching to 5.4 removes Max and falls back to Extra High",
+  );
+  assert.equal(fiveFourReasoning.includes("Ultra"), false, "5.4 offers no Ultra either");
 
   console.log(
     JSON.stringify(
@@ -85,6 +110,7 @@ try {
           "5.3 Codex Spark",
         ],
         ultraFallback: "5.6 Luna Extra High",
+        maxFallback: "5.4 Extra High",
         success: true,
       },
       null,

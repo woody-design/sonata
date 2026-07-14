@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +14,7 @@ const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-overla
 const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-overlay-home-"));
 const resumeSettingsPath = path.join(settingsRoot, "resume-settings.json");
 const claudeSettingsPath = path.join(settingsRoot, "claude-settings.json");
+const codexSettingsPath = path.join(settingsRoot, "codex-settings.json");
 const claudeConfigPath = path.join(homeRoot, ".claude.json");
 let electronApp = null;
 
@@ -28,6 +30,15 @@ try {
       null,
       2,
     )}\n`,
+    "utf8",
+  );
+
+  // A pre-existing DEPRECATED codex default (on-failure) must survive load: it
+  // stays in the persistable union, renders as a "(legacy)" menu entry, and is
+  // never silently rewritten.
+  fs.writeFileSync(
+    codexSettingsPath,
+    `${JSON.stringify({ defaultApprovalMode: "on-failure" }, null, 2)}\n`,
     "utf8",
   );
 
@@ -62,11 +73,12 @@ try {
   await page.locator(".settings-value", { hasText: "On" }).waitFor({ state: "visible" });
 
   // Approvals group: the default permission mode for new Claude sessions.
-  // Defaults to "Ask each time"; choosing Auto persists to the Duet-owned
-  // claude-settings.json (never ~/.claude.json).
+  // Defaults to "Manual" (the `default` mode's label since Claude 2.1.200);
+  // choosing Auto persists to the Duet-owned claude-settings.json (never
+  // ~/.claude.json).
   const approvals = page.locator('section[aria-label="Approvals"]');
   const approvalsPopup = approvals.locator(".settings-popup");
-  await approvalsPopup.filter({ hasText: "Ask each time" }).waitFor({ state: "visible" });
+  await approvalsPopup.filter({ hasText: "Manual" }).waitFor({ state: "visible" });
   await approvalsPopup.click();
   await approvals.locator(".settings-popup-option", { hasText: "Auto" }).click();
   await waitUntil(() => {
@@ -74,6 +86,42 @@ try {
     return persisted?.defaultPermissionMode === "auto";
   }, 8000);
   await approvalsPopup.filter({ hasText: "Auto" }).waitFor({ state: "visible" });
+
+  // Codex group: the stored, now-deprecated `on-failure` default renders as a
+  // "(legacy)" entry (offered-pool vs persistable-union split). The standing
+  // pool excludes it, only the stored value carries the legacy suffix, and
+  // load did not rewrite the persisted value.
+  const codex = page.locator('section[aria-label="Codex"]');
+  const codexPopup = codex.locator(".settings-popup");
+  await codexPopup
+    .filter({ hasText: "Ask only on failure (legacy)" })
+    .waitFor({ state: "visible" });
+  await codexPopup.click();
+  const codexOptionLabels = await codex.locator(".settings-popup-option-label").allTextContents();
+  assert.deepEqual(
+    codexOptionLabels,
+    ["Ask only on failure (legacy)", "Ask for everything", "Ask for approval", "Approve for me"],
+    "legacy on-failure is prepended; the standing pool excludes it and drops it after selection",
+  );
+  assert.equal(
+    codexOptionLabels.filter((label) => label.includes("(legacy)")).length,
+    1,
+    "only the stored value is marked legacy",
+  );
+  const legacyOption = codex.locator(".settings-popup-option", {
+    hasText: "Ask only on failure (legacy)",
+  });
+  assert.equal(
+    await legacyOption.getAttribute("aria-checked"),
+    "true",
+    "the stored legacy value is marked selected",
+  );
+  assert.equal(
+    JSON.parse(fs.readFileSync(codexSettingsPath, "utf8")).defaultApprovalMode,
+    "on-failure",
+    "on-failure is not silently rewritten on load",
+  );
+  await codexPopup.click();
 
   // Revising on the page persists with settings provenance and retires
   // the attribution line (the page is now the last author).

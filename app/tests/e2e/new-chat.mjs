@@ -25,8 +25,8 @@ try {
   await page.locator("#prompt-input").fill("");
 
   // The access chip is Claude-only and follows the Settings default triad:
-  // fresh settings → "Ask each time"; a per-session pick relabels the chip.
-  await page.locator("#permission-chip", { hasText: "Ask each time" }).waitFor({ state: "visible" });
+  // fresh settings → "Manual"; a per-session pick relabels the chip.
+  await page.locator("#permission-chip", { hasText: "Manual" }).waitFor({ state: "visible" });
   await page.locator("#permission-chip").click();
   await page.locator("#access-option-acceptEdits").click();
   await page.locator("#permission-chip", { hasText: "Accept edits" }).waitFor({ state: "visible" });
@@ -119,7 +119,7 @@ try {
     createdManifest.schemaId === "duet.task-manifest.v1" &&
     createdManifest.task.provider === "codex" &&
     createdManifest.task.model === "gpt-5.6-sol" &&
-    createdManifest.task.reasoningEffort === "xhigh" &&
+    createdManifest.task.reasoningEffort === "high" &&
     createdManifest.task.speedMode === "fast" &&
     createdManifest.task.sandbox === "read-only" &&
     createdManifest.task.approval === "on-request" &&
@@ -129,6 +129,7 @@ try {
     activeHeaderTitle === createdManifest.task.title &&
     reopenedHeaderTitle === createdManifest.task.title &&
     createdReport?.runtime?.model === "gpt-5.6-sol" &&
+    createdReport?.runtime?.reasoningEffort === "high" &&
     createdReport?.runtime?.speedMode === "fast" &&
     !selectedFolderManifestExists &&
     projectsFile.lastUsedFolder === selectedFolder;

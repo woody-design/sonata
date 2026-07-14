@@ -244,18 +244,35 @@ const run = (status, extra = {}) => ({
       { label: "Medium", value: "medium" },
       { label: "High", value: "high" },
       { label: "Extra High", value: "xhigh" },
+      { label: "Max", value: "max" },
       { label: "Ultra", value: "ultra" },
       { label: "Native Default", value: null },
     ],
-    "Sol exposes Ultra and the Codex-app Light label",
+    "Sol exposes both Max and Ultra and the Codex-app Light label",
   );
-  assert.equal(
-    CFG.reasoningOptionsForModel("codex", "gpt-5.6-luna").some(
-      ({ value }) => value === "ultra",
-    ),
-    false,
-    "Luna does not expose an unsupported Ultra launch combination",
-  );
+  // Complete Max/Ultra per-model gate matrix (codex 0.144.4 /model picker,
+  // spikes/codex-effort-max-ultra/). Every codex model + Native Default (null)
+  // is pinned, so dropping a model from an allowlist OR leaking a gated tier
+  // onto a model that lacks it fails here. Ungated tiers stay present for all.
+  const CODEX_EFFORT_GATE = [
+    { model: "gpt-5.6-sol", max: true, ultra: true },
+    { model: "gpt-5.6-terra", max: true, ultra: true },
+    { model: "gpt-5.6-luna", max: true, ultra: false },
+    { model: "gpt-5.5", max: false, ultra: false },
+    { model: "gpt-5.4", max: false, ultra: false },
+    { model: "gpt-5.4-mini", max: false, ultra: false },
+    { model: "gpt-5.3-codex-spark", max: false, ultra: false },
+    { model: null, max: false, ultra: false },
+  ];
+  for (const { model, max, ultra } of CODEX_EFFORT_GATE) {
+    const label = model ?? "null";
+    const values = CFG.reasoningOptionsForModel("codex", model).map(({ value }) => value);
+    assert.equal(values.includes("max"), max, `${label} Max gate`);
+    assert.equal(values.includes("ultra"), ultra, `${label} Ultra gate`);
+    for (const base of ["low", "medium", "high", "xhigh", null]) {
+      assert.ok(values.includes(base), `${label} keeps ungated tier ${base ?? "null"}`);
+    }
+  }
   assert.equal(CFG.reasoningValueLabel("codex", "low"), "Light", "Codex low label");
   assert.equal(CFG.reasoningValueLabel("claude", "low"), "Low", "Claude low label");
   assert.equal(CFG.SPEED_OPTIONS[0].label, "Standard", "default speed label follows Codex");
