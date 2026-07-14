@@ -190,6 +190,14 @@ Two fence families, zero test frameworks:
   selection survival; CSS classes, ids, and `data-*` attributes are test API —
   treat renames as breaking changes.
 
+Visual acceptance (screenshot evidence) lives INSIDE the owning functional
+e2e behind an env flag (`DUET_*_EVIDENCE=1` + a `-screenshots` npm alias),
+captured only after the functional path has fully passed — so every screenshot
+depicts a state the fence just proved correct, on app state the run already
+drove (ratified 2026-07-14, `copy-to-clipboard`). Older standalone
+`*-screenshots.mjs` files predate this; migrate opportunistically when
+touched, don't add new ones.
+
 The recorder that feeds the corpus is env-gated main-process instrumentation
 (`DUET_RUNTIME_EVENT_LOG=<dir>`) tapped at the `sendEvent` broadcast seam —
 test/dev capture semantics, synchronous by design (lossless beats latency;

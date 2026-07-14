@@ -148,10 +148,15 @@ try {
   results.checkSurvivesReconcile =
     (await streamedCodeCopy.getAttribute("data-copy-state")) === "copied";
 
-  await page.waitForTimeout(3200);
-  results.checkResetsAfterThreeSeconds =
-    (await streamedCodeCopy.getAttribute("data-copy-state")) === "idle" &&
-    (await streamedCodeCopy.innerHTML()) === idleCodeIcon;
+  // Wait for the reset semantically instead of sleeping COPY_FEEDBACK_MS+ε:
+  // a fixed sleep couples the fence to the constant and flakes on slow CI.
+  // The bounded timeout (not the 60 s default) keeps a broken reset loud.
+  await page.waitForFunction(
+    (selector) => document.querySelector(selector)?.getAttribute("data-copy-state") === "idle",
+    ".code-block-copy",
+    { timeout: 10_000 },
+  );
+  results.checkResetsAfterDeadline = (await streamedCodeCopy.innerHTML()) === idleCodeIcon;
 
   // ── Whole reply: one persistent footer, Markdown payload, final block time ─
   const replyMeta = updatedCard.locator(".turn-assistant-meta");
@@ -173,41 +178,31 @@ try {
   );
   results.replyClipboard =
     (await readClipboard(page)) === `${FIRST_REPLY}\n\n${FINAL_REPLY}`;
+  const copiedReplyIcon = await replyCopy.innerHTML();
 
-  // A retry failure while the old Check is visible must immediately restore
-  // Copy on the CURRENT mounted target — no stale success signal.
-  const overrideInstalled = await page.evaluate(() => {
-    const clipboard = navigator.clipboard;
-    try {
-      const original = clipboard.writeText.bind(clipboard);
-      Object.defineProperty(window, "__duetOriginalWriteText", { value: original, configurable: true });
-      Object.defineProperty(clipboard, "writeText", {
-        configurable: true,
-        value: () => Promise.reject(new DOMException("blocked", "NotAllowedError")),
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  });
-  assert.ok(overrideInstalled, "clipboard failure override installed in renderer");
+  // A retry failure while the old Check is visible must immediately replace it
+  // with a VISIBLE failure notice on the CURRENT mounted target — no stale
+  // success signal, no silent failure — and then self-reset back to Copy.
+  await installClipboardFailure(page);
   await replyCopy.click();
   await page.waitForFunction(
     (selector) => document.querySelector(selector)?.getAttribute("data-copy-state") === "error",
     ".turn-assistant-meta .transcript-copy-button",
   );
-  results.failureRestoresCopy =
-    (await replyCopy.innerHTML()) === idleReplyIcon &&
+  const errorReplyIcon = await replyCopy.innerHTML();
+  results.failureShowsDistinctNotice =
+    errorReplyIcon !== idleReplyIcon &&
+    errorReplyIcon !== copiedReplyIcon &&
     (await replyCopy.getAttribute("aria-label")) === "Copy failed. Try again";
 
-  await page.evaluate(() => {
-    const clipboard = navigator.clipboard;
-    const original = window.__duetOriginalWriteText;
-    if (typeof original === "function") {
-      Object.defineProperty(clipboard, "writeText", { configurable: true, value: original });
-    }
-    delete window.__duetOriginalWriteText;
-  });
+  await restoreClipboard(page);
+
+  await page.waitForFunction(
+    (selector) => document.querySelector(selector)?.getAttribute("data-copy-state") === "idle",
+    ".turn-assistant-meta .transcript-copy-button",
+    { timeout: 10_000 },
+  );
+  results.failureResetsToCopy = (await replyCopy.innerHTML()) === idleReplyIcon;
 
   // ── Image-only prompt: time remains, text-copy action is absent ──────────
   appendRecords(rolloutPath, [
@@ -272,6 +267,38 @@ async function readClipboard(page) {
   return response.text;
 }
 
+async function installClipboardFailure(page) {
+  const overrideInstalled = await page.evaluate(() => {
+    const clipboard = navigator.clipboard;
+    try {
+      const original = clipboard.writeText.bind(clipboard);
+      Object.defineProperty(window, "__duetOriginalWriteText", {
+        value: original,
+        configurable: true,
+      });
+      Object.defineProperty(clipboard, "writeText", {
+        configurable: true,
+        value: () => Promise.reject(new DOMException("blocked", "NotAllowedError")),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  assert.ok(overrideInstalled, "clipboard failure override installed in renderer");
+}
+
+async function restoreClipboard(page) {
+  await page.evaluate(() => {
+    const clipboard = navigator.clipboard;
+    const original = window.__duetOriginalWriteText;
+    if (typeof original === "function") {
+      Object.defineProperty(clipboard, "writeText", { configurable: true, value: original });
+    }
+    delete window.__duetOriginalWriteText;
+  });
+}
+
 function resolveEvidenceDir() {
   const configured = process.env.DUET_COPY_EVIDENCE_DIR?.trim();
   if (configured) {
@@ -293,14 +320,9 @@ async function captureVisualEvidence(page, card) {
   await setMode(page, "light");
   await page.keyboard.press("Escape");
 
-  // The functional path deliberately ends with a failed reply-copy retry.
-  // Restore a real successful/idle state before recording the visual matrix.
+  // The functional path ends with every button waited back to idle, so the
+  // matrix starts from a clean slate.
   const replyCopy = card.locator(".turn-assistant-meta .transcript-copy-button");
-  await replyCopy.click();
-  await waitForCopyState(replyCopy, "copied");
-  await page.waitForTimeout(3200);
-  await waitForCopyState(replyCopy, "idle");
-
   await movePointerToNeutral(page, 300);
   await capture(page, card, "01-card-idle-light.png", "light");
   await capturePromptCopyHover(
@@ -315,8 +337,15 @@ async function captureVisualEvidence(page, card) {
   await waitForCopyState(codeCopy, "copied");
   await movePointerToNeutral(page, 150);
   await capture(page, card, "03-code-copied-light.png", "light");
-  await page.waitForTimeout(3200);
   await waitForCopyState(codeCopy, "idle");
+
+  await installClipboardFailure(page);
+  await replyCopy.click();
+  await waitForCopyState(replyCopy, "error");
+  await movePointerToNeutral(page, 150);
+  await capture(page, card, "04-reply-copy-failed-light.png", "light");
+  await restoreClipboard(page);
+  await waitForCopyState(replyCopy, "idle");
 
   await replyCopy.click();
   await waitForCopyState(replyCopy, "copied");
@@ -324,7 +353,7 @@ async function captureVisualEvidence(page, card) {
   await capturePromptCopyHover(
     page,
     card,
-    "04-prompt-copy-hover-reply-copied-dark.png",
+    "05-prompt-copy-hover-reply-copied-dark.png",
     "dark",
   );
 
@@ -332,7 +361,8 @@ async function captureVisualEvidence(page, card) {
     "01-card-idle-light.png",
     "02-prompt-copy-hover-light.png",
     "03-code-copied-light.png",
-    "04-prompt-copy-hover-reply-copied-dark.png",
+    "04-reply-copy-failed-light.png",
+    "05-prompt-copy-hover-reply-copied-dark.png",
   ]);
 }
 
