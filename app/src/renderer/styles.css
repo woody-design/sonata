@@ -4420,6 +4420,10 @@ h2 {
   color: var(--accent);
 }
 
+.transcript-copy-button[data-copy-state="error"] {
+  color: var(--status-attention);
+}
+
 .transcript-copy-button svg {
   display: block;
 }
@@ -4616,6 +4620,10 @@ h2 {
 
 .transcript-code-block .code-block-copy[data-copy-state="copied"] {
   color: var(--accent);
+}
+
+.transcript-code-block .code-block-copy[data-copy-state="error"] {
+  color: var(--status-attention);
 }
 
 .md-body pre code {

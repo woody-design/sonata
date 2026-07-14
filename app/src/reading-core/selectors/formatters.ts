@@ -60,6 +60,42 @@ export interface TranscriptTimestamp {
   dateTime: string;
 }
 
+// Intl.DateTimeFormat construction is expensive (locale-data load), and a
+// session switch re-renders every turn at once. Formatters are stateless, so
+// memoizing them is pure — outputs never depend on the cache. The key space is
+// tiny in practice: the renderer always passes (undefined, undefined); other
+// pairs come only from fixtures.
+const transcriptFormatterCache = new Map<
+  string,
+  { date: Intl.DateTimeFormat; time: Intl.DateTimeFormat }
+>();
+
+function transcriptFormatters(
+  locale?: string,
+  timeZone?: string,
+): { date: Intl.DateTimeFormat; time: Intl.DateTimeFormat } {
+  const key = `${locale ?? ""}|${timeZone ?? ""}`;
+  let formatters = transcriptFormatterCache.get(key);
+  if (!formatters) {
+    const zone = timeZone === undefined ? {} : { timeZone };
+    formatters = {
+      date: new Intl.DateTimeFormat(locale, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        ...zone,
+      }),
+      time: new Intl.DateTimeFormat(locale, {
+        hour: "numeric",
+        minute: "2-digit",
+        ...zone,
+      }),
+    };
+    transcriptFormatterCache.set(key, formatters);
+  }
+  return formatters;
+}
+
 /**
  * Exact timestamp copy for a conversational message. Unlike the Sidebar's
  * relative activity age, a transcript time is a durable fact: it never changes
@@ -75,20 +111,9 @@ export function formatTranscriptTimestamp(
   if (!Number.isFinite(timestampMs)) {
     return null;
   }
-  const zone = timeZone === undefined ? {} : { timeZone };
-  const date = new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    ...zone,
-  }).format(timestampMs);
-  const time = new Intl.DateTimeFormat(locale, {
-    hour: "numeric",
-    minute: "2-digit",
-    ...zone,
-  }).format(timestampMs);
+  const { date, time } = transcriptFormatters(locale, timeZone);
   return {
-    display: `${date} · ${time}`,
+    display: `${date.format(timestampMs)} · ${time.format(timestampMs)}`,
     dateTime: new Date(timestampMs).toISOString(),
   };
 }

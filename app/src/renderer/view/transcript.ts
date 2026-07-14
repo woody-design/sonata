@@ -15,7 +15,7 @@
 
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { Check, Copy, Image as ImageIcon } from "lucide";
+import { Check, CircleAlert, Copy, Image as ImageIcon } from "lucide";
 import { planKeyedReconcile } from "../../shared/keyed-reconcile";
 import type { TranscriptBlock } from "../../shared/types/transcript";
 import type { RuntimeRunReport } from "../../shared/schemas";
@@ -68,12 +68,14 @@ export function initTranscriptView(
 // fixtures create fresh instances (map §2.4).
 const turnSignatureTracker = createTurnSignatureTracker();
 
-// T19 — successful-copy feedback. The deadline lives outside the button DOM:
-// a streaming block can replace its whole turn card every ~160 ms, but the
-// promised three-second Check must survive that replacement. Ephemeral shell
-// truth only — never reducer state, never persistence.
+// T19 — copy feedback, success AND failure. The deadline lives outside the
+// button DOM: a streaming block can replace its whole turn card every ~160 ms,
+// but the promised three-second Check (or failure notice) must survive that
+// replacement. Ephemeral shell truth only — never reducer state, never
+// persistence.
 const COPY_FEEDBACK_MS = 3_000;
-const copiedUntilByTarget = new Map<string, number>();
+type CopyFeedbackState = "copied" | "error";
+const copyFeedbackByTarget = new Map<string, { state: CopyFeedbackState; until: number }>();
 const copyResetTimerByTarget = new Map<string, number>();
 
 function refreshTurnCardCheap(card: HTMLElement, view: TaskViewState, turn: ReadingTurn): void {
@@ -616,17 +618,20 @@ function transcriptCopyButton(options: TranscriptCopyButtonOptions): HTMLButtonE
   button.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(options.text);
-      markCopySucceeded(options.targetKey);
+      setCopyFeedback(options.targetKey, "copied");
     } catch {
-      markCopyFailed(options.targetKey);
+      setCopyFeedback(options.targetKey, "error");
     }
   });
   return button;
 }
 
-function markCopySucceeded(targetKey: string): void {
-  const copiedUntil = Date.now() + COPY_FEEDBACK_MS;
-  copiedUntilByTarget.set(targetKey, copiedUntil);
+// Address the stable target, not the click-time node: the write Promise may
+// settle after streaming reconcile has detached that button and mounted a new
+// one. Success and failure get the same treatment — a failure notice wiped by
+// the next reconcile would leave the click visually unanswered.
+function setCopyFeedback(targetKey: string, state: CopyFeedbackState): void {
+  copyFeedbackByTarget.set(targetKey, { state, until: Date.now() + COPY_FEEDBACK_MS });
   syncCopyTarget(targetKey);
 
   const previousTimer = copyResetTimerByTarget.get(targetKey);
@@ -635,30 +640,13 @@ function markCopySucceeded(targetKey: string): void {
   }
   const timer = window.setTimeout(() => {
     copyResetTimerByTarget.delete(targetKey);
-    if ((copiedUntilByTarget.get(targetKey) ?? 0) <= Date.now()) {
-      copiedUntilByTarget.delete(targetKey);
+    const feedback = copyFeedbackByTarget.get(targetKey);
+    if (feedback !== undefined && feedback.until <= Date.now()) {
+      copyFeedbackByTarget.delete(targetKey);
       syncCopyTarget(targetKey);
     }
   }, COPY_FEEDBACK_MS);
   copyResetTimerByTarget.set(targetKey, timer);
-}
-
-function markCopyFailed(targetKey: string): void {
-  copiedUntilByTarget.delete(targetKey);
-  const previousTimer = copyResetTimerByTarget.get(targetKey);
-  if (previousTimer !== undefined) {
-    window.clearTimeout(previousTimer);
-    copyResetTimerByTarget.delete(targetKey);
-  }
-  // Address the stable target, not the click-time node: the Promise may reject
-  // after streaming reconcile has detached that button and mounted a new one.
-  const buttons = copyButtonsForTarget(targetKey);
-  for (const button of buttons) {
-    syncCopyButton(button); // restores the Copy glyph immediately
-    button.dataset.copyState = "error";
-    button.setAttribute("aria-label", "Copy failed. Try again");
-    button.title = "Copy failed. Try again";
-  }
 }
 
 function syncCopyTarget(targetKey: string): void {
@@ -676,11 +664,16 @@ function copyButtonsForTarget(targetKey: string): HTMLButtonElement[] {
 function syncCopyButton(button: HTMLButtonElement): void {
   const targetKey = button.dataset.copyTarget ?? "";
   const label = button.dataset.copyLabel ?? "Copy";
-  const copied = (copiedUntilByTarget.get(targetKey) ?? 0) > Date.now();
-  button.dataset.copyState = copied ? "copied" : "idle";
-  button.setAttribute("aria-label", copied ? "Copied" : label);
-  button.title = copied ? "Copied" : label;
-  button.replaceChildren(lucideIcon(copied ? Check : Copy, 16));
+  const feedback = copyFeedbackByTarget.get(targetKey);
+  const state = feedback !== undefined && feedback.until > Date.now() ? feedback.state : "idle";
+  const description =
+    state === "copied" ? "Copied" : state === "error" ? "Copy failed. Try again" : label;
+  button.dataset.copyState = state;
+  button.setAttribute("aria-label", description);
+  button.title = description;
+  button.replaceChildren(
+    lucideIcon(state === "copied" ? Check : state === "error" ? CircleAlert : Copy, 16),
+  );
 }
 
 function providerLabelForRun(_run: RuntimeRunReport | null): string {
