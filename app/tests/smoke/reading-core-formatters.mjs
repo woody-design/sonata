@@ -86,6 +86,29 @@ const DAY = 24 * HOUR;
   );
 }
 
+// 1c) Transcript timestamps are exact, fixed facts (not relative ages). Locale
+// and time zone are injected so the visible separator/date/time contract pins
+// independently of the machine running the fixture.
+{
+  assert.equal(F.formatTranscriptTimestamp("not-a-date", "en-US", "UTC"), null, "invalid → no time");
+  assert.deepEqual(
+    F.formatTranscriptTimestamp("2026-07-14T11:08:00.000Z", "en-US", "UTC"),
+    {
+      display: "Jul 14, 2026 · 11:08 AM",
+      dateTime: "2026-07-14T11:08:00.000Z",
+    },
+    "English transcript time contains an exact date and minute",
+  );
+  assert.deepEqual(
+    F.formatTranscriptTimestamp("2026-07-14T03:08:00.000Z", "en-GB", "Asia/Tokyo"),
+    {
+      display: "14 Jul 2026 · 12:08",
+      dateTime: "2026-07-14T03:08:00.000Z",
+    },
+    "locale controls date order/hour cycle while the machine value stays canonical",
+  );
+}
+
 // 2) formatIdleDuration.
 {
   assert.equal(F.formatIdleDuration(5 * MIN), "5m", "5m");

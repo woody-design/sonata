@@ -4349,6 +4349,81 @@ h2 {
   width: 100%;
 }
 
+/* Message utilities are content-adjacent, never content: fixed-height rows
+   prevent hover from changing the reading flow, while user-select:none keeps
+   timestamps out of quote/selection copy. */
+.transcript-message-meta {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  gap: 4px;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  user-select: none;
+}
+
+.turn-user-meta {
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+
+/* The whole prompt header — bubble, chips, reserved row, and the space between
+   them — is one hover bridge. Opacity (not display/visibility) keeps the button
+   keyboard-focusable; :focus-within reveals it as soon as Tab lands there. */
+.turn-user:hover .turn-user-meta,
+.turn-user:focus-within .turn-user-meta {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.turn-assistant-meta {
+  justify-content: flex-start;
+  margin-top: 10px;
+}
+
+.transcript-message-time {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.transcript-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.transcript-copy-button:hover {
+  background: var(--surface-control-soft);
+  color: var(--ink-strong);
+}
+
+.transcript-copy-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.transcript-copy-button[data-copy-state="copied"] {
+  color: var(--accent);
+}
+
+.transcript-copy-button svg {
+  display: block;
+}
+
 .turn-user-text {
   min-width: 0;
   /* ~600px at the full 660px reading column (600/660 ≈ 91%); the % scales the
@@ -4432,7 +4507,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 18px;
+  padding-top: 14px;
 }
 
 .turn-body:empty {
@@ -4510,12 +4585,37 @@ h2 {
 }
 
 .md-body pre {
-  margin: 0 0 0.65em;
+  margin: 0;
   border: 1px solid var(--border-soft);
   border-radius: 6px;
   background: var(--code-bg);
-  padding: 10px 12px;
+  /* Right inset reserves the permanent 28px copy target + its 7px edge gap,
+     so the first line never renders beneath the control. */
+  padding: 10px 44px 10px 12px;
   overflow-x: auto;
+}
+
+.transcript-code-block {
+  position: relative;
+  margin: 0 0 0.65em;
+}
+
+.transcript-code-block .code-block-copy {
+  position: absolute;
+  z-index: 1;
+  top: 7px;
+  right: 7px;
+  background: color-mix(in srgb, var(--code-bg) 92%, transparent);
+  color: var(--ink-faint);
+}
+
+.transcript-code-block .code-block-copy:hover {
+  background: var(--surface-control-soft);
+  color: var(--ink-strong);
+}
+
+.transcript-code-block .code-block-copy[data-copy-state="copied"] {
+  color: var(--accent);
 }
 
 .md-body pre code {

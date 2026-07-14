@@ -34,6 +34,11 @@ try {
     "Write exactly one short sentence about the color blue, and nothing else.",
   ]);
   await waitForCompletedTurns(page, 1);
+  // Completion can precede the debounced transcript-block render. This fence is
+  // specifically about selecting ASSISTANT text, so wait for that semantic
+  // surface instead of accidentally falling back to whatever prompt/meta node
+  // happens to be the last substantial descendant of the card.
+  await page.locator(".turn-card .turn-answer .md-body").first().waitFor({ state: "visible" });
 
   // Turn 2 — long enough to stream across several content batches.
   await sendPrompt(page, [

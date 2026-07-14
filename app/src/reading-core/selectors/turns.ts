@@ -160,6 +160,37 @@ export function userPromptDisplay(
   };
 }
 
+export interface AssistantReplyContent {
+  /** Provider-authored Markdown, preserving structure such as lists and fences. */
+  markdown: string;
+  /** Timestamp of the final visible assistant block: when this reply was formed. */
+  completedAt: string;
+}
+
+/**
+ * The copy/time boundary for ONE whole AI reply. Process and system blocks are
+ * deliberately excluded: Reading may show a continuation note beside the
+ * reply, but it is not part of the assistant's authored answer. Multiple text
+ * blocks are separated by one blank Markdown line, matching their visual
+ * block boundary without inventing any additional content.
+ */
+export function assistantReplyContent(blocks: TranscriptBlock[]): AssistantReplyContent | null {
+  const visibleAssistantBlocks = blocks.filter(
+    (block): block is Extract<TranscriptBlock, { kind: "assistant-text" }> =>
+      block.kind === "assistant-text" && block.markdown.trim().length > 0,
+  );
+  const lastBlock = visibleAssistantBlocks.at(-1);
+  if (!lastBlock) {
+    return null;
+  }
+  return {
+    // Preserve every provider-authored byte inside each visible block. Leading
+    // four spaces and trailing two spaces are Markdown syntax, not decoration.
+    markdown: visibleAssistantBlocks.map((block) => block.markdown).join("\n\n"),
+    completedAt: lastBlock.ts,
+  };
+}
+
 /** Human label for an image-only prompt. When the prompt has no text, this IS
  *  the prompt's accessible/sticky-header text (review 2026-07-05 P2) — a bubble
  *  showing only a count chip would otherwise be non-navigable and headerless. */

@@ -15,11 +15,12 @@
 
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { Image as ImageIcon } from "lucide";
+import { Check, Copy, Image as ImageIcon } from "lucide";
 import { planKeyedReconcile } from "../../shared/keyed-reconcile";
 import type { TranscriptBlock } from "../../shared/types/transcript";
 import type { RuntimeRunReport } from "../../shared/schemas";
 import {
+  assistantReplyContent,
   buildReadingTurns,
   createTurnSignatureTracker,
   imageAttachmentLabel,
@@ -32,7 +33,10 @@ import {
   runOutcome,
   runTone,
 } from "../../reading-core/selectors/runs";
-import { providerLabel } from "../../reading-core/selectors/formatters";
+import {
+  formatTranscriptTimestamp,
+  providerLabel,
+} from "../../reading-core/selectors/formatters";
 import {
   activeTaskView,
   type RendererState,
@@ -63,6 +67,14 @@ export function initTranscriptView(
 // a WeakMap keyed by block reference) — the renderer holds this singleton;
 // fixtures create fresh instances (map §2.4).
 const turnSignatureTracker = createTurnSignatureTracker();
+
+// T19 — successful-copy feedback. The deadline lives outside the button DOM:
+// a streaming block can replace its whole turn card every ~160 ms, but the
+// promised three-second Check must survive that replacement. Ephemeral shell
+// truth only — never reducer state, never persistence.
+const COPY_FEEDBACK_MS = 3_000;
+const copiedUntilByTarget = new Map<string, number>();
+const copyResetTimerByTarget = new Map<string, number>();
 
 function refreshTurnCardCheap(card: HTMLElement, view: TaskViewState, turn: ReadingTurn): void {
   if (turn.runId) {
@@ -289,6 +301,15 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
     card.append(body);
   }
 
+  // This is ONE whole-reply control, intentionally outside `.turn-answer`:
+  // timestamps and controls must not enter answer text selection, quote-copy,
+  // or the load-bearing transcript-selection fence. A live response is not a
+  // whole response yet; show this row only once the attributed run settles.
+  const replyContent = assistantReplyContent(turn.blocks);
+  if (replyContent && !liveRun) {
+    card.append(renderAssistantMeta(turn.key, replyContent.markdown, replyContent.completedAt));
+  }
+
   // Reading shows the reply and the state, not the process (2026-07-03): the
   // work trace, turn footer, and artifact strip retired — the co-visible
   // Terminal carries process detail live, and forensics live in the provider
@@ -396,7 +417,72 @@ function renderTurnUser(turn: ReadingTurn): HTMLElement {
     prompt.setAttribute("aria-label", `Prompt: ${prompt.textContent}`);
     header.append(prompt);
   }
+
+  const promptTimestamp = userBlock?.ts ?? turn.run?.startedAt ?? null;
+  const meta = renderUserPromptMeta(turn.key, displayText, promptTimestamp);
+  if (meta) {
+    header.append(meta);
+  }
   return header;
+}
+
+function renderUserPromptMeta(
+  turnKey: string,
+  copyText: string,
+  timestampIso: string | null,
+): HTMLElement | null {
+  const timestamp = timestampIso ? formatTranscriptTimestamp(timestampIso) : null;
+  if (!timestamp && !copyText) {
+    return null;
+  }
+  const meta = document.createElement("div");
+  meta.className = "transcript-message-meta turn-user-meta";
+  if (timestamp) {
+    meta.append(renderMessageTime(timestamp.display, timestamp.dateTime, "Prompt sent"));
+  }
+  // Image-only and genuinely empty prompts disclose time but no misleading
+  // text-copy action. A slash invocation stays whole in displayText, including
+  // its command name, even though its visual bubble splits chip from body.
+  if (copyText) {
+    meta.append(
+      transcriptCopyButton({
+        targetKey: `${turnKey}:prompt`,
+        text: copyText,
+        label: "Copy prompt",
+      }),
+    );
+  }
+  return meta;
+}
+
+function renderAssistantMeta(
+  turnKey: string,
+  markdown: string,
+  completedAt: string,
+): HTMLElement {
+  const meta = document.createElement("div");
+  meta.className = "transcript-message-meta turn-assistant-meta";
+  meta.append(
+    transcriptCopyButton({
+      targetKey: `${turnKey}:reply`,
+      text: markdown,
+      label: "Copy response",
+    }),
+  );
+  const timestamp = formatTranscriptTimestamp(completedAt);
+  if (timestamp) {
+    meta.append(renderMessageTime(timestamp.display, timestamp.dateTime, "Response completed"));
+  }
+  return meta;
+}
+
+function renderMessageTime(display: string, dateTime: string, label: string): HTMLTimeElement {
+  const time = document.createElement("time");
+  time.className = "transcript-message-time";
+  time.dateTime = dateTime;
+  time.textContent = display;
+  time.setAttribute("aria-label", `${label} ${display}`);
+  return time;
 }
 
 function isAnswerBlock(
@@ -418,7 +504,7 @@ function turnCompletedWithoutAssistantOutput(turn: ReadingTurn): boolean {
 // the provider transcript; Reading no longer renders them (2026-07-03).
 function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
   if (block.kind === "assistant-text") {
-    return markdownBody(block.markdown);
+    return markdownBody(block.markdown, block.id);
   }
   const note = document.createElement("div");
   note.className = "turn-system-note";
@@ -480,7 +566,7 @@ const markdownSanitizerConfig = {
 
 const markdownHtmlCache = new Map<string, string>();
 
-function markdownBody(markdown: string): HTMLElement {
+function markdownBody(markdown: string, blockId: string): HTMLElement {
   const body = document.createElement("div");
   body.className = "md-body";
   let html = markdownHtmlCache.get(markdown);
@@ -489,7 +575,112 @@ function markdownBody(markdown: string): HTMLElement {
     markdownHtmlCache.set(markdown, html);
   }
   body.innerHTML = html;
+  enhanceCodeBlocks(body, blockId);
   return body;
+}
+
+function enhanceCodeBlocks(body: HTMLElement, blockId: string): void {
+  const codeBlocks = Array.from(body.querySelectorAll<HTMLPreElement>("pre"));
+  for (const [index, pre] of codeBlocks.entries()) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "transcript-code-block";
+    pre.before(wrapper);
+    wrapper.append(pre);
+    const codeText = pre.querySelector("code")?.textContent ?? pre.textContent ?? "";
+    const copy = transcriptCopyButton({
+      targetKey: `${blockId}:code:${index}`,
+      text: codeText,
+      label: "Copy code",
+      className: "code-block-copy",
+    });
+    wrapper.append(copy);
+  }
+}
+
+interface TranscriptCopyButtonOptions {
+  targetKey: string;
+  text: string;
+  label: string;
+  className?: string;
+}
+
+function transcriptCopyButton(options: TranscriptCopyButtonOptions): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = options.className
+    ? `transcript-copy-button ${options.className}`
+    : "transcript-copy-button";
+  button.dataset.copyTarget = options.targetKey;
+  button.dataset.copyLabel = options.label;
+  syncCopyButton(button);
+  button.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(options.text);
+      markCopySucceeded(options.targetKey);
+    } catch {
+      markCopyFailed(options.targetKey);
+    }
+  });
+  return button;
+}
+
+function markCopySucceeded(targetKey: string): void {
+  const copiedUntil = Date.now() + COPY_FEEDBACK_MS;
+  copiedUntilByTarget.set(targetKey, copiedUntil);
+  syncCopyTarget(targetKey);
+
+  const previousTimer = copyResetTimerByTarget.get(targetKey);
+  if (previousTimer !== undefined) {
+    window.clearTimeout(previousTimer);
+  }
+  const timer = window.setTimeout(() => {
+    copyResetTimerByTarget.delete(targetKey);
+    if ((copiedUntilByTarget.get(targetKey) ?? 0) <= Date.now()) {
+      copiedUntilByTarget.delete(targetKey);
+      syncCopyTarget(targetKey);
+    }
+  }, COPY_FEEDBACK_MS);
+  copyResetTimerByTarget.set(targetKey, timer);
+}
+
+function markCopyFailed(targetKey: string): void {
+  copiedUntilByTarget.delete(targetKey);
+  const previousTimer = copyResetTimerByTarget.get(targetKey);
+  if (previousTimer !== undefined) {
+    window.clearTimeout(previousTimer);
+    copyResetTimerByTarget.delete(targetKey);
+  }
+  // Address the stable target, not the click-time node: the Promise may reject
+  // after streaming reconcile has detached that button and mounted a new one.
+  const buttons = copyButtonsForTarget(targetKey);
+  for (const button of buttons) {
+    syncCopyButton(button); // restores the Copy glyph immediately
+    button.dataset.copyState = "error";
+    button.setAttribute("aria-label", "Copy failed. Try again");
+    button.title = "Copy failed. Try again";
+  }
+}
+
+function syncCopyTarget(targetKey: string): void {
+  for (const button of copyButtonsForTarget(targetKey)) {
+    syncCopyButton(button);
+  }
+}
+
+function copyButtonsForTarget(targetKey: string): HTMLButtonElement[] {
+  return Array.from(
+    document.querySelectorAll<HTMLButtonElement>(".transcript-copy-button"),
+  ).filter((button) => button.dataset.copyTarget === targetKey);
+}
+
+function syncCopyButton(button: HTMLButtonElement): void {
+  const targetKey = button.dataset.copyTarget ?? "";
+  const label = button.dataset.copyLabel ?? "Copy";
+  const copied = (copiedUntilByTarget.get(targetKey) ?? 0) > Date.now();
+  button.dataset.copyState = copied ? "copied" : "idle";
+  button.setAttribute("aria-label", copied ? "Copied" : label);
+  button.title = copied ? "Copied" : label;
+  button.replaceChildren(lucideIcon(copied ? Check : Copy, 16));
 }
 
 function providerLabelForRun(_run: RuntimeRunReport | null): string {

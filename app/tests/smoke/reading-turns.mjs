@@ -355,4 +355,47 @@ function view({ runs = [], blocks = [], runTranscripts = [] } = {}) {
   assert.equal(T.imageAttachmentLabel(3), "3 images attached", "plural");
 }
 
-console.log("reading-turns: 11 fixture groups pass");
+// 12) assistantReplyContent — one semantic reply across multiple assistant
+// text blocks. Notes/process stay visible elsewhere but never enter clipboard
+// copy; the final visible text block defines the reply's timestamp.
+{
+  const first = block("assistant-text", "t1", "run-1", {
+    markdown: "    indentedCode()\nHard break  \n",
+    ts: "2026-07-03T10:00:02.000Z",
+  });
+  const note = block("system-note", "t1", "run-1", {
+    text: 'Agent "research" finished.',
+    ts: "2026-07-03T10:00:03.000Z",
+  });
+  const tool = block("tool-call", "t1", "run-1", {
+    callId: "call-copy-test",
+    toolName: "Bash",
+    summary: "echo ignored",
+    inputPreview: "",
+    inputTruncated: false,
+    status: "ok",
+    resultPreview: null,
+    resultTruncated: false,
+    durationMs: 10,
+    ts: "2026-07-03T10:00:04.000Z",
+  });
+  const last = block("assistant-text", "t1", "run-1", {
+    markdown: "```ts\nconst answer = 42;\n```\n",
+    ts: "2026-07-03T10:00:05.000Z",
+  });
+  const invisibleTail = block("assistant-text", "t1", "run-1", {
+    markdown: "  \n",
+    ts: "2026-07-03T10:00:06.000Z",
+  });
+  assert.deepEqual(
+    T.assistantReplyContent([first, note, tool, last, invisibleTail]),
+    {
+      markdown: "    indentedCode()\nHard break  \n\n\n```ts\nconst answer = 42;\n```\n",
+      completedAt: last.ts,
+    },
+    "raw Markdown bytes survive; system/process/whitespace-only content is excluded",
+  );
+  assert.equal(T.assistantReplyContent([note, tool]), null, "no assistant text → no reply action");
+}
+
+console.log("reading-turns: 12 fixture groups pass");

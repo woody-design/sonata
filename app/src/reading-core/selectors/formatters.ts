@@ -53,6 +53,46 @@ export function formatRelativeAge(iso: string, nowMs = Date.now()): string {
   return `${Math.floor(days / 365)}y`;
 }
 
+export interface TranscriptTimestamp {
+  /** Exact local date + time for the quiet transcript metadata row. */
+  display: string;
+  /** Canonical machine-readable value for the HTML <time> element. */
+  dateTime: string;
+}
+
+/**
+ * Exact timestamp copy for a conversational message. Unlike the Sidebar's
+ * relative activity age, a transcript time is a durable fact: it never changes
+ * under the reader. Locale and zone are injectable for deterministic fixtures;
+ * the renderer omits both so Chromium follows the user's system preferences.
+ */
+export function formatTranscriptTimestamp(
+  iso: string,
+  locale?: string,
+  timeZone?: string,
+): TranscriptTimestamp | null {
+  const timestampMs = Date.parse(iso);
+  if (!Number.isFinite(timestampMs)) {
+    return null;
+  }
+  const zone = timeZone === undefined ? {} : { timeZone };
+  const date = new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    ...zone,
+  }).format(timestampMs);
+  const time = new Intl.DateTimeFormat(locale, {
+    hour: "numeric",
+    minute: "2-digit",
+    ...zone,
+  }).format(timestampMs);
+  return {
+    display: `${date} · ${time}`,
+    dateTime: new Date(timestampMs).toISOString(),
+  };
+}
+
 const SIDEBAR_HOVER_RELATIVE_THRESHOLD_MS = 7 * 24 * 60 * 60_000;
 
 export interface SidebarHoverActivity {
