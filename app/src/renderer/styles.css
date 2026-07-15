@@ -2576,11 +2576,12 @@ h2 {
  * receipt. "Claude is asking" provenance. */
 .option-prompt-card {
   margin: 10px 18px 0;
-  border: 1px solid var(--border-menu);
-  border-radius: 8px;
-  padding: 12px 14px;
-  background: var(--surface-menu);
-  color: var(--ink-strong);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-16) var(--space-16) var(--space-8);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-raised);
   /* Bound the card in the fixed run-column so a tall multi-question form
    * scrolls internally instead of clipping its lower questions + Send. The
    * card sits to its natural (short) height when content is small, and caps
@@ -2625,7 +2626,7 @@ h2 {
 
 .option-prompt-sub {
   font-size: 12px;
-  color: var(--ink-muted);
+  color: var(--text-tertiary);
 }
 
 .option-prompt-question {
@@ -2642,19 +2643,20 @@ h2 {
 }
 
 .option-prompt-question-head strong {
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.35;
 }
 
 .option-prompt-badge {
   flex: 0 0 auto;
-  border: 1px solid var(--border-menu);
-  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
   padding: 2px 8px;
-  background: var(--surface-pill);
-  color: var(--ink-muted-warm);
+  background: var(--surface-hover);
+  color: var(--text-tertiary);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .option-prompt-options {
@@ -2669,22 +2671,20 @@ h2 {
   gap: 10px;
   width: 100%;
   text-align: left;
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--surface-raised);
-  color: var(--ink-strong);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: var(--space-8);
+  background: transparent;
+  color: var(--text-primary);
   cursor: pointer;
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 
 .option-prompt-option:hover:not(:disabled) {
-  border-color: var(--accent-soft-border);
-  background: var(--surface-control);
+  background: var(--surface-hover);
 }
 
 .option-prompt-option.selected {
-  border-color: var(--accent);
   background: var(--surface-selected);
 }
 
@@ -2700,12 +2700,12 @@ h2 {
 .option-prompt-option.checkbox:disabled {
   opacity: 1;
   cursor: default;
-  background: var(--surface-raised);
-  border-color: var(--border-subtle);
+  background: transparent;
+  border-color: transparent;
 }
 
 .option-prompt-option.checkbox .option-prompt-marker {
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   font-size: 13px;
 }
 
@@ -2713,7 +2713,7 @@ h2 {
   flex: 0 0 auto;
   font-size: 11px;
   font-style: italic;
-  color: var(--ink-muted);
+  color: var(--text-tertiary);
 }
 
 .option-prompt-marker {
@@ -2723,18 +2723,18 @@ h2 {
   justify-content: center;
   width: 20px;
   height: 20px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--border-strong);
-  background: var(--surface-white);
-  color: var(--ink-muted);
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .option-prompt-option.selected .option-prompt-marker {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--surface-white);
+  border-color: var(--control-primary-bg);
+  background: var(--control-primary-bg);
+  color: var(--control-primary-text);
 }
 
 .option-prompt-option-text {
@@ -2751,7 +2751,7 @@ h2 {
 
 .option-prompt-option-desc {
   font-size: 12px;
-  color: var(--ink-muted);
+  color: var(--text-tertiary);
   line-height: 1.35;
 }
 
@@ -2765,12 +2765,12 @@ h2 {
    * hairline separates it from the scrolled content above. */
   flex: 0 0 auto;
   padding-top: 10px;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-hairline);
 }
 
 .option-prompt-hint {
   font-size: 12px;
-  color: var(--ink-muted);
+  color: var(--text-tertiary);
 }
 
 .option-prompt-receipt-line {
@@ -2782,25 +2782,27 @@ h2 {
 
 .option-prompt-receipt-choice {
   font-size: 13px;
-  color: var(--ink-strong);
+  color: var(--text-primary);
 }
 
+/* Approval cards render ONE neutral chrome for every kind (structural decision
+ * 2): canvas card + hairline-default border + secondary ink. The per-kind
+ * data-attributes survive in markup/TS (information architecture), but the paint
+ * no longer forks — the five-colour family is retired. ONLY dangerous-bypass
+ * carries attention (red border + red kind label + de-emphasised danger button);
+ * its surface stays neutral canvas, per the spec .approval.dangerous specimen. */
 .approval-banner {
-  --approval-surface: var(--approval-file-edit-surface);
-  --approval-border: var(--approval-file-edit-border);
-  --approval-ink: var(--approval-file-edit-ink);
-
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-12);
   margin: 10px 18px 0;
-  border: 1px solid var(--approval-border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: var(--approval-ink);
-  background: var(--approval-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-12) var(--space-16);
+  color: var(--text-secondary);
+  background: var(--surface-canvas);
 }
 
 .approval-copy {
@@ -2820,64 +2822,49 @@ h2 {
 
 .approval-kind-badge {
   flex: 0 0 auto;
-  border: 1px solid var(--approval-border);
-  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
   padding: 3px 7px;
-  color: var(--approval-ink);
-  background: var(--approval-badge-bg);
+  color: var(--text-tertiary);
+  background: var(--surface-hover);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
-.approval-banner[data-approval-kind="command"] {
-  --approval-surface: var(--approval-command-surface);
-  --approval-border: var(--approval-command-border);
-  --approval-ink: var(--approval-command-ink);
-}
-
-.approval-banner[data-approval-kind="file-edit"] {
-  --approval-surface: var(--approval-file-edit-surface);
-  --approval-border: var(--approval-file-edit-border);
-  --approval-ink: var(--approval-file-edit-ink);
-}
-
-.approval-banner[data-approval-kind="file-read"] {
-  --approval-surface: var(--approval-file-read-surface);
-  --approval-border: var(--approval-file-read-border);
-  --approval-ink: var(--approval-file-read-ink);
-}
-
-.approval-banner[data-approval-kind="workspace-trust"] {
-  --approval-surface: var(--approval-workspace-trust-surface);
-  --approval-border: var(--approval-workspace-trust-border);
-  --approval-ink: var(--approval-workspace-trust-ink);
-}
-
-/* The bypass interstitial is a dangerous mode acceptance, not a tool
- * approval. Red surface, and the accept button is de-emphasised (a
- * destructive action must not read as the primary call to action — its
- * native default is "No, exit"). Visual proposal pending Woody's review. */
+/* The bypass interstitial is a dangerous mode acceptance, not a tool approval:
+ * the only approval kind that keeps chroma. Red border + red kind label mark the
+ * danger; the accept button is de-emphasised as an outlined danger action (a
+ * destructive act must not read as the primary CTA — its native default is
+ * "No, exit"), while Deny stays the emphasised safe choice. */
 .approval-banner[data-approval-kind="dangerous-bypass"] {
-  --approval-surface: var(--approval-dangerous-bypass-surface);
-  --approval-border: var(--approval-dangerous-bypass-border);
-  --approval-ink: var(--approval-dangerous-bypass-ink);
+  border-color: var(--attention-border);
+}
+
+.approval-banner[data-approval-kind="dangerous-bypass"] .approval-kind-badge {
+  color: var(--attention-text);
+  border-color: var(--attention-border);
+  background: var(--attention-surface);
 }
 
 .approval-banner[data-approval-kind="dangerous-bypass"] #approve-approval {
   background: transparent;
-  border: 1px solid var(--approval-dangerous-bypass-border);
-  color: var(--approval-dangerous-bypass-ink);
+  border: 1px solid var(--attention-border);
+  color: var(--attention-text);
   font-weight: 600;
 }
 
+.approval-banner[data-approval-kind="dangerous-bypass"] #approve-approval:hover {
+  background: var(--attention-surface);
+}
+
 .approval-banner[data-approval-kind="dangerous-bypass"] #deny-approval {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .approval-summary {
   max-width: 760px;
   margin: 4px 0 0;
-  color: var(--approval-ink);
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -2890,11 +2877,11 @@ h2 {
 }
 
 .approval-context span {
-  border: 1px solid var(--approval-context-border);
-  border-radius: 999px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-pill);
   padding: 4px 8px;
-  color: var(--approval-ink);
-  background: var(--approval-context-bg);
+  color: var(--text-secondary);
+  background: var(--surface-hover);
   font-size: 12px;
 }
 
@@ -3164,13 +3151,13 @@ h2 {
 }
 
 .composer:focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
 }
 
 .composer:focus-visible .composer-card {
-  border-color: var(--accent-soft-border);
+  border-color: var(--focus-ring);
   box-shadow: var(--shadow-composer-focus);
 }
 
@@ -3183,10 +3170,10 @@ h2 {
   gap: 6px;
   position: relative;
   z-index: 2;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 8px 9px 8px 13px;
-  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8) var(--space-8) var(--space-8) var(--space-12);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-composer);
   transition:
     border-color 120ms ease,
@@ -3211,9 +3198,9 @@ h2 {
   overflow-y: auto;
   resize: none;
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   padding: 2px 4px;
-  color: var(--ink-strong);
+  color: var(--text-primary);
   background: transparent;
   line-height: 1.45;
 }
@@ -3223,12 +3210,12 @@ h2 {
 }
 
 #prompt-input:disabled {
-  color: var(--ink-disabled);
-  -webkit-text-fill-color: var(--ink-disabled);
+  color: var(--text-placeholder);
+  -webkit-text-fill-color: var(--text-placeholder);
 }
 
 .composer-card:focus-within {
-  border-color: var(--accent-soft-border);
+  border-color: var(--focus-ring);
   box-shadow: var(--shadow-composer-focus);
 }
 
@@ -3238,7 +3225,7 @@ h2 {
 .composer-status {
   margin-top: 6px;
   padding: 0 6px;
-  color: var(--status-attention-text);
+  color: var(--attention-text);
   font-size: 12px;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -3276,13 +3263,13 @@ h2 {
   min-width: 0;
   max-width: 210px;
   overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-pill);
   padding: 4px 8px;
-  color: var(--ink-status);
-  background: var(--surface-control-soft);
+  color: var(--text-secondary);
+  background: var(--surface-hover);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3290,15 +3277,15 @@ h2 {
 
 .composer-chip:hover,
 .composer-chip.active {
-  border-color: var(--accent-soft-border);
-  background: var(--surface-complete-active);
+  border-color: var(--border-strong);
+  background: var(--surface-selected);
 }
 
 /* Chips are display-only session facts (S3): mid-session switching lives in
    the terminal, so the disabled state keeps the normal ink — informative, not
    grayed out. */
 .composer-chip:disabled {
-  color: var(--ink-status);
+  color: var(--text-secondary);
   cursor: default;
 }
 
@@ -3338,8 +3325,8 @@ h2 {
   position: relative;
   z-index: 1;
   margin-top: -14px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 0 0 16px 16px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   padding: 20px 10px 5px;
   background: var(--surface-raised);
 }
@@ -3357,28 +3344,28 @@ h2 {
 
 .composer-context-row .project-chip:hover,
 .composer-context-row .project-chip.active {
-  border-color: var(--accent-soft-border);
-  background: var(--surface-complete-active);
+  border-color: var(--border-strong);
+  background: var(--surface-selected);
 }
 
 .composer-icon-button {
   width: 28px;
   min-width: 28px;
   min-height: 28px;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-hairline);
   border-radius: 50%;
   padding: 0;
-  color: var(--ink-status);
-  background: var(--surface-control-soft);
+  color: var(--text-secondary);
+  background: var(--surface-hover);
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1;
 }
 
 .composer-icon-button:hover,
 .composer-icon-button.active {
-  border-color: var(--accent-soft-border);
-  background: var(--surface-complete-active);
+  border-color: var(--border-strong);
+  background: var(--surface-selected);
 }
 
 .usage-indicator {
@@ -3396,8 +3383,8 @@ h2 {
 
 .usage-indicator:hover,
 .usage-indicator.active {
-  border-color: var(--accent-soft-border);
-  background: var(--surface-complete-active);
+  border-color: var(--border-strong);
+  background: var(--surface-selected);
 }
 
 .usage-indicator:disabled {
@@ -3406,12 +3393,12 @@ h2 {
 }
 
 .usage-indicator.empty {
-  color: var(--ink-faint);
+  color: var(--text-tertiary);
   opacity: 0.68;
 }
 
 .usage-indicator.high {
-  color: var(--status-attention-strong);
+  color: var(--attention-text);
 }
 
 .usage-ring {
@@ -3427,7 +3414,7 @@ h2 {
 }
 
 .usage-ring-track {
-  stroke: var(--border-subtle);
+  stroke: var(--border-hairline);
 }
 
 .usage-ring-fill {
@@ -3476,10 +3463,10 @@ h2 {
 .attachment-chip-image {
   width: 58px;
   height: 58px;
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-control);
+  border: 1px solid var(--border-hairline);
+  background: var(--surface-hover);
 }
 
 .attachment-chip-image img {
@@ -3495,7 +3482,7 @@ h2 {
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: var(--ink-faint);
+  color: var(--text-tertiary);
 }
 
 /* File / folder — a card: icon tile + name (truncated) over a kind line. */
@@ -3507,8 +3494,8 @@ h2 {
   height: 58px;
   max-width: 264px;
   padding: 9px 30px 9px 9px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 13px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
   background: var(--surface-raised);
 }
 
@@ -3518,9 +3505,9 @@ h2 {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 9px;
-  background: var(--surface-strip);
-  color: var(--ink-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-shell);
+  color: var(--text-secondary);
 }
 
 .attachment-chip-meta {
@@ -3532,15 +3519,15 @@ h2 {
 
 .attachment-chip-name {
   overflow: hidden;
-  color: var(--ink-strong);
-  font-size: 14px;
-  font-weight: 650;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .attachment-chip-kind {
-  color: var(--ink-meta);
+  color: var(--text-tertiary);
   font-size: 12px;
 }
 
@@ -3785,13 +3772,17 @@ h2 {
   border-radius: 50%;
   padding: 0;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
 }
 
+/* Stop is an interruption affordance — attention red is correct (needs-you
+ * semantics). The solid --attention-icon fill pairs with the .primary base's
+ * --text-on-emphasis glyph, which passes contrast in both modes (white on
+ * #de1135 light; #191919 on #f1556c dark). */
 .send-button.stop-mode {
-  border-color: var(--status-attention-deep);
-  background: var(--status-attention-button);
+  border-color: var(--attention-icon);
+  background: var(--attention-icon);
 }
 
 .side-column {
@@ -3927,10 +3918,10 @@ h2 {
   flex-direction: column;
   gap: 10px;
   margin: 0 16px 8px;
-  padding: 12px 14px;
-  border: 1px solid #4a4234;
-  border-radius: 10px;
-  background: #1f1c16;
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-canvas);
 }
 
 .resume-choice.hidden {
@@ -3938,20 +3929,20 @@ h2 {
 }
 
 .resume-choice-copy strong {
-  color: #f0eee7;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 .resume-choice-copy p {
   margin: 4px 0 0;
-  color: #c8c2b6;
-  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-size: 12px;
   line-height: 1.45;
 }
 
 .resume-bridge-note {
   font-size: 12px;
-  color: #a89f8d;
+  color: var(--text-tertiary);
 }
 
 .resume-choice-actions {
@@ -3967,7 +3958,7 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #c8c2b6;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -3975,7 +3966,7 @@ h2 {
   background: none;
   border: none;
   padding: 0;
-  color: #d97757;
+  color: var(--accent);
   cursor: pointer;
   font-size: inherit;
   text-decoration: underline;
