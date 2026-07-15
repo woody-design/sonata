@@ -110,7 +110,7 @@ function evaluateSelection(): void {
     return;
   }
   const range = currentQualifyingRange();
-  const rect = range ? lastRectOf(range) : null;
+  const rect = range ? selectionAnchorRect(range) : null;
   if (!rect) {
     hideTrigger();
     return;
@@ -149,20 +149,58 @@ function rangeIntersectsTranscript(range: Range): boolean {
   return false;
 }
 
-/** The last client rect of a range (the selection END), or null when the range
- *  yields no usable box (collapsed, line-break-only, or a dead cloned range). */
-function lastRectOf(range: Range): DOMRect | null {
-  let rects: DOMRectList;
+/**
+ * The placement rect for a text selection.
+ *
+ * A Range that wraps across lines is not one visual box: `getClientRects()`
+ * yields one or more fragments per line. For an above-selection control, the
+ * horizontal anchor belongs to the FIRST visual line; anchoring to the final
+ * fragment makes the control appear inside/beside a multiline selection. The
+ * vertical span still covers the WHOLE selection so `positionCenteredAbove`
+ * can flip below its final line when the viewport has no room above.
+ *
+ * This mirrors Floating UI's `inline()` top-placement geometry: coalesce the
+ * first line's fragments for left/right, then use the full range for
+ * top/bottom. It also stays stable across forward/backward selection because a
+ * Range's client rects are in document/content order, not drag direction.
+ */
+function selectionAnchorRect(range: Range): DOMRect | null {
+  let rects: DOMRect[];
   try {
-    rects = range.getClientRects();
+    rects = Array.from(range.getClientRects()).filter(
+      (rect) => rect.width > 0 && rect.height > 0,
+    );
   } catch {
     return null;
   }
-  const rect = rects.length > 0 ? rects[rects.length - 1] : undefined;
-  if (!rect || (rect.width === 0 && rect.height === 0)) {
+  if (rects.length === 0) {
     return null;
   }
-  return rect;
+
+  // DOM order is normally visual order in this horizontal reading surface,
+  // but sorting by top makes the placement rule explicit and resilient to
+  // fragmented inline markup (links, code spans, emphasis) within a line.
+  rects.sort((a, b) => a.top - b.top || a.left - b.left);
+  const firstRect = rects[0]!;
+  const firstLine = [firstRect];
+  let previous = firstRect;
+  for (let index = 1; index < rects.length; index += 1) {
+    const rect = rects[index]!;
+    // Same-line boxes can have slightly different tops/heights due to inline
+    // typography. A half-line threshold is the mature inline-positioning
+    // convention used by Floating UI rather than brittle pixel equality.
+    if (rect.top - previous.top > previous.height / 2) {
+      break;
+    }
+    firstLine.push(rect);
+    previous = rect;
+  }
+
+  const left = Math.min(...firstLine.map((rect) => rect.left));
+  const right = Math.max(...firstLine.map((rect) => rect.right));
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+  return new DOMRect(left, top, right - left, bottom - top);
 }
 
 // --- The floating trigger ---------------------------------------------------
@@ -208,7 +246,7 @@ function onTriggerMousedown(event: MouseEvent): void {
   if (normalizeQuote(quoteText).length === 0) {
     return;
   }
-  const anchorRect = lastRectOf(range) ?? triggerAnchorRect;
+  const anchorRect = selectionAnchorRect(range) ?? triggerAnchorRect;
   if (!anchorRect) {
     return;
   }
@@ -414,7 +452,7 @@ function reposition(): void {
   if (bar) {
     // Follow the quoted text if its range is still alive; if it died on a
     // streaming rebuild, keep the last position (the highlight is already gone).
-    const rect = lastRectOf(bar.clonedRange);
+    const rect = selectionAnchorRect(bar.clonedRange);
     if (rect) {
       positionCenteredAbove(bar.root, rect);
     }
@@ -422,7 +460,7 @@ function reposition(): void {
   }
   if (triggerEl) {
     const range = currentQualifyingRange();
-    const rect = range ? lastRectOf(range) : null;
+    const rect = range ? selectionAnchorRect(range) : null;
     if (!rect) {
       hideTrigger();
       return;

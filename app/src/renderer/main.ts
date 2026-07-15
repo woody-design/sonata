@@ -2,8 +2,8 @@ import {
   Ellipsis,
   Eye,
   PanelLeft,
+  Plus,
   Smartphone,
-  SquarePen,
 } from "lucide";
 import "./styles.css";
 import {
@@ -567,7 +567,7 @@ elements.sessionMenuTrigger.append(lucideIcon(Ellipsis));
 elements.sessionMenuTrigger.dataset.sidebarFocusKey = "header:session-menu";
 elements.openPreviewWindow.append(lucideIcon(Eye));
 elements.remoteControlToggle.append(lucideIcon(Smartphone));
-elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIcon(SquarePen));
+elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIcon(Plus));
 
 const SIDEBAR_COLLAPSED_KEY = "duet.sidebar.collapsed";
 

@@ -8,6 +8,10 @@
 // selection over that already-settled text. What this fence guarantees:
 //
 //   a. A non-collapsed selection inside a completed turn shows the trigger.
+//   a′. A multiline selection anchors trigger + bar above its first visual
+//      line, never to the selection-end line.
+//   a″. A long selection spanning the viewport keeps trigger + bar fully
+//      reachable through vertical flip + shift collision handling.
 //   b. Clicking the trigger opens the bar, focuses the input, and keeps the
 //      confirm checkmark hidden while the input is empty OR whitespace-only,
 //      with Enter a no-op in that state (D4).
@@ -20,7 +24,7 @@
 //      the composer caret at position 0 — proving append-at-end, not
 //      insert-at-caret (D5).
 //   f. A whitespace-only selection that HAS a real client rect shows no trigger
-//      (isolating the S1 normalizeQuote dead-trigger guard from lastRectOf's
+//      (isolating the S1 normalizeQuote dead-trigger guard from geometry's
 //      zero-rect rejection).
 //
 // The serialized paragraph is asserted against a string computed INLINE here
@@ -144,10 +148,88 @@ try {
   await trigger.waitFor({ state: "visible" });
   assert.equal(await trigger.count(), 1, "(a) exactly one trigger for a qualifying selection");
 
+  // ─── (a′) Multiline selection → first visual line is the top anchor ───
+  // Use a controlled narrow fixture rather than depending on live model output
+  // wrapping at a particular word. Returning every range fragment makes this
+  // an independent geometry witness: the assertions do not reuse the
+  // production anchor calculation.
+  const multiline = await page.evaluate(() => {
+    const answer = document.querySelector(".turn-card .turn-answer");
+    if (!answer) return { ok: false, why: "no answer body to host multiline fixture" };
+    const fixture = document.createElement("span");
+    fixture.id = "quote-comment-multiline-fixture";
+    fixture.style.display = "block";
+    fixture.style.width = "230px";
+    fixture.textContent =
+      "Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu.";
+    answer.appendChild(fixture);
+    const range = document.createRange();
+    range.selectNodeContents(fixture);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return {
+      ok: true,
+      text: selection.toString(),
+      rects: Array.from(range.getClientRects(), (rect) => ({
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      })).filter((rect) => rect.width > 0 && rect.height > 0),
+    };
+  });
+  assert.ok(multiline.ok, `(a′) created multiline fixture (${multiline.why ?? ""})`);
+  assert.ok(multiline.text.trim().length > 0, "(a′) multiline selection is non-empty");
+  assert.ok(multiline.rects.length >= 2, "(a′) fixture selection has at least two line rects");
+  const firstLine = multiline.rects[0];
+  const lastLine = multiline.rects[multiline.rects.length - 1];
+  assert.ok(lastLine.top > firstLine.top, "(a′) fixture actually wraps onto a later visual line");
+  const firstLineCenter = (firstLine.left + firstLine.right) / 2;
+
+  // The trigger is already visible from case (a), so a visibility wait would
+  // pass before the 150 ms selection debounce repositions it. Wait on the
+  // geometry contract itself; this witnesses both debounce completion and the
+  // intended anchor without a timing-only sleep.
+  await page.waitForFunction(
+    ({ selectionTop, selectionFirstLineCenter }) => {
+      const element = document.querySelector(".quote-comment-trigger");
+      if (!(element instanceof HTMLElement)) return false;
+      const rect = element.getBoundingClientRect();
+      return (
+        rect.bottom <= selectionTop - 7 &&
+        Math.abs(rect.left + rect.width / 2 - selectionFirstLineCenter) <= 2
+      );
+    },
+    { selectionTop: firstLine.top, selectionFirstLineCenter: firstLineCenter },
+  );
+  const multilineTriggerBox = await trigger.boundingBox();
+  assert.ok(multilineTriggerBox, "(a′) trigger has measurable geometry");
+  assert.ok(
+    multilineTriggerBox.y + multilineTriggerBox.height <= firstLine.top - 7,
+    "(a′) trigger sits above the selection's first visual line",
+  );
+  assert.ok(
+    Math.abs(multilineTriggerBox.x + multilineTriggerBox.width / 2 - firstLineCenter) <= 2,
+    "(a′) trigger is centered on the selection's first visual line",
+  );
+
   // ─── (b) Click trigger → bar opens, input focused, confirm hidden (D4) ─────
   await trigger.click();
   await bar.waitFor({ state: "visible" });
   await input.waitFor({ state: "visible" });
+  const multilineBarBox = await bar.boundingBox();
+  assert.ok(multilineBarBox, "(a′) bar has measurable geometry");
+  assert.ok(
+    multilineBarBox.y + multilineBarBox.height <= firstLine.top - 7,
+    "(a′) input bar preserves the above-selection anchor",
+  );
+  assert.ok(
+    Math.abs(multilineBarBox.x + multilineBarBox.width / 2 - firstLineCenter) <= 2,
+    "(a′) input bar stays centered on the first visual line",
+  );
   const inputFocused = await page.evaluate(() =>
     document.activeElement?.classList.contains("quote-comment-input"),
   );
@@ -181,6 +263,80 @@ try {
     composerBaseline,
     "(c) cancel left the composer text untouched — no trace",
   );
+
+  // ─── (a″) Viewport-spanning selection → trigger + bar stay reachable ───
+  const spanning = await page.evaluate(() => {
+    const runList = document.querySelector("#run-list");
+    const answer = document.querySelector(".turn-card .turn-answer");
+    if (!(runList instanceof HTMLElement) || !answer) {
+      return { ok: false, why: "no run list or answer body for spanning fixture" };
+    }
+    const fixture = document.createElement("span");
+    fixture.id = "quote-comment-spanning-fixture";
+    fixture.style.display = "block";
+    fixture.style.width = "230px";
+    fixture.textContent = Array.from(
+      { length: 180 },
+      (_, index) => `line-${String(index).padStart(3, "0")}`,
+    ).join(" ");
+    answer.appendChild(fixture);
+
+    // Put the first selected line near the scrollport's top while leaving the
+    // many remaining lines beyond the viewport bottom. A last-rect anchor or
+    // an unshifted below-placement will therefore be unreachable.
+    const runListRect = runList.getBoundingClientRect();
+    const fixtureRect = fixture.getBoundingClientRect();
+    runList.scrollTop += fixtureRect.top - runListRect.top + 80;
+
+    const range = document.createRange();
+    range.selectNodeContents(fixture);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const rect = range.getBoundingClientRect();
+    return {
+      ok: true,
+      top: rect.top,
+      bottom: rect.bottom,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  assert.ok(spanning.ok, `(a″) created spanning fixture (${spanning.why ?? ""})`);
+  assert.ok(spanning.top < 52, "(a″) selection starts too near the top to fit the bar above");
+  assert.ok(
+    spanning.bottom > spanning.viewportHeight - 52,
+    "(a″) selection ends too near/beyond the bottom to fit the bar below",
+  );
+  await trigger.waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const element = document.querySelector(".quote-comment-trigger");
+    if (!(element instanceof HTMLElement)) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.top >= 8 && rect.bottom <= window.innerHeight - 8;
+  });
+  const spanningTriggerBox = await trigger.boundingBox();
+  assert.ok(spanningTriggerBox, "(a″) trigger has measurable geometry");
+  assert.ok(spanningTriggerBox.y >= 8, "(a″) trigger is shifted below the viewport top");
+  assert.ok(
+    spanningTriggerBox.y + spanningTriggerBox.height <= spanning.viewportHeight - 8,
+    "(a″) trigger is shifted above the viewport bottom",
+  );
+
+  await trigger.click();
+  await bar.waitFor({ state: "visible" });
+  const spanningBarBox = await bar.boundingBox();
+  assert.ok(spanningBarBox, "(a″) bar has measurable geometry");
+  assert.ok(spanningBarBox.y >= 8, "(a″) bar is shifted below the viewport top");
+  assert.ok(
+    spanningBarBox.y + spanningBarBox.height <= spanning.viewportHeight - 8,
+    "(a″) bar is shifted above the viewport bottom",
+  );
+  await input.press("Escape");
+  await bar.waitFor({ state: "detached" });
+  await page.evaluate(() => {
+    const runList = document.querySelector("#run-list");
+    if (runList instanceof HTMLElement) runList.scrollTop = 0;
+  });
 
   // ─── (d) Re-select a SUBSTRING → trigger → type → checkmark → Enter → exact ─
   const sel2 = await selectSubstring(page, ".turn-answer");
@@ -248,7 +404,7 @@ try {
   // (marked emits no inter-element whitespace text nodes between block
   // children), so construct one: inject an INLINE element with `white-space:
   // pre` holding only spaces. Under `pre` the spaces render with real width, so
-  // the range has a non-zero client rect — which means `lastRectOf`'s zero-rect
+  // the range has a non-zero client rect — which means the geometry helper's
   // rejection CANNOT be what hides the trigger. The only remaining suppressor is
   // the S1 normalizeQuote()-is-empty guard, so this isolates exactly that guard.
   const wsSelected = await page.evaluate(() => {
@@ -278,7 +434,7 @@ try {
   assert.equal(wsSelected.text.trim(), "", "(f) the selection carries only whitespace");
   assert.ok(
     wsSelected.rectWidth > 0 && wsSelected.rectHeight > 0,
-    "(f) the whitespace selection HAS a real client rect — lastRectOf would NOT reject it, so only the normalizeQuote guard can suppress the trigger",
+    "(f) the whitespace selection HAS a real client rect — geometry would NOT reject it, so only the normalizeQuote guard can suppress the trigger",
   );
   // Past the 150 ms selection debounce with margin: a trigger would have shown.
   await page.waitForTimeout(400);
@@ -296,7 +452,7 @@ try {
     ),
   );
   console.log(
-    "quote-comment e2e: OK — trigger, empty/whitespace confirm, cancel, exact substring paragraph, append-at-end, whitespace guard",
+    "quote-comment e2e: OK — trigger, multiline anchor, viewport collision, empty/whitespace confirm, cancel, exact substring paragraph, append-at-end, whitespace guard",
   );
   process.exitCode = 0;
 } catch (error) {

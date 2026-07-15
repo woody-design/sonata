@@ -55,10 +55,11 @@ export function positionSidebarMenu(panel: HTMLElement, anchor: AnchorRect): voi
  * Center a fixed-position element horizontally over an anchor rect and float it
  * just ABOVE the anchor, clamped to the viewport. If there is no room above (the
  * anchor sits near the top edge), it flips below. Used by the Quote & Comment
- * trigger and its input bar, whose anchor is the last client rect of the text
- * selection — a shape the below-anchor / side-anchor positioners above do not
- * fit. Reads live element + window geometry, writes style out; call after the
- * element is mounted so its measured size is real.
+ * trigger and its input bar, whose anchor is the first visual line horizontally
+ * and the full text selection vertically — a shape the below-anchor /
+ * side-anchor positioners above do not fit. Reads live element + window
+ * geometry, writes style out; call after the element is mounted so its measured
+ * size is real.
  */
 export function positionCenteredAbove(
   element: HTMLElement,
@@ -74,7 +75,23 @@ export function positionCenteredAbove(
     Math.max(margin, centerX - size.width / 2),
   );
   const above = anchor.top - gap - size.height;
-  const top = above >= margin ? above : anchor.bottom + gap;
+  const below = anchor.bottom + gap;
+  const maxTop = Math.max(margin, window.innerHeight - size.height - margin);
+  let top: number;
+  if (above >= margin && above <= maxTop) {
+    top = above;
+  } else if (below >= margin && below <= maxTop) {
+    top = below;
+  } else {
+    // Neither side can contain the floating element (for example, a long text
+    // selection spans most of the viewport). Choose the side with more room,
+    // then shift the result fully on-screen. Overlap is preferable to making
+    // the comment control unreachable.
+    const aboveSpace = anchor.top - gap - margin;
+    const belowSpace = window.innerHeight - margin - gap - anchor.bottom;
+    const preferred = aboveSpace >= belowSpace ? above : below;
+    top = Math.min(maxTop, Math.max(margin, preferred));
+  }
   element.style.left = `${Math.round(left)}px`;
   element.style.top = `${Math.round(top)}px`;
 }
