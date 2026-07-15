@@ -250,6 +250,42 @@ check("A1.7: codex abort-then-late-output supersede retains id AND seq (running 
   assert.equal(new Set(tools.map((b) => b.seq)).size, 1, "seq is a stable POSITION through the supersede");
 });
 
+check("A1.8: codex subagent roster shares the source's seq space — no per-source collision (S6)", () => {
+  // The synthesized subagent roster (fed by SubagentStart/Stop HOOKS, not the
+  // rollout) shares the conversation sourceId, so its seq MUST come from the SAME
+  // per-source counter the normalizer uses — else a file block and a roster block
+  // collide on (sourceId, seq), breaking A1.3 (seq = per-source POSITION). Drive a
+  // real rollout through ProviderTranscript, feed a subagent hook, and assert
+  // every block ON THE SOURCE has a UNIQUE seq.
+  const sessionId = "seq-sess";
+  const sourceId = `codex:${sessionId}`;
+  const turnId = "019f0000-1818-7000-8000-000000000018";
+  const filePath = writeFile("a18.jsonl", [
+    { timestamp: "2026-07-15T10:00:00.000Z", type: "event_msg", payload: { type: "task_started", turn_id: turnId } },
+    { timestamp: "2026-07-15T10:00:01.000Z", type: "event_msg", payload: { type: "user_message", message: "delegate to a subagent", images: [], local_images: [], text_elements: [] } },
+    { timestamp: "2026-07-15T10:00:02.000Z", type: "event_msg", payload: { type: "agent_message", message: "on it", phase: "commentary" } },
+  ]);
+  const transcript = new ProviderTranscript({
+    taskId: "t", provider: "codex", providerCwd: tempRoot,
+    eventSink: () => {}, resolveRunId: () => null,
+  });
+  transcript.attachExistingSource(codexRef(filePath, sourceId));
+  // Two subagents in the SAME turn: each allocates a fresh source-seq for its
+  // first block; the roster then upserts in place, keeping that seq.
+  transcript.applySubagentEvent({ hook_event_name: "SubagentStart", session_id: sessionId, agent_id: "ag-1", agent_type: "default", turn_id: turnId }, "2026-07-15T10:00:03.000Z");
+  transcript.applySubagentEvent({ hook_event_name: "SubagentStop", session_id: sessionId, agent_id: "ag-1", turn_id: turnId }, "2026-07-15T10:00:05.000Z");
+  const blocks = transcript.blocks().filter((b) => b.sourceId === sourceId);
+  transcript.dispose();
+  assert.ok(blocks.some((b) => b.kind === "agents"), "the subagent roster joined the source's blocks");
+  assert.ok(blocks.length >= 3, "file blocks (user, assistant) + the roster block");
+  const seqs = blocks.map((b) => b.seq);
+  assert.equal(
+    new Set(seqs).size,
+    seqs.length,
+    "per-source seq is UNIQUE across normalizer + hook-synthesized blocks (A1.3)",
+  );
+});
+
 // ===========================================================================
 // INV-2 — reset is SOURCE-SCOPED and fires on exactly two triggers:
 //   (a) first emission after attach (full drain), (b) truncation/replacement.

@@ -4,9 +4,9 @@
 // string, and silently skips untrusted/misconfigured hooks. So this fence pins:
 //   1. the profile file is BYTE-STABLE across repeated spawn-preps (sha-equal)
 //      — the sha the one-time trust ceremony is granted against;
-//   2. it carries the FINAL frozen hook set (5 core events → sink;
-//      PermissionRequest → broker, timeout=120) in the probe-verified TOML shape
-//      (PascalCase events, STRING command, `[[hooks.Event]]` / `.hooks`);
+//   2. it carries the consumed hook set (5 core events + SubagentStart/Stop →
+//      sink; PermissionRequest → broker, timeout=120) in the probe-verified TOML
+//      shape (PascalCase events, STRING command, `[[hooks.Event]]` / `.hooks`);
 //   3. the command strings route through the STABLE shim paths (task-invariant),
 //      and the shims are written and read DUET_RUNTIME_DIR from the environment;
 //   4. write-if-changed leaves an unchanged file untouched (idempotent).
@@ -75,16 +75,28 @@ check("profile is BYTE-STABLE across two spawn-preps (sha unchanged)", () => {
   assert.equal(second, first, "duet.config.toml sha drifted across spawn-preps");
 });
 
-check("profile carries the FINAL frozen hook set in the probe-verified shape", () => {
+check("profile carries the consumed hook set in the probe-verified shape", () => {
   const toml = fs.readFileSync(profilePath, "utf8");
-  for (const event of ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"]) {
+  // Run-lifecycle spine + the subagent-roster pair (S6). SubagentStart/Stop feed
+  // the status-strip roster (Codex subagents live in their own rollouts, so the
+  // hooks are the only source).
+  for (const event of [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Stop",
+    "SubagentStart",
+    "SubagentStop",
+  ]) {
     assert.ok(toml.includes(`[[hooks.${event}]]`), `${event} block present`);
     assert.ok(toml.includes(`[[hooks.${event}.hooks]]`), `${event}.hooks present`);
   }
   assert.ok(toml.includes("[[hooks.PermissionRequest]]"), "PermissionRequest present");
   assert.ok(toml.includes("timeout = 120"), "broker timeout frozen at 120s");
-  // Codex-only set: NO Claude-only events registered (no consumer, no claim).
-  for (const absent of ["Notification", "StopFailure", "SubagentStop"]) {
+  // Unregistered: Claude-only events (no Codex equivalent) and the compaction
+  // pair deferred to S7 (no consumer yet → no claim).
+  for (const absent of ["Notification", "StopFailure", "PreCompact", "PostCompact"]) {
     assert.ok(!toml.includes(`[[hooks.${absent}]]`), `${absent} must NOT be registered`);
     assert.ok(!toml.includes(`hooks.${absent}.hooks`), `${absent}.hooks must NOT be registered`);
   }

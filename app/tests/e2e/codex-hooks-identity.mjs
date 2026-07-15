@@ -25,6 +25,7 @@ const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-fake-bin-"));
 const sharedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-shared-"));
 const silentFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-silent-"));
 const exitFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-exit-"));
+const subagentFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-subagent-"));
 fs.writeFileSync(path.join(silentFolder, "DUET_FAKE_SILENT"), "");
 fs.writeFileSync(path.join(exitFolder, "DUET_FAKE_EXIT"), "");
 
@@ -133,7 +134,42 @@ try {
   const deltaBanner = page.locator('.attention-banner[data-kind="codex-hooks-liveness"]');
   const noBannerAfterExit = !(await deltaBanner.isVisible().catch(() => false));
 
+  // --- Subagent roster (S6): the FULL controller wiring, end to end -----------
+  // A SubagentStart hook file routes through the HookWatcher → handleHookPayload
+  // → applyHookToTask (the codex-only off-spine branch) → ProviderTranscript →
+  // transcript:blocks → the status strip. Removing that controller routing turns
+  // this red (reviewer F3). SubagentStop clears the row.
+  const epsilon = await page.evaluate(
+    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    subagentFolder,
+  );
+  // The fake emits SessionStart (adopts the rollout source) — wait for it, so the
+  // roster's seq has a normalizer and it groups into the live source.
+  await waitFor(() => readSources(epsilon.task.id).length > 0, 30000, "epsilon source adopted");
+  await selectSidebarSession(page, epsilon.task.id);
+
+  const epsilonSession = `codexsess-${path.basename(runtimeDir(epsilon.task.id))}`;
+  const writeSubagentHook = (payload) => {
+    const hooksDir = path.join(runtimeDir(epsilon.task.id), "hooks");
+    fs.mkdirSync(hooksDir, { recursive: true });
+    const file = path.join(hooksDir, `hook-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}.json`);
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify({ session_id: epsilonSession, cwd: subagentFolder, ...payload }));
+    fs.renameSync(`${file}.tmp`, file);
+  };
+
+  writeSubagentHook({ hook_event_name: "SubagentStart", turn_id: "turn-sa", agent_id: "agent-sa", agent_type: "default" });
+  const subagentRow = page.locator(".strip-agent-name", { hasText: "Subagent" });
+  await subagentRow.waitFor({ state: "visible", timeout: 30000 });
+  const subagentShown = await subagentRow.isVisible();
+
+  writeSubagentHook({ hook_event_name: "SubagentStop", turn_id: "turn-sa", agent_id: "agent-sa" });
+  await subagentRow.waitFor({ state: "hidden", timeout: 30000 });
+  const subagentCleared = !(await subagentRow.isVisible());
+
   Object.assign(results, {
+    epsilonTask: epsilon.task.id,
+    subagentShown,
+    subagentCleared,
     deltaTask: delta.task.id,
     noBannerAfterExit,
     workspaceRoot,
@@ -156,7 +192,7 @@ try {
 
   const success =
     bindingsDistinct && spawnWired && profileWritten && shimsWritten && bannerAppeared &&
-    bannerCleared && noBannerAfterExit;
+    bannerCleared && noBannerAfterExit && subagentShown && subagentCleared;
   results.success = success;
   console.log(JSON.stringify(results, null, 2));
   process.exitCode = success ? 0 : 1;
@@ -164,7 +200,7 @@ try {
   if (electronApp) {
     await electronApp.close();
   }
-  for (const dir of [workspaceRoot, codexHome, fakeBinDir, sharedFolder, silentFolder, exitFolder]) {
+  for (const dir of [workspaceRoot, codexHome, fakeBinDir, sharedFolder, silentFolder, exitFolder, subagentFolder]) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }

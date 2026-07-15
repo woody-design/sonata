@@ -1071,6 +1071,309 @@ check("codex: user_message [Image #N] joins the reading display rule", () => {
   assert.ok(!display.text.includes("[Image #1]"), "no raw marker leaks into the bubble");
 });
 
+// --- Codex subagent roster (S6) ----------------------------------------------
+// Codex subagents run in their OWN rollout files, so the parent rollout the
+// normalizer tails never carries their lifecycle — the SubagentStart/Stop hooks
+// are the only source. ProviderTranscript.applySubagentEvent synthesizes the
+// SAME provider-neutral `agents` roster blocks Claude derives from its session
+// file and emits them on the `transcript:blocks` channel, so the status strip's
+// single roster read (stripRunningAgents) serves both providers. These fence
+// the synthesis + the emit + the read join, with the straggler/no-op edges.
+
+const { stripRunningAgents, buildReadingTurns } = require("../../dist/reading-core/selectors/turns");
+
+function makeSubagentPT(sessionId = "sess-1") {
+  const events = [];
+  const dir = fs.mkdtempSync(path.join(tempRoot, "sa-"));
+  const rolloutPath = path.join(dir, "rollout.jsonl");
+  // The conversation source must be ATTACHED for a roster to emit: its
+  // normalizer is the only place the block's seq can come from (F1), and an
+  // unattached source means a deferred roster (F2). A session_meta-only rollout
+  // is enough to attach; the sourceId matches the hooks' session_id.
+  fs.writeFileSync(
+    rolloutPath,
+    `${JSON.stringify({ timestamp: new Date().toISOString(), type: "session_meta", payload: { id: sessionId, cwd: "/tmp/ws", timestamp: new Date().toISOString() } })}\n`,
+  );
+  const pt = new ProviderTranscript({
+    taskId: "task-sa",
+    provider: "codex",
+    providerCwd: "/tmp/ws",
+    eventSink: (event) => events.push(event),
+    resolveRunId: () => null,
+  });
+  pt.attachExistingSource({
+    sourceId: `codex:${sessionId}`,
+    provider: "codex",
+    format: "codex-rollout-jsonl",
+    path: rolloutPath,
+    providerSessionId: sessionId,
+    locatedAt: new Date().toISOString(),
+  });
+  return { pt, events };
+}
+
+function rosterUpserts(events) {
+  return events
+    .filter((e) => e.type === "transcript:blocks")
+    .flatMap((e) => e.payload.upserts.filter((b) => b.kind === "agents"));
+}
+
+check("codex subagent: SubagentStart adds a running roster row (default type hidden)", () => {
+  const { pt, events } = makeSubagentPT();
+  pt.applySubagentEvent(
+    {
+      hook_event_name: "SubagentStart",
+      session_id: "sess-1",
+      agent_id: "ag-1",
+      agent_type: "default",
+      turn_id: "turn-x",
+    },
+    "2026-07-15T10:00:00.000Z",
+  );
+  const rosters = rosterUpserts(events);
+  assert.equal(rosters.length, 1, "one roster upsert emitted");
+  const block = rosters[0];
+  assert.equal(block.kind, "agents");
+  assert.equal(block.provider, "codex");
+  assert.equal(block.turnKey, "turn-x", "roster keyed to the launch turn");
+  // Shares the conversation source id so it groups INTO the spawning turn (the
+  // same id adoptTranscriptFromHook builds from session_id), NOT a phantom turn.
+  assert.equal(block.sourceId, "codex:sess-1", "roster joins the conversation source");
+  assert.deepEqual(
+    block.items.map((i) => [i.toolUseId, i.name, i.agentType, i.status]),
+    [["ag-1", "Subagent", "agent", "running"]],
+    "default agent_type collapses to the hidden 'agent' sentinel",
+  );
+  const ev = events.find((e) => e.type === "transcript:blocks");
+  assert.equal(ev.payload.sourceId, block.sourceId, "event source id matches the block");
+  assert.equal(ev.payload.reset, false, "roster upserts never reset the rollout source");
+  pt.dispose();
+});
+
+check("codex subagent: SubagentStop settles to done with duration; id+seq stable, snapshot frozen", () => {
+  const { pt, events } = makeSubagentPT();
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStart", session_id: "sess-1", agent_id: "ag-1", agent_type: "default", turn_id: "turn-x" },
+    "2026-07-15T10:00:00.000Z",
+  );
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStop", session_id: "sess-1", agent_id: "ag-1", turn_id: "turn-x" },
+    "2026-07-15T10:00:05.000Z",
+  );
+  const rosters = rosterUpserts(events);
+  assert.equal(rosters.length, 2, "spawn + settle each emitted an upsert");
+  assert.equal(new Set(rosters.map((b) => b.id)).size, 1, "one roster block id per turn");
+  assert.equal(rosters[0].seq, rosters[1].seq, "seq stable across the settle");
+  assert.equal(rosters[0].items[0].status, "running", "spawn snapshot frozen at running");
+  assert.equal(rosters[1].items[0].status, "done", "settle mutates to done");
+  assert.equal(rosters[1].items[0].durationMs, 5000, "wall-clock duration from spawn→stop");
+  // A duplicate Stop must not re-emit (settle returns unchanged).
+  const before = events.length;
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStop", session_id: "sess-1", agent_id: "ag-1", turn_id: "turn-x" },
+    "2026-07-15T10:00:09.000Z",
+  );
+  assert.equal(events.length, before, "duplicate stop emits no redundant upsert");
+  pt.dispose();
+});
+
+check("codex subagent: the parent turn Stop clears a straggler (dropped SubagentStop)", () => {
+  const { pt, events } = makeSubagentPT();
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStart", session_id: "sess-1", agent_id: "ag-1", agent_type: "default", turn_id: "turn-x" },
+    "2026-07-15T10:00:00.000Z",
+  );
+  pt.settleSubagentTurn("turn-x", "2026-07-15T10:00:08.000Z");
+  const settled = rosterUpserts(events).at(-1);
+  assert.equal(settled.items[0].status, "done", "straggler settled on the turn's Stop");
+  assert.equal(settled.items[0].durationMs, 8000);
+  const before = events.length;
+  pt.settleSubagentTurn("turn-x", "2026-07-15T10:00:20.000Z");
+  assert.equal(events.length, before, "idempotent: nothing running → no upsert");
+  pt.dispose();
+});
+
+check("codex subagent: SubagentStop with no matching Start emits nothing (phantom guard)", () => {
+  const { pt, events } = makeSubagentPT();
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStop", session_id: "sess-1", agent_id: "ghost", turn_id: "turn-x" },
+    "2026-07-15T10:00:00.000Z",
+  );
+  assert.equal(rosterUpserts(events).length, 0, "no roster row for an unpaired stop");
+  pt.dispose();
+});
+
+check("codex subagent: rosters isolate per launch turn; a named agent_type rides through as label", () => {
+  const { pt, events } = makeSubagentPT();
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStart", session_id: "sess-1", agent_id: "ag-A", agent_type: "default", turn_id: "turnA" },
+    "2026-07-15T10:00:00.000Z",
+  );
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStart", session_id: "sess-1", agent_id: "ag-B", agent_type: "reviewer", turn_id: "turnB" },
+    "2026-07-15T10:01:00.000Z",
+  );
+  const rosters = rosterUpserts(events);
+  const turnA = rosters.filter((b) => b.turnKey === "turnA").at(-1);
+  const turnB = rosters.filter((b) => b.turnKey === "turnB").at(-1);
+  assert.deepEqual(turnA.items.map((i) => i.toolUseId), ["ag-A"], "turn A holds only its own agent");
+  assert.deepEqual(
+    turnB.items.map((i) => [i.toolUseId, i.agentType]),
+    [["ag-B", "reviewer"]],
+    "a named (non-default) agent_type is kept as the secondary label",
+  );
+  assert.notEqual(turnA.id, turnB.id, "one distinct roster block per turn");
+  pt.dispose();
+});
+
+check("codex subagent: the synthesized block feeds the real strip read (stripRunningAgents)", () => {
+  // The load-bearing JOIN: prove the block ProviderTranscript emits is exactly
+  // what the status strip's provider-neutral roster read consumes — a running
+  // codex subagent surfaces through the SAME selector Claude's roster uses.
+  const { pt } = makeSubagentPT();
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStart", session_id: "sess-1", agent_id: "ag-1", agent_type: "default", turn_id: "turn-x" },
+    "2026-07-15T10:00:00.000Z",
+  );
+  const view = { transcriptBlocks: new Map(), transcriptBlockOrder: [] };
+  for (const block of pt.blocks()) {
+    view.transcriptBlocks.set(block.id, block);
+    view.transcriptBlockOrder.push(block.id);
+  }
+  assert.deepEqual(
+    stripRunningAgents(view).map((i) => [i.name, i.agentType, i.status]),
+    [["Subagent", "agent", "running"]],
+    "the codex subagent shows in the strip's running roster",
+  );
+  // Once settled it drops out of the running read (the strip hides done rows).
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStop", session_id: "sess-1", agent_id: "ag-1", turn_id: "turn-x" },
+    "2026-07-15T10:00:05.000Z",
+  );
+  const settledView = { transcriptBlocks: new Map(), transcriptBlockOrder: [] };
+  for (const block of pt.blocks()) {
+    settledView.transcriptBlocks.set(block.id, block);
+    settledView.transcriptBlockOrder.push(block.id);
+  }
+  assert.deepEqual(stripRunningAgents(settledView), [], "settled subagent leaves the running roster");
+  pt.dispose();
+});
+
+check("codex subagent: two agents in one turn coexist and settle independently (F5)", () => {
+  const { pt, events } = makeSubagentPT();
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStart", session_id: "sess-1", agent_id: "ag-1", agent_type: "default", turn_id: "turn-x" },
+    "2026-07-15T10:00:00.000Z",
+  );
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStart", session_id: "sess-1", agent_id: "ag-2", agent_type: "reviewer", turn_id: "turn-x" },
+    "2026-07-15T10:00:01.000Z",
+  );
+  assert.equal(new Set(rosterUpserts(events).map((b) => b.id)).size, 1, "one roster block for the shared turn");
+  assert.deepEqual(
+    rosterUpserts(events).at(-1).items.map((i) => [i.toolUseId, i.status]),
+    [["ag-1", "running"], ["ag-2", "running"]],
+    "both agents in the one turn's roster, both running",
+  );
+  // Settle only ag-1 → ag-2 keeps running.
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStop", session_id: "sess-1", agent_id: "ag-1", turn_id: "turn-x" },
+    "2026-07-15T10:00:04.000Z",
+  );
+  assert.deepEqual(
+    rosterUpserts(events).at(-1).items.map((i) => [i.toolUseId, i.status]),
+    [["ag-1", "done"], ["ag-2", "running"]],
+    "one settles, its sibling stays running",
+  );
+  // F5 guard: a duplicate Start for the (now settled) agent id is ignored — no
+  // resurrection to running, no clock reset, no emission.
+  const before = events.length;
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStart", session_id: "sess-1", agent_id: "ag-1", agent_type: "default", turn_id: "turn-x" },
+    "2026-07-15T10:00:06.000Z",
+  );
+  assert.equal(events.length, before, "duplicate Start for a known agent id is ignored");
+  pt.dispose();
+});
+
+check("codex subagent: the roster groups INTO the spawning turn, not a phantom turn", () => {
+  // The grouping fix: buildReadingTurns keys turns by `sourceId:turnKey`, so a
+  // roster block under a DIFFERENT sourceId would form its own empty turn (a
+  // husk). Sharing the conversation source id + launch turn_id merges it in.
+  const { pt } = makeSubagentPT();
+  pt.applySubagentEvent(
+    { hook_event_name: "SubagentStart", session_id: "sess-1", agent_id: "ag-1", agent_type: "default", turn_id: "turn-x" },
+    "2026-07-15T10:00:00.000Z",
+  );
+  // A conversation block from the SAME session + turn (as the normalizer emits).
+  const convo = {
+    kind: "assistant-text",
+    id: "codex:sess-1:text-1",
+    taskId: "task-sa",
+    sourceId: "codex:sess-1",
+    provider: "codex",
+    turnKey: "turn-x",
+    runId: null,
+    ts: "2026-07-15T10:00:00.000Z",
+    seq: 1,
+    markdown: "delegating to a subagent…",
+  };
+  const view = {
+    report: { runs: [] },
+    transcriptBlocks: new Map(),
+    transcriptBlockOrder: [],
+    runTranscripts: [],
+  };
+  for (const block of [convo, ...pt.blocks()]) {
+    view.transcriptBlocks.set(block.id, block);
+    view.transcriptBlockOrder.push(block.id);
+  }
+  const turns = buildReadingTurns(view);
+  assert.equal(turns.length, 1, "one turn — the roster joined the conversation, no husk turn");
+  assert.deepEqual(
+    turns[0].blocks.map((b) => b.kind).sort(),
+    ["agents", "assistant-text"],
+    "the turn holds both the reply and its subagent roster",
+  );
+  pt.dispose();
+});
+
+check("codex subagent: the REAL captured 0.144.4 SubagentStart/Stop drive the roster", () => {
+  // Bind the wiring to the probe evidence, not a hand-copied shape — if a future
+  // codex build renames agent_id / agent_type / turn_id, this fails loudly (the
+  // same anchor convention as the S5 approval-summary fence).
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  const captured = JSON.parse(
+    fs.readFileSync(
+      path.resolve(here, "../../../spikes/codex-hooks-probe/probe-0144/verified-payloads-0.144.4.json"),
+      "utf8",
+    ),
+  );
+  const start = captured.SubagentStart;
+  const stop = captured.SubagentStop;
+  // Fixture sanity: the fields the wiring reads must be present in the capture.
+  assert.equal(start.hook_event_name, "SubagentStart", "fixture drifted: expected SubagentStart");
+  assert.ok(start.agent_id && start.turn_id && start.session_id, "SubagentStart carries agent_id + turn_id + session_id");
+  assert.equal(stop.agent_id, start.agent_id, "Stop pairs to the Start by agent_id");
+
+  // Attach the source under the REAL captured session id so the roster's seq
+  // comes from its normalizer and it groups into the conversation (F1/F2).
+  const { pt, events } = makeSubagentPT(start.session_id);
+  pt.applySubagentEvent(start, "2026-07-15T10:00:00.000Z");
+  pt.applySubagentEvent(stop, "2026-07-15T10:00:03.000Z");
+  const rosters = rosterUpserts(events);
+  assert.equal(new Set(rosters.map((b) => b.id)).size, 1, "one roster block for the real turn");
+  const final = rosters.at(-1);
+  assert.equal(final.turnKey, start.turn_id, "roster keyed by the real rollout turn_id");
+  assert.deepEqual(
+    final.items.map((i) => [i.toolUseId, i.name, i.agentType, i.status]),
+    [[start.agent_id, "Subagent", "agent", "done"]],
+    "real default subagent: settled done, generic label",
+  );
+  assert.equal(final.items[0].durationMs, 3000, "duration from the fed timestamps");
+  pt.dispose();
+});
+
 // --- Locator ------------------------------------------------------------------
 
 check("locator: finds claude session by cwd slug and not-before time", () => {
