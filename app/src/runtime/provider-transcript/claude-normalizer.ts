@@ -2,6 +2,8 @@ import type { TaskId } from "../../shared/types/domain";
 import type {
   AgentRosterBlock,
   AgentRunItem,
+  CompactionBlock,
+  CompactionTrigger,
   PlanBlock,
   PlanItem,
   ToolCallBlock,
@@ -77,6 +79,16 @@ export class ClaudeSessionNormalizer {
     if (type === "assistant") {
       return this.consumeAssistantRecord(record);
     }
+    // A context-compaction boundary. Append-only, same session file (no fork —
+    // verified 2.1.210, P3), sitting BETWEEN turns: the model's working memory
+    // was summarized, but the full transcript above stays intact. Emit one
+    // standalone marker block on its OWN turn key (derived from the record uuid)
+    // so buildReadingTurns groups it alone and the Reading surface draws it as a
+    // separator, never folding it into a reply. currentTurnKey is left untouched
+    // — the boundary is not a turn the next prompt should adopt.
+    if (type === "system" && record.subtype === "compact_boundary") {
+      return [this.buildCompactionBlock(record)];
+    }
     // A background agent that finishes while the main loop is BUSY delivers
     // its <task-notification> through the CLI's own message queue — recorded
     // as a queue-operation (enqueue) plus an attachment{queued_command},
@@ -102,6 +114,28 @@ export class ClaudeSessionNormalizer {
   }
 
   private consumeUserRecord(record: Record<string, unknown>): TranscriptBlock[] {
+    // The compaction SUMMARY record (`isCompactSummary:true`,
+    // `isVisibleInTranscriptOnly:true`, P3): a `user`-typed record the CLI
+    // injects to carry the post-compaction summary text — NOT the user's words.
+    // It must never render as a prompt bubble. The separator itself comes from
+    // the `system/compact_boundary` record that precedes it (consumeLine); this
+    // payload emits NO block for v1. Disclosure v2 seam (Claude-only — Codex's
+    // summary is encrypted): the plaintext summary lives in
+    // `record.message.content` here, ready to hang on the boundary block later.
+    //
+    // It DOES re-key the current turn to its promptId (bubble-less): on AUTO
+    // compaction the assistant continues without a new user prompt, and its
+    // continuation reply carries THIS record's promptId. Advancing currentTurnKey
+    // makes that reply attribute to a post-boundary turn — otherwise it folds
+    // into the pre-compact turn card and sorts ABOVE the "Context compacted"
+    // separator (temporally wrong). turnHasAssistant is left as-is: a following
+    // real prompt (typed, or a legacy no-promptSource record after the prior
+    // turn's reply) must still open its own turn; this record only moves the key.
+    if (record.isCompactSummary === true) {
+      const promptId = typeof record.promptId === "string" ? record.promptId : null;
+      this.currentTurnKey = promptId ?? `turn-${++this.turnSeq}`;
+      return [];
+    }
     // `promptSource:"system"` outranks the isMeta skip: a /loop
     // ScheduleWakeup prompt arrives as promptSource:"system" AND
     // isMeta:true (unlike task-notifications, which carry no isMeta), yet
@@ -360,6 +394,29 @@ export class ClaudeSessionNormalizer {
       }
     }
     return upserts;
+  }
+
+  private buildCompactionBlock(record: Record<string, unknown>): CompactionBlock {
+    const uuid = typeof record.uuid === "string" ? record.uuid : `seq-${this.seq + 1}`;
+    const metadata = record.compactMetadata as Record<string, unknown> | undefined;
+    const trigger =
+      metadata?.trigger === "manual" || metadata?.trigger === "auto"
+        ? (metadata.trigger as CompactionTrigger)
+        : null;
+    return {
+      kind: "compaction",
+      id: `${this.sourceId}:${uuid}:compaction`,
+      taskId: this.taskId,
+      sourceId: this.sourceId,
+      provider: "claude",
+      // A dedicated turn key isolates the marker into its own turn group without
+      // disturbing this.currentTurnKey (the boundary is not a turn to adopt).
+      turnKey: `compact-${uuid}`,
+      runId: null,
+      ts: recordTimestamp(record),
+      seq: ++this.seq,
+      trigger,
+    };
   }
 
   private buildToolCall(block: Record<string, unknown>, ts: string): ToolCallBlock {

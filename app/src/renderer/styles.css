@@ -4254,6 +4254,34 @@ h2 {
   margin-top: 22px;
 }
 
+/* Context-compaction boundary (S7, design A): a full-width hairline with a
+   small centered muted label interrupting the line. Calm state-register — it
+   draws LESS eye than a reply. Aligned to the reading column (like a turn card);
+   generous symmetric padding gives it a "breath" visibly wider than the ~22px
+   inter-turn gap. Every line/spacing choice lives in this one block so a variant
+   (ellipsis cue, tighter spacing) stays CSS-only. */
+.compaction-marker {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(100%, var(--measure-prose));
+  margin: 0 auto;
+  padding: 36px 0;
+}
+
+.compaction-marker-line {
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--border-footer);
+}
+
+.compaction-marker-label {
+  flex: 0 0 auto;
+  color: var(--ink-faint);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
 .turn-user {
   display: grid;
   justify-items: end;

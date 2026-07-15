@@ -116,8 +116,12 @@ export function codexProfilePath(): string {
  *  `SubagentStop` (verified firing under this injection at 0.144.4, S6) feed the
  *  status-strip agent roster: Codex subagents run in their OWN rollout files, so
  *  the parent rollout the normalizer tails never shows them — these hooks are the
- *  only source. `Notification` / `StopFailure` stay unregistered (Claude-only, no
- *  Codex equivalent); `PreCompact` / `PostCompact` are deferred to S7. */
+ *  only source. `PreCompact` / `PostCompact` (verified firing under this injection
+ *  at 0.144.4, P2) are registered for signal completeness: they flow to the sink
+ *  like every other event. Duet does NOT consume them today — the Reading
+ *  compaction marker is TRANSCRIPT-derived (the rollout's `compacted` record), so
+ *  it survives resume/replay where an ephemeral hook could not. `Notification` /
+ *  `StopFailure` stay unregistered (Claude-only, no Codex equivalent). */
 const SINK_EVENTS = [
   "SessionStart",
   "UserPromptSubmit",
@@ -126,6 +130,8 @@ const SINK_EVENTS = [
   "Stop",
   "SubagentStart",
   "SubagentStop",
+  "PreCompact",
+  "PostCompact",
 ] as const;
 
 /**

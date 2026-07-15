@@ -1,5 +1,6 @@
 import type { TaskId } from "../../shared/types/domain";
 import type {
+  CompactionBlock,
   PlanBlock,
   PlanItem,
   ToolCallBlock,
@@ -93,8 +94,16 @@ export class CodexRolloutNormalizer {
     if (record.type === "response_item") {
       return this.consumeResponseItem(payload, ts);
     }
+    // A context-compaction boundary (P3). The top-level `compacted` record lands
+    // inside its OWN `task_started` boundary turn (no user_message), so
+    // ensureTurn() keys it to that turn — a distinct group the Reading surface
+    // draws as a standalone separator. Promoted from a generic system-note to the
+    // dedicated boundary kind so the renderer can tell it apart from
+    // rollback/review/abort notes. Codex carries no `trigger` (manual/auto), and
+    // its summary is ENCRYPTED (`payload.replacement_history[].encrypted_content`,
+    // Fernet) — no plaintext for a disclosure v2, hence no summary seam here.
     if (record.type === "compacted") {
-      return [this.systemNote("Context compacted by the provider.", ts)];
+      return [this.buildCompactionBlock(ts)];
     }
     return [];
   }
@@ -413,6 +422,22 @@ export class CodexRolloutNormalizer {
     }
 
     return [];
+  }
+
+  private buildCompactionBlock(ts: string): CompactionBlock {
+    return {
+      kind: "compaction",
+      id: this.nextBlockId("compaction"),
+      taskId: this.taskId,
+      sourceId: this.sourceId,
+      provider: "codex",
+      turnKey: this.ensureTurn(),
+      runId: null,
+      ts,
+      seq: ++this.seq,
+      // Codex's `compacted` record carries no manual/auto trigger.
+      trigger: null,
+    };
   }
 
   private systemNote(text: string, ts: string): TranscriptBlock {

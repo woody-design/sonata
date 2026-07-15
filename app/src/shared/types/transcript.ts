@@ -29,7 +29,8 @@ export type TranscriptBlockKind =
   | "tool-call"
   | "plan"
   | "agents"
-  | "system-note";
+  | "system-note"
+  | "compaction";
 
 interface TranscriptBlockBase {
   id: string;
@@ -155,6 +156,38 @@ export interface AgentRosterBlock extends TranscriptBlockBase {
   items: AgentRunItem[];
 }
 
+export type CompactionTrigger = "manual" | "auto";
+
+/**
+ * A context-compaction boundary: the point where the provider summarized the
+ * conversation to reclaim its working-memory window. Transcript-derived (NOT
+ * hook-derived), so it survives resume/replay byte-identically — Claude's
+ * `system/compact_boundary` record, Codex's top-level `compacted` record.
+ * One block per compaction event, at the compaction point, its own turn group;
+ * the Reading surface draws it as a calm state-register separator, never a
+ * turn card. The full transcript above the line is untouched — only the model's
+ * working memory was summarized; copy must never say cleared/reset/lost.
+ *
+ * A state-register kind, like `system-note`: it is NOT in the daemon's narrow
+ * `BlockView` (contracts-v2 B2/B3 surface only user-message + assistant-text),
+ * so the frozen Part A consumer reduces it to nothing — the daemon's mirror
+ * assembly ignores any kind it does not promote (duet-eink daemon/src/mirror/
+ * turns.ts). Adding it is additive under the contract's extensibility (B6).
+ *
+ * `trigger` is the one v2-disclosure-relevant field carried where cheap
+ * (manual vs auto compaction). The summary TEXT is deliberately NOT carried in
+ * v1: Claude exposes plaintext (its `isCompactSummary` user record, or the
+ * PostCompact hook) but Codex's is encrypted (Fernet) — a disclosure v2 is
+ * Claude-only. The normalizer seams for that consumption are commented at the
+ * source records; this block stays minimal until v2 needs them.
+ */
+export interface CompactionBlock extends TranscriptBlockBase {
+  kind: "compaction";
+  /** Claude carries manual/auto in `compactMetadata.trigger`; Codex's
+   *  `compacted` record carries none → null. */
+  trigger: CompactionTrigger | null;
+}
+
 export type TranscriptBlock =
   | UserMessageBlock
   | AssistantTextBlock
@@ -162,7 +195,8 @@ export type TranscriptBlock =
   | ToolCallBlock
   | PlanBlock
   | AgentRosterBlock
-  | SystemNoteBlock;
+  | SystemNoteBlock
+  | CompactionBlock;
 
 export const TRANSCRIPT_SOURCES_SCHEMA_ID = "duet.transcript-sources.v1" as const;
 export const TRANSCRIPT_SOURCES_SCHEMA_VERSION = 1 as const;

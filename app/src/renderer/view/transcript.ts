@@ -24,6 +24,7 @@ import {
   buildReadingTurns,
   createTurnSignatureTracker,
   imageAttachmentLabel,
+  isCompactionTurn,
   userPromptDisplay,
   type ReadingTurn,
 } from "../../reading-core/selectors/turns";
@@ -209,7 +210,11 @@ export function renderRuns(): void {
     turns.map((turn) => ({
       key: turn.key,
       sig: turnSignatureTracker.turnSignature(turn),
-      render: () => renderTurn(view, turn),
+      // A compaction-boundary turn is not a conversation card — it renders as a
+      // calm state-register separator between the turns it sits between (never a
+      // husk card, never folded into a reply).
+      render: () =>
+        isCompactionTurn(turn) ? renderCompactionMarker() : renderTurn(view, turn),
       refresh: (node) => refreshTurnCardCheap(node, view, turn),
     })),
   );
@@ -323,6 +328,36 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
     card.append(renderRunOutcomeNote(turn.run));
   }
   return card;
+}
+
+// The context-compaction boundary (S7), design A: a full-width hairline with a
+// small centered muted label interrupting the line. A calm state-register — it
+// draws LESS eye than a reply. The copy states only what happened to the model's
+// working memory; it NEVER says cleared/reset/lost (the full transcript stays
+// above the line). `role="separator"` + `aria-label` name it for assistive tech;
+// the two hairline halves are decorative geometry (aria-hidden). Static in v1
+// (summary disclosure is v2, likely Claude-only). All line/spacing treatment is
+// one CSS block (`.compaction-marker*`) so a variant tweak stays CSS-only.
+function renderCompactionMarker(): HTMLElement {
+  const marker = document.createElement("div");
+  marker.className = "compaction-marker";
+  marker.setAttribute("role", "separator");
+  marker.setAttribute("aria-label", "Context compacted");
+
+  const lineBefore = document.createElement("span");
+  lineBefore.className = "compaction-marker-line";
+  lineBefore.setAttribute("aria-hidden", "true");
+
+  const label = document.createElement("span");
+  label.className = "compaction-marker-label";
+  label.textContent = "Context compacted";
+
+  const lineAfter = document.createElement("span");
+  lineAfter.className = "compaction-marker-line";
+  lineAfter.setAttribute("aria-hidden", "true");
+
+  marker.append(lineBefore, label, lineAfter);
+  return marker;
 }
 
 function renderRunOutcomeNote(run: RuntimeRunReport): HTMLElement {

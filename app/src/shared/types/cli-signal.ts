@@ -36,6 +36,13 @@ import type { RuntimeProvider, TaskId } from "./domain";
  * derived from the session file instead, so Claude's `SubagentStop` stays a
  * cli-state no-op. `StopFailure` (structured API error) and `Notification`
  * are Claude-observed only — Codex has no equivalent.
+ *
+ * `PreCompact` / `PostCompact` are the context-compaction lifecycle pair. Both
+ * providers fire them (Codex verified 0.144.4, P2; Claude verified 2.1.210, P3),
+ * and Codex now registers them in its sink for signal completeness — but Duet
+ * consumes NEITHER into cli-state or run lifecycle: the Reading compaction marker
+ * is TRANSCRIPT-derived (Claude's `system/compact_boundary`, Codex's `compacted`),
+ * so it survives resume/replay where an ephemeral hook could not.
  */
 export type HookEventName =
   | "SessionStart"
@@ -47,7 +54,9 @@ export type HookEventName =
   | "Stop"
   | "StopFailure"
   | "SubagentStart"
-  | "SubagentStop";
+  | "SubagentStop"
+  | "PreCompact"
+  | "PostCompact";
 
 /**
  * A hook payload (stdin JSON), keyed by the fields observed in Phase 0.

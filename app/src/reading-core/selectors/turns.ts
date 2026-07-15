@@ -132,6 +132,22 @@ export function buildReadingTurns(view: TaskViewState): ReadingTurn[] {
   return turns.sort((a, b) => a.tsMs - b.tsMs);
 }
 
+/**
+ * A turn that is purely a context-compaction boundary — its blocks are all
+ * `compaction` markers (one, in practice). The Reading surface renders such a
+ * turn as a standalone separator, NOT a turn card: a compaction block carries no
+ * user voice and no reply, so a turn card would render as an empty husk (the S6
+ * phantom-husk failure mode). Grouping keeps it in its own turn (Claude mints a
+ * dedicated `compact-<uuid>` key; Codex's `compacted` lands in its own
+ * `task_started` boundary turn), so this predicate is exact, not heuristic. A
+ * turn that somehow mixed a compaction block with real content is NOT a
+ * compaction turn — it falls to the normal card, where the marker degrades to a
+ * no-op (it is not an answer block), never hiding the real content.
+ */
+export function isCompactionTurn(turn: ReadingTurn): boolean {
+  return turn.blocks.length > 0 && turn.blocks.every((block) => block.kind === "compaction");
+}
+
 export interface UserPromptDisplay {
   /** The bubble text: the CLI's `[Image #N]` markers lifted out when — and only
    *  when — the block carries real image attachments. A user who literally typed
