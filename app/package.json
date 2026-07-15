@@ -97,6 +97,7 @@
     "smoke:cli-signal-state": "npm run build:main && node tests/smoke/cli-signal-state.mjs",
     "smoke:cli-window-contract": "npm run build:main && node tests/smoke/cli-window-contract.mjs",
     "smoke:ui-vocabulary-corpus": "node tests/smoke/ui-vocabulary-corpus.mjs",
+    "smoke:design-tokens": "node tests/smoke/design-tokens.mjs",
     "smoke:notification-policy": "npm run build:main && node tests/smoke/notification-policy.mjs",
     "smoke:notification-controller": "npm run build:main && node tests/smoke/notification-controller.mjs",
     "smoke:session-title-policy": "npm run build:main && node tests/smoke/session-title-policy.mjs",
