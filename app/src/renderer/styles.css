@@ -43,547 +43,387 @@
   src: url("./assets/fonts/MapleMono-NF-CN-Bold.woff2") format("woff2");
 }
 
-:root,
-[data-theme="duet"] {
+/* ════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — new architecture (Design System Migration S0, 2026-07-15).
+   Spec: design/duet-design-system.html. primitives → roles → scales.
+   Chrome consumes ONLY roles; reading "paper" lives in the READING THEME LAYER;
+   UI themes no longer vary chrome (structural decision 6). The app's attribute
+   axes are `data-theme` (duet/paper/calm/focus = reading theme) and
+   `data-mode="dark"` (appearance) — the spec's data-reading-theme/data-appearance
+   are adapted to these names here. The LEGACY ALIAS BLOCK below re-points every
+   pre-S0 token name onto these roles so existing component CSS keeps resolving
+   through S1–S4, until S5 deletes the alias block.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
   color-scheme: light;
 
-  --surface: #f5f5f2;
-  --surface-shell: #eeebe3;
-  --surface-raised: #fbfaf7;
-  --surface-panel: #fffefa;
-  --surface-white: #fffefa;
-  --surface-control: #f8f6ef;
-  --surface-control-soft: #f4f0e8;
-  --surface-strip: #f4f1ea;
-  --surface-selected: #e5efe9;
-  --surface-pill: #f2efe8;
-  --surface-code-inline: #f1eee6;
-  --surface-input: #f4f0e6;
-  --surface-tool: #f6f4ee;
-  --surface-disabled: #e4dfd4;
-  --surface-disabled-strong: #d8d2c5;
-  --surface-complete-soft: #eef8f1;
-  --surface-complete-active: #eef7f2;
-  --surface-complete-summary: #f4f8f3;
-  --surface-complete-metric: #fbfdfa;
-  --surface-attention: #fff0ea;
-  --surface-attention-soft: #fff7f4;
-  --surface-attention-hover: #eaded7;
-  --surface-waiting-quiet: #f7f1df;
-  --surface-waiting-action: #f8efd2;
-  --surface-menu: #fffefa;
-  --surface-menu-hover: #f0ece3;
+  /* ── primitives ─────────────────────────────────────────────── */
+  --p-ink: 55 53 47;            /* warm charcoal #37352F (Notion --fg) */
+  --p-gray: 135 131 120;        /* warm gray #878378 — hover/selected overlays */
+  --p-canvas: #ffffff;          /* content canvas */
+  --p-shell: #f7f6f3;           /* shell (sidebar) — Notion sidebar */
+  --p-blue: 39 110 241;         /* Uber Base blue #276EF1 — the only accent hue */
+  --p-red: 222 17 53;           /* Uber Base red #DE1135 — needs-you signal */
+  --p-red-icon: #de1135;        /* red high-saturation step — icons/dots */
+  --p-red-surface: #fcecef;     /* red @ ~8% over white */
 
-  --ink-strong: #20201d;
-  --ink: #34312b;
-  --ink-reading-prompt: #26231f;
-  --ink-ui: #302d28;
-  --ink-ui-strong: #332f29;
-  --ink-subtle: #403d37;
-  --ink-message: #403b32;
-  --ink-pill: #4c4943;
-  --ink-status: #4f4a41;
-  --ink-muted: #6d675c;
-  --ink-muted-warm: #625d54;
-  --ink-label: #69665f;
-  --ink-meta: #6f695f;
-  --ink-faint: #8f887b;
-  --ink-fainter: #a39b8c;
-  --ink-disabled: #777169;
-  --ink-disabled-soft: #8c867a;
-  --ink-disabled-faint: #8b857c;
-  --ink-blockquote: #5d574b;
-  --ink-work: #736d62;
-  --ink-trace: #9a9387;
-  --ink-menu: #2f2c27;
-  --ink-menu-muted: #6f695f;
+  /* ── roles · text (ink alpha ladder) ────────────────────────── */
+  --text-primary: rgb(var(--p-ink));
+  --text-secondary: rgb(var(--p-ink) / 0.72);
+  --text-tertiary: rgb(var(--p-ink) / 0.50);
+  --text-placeholder: rgb(var(--p-ink) / 0.34);
+  --text-on-emphasis: var(--p-canvas);
 
-  --accent: #2f5d50;
-  --accent-strong: #21483f;
-  --accent-soft-border: #7d9b8e;
-  --ink-on-accent: #fffefa;
+  /* ── roles · surface ────────────────────────────────────────── */
+  --surface-canvas: var(--p-canvas);
+  --surface-shell: var(--p-shell);
+  --surface-hover: rgb(var(--p-gray) / 0.12);       /* overlay, not opaque */
+  --surface-selected: rgb(var(--p-gray) / 0.20);
+  --surface-raised: var(--p-canvas);                /* + shadow-raised */
 
-  /* Quote & Comment trigger blue (plan D7 — Woody's design blue). Declared once
-     here rather than per theme/mode because it does NOT flip: D7 pins the same
-     value in both modes for now, so it follows the file's convention for
-     mode-invariant hues (cf. --term-blue). Landed as a semantic token so the
-     imminent UI-token refactor can take it over. */
-  --quote-comment-accent: #008ff0;
+  /* ── roles · border (ink alpha ladder) ──────────────────────── */
+  --border-hairline: rgb(var(--p-ink) / 0.09);
+  --border-default: rgb(var(--p-ink) / 0.16);
+  --border-strong: rgb(var(--p-ink) / 0.30);
 
-  --code-bg: #f4f2ec;
+  /* ── roles · accent (the only blue) ─────────────────────────── */
+  --accent: rgb(var(--p-blue));
+  --accent-subtle: rgb(var(--p-blue) / 0.10);
+  --selection: rgb(var(--p-blue) / 0.28);           /* text selection */
+  --focus-ring: rgb(var(--p-blue) / 0.55);
 
-  --border: #d5d1c7;
-  --border-soft: #e2ddd3;
-  --border-subtle: #ded9ce;
-  --border-strong: #c8c2b6;
-  --border-control: #b8b0a2;
-  --border-raised: #d8d3c8;
-  --border-disabled: #c5beb0;
-  --border-footer: #dfd9ce;
-  --border-complete: #b7d6c2;
-  --border-complete-soft: #b8c9bc;
-  --border-complete-metric: #d8e2d8;
-  --border-attention: #bb7665;
-  --border-attention-soft: #e0b3aa;
-  --border-attention-muted: #d9b3a8;
-  --border-waiting: #d8c9a3;
-  --border-waiting-quiet: #d8c9a5;
-  --border-waiting-action: #c6b489;
-  --border-menu: #d3cec2;
-  --border-menu-divider: rgb(52 49 43 / 12%);
+  /* ── roles · control (ink-as-accent: primary action is ink) ─── */
+  --control-primary-bg: rgb(var(--p-ink));
+  --control-primary-text: var(--p-canvas);
 
-  --status-complete: #2f5d50;
-  --status-complete-strong: #2f8f5b;
-  --status-complete-ink: #276043;
-  --status-complete-deep: #183d34;
-  --status-complete-link: #1f6b42;
-  --status-complete-muted: #5b7167;
-  --status-complete-label: #7d776d;
-  --status-attention: #a04b3c;
-  --status-attention-strong: #b65d4d;
-  --status-attention-deep: #7b3326;
-  --status-attention-label: #8d3f32;
-  --status-attention-button: #9b4738;
-  --status-attention-ink: #704036;
-  --status-attention-text: #5a261d;
-  --status-attention-code: #4a211b;
-  --status-waiting: #8a6d1f;
-  --status-waiting-label: #826b25;
+  /* ── roles · attention (the only kept status chroma: needs-you) ── */
+  --attention-text: rgb(var(--p-red));
+  --attention-icon: var(--p-red-icon);
+  --attention-surface: var(--p-red-surface);
+  --attention-border: rgb(var(--p-red) / 0.36);
 
-  /* Terminal lens ANSI palette (contract D6). The slot index is the semantic
-     contract — 1=red=error, 2=green=success, 3=yellow=warning — so a role only
-     ever changes shade, never meaning. Hue roles route Duet's own art-directed
-     tokens, so the terminal reads native and tracks any token retune; the two
-     hues Duet's system lacks (blue/magenta, + bright-yellow) are hand-authored.
-     These are the LIGHT values — [data-mode="dark"] overrides the handful that
-     must flip with the background (the grayscale ramp) or carry a dark shade.
-     Resolved to rgb() in terminalTheme() via a probe element. Woody dials live. */
-  --term-bg: var(--surface);
-  --term-fg: var(--ink);
-  /* Small CLI chrome/support copy must remain WCAG-AA readable in every
-     theme/mode. Keep this opaque and semantic: alpha-over-background muted
-     text fell below 4.5:1 in several light palettes. */
-  --term-muted: color-mix(in srgb, var(--term-fg) 74%, var(--term-bg));
-  /* The empty action is the pane's local affordance. Its edge must remain
-     distinguishable from the continuous CLI surface (3:1 non-text contrast). */
-  --term-control-border: color-mix(in srgb, var(--term-fg) 58%, var(--term-bg));
-  --term-cursor: var(--accent-strong);
-  --term-cursor-accent: var(--ink-on-accent);
-  --term-selection-bg: color-mix(in srgb, var(--surface) 72%, var(--accent) 28%);
-  --term-selection-fg: var(--ink);
-  --term-black: var(--ink-strong);
-  --term-red: var(--status-attention);
-  --term-green: var(--status-complete);
-  --term-yellow: var(--status-waiting);
-  --term-blue: #3f6593;
-  --term-magenta: #8a5b93;
-  --term-cyan: var(--accent);
-  --term-white: color-mix(in srgb, var(--ink-faint) 55%, var(--surface) 45%);
-  --term-bright-black: var(--ink-faint);
-  --term-bright-red: var(--status-attention-strong);
-  --term-bright-green: var(--status-complete-strong);
-  --term-bright-yellow: #a8842b;
-  --term-bright-blue: #4e79ad;
-  --term-bright-magenta: #a06faa;
-  --term-bright-cyan: var(--accent-strong);
-  --term-bright-white: var(--surface-white);
+  /* ── shadow ─────────────────────────────────────────────────── */
+  --shadow-raised: 0 1px 2px rgb(var(--p-ink) / 0.06), 0 4px 16px rgb(var(--p-ink) / 0.06);
+  --shadow-overlay: 0 12px 40px rgb(var(--p-ink) / 0.18);
 
-  --approval-file-edit-surface: color-mix(in srgb, var(--surface) 82%, #d3a72b 18%);
-  --approval-file-edit-border: color-mix(in srgb, var(--surface) 48%, #a17d15 52%);
-  --approval-file-edit-ink: #554214;
-  --approval-command-surface: color-mix(in srgb, var(--surface) 82%, #c97736 18%);
-  --approval-command-border: color-mix(in srgb, var(--surface) 48%, #9a5c30 52%);
-  --approval-command-ink: #603719;
-  --approval-file-read-surface: color-mix(in srgb, var(--surface) 82%, #4c928e 18%);
-  --approval-file-read-border: color-mix(in srgb, var(--surface) 48%, #44706d 52%);
-  --approval-file-read-ink: #244f4d;
-  --approval-workspace-trust-surface: color-mix(in srgb, var(--surface) 82%, #5f7fb5 18%);
-  --approval-workspace-trust-border: color-mix(in srgb, var(--surface) 48%, #4e6590 52%);
-  --approval-workspace-trust-ink: #2d4268;
-  --approval-dangerous-bypass-surface: color-mix(in srgb, var(--surface) 78%, #c0392b 22%);
-  --approval-dangerous-bypass-border: color-mix(in srgb, var(--surface) 38%, #a02b1e 62%);
-  --approval-dangerous-bypass-ink: #6b1d14;
-  --approval-surface: var(--approval-file-edit-surface);
-  --approval-border: var(--approval-file-edit-border);
-  --approval-ink: var(--approval-file-edit-ink);
-  --approval-badge-bg: color-mix(in srgb, var(--surface-panel) 88%, var(--approval-surface) 12%);
-  --approval-context-bg: color-mix(in srgb, var(--surface-panel) 74%, var(--approval-surface) 26%);
-  --approval-context-border: color-mix(in srgb, var(--approval-border) 50%, transparent);
-
-  --shadow-composer: 0 12px 30px rgb(55 50 41 / 10%);
-  --shadow-composer-focus:
-    0 0 0 3px rgb(47 93 80 / 12%),
-    0 12px 30px rgb(55 50 41 / 10%);
-  --shadow-popover: 0 18px 44px rgb(52 49 43 / 18%);
-  --shadow-bubble: 0 1px 0 rgb(52 49 43 / 4%);
-
-  --font-reading: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC",
-    sans-serif;
-  --font-ui: var(--font-reading);
-  /* Maple Mono NF CN — the shared mono for BOTH the Terminal lens and the Read
-     surface's code (Woody unified them after testing: it reads well in both, so
-     one mono identity carries across surfaces). A native-2:1 bilingual mono so
-     CJK grid-aligns in the terminal; PingFang catches any glyph Maple lacks;
-     Menlo is the Latin fallback if the bundled font fails to load. */
+  /* ── font families: exactly 3 tokens. ui decoupled from reading
+       ("SF Pro Text" removed — probe-verified unaddressable in Chromium).
+       --font-mono kept verbatim from pre-S0 (Maple Mono NF CN identity). ── */
+  --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
   --font-mono: "Maple Mono NF CN", "PingFang SC", Menlo, monospace;
-  --text-body: 16px;
-  --text-code-inline: 0.85em;
-  --text-code-block: 13px;
-  --leading-body: 1.6;
-  --leading-code: 1.55;
-  --measure-prose: 660px;
 
-  color: var(--ink-strong);
-  background: var(--surface);
+  /* ── type scale · UI (size/line-height pairs; weights 400/500/600 only) ── */
+  --type-ui-xs: 11px/15px;   /* label, meta, timestamp, group heading */
+  --type-ui-sm: 12px/16px;   /* caption, buttons, secondary UI text */
+  --type-ui-md: 13px/18px;   /* UI body — sidebar rows, menus, inputs */
+  --type-ui-lg: 15px/20px;   /* pane titles, drawer titles */
+
+  /* ── space scale (4px grid + 2/6 fine steps) ────────────────── */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  /* ── radius scale (4/6/8/12 + pill) ─────────────────────────── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  color: var(--text-primary);
+  background: var(--surface-canvas);
   font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
 
-[data-text-step="14"] {
-  --text-body: 14px;
-}
-
-[data-text-step="15"] {
-  --text-body: 15px;
-}
-
-[data-text-step="16"] {
-  --text-body: 16px;
-}
-
-[data-text-step="18"] {
-  --text-body: 18px;
-}
-
-[data-text-step="20"] {
-  --text-body: 20px;
-}
-
-[data-theme="paper"],
-[data-theme="calm"],
-[data-theme="focus"] {
-  --surface-white: var(--surface-panel);
-  --surface-control: color-mix(in srgb, var(--surface-raised) 76%, var(--surface-shell));
-  --surface-control-soft: color-mix(in srgb, var(--surface-raised) 62%, var(--surface-shell));
-  --surface-strip: color-mix(in srgb, var(--surface) 72%, var(--surface-shell));
-  --surface-selected: color-mix(in srgb, var(--surface) 78%, var(--accent) 22%);
-  --surface-pill: color-mix(in srgb, var(--surface-raised) 72%, var(--surface-shell));
-  --surface-code-inline: color-mix(in srgb, var(--surface) 92%, var(--ink) 8%);
-  --surface-input: color-mix(in srgb, var(--surface-raised) 58%, var(--surface));
-  --surface-tool: color-mix(in srgb, var(--surface-raised) 74%, var(--surface));
-  --surface-disabled: color-mix(in srgb, var(--surface) 80%, var(--ink) 20%);
-  --surface-disabled-strong: color-mix(in srgb, var(--surface) 70%, var(--ink) 30%);
-  --surface-complete-soft: color-mix(in srgb, var(--surface) 88%, var(--status-complete) 12%);
-  --surface-complete-active: color-mix(in srgb, var(--surface-raised) 84%, var(--status-complete) 16%);
-  --surface-complete-summary: color-mix(in srgb, var(--surface-raised) 90%, var(--status-complete) 10%);
-  --surface-complete-metric: color-mix(in srgb, var(--surface-panel) 92%, var(--status-complete) 8%);
-  --surface-attention: color-mix(in srgb, var(--surface) 84%, var(--status-attention) 16%);
-  --surface-attention-soft: color-mix(in srgb, var(--surface-panel) 88%, var(--status-attention) 12%);
-  --surface-attention-hover: color-mix(in srgb, var(--surface-raised) 78%, var(--status-attention) 22%);
-  --surface-waiting-quiet: color-mix(in srgb, var(--surface) 86%, var(--status-waiting) 14%);
-  --surface-waiting-action: color-mix(in srgb, var(--surface-raised) 78%, var(--status-waiting) 22%);
-  --surface-menu: var(--surface-panel);
-  --surface-menu-hover: color-mix(in srgb, var(--surface-panel) 80%, var(--surface-shell));
-
-  --ink-reading-prompt: var(--ink-strong);
-  --ink-ui: color-mix(in srgb, var(--ink) 88%, var(--ink-strong));
-  --ink-ui-strong: var(--ink-strong);
-  --ink-subtle: color-mix(in srgb, var(--ink) 86%, var(--surface-shell));
-  --ink-message: var(--ink-subtle);
-  --ink-pill: color-mix(in srgb, var(--ink) 82%, var(--surface-shell));
-  --ink-status: color-mix(in srgb, var(--ink) 78%, var(--surface-shell));
-  --ink-muted: color-mix(in srgb, var(--ink) 64%, var(--surface));
-  --ink-muted-warm: color-mix(in srgb, var(--ink) 68%, var(--surface));
-  --ink-label: color-mix(in srgb, var(--ink) 56%, var(--surface));
-  --ink-meta: color-mix(in srgb, var(--ink) 54%, var(--surface));
-  --ink-faint: color-mix(in srgb, var(--ink) 42%, var(--surface));
-  --ink-fainter: color-mix(in srgb, var(--ink) 32%, var(--surface));
-  --ink-disabled: color-mix(in srgb, var(--ink) 50%, var(--surface));
-  --ink-disabled-soft: color-mix(in srgb, var(--ink) 42%, var(--surface));
-  --ink-disabled-faint: color-mix(in srgb, var(--ink) 38%, var(--surface));
-  --ink-blockquote: color-mix(in srgb, var(--ink) 72%, var(--surface));
-  --ink-work: color-mix(in srgb, var(--ink) 58%, var(--surface));
-  --ink-trace: color-mix(in srgb, var(--ink) 38%, var(--surface));
-  --ink-menu: var(--ink-ui);
-  --ink-menu-muted: var(--ink-label);
-  --ink-on-accent: var(--surface-panel);
-
-  --border: color-mix(in srgb, var(--surface) 82%, var(--ink) 18%);
-  --border-soft: color-mix(in srgb, var(--surface) 88%, var(--ink) 12%);
-  --border-subtle: color-mix(in srgb, var(--surface) 86%, var(--ink) 14%);
-  --border-strong: color-mix(in srgb, var(--surface) 72%, var(--ink) 28%);
-  --border-control: color-mix(in srgb, var(--surface) 66%, var(--ink) 34%);
-  --border-raised: color-mix(in srgb, var(--surface-raised) 74%, var(--ink) 26%);
-  --border-disabled: color-mix(in srgb, var(--surface) 62%, var(--ink) 38%);
-  --border-footer: color-mix(in srgb, var(--surface) 84%, var(--ink) 16%);
-  --border-complete: color-mix(in srgb, var(--surface) 58%, var(--status-complete) 42%);
-  --border-complete-soft: color-mix(in srgb, var(--surface) 70%, var(--status-complete) 30%);
-  --border-complete-metric: color-mix(in srgb, var(--surface) 78%, var(--status-complete) 22%);
-  --border-attention: color-mix(in srgb, var(--surface) 48%, var(--status-attention) 52%);
-  --border-attention-soft: color-mix(in srgb, var(--surface) 68%, var(--status-attention) 32%);
-  --border-attention-muted: color-mix(in srgb, var(--surface) 62%, var(--status-attention) 38%);
-  --border-waiting: color-mix(in srgb, var(--surface) 58%, var(--status-waiting) 42%);
-  --border-waiting-quiet: color-mix(in srgb, var(--surface) 68%, var(--status-waiting) 32%);
-  --border-waiting-action: color-mix(in srgb, var(--surface) 56%, var(--status-waiting) 44%);
-  --border-menu: color-mix(in srgb, var(--surface-menu) 74%, var(--ink) 26%);
-  --border-menu-divider: color-mix(in srgb, var(--surface-menu) 86%, var(--ink) 14%);
-}
-
-[data-theme="paper"] {
-  --surface: #eeeded;
-  --surface-shell: #e2e1de;
-  --surface-raised: #f6f5f2;
-  --surface-panel: #fbfaf7;
-  --ink-strong: #1d1a1a;
-  --ink: #262222;
-  --accent: #2d5c52;
-  --accent-strong: #214a43;
-  --accent-soft-border: #789b91;
-  --code-bg: #e8e6e1;
-  --font-reading: Charter, "Bitstream Charter", "PingFang SC", serif;
-  --leading-body: 1.62;
-}
-
-[data-theme="calm"] {
-  --surface: #eee2cc;
-  --surface-shell: #e2d2b5;
-  --surface-raised: #f7eddc;
-  --surface-panel: #fbf3e6;
-  --ink-strong: #32281e;
-  --ink: #3a2f23;
-  --accent: #42685d;
-  --accent-strong: #2e5047;
-  --accent-soft-border: #869c8d;
-  --code-bg: #eadcc4;
-  --font-reading: "Literata", "PingFang SC", serif;
-  --leading-body: 1.7;
-}
-
-[data-theme="focus"] {
-  --surface: #fefcf5;
-  --surface-shell: #f1eee2;
-  --surface-raised: #fffdf6;
-  --surface-panel: #fffefa;
-  --ink-strong: #1a1812;
-  --ink: #26231a;
-  --accent: #28594e;
-  --accent-strong: #1c443c;
-  --accent-soft-border: #6f9489;
-  --code-bg: #f2eee2;
-  --font-reading: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC",
-    sans-serif;
-  --leading-body: 1.55;
-}
-
 [data-mode="dark"] {
   color-scheme: dark;
 
-  /* Terminal palette — dark-mode overrides for the roles that can't ride a single
-     mode-agnostic formula: the grayscale ramp flips (black hugs the bg, white/
-     bright-white hug the brightest ink) and the two token-less hues take their
-     dark shades. The hue roles (red/green/yellow/cyan + bright variants) need NO
-     override here — they route the --status- and --accent tokens, which each dark
-     theme already redefines, so they adapt for free. Contract D6 Duet-dark table. */
-  --term-black: color-mix(in srgb, var(--surface) 89%, var(--ink) 11%);
-  --term-white: color-mix(in srgb, var(--ink) 88%, var(--surface) 12%);
-  --term-bright-white: var(--ink-strong);
-  --term-blue: #7fa8cf;
-  --term-magenta: #bb96c4;
-  --term-bright-yellow: #e3c585;
-  --term-bright-blue: #9cc2e0;
-  --term-bright-magenta: #d0b0d8;
+  --p-ink: 216 214 209;         /* warm bright ink #D8D6D1 (≈ Notion dark, warmer) */
+  --p-gray: 168 164 155;
+  --p-canvas: #191919;          /* Notion current dark canvas */
+  --p-shell: #202020;           /* Notion dark sidebar (field-verified) */
+  --p-blue: 91 146 242;         /* #5B92F2 — self-raised dark step for #191919 */
+  --p-red: 241 85 108;          /* #F1556C — self-raised dark step */
+  --p-red-icon: #f1556c;
+  --p-red-surface: #33191f;
+
+  --text-on-emphasis: #191919;
+  --control-primary-text: #191919;
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.3);
+  --shadow-overlay: 0 12px 40px rgb(0 0 0 / 0.55);
 }
 
-[data-theme="duet"][data-mode="dark"],
-:root:not([data-theme])[data-mode="dark"] {
-  --surface: #1e1d1a;
-  --surface-shell: #191814;
-  --surface-raised: #26241f;
-  --surface-panel: #2d2a24;
-  --ink-strong: #f0eadf;
-  --ink: #e8e3d9;
-  --ink-muted: #a49f95;
-  --ink-faint: #6c685f;
-  --accent: #79b7a5;
-  --accent-strong: #a0d6c6;
-  --accent-soft-border: #5f9384;
-  --ink-on-accent: #191814;
-  --code-bg: #24221d;
-  --status-complete: #82bfa8;
-  --status-complete-strong: #9bd9bd;
-  --status-attention: #d58b78;
-  --status-attention-strong: #e7a18d;
-  --status-waiting: #d5bd75;
+/* ════════════════════════════════════════════════════════════════════════
+   READING THEME LAYER — only the "paper": paper color + reading ink + reading
+   font + reading leading. Chrome does NOT consume these. Light/dark axis is
+   orthogonal (Apple Books model). In the app, `data-theme` IS the reading
+   theme; `:root` with no data-theme behaves as duet.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root,
+[data-theme="duet"] {
+  --reading-paper: #fbfaf7;
+  --reading-ink: 55 53 47;
+  --font-reading: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --reading-leading: 1.6;
+}
+[data-theme="paper"] {
+  --reading-paper: #fbfbfb;      /* Apple Books legacy White */
+  --reading-ink: 38 36 34;
+  --font-reading: Charter, "Bitstream Charter", "PingFang SC", serif;
+  --reading-leading: 1.62;
+}
+[data-theme="calm"] {
+  --reading-paper: #f8f1e3;      /* Apple Books Sepia */
+  --reading-ink: 58 47 35;
+  --font-reading: "Literata", Charter, Georgia, "PingFang SC", serif;
+  --reading-leading: 1.7;
+}
+[data-theme="focus"] {
+  --reading-paper: #fffcf4;      /* Apple Books Focus (community-measured) */
+  --reading-ink: 42 39 30;
+  --font-reading: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --reading-leading: 1.55;
 }
 
-[data-theme="paper"][data-mode="dark"] {
-  --surface: #1c1c1d;
-  --surface-shell: #171718;
-  --surface-raised: #242426;
-  --surface-panel: #2c2c2e;
-  --ink-strong: #f6f5f1;
-  --ink: #f2f2f0;
-  --ink-muted: #aaa9a5;
-  --ink-faint: #6d6c69;
-  --accent: #82b8aa;
-  --accent-strong: #a7d8ce;
-  --accent-soft-border: #628e84;
-  --ink-on-accent: #171718;
-  --code-bg: #242426;
-  --status-complete: #86bfae;
-  --status-complete-strong: #a7d9c9;
-  --status-attention: #d89886;
-  --status-attention-strong: #e9aa98;
-  --status-waiting: #d6c47f;
+[data-mode="dark"][data-theme="duet"],
+:root:not([data-theme])[data-mode="dark"] { --reading-paper: #1e1d1a; --reading-ink: 232 227 217; }
+[data-mode="dark"][data-theme="paper"] { --reading-paper: #1c1c1d; --reading-ink: 240 240 238; }
+[data-mode="dark"][data-theme="calm"]  { --reading-paper: #2a251c; --reading-ink: 247 236 221; }
+[data-mode="dark"][data-theme="focus"] { --reading-paper: #17160d; --reading-ink: 252 247 234; }
+
+/* Reading text-size steps (Apple Books preset+override). --text-body lives in
+   the legacy alias block; these steps override it per user setting. */
+[data-text-step="14"] { --text-body: 14px; }
+[data-text-step="15"] { --text-body: 15px; }
+[data-text-step="16"] { --text-body: 16px; }
+[data-text-step="18"] { --text-body: 18px; }
+[data-text-step="20"] { --text-body: 20px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   LEGACY ALIAS BLOCK — TEMPORARY, deleted in S5. Re-points every pre-S0 token
+   name onto the roles above so existing component CSS keeps resolving through
+   the S1–S4 sweeps. De-chrome mappings are intentional (structural decisions
+   2/3/4): complete + waiting collapse to neutrals; only needs-you (attention)
+   and links/chips/quote-comment (accent) keep chroma. Collision names that
+   ALREADY are roles — --surface-shell / --surface-raised / --surface-selected,
+   --accent, --border-strong, --font-ui / --font-mono / --font-reading — are NOT
+   re-aliased here: the role/reading layers satisfy them directly.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* reading body metrics (kept live for S2) */
+  --text-body: 16px;
+  --text-code-inline: 0.85em;
+  --text-code-block: 13px;
+  --leading-body: var(--reading-leading);
+  --leading-code: 1.55;
+  --measure-prose: 660px;
+
+  /* ink ladder → 4 text roles (24 grays collapse honestly onto 4 tiers) */
+  --ink-strong: var(--text-primary);
+  --ink: var(--text-primary);
+  --ink-reading-prompt: var(--text-primary);
+  --ink-ui: var(--text-primary);
+  --ink-ui-strong: var(--text-primary);
+  --ink-menu: var(--text-primary);
+  --ink-subtle: var(--text-secondary);
+  --ink-message: var(--text-secondary);
+  --ink-pill: var(--text-secondary);
+  --ink-status: var(--text-secondary);
+  --ink-muted-warm: var(--text-secondary);
+  --ink-blockquote: var(--text-secondary);
+  --ink-muted: var(--text-tertiary);
+  --ink-label: var(--text-tertiary);
+  --ink-meta: var(--text-tertiary);
+  --ink-menu-muted: var(--text-tertiary);
+  --ink-faint: var(--text-tertiary);
+  --ink-work: var(--text-tertiary);
+  --ink-fainter: var(--text-placeholder);
+  --ink-trace: var(--text-placeholder);
+  --ink-disabled: var(--text-placeholder);
+  --ink-disabled-soft: var(--text-placeholder);
+  --ink-disabled-faint: var(--text-placeholder);
+  --ink-on-accent: var(--text-on-emphasis);
+
+  /* surfaces → canvas / shell / hover / selected / raised (per consumer job) */
+  --surface: var(--surface-canvas);
+  --surface-panel: var(--surface-raised);
+  --surface-white: var(--surface-canvas);
+  --surface-control: var(--surface-hover);
+  --surface-control-soft: var(--surface-hover);
+  --surface-strip: var(--surface-shell);
+  --surface-pill: var(--surface-hover);
+  --surface-code-inline: var(--surface-hover);
+  --surface-input: var(--surface-hover);
+  --surface-tool: var(--surface-hover);
+  --surface-disabled: var(--surface-hover);
+  --surface-disabled-strong: var(--surface-selected);
+  --surface-menu: var(--surface-raised);
+  --surface-menu-hover: var(--surface-hover);
+  --code-bg: var(--surface-hover);
+  /* complete (de-chromed → neutral tints) */
+  --surface-complete-soft: var(--surface-hover);
+  --surface-complete-active: var(--surface-hover);
+  --surface-complete-summary: var(--surface-hover);
+  --surface-complete-metric: var(--surface-canvas);
+  /* waiting (de-chromed → neutral tints) */
+  --surface-waiting-quiet: var(--surface-hover);
+  --surface-waiting-action: var(--surface-selected);
+  /* attention (keeps red) */
+  --surface-attention: var(--attention-surface);
+  --surface-attention-soft: var(--attention-surface);
+  --surface-attention-hover: var(--attention-surface);
+
+  /* borders → hairline / default / strong */
+  --border: var(--border-default);
+  --border-soft: var(--border-hairline);
+  --border-subtle: var(--border-hairline);
+  --border-control: var(--border-strong);
+  --border-raised: var(--border-default);
+  --border-disabled: var(--border-default);
+  --border-footer: var(--border-hairline);
+  --border-menu: var(--border-default);
+  --border-menu-divider: var(--border-hairline);
+  /* complete/waiting borders de-chromed */
+  --border-complete: var(--border-default);
+  --border-complete-soft: var(--border-hairline);
+  --border-complete-metric: var(--border-hairline);
+  --border-waiting: var(--border-default);
+  --border-waiting-quiet: var(--border-hairline);
+  --border-waiting-action: var(--border-strong);
+  /* attention borders keep red */
+  --border-attention: var(--attention-border);
+  --border-attention-soft: var(--attention-border);
+  --border-attention-muted: var(--attention-border);
+
+  /* accent family → the one blue; soft-border was a teal hover/focus/active
+     edge — interaction is de-chromed, so it resolves to a neutral strong edge */
+  --accent-strong: var(--accent);
+  --accent-soft-border: var(--border-strong);
+  --quote-comment-accent: var(--accent);
+
+  /* status · complete (de-chromed → neutral text) */
+  --status-complete: var(--text-secondary);
+  --status-complete-strong: var(--text-secondary);
+  --status-complete-ink: var(--text-secondary);
+  --status-complete-deep: var(--text-primary);
+  --status-complete-link: var(--text-secondary);
+  --status-complete-muted: var(--text-tertiary);
+  --status-complete-label: var(--text-tertiary);
+  /* status · waiting (de-chromed → neutral text) */
+  --status-waiting: var(--text-tertiary);
+  --status-waiting-label: var(--text-tertiary);
+  /* status · attention (keeps the red ramp) */
+  --status-attention: var(--attention-text);
+  --status-attention-strong: var(--attention-text);
+  --status-attention-deep: var(--attention-text);
+  --status-attention-label: var(--attention-text);
+  --status-attention-button: var(--attention-icon);
+  --status-attention-ink: var(--attention-text);
+  --status-attention-text: var(--attention-text);
+  --status-attention-code: var(--attention-text);
+
+  /* approval — five families neutralized to chrome; ONLY dangerous-bypass keeps
+     red (structural decision 2). Base + badge/context derive from the active
+     kind, so dangerous-bypass tints red and every other kind stays neutral. */
+  --approval-file-edit-surface: var(--surface-hover);
+  --approval-file-edit-border: var(--border-default);
+  --approval-file-edit-ink: var(--text-secondary);
+  --approval-command-surface: var(--surface-hover);
+  --approval-command-border: var(--border-default);
+  --approval-command-ink: var(--text-secondary);
+  --approval-file-read-surface: var(--surface-hover);
+  --approval-file-read-border: var(--border-default);
+  --approval-file-read-ink: var(--text-secondary);
+  --approval-workspace-trust-surface: var(--surface-hover);
+  --approval-workspace-trust-border: var(--border-default);
+  --approval-workspace-trust-ink: var(--text-secondary);
+  --approval-dangerous-bypass-surface: var(--attention-surface);
+  --approval-dangerous-bypass-border: var(--attention-border);
+  --approval-dangerous-bypass-ink: var(--attention-text);
+  --approval-surface: var(--approval-file-edit-surface);
+  --approval-border: var(--approval-file-edit-border);
+  --approval-ink: var(--approval-file-edit-ink);
+  --approval-badge-bg: color-mix(in srgb, var(--surface-raised) 88%, var(--approval-surface) 12%);
+  --approval-context-bg: color-mix(in srgb, var(--surface-raised) 74%, var(--approval-surface) 26%);
+  --approval-context-border: color-mix(in srgb, var(--approval-border) 50%, transparent);
+
+  /* shadows → raised / overlay (composer-focus composes the accent ring) */
+  --shadow-composer: var(--shadow-raised);
+  --shadow-composer-focus: 0 0 0 3px var(--accent-subtle), var(--shadow-raised);
+  --shadow-popover: var(--shadow-overlay);
+  --shadow-bubble: var(--shadow-raised);
 }
 
-[data-theme="calm"][data-mode="dark"] {
-  --surface: #403b31;
-  --surface-shell: #312d25;
-  --surface-raised: #4a4438;
-  --surface-panel: #554e40;
-  --ink-strong: #fff2df;
-  --ink: #f7ecdd;
-  --ink-muted: #b8ad9c;
-  --ink-faint: #7a7061;
-  --accent: #9dc0a7;
-  --accent-strong: #c0dec5;
-  --accent-soft-border: #7d9c83;
-  --ink-on-accent: #312d25;
-  --code-bg: #393429;
-  --status-complete: #a6c59b;
-  --status-complete-strong: #c9e2b8;
-  --status-attention: #e0a084;
-  --status-attention-strong: #f0b295;
-  --status-waiting: #dbc67d;
-}
+/* ── Terminal lens palette (structural decision 1). ANSI slots are CONTENT
+     semantics (1=red 2=green 3=yellow …), not UI status, so the hues are
+     SELF-OWNED literals frozen at the pre-S0 duet-theme resolved shades — light
+     here, dark in the [data-mode="dark"] block below — instead of riding the
+     retired --status-* and --accent tokens. The grayscale ramp + bg/fg/muted ride
+     the new neutral roles so they track the system. --term-cursor now reads
+     neutral-strong (ink) rather than teal. --term-cyan preserves its pre-S0
+     resolved shade (which equalled the teal accent → currently == green: a
+     pre-existing quirk to revisit in S5). Resolved to rgb() in terminalTheme()
+     via a probe element. */
+:root {
+  --term-bg: var(--surface-canvas);
+  --term-fg: var(--text-primary);
+  --term-muted: color-mix(in srgb, var(--term-fg) 74%, var(--term-bg));
+  --term-control-border: color-mix(in srgb, var(--term-fg) 58%, var(--term-bg));
+  --term-cursor: var(--text-primary);
+  --term-cursor-accent: var(--text-on-emphasis);
+  --term-selection-bg: color-mix(in srgb, var(--surface-canvas) 72%, var(--accent) 28%);
+  --term-selection-fg: var(--text-primary);
+  --term-black: var(--text-primary);
+  --term-white: color-mix(in srgb, var(--text-tertiary) 55%, var(--surface-canvas) 45%);
+  --term-bright-black: var(--text-tertiary);
+  --term-bright-white: var(--surface-canvas);
 
-[data-theme="focus"][data-mode="dark"] {
-  --surface: #17160d;
-  --surface-shell: #11100a;
-  --surface-raised: #212014;
-  --surface-panel: #292719;
-  --ink-strong: #fff6e6;
-  --ink: #fef9ec;
-  --ink-muted: #b2aea1;
-  --ink-faint: #706c5e;
-  --accent: #7cb5a6;
-  --accent-strong: #a1d6c8;
-  --accent-soft-border: #5f9085;
-  --ink-on-accent: #11100a;
-  --code-bg: #201f13;
-  --status-complete: #7ebda7;
-  --status-complete-strong: #9bd7c1;
-  --status-attention: #d6907a;
-  --status-attention-strong: #eba58f;
-  --status-waiting: #d8c36f;
+  /* hue slots — pre-S0 duet-LIGHT resolved shades, frozen as literals */
+  --term-red: #a04b3c;
+  --term-green: #2f5d50;
+  --term-yellow: #8a6d1f;
+  --term-blue: #3f6593;
+  --term-magenta: #8a5b93;
+  --term-cyan: #2f5d50;
+  --term-bright-red: #b65d4d;
+  --term-bright-green: #2f8f5b;
+  --term-bright-yellow: #a8842b;
+  --term-bright-blue: #4e79ad;
+  --term-bright-magenta: #a06faa;
+  --term-bright-cyan: #21483f;
 }
 
 [data-mode="dark"] {
-  --surface-white: var(--surface-panel);
-  --surface-control: color-mix(in srgb, var(--surface-raised) 68%, var(--surface-panel));
-  --surface-control-soft: color-mix(in srgb, var(--surface-raised) 74%, var(--surface));
-  --surface-strip: var(--surface-shell);
-  --surface-selected: color-mix(in srgb, var(--surface) 72%, var(--accent) 28%);
-  --surface-pill: color-mix(in srgb, var(--surface-raised) 70%, var(--surface-panel));
-  --surface-code-inline: color-mix(in srgb, var(--surface) 82%, var(--ink) 8%);
-  --surface-input: color-mix(in srgb, var(--surface-panel) 78%, var(--surface-raised));
-  --surface-tool: color-mix(in srgb, var(--surface-raised) 82%, var(--surface));
-  --surface-disabled: color-mix(in srgb, var(--surface) 76%, var(--ink) 8%);
-  --surface-disabled-strong: color-mix(in srgb, var(--surface) 70%, var(--ink) 12%);
-  --surface-complete-soft: color-mix(in srgb, var(--surface) 84%, var(--status-complete) 16%);
-  --surface-complete-active: color-mix(in srgb, var(--surface-raised) 78%, var(--status-complete) 22%);
-  --surface-complete-summary: color-mix(in srgb, var(--surface-raised) 86%, var(--status-complete) 14%);
-  --surface-complete-metric: color-mix(in srgb, var(--surface-panel) 88%, var(--status-complete) 12%);
-  --surface-attention: color-mix(in srgb, var(--surface) 80%, var(--status-attention) 20%);
-  --surface-attention-soft: color-mix(in srgb, var(--surface-raised) 84%, var(--status-attention) 16%);
-  --surface-attention-hover: color-mix(in srgb, var(--surface-raised) 72%, var(--status-attention) 28%);
-  --surface-waiting-quiet: color-mix(in srgb, var(--surface) 82%, var(--status-waiting) 18%);
-  --surface-waiting-action: color-mix(in srgb, var(--surface-raised) 74%, var(--status-waiting) 26%);
-  --surface-menu: var(--surface-panel);
-  --surface-menu-hover: color-mix(in srgb, var(--surface-panel) 78%, var(--ink) 10%);
+  /* Terminal grayscale flips (black hugs bg, white/bright-white hug brightest
+     ink); the hue slots take their pre-S0 duet-DARK resolved shades. */
+  --term-black: color-mix(in srgb, var(--surface-canvas) 89%, var(--text-primary) 11%);
+  --term-white: color-mix(in srgb, var(--text-primary) 88%, var(--surface-canvas) 12%);
+  --term-bright-white: var(--text-primary);
 
-  --ink-reading-prompt: var(--ink-strong);
-  --ink-ui: var(--ink);
-  --ink-ui-strong: var(--ink-strong);
-  --ink-subtle: color-mix(in srgb, var(--ink) 84%, var(--surface));
-  --ink-message: var(--ink-subtle);
-  --ink-pill: color-mix(in srgb, var(--ink) 76%, var(--surface));
-  --ink-status: color-mix(in srgb, var(--ink) 72%, var(--surface));
-  --ink-muted-warm: color-mix(in srgb, var(--ink) 62%, var(--surface));
-  --ink-label: color-mix(in srgb, var(--ink) 54%, var(--surface));
-  --ink-meta: color-mix(in srgb, var(--ink) 50%, var(--surface));
-  --ink-fainter: color-mix(in srgb, var(--ink) 30%, var(--surface));
-  --ink-disabled: color-mix(in srgb, var(--ink) 44%, var(--surface));
-  --ink-disabled-soft: color-mix(in srgb, var(--ink) 38%, var(--surface));
-  --ink-disabled-faint: color-mix(in srgb, var(--ink) 34%, var(--surface));
-  --ink-blockquote: color-mix(in srgb, var(--ink) 68%, var(--surface));
-  --ink-work: color-mix(in srgb, var(--ink) 56%, var(--surface));
-  --ink-trace: color-mix(in srgb, var(--ink) 34%, var(--surface));
-  --ink-menu: var(--ink);
-  --ink-menu-muted: var(--ink-label);
-  --ink-on-accent: var(--surface-shell);
-
-  --border: color-mix(in srgb, var(--surface) 76%, var(--ink) 18%);
-  --border-soft: color-mix(in srgb, var(--surface) 82%, var(--ink) 12%);
-  --border-subtle: color-mix(in srgb, var(--surface) 80%, var(--ink) 14%);
-  --border-strong: color-mix(in srgb, var(--surface) 66%, var(--ink) 24%);
-  --border-control: color-mix(in srgb, var(--surface) 58%, var(--ink) 32%);
-  --border-raised: color-mix(in srgb, var(--surface-raised) 70%, var(--ink) 18%);
-  --border-disabled: color-mix(in srgb, var(--surface) 66%, var(--ink) 14%);
-  --border-footer: color-mix(in srgb, var(--surface) 82%, var(--ink) 10%);
-  --border-complete: color-mix(in srgb, var(--surface) 54%, var(--status-complete) 46%);
-  --border-complete-soft: color-mix(in srgb, var(--surface) 66%, var(--status-complete) 34%);
-  --border-complete-metric: color-mix(in srgb, var(--surface) 74%, var(--status-complete) 26%);
-  --border-attention: color-mix(in srgb, var(--surface) 48%, var(--status-attention) 52%);
-  --border-attention-soft: color-mix(in srgb, var(--surface) 64%, var(--status-attention) 36%);
-  --border-attention-muted: color-mix(in srgb, var(--surface) 58%, var(--status-attention) 42%);
-  --border-waiting: color-mix(in srgb, var(--surface) 56%, var(--status-waiting) 44%);
-  --border-waiting-quiet: color-mix(in srgb, var(--surface) 68%, var(--status-waiting) 32%);
-  --border-waiting-action: color-mix(in srgb, var(--surface) 54%, var(--status-waiting) 46%);
-  --border-menu: color-mix(in srgb, var(--surface-menu) 70%, var(--ink) 22%);
-  --border-menu-divider: color-mix(in srgb, var(--surface-menu) 78%, var(--ink) 16%);
-
-  --status-complete-ink: color-mix(in srgb, var(--status-complete) 82%, var(--ink));
-  --status-complete-deep: var(--status-complete-strong);
-  --status-complete-link: var(--status-complete-strong);
-  --status-complete-muted: color-mix(in srgb, var(--status-complete) 58%, var(--ink-muted));
-  --status-complete-label: color-mix(in srgb, var(--status-complete) 72%, var(--ink));
-  --status-attention-deep: var(--status-attention-strong);
-  --status-attention-label: color-mix(in srgb, var(--status-attention) 76%, var(--ink));
-  --status-attention-button: color-mix(in srgb, var(--status-attention) 82%, var(--surface-panel));
-  --status-attention-ink: color-mix(in srgb, var(--status-attention) 78%, var(--ink));
-  --status-attention-text: color-mix(in srgb, var(--status-attention) 68%, var(--ink));
-  --status-attention-code: color-mix(in srgb, var(--status-attention) 72%, var(--ink));
-  --status-waiting-label: color-mix(in srgb, var(--status-waiting) 72%, var(--ink));
-
-  --approval-file-edit-surface: color-mix(in srgb, var(--surface) 82%, #d6b65d 18%);
-  --approval-file-edit-border: color-mix(in srgb, var(--surface) 42%, #b99b4e 58%);
-  --approval-file-edit-ink: color-mix(in srgb, var(--ink) 82%, #d6b65d);
-  --approval-command-surface: color-mix(in srgb, var(--surface) 82%, #d08f5e 18%);
-  --approval-command-border: color-mix(in srgb, var(--surface) 42%, #b57548 58%);
-  --approval-command-ink: color-mix(in srgb, var(--ink) 82%, #d08f5e);
-  --approval-file-read-surface: color-mix(in srgb, var(--surface) 82%, #78b7b0 18%);
-  --approval-file-read-border: color-mix(in srgb, var(--surface) 42%, #5f9992 58%);
-  --approval-file-read-ink: color-mix(in srgb, var(--ink) 82%, #78b7b0);
-  --approval-workspace-trust-surface: color-mix(in srgb, var(--surface) 82%, #8ba8d4 18%);
-  --approval-workspace-trust-border: color-mix(in srgb, var(--surface) 42%, #708db8 58%);
-  --approval-workspace-trust-ink: color-mix(in srgb, var(--ink) 82%, #8ba8d4);
-  --approval-dangerous-bypass-surface: color-mix(in srgb, var(--surface) 80%, #e05a4a 20%);
-  --approval-dangerous-bypass-border: color-mix(in srgb, var(--surface) 38%, #c0392b 62%);
-  --approval-dangerous-bypass-ink: color-mix(in srgb, var(--ink) 80%, #e05a4a);
-  --approval-badge-bg: color-mix(in srgb, var(--surface-panel) 88%, var(--approval-surface) 12%);
-  --approval-context-bg: color-mix(in srgb, var(--surface-panel) 76%, var(--approval-surface) 24%);
-  --approval-context-border: color-mix(in srgb, var(--approval-border) 62%, transparent);
-
-  --shadow-composer: 0 1px 0 rgb(255 255 255 / 4%);
-  --shadow-composer-focus:
-    0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent),
-    0 1px 0 rgb(255 255 255 / 5%);
-  --shadow-popover: 0 14px 34px rgb(0 0 0 / 18%);
-  --shadow-bubble: 0 1px 0 rgb(255 255 255 / 4%);
+  --term-red: #d58b78;
+  --term-green: #82bfa8;
+  --term-yellow: #d5bd75;
+  --term-blue: #7fa8cf;
+  --term-magenta: #bb96c4;
+  --term-cyan: #79b7a5;
+  --term-bright-red: #e7a18d;
+  --term-bright-green: #9bd9bd;
+  --term-bright-yellow: #e3c585;
+  --term-bright-blue: #9cc2e0;
+  --term-bright-magenta: #d0b0d8;
+  --term-bright-cyan: #a0d6c6;
 }
+
 
 * {
   box-sizing: border-box;
@@ -688,8 +528,7 @@ pre {
   --sidebar-disclosure-ink: #6b6d6c;
   --sidebar-disclosure-ink-hover: #343536;
   --sidebar-menu-shadow: 0 10px 28px rgb(24 24 24 / 14%);
-  --sidebar-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
-    "PingFang SC", sans-serif;
+  --sidebar-font: var(--font-ui); /* S0: retired standalone stack (dead "SF Pro Text") → shared UI font */
 }
 
 [data-mode="dark"] .sidebar,
