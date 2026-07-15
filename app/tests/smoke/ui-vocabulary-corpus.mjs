@@ -103,10 +103,11 @@ for (const classification of internalLegacyTaskLiterals) {
 // User-facing uses that truthfully describe provider-owned/background
 // terminals, an external terminal, or the real completion detector.
 const allowedTerminalCopy = [
-  exact(paths.builtins, "Show background terminals", 1),
-  exact(paths.builtins, "Stop background terminals", 2),
+  exact(paths.builtins, "terminal-setup", 1),
+  exact(paths.builtins, "List background terminals", 1),
+  exact(paths.builtins, "Stop all background terminals", 1),
   exact(paths.builtins, "Configure the terminal title", 1),
-  exact(paths.builtins, "Pick a terminal pet", 2),
+  exact(paths.builtins, "Choose or hide the terminal pet", 1),
   exact(paths.runs, "Completed by terminal idle heuristic", 1),
   exact(
     paths.settings,
