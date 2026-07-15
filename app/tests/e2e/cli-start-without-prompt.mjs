@@ -25,6 +25,8 @@ fs.writeFileSync(
 );
 fs.writeFileSync(
   path.join(settingsDir, "codex-settings.json"),
+  // A LEGACY stored default (`-a never`) exercises the migration-on-read: it
+  // maps to "approve-for-me" (never escalating) and that mode reaches the spawn.
   `${JSON.stringify({ defaultApprovalMode: "never" }, null, 2)}\n`,
 );
 fs.writeFileSync(imagePath, redPngBytes());
@@ -163,13 +165,14 @@ try {
       codexRecord.task.model === "gpt-5.6-luna" &&
       codexRecord.task.reasoningEffort === "high" &&
       codexRecord.task.speedMode === "fast" &&
-      codexRecord.task.approval === "never" &&
-      codexRecord.task.sandbox === "read-only" &&
+      codexRecord.task.codexPermissionMode === "approve-for-me" &&
       codexTerminalTitle === codexRecord.task.title &&
       hasArgPair(codexProjection.argv, "-m", "gpt-5.6-luna") &&
       hasArgPair(codexProjection.argv, "-c", 'model_reasoning_effort="high"') &&
       hasArgPair(codexProjection.argv, "-c", 'service_tier="priority"') &&
-      hasArgPair(codexProjection.argv, "-a", "never") &&
+      hasArgPair(codexProjection.argv, "-s", "workspace-write") &&
+      hasArgPair(codexProjection.argv, "-a", "on-request") &&
+      hasArgPair(codexProjection.argv, "-c", 'approvals_reviewer="auto_review"') &&
       codexProjection.duetRuntimeDir === runtimeRoot(codexTaskId),
     claudeDraftNotDelivered:
       claudeOwnership.text === claudeDraft &&

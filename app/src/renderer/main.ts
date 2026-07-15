@@ -14,7 +14,7 @@ import {
   isCliActionRequest,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
-  type CodexApprovalMode,
+  type CodexPermissionMode,
   type CodexSettings,
   type ReadingSettings,
   type ResolvedReadingMode,
@@ -475,15 +475,15 @@ initActions({
   closeSettingsPopupMenus: (overlay) => {
     overlay.policyMenuOpen = false;
     overlay.approvalMenuOpen = false;
-    overlay.codexApprovalMenuOpen = false;
+    overlay.codexPermissionMenuOpen = false;
     render();
   },
   toggleSettingsApprovalMenu: (overlay) => {
     overlay.approvalMenuOpen = !overlay.approvalMenuOpen;
     render();
   },
-  toggleSettingsCodexApprovalMenu: (overlay) => {
-    overlay.codexApprovalMenuOpen = !overlay.codexApprovalMenuOpen;
+  toggleSettingsCodexPermissionMenu: (overlay) => {
+    overlay.codexPermissionMenuOpen = !overlay.codexPermissionMenuOpen;
     render();
   },
   toggleSettingsPolicyMenu: (overlay) => {
@@ -493,8 +493,8 @@ initActions({
   persistDefaultPermissionMode: (mode) => {
     void persistDefaultPermissionMode(mode);
   },
-  persistDefaultApprovalMode: (mode) => {
-    void persistDefaultApprovalMode(mode);
+  persistCodexDefaultPermissionMode: (mode) => {
+    void persistCodexDefaultPermissionMode(mode);
   },
   persistResumePolicy: (policy) => {
     void persistResumePolicy(policy);
@@ -1142,17 +1142,17 @@ async function persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): 
   render();
 }
 
-async function persistDefaultApprovalMode(mode: CodexApprovalMode): Promise<void> {
+async function persistCodexDefaultPermissionMode(mode: CodexPermissionMode): Promise<void> {
   const overlay = state.settingsOverlay;
   if (!overlay?.codex) {
     return;
   }
-  overlay.codexApprovalMenuOpen = false;
-  if (overlay.codex.settings.defaultApprovalMode === mode) {
+  overlay.codexPermissionMenuOpen = false;
+  if (overlay.codex.settings.defaultPermissionMode === mode) {
     render();
     return;
   }
-  const next: CodexSettings = { ...overlay.codex.settings, defaultApprovalMode: mode };
+  const next: CodexSettings = { ...overlay.codex.settings, defaultPermissionMode: mode };
   overlay.codex.settings = next;
   render();
   try {

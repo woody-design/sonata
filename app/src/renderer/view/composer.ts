@@ -14,7 +14,7 @@ import { USAGE_CONTEXT_HIGH_USED_PERCENT } from "../../reading-core/config";
 import {
   compactTokenCount,
   fileExtension,
-  codexApprovalModeLabel,
+  codexPermissionModeLabel,
   folderName,
   formatRelativeUsageTime,
   formatUsagePercent,
@@ -545,13 +545,10 @@ function sessionPermissionLabel(task: Task | null): string | null {
     // (2026-07-04) — the raw mode id ("auto") never reaches the surface.
     return task.permissionMode ? permissionModeLabel(task.permissionMode) : null;
   }
-  if (task.sandbox === "danger-full-access") {
-    return "Full Access";
-  }
-  // One vocabulary with the Settings "Codex" popup — cover all four official
-  // approval values (Slice A widened the enum; this is the shared label).
-  // Null approval mirrors Claude's null permissionMode → no chip label.
-  return task.approval ? codexApprovalModeLabel(task.approval) : null;
+  // One vocabulary with the Settings "Codex" popup (Codex 0.144's own picker
+  // labels). "Full Access" is now reachable as a first-class mode. Null mode
+  // mirrors Claude's null permissionMode → no chip label.
+  return task.codexPermissionMode ? codexPermissionModeLabel(task.codexPermissionMode) : null;
 }
 
 function sendButtonLabel(activeRun: boolean): string {

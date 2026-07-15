@@ -1,13 +1,14 @@
 // Layer-1 smoke — Codex launch settings reach the SPAWN ARGV.
 //
 // Proves the createTask injection end-to-end: a fresh Codex task with NO
-// explicit approval inherits the stored Codex default (Settings → Codex) and
-// that value reaches the `-a <value>` spawn argument; an explicit per-request
-// approval still overrides the stored default. It also pins the newest model
-// and Ultra effort through request normalization into both task state and argv.
-// Drives the REAL RuntimeController (not a copy of its logic) against a fake
-// `codex` on PATH, so it needs neither a real Codex install nor the network —
-// the argv is captured synchronously at spawn, before the child does anything.
+// explicit permission mode inherits the stored Codex default (Settings → Codex)
+// and that mode fans out to the exact (`-s`/`-a`/`approvals_reviewer`) spawn
+// flags; an explicit per-request mode still overrides the stored default. It
+// also pins the newest model and Ultra effort through request normalization
+// into both task state and argv. Drives the REAL RuntimeController (not a copy
+// of its logic) against a fake `codex` on PATH, so it needs neither a real
+// Codex install nor the network — the argv is captured synchronously at spawn,
+// before the child does anything.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -50,9 +51,9 @@ const assert = (cond, label) => {
 };
 
 // The stored Codex default is a NON-default value, so a passing assertion can
-// only come from the store, never from Codex's own "on-request" fallback.
+// only come from the store, never from Codex's own "ask-for-approval" fallback.
 const codexSettingsStore = new CodexSettingsStore(path.join(tempRoot, "codex-settings.json"));
-codexSettingsStore.write({ defaultApprovalMode: "on-failure" });
+codexSettingsStore.write({ defaultPermissionMode: "full-access" });
 
 const controller = new RuntimeController({
   sendEvent: () => {},
@@ -72,33 +73,44 @@ let inheritedArgs = [];
 let overrideArgs = [];
 let ultraArgs = [];
 try {
-  // 1. No explicit approval → inherits the stored default ("on-failure").
+  // 1. No explicit mode → inherits the stored default ("full-access"), which
+  //    fans out to the danger-full-access flag row.
   const inherited = controller.createTask({ provider: "codex", cwd: workspace });
   inheritedArgs = inherited.runtime.args;
-  assert(inherited.task.approval === "on-failure", "inherited task.approval is the stored default");
   assert(
-    includesSequence(inheritedArgs, ["-a", "on-failure"]),
-    "inherited spawn argv carries -a on-failure",
+    inherited.task.codexPermissionMode === "full-access",
+    "inherited task.codexPermissionMode is the stored default",
   );
   assert(
-    !includesSequence(inheritedArgs, ["-a", "on-request"]),
-    "inherited argv does NOT fall back to Codex's own on-request default",
+    includesSequence(inheritedArgs, ["-s", "danger-full-access"]) &&
+      includesSequence(inheritedArgs, ["-a", "never"]) &&
+      includesSequence(inheritedArgs, ["-c", 'approvals_reviewer="user"']),
+    "inherited spawn argv carries the full-access flag row",
+  );
+  assert(
+    !includesSequence(inheritedArgs, ["-s", "workspace-write"]),
+    "inherited argv does NOT fall back to Codex's own ask-for-approval default",
   );
 
-  // 2. Explicit approval overrides the stored default.
+  // 2. Explicit mode overrides the stored default.
   const override = controller.createTask({
     provider: "codex",
     cwd: workspace,
-    approval: "never",
+    codexPermissionMode: "approve-for-me",
   });
   overrideArgs = override.runtime.args;
-  assert(override.task.approval === "never", "explicit override wins on task.approval");
   assert(
-    includesSequence(overrideArgs, ["-a", "never"]),
-    "override spawn argv carries -a never",
+    override.task.codexPermissionMode === "approve-for-me",
+    "explicit override wins on task.codexPermissionMode",
   );
   assert(
-    !includesSequence(overrideArgs, ["-a", "on-failure"]),
+    includesSequence(overrideArgs, ["-s", "workspace-write"]) &&
+      includesSequence(overrideArgs, ["-a", "on-request"]) &&
+      includesSequence(overrideArgs, ["-c", 'approvals_reviewer="auto_review"']),
+    "override spawn argv carries the approve-for-me flag row",
+  );
+  assert(
+    !includesSequence(overrideArgs, ["-s", "danger-full-access"]),
     "override argv does NOT carry the stored default",
   );
 

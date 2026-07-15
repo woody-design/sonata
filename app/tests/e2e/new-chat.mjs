@@ -124,8 +124,7 @@ try {
     createdManifest.task.model === "gpt-5.6-sol" &&
     createdManifest.task.reasoningEffort === "high" &&
     createdManifest.task.speedMode === "fast" &&
-    createdManifest.task.sandbox === "read-only" &&
-    createdManifest.task.approval === "on-request" &&
+    createdManifest.task.codexPermissionMode === "ask-for-approval" &&
     createdManifest.task.providerCwd === selectedFolder &&
     createdManifest.task.title === `${localDatePrefix(createdManifest.task.createdAt)}${firstPrompt}` &&
     createdManifest.task.titleOrigin === "automatic" &&

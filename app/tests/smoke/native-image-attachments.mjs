@@ -252,7 +252,7 @@ async function startHost(provider, name) {
     rows: 42,
     cols: 140,
     ...(provider === "codex"
-      ? { sandbox: "read-only", approval: "never" }
+      ? { codexPermissionMode: "ask-for-approval" }
       : { permissionMode: "default", model: "opus", reasoningEffort: "xhigh" }),
   });
   transcript.startDiscovery(startedAt);

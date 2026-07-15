@@ -432,12 +432,12 @@ async function createTask(
       model: launchSettings.model,
       reasoningEffort: launchSettings.reasoningEffort,
       speedMode: launchSettings.speedMode,
-      sandbox: "read-only",
       // Per-session access mode (2026-07-04): only an explicit choice travels;
       // an untouched draft lets the main process apply the Settings default
-      // itself (single source of truth for "what default means now"). Codex
-      // approval now falls through here too — the main process fills it from
-      // the Codex approval default (Settings → Codex).
+      // itself (single source of truth for "what default means now"). Codex's
+      // permission mode carries no per-session chip yet (out of scope), so it
+      // always falls through — the main process fills it from the Codex
+      // permission default (Settings → Codex).
       ...(provider === "claude" && state.taskDraft.permissionMode
         ? { permissionMode: state.taskDraft.permissionMode }
         : {}),

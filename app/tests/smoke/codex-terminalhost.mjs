@@ -50,8 +50,7 @@ const host = new TerminalHost({
 try {
   host.startTask({
     cwd: workspace,
-    sandbox: "read-only",
-    approval: "never",
+    codexPermissionMode: "ask-for-approval",
     rows: 36,
     cols: 120,
   });

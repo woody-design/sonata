@@ -33,9 +33,9 @@ try {
     "utf8",
   );
 
-  // A pre-existing DEPRECATED codex default (on-failure) must survive load: it
-  // stays in the persistable union, renders as a "(legacy)" menu entry, and is
-  // never silently rewritten.
+  // A pre-existing LEGACY codex default (`-a on-failure`, retired on 0.144)
+  // migrates on read to the permission vocabulary — by ask-frequency intent and
+  // never escalating: on-failure → "Ask for approval".
   fs.writeFileSync(
     codexSettingsPath,
     `${JSON.stringify({ defaultApprovalMode: "on-failure" }, null, 2)}\n`,
@@ -87,41 +87,32 @@ try {
   }, 8000);
   await approvalsPopup.filter({ hasText: "Auto" }).waitFor({ state: "visible" });
 
-  // Codex group: the stored, now-deprecated `on-failure` default renders as a
-  // "(legacy)" entry (offered-pool vs persistable-union split). The standing
-  // pool excludes it, only the stored value carries the legacy suffix, and
-  // load did not rewrite the persisted value.
+  // Codex group: the stored legacy `on-failure` default migrated on read to
+  // "Ask for approval"; the menu offers EXACTLY Codex 0.144's three picker
+  // labels (no "(legacy)" machinery), and choosing "Full Access" persists the
+  // new `defaultPermissionMode` key.
   const codex = page.locator('section[aria-label="Codex"]');
   const codexPopup = codex.locator(".settings-popup");
-  await codexPopup
-    .filter({ hasText: "Ask only on failure (legacy)" })
-    .waitFor({ state: "visible" });
+  await codexPopup.filter({ hasText: "Ask for approval" }).waitFor({ state: "visible" });
   await codexPopup.click();
   const codexOptionLabels = await codex.locator(".settings-popup-option-label").allTextContents();
   assert.deepEqual(
     codexOptionLabels,
-    ["Ask only on failure (legacy)", "Ask for everything", "Ask for approval", "Approve for me"],
-    "legacy on-failure is prepended; the standing pool excludes it and drops it after selection",
+    ["Ask for approval", "Approve for me", "Full Access"],
+    "the menu offers exactly Codex 0.144's three permission modes, no legacy entries",
   );
+  const askOption = codex.locator(".settings-popup-option", { hasText: "Ask for approval" });
   assert.equal(
-    codexOptionLabels.filter((label) => label.includes("(legacy)")).length,
-    1,
-    "only the stored value is marked legacy",
-  );
-  const legacyOption = codex.locator(".settings-popup-option", {
-    hasText: "Ask only on failure (legacy)",
-  });
-  assert.equal(
-    await legacyOption.getAttribute("aria-checked"),
+    await askOption.getAttribute("aria-checked"),
     "true",
-    "the stored legacy value is marked selected",
+    "the migrated mode (Ask for approval) is marked selected",
   );
-  assert.equal(
-    JSON.parse(fs.readFileSync(codexSettingsPath, "utf8")).defaultApprovalMode,
-    "on-failure",
-    "on-failure is not silently rewritten on load",
-  );
-  await codexPopup.click();
+  await codex.locator(".settings-popup-option", { hasText: "Full Access" }).click();
+  await waitUntil(() => {
+    const persisted = JSON.parse(fs.readFileSync(codexSettingsPath, "utf8"));
+    return persisted.defaultPermissionMode === "full-access";
+  }, 8000);
+  await codexPopup.filter({ hasText: "Full Access" }).waitFor({ state: "visible" });
 
   // Revising on the page persists with settings provenance and retires
   // the attribution line (the page is now the last author).

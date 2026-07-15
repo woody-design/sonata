@@ -8,16 +8,14 @@ const { claudeArgs, codexArgs, ensureClaudeRuntimeSettings } = require("../../di
 
 const codexFast = codexArgs({
   cwd: "/tmp/duet launch settings",
-  sandbox: "read-only",
-  approval: "on-request",
+  permissionMode: "ask-for-approval",
   model: "gpt-5.6-sol",
   reasoningEffort: "ultra",
   speedMode: "fast",
 });
 const codexDefaultSpeed = codexArgs({
   cwd: "/tmp/duet launch settings",
-  sandbox: "workspace-write",
-  approval: "never",
+  permissionMode: "full-access",
   model: "gpt-5.5",
   reasoningEffort: "medium",
   speedMode: "default",
@@ -29,8 +27,7 @@ const codexDefaultSpeed = codexArgs({
 // a bare spawn (no hooks) must NOT carry the dangerous flag.
 const codexWithProfile = codexArgs({
   cwd: "/tmp/duet launch settings",
-  sandbox: "read-only",
-  approval: "on-request",
+  permissionMode: "ask-for-approval",
   profile: "duet",
 });
 const claude = claudeArgs({
@@ -72,8 +69,14 @@ const success =
   includesSequence(codexFast, ["-c", 'model_reasoning_effort="ultra"']) &&
   includesSequence(codexFast, ["-c", 'service_tier="priority"']) &&
   includesSequence(codexFast, ["-C", "/tmp/duet launch settings"]) &&
-  includesSequence(codexFast, ["-s", "read-only"]) &&
+  // ask-for-approval fans out to the workspace-write / on-request / user row.
+  includesSequence(codexFast, ["-s", "workspace-write"]) &&
   includesSequence(codexFast, ["-a", "on-request"]) &&
+  includesSequence(codexFast, ["-c", 'approvals_reviewer="user"']) &&
+  // full-access fans out to the danger-full-access / never / user row.
+  includesSequence(codexDefaultSpeed, ["-s", "danger-full-access"]) &&
+  includesSequence(codexDefaultSpeed, ["-a", "never"]) &&
+  includesSequence(codexDefaultSpeed, ["-c", 'approvals_reviewer="user"']) &&
   includesSequence(codexDefaultSpeed, ["-c", 'model_reasoning_effort="medium"']) &&
   !codexDefaultSpeed.includes('service_tier="priority"') &&
   // profile → bypass flag present, right after `-p duet`

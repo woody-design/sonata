@@ -374,8 +374,8 @@ export interface SettingsOverlayState {
   policyMenuOpen: boolean;
   /** The default-permission-mode popup menu is showing. */
   approvalMenuOpen: boolean;
-  /** The default-Codex-approval-mode popup menu is showing. */
-  codexApprovalMenuOpen: boolean;
+  /** The default-Codex-permission-mode popup menu is showing. */
+  codexPermissionMenuOpen: boolean;
   /** The bridge restore write is in flight. */
   bridgeReverting: boolean;
   /** The last bridge restore failed (~/.claude.json untouched). */

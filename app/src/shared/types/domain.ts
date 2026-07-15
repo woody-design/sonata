@@ -11,6 +11,14 @@ export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ult
 export type LaunchSpeedMode = "default" | "fast";
 export type CodexSandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 export type CodexApprovalMode = "untrusted" | "on-request" | "on-failure" | "never";
+/**
+ * The user-facing Codex permission vocabulary — Codex 0.144's own
+ * `/permissions` picker ("Update Model Permissions"). One value above the
+ * spawn seam; terminal-host is the ONLY place it fans back out to the legacy
+ * (sandbox × approval × reviewer) axes. `CodexSandboxMode`/`CodexApprovalMode`
+ * survive solely for that mapping and for migrating legacy persisted records.
+ */
+export type CodexPermissionMode = "ask-for-approval" | "approve-for-me" | "full-access";
 export type ClaudePermissionMode =
   | "acceptEdits"
   | "auto"
@@ -42,8 +50,13 @@ export interface Task {
   model: string | null;
   reasoningEffort: ReasoningEffort | null;
   speedMode: LaunchSpeedMode | null;
-  sandbox: CodexSandboxMode | null;
-  approval: CodexApprovalMode | null;
+  /**
+   * Codex's launch permission preset (Codex 0.144's `/permissions` picker).
+   * Null on Claude tasks. Legacy manifests carried `sandbox` + `approval`
+   * instead; those are migrated on read (see `migrateCodexPermissionMode`) and
+   * never written back — new writes carry only this field.
+   */
+  codexPermissionMode: CodexPermissionMode | null;
   permissionMode: ClaudePermissionMode | null;
   runtimeSessionId: RuntimeSessionId;
   providerSessionRef: ProviderSessionRef | null;

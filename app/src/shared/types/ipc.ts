@@ -1,8 +1,7 @@
 import type {
   ApprovalDecision,
   ClaudePermissionMode,
-  CodexApprovalMode,
-  CodexSandboxMode,
+  CodexPermissionMode,
   DeliveryAttachment,
   ReferenceResult,
   LaunchSpeedMode,
@@ -120,8 +119,9 @@ export interface CreateTaskRequest {
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
   speedMode?: LaunchSpeedMode | null;
-  sandbox?: CodexSandboxMode;
-  approval?: CodexApprovalMode;
+  /** Codex only: the launch permission preset. Absent → the main process fills
+   *  it from the Codex default (Settings → Codex). */
+  codexPermissionMode?: CodexPermissionMode;
   permissionMode?: ClaudePermissionMode;
   /** Claude only: start the session with Remote Control on (spawn `--remote-control`). */
   remoteControl?: boolean;
@@ -148,8 +148,9 @@ export interface CreateTaskResponse {
 export interface OpenTaskRequest {
   taskId?: TaskId;
   cwd?: string;
-  sandbox?: CodexSandboxMode;
-  approval?: CodexApprovalMode;
+  /** Codex only: override the launch permission preset for this reopen. Absent
+   *  → the persisted task's mode carries over. */
+  codexPermissionMode?: CodexPermissionMode;
   permissionMode?: ClaudePermissionMode;
   /** Claude only: resume the session with Remote Control on (spawn `--remote-control`). */
   remoteControl?: boolean;

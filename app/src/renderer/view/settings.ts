@@ -10,15 +10,13 @@
 import { Check, ChevronDown, X } from "lucide";
 import {
   CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS,
-  CODEX_DEFAULT_APPROVAL_MODE_OPTIONS,
-  isCodexDefaultApprovalMode,
+  CODEX_PERMISSION_MODE_OPTIONS,
   RESUME_POLICY_IDS,
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
-  type CodexApprovalMode,
 } from "../../shared/types";
 import {
-  codexApprovalModeLabel,
+  codexPermissionModeLabel,
   formatTokenCount,
   permissionModeLabel,
   resumePolicyLabel,
@@ -69,7 +67,7 @@ export function renderSettingsOverlay(): void {
       event.target instanceof Element && !event.target.closest(".settings-popup-wrap");
     if (
       outsidePopup &&
-      (overlay.policyMenuOpen || overlay.approvalMenuOpen || overlay.codexApprovalMenuOpen)
+      (overlay.policyMenuOpen || overlay.approvalMenuOpen || overlay.codexPermissionMenuOpen)
     ) {
       actions.closeSettingsPopupMenus(overlay);
     }
@@ -265,28 +263,19 @@ function renderCodexSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
   title.className = "settings-row-title";
   title.textContent = "New Codex sessions start in";
   copy.append(title);
-  row.append(copy, renderDefaultApprovalModePopup(overlay));
+  row.append(copy, renderCodexPermissionModePopup(overlay));
   box.append(row);
 
   const footnote = document.createElement("p");
   footnote.className = "settings-footnote";
   footnote.textContent =
-    "The default approval policy for new Codex sessions. Ask for everything prompts before almost every command; Approve for me runs everything in the sandbox without asking.";
+    "The permission preset for new Codex sessions. Ask for approval lets Codex read and edit files in the workspace and run commands, asking before it touches anything outside the workspace or the internet; Approve for me only asks for actions it flags as potentially unsafe; Full Access lets Codex edit files anywhere and reach the internet without asking.";
 
   group.append(heading, box, footnote);
   return group;
 }
 
-/** The Codex approval label, suffixed "(legacy)" when the value has fallen out
- *  of the offered pool (a deprecated `on-failure` default). Shared by the
- *  collapsed button and the menu so the deprecation shows at a glance. */
-function codexApprovalMenuLabel(mode: CodexApprovalMode): string {
-  return isCodexDefaultApprovalMode(mode)
-    ? codexApprovalModeLabel(mode)
-    : `${codexApprovalModeLabel(mode)} (legacy)`;
-}
-
-function renderDefaultApprovalModePopup(overlay: SettingsOverlayState): HTMLElement {
+function renderCodexPermissionModePopup(overlay: SettingsOverlayState): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "settings-popup-wrap";
 
@@ -294,30 +283,24 @@ function renderDefaultApprovalModePopup(overlay: SettingsOverlayState): HTMLElem
   button.className = "settings-popup";
   button.type = "button";
   button.setAttribute("aria-haspopup", "menu");
-  button.setAttribute("aria-expanded", String(overlay.codexApprovalMenuOpen));
+  button.setAttribute("aria-expanded", String(overlay.codexPermissionMenuOpen));
   button.disabled = !overlay.codex;
   const label = document.createElement("span");
   label.textContent = overlay.codex
-    ? codexApprovalMenuLabel(overlay.codex.settings.defaultApprovalMode)
+    ? codexPermissionModeLabel(overlay.codex.settings.defaultPermissionMode)
     : "Loading…";
   button.append(label, lucideIcon(ChevronDown, 14));
   button.addEventListener("click", () => {
-    actions.toggleSettingsCodexApprovalMenu(overlay);
+    actions.toggleSettingsCodexPermissionMenu(overlay);
   });
   wrap.append(button);
 
-  if (overlay.codexApprovalMenuOpen && overlay.codex) {
+  if (overlay.codexPermissionMenuOpen && overlay.codex) {
     const menu = document.createElement("div");
     menu.className = "settings-popup-menu";
     menu.setAttribute("role", "menu");
-    // Offer the standing pool, plus the stored value itself when it has fallen
-    // out of the pool (a deprecated `on-failure` default) — marked "(legacy)"
-    // so the user sees where they are and can switch off it.
-    const stored = overlay.codex.settings.defaultApprovalMode;
-    const modes: CodexApprovalMode[] = isCodexDefaultApprovalMode(stored)
-      ? [...CODEX_DEFAULT_APPROVAL_MODE_OPTIONS]
-      : [stored, ...CODEX_DEFAULT_APPROVAL_MODE_OPTIONS];
-    for (const mode of modes) {
+    const stored = overlay.codex.settings.defaultPermissionMode;
+    for (const mode of CODEX_PERMISSION_MODE_OPTIONS) {
       const selected = stored === mode;
       const option = document.createElement("button");
       option.className = "settings-popup-option";
@@ -332,10 +315,10 @@ function renderDefaultApprovalModePopup(overlay: SettingsOverlayState): HTMLElem
       }
       const optionLabel = document.createElement("span");
       optionLabel.className = "settings-popup-option-label";
-      optionLabel.textContent = codexApprovalMenuLabel(mode);
+      optionLabel.textContent = codexPermissionModeLabel(mode);
       option.append(check, optionLabel);
       option.addEventListener("click", () => {
-        actions.persistDefaultApprovalMode(mode);
+        actions.persistCodexDefaultPermissionMode(mode);
       });
       menu.append(option);
     }

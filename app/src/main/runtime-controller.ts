@@ -9,8 +9,7 @@ import type {
   ApprovalKind,
   ApprovalChoice,
   ClaudePermissionMode,
-  CodexApprovalMode,
-  CodexSandboxMode,
+  CodexPermissionMode,
   CreateTaskRequest,
   CreateTaskResponse,
   LaunchSpeedMode,
@@ -34,6 +33,7 @@ import type {
   UsageSnapshot,
 } from "../shared/types";
 import { TaskNotFoundError, TaskNotLiveError } from "./errors";
+import { isCodexPermissionMode, migrateCodexPermissionMode } from "../shared/types";
 import {
   TRANSCRIPT_SOURCES_SCHEMA_ID,
   TRANSCRIPT_SOURCES_SCHEMA_VERSION,
@@ -136,17 +136,6 @@ const REASONING_EFFORTS = new Set<ReasoningEffort>([
   "xhigh",
   "max",
   "ultra",
-]);
-const CODEX_SANDBOX_MODES = new Set<CodexSandboxMode>([
-  "read-only",
-  "workspace-write",
-  "danger-full-access",
-]);
-const CODEX_APPROVAL_MODES = new Set<CodexApprovalMode>([
-  "untrusted",
-  "on-request",
-  "on-failure",
-  "never",
 ]);
 const CLAUDE_PERMISSION_MODES = new Set<ClaudePermissionMode>([
   "acceptEdits",
@@ -323,8 +312,11 @@ export class RuntimeController {
     const permissionRequest =
       request.provider === "claude" && request.permissionMode == null
         ? { ...request, permissionMode: this.claudeSettingsStore.read().defaultPermissionMode }
-        : request.provider === "codex" && request.approval == null
-          ? { ...request, approval: this.codexSettingsStore.read().defaultApprovalMode }
+        : request.provider === "codex" && request.codexPermissionMode == null
+          ? {
+              ...request,
+              codexPermissionMode: this.codexSettingsStore.read().defaultPermissionMode,
+            }
           : request;
     const permissionSettings = normalizePermissionSettings(
       request.provider,
@@ -342,8 +334,7 @@ export class RuntimeController {
       model: launchSettings.model,
       reasoningEffort: launchSettings.reasoningEffort,
       speedMode: launchSettings.speedMode,
-      sandbox: permissionSettings.sandbox,
-      approval: permissionSettings.approval,
+      codexPermissionMode: permissionSettings.codexPermissionMode,
       permissionMode: permissionSettings.permissionMode,
       runtimeSessionId: `runtime-${taskId}`,
       providerSessionRef: null,
@@ -473,14 +464,12 @@ export class RuntimeController {
     const providerCwd = taskProviderCwd(manifest.task, storageRoot);
     const task = normalizeTaskForProviderCwd(manifest.task, providerCwd);
     const permissionSettings = normalizePermissionSettings(task.provider, {
-      sandbox: request.sandbox ?? task.sandbox,
-      approval: request.approval ?? task.approval,
+      codexPermissionMode: request.codexPermissionMode ?? task.codexPermissionMode,
       permissionMode: request.permissionMode ?? task.permissionMode,
     });
     const runningTask = {
       ...task,
-      sandbox: permissionSettings.sandbox,
-      approval: permissionSettings.approval,
+      codexPermissionMode: permissionSettings.codexPermissionMode,
       permissionMode: permissionSettings.permissionMode,
       status: "running" as const,
       updatedAt: new Date().toISOString(),
@@ -2345,8 +2334,7 @@ export class RuntimeController {
     reasoningEffort: ReasoningEffort | null;
     speedMode: LaunchSpeedMode | null;
     permissionSettings: {
-      sandbox: CodexSandboxMode | null;
-      approval: CodexApprovalMode | null;
+      codexPermissionMode: CodexPermissionMode | null;
       permissionMode: ClaudePermissionMode | null;
     };
     remoteControl: boolean;
@@ -2374,14 +2362,15 @@ export class RuntimeController {
       // and the hook watcher (also keyed by runtimeDir) keeps seeing them —
       // on fresh spawn and resume alike.
       runtimeDir: runtimeDir(args.taskId),
-      sandbox: args.permissionSettings.sandbox ?? "read-only",
-      approval: args.permissionSettings.approval ?? "on-request",
       model: args.model,
       reasoningEffort: args.reasoningEffort,
       speedMode: args.speedMode,
       ...(args.provider === "claude"
         ? { permissionMode: args.permissionSettings.permissionMode ?? "default" }
-        : {}),
+        : {
+            codexPermissionMode:
+              args.permissionSettings.codexPermissionMode ?? "ask-for-approval",
+          }),
       ...(args.provider === "claude" && args.remoteControl ? { remoteControl: true } : {}),
       // Codex hook injection (S2): buildArgs writes the profile+shims and adds
       // `-p duet`. The controller supplies the Duet-home shim dir because it
@@ -2556,7 +2545,11 @@ export class RuntimeController {
     ) {
       throw new Error("Task manifest is not supported by this walking skeleton.");
     }
-    return manifest;
+    // Migrate the Codex permission vocabulary at the single manifest-read seam,
+    // so every downstream reader (reopen, listTasks, archive) sees one clean
+    // `codexPermissionMode` and the retired (sandbox, approval) axis fields are
+    // never carried forward into a new write.
+    return { ...manifest, task: migrateTaskPermissionRecord(manifest.task) };
   }
 
   private persistTaskManifest(
@@ -2720,16 +2713,39 @@ function isHookCapable(provider: RuntimeProvider): boolean {
   return provider === "claude" || provider === "codex";
 }
 
+/**
+ * Fold a persisted task record's Codex permission onto the single
+ * `codexPermissionMode` field and drop the retired (sandbox, approval) axis
+ * keys a pre-swap manifest carried, so they are never written back. Runs once,
+ * at the manifest-read seam.
+ */
+function migrateTaskPermissionRecord(task: Task): Task {
+  const codexPermissionMode = migrateCodexPermissionMode(
+    task as unknown as Record<string, unknown>,
+  );
+  const { sandbox: _sandbox, approval: _approval, ...rest } = task as unknown as Record<
+    string,
+    unknown
+  > & { sandbox?: unknown; approval?: unknown };
+  void _sandbox;
+  void _approval;
+  return { ...(rest as unknown as Task), codexPermissionMode };
+}
+
 function normalizeTaskForProviderCwd(task: Task, providerCwd: string): Task {
   const launchSettings = normalizeLaunchSettings(task);
-  const permissionSettings = normalizePermissionSettings(task.provider, task);
+  // The manifest-read seam already migrated the permission record; validate the
+  // resulting mode (idempotent) so a hand-built task in a test is also clamped.
+  const permissionSettings = normalizePermissionSettings(task.provider, {
+    permissionMode: task.permissionMode,
+    codexPermissionMode: task.codexPermissionMode,
+  });
   return {
     ...task,
     model: launchSettings.model,
     reasoningEffort: launchSettings.reasoningEffort,
     speedMode: launchSettings.speedMode,
-    sandbox: permissionSettings.sandbox,
-    approval: permissionSettings.approval,
+    codexPermissionMode: permissionSettings.codexPermissionMode,
     permissionMode: permissionSettings.permissionMode,
     providerCwd,
     workingDirectory: providerCwd,
@@ -2819,13 +2835,11 @@ function normalizeLaunchSettings(request: {
 function normalizePermissionSettings(
   provider: RuntimeProvider,
   request: {
-    sandbox?: CodexSandboxMode | null;
-    approval?: CodexApprovalMode | null;
+    codexPermissionMode?: CodexPermissionMode | null;
     permissionMode?: ClaudePermissionMode | null;
   },
 ): {
-  sandbox: CodexSandboxMode | null;
-  approval: CodexApprovalMode | null;
+  codexPermissionMode: CodexPermissionMode | null;
   permissionMode: ClaudePermissionMode | null;
 } {
   if (provider === "claude") {
@@ -2835,21 +2849,18 @@ function normalizePermissionSettings(
       ? (request.permissionMode as ClaudePermissionMode)
       : "default";
     return {
-      sandbox: null,
-      approval: null,
+      codexPermissionMode: null,
       permissionMode,
     };
   }
 
-  const sandbox = CODEX_SANDBOX_MODES.has(request.sandbox as CodexSandboxMode)
-    ? (request.sandbox as CodexSandboxMode)
-    : "read-only";
-  const approval = CODEX_APPROVAL_MODES.has(request.approval as CodexApprovalMode)
-    ? (request.approval as CodexApprovalMode)
-    : "on-request";
+  // The controller boundary accepts only the three new values; a raw axis value
+  // or the retired `on-failure` never survives to the spawn seam.
+  const codexPermissionMode = isCodexPermissionMode(request.codexPermissionMode)
+    ? request.codexPermissionMode
+    : "ask-for-approval";
   return {
-    sandbox,
-    approval,
+    codexPermissionMode,
     permissionMode: null,
   };
 }

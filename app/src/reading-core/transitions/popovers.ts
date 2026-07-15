@@ -100,7 +100,7 @@ export function openSettingsOverlay(state: RendererState): boolean {
     codex: null,
     policyMenuOpen: false,
     approvalMenuOpen: false,
-    codexApprovalMenuOpen: false,
+    codexPermissionMenuOpen: false,
     bridgeReverting: false,
     bridgeError: false,
   };

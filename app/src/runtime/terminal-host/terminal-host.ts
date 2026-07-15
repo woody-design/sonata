@@ -12,6 +12,7 @@ import type {
   ApprovalKind,
   ClaudePermissionMode,
   CodexApprovalMode,
+  CodexPermissionMode,
   CodexSandboxMode,
   CompletionConfidence,
   CompletionHint,
@@ -235,8 +236,9 @@ export interface StartTaskOptions {
   runtimeDir?: string;
   command?: string;
   args?: string[];
-  sandbox?: CodexSandboxMode;
-  approval?: CodexApprovalMode;
+  /** Codex only: the launch permission preset. Fanned out to the legacy
+   *  (sandbox × approval × reviewer) flags at the codexArgs seam. */
+  codexPermissionMode?: CodexPermissionMode;
   permissionMode?: ClaudePermissionMode;
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
@@ -2122,10 +2124,32 @@ export class TerminalHost extends EventEmitter {
   }
 }
 
+/**
+ * The ONE place Duet's user-facing `CodexPermissionMode` fans back out to
+ * Codex's legacy (sandbox × approval × reviewer) axes — verified live against
+ * codex 0.144.4 (spikes/codex-perm-profile-probe, probe-modes.mjs): each row
+ * shows the matching "(current)" in the TUI `/permissions` picker, full-access
+ * boots straight into "YOLO mode" with no confirmation modal, and every row's
+ * `approvals_reviewer` is accepted at spawn. The explicit `approvals_reviewer`
+ * on ALL rows shields Duet sessions from a globally-persisted `auto_review`
+ * (which the Codex TUI writes into the active config layer) bleeding in.
+ *
+ * `permission_profile`/`default_permissions` (the upstream profile system) are
+ * silently ignored on 0.144.4 — when they start working, this table is the one
+ * function to swap.
+ */
+const CODEX_PERMISSION_MODE_FLAGS: Record<
+  CodexPermissionMode,
+  { sandbox: CodexSandboxMode; approval: CodexApprovalMode; reviewer: string }
+> = {
+  "ask-for-approval": { sandbox: "workspace-write", approval: "on-request", reviewer: "user" },
+  "approve-for-me": { sandbox: "workspace-write", approval: "on-request", reviewer: "auto_review" },
+  "full-access": { sandbox: "danger-full-access", approval: "never", reviewer: "user" },
+};
+
 export function codexArgs(options: {
   cwd: string;
-  sandbox: CodexSandboxMode;
-  approval: CodexApprovalMode;
+  permissionMode: CodexPermissionMode;
   model?: string | null | undefined;
   reasoningEffort?: ReasoningEffort | null | undefined;
   speedMode?: LaunchSpeedMode | null | undefined;
@@ -2147,6 +2171,7 @@ export function codexArgs(options: {
   if (options.speedMode === "fast") {
     configOverrides.push("-c", `service_tier=${tomlString("priority")}`);
   }
+  const permission = CODEX_PERMISSION_MODE_FLAGS[options.permissionMode];
   return [
     ...base,
     // `-p duet` layers Duet's hook profile onto the user's own config (union,
@@ -2171,9 +2196,11 @@ export function codexArgs(options: {
     "-C",
     options.cwd,
     "-s",
-    options.sandbox,
+    permission.sandbox,
     "-a",
-    options.approval,
+    permission.approval,
+    "-c",
+    `approvals_reviewer=${tomlString(permission.reviewer)}`,
   ];
 }
 
@@ -2299,8 +2326,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       }
       return codexArgs({
         cwd: options.cwd,
-        sandbox: options.sandbox ?? "read-only",
-        approval: options.approval ?? "on-request",
+        permissionMode: options.codexPermissionMode ?? "ask-for-approval",
         model: options.model,
         reasoningEffort: options.reasoningEffort,
         speedMode: options.speedMode,

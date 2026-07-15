@@ -9,7 +9,7 @@
  */
 import type {
   ClaudePermissionMode,
-  CodexApprovalMode,
+  CodexPermissionMode,
   ReadingModeSetting,
   ReadingThemeId,
   ResumePolicyId,
@@ -281,19 +281,16 @@ export function permissionModeLabel(mode: ClaudePermissionMode): string {
   return "Manual";
 }
 
-/** One vocabulary for every Codex approval surface (the Settings default
- *  popup; the same phrasing the live-session chip coins in composer.ts).
- *  Answers "how should Codex actions be approved?" from most prompts to
- *  fewest, mapping each of Codex's official `-a` values to human copy. */
-export function codexApprovalModeLabel(mode: CodexApprovalMode): string {
-  if (mode === "untrusted") {
-    return "Ask for everything";
-  }
-  if (mode === "on-failure") {
-    return "Ask only on failure";
-  }
-  if (mode === "never") {
+/** One vocabulary for every Codex permission surface (the Settings default
+ *  popup; the live-session chip in composer.ts). Codex 0.144's own
+ *  `/permissions` picker labels, so Duet's chip reads exactly as the TUI's
+ *  "(current)" marker does. */
+export function codexPermissionModeLabel(mode: CodexPermissionMode): string {
+  if (mode === "approve-for-me") {
     return "Approve for me";
+  }
+  if (mode === "full-access") {
+    return "Full Access";
   }
   return "Ask for approval";
 }

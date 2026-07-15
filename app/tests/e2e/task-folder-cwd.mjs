@@ -28,8 +28,7 @@ try {
       model: "gpt-5.5",
       reasoningEffort: "xhigh",
       speedMode: "default",
-      approval: "on-request",
-      sandbox: "read-only",
+      codexPermissionMode: "ask-for-approval",
     });
   }, selectedFolder);
 
