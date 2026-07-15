@@ -355,7 +355,7 @@
   --approval-ink: var(--approval-file-edit-ink);
   --approval-badge-bg: color-mix(in srgb, var(--surface-raised) 88%, var(--approval-surface) 12%);
   --approval-context-bg: color-mix(in srgb, var(--surface-raised) 74%, var(--approval-surface) 26%);
-  --approval-context-border: color-mix(in srgb, var(--approval-border) 50%, transparent);
+  --approval-context-border: color-mix(in srgb, var(--approval-border) 50%, var(--surface-raised));
 
   /* shadows → raised / overlay (composer-focus composes the accent ring) */
   --shadow-composer: var(--shadow-raised);
@@ -1745,7 +1745,7 @@ body.sidebar-resizing {
 
 .cli-toggle[aria-pressed="true"] {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border-control));
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-control));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-canvas));
   color: var(--ink-strong);
 }
 
@@ -4389,7 +4389,7 @@ h2 {
   z-index: 1;
   top: 7px;
   right: 7px;
-  background: color-mix(in srgb, var(--code-bg) 92%, transparent);
+  background: color-mix(in srgb, var(--surface-canvas) 92%, var(--surface-hover));
   color: var(--ink-faint);
 }
 
