@@ -1686,10 +1686,14 @@ body.sidebar-resizing {
   -webkit-app-region: no-drag;
 }
 
+/* Neutral-ink activation (design-system Decision, leader ruling S4-review): a
+   persistent ON toggle is high-frequency state — the exact pathology that
+   retired the teal — so it fills with INK, not chroma. Ink fill IS the "on"
+   affordance for this lone toggle. */
 .cli-toggle[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-strong));
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-canvas));
-  color: var(--text-primary);
+  border-color: var(--control-primary-bg);
+  background: var(--control-primary-bg);
+  color: var(--control-primary-text);
 }
 
 /* The header's expand button only exists while collapsed (the in-sidebar
@@ -1854,10 +1858,11 @@ h2 {
   background: transparent;
 }
 
+/* Active state = ink fill (neutral-ink activation, S4-review ruling), not chroma. */
 .secondary.active {
-  border-color: var(--accent);
-  color: var(--text-on-emphasis);
-  background: var(--accent);
+  border-color: var(--control-primary-bg);
+  color: var(--control-primary-text);
+  background: var(--control-primary-bg);
 }
 
 #reading-popover-root {
@@ -1877,13 +1882,13 @@ h2 {
   box-shadow: var(--shadow-overlay);
 }
 
-/* Remote Control header toggle: an active fill (the same "selected" surface as
-   the view switch) signals "on" at a glance — not icon color alone (weak + fails
-   a11y). The popover, not this button, is where you act. */
+/* Remote Control header toggle: the selected-surface fill (not chroma) signals
+   "on" at a glance — icon color alone is weak + fails a11y. Icon rides ink.
+   The popover, not this button, is where you act. */
 .chrome-icon-button.remote-on,
 .chrome-icon-button.remote-on:hover:not(:disabled) {
   background: var(--surface-selected);
-  color: var(--accent);
+  color: var(--text-primary);
 }
 
 .remote-control-popover {
@@ -1922,8 +1927,10 @@ h2 {
   color: var(--text-tertiary);
 }
 
+/* On-state carries no chroma (neutral-ink activation, S4-review ruling): the
+   label escalates from tertiary to ink, not to accent. */
 .remote-control-popover-status.on {
-  color: var(--accent);
+  color: var(--text-primary);
 }
 
 .remote-control-popover-desc {
@@ -1996,10 +2003,12 @@ h2 {
   background: var(--surface-hover);
 }
 
+/* A primary ACTION button, so it obeys ink-as-accent like the shared .primary
+   (S4-review ruling) — not an accent fill. */
 .remote-control-popover-action.primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--text-on-emphasis);
+  border-color: var(--control-primary-bg);
+  background: var(--control-primary-bg);
+  color: var(--control-primary-text);
 }
 
 .remote-control-popover-note {
@@ -2314,8 +2323,8 @@ h2 {
   font-weight: 600;
 }
 
-/* A boolean launch-default toggle (pill; accent fill = on — the same visual
-   language as the Remote Control header button's active state). */
+/* A boolean launch-default toggle (pill; ink fill = on — neutral-ink
+   activation, S4-review ruling: a persistent ON state carries no chroma). */
 .settings-toggle {
   min-width: 56px;
   padding: 5px 14px;
@@ -2333,9 +2342,9 @@ h2 {
 }
 
 .settings-toggle.on {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--text-on-emphasis);
+  border-color: var(--control-primary-bg);
+  background: var(--control-primary-bg);
+  color: var(--control-primary-text);
 }
 
 .settings-toggle:disabled {
@@ -2408,11 +2417,12 @@ h2 {
   background: var(--surface-hover);
 }
 
+/* Selection checkmark rides ink, not chroma (S4-review ruling). */
 .settings-popup-option-check {
   width: 15px;
   display: grid;
   place-items: center;
-  color: var(--accent);
+  color: var(--text-primary);
 }
 
 .settings-restore {
@@ -3801,7 +3811,7 @@ h2 {
 
 /* Stop is an interruption affordance — attention red is correct (needs-you
  * semantics). The solid --attention-icon fill pairs with the .primary base's
- * --text-on-emphasis glyph, which passes contrast in both modes (white on
+ * --control-primary-text glyph, which passes contrast in both modes (white on
  * #de1135 light; #191919 on #f1556c dark). */
 .send-button.stop-mode {
   border-color: var(--attention-icon);
@@ -3833,10 +3843,12 @@ h2 {
   background: var(--surface-hover);
 }
 
+/* (Dead CSS — no markup refs; S5 deletion candidate.) Active = ink fill, kept
+   consistent with the neutral-ink activation family. */
 .surface-tab.active {
-  border-color: var(--accent);
-  color: var(--text-on-emphasis);
-  background: var(--accent);
+  border-color: var(--control-primary-bg);
+  color: var(--control-primary-text);
+  background: var(--control-primary-bg);
 }
 
 /* Find box — floats over the terminal's top-right (VS Code / browser-find idiom),
@@ -4976,9 +4988,11 @@ html[data-instance-label] body::after {
 .preview-panel-toggle:hover {
   background: var(--surface-hover);
 }
+/* Active panel toggle: neutral selected fill + ink icon (S4-review ruling),
+   not chroma. */
 .preview-panel-toggle.active {
   background: var(--surface-selected);
-  color: var(--accent);
+  color: var(--text-primary);
   border-color: var(--border-strong);
 }
 
