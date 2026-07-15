@@ -2863,7 +2863,7 @@ function toolInputRecord(payload: HookPayload): Record<string, unknown> {
 }
 
 /** Map the hook's tool to Duet's ApprovalKind (mirrors the scrape grammar). */
-function classifyApprovalKind(payload: HookPayload): ApprovalKind {
+export function classifyApprovalKind(payload: HookPayload): ApprovalKind {
   const tool = typeof payload.tool_name === "string" ? payload.tool_name : "";
   if (tool === "Bash") return "command";
   if (tool === "Edit" || tool === "Write" || tool === "MultiEdit" || tool === "NotebookEdit")
@@ -2874,11 +2874,17 @@ function classifyApprovalKind(payload: HookPayload): ApprovalKind {
 
 /** The one-line "what the agent wants to do", from tool_name/tool_input.
  *  Codex's `tool_input.description` is ready-made human approval copy ("Do you
- *  want to allow writing …?") — render it verbatim (probe-verified). Claude
- *  payloads have no such field, so they keep the tool-derived summary below;
- *  the description preference is Codex-scoped to leave Claude's card copy
- *  byte-identical. */
-function approvalSummary(payload: HookPayload, provider: RuntimeProvider): string {
+ *  want to allow writing …?") — render it verbatim when present (older Codex
+ *  builds still send it; probe-verified 0.142.5). Claude payloads have no such
+ *  field, so they keep the tool-derived summary below; the description
+ *  preference is Codex-scoped to leave Claude's card copy byte-identical.
+ *
+ *  Codex 0.144.4 dropped `description`: a write approval now arrives as
+ *  `tool_name: "apply_patch"` carrying only `tool_input.command` (the raw patch
+ *  envelope). Without a branch it fell through to the generic tail and rendered
+ *  a bare "apply_patch" with no file names — so we parse the envelope's file-op
+ *  lines for a human summary (probe P2, spikes/codex-hooks-probe/probe-0144). */
+export function approvalSummary(payload: HookPayload, provider: RuntimeProvider): string {
   const input = toolInputRecord(payload);
   const str = (key: string): string | null =>
     typeof input[key] === "string" ? (input[key] as string) : null;
@@ -2890,12 +2896,47 @@ function approvalSummary(payload: HookPayload, provider: RuntimeProvider): strin
   }
   const tool = typeof payload.tool_name === "string" ? payload.tool_name : "tool";
   if (tool === "Bash") return `Run  ${truncateMiddle(str("command") ?? "(command)", 80)}`;
+  // Codex apply_patch: derive the op + path(s) from the patch envelope. Claude
+  // never emits this tool, so the branch is inert for Claude payloads.
+  if (tool === "apply_patch") return summarizeApplyPatch(str("command") ?? "");
   const filePath = str("file_path") ?? str("path") ?? str("notebook_path");
   if (tool === "Edit" || tool === "Write" || tool === "MultiEdit" || tool === "NotebookEdit")
     return `Edit  ${truncateMiddle(filePath ?? "(file)", 72)}`;
   if (tool === "Read" || tool === "NotebookRead")
     return `Read  ${truncateMiddle(filePath ?? "(file)", 72)}`;
   return `${tool}${filePath ? `  ${truncateMiddle(filePath, 72)}` : ""}`;
+}
+
+/**
+ * Summarize an OpenAI apply_patch envelope in the same voice as the tool
+ * branches above (`Edit  <path>`, truncated). We read ONLY the file-op header
+ * lines of the patch grammar — never the hunk body:
+ *   `*** Add File: <path>`    → Add
+ *   `*** Update File: <path>` → Edit   (a following `*** Move to:` is ignored;
+ *                                       the summary names the file being changed)
+ *   `*** Delete File: <path>` → Delete
+ * The `***` is anchored at column 0 (no leading trim): hunk context lines carry
+ * a single-space prefix, so a body line that literally reads `*** Update File:
+ * decoy.ts` is NOT a header and must not inflate the op count. Single file →
+ * `<Verb>  <path>`; multiple → first op + ` (+N more)`. A malformed/empty
+ * envelope falls back to a bare `Apply patch` — never throws.
+ */
+function summarizeApplyPatch(envelope: string): string {
+  const ops: Array<{ verb: string; path: string }> = [];
+  for (const rawLine of envelope.split("\n")) {
+    // Match the raw line (only an optional trailing \r tolerated) so `^` truly
+    // anchors the header at column 0 — a space-prefixed context line can't match.
+    const match = /^\*\*\* (Add|Update|Delete) File: (.+?)\r?$/.exec(rawLine);
+    if (!match) continue;
+    const filePath = (match[2] ?? "").trim();
+    if (!filePath) continue;
+    const verb = match[1] === "Add" ? "Add" : match[1] === "Delete" ? "Delete" : "Edit";
+    ops.push({ verb, path: filePath });
+  }
+  const first = ops[0];
+  if (!first) return "Apply patch";
+  const label = `${first.verb}  ${truncateMiddle(first.path, 72)}`;
+  return ops.length === 1 ? label : `${label} (+${ops.length - 1} more)`;
 }
 
 function truncateMiddle(value: string, max: number): string {
@@ -2917,7 +2958,7 @@ function truncateMiddle(value: string, max: number): string {
  * — persistent-rule support (`updatedPermissions`) is an UNVERIFIED open probe
  * (see codex-approvals.ts), so we never offer a button we cannot honor.
  */
-function brokerApprovalChoices(
+export function brokerApprovalChoices(
   kind: ApprovalKind,
   payload: HookPayload,
   provider: RuntimeProvider,
