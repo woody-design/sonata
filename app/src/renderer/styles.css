@@ -491,73 +491,20 @@ pre {
   flex-direction: column;
   overflow: hidden;
   /* Two-tone bands (Apple/Notion/M3 depth model): the main pane is the focal
-     reading plane on --surface; the sidebar recedes one rung down on
-     --surface-shell. Both tones come from the per-theme ladder already defined
-     (shell < surface < raised < panel), so the distinction holds across every
-     theme + mode with no new colors. */
-  background: var(--surface);
+     plane on --surface-canvas; the sidebar recedes one rung down on
+     --surface-shell. Both tones are mode-aware roles, so the distinction holds
+     across every mode with no new colors. */
+  background: var(--surface-canvas);
 }
 
 /* ---------------------------------------------------------------- sidebar */
 
-.sidebar,
-.sidebar-resizer,
-#sidebar-menu-root,
-#sidebar-toggle {
-  /* The Sidebar is application chrome, not reading content. These roles are
-     intentionally mode-aware but theme-invariant; keep the scope mirrored on
-     the portaled menu root and the two controls that sit outside <aside>. */
-  --sidebar-surface: #f9f8f7;
-  --sidebar-ink: #343536;
-  --sidebar-ink-strong: #242526;
-  --sidebar-ink-muted: #6b6d6c;
-  --sidebar-ink-disabled: #898b8a;
-  --sidebar-selected: #f1f0ef;
-  --sidebar-row-hover: #f4f3f2;
-  --sidebar-control-hover: #ecebea;
-  --sidebar-border: #e5e3e0;
-  --sidebar-input-surface: #fff;
-  --sidebar-menu-surface: #fff;
-  --sidebar-menu-hover: #f4f3f2;
-  --sidebar-accent: #355f54;
-  --sidebar-accent-hover: #24493f;
-  --sidebar-focus-ring: #4f776d;
-  --sidebar-status-attention: #a04b3c;
-  --sidebar-status-done: #52766d;
-  --sidebar-danger: #8d3f32;
-  --sidebar-disclosure-ink: #6b6d6c;
-  --sidebar-disclosure-ink-hover: #343536;
-  --sidebar-menu-shadow: 0 10px 28px rgb(24 24 24 / 14%);
-  --sidebar-font: var(--font-ui); /* S0: retired standalone stack (dead "SF Pro Text") → shared UI font */
-}
-
-[data-mode="dark"] .sidebar,
-[data-mode="dark"] .sidebar-resizer,
-[data-mode="dark"] #sidebar-menu-root,
-[data-mode="dark"] #sidebar-toggle {
-  --sidebar-surface: #202020;
-  --sidebar-ink: #e8e8e8;
-  --sidebar-ink-strong: #f5f5f5;
-  --sidebar-ink-muted: #a4a6a5;
-  --sidebar-ink-disabled: #777978;
-  --sidebar-selected: #2c2c2c;
-  --sidebar-row-hover: #282828;
-  --sidebar-control-hover: #353535;
-  --sidebar-border: #383838;
-  --sidebar-input-surface: #181818;
-  --sidebar-menu-surface: #292929;
-  --sidebar-menu-hover: #343434;
-  --sidebar-accent: #9ac8bc;
-  --sidebar-accent-hover: #b8ded4;
-  --sidebar-focus-ring: #9ac8bc;
-  --sidebar-status-attention: #e0a08e;
-  --sidebar-status-done: #a8d1c6;
-  --sidebar-danger: #f0a08d;
-  --sidebar-disclosure-ink: #a4a6a5;
-  --sidebar-disclosure-ink-hover: #e8e8e8;
-  --sidebar-menu-shadow: 0 12px 30px rgb(0 0 0 / 34%);
-}
-
+/* The Sidebar is application chrome, not reading content. It joins the warm-ink
+   role system directly (Design System Migration S1): the pre-S0 cool-gray local
+   palette + its [data-mode="dark"] override are retired — every consumer now
+   reads a role token, which is already mode-aware via the primitive layer, so no
+   sidebar-scoped theme block is needed. Chroma survives only for needs-you
+   (--attention-*); every other state is expressed by neutral value/weight. */
 .sidebar {
   flex: 0 0 236px;
   width: 236px;
@@ -565,10 +512,10 @@ pre {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-right: 1px solid var(--sidebar-border);
-  background: var(--sidebar-surface);
-  color: var(--sidebar-ink);
-  font-family: var(--sidebar-font);
+  border-right: 1px solid var(--border-hairline);
+  background: var(--surface-shell);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-synthesis: none;
 }
@@ -597,8 +544,8 @@ body.sidebar-resizing .sidebar-resizer {
   background: linear-gradient(
     to right,
     transparent 3px,
-    var(--sidebar-focus-ring) 3px,
-    var(--sidebar-focus-ring) 5px,
+    var(--focus-ring) 3px,
+    var(--focus-ring) 5px,
     transparent 5px
   );
 }
@@ -616,8 +563,8 @@ body.sidebar-resizing {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 0 10px 6px;
+  gap: var(--space-8);
+  padding: 0 var(--space-8) var(--space-6);
 }
 
 /* Top drag strip aligned with the floating macOS traffic lights. The lights
@@ -642,9 +589,9 @@ body.sidebar-resizing {
   min-height: 30px;
   padding: 0 8px;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--sidebar-ink);
+  color: var(--text-primary);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -652,19 +599,19 @@ body.sidebar-resizing {
 }
 
 .sidebar-new-chat:hover {
-  background: var(--sidebar-row-hover);
+  background: var(--surface-hover);
 }
 
 .sidebar-new-chat-icon {
   display: inline-flex;
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
 }
 
 .sidebar-sections {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 4px 10px 14px;
+  padding: var(--space-4) var(--space-8) var(--space-12);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -673,9 +620,9 @@ body.sidebar-resizing {
 .sidebar-section-label {
   margin: 12px 0 4px;
   padding-left: 4px;
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: none;
 }
 
@@ -697,11 +644,11 @@ body.sidebar-resizing {
 }
 
 .sidebar-filter-button.active {
-  color: var(--sidebar-accent);
+  color: var(--text-primary);
 }
 
 .sidebar-filter-button.active:hover {
-  color: var(--sidebar-accent-hover);
+  color: var(--text-primary);
 }
 
 .sidebar-filter-menu {
@@ -715,7 +662,7 @@ body.sidebar-resizing {
 }
 
 .sidebar-filter-row.open {
-  background: var(--sidebar-menu-hover);
+  background: var(--surface-hover);
 }
 
 .sidebar-filter-label {
@@ -732,18 +679,18 @@ body.sidebar-resizing {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
   font-size: 12px;
 }
 
 .sidebar-filter-row.non-default .sidebar-filter-label,
 .sidebar-filter-row.non-default .sidebar-filter-value {
-  color: var(--sidebar-accent);
-  font-weight: 620;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .sidebar-menu-item:disabled {
-  color: var(--sidebar-ink-disabled);
+  color: var(--text-placeholder);
   opacity: 0.55;
   cursor: default;
 }
@@ -754,7 +701,7 @@ body.sidebar-resizing {
 
 .sidebar-filter-chevron {
   flex: 0 0 auto;
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
   font-size: 13px;
   line-height: 1;
 }
@@ -762,9 +709,9 @@ body.sidebar-resizing {
 .sidebar-filter-submenu {
   display: flex;
   flex-direction: column;
-  margin: 2px 0 4px 10px;
+  margin: 2px 0 4px var(--space-8);
   padding-left: 6px;
-  border-left: 2px solid var(--sidebar-border);
+  border-left: 2px solid var(--border-hairline);
 }
 
 .sidebar-filter-option {
@@ -776,20 +723,20 @@ body.sidebar-resizing {
 
 .sidebar-filter-check {
   flex: 0 0 auto;
-  color: var(--sidebar-accent);
+  color: var(--text-primary);
   font-size: 12px;
 }
 
 .sidebar-menu-separator {
   height: 1px;
   margin: 4px 6px;
-  background: var(--sidebar-border);
+  background: var(--border-hairline);
 }
 
 .sidebar-empty {
-  margin: 10px 0 0;
+  margin: var(--space-8) 0 0;
   padding-left: 4px;
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
   font-size: 12px;
 }
 
@@ -805,10 +752,10 @@ body.sidebar-resizing {
   min-height: 28px;
   padding: 0 4px;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   background: transparent;
-  color: var(--sidebar-disclosure-ink);
-  font-family: var(--sidebar-font);
+  color: var(--text-tertiary);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 400;
   line-height: 1;
@@ -820,7 +767,7 @@ body.sidebar-resizing {
 
 .sidebar-disclosure-action:hover {
   background: transparent;
-  color: var(--sidebar-disclosure-ink-hover);
+  color: var(--text-primary);
 }
 
 .sidebar-disclosure-local {
@@ -850,12 +797,12 @@ body.sidebar-resizing {
   gap: 4px;
   /* Fixed row height: hover/edit states must never change the box. */
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
 }
 
 .sidebar-project-header:hover,
 .sidebar-project-header:focus-within {
-  background: var(--sidebar-row-hover);
+  background: var(--surface-hover);
 }
 
 .sidebar-project-label {
@@ -863,21 +810,21 @@ body.sidebar-resizing {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   padding: 0 4px 0 6px;
   min-height: 28px;
   border: none;
   background: transparent;
-  color: var(--sidebar-ink);
+  color: var(--text-primary);
   font-size: 13px;
-  font-weight: 620;
+  font-weight: 600;
   cursor: default;
   text-align: left;
 }
 
 .sidebar-project-label svg {
   flex: 0 0 auto;
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
 }
 
 .sidebar-project-name {
@@ -891,7 +838,7 @@ body.sidebar-resizing {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
   /* Space-reserved; paint-only on hover (no layout shift). */
   visibility: hidden;
   transition: transform 0.12s ease;
@@ -930,15 +877,15 @@ body.sidebar-resizing {
   height: 22px;
   padding: 0;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   background: transparent;
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
   cursor: pointer;
 }
 
 .sidebar-icon-button:hover {
-  background: var(--sidebar-control-hover);
-  color: var(--sidebar-ink);
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 .sidebar-project-sessions {
@@ -952,16 +899,16 @@ body.sidebar-resizing {
   display: flex;
   align-items: center;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
 }
 
 .sidebar-session:hover,
 .sidebar-session:focus-within {
-  background: var(--sidebar-row-hover);
+  background: var(--surface-hover);
 }
 
 .sidebar-session.active {
-  background: var(--sidebar-selected);
+  background: var(--surface-selected);
 }
 
 .sidebar-session.active .sidebar-session-title {
@@ -969,7 +916,7 @@ body.sidebar-resizing {
 }
 
 .sidebar-session.archived .sidebar-session-title {
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
 }
 
 .sidebar-session-button {
@@ -981,7 +928,7 @@ body.sidebar-resizing {
   padding: 0 4px 0 6px;
   border: none;
   background: transparent;
-  color: var(--sidebar-ink);
+  color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
   text-align: left;
@@ -1007,7 +954,7 @@ body.sidebar-resizing {
   justify-items: end;
   min-width: 28px;
   padding-right: 6px;
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -1036,7 +983,7 @@ body.sidebar-resizing {
 
 .sidebar-session-spinner {
   display: inline-flex;
-  color: var(--sidebar-ink);
+  color: var(--text-primary);
 }
 
 .sidebar-session-spinner svg {
@@ -1064,14 +1011,14 @@ body.sidebar-resizing {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--sidebar-status-attention);
+  background: var(--attention-icon);
 }
 
 .sidebar-session-done {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--sidebar-status-done);
+  background: var(--text-tertiary);
 }
 
 .sidebar-session:hover .sidebar-session-done,
@@ -1205,10 +1152,10 @@ body.sidebar-resizing {
   height: 24px;
   margin: 2px 4px;
   padding: 0 58px 0 6px;
-  border: 1px solid var(--sidebar-border);
-  border-radius: 6px;
-  background: var(--sidebar-input-surface);
-  color: var(--sidebar-ink);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
   font-size: 13px;
 }
 
@@ -1236,7 +1183,7 @@ body.sidebar-resizing {
 }
 
 .rename-editor-sidebar .rename-progress {
-  color: var(--sidebar-ink-muted);
+  color: var(--text-tertiary);
 }
 
 .rename-progress.visible {
@@ -1263,10 +1210,9 @@ body.sidebar-resizing {
   pointer-events: none;
 }
 
-.rename-editor-sidebar .rename-error {
-  background: var(--sidebar-menu-surface);
-  color: var(--sidebar-danger);
-}
+/* (S1) The sidebar-specific rename-error override retired: after de-chrome its
+   surface + danger color both equal the shared base (--surface-raised /
+   --attention-text via --status-attention), so the base rule now covers it. */
 
 .sidebar-session:has(.rename-error.visible),
 .sidebar-project-header:has(.rename-error.visible) {
@@ -1287,7 +1233,7 @@ body.sidebar-resizing {
 
 #sidebar-rename-notice {
   margin: 0 12px 6px;
-  color: var(--sidebar-danger);
+  color: var(--attention-text);
 }
 
 .sidebar-menu {
@@ -1299,12 +1245,12 @@ body.sidebar-resizing {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 4px;
-  border: 1px solid var(--sidebar-border);
-  border-radius: 9px;
-  background: var(--sidebar-menu-surface);
-  box-shadow: var(--sidebar-menu-shadow);
-  color: var(--sidebar-ink);
-  font-family: var(--sidebar-font);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
   font-synthesis: none;
 }
 
@@ -1312,34 +1258,34 @@ body.sidebar-resizing {
   display: flex;
   align-items: center;
   min-height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--space-8);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--sidebar-ink);
+  color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
   text-align: left;
 }
 
 .sidebar-menu-item:hover {
-  background: var(--sidebar-menu-hover);
+  background: var(--surface-hover);
 }
 
 .sidebar-menu-item.danger {
-  color: var(--sidebar-danger);
+  color: var(--attention-text);
 }
 
 .sidebar .chrome-icon-button,
 #sidebar-toggle {
-  color: var(--sidebar-ink-muted);
-  font-family: var(--sidebar-font);
+  color: var(--text-tertiary);
+  font-family: var(--font-ui);
 }
 
 .sidebar .chrome-icon-button:hover:not(:disabled),
 #sidebar-toggle:hover:not(:disabled) {
-  background: var(--sidebar-control-hover);
-  color: var(--sidebar-ink);
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 .sidebar button:focus-visible,
@@ -1347,13 +1293,13 @@ body.sidebar-resizing {
 #sidebar-menu-root button:focus-visible,
 #sidebar-menu-root input:focus-visible,
 #sidebar-toggle:focus-visible {
-  outline: 2px solid var(--sidebar-focus-ring);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 
 .sidebar .sidebar-rename-input:focus-visible,
 #sidebar-menu-root .sidebar-rename-input:focus-visible {
-  border-color: var(--sidebar-focus-ring);
+  border-color: var(--focus-ring);
   outline-offset: 1px;
 }
 
@@ -2495,7 +2441,7 @@ h2 {
   /* Bottom padding (32px) clears the 24px bottom mask fade below, so the last
      turn — and the status strip, which is the run list's last child — rests
      fully opaque above the fade instead of dissolving into the composer. */
-  padding: 16px 18px 32px;
+  padding: var(--space-16) var(--space-16) var(--space-32);
   /* Scroll-edge fade applied to the scroll container itself: content dissolves
      to transparent over the top and bottom 24px instead of hard-clipping at
      either edge. Because it rides run-list's OWN box (top just below the header,
@@ -2972,25 +2918,25 @@ h2 {
 }
 
 .attention-banner-root:not(:empty) {
-  padding: 6px 18px 0;
+  padding: var(--space-6) var(--space-16) 0;
 }
 
 .attention-banner {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px 7px 12px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  background: var(--surface-panel);
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-8) var(--space-6) var(--space-12);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
 }
 
 .attention-banner-copy {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  color: var(--ink-muted);
-  font-size: 12.5px;
+  color: var(--text-tertiary);
+  font-size: 12px;
   line-height: 1.5;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2998,18 +2944,18 @@ h2 {
 
 .attention-open-terminal {
   flex: none;
-  padding: 4px 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
+  padding: 4px var(--space-8);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--ink-strong);
+  color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .attention-open-terminal:hover {
-  border-color: var(--ink-muted);
+  border-color: var(--border-strong);
 }
 
 .attention-banner-dismiss {
@@ -3017,13 +2963,13 @@ h2 {
   padding: 2px 6px;
   border: none;
   background: none;
-  color: var(--ink-faint, var(--ink-muted));
+  color: var(--text-tertiary);
   font-size: 12px;
   cursor: pointer;
 }
 
 .attention-banner-dismiss:hover {
-  color: var(--ink-strong);
+  color: var(--text-primary);
 }
 
 .hidden {
@@ -4503,7 +4449,7 @@ h2 {
      plane — no band tint, no divider line; side padding comes from the
      scroll container itself. */
   width: min(100%, var(--measure-prose));
-  margin: 14px auto 4px;
+  margin: var(--space-12) auto var(--space-4);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -4512,27 +4458,27 @@ h2 {
 
 .strip-status-line {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.5;
-  color: var(--ink-muted);
+  color: var(--text-tertiary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .strip-status-trouble {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.5;
-  color: var(--status-attention);
+  color: var(--attention-text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .strip-status-sub {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 11px;
   line-height: 1.45;
-  color: var(--ink-faint, var(--ink-muted));
+  color: var(--text-tertiary);
   opacity: 0.75;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -4542,7 +4488,7 @@ h2 {
   font-family: var(--font-ui);
   font-size: 13px;
   font-style: italic;
-  color: var(--ink-muted);
+  color: var(--text-tertiary);
 }
 
 .status-strip.quiet .strip-status-line,
@@ -4553,7 +4499,7 @@ h2 {
 .strip-status-elapsed,
 .strip-agent-elapsed {
   font-variant-numeric: tabular-nums;
-  color: var(--ink-faint, var(--ink-muted));
+  color: var(--text-tertiary);
   opacity: 0.8;
 }
 
@@ -4565,13 +4511,13 @@ h2 {
   text-align: left;
   cursor: pointer;
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.5;
-  color: var(--status-attention);
+  color: var(--attention-text);
 }
 
 .strip-status-stall:hover {
-  color: var(--status-attention-strong);
+  color: var(--attention-text);
   text-decoration: underline;
 }
 
@@ -4585,9 +4531,9 @@ h2 {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.5;
-  color: var(--ink-muted);
+  color: var(--text-tertiary);
 }
 
 /* Three staggered dots — the "alive, working" signal. Signature-guarded
@@ -4626,9 +4572,9 @@ h2 {
 
 .strip-agent-type {
   flex: none;
-  color: var(--ink-faint, var(--ink-muted));
+  color: var(--text-tertiary);
   opacity: 0.8;
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 /* Three staggered dots — the "alive, working" signal. The 1s clock tick
