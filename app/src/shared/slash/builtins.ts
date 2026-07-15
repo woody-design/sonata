@@ -31,8 +31,8 @@ import type { SlashCommandEntry } from "../types/slash";
  *
  * Listing policy (v0 carried forward): the listed set predates S3; panels are
  * now safe to list (visible terminal) — widening the set is a follow-up, not
- * a routing concern. `/fast` (claude) is listed as a first-class Duet concept
- * (fast mode); every other new command defaults to unlisted.
+ * a routing concern. `/fast` (both providers) is listed as a first-class Duet
+ * concept (fast/speed mode); every other new command defaults to unlisted.
  */
 
 interface BuiltinSpec {
@@ -236,6 +236,11 @@ const CODEX_BUILTINS: BuiltinSpec[] = [
     description: "List configured MCP tools and servers",
     listed: true,
   },
+  {
+    name: "fast",
+    description: "Toggle fast inference (1.5x speed, increased usage)",
+    listed: true,
+  },
 
   // Known but unlisted.
   { name: "review", description: "Review your current changes and find issues" },
@@ -273,7 +278,6 @@ const CODEX_BUILTINS: BuiltinSpec[] = [
   { name: "vim", description: "Toggle Vim mode for the composer" },
   { name: "ide", description: "Include selection, open files, and IDE context" },
   { name: "rename", description: "Rename the current thread" },
-  { name: "fast", description: "Toggle fast inference (1.5x speed, increased usage)" },
   { name: "approve", description: "Approve one retry of a recent auto-review denial" },
   { name: "usage", description: "View account usage or reset a usage limit" },
   { name: "logout", description: "Log out of Codex" },
