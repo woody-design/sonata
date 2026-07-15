@@ -50,9 +50,10 @@
    UI themes no longer vary chrome (structural decision 6). The app's attribute
    axes are `data-theme` (duet/paper/calm/focus = reading theme) and
    `data-mode="dark"` (appearance) — the spec's data-reading-theme/data-appearance
-   are adapted to these names here. The LEGACY ALIAS BLOCK below re-points every
-   pre-S0 token name onto these roles so existing component CSS keeps resolving
-   through S1–S4, until S5 deletes the alias block.
+   are adapted to these names here. The migration's transitional LEGACY ALIAS
+   BLOCK (which re-pointed every pre-S0 token name onto these roles through
+   S1–S4) was deleted in S5: component CSS now consumes roles directly, and the
+   `smoke:design-tokens` fence guards that no retired name or stray hex returns.
    ════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -200,169 +201,25 @@
 [data-mode="dark"][data-theme="calm"]  { --reading-paper: #2a251c; --reading-ink: 247 236 221; }
 [data-mode="dark"][data-theme="focus"] { --reading-paper: #17160d; --reading-ink: 252 247 234; }
 
-/* Reading text-size steps (Apple Books preset+override). --text-body lives in
-   the legacy alias block; these steps override it per user setting. */
-[data-text-step="14"] { --text-body: 14px; }
-[data-text-step="15"] { --text-body: 15px; }
-[data-text-step="16"] { --text-body: 16px; }
-[data-text-step="18"] { --text-body: 18px; }
-[data-text-step="20"] { --text-body: 20px; }
-
-/* ════════════════════════════════════════════════════════════════════════
-   LEGACY ALIAS BLOCK — TEMPORARY, deleted in S5. Re-points every pre-S0 token
-   name onto the roles above so existing component CSS keeps resolving through
-   the S1–S4 sweeps. De-chrome mappings are intentional (structural decisions
-   2/3/4): complete + waiting collapse to neutrals; only needs-you (attention)
-   and links/chips/quote-comment (accent) keep chroma. Collision names that
-   ALREADY are roles — --surface-shell / --surface-raised / --surface-selected,
-   --accent, --border-strong, --font-ui / --font-mono / --font-reading — are NOT
-   re-aliased here: the role/reading layers satisfy them directly.
-   ════════════════════════════════════════════════════════════════════════ */
-
+/* Reading body metrics — first-class reading tokens (these are NOT chrome, so
+   they live in the reading layer, not the retired alias block). --text-body is
+   the reading body size; [data-text-step] overrides it per user setting below. */
 :root {
-  /* reading body metrics (kept live for S2) */
   --text-body: 16px;
   --text-code-inline: 0.85em;
   --text-code-block: 13px;
   --leading-body: var(--reading-leading);
   --leading-code: 1.55;
   --measure-prose: 660px;
-
-  /* ink ladder → 4 text roles (24 grays collapse honestly onto 4 tiers) */
-  --ink-strong: var(--text-primary);
-  --ink: var(--text-primary);
-  --ink-reading-prompt: var(--text-primary);
-  --ink-ui: var(--text-primary);
-  --ink-ui-strong: var(--text-primary);
-  --ink-menu: var(--text-primary);
-  --ink-subtle: var(--text-secondary);
-  --ink-message: var(--text-secondary);
-  --ink-pill: var(--text-secondary);
-  --ink-status: var(--text-secondary);
-  --ink-muted-warm: var(--text-secondary);
-  --ink-blockquote: var(--text-secondary);
-  --ink-muted: var(--text-tertiary);
-  --ink-label: var(--text-tertiary);
-  --ink-meta: var(--text-tertiary);
-  --ink-menu-muted: var(--text-tertiary);
-  --ink-faint: var(--text-tertiary);
-  --ink-work: var(--text-tertiary);
-  --ink-fainter: var(--text-placeholder);
-  --ink-trace: var(--text-placeholder);
-  --ink-disabled: var(--text-placeholder);
-  --ink-disabled-soft: var(--text-placeholder);
-  --ink-disabled-faint: var(--text-placeholder);
-  --ink-on-accent: var(--text-on-emphasis);
-
-  /* surfaces → canvas / shell / hover / selected / raised (per consumer job) */
-  --surface: var(--surface-canvas);
-  --surface-panel: var(--surface-raised);
-  --surface-white: var(--surface-canvas);
-  --surface-control: var(--surface-hover);
-  --surface-control-soft: var(--surface-hover);
-  --surface-strip: var(--surface-shell);
-  --surface-pill: var(--surface-hover);
-  --surface-code-inline: var(--surface-hover);
-  --surface-input: var(--surface-hover);
-  --surface-tool: var(--surface-hover);
-  --surface-disabled: var(--surface-hover);
-  --surface-disabled-strong: var(--surface-selected);
-  --surface-menu: var(--surface-raised);
-  --surface-menu-hover: var(--surface-hover);
-  --code-bg: var(--surface-hover);
-  /* complete (de-chromed → neutral tints) */
-  --surface-complete-soft: var(--surface-hover);
-  --surface-complete-active: var(--surface-hover);
-  --surface-complete-summary: var(--surface-hover);
-  --surface-complete-metric: var(--surface-canvas);
-  /* waiting (de-chromed → neutral tints) */
-  --surface-waiting-quiet: var(--surface-hover);
-  --surface-waiting-action: var(--surface-selected);
-  /* attention (keeps red) */
-  --surface-attention: var(--attention-surface);
-  --surface-attention-soft: var(--attention-surface);
-  --surface-attention-hover: var(--attention-surface);
-
-  /* borders → hairline / default / strong */
-  --border: var(--border-default);
-  --border-soft: var(--border-hairline);
-  --border-subtle: var(--border-hairline);
-  --border-control: var(--border-strong);
-  --border-raised: var(--border-default);
-  --border-disabled: var(--border-default);
-  --border-footer: var(--border-hairline);
-  --border-menu: var(--border-default);
-  --border-menu-divider: var(--border-hairline);
-  /* complete/waiting borders de-chromed */
-  --border-complete: var(--border-default);
-  --border-complete-soft: var(--border-hairline);
-  --border-complete-metric: var(--border-hairline);
-  --border-waiting: var(--border-default);
-  --border-waiting-quiet: var(--border-hairline);
-  --border-waiting-action: var(--border-strong);
-  /* attention borders keep red */
-  --border-attention: var(--attention-border);
-  --border-attention-soft: var(--attention-border);
-  --border-attention-muted: var(--attention-border);
-
-  /* accent family → the one blue; soft-border was a teal hover/focus/active
-     edge — interaction is de-chromed, so it resolves to a neutral strong edge */
-  --accent-strong: var(--accent);
-  --accent-soft-border: var(--border-strong);
-  --quote-comment-accent: var(--accent);
-
-  /* status · complete (de-chromed → neutral text) */
-  --status-complete: var(--text-secondary);
-  --status-complete-strong: var(--text-secondary);
-  --status-complete-ink: var(--text-secondary);
-  --status-complete-deep: var(--text-primary);
-  --status-complete-link: var(--text-secondary);
-  --status-complete-muted: var(--text-tertiary);
-  --status-complete-label: var(--text-tertiary);
-  /* status · waiting (de-chromed → neutral text) */
-  --status-waiting: var(--text-tertiary);
-  --status-waiting-label: var(--text-tertiary);
-  /* status · attention (keeps the red ramp) */
-  --status-attention: var(--attention-text);
-  --status-attention-strong: var(--attention-text);
-  --status-attention-deep: var(--attention-text);
-  --status-attention-label: var(--attention-text);
-  --status-attention-button: var(--attention-icon);
-  --status-attention-ink: var(--attention-text);
-  --status-attention-text: var(--attention-text);
-  --status-attention-code: var(--attention-text);
-
-  /* approval — five families neutralized to chrome; ONLY dangerous-bypass keeps
-     red (structural decision 2). Base + badge/context derive from the active
-     kind, so dangerous-bypass tints red and every other kind stays neutral. */
-  --approval-file-edit-surface: var(--surface-hover);
-  --approval-file-edit-border: var(--border-default);
-  --approval-file-edit-ink: var(--text-secondary);
-  --approval-command-surface: var(--surface-hover);
-  --approval-command-border: var(--border-default);
-  --approval-command-ink: var(--text-secondary);
-  --approval-file-read-surface: var(--surface-hover);
-  --approval-file-read-border: var(--border-default);
-  --approval-file-read-ink: var(--text-secondary);
-  --approval-workspace-trust-surface: var(--surface-hover);
-  --approval-workspace-trust-border: var(--border-default);
-  --approval-workspace-trust-ink: var(--text-secondary);
-  --approval-dangerous-bypass-surface: var(--attention-surface);
-  --approval-dangerous-bypass-border: var(--attention-border);
-  --approval-dangerous-bypass-ink: var(--attention-text);
-  --approval-surface: var(--approval-file-edit-surface);
-  --approval-border: var(--approval-file-edit-border);
-  --approval-ink: var(--approval-file-edit-ink);
-  --approval-badge-bg: color-mix(in srgb, var(--surface-raised) 88%, var(--approval-surface) 12%);
-  --approval-context-bg: color-mix(in srgb, var(--surface-raised) 74%, var(--approval-surface) 26%);
-  --approval-context-border: color-mix(in srgb, var(--approval-border) 50%, var(--surface-raised));
-
-  /* shadows → raised / overlay (composer-focus composes the accent ring) */
-  --shadow-composer: var(--shadow-raised);
-  --shadow-composer-focus: 0 0 0 3px var(--accent-subtle), var(--shadow-raised);
-  --shadow-popover: var(--shadow-overlay);
-  --shadow-bubble: var(--shadow-raised);
 }
+
+/* Reading text-size steps (Apple Books preset+override): override --text-body
+   (defined above) per user setting. */
+[data-text-step="14"] { --text-body: 14px; }
+[data-text-step="15"] { --text-body: 15px; }
+[data-text-step="16"] { --text-body: 16px; }
+[data-text-step="18"] { --text-body: 18px; }
+[data-text-step="20"] { --text-body: 20px; }
 
 /* ── Terminal lens palette (structural decision 1). ANSI slots are CONTENT
      semantics (1=red 2=green 3=yellow …), not UI status, so the hues are
@@ -370,9 +227,19 @@
      here, dark in the [data-mode="dark"] block below — instead of riding the
      retired --status-* and --accent tokens. The grayscale ramp + bg/fg/muted ride
      the new neutral roles so they track the system. --term-cursor now reads
-     neutral-strong (ink) rather than teal. --term-cyan preserves its pre-S0
-     resolved shade (which equalled the teal accent → currently == green: a
-     pre-existing quirk to revisit in S5). Resolved to rgb() in terminalTheme()
+     neutral-strong (ink) rather than teal.
+
+     Every ANSI slot xterm receives MUST be OPAQUE — resolve() in terminal.ts
+     returns rgba() whenever a token's alpha < 1, and a translucent ANSI colour
+     alpha-blends against the cell background instead of rendering the intended
+     shade. So --term-white / --term-bright-black composite the ink over --term-bg
+     via color-mix with the OPAQUE --text-primary (not the translucent
+     --text-tertiary), preserving the prior on-screen gray while dropping the
+     leaked alpha (S0 review F2). --term-cyan is now a hand-authored muted cyan
+     (S5): it previously equalled --term-green (#2f5d50) in light, a preserved
+     pre-S0 quirk; the new pair sits between green and blue in hue (H≈191),
+     visibly distinct from both, in the same muted family as the other authored
+     hues (blue #3f6593 / magenta #8a5b93). Resolved to rgb() in terminalTheme()
      via a probe element. */
 :root {
   --term-bg: var(--surface-canvas);
@@ -384,17 +251,20 @@
   --term-selection-bg: color-mix(in srgb, var(--surface-canvas) 72%, var(--accent) 28%);
   --term-selection-fg: var(--text-primary);
   --term-black: var(--text-primary);
-  --term-white: color-mix(in srgb, var(--text-tertiary) 55%, var(--surface-canvas) 45%);
-  --term-bright-black: var(--text-tertiary);
+  /* opaque composites over --term-bg (see block comment): light ≈ #c8c7c6 /
+     #9b9a97, mode-aware via the roles (bright-black flows to dark unchanged). */
+  --term-white: color-mix(in srgb, var(--text-primary) 27.5%, var(--term-bg));
+  --term-bright-black: color-mix(in srgb, var(--text-primary) 50%, var(--term-bg));
   --term-bright-white: var(--surface-canvas);
 
-  /* hue slots — pre-S0 duet-LIGHT resolved shades, frozen as literals */
+  /* hue slots — pre-S0 duet-LIGHT resolved shades, frozen as literals
+     (--term-cyan hand-authored in S5, muted cyan H≈191) */
   --term-red: #a04b3c;
   --term-green: #2f5d50;
   --term-yellow: #8a6d1f;
   --term-blue: #3f6593;
   --term-magenta: #8a5b93;
-  --term-cyan: #2f5d50;
+  --term-cyan: #326e7b;
   --term-bright-red: #b65d4d;
   --term-bright-green: #2f8f5b;
   --term-bright-yellow: #a8842b;
@@ -405,7 +275,9 @@
 
 [data-mode="dark"] {
   /* Terminal grayscale flips (black hugs bg, white/bright-white hug brightest
-     ink); the hue slots take their pre-S0 duet-DARK resolved shades. */
+     ink); the hue slots take their pre-S0 duet-DARK resolved shades. --term-white
+     is already opaque (text-primary is opaque); --term-bright-black inherits the
+     :root opaque composite (dark ≈ #787875). */
   --term-black: color-mix(in srgb, var(--surface-canvas) 89%, var(--text-primary) 11%);
   --term-white: color-mix(in srgb, var(--text-primary) 88%, var(--surface-canvas) 12%);
   --term-bright-white: var(--text-primary);
@@ -415,7 +287,7 @@
   --term-yellow: #d5bd75;
   --term-blue: #7fa8cf;
   --term-magenta: #bb96c4;
-  --term-cyan: #79b7a5;
+  --term-cyan: #82c0ce;
   --term-bright-red: #e7a18d;
   --term-bright-green: #9bd9bd;
   --term-bright-yellow: #e3c585;
@@ -424,6 +296,11 @@
   --term-bright-cyan: #a0d6c6;
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   END DESIGN TOKEN LAYER. Past this line, a raw hex colour is a fence
+   violation (smoke:design-tokens) unless it is a mask-alpha stencil or sits
+   in a rule marked `DESIGN-SYSTEM EXCEPTION`. Component CSS consumes ROLES.
+   ════════════════════════════════════════════════════════════════════════ */
 
 * {
   box-sizing: border-box;
@@ -1079,6 +956,9 @@ body.sidebar-resizing {
 }
 
 .quote-comment-glyph-plus {
+  /* DESIGN-SYSTEM EXCEPTION: fixed white plus, mode-invariant, sits on the
+     --accent bubble in both modes. --text-on-emphasis would flip to #191919 in
+     dark and sink the glyph into the (still-blue) bubble. */
   fill: #fff;
 }
 
@@ -1525,7 +1405,7 @@ body.sidebar-resizing {
   color: var(--term-fg);
   background: color-mix(in srgb, var(--term-fg) 10%, var(--term-bg));
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .terminal-empty-action:hover:not(:disabled) {
@@ -1560,10 +1440,10 @@ body.sidebar-resizing {
   flex-direction: column;
   gap: 12px;
   padding: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-default);
   border-radius: 12px;
-  background: var(--surface-panel);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-overlay);
 }
 
 .terminal-theme-section {
@@ -1578,7 +1458,11 @@ body.sidebar-resizing {
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-muted, var(--text-body));
+  /* Group-heading role. Was `var(--text-muted, var(--text-body))`: --text-muted
+     never existed, so it fell back to --text-body — a LENGTH, invalid as a
+     colour, silently no-op'd, and the heading inherited primary ink. Now the
+     honest dimmed section-label role, matching every other group heading. */
+  color: var(--text-tertiary);
 }
 
 .terminal-theme-grid {
@@ -1594,7 +1478,7 @@ body.sidebar-resizing {
   gap: 5px;
   min-width: 58px;
   padding: 8px 6px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--surface-raised);
   cursor: pointer;
@@ -1602,8 +1486,8 @@ body.sidebar-resizing {
 }
 
 .terminal-theme-card.selected {
-  border-color: var(--accent, var(--term-cursor));
-  box-shadow: 0 0 0 1px var(--accent, var(--term-cursor));
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .terminal-theme-swatch {
@@ -1621,7 +1505,9 @@ body.sidebar-resizing {
 
 .terminal-theme-name {
   font-size: 11px;
-  color: var(--text-body);
+  /* Option label. Was `var(--text-body)` (a LENGTH — invalid colour, no-op,
+     inherited primary); now the honest secondary UI-text role. */
+  color: var(--text-secondary);
 }
 
 .terminal-mode-row {
@@ -1632,10 +1518,12 @@ body.sidebar-resizing {
 
 .terminal-mode-btn {
   padding: 5px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   background: var(--surface-raised);
-  color: var(--text-body);
+  /* Was `var(--text-body)` (LENGTH — invalid colour, no-op, inherited primary);
+     now the secondary UI-text role for a small segmented control. */
+  color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -1643,7 +1531,7 @@ body.sidebar-resizing {
 
 .terminal-mode-btn.selected {
   background: var(--surface-selected);
-  border-color: var(--accent, var(--term-cursor));
+  border-color: var(--accent);
 }
 
 .topbar {
@@ -2307,7 +2195,10 @@ h2 {
 }
 
 .settings-row-note-error {
-  color: #b4543a;
+  /* S5: migrated off the raw brick-red hex to the system danger role. Inline
+     validation error = danger semantics; the spec reserves ONE red for
+     needs-you/danger. Visual shift (muted brick → #DE1135) flagged for S6. */
+  color: var(--attention-text);
 }
 
 .settings-row-trailing {
@@ -3181,7 +3072,7 @@ h2 {
 
 .composer:focus-visible .composer-card {
   border-color: var(--focus-ring);
-  box-shadow: var(--shadow-composer-focus);
+  box-shadow: 0 0 0 3px var(--accent-subtle), var(--shadow-raised);
 }
 
 /* The white card — the message and its controls. A distinct filled field
@@ -3197,7 +3088,7 @@ h2 {
   border-radius: var(--radius-lg);
   padding: var(--space-8) var(--space-8) var(--space-8) var(--space-12);
   background: var(--surface-raised);
-  box-shadow: var(--shadow-composer);
+  box-shadow: var(--shadow-raised);
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease,
@@ -3239,7 +3130,7 @@ h2 {
 
 .composer-card:focus-within {
   border-color: var(--focus-ring);
-  box-shadow: var(--shadow-composer-focus);
+  box-shadow: 0 0 0 3px var(--accent-subtle), var(--shadow-raised);
 }
 
 /* Action feedback only (2026-07-04 ruling — composerNotice suppresses all
@@ -3818,39 +3709,6 @@ h2 {
   background: var(--attention-icon);
 }
 
-.side-column {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  overflow: hidden;
-  border-left: 1px solid var(--border-default);
-  padding: 12px;
-  background: var(--surface-shell);
-}
-
-.surface-tabs {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.surface-tab {
-  border: 1px solid var(--border-strong);
-  color: var(--text-secondary);
-  background: var(--surface-hover);
-}
-
-/* (Dead CSS — no markup refs; S5 deletion candidate.) Active = ink fill, kept
-   consistent with the neutral-ink activation family. */
-.surface-tab.active {
-  border-color: var(--control-primary-bg);
-  color: var(--control-primary-text);
-  background: var(--control-primary-bg);
-}
-
 /* Find box — floats over the terminal's top-right (VS Code / browser-find idiom),
    never reflows the grid. Duet's panel surface + tokens so it reads native, not
    like terminal chrome. Woody dials placement/spacing. */
@@ -3865,8 +3723,8 @@ h2 {
   padding: 5px 6px 5px 10px;
   border: 1px solid var(--border-strong);
   border-radius: 9px;
-  background: var(--surface-panel);
-  box-shadow: var(--shadow-popover);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-overlay);
 }
 
 .terminal-search.hidden {
@@ -3877,7 +3735,7 @@ h2 {
   width: 180px;
   border: none;
   background: transparent;
-  color: var(--ink);
+  color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: 13px;
   line-height: 1.3;
@@ -3885,13 +3743,13 @@ h2 {
 }
 
 .terminal-search-input::placeholder {
-  color: var(--ink-faint);
+  color: var(--text-placeholder);
 }
 
 .terminal-search-count {
   min-width: 44px;
   text-align: right;
-  color: var(--ink-muted);
+  color: var(--text-tertiary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -3906,15 +3764,15 @@ h2 {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--ink-muted);
+  color: var(--text-tertiary);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
 }
 
 .terminal-search-btn:hover {
-  background: var(--surface-menu-hover);
-  color: var(--ink-strong);
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 .task-terminal {
@@ -4019,12 +3877,6 @@ h2 {
   .approval-actions {
     width: 100%;
     justify-content: flex-end;
-  }
-
-  .side-column {
-    min-height: 520px;
-    border-left: 0;
-    border-top: 1px solid var(--border-default);
   }
 }
 
@@ -4711,6 +4563,10 @@ html[data-instance-label] body::after {
   z-index: 2147483647;
   padding: 2px 12px;
   border-radius: 999px;
+  /* DESIGN-SYSTEM EXCEPTION: the DEV instance badge is a deliberately loud,
+     self-contained build-environment marker that stands APART from the product
+     design system (it must read identically in every theme/mode), so its red +
+     white are fixed literals, not roles. */
   background: #d92d20;
   color: #fff;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -5384,6 +5240,9 @@ body.preview-panel-resizing {
   width: 100%;
   height: 100%;
   border: none;
+  /* DESIGN-SYSTEM EXCEPTION: neutral white canvas behind UNTRUSTED preview HTML
+     (documents author their own colours). A themed app surface would bleed
+     chrome into rendered content; browsers default this to white too. */
   background: #fff;
 }
 

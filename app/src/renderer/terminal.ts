@@ -155,8 +155,12 @@ function terminalTheme(): ITheme {
     return {
       background: resolve("--term-bg", "#1e1d1a"),
       foreground: resolve("--term-fg", "#e8e3d9"),
-      cursor: resolve("--term-cursor", "#a0d6c6"),
-      cursorAccent: resolve("--term-cursor-accent", "#191814"),
+      // Fallbacks describe the real resolved DARK palette (these only fire if a
+      // token is ever undefined). --term-cursor is now neutral ink (was a teal
+      // #a0d6c6); --term-cyan is the S5 hand-authored muted cyan; --term-white /
+      // --term-bright-black are the opaque composites over --term-bg.
+      cursor: resolve("--term-cursor", "#d8d6d1"),
+      cursorAccent: resolve("--term-cursor-accent", "#191919"),
       selectionBackground: resolve("--term-selection-bg", "#334039"),
       selectionForeground: resolve("--term-selection-fg", "#e8e3d9"),
       black: resolve("--term-black", "#34312b"),
@@ -165,9 +169,9 @@ function terminalTheme(): ITheme {
       yellow: resolve("--term-yellow", "#cdab6d"),
       blue: resolve("--term-blue", "#7fa8cf"),
       magenta: resolve("--term-magenta", "#bb96c4"),
-      cyan: resolve("--term-cyan", "#79b7a5"),
-      white: resolve("--term-white", "#cfc8ba"),
-      brightBlack: resolve("--term-bright-black", "#6c685f"),
+      cyan: resolve("--term-cyan", "#82c0ce"),
+      white: resolve("--term-white", "#c1bfbb"),
+      brightBlack: resolve("--term-bright-black", "#787875"),
       brightRed: resolve("--term-bright-red", "#e7a18d"),
       brightGreen: resolve("--term-bright-green", "#9bd9bd"),
       brightYellow: resolve("--term-bright-yellow", "#e3c585"),
