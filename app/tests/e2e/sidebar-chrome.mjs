@@ -1,8 +1,9 @@
-// Slice 1 acceptance fence: Sidebar chrome is mode-aware but reading-theme
-// and reading-size invariant, while the Main Pane preserves every property in
-// its recorded Slice 0 baseline inventory. A fake provider and real runtime
-// events exercise production status nodes; visual evidence is staged and
-// published only after every assertion succeeds.
+// Slice 1/2 acceptance fence: Sidebar chrome is mode-aware but reading-theme
+// and reading-size invariant, while the Main Pane reading surface is now theme-
+// aware — it consumes the reading-theme layer wired in Slice 2 (paper + reading
+// ink + reading font, varying by data-theme × data-mode). A fake provider and
+// real runtime events exercise production status nodes; visual evidence is
+// staged and published only after every assertion succeeds.
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -96,31 +97,46 @@ const expectedByMode = {
   },
 };
 
-// Main Pane invariance: Sidebar work must not perturb the reading pane. The
-// pane is chrome-neutral in this post-S1 state — the reading paper/ink layer is
-// not wired until S2 — so `.task-entry-panel` inherits --text-primary and
-// --font-ui straight from :root: mode-aware, reading-theme INVARIANT. Derived
-// from the role tokens rather than read from the historical slice-0-before
-// manifest (that committed evidence tree is frozen; it encodes the pre-
-// migration per-theme palette and must not churn on verification runs).
-const expectedMainPaneByMode = {
-  light: {
-    backgroundColor: "rgba(0, 0, 0, 0)",
-    color: "rgb(55, 53, 47)",
-    // --font-ui source is `-apple-system, BlinkMacSystemFont, "PingFang SC",
-    // sans-serif`; Chromium's getComputedStyle serializes the BlinkMacSystemFont
-    // identifier as the quoted "system-ui" string. No "SF Pro Text" (migration
-    // removed it); -apple-system + PingFang SC + sans-serif all present.
-    fontFamily: '-apple-system, "system-ui", "PingFang SC", sans-serif',
+// Reading-pane theme→paper contract (S2, 2026-07-15): the reading-theme layer
+// is now WIRED. `.run-column` — the "Run reading surface" — paints
+// --reading-paper, and reading CONTENT on it (here the empty-state greeting
+// `.task-entry-panel`) wears reading ink + reading font. All three vary by
+// data-theme × data-mode (Apple Books model), UNLIKE chrome, which is mode-aware
+// only. So Sidebar work is now guarded against perturbing a THEME-aware reading
+// surface (a strictly stronger fence than the old theme-invariant assertion).
+// Every value is derived from the spec's reading-theme layer
+// (design/duet-design-system.html §READING THEME LAYER), NOT from what renders:
+//   paper  .run-column background        --reading-paper           (hex→rgb)
+//   ink    .task-entry-panel color       rgb(--reading-ink / 0.92) (alpha→rgba)
+//   font   .task-entry-panel font-family --font-reading            (per theme)
+// Chromium's getComputedStyle serializes the BlinkMacSystemFont identifier as
+// the quoted "system-ui" string (S1b lesson); the two serif rosters serialize
+// verbatim from their --font-reading source.
+const READING_FONT = {
+  duet: '-apple-system, "system-ui", "PingFang SC", sans-serif',
+  paper: 'Charter, "Bitstream Charter", "PingFang SC", serif',
+  // Chromium's getComputedStyle strips the unnecessary quotes from the single-
+  // identifier "Literata" (kept quoted in the --font-reading source); multi-word
+  // "PingFang SC" stays quoted (S1b serialization lesson).
+  calm: 'Literata, Charter, Georgia, "PingFang SC", serif',
+  focus: '-apple-system, "system-ui", "PingFang SC", sans-serif',
+};
+const expectedReadingPaneByThemeMode = {
+  duet: {
+    light: { paper: "rgb(251, 250, 247)", ink: "rgba(55, 53, 47, 0.92)" },
+    dark: { paper: "rgb(30, 29, 26)", ink: "rgba(232, 227, 217, 0.92)" },
   },
-  dark: {
-    backgroundColor: "rgba(0, 0, 0, 0)",
-    color: "rgb(216, 214, 209)",
-    // --font-ui source is `-apple-system, BlinkMacSystemFont, "PingFang SC",
-    // sans-serif`; Chromium's getComputedStyle serializes the BlinkMacSystemFont
-    // identifier as the quoted "system-ui" string. No "SF Pro Text" (migration
-    // removed it); -apple-system + PingFang SC + sans-serif all present.
-    fontFamily: '-apple-system, "system-ui", "PingFang SC", sans-serif',
+  paper: {
+    light: { paper: "rgb(251, 251, 251)", ink: "rgba(38, 36, 34, 0.92)" },
+    dark: { paper: "rgb(28, 28, 29)", ink: "rgba(240, 240, 238, 0.92)" },
+  },
+  calm: {
+    light: { paper: "rgb(248, 241, 227)", ink: "rgba(58, 47, 35, 0.92)" },
+    dark: { paper: "rgb(42, 37, 28)", ink: "rgba(247, 236, 221, 0.92)" },
+  },
+  focus: {
+    light: { paper: "rgb(255, 252, 244)", ink: "rgba(42, 39, 30, 0.92)" },
+    dark: { paper: "rgb(23, 22, 13)", ink: "rgba(252, 247, 234, 0.92)" },
   },
 };
 
@@ -148,18 +164,21 @@ try {
   await page.evaluate(() => document.fonts.ready);
   await page.emulateMedia({ reducedMotion: "no-preference" });
 
-  // Sidebar work must not perturb any Main Pane reading-theme style captured
-  // before Slice 1. This pass runs before selecting a session so the same
-  // `.task-entry-panel` baseline element is present.
+  // Sidebar work must not perturb the reading pane's theme→paper contract. This
+  // pass runs before selecting a session so the same `.task-entry-panel` baseline
+  // element is present. Paper lives on `.run-column` (background is not inherited);
+  // reading ink + font are read off the greeting that sits on it.
   for (const theme of themes) {
     for (const mode of modes) {
       await setReadingSettingsViaUi(page, { theme, mode, textStep: 16 });
-      const actualMain = await computedProperties(page, ".task-entry-panel", [
-        "backgroundColor",
-        "color",
-        "fontFamily",
-      ]);
-      assertDeepEqual(actualMain, expectedMainPaneByMode[mode], `${theme}/${mode} Main Pane baseline`);
+      const surface = await computedProperties(page, ".run-column", ["backgroundColor"]);
+      const content = await computedProperties(page, ".task-entry-panel", ["color", "fontFamily"]);
+      const expected = expectedReadingPaneByThemeMode[theme][mode];
+      assertDeepEqual(
+        { paper: surface.backgroundColor, ink: content.color, font: content.fontFamily },
+        { paper: expected.paper, ink: expected.ink, font: READING_FONT[theme] },
+        `${theme}/${mode} reading pane (theme→paper contract)`,
+      );
     }
   }
 
