@@ -1888,6 +1888,18 @@ export class RuntimeController {
     const provider = active.task.provider;
     const event = payload.hook_event_name;
 
+    // Codex subagent lifecycle (S6): SubagentStart/Stop describe a CHILD agent,
+    // not the parent turn — SubagentStart's `transcript_path` even points at the
+    // child's own rollout (verified 0.144.4). Keep them entirely OFF the main-turn
+    // spine (no source adoption, no cli-state, no run lifecycle) and feed only the
+    // transcript roster the status strip renders. Claude derives its roster from
+    // the session file, so this is Codex-only — Claude also sinks SubagentStop,
+    // but for it that stays a cli-state no-op on the normal path below.
+    if (provider === "codex" && (event === "SubagentStart" || event === "SubagentStop")) {
+      active.providerTranscript.applySubagentEvent(payload);
+      return;
+    }
+
     // Identity handshake — both providers, every event (a session id can change
     // under a live PTY: /clear, native resume). Idempotent.
     this.adoptTranscriptFromHook(active, payload);
@@ -1962,6 +1974,14 @@ export class RuntimeController {
     // Codex has no StopFailure event).
     if (event === "Stop") {
       active.terminalHost.completeRunFromTurnEnd();
+      // The parent turn's Stop also clears any Codex subagent still marked
+      // running (a dropped SubagentStop) — Codex subagents are awaited within
+      // their launch turn, so none legitimately outlive it. `turn_id` names
+      // which turn's stragglers to settle; Claude's file-derived roster is
+      // untouched (no turn_id on its Stop, and the guard gates it out anyway).
+      if (provider === "codex" && typeof payload.turn_id === "string" && payload.turn_id) {
+        active.providerTranscript.settleSubagentTurn(payload.turn_id);
+      }
     }
 
     // `StopFailure` is the turn's other honest ending on CLAUDE: the API errored

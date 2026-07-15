@@ -486,6 +486,19 @@ export class CodexRolloutNormalizer {
   private nextBlockId(suffix: string): string {
     return `${this.sourceId}:${suffix}-${this.seq + 1}`;
   }
+
+  /**
+   * Allocate the next per-source seq position (S6). ProviderTranscript uses this
+   * to slot a hook-synthesized subagent-roster block into THIS source's single
+   * ordering space: Codex subagent rosters share the conversation source id (the
+   * lifecycle isn't in the rollout, so the hooks feed it), and the frozen
+   * transcript contract §A1.3 makes `seq` the per-source ordering position — so a
+   * roster block MUST draw from the same counter as this normalizer's file-derived
+   * blocks, or two different-id blocks could collide on (sourceId, seq).
+   */
+  allocateSeq(): number {
+    return (this.seq += 1);
+  }
 }
 
 function balanceFences(text: string): string {

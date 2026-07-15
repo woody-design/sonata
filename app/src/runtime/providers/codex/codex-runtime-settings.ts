@@ -108,18 +108,24 @@ export function codexProfilePath(): string {
   return path.join(home, "duet.config.toml");
 }
 
-/** Fire-and-forget sink events (the 5 core events Codex emits and Duet's
- *  watcher consumes). PermissionRequest is DELIBERATELY absent — it is owned by
- *  the broker shim (a second sink on it would double-write the payload).
- *  Codex's verified event set is exactly these + PermissionRequest; no
- *  Notification / StopFailure / SubagentStop (Claude-only), so none are
- *  registered — no consumer, no claim. */
+/** Fire-and-forget sink events (the events Codex emits and Duet's watcher
+ *  consumes). PermissionRequest is DELIBERATELY absent — it is owned by the
+ *  broker shim (a second sink on it would double-write the payload).
+ *
+ *  The five core events are the run-lifecycle spine. `SubagentStart` /
+ *  `SubagentStop` (verified firing under this injection at 0.144.4, S6) feed the
+ *  status-strip agent roster: Codex subagents run in their OWN rollout files, so
+ *  the parent rollout the normalizer tails never shows them — these hooks are the
+ *  only source. `Notification` / `StopFailure` stay unregistered (Claude-only, no
+ *  Codex equivalent); `PreCompact` / `PostCompact` are deferred to S7. */
 const SINK_EVENTS = [
   "SessionStart",
   "UserPromptSubmit",
   "PreToolUse",
   "PostToolUse",
   "Stop",
+  "SubagentStart",
+  "SubagentStop",
 ] as const;
 
 /**
@@ -213,11 +219,12 @@ function buildProfileToml(binDir: string): string {
     "# (union, never clobber). Duet writes ONLY this file; your config, MCP",
     "# servers, auth, and session history are untouched.",
     "#",
-    "# This is the FINAL frozen hook set: Duet registers every event now (even",
-    "# ones it does not yet consume) so adding one later never re-triggers the",
-    "# Codex trust ceremony. Commands route through stable ~/.duet/bin shims;",
-    "# per-task binding travels via the DUET_RUNTIME_DIR environment variable,",
-    "# so these command strings stay identical across every task.",
+    "# Duet registers the events it consumes (run lifecycle + subagent roster +",
+    "# the PermissionRequest broker). Adding an event rewrites this file, but that",
+    "# is safe: Duet spawns with --dangerously-bypass-hook-trust (D4), so a changed",
+    "# hook-trust hash never re-prompts. Commands route through stable ~/.duet/bin",
+    "# shims; per-task binding travels via the DUET_RUNTIME_DIR environment",
+    "# variable, so these command strings stay identical across every task.",
     "",
   ];
   const blocks: string[] = [];

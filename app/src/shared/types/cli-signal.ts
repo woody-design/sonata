@@ -27,9 +27,15 @@ import type { RuntimeProvider, TaskId } from "./domain";
  *
  * The first six — `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
  * `PostToolUse`, `PermissionRequest`, `Stop` — are the shared core BOTH
- * providers emit (Codex's verified set, 2026-07-06). The rest are
- * Claude-observed only: `StopFailure` (structured API error — Codex has no
- * equivalent), `Notification`, `SubagentStop`.
+ * providers emit (Codex's verified set, 2026-07-06).
+ *
+ * `SubagentStart` / `SubagentStop` are the subagent lifecycle pair. Codex emits
+ * BOTH (verified 0.144.4, S6) with rich payloads (`agent_id`, `agent_type`,
+ * `agent_transcript_path`) and Duet feeds them into the status-strip roster;
+ * Claude emits only `SubagentStop` (no `SubagentStart`) and its roster is
+ * derived from the session file instead, so Claude's `SubagentStop` stays a
+ * cli-state no-op. `StopFailure` (structured API error) and `Notification`
+ * are Claude-observed only — Codex has no equivalent.
  */
 export type HookEventName =
   | "SessionStart"
@@ -40,6 +46,7 @@ export type HookEventName =
   | "Notification"
   | "Stop"
   | "StopFailure"
+  | "SubagentStart"
   | "SubagentStop";
 
 /**
@@ -65,6 +72,16 @@ export interface HookPayload {
   /** Stop */
   stop_hook_active?: boolean;
   last_assistant_message?: unknown;
+  /** The turn a hook belongs to. Codex carries it on every mid-turn event
+   *  (rollout `turn_id`); it keys the subagent roster to its launch turn. */
+  turn_id?: string;
+  /** SubagentStart / SubagentStop (Codex, verified 0.144.4). `agent_id` is the
+   *  child agent's stable id (the roster join key); `agent_type` is its kind
+   *  ("default" for a plain subagent); `agent_transcript_path` points at the
+   *  child's OWN rollout file — Duet does not read it (future door). */
+  agent_id?: string;
+  agent_type?: string;
+  agent_transcript_path?: string;
   /** StopFailure — structured API error, e.g. "model_not_found" (probed S6). */
   error?: string;
   /** Notification (observed absent on 2.1.177, kept for forward-compat) */

@@ -1,6 +1,12 @@
 import type { RunId, RuntimeProvider, TaskId } from "../../shared/types/domain";
 import type { RuntimeEvent } from "../../shared/types/events";
-import type { TranscriptBlock, TranscriptSourceRef } from "../../shared/types/transcript";
+import type { HookPayload } from "../../shared/types/cli-signal";
+import type {
+  AgentRosterBlock,
+  AgentRunItem,
+  TranscriptBlock,
+  TranscriptSourceRef,
+} from "../../shared/types/transcript";
 import type { UsageSnapshot } from "../../shared/types/usage";
 import { ClaudeSessionNormalizer } from "./claude-normalizer";
 import { CodexRolloutNormalizer } from "./codex-normalizer";
@@ -88,6 +94,21 @@ export class ProviderTranscript {
    *  so a hook that declares an id BEFORE its transcript file lands can point
    *  discovery at it (setExpectedSessionId) — the Codex self-heal. */
   private expectedSessionId: string | null;
+  /** Codex subagent roster (S6), fed by SubagentStart/Stop hooks — NOT the
+   *  normalizer. Codex subagents run in their own rollout files, so the parent
+   *  rollout this class tails never carries their lifecycle; the hooks are the
+   *  only source. These maps synthesize the same provider-neutral `agents` blocks
+   *  the Claude normalizer derives from its session file, so the status strip's
+   *  single roster read serves both providers. The block shares the CONVERSATION
+   *  source id + `turn_id`, so it groups into the spawning turn AND draws its seq
+   *  from that source's normalizer (per-source seq uniqueness, contract §A1.3). */
+  private readonly codexAgents = new Map<string, AgentRunItem>();
+  private readonly codexAgentTurnKey = new Map<string, string>();
+  private readonly codexAgentRosters = new Map<string, AgentRosterBlock>();
+  /** The conversation source id each launch turn's roster belongs to — the join
+   *  key for deferral (emit once the source attaches) and for source-scoped
+   *  eviction on truncation. */
+  private readonly codexRosterSourceId = new Map<string, string>();
   private disposed = false;
 
   constructor(options: ProviderTranscriptOptions) {
@@ -178,6 +199,12 @@ export class ProviderTranscript {
     });
     attached.tailer.drain();
     attached.tailer.start();
+    // The source is now attached (and drained past its first reset) — flush any
+    // subagent roster deferred while it was still discovering (reviewer F2). The
+    // discovery-poll path (tryDiscover) is the real flush point in the
+    // adoption-trails race; a no-op when there are no pending rosters or for
+    // Claude sources.
+    this.syncCodexRostersForSource(ref.sourceId);
   }
 
   hasLiveSource(): boolean {
@@ -192,6 +219,260 @@ export class ProviderTranscript {
     return this.blockOrder
       .map((id) => this.blockStore.get(id))
       .filter((block): block is TranscriptBlock => Boolean(block));
+  }
+
+  /**
+   * Feed a Codex subagent lifecycle hook (SubagentStart / SubagentStop, S6).
+   * The controller routes these here OFF the main-turn spine — a subagent event
+   * describes a CHILD agent, not the parent turn (SubagentStart's
+   * `transcript_path` even points at the child's own rollout), so it must never
+   * adopt a source or drive cli-state. It synthesizes/updates an `agents` roster
+   * block keyed by the launch turn and emits it on the same `transcript:blocks`
+   * channel the normalizer uses, so the status strip renders Codex subagents
+   * exactly like Claude's. Codex-only: Claude derives its roster from the
+   * session file, so its own SubagentStop never reaches here.
+   */
+  applySubagentEvent(payload: HookPayload, receivedAt: string = new Date().toISOString()): void {
+    if (this.disposed) {
+      return;
+    }
+    const agentId =
+      typeof payload.agent_id === "string" && payload.agent_id ? payload.agent_id : null;
+    if (!agentId) {
+      return;
+    }
+    if (payload.hook_event_name === "SubagentStart") {
+      const turnKey =
+        typeof payload.turn_id === "string" && payload.turn_id ? payload.turn_id : null;
+      if (!turnKey) {
+        return;
+      }
+      // A duplicate Start for a KNOWN agent id is noise, not a restart: agent_id
+      // is a per-subagent UUID, so a second Start names the same agent. Ignoring
+      // it keeps the first spawn authoritative — never resurrect a settled agent
+      // to running, nor reset a live one's startedAt clock (reviewer F5).
+      if (this.codexAgents.has(agentId)) {
+        return;
+      }
+      const rawType =
+        typeof payload.agent_type === "string" && payload.agent_type.trim()
+          ? payload.agent_type.trim()
+          : "default";
+      this.codexAgents.set(agentId, {
+        toolUseId: agentId,
+        name: "Subagent",
+        detail: null,
+        // "default" is Codex's generic kind — suppress the redundant type chip
+        // by mapping it to the roster's own generic sentinel ("agent", which the
+        // strip hides); a NAMED kind rides through as the secondary label.
+        agentType: rawType === "default" ? "agent" : rawType,
+        status: "running",
+        startedAt: receivedAt,
+        durationMs: null,
+      });
+      this.codexAgentTurnKey.set(agentId, turnKey);
+      this.codexRosterSourceId.set(turnKey, this.conversationSourceId(payload));
+      this.emitCodexRosterForTurn(turnKey);
+      return;
+    }
+    if (payload.hook_event_name === "SubagentStop") {
+      const item = this.codexAgents.get(agentId);
+      const turnKey = this.codexAgentTurnKey.get(agentId);
+      // A Stop with no matching Start (a dropped SubagentStart): nothing was ever
+      // shown running, so there is nothing to settle — ignore it.
+      if (!item || !turnKey) {
+        return;
+      }
+      if (this.settleCodexAgent(item, receivedAt)) {
+        this.emitCodexRosterForTurn(turnKey);
+      }
+    }
+  }
+
+  /**
+   * The parent turn ended (its `Stop` hook) — settle any Codex subagent still
+   * marked running for it. Codex subagents are AWAITED within their launch turn
+   * (the parent blocks on `collaborationwait_agent`), so a running row outliving
+   * the turn's Stop is a dropped SubagentStop, not async work: clear it, or the
+   * status strip would show a phantom subagent forever.
+   */
+  settleSubagentTurn(turnKey: string, receivedAt: string = new Date().toISOString()): void {
+    if (this.disposed) {
+      return;
+    }
+    let changed = false;
+    for (const [agentId, item] of this.codexAgents) {
+      if (this.codexAgentTurnKey.get(agentId) === turnKey && item.status === "running") {
+        if (this.settleCodexAgent(item, receivedAt)) {
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      this.emitCodexRosterForTurn(turnKey);
+    }
+  }
+
+  /** Settle one running subagent to done, computing a wall-clock duration from
+   *  its spawn (Codex's SubagentStop carries none). Returns whether it changed,
+   *  so a duplicate Stop emits no redundant roster upsert. */
+  private settleCodexAgent(item: AgentRunItem, ts: string): boolean {
+    if (item.status === "done") {
+      return false;
+    }
+    item.status = "done";
+    const started = Date.parse(item.startedAt);
+    const ended = Date.parse(ts);
+    item.durationMs =
+      Number.isNaN(started) || Number.isNaN(ended) ? null : Math.max(0, ended - started);
+    return true;
+  }
+
+  /**
+   * Emit one launch turn's roster block — IF its conversation source is attached
+   * (its normalizer is the only place the block's `seq` can come from, contract
+   * §A1.3). If the source is still discovering (adoption trails SessionStart —
+   * the setExpectedSessionId/ensureDiscovery window), skip: emitting now would
+   * put the block under a sourceId whose first `reset:true` drain has not fired,
+   * and that drain would delete it on the consumer while blockStore keeps it (the
+   * snapshot≢replay class INV-5 forbids). The deferred roster is flushed by
+   * `syncCodexRostersForSource` the moment the source attaches (reviewer F2).
+   */
+  private emitCodexRosterForTurn(turnKey: string): void {
+    const sourceId = this.codexRosterSourceId.get(turnKey);
+    if (!sourceId) {
+      return;
+    }
+    const source = this.sourcesById.get(sourceId);
+    if (!source || !(source.normalizer instanceof CodexRolloutNormalizer)) {
+      return;
+    }
+    this.storeAndEmitRoster(this.buildCodexRoster(turnKey, source.normalizer));
+  }
+
+  /**
+   * (Re)emit every roster block belonging to one source. Two callers, both
+   * enforcing F2 instead of asserting it: (a) `adoptSource` after the first drain
+   * — flushes any roster deferred while the source was discovering; (b)
+   * `consumeLines` after a `reset:true` batch — restores rosters the reset just
+   * deleted on the consumer. Idempotent: each block reuses its stable id + seq.
+   */
+  private syncCodexRostersForSource(sourceId: string): void {
+    const source = this.sourcesById.get(sourceId);
+    if (!source || !(source.normalizer instanceof CodexRolloutNormalizer)) {
+      return;
+    }
+    for (const [turnKey, sid] of this.codexRosterSourceId) {
+      if (sid === sourceId) {
+        this.storeAndEmitRoster(this.buildCodexRoster(turnKey, source.normalizer));
+      }
+    }
+  }
+
+  /**
+   * Evict one source's subagent roster state after a truncation-replacement.
+   * `dropSource` already removed the roster BLOCKS from blockStore; without this
+   * the agent maps would survive, and a later `settleSubagentTurn` for a
+   * pre-truncation turnKey would rebuild the dropped block as an empty husk turn
+   * in the body (reviewer F4). Keyed by the conversation source the rosters share.
+   */
+  private dropCodexSubagents(sourceId: string): void {
+    const turnKeys = new Set<string>();
+    for (const [turnKey, sid] of this.codexRosterSourceId) {
+      if (sid === sourceId) {
+        turnKeys.add(turnKey);
+      }
+    }
+    if (turnKeys.size === 0) {
+      return;
+    }
+    for (const [agentId, turnKey] of this.codexAgentTurnKey) {
+      if (turnKeys.has(turnKey)) {
+        this.codexAgents.delete(agentId);
+        this.codexAgentTurnKey.delete(agentId);
+      }
+    }
+    for (const turnKey of turnKeys) {
+      this.codexAgentRosters.delete(turnKey);
+      this.codexRosterSourceId.delete(turnKey);
+    }
+  }
+
+  /** Rebuild the roster block for one launch turn from the live agent map,
+   *  keeping a STABLE id + seq across upserts (the transcript-contract property
+   *  the status strip's signature guard relies on — mirrors the Claude roster's
+   *  upsert-in-place). Items are spread copies, so an already-emitted block is
+   *  never mutated by a later settle. A NEW block draws its `seq` from the
+   *  conversation source's normalizer (per-source ordering, contract §A1.3); an
+   *  existing block keeps its id + seq. The block shares the conversation source
+   *  id + the launch `turn_id`, so `buildReadingTurns` groups it INTO the spawning
+   *  turn, not a phantom turn of its own. */
+  private buildCodexRoster(turnKey: string, normalizer: CodexRolloutNormalizer): AgentRosterBlock {
+    const sourceId = this.codexRosterSourceId.get(turnKey) ?? `codex-subagents:${this.options.taskId}`;
+    const items: AgentRunItem[] = [];
+    let latestTs: string | null = null;
+    for (const [agentId, item] of this.codexAgents) {
+      if (this.codexAgentTurnKey.get(agentId) === turnKey) {
+        items.push({ ...item });
+        if (!latestTs || item.startedAt > latestTs) {
+          latestTs = item.startedAt;
+        }
+      }
+    }
+    const existing = this.codexAgentRosters.get(turnKey);
+    const ts = latestTs ?? existing?.ts ?? new Date().toISOString();
+    const updated: AgentRosterBlock = existing
+      ? { ...existing, items, ts }
+      : {
+          kind: "agents",
+          // `:agents:` namespaces the id away from any normalizer block on the
+          // same source (mirrors the Claude roster + codex `:plan:` blocks).
+          id: `${sourceId}:agents:${turnKey}`,
+          taskId: this.options.taskId,
+          sourceId,
+          provider: "codex",
+          turnKey,
+          runId: null,
+          ts,
+          seq: normalizer.allocateSeq(),
+          items,
+        };
+    this.codexAgentRosters.set(turnKey, updated);
+    return updated;
+  }
+
+  /** Store the synthesized roster block and emit it on the same
+   *  `transcript:blocks` channel the normalizer uses — so it lands in the same
+   *  `view.transcriptBlocks` the status strip reads. Never emitted with `reset`:
+   *  the source's own reset is scoped to its sourceId, and a roster deleted by
+   *  one is restored by `syncCodexRostersForSource`. */
+  private storeAndEmitRoster(block: AgentRosterBlock): void {
+    if (!this.blockStore.has(block.id)) {
+      this.blockOrder.push(block.id);
+    }
+    this.blockStore.set(block.id, block);
+    this.emitEvent({
+      type: "transcript:blocks",
+      payload: {
+        taskId: this.options.taskId,
+        sourceId: block.sourceId,
+        upserts: [block],
+        reset: false,
+      },
+      ts: new Date().toISOString(),
+    });
+  }
+
+  /** The conversation source id a fresh roster block joins — built from the
+   *  hook's `session_id` exactly as `adoptTranscriptFromHook` builds the rollout
+   *  source id (`codex:<sessionId>`), so the two group together and share the
+   *  source's seq counter. Falls back to a task-scoped synthetic id only if a
+   *  payload ever omits `session_id` (the strip still works; only body grouping
+   *  and the seq-sharing degrade). */
+  private conversationSourceId(payload: HookPayload): string {
+    const sessionId =
+      typeof payload.session_id === "string" && payload.session_id ? payload.session_id : null;
+    return sessionId ? `codex:${sessionId}` : `codex-subagents:${this.options.taskId}`;
   }
 
   dispose(): void {
@@ -240,6 +521,12 @@ export class ProviderTranscript {
     });
     attached.tailer.drain();
     attached.tailer.start();
+    // The source is now attached (and drained past its first reset) — flush any
+    // subagent roster deferred while it was still discovering (reviewer F2). The
+    // discovery-poll path (tryDiscover) is the real flush point in the
+    // adoption-trails race; a no-op when there are no pending rosters or for
+    // Claude sources.
+    this.syncCodexRostersForSource(ref.sourceId);
   }
 
   private createNormalizer(
@@ -322,6 +609,10 @@ export class ProviderTranscript {
         this.diagnosedUnattributed.delete(turnId);
       }
     }
+    // A truncation-replacement also invalidates any subagent roster synthesized
+    // for this source — drop the agent maps so a later settle can't resurrect a
+    // now-deleted block as an empty husk turn (reviewer F4).
+    this.dropCodexSubagents(sourceId);
   }
 
   private consumeLines(source: AttachedSource, lines: string[]): void {
@@ -355,6 +646,12 @@ export class ProviderTranscript {
         },
         ts: new Date().toISOString(),
       });
+    }
+    // A reset:true batch deleted this source's blocks on the consumer, including
+    // any subagent roster already synthesized for it — restore them (reviewer
+    // F2). No-op unless a roster exists for this source and the reset just fired.
+    if (reset) {
+      this.syncCodexRostersForSource(source.ref.sourceId);
     }
   }
 
