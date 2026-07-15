@@ -172,6 +172,15 @@ for (const m of code.matchAll(/font-weight:\s*(\d+)/g)) {
   if (weight === 700 && (fontFaceLines.has(line) || exceptionLines.has(line))) continue;
   fail("C/font-weight", `off-scale font-weight ${weight} — line ${line}`);
 }
+// Keyword weights: bold/bolder/lighter are all off-scale (only `normal` == 400 is sanctioned).
+for (const m of code.matchAll(/font-weight:\s*(bold|bolder|lighter)\b/g))
+  fail("C/font-weight", `keyword font-weight "${m[1]}" — line ${lineOf(m.index)}`);
+// Weight token inside the `font:` shorthand (a bare 100–900, before the size).
+for (const m of code.matchAll(/(?<![-\w])font:\s*([^;]*);/g)) {
+  const w = m[1].match(/(?<![.\w])(100|200|300|400|500|600|700|800|900)(?![\w.])/);
+  if (w && !["400", "500", "600"].includes(w[1]))
+    fail("C/font-weight", `off-scale weight ${w[1]} in font: shorthand — line ${lineOf(m.index)}`);
+}
 
 // ── (D) raw hex outside token layer (mask stencils + EXCEPTION rules OK) ──
 for (const m of code.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) {

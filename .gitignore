@@ -11,6 +11,9 @@ __pycache__/
 # Local scratch space (screenshots, one-off references)
 Temp/
 
+# Design-system verification screenshot matrix (S6 acceptance material — uncommitted)
+design/verify-2026-07-15/
+
 # Per-workspace runtime artifacts (statusline/hook sinks, usage) — never source.
 .duet/
 

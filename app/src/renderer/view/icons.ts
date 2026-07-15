@@ -30,7 +30,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
  * Woody's Comment glyph (`Temp/Comment/Comment.svg`): a rounded speech bubble
  * with a centered plus. The path data is inlined verbatim (240×240 viewBox).
  * The bubble and plus carry class hooks rather than baked-in fills so the color
- * flows from CSS tokens — the bubble reads `--quote-comment-accent`, the plus
+ * flows from CSS tokens — the bubble reads `--accent`, the plus
  * stays white (styles.css). This lives in icons.ts because it is the shared
  * icon home; the Quote & Comment view mounts it in its trigger.
  */

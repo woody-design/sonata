@@ -3076,7 +3076,7 @@ h2 {
 }
 
 /* The white card — the message and its controls. A distinct filled field
-   (Apple text-field pattern): its own elevated fill (--surface-panel, the
+   (Apple text-field pattern): its own elevated fill (--surface-raised, the
    brightest rung) + a hairline ring set it apart from the reading surface.
    The context row below is a separate tinted layer the card sits on. */
 .composer-card {
