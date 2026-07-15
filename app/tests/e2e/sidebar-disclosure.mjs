@@ -50,9 +50,11 @@ try {
   await captureSidebar(page, "project-initial-light");
 
   await setReadingModeViaUi(page, "dark");
+  // Design System Migration (S1b): the disclosure action rests at --text-tertiary
+  // (p-ink @ .50, an rgba overlay) and strengthens to --text-primary on hover.
   await assertDisclosureInk(page, {
-    resting: "rgb(164, 166, 165)",
-    hover: "rgb(232, 232, 232)",
+    resting: "rgba(216, 214, 209, 0.5)",
+    hover: "rgb(216, 214, 209)",
   });
   await captureSidebar(page, "project-initial-dark");
   await setReadingModeViaUi(page, "light");
@@ -169,9 +171,11 @@ async function assertDisclosureControlA11yAndStyles(page) {
     assertEqual(audit.height >= 28, true, `control ${index} hit height`);
   }
 
+  // Design System Migration (S1b): resting --text-tertiary → hover --text-primary
+  // (light warm-ink roles); the teal disclosure-ink is retired.
   await assertDisclosureInk(page, {
-    resting: "rgb(107, 109, 108)",
-    hover: "rgb(52, 53, 54)",
+    resting: "rgba(55, 53, 47, 0.5)",
+    hover: "rgb(55, 53, 47)",
   });
   const first = controls.first();
   await first.focus();
@@ -181,7 +185,7 @@ async function assertDisclosureControlA11yAndStyles(page) {
   });
   assertDeepEqual(
     focus,
-    { color: "rgb(79, 119, 109)", style: "solid", width: "2px" },
+    { color: "rgba(39, 110, 241, 0.55)", style: "solid", width: "2px" },
     "disclosure focus-visible ring",
   );
 

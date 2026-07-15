@@ -16,18 +16,6 @@ import { createSidebarFixture } from "./helpers/sidebar-fixture.mjs";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "../../..");
 const appRoot = path.join(repoRoot, "app");
-const beforeManifest = JSON.parse(
-  fs.readFileSync(
-    path.join(
-      repoRoot,
-      "product-thinking",
-      "sidebar-refactor-evidence",
-      "slice-0-before",
-      "manifest.json",
-    ),
-    "utf8",
-  ),
-);
 // Output defaults to a throwaway directory; the committed evidence tree
 // (product-thinking/sidebar-refactor-evidence/) is historical and must not
 // churn on verification runs — publishing there is an explicit argv[2] act.
@@ -49,42 +37,90 @@ const pageErrors = [];
 let fixture = null;
 let electronApp = null;
 
+// Design System Migration (S1b, 2026-07-15): the Sidebar joins the warm-ink
+// role system (spec: design/duet-design-system.html). Every value below is
+// derived from a role token, NOT from what happens to render. Chrome is
+// mode-aware but reading-theme/size invariant; chroma survives only for
+// needs-you (attention). Alpha overlays (hover/selected/tertiary) serialize
+// as rgba() because getComputedStyle reports the element's own color, not the
+// composited-over-parent result.
+//   surface       .sidebar bg            --surface-shell  (#f7f6f3 / #202020)
+//   ink           text/spinner/menu ink  --text-primary   (p-ink opaque)
+//   muted         section label / done   --text-tertiary  (p-ink @ .50)
+//   selected      .active row            --surface-selected (p-gray @ .20)
+//   hover         row / control / menu   --surface-hover  (p-gray @ .12)
+//   border        sidebar border-right   --border-hairline (p-ink @ .09)
+//   menuBorder    menu border            --border-default  (p-ink @ .16)
+//   input / menu  rename input / menu bg --surface-canvas / --surface-raised
+//   focus         focus rings + resizer  --focus-ring     (p-blue @ .55)
+//   attention     needs-you dot          --attention-icon (p-red-icon)
+//   done          finished-away dot      --text-tertiary  (== muted)
+//   danger        menu danger item       --attention-text (p-red)
+//   disabled      disabled menu ink      --text-placeholder (p-ink @ .34)
 const expectedByMode = {
   light: {
-    surface: "rgb(249, 248, 247)",
-    ink: "rgb(52, 53, 54)",
-    muted: "rgb(107, 109, 108)",
-    selected: "rgb(241, 240, 239)",
-    hover: "rgb(244, 243, 242)",
-    border: "rgb(229, 227, 224)",
+    surface: "rgb(247, 246, 243)",
+    ink: "rgb(55, 53, 47)",
+    muted: "rgba(55, 53, 47, 0.5)",
+    selected: "rgba(135, 131, 120, 0.2)",
+    hover: "rgba(135, 131, 120, 0.12)",
+    border: "rgba(55, 53, 47, 0.09)",
+    menuBorder: "rgba(55, 53, 47, 0.16)",
     input: "rgb(255, 255, 255)",
     menu: "rgb(255, 255, 255)",
-    accent: "rgb(53, 95, 84)",
-    focus: "rgb(79, 119, 109)",
-    attention: "rgb(160, 75, 60)",
-    done: "rgb(82, 118, 109)",
-    danger: "rgb(141, 63, 50)",
-    disabled: "rgb(137, 139, 138)",
-    controlHover: "rgb(236, 235, 234)",
-    menuHover: "rgb(244, 243, 242)",
+    focus: "rgba(39, 110, 241, 0.55)",
+    attention: "rgb(222, 17, 53)",
+    done: "rgba(55, 53, 47, 0.5)",
+    danger: "rgb(222, 17, 53)",
+    disabled: "rgba(55, 53, 47, 0.34)",
+    controlHover: "rgba(135, 131, 120, 0.12)",
+    menuHover: "rgba(135, 131, 120, 0.12)",
   },
   dark: {
     surface: "rgb(32, 32, 32)",
-    ink: "rgb(232, 232, 232)",
-    muted: "rgb(164, 166, 165)",
-    selected: "rgb(44, 44, 44)",
-    hover: "rgb(40, 40, 40)",
-    border: "rgb(56, 56, 56)",
-    input: "rgb(24, 24, 24)",
-    menu: "rgb(41, 41, 41)",
-    accent: "rgb(154, 200, 188)",
-    focus: "rgb(154, 200, 188)",
-    attention: "rgb(224, 160, 142)",
-    done: "rgb(168, 209, 198)",
-    danger: "rgb(240, 160, 141)",
-    disabled: "rgb(119, 121, 120)",
-    controlHover: "rgb(53, 53, 53)",
-    menuHover: "rgb(52, 52, 52)",
+    ink: "rgb(216, 214, 209)",
+    muted: "rgba(216, 214, 209, 0.5)",
+    selected: "rgba(168, 164, 155, 0.2)",
+    hover: "rgba(168, 164, 155, 0.12)",
+    border: "rgba(216, 214, 209, 0.09)",
+    menuBorder: "rgba(216, 214, 209, 0.16)",
+    input: "rgb(25, 25, 25)",
+    menu: "rgb(25, 25, 25)",
+    focus: "rgba(91, 146, 242, 0.55)",
+    attention: "rgb(241, 85, 108)",
+    done: "rgba(216, 214, 209, 0.5)",
+    danger: "rgb(241, 85, 108)",
+    disabled: "rgba(216, 214, 209, 0.34)",
+    controlHover: "rgba(168, 164, 155, 0.12)",
+    menuHover: "rgba(168, 164, 155, 0.12)",
+  },
+};
+
+// Main Pane invariance: Sidebar work must not perturb the reading pane. The
+// pane is chrome-neutral in this post-S1 state — the reading paper/ink layer is
+// not wired until S2 — so `.task-entry-panel` inherits --text-primary and
+// --font-ui straight from :root: mode-aware, reading-theme INVARIANT. Derived
+// from the role tokens rather than read from the historical slice-0-before
+// manifest (that committed evidence tree is frozen; it encodes the pre-
+// migration per-theme palette and must not churn on verification runs).
+const expectedMainPaneByMode = {
+  light: {
+    backgroundColor: "rgba(0, 0, 0, 0)",
+    color: "rgb(55, 53, 47)",
+    // --font-ui source is `-apple-system, BlinkMacSystemFont, "PingFang SC",
+    // sans-serif`; Chromium's getComputedStyle serializes the BlinkMacSystemFont
+    // identifier as the quoted "system-ui" string. No "SF Pro Text" (migration
+    // removed it); -apple-system + PingFang SC + sans-serif all present.
+    fontFamily: '-apple-system, "system-ui", "PingFang SC", sans-serif',
+  },
+  dark: {
+    backgroundColor: "rgba(0, 0, 0, 0)",
+    color: "rgb(216, 214, 209)",
+    // --font-ui source is `-apple-system, BlinkMacSystemFont, "PingFang SC",
+    // sans-serif`; Chromium's getComputedStyle serializes the BlinkMacSystemFont
+    // identifier as the quoted "system-ui" string. No "SF Pro Text" (migration
+    // removed it); -apple-system + PingFang SC + sans-serif all present.
+    fontFamily: '-apple-system, "system-ui", "PingFang SC", sans-serif',
   },
 };
 
@@ -123,10 +159,7 @@ try {
         "color",
         "fontFamily",
       ]);
-      const before = beforeManifest.visualBaselines.find(
-        (entry) => entry.theme === theme && entry.mode === mode,
-      );
-      assertDeepEqual(actualMain, before?.styles?.mainPane, `${theme}/${mode} Main Pane baseline`);
+      assertDeepEqual(actualMain, expectedMainPaneByMode[mode], `${theme}/${mode} Main Pane baseline`);
     }
   }
 
@@ -488,8 +521,12 @@ function assertChromeSnapshot(actual, expected, label) {
   assertEqual(actual.sidebar.borderRightColor, expected.border, `${label} border`);
   assertEqual(actual.sidebar.color, expected.ink, `${label} base ink`);
   assertEqual(actual.sidebar.fontSize, "13px", `${label} fixed Sidebar font size`);
+  // Sidebar rides --font-ui, decoupled from the reading font. "SF Pro Text" is
+  // dead in Chromium (probe-verified) and was removed from the stack in the
+  // migration; assert it is gone and the -apple-system system stack is present.
   if (
-    !actual.sidebar.fontFamily.includes("SF Pro Text") ||
+    actual.sidebar.fontFamily.includes("SF Pro Text") ||
+    !actual.sidebar.fontFamily.includes("-apple-system") ||
     !actual.sidebar.fontFamily.includes("PingFang SC")
   ) {
     throw new Error(`${label} does not use the stable Sidebar UI font stack`);
@@ -506,7 +543,7 @@ function assertChromeSnapshot(actual, expected, label) {
   assertEqual(actual.spinnerRole, "img", `${label} spinner accessible role`);
   assertEqual(actual.spinnerLabel, "Working", `${label} spinner accessible name`);
   assertEqual(actual.menu.backgroundColor, expected.menu, `${label} menu surface`);
-  assertEqual(actual.menu.borderColor, expected.border, `${label} menu border`);
+  assertEqual(actual.menu.borderColor, expected.menuBorder, `${label} menu border`);
   assertEqual(actual.menu.color, expected.ink, `${label} menu ink`);
   assertEqual(actual.menu.fontFamily, actual.sidebar.fontFamily, `${label} menu font`);
   assertEqual(actual.danger, expected.danger, `${label} menu danger`);
@@ -527,7 +564,9 @@ function assertChromeSnapshot(actual, expected, label) {
     `${label} filter focus ring`,
   );
   assertEqual(actual.filterHover, expected.controlHover, `${label} filter hover`);
-  assertEqual(actual.filterCheck, expected.accent, `${label} filter check`);
+  // The filter check mark de-chromed to neutral ink (structural decision ①:
+  // sidebar chroma = needs-you only). Asserting == ink guards the de-chrome.
+  assertEqual(actual.filterCheck, expected.ink, `${label} filter check`);
   assertEqual(actual.disabled.color, expected.disabled, `${label} disabled resolved ink`);
   assertEqual(actual.disabled.opacity, "0.55", `${label} disabled opacity`);
   assertEqual(actual.newChatHover, expected.hover, `${label} new-chat hover`);
