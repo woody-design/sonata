@@ -4079,7 +4079,7 @@ h2 {
 .compaction-marker-label {
   flex: 0 0 auto;
   color: var(--text-placeholder);
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.02em;
 }
 
@@ -4334,7 +4334,7 @@ h2 {
 .md-body pre {
   margin: 0;
   border: 1px solid rgb(var(--reading-ink) / 0.08);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: rgb(var(--reading-ink) / 0.045);
   /* Right inset reserves the permanent 28px copy target + its 7px edge gap,
      so the first line never renders beneath the control. */
@@ -4372,6 +4372,7 @@ h2 {
 .md-body pre code {
   background: none;
   padding: 0;
+  color: rgb(var(--reading-ink) / 0.88);
   font-size: var(--text-code-block);
   line-height: var(--leading-code);
 }
