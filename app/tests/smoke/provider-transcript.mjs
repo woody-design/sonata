@@ -876,12 +876,182 @@ check("claude: legacy user records without promptSource keep fallback heuristic"
   assert.notEqual(upserts[0].turnKey, upserts[2].turnKey);
 });
 
+// --- Claude compaction boundary (S7, P3 fixtures) ----------------------------
+// Records verbatim from spikes/compaction-records-2026-07/claude-compaction-
+// records.json (Claude Code 2.1.210). The `system/compact_boundary` becomes a
+// standalone marker; the following `isCompactSummary` user record is machinery
+// that must NEVER render as a prompt bubble; the post-compact prompt opens its
+// own turn, undisturbed.
+check("claude: compact_boundary becomes a standalone compaction marker (P3)", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s1" });
+  const boundaryUuid = "826334da-0de3-4169-8402-90da2a7ef49e";
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u-pre",
+      promptId: "p-pre",
+      timestamp: "2026-07-15T10:00:00.000Z",
+      message: { role: "user", content: "In one short sentence, what is a JSONL file?" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a-pre",
+      promptId: "p-pre",
+      timestamp: "2026-07-15T10:00:02.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "One JSON object per line." }] },
+    }),
+    // The purpose-built boundary record (P3 Record A).
+    claudeLine({
+      parentUuid: null,
+      logicalParentUuid: "f668fffc-1759-4919-a071-afef527aa042",
+      type: "system",
+      subtype: "compact_boundary",
+      content: "Conversation compacted",
+      level: "info",
+      compactMetadata: {
+        trigger: "manual",
+        preTokens: 49322,
+        postTokens: 3040,
+      },
+      uuid: boundaryUuid,
+      timestamp: "2026-07-15T10:04:50.972Z",
+      sessionId: "fdb660e5",
+      version: "2.1.210",
+    }),
+    // The summary payload (P3 Record B): isCompactSummary + isVisibleInTranscriptOnly.
+    // Must be skipped — it is NOT the user's words. ts is ~130ms EARLIER than the
+    // boundary but file order wins.
+    claudeLine({
+      parentUuid: boundaryUuid,
+      type: "user",
+      isCompactSummary: true,
+      isVisibleInTranscriptOnly: true,
+      message: {
+        role: "user",
+        content: "This session is being continued from a previous conversation…\n\nSummary:\n1. Primary Request…",
+      },
+      uuid: "f9dc14ed-f813-4ad5-a23b-5dce634fdaca",
+      timestamp: "2026-07-15T10:04:50.838Z",
+      sessionId: "fdb660e5",
+    }),
+    // A real post-compact prompt: its own turn, unaffected by the boundary.
+    claudeLine({
+      type: "user",
+      uuid: "u-post",
+      promptId: "p-post",
+      promptSource: "typed",
+      timestamp: "2026-07-15T10:05:00.000Z",
+      message: { role: "user", content: "Now what does idempotent mean?" },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+
+  assert.deepEqual(
+    upserts.map((block) => block.kind),
+    ["user-message", "assistant-text", "compaction", "user-message"],
+    "the summary user-record is skipped; the boundary is the only new block",
+  );
+  const compaction = upserts[2];
+  assert.equal(compaction.trigger, "manual", "claude carries compactMetadata.trigger");
+  assert.equal(compaction.turnKey, `compact-${boundaryUuid}`, "own dedicated turn key");
+  assert.equal(compaction.id, `claude:s1:${boundaryUuid}:compaction`, "id derived from the boundary uuid");
+  // The marker sits in its OWN turn — never folded into the prior reply or the
+  // next prompt.
+  assert.notEqual(compaction.turnKey, upserts[1].turnKey, "not the prior turn");
+  assert.notEqual(compaction.turnKey, upserts[3].turnKey, "not the post-compact turn");
+  assert.equal(upserts[3].text, "Now what does idempotent mean?", "post-compact prompt intact");
+  assert.equal(upserts[3].turnKey, "p-post", "post-compact prompt keeps its own promptId turn");
+});
+
+check("claude: auto-compaction continuation reply attributes to a post-boundary turn (not the pre-compact turn)", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s1" });
+  const upserts = [];
+  const lines = [
+    claudeLine({
+      type: "user",
+      uuid: "u-pre",
+      promptId: "p-pre",
+      timestamp: "2026-07-15T10:00:00.000Z",
+      message: { role: "user", content: "Do a long task" },
+    }),
+    claudeLine({
+      type: "assistant",
+      uuid: "a-pre",
+      promptId: "p-pre",
+      timestamp: "2026-07-15T10:00:02.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Working on it." }] },
+    }),
+    claudeLine({
+      type: "system",
+      subtype: "compact_boundary",
+      content: "Conversation compacted",
+      compactMetadata: { trigger: "auto" },
+      uuid: "boundary-auto",
+      timestamp: "2026-07-15T10:00:03.000Z",
+    }),
+    // The summary injection (skipped as a block) — carries the continuation promptId.
+    claudeLine({
+      type: "user",
+      isCompactSummary: true,
+      isVisibleInTranscriptOnly: true,
+      promptId: "p-continue",
+      uuid: "summary-1",
+      timestamp: "2026-07-15T10:00:03.500Z",
+      message: { role: "user", content: "Summary: …" },
+    }),
+    // The AUTO-continuation reply (no new user prompt) carries the summary's promptId.
+    claudeLine({
+      type: "assistant",
+      uuid: "a-post",
+      promptId: "p-continue",
+      timestamp: "2026-07-15T10:00:05.000Z",
+      message: { role: "assistant", content: [{ type: "text", text: "Continuing after compaction." }] },
+    }),
+  ];
+  for (const line of lines) {
+    upserts.push(...normalizer.consumeLine(line));
+  }
+  assert.deepEqual(
+    upserts.map((block) => block.kind),
+    ["user-message", "assistant-text", "compaction", "assistant-text"],
+    "summary emits no block; the continuation reply is a normal assistant-text",
+  );
+  const continuationReply = upserts[3];
+  assert.equal(
+    continuationReply.turnKey,
+    "p-continue",
+    "the continuation reply attributes to the post-boundary continuation turn, NOT p-pre",
+  );
+  assert.notEqual(continuationReply.turnKey, upserts[1].turnKey, "not folded into the pre-compact turn");
+});
+
+check("claude: an 'auto' compaction carries trigger:auto", () => {
+  const normalizer = new ClaudeSessionNormalizer({ taskId: "task-1", sourceId: "claude:s1" });
+  const blocks = normalizer.consumeLine(
+    claudeLine({
+      type: "system",
+      subtype: "compact_boundary",
+      content: "Conversation compacted",
+      compactMetadata: { trigger: "auto" },
+      uuid: "auto-uuid",
+      timestamp: "2026-07-15T10:04:50.972Z",
+    }),
+  );
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].kind, "compaction");
+  assert.equal(blocks[0].trigger, "auto");
+});
+
 // --- Codex normalizer --------------------------------------------------------
 
-check("codex: event text, tool pairing, exit-code status, no duplication (0.142.5)", () => {
+check("codex: event text, tool pairing, exit-code status, no duplication (0.144.4 shape)", () => {
   const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
   const upserts = [];
   const turnId = "019f36e2-1111-7000-8000-000000000001";
+  const compactionTurnId = "019f36e2-2222-7000-8000-000000000002";
   const lines = [
     JSON.stringify({
       timestamp: "2026-07-06T10:00:00.000Z",
@@ -955,10 +1125,18 @@ check("codex: event text, tool pairing, exit-code status, no duplication (0.142.
         output: "Wall time: 6 seconds\nProcess exited with code 1\nOutput:\n1 failing test",
       },
     }),
+    // Real codex (P3): compaction is a non-user-initiated boundary TURN — its
+    // own task_started (new turn_id, no user_message) precedes the top-level
+    // `compacted` record, so the marker groups alone, not into the reply turn.
+    JSON.stringify({
+      timestamp: "2026-07-06T10:00:09.500Z",
+      type: "event_msg",
+      payload: { type: "task_started", turn_id: compactionTurnId },
+    }),
     JSON.stringify({
       timestamp: "2026-07-06T10:00:10.000Z",
       type: "compacted",
-      payload: { message: "compacted" },
+      payload: { message: "" },
     }),
   ];
   for (const line of lines) {
@@ -967,7 +1145,7 @@ check("codex: event text, tool pairing, exit-code status, no duplication (0.142.
 
   assert.deepEqual(
     upserts.map((block) => block.kind),
-    ["user-message", "assistant-text", "tool-call", "tool-call", "system-note"],
+    ["user-message", "assistant-text", "tool-call", "tool-call", "compaction"],
   );
   assert.equal(upserts[0].text, "Fix the bug");
   // The turn is keyed by the rollout's real turn_id (the run↔turn bridge), not
@@ -979,6 +1157,67 @@ check("codex: event text, tool pairing, exit-code status, no duplication (0.142.
   assert.equal(toolFinal.status, "error");
   assert.equal(toolFinal.summary, "npm test");
   assert.equal(toolFinal.durationMs, 6000);
+  // The compaction marker: promoted to the dedicated boundary kind (was a
+  // generic system-note), keyed to its OWN boundary turn (standalone group),
+  // no manual/auto trigger (codex carries none).
+  const compaction = upserts[4];
+  assert.equal(compaction.kind, "compaction");
+  assert.equal(compaction.turnKey, compactionTurnId, "compaction in its own boundary turn");
+  assert.notEqual(compaction.turnKey, turnId, "not folded into the reply turn");
+  assert.equal(compaction.trigger, null, "codex compacted carries no trigger");
+});
+
+// The REAL captured 0.144.4 `compacted` record (spikes/compaction-records-
+// 2026-07/codex-compacted-record.json): rich payload (replacement_history with an
+// encrypted `compaction` item, window ids). The marker must emit; the encrypted
+// summary must NEVER leak into the block (no plaintext exists — disclosure v2 is
+// impossible for codex).
+check("codex: the real 0.144.4 compacted record → a marker, no summary leak (P3)", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const boundaryTurnId = "019f6535-da11-7163-9a4d-b9390d489271";
+  const fernet = "gAAAAABqV1mSGPgM9R3XdyK3GoAYU50cRLDRaePlgRXa1ADHEaMbXQOza8ruRF86TYont0AF0vu1AX";
+  const lines = [
+    JSON.stringify({
+      timestamp: "2026-07-15T09:57:35.892Z",
+      type: "event_msg",
+      payload: { type: "task_started", turn_id: boundaryTurnId, collaboration_mode_kind: "default" },
+    }),
+    JSON.stringify({
+      timestamp: "2026-07-15T09:57:38.717Z",
+      type: "compacted",
+      payload: {
+        message: "",
+        replacement_history: [
+          {
+            type: "compaction",
+            id: "cmp_02e190061257820a016a575990ef0081978b143c8b85d3b4a5",
+            encrypted_content: fernet,
+          },
+        ],
+        window_number: 1,
+        window_id: "019f6535-e51d-7983-b19e-ecaadcb94a15",
+      },
+    }),
+    // The event-mirror co-fires 2 records later; the record already emitted the
+    // single marker, so this must be ignored (no double note).
+    JSON.stringify({
+      timestamp: "2026-07-15T09:57:38.721Z",
+      type: "event_msg",
+      payload: { type: "context_compacted" },
+    }),
+  ];
+  const blocks = [];
+  for (const line of lines) {
+    blocks.push(...normalizer.consumeLine(line));
+  }
+  assert.equal(blocks.length, 1, "one marker only — context_compacted is ignored");
+  const compaction = blocks[0];
+  assert.equal(compaction.kind, "compaction");
+  assert.equal(compaction.trigger, null);
+  assert.equal(compaction.turnKey, boundaryTurnId, "keyed to the boundary task_started turn");
+  const serialized = JSON.stringify(compaction);
+  assert.ok(!serialized.includes(fernet), "the encrypted summary never enters the block");
+  assert.ok(!serialized.includes("replacement_history"), "no raw payload leaks into the block");
 });
 
 // --- Codex usage → display wiring (S6) ---------------------------------------

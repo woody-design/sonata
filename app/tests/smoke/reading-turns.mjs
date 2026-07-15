@@ -133,6 +133,58 @@ function view({ runs = [], blocks = [], runTranscripts = [] } = {}) {
   );
 }
 
+// 4b) Compaction boundary (S7): the marker groups into its OWN turn and is
+// recognized by isCompactionTurn so the renderer draws a separator, not a husk.
+{
+  // Claude shape: a prior reply turn, then a compaction marker on its dedicated
+  // `compact-<uuid>` key, then a post-compact turn.
+  const reply = block("assistant-text", "t1", "run-1", {
+    markdown: "one json object per line",
+    ts: "2026-07-03T10:00:00.000Z",
+  });
+  const marker = block("compaction", "compact-abc", null, {
+    trigger: "manual",
+    ts: "2026-07-03T10:01:00.000Z",
+  });
+  const post = block("user-message", "t2", null, {
+    text: "next",
+    command: null,
+    attachments: [],
+    ts: "2026-07-03T10:02:00.000Z",
+  });
+  const turns = T.buildReadingTurns(view({ blocks: [reply, marker, post] }));
+  assert.equal(turns.length, 3, "the marker is its own turn group, between the two turns");
+  const markerTurn = turns.find((t) => t.key === "src-1:compact-abc");
+  assert.ok(markerTurn, "marker turn keyed by sourceId:compact-<uuid>");
+  assert.equal(markerTurn.blocks.length, 1, "the marker turn holds only the compaction block");
+  assert.equal(
+    T.isCompactionTurn(markerTurn),
+    true,
+    "a compaction-only turn is recognized as a marker (renders as a separator)",
+  );
+  // The two conversational turns are NOT compaction turns.
+  assert.equal(T.isCompactionTurn(turns.find((t) => t.key === "src-1:t1")), false);
+  assert.equal(T.isCompactionTurn(turns.find((t) => t.key === "src-1:t2")), false);
+}
+
+// 4c) PHANTOM-HUSK REGRESSION (mirrors S6): a marker folded into a real turn
+// must NOT be a compaction turn — else the renderer would suppress the whole
+// turn (its reply) behind a separator. isCompactionTurn is exact, not "contains
+// a compaction block".
+{
+  const reply = block("assistant-text", "tX", "run-9", { markdown: "answer", ts: "2026-07-03T10:00:00.000Z" });
+  const strayMarker = block("compaction", "tX", null, { trigger: null, ts: "2026-07-03T10:00:01.000Z" });
+  const turns = T.buildReadingTurns(view({ blocks: [reply, strayMarker] }));
+  assert.equal(turns.length, 1, "same turnKey → one group");
+  assert.equal(
+    T.isCompactionTurn(turns[0]),
+    false,
+    "a turn mixing a reply and a compaction block is NOT a compaction turn — the reply must render",
+  );
+  // And an empty turn is never a compaction turn (guards the length>0 clause).
+  assert.equal(T.isCompactionTurn({ blocks: [] }), false, "empty turn is not a compaction turn");
+}
+
 // 5) Signature tracker — block-ref versioning with a fresh tracker.
 {
   const tracker = T.createTurnSignatureTracker();

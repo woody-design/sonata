@@ -77,9 +77,11 @@ check("profile is BYTE-STABLE across two spawn-preps (sha unchanged)", () => {
 
 check("profile carries the consumed hook set in the probe-verified shape", () => {
   const toml = fs.readFileSync(profilePath, "utf8");
-  // Run-lifecycle spine + the subagent-roster pair (S6). SubagentStart/Stop feed
-  // the status-strip roster (Codex subagents live in their own rollouts, so the
-  // hooks are the only source).
+  // Run-lifecycle spine + the subagent-roster pair (S6) + the compaction pair
+  // (S7). SubagentStart/Stop feed the status-strip roster (Codex subagents live
+  // in their own rollouts, so the hooks are the only source). PreCompact/
+  // PostCompact are registered for signal completeness (they flow to the sink);
+  // Duet does not consume them — the compaction marker is transcript-derived.
   for (const event of [
     "SessionStart",
     "UserPromptSubmit",
@@ -88,15 +90,16 @@ check("profile carries the consumed hook set in the probe-verified shape", () =>
     "Stop",
     "SubagentStart",
     "SubagentStop",
+    "PreCompact",
+    "PostCompact",
   ]) {
     assert.ok(toml.includes(`[[hooks.${event}]]`), `${event} block present`);
     assert.ok(toml.includes(`[[hooks.${event}.hooks]]`), `${event}.hooks present`);
   }
   assert.ok(toml.includes("[[hooks.PermissionRequest]]"), "PermissionRequest present");
   assert.ok(toml.includes("timeout = 120"), "broker timeout frozen at 120s");
-  // Unregistered: Claude-only events (no Codex equivalent) and the compaction
-  // pair deferred to S7 (no consumer yet → no claim).
-  for (const absent of ["Notification", "StopFailure", "PreCompact", "PostCompact"]) {
+  // Unregistered: Claude-only events with no Codex equivalent.
+  for (const absent of ["Notification", "StopFailure"]) {
     assert.ok(!toml.includes(`[[hooks.${absent}]]`), `${absent} must NOT be registered`);
     assert.ok(!toml.includes(`hooks.${absent}.hooks`), `${absent}.hooks must NOT be registered`);
   }
