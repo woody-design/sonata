@@ -4,12 +4,24 @@ import type { SlashCommandEntry } from "../types/slash";
 /**
  * Curated built-in command snapshots.
  *
- * Neither CLI exposes a machine-readable command list (verified 2026-06-12:
- * no CLI flag, config, or app-server method), so these are version-pinned
- * snapshots: Claude Code 2.1.x, Codex CLI 0.139/0.140. Staleness degrades
- * gracefully by design — an unknown typed command still forwards to the PTY
- * (after the unknown-command caution), and a missing new command only means
- * it is absent from the picker until the snapshot is refreshed.
+ * Neither CLI exposes a machine-readable command list (re-verified 2026-07-14:
+ * no CLI flag, config, or app-server method — `claude --help` lists only
+ * process flags; `codex --help`/`codex completion` cover binary subcommands,
+ * not the interactive `/` picker), so these are version-pinned snapshots:
+ * Claude Code 2.1.210, Codex CLI 0.144.4 (probed live via node-pty — see
+ * spikes/slash-pool-2026-07/). Staleness degrades gracefully by design — an
+ * unknown typed command still forwards to the PTY (after the unknown-command
+ * caution), and a missing new command only means it is absent from the picker
+ * until the snapshot is refreshed.
+ *
+ * Curation boundary: only first-party CLI builtins are snapshotted. The user's
+ * personal skills and installed plugins (which also appear in the live picker)
+ * are deliberately excluded — they are per-environment, not universal.
+ *
+ * Claude aliases: 2.1.210 folds aliases under a canonical command in the picker
+ * (`/rewind (checkpoint)`, `/usage (stats|cost)`, `/tasks (bashes)`,
+ * `/exit (quit)`, `/plugin (plugins)`). Both the canonical and alias spellings
+ * are still accepted, so both stay listed as known-but-unlisted.
  *
  * Every entry submits verbatim (S3, two-window contract): a command that
  * opens an interactive panel opens it in the co-visible terminal window,
@@ -19,7 +31,8 @@ import type { SlashCommandEntry } from "../types/slash";
  *
  * Listing policy (v0 carried forward): the listed set predates S3; panels are
  * now safe to list (visible terminal) — widening the set is a follow-up, not
- * a routing concern.
+ * a routing concern. `/fast` (claude) is listed as a first-class Duet concept
+ * (fast mode); every other new command defaults to unlisted.
  */
 
 interface BuiltinSpec {
@@ -77,7 +90,7 @@ const CLAUDE_BUILTINS: BuiltinSpec[] = [
   },
   {
     name: "review",
-    description: "Review a pull request",
+    description: "Review a GitHub pull request",
     argumentHint: "[pr-number]",
     listed: true,
   },
@@ -100,57 +113,91 @@ const CLAUDE_BUILTINS: BuiltinSpec[] = [
   },
   {
     name: "btw",
-    description: "Ask a side question without adding it to history",
+    description: "Ask a quick side question without interrupting the conversation",
     argumentHint: "[question]",
+    listed: true,
+  },
+  {
+    name: "fast",
+    description: "Toggle fast mode (Opus only)",
     listed: true,
   },
 
   // Known but unlisted: typed invocations forward verbatim; panels open in
   // the terminal window.
-  { name: "config", description: "Open the settings dialog" },
-  { name: "theme", description: "Change the color theme" },
+  { name: "config", description: "Open settings" },
+  { name: "theme", description: "Change the theme" },
   { name: "help", description: "Show help and available commands" },
-  { name: "resume", description: "Resume a previous session" },
-  { name: "agents", description: "Manage subagent configurations" },
-  { name: "mcp", description: "Manage MCP server connections" },
-  { name: "memory", description: "Edit memory files" },
-  { name: "hooks", description: "View hook configurations" },
-  { name: "doctor", description: "Diagnose the installation" },
+  { name: "resume", description: "Resume a previous conversation" },
+  { name: "agents", description: "Create or manage subagents (deprecated in-CLI)" },
+  { name: "mcp", description: "Manage MCP servers" },
+  { name: "memory", description: "Open a memory file in your editor" },
+  { name: "hooks", description: "View hook configurations for tool events" },
+  { name: "doctor", description: "Health-check and fix the Claude Code setup" },
   { name: "skills", description: "List available skills" },
-  { name: "export", description: "Export the conversation" },
-  { name: "rewind", description: "Rewind code or conversation" },
-  { name: "checkpoint", description: "Rewind code or conversation" },
-  { name: "undo", description: "Rewind code or conversation" },
-  { name: "release-notes", description: "View the changelog" },
-  { name: "plugin", description: "Manage plugins" },
-  { name: "context", description: "Visualize context usage" },
-  { name: "usage", description: "Show plan usage and limits" },
-  { name: "stats", description: "Show usage statistics" },
-  { name: "diff", description: "View changes in this session" },
+  { name: "export", description: "Export the conversation to a file or clipboard" },
+  { name: "rewind", description: "Restore the code and/or conversation to a previous point" },
+  { name: "checkpoint", description: "Restore to a previous point (alias of /rewind)" },
+  { name: "undo", description: "Restore to a previous point (alias of /rewind)" },
+  { name: "release-notes", description: "View release notes" },
+  { name: "plugin", description: "Manage Claude Code plugins" },
+  { name: "context", description: "Visualize current context usage" },
+  { name: "usage", description: "Show session cost, plan usage, and activity stats" },
+  { name: "stats", description: "Session cost and usage (alias of /usage)" },
+  { name: "diff", description: "View uncommitted changes and per-turn diffs" },
   { name: "ide", description: "Manage IDE integrations" },
-  { name: "cost", description: "Show session cost" },
-  { name: "recap", description: "Summarize this session in one line" },
-  { name: "copy", description: "Copy the last response" },
-  { name: "tasks", description: "Show background tasks" },
-  { name: "bashes", description: "Show background shells" },
-  { name: "clear", description: "Start a new conversation" },
-  { name: "rename", description: "Rename this session" },
-  { name: "plan", description: "Enter plan mode" },
-  { name: "fast", description: "Toggle fast mode" },
-  { name: "goal", description: "Set a goal to work toward" },
-  { name: "add-dir", description: "Add a working directory" },
-  { name: "background", description: "Continue as a background agent" },
-  { name: "fork", description: "Fork the conversation" },
-  { name: "branch", description: "Create a conversation branch" },
-  { name: "cd", description: "Change the working directory" },
+  { name: "cost", description: "Session cost and usage (alias of /usage)" },
+  { name: "recap", description: "Generate a one-line session recap" },
+  { name: "copy", description: "Copy the last response to the clipboard" },
+  { name: "tasks", description: "View and manage background tasks" },
+  { name: "bashes", description: "Background tasks (alias of /tasks)" },
+  { name: "clear", description: "Start a new session with empty context" },
+  { name: "rename", description: "Rename the current conversation" },
+  { name: "plan", description: "Enable plan mode or view the session plan" },
+  { name: "goal", description: "Set a goal Claude checks before stopping" },
+  { name: "add-dir", description: "Add a new working directory" },
+  { name: "background", description: "Send this session to the background" },
+  { name: "fork", description: "Spawn a background agent that inherits the conversation" },
+  { name: "branch", description: "Create a conversation branch at this point" },
+  { name: "cd", description: "Move this session to a new working directory" },
   { name: "exit", description: "Exit the CLI" },
-  { name: "quit", description: "Exit the CLI" },
-  { name: "loop", description: "Run a prompt on an interval" },
-  { name: "schedule", description: "Manage scheduled routines" },
+  { name: "quit", description: "Exit the CLI (alias of /exit)" },
+  { name: "loop", description: "Run a prompt or slash command on an interval" },
+  { name: "schedule", description: "Create and manage scheduled cloud agents" },
   { name: "deep-research", description: "Deep research with cited sources" },
-  { name: "debug", description: "Troubleshoot with debug logging" },
-  { name: "run", description: "Launch the app to verify a change" },
-  { name: "verify", description: "Verify a change by running it" },
+  { name: "debug", description: "Enable debug logging for this session" },
+  { name: "run", description: "Launch and drive this project's app to verify a change" },
+  { name: "verify", description: "Verify a change by exercising it end-to-end" },
+
+  // New in 2.1.210 (first-party builtins; unlisted).
+  { name: "advisor", description: "Let Claude consult a stronger model at key moments" },
+  { name: "artifacts", description: "Browse your published and shared artifacts" },
+  { name: "chrome", description: "Open Claude in Chrome settings" },
+  { name: "color", description: "Set the prompt bar color for this session" },
+  { name: "desktop", description: "Continue the current session in Claude Desktop" },
+  { name: "feedback", description: "Submit feedback or report a bug" },
+  { name: "focus", description: "Toggle focus view" },
+  { name: "install-github-app", description: "Set up Claude GitHub Actions for a repository" },
+  { name: "install-slack-app", description: "Install the Claude Slack app" },
+  { name: "keybindings", description: "Open your keyboard shortcuts file" },
+  { name: "login", description: "Sign in with your Anthropic account" },
+  { name: "logout", description: "Sign out from your Anthropic account" },
+  { name: "mobile", description: "Show a QR code to download the Claude mobile app" },
+  { name: "powerup", description: "Discover Claude Code features through quick lessons" },
+  { name: "privacy-settings", description: "View and update your privacy settings" },
+  { name: "radio", description: "Listen to Claude FM lo-fi radio" },
+  { name: "reload-plugins", description: "Activate pending plugin changes in this session" },
+  { name: "reload-skills", description: "Pick up skills changed on disk during this session" },
+  { name: "remote-control", description: "Control this session from your phone or claude.ai/code" },
+  { name: "remote-env", description: "Choose the default environment for cloud agents" },
+  { name: "sandbox", description: "Configure the command sandbox" },
+  { name: "scroll-speed", description: "Adjust mouse wheel scroll speed" },
+  { name: "stickers", description: "Order Claude Code stickers" },
+  { name: "terminal-setup", description: "Enable Option+Enter for newlines and visual bell" },
+  { name: "tui", description: "Set the CLI renderer (default | fullscreen)" },
+  { name: "upgrade", description: "Upgrade to Max for higher rate limits" },
+  { name: "usage-credits", description: "Configure or request usage credits" },
+  { name: "voice", description: "Toggle voice mode" },
 ];
 
 const CODEX_BUILTINS: BuiltinSpec[] = [
@@ -166,7 +213,7 @@ const CODEX_BUILTINS: BuiltinSpec[] = [
   },
   {
     name: "compact",
-    description: "Compact this thread's context",
+    description: "Compact the conversation to free up context",
     listed: true,
   },
   {
@@ -186,50 +233,49 @@ const CODEX_BUILTINS: BuiltinSpec[] = [
   },
   {
     name: "mcp",
-    description: "Show MCP server status",
+    description: "List configured MCP tools and servers",
     listed: true,
   },
 
   // Known but unlisted.
-  { name: "review", description: "Review changes against a branch" },
-  { name: "new", description: "Start a new thread" },
-  { name: "clear", description: "Clear and start a new thread" },
-  { name: "archive", description: "Archive this thread" },
-  { name: "delete", description: "Delete this thread" },
-  { name: "resume", description: "Resume a previous thread" },
-  { name: "fork", description: "Fork this thread" },
-  { name: "app", description: "Hand off to Codex Desktop" },
-  { name: "plan", description: "Switch to plan mode" },
-  { name: "goal", description: "Set a goal for Codex" },
-  { name: "agent", description: "Open agent threads" },
-  { name: "subagents", description: "Open agent threads" },
-  { name: "side", description: "Open a side conversation" },
-  { name: "btw", description: "Open a side conversation" },
-  { name: "copy", description: "Copy the last response" },
-  { name: "raw", description: "Toggle raw scrollback mode" },
-  { name: "mention", description: "Insert an @ file mention" },
-  { name: "skills", description: "List available skills" },
-  { name: "hooks", description: "Show lifecycle hooks" },
-  { name: "plugins", description: "Show installed plugins" },
-  { name: "ps", description: "Show background terminals" },
-  { name: "stop", description: "Stop background terminals" },
-  { name: "clean", description: "Stop background terminals" },
+  { name: "review", description: "Review your current changes and find issues" },
+  { name: "new", description: "Start a new session during a conversation" },
+  { name: "clear", description: "Clear the screen and start a new session" },
+  { name: "archive", description: "Archive this session and exit" },
+  { name: "delete", description: "Permanently delete this session and exit" },
+  { name: "resume", description: "Resume a saved chat" },
+  { name: "fork", description: "Fork the current chat" },
+  { name: "app", description: "Continue this session in Codex Desktop" },
+  { name: "plan", description: "Switch to Plan mode" },
+  { name: "goal", description: "Set or view the goal for a long-running task" },
+  { name: "agent", description: "Switch the active agent thread" },
+  { name: "subagents", description: "Switch the active agent thread" },
+  { name: "side", description: "Start a side conversation in an ephemeral fork" },
+  { name: "btw", description: "Start a side conversation in an ephemeral fork" },
+  { name: "copy", description: "Copy the last response as markdown" },
+  { name: "raw", description: "Toggle raw scrollback mode for copy-friendly selection" },
+  { name: "mention", description: "Mention a file" },
+  { name: "skills", description: "Use skills to improve how Codex performs tasks" },
+  { name: "hooks", description: "View and manage lifecycle hooks" },
+  { name: "plugins", description: "Browse plugins" },
+  { name: "ps", description: "List background terminals" },
+  { name: "stop", description: "Stop all background terminals" },
   { name: "experimental", description: "Toggle experimental features" },
-  { name: "memories", description: "Configure memories" },
-  { name: "personality", description: "Choose how Codex responds" },
-  { name: "feedback", description: "Send feedback about this chat" },
-  { name: "import", description: "Import config from another agent" },
-  { name: "keymap", description: "Remap keyboard shortcuts" },
-  { name: "theme", description: "Change the syntax theme" },
+  { name: "memories", description: "Configure memory use and generation" },
+  { name: "personality", description: "Choose a communication style for Codex" },
+  { name: "feedback", description: "Send logs to maintainers" },
+  { name: "import", description: "Import setup and recent sessions from Claude Code" },
+  { name: "keymap", description: "Remap TUI shortcuts" },
+  { name: "theme", description: "Choose a syntax highlighting theme" },
   { name: "title", description: "Configure the terminal title" },
-  { name: "statusline", description: "Configure the status line" },
-  { name: "pets", description: "Pick a terminal pet" },
-  { name: "pet", description: "Pick a terminal pet" },
-  { name: "vim", description: "Toggle Vim mode" },
-  { name: "ide", description: "Attach IDE context" },
-  { name: "apps", description: "Show connectors" },
-  { name: "rename", description: "Rename this thread" },
-  { name: "fast", description: "Toggle fast inference" },
+  { name: "statusline", description: "Configure which items appear in the status line" },
+  { name: "pets", description: "Choose or hide the terminal pet" },
+  { name: "vim", description: "Toggle Vim mode for the composer" },
+  { name: "ide", description: "Include selection, open files, and IDE context" },
+  { name: "rename", description: "Rename the current thread" },
+  { name: "fast", description: "Toggle fast inference (1.5x speed, increased usage)" },
+  { name: "approve", description: "Approve one retry of a recent auto-review denial" },
+  { name: "usage", description: "View account usage or reset a usage limit" },
   { name: "logout", description: "Log out of Codex" },
   { name: "quit", description: "Exit Codex" },
   { name: "exit", description: "Exit Codex" },
