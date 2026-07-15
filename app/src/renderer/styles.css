@@ -367,11 +367,13 @@ pre {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Two-tone bands (Apple/Notion/M3 depth model): the main pane is the focal
-     plane on --surface-canvas; the sidebar recedes one rung down on
-     --surface-shell. Both tones are mode-aware roles, so the distinction holds
-     across every mode with no new colors. */
-  background: var(--surface-canvas);
+  /* Two-tone bands, revised (Woody field decision 2026-07-15): the main pane
+     IS the reading sheet — one continuous paper from the header band through
+     the transcript (iA Writer / macOS unified-titlebar pattern), so the header
+     shares --reading-paper instead of sitting on a separate chrome tone. The
+     sidebar still recedes on --surface-shell. Header text/buttons remain UI
+     roles (furniture-on-paper, S2 pattern); only the SURFACE unifies. */
+  background: var(--reading-paper);
 }
 
 /* ---------------------------------------------------------------- sidebar */
@@ -2117,7 +2119,7 @@ h2 {
 .settings-title {
   margin: 0;
   color: var(--text-primary);
-  font-family: var(--font-reading);
+  font-family: var(--font-ui); /* chrome — decoupled per Fork C ruling (preview window = chrome, 2026-07-15) */
   font-size: 16px;
   font-weight: 600;
 }
@@ -2337,12 +2339,12 @@ h2 {
   flex-direction: column;
   overflow: hidden;
   /* The reading surface — the "paper" the transcript, greeting, and composer all
-     sit on. This is the ONLY region that consumes the reading-theme layer:
-     --reading-paper varies by data-theme × data-mode (Apple Books model), while
-     the header/sidebar stay on the chrome roles (--surface-canvas / -shell). The
-     composer and banners ride as raised cards on this paper; reading INK + font
-     are applied per reading-content element (not here) so chrome children like
-     the composer keep inheriting --font-ui. */
+     sit on. --reading-paper varies by data-theme × data-mode (Apple Books
+     model). The paper also covers the parent .main-pane (incl. the header band
+     — seamless sheet, 2026-07-15); the sidebar/menus/popovers stay on chrome
+     roles. The composer and banners ride as raised cards on this paper; reading
+     INK + font are applied per reading-content element (not here) so chrome
+     children like the composer keep inheriting --font-ui. */
   background: var(--reading-paper);
 }
 
@@ -4592,7 +4594,7 @@ html[data-instance-label] body::after {
   height: 100vh;
   background: var(--surface-canvas);
   color: var(--text-primary);
-  font-family: var(--font-reading);
+  font-family: var(--font-ui); /* chrome — decoupled per Fork C ruling (preview window = chrome, 2026-07-15) */
   overflow: hidden;
 }
 
@@ -4779,7 +4781,7 @@ html[data-instance-label] body::after {
   background: var(--surface-hover);
   color: var(--text-primary);
   font-size: 12px;
-  font-family: var(--font-reading);
+  font-family: var(--font-ui); /* chrome — decoupled per Fork C ruling (preview window = chrome, 2026-07-15) */
   cursor: default;
 }
 .preview-open-button:hover:not(:disabled) {
@@ -4817,7 +4819,7 @@ html[data-instance-label] body::after {
   background: transparent;
   color: var(--text-primary);
   font-size: 12px;
-  font-family: var(--font-reading);
+  font-family: var(--font-ui); /* chrome — decoupled per Fork C ruling (preview window = chrome, 2026-07-15) */
   text-align: left;
   cursor: default;
 }
@@ -5305,7 +5307,7 @@ body.preview-panel-resizing {
   background: transparent;
   color: var(--text-primary);
   font-size: 12px;
-  font-family: var(--font-reading);
+  font-family: var(--font-ui); /* chrome — decoupled per Fork C ruling (preview window = chrome, 2026-07-15) */
   text-align: left;
   cursor: default;
 }
