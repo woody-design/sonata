@@ -69,6 +69,7 @@
     "smoke:transcript-identity": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/transcript-identity.mjs",
     "smoke:codex-runtime-settings": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-runtime-settings.mjs",
     "smoke:approval-session-choice": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-session-choice.mjs",
+    "smoke:approval-summary": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-summary.mjs",
     "smoke:approval-grammar": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-grammar.mjs",
     "smoke:approval-persist-receipt": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-persist-receipt.mjs",
     "smoke:approval-trust-trail": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-trust-trail.mjs",
