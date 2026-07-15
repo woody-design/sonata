@@ -98,15 +98,18 @@ export function filteredSlashItems(picker: {
   return scored.map((item) => item.entry);
 }
 
-/** The New Chat model chip's label: model + effort (+ Fast, Codex), from the
- *  draft's launch settings. The session twin is sessionModelSummaryLabel. */
+/** The New Chat model chip's label: model + effort (+ Fast), from the draft's
+ *  launch settings. Fast is offered per provider — every Codex model, Claude
+ *  only on Opus — but the label rule is uniform: append "Fast" whenever the
+ *  active provider's draft speed is `fast`. The session twin is
+ *  sessionModelSummaryLabel. */
 export function draftModelSummaryLabel(draft: TaskLaunchDraft): string {
   const provider = draft.provider;
   const parts = [
     modelValueLabel(provider, draft.model[provider]) ?? "Default",
     reasoningValueLabel(provider, draft.reasoningEffort[provider]) ?? "Default",
   ];
-  if (provider === "codex" && draft.speedMode.codex === "fast") {
+  if (draft.speedMode[provider] === "fast") {
     parts.push("Fast");
   }
   return parts.join(" ");

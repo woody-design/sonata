@@ -2243,7 +2243,12 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           reasoningEffort: options.reasoningEffort,
           settingsPath: ensureClaudeRuntimeSettings(
             options.runtimeDir ?? path.join(options.cwd, ".duet"),
-            { approvalBroker: options.approvalBroker !== false },
+            {
+              approvalBroker: options.approvalBroker !== false,
+              // Native fast mode (2.1.205+) rides in the injected `--settings`;
+              // there is no claudeArgs flag for it. Opus-gated in the launch UI.
+              fastMode: options.speedMode === "fast",
+            },
           ),
           resumeRef: options.resumeRef,
           sessionId: options.sessionId,

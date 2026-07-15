@@ -494,7 +494,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
       },
       speedMode: {
         codex: "default",
-        claude: null,
+        claude: "default",
       },
       permissionMode: null,
       remoteControl: false,

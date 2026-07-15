@@ -315,7 +315,7 @@ export class RuntimeController {
         `[trust] pre-write ${trust.reason}${trust.backupCreated ? " (backup created)" : ""}: ${trust.projectKey}`,
       );
     }
-    const launchSettings = normalizeLaunchSettings(request.provider, request);
+    const launchSettings = normalizeLaunchSettings(request);
     // New sessions inherit the Duet-owned default approval policy (Settings →
     // Approvals for Claude, Settings → Codex for Codex) unless the request
     // names one explicitly. This is the "set it once" that keeps a trusted
@@ -2701,7 +2701,7 @@ function isHookCapable(provider: RuntimeProvider): boolean {
 }
 
 function normalizeTaskForProviderCwd(task: Task, providerCwd: string): Task {
-  const launchSettings = normalizeLaunchSettings(task.provider, task);
+  const launchSettings = normalizeLaunchSettings(task);
   const permissionSettings = normalizePermissionSettings(task.provider, task);
   return {
     ...task,
@@ -2773,23 +2773,21 @@ function pathsEqual(left: string, right: string): boolean {
   return path.resolve(left) === path.resolve(right);
 }
 
-function normalizeLaunchSettings(
-  provider: RuntimeProvider,
-  request: {
-    model?: string | null;
-    reasoningEffort?: ReasoningEffort | null;
-    speedMode?: LaunchSpeedMode | null;
-  },
-): { model: string | null; reasoningEffort: ReasoningEffort | null; speedMode: LaunchSpeedMode | null } {
+function normalizeLaunchSettings(request: {
+  model?: string | null;
+  reasoningEffort?: ReasoningEffort | null;
+  speedMode?: LaunchSpeedMode | null;
+}): { model: string | null; reasoningEffort: ReasoningEffort | null; speedMode: LaunchSpeedMode | null } {
   const model = request.model?.trim() || null;
   const requestedReasoningEffort = request.reasoningEffort ?? null;
   const reasoningEffort = REASONING_EFFORTS.has(requestedReasoningEffort as ReasoningEffort)
     ? (requestedReasoningEffort as ReasoningEffort)
     : null;
+  // Speed applies to both providers now (Codex via `-c service_tier=priority`,
+  // Claude via `fastMode` in the injected `--settings`). The per-model Fast gate
+  // is enforced in the launch UI; here we only validate the enum.
   const speedMode =
-    provider === "codex" && (request.speedMode === "default" || request.speedMode === "fast")
-      ? request.speedMode
-      : null;
+    request.speedMode === "default" || request.speedMode === "fast" ? request.speedMode : null;
 
   return {
     model,

@@ -67,6 +67,12 @@ interface ClaudeHookMatcherGroup {
 interface ClaudeRuntimeSettings {
   statusLine: { type: "command"; command: string };
   hooks: Record<string, ClaudeHookMatcherGroup[]>;
+  /** Native launch-time fast mode (Claude 2.1.205+). Written ONLY when the
+   *  task's speedMode is `fast` (Opus-gated in the launch UI) so the file stays
+   *  byte-identical to the pre-fast shape for every standard-speed spawn — no
+   *  `writeJsonIfChanged` churn. Fast mode UNIONs from `--settings` like the
+   *  hooks do; there is no CLI flag for it. */
+  fastMode?: true;
 }
 
 function buildHooks(
@@ -109,7 +115,7 @@ export function claudeApprovalsDirectory(runtimeDir: string): string {
  */
 export function ensureClaudeRuntimeSettings(
   runtimeDir: string,
-  options: { approvalBroker?: boolean } = {},
+  options: { approvalBroker?: boolean; fastMode?: boolean } = {},
 ): string {
   const usageDirectory = claudeUsageDirectory(runtimeDir);
   const hooksDirectory = claudeHooksDirectory(runtimeDir);
@@ -133,6 +139,9 @@ export function ensureClaudeRuntimeSettings(
   const settings: ClaudeRuntimeSettings = {
     statusLine: { type: "command", command: claudeStatuslineCommand(usageDirectory) },
     hooks: buildHooks(sinkCommand, brokerCommand),
+    // Only present when fast, so a standard-speed spawn writes the exact same
+    // JSON as before this feature existed (byte-stable via writeJsonIfChanged).
+    ...(options.fastMode ? { fastMode: true as const } : {}),
   };
 
   const settingsPath = path.join(runtimeDir, "claude-runtime-settings.json");

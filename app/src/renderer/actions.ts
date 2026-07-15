@@ -65,7 +65,7 @@ export interface Actions {
   clearDraftFolder(): void;
   setDraftReasoningEffort(provider: RuntimeProvider, value: ReasoningEffort | null): void;
   setDraftModel(provider: RuntimeProvider, value: string | null): void;
-  setCodexSpeedMode(value: LaunchSpeedMode): void;
+  setDraftSpeedMode(provider: RuntimeProvider, value: LaunchSpeedMode): void;
   /** Per-session access mode (the Settings triad; closes the access menu). */
   setDraftPermissionMode(mode: ClaudePermissionMode): void;
   // — Attention banners (view/banners.ts) dismiss mutations: bare

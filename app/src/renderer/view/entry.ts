@@ -21,8 +21,8 @@ import type {
 import { CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS } from "../../shared/types";
 import {
   MODEL_OPTIONS,
-  SPEED_OPTIONS,
   reasoningOptionsForModel,
+  speedOptionsForModel,
 } from "../../reading-core/config";
 import {
   newChatGreeting,
@@ -111,14 +111,19 @@ function renderLaunchSettingsPopover(provider: RuntimeProvider): HTMLElement {
     }),
   );
 
-  if (provider === "codex") {
+  // Speed is offered only when the selected model can accept Fast: every Codex
+  // model, but Claude only on Opus (native fast mode is Opus-only). When Fast
+  // isn't available the section would collapse to a lone "Standard" — no real
+  // choice — so it is omitted entirely.
+  const speedOptions = speedOptionsForModel(provider, state.taskDraft.model[provider]);
+  if (speedOptions.some((option) => option.value === "fast")) {
     popover.append(
       renderSettingSection(
         "Speed",
-        SPEED_OPTIONS,
-        state.taskDraft.speedMode.codex,
+        speedOptions,
+        state.taskDraft.speedMode[provider] ?? "default",
         (value) => {
-          actions.setCodexSpeedMode(value as LaunchSpeedMode);
+          actions.setDraftSpeedMode(provider, value as LaunchSpeedMode);
         },
       ),
     );

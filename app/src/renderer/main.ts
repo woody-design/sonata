@@ -33,7 +33,7 @@ import {
   providerLabel,
 } from "../reading-core/selectors/formatters";
 import { filteredSlashItems } from "../reading-core/selectors/composer";
-import { reasoningOptionsForModel } from "../reading-core/config";
+import { reasoningOptionsForModel, speedOptionsForModel } from "../reading-core/config";
 import {
   dormantArmed,
   hasActiveRun,
@@ -353,10 +353,21 @@ initActions({
       // nearest universally supported level, preserving the user's intent.
       state.taskDraft.reasoningEffort[provider] = "xhigh";
     }
+    // Same unwind for the launch Speed knob: Claude Fast is Opus-only, so
+    // switching Opus→non-Opus while Fast is selected leaves a combination the
+    // model can't accept. Fall back to Standard (Standard is never gated, so
+    // this only fires when `fast` no longer fits).
+    const speedMode = state.taskDraft.speedMode[provider];
+    const speedStillSupported = speedOptionsForModel(provider, value).some(
+      (option) => option.value === speedMode,
+    );
+    if (!speedStillSupported) {
+      state.taskDraft.speedMode[provider] = "default";
+    }
     render();
   },
-  setCodexSpeedMode: (value) => {
-    state.taskDraft.speedMode.codex = value;
+  setDraftSpeedMode: (provider, value) => {
+    state.taskDraft.speedMode[provider] = value;
     render();
   },
   // Banner dismiss mutations, verbatim from their pre-D3 inline homes.

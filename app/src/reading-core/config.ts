@@ -70,6 +70,35 @@ export const SPEED_OPTIONS: Array<{ label: string; value: LaunchSpeedMode }> = [
 const CODEX_MAX_MODELS = new Set(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);
 const CODEX_ULTRA_MODELS = new Set(["gpt-5.6-sol", "gpt-5.6-terra"]);
 
+// Claude fast mode (native since 2.1.205) is Opus-only per Anthropic's release
+// notes; we therefore gate Fast to Opus and never inject fastMode onto another
+// model. (The probe verified opus+fastMode ACTIVATES fast mode; the CLI's exact
+// non-Opus behavior — auto-switch vs error — is unverified, and unreachable
+// while this gate + the model-switch unwind hold.) Codex has no such per-model
+// gate — `-c service_tier=priority` applies to every model, so this set is
+// Claude-only. Native Default (null model) offers no Fast either: we can't know
+// the account's default model, so we can't promise it is Opus.
+const CLAUDE_FAST_MODELS = new Set(["opus"]);
+
+/**
+ * The launch Speed options a given model can accept. Codex offers Fast for
+ * every model; Claude offers it only for Opus. When Fast isn't offered the menu
+ * collapses to Standard alone — the launch UI renders the section only when a
+ * real choice exists, and the model-switch fallback (renderer/main.ts) unwinds
+ * a stale `fast` to `default` the same way the effort menu unwinds a gated tier.
+ */
+export function speedOptionsForModel(
+  provider: RuntimeProvider,
+  model: string | null,
+): Array<{ label: string; value: LaunchSpeedMode }> {
+  if (provider !== "claude") {
+    return SPEED_OPTIONS;
+  }
+  return CLAUDE_FAST_MODELS.has(model ?? "")
+    ? SPEED_OPTIONS
+    : SPEED_OPTIONS.filter((option) => option.value !== "fast");
+}
+
 /**
  * Keep the old Duet menu shape, but do not offer a launch combination the
  * selected model cannot accept. Native Default (null model) shows neither
