@@ -1,7 +1,10 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { claudeArgs, codexArgs } = require("../../dist/runtime");
+const { claudeArgs, codexArgs, ensureClaudeRuntimeSettings } = require("../../dist/runtime");
 
 const codexFast = codexArgs({
   cwd: "/tmp/duet launch settings",
@@ -42,6 +45,28 @@ const claudeWithSettings = claudeArgs({
   settingsPath: "/tmp/duet usage/claude-statusline-settings.json",
 });
 
+// Claude native fast mode has NO claudeArgs flag — it rides in the injected
+// `--settings` file as `"fastMode": true` (probe: spikes/claude-fastmode-inject/,
+// the `↯` glyph flips on iff this key is present). Assert both directions: fast
+// writes the key; standard omits it entirely (not `false`) so a standard-speed
+// spawn's settings file stays byte-identical to the pre-feature shape.
+const fastRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-launch-fast-"));
+const standardRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-launch-standard-"));
+const fastSettings = JSON.parse(
+  fs.readFileSync(
+    ensureClaudeRuntimeSettings(fastRuntimeDir, { approvalBroker: false, fastMode: true }),
+    "utf8",
+  ),
+);
+const standardSettings = JSON.parse(
+  fs.readFileSync(
+    ensureClaudeRuntimeSettings(standardRuntimeDir, { approvalBroker: false, fastMode: false }),
+    "utf8",
+  ),
+);
+fs.rmSync(fastRuntimeDir, { recursive: true, force: true });
+fs.rmSync(standardRuntimeDir, { recursive: true, force: true });
+
 const success =
   includesSequence(codexFast, ["-m", "gpt-5.6-sol"]) &&
   includesSequence(codexFast, ["-c", 'model_reasoning_effort="ultra"']) &&
@@ -66,7 +91,16 @@ const success =
     "/tmp/duet usage/claude-statusline-settings.json",
   ]) &&
   includesSequence(claudeWithSettings, ["--model", "fable"]) &&
-  !claude.includes("service_tier");
+  !claude.includes("service_tier") &&
+  // Fast injection: the key is present and true, and the file still carries the
+  // statusLine + hooks sinks (fastMode UNIONs, it does not replace them).
+  fastSettings.fastMode === true &&
+  Boolean(fastSettings.statusLine) &&
+  Boolean(fastSettings.hooks) &&
+  // Standard: no fastMode key at all (byte-identical to the pre-feature file).
+  !("fastMode" in standardSettings) &&
+  Boolean(standardSettings.statusLine) &&
+  Boolean(standardSettings.hooks);
 
 console.log(
   JSON.stringify(
@@ -76,6 +110,8 @@ console.log(
       codexWithProfile,
       claude,
       claudeWithSettings,
+      fastSettingsKeys: Object.keys(fastSettings),
+      standardSettingsKeys: Object.keys(standardSettings),
       success,
     },
     null,

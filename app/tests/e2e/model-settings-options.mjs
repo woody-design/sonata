@@ -34,6 +34,45 @@ try {
     "Native Default",
   ]);
 
+  // Claude launch Speed (S3): native fast mode is Opus-only. The default draft
+  // model is Opus, so the Speed section is offered with both options.
+  assert.deepEqual(
+    await settingOptionLabels(page, "Speed"),
+    ["Standard", "Fast"],
+    "Claude Opus offers the Speed section with Fast",
+  );
+  // Select Fast, then verify the model-switch unwind: switching Opus→Sonnet must
+  // drop the now-unsupported `fast` back to Standard AND remove the section
+  // entirely (a lone "Standard" is no real choice). The chip must NOT carry
+  // "Fast" after the switch — that is the passes-while-broken hole S1 warned of.
+  await settingSection(page, "Speed").locator("button", { hasText: "Fast" }).click();
+  await page.locator("#model-chip", { hasText: "Opus 4.8 High Fast" }).waitFor({ state: "visible" });
+  await settingSection(page, "Model").locator("button", { hasText: "Sonnet 5" }).click();
+  await page.locator("#model-chip", { hasText: "Sonnet 5 High" }).waitFor({ state: "visible" });
+  assert.equal(
+    await page.locator("#model-chip").textContent(),
+    "Sonnet 5 High",
+    "switching Opus→Sonnet unwinds Fast (no 'Fast' left on the chip)",
+  );
+  assert.equal(
+    await page.locator(".task-setting-heading", { hasText: "Speed" }).count(),
+    0,
+    "non-Opus Claude hides the Speed section entirely",
+  );
+  // Switching back to Opus re-offers the section, now at the unwound Standard.
+  await settingSection(page, "Model").locator("button", { hasText: "Opus 4.8" }).click();
+  await page.locator("#model-chip", { hasText: "Opus 4.8 High" }).waitFor({ state: "visible" });
+  const reofferedSpeed = await settingOptionLabels(page, "Speed");
+  assert.deepEqual(reofferedSpeed, ["Standard", "Fast"], "Opus re-offers the Speed section");
+  const selectedSpeed = await settingSection(page, "Speed")
+    .locator("button.selected")
+    .evaluate((button) => button.childNodes.item(0)?.textContent?.trim() ?? "");
+  assert.equal(
+    selectedSpeed,
+    "Standard",
+    "Fast did not survive the round-trip through a non-fast model",
+  );
+
   await chooseDraftProvider(page, "codex");
   await page.locator("#model-chip", { hasText: "5.6 Sol High" }).click();
   assert.deepEqual(await settingOptionLabels(page, "Model"), [

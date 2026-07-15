@@ -50,11 +50,14 @@ try {
     manifest.task.model === "opus" &&
     manifest.task.reasoningEffort === "high" &&
     manifest.task.permissionMode === "acceptEdits" &&
-    manifest.task.speedMode === null &&
+    // Claude gained the launch Speed knob (S3); an untouched Opus draft defaults
+    // to Standard ("default"), mirroring Codex — NOT null (which meant "no speed
+    // concept" before Claude had fast mode). "default" injects no fastMode.
+    manifest.task.speedMode === "default" &&
     report.runtime?.provider === "claude" &&
     report.runtime?.model === "opus" &&
     report.runtime?.reasoningEffort === "high" &&
-    report.runtime?.speedMode === null &&
+    report.runtime?.speedMode === "default" &&
     report.rawTerminalPointer === null &&
     !rawTerminalPersisted;
 

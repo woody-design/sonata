@@ -39,8 +39,11 @@ try {
   await page.locator("#project-chip", { hasText: path.basename(selectedFolder) }).waitFor({
     state: "visible",
   });
-  // New sessions now default to Claude; the "Speed" setting below is Codex-only, so
-  // select Codex explicitly (this test exercises the Codex launch-settings path).
+  // New sessions default to Claude; this test exercises the Codex launch-settings
+  // path (speedMode→manifest→report end-to-end), so select Codex explicitly.
+  // (Claude also offers Fast on Opus now — its UI gating/unwind is covered by
+  // model-settings-options.mjs, and its settings-file injection by the
+  // provider-launch-settings smoke; neither needs a real spawn.)
   await chooseDraftProvider(page, "codex");
   // Codex draft: the Claude access chip leaves the composer.
   await page.locator("#permission-chip").waitFor({ state: "hidden" });

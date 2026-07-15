@@ -277,6 +277,70 @@ const run = (status, extra = {}) => ({
   assert.equal(CFG.reasoningValueLabel("claude", "low"), "Low", "Claude low label");
   assert.equal(CFG.SPEED_OPTIONS[0].label, "Standard", "default speed label follows Codex");
 
+  // Launch Speed gate (S3). Claude native fast mode is Opus-only, so Fast is
+  // offered ONLY on Opus; every other Claude model (and Native Default, whose
+  // account model we can't know) collapses to Standard alone. Codex has no
+  // per-model gate — Fast is offered for every model. Pinning the full matrix
+  // means dropping Fast from Opus OR leaking it onto a non-Opus Claude model
+  // fails here (not just a spot-check).
+  const speedValues = (provider, model) =>
+    CFG.speedOptionsForModel(provider, model).map(({ value }) => value);
+  assert.deepEqual(speedValues("claude", "opus"), ["default", "fast"], "Claude Opus offers Fast");
+  for (const model of ["fable", "sonnet", "haiku", null]) {
+    assert.deepEqual(
+      speedValues("claude", model),
+      ["default"],
+      `Claude ${model ?? "Native Default"} offers only Standard`,
+    );
+  }
+  for (const model of [
+    "gpt-5.6-sol",
+    "gpt-5.6-luna",
+    "gpt-5.5",
+    "gpt-5.4-mini",
+    "gpt-5.3-codex-spark",
+    null,
+  ]) {
+    assert.deepEqual(
+      speedValues("codex", model),
+      ["default", "fast"],
+      `Codex ${model ?? "Native Default"} offers Fast (no per-model gate)`,
+    );
+  }
+
+  // draftModelSummaryLabel appends "Fast" whenever the ACTIVE provider's draft
+  // speed is fast — for Claude too now, not only Codex. A non-fast draft (and
+  // the other provider's fast selection) must not leak "Fast" onto the chip.
+  const draft = (extra = {}) => ({
+    provider: "claude",
+    model: { claude: "opus", codex: "gpt-5.6-sol" },
+    reasoningEffort: { claude: "high", codex: "high" },
+    speedMode: { claude: "default", codex: "default" },
+    ...extra,
+  });
+  assert.equal(
+    C.draftModelSummaryLabel(draft()),
+    "Opus 4.8 High",
+    "Claude standard-speed draft: no Fast suffix",
+  );
+  assert.equal(
+    C.draftModelSummaryLabel(draft({ speedMode: { claude: "fast", codex: "default" } })),
+    "Opus 4.8 High Fast",
+    "Claude fast draft appends Fast",
+  );
+  assert.equal(
+    C.draftModelSummaryLabel(draft({ speedMode: { claude: "default", codex: "fast" } })),
+    "Opus 4.8 High",
+    "the inactive provider's fast selection does not leak onto the Claude chip",
+  );
+  assert.equal(
+    C.draftModelSummaryLabel(
+      draft({ provider: "codex", speedMode: { claude: "default", codex: "fast" } }),
+    ),
+    "5.6 Sol High Fast",
+    "Codex fast draft still appends Fast",
+  );
+
   assert.equal(C.sessionModelSummaryLabel(null), null, "no view");
   assert.equal(C.sessionModelSummaryLabel(view({ task: null })), null, "no task");
   assert.equal(
