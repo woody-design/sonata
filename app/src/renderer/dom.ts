@@ -111,17 +111,18 @@ export function initDom(): void {
       <div class="chrome-center">
       </div>
       <div class="topbar-actions chrome-actions">
-        <button id="toggle-terminal-window" class="secondary cli-toggle" type="button" aria-pressed="true" title="Hide CLI">CLI</button>
         <button
           id="reading-settings"
-          class="secondary reading-settings-trigger"
+          class="chrome-icon-button reading-settings-trigger"
           type="button"
           aria-haspopup="dialog"
           aria-expanded="false"
-          title="Reading Controls"
-        >Aa</button>
-        <button id="remote-control-toggle" class="chrome-icon-button" type="button" aria-haspopup="dialog" aria-expanded="false" title="Remote control" aria-label="Remote control"></button>
-        <button id="open-preview-window" class="chrome-icon-button" type="button" title="Preview" aria-label="Open Preview"></button>
+          aria-label="Themes"
+          data-tooltip="Themes"
+        ></button>
+        <button id="toggle-terminal-window" class="chrome-icon-button" type="button" aria-pressed="true" aria-label="Toggle CLI" data-tooltip="Toggle CLI"></button>
+        <button id="remote-control-toggle" class="chrome-icon-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Remote control" data-tooltip="Remote control"></button>
+        <button id="open-preview-window" class="chrome-icon-button" type="button" aria-label="Toggle Preview" data-tooltip="Toggle Preview"></button>
       </div>
     </header>
     <div id="reading-popover-root"></div>

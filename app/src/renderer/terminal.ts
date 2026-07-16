@@ -1,5 +1,7 @@
 import "./styles.css";
 import "@xterm/xterm/css/xterm.css";
+import { CaseSensitive } from "lucide";
+import { lucideIcon } from "./view/icons";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
@@ -49,7 +51,7 @@ appElement.innerHTML = `
         <span id="terminal-session-title" class="terminal-window-breadcrumb-session">New task</span>
       </div>
       <div class="terminal-window-topbar-actions">
-        <button id="terminal-theme-trigger" class="secondary" type="button" aria-haspopup="dialog" aria-expanded="false" title="CLI theme">Aa</button>
+        <button id="terminal-theme-trigger" class="chrome-icon-button reading-settings-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" title="CLI theme" aria-label="CLI theme"></button>
       </div>
     </header>
     <section class="terminal-window-content">
@@ -77,6 +79,7 @@ const emptyDetail = requireEl<HTMLParagraphElement>("#terminal-empty-detail");
 const projectName = requireEl<HTMLSpanElement>("#terminal-project-name");
 const sessionTitle = requireEl<HTMLSpanElement>("#terminal-session-title");
 const themeTrigger = requireEl<HTMLButtonElement>("#terminal-theme-trigger");
+themeTrigger.append(lucideIcon(CaseSensitive));
 const themePopover = requireEl<HTMLDivElement>("#terminal-theme-popover");
 const searchBox = requireEl<HTMLDivElement>("#terminal-window-search");
 const searchInput = requireEl<HTMLInputElement>("#terminal-window-search-input");

@@ -92,11 +92,20 @@
   --accent: rgb(var(--p-blue));
   --accent-subtle: rgb(var(--p-blue) / 0.10);
   --selection: rgb(var(--p-blue) / 0.28);           /* text selection */
-  --focus-ring: rgb(var(--p-blue) / 0.55);
+  /* Focus/active edges are NEUTRAL — ink hue, same alpha the blue ring had.
+     Blue stays reserved for links/file chips/quote-comment/selection and the
+     active-tool icon (Woody ruling 2026-07-16). */
+  --focus-ring: rgb(var(--p-ink) / 0.55);
+  --focus-halo: rgb(var(--p-ink) / 0.07);           /* outer wash around focused cards */
 
   /* ── roles · control (ink-as-accent: primary action is ink) ─── */
   --control-primary-bg: rgb(var(--p-ink));
   --control-primary-text: var(--p-canvas);
+  /* Composer send, EMPTY state only: a solid quiet gray (Woody-specified
+     2026-07-16). Armed (text present) and stop both ride control-primary ink —
+     stop is routine user intent, not needs-you, so it carries no red. */
+  --control-send-bg: #8e8f90;
+  --control-send-icon: #ffffff;
 
   /* ── roles · attention (the only kept status chroma: needs-you) ── */
   --attention-text: rgb(var(--p-red));
@@ -158,6 +167,7 @@
 
   --text-on-emphasis: #191919;
   --control-primary-text: #191919;
+  --control-send-bg: #969696;   /* dark step, Woody-specified 2026-07-16 */
   --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.3);
   --shadow-overlay: 0 12px 40px rgb(0 0 0 / 0.55);
 }
@@ -419,12 +429,13 @@ pre {
 
 .sidebar-resizer:hover,
 body.sidebar-resizing .sidebar-resizer {
-  /* Accent line centered on the seam (the border sits ~3-4px into the handle). */
+  /* Neutral line centered on the seam (the border sits ~3-4px into the handle);
+     same --border-strong treatment as the preview window's panel resizer. */
   background: linear-gradient(
     to right,
     transparent 3px,
-    var(--focus-ring) 3px,
-    var(--focus-ring) 5px,
+    var(--border-strong) 3px,
+    var(--border-strong) 5px,
     transparent 5px
   );
 }
@@ -1240,8 +1251,8 @@ body.sidebar-resizing {
 }
 
 .header-rename-input:focus-visible {
-  border-color: var(--accent);
-  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-color: var(--focus-ring);
+  outline: 2px solid var(--focus-halo);
   outline-offset: 1px;
 }
 
@@ -1249,6 +1260,8 @@ body.sidebar-resizing {
   max-width: 320px;
 }
 
+/* Icon rides text-primary at rest — hover feedback is the background wash
+   alone, so the glyph never shifts color under the pointer (Woody 2026-07-16). */
 .chrome-icon-button {
   display: inline-flex;
   align-items: center;
@@ -1259,18 +1272,38 @@ body.sidebar-resizing {
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-tertiary);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
 .chrome-icon-button:hover:not(:disabled) {
   background: var(--surface-hover);
-  color: var(--text-primary);
 }
 
 .chrome-icon-button:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* Shared hover tooltip (view/tooltip.ts): a raised neutral pill fixed below its
+   anchor — body-appended, so no ancestor overflow can clip it. */
+.app-tooltip {
+  position: fixed;
+  z-index: 40;
+  display: none;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-8);
+  font: 500 var(--type-ui-sm) var(--font-ui);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-raised);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.app-tooltip.visible {
+  display: block;
 }
 
 .session-menu-trigger {
@@ -1316,8 +1349,9 @@ body.sidebar-resizing {
   justify-self: start;
   /* Keep native traffic-light space inside the left grid zone so the equal
      outer columns still center the breadcrumb in the WINDOW, not in an
-     asymmetrically padded remainder. 12px topbar padding + 70px = x82. */
-  padding-left: 70px;
+     asymmetrically padded remainder. 12px topbar padding + 78px = x90; the
+     lights end ≈ x70, leaving a ~20px gap to the label (Woody 2026-07-16). */
+  padding-left: 78px;
 }
 
 .terminal-window-breadcrumb {
@@ -1487,9 +1521,11 @@ body.sidebar-resizing {
   -webkit-app-region: no-drag;
 }
 
+/* Selected = neutral emphasis (same grammar as sidebar session selection),
+   not chroma — blue is not a selection color (Woody sweep 2026-07-16). */
 .terminal-theme-card.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 1px var(--border-strong);
 }
 
 .terminal-theme-swatch {
@@ -1533,7 +1569,7 @@ body.sidebar-resizing {
 
 .terminal-mode-btn.selected {
   background: var(--surface-selected);
-  border-color: var(--accent);
+  border-color: var(--border-strong);
 }
 
 .topbar {
@@ -1576,16 +1612,6 @@ body.sidebar-resizing {
   -webkit-app-region: no-drag;
 }
 
-/* Neutral-ink activation (design-system Decision, leader ruling S4-review): a
-   persistent ON toggle is high-frequency state — the exact pathology that
-   retired the teal — so it fills with INK, not chroma. Ink fill IS the "on"
-   affordance for this lone toggle. */
-.cli-toggle[aria-pressed="true"] {
-  border-color: var(--control-primary-bg);
-  background: var(--control-primary-bg);
-  color: var(--control-primary-text);
-}
-
 /* The header's expand button only exists while collapsed (the in-sidebar
    collapse button is gone with the sidebar); and when collapsed the header
    reserves the traffic-light corner the now-full-width main pane sits under. */
@@ -1626,17 +1652,34 @@ body.sidebar-collapsed .chrome-left {
   min-height: 30px;
 }
 
+/* No side padding here: every button in this row is a .chrome-icon-button
+   (padding: 0); the old text-era 9px was what flex-squeezed the 16px icons. */
 .chrome-actions button {
   flex: 0 0 auto;
-  padding: 0 9px;
   font-size: 13px;
 }
 
-.reading-settings-trigger {
-  min-width: 40px;
-  font-weight: 600;
-  letter-spacing: 0;
+/* The header buttons had no :focus-visible style, so the UA `outline: auto`
+   ring (macOS system accent — chroma) leaked through. Neutral ring instead. */
+.chrome-actions button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
+
+/* Header-family glyph size, pinned explicitly at the nominal 16px (Woody
+   2026-07-16). flex: 0 0 auto keeps any future padding change from silently
+   flex-squeezing the icons again; the terminal window's Aa rides the same pin
+   so both windows stay identical. */
+.chrome-actions .chrome-icon-button svg,
+#terminal-theme-trigger svg {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+
+/* .reading-settings-trigger is now a pure state hook (aria-expanded styling
+   below): the Aa text glyph became lucide CaseSensitive, so the trigger sizes
+   exactly like every other .chrome-icon-button. */
 
 .floating-window-topbar {
   min-height: 62px;
@@ -1717,8 +1760,9 @@ h2 {
 }
 
 /* ink-as-accent (design-system Decision): the primary action is ink, not a
-   colored fill. Flips composer send, approval Approve, drawer "Send answers",
-   and resume CTAs program-wide (all carry .primary). */
+   colored fill. Covers approval Approve, drawer "Send answers", and resume
+   CTAs program-wide (all carry .primary). The composer send button carries
+   .primary for behavior but re-bases onto --control-send-* (see .send-button). */
 .primary {
   border: 1px solid var(--control-primary-bg);
   color: var(--control-primary-text);
@@ -1748,12 +1792,6 @@ h2 {
   background: transparent;
 }
 
-/* Active state = ink fill (neutral-ink activation, S4-review ruling), not chroma. */
-.secondary.active {
-  border-color: var(--control-primary-bg);
-  color: var(--control-primary-text);
-  background: var(--control-primary-bg);
-}
 
 #reading-popover-root {
   display: contents;
@@ -1772,13 +1810,22 @@ h2 {
   box-shadow: var(--shadow-overlay);
 }
 
-/* Remote Control header toggle: the selected-surface fill (not chroma) signals
-   "on" at a glance — icon color alone is weak + fails a11y. Icon rides ink.
-   The popover, not this button, is where you act. */
-.chrome-icon-button.remote-on,
-.chrome-icon-button.remote-on:hover:not(:disabled) {
+/* Chrome tool toggles (CLI window, Remote Control): aria-pressed is the single
+   styling hook. Active = neutral selected fill + ACCENT icon — the one
+   sanctioned non-link accent consumer (Woody ruling 2026-07-16). */
+.chrome-icon-button[aria-pressed="true"],
+.chrome-icon-button[aria-pressed="true"]:hover:not(:disabled) {
   background: var(--surface-selected);
-  color: var(--text-primary);
+  color: var(--accent);
+}
+
+/* The Aa triggers (Reading + CLI theme) are icon-family members whose open
+   state is TRANSIENT (popover showing, aria-expanded) — neutral selected fill,
+   ink stays ink: blue marks persistent-ON (aria-pressed), and a menu being
+   open is not that (Woody ruling 2026-07-16). */
+.reading-settings-trigger[aria-expanded="true"],
+.reading-settings-trigger[aria-expanded="true"]:hover:not(:disabled) {
+  background: var(--surface-selected);
 }
 
 .remote-control-popover {
@@ -2407,7 +2454,9 @@ h2 {
   min-height: 40px;
   padding: 0;
   transform: translateX(-50%);
-  border: 1px solid var(--border-strong);
+  /* The shadow carries the lift; the border's only job is keeping the raised
+     disc from blending into pale paper — hairline, not strong (Woody 2026-07-16). */
+  border: 1px solid var(--border-hairline);
   border-radius: var(--radius-pill);
   color: var(--text-primary);
   background: var(--surface-raised);
@@ -2434,7 +2483,7 @@ h2 {
 }
 
 .scroll-to-bottom:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -2483,7 +2532,7 @@ h2 {
 }
 
 .sticky-prompt-header:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -3074,7 +3123,7 @@ h2 {
 
 .composer:focus-visible .composer-card {
   border-color: var(--focus-ring);
-  box-shadow: 0 0 0 3px var(--accent-subtle), var(--shadow-raised);
+  box-shadow: 0 0 0 3px var(--focus-halo), var(--shadow-raised);
 }
 
 /* The white card — the message and its controls. A distinct filled field
@@ -3132,7 +3181,7 @@ h2 {
 
 .composer-card:focus-within {
   border-color: var(--focus-ring);
-  box-shadow: 0 0 0 3px var(--accent-subtle), var(--shadow-raised);
+  box-shadow: 0 0 0 3px var(--focus-halo), var(--shadow-raised);
 }
 
 /* Action feedback only (2026-07-04 ruling — composerNotice suppresses all
@@ -3175,15 +3224,18 @@ h2 {
   justify-content: flex-end;
 }
 
+/* Chips rest quiet — no fill, no edge (Woody ruling 2026-07-16). The transparent
+   border keeps the box metrics so hover doesn't shift layout; feedback is the
+   standard neutral overlay pair (hover wash, selected while its menu is open). */
 .composer-chip {
   min-width: 0;
   max-width: 210px;
   overflow: hidden;
-  border: 1px solid var(--border-hairline);
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
   padding: 4px 8px;
   color: var(--text-secondary);
-  background: var(--surface-hover);
+  background: none;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
@@ -3191,9 +3243,11 @@ h2 {
   white-space: nowrap;
 }
 
-.composer-chip:hover,
+.composer-chip:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
 .composer-chip.active {
-  border-color: var(--border-strong);
   background: var(--surface-selected);
 }
 
@@ -3254,33 +3308,27 @@ h2 {
 
 .composer-context-row .project-chip {
   max-width: 300px;
-  border-color: transparent;
-  background: transparent;
-}
-
-.composer-context-row .project-chip:hover,
-.composer-context-row .project-chip.active {
-  border-color: var(--border-strong);
-  background: var(--surface-selected);
 }
 
 .composer-icon-button {
   width: 28px;
   min-width: 28px;
   min-height: 28px;
-  border: 1px solid var(--border-hairline);
+  border: 1px solid transparent;
   border-radius: 50%;
   padding: 0;
   color: var(--text-secondary);
-  background: var(--surface-hover);
+  background: none;
   font-size: 18px;
   font-weight: 600;
   line-height: 1;
 }
 
-.composer-icon-button:hover,
+.composer-icon-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
 .composer-icon-button.active {
-  border-color: var(--border-strong);
   background: var(--surface-selected);
 }
 
@@ -3300,9 +3348,9 @@ h2 {
   background: transparent;
 }
 
+/* Hover feedback is the wash alone — no edge ring (Woody 2026-07-16). */
 .usage-indicator:hover,
 .usage-indicator.active {
-  border-color: var(--border-strong);
   background: var(--surface-selected);
 }
 
@@ -3691,24 +3739,28 @@ h2 {
   background: var(--text-tertiary);
 }
 
+/* Send states (Woody spec 2026-07-16): empty composer = quiet gray
+ * (--control-send-*); armed (text present) and stop = the ink primary. Stop
+ * carries no red — stopping is routine user intent, not needs-you. The glyph
+ * swap (↑ → ■) lives in view/composer.ts; no border/outline in ANY state. */
 .send-button {
   width: 32px;
   min-width: 32px;
   min-height: 32px;
+  border: none;
+  outline: none;
   border-radius: 50%;
   padding: 0;
+  background: var(--control-primary-bg);
+  color: var(--control-primary-text);
   font-size: 18px;
   font-weight: 600;
   line-height: 1;
 }
 
-/* Stop is an interruption affordance — attention red is correct (needs-you
- * semantics). The solid --attention-icon fill pairs with the .primary base's
- * --control-primary-text glyph, which passes contrast in both modes (white on
- * #de1135 light; #191919 on #f1556c dark). */
-.send-button.stop-mode {
-  border-color: var(--attention-icon);
-  background: var(--attention-icon);
+.send-button:disabled {
+  background: var(--control-send-bg);
+  color: var(--control-send-icon);
 }
 
 /* Find box — floats over the terminal's top-right (VS Code / browser-find idiom),
@@ -4034,7 +4086,7 @@ h2 {
 }
 
 .transcript-copy-button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 
@@ -4081,9 +4133,9 @@ h2 {
 
 .turn-prompt:focus-visible,
 .turn-prompt.prompt-nav-selected {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
-  box-shadow: 0 0 0 3px var(--accent-subtle), var(--shadow-raised);
+  box-shadow: 0 0 0 3px var(--focus-halo), var(--shadow-raised);
 }
 
 .turn-command-chip {
@@ -4260,32 +4312,24 @@ h2 {
 /* Transcript file chips (S4, design record §5.6 / R2): an inline-code mention
    of a real workspace file, upgraded post-sanitize into a clickable Preview
    entry (view/transcript-chips.ts). The plain .md-body code base still applies;
-   this restyles it into an accent-tinted chip with a Lucide type icon + the
-   filename. All colors route through tokens, so light/dark and all four themes
-   read correctly for free. */
+   this restyles it back to link grammar — accent icon + accent text, NO resting
+   fill or edge (Woody ruling 2026-07-16: a file chip is a link, not a badge).
+   Hover feedback is the underline alone; the padding stays as hit area. */
 .md-body code.transcript-file-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   vertical-align: middle;
-  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
-  /* accent-subtle (a transparent accent overlay) composits over the paper, so the
-     chip reads correctly on every reading theme without a canvas-tinted base. */
-  background: var(--accent-subtle);
+  border: 1px solid transparent;
+  background: none;
   color: var(--accent);
   padding: 1px var(--space-6);
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
 }
 
 .md-body code.transcript-file-chip svg {
   color: var(--accent);
   flex: 0 0 auto;
-}
-
-.md-body code.transcript-file-chip:hover {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .md-body code.transcript-file-chip:hover .transcript-file-chip-name {
@@ -4294,7 +4338,7 @@ h2 {
 }
 
 .md-body code.transcript-file-chip:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 

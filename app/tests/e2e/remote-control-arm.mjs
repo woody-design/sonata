@@ -33,7 +33,7 @@ try {
   await page.locator(".remote-control-popover-action.primary", { hasText: "Turn on" }).click();
   // Armed: popover flips to "Armed", header button gets the active fill.
   await page.locator(".remote-control-popover-status", { hasText: "Armed" }).waitFor({ state: "visible" });
-  const armedClass = await page.locator("#remote-control-toggle.remote-on").count();
+  const armedClass = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
   await page.screenshot({ path: path.join(shotDir, "rcarm-1-armed.png") });
   // Close the popover before composing.
   await page.keyboard.press("Escape");
@@ -43,7 +43,7 @@ try {
   await page.locator(".turn-card", { hasText: "RC_ARMED_READY" }).waitFor({ state: "visible" });
 
   // No /rc injection anywhere: RC must be on purely from the spawn flag.
-  await page.locator("#remote-control-toggle.remote-on").waitFor({ state: "visible", timeout: 45000 });
+  await page.locator('#remote-control-toggle[aria-pressed="true"]').waitFor({ state: "visible", timeout: 45000 });
   await rcButton.click();
   await page
     .locator(".remote-control-popover-url", { hasText: "claude.ai/code/session_" })

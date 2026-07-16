@@ -1,9 +1,11 @@
 import {
+  CaseSensitive,
   Ellipsis,
   Eye,
   PanelLeft,
   Plus,
   Smartphone,
+  SquareTerminal,
 } from "lucide";
 import "./styles.css";
 import {
@@ -135,6 +137,7 @@ import {
 } from "./view/composer";
 import { initEntryView, renderTaskEntryPanel } from "./view/entry";
 import { lucideIcon } from "./view/icons";
+import { initTooltips } from "./view/tooltip";
 import {
   exitPromptNav,
   handlePromptNavigationKeydown,
@@ -570,9 +573,12 @@ elements.sidebarToggle.append(lucideIcon(PanelLeft));
 elements.sidebarCollapse.append(lucideIcon(PanelLeft));
 elements.sessionMenuTrigger.append(lucideIcon(Ellipsis));
 elements.sessionMenuTrigger.dataset.sidebarFocusKey = "header:session-menu";
+elements.readingSettings.append(lucideIcon(CaseSensitive));
+elements.toggleTerminalWindow.append(lucideIcon(SquareTerminal));
 elements.openPreviewWindow.append(lucideIcon(Eye));
 elements.remoteControlToggle.append(lucideIcon(Smartphone));
 elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIcon(Plus));
+initTooltips();
 
 const SIDEBAR_COLLAPSED_KEY = "duet.sidebar.collapsed";
 

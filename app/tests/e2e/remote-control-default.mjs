@@ -19,7 +19,7 @@ try {
   let page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
   await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({ state: "visible" });
-  const armedBeforeSetting = await page.locator("#remote-control-toggle.remote-on").count();
+  const armedBeforeSetting = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
 
   await openSettings(page);
   await page.locator(".settings-group[aria-label='Remote control'] .settings-toggle", { hasText: "Off" }).waitFor();
@@ -29,8 +29,8 @@ try {
   await page.locator(".settings-window").waitFor({ state: "hidden" });
 
   // Immediately reflected in the New Chat header button (no relaunch).
-  await page.locator("#remote-control-toggle.remote-on").waitFor({ state: "visible", timeout: 10000 });
-  const armedAfterSetting = await page.locator("#remote-control-toggle.remote-on").count();
+  await page.locator('#remote-control-toggle[aria-pressed="true"]').waitFor({ state: "visible", timeout: 10000 });
+  const armedAfterSetting = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
 
   // Persisted to disk.
   const persisted = JSON.parse(fs.readFileSync(path.join(settingsDir, "claude-settings.json"), "utf8"));
@@ -42,8 +42,8 @@ try {
   page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
   await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({ state: "visible" });
-  await page.locator("#remote-control-toggle.remote-on").waitFor({ state: "visible", timeout: 10000 });
-  const armedOnBoot = await page.locator("#remote-control-toggle.remote-on").count();
+  await page.locator('#remote-control-toggle[aria-pressed="true"]').waitFor({ state: "visible", timeout: 10000 });
+  const armedOnBoot = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
 
   const success =
     armedBeforeSetting === 0 &&

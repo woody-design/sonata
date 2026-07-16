@@ -45,13 +45,13 @@ try {
 
   // Turn on → optimistic active fill, then the scraped session URL.
   await turnOn.click();
-  await page.locator("#remote-control-toggle.remote-on").waitFor({ state: "visible", timeout: 45000 });
+  await page.locator('#remote-control-toggle[aria-pressed="true"]').waitFor({ state: "visible", timeout: 45000 });
   await page
     .locator(".remote-control-popover-url", { hasText: "claude.ai/code/session_" })
     .waitFor({ state: "visible", timeout: 45000 });
   const onStatus = (await page.locator(".remote-control-popover-status").textContent())?.trim();
   const url = (await page.locator(".remote-control-popover-url").textContent())?.trim();
-  const buttonActive = await page.locator("#remote-control-toggle.remote-on").count();
+  const buttonActive = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
   await page.screenshot({ path: path.join(shotDir, "rc-3-popover-on.png") });
 
   const success =

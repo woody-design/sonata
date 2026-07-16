@@ -43,7 +43,7 @@ try {
   const dormantOffStatus = (await page.locator(".remote-control-popover-status").textContent())?.trim();
   await page.locator(".remote-control-popover-action.primary", { hasText: "Turn on" }).click();
   await page.locator(".remote-control-popover-status", { hasText: "Armed" }).waitFor({ state: "visible" });
-  const armedClass = await page.locator("#remote-control-toggle.remote-on").count();
+  const armedClass = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
   await page.keyboard.press("Escape");
 
   // Resume by sending — must spawn the resume WITH --remote-control.
@@ -51,7 +51,7 @@ try {
   await page.locator(".turn-card", { hasText: "DORMANT_RESUMED" }).waitFor({ state: "visible", timeout: 240000 });
 
   // No /rc injection: RC must be on purely from the resume spawn flag.
-  await page.locator("#remote-control-toggle.remote-on").waitFor({ state: "visible", timeout: 45000 });
+  await page.locator('#remote-control-toggle[aria-pressed="true"]').waitFor({ state: "visible", timeout: 45000 });
   await rcButton.click();
   await page
     .locator(".remote-control-popover-url", { hasText: "claude.ai/code/session_" })

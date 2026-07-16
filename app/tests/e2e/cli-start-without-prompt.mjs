@@ -56,7 +56,7 @@ try {
 
   const claudeDraft = "CLAUDE DRAFT — must remain unsent";
   await main.locator("#permission-chip", { hasText: "Auto" }).waitFor({ state: "visible" });
-  await main.locator("#remote-control-toggle.remote-on").waitFor({ state: "visible" });
+  await main.locator('#remote-control-toggle[aria-pressed="true"]').waitFor({ state: "visible" });
   await chooseProject(main);
   await chooseLaunchOption(main, "Model", "Sonnet 5");
   await chooseLaunchOption(main, "Reasoning", "High");

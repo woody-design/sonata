@@ -40,7 +40,7 @@ try {
   await selectSidebarSession(page, taskId);
   await page.locator(".turn-card", { hasText: "DORM_DEFAULT_SEED" }).waitFor({ state: "visible" });
 
-  const dormantArmed = await page.locator("#remote-control-toggle.remote-on").count();
+  const dormantArmed = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
   await page.locator("#remote-control-toggle").click();
   await page.locator(".remote-control-popover").waitFor({ state: "visible" });
   const dormantStatus = (await page.locator(".remote-control-popover-status").textContent())?.trim();

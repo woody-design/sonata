@@ -167,15 +167,15 @@ try {
       freshCliChrome.borderBottomWidth === "0px" &&
       liveCliChrome.borderBottomWidth === "0px",
     stableToggleSemantics:
-      toggleOn.text === "CLI" &&
-      toggleOff.text === "CLI" &&
-      toggleOnAgain.text === "CLI" &&
+      toggleOn.hasIcon &&
+      toggleOff.hasIcon &&
+      toggleOnAgain.hasIcon &&
       toggleOn.pressed === "true" &&
       toggleOff.pressed === "false" &&
       toggleOnAgain.pressed === "true" &&
-      toggleOn.title === "Hide CLI" &&
-      toggleOff.title === "Show CLI" &&
-      toggleOnAgain.title === "Hide CLI" &&
+      toggleOn.tooltip === "Toggle CLI" &&
+      toggleOff.tooltip === "Toggle CLI" &&
+      toggleOnAgain.tooltip === "Toggle CLI" &&
       toggleOn.backgroundColor !== toggleOff.backgroundColor,
     freshVocabulary:
       freshLabels.newTaskText === "New task" &&
@@ -344,9 +344,9 @@ async function readToggle(page) {
   return page.locator("#toggle-terminal-window").evaluate((element) => {
     const style = getComputedStyle(element);
     return {
-      text: element.textContent?.trim(),
+      hasIcon: element.querySelector("svg") !== null,
       pressed: element.getAttribute("aria-pressed"),
-      title: element.title,
+      tooltip: element.dataset.tooltip,
       backgroundColor: style.backgroundColor,
       borderColor: style.borderColor,
       color: style.color,

@@ -49,17 +49,14 @@ export function initChromeView(
   resolvedReadingMode = deps.resolvedReadingMode;
 }
 
-// The CLI satellite window's stable-label toggle. The label never changes;
-// aria-pressed plus the selected treatment carry its real open/closed state.
+// The CLI satellite window's icon toggle (lucide Terminal, appended at boot in
+// main.ts). aria-pressed carries the open/closed state and IS the styling hook
+// (.chrome-icon-button[aria-pressed="true"]); the tooltip copy stays "Toggle CLI".
 export function applyTerminalWindowState(state: TerminalWindowState): void {
-  const button = elements.toggleTerminalWindow;
-  button.textContent = "CLI";
-  button.setAttribute("aria-pressed", state.open ? "true" : "false");
-  button.title = state.open ? "Hide CLI" : "Show CLI";
+  elements.toggleTerminalWindow.setAttribute("aria-pressed", state.open ? "true" : "false");
 }
 
 export function renderReadingPopover(): void {
-  elements.readingSettings.classList.toggle("active", state.readingPopoverOpen);
   elements.readingSettings.setAttribute("aria-expanded", String(state.readingPopoverOpen));
   elements.readingPopoverRoot.replaceChildren();
   if (!state.readingPopoverOpen) {
@@ -115,14 +112,10 @@ export function renderRemoteControl(): void {
     state.taskDraft.remoteControl,
     state.remoteControlDefault,
   );
-  elements.remoteControlToggle.classList.toggle("remote-on", on);
+  elements.remoteControlToggle.setAttribute("aria-pressed", String(on));
   elements.remoteControlToggle.disabled = ctx.mode === "unavailable";
-  elements.remoteControlToggle.title =
-    ctx.mode === "unavailable"
-      ? "Remote control (Claude only)"
-      : on
-        ? "Remote control · on"
-        : "Remote control";
+  elements.remoteControlToggle.dataset.tooltip =
+    ctx.mode === "unavailable" ? "Remote control (Claude only)" : "Remote control";
 }
 
 function remoteControlPopoverHeader(statusText: string, on: boolean): HTMLElement {

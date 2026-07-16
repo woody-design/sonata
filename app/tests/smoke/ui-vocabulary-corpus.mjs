@@ -31,8 +31,8 @@ const source = Object.fromEntries(
 assert.match(source.dom, />New task<\/span>/, "sidebar creation label is New task");
 assert.match(
   source.dom,
-  /class="secondary cli-toggle"[^>]*aria-pressed="true"[^>]*>CLI<\/button>/,
-  "main toggle keeps the stable CLI label and toggle semantics",
+  /id="toggle-terminal-window"[^>]*aria-pressed="true"[^>]*data-tooltip="Toggle CLI"/,
+  "main toggle keeps toggle semantics and the Toggle CLI tooltip (icon button, 2026-07-16)",
 );
 assert.match(source.sidebar, /disclosureSessionGroup\("chats", "Tasks"/, "folderless group is Tasks");
 assert.match(source.cli, /<p class="eyebrow terminal-window-label">CLI<\/p>/, "CLI header label");

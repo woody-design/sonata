@@ -33,7 +33,7 @@ try {
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
   await selectSidebarSession(page, taskId);
   await page.locator(".turn-card", { hasText: "RETRO_SEED" }).waitFor({ state: "visible" });
-  const armedBefore = await page.locator("#remote-control-toggle.remote-on").count();
+  const armedBefore = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
 
   await openSettings(page);
   await page.locator(".settings-group[aria-label='Remote control'] .settings-toggle").click();
@@ -42,8 +42,8 @@ try {
   await page.locator(".settings-window").waitFor({ state: "hidden" });
 
   // The already-open dormant session's button now reflects the default (live).
-  await page.locator("#remote-control-toggle.remote-on").waitFor({ state: "visible", timeout: 10000 });
-  const armedAfter = await page.locator("#remote-control-toggle.remote-on").count();
+  await page.locator('#remote-control-toggle[aria-pressed="true"]').waitFor({ state: "visible", timeout: 10000 });
+  const armedAfter = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
   await page.locator("#remote-control-toggle").click();
   await page.locator(".remote-control-popover").waitFor({ state: "visible" });
   const status = (await page.locator(".remote-control-popover-status").textContent())?.trim();
