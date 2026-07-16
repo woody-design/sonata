@@ -14,17 +14,22 @@
 
 import type {
   ClaudeDefaultPermissionMode,
+  CodexPermissionMode,
   LaunchSpeedMode,
   ReasoningEffort,
   RuntimeProvider,
 } from "../../shared/types";
-import { CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS } from "../../shared/types";
+import {
+  CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS,
+  CODEX_PERMISSION_MODE_OPTIONS,
+} from "../../shared/types";
 import {
   MODEL_OPTIONS,
   reasoningOptionsForModel,
   speedOptionsForModel,
 } from "../../reading-core/config";
 import {
+  codexPermissionModeLabel,
   newChatGreeting,
   permissionModeLabel,
   providerLabel,
@@ -160,7 +165,7 @@ function renderProviderMenu(): HTMLElement {
   return popover;
 }
 
-/** One-line consequence per mode (the Settings triad verbatim — ruled
+/** One-line consequence per Claude mode (the Settings triad verbatim — ruled
  *  2026-07-04: the per-session chip offers exactly the standing options). */
 function accessModeDescription(mode: ClaudeDefaultPermissionMode): string {
   if (mode === "acceptEdits") {
@@ -172,7 +177,25 @@ function accessModeDescription(mode: ClaudeDefaultPermissionMode): string {
   return "Ask before edits and commands";
 }
 
+/** One-line consequence per Codex mode — the per-preset clauses of the Codex
+ *  Settings footnote, so the chip menu reads the same as Settings → Codex. */
+function codexAccessModeDescription(mode: CodexPermissionMode): string {
+  if (mode === "approve-for-me") {
+    return "Only ask for actions Codex flags as potentially unsafe";
+  }
+  if (mode === "full-access") {
+    return "Edit files anywhere and reach the internet without asking";
+  }
+  return "Read and edit in the workspace; ask before anything outside it or the internet";
+}
+
+/** The access chip's draft menu — one menu kind, two vocabularies. The draft
+ *  provider selects Claude's permission triad or Codex's three-preset picker. */
 function renderAccessMenu(): HTMLElement {
+  return state.taskDraft.provider === "codex" ? renderCodexAccessMenu() : renderClaudeAccessMenu();
+}
+
+function renderClaudeAccessMenu(): HTMLElement {
   const popover = draftMenuShell(340, "Approvals");
   const section = document.createElement("div");
   section.className = "task-setting-section";
@@ -207,6 +230,49 @@ function renderAccessMenu(): HTMLElement {
     }
     button.addEventListener("click", () => {
       actions.setDraftPermissionMode(mode);
+    });
+    section.append(button);
+  }
+
+  popover.append(section);
+  return popover;
+}
+
+function renderCodexAccessMenu(): HTMLElement {
+  const popover = draftMenuShell(340, "Approvals");
+  const section = document.createElement("div");
+  section.className = "task-setting-section";
+
+  const heading = document.createElement("p");
+  heading.className = "task-setting-heading";
+  heading.textContent = "How should Codex actions be approved?";
+  section.append(heading);
+
+  const effective = state.taskDraft.codexPermissionMode ?? state.codexDefaultPermissionMode;
+  for (const mode of CODEX_PERMISSION_MODE_OPTIONS) {
+    const selected = mode === effective;
+    const button = document.createElement("button");
+    button.id = `codex-access-option-${mode}`;
+    button.className = "task-setting-option task-setting-option-tall";
+    button.classList.toggle("selected", selected);
+    button.type = "button";
+    button.setAttribute("role", "menuitemradio");
+    button.ariaChecked = String(selected);
+
+    const copy = document.createElement("span");
+    copy.className = "task-setting-option-copy";
+    const label = document.createElement("span");
+    label.textContent = codexPermissionModeLabel(mode);
+    const description = document.createElement("span");
+    description.className = "task-setting-option-desc";
+    description.textContent = codexAccessModeDescription(mode);
+    copy.append(label, description);
+    button.append(copy);
+    if (selected) {
+      button.append(selectedBadge());
+    }
+    button.addEventListener("click", () => {
+      actions.setDraftCodexPermissionMode(mode);
     });
     section.append(button);
   }

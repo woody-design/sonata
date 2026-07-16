@@ -157,13 +157,24 @@ export function renderComposerControls(view = activeTaskView(state)): void {
     // access + provider + model open their draft menus; the project chip
     // sits on the composer's context row. Sessions never show the provider
     // chip (the provider can't change mid-session).
+    // The access chip is present for BOTH providers now (2026-07-15 codex
+    // permission mode): Claude reads the triad, Codex the three-preset picker.
+    // One chip element, one "access" menu kind — the provider selects the
+    // vocabulary (label here, menu body in entry.ts).
+    const codexDraft = state.taskDraft.provider === "codex";
     renderDraftChip(elements.permissionChip, {
       kind: "access",
-      visible: state.taskDraft.provider === "claude",
-      label: permissionModeLabel(
-        state.taskDraft.permissionMode ?? state.claudeDefaultPermissionMode,
-      ),
-      hint: "How should Claude actions be approved?",
+      visible: true,
+      label: codexDraft
+        ? codexPermissionModeLabel(
+            state.taskDraft.codexPermissionMode ?? state.codexDefaultPermissionMode,
+          )
+        : permissionModeLabel(
+            state.taskDraft.permissionMode ?? state.claudeDefaultPermissionMode,
+          ),
+      hint: codexDraft
+        ? "How should Codex actions be approved?"
+        : "How should Claude actions be approved?",
     });
     renderDraftChip(elements.providerChip, {
       kind: "provider",

@@ -112,6 +112,7 @@ export function resetTaskDraftForNewChat(state: RendererState, folder?: string |
   // chip falls back to the Settings default the same way).
   state.taskDraft.remoteControl = state.remoteControlDefault;
   state.taskDraft.permissionMode = null;
+  state.taskDraft.codexPermissionMode = null;
 }
 
 /** A known project chosen from the project menu — choosing closes it. */

@@ -15,6 +15,7 @@ import type {
   ClaudeDefaultPermissionMode,
   ClaudePermissionMode,
   ClaudeSettings,
+  CodexPermissionMode,
   CodexSettings,
   DeliveryAttachment,
   DeliveryTaskState,
@@ -303,6 +304,11 @@ export interface RendererState {
    *  on Settings save. The New Chat access chip shows this until the user picks
    *  a per-session mode (taskDraft.permissionMode). */
   claudeDefaultPermissionMode: ClaudeDefaultPermissionMode;
+  /** The Settings "New Codex sessions start in" default, mirrored at boot and
+   *  on Settings save — the Codex twin of `claudeDefaultPermissionMode`. The
+   *  New Chat access chip shows this until the user picks a per-session mode
+   *  (taskDraft.codexPermissionMode) while the draft provider is Codex. */
+  codexDefaultPermissionMode: CodexPermissionMode;
   /** True after the boot-time launch defaults have either loaded or failed
    *  closed to their local defaults. Empty-task CLI actions wait for this so
    *  they never race an in-flight settings projection. */
@@ -449,6 +455,11 @@ export interface TaskLaunchDraft {
    *  default (state.claudeDefaultPermissionMode), so an untouched draft
    *  tracks a Settings change live. Sent with createTask only when set. */
   permissionMode: ClaudePermissionMode | null;
+  /** Codex permission mode for THIS session; null = follow the Settings
+   *  default (state.codexDefaultPermissionMode), so an untouched draft tracks
+   *  a Settings change live. Sent with createTask only when set (Codex twin of
+   *  `permissionMode`). */
+  codexPermissionMode: CodexPermissionMode | null;
   /** New chat: arm Remote Control so the session spawns with `--remote-control`
    *  (Claude only). The "arm at session start" entry point. */
   remoteControl: boolean;
@@ -497,6 +508,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
         claude: "default",
       },
       permissionMode: null,
+      codexPermissionMode: null,
       remoteControl: false,
     },
     taskDraftFolderTouched: false,
@@ -513,6 +525,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     remoteControlNote: null,
     remoteControlDefault: false,
     claudeDefaultPermissionMode: "default",
+    codexDefaultPermissionMode: "ask-for-approval",
     launchSettingsHydrated: false,
     promptNav: null,
     settingsOverlay: null,

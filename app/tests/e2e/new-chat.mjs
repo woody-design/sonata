@@ -45,8 +45,53 @@ try {
   // model-settings-options.mjs, and its settings-file injection by the
   // provider-launch-settings smoke; neither needs a real spawn.)
   await chooseDraftProvider(page, "codex");
-  // Codex draft: the Claude access chip leaves the composer.
-  await page.locator("#permission-chip").waitFor({ state: "hidden" });
+  // Codex draft: the access chip stays, now speaking Codex's own vocabulary.
+  // Fresh settings → the boot-hydrated Codex default "Ask for approval". The
+  // menu offers the three presets; an explicit non-default pick relabels the
+  // chip AND travels on createTask (asserted against the manifest below). The
+  // untouched-draft → main-process-fill path is fenced by
+  // smoke:codex-approval-injection.
+  await page.locator("#permission-chip", { hasText: "Ask for approval" }).waitFor({
+    state: "visible",
+  });
+  await page.locator("#permission-chip").click();
+  // Assert the three presets by their user-facing COPY, not just their IDs — an
+  // ID-only check would pass on wrong/missing label text. Each option's label
+  // span must equal codexPermissionModeLabel's output and its description line
+  // the Codex Settings footnote clause.
+  const codexMenuExpected = [
+    {
+      mode: "ask-for-approval",
+      label: "Ask for approval",
+      desc: "Read and edit in the workspace; ask before anything outside it or the internet",
+    },
+    {
+      mode: "approve-for-me",
+      label: "Approve for me",
+      desc: "Only ask for actions Codex flags as potentially unsafe",
+    },
+    {
+      mode: "full-access",
+      label: "Full Access",
+      desc: "Edit files anywhere and reach the internet without asking",
+    },
+  ];
+  const codexMenuCopy = {};
+  for (const option of codexMenuExpected) {
+    const copy = page.locator(`#codex-access-option-${option.mode} .task-setting-option-copy`);
+    await copy.waitFor({ state: "visible" });
+    codexMenuCopy[option.mode] = {
+      label: (await copy.locator("span").first().textContent())?.trim() ?? null,
+      desc: (await copy.locator(".task-setting-option-desc").textContent())?.trim() ?? null,
+    };
+  }
+  const codexMenuCopyMatches = codexMenuExpected.every(
+    (option) =>
+      codexMenuCopy[option.mode]?.label === option.label &&
+      codexMenuCopy[option.mode]?.desc === option.desc,
+  );
+  await page.locator("#codex-access-option-full-access").click();
+  await page.locator("#permission-chip", { hasText: "Full Access" }).waitFor({ state: "visible" });
   await page.locator("#model-chip").click();
   await page.locator(".task-settings-popover", { hasText: "Reasoning" }).waitFor({ state: "visible" });
   await page
@@ -120,11 +165,12 @@ try {
     placeholder === "Describe a task or ask a question" &&
     Boolean(dormantPlaceholder?.includes("resumes this session")) &&
     createdManifest.schemaId === "duet.task-manifest.v1" &&
+    codexMenuCopyMatches &&
     createdManifest.task.provider === "codex" &&
     createdManifest.task.model === "gpt-5.6-sol" &&
     createdManifest.task.reasoningEffort === "high" &&
     createdManifest.task.speedMode === "fast" &&
-    createdManifest.task.codexPermissionMode === "ask-for-approval" &&
+    createdManifest.task.codexPermissionMode === "full-access" &&
     createdManifest.task.providerCwd === selectedFolder &&
     createdManifest.task.title === `${localDatePrefix(createdManifest.task.createdAt)}${firstPrompt}` &&
     createdManifest.task.titleOrigin === "automatic" &&
@@ -145,6 +191,9 @@ try {
         taskTitle: createdManifest.task.title,
         providerCwd: createdManifest.task.providerCwd,
         speedMode: createdManifest.task.speedMode,
+        codexPermissionMode: createdManifest.task.codexPermissionMode,
+        codexMenuCopy,
+        codexMenuCopyMatches,
         composerDisabled,
         sendDisabledWithoutText,
         sendEnabledWithText,

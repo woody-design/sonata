@@ -68,6 +68,8 @@ export interface Actions {
   setDraftSpeedMode(provider: RuntimeProvider, value: LaunchSpeedMode): void;
   /** Per-session access mode (the Settings triad; closes the access menu). */
   setDraftPermissionMode(mode: ClaudePermissionMode): void;
+  /** Per-session Codex permission mode (the Codex twin; closes the access menu). */
+  setDraftCodexPermissionMode(mode: CodexPermissionMode): void;
   // — Attention banners (view/banners.ts) dismiss mutations: bare
   //   assignments are grammar (C3 ruling) — implemented shell-side, each the
   //   verbatim body of the dismiss handler it replaced. —

@@ -434,12 +434,14 @@ async function createTask(
       speedMode: launchSettings.speedMode,
       // Per-session access mode (2026-07-04): only an explicit choice travels;
       // an untouched draft lets the main process apply the Settings default
-      // itself (single source of truth for "what default means now"). Codex's
-      // permission mode carries no per-session chip yet (out of scope), so it
-      // always falls through — the main process fills it from the Codex
-      // permission default (Settings → Codex).
+      // itself (single source of truth for "what default means now"). Each
+      // provider carries its own permission field — an untouched draft omits
+      // it so the main process fills from the matching Settings default.
       ...(provider === "claude" && state.taskDraft.permissionMode
         ? { permissionMode: state.taskDraft.permissionMode }
+        : {}),
+      ...(provider === "codex" && state.taskDraft.codexPermissionMode
+        ? { codexPermissionMode: state.taskDraft.codexPermissionMode }
         : {}),
       ...(provider === "claude" && state.taskDraft.remoteControl ? { remoteControl: true } : {}),
     });

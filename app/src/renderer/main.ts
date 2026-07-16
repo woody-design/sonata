@@ -338,6 +338,11 @@ initActions({
     state.taskDraft.menu = null;
     render();
   },
+  setDraftCodexPermissionMode: (mode) => {
+    state.taskDraft.codexPermissionMode = mode;
+    state.taskDraft.menu = null;
+    render();
+  },
   setDraftReasoningEffort: (provider, value) => {
     state.taskDraft.reasoningEffort[provider] = value;
     render();
@@ -945,6 +950,21 @@ async function hydrateClaudeDefaults(): Promise<void> {
   }
 }
 
+/** Mirror the Codex permission default (Settings → Codex) into renderer state
+ *  at boot — the Codex twin of hydrateClaudeDefaults. An untouched New Chat
+ *  draft (codexPermissionMode null) shows THIS value on its access chip while
+ *  the draft provider is Codex; without the mirror the chip would wear the
+ *  local initial default until the user opened Settings. */
+async function hydrateCodexDefaults(): Promise<void> {
+  try {
+    const settings = normalizeCodexSettings(await window.duetRuntime.readCodexSettings());
+    state.codexDefaultPermissionMode = settings.defaultPermissionMode;
+    render();
+  } catch {
+    // Best-effort: the chip just shows Codex's own "Ask for approval" default.
+  }
+}
+
 function applyReadingSettings(nextSettings: ReadingSettings): void {
   const settings = normalizeReadingSettings(nextSettings);
   const root = document.documentElement;
@@ -1160,6 +1180,10 @@ async function persistCodexDefaultPermissionMode(mode: CodexPermissionMode): Pro
     if (state.settingsOverlay?.codex) {
       state.settingsOverlay.codex.settings = persisted;
     }
+    // Keep the renderer mirror live: an untouched New Chat draft
+    // (codexPermissionMode null) shows THIS value on its access chip while the
+    // draft provider is Codex — mirroring the Claude default's sync above.
+    state.codexDefaultPermissionMode = persisted.defaultPermissionMode;
   } catch (error) {
     state.status = errorMessage(error);
   }
@@ -1531,6 +1555,10 @@ void hydrateClaudeDefaults().finally(() => {
   render();
   void refreshSessionIndex();
 });
+// The Codex permission default only feeds the New Chat access chip label (no
+// dormant-arming ordering constraint like Claude's RC default), so it hydrates
+// independently and never gates the session index.
+void hydrateCodexDefaults();
 
 render();
 
