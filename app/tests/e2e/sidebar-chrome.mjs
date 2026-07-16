@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { _electron as electron } from "playwright-core";
 import { FAKE_CODEX_SOURCE } from "./helpers/fake-codex-source.mjs";
+import { clickHoverRevealed, hoverSettled } from "./helpers/hover.mjs";
 import { createSidebarFixture } from "./helpers/sidebar-fixture.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -338,7 +339,7 @@ try {
 async function collectChromeSnapshot(page, liveTaskId) {
   const liveRow = page.locator(`.sidebar-session[data-task-id="${liveTaskId}"]`);
   const inactiveRow = page.locator(".sidebar-session:not(.active)").first();
-  await inactiveRow.hover();
+  await hoverSettled(page, inactiveRow);
   const rowHover = await inactiveRow.evaluate((element) => getComputedStyle(element).backgroundColor);
 
   await openFirstSessionMenu(page);
@@ -352,7 +353,7 @@ async function collectChromeSnapshot(page, liveTaskId) {
     (element) => getComputedStyle(element).color,
   );
   const firstMenuItem = page.locator(".sidebar-menu-item").first();
-  await firstMenuItem.hover();
+  await hoverSettled(page, firstMenuItem);
   const menuItemHover = await firstMenuItem.evaluate(
     (element) => getComputedStyle(element).backgroundColor,
   );
@@ -383,7 +384,7 @@ async function collectChromeSnapshot(page, liveTaskId) {
   const filterButton = page.locator("#sidebar-filter");
   await focusViaKeyboard(page, filterButton);
   const filterFocus = await focusRing(filterButton);
-  await filterButton.hover();
+  await hoverSettled(page, filterButton);
   const filterHover = await filterButton.evaluate(
     (element) => getComputedStyle(element).backgroundColor,
   );
@@ -400,7 +401,7 @@ async function collectChromeSnapshot(page, liveTaskId) {
   await closeSidebarMenu(page);
 
   const newChat = page.locator("#sidebar-new-chat");
-  await newChat.hover();
+  await hoverSettled(page, newChat);
   const newChatHover = await newChat.evaluate(
     (element) => getComputedStyle(element).backgroundColor,
   );
@@ -431,7 +432,7 @@ async function collectChromeSnapshot(page, liveTaskId) {
   );
 
   const collapseButton = page.locator("#sidebar-collapse");
-  await collapseButton.hover();
+  await hoverSettled(page, collapseButton);
   const collapseHover = await collapseButton.evaluate(
     (element) => getComputedStyle(element).backgroundColor,
   );
@@ -442,7 +443,7 @@ async function collectChromeSnapshot(page, liveTaskId) {
   const toggleButton = page.locator("#sidebar-toggle");
   await page.mouse.move(1100, 700);
   const toggleColor = await toggleButton.evaluate((element) => getComputedStyle(element).color);
-  await toggleButton.hover();
+  await hoverSettled(page, toggleButton);
   const toggleHover = await toggleButton.evaluate(
     (element) => getComputedStyle(element).backgroundColor,
   );
@@ -452,7 +453,7 @@ async function collectChromeSnapshot(page, liveTaskId) {
   await page.locator("body:not(.sidebar-collapsed)").waitFor({ state: "attached" });
   await liveRow.waitFor({ state: "attached" });
 
-  await page.locator("#sidebar-resizer").hover({ position: { x: 4, y: 200 } });
+  await hoverSettled(page, page.locator("#sidebar-resizer"), { position: { x: 4, y: 200 } });
   const resizerBackground = await page.locator("#sidebar-resizer").evaluate(
     (element) => getComputedStyle(element).backgroundImage,
   );
@@ -623,8 +624,7 @@ function assertChromeSnapshot(actual, expected, label) {
 
 async function openFirstSessionMenu(page) {
   const row = page.locator(".sidebar-session").first();
-  await row.hover();
-  await row.locator(".sidebar-row-hover-action").click();
+  await clickHoverRevealed(page, row, row.locator(".sidebar-row-hover-action"));
   await page.locator("#sidebar-menu-root .sidebar-menu").waitFor({ state: "visible" });
   await page.mouse.move(1100, 700);
 }

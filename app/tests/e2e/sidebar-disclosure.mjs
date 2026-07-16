@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { _electron as electron } from "playwright-core";
+import { hoverSettled } from "./helpers/hover.mjs";
 import { createSidebarFixture } from "./helpers/sidebar-fixture.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -222,8 +223,7 @@ async function assertDisclosureInk(page, expected) {
     },
     "disclosure resting style",
   );
-  await action.hover();
-  await page.waitForTimeout(160);
+  await hoverSettled(page, action);
   const hover = await action.evaluate((element) => {
     const style = getComputedStyle(element);
     return { color: style.color, background: style.backgroundColor };

@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { _electron as electron } from "playwright-core";
+import { clickHoverRevealed } from "./helpers/hover.mjs";
 import { createSidebarFixture } from "./helpers/sidebar-fixture.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -926,7 +927,9 @@ async function openSidebarSessionRename(page, taskId) {
 async function openSidebarSessionMenu(page, taskId) {
   const row = sessionRow(page, taskId);
   await row.waitFor({ state: "visible" });
-  await row.locator(".sidebar-row-hover-action").click({ force: true });
+  // No force-click: engage :hover for real so the hover-revealed action is
+  // genuinely visible — force masked exactly the race clickHoverRevealed removes.
+  await clickHoverRevealed(page, row, row.locator(".sidebar-row-hover-action"));
   await page.locator("#sidebar-menu-root .sidebar-menu").waitFor({ state: "visible" });
 }
 
@@ -939,8 +942,7 @@ async function openHeaderSessionRename(page) {
 async function openProjectRename(page, name) {
   const project = projectByName(page, name);
   const header = project.locator(".sidebar-project-header");
-  await header.hover();
-  await header.locator(".sidebar-row-actions button").first().click();
+  await clickHoverRevealed(page, header, header.locator(".sidebar-row-actions button").first());
   await page.locator("#sidebar-menu-root").getByRole("menuitem", { name: "Rename project" }).click();
   await renameInput(page, "sidebar").waitFor({ state: "visible" });
 }
