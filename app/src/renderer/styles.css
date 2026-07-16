@@ -2364,7 +2364,9 @@ h2 {
   align-items: center;
   gap: 6px;
   min-height: 30px;
-  border: 1px solid var(--border-strong);
+  /* Same stroke as .settings-box — the picker button sits inside the box and
+     shouldn't out-weigh its container's outline (Woody, 2026-07-16). */
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   padding: 0 9px 0 11px;
   color: var(--text-primary);
