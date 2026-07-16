@@ -147,6 +147,7 @@
     "smoke:quote-comment": "npm run build:main && node tests/smoke/quote-comment.mjs",
     "smoke:reading-scroll": "npm run build:main && node tests/smoke/reading-scroll.mjs",
     "smoke:reading-turns": "npm run build:main && node tests/smoke/reading-turns.mjs",
+    "smoke:reading-turn-activity": "npm run build:main && node tests/smoke/reading-turn-activity.mjs",
     "smoke:reading-sidebar-selectors": "npm run build:main && node tests/smoke/reading-sidebar-selectors.mjs",
     "smoke:reading-composer-selectors": "npm run build:main && node tests/smoke/reading-composer-selectors.mjs",
     "smoke:reading-runtime-reducer": "npm run build:main && node tests/smoke/reading-runtime-reducer.mjs",

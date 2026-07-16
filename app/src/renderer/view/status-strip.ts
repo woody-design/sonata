@@ -28,7 +28,7 @@ import {
   deriveCurrentStepForView,
   stripRunningAgents,
 } from "../../reading-core/selectors/turns";
-import { hasActiveRun } from "../../reading-core/selectors/runs";
+import { turnActivity } from "../../reading-core/selectors/runs";
 import { isReadingNearBottom } from "../../reading-core/reading-scroll";
 import {
   activeTaskView,
@@ -63,8 +63,11 @@ export function renderStatusStrip(view = activeTaskView(state)): void {
   withReadingBottomPin(() => {
     const strip = elements.statusStrip;
     const runningAgents = view?.task ? stripRunningAgents(view) : [];
-    const activeRun = view?.task ? hasActiveRun(view) : false;
-    const visible = Boolean(view?.task && (activeRun || runningAgents.length > 0));
+    // One derivation (S1b): the strip is visible whenever the turn is not idle,
+    // and its status area speaks Duet's derived voice only while WORKING — a
+    // background turn (main done, agents alive) shows the agents area alone.
+    const activity = turnActivity(view);
+    const visible = Boolean(view?.task) && activity !== "idle";
     strip.classList.toggle("hidden", !visible);
     if (!visible || !view) {
       strip.classList.remove("quiet", "silent");
@@ -74,7 +77,7 @@ export function renderStatusStrip(view = activeTaskView(state)): void {
       delete elements.statusStripAgents.dataset.sig;
       return;
     }
-    renderStripStatus(view, activeRun);
+    renderStripStatus(view, activity === "working");
     renderStripAgents(runningAgents);
   });
 }
@@ -92,15 +95,20 @@ export function updateStatusStripStatusInPlace(view: TaskViewState): void {
   // Sub-line counts change with the mirror (todo blocks grow/shrink) — a
   // pinned view must follow the live edge.
   withReadingBottomPin(() => {
-    renderStripStatus(view, hasActiveRun(view));
+    renderStripStatus(view, turnActivity(view) === "working");
   });
 }
 
-function renderStripStatus(view: TaskViewState, activeRun: boolean): void {
+// `working` is the shared turnActivity "working" verdict, NOT a bare active-run
+// check: the derived-voice fallback must also appear when hooks say the CLI is
+// busy while the run report lies "completed" (the S1b incident) — otherwise a
+// visible strip would render an empty status area. A background turn passes
+// `working: false`, so its status area stays hidden and only the agents show.
+function renderStripStatus(view: TaskViewState, working: boolean): void {
   const container = elements.statusStripStatus;
   const native = view.workingStatus?.native ?? null;
   container.replaceChildren();
-  container.classList.toggle("hidden", !native && !activeRun);
+  container.classList.toggle("hidden", !native && !working);
   if (native) {
     // The agent's voice: the provider's status region, verbatim. No CSS
     // spinner — relay updates are the animation, so motion is evidence.
@@ -121,7 +129,7 @@ function renderStripStatus(view: TaskViewState, activeRun: boolean): void {
       line.textContent = sub;
       container.append(line);
     }
-  } else if (activeRun) {
+  } else if (working) {
     // Duet's voice: visibly different styling, derived from durable signals
     // (plan step, running tool) with Duet's own clock.
     container.classList.add("derived");

@@ -12,6 +12,7 @@ import type { DeliveryTaskState, RuntimeProvider, Task } from "../../shared/type
 import type { RuntimeRunReport } from "../../shared/schemas";
 import type { TaskViewState } from "../state";
 import { approvalKindLabel, providerLabel } from "./formatters";
+import { stripRunningAgents } from "./turns";
 
 export function isActiveRunStatus(status: string): boolean {
   return ["active", "waiting-for-approval", "resumed-after-approval", "stopping"].includes(status);
@@ -20,6 +21,46 @@ export function isActiveRunStatus(status: string): boolean {
 export function hasActiveRun(view: TaskViewState | null): boolean {
   const latestRun = view?.report?.runs.at(-1);
   return isActiveRunStatus(latestRun?.status ?? "");
+}
+
+export type TurnActivity = "working" | "background" | "idle";
+
+/**
+ * The single turn-state derivation shared by the status strip and the sidebar
+ * spinner (Turn-Signal Authority S1b, contract §3). Three explicit states read
+ * through ONE path, so the two surfaces can never again disagree on "is the
+ * turn over" (the pre-S1b divergence: two machines, two answers):
+ *
+ *  - "working" — the main turn is live: the latest run sits in the active
+ *    family, OR the hook-driven `cliState` says the CLI is busy / parked on an
+ *    approval. The cliState leg is the incident guard (claude 2.1.211 premature
+ *    idle): a run-report lie ("completed" while hooks stay busy) can no longer
+ *    hide the signal. Failure direction is deliberate — prefer a "still
+ *    working" over-report (the liveness machinery exposes a real stall honestly
+ *    at 20s/60s) over a "done" lie, which actively misleads.
+ *  - "background" — the main turn is over, but subagents launched during it are
+ *    still running. Async agents outlive their launch turn and no CLI emits an
+ *    "all background work done" edge (Stop == "main turn done" only —
+ *    anthropics/claude-code #45781), so the running-roster IS the only signal.
+ *  - "idle" — nothing live. A null / task-less view is idle.
+ *
+ * `waiting-approval` counts as "working" here; a surface that wants to draw
+ * approval distinctly (e.g. the sidebar's attention dot) must branch on it
+ * BEFORE consulting this selector — this derivation only answers "is the turn
+ * still going", not "how should approval look".
+ */
+export function turnActivity(view: TaskViewState | null): TurnActivity {
+  if (!view?.task) {
+    return "idle";
+  }
+  const activity = view.cliState?.activity;
+  if (hasActiveRun(view) || activity === "busy" || activity === "waiting-approval") {
+    return "working";
+  }
+  if (stripRunningAgents(view).length > 0) {
+    return "background";
+  }
+  return "idle";
 }
 
 export function runOutcome(run: RuntimeRunReport, providerName: string): string {

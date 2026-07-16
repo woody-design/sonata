@@ -21,6 +21,7 @@ import {
 } from "lucide";
 import type { SessionSummary } from "../../shared/types";
 import { formatRelativeAge } from "../../reading-core/selectors/formatters";
+import { turnActivity } from "../../reading-core/selectors/runs";
 import {
   sidebarDisclosureModel,
   sidebarFiltersNonDefault,
@@ -757,7 +758,16 @@ function sessionStatusIndicator(session: SessionSummary): HTMLElement | null {
     dot.setAttribute("aria-label", dot.title);
     return dot;
   }
-  if (["running", "starting", "stopping"].includes(session.liveStatus) || cli?.activity === "busy") {
+  // The spinner reads the SAME turn-state derivation as the status strip (S1b):
+  // a hydrated view spins while working OR while background subagents outlive
+  // their launch turn; `liveStatus` stays the fallback for un-hydrated rows. The
+  // waiting-approval attention dot is handled by the branch above and wins — this
+  // branch is only reached once approval is ruled out, so `turnActivity`'s
+  // working-includes-approval never double-counts here.
+  if (
+    ["running", "starting", "stopping"].includes(session.liveStatus) ||
+    turnActivity(taskViewForId(state, session.task.id)) !== "idle"
+  ) {
     const spinner = document.createElement("span");
     spinner.className = "sidebar-session-spinner";
     spinner.title = "Working";
