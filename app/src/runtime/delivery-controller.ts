@@ -31,6 +31,31 @@ const SCRAPE_APPROVAL_KEY = "scrape-panel";
 // delivery label.)
 const DEFAULT_PUMP_RETRY_INTERVAL_MS = 500;
 
+// After the boot latch opens, hold the FIRST delivery this long before the
+// bytes go out. Claude's TUI silently swallows the submit Enter inside a
+// boot-init window that ends ≈SessionStart+300ms (probe
+// spikes/first-prompt-enter-race, claude 2.1.210) — the pasted prompt text
+// sticks in the composer, unsent. 500 ≈ 1.7× margin past the window's tail.
+// Enforced in canDeliver(), so it covers BOTH latch paths (hook-first and the
+// scrape fallback) and is permanently satisfied ~1s after boot — it costs
+// nothing on any later send.
+const DEFAULT_BOOT_DELIVERY_GRACE_MS = 500;
+
+// The heal layer: if an in-flight prompt has earned no receipt by these
+// elapsed delays, re-send the submit Enter (terminalHost.nudgePromptSubmit).
+// This catches a first Enter the boot grace did NOT cover — and stays correct
+// if a future CLI version shifts the swallow window (effect-verification, not
+// a timing bet). An extra Enter on an already-empty composer is a no-op, so
+// re-sending is safe.
+//
+// INVARIANT (echo-branch safety): the FIRST rung must stay below
+// HUMAN_ACTIVE_WINDOW_MS (3500ms, terminal-host). The echo-reconciliation branch
+// (attemptEnterRetry) fires an Enter for an item completed by the paint-only
+// pty-echo receipt; its proof that it can't submit over a human's composed text
+// relies on isHumanActivelyTyping blanketing all of [0, first-rung]. Retune the
+// delays only while preserving `enterRetryDelaysMs[0] < HUMAN_ACTIVE_WINDOW_MS`.
+const DEFAULT_ENTER_RETRY_DELAYS_MS = [2_500, 6_000];
+
 export interface DeliveryControllerOptions {
   taskId: TaskId;
   provider: RuntimeProvider;
@@ -40,6 +65,12 @@ export interface DeliveryControllerOptions {
   receiptTimeoutMs?: number;
   /** Test injection point; production uses the 500ms default. */
   pumpRetryIntervalMs?: number;
+  /** Boot-init Enter-swallow grace; production uses the 500ms default. Tests
+   *  that assert immediate submission pass 0. */
+  bootDeliveryGraceMs?: number;
+  /** Elapsed delays at which an unreceipted in-flight prompt re-sends its
+   *  submit Enter; production uses [2500, 6000]. Tests pass [] to disable. */
+  enterRetryDelaysMs?: number[];
 }
 
 interface InFlightDelivery {
@@ -47,6 +78,11 @@ interface InFlightDelivery {
   submittedAtMs: number;
   allowPtyEchoReceipt: boolean;
   ptyEchoTail: string;
+  // UPS proved this delivery genuinely submitted (notePromptSubmittedByCli),
+  // even though its transcript receipt has not yet landed. The Enter-retry
+  // strict branch skips once set — a nudge now could Enter into an option-prompt
+  // the model raced onto the screen after the real submit (the H1 class).
+  submissionCorroborated: boolean;
 }
 
 interface PtyEchoBackfill {
@@ -56,6 +92,11 @@ interface PtyEchoBackfill {
   runId: RunId | null;
   submittedAtMs: number;
   expiresAtMs: number;
+  // The provider transcript has since corroborated a REAL submission for this
+  // item (a user-block matched). Until then the echo receipt only proves the
+  // text painted into the composer — not that the Enter submitted — so the
+  // Enter-retry's echo branch may still nudge (see attemptEnterRetry).
+  corroborated: boolean;
 }
 
 export class DeliveryController {
@@ -77,6 +118,11 @@ export class DeliveryController {
   // screen; the CLI's own queue absorbs anything mid-turn. Exposed on
   // DeliveryTaskState as the honest "still starting?" display bit (S6).
   private bootLatched = false;
+  // Epoch ms at which the boot latch flipped (set once, alongside bootLatched).
+  // canDeliver() holds the first send until bootDeliveryGraceMs has elapsed
+  // from here — the Enter-swallow window is timed from the CLI's boot, and the
+  // latch open is our earliest structural proxy for it.
+  private bootLatchedAt: number | null = null;
   // "A question is addressed to the human" — KEYED per ask (S6 review P1: a
   // single boolean reopened the gate on the FIRST decision while a second
   // broker ask was still pending — and, worse, while an EXPIRED ask's native
@@ -94,6 +140,19 @@ export class DeliveryController {
   private receiptTimer: NodeJS.Timeout | null = null;
   private readonly pumpRetryIntervalMs: number;
   private pumpRetryTimer: NodeJS.Timeout | null = null;
+  private readonly bootDeliveryGraceMs: number;
+  private readonly enterRetryDelaysMs: number[];
+  private enterRetryTimers: NodeJS.Timeout[] = [];
+  // Enter re-sends the in-flight prompt earned (reported in the timeout's
+  // failureReason). Reset when a fresh delivery goes in-flight.
+  private enterRetriesAttempted = 0;
+  // Monotonic delivery counter: bumped on every deliver() (any provider, any
+  // completion shape). An Enter-retry ladder captures the value at arm time; a
+  // rung whose captured seq is stale means a LATER delivery has since touched
+  // the composer, so its Enter would land on someone else's prompt — skip it
+  // (the stale-rung-into-item-B class). The echo branch survives its own
+  // completion precisely because that completion does NOT bump this.
+  private deliverySeq = 0;
 
   constructor(options: DeliveryControllerOptions) {
     this.taskId = options.taskId;
@@ -103,6 +162,8 @@ export class DeliveryController {
     this.hasLiveTranscriptSource = options.hasLiveTranscriptSource;
     this.receiptTimeoutMs = options.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS;
     this.pumpRetryIntervalMs = options.pumpRetryIntervalMs ?? DEFAULT_PUMP_RETRY_INTERVAL_MS;
+    this.bootDeliveryGraceMs = options.bootDeliveryGraceMs ?? DEFAULT_BOOT_DELIVERY_GRACE_MS;
+    this.enterRetryDelaysMs = options.enterRetryDelaysMs ?? DEFAULT_ENTER_RETRY_DELAYS_MS;
   }
 
   enqueue(text: string, attachments: DeliveryAttachment[] = []): DeliveryQueueItem {
@@ -144,6 +205,76 @@ export class DeliveryController {
   dispose(): void {
     this.clearReceiptTimer();
     this.clearPumpRetry();
+    this.clearEnterRetries();
+  }
+
+  /**
+   * The CLI is (re)initializing its input stack. SessionStart fires on startup,
+   * resume, AND `/clear` — all repaint the composer through the same class of
+   * Enter-swallow window (spikes/first-prompt-enter-race). Re-arm the boot grace
+   * from now so the NEXT delivery lands past the fresh window.
+   *
+   * This closes the `/clear` write-through gap: a `/clear` sent long after boot
+   * (latch already open, grace long-elapsed) leaves its run open, so a following
+   * prompt write-throughs into the native queue and completes immediately —
+   * arming no receipt, hence no Enter-retry. Re-arming the grace here is that
+   * send's protection. A no-op before the latch first opens (the latch flow
+   * stamps `bootLatchedAt` itself). Wired for BOTH providers; deliberately also
+   * re-covers the resume repaint.
+   */
+  noteSessionBoundary(): void {
+    if (this.bootLatched) {
+      this.bootLatchedAt = Date.now();
+    }
+  }
+
+  /**
+   * The CLI fired `UserPromptSubmit` — authoritative proof a prompt actually
+   * SUBMITTED. Corroborate the oldest matching, unexpired, uncorroborated echo
+   * backfill so the Enter-retry echo branch stops treating that item as
+   * possibly-stuck.
+   *
+   * This is the FAST corroboration path: the UPS hook (~300-500ms) beats rung 0
+   * (2.5s) reliably, where the slow transcript-adoption chain (JSONL create →
+   * discovery poll → tailer → transcript:blocks) plausibly does not on a fresh
+   * session. Without it, a genuinely-submitted first message whose transcript is
+   * still adopting would take a wasteful no-op rung-0 Enter (H2) — and, worse, if
+   * the model raced an `AskUserQuestion` option-prompt onto the screen after the
+   * submit, that Enter would answer a question addressed to the human (H1, the
+   * digit/enter-swallow class; `isApprovalActive`/`pendingApprovalKeys` do not
+   * cover option-prompt forms). A genuinely STUCK send fires no UPS, so nothing
+   * is corroborated and rung 0 still heals it.
+   *
+   * Suppresses BOTH nudge branches: it corroborates every matching echo backfill
+   * AND a matching strict in-flight delivery (via `submissionCorroborated`). It
+   * is NOT a receipt — completion/receipt handling is unchanged; a real
+   * transcript block still earns the receipt.
+   *
+   * Marks ALL same-text matches, not one. Text attribution between identical
+   * twins is fundamentally unreliable, so a same-text UPS suppresses EVERY
+   * same-text ladder. The failure direction is deliberate: a wrongly-suppressed
+   * heal (a stale twin's UPS suppressing a genuinely-stuck send) degrades to the
+   * honest 45s "undelivered" report — while the reverse error (a nudge Entering
+   * into a raced option-prompt, H1) is made impossible by construction.
+   */
+  notePromptSubmittedByCli(promptText: string): void {
+    const normalized = normalizePromptForMatch(promptText);
+    const now = Date.now();
+    for (const backfill of this.ptyEchoBackfills) {
+      if (
+        !backfill.corroborated &&
+        backfill.expiresAtMs > now &&
+        normalizePromptForMatch(backfill.text) === normalized
+      ) {
+        backfill.corroborated = true;
+      }
+    }
+    if (this.inFlight && !this.inFlight.submissionCorroborated) {
+      const item = this.items.find((candidate) => candidate.id === this.inFlight?.itemId);
+      if (item && normalizePromptForMatch(item.text) === normalized) {
+        this.inFlight.submissionCorroborated = true;
+      }
+    }
   }
 
   handleRuntimeEvent(event: RuntimeEvent): void {
@@ -215,6 +346,7 @@ export class DeliveryController {
     // pure query for state()/wedge reads.
     if (!this.bootLatched && this.terminalHost.acceptsPromptInput()) {
       this.bootLatched = true;
+      this.bootLatchedAt = Date.now();
     }
     if (this.inFlight) {
       this.emitState();
@@ -285,6 +417,14 @@ export class DeliveryController {
       // has accepted input, we never wait on the (animating-TUI-fragile)
       // idle-prompt scrape again.
       this.bootLatched &&
+      // Boot-init Enter-swallow grace: the CLI's TUI drops the submit Enter for
+      // a window ending ≈SessionStart+300ms (probe first-prompt-enter-race).
+      // Hold the first delivery until bootDeliveryGraceMs has elapsed from the
+      // latch open so the bytes land past that window. A blocked item re-pumps
+      // via the 500ms poll (schedulePumpRetry), so it delivers promptly once
+      // the grace clears. Permanently true ~1s after boot → zero cost later.
+      this.bootLatchedAt !== null &&
+      Date.now() - this.bootLatchedAt >= this.bootDeliveryGraceMs &&
       // Write-through (Claude): a mid-turn send writes straight into the CLI's
       // native queue — do NOT hold on an active run. The queued message's run
       // begins honestly on its own UserPromptSubmit hook when the CLI dequeues
@@ -307,6 +447,9 @@ export class DeliveryController {
   }
 
   private deliver(item: DeliveryQueueItem): void {
+    // Every delivery touches the composer — invalidate any prior Enter-retry
+    // ladder that has not yet fired (ownership; see attemptEnterRetry).
+    this.deliverySeq += 1;
     item.status = "delivering";
     item.deliveringAt = new Date().toISOString();
     item.failureReason = null;
@@ -384,8 +527,10 @@ export class DeliveryController {
       allowPtyEchoReceipt:
         item.attachments.length === 0 && this.provider === "claude" && !this.hasLiveTranscriptSource(),
       ptyEchoTail: "",
+      submissionCorroborated: false,
     };
     this.armReceiptTimer(item.id);
+    this.armEnterRetries(item.id);
     this.emitState();
   }
 
@@ -420,6 +565,7 @@ export class DeliveryController {
       runId: item.runId,
       submittedAtMs,
       expiresAtMs: Date.now() + BACKFILL_RECEIPT_WINDOW_MS,
+      corroborated: false,
     });
   }
 
@@ -456,8 +602,13 @@ export class DeliveryController {
   }
 
   private backfillPtyReceipt(block: Extract<TranscriptBlock, { kind: "user-message" }>): void {
+    // Prefer an uncorroborated entry: this transcript block is the REAL
+    // submission proof that upgrades an echo receipt, and flipping `corroborated`
+    // both stops a re-emit on a later block and disarms the Enter-retry echo
+    // branch (a genuine submit is now on record).
     const backfill = this.ptyEchoBackfills.find(
       (candidate) =>
+        !candidate.corroborated &&
         candidate.expiresAtMs > Date.now() &&
         matchesReceipt(candidate, block) &&
         Math.abs(Date.parse(block.ts) - candidate.submittedAtMs) <= BACKFILL_RECEIPT_WINDOW_MS,
@@ -465,6 +616,7 @@ export class DeliveryController {
     if (!backfill) {
       return;
     }
+    backfill.corroborated = true;
 
     const receipt: DeliveryReceipt = {
       source: "provider-transcript",
@@ -490,6 +642,15 @@ export class DeliveryController {
 
   private completeDelivery(item: DeliveryQueueItem, receipt: DeliveryReceipt): void {
     this.clearReceiptTimer();
+    // An echo completion does NOT disarm the heal net. `pty-composer-echo` fires
+    // when the prompt paints into the composer — which happens whether the Enter
+    // submitted OR was swallowed — so it cannot prove submission. Leave the
+    // ladder armed so its first rung can still reconcile (attemptEnterRetry's
+    // echo branch). Every other receipt source (provider-transcript, native-
+    // queue, slash-write) IS a real submission signal → clear the ladder.
+    if (receipt.source !== "pty-composer-echo") {
+      this.clearEnterRetries();
+    }
     item.status = "delivered";
     item.receipt = receipt;
     item.failureReason = null;
@@ -512,9 +673,12 @@ export class DeliveryController {
         return;
       }
       item.status = "undelivered";
-      item.failureReason = "No delivery receipt was observed in the provider transcript.";
+      item.failureReason = `No delivery receipt was observed in the provider transcript (${
+        this.enterRetriesAttempted
+      } submit-Enter ${this.enterRetriesAttempted === 1 ? "retry" : "retries"} attempted).`;
       this.inFlight = null;
       this.clearReceiptTimer();
+      this.clearEnterRetries();
       this.emitState();
       // The missed receipt is reported, not enforced — anything queued
       // behind this item flows immediately (S6, no head-block).
@@ -528,6 +692,103 @@ export class DeliveryController {
     }
     clearTimeout(this.receiptTimer);
     this.receiptTimer = null;
+  }
+
+  /** Arm the Enter re-send ladder for a freshly in-flight delivery. Armed and
+   *  cleared in lockstep with the receipt timer (same in-flight lifecycle),
+   *  EXCEPT an echo completion leaves it armed (see completeDelivery). Each rung
+   *  captures the delivery seq at arm time so a superseded ladder never fires. */
+  private armEnterRetries(itemId: DeliveryItemId): void {
+    this.clearEnterRetries();
+    this.enterRetriesAttempted = 0;
+    const armedSeq = this.deliverySeq;
+    this.enterRetryDelaysMs.forEach((delayMs, rungIndex) => {
+      this.enterRetryTimers.push(
+        setTimeout(() => {
+          this.attemptEnterRetry(itemId, rungIndex, armedSeq);
+        }, delayMs),
+      );
+    });
+  }
+
+  /**
+   * A ladder timer fired: re-send the submit Enter if the delivery still needs
+   * it. Two admissible cases, then the shared guards:
+   *
+   *  - Strict in-flight: this item is still the inFlight one and awaiting a
+   *    receipt (the classic swallowed-Enter case).
+   *  - Echo-reconciliation (FIRST rung only): the `pty-composer-echo` receipt
+   *    already COMPLETED this item, but it fired on composer PAINT — no proof
+   *    the Enter submitted. If an uncorroborated echo backfill still stands (the
+   *    transcript has not yet recorded a real submission), an extra Enter
+   *    reconciles reality to the already-reported delivery: a genuine submit ⇒
+   *    empty composer ⇒ no-op; a swallowed one ⇒ the stuck text finally submits.
+   *    First rung only — isHumanActivelyTyping's window (HUMAN_ACTIVE_WINDOW_MS,
+   *    3.5s) blankets any keystroke in [0, first-rung], so rung 0 cannot fire
+   *    over a human's composed text; a later rung has a typed-then-paused hole,
+   *    so it never takes this branch. INVARIANT: this proof needs
+   *    enterRetryDelaysMs[0] < HUMAN_ACTIVE_WINDOW_MS (see the constant). A
+   *    genuine submit is corroborated by notePromptSubmittedByCli (UPS) before
+   *    rung 0, so this branch only ever fires for an actually-stuck send.
+   *
+   * Ownership: any nudge requires the captured seq to still be current — a later
+   * delivery has since owned the composer otherwise, and this Enter would land
+   * on ITS prompt. Any guard failing SKIPS this attempt — never rescheduled; the
+   * next rung (if any) still fires.
+   */
+  private attemptEnterRetry(itemId: DeliveryItemId, rungIndex: number, armedSeq: number): void {
+    if (armedSeq !== this.deliverySeq) {
+      return;
+    }
+
+    if (this.inFlight && this.inFlight.itemId === itemId) {
+      // UPS already proved this genuinely submitted — never Enter now (it could
+      // land on an option-prompt the model raced onto the screen). The lagging
+      // transcript receipt still completes it; if it never arrives, the item
+      // falls to the honest 45s undelivered report (H1 over a lost heal).
+      if (this.inFlight.submissionCorroborated) {
+        return;
+      }
+      const item = this.items.find((candidate) => candidate.id === itemId);
+      if (!item || item.status !== "delivering") {
+        return;
+      }
+    } else {
+      if (rungIndex !== 0) {
+        return;
+      }
+      const echo = this.ptyEchoBackfills.find(
+        (candidate) =>
+          candidate.itemId === itemId && candidate.expiresAtMs > Date.now() && !candidate.corroborated,
+      );
+      if (!echo) {
+        return;
+      }
+    }
+
+    // Never Enter into an approval — a stray submit would confirm the panel
+    // (the digit/enter-swallow class). isApprovalActive is the rendered-panel
+    // scrape; pendingApprovalKeys also covers the hook-broker hold, where no
+    // panel renders (mirrors the canDeliver question-guard).
+    if (this.terminalHost.isApprovalActive() || this.pendingApprovalKeys.size > 0) {
+      return;
+    }
+    // Don't auto-submit text a co-present human may be editing directly in the
+    // terminal composer (scope extension of isHumanActivelyTyping, pre-declared
+    // in the plan's deviation ledger).
+    if (this.terminalHost.isHumanActivelyTyping()) {
+      return;
+    }
+    if (this.terminalHost.nudgePromptSubmit()) {
+      this.enterRetriesAttempted += 1;
+    }
+  }
+
+  private clearEnterRetries(): void {
+    for (const timer of this.enterRetryTimers) {
+      clearTimeout(timer);
+    }
+    this.enterRetryTimers = [];
   }
 
   private dropExpiredBackfills(): void {

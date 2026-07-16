@@ -75,6 +75,11 @@ const delivery = new DeliveryController({
   terminalHost: host,
   eventSink: () => {},
   hasLiveTranscriptSource: () => false,
+  // Keep this real-spawn dispatch e2e in its pre-fix behavior: no 500ms boot
+  // grace, no auto Enter re-sends into the live CLI (the boot-race mechanisms
+  // have their own fences).
+  bootDeliveryGraceMs: 0,
+  enterRetryDelaysMs: [],
 });
 
 try {

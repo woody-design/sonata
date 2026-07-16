@@ -244,6 +244,11 @@ async function startHost(provider, name) {
     eventSink: (event) => deliveryEvents.push(event),
     hasLiveTranscriptSource: () => transcript.hasLiveSource(),
     receiptTimeoutMs: 120000,
+    // Keep this real-spawn attachment test byte-for-byte in its pre-fix
+    // behavior: no 500ms boot grace, no auto Enter re-sends into the live CLI.
+    // The boot-race mechanisms are fenced against fake hosts + a live probe.
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
   });
 
   const startedAt = new Date().toISOString();

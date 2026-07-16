@@ -42,6 +42,11 @@ function makeController(host) {
     eventSink: () => {},
     hasLiveTranscriptSource: () => false,
     pumpRetryIntervalMs: 20,
+    // This suite asserts submission the instant the approval gate opens; the
+    // boot grace + Enter-retry ladder are out of scope here (they get their own
+    // fence in delivery-enter-retry.mjs).
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
   });
 }
 

@@ -45,6 +45,11 @@ function makeController(host) {
     eventSink: () => {},
     hasLiveTranscriptSource: () => false,
     pumpRetryIntervalMs: 20,
+    // This suite asserts immediate/prompt submission on a ready host; the
+    // boot-init Enter-swallow grace and Enter-retry ladder are exercised by
+    // delivery-enter-retry.mjs, not here.
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
   });
 }
 

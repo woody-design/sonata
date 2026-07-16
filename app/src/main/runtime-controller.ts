@@ -1930,6 +1930,11 @@ export class RuntimeController {
     // still protect delivery.
     if (event === "SessionStart") {
       active.terminalHost.noteHookSessionStart();
+      // Re-arm the delivery boot grace: startup, resume, AND /clear all repaint
+      // the composer through the same Enter-swallow window class. This is what
+      // protects a post-/clear write-through send (which completes as a
+      // native-queue receipt, arming no Enter-retry) and the resume repaint.
+      active.deliveryController.noteSessionBoundary();
     }
 
     // `UserPromptSubmit` is the authoritative "a turn is starting" signal — the
@@ -1939,6 +1944,12 @@ export class RuntimeController {
     // not when Duet wrote the bytes. Symmetric with the Stop-hook completion.
     if (event === "UserPromptSubmit") {
       const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
+      // Authoritative submission proof: corroborate the echo-retry ladder from
+      // UPS (fast) rather than the slow transcript-adoption chain, so a
+      // genuinely-submitted first message never earns a wasteful — or, if the
+      // model raced an option-prompt onto the screen, dangerous — rung-0 Enter.
+      // A stuck send fires no UPS, so this never suppresses a real heal.
+      active.deliveryController.notePromptSubmittedByCli(prompt);
       active.terminalHost.beginRunFromHook(prompt, {
         // The run↔turn bridge: Claude's `prompt_id` == the transcript's
         // promptId/turnKey (2026-07-03 loop-wakeup fix). Codex carries `turn_id`

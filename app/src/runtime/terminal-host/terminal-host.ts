@@ -1021,6 +1021,34 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
+   * Re-send the submit Enter for a prompt whose delivery earned no receipt.
+   *
+   * WHY: Claude's TUI silently swallows the submit Enter inside a boot-init
+   * window (≈[first ❯ paint, +200ms]; probe spikes/first-prompt-enter-race,
+   * claude 2.1.210) — the bracketed-paste prompt text buffers into the composer
+   * but the Enter is dropped, so a first-of-session prompt can sit unsent until
+   * a human presses Enter in the terminal. DeliveryController calls this when an
+   * in-flight prompt is still unreceipted after a delay. An extra Enter on an
+   * already-empty composer is a harmless no-op, so re-sending is always safe: if
+   * the first Enter landed, nothing happens; if it was swallowed, the stuck text
+   * finally submits (matches the manual-Enter recovery observed 10/10 in probe).
+   *
+   * Guards: no PTY → nothing to write; an active approval → a stray Enter would
+   * confirm the panel (the caller also guards this, belt-and-suspenders); an
+   * in-flight automation sequence (duetWriting) → never interleave our own bytes
+   * mid-paste. Returns whether it wrote.
+   */
+  nudgePromptSubmit(): boolean {
+    if (!this.ptyProcess || this.approvalActive || this.duetWriting) {
+      return false;
+    }
+    this.beginDuetWrite();
+    this.ptyProcess.write(CSI_U_ENTER);
+    this.endDuetWrite();
+    return true;
+  }
+
+  /**
    * Hook-driven run-start (Claude). The CLI fired `UserPromptSubmit` — a turn is
    * genuinely beginning now (either the first send, or a queued mid-turn send
    * the CLI just dequeued). Begin the run from the prompt the CLI actually

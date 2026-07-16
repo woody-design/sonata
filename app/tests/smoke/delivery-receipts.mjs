@@ -16,6 +16,11 @@ await check("provider transcript user message receipts complete delivery", async
     eventSink: (event) => events.push(event),
     hasLiveTranscriptSource: () => true,
     receiptTimeoutMs: 500,
+    // Receipt semantics under test, not the boot-init Enter-swallow grace or
+    // the Enter-retry ladder (those are fenced in delivery-enter-retry.mjs):
+    // deliver on enqueue, no auto Enter re-sends.
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
   });
 
   const item = controller.enqueue("Receipt smoke prompt");
@@ -68,6 +73,11 @@ await check("Claude first message can receipt from PTY echo and later backfill",
     eventSink: (event) => events.push(event),
     hasLiveTranscriptSource: () => false,
     receiptTimeoutMs: 500,
+    // Receipt semantics under test, not the boot-init Enter-swallow grace or
+    // the Enter-retry ladder (those are fenced in delivery-enter-retry.mjs):
+    // deliver on enqueue, no auto Enter re-sends.
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
   });
 
   const item = controller.enqueue("Claude first message");
@@ -135,6 +145,11 @@ await check("attachment markers and image evidence complete delivery", async () 
     eventSink: (event) => events.push(event),
     hasLiveTranscriptSource: () => true,
     receiptTimeoutMs: 500,
+    // Receipt semantics under test, not the boot-init Enter-swallow grace or
+    // the Enter-retry ladder (those are fenced in delivery-enter-retry.mjs):
+    // deliver on enqueue, no auto Enter re-sends.
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
   });
 
   const attachment = {
@@ -200,6 +215,11 @@ await check("file reference folds into prompt text VERBATIM (no shell-escaping)"
     eventSink: () => {},
     hasLiveTranscriptSource: () => true,
     receiptTimeoutMs: 500,
+    // Receipt semantics under test, not the boot-init Enter-swallow grace or
+    // the Enter-retry ladder (those are fenced in delivery-enter-retry.mjs):
+    // deliver on enqueue, no auto Enter re-sends.
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
   });
   // $ and ` are exactly what shellQuotePath would backslash-escape — wrong for
   // the prompt-text channel, where nothing un-escapes (guards bug: text quoter).
@@ -231,6 +251,11 @@ await check("mixed image + file reference: file folds to text, image chips, item
     eventSink: (event) => events.push(event),
     hasLiveTranscriptSource: () => true,
     receiptTimeoutMs: 500,
+    // Receipt semantics under test, not the boot-init Enter-swallow grace or
+    // the Enter-retry ladder (those are fenced in delivery-enter-retry.mjs):
+    // deliver on enqueue, no auto Enter re-sends.
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
   });
   const imageRef = {
     id: "mixed-img-1",
@@ -307,6 +332,11 @@ await check("slash delivery receipts immediately and never blocks the queue", as
     eventSink: (event) => events.push(event),
     hasLiveTranscriptSource: () => true,
     receiptTimeoutMs: 500,
+    // Receipt semantics under test, not the boot-init Enter-swallow grace or
+    // the Enter-retry ladder (those are fenced in delivery-enter-retry.mjs):
+    // deliver on enqueue, no auto Enter re-sends.
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
   });
 
   const slashItem = controller.enqueue("/config");
