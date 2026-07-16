@@ -281,6 +281,32 @@ export function permissionModeLabel(mode: ClaudePermissionMode): string {
   return "Manual";
 }
 
+/** One-line description shown under each Claude mode in the Settings picker
+ *  menu — explanation at decision time (the retired footnote wall, moved into
+ *  the menu). Total over the mode type so the copy stays reusable; the standing
+ *  Settings picker only surfaces default/acceptEdits/auto today. "Auto" reuses
+ *  the previously-shipped, verified footnote wording. The tail modes
+ *  (plan/bypass/dontAsk) never reach the Settings menu; their copy stays honest
+ *  and minimal — no invented mechanics. */
+export function permissionModeDescription(mode: ClaudePermissionMode): string {
+  if (mode === "acceptEdits") {
+    return "File edits go through; commands still ask.";
+  }
+  if (mode === "auto") {
+    return "Claude's safety classifier approves each step — far fewer prompts, with a guardrail.";
+  }
+  if (mode === "plan") {
+    return "Read-only until you approve a plan.";
+  }
+  if (mode === "bypassPermissions") {
+    return "Never asks. Skips permission checks entirely.";
+  }
+  if (mode === "dontAsk") {
+    return "Doesn't ask for approval.";
+  }
+  return "Asks for your approval on edits and commands.";
+}
+
 /** One vocabulary for every Codex permission surface (the Settings default
  *  popup; the live-session chip in composer.ts). Codex 0.144's own
  *  `/permissions` picker labels, so Duet's chip reads exactly as the TUI's
@@ -293,6 +319,19 @@ export function codexPermissionModeLabel(mode: CodexPermissionMode): string {
     return "Full Access";
   }
   return "Ask for approval";
+}
+
+/** One-line description shown under each Codex mode in the Settings picker menu.
+ *  Semantics frozen by the Codex Permission Mode program (derived from the
+ *  retired footnote). */
+export function codexPermissionModeDescription(mode: CodexPermissionMode): string {
+  if (mode === "approve-for-me") {
+    return "Only asks for actions Codex flags as potentially unsafe.";
+  }
+  if (mode === "full-access") {
+    return "Edits files anywhere and reaches the internet without asking.";
+  }
+  return "Reads, edits, and runs commands in the workspace; asks before touching anything outside it or the internet.";
 }
 
 /** The New Chat greeting IS the folder state display: it names the project
@@ -317,6 +356,19 @@ export function resumePolicyLabel(policy: ResumePolicyId): string {
     return "Resume full session";
   }
   return "Ask each time";
+}
+
+/** One-line description shown under each resume policy in the Settings picker
+ *  menu — the decision-time explanation for how a large idle session comes
+ *  back. */
+export function resumePolicyDescription(policy: ResumePolicyId): string {
+  if (policy === "summary") {
+    return "Start fresh from a compact summary.";
+  }
+  if (policy === "full") {
+    return "Bring back the whole conversation.";
+  }
+  return "Choose when you resume.";
 }
 
 export function settingsDateLabel(at: string): string {

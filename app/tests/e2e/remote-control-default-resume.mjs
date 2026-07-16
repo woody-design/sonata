@@ -21,8 +21,8 @@ try {
   page.on("pageerror", (err) => pageErrors.push(String(err)));
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
   await openSettings(page);
-  await page.locator(".settings-group[aria-label='Remote control'] .settings-toggle").click();
-  await page.locator(".settings-group[aria-label='Remote control'] .settings-toggle", { hasText: "On" }).waitFor();
+  await page.locator(".settings-group[aria-label='Remote control'] .settings-switch").click();
+  await page.locator(".settings-group[aria-label='Remote control'] .settings-switch[aria-checked='true']").waitFor();
   await page.keyboard.press("Escape");
   await page.locator(".settings-window").waitFor({ state: "hidden" });
 

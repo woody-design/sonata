@@ -39,8 +39,9 @@ try {
   await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor();
 
   await openSettings(page);
-  // Two .settings-popup buttons live in the overlay (Approvals + Sessions);
-  // scope to the Sessions group so strict mode resolves one.
+  // Three .settings-popup buttons live in the overlay now (Permissions holds
+  // Claude + Codex; Sessions holds the resume policy); scope to the Sessions
+  // group so strict mode resolves one.
   const sessionsGroup = page.locator('.settings-group[aria-label="Sessions"]');
   await sessionsGroup.locator(".settings-popup", { hasText: "Resume from summary" }).waitFor();
   await page.screenshot({ path: path.join(outDir, "01-overlay-moment-born-light.png") });
@@ -69,6 +70,13 @@ try {
   await openSettings(page);
   await page.locator(".settings-window").waitFor();
   await page.screenshot({ path: path.join(outDir, "04-overlay-dark.png") });
+
+  // Dark-mode ON state: the neutral system inverts ink in dark, so the ON
+  // track is bright — the one state where thumb/track contrast can silently
+  // die. Worth a standing frame.
+  await page.locator(".settings-switch").click();
+  await page.locator(".settings-switch[aria-checked='true']").waitFor();
+  await page.screenshot({ path: path.join(outDir, "05-overlay-dark-on.png") });
 
   console.log(JSON.stringify({ outDir, success: true }, null, 2));
 } catch (error) {

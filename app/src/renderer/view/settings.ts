@@ -6,6 +6,12 @@
 // flows (permission mode, resume policy, RC default, bridge restore) and the
 // open/close transitions stay shell-side behind the actions seam; the popup
 // menu open/close bare assignments are grammar → actions (C3 ruling).
+//
+// IA (2026-07-16 redesign): concept-first groups — Permissions (Claude /
+// Codex sessions), Remote control, Sessions, Claude Code. Rows carry an
+// inline secondary-color description (the retired footnote walls moved into
+// the row and into per-option picker copy). Three literal-clone popups are
+// one parameterized picker; the Remote Control toggle is a real switch.
 
 import { Check, ChevronDown, X } from "lucide";
 import {
@@ -16,9 +22,12 @@ import {
   RESUME_PROMPT_MIN_TOKENS,
 } from "../../shared/types";
 import {
+  codexPermissionModeDescription,
   codexPermissionModeLabel,
-  formatTokenCount,
+  compactTokenCount,
+  permissionModeDescription,
   permissionModeLabel,
+  resumePolicyDescription,
   resumePolicyLabel,
   settingsDateLabel,
 } from "../../reading-core/selectors/formatters";
@@ -75,11 +84,10 @@ export function renderSettingsOverlay(): void {
 
   dialog.append(
     renderSettingsHeader(),
-    renderApprovalsSettingsGroup(overlay),
-    renderCodexSettingsGroup(overlay),
+    renderPermissionsSettingsGroup(overlay),
     renderRemoteControlSettingsGroup(overlay),
     renderSessionsSettingsGroup(overlay),
-    renderClaudeSettingsGroup(overlay),
+    renderClaudeCodeSettingsGroup(overlay),
   );
   scrim.append(dialog);
   elements.settingsOverlayRoot.append(scrim);
@@ -109,365 +117,335 @@ function renderSettingsHeader(): HTMLElement {
   return header;
 }
 
-function renderApprovalsSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
+// ── Shared anatomy ────────────────────────────────────────────────────────
+
+interface SettingsGroupSpec {
+  /** Both the section aria-label and the visible heading. */
+  label: string;
+  /** Optional group-level description under the heading (e.g. the Claude Code
+   *  passthrough territory line). */
+  description?: string;
+  rows: HTMLElement[];
+}
+
+/** A titled section with a bordered box of rows. Groups are the IA's concept
+ *  units; rows are the individual settings within a concept. */
+function renderSettingsGroup(spec: SettingsGroupSpec): HTMLElement {
   const group = document.createElement("section");
   group.className = "settings-group";
-  group.setAttribute("aria-label", "Approvals");
+  group.setAttribute("aria-label", spec.label);
 
   const heading = document.createElement("p");
   heading.className = "settings-group-heading";
-  heading.textContent = "Approvals";
+  heading.textContent = spec.label;
+  group.append(heading);
+
+  if (spec.description) {
+    const description = document.createElement("p");
+    description.className = "settings-group-desc";
+    description.textContent = spec.description;
+    group.append(description);
+  }
 
   const box = document.createElement("div");
   box.className = "settings-box";
+  box.append(...spec.rows);
+  group.append(box);
 
+  return group;
+}
+
+interface SettingsRowSpec {
+  title: string;
+  /** Secondary-color line under the title — the settle explanation for this
+   *  row (replaces the retired outside-the-box footnote). */
+  description?: string;
+  /** Extra conditional lines under the description (provenance / bridge notes),
+   *  already built by the caller. */
+  notes?: HTMLElement[];
+  /** Trailing control (picker, switch, or value+action cluster). */
+  control: HTMLElement;
+}
+
+/** One row = a copy column (title + description + notes) and a trailing
+ *  control. Multi-row boxes get hairline separators via `.settings-row +
+ *  .settings-row` in CSS. */
+function renderSettingsRow(spec: SettingsRowSpec): HTMLElement {
   const row = document.createElement("div");
   row.className = "settings-row";
+
   const copy = document.createElement("div");
   copy.className = "settings-row-copy";
+
   const title = document.createElement("span");
   title.className = "settings-row-title";
-  title.textContent = "New Claude sessions start in";
+  title.textContent = spec.title;
   copy.append(title);
-  row.append(copy, renderDefaultPermissionModePopup(overlay));
-  box.append(row);
 
-  const footnote = document.createElement("p");
-  footnote.className = "settings-footnote";
-  footnote.textContent =
-    "Mirrors Claude's Shift+Tab modes. Auto approves every step through Claude's own safety classifier — far fewer prompts, with a guardrail. You can pick a different mode for any single task from the New task access chip.";
+  if (spec.description) {
+    const description = document.createElement("span");
+    description.className = "settings-row-desc";
+    description.textContent = spec.description;
+    copy.append(description);
+  }
 
-  group.append(heading, box, footnote);
-  return group;
+  if (spec.notes) {
+    copy.append(...spec.notes);
+  }
+
+  row.append(copy, spec.control);
+  return row;
+}
+
+interface PickerOption<T extends string> {
+  id: T;
+  label: string;
+  description: string;
+}
+
+interface PickerSpec<T extends string> {
+  options: ReadonlyArray<PickerOption<T>>;
+  /** The stored selection, or null while the backing settings are still
+   *  loading (the button reads "Loading…" and the menu can't open). */
+  selectedId: T | null;
+  open: boolean;
+  onToggle: () => void;
+  onPick: (id: T) => void;
+}
+
+/** One parameterized picker replaces the three literal-clone popups
+ *  (approval / codex / resume policy). Menu options carry a one-line
+ *  description; the check-glyph selected treatment and menu a11y roles are
+ *  unchanged. */
+function renderPicker<T extends string>(spec: PickerSpec<T>): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "settings-popup-wrap";
+
+  const selected = spec.selectedId
+    ? spec.options.find((option) => option.id === spec.selectedId) ?? null
+    : null;
+
+  const button = document.createElement("button");
+  button.className = "settings-popup";
+  button.type = "button";
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", String(spec.open));
+  button.disabled = spec.selectedId === null;
+  const label = document.createElement("span");
+  label.textContent = selected ? selected.label : "Loading…";
+  button.append(label, lucideIcon(ChevronDown, 14));
+  button.addEventListener("click", spec.onToggle);
+  wrap.append(button);
+
+  if (spec.open && spec.selectedId !== null) {
+    const menu = document.createElement("div");
+    menu.className = "settings-popup-menu";
+    menu.setAttribute("role", "menu");
+    for (const option of spec.options) {
+      const isSelected = option.id === spec.selectedId;
+      const item = document.createElement("button");
+      item.className = "settings-popup-option";
+      item.classList.toggle("selected", isSelected);
+      item.type = "button";
+      item.setAttribute("role", "menuitemradio");
+      item.setAttribute("aria-checked", String(isSelected));
+
+      const check = document.createElement("span");
+      check.className = "settings-popup-option-check";
+      if (isSelected) {
+        check.append(lucideIcon(Check, 13));
+      }
+
+      const text = document.createElement("span");
+      text.className = "settings-popup-option-text";
+      const optionLabel = document.createElement("span");
+      optionLabel.className = "settings-popup-option-label";
+      optionLabel.textContent = option.label;
+      const optionDesc = document.createElement("span");
+      optionDesc.className = "settings-popup-option-desc";
+      optionDesc.textContent = option.description;
+      text.append(optionLabel, optionDesc);
+
+      item.append(check, text);
+      item.addEventListener("click", () => {
+        spec.onPick(option.id);
+      });
+      menu.append(item);
+    }
+    wrap.append(menu);
+    flipPickerMenuIfClipped(menu);
+  }
+
+  return wrap;
+}
+
+/** The dialog is a scrollport (`overflow-y:auto`), so a downward-opening menu
+ *  near the bottom (the Sessions row) clips: its tail lands outside the visible
+ *  rect and the whole dialog has to scroll. After mount, measure the space
+ *  below the anchor inside the dialog; if the menu doesn't fit and there's more
+ *  room above, flip it upward. Mirrors the sidebar-menu flip pattern. */
+function flipPickerMenuIfClipped(menu: HTMLElement): void {
+  window.requestAnimationFrame(() => {
+    if (!menu.isConnected) {
+      return;
+    }
+    const dialog = menu.closest(".settings-window");
+    const wrap = menu.closest(".settings-popup-wrap");
+    if (!dialog || !wrap) {
+      return;
+    }
+    const dialogRect = dialog.getBoundingClientRect();
+    const anchorRect = wrap.getBoundingClientRect();
+    const gap = 8;
+    const spaceBelow = dialogRect.bottom - anchorRect.bottom - gap;
+    const spaceAbove = anchorRect.top - dialogRect.top - gap;
+    const menuHeight = menu.getBoundingClientRect().height;
+    menu.classList.toggle(
+      "settings-popup-menu--above",
+      menuHeight > spaceBelow && spaceAbove > spaceBelow,
+    );
+  });
+}
+
+/** A real on/off switch (role="switch"): state carried by form, never text.
+ *  On-fill is neutral dark ink, NOT signal blue — "chroma = deviation from
+ *  calm"; a launch default is not an alert. The control is textless, so it
+ *  carries its own `aria-label` — the row title is a DOM sibling and never
+ *  enters accessible-name computation. */
+function renderSwitch(spec: {
+  label: string;
+  on: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+}): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "settings-switch";
+  button.classList.toggle("on", spec.on);
+  button.type = "button";
+  button.setAttribute("role", "switch");
+  button.setAttribute("aria-label", spec.label);
+  button.setAttribute("aria-checked", String(spec.on));
+  button.disabled = spec.disabled;
+  const thumb = document.createElement("span");
+  thumb.className = "settings-switch-thumb";
+  button.append(thumb);
+  button.addEventListener("click", spec.onToggle);
+  return button;
+}
+
+// ── Groups ────────────────────────────────────────────────────────────────
+
+function renderPermissionsSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
+  const claudeStored = overlay.claude?.settings.defaultPermissionMode ?? null;
+  const claudeRow = renderSettingsRow({
+    title: "Claude sessions",
+    description: "How new Claude sessions handle approvals — same modes as Claude's Shift+Tab.",
+    control: renderPicker({
+      options: CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS.map((mode) => ({
+        id: mode,
+        label: permissionModeLabel(mode),
+        description: permissionModeDescription(mode),
+      })),
+      selectedId: claudeStored,
+      open: overlay.approvalMenuOpen,
+      onToggle: () => actions.toggleSettingsApprovalMenu(overlay),
+      onPick: (mode) => actions.persistDefaultPermissionMode(mode),
+    }),
+  });
+
+  const codexStored = overlay.codex?.settings.defaultPermissionMode ?? null;
+  const codexRow = renderSettingsRow({
+    title: "Codex sessions",
+    description: "How new Codex sessions handle approvals.",
+    control: renderPicker({
+      options: CODEX_PERMISSION_MODE_OPTIONS.map((mode) => ({
+        id: mode,
+        label: codexPermissionModeLabel(mode),
+        description: codexPermissionModeDescription(mode),
+      })),
+      selectedId: codexStored,
+      open: overlay.codexPermissionMenuOpen,
+      onToggle: () => actions.toggleSettingsCodexPermissionMenu(overlay),
+      onPick: (mode) => actions.persistCodexDefaultPermissionMode(mode),
+    }),
+  });
+
+  return renderSettingsGroup({ label: "Permissions", rows: [claudeRow, codexRow] });
 }
 
 function renderRemoteControlSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
-  const group = document.createElement("section");
-  group.className = "settings-group";
-  group.setAttribute("aria-label", "Remote control");
-
-  const heading = document.createElement("p");
-  heading.className = "settings-group-heading";
-  heading.textContent = "Remote control";
-
-  const box = document.createElement("div");
-  box.className = "settings-box";
-  const row = document.createElement("div");
-  row.className = "settings-row";
-
-  const copy = document.createElement("div");
-  copy.className = "settings-row-copy";
-  const title = document.createElement("span");
-  title.className = "settings-row-title";
-  title.textContent = "Auto-enable Remote Control";
-  copy.append(title);
-  row.append(copy);
-
   const on = overlay.claude?.settings.defaultRemoteControl ?? false;
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "settings-toggle";
-  toggle.classList.toggle("on", on);
-  toggle.setAttribute("role", "switch");
-  toggle.setAttribute("aria-checked", String(on));
-  toggle.disabled = !overlay.claude;
-  toggle.textContent = on ? "On" : "Off";
-  toggle.addEventListener("click", () => {
-    actions.setDefaultRemoteControl(!on);
+  const row = renderSettingsRow({
+    title: "Remote Control",
+    description:
+      "New and resumed Claude sessions can be reached from the Claude app on your phone.",
+    control: renderSwitch({
+      label: "Remote Control",
+      on,
+      disabled: !overlay.claude,
+      onToggle: () => actions.setDefaultRemoteControl(!on),
+    }),
   });
-  const trailing = document.createElement("div");
-  trailing.className = "settings-row-trailing";
-  trailing.append(toggle);
-  row.append(trailing);
 
-  box.append(row);
-
-  const footnote = document.createElement("p");
-  footnote.className = "settings-footnote";
-  footnote.textContent =
-    "New and resumed Claude sessions come up reachable from the Claude app on your phone. You can still turn it off for any single session.";
-
-  group.append(heading, box, footnote);
-  return group;
-}
-
-function renderDefaultPermissionModePopup(overlay: SettingsOverlayState): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "settings-popup-wrap";
-
-  const button = document.createElement("button");
-  button.className = "settings-popup";
-  button.type = "button";
-  button.setAttribute("aria-haspopup", "menu");
-  button.setAttribute("aria-expanded", String(overlay.approvalMenuOpen));
-  button.disabled = !overlay.claude;
-  const label = document.createElement("span");
-  label.textContent = overlay.claude
-    ? permissionModeLabel(overlay.claude.settings.defaultPermissionMode)
-    : "Loading…";
-  button.append(label, lucideIcon(ChevronDown, 14));
-  button.addEventListener("click", () => {
-    actions.toggleSettingsApprovalMenu(overlay);
-  });
-  wrap.append(button);
-
-  if (overlay.approvalMenuOpen && overlay.claude) {
-    const menu = document.createElement("div");
-    menu.className = "settings-popup-menu";
-    menu.setAttribute("role", "menu");
-    for (const mode of CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS) {
-      const selected = overlay.claude.settings.defaultPermissionMode === mode;
-      const option = document.createElement("button");
-      option.className = "settings-popup-option";
-      option.classList.toggle("selected", selected);
-      option.type = "button";
-      option.setAttribute("role", "menuitemradio");
-      option.setAttribute("aria-checked", String(selected));
-      const check = document.createElement("span");
-      check.className = "settings-popup-option-check";
-      if (selected) {
-        check.append(lucideIcon(Check, 13));
-      }
-      const optionLabel = document.createElement("span");
-      optionLabel.className = "settings-popup-option-label";
-      optionLabel.textContent = permissionModeLabel(mode);
-      option.append(check, optionLabel);
-      option.addEventListener("click", () => {
-        actions.persistDefaultPermissionMode(mode);
-      });
-      menu.append(option);
-    }
-    wrap.append(menu);
-  }
-
-  return wrap;
-}
-
-function renderCodexSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
-  const group = document.createElement("section");
-  group.className = "settings-group";
-  group.setAttribute("aria-label", "Codex");
-
-  const heading = document.createElement("p");
-  heading.className = "settings-group-heading";
-  heading.textContent = "Codex";
-
-  const box = document.createElement("div");
-  box.className = "settings-box";
-
-  const row = document.createElement("div");
-  row.className = "settings-row";
-  const copy = document.createElement("div");
-  copy.className = "settings-row-copy";
-  const title = document.createElement("span");
-  title.className = "settings-row-title";
-  title.textContent = "New Codex sessions start in";
-  copy.append(title);
-  row.append(copy, renderCodexPermissionModePopup(overlay));
-  box.append(row);
-
-  const footnote = document.createElement("p");
-  footnote.className = "settings-footnote";
-  footnote.textContent =
-    "The permission preset for new Codex sessions. Ask for approval lets Codex read and edit files in the workspace and run commands, asking before it touches anything outside the workspace or the internet; Approve for me only asks for actions it flags as potentially unsafe; Full Access lets Codex edit files anywhere and reach the internet without asking.";
-
-  group.append(heading, box, footnote);
-  return group;
-}
-
-function renderCodexPermissionModePopup(overlay: SettingsOverlayState): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "settings-popup-wrap";
-
-  const button = document.createElement("button");
-  button.className = "settings-popup";
-  button.type = "button";
-  button.setAttribute("aria-haspopup", "menu");
-  button.setAttribute("aria-expanded", String(overlay.codexPermissionMenuOpen));
-  button.disabled = !overlay.codex;
-  const label = document.createElement("span");
-  label.textContent = overlay.codex
-    ? codexPermissionModeLabel(overlay.codex.settings.defaultPermissionMode)
-    : "Loading…";
-  button.append(label, lucideIcon(ChevronDown, 14));
-  button.addEventListener("click", () => {
-    actions.toggleSettingsCodexPermissionMenu(overlay);
-  });
-  wrap.append(button);
-
-  if (overlay.codexPermissionMenuOpen && overlay.codex) {
-    const menu = document.createElement("div");
-    menu.className = "settings-popup-menu";
-    menu.setAttribute("role", "menu");
-    const stored = overlay.codex.settings.defaultPermissionMode;
-    for (const mode of CODEX_PERMISSION_MODE_OPTIONS) {
-      const selected = stored === mode;
-      const option = document.createElement("button");
-      option.className = "settings-popup-option";
-      option.classList.toggle("selected", selected);
-      option.type = "button";
-      option.setAttribute("role", "menuitemradio");
-      option.setAttribute("aria-checked", String(selected));
-      const check = document.createElement("span");
-      check.className = "settings-popup-option-check";
-      if (selected) {
-        check.append(lucideIcon(Check, 13));
-      }
-      const optionLabel = document.createElement("span");
-      optionLabel.className = "settings-popup-option-label";
-      optionLabel.textContent = codexPermissionModeLabel(mode);
-      option.append(check, optionLabel);
-      option.addEventListener("click", () => {
-        actions.persistCodexDefaultPermissionMode(mode);
-      });
-      menu.append(option);
-    }
-    wrap.append(menu);
-  }
-
-  return wrap;
+  return renderSettingsGroup({ label: "Remote control", rows: [row] });
 }
 
 function renderSessionsSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
-  const group = document.createElement("section");
-  group.className = "settings-group";
-  group.setAttribute("aria-label", "Sessions");
-
-  const heading = document.createElement("p");
-  heading.className = "settings-group-heading";
-  heading.textContent = "Sessions";
-
-  const box = document.createElement("div");
-  box.className = "settings-box";
-
-  const row = document.createElement("div");
-  row.className = "settings-row";
-
-  const copy = document.createElement("div");
-  copy.className = "settings-row-copy";
-  const title = document.createElement("span");
-  title.className = "settings-row-title";
-  title.textContent = "Resuming a large dormant session";
-  copy.append(title);
-
-  // Apple's provenance grammar (Login Items "Added by …"): state on the
-  // row, one quiet line of attribution — only while the value is
-  // moment-born. Reading settings never carry this; they have no moment.
+  // Apple's provenance grammar (Login Items "Added by …"): state on the row,
+  // one quiet line of attribution — only while the value is moment-born.
+  // Reading settings never carry this; they have no moment.
+  const notes: HTMLElement[] = [];
   const provenance = overlay.resume?.settings.provenance;
   if (provenance?.source === "moment") {
     const note = document.createElement("span");
     note.className = "settings-row-note";
     note.textContent = `Set from the resume chooser · ${settingsDateLabel(provenance.at)}`;
-    copy.append(note);
+    notes.push(note);
   }
 
-  row.append(copy, renderResumePolicyPopup(overlay));
-  box.append(row);
-
-  const footnote = document.createElement("p");
-  footnote.className = "settings-footnote";
-  footnote.textContent = `Applies when a Claude session has been idle for over ${Math.round(
-    RESUME_PROMPT_MIN_IDLE_MS / 60_000,
-  )} minutes and holds about ${formatTokenCount(RESUME_PROMPT_MIN_TOKENS)} tokens or more.`;
-
-  group.append(heading, box, footnote);
-  return group;
-}
-
-function renderResumePolicyPopup(overlay: SettingsOverlayState): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "settings-popup-wrap";
-
-  const button = document.createElement("button");
-  button.className = "settings-popup";
-  button.type = "button";
-  button.setAttribute("aria-haspopup", "menu");
-  button.setAttribute("aria-expanded", String(overlay.policyMenuOpen));
-  button.disabled = !overlay.resume;
-  const label = document.createElement("span");
-  label.textContent = overlay.resume
-    ? resumePolicyLabel(overlay.resume.settings.policy)
-    : "Loading…";
-  button.append(label, lucideIcon(ChevronDown, 14));
-  button.addEventListener("click", () => {
-    actions.toggleSettingsPolicyMenu(overlay);
+  const row = renderSettingsRow({
+    title: "Resuming a large session",
+    // The 70-minute / 100k-token thresholds define WHEN the policy applies;
+    // numbers stay computed from the shared constants, never hardcoded. Uses
+    // compactTokenCount (whole-thousand "100k") not formatTokenCount (which
+    // would print machine-ish "100.0k") — the copy says "about", so a rounded
+    // figure is the honest register.
+    description: `When a Claude session sits idle for over ${Math.round(
+      RESUME_PROMPT_MIN_IDLE_MS / 60_000,
+    )} minutes holding about ${compactTokenCount(RESUME_PROMPT_MIN_TOKENS)} tokens or more.`,
+    notes,
+    control: renderPicker({
+      options: RESUME_POLICY_IDS.map((policy) => ({
+        id: policy,
+        label: resumePolicyLabel(policy),
+        description: resumePolicyDescription(policy),
+      })),
+      selectedId: overlay.resume?.settings.policy ?? null,
+      open: overlay.policyMenuOpen,
+      onToggle: () => actions.toggleSettingsPolicyMenu(overlay),
+      onPick: (policy) => actions.persistResumePolicy(policy),
+    }),
   });
-  wrap.append(button);
 
-  if (overlay.policyMenuOpen && overlay.resume) {
-    const menu = document.createElement("div");
-    menu.className = "settings-popup-menu";
-    menu.setAttribute("role", "menu");
-    for (const policy of RESUME_POLICY_IDS) {
-      const selected = overlay.resume.settings.policy === policy;
-      const option = document.createElement("button");
-      option.className = "settings-popup-option";
-      option.classList.toggle("selected", selected);
-      option.type = "button";
-      option.setAttribute("role", "menuitemradio");
-      option.setAttribute("aria-checked", String(selected));
-      const check = document.createElement("span");
-      check.className = "settings-popup-option-check";
-      if (selected) {
-        check.append(lucideIcon(Check, 13));
-      }
-      const optionLabel = document.createElement("span");
-      optionLabel.className = "settings-popup-option-label";
-      optionLabel.textContent = resumePolicyLabel(policy);
-      option.append(check, optionLabel);
-      option.addEventListener("click", () => {
-        actions.persistResumePolicy(policy);
-      });
-      menu.append(option);
-    }
-    wrap.append(menu);
-  }
-
-  return wrap;
+  return renderSettingsGroup({ label: "Sessions", rows: [row] });
 }
 
-function renderClaudeSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
-  const group = document.createElement("section");
-  group.className = "settings-group";
-  group.setAttribute("aria-label", "Claude");
-
-  const heading = document.createElement("p");
-  heading.className = "settings-group-heading";
-  heading.textContent = "Claude";
-
-  // The territory declaration: provider passthrough is an IA axis, worn
-  // visibly but quietly — Duet renders Claude's state, never owns it.
-  const territory = document.createElement("p");
-  territory.className = "settings-territory-note";
-  territory.textContent =
-    "Claude Code's own state. Duet shows it here and never changes it without you.";
-
-  const box = document.createElement("div");
-  box.className = "settings-box";
-  const row = document.createElement("div");
-  row.className = "settings-row";
-
-  const copy = document.createElement("div");
-  copy.className = "settings-row-copy";
-  const title = document.createElement("span");
-  title.className = "settings-row-title";
-  title.textContent = "Claude's own resume warning";
-  copy.append(title);
-
+function renderClaudeCodeSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
   const resume = overlay.resume;
+
+  const notes: HTMLElement[] = [];
   if (overlay.bridgeError) {
     const note = document.createElement("span");
     note.className = "settings-row-note settings-row-note-error";
     note.textContent = "Couldn't update ~/.claude.json — check it manually.";
-    copy.append(note);
+    notes.push(note);
   } else if (resume?.bridgeDismissed) {
     const note = document.createElement("span");
     note.className = "settings-row-note";
     note.textContent =
       "Turned off by Duet's earlier bridge. Restoring affects terminals outside Duet.";
-    copy.append(note);
+    notes.push(note);
   }
-  row.append(copy);
 
   const trailing = document.createElement("div");
   trailing.className = "settings-row-trailing";
@@ -486,9 +464,19 @@ function renderClaudeSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
     });
     trailing.append(restore);
   }
-  row.append(trailing);
 
-  box.append(row);
-  group.append(heading, territory, box);
-  return group;
+  const row = renderSettingsRow({
+    title: "Resume warning",
+    notes,
+    control: trailing,
+  });
+
+  // The territory declaration: provider passthrough is an IA axis, worn
+  // visibly but quietly — Duet renders Claude's state, never owns it. It rides
+  // as the group's description line.
+  return renderSettingsGroup({
+    label: "Claude Code",
+    description: "Claude Code's own state. Duet never changes it without you.",
+    rows: [row],
+  });
 }

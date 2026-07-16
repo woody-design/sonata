@@ -36,8 +36,8 @@ try {
   const armedBefore = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
 
   await openSettings(page);
-  await page.locator(".settings-group[aria-label='Remote control'] .settings-toggle").click();
-  await page.locator(".settings-group[aria-label='Remote control'] .settings-toggle", { hasText: "On" }).waitFor();
+  await page.locator(".settings-group[aria-label='Remote control'] .settings-switch").click();
+  await page.locator(".settings-group[aria-label='Remote control'] .settings-switch[aria-checked='true']").waitFor();
   await page.keyboard.press("Escape");
   await page.locator(".settings-window").waitFor({ state: "hidden" });
 

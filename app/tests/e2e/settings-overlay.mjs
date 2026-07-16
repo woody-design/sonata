@@ -5,7 +5,7 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
 // The Settings page (centered overlay): menu entrance, moment-born
-// provenance display + retirement on page revision, threshold footnote,
+// provenance display + retirement on page revision, threshold row description,
 // and the Claude bridge row (visibility-first, restore-on-click).
 // HOME is pointed at a temp dir so ~/.claude.json is hermetic.
 
@@ -62,36 +62,41 @@ try {
   if (!provenanceText.includes("2026")) {
     throw new Error(`Provenance line is missing the date: ${provenanceText}`);
   }
-  const footnote = await page
-    .locator('section[aria-label="Sessions"] .settings-footnote')
+  const rowDesc = await page
+    .locator('section[aria-label="Sessions"] .settings-row-desc')
     .textContent();
-  if (!footnote.includes("70 minutes") || !footnote.includes("100.0k tokens")) {
-    throw new Error(`Threshold footnote drifted: ${footnote}`);
+  if (!rowDesc.includes("70 minutes") || !rowDesc.includes("100k tokens")) {
+    throw new Error(`Threshold description drifted: ${rowDesc}`);
   }
 
   // Bridge row: hermetic ~/.claude.json absent -> Claude's warning is On.
   await page.locator(".settings-value", { hasText: "On" }).waitFor({ state: "visible" });
 
-  // Approvals group: the default permission mode for new Claude sessions.
-  // Defaults to "Manual" (the `default` mode's label since Claude 2.1.200);
-  // choosing Auto persists to the Duet-owned claude-settings.json (never
-  // ~/.claude.json).
-  const approvals = page.locator('section[aria-label="Approvals"]');
-  const approvalsPopup = approvals.locator(".settings-popup");
+  // Permissions group, Claude sessions row: the default permission mode for
+  // new Claude sessions. Defaults to "Manual" (the `default` mode's label since
+  // Claude 2.1.200); choosing Auto persists to the Duet-owned
+  // claude-settings.json (never ~/.claude.json). The Permissions box holds two
+  // popups now (Claude + Codex), so scope by row title.
+  const claudeRow = page.locator('section[aria-label="Permissions"] .settings-row', {
+    hasText: "Claude sessions",
+  });
+  const approvalsPopup = claudeRow.locator(".settings-popup");
   await approvalsPopup.filter({ hasText: "Manual" }).waitFor({ state: "visible" });
   await approvalsPopup.click();
-  await approvals.locator(".settings-popup-option", { hasText: "Auto" }).click();
+  await claudeRow.locator(".settings-popup-option", { hasText: "Auto" }).click();
   await waitUntil(() => {
     const persisted = readPersistedClaudeSettings();
     return persisted?.defaultPermissionMode === "auto";
   }, 8000);
   await approvalsPopup.filter({ hasText: "Auto" }).waitFor({ state: "visible" });
 
-  // Codex group: the stored legacy `on-failure` default migrated on read to
-  // "Ask for approval"; the menu offers EXACTLY Codex 0.144's three picker
-  // labels (no "(legacy)" machinery), and choosing "Full Access" persists the
-  // new `defaultPermissionMode` key.
-  const codex = page.locator('section[aria-label="Codex"]');
+  // Permissions group, Codex sessions row: the stored legacy `on-failure`
+  // default migrated on read to "Ask for approval"; the menu offers EXACTLY
+  // Codex 0.144's three picker labels (no "(legacy)" machinery), and choosing
+  // "Full Access" persists the new `defaultPermissionMode` key.
+  const codex = page.locator('section[aria-label="Permissions"] .settings-row', {
+    hasText: "Codex sessions",
+  });
   const codexPopup = codex.locator(".settings-popup");
   await codexPopup.filter({ hasText: "Ask for approval" }).waitFor({ state: "visible" });
   await codexPopup.click();
@@ -150,6 +155,45 @@ try {
     return config.resumeReturnDismissed === undefined;
   }, 8000);
 
+  // F2 regression: at the minimum window height (640px) an opened picker menu
+  // must stay fully inside the dialog scrollport. The Sessions row sits near the
+  // bottom, so its (now description-bearing, ~160px) menu would clip on first
+  // open without the upward flip. Assert the menu's box is contained in the
+  // dialog's box; poll so the post-mount rAF flip has time to settle.
+  await setContentSize(960, 640);
+  await page.locator('section[aria-label="Sessions"] .settings-popup').click();
+  const sessionsMenu = page.locator('section[aria-label="Sessions"] .settings-popup-menu');
+  await sessionsMenu.waitFor({ state: "visible" });
+  const menuFitsDialog = async () => {
+    const menuBox = await sessionsMenu.boundingBox();
+    const dialogBox = await page.locator(".settings-window").boundingBox();
+    if (!menuBox || !dialogBox) {
+      return false;
+    }
+    return (
+      menuBox.y >= dialogBox.y - 1 &&
+      menuBox.y + menuBox.height <= dialogBox.y + dialogBox.height + 1
+    );
+  };
+  const menuFitDeadline = Date.now() + 3000;
+  let menuFits = false;
+  while (Date.now() < menuFitDeadline) {
+    menuFits = await menuFitsDialog();
+    if (menuFits) {
+      break;
+    }
+    await delay(100);
+  }
+  if (!menuFits) {
+    const menuBox = await sessionsMenu.boundingBox();
+    const dialogBox = await page.locator(".settings-window").boundingBox();
+    throw new Error(
+      `Picker menu clips the dialog at 640px height: menu ${JSON.stringify(
+        menuBox,
+      )} vs dialog ${JSON.stringify(dialogBox)}`,
+    );
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -188,6 +232,15 @@ async function launchApp() {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(60000);
   return page;
+}
+
+async function setContentSize(width, height) {
+  await electronApp.evaluate(
+    ({ BrowserWindow }, size) => {
+      BrowserWindow.getAllWindows()[0]?.setContentSize(size.width, size.height);
+    },
+    { width, height },
+  );
 }
 
 async function openSettingsFromMenu() {
