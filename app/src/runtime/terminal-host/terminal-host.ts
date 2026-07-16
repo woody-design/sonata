@@ -2016,12 +2016,44 @@ export class TerminalHost extends EventEmitter {
     // terminal (the S5 attention banner's concern, not a busy state).
     // Supersedes S3's settle-on-panel-close, which this evidence showed was
     // repaint-order luck (Woody, 2026-07-02).
-    const completed = this.activeRun.kind === "slash" ? true : hint.completed;
+    const idleVerdict = this.activeRun.kind === "slash" ? true : hint.completed;
+    // Turn-Signal Authority S1a (2026-07-16): once the SessionStart handshake
+    // has landed for this PTY, the Stop/StopFailure hooks OWN a model turn's
+    // end. The quiescence scrape is then only a backstop for the silent-tool-
+    // stop gap (anthropics/claude-code#29881), so with hooks alive it may close
+    // a PROMPT run ONLY on MEDIUM-confidence idle-footer evidence
+    // (`hasModelOrCwdHint` — the "? for shortcuts" needle a TRUE idle composer
+    // paints). LOW-confidence closure survives only for hook-less sessions
+    // (the honest backstop for a never-handshook CLI). Field evidence, claude
+    // 2.1.211: a big-session post-submit stall leaves a >=1.75s printable-quiet
+    // window while the model still works for minutes, and detectIdleComposer
+    // reads the submit frame (activity glyph, then the composer ❯) as completed
+    // at LOW confidence — closing a 2s-old live run. All 5 field misfires were
+    // low-confidence; the medium gate blocks each. Failure direction (Woody):
+    // prefer a "still working" lie (liveness surfaces it honestly at 20s/60s)
+    // over a "done" lie (actively misleading). Slash runs keep quiescence as
+    // their honest completion — no Stop hook exists for them.
+    const heuristicMayClose =
+      this.activeRun.kind === "slash" ||
+      !this.hookSessionStarted ||
+      hint.confidence === "medium";
+    const completed = idleVerdict && heuristicMayClose;
     if (!completed) {
       this.updateActiveRun({
         lifecyclePhase: "active",
         lastLifecycleHint: hint,
       });
+      // A DEMOTED verdict — the scrape sees an idle composer but hooks own this
+      // turn's end — must keep the run under judgment: re-arm so a later Stop,
+      // or a medium-confidence idle footer, still closes it. (The old
+      // not-completed branch returned without re-arming, relying on the next
+      // printable chunk to re-schedule; a demoted run can go byte-silent for
+      // minutes, so it needs its own poll.) No busy loop: scheduleCompletion
+      // check no-ops once the run leaves "active", and the printable-quiet
+      // guard debounces each re-arm to a completionQuietMs cadence.
+      if (idleVerdict && !heuristicMayClose) {
+        this.scheduleCompletionCheck();
+      }
       return;
     }
 
@@ -2273,9 +2305,17 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         "accomplishing",
         // Claude 2.x spinner/summary glyphs ("✶ Levitating…", "✻ Baked for 2s").
         // Resumed sessions never repaint the welcome banner, so these glyphs
-        // are the only working-activity signal they emit. Safe against
-        // premature completion: the spinner animates while working, so the
-        // completion quiet-window cannot elapse mid-run.
+        // are the only working-activity signal they emit. NOT self-sufficient
+        // against premature completion: the old assumption ("the spinner
+        // animates while working, so the completion quiet-window cannot elapse
+        // mid-run") was falsified by claude 2.1.211 field evidence — a big-
+        // session post-submit stall CAN stay printable-silent past the quiet
+        // window while the model works for minutes, so detectIdleComposer sees
+        // the submit frame (glyph, then composer ❯) as an idle prompt-after-
+        // activity. The real guard now lives in checkCompletionHeuristic:
+        // heuristic closure is confidence-gated when the SessionStart handshake
+        // is alive (hooks own turn-end; the scrape may only close a prompt run
+        // at MEDIUM confidence), so these glyphs no longer have to carry it.
         "✢",
         "✳",
         "✶",

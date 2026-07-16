@@ -235,12 +235,165 @@ await check("echo-swallow reads through [Image #N]: a settled run's image echo s
   }
 });
 
-function makeHost(events) {
+// ── Turn-Signal Authority S1a: confidence-gate the quiescence run-closer ──
+//
+// Field incident (claude 2.1.211, 2026-07-16): a big-session post-submit stall
+// leaves the TUI printable-silent past the completion quiet window while the
+// model still works for minutes. The submit frame paints an activity hint
+// (spinner glyph / "esc to interrupt"), then the composer ❯ — no idle footer —
+// so detectIdleComposer reads prompt-after-activity as completed at LOW
+// confidence and the run was closed ~2s in. With the SessionStart handshake
+// alive, Stop/StopFailure OWN a prompt turn's end; the scrape may only close it
+// at MEDIUM confidence (the true "? for shortcuts" idle footer). These frames
+// are byte-shaped after the field evidence + the 2.1.209 idle-footer probe.
+
+// Activity glyph + "esc to interrupt", then a bare composer ❯ (NO footer) →
+// detectIdleComposer: ready + prompt-after-activity, hasModelOrCwdHint false →
+// completed at LOW confidence. This is the exact shape of all 5 field misfires.
+const FIELD_LOW_CONFIDENCE_FRAME = "✻ Levitating… (esc to interrupt)\r\n❯ \r\n";
+// A TRUE idle composer: the "? for shortcuts" footer lands in the forward-700
+// promptTail → hasModelOrCwdHint true → MEDIUM confidence (covers the
+// silent-tool-stop gap #29881 where no Stop ever fires).
+const TRUE_IDLE_FOOTER_FRAME =
+  "✻ Baked for 2s\r\n❯ \r\n" +
+  "─".repeat(40) +
+  "\n⏸ manual mode on · ? for shortcuts · ← for agents\n";
+
+await check(
+  "hooks alive + prompt + field frame: run STAYS active (low-confidence closure demoted), then Stop closes it",
+  async () => {
+    const events = [];
+    const host = makeHost(events, { completionQuietMs: 250 });
+    try {
+      host.ptyProcess = fakePty();
+      host.noteHookSessionStart(); // SessionStart handshake seen → hooks own turn-end
+      host.activeRun = activeRun(); // kind: "prompt"
+
+      // Submit frame paints (arms the completion debounce), then byte silence
+      // past the quiet window — the field stall.
+      host.handlePtyData(FIELD_LOW_CONFIDENCE_FRAME);
+      await delay(400);
+
+      assert.ok(host.activeRun, "the live run must NOT be heuristic-closed at low confidence while hooks are alive");
+      assert.equal(host.activeRun.status, "active", "run stays active");
+      assert.equal(
+        events.some((event) => event.type === "run:updated" && event.payload.status === "completed"),
+        false,
+        "no premature completion event",
+      );
+      assert.ok(
+        host.completionTimer !== null,
+        "the demoted verdict re-arms the completion check so a later Stop / medium idle still closes it",
+      );
+
+      // The authoritative turn-end signal closes it honestly as a hook-stop.
+      const finished = host.completeRunFromTurnEnd();
+      assert.equal(finished?.status, "completed");
+      assert.equal(finished?.completionSource, "hook-stop");
+      assert.equal(finished?.completionConfidence, "high");
+      assert.equal(host.activeRun, null, "run finished by the Stop hook");
+    } finally {
+      host.dispose();
+    }
+  },
+);
+
+await check(
+  "NO handshake + prompt + field frame: heuristic still closes it (hook-less backstop preserved)",
+  async () => {
+    const events = [];
+    const host = makeHost(events, { completionQuietMs: 250 });
+    try {
+      host.ptyProcess = fakePty();
+      // No noteHookSessionStart() → hookSessionStarted stays false. The scrape
+      // is this session's only completion signal, so LOW confidence still closes.
+      host.activeRun = activeRun();
+
+      host.handlePtyData(FIELD_LOW_CONFIDENCE_FRAME);
+      await delay(400);
+
+      const completed = events.filter(
+        (event) => event.type === "run:updated" && event.payload.status === "completed",
+      );
+      assert.equal(completed.length, 1, "hook-less session: the heuristic backstop closes the run");
+      assert.equal(completed[0].payload.completionSource, "terminal-idle-heuristic");
+      assert.equal(completed[0].payload.completionConfidence, "low", "closed at low confidence, as the backstop must");
+      assert.equal(host.activeRun, null);
+    } finally {
+      host.dispose();
+    }
+  },
+);
+
+await check(
+  "hooks alive + prompt + TRUE idle footer (medium): heuristic closes it (silent-tool-stop backstop)",
+  async () => {
+    const events = [];
+    const host = makeHost(events, { completionQuietMs: 250 });
+    try {
+      host.ptyProcess = fakePty();
+      host.noteHookSessionStart();
+      host.activeRun = activeRun();
+
+      host.handlePtyData(TRUE_IDLE_FOOTER_FRAME);
+      await delay(400);
+
+      const completed = events.filter(
+        (event) => event.type === "run:updated" && event.payload.status === "completed",
+      );
+      assert.equal(completed.length, 1, "a genuine idle footer closes the run even with hooks alive");
+      assert.equal(completed[0].payload.completionSource, "terminal-idle-heuristic");
+      assert.equal(
+        completed[0].payload.completionConfidence,
+        "medium",
+        "the idle-footer signal is the medium gate that clears heuristic closure",
+      );
+      assert.equal(host.activeRun, null);
+    } finally {
+      host.dispose();
+    }
+  },
+);
+
+await check(
+  "hooks alive + slash run: quiescence still closes it (no Stop hook exists for a slash)",
+  async () => {
+    const events = [];
+    const host = makeHost(events, { completionQuietMs: 250 });
+    try {
+      host.ptyProcess = fakePty();
+      host.noteHookSessionStart();
+      host.activeRun = slashRun();
+
+      // A slash command paints, then goes quiet: quiescence IS its honest
+      // completion — the confidence gate does not apply (kind === "slash").
+      host.handlePtyData("⏺ Running /model\r\n");
+      await delay(400);
+
+      const completed = events.filter(
+        (event) => event.type === "run:updated" && event.payload.status === "completed",
+      );
+      assert.equal(completed.length, 1, "a slash run still completes on quiescence with hooks alive");
+      assert.equal(completed[0].payload.completionSource, "terminal-idle-heuristic");
+      assert.equal(completed[0].payload.completionConfidence, "medium", "slash quiescence carries medium confidence");
+      assert.equal(host.activeRun, null);
+    } finally {
+      host.dispose();
+    }
+  },
+);
+
+if (failures.length > 0) {
+  process.exitCode = 1;
+}
+
+function makeHost(events, options = {}) {
   return new TerminalHost({
     taskId: "stop-hook-completion-smoke",
     provider: "claude",
     defaultWorkspace: process.cwd(),
     eventSink: (event) => events.push(event),
+    ...options,
   });
 }
 
@@ -262,6 +415,24 @@ function activeRun() {
   };
 }
 
+function slashRun() {
+  const now = Date.now();
+  return {
+    taskId: "stop-hook-completion-smoke",
+    id: `run-${now}-slash`,
+    kind: "slash",
+    prompt: "/model",
+    title: "/model",
+    status: "active",
+    lifecyclePhase: "active",
+    startedAt: new Date(now).toISOString(),
+    endedAt: null,
+    elapsedMs: null,
+    completionSource: null,
+    completionConfidence: null,
+  };
+}
+
 function fakePty() {
   return {
     pid: 0,
@@ -271,6 +442,10 @@ function fakePty() {
     onData() {},
     onExit() {},
   };
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function check(name, fn) {
