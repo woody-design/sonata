@@ -28,6 +28,7 @@ function harness() {
     const handle = {
       content,
       clickCbs: [],
+      failCbs: [],
       show() {
         shown.push(content);
       },
@@ -35,8 +36,14 @@ function harness() {
         this.clickCbs.push(cb);
       },
       onClose() {},
+      onFailed(cb) {
+        this.failCbs.push(cb);
+      },
       click() {
         this.clickCbs.forEach((cb) => cb());
+      },
+      fail() {
+        this.failCbs.forEach((cb) => cb());
       },
     };
     handles.push(handle);
@@ -164,7 +171,20 @@ function harness() {
   assert.equal(h.shown.length, 0, "fast turn → no notification");
 }
 
-// 11) A null notifier (OS can't show) is handled without throwing.
+// 12) A failed delivery releases its GC-protection handle — otherwise an
+//     environment where every notification fails (e.g. UNErrorDomain 1 on a
+//     broken-signature build) accumulates one leaked handle per fire.
+{
+  const h = harness();
+  h.meta.set("t1", { title: "Fix the parser", provider: "claude" });
+  h.controller.handleEvent(cli("t1", "busy", 0));
+  h.controller.handleEvent(cli("t1", "turn-ended", 45));
+  assert.equal(h.controller.liveCount, 1, "handle held while delivery pending");
+  h.handles[0].fail();
+  assert.equal(h.controller.liveCount, 0, "failed delivery drops the handle");
+}
+
+// 13) A null notifier (OS can't show) is handled without throwing.
 {
   const controller = new NotificationController({
     notifier: () => null,

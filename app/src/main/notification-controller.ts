@@ -10,6 +10,7 @@ export interface NotificationHandle {
   show(): void;
   onClick(callback: () => void): void;
   onClose(callback: () => void): void;
+  onFailed(callback: () => void): void;
 }
 
 /** Builds a notification, or returns null when the OS cannot show one. */
@@ -112,8 +113,17 @@ export class NotificationController {
       drop();
     });
     handle.onClose(drop);
+    // A failed delivery gets neither click nor close — without this, every
+    // failure (e.g. UNErrorDomain 1 on a broken-signature dev build) parks a
+    // handle in `live` forever.
+    handle.onFailed(drop);
     this.live.add(handle);
     handle.show();
+  }
+
+  /** Test-only visibility into the GC-protection set. */
+  get liveCount(): number {
+    return this.live.size;
   }
 }
 
@@ -143,5 +153,6 @@ function electronNotifier(content: { title: string; body: string }): Notificatio
     show: () => notification.show(),
     onClick: (callback) => notification.on("click", callback),
     onClose: (callback) => notification.on("close", callback),
+    onFailed: (callback) => notification.on("failed", callback),
   };
 }
