@@ -16,6 +16,7 @@ import {
 import {
   activeTaskView,
   isSessionLifecycleActive,
+  optionPromptDraftsComplete,
   type OptionPromptReceipt,
   type RendererState,
   type TaskViewState,
@@ -153,14 +154,11 @@ function renderOptionPromptForm(
   prompt: OptionPromptDetectedEvent["payload"],
 ): HTMLElement {
   const busy = view.optionPromptBusy;
-  // The card injects only the VERIFIED single-select sequence. If ANY question
-  // is multiSelect, the whole card is shown as full context and answered in the
-  // terminal (the multi-select TUI mechanic is not yet verified — a guessed
-  // injection could mis-answer a real clarification). All-single-select
-  // prompts stay fully card-answerable.
-  const hasMultiSelect = prompt.questions.some((q) => q.multiSelect);
-  const cardAnswerable = !hasMultiSelect;
-  const interactive = cardAnswerable && !busy;
+  // Drawer S1: the full answer grammar is verified (single-select, multi-select
+  // toggles, free-text — spikes/drawer-option-prompt-probe), so every prompt is
+  // card-answerable. Multi-select options toggle; the send is corroborated by
+  // the controller (a swallowed injection surfaces as an error, not a receipt).
+  const interactive = !busy;
 
   const root = document.createElement("div");
   root.className = "option-prompt-body";
@@ -206,10 +204,10 @@ function renderOptionPromptForm(
     const options = document.createElement("div");
     options.className = "option-prompt-options";
     question.options.forEach((option, oIndex) => {
-      // multiSelect options are read-only checkboxes (answered in the terminal);
-      // single-select options are clickable radios when the card is answerable.
-      const selectable = interactive && !question.multiSelect;
-      const selected = !question.multiSelect && view.optionPromptSelections[qIndex] === oIndex;
+      // Single-select options are radios (pick one); multiSelect options are
+      // toggling checkboxes (drawer S1). Both clickable while not busy.
+      const selectable = interactive;
+      const selected = (view.optionPromptDrafts[qIndex]?.optionIndices ?? []).includes(oIndex);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "option-prompt-option";
@@ -220,7 +218,7 @@ function renderOptionPromptForm(
 
       const marker = document.createElement("span");
       marker.className = "option-prompt-marker";
-      marker.textContent = question.multiSelect ? "☐" : String(oIndex + 1);
+      marker.textContent = question.multiSelect ? (selected ? "☑" : "☐") : String(oIndex + 1);
       const text = document.createElement("span");
       text.className = "option-prompt-option-text";
       const label = document.createElement("span");
@@ -248,39 +246,19 @@ function renderOptionPromptForm(
 
   const footActions = document.createElement("div");
   footActions.className = "option-prompt-actions";
-  if (cardAnswerable) {
-    const hint = document.createElement("span");
-    hint.className = "option-prompt-hint";
-    hint.textContent = "Or answer in the CLI";
-    const send = document.createElement("button");
-    send.type = "button";
-    send.className = "primary";
-    const allAnswered =
-      view.optionPromptSelections.length === prompt.questions.length &&
-      view.optionPromptSelections.every((s) => s >= 0);
-    send.textContent = busy ? "Sending…" : "Send answers";
-    send.disabled = busy || !allAnswered;
-    send.addEventListener("click", () => {
-      actions.answerOptionPrompt();
-    });
-    footActions.append(hint, send);
-  } else {
-    // Context-only (has a multiSelect question): the questions are legible here
-    // in the main view; the answer is given in the terminal (one click away).
-    // The action shares the attention-banner family's style — same duty
-    // ("waiting for you in the Terminal"), same visual voice (S5).
-    const note = document.createElement("span");
-    note.className = "option-prompt-hint";
-    note.textContent = "Multiple-choice — choose in the CLI, then submit";
-    const open = document.createElement("button");
-    open.type = "button";
-    open.className = "attention-open-terminal";
-    open.textContent = "Answer in CLI →";
-    open.addEventListener("click", () => {
-      actions.setViewMode("terminal");
-    });
-    footActions.append(note, open);
-  }
+  const hint = document.createElement("span");
+  hint.className = "option-prompt-hint";
+  hint.textContent = "Or answer in the CLI";
+  const send = document.createElement("button");
+  send.type = "button";
+  send.className = "primary";
+  const allAnswered = optionPromptDraftsComplete(view.optionPromptDrafts);
+  send.textContent = busy ? "Sending…" : "Send answers";
+  send.disabled = busy || !allAnswered;
+  send.addEventListener("click", () => {
+    actions.answerOptionPrompt();
+  });
+  footActions.append(hint, send);
   root.append(footActions);
   return root;
 }

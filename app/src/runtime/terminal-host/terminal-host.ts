@@ -1286,10 +1286,12 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
-   * Answer a native AskUserQuestion (option-prompt) form by playing back the
-   * verified key sequence (`optionPromptAnswerSequence`): each question's chosen
-   * 1-based digit, in order, then a CR for the Submit tab. Same keystroke-relay
-   * mechanism approvals use — not stdin games.
+   * Answer a native AskUserQuestion (option-prompt) form by playing back a
+   * verified key sequence built by `optionPromptAnswerSequence` /
+   * `optionPromptDismissSequence` (2.1.212 grammar: digits select/toggle,
+   * RIGHT advances, free-text travels as one chunk, a Submit-tab CR only when
+   * the form has one). Same keystroke-relay mechanism approvals use — not
+   * stdin games.
    */
   async sendOptionPromptAnswer(keys: string[]): Promise<void> {
     if (!this.ptyProcess) {

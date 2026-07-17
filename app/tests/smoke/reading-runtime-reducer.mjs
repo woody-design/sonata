@@ -575,7 +575,7 @@ function optionPrompt() {
 {
   const { state, view } = seedView({
     pendingOptionPrompt: optionPrompt(),
-    optionPromptSelections: [-1],
+    optionPromptDrafts: [{ optionIndices: [], text: null }],
     optionPromptBusy: true,
     status: "Claude is asking",
   });
@@ -618,7 +618,7 @@ function optionPrompt() {
   // Answered: the receipt reconciles from the provider's verbatim answers.
   const { state, view } = seedView({
     pendingOptionPrompt: optionPrompt(),
-    optionPromptSelections: [0],
+    optionPromptDrafts: [{ optionIndices: [0], text: null }],
     optionPromptBusy: true,
   });
   const d = R.reduceRuntimeEvent(

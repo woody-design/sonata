@@ -123,8 +123,8 @@ const internalTerminalLiterals = [
   exact("src/renderer/actions.ts", "terminal", 1),
   exact("src/renderer/flows/session-flows.ts", "terminal", 1),
   exact("src/renderer/main.ts", "terminal", 1),
-  exact("src/renderer/view/approvals.ts", "attention-open-terminal", 1),
-  exact("src/renderer/view/approvals.ts", "terminal", 1),
+  // (approvals.ts rows removed — drawer S1 retired the option-prompt card's
+  // "Answer in Terminal" branch; multiSelect is card-answerable now.)
   exact("src/renderer/view/banners.ts", "attention-open-terminal", 1),
   exact("src/renderer/view/banners.ts", "terminal", 1),
   exact("src/renderer/view/status-strip.ts", "terminal", 1),

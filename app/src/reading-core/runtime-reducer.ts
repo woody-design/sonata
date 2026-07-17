@@ -206,7 +206,10 @@ export function reduceRuntimeEvent(
     // (from the PreToolUse hook), not scraped. The floor stays a valid
     // alternative; a fresh prompt supersedes any prior receipt.
     view.pendingOptionPrompt = event.payload;
-    view.optionPromptSelections = event.payload.questions.map(() => -1);
+    view.optionPromptDrafts = event.payload.questions.map(() => ({
+      optionIndices: [],
+      text: null,
+    }));
     view.optionPromptBusy = false;
     view.optionPromptReceipt = null;
     view.status = "Claude is asking";
@@ -227,7 +230,7 @@ export function reduceRuntimeEvent(
     }
     // Reconcile the receipt from the provider's own verbatim answers. The
     // question metadata (header + order) comes from the live prompt if still
-    // present, else from the optimistic receipt, else from the answers keys.
+    // present, else from a prior receipt, else from the answers keys.
     view.optionPromptReceipt = {
       toolUseId: event.payload.toolUseId,
       reconciled: true,

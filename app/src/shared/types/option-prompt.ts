@@ -37,3 +37,16 @@ export interface OptionPrompt {
 
 /** Reconciled answers: full question text → selected option label(s), verbatim. */
 export type OptionPromptAnswers = Record<string, string[]>;
+
+/**
+ * One question's answer as the user composed it in the card (drawer S1).
+ * Provider-neutral; the cli-signal layer maps it to the verified key grammar.
+ *  - "option":  single-select pick (one option index)
+ *  - "options": multi-select picks (one or more option indices, any order)
+ *  - "text":    the synthetic free-text row ("Type something." — the TUI
+ *               appends it after the real options; harness-guaranteed)
+ */
+export type OptionPromptSelection =
+  | { kind: "option"; index: number }
+  | { kind: "options"; indices: number[] }
+  | { kind: "text"; text: string };

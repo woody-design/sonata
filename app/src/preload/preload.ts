@@ -162,6 +162,7 @@ const duetRuntime: DuetRuntimeBridge = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
   decideApproval: (request) => ipcRenderer.invoke(IPC_CHANNELS.approvalDecide, request),
   answerOptionPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.optionPromptAnswer, request),
+  dismissOptionPrompt: (request) => ipcRenderer.invoke(IPC_CHANNELS.optionPromptDismiss, request),
   stopRun: (request) => ipcRenderer.invoke(IPC_CHANNELS.runStop, request),
   resizeTerminal: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalResize, request),
   writeTerminalUserInput: (request) => ipcRenderer.invoke(IPC_CHANNELS.terminalUserInput, request),

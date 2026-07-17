@@ -79,6 +79,8 @@ export interface Actions {
   //   (IPC injection; optimistic receipt) —
   selectOptionPromptChoice(view: TaskViewState, questionIndex: number, optionIndex: number): void;
   answerOptionPrompt(): void;
+  /** Dismiss the pending questions ("Chat about this") — decline + steer. */
+  dismissOptionPrompt(): void;
   // — Sidebar (view/sidebar.ts): session/project flows and the
   //   localStorage-backed prefs/collapse ports. One action per handler
   //   (D-early ruling 3); the IPC bodies are verbatim shell-side. —

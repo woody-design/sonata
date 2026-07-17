@@ -467,22 +467,62 @@ const run = (status, extra = {}) => ({
     "no meta → lines derived straight from answers",
   );
 
+  // Draft → wire selections (drawer S1; replaces the optimistic receipt).
+  const draft = (optionIndices, text = null) => ({ optionIndices, text });
   assert.deepEqual(
-    C.optimisticReceiptLines(prompt, [1, -1]),
+    C.optionPromptSelectionsFromDrafts(prompt, [draft([1]), draft([0])]),
     [
-      { header: "Auth", question: "Which auth?", labels: ["Keys"] },
-      { header: "DB", question: "Which db?", labels: [] },
+      { kind: "option", index: 1 },
+      { kind: "option", index: 0 },
     ],
-    "optimistic: selected index label; -1 → no labels",
+    "single-select drafts map to option selections",
+  );
+  assert.equal(
+    C.optionPromptSelectionsFromDrafts(prompt, [draft([1]), draft([])]),
+    null,
+    "any unanswered question → null (send disabled)",
+  );
+  assert.equal(
+    C.optionPromptSelectionsFromDrafts(prompt, [draft([1])]),
+    null,
+    "wrong draft count → null",
   );
   assert.deepEqual(
-    C.optimisticReceiptLines(prompt, [5]),
+    C.optionPromptSelectionsFromDrafts(prompt, [draft([], "custom answer"), draft([0])]),
     [
-      { header: "Auth", question: "Which auth?", labels: [] },
-      { header: "DB", question: "Which db?", labels: [] },
+      { kind: "text", text: "custom answer" },
+      { kind: "option", index: 0 },
     ],
-    "out-of-range index and missing selection → empty labels",
+    "non-empty text becomes a free-text selection",
   );
+  assert.deepEqual(
+    C.optionPromptSelectionsFromDrafts(prompt, [draft([1], "wins"), draft([0])])?.[0],
+    { kind: "text", text: "wins" },
+    "text supersedes stray indices (belt to the UI's suspender)",
+  );
+  {
+    const multiPrompt = {
+      toolUseId: "tu-2",
+      questions: [{ ...q("Top", "Which toppings?", ["Cheese", "Basil", "Olive"]), multiSelect: true }],
+    };
+    assert.deepEqual(
+      C.optionPromptSelectionsFromDrafts(multiPrompt, [draft([2, 0])]),
+      [{ kind: "options", indices: [0, 2] }],
+      "multi-select drafts sort into an options selection",
+    );
+    // P9f: free-text is NOT injectable on a multiSelect question — the text is
+    // ignored there (picked options win; no options → unanswered/null).
+    assert.deepEqual(
+      C.optionPromptSelectionsFromDrafts(multiPrompt, [draft([1], "ignored on multi")]),
+      [{ kind: "options", indices: [1] }],
+      "text on a multiSelect question falls through to the toggles",
+    );
+    assert.equal(
+      C.optionPromptSelectionsFromDrafts(multiPrompt, [draft([], "only text")]),
+      null,
+      "text-only draft on a multiSelect question stays unanswered",
+    );
+  }
 }
 
 // 7) Run-status predicates.

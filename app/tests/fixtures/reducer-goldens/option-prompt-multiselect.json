@@ -107,9 +107,15 @@
                 }
               ]
             },
-            "optionPromptSelections": [
-              -1,
-              -1
+            "optionPromptDrafts": [
+              {
+                "optionIndices": [],
+                "text": null
+              },
+              {
+                "optionIndices": [],
+                "text": null
+              }
             ],
             "optionPromptBusy": false,
             "optionPromptReceipt": null,
@@ -373,9 +379,15 @@
                 }
               ]
             },
-            "optionPromptSelections": [
-              -1,
-              -1
+            "optionPromptDrafts": [
+              {
+                "optionIndices": [],
+                "text": null
+              },
+              {
+                "optionIndices": [],
+                "text": null
+              }
             ],
             "optionPromptBusy": false,
             "optionPromptReceipt": null,

@@ -65,6 +65,23 @@ export interface OptionPromptReceipt {
   reconciled: boolean;
 }
 
+/** One question's in-progress answer in the card (drawer S1). */
+export interface OptionPromptDraft {
+  /** Selected option indices — at most one for single-select, any number of
+   *  toggles for multi-select. */
+  optionIndices: number[];
+  /** Non-null = the synthetic free-text row is this question's answer. */
+  text: string | null;
+}
+
+/** True iff every question has either a picked option or a non-empty text. */
+export function optionPromptDraftsComplete(drafts: OptionPromptDraft[]): boolean {
+  return (
+    drafts.length > 0 &&
+    drafts.every((draft) => draft.optionIndices.length > 0 || (draft.text ?? "").trim().length > 0)
+  );
+}
+
 export interface TaskViewState {
   task: Task | null;
   /** A PTY runtime backs this view; dormant views are read-only until resumed. */
@@ -76,12 +93,15 @@ export interface TaskViewState {
   pendingApproval: ApprovalDetectedEvent["payload"] | null;
   /** A native AskUserQuestion awaiting an in-view answer (Slice 5). */
   pendingOptionPrompt: OptionPromptDetectedEvent["payload"] | null;
-  /** In-progress single-select choice per question (option index; -1 = none). */
-  optionPromptSelections: number[];
+  /** In-progress answer draft per question (drawer S1): selected option
+   *  indices (one = single-select, many = multi-select toggles) OR a non-null
+   *  free-text answer. Empty indices + null text = unanswered. */
+  optionPromptDrafts: OptionPromptDraft[];
   /** Send-in-flight: keystrokes are being relayed; the card is frozen. */
   optionPromptBusy: boolean;
-  /** The answered card frozen into a receipt — optimistic on send, then
-   *  reconciled (verbatim labels) from the PostToolUse-driven resolved event. */
+  /** The answered card frozen into a receipt — reconciled (verbatim labels)
+   *  from the PostToolUse-driven resolved event; sends are corroborated by the
+   *  controller (drawer S1), never optimistic. */
   optionPromptReceipt: OptionPromptReceipt | null;
   highlightedRunId: string | null;
   liveTranscriptRunId: string | null;
@@ -543,7 +563,7 @@ export function createTaskView(task: Task, status: string, live = true): TaskVie
     composerDraft: "",
     pendingApproval: null,
     pendingOptionPrompt: null,
-    optionPromptSelections: [],
+    optionPromptDrafts: [],
     optionPromptBusy: false,
     optionPromptReceipt: null,
     highlightedRunId: null,

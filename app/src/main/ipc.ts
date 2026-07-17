@@ -173,7 +173,10 @@ export function registerIpcHandlers(
     runtimeController.decideApproval(request.taskId, request.decision, request.approvalId ?? null);
   });
   ipcMain.handle(IPC_CHANNELS.optionPromptAnswer, (_event, request) =>
-    runtimeController.answerOptionPrompt(request.taskId, request.toolUseId, request.optionIndices),
+    runtimeController.answerOptionPrompt(request.taskId, request.toolUseId, request.selections),
+  );
+  ipcMain.handle(IPC_CHANNELS.optionPromptDismiss, (_event, request) =>
+    runtimeController.dismissOptionPrompt(request.taskId, request.toolUseId),
   );
   ipcMain.handle(IPC_CHANNELS.runStop, (_event, request) =>
     runtimeController.stopRun(request.taskId, {

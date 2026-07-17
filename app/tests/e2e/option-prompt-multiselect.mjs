@@ -1,9 +1,10 @@
-// CLI Slice 5 — Bug A fix: a multiSelect AskUserQuestion must SHOW the card in
-// the main view (Woody hit: real requirement-clarification prompts mix single +
-// multiSelect, and the old gate suppressed the whole card → "in the terminal but
-// not the main window"). The card now shows multiSelect questions as read-only
-// CONTEXT with an "Answer in terminal" action (the verified single-select
-// injection isn't used for multiSelect). Real claude.
+// Drawer S1 — multiSelect AskUserQuestion is fully card-answerable: options
+// toggle (☑/☐), Send maps toggles to the verified 2.1.212 key grammar (digits
+// toggle, RIGHT advances, Submit CR — spikes/drawer-option-prompt-probe
+// P2b/P9b), and the receipt RECONCILES from Claude's own PostToolUse answers —
+// proving the injected sequence reached the real CLI. (Supersedes the pre-S1
+// contract where multiSelect rendered read-only with an "Answer in Terminal"
+// CTA.) Real claude.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -29,8 +30,7 @@ try {
   });
   await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
 
-  // Explicitly induce a prompt that INCLUDES a multiSelect question (the shape
-  // that broke). One multiSelect + one single-select mirrors a real mix.
+  // One multiSelect + one single-select mirrors a real requirement-clarification mix.
   const trigger = [
     "You are inside a UI test harness. Do EXACTLY one thing and nothing else:",
     "call the AskUserQuestion tool ONE time with these two questions, then wait.",
@@ -46,36 +46,53 @@ try {
   await page.locator('#option-prompt-card[data-state="asking"]').waitFor({ state: "visible" });
   checks.cardRendered = true;
 
-  // The multiSelect question renders as read-only CONTEXT: checkbox options + a
-  // "choose one or more" tag — and the questions are legible in the main view.
+  const questions = card.locator(".option-prompt-question");
+  await questions.nth(1).waitFor({ state: "visible" });
+  const langs = questions.nth(0);
+  const editor = questions.nth(1);
+
+  // The multiSelect question still announces itself…
   await card.locator(".option-prompt-multi-tag", { hasText: "choose one or more" }).waitFor({ state: "visible" });
-  await card.locator(".option-prompt-option.checkbox .option-prompt-option-label", { hasText: "Python" }).waitFor({ state: "visible" });
-  checks.multiSelectShownAsContext = true;
 
-  // The footer routes answering to the terminal (no card-Send for
-  // multiSelect). The action wears the S5 attention-banner family style —
-  // one visual voice for every "waiting for you in the Terminal" pointer.
-  const answerInTerminal = card.locator(
-    ".option-prompt-actions button.attention-open-terminal",
-    { hasText: "Answer in Terminal" },
-  );
-  await answerInTerminal.waitFor({ state: "visible" });
-  checks.answerInTerminalCta = true;
-  checks.noSendButton = (await card.locator(".option-prompt-actions button.primary", { hasText: "Send answers" }).count()) === 0;
-  if (!checks.noSendButton) {
-    throw new Error("A multiSelect prompt must NOT offer card-Send (only verified single-select injects).");
+  // …and its options TOGGLE (S1): select Python + Go, then untoggle Go —
+  // the checkbox marker and .selected state must follow every click.
+  const python = langs.locator(".option-prompt-option", { hasText: "Python" });
+  const go = langs.locator(".option-prompt-option", { hasText: "Go" });
+  await python.click();
+  await go.click();
+  await langs.locator(".option-prompt-option.selected", { hasText: "Python" }).waitFor({ state: "visible" });
+  await langs.locator(".option-prompt-option.selected", { hasText: "Go" }).waitFor({ state: "visible" });
+  await go.click(); // untoggle
+  if ((await langs.locator(".option-prompt-option.selected").count()) !== 1) {
+    throw new Error("Untoggling a multiSelect option must deselect it.");
   }
+  await go.click(); // re-toggle — final picks: Python + Go
+  checks.multiSelectToggles = true;
 
-  // The CTA surfaces the satellite terminal window (the old #terminal-drawer
-  // assertion referenced the UI retired by d433caf — pre-existing debt).
-  await answerInTerminal.click();
-  const terminalWindow = electronApp
-    .windows()
-    .find((w) => w.url().includes("terminal.html"));
-  if (!terminalWindow) {
-    throw new Error("The Answer-in-Terminal CTA did not surface a terminal window.");
+  // Send stays disabled until EVERY question is answered.
+  const send = card.locator(".option-prompt-actions button.primary", { hasText: "Send answers" });
+  await send.waitFor({ state: "visible" });
+  if (!(await send.isDisabled())) {
+    throw new Error("Send must stay disabled while the single-select question is unanswered.");
   }
-  checks.ctaOpensFloor = true;
+  checks.sendGatedOnAllAnswered = true;
+
+  await editor.locator(".option-prompt-option", { hasText: "VSCode" }).click();
+  await editor.locator(".option-prompt-option.selected", { hasText: "VSCode" }).waitFor({ state: "visible" });
+  if (await send.isDisabled()) {
+    throw new Error("Send stayed disabled after all questions were answered.");
+  }
+  await send.click();
+
+  // Corroborated receipt: the card flips to answered ONLY after Claude's own
+  // PostToolUse (option-prompt:resolved) — the receipt labels are Claude's
+  // verbatim answers, proving the toggle/advance/submit sequence landed.
+  await page.locator('#option-prompt-card[data-state="answered"]').waitFor({ state: "visible", timeout: 180000 });
+  await card.locator(".option-prompt-sub", { hasText: "Answered" }).waitFor({ state: "visible", timeout: 180000 });
+  await card.locator(".option-prompt-receipt-choice", { hasText: "Python" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-receipt-choice", { hasText: "Go" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-receipt-choice", { hasText: "VSCode" }).waitFor({ state: "visible" });
+  checks.reconciledReceipt = true;
 
   checks.success = true;
   console.log(JSON.stringify({ success: true, checks }, null, 2));

@@ -22,6 +22,7 @@ import type {
   SessionIndexResponse,
   SessionSnapshotResponse,
 } from "./sessions";
+import type { OptionPromptSelection } from "./option-prompt";
 import type { ReadSlashCommandsRequest, SlashCommandsResponse } from "./slash";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
 import type { UsageSnapshot } from "./usage";
@@ -47,6 +48,7 @@ export const IPC_CHANNELS = {
   attachmentPick: "attachment:pick",
   approvalDecide: "approval:decide",
   optionPromptAnswer: "option-prompt:answer",
+  optionPromptDismiss: "option-prompt:dismiss",
   runStop: "run:stop",
   terminalResize: "terminal:resize",
   terminalUserInput: "terminal:user-input",
@@ -280,8 +282,15 @@ export interface OptionPromptAnswerRequest {
   taskId: TaskId;
   /** The pending prompt's `tool_use_id` — guards against answering a stale card. */
   toolUseId: string;
-  /** Single-select: the chosen option index per question, in question order. */
-  optionIndices: number[];
+  /** One selection per question, in question order (drawer S1: single-select,
+   *  multi-select, and free-text all travel through this shape). */
+  selections: OptionPromptSelection[];
+}
+
+export interface OptionPromptDismissRequest {
+  taskId: TaskId;
+  /** The pending prompt's `tool_use_id` — guards against dismissing a stale card. */
+  toolUseId: string;
 }
 
 export interface RemoteControlInjectRequest {
@@ -696,6 +705,9 @@ export interface DuetRuntimeBridge {
   getPathForFile(file: File): string;
   decideApproval(request: ApprovalDecisionRequest): Promise<void>;
   answerOptionPrompt(request: OptionPromptAnswerRequest): Promise<void>;
+  /** Dismiss the pending option prompt ("Chat about this") — declines every
+   *  question; the user's next composer message flows as normal steering. */
+  dismissOptionPrompt(request: OptionPromptDismissRequest): Promise<void>;
   stopRun(request: StopRunRequest): Promise<void>;
   resizeTerminal(request: ResizeTerminalRequest): Promise<void>;
   writeTerminalUserInput(request: TerminalUserInputRequest): Promise<void>;

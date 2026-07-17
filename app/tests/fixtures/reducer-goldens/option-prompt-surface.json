@@ -68,10 +68,19 @@
               ]
             },
             "pendingOptionPrompt": null,
-            "optionPromptSelections": [
-              -1,
-              -1,
-              -1
+            "optionPromptDrafts": [
+              {
+                "optionIndices": [],
+                "text": null
+              },
+              {
+                "optionIndices": [],
+                "text": null
+              },
+              {
+                "optionIndices": [],
+                "text": null
+              }
             ],
             "optionPromptBusy": false,
             "optionPromptReceipt": {
@@ -326,10 +335,19 @@
               ]
             },
             "pendingOptionPrompt": null,
-            "optionPromptSelections": [
-              -1,
-              -1,
-              -1
+            "optionPromptDrafts": [
+              {
+                "optionIndices": [],
+                "text": null
+              },
+              {
+                "optionIndices": [],
+                "text": null
+              },
+              {
+                "optionIndices": [],
+                "text": null
+              }
             ],
             "optionPromptBusy": false,
             "optionPromptReceipt": {

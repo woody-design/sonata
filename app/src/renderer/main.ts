@@ -72,6 +72,7 @@ import {
 } from "./flows/attachments";
 import {
   answerOptionPrompt,
+  dismissOptionPrompt,
   archiveProjectFromSidebar,
   archiveSessionFromSidebar,
   decideApproval,
@@ -387,14 +388,29 @@ initActions({
     view.slashAttention = null;
     renderAttentionBanners(view);
   },
-  // Option-prompt card: the select grammar (verbatim from its pre-D3 inline
-  // home) and the answer flow.
+  // Option-prompt card: the select grammar (single-select picks, multi-select
+  // toggles — drawer S1) and the answer flow.
   selectOptionPromptChoice: (view, questionIndex, optionIndex) => {
-    view.optionPromptSelections[questionIndex] = optionIndex;
+    const draft = view.optionPromptDrafts[questionIndex];
+    const question = view.pendingOptionPrompt?.questions[questionIndex];
+    if (!draft || !question) {
+      return;
+    }
+    if (question.multiSelect) {
+      draft.optionIndices = draft.optionIndices.includes(optionIndex)
+        ? draft.optionIndices.filter((index) => index !== optionIndex)
+        : [...draft.optionIndices, optionIndex];
+    } else {
+      draft.optionIndices = [optionIndex];
+    }
+    draft.text = null; // picking an option supersedes a free-text draft
     renderOptionPrompt();
   },
   answerOptionPrompt: () => {
     void answerOptionPrompt();
+  },
+  dismissOptionPrompt: () => {
+    void dismissOptionPrompt();
   },
   // Sidebar flows and ports. Rename IPC stays Promise-based end-to-end; the
   // shared flow owns its single-flight lifecycle and canonical synchronization.

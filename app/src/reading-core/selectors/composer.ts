@@ -13,8 +13,9 @@ import type {
   SlashCommandEntry,
 } from "../../shared/types";
 import type { OptionPromptDetectedEvent } from "../../shared/types/events";
-import type { OptionPromptAnswers } from "../../shared/types/option-prompt";
+import type { OptionPromptAnswers, OptionPromptSelection } from "../../shared/types/option-prompt";
 import type {
+  OptionPromptDraft,
   OptionPromptReceiptLine,
   RendererState,
   TaskLaunchDraft,
@@ -270,14 +271,41 @@ export function reconcileReceiptLines(
   return Object.entries(answers).map(([question, labels]) => ({ header: question, question, labels }));
 }
 
-/** Optimistic receipt lines from the local single-select choice (pre-reconcile). */
-export function optimisticReceiptLines(
+/** Map the card's per-question drafts to the wire selections (drawer S1).
+ *  Returns null while any question is unanswered (send stays disabled). A
+ *  non-empty text wins over stray indices — the UI clears indices when the
+ *  free-text row is chosen, this is the belt to that suspender. */
+export function optionPromptSelectionsFromDrafts(
   prompt: OptionPromptDetectedEvent["payload"],
-  selections: number[],
-): OptionPromptReceiptLine[] {
-  return prompt.questions.map((q, i) => {
-    const idx = selections[i] ?? -1;
-    const label = idx >= 0 ? q.options[idx]?.label ?? "" : "";
-    return { header: q.header, question: q.question, labels: label ? [label] : [] };
-  });
+  drafts: OptionPromptDraft[],
+): OptionPromptSelection[] | null {
+  if (drafts.length !== prompt.questions.length) {
+    return null;
+  }
+  const selections: OptionPromptSelection[] = [];
+  for (let i = 0; i < prompt.questions.length; i++) {
+    const question = prompt.questions[i];
+    const draft = drafts[i];
+    if (!question || !draft) {
+      return null;
+    }
+    const text = (draft.text ?? "").trim();
+    if (text && !question.multiSelect) {
+      // Free-text on a MULTI-select question is not injectable (probe P9f:
+      // the digit path toggles instead of opening the editor) — fall through
+      // to the picked options, or stay unanswered (send disabled).
+      selections.push({ kind: "text", text });
+    } else if (draft.optionIndices.length === 0) {
+      return null;
+    } else if (question.multiSelect) {
+      selections.push({ kind: "options", indices: [...draft.optionIndices].sort((a, b) => a - b) });
+    } else {
+      const index = draft.optionIndices[0];
+      if (index === undefined || draft.optionIndices.length !== 1) {
+        return null;
+      }
+      selections.push({ kind: "option", index });
+    }
+  }
+  return selections;
 }

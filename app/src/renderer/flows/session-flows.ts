@@ -20,7 +20,7 @@ import {
   formatTokenCount,
   providerLabel,
 } from "../../reading-core/selectors/formatters";
-import { optimisticReceiptLines } from "../../reading-core/selectors/composer";
+import { optionPromptSelectionsFromDrafts } from "../../reading-core/selectors/composer";
 import { dormantArmed } from "../../reading-core/selectors/runs";
 import {
   activeTaskView as activeTaskViewOf,
@@ -943,32 +943,51 @@ export async function answerOptionPrompt(): Promise<void> {
   if (!view?.task || !prompt) {
     return;
   }
-  const selections = view.optionPromptSelections;
-  if (
-    selections.length !== prompt.questions.length ||
-    selections.some((selection) => selection < 0)
-  ) {
+  const selections = optionPromptSelectionsFromDrafts(prompt, view.optionPromptDrafts);
+  if (!selections) {
     return; // not every question answered yet
   }
 
   view.optionPromptBusy = true;
   deps.renderOptionPrompt();
   try {
+    // Corroborated send (drawer S1): the IPC resolves only after the CLI's own
+    // PostToolUse cleared the prompt — by then the `option-prompt:resolved`
+    // event has set the reconciled receipt (receipt-by-observation, never
+    // optimistic). A swallowed injection REJECTS instead of faking a receipt.
     await window.duetRuntime.answerOptionPrompt({
       taskId: view.task.id,
       toolUseId: prompt.toolUseId,
-      optionIndices: [...selections],
+      selections,
     });
-    // Optimistic receipt from the local choice; the resolved event upgrades it
-    // to the provider's verbatim labels (receipt-by-observation).
-    view.optionPromptReceipt = {
-      toolUseId: prompt.toolUseId,
-      reconciled: false,
-      lines: optimisticReceiptLines(prompt, selections),
-    };
-    view.pendingOptionPrompt = null;
+    // No status write: the resolved event's reducer already set "Answered"
+    // (and the reconciled receipt) before the IPC resolved.
     view.optionPromptBusy = false;
-    view.status = "Answer sent";
+    markViewChanged(view);
+  } catch (error) {
+    view.optionPromptBusy = false;
+    view.status = errorMessage(error);
+    markViewChanged(view);
+  }
+}
+
+/** Dismiss the pending questions ("Chat about this") — declines every question;
+ *  the composer comes back and the user's next message flows as steering. */
+export async function dismissOptionPrompt(): Promise<void> {
+  const view = activeTaskView();
+  const prompt = view?.pendingOptionPrompt ?? null;
+  if (!view?.task || !prompt) {
+    return;
+  }
+  view.optionPromptBusy = true;
+  deps.renderOptionPrompt();
+  try {
+    await window.duetRuntime.dismissOptionPrompt({
+      taskId: view.task.id,
+      toolUseId: prompt.toolUseId,
+    });
+    view.optionPromptBusy = false;
+    view.status = "Questions dismissed";
     markViewChanged(view);
   } catch (error) {
     view.optionPromptBusy = false;

@@ -71,6 +71,7 @@ import {
   parseOptionPrompt,
   reconcileOptionPromptAnswers,
   optionPromptAnswerSequence,
+  optionPromptDismissSequence,
   readClaudeResumeStats,
   StatusRegionTracker,
 } from "../runtime";
@@ -93,7 +94,7 @@ import type {
 import type { ClaudeSettings } from "../shared/types/claude-settings";
 import type { CodexSettings } from "../shared/types/codex-settings";
 import type { HookPayload, CliStateSnapshot } from "../shared/types/cli-signal";
-import type { OptionPrompt } from "../shared/types/option-prompt";
+import type { OptionPrompt, OptionPromptSelection } from "../shared/types/option-prompt";
 import {
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
@@ -169,6 +170,11 @@ interface ActiveTaskRuntime {
    *  controller can answer it, bound-check the selection, and emit a
    *  cancellation when the turn ends or the PTY exits unanswered. */
   pendingOptionPrompt: OptionPrompt | null;
+  /** How the LAST option prompt resolved (drawer S1) — the corroboration wait
+   *  reads this to distinguish "the CLI accepted the answers" (PostToolUse,
+   *  answered=true) from a fallback clear (Stop/pty-exit, answered=false) so a
+   *  swallowed injection can never false-confirm as a sent answer. */
+  lastOptionPromptResolution: { toolUseId: string; answered: boolean } | null;
   /**
    * Legacy-only compatibility: the last automatically applied undated title.
    * New tasks persist titleOrigin; old manifests deliberately retain their
@@ -423,6 +429,7 @@ export class RuntimeController {
       statusTracker,
       cliState,
       pendingOptionPrompt: null,
+      lastOptionPromptResolution: null,
       autoTitle: null,
     };
     this.taskRuntimes.set(activeTask.task.id, activeTask);
@@ -560,6 +567,7 @@ export class RuntimeController {
       statusTracker,
       cliState,
       pendingOptionPrompt: null,
+      lastOptionPromptResolution: null,
       autoTitle: null,
     };
     this.taskRuntimes.set(runningTask.id, activeTask);
@@ -1473,6 +1481,7 @@ export class RuntimeController {
       // The PTY died with a question still open — clear the card (no receipt).
       const toolUseId = eventRuntime.pendingOptionPrompt.toolUseId;
       eventRuntime.pendingOptionPrompt = null;
+      eventRuntime.lastOptionPromptResolution = { toolUseId, answered: false };
       this.sendEvent({
         type: "option-prompt:resolved",
         payload: { taskId: event.payload.taskId, toolUseId, answers: null },
@@ -2111,13 +2120,12 @@ export class RuntimeController {
       if (!prompt) {
         return; // malformed input → fall through to the floor, never a broken card
       }
-      // NOTE: multiSelect questions are surfaced too (the card shows them as
-      // full context), but they are answered in the terminal, not injected —
-      // the renderer only offers card-Send when every question is single-select
-      // (the only verified injection mechanic). A real requirement-clarification
-      // commonly mixes single + multi, so suppressing the whole card on any
-      // multiSelect (the prior behavior) hid the card for the common case.
+      // Drawer S1: every question kind is card-answerable (single-select,
+      // multi-select toggles, free-text on single-select) via the verified
+      // 2.1.212 grammar; free-text on a multiSelect question stays terminal-
+      // answered (probe P9f: the digit path mis-answers there).
       active.pendingOptionPrompt = prompt;
+      active.lastOptionPromptResolution = null;
       this.sendEvent({
         type: "option-prompt:detected",
         payload: { taskId: active.task.id, toolUseId: prompt.toolUseId, questions: prompt.questions },
@@ -2131,13 +2139,18 @@ export class RuntimeController {
         typeof payload.tool_use_id === "string"
           ? payload.tool_use_id
           : active.pendingOptionPrompt?.toolUseId ?? "";
+      const answers = reconcileOptionPromptAnswers(payload.tool_response);
       active.pendingOptionPrompt = null;
+      // answered=true ONLY with a real answers object — a PostToolUse without
+      // one (e.g. a decline reaching PostToolUse in some future CLI) must not
+      // corroborate a Send.
+      active.lastOptionPromptResolution = { toolUseId, answered: answers !== null };
       this.sendEvent({
         type: "option-prompt:resolved",
         payload: {
           taskId: active.task.id,
           toolUseId,
-          answers: reconcileOptionPromptAnswers(payload.tool_response),
+          answers,
         },
         ts: new Date().toISOString(),
       });
@@ -2147,6 +2160,7 @@ export class RuntimeController {
     if (event === "Stop" && active.pendingOptionPrompt) {
       const toolUseId = active.pendingOptionPrompt.toolUseId;
       active.pendingOptionPrompt = null;
+      active.lastOptionPromptResolution = { toolUseId, answered: false };
       this.sendEvent({
         type: "option-prompt:resolved",
         payload: { taskId: active.task.id, toolUseId, answers: null },
@@ -2156,23 +2170,94 @@ export class RuntimeController {
   }
 
   /**
-   * Answer a pending AskUserQuestion by playing back the verified key sequence.
+   * Answer a pending AskUserQuestion by playing back the verified key sequence
+   * (full grammar since drawer S1: single-select, multi-select, free-text).
    * Guards on the `toolUseId` so a stale card (already answered, cancelled, or
    * superseded by a newer prompt) is a no-op rather than a mis-injection.
+   *
+   * CORROBORATED, not optimistic (drawer S1): resolves only after the CLI's own
+   * PostToolUse cleared the pending prompt (`option-prompt:resolved` has then
+   * already been emitted). If the injection is swallowed (TUI repaint, upstream
+   * drift) this THROWS instead of letting the renderer show a receipt for an
+   * answer the CLI never received — the failure the field reported as
+   * "selected but nothing was sent".
    */
-  async answerOptionPrompt(taskId: TaskId, toolUseId: string, optionIndices: number[]): Promise<void> {
+  async answerOptionPrompt(
+    taskId: TaskId,
+    toolUseId: string,
+    selections: OptionPromptSelection[],
+  ): Promise<void> {
     const active = this.requireTaskRuntime(taskId);
     const prompt = active.pendingOptionPrompt;
     if (!prompt || prompt.toolUseId !== toolUseId) {
       return;
     }
-    if (prompt.questions.some((question) => question.multiSelect)) {
-      // Only the single-select sequence is verified; a multiSelect prompt is
-      // answered in the terminal. Never inject a guessed multi-select sequence.
+    const keys = optionPromptAnswerSequence(prompt.questions, selections);
+    await active.terminalHost.sendOptionPromptAnswer(keys);
+    const outcome = await this.waitForOptionPromptClear(active, toolUseId, 6_000);
+    // Only an ANSWERED resolution confirms the Send. A fallback clear (Stop,
+    // pty-exit, a terminal-side decline racing the card) reaches the renderer
+    // as `answers: null` — reporting success there would be the exact fake-
+    // success class this slice exists to kill (reviewer finding 4).
+    if (outcome !== "answered") {
+      throw new Error("The CLI did not confirm the answer — check the CLI, then try again.");
+    }
+  }
+
+  /**
+   * Dismiss a pending AskUserQuestion (the drawer's ✕): injects the synthetic
+   * "Chat about this" digit, which declines every question instantly and ends
+   * the turn cleanly (probe P7/P9d/P9e — incl. multiSelect-first forms). The
+   * decline itself fires NO PostToolUse; the prompt clears on the turn's Stop.
+   * The window covers the model's short post-decline reply. On TIMEOUT (the
+   * model kept working past the window) the prompt is cleared LOCALLY: the
+   * decline itself is near-certain (same injection path every answer uses) and
+   * an un-frozen stale card would let a later Send inject digits into the live
+   * composer — the worse failure direction. The residual risk (dismiss digit
+   * swallowed AND window exceeded) leaves the form open in the CLI, where the
+   * turn stays visibly busy.
+   */
+  async dismissOptionPrompt(taskId: TaskId, toolUseId: string): Promise<void> {
+    const active = this.requireTaskRuntime(taskId);
+    const prompt = active.pendingOptionPrompt;
+    if (!prompt || prompt.toolUseId !== toolUseId) {
       return;
     }
-    const keys = optionPromptAnswerSequence(prompt.questions, optionIndices);
+    const keys = optionPromptDismissSequence(prompt.questions);
     await active.terminalHost.sendOptionPromptAnswer(keys);
+    const outcome = await this.waitForOptionPromptClear(active, toolUseId, 45_000);
+    if (outcome === "timeout") {
+      if (active.pendingOptionPrompt?.toolUseId === toolUseId) {
+        active.pendingOptionPrompt = null;
+        active.lastOptionPromptResolution = { toolUseId, answered: false };
+        this.sendEvent({
+          type: "option-prompt:resolved",
+          payload: { taskId: active.task.id, toolUseId, answers: null },
+          ts: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  /** Poll until the pending prompt with `toolUseId` clears, then report HOW it
+   *  resolved: "answered" (PostToolUse with real answers), "cleared" (fallback:
+   *  Stop / pty-exit / decline — `option-prompt:resolved` carried null), or
+   *  "timeout". The distinction is load-bearing for Send corroboration. */
+  private async waitForOptionPromptClear(
+    active: ActiveTaskRuntime,
+    toolUseId: string,
+    timeoutMs: number,
+  ): Promise<"answered" | "cleared" | "timeout"> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const pending = active.pendingOptionPrompt;
+      if (!pending || pending.toolUseId !== toolUseId) {
+        const resolution = active.lastOptionPromptResolution;
+        return resolution?.toolUseId === toolUseId && resolution.answered ? "answered" : "cleared";
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return "timeout";
   }
 
   private emitCliState(taskId: TaskId, snapshot: CliStateSnapshot): void {
