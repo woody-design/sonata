@@ -29,7 +29,7 @@ try {
   await page.setViewportSize({ width: 1180, height: 820 });
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
   await page.waitForFunction(() => Boolean(document.documentElement.dataset.readingFirstFrame));
-  await setAppearance(page, "sonata", "light");
+  await setAppearance(page, "default", "light");
 
   const initial = await readControl(page);
   assert(initial.hidden && initial.ariaHidden === "true" && initial.tabIndex === -1, "no overflow hides control");
@@ -53,12 +53,12 @@ try {
       path: path.join(evidenceDir, "scroll-to-bottom-light.png"),
       animations: "disabled",
     });
-    await setAppearance(page, "sonata", "dark");
+    await setAppearance(page, "default", "dark");
     await page.locator("#run-column").screenshot({
       path: path.join(evidenceDir, "scroll-to-bottom-dark.png"),
       animations: "disabled",
     });
-    await setAppearance(page, "sonata", "light");
+    await setAppearance(page, "default", "light");
   }
 
   // The disabled-textarea fallback moves focus to the Composer form itself.
@@ -316,7 +316,7 @@ async function setAppearance(page, theme, mode) {
 
 async function readComposerFocusContrastMatrix(page) {
   const entries = [];
-  for (const theme of ["sonata", "paper", "calm", "focus"]) {
+  for (const theme of ["default", "paper", "calm", "focus"]) {
     for (const mode of ["light", "dark"]) {
       await setAppearance(page, theme, mode);
       // Make keyboard modality explicit before programmatic focus so the
@@ -343,7 +343,7 @@ async function readComposerFocusContrastMatrix(page) {
       });
     }
   }
-  await setAppearance(page, "sonata", "light");
+  await setAppearance(page, "default", "light");
   return entries;
 }
 

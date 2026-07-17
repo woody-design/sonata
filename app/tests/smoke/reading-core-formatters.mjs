@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 // while making these assertions deterministic.
 const require = createRequire(import.meta.url);
 const F = require("../../dist/reading-core/selectors/formatters");
+const RS = require("../../dist/shared/types/reading-settings");
 
 const NOW = Date.parse("2026-07-03T12:00:00.000Z");
 const agoMs = (ms) => new Date(NOW - ms).toISOString();
@@ -155,7 +156,7 @@ const DAY = 24 * HOUR;
   assert.equal(F.readingThemeLabel("paper"), "Paper");
   assert.equal(F.readingThemeLabel("calm"), "Calm");
   assert.equal(F.readingThemeLabel("focus"), "Focus");
-  assert.equal(F.readingThemeLabel("sonata"), "Sonata", "default theme label");
+  assert.equal(F.readingThemeLabel("default"), "Default", "default theme label");
   assert.equal(F.readingModeLabel("light"), "Light");
   assert.equal(F.readingModeLabel("dark"), "Dark");
   assert.equal(F.readingModeLabel("auto"), "Auto");
@@ -165,6 +166,28 @@ const DAY = 24 * HOUR;
   assert.equal(F.resumePolicyLabel("summary"), "Resume from summary");
   assert.equal(F.resumePolicyLabel("full"), "Resume full session");
   assert.equal(F.resumePolicyLabel("ask"), "Ask each time");
+}
+
+// 10b) Reading-theme vocabulary degradation. The product-named theme was
+// neutralized to "default"; a persisted theme naming the product (pre-rename
+// "duet", or the never-shipped dev transient "sonata") is no longer part of the
+// vocabulary and must sanitize back to the default rather than survive.
+{
+  assert.equal(RS.DEFAULT_READING_SETTINGS.theme, "default", "default reading theme id");
+  assert.equal(RS.isReadingThemeId("default"), true, "default is a valid theme id");
+  assert.equal(RS.isReadingThemeId("duet"), false, "pre-rename duet is not a theme id");
+  assert.equal(RS.isReadingThemeId("sonata"), false, "dev-transient sonata is not a theme id");
+  for (const stale of ["duet", "sonata"]) {
+    assert.equal(
+      RS.normalizeReadingSettings({ theme: stale, mode: "dark", textStep: 18 }).theme,
+      "default",
+      `stale theme=${stale} sanitizes to default`,
+    );
+    // The rest of a valid record survives the theme degradation.
+    const normalized = RS.normalizeReadingSettings({ theme: stale, mode: "dark", textStep: 18 });
+    assert.equal(normalized.mode, "dark", `stale theme=${stale} preserves mode`);
+    assert.equal(normalized.textStep, 18, `stale theme=${stale} preserves textStep`);
+  }
 }
 
 // 11) Approval titles + kind labels (all kinds + fallbacks).

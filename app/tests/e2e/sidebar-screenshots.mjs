@@ -22,7 +22,7 @@ const outputDir = path.resolve(
   process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-screenshots-out-")),
 );
 const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-evidence-"));
-const themes = ["sonata", "paper", "calm", "focus"];
+const themes = ["default", "paper", "calm", "focus"];
 const modes = ["light", "dark"];
 const viewport = { width: 1280, height: 800 };
 const capturedFiles = [];
@@ -75,7 +75,7 @@ try {
     }
   }
 
-  await setReadingSettings(page, { theme: "sonata", mode: "light", textStep: 16 });
+  await setReadingSettings(page, { theme: "default", mode: "light", textStep: 16 });
 
   const firstSession = page.locator(".sidebar-session-button").first();
   await firstSession.click();

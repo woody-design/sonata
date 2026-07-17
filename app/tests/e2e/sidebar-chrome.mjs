@@ -30,7 +30,7 @@ const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-chrome-
 const fakeCodex = path.join(fakeBinDir, "codex");
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
 fs.chmodSync(fakeCodex, 0o755);
-const themes = ["sonata", "paper", "calm", "focus"];
+const themes = ["default", "paper", "calm", "focus"];
 const modes = ["light", "dark"];
 const textSteps = [14, 20];
 const viewport = { width: 1280, height: 800 };
@@ -114,7 +114,7 @@ const expectedByMode = {
 // the quoted "system-ui" string (S1b lesson); the two serif rosters serialize
 // verbatim from their --font-reading source.
 const READING_FONT = {
-  sonata: '-apple-system, "system-ui", "PingFang SC", sans-serif',
+  default: '-apple-system, "system-ui", "PingFang SC", sans-serif',
   paper: 'Charter, "Bitstream Charter", "PingFang SC", serif',
   // Chromium's getComputedStyle strips the unnecessary quotes from the single-
   // identifier "Literata" (kept quoted in the --font-reading source); multi-word
@@ -123,7 +123,7 @@ const READING_FONT = {
   focus: '-apple-system, "system-ui", "PingFang SC", sans-serif',
 };
 const expectedReadingPaneByThemeMode = {
-  sonata: {
+  default: {
     light: { paper: "rgb(251, 250, 247)", ink: "rgba(55, 53, 47, 0.92)" },
     dark: { paper: "rgb(30, 29, 26)", ink: "rgba(232, 227, 217, 0.92)" },
   },
@@ -241,7 +241,7 @@ try {
     liveTaskId,
   );
 
-  await setReadingSettingsViaUi(page, { theme: "sonata", mode: "dark", textStep: 14 });
+  await setReadingSettingsViaUi(page, { theme: "default", mode: "dark", textStep: 14 });
   await sendCliState(electronApp, liveTaskId, "busy");
   await liveRow.locator(".sidebar-session-spinner").waitFor({ state: "attached" });
 

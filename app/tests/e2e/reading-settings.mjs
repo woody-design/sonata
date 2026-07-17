@@ -68,13 +68,13 @@ try {
     state: "visible",
   });
   const defaults = await readReadingDom(page);
-  assertEqual(defaults.theme, "sonata", "corrupt settings default theme");
+  assertEqual(defaults.theme, "default", "corrupt settings default theme");
   assertEqual(defaults.modeSetting, "auto", "corrupt settings default mode setting");
   assertEqual(defaults.textBody, "16px", "corrupt settings default text size");
   if (defaults.mode !== "light" && defaults.mode !== "dark") {
     throw new Error(`Corrupt settings did not resolve auto to an explicit mode: ${defaults.mode}`);
   }
-  assertEqual(defaults.firstFrame, `sonata/${defaults.mode}/16px`, "corrupt settings first frame");
+  assertEqual(defaults.firstFrame, `default/${defaults.mode}/16px`, "corrupt settings first frame");
   await setNativeThemeSource("light");
   await waitForResolvedMode(page, "light");
   await setNativeThemeSource("dark");

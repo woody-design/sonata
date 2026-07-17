@@ -719,7 +719,7 @@ document.addEventListener(
 // AND dark palette (token blocks in styles.css), so any scheme × any mode —
 // including Auto following the system — is a designed combination.
 const SCHEME_OPTIONS: Array<{ id: TermSchemeId; label: string }> = [
-  { id: "sonata", label: "Sonata" },
+  { id: "default", label: "Default" },
   { id: "catppuccin", label: "Catppuccin" },
   { id: "gruvbox", label: "Gruvbox" },
   { id: "solarized", label: "Solarized" },

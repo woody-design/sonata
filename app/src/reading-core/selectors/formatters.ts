@@ -242,7 +242,7 @@ export function readingThemeLabel(theme: ReadingThemeId): string {
   if (theme === "focus") {
     return "Focus";
   }
-  return "Sonata";
+  return "Default";
 }
 
 export function readingModeLabel(mode: ReadingModeSetting): string {

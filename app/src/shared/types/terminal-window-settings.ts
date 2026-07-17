@@ -8,13 +8,13 @@ import {
  * The terminal's own colour-scheme axis. Unlike the main window's reading
  * themes (paper + serif + leading — a *reading* vocabulary), the terminal
  * speaks the terminal world's native vocabulary: a named ANSI colour scheme.
- * "sonata" is the hand-authored default palette (the design-system neutral
+ * "default" is the hand-authored default palette (the design-system neutral
  * roles); the rest are the classic dual-variant schemes, each shipping an
  * authentic light AND dark palette so every scheme travels across the
  * Light/Dark/Auto mode axis (Ghostty's `light:X,dark:Y` model).
  */
 export const TERM_SCHEME_IDS = [
-  "sonata",
+  "default",
   "catppuccin",
   "gruvbox",
   "solarized",
@@ -56,7 +56,7 @@ export interface TerminalWindowSettings {
 
 export const DEFAULT_TERMINAL_WINDOW_SETTINGS: TerminalWindowSettings = {
   open: true,
-  scheme: "sonata",
+  scheme: "default",
   mode: DEFAULT_READING_SETTINGS.mode,
   fontSize: 13,
 };

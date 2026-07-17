@@ -34,7 +34,7 @@ const WRITE_GOLDENS = process.env.WRITE_REDUCER_GOLDENS === "1";
 // Fixed clock (map §2.4 determinism): the reducer's only time read is the
 // run:started title auto-adopt's `updatedAt`.
 const NOW_MS = Date.parse("2026-07-03T12:00:00.000Z");
-const READING_SETTINGS = { theme: "sonata", mode: "auto", textStep: 16 };
+const READING_SETTINGS = { theme: "default", mode: "auto", textStep: 16 };
 
 function syntheticTask(taskId) {
   // Minimal synthetic Task (corpus-seeding gotcha: task views are created by

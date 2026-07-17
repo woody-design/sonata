@@ -10,7 +10,7 @@ const rename = require("../../dist/reading-core/transitions/rename");
 const renameFlow = require("../../dist/reading-core/rename-flow");
 
 function freshState() {
-  return createInitialState({ theme: "sonata", mode: "light", textStep: 16 });
+  return createInitialState({ theme: "default", mode: "light", textStep: 16 });
 }
 
 function task(id, title) {

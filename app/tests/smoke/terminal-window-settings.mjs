@@ -2,7 +2,7 @@
 //
 // Guards two seams:
 //  A. The scheme vocabulary: every advertised TermSchemeId round-trips the
-//     normalizer, and the default is sonata.
+//     normalizer, and the default is `default`.
 //  B. The pre-scheme MIGRATION: records persisted before the scheme axis
 //     carried `theme` (a reading-theme id — by then a no-op axis). They must
 //     silently land on the default scheme while PRESERVING open + mode, and
@@ -28,7 +28,7 @@ function check(name, condition) {
 }
 
 // A. Vocabulary round-trip.
-check("default scheme is sonata", DEFAULT_TERMINAL_WINDOW_SETTINGS.scheme === "sonata");
+check("default scheme is default", DEFAULT_TERMINAL_WINDOW_SETTINGS.scheme === "default");
 for (const scheme of TERM_SCHEME_IDS) {
   const normalized = normalizeTerminalWindowSettings({ open: false, scheme, mode: "dark" });
   check(`scheme ${scheme} round-trips`, normalized.scheme === scheme);
@@ -40,7 +40,7 @@ check("guard rejects a reading-theme id", !isTermSchemeId("paper"));
 // Font-size ladder round-trip; default is the pre-M2 hardcoded 13.
 check("default font size is 13", DEFAULT_TERMINAL_WINDOW_SETTINGS.fontSize === 13);
 for (const fontSize of TERM_FONT_SIZES) {
-  const normalized = normalizeTerminalWindowSettings({ open: true, scheme: "sonata", fontSize });
+  const normalized = normalizeTerminalWindowSettings({ open: true, scheme: "default", fontSize });
   check(`fontSize ${fontSize} round-trips`, normalized.fontSize === fontSize);
 }
 for (const bad of [10, 17, 13.5, "13", null]) {
@@ -56,18 +56,45 @@ check(
 );
 
 // B. Pre-scheme record migration (theme was the no-op reading-theme axis).
-for (const legacyTheme of ["sonata", "paper", "calm", "focus"]) {
+// Values span the pre-rename shipped id ("duet"), the never-shipped dev
+// transient ("sonata"), the neutralized default, and the reading themes — the
+// `theme` key is ignored wholesale, so every one falls through to the default.
+for (const legacyTheme of ["duet", "sonata", "default", "paper", "calm", "focus"]) {
   const migrated = normalizeTerminalWindowSettings({
     open: false,
     theme: legacyTheme,
     mode: "light",
   });
-  check(`legacy theme=${legacyTheme} lands on sonata`, migrated.scheme === "sonata");
+  check(
+    `legacy theme=${legacyTheme} lands on default`,
+    migrated.scheme === DEFAULT_TERMINAL_WINDOW_SETTINGS.scheme,
+  );
   check(
     `legacy theme=${legacyTheme} preserves open/mode`,
     !migrated.open && migrated.mode === "light",
   );
   check(`legacy key does not survive (${legacyTheme})`, !("theme" in migrated));
+}
+
+// C. Rename degradation — a persisted SCHEME naming the product (pre-rename
+// "duet", or the never-shipped dev transient "sonata") is no longer part of the
+// neutralized vocabulary and must degrade to the default scheme while
+// preserving the rest of the record.
+for (const staleScheme of ["duet", "sonata"]) {
+  check(`guard rejects stale scheme ${staleScheme}`, !isTermSchemeId(staleScheme));
+  const normalized = normalizeTerminalWindowSettings({
+    open: true,
+    scheme: staleScheme,
+    mode: "dark",
+  });
+  check(
+    `stale scheme=${staleScheme} → default`,
+    normalized.scheme === DEFAULT_TERMINAL_WINDOW_SETTINGS.scheme,
+  );
+  check(
+    `stale scheme=${staleScheme} preserves open/mode`,
+    normalized.open && normalized.mode === "dark",
+  );
 }
 
 // Garbage tolerance (the store may hold anything).

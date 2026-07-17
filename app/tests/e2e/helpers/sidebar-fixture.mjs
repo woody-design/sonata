@@ -132,7 +132,7 @@ export function createSidebarFixture(options = {}) {
     folders: overlayFolders,
   });
   writeJson(path.join(settingsRoot, "reading-settings.json"), {
-    theme: "sonata",
+    theme: "default",
     mode: "light",
     textStep: 16,
   });

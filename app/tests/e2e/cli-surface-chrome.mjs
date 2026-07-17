@@ -194,7 +194,7 @@ try {
     // they catch a broken derivation (muted ≈ background after a token typo),
     // not aesthetic shortfalls. Focus visibility stays asserted everywhere.
     themeContrastAccessible: contrastMatrix.every((entry) =>
-      entry.scheme === "sonata"
+      entry.scheme === "default"
         ? entry.projectContrast >= 4.5 &&
           entry.supportContrast >= 4.5 &&
           entry.borderContrast >= 3 &&
@@ -372,7 +372,7 @@ async function readToggle(page) {
 async function readContrastMatrix(page) {
   const entries = [];
   await page.locator("#terminal-theme-trigger").click();
-  const schemes = ["sonata", "catppuccin", "gruvbox", "solarized", "tokyo-night", "rose-pine"];
+  const schemes = ["default", "catppuccin", "gruvbox", "solarized", "tokyo-night", "rose-pine"];
   for (const scheme of schemes) {
     for (const mode of ["light", "dark"]) {
       await page.locator(`[data-scheme-choice="${scheme}"]`).click();
@@ -415,7 +415,7 @@ async function readContrastMatrix(page) {
       });
     }
   }
-  await page.locator('[data-scheme-choice="sonata"]').click();
+  await page.locator('[data-scheme-choice="default"]').click();
   await page.locator('[data-mode-choice="auto"]').click();
   await page.locator("#terminal-theme-trigger").click();
   return entries;

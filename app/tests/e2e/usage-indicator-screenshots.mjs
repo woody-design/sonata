@@ -14,7 +14,7 @@ let electronApp = null;
 try {
   fs.writeFileSync(
     path.join(settingsRoot, "reading-settings.json"),
-    `${JSON.stringify({ theme: "sonata", mode: "light", textStep: 16 }, null, 2)}\n`,
+    `${JSON.stringify({ theme: "default", mode: "light", textStep: 16 }, null, 2)}\n`,
     "utf8",
   );
 

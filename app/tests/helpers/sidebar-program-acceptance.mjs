@@ -39,7 +39,7 @@ export const SIDEBAR_RENAME_ASSERTIONS = Object.freeze([
   "accessibleValidationAndBusyState",
 ]);
 
-export const SIDEBAR_VISUAL_THEMES = Object.freeze(["sonata", "paper", "calm", "focus"]);
+export const SIDEBAR_VISUAL_THEMES = Object.freeze(["default", "paper", "calm", "focus"]);
 // Historical: the committed evidence manifests predate the Duet→Sonata rename,
 // so the STORY they tell still uses the old "duet" theme id. Fresh runs assert
 // against SIDEBAR_VISUAL_THEMES (the current product vocabulary) instead.
