@@ -20,10 +20,10 @@ const TERMINAL_WINDOW_ENTRY = "/terminal.html";
 
 /** The Reading (main) and Preview windows both FOLLOW the reading appearance
  *  (R6) — the preload stamps both on boot so neither flashes an unthemed frame.
- *  The terminal owns its own theme (its Aa picker); it is excluded EXPLICITLY
- *  and first: terminal.html ships a static `data-theme="duet"` that equals the
- *  reading default, so the content fallback below would otherwise sweep it into
- *  the reading-stamp path and fight terminal.ts's independent theme ownership. */
+ *  The terminal owns its own appearance (scheme + mode via its Aa picker); it
+ *  is excluded EXPLICITLY and first. Its root carries `data-term-scheme`, never
+ *  `data-theme`, so the content fallback below cannot sweep it into the
+ *  reading-stamp path; the explicit pathname check is the belt on top. */
 function isReadingThemedDocument(): boolean {
   const pathname = window.location.pathname;
   if (pathname.endsWith(TERMINAL_WINDOW_ENTRY)) {

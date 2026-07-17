@@ -263,8 +263,15 @@
      pre-S0 quirk; the new pair sits between green and blue in hue (H≈191),
      visibly distinct from both, in the same muted family as the other authored
      hues (blue #3f6593 / magenta #8a5b93). Resolved to rgb() in terminalTheme()
-     via a probe element. */
-:root {
+     via a probe element.
+
+     The duet grouping ([data-term-scheme="duet"]) exists for the Aa picker's
+     preview cards: a card stamps [data-term-scheme][data-mode] and needs the
+     DUET values as its OWN declarations, or a card would inherit whatever
+     scheme the window root currently wears. On the root itself the grouping is
+     a no-op (same values as :root). */
+:root,
+[data-term-scheme="duet"] {
   --term-bg: var(--surface-canvas);
   --term-fg: var(--text-primary);
   --term-muted: color-mix(in srgb, var(--term-fg) 74%, var(--term-bg));
@@ -317,6 +324,277 @@
   --term-bright-blue: #9cc2e0;
   --term-bright-magenta: #d0b0d8;
   --term-bright-cyan: #a0d6c6;
+}
+
+/* ── Named ANSI schemes (the Terminal window's Aa picker, scheme axis).
+     Palettes are VERBATIM from iTerm2-Color-Schemes (mbadolato) ghostty
+     exports — the canonical corpus Ghostty's own built-ins derive from. Do not
+     hand-tune individual slots; a scheme is quoted, not authored (the authored
+     scheme is duet, above). Curation rule: only schemes with an authentic
+     light AND dark palette qualify, so every scheme travels across the
+     Light/Dark/Auto mode axis (Ghostty's `light:X,dark:Y` model) — this is why
+     Dracula/Nord are absent. All values are opaque hex: xterm ANSI slots must
+     never carry alpha (see resolve() note above).
+
+     Selectors are attribute-scoped, NOT :root-bound, so the picker's preview
+     cards can stamp [data-term-scheme][data-mode] and render true swatches.
+     The dark variant ([scheme][mode]) out-specifies both the light variant and
+     the duet dark block, and each dark block redefines the full family, so no
+     duet value bleeds through. --term-muted / --term-control-border are NOT
+     redefined here: they are DECLARED at :root, where the cascade-winning
+     scheme fg/bg feed the color-mix, so the whole window chrome tracks the
+     root's scheme for free. Landmine: the resolved values inherit — an element
+     INSIDE a preview card consuming them would get the WINDOW's mix, not the
+     card's scheme. Swatches only consume directly-overridden tokens. */
+
+/* Catppuccin — light: Latte, dark: Mocha */
+[data-term-scheme="catppuccin"] {
+  --term-bg: #eff1f5;
+  --term-fg: #4c4f69;
+  --term-cursor: #dc8a78;
+  --term-cursor-accent: #eff1f5;
+  --term-selection-bg: #dc8a78;
+  --term-selection-fg: #eff1f5;
+  --term-black: #bcc0cc;
+  --term-red: #d20f39;
+  --term-green: #40a02b;
+  --term-yellow: #df8e1d;
+  --term-blue: #1e66f5;
+  --term-magenta: #ea76cb;
+  --term-cyan: #179299;
+  --term-white: #5c5f77;
+  --term-bright-black: #acb0be;
+  --term-bright-red: #e7103f;
+  --term-bright-green: #46b02f;
+  --term-bright-yellow: #e49931;
+  --term-bright-blue: #3878f6;
+  --term-bright-magenta: #ef95d7;
+  --term-bright-cyan: #19a1a8;
+  --term-bright-white: #6c6f85;
+}
+[data-term-scheme="catppuccin"][data-mode="dark"] {
+  --term-bg: #1e1e2e;
+  --term-fg: #cdd6f4;
+  --term-cursor: #f5e0dc;
+  --term-cursor-accent: #1e1e2e;
+  --term-selection-bg: #f5e0dc;
+  --term-selection-fg: #1e1e2e;
+  --term-black: #45475a;
+  --term-red: #f38ba8;
+  --term-green: #a6e3a1;
+  --term-yellow: #f9e2af;
+  --term-blue: #89b4fa;
+  --term-magenta: #f5c2e7;
+  --term-cyan: #94e2d5;
+  --term-white: #bac2de;
+  --term-bright-black: #585b70;
+  --term-bright-red: #f7aec2;
+  --term-bright-green: #c2ecbf;
+  --term-bright-yellow: #fcd682;
+  --term-bright-blue: #aeccfc;
+  --term-bright-magenta: #f398da;
+  --term-bright-cyan: #b1eae1;
+  --term-bright-white: #a6adc8;
+}
+
+/* Gruvbox — light / dark (medium contrast) */
+[data-term-scheme="gruvbox"] {
+  --term-bg: #fbf1c7;
+  --term-fg: #3c3836;
+  --term-cursor: #3c3836;
+  --term-cursor-accent: #fbf1c7;
+  --term-selection-bg: #3c3836;
+  --term-selection-fg: #fbf1c7;
+  --term-black: #fbf1c7;
+  --term-red: #cc241d;
+  --term-green: #98971a;
+  --term-yellow: #d79921;
+  --term-blue: #458588;
+  --term-magenta: #b16286;
+  --term-cyan: #689d6a;
+  --term-white: #7c6f64;
+  --term-bright-black: #928374;
+  --term-bright-red: #9d0006;
+  --term-bright-green: #79740e;
+  --term-bright-yellow: #b57614;
+  --term-bright-blue: #076678;
+  --term-bright-magenta: #8f3f71;
+  --term-bright-cyan: #427b58;
+  --term-bright-white: #3c3836;
+}
+[data-term-scheme="gruvbox"][data-mode="dark"] {
+  --term-bg: #282828;
+  --term-fg: #ebdbb2;
+  --term-cursor: #ebdbb2;
+  --term-cursor-accent: #282828;
+  --term-selection-bg: #665c54;
+  --term-selection-fg: #ebdbb2;
+  --term-black: #282828;
+  --term-red: #cc241d;
+  --term-green: #98971a;
+  --term-yellow: #d79921;
+  --term-blue: #458588;
+  --term-magenta: #b16286;
+  --term-cyan: #689d6a;
+  --term-white: #a89984;
+  --term-bright-black: #928374;
+  --term-bright-red: #fb4934;
+  --term-bright-green: #b8bb26;
+  --term-bright-yellow: #fabd2f;
+  --term-bright-blue: #83a598;
+  --term-bright-magenta: #d3869b;
+  --term-bright-cyan: #8ec07c;
+  --term-bright-white: #ebdbb2;
+}
+
+/* Solarized — light / dark (Schoonover values, iTerm2 canonical export) */
+[data-term-scheme="solarized"] {
+  --term-bg: #fdf6e3;
+  --term-fg: #657b83;
+  --term-cursor: #657b83;
+  --term-cursor-accent: #eee8d5;
+  --term-selection-bg: #eee8d5;
+  --term-selection-fg: #586e75;
+  --term-black: #073642;
+  --term-red: #dc322f;
+  --term-green: #859900;
+  --term-yellow: #b58900;
+  --term-blue: #268bd2;
+  --term-magenta: #d33682;
+  --term-cyan: #2aa198;
+  --term-white: #bbb5a2;
+  --term-bright-black: #002b36;
+  --term-bright-red: #cb4b16;
+  --term-bright-green: #586e75;
+  --term-bright-yellow: #657b83;
+  --term-bright-blue: #839496;
+  --term-bright-magenta: #6c71c4;
+  --term-bright-cyan: #93a1a1;
+  --term-bright-white: #fdf6e3;
+}
+[data-term-scheme="solarized"][data-mode="dark"] {
+  --term-bg: #002b36;
+  --term-fg: #839496;
+  --term-cursor: #839496;
+  --term-cursor-accent: #073642;
+  --term-selection-bg: #073642;
+  --term-selection-fg: #93a1a1;
+  --term-black: #073642;
+  --term-red: #dc322f;
+  --term-green: #859900;
+  --term-yellow: #b58900;
+  --term-blue: #268bd2;
+  --term-magenta: #d33682;
+  --term-cyan: #2aa198;
+  --term-white: #eee8d5;
+  --term-bright-black: #335e69;
+  --term-bright-red: #cb4b16;
+  --term-bright-green: #586e75;
+  --term-bright-yellow: #657b83;
+  --term-bright-blue: #839496;
+  --term-bright-magenta: #6c71c4;
+  --term-bright-cyan: #93a1a1;
+  --term-bright-white: #fdf6e3;
+}
+
+/* Tokyo Night — light: Day, dark: Night */
+[data-term-scheme="tokyo-night"] {
+  --term-bg: #e1e2e7;
+  --term-fg: #3760bf;
+  --term-cursor: #3760bf;
+  --term-cursor-accent: #e1e2e7;
+  --term-selection-bg: #99a7df;
+  --term-selection-fg: #3760bf;
+  --term-black: #e9e9ed;
+  --term-red: #f52a65;
+  --term-green: #587539;
+  --term-yellow: #8c6c3e;
+  --term-blue: #2e7de9;
+  --term-magenta: #9854f1;
+  --term-cyan: #007197;
+  --term-white: #6172b0;
+  --term-bright-black: #a1a6c5;
+  --term-bright-red: #f52a65;
+  --term-bright-green: #587539;
+  --term-bright-yellow: #8c6c3e;
+  --term-bright-blue: #2e7de9;
+  --term-bright-magenta: #9854f1;
+  --term-bright-cyan: #007197;
+  --term-bright-white: #3760bf;
+}
+[data-term-scheme="tokyo-night"][data-mode="dark"] {
+  --term-bg: #1a1b26;
+  --term-fg: #c0caf5;
+  --term-cursor: #c0caf5;
+  --term-cursor-accent: #1a1b26;
+  --term-selection-bg: #283457;
+  --term-selection-fg: #c0caf5;
+  --term-black: #15161e;
+  --term-red: #f7768e;
+  --term-green: #9ece6a;
+  --term-yellow: #e0af68;
+  --term-blue: #7aa2f7;
+  --term-magenta: #bb9af7;
+  --term-cyan: #7dcfff;
+  --term-white: #a9b1d6;
+  --term-bright-black: #414868;
+  --term-bright-red: #f7768e;
+  --term-bright-green: #9ece6a;
+  --term-bright-yellow: #e0af68;
+  --term-bright-blue: #7aa2f7;
+  --term-bright-magenta: #bb9af7;
+  --term-bright-cyan: #7dcfff;
+  --term-bright-white: #c0caf5;
+}
+
+/* Rosé Pine — light: Dawn, dark: Pine */
+[data-term-scheme="rose-pine"] {
+  --term-bg: #faf4ed;
+  --term-fg: #575279;
+  --term-cursor: #575279;
+  --term-cursor-accent: #faf4ed;
+  --term-selection-bg: #dfdad9;
+  --term-selection-fg: #575279;
+  --term-black: #f2e9e1;
+  --term-red: #b4637a;
+  --term-green: #286983;
+  --term-yellow: #ea9d34;
+  --term-blue: #56949f;
+  --term-magenta: #907aa9;
+  --term-cyan: #d7827e;
+  --term-white: #575279;
+  --term-bright-black: #9893a5;
+  --term-bright-red: #b4637a;
+  --term-bright-green: #286983;
+  --term-bright-yellow: #ea9d34;
+  --term-bright-blue: #56949f;
+  --term-bright-magenta: #907aa9;
+  --term-bright-cyan: #d7827e;
+  --term-bright-white: #575279;
+}
+[data-term-scheme="rose-pine"][data-mode="dark"] {
+  --term-bg: #191724;
+  --term-fg: #e0def4;
+  --term-cursor: #e0def4;
+  --term-cursor-accent: #191724;
+  --term-selection-bg: #403d52;
+  --term-selection-fg: #e0def4;
+  --term-black: #26233a;
+  --term-red: #eb6f92;
+  --term-green: #31748f;
+  --term-yellow: #f6c177;
+  --term-blue: #9ccfd8;
+  --term-magenta: #c4a7e7;
+  --term-cyan: #ebbcba;
+  --term-white: #e0def4;
+  --term-bright-black: #6e6a86;
+  --term-bright-red: #eb6f92;
+  --term-bright-green: #31748f;
+  --term-bright-yellow: #f6c177;
+  --term-bright-blue: #9ccfd8;
+  --term-bright-magenta: #c4a7e7;
+  --term-bright-cyan: #ebbcba;
+  --term-bright-white: #e0def4;
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -1516,7 +1794,8 @@ body.sidebar-resizing {
 
 .terminal-theme-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* 3 × 2 for the six schemes — wide enough for two-word names. */
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
@@ -1541,18 +1820,42 @@ body.sidebar-resizing {
   box-shadow: 0 0 0 1px var(--border-strong);
 }
 
+/* True preview: the card is stamped [data-term-scheme][data-mode], so the
+   scheme token blocks above apply AT THE CARD and every var() below resolves
+   to that scheme's palette — the swatch shows the real paper, the real ink,
+   and four real ANSI hues, not a stand-in. */
 .terminal-theme-swatch {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   width: 100%;
-  height: 30px;
+  height: 42px;
   border-radius: 5px;
   background: var(--term-bg);
   color: var(--term-fg);
   font-family: var(--font-mono);
   font-size: 13px;
+  /* Hairline so a paper-coloured swatch doesn't dissolve into the card. */
+  box-shadow: inset 0 0 0 1px var(--border-hairline);
 }
+
+.terminal-theme-swatch-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.terminal-theme-swatch-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.terminal-theme-swatch-dots i:nth-child(1) { background: var(--term-red); }
+.terminal-theme-swatch-dots i:nth-child(2) { background: var(--term-yellow); }
+.terminal-theme-swatch-dots i:nth-child(3) { background: var(--term-green); }
+.terminal-theme-swatch-dots i:nth-child(4) { background: var(--term-blue); }
 
 .terminal-theme-name {
   font-size: 11px;

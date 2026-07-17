@@ -1,18 +1,20 @@
-// Terminal-theme independence fence (S1 findings §2b P1 follow-up).
+// Terminal-appearance independence fence (S1 findings §2b P1 follow-up;
+// scheme-axis update 2026-07-17).
 //
 // The preload gate `isReadingThemedDocument()` excludes terminal.html: the
-// terminal owns its OWN theme (its Aa picker) and must NOT follow the Reading
-// window's theme. S1's near-regression was the content-fallback sweeping
-// terminal.html into the reading-stamp path (a static data-theme="duet" that
-// equals the reading default), which armed the readingSettingsChanged listener
-// and fought terminal.ts's theme ownership. This fences that the terminal's root
-// theme SURVIVES a Reading-theme change — i.e. it stays excluded.
+// terminal owns its OWN appearance — a colour SCHEME (data-term-scheme, its Aa
+// picker) plus mode — and must NOT follow the Reading window's theme. S1's
+// near-regression was the content-fallback sweeping terminal.html into the
+// reading-stamp path (it then shipped a static data-theme="duet" equal to the
+// reading default), which armed the readingSettingsChanged listener and fought
+// terminal.ts's ownership. Since the scheme axis, terminal.html carries NO
+// data-theme at all; this fences both halves: the terminal's root never GAINS
+// a reading theme, and its own scheme/mode SURVIVE a Reading-theme change.
 //
 // The terminal window is default-on, so it appears beside the main window with
 // no extra setup. We change the reading appearance (a full-settings broadcast
-// that reaches EVERY window), witness it landing on the Preview satellite (which
-// DOES follow the reading theme), and assert the terminal's root theme/mode did
-// not move — the two satellites diverge exactly at the preload gate.
+// that reaches EVERY window), witness it landing on the main window, and assert
+// the terminal's root did not move — the satellites diverge at the preload gate.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -35,14 +37,18 @@ try {
   page.setDefaultTimeout(120000);
   await page.locator(".task-entry-panel, #run-list").first().waitFor({ state: "visible" });
 
-  // The terminal window is default-on; wait for it and record its own theme.
+  // The terminal window is default-on; wait for it and record its own scheme.
   const terminal = await waitForWindowByUrl(app, "terminal.html");
   terminal.setDefaultTimeout(60000);
   const terminalThemeBefore = await terminal.evaluate(() => ({
+    scheme: document.documentElement.dataset.termScheme ?? "",
     theme: document.documentElement.dataset.theme ?? "",
     mode: document.documentElement.dataset.mode ?? "",
   }));
-  results.terminalHasOwnTheme = terminalThemeBefore.theme.length > 0;
+  results.terminalHasOwnScheme = terminalThemeBefore.scheme.length > 0;
+  // The terminal root must not carry a reading theme AT ALL — that attribute
+  // is the reading-stamp path's territory.
+  results.terminalCarriesNoReadingTheme = terminalThemeBefore.theme === "";
 
   // Change the reading appearance through the settings popover (Focus + Dark) —
   // the same gesture reading-settings.mjs uses. This both applies to the Reading
@@ -65,11 +71,12 @@ try {
   // NOT move — it is excluded from the reading-stamp path.
   await terminal.waitForTimeout(300);
   const terminalThemeAfter = await terminal.evaluate(() => ({
+    scheme: document.documentElement.dataset.termScheme ?? "",
     theme: document.documentElement.dataset.theme ?? "",
     mode: document.documentElement.dataset.mode ?? "",
   }));
-  results.terminalThemeUnchanged = terminalThemeAfter.theme === terminalThemeBefore.theme;
-  results.terminalDidNotFollow = terminalThemeAfter.theme !== readingTheme;
+  results.terminalSchemeUnchanged = terminalThemeAfter.scheme === terminalThemeBefore.scheme;
+  results.terminalDidNotGainReadingTheme = terminalThemeAfter.theme === "";
   results.terminalModeUnchanged = terminalThemeAfter.mode === terminalThemeBefore.mode;
 
   const success = Object.values(results).every(Boolean);

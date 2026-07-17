@@ -107,6 +107,7 @@
     "smoke:option-prompt-parse": "npm run build:main && node tests/smoke/option-prompt-parse.mjs",
     "smoke:delivery-repump": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-repump.mjs",
     "smoke:transcript-reconcile": "npm run build:main && node tests/smoke/transcript-reconcile.mjs",
+    "smoke:terminal-window-settings": "npm run build:main && node tests/smoke/terminal-window-settings.mjs",
     "e2e:composer-slash-picker": "npm run build && node tests/e2e/composer-slash-picker.mjs",
     "smoke:terminal-arbitration": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-arbitration.mjs",
     "smoke:terminal-input-classifier": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-input-classifier.mjs",

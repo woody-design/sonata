@@ -10,8 +10,8 @@ import { Terminal, type ITheme } from "@xterm/xterm";
 import {
   DEFAULT_TERMINAL_WINDOW_SETTINGS,
   type ReadingModeSetting,
-  type ReadingThemeId,
   type ResolvedReadingMode,
+  type TermSchemeId,
   type TerminalActiveTaskState,
   type TerminalReplaySnapshot,
   type TerminalWindowSettings,
@@ -129,8 +129,8 @@ function openExternalTerminalLink(url: string): void {
 
 // Resolve the app's --term-* palette tokens (which may be var()/color-mix())
 // down to concrete sRGB via a probe + 1x1 canvas — xterm's color parser rejects
-// color(srgb ...). The same resolver the main window uses, reading whatever
-// theme this window's root is stamped with (its own, set via the Aa picker).
+// color(srgb ...). Reads whatever scheme × mode this window's root is stamped
+// with (its own, set via the Aa picker).
 function terminalTheme(): ITheme {
   const probe = document.createElement("span");
   probe.style.position = "absolute";
@@ -710,12 +710,17 @@ document.addEventListener(
   true,
 );
 
-// --- Theme (the terminal's own, independent of the main window) --------------
-const THEME_OPTIONS: Array<{ id: ReadingThemeId; label: string }> = [
+// --- Appearance (the terminal's own, independent of the main window) ---------
+// Scheme is identity, mode is lighting: every scheme ships an authentic light
+// AND dark palette (token blocks in styles.css), so any scheme × any mode —
+// including Auto following the system — is a designed combination.
+const SCHEME_OPTIONS: Array<{ id: TermSchemeId; label: string }> = [
   { id: "duet", label: "Duet" },
-  { id: "paper", label: "Paper" },
-  { id: "calm", label: "Calm" },
-  { id: "focus", label: "Focus" },
+  { id: "catppuccin", label: "Catppuccin" },
+  { id: "gruvbox", label: "Gruvbox" },
+  { id: "solarized", label: "Solarized" },
+  { id: "tokyo-night", label: "Tokyo Night" },
+  { id: "rose-pine", label: "Rosé Pine" },
 ];
 const MODE_OPTIONS: Array<{ id: ReadingModeSetting; label: string }> = [
   { id: "auto", label: "Auto" },
@@ -732,10 +737,10 @@ function resolvedMode(mode: ReadingModeSetting): ResolvedReadingMode {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-/** Stamp the terminal window's own theme/mode on the root and repaint every
+/** Stamp the terminal window's own scheme/mode on the root and repaint every
  *  xterm's palette from the resulting --term-* tokens. */
 function applyAppearance(): void {
-  document.documentElement.dataset.theme = settings.theme;
+  document.documentElement.dataset.termScheme = settings.scheme;
   document.documentElement.dataset.mode = resolvedMode(settings.mode);
   const theme = terminalTheme();
   for (const entry of terminals.values()) {
@@ -745,12 +750,15 @@ function applyAppearance(): void {
 
 function renderThemePopover(): void {
   const resolved = resolvedMode(settings.mode);
-  const cards = THEME_OPTIONS.map(
+  const cards = SCHEME_OPTIONS.map(
     (option) => `
-      <button class="terminal-theme-card${option.id === settings.theme ? " selected" : ""}"
-        type="button" data-theme-choice="${option.id}" data-theme="${option.id}"
-        data-mode="${resolved}" aria-pressed="${option.id === settings.theme}">
-        <span class="terminal-theme-swatch">Aa</span>
+      <button class="terminal-theme-card${option.id === settings.scheme ? " selected" : ""}"
+        type="button" data-scheme-choice="${option.id}" data-term-scheme="${option.id}"
+        data-mode="${resolved}" aria-pressed="${option.id === settings.scheme}">
+        <span class="terminal-theme-swatch">
+          <span class="terminal-theme-swatch-sample">Aa</span>
+          <span class="terminal-theme-swatch-dots"><i></i><i></i><i></i><i></i></span>
+        </span>
         <span class="terminal-theme-name">${option.label}</span>
       </button>`,
   ).join("");
@@ -792,15 +800,15 @@ themePopover.addEventListener("click", (event) => {
   // the target), which would otherwise read as an outside click and close it.
   event.stopPropagation();
   const target = (event.target as HTMLElement).closest<HTMLElement>(
-    "[data-theme-choice],[data-mode-choice]",
+    "[data-scheme-choice],[data-mode-choice]",
   );
   if (!target) {
     return;
   }
-  const themeChoice = target.dataset.themeChoice as ReadingThemeId | undefined;
+  const schemeChoice = target.dataset.schemeChoice as TermSchemeId | undefined;
   const modeChoice = target.dataset.modeChoice as ReadingModeSetting | undefined;
-  if (themeChoice) {
-    settings = { ...settings, theme: themeChoice };
+  if (schemeChoice) {
+    settings = { ...settings, scheme: schemeChoice };
   } else if (modeChoice) {
     settings = { ...settings, mode: modeChoice };
   } else {

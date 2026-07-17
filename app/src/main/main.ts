@@ -14,6 +14,7 @@ import {
 import {
   DEFAULT_TERMINAL_WINDOW_SETTINGS,
   IPC_CHANNELS,
+  normalizeTerminalWindowSettings,
   type CliActionRequest,
   type FolderPickResponse,
   type OpenPreviewRequest,
@@ -547,13 +548,16 @@ function readTerminalWindowSettings(): TerminalWindowSettings {
 }
 
 function writeTerminalWindowSettings(settings: TerminalWindowSettings): TerminalWindowSettings {
-  // The window owns theme + mode; `open` is owned by the toggle, so preserve the
-  // stored value rather than trusting the request.
-  const merged: TerminalWindowSettings = {
+  // The window owns scheme + mode; `open` is owned by the toggle, so preserve
+  // the stored value rather than trusting the request. Normalized HERE, not
+  // just in the store's write(): the no-store / write-failure fallbacks return
+  // `merged` directly, and a malformed IPC payload must not round-trip back to
+  // the renderer unvalidated through those paths.
+  const merged: TerminalWindowSettings = normalizeTerminalWindowSettings({
     ...readTerminalWindowSettings(),
-    theme: settings.theme,
+    scheme: settings.scheme,
     mode: settings.mode,
-  };
+  });
   try {
     return terminalWindowSettingsStore?.write(merged) ?? merged;
   } catch {

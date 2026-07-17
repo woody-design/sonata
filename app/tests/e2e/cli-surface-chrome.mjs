@@ -185,15 +185,30 @@ try {
       freshLabels.action === "Start CLI",
     emptyActionIsLocalNeutral:
       near(emptyActionVisual.height, 36) && emptyActionVisual.borderRadius === "8px",
-    themeContrastAccessible: contrastMatrix.every(
-      (entry) =>
-        entry.projectContrast >= 4.5 &&
-        entry.supportContrast >= 4.5 &&
-        entry.borderContrast >= 3 &&
-        entry.focusContrast >= 3 &&
-        entry.focusVisible &&
-        entry.outlineStyle !== "none" &&
-        entry.outlineWidth === "2px",
+    // Two rulers (scheme-axis decision 2026-07-17): DUET is OUR authored
+    // palette — it must meet the design system's WCAG bar (AA text, 3:1
+    // furniture). The named schemes are QUOTED palettes carrying their own
+    // contrast philosophy (Solarized's foreground is 4.1:1 by design); grading
+    // them with our AA ruler would force hand-tuning the very palettes we
+    // promised to quote verbatim. Their thresholds are wreckage detectors —
+    // they catch a broken derivation (muted ≈ background after a token typo),
+    // not aesthetic shortfalls. Focus visibility stays asserted everywhere.
+    themeContrastAccessible: contrastMatrix.every((entry) =>
+      entry.scheme === "duet"
+        ? entry.projectContrast >= 4.5 &&
+          entry.supportContrast >= 4.5 &&
+          entry.borderContrast >= 3 &&
+          entry.focusContrast >= 3 &&
+          entry.focusVisible &&
+          entry.outlineStyle !== "none" &&
+          entry.outlineWidth === "2px"
+        : entry.projectContrast >= 2 &&
+          entry.supportContrast >= 2 &&
+          entry.borderContrast >= 1.5 &&
+          entry.focusContrast >= 1.5 &&
+          entry.focusVisible &&
+          entry.outlineStyle !== "none" &&
+          entry.outlineWidth === "2px",
     ),
     liveBreadcrumbProjection:
       liveLabels.project === path.basename(project) && liveLabels.session === "New task",
@@ -357,11 +372,12 @@ async function readToggle(page) {
 async function readContrastMatrix(page) {
   const entries = [];
   await page.locator("#terminal-theme-trigger").click();
-  for (const theme of ["duet", "paper", "calm", "focus"]) {
+  const schemes = ["duet", "catppuccin", "gruvbox", "solarized", "tokyo-night", "rose-pine"];
+  for (const scheme of schemes) {
     for (const mode of ["light", "dark"]) {
-      await page.locator(`[data-theme-choice="${theme}"]`).click();
+      await page.locator(`[data-scheme-choice="${scheme}"]`).click();
       await page.locator(`[data-mode-choice="${mode}"]`).click();
-      await page.locator(`html[data-theme="${theme}"][data-mode="${mode}"]`).waitFor({
+      await page.locator(`html[data-term-scheme="${scheme}"][data-mode="${mode}"]`).waitFor({
         state: "attached",
       });
       // Make keyboard modality explicit before programmatic focus so the
@@ -389,7 +405,7 @@ async function readContrastMatrix(page) {
         };
       });
       entries.push({
-        theme,
+        scheme,
         mode,
         ...colors,
         projectContrast: contrastRatio(colors.projectColor, colors.backgroundColor),
@@ -399,7 +415,7 @@ async function readContrastMatrix(page) {
       });
     }
   }
-  await page.locator('[data-theme-choice="duet"]').click();
+  await page.locator('[data-scheme-choice="duet"]').click();
   await page.locator('[data-mode-choice="auto"]').click();
   await page.locator("#terminal-theme-trigger").click();
   return entries;
@@ -482,7 +498,7 @@ async function waitForActiveTask(page) {
 }
 
 async function waitForTerminalAppearance(page) {
-  await page.locator("html[data-theme][data-mode]").waitFor({ state: "attached" });
+  await page.locator("html[data-term-scheme][data-mode]").waitFor({ state: "attached" });
   // A newly shown Electron window can receive the native system-mode media
   // update just after its first paint. Let that event settle before treating
   // an auto-mode palette as visual evidence.
