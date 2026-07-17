@@ -13,7 +13,9 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const {
   DEFAULT_TERMINAL_WINDOW_SETTINGS,
+  TERM_FONT_SIZES,
   TERM_SCHEME_IDS,
+  isTermFontSize,
   isTermSchemeId,
   normalizeTerminalWindowSettings,
 } = require("../../dist/shared/types/terminal-window-settings");
@@ -34,6 +36,24 @@ for (const scheme of TERM_SCHEME_IDS) {
 }
 check("guard accepts every advertised id", TERM_SCHEME_IDS.every(isTermSchemeId));
 check("guard rejects a reading-theme id", !isTermSchemeId("paper"));
+
+// Font-size ladder round-trip; default is the pre-M2 hardcoded 13.
+check("default font size is 13", DEFAULT_TERMINAL_WINDOW_SETTINGS.fontSize === 13);
+for (const fontSize of TERM_FONT_SIZES) {
+  const normalized = normalizeTerminalWindowSettings({ open: true, scheme: "duet", fontSize });
+  check(`fontSize ${fontSize} round-trips`, normalized.fontSize === fontSize);
+}
+for (const bad of [10, 17, 13.5, "13", null]) {
+  const normalized = normalizeTerminalWindowSettings({ open: true, fontSize: bad });
+  check(`fontSize ${JSON.stringify(bad)} → default`, normalized.fontSize === 13);
+}
+check("size guard rejects a non-step", !isTermFontSize(20));
+
+// Pre-M2 records carry no fontSize at all — they land on the default.
+check(
+  "record without fontSize lands on 13",
+  normalizeTerminalWindowSettings({ open: true, scheme: "gruvbox", mode: "dark" }).fontSize === 13,
+);
 
 // B. Pre-scheme record migration (theme was the no-op reading-theme axis).
 for (const legacyTheme of ["duet", "paper", "calm", "focus"]) {

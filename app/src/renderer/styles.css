@@ -1888,6 +1888,41 @@ body.sidebar-resizing {
   border-color: var(--border-strong);
 }
 
+/* Size stepper — same segmented-control grammar as the mode row (this popover's
+   family), not the reading window's stepper (different surface). */
+.terminal-size-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.terminal-size-btn {
+  padding: 5px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.terminal-size-btn:disabled {
+  color: var(--text-placeholder);
+  cursor: default;
+}
+
+.terminal-size-value {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .topbar {
   min-height: 72px;
   display: flex;

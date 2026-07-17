@@ -28,21 +28,37 @@ export function isTermSchemeId(value: unknown): value is TermSchemeId {
 }
 
 /**
+ * The terminal's text-size steps (px). 13 is the baseline (Ghostty's macOS
+ * default, the pre-M2 hardcoded value); the range brackets it one readable
+ * notch further each way than the extremes people actually run terminals at.
+ * A preset ladder, not a free number, mirroring the reading textStep model.
+ */
+export const TERM_FONT_SIZES = [11, 12, 13, 14, 15, 16] as const;
+export type TermFontSize = (typeof TERM_FONT_SIZES)[number];
+
+export function isTermFontSize(value: unknown): value is TermFontSize {
+  return TERM_FONT_SIZES.includes(value as TermFontSize);
+}
+
+/**
  * The terminal window's own persisted preferences. Kept separate from the
  * global reading settings so the terminal is an independent surface: its own
- * open/closed state, its own colour scheme, and its own light/dark mode.
- * Scheme + mode are orthogonal: scheme is identity, mode is lighting.
+ * open/closed state, its own colour scheme, its own light/dark mode, and its
+ * own text size. Scheme + mode are orthogonal: scheme is identity, mode is
+ * lighting.
  */
 export interface TerminalWindowSettings {
   open: boolean;
   scheme: TermSchemeId;
   mode: ReadingModeSetting;
+  fontSize: TermFontSize;
 }
 
 export const DEFAULT_TERMINAL_WINDOW_SETTINGS: TerminalWindowSettings = {
   open: true,
   scheme: "duet",
   mode: DEFAULT_READING_SETTINGS.mode,
+  fontSize: 13,
 };
 
 export function normalizeTerminalWindowSettings(value: unknown): TerminalWindowSettings {
@@ -60,5 +76,8 @@ export function normalizeTerminalWindowSettings(value: unknown): TerminalWindowS
       ? record.scheme
       : DEFAULT_TERMINAL_WINDOW_SETTINGS.scheme,
     mode: isReadingModeSetting(record.mode) ? record.mode : DEFAULT_TERMINAL_WINDOW_SETTINGS.mode,
+    fontSize: isTermFontSize(record.fontSize)
+      ? record.fontSize
+      : DEFAULT_TERMINAL_WINDOW_SETTINGS.fontSize,
   };
 }

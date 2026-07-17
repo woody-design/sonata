@@ -9,6 +9,8 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import {
   DEFAULT_TERMINAL_WINDOW_SETTINGS,
+  TERM_FONT_SIZES,
+  isTermFontSize,
   type ReadingModeSetting,
   type ResolvedReadingMode,
   type TermSchemeId,
@@ -261,7 +263,9 @@ function createTaskTerminal(taskId: string): TaskTerminal {
     convertEol: true,
     cursorBlink: false,
     fontFamily: terminalFontFamily || '"Maple Mono NF CN", "PingFang SC", Menlo, monospace',
-    fontSize: 13,
+    // May be the default if this terminal outraces the async settings read;
+    // applyAppearance re-applies the persisted size to every live entry.
+    fontSize: settings.fontSize,
     lineHeight: 1.2,
     letterSpacing: 0,
     cursorInactiveStyle: "outline",
@@ -737,14 +741,21 @@ function resolvedMode(mode: ReadingModeSetting): ResolvedReadingMode {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-/** Stamp the terminal window's own scheme/mode on the root and repaint every
- *  xterm's palette from the resulting --term-* tokens. */
+/** Stamp the terminal window's own scheme/mode on the root, repaint every
+ *  xterm's palette from the resulting --term-* tokens, and apply the text
+ *  size. A size change refits (cell geometry changed → cols/rows → PTY
+ *  resize); hidden entries fail the fit harmlessly and heal on activation
+ *  (showActiveTerminal refits). */
 function applyAppearance(): void {
   document.documentElement.dataset.termScheme = settings.scheme;
   document.documentElement.dataset.mode = resolvedMode(settings.mode);
   const theme = terminalTheme();
   for (const entry of terminals.values()) {
     entry.terminal.options.theme = theme;
+    if (entry.terminal.options.fontSize !== settings.fontSize) {
+      entry.terminal.options.fontSize = settings.fontSize;
+      fitAndResize(entry);
+    }
   }
 }
 
@@ -766,6 +777,9 @@ function renderThemePopover(): void {
     (option) => `<button class="terminal-mode-btn${option.id === settings.mode ? " selected" : ""}"
       type="button" data-mode-choice="${option.id}" aria-pressed="${option.id === settings.mode}">${option.label}</button>`,
   ).join("");
+  const sizeIndex = TERM_FONT_SIZES.indexOf(settings.fontSize);
+  const smaller = TERM_FONT_SIZES[sizeIndex - 1];
+  const larger = TERM_FONT_SIZES[sizeIndex + 1];
   themePopover.innerHTML = `
     <div class="terminal-theme-section">
       <p class="terminal-theme-heading">Theme</p>
@@ -774,6 +788,16 @@ function renderThemePopover(): void {
     <div class="terminal-theme-section">
       <p class="terminal-theme-heading">Mode</p>
       <div class="terminal-mode-row">${modes}</div>
+    </div>
+    <div class="terminal-theme-section">
+      <p class="terminal-theme-heading">Size</p>
+      <div class="terminal-size-row">
+        <button class="terminal-size-btn" type="button" data-size-choice="${smaller ?? ""}"
+          aria-label="Decrease text size"${smaller === undefined ? " disabled" : ""}>A−</button>
+        <strong class="terminal-size-value">${settings.fontSize}</strong>
+        <button class="terminal-size-btn" type="button" data-size-choice="${larger ?? ""}"
+          aria-label="Increase text size"${larger === undefined ? " disabled" : ""}>A+</button>
+      </div>
     </div>
   `;
 }
@@ -800,17 +824,20 @@ themePopover.addEventListener("click", (event) => {
   // the target), which would otherwise read as an outside click and close it.
   event.stopPropagation();
   const target = (event.target as HTMLElement).closest<HTMLElement>(
-    "[data-scheme-choice],[data-mode-choice]",
+    "[data-scheme-choice],[data-mode-choice],[data-size-choice]",
   );
   if (!target) {
     return;
   }
   const schemeChoice = target.dataset.schemeChoice as TermSchemeId | undefined;
   const modeChoice = target.dataset.modeChoice as ReadingModeSetting | undefined;
+  const sizeChoice = Number(target.dataset.sizeChoice);
   if (schemeChoice) {
     settings = { ...settings, scheme: schemeChoice };
   } else if (modeChoice) {
     settings = { ...settings, mode: modeChoice };
+  } else if (isTermFontSize(sizeChoice)) {
+    settings = { ...settings, fontSize: sizeChoice };
   } else {
     return;
   }
