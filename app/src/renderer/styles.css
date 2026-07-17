@@ -2864,17 +2864,10 @@ h2 {
   color: var(--text-placeholder);
 }
 
-.option-prompt-freetext-next {
-  flex: 0 0 auto;
-  align-self: flex-end;
-  margin-bottom: 3px; /* hugs the last text line as the row grows */
-  border: 0;
-  border-radius: var(--radius-pill);
-  padding: 3px 12px;
-  background: var(--control-primary-bg);
-  color: var(--control-primary-text);
-  font: 500 var(--type-ui-sm) var(--font-ui);
-  cursor: pointer;
+/* The answered receipt sits ABOVE the returned composer — 12px of air
+   between them (Woody, drawer S5). */
+.question-drawer[data-state="answered"] {
+  margin-bottom: var(--space-12);
 }
 
 /* Review step (S2): each row re-opens its question for editing. */

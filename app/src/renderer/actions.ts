@@ -81,6 +81,9 @@ export interface Actions {
   setOptionPromptText(view: TaskViewState, questionIndex: number, text: string): void;
   /** Stepper navigation (drawer S2): 0..N-1 = questions, N = Review. Clamped. */
   setOptionPromptStep(view: TaskViewState, step: number): void;
+  /** "Done with this question": advance to the next UNANSWERED question, else
+   *  Review (drawer S5 — one semantic for picks, multi Next, and text Next). */
+  advanceOptionPromptStep(view: TaskViewState, fromIndex: number): void;
   answerOptionPrompt(): void;
   /** Dismiss the pending questions ("Chat about this") — decline + steer. */
   dismissOptionPrompt(): void;

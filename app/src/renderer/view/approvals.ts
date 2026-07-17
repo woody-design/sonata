@@ -18,6 +18,7 @@ import {
 import {
   activeTaskView,
   isSessionLifecycleActive,
+  optionPromptDraftAnswered,
   optionPromptDraftsComplete,
   type OptionPromptDraft,
   type OptionPromptReceipt,
@@ -196,18 +197,6 @@ export function renderOptionPrompt(): void {
   updateDrawerActive();
 }
 
-/** True iff this question's draft counts as answered (mirrors the wire rule:
- *  text only counts on single-select — P9f). */
-function draftAnswered(question: { multiSelect: boolean }, draft: OptionPromptDraft | undefined): boolean {
-  if (!draft) {
-    return false;
-  }
-  if (!question.multiSelect && (draft.text ?? "").trim()) {
-    return true;
-  }
-  return draft.optionIndices.length > 0;
-}
-
 function renderOptionPromptForm(
   view: TaskViewState,
   prompt: OptionPromptDetectedEvent["payload"],
@@ -254,7 +243,7 @@ function renderOptionPromptForm(
   next.textContent = "›";
   next.setAttribute("aria-label", "Next question");
   const currentAnswered =
-    !onReview && draftAnswered(prompt.questions[step]!, view.optionPromptDrafts[step]);
+    !onReview && optionPromptDraftAnswered(prompt.questions[step]!, view.optionPromptDrafts[step]);
   next.disabled = !interactive || onReview || !currentAnswered;
   next.addEventListener("click", () => actions.setOptionPromptStep(view, step + 1));
   const dismiss = document.createElement("button");
@@ -282,7 +271,7 @@ function renderOptionPromptForm(
   }
   root.append(scroll);
 
-  // ── Footer: review = Send; multi-select steps = Next; else none ──────────
+  // ── Footer: review = Send; question steps = the one Next home (S5) ──────
   const question = onReview ? null : prompt.questions[step]!;
   const footActions = document.createElement("div");
   footActions.className = "option-prompt-actions";
@@ -293,7 +282,7 @@ function renderOptionPromptForm(
     const send = document.createElement("button");
     send.type = "button";
     send.className = "primary";
-    const allAnswered = optionPromptDraftsComplete(view.optionPromptDrafts);
+    const allAnswered = optionPromptDraftsComplete(prompt.questions, view.optionPromptDrafts);
     send.textContent = busy ? "Sending…" : "Send answers";
     send.disabled = busy || !allAnswered;
     send.addEventListener("click", () => {
@@ -301,17 +290,25 @@ function renderOptionPromptForm(
     });
     footActions.append(hint, send);
     root.append(footActions);
-  } else if (question && question.multiSelect) {
-    // Toggling can't imply "done" — multi-select steps advance explicitly.
+  } else if (question) {
+    // ONE home for the explicit Next on every question step (S5): the footer,
+    // right-aligned — never inside the free-text field it used to crowd.
+    // Multi-select: always present, disabled until a toggle (toggling can't
+    // imply "done"). Single-select: hidden until the free-text draft has
+    // content (picks auto-advance). Advance = next unanswered, else Review.
     const tag = document.createElement("span");
     tag.className = "option-prompt-multi-tag";
-    tag.textContent = "choose one or more";
+    tag.textContent = question.multiSelect ? "choose one or more" : "Or answer in the CLI";
     const nextButton = document.createElement("button");
     nextButton.type = "button";
-    nextButton.className = "primary";
+    nextButton.className = "primary option-prompt-step-next";
     nextButton.textContent = "Next";
     nextButton.disabled = !interactive || !currentAnswered;
-    nextButton.addEventListener("click", () => actions.setOptionPromptStep(view, step + 1));
+    nextButton.classList.toggle(
+      "hidden",
+      !question.multiSelect && !(view.optionPromptDrafts[step]?.text ?? "").trim(),
+    );
+    nextButton.addEventListener("click", () => actions.advanceOptionPromptStep(view, step));
     footActions.append(tag, nextButton);
     root.append(footActions);
   }
@@ -412,8 +409,14 @@ function renderQuestionStep(
       // row highlight, the Next affordance, and any stale option selection
       // update in place; everything else catches up on the next render.
       const hasText = Boolean(input.value.trim());
-      go.classList.toggle("hidden", !hasText);
       row.classList.toggle("selected", hasText);
+      const footerNext = elements.optionPromptCard.querySelector<HTMLButtonElement>(
+        ".option-prompt-step-next",
+      );
+      if (footerNext) {
+        footerNext.classList.toggle("hidden", !hasText);
+        footerNext.disabled = !hasText;
+      }
       if (hasText) {
         options.querySelectorAll(".option-prompt-option.selected").forEach((optionButton) => {
           optionButton.classList.remove("selected");
@@ -427,29 +430,21 @@ function renderQuestionStep(
         '.drawer-nav-button[aria-label="Next question"]',
       );
       if (nextChevron) {
-        nextChevron.disabled = !draftAnswered(question, view.optionPromptDrafts[qIndex]);
+        nextChevron.disabled = !optionPromptDraftAnswered(question, view.optionPromptDrafts[qIndex]);
       }
     });
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
-        // ALWAYS swallow Enter: the drawer lives inside the composer <form>,
-        // and an unhandled Enter in its only text input triggers the form's
-        // implicit submission — sending the hidden, parked composer draft
-        // into the TUI's open question form (S2 review B2).
+        // ALWAYS swallow Enter: newline insertion is meaningless here (the
+        // TUI editor is single-line) and an unhandled Enter once triggered
+        // the composer form's implicit submission (S2 review B2).
         event.preventDefault();
         if (!event.isComposing && !event.shiftKey && input.value.trim()) {
-          actions.setOptionPromptStep(view, qIndex + 1);
+          actions.advanceOptionPromptStep(view, qIndex);
         }
       }
     });
-    const go = document.createElement("button");
-    go.type = "button";
-    go.className = "option-prompt-freetext-next";
-    go.textContent = "Next";
-    go.classList.toggle("hidden", !(draft?.text ?? "").trim());
-    go.disabled = !interactive;
-    go.addEventListener("click", () => actions.setOptionPromptStep(view, qIndex + 1));
-    row.append(icon, input, go);
+    row.append(icon, input);
     options.append(row);
   }
 
@@ -481,10 +476,14 @@ function renderReviewStep(
     const answer = document.createElement("span");
     answer.className = "option-prompt-review-answer";
     const text = (draft?.text ?? "").trim();
+    // Display in OPTION order (sorted), matching the wire selections and the
+    // CLI's own answer order — toggle order is an input accident, not meaning.
     const labels =
       !question.multiSelect && text
         ? [text]
-        : (draft?.optionIndices ?? []).map((index) => question.options[index]?.label ?? "");
+        : [...(draft?.optionIndices ?? [])]
+            .sort((a, b) => a - b)
+            .map((index) => question.options[index]?.label ?? "");
     answer.textContent = labels.filter(Boolean).join(", ") || "—";
     row.append(badge, answer);
     row.addEventListener("click", () => actions.setOptionPromptStep(view, qIndex));
@@ -497,14 +496,14 @@ function renderOptionPromptReceiptCard(receipt: OptionPromptReceipt): HTMLElemen
   const root = document.createElement("div");
   root.className = "option-prompt-body option-prompt-receipt";
 
-  // "You answered" IS the state (Woody, 2026-07-17) — no separate status
-  // word on the right. (The un-reconciled "Answer sent" wording died with the
-  // S1 corroboration change: receipts are only ever built reconciled.)
+  // The eyebrow IS the state ("Your answer:" — Woody, 2026-07-17); no separate
+  // status word on the right. (The un-reconciled "Answer sent" wording died
+  // with the S1 corroboration change: receipts are only ever built reconciled.)
   const heading = document.createElement("div");
   heading.className = "option-prompt-heading";
   const eyebrow = document.createElement("p");
   eyebrow.className = "eyebrow";
-  eyebrow.textContent = "You answered";
+  eyebrow.textContent = "Your answer:";
   heading.append(eyebrow);
   root.append(heading);
 

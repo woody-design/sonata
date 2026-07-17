@@ -46,6 +46,7 @@ import {
   activeTaskView as activeTaskViewOf,
   createInitialState,
   isSessionLifecycleActive,
+  optionPromptDraftAnswered,
   type ComposerMenuState,
   type PopoverAnchor,
   type RendererState,
@@ -401,24 +402,15 @@ initActions({
     } else {
       draft.optionIndices = [optionIndex];
       draft.text = null;
-      // Single-select picking answers the step — auto-advance to the next
-      // UNANSWERED question, else Review (S2 review N13: a re-pick from the
-      // Review step returns to Review instead of re-walking answered steps).
-      const questions = view.pendingOptionPrompt?.questions ?? [];
-      let target = questions.length; // Review
-      for (let i = questionIndex + 1; i < questions.length; i++) {
-        const other = view.optionPromptDrafts[i];
-        const answered =
-          (other?.optionIndices.length ?? 0) > 0 ||
-          Boolean(!questions[i]?.multiSelect && (other?.text ?? "").trim());
-        if (!answered) {
-          target = i;
-          break;
-        }
-      }
-      view.optionPromptStep = target;
+      // Single-select picking answers the step — same advance semantic as
+      // every other "done with this question" affordance (S5).
+      view.optionPromptStep = nextOptionPromptStep(view, questionIndex);
     }
     draft.text = null; // picking an option supersedes a free-text draft
+    renderOptionPrompt();
+  },
+  advanceOptionPromptStep: (view, fromIndex) => {
+    view.optionPromptStep = nextOptionPromptStep(view, fromIndex);
     renderOptionPrompt();
   },
   setOptionPromptText: (view, questionIndex, text) => {
@@ -800,6 +792,20 @@ elements.remoteControlToggle.addEventListener("click", (event) => {
   }
   toggleRemoteControlPopover(event.currentTarget as HTMLElement);
 });
+
+/** The drawer's advance semantic (S5): the next UNANSWERED question after
+ *  `fromIndex`, else the Review step — so edits from Review return to Review
+ *  (single-select picks, multi-select Next, and free-text Next all share it;
+ *  the header chevrons stay strictly linear by contrast). */
+function nextOptionPromptStep(view: TaskViewState, fromIndex: number): number {
+  const questions = view.pendingOptionPrompt?.questions ?? [];
+  for (let i = fromIndex + 1; i < questions.length; i++) {
+    if (!optionPromptDraftAnswered(questions[i] ?? { multiSelect: false }, view.optionPromptDrafts[i])) {
+      return i;
+    }
+  }
+  return questions.length; // Review
+}
 
 elements.composer.addEventListener("submit", (event) => {
   event.preventDefault();

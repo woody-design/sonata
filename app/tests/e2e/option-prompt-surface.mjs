@@ -80,7 +80,8 @@ try {
   const freeText = card.locator(".option-prompt-freetext-input");
   await freeText.click();
   await freeText.fill("Seven");
-  await card.locator(".option-prompt-freetext-next", { hasText: "Next" }).click();
+  // The explicit Next lives in the step footer (S5) — never inside the field.
+  await card.locator(".option-prompt-actions .option-prompt-step-next", { hasText: "Next" }).click();
   await card.locator(".drawer-step", { hasText: "3 of 3" }).waitFor({ state: "visible" });
   checks.freeTextAdvances = true;
 
@@ -102,7 +103,7 @@ try {
   // Corroborated receipt: reconciled from Claude's own answers — digits AND
   // the free-text editor sequence landed.
   await page.locator('#option-prompt-card[data-state="answered"]').waitFor({ state: "visible", timeout: 180000 });
-  await card.locator(".eyebrow", { hasText: "You answered" }).waitFor({ state: "visible", timeout: 180000 });
+  await card.locator(".eyebrow", { hasText: "Your answer:" }).waitFor({ state: "visible", timeout: 180000 });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Apple" }).waitFor({ state: "visible" });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Seven" }).waitFor({ state: "visible" });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Bee" }).waitFor({ state: "visible" });

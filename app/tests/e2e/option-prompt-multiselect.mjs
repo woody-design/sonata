@@ -84,6 +84,17 @@ try {
   await card.locator(".option-prompt-option", { hasText: "VSCode" }).click();
   await card.locator(".drawer-step", { hasText: "Review" }).waitFor({ state: "visible" });
   await card.locator(".option-prompt-review-row", { hasText: "Python, Go" }).waitFor({ state: "visible" });
+
+  // Review-edit round trip on a MULTI question (S5 bug fix): edit Toppings,
+  // toggle Rust on, Next — must return to Review (not walk to question 2).
+  await card.locator(".option-prompt-review-row", { hasText: "Python, Go" }).click();
+  await card.locator(".drawer-step", { hasText: "1 of 2" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-option", { hasText: "Rust" }).click();
+  await card.locator(".option-prompt-actions .option-prompt-step-next", { hasText: "Next" }).click();
+  await card.locator(".drawer-step", { hasText: "Review" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-review-row", { hasText: "Python, Rust, Go" }).waitFor({ state: "visible" });
+  checks.reviewEditReturnsToReview = true;
+
   const send = card.locator(".option-prompt-actions button.primary", { hasText: "Send answers" });
   await send.waitFor({ state: "visible" });
   if (await send.isDisabled()) {
@@ -96,9 +107,9 @@ try {
   // PostToolUse (option-prompt:resolved) — the receipt labels are Claude's
   // verbatim answers, proving the toggle/advance/submit sequence landed.
   await page.locator('#option-prompt-card[data-state="answered"]').waitFor({ state: "visible", timeout: 180000 });
-  await card.locator(".eyebrow", { hasText: "You answered" }).waitFor({ state: "visible", timeout: 180000 });
+  await card.locator(".eyebrow", { hasText: "Your answer:" }).waitFor({ state: "visible", timeout: 180000 });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Python" }).waitFor({ state: "visible" });
-  await card.locator(".option-prompt-receipt-choice", { hasText: "Go" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-receipt-choice", { hasText: "Rust" }).waitFor({ state: "visible" });
   await card.locator(".option-prompt-receipt-choice", { hasText: "VSCode" }).waitFor({ state: "visible" });
   checks.reconciledReceipt = true;
 

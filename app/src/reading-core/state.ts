@@ -74,11 +74,32 @@ export interface OptionPromptDraft {
   text: string | null;
 }
 
-/** True iff every question has either a picked option or a non-empty text. */
-export function optionPromptDraftsComplete(drafts: OptionPromptDraft[]): boolean {
+/** True iff this question's draft counts as answered. Mirrors the wire rule:
+ *  free text only counts on single-select (probe P9f — not injectable on
+ *  multi). THE answered predicate — advance logic, chevron gating, and
+ *  completeness all derive from it (S5 review: three drifting copies merged). */
+export function optionPromptDraftAnswered(
+  question: { multiSelect: boolean },
+  draft: OptionPromptDraft | undefined,
+): boolean {
+  if (!draft) {
+    return false;
+  }
+  if (!question.multiSelect && (draft.text ?? "").trim()) {
+    return true;
+  }
+  return draft.optionIndices.length > 0;
+}
+
+/** True iff every question is answered (per optionPromptDraftAnswered). */
+export function optionPromptDraftsComplete(
+  questions: { multiSelect: boolean }[],
+  drafts: OptionPromptDraft[],
+): boolean {
   return (
     drafts.length > 0 &&
-    drafts.every((draft) => draft.optionIndices.length > 0 || (draft.text ?? "").trim().length > 0)
+    drafts.length === questions.length &&
+    drafts.every((draft, i) => optionPromptDraftAnswered(questions[i] ?? { multiSelect: false }, draft))
   );
 }
 
