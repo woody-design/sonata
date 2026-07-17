@@ -640,6 +640,46 @@ export class DeliveryController {
     }, receipt);
   }
 
+  /**
+   * The user stopped the run. Two duties (probe S0, stop-after-send race):
+   *
+   *  - Disarm the Enter-retry ladder unconditionally (seq bump): a rung firing
+   *    after the stop would press Enter onto whatever the Esc-interrupt
+   *    restored into the CLI's composer — re-submitting the very prompt the
+   *    user just stopped.
+   *  - When the terminal host canceled this delivery's deferred text/Enter
+   *    writes (`promptWriteCanceled`), the bytes never (fully) reached the
+   *    CLI: report the in-flight item `undelivered` NOW instead of letting it
+   *    wait out the 45s receipt timeout as a false pending send.
+   */
+  handleStopRequested(info: { promptWriteCanceled: boolean }): void {
+    this.deliverySeq += 1;
+    this.clearEnterRetries();
+    if (!info.promptWriteCanceled || !this.inFlight) {
+      return;
+    }
+    // UPS already proved this delivery genuinely submitted — the canceled
+    // write belonged to something else. Marking it undelivered here would be
+    // a false, unreconcilable verdict (clearing inFlight drops the lagging
+    // transcript receipt on the floor) — leave the receipt watch running.
+    if (this.inFlight.submissionCorroborated) {
+      return;
+    }
+    const item = this.items.find((candidate) => candidate.id === this.inFlight?.itemId);
+    this.inFlight = null;
+    this.clearReceiptTimer();
+    if (item && item.status === "delivering") {
+      item.status = "undelivered";
+      item.deliveringAt = null;
+      item.failureReason = "Send canceled by Stop before it reached the CLI.";
+    }
+    this.emitState();
+    // Anything queued behind the canceled item must not stall until the next
+    // unrelated event (review F6); the pre-submit flood covers the restore
+    // race an instant delivery could otherwise hit.
+    this.pump();
+  }
+
   private completeDelivery(item: DeliveryQueueItem, receipt: DeliveryReceipt): void {
     this.clearReceiptTimer();
     // An echo completion does NOT disarm the heal net. `pty-composer-echo` fires

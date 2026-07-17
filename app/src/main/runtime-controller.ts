@@ -1338,7 +1338,13 @@ export class RuntimeController {
 
   async stopRun(taskId: TaskId, options: { inspectDelayMs?: number; forceSlashStop?: boolean }): Promise<void> {
     const active = this.requireTaskRuntime(taskId);
-    await active.terminalHost.stopRun(options);
+    const { canceledPendingPromptWrite } = await active.terminalHost.stopRun(options);
+    // Stop reaches the delivery layer too: disarm the Enter-retry ladder and,
+    // when the stop aborted this send's undelivered bytes, report the item
+    // honestly instead of letting it ride the 45s receipt timeout.
+    active.deliveryController.handleStopRequested({
+      promptWriteCanceled: canceledPendingPromptWrite,
+    });
   }
 
   resizeTerminal(taskId: TaskId, cols: number, rows: number): void {
@@ -1905,6 +1911,15 @@ export class RuntimeController {
 
     // CLI-state — the schema-agnostic primary signal for busy/idle/turn-end.
     active.cliState.applyHook(payload);
+
+    // Stop-Esc corroboration (both providers): a tool STARTING after a stop
+    // was requested proves the turn survived the Esc — the terminal host
+    // resends it once. PreToolUse only; AskUserQuestion is excluded (a
+    // question to the human is not runaway work, and an Esc into its option
+    // prompt has unprobed semantics).
+    if (event === "PreToolUse" && payload.tool_name !== "AskUserQuestion") {
+      active.terminalHost.noteToolActivityAfterStop();
+    }
 
     // Plan §4's "capability-driven, not provider-name-driven" applies to the
     // DISPATCH/watch gates (now `isHookCapable`). The three edges below are a

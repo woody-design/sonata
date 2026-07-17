@@ -217,7 +217,10 @@ export type RunStopRequestedEvent = BaseRuntimeEvent<
   {
     taskId: TaskId;
     runId: RunId | null;
-    phase: "interrupt";
+    /** `interrupt` = the stop click's own Esc; `interrupt-retry` = the
+     *  one-shot resend after post-stop tool activity proved the first Esc
+     *  was swallowed. */
+    phase: "interrupt" | "interrupt-retry";
     encodedAs: "Esc";
   }
 >;

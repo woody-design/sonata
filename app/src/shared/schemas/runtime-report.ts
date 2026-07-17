@@ -100,7 +100,10 @@ export interface RuntimeApprovalReport {
 export interface RuntimeStopReport {
   ts: string;
   action: "interrupt" | "stopped";
-  phase?: "interrupt";
+  /** Additive in-place widening (still v1): `interrupt-retry` records the
+   *  one-shot Esc resend fired when post-stop tool activity proved the first
+   *  Esc was swallowed. Absent/`interrupt` semantics are unchanged. */
+  phase?: "interrupt" | "interrupt-retry";
   encodedAs?: "Esc";
   interruptSent?: boolean;
   slashStopSent?: boolean;

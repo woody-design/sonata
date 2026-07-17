@@ -66,6 +66,10 @@ export function findRemoteControlUrl(raw: string): string | null {
 }
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
+/** Ctrl+U — kill-line in both CLIs' composers. Idempotent on an empty line
+ *  (probe C2/C6/X2, claude 2.1.212 + codex 0.144.5); per-LINE on Claude, so
+ *  multi-line clears send a counted flood (see cliInputClearFlood). */
+export const KILL_LINE = "\x15";
 
 const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
 const CONTROL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
@@ -76,6 +80,25 @@ const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
+/** How long after the stop Esc the belt-clear fires. The prompt-restore is
+ *  effectively immediate — present at the earliest measured snapshot, +300ms
+ *  (probe C10) — so 900ms is comfortably past it; the belt is cosmetic
+ *  cleanliness, and the submit-time prefix flood (the dirty flag's only
+ *  consumer) is the correctness defense for any latency tail. */
+const CLI_INPUT_CLEAR_DELAY_MS = 900;
+/** Esc-retry admissibility window after a stop: a PreToolUse hook landing
+ *  inside it proves the turn survived the Esc. The lower bound skips the
+ *  in-flight hook race (a tool that had already started before the Esc
+ *  reached the CLI); the upper bound keeps a forgotten stop from firing an
+ *  Esc into next week's turn. */
+const STOP_ESC_RETRY_MIN_MS = 800;
+const STOP_ESC_RETRY_WINDOW_MS = 45_000;
+/** Flood bounds. The floor blankets visually-WRAPPED long lines (kill
+ *  granularity for wrapped lines is unprobed — review F2) and any small
+ *  restore regardless of bookkeeping; the cap only bounds pathological
+ *  inputs. Each kill is one byte — overshoot costs nothing (probe C9/X3). */
+const CLI_INPUT_CLEAR_MIN_KILLS = 40;
+const CLI_INPUT_CLEAR_MAX_KILLS = 600;
 let terminalGenerationSequence = 0;
 
 function nextTerminalGeneration(explicit?: number): number {
@@ -454,6 +477,43 @@ export class TerminalHost extends EventEmitter {
   private pendingHumanInput = "";
   private lastHumanInputAt = 0;
   private humanSettleTimer: NodeJS.Timeout | null = null;
+  // Deferred automation writes (submitPrompt's text/Enter, /rc's Enter) that
+  // have not fired yet. stopRun cancels them: an Esc aimed at a turn must not
+  // be followed by our own deferred paste STARTING one (probe S0,
+  // stop-after-send race). Each handle balances its write-lock hold on
+  // cancel. `owner` distinguishes a run-starting prompt's bytes from control
+  // sends (/stop, /rc Enter) so a canceled control write can never produce a
+  // false "your prompt never reached the CLI" verdict (review F3).
+  private readonly pendingDeferredWrites = new Set<{
+    owner: "prompt" | "control";
+    cancel: () => void;
+  }>();
+  // The CLI's input line may hold text Duet did not put there on purpose —
+  // Esc-interrupt restores the interrupted prompt into the composer (probe
+  // C1/X1). While set, the next injection prefixes a kill-line flood; the
+  // post-stop belt timer also clears the line in place but does NOT consume
+  // the flag (review F1: the restore's latency has no probed lower tail, so
+  // only a consuming injection — whose flood provably precedes its own paste
+  // — may stand the guard down).
+  private cliInputMaybeDirty = false;
+  private cliInputClearTimer: NodeJS.Timeout | null = null;
+  private slashStopTimer: NodeJS.Timeout | null = null;
+  // Monotonic high-water line count of prompt text pasted this session —
+  // sizes the kill flood. The restore is the INTERRUPTED TURN's prompt, not
+  // necessarily the last submission (a 1-line mid-turn steer must not
+  // undersize the flood for a 10-line turn — review F2), so this only
+  // ratchets up; overshoot kills are free no-ops (probe C9/X3).
+  private cliDirtyLineHighWater = 1;
+  // One-shot Esc resend, armed by stopRun, fired ONLY on unambiguous
+  // turn-alive evidence (a PreToolUse hook after the stop). Never fires at
+  // idle: a repeated Esc there opens Claude's rewind menu / prefills Codex's
+  // edit-previous buffer (probe C6/X2). Carries the stopped run's id so the
+  // retry is recordable in the durable report (review F4).
+  private stopEscRetry: {
+    requestedAt: number;
+    retried: boolean;
+    runId: RunId | null;
+  } | null = null;
 
   constructor(options: TerminalHostOptions) {
     super();
@@ -598,6 +658,10 @@ export class TerminalHost extends EventEmitter {
         completionConfidence: "high",
       });
       this.ptyProcess = null;
+      // Stop hygiene must not survive the process it was aimed at: a leaked
+      // stopEscRetry could fire an Esc into the NEXT session within its 45s
+      // window (review F8).
+      this.clearStopHygieneState();
     });
 
     this.emitEvent("task:started", {
@@ -665,11 +729,15 @@ export class TerminalHost extends EventEmitter {
     this.ptyProcess.write(`${BRACKETED_PASTE_START}/remote-control${BRACKETED_PASTE_END}`);
     // Defer the Enter under the held lock (mirrors the prompt-delivery path): a
     // human keystroke landing in the gap buffers rather than splitting the frame.
-    this.deferDuetWrite(120, () => {
-      if (this.ptyProcess) {
-        this.ptyProcess.write(CSI_U_ENTER);
-      }
-    });
+    this.deferDuetWrite(
+      120,
+      () => {
+        if (this.ptyProcess) {
+          this.ptyProcess.write(CSI_U_ENTER);
+        }
+      },
+      "control",
+    );
     this.endDuetWrite();
     // Optimistic: we asked to connect. The scraped URL confirms + carries the
     // link. A second invocation opens the panel (still active), so flipping to
@@ -751,6 +819,15 @@ export class TerminalHost extends EventEmitter {
       this.lastHumanInputAt = Date.now();
       this.scheduleHumanInputSettle();
     }
+    // A lone Esc typed into the Terminal window during a run is the human
+    // interrupting natively — the CLI restores the interrupted prompt into
+    // its input box just like a Duet stop (probe C1/X1). Mark the line dirty
+    // so the next Duet injection pre-clears instead of concatenating. Flag
+    // only — NO belt timer: the human is driving the terminal and may want
+    // to edit the restored text right there.
+    if (data === ESC && this.activeRun) {
+      this.cliInputMaybeDirty = true;
+    }
     if (this.duetWriting) {
       this.pendingHumanInput += data;
       return;
@@ -804,16 +881,40 @@ export class TerminalHost extends EventEmitter {
 
   /** Schedule an automation write `ms` from now, holding the write-lock across
    *  the timer gap so a human keystroke in that window buffers rather than
-   *  splitting the sequence. */
-  private deferDuetWrite(ms: number, fn: () => void): void {
+   *  splitting the sequence. Cancellable as a group by stopRun (a canceled
+   *  handle releases its write-lock hold without writing). */
+  private deferDuetWrite(ms: number, fn: () => void, owner: "prompt" | "control" = "prompt"): void {
     this.beginDuetWrite();
-    setTimeout(() => {
+    const handle = { owner, cancel: () => {} };
+    const timer = setTimeout(() => {
+      this.pendingDeferredWrites.delete(handle);
       try {
         fn();
       } finally {
         this.endDuetWrite();
       }
     }, ms);
+    handle.cancel = () => {
+      clearTimeout(timer);
+      this.pendingDeferredWrites.delete(handle);
+      this.endDuetWrite();
+    };
+    this.pendingDeferredWrites.add(handle);
+  }
+
+  /** Cancel every deferred automation write that has not fired. Returns how
+   *  many PROMPT-owned writes were canceled (0 = the prompt's bytes were all
+   *  out; canceled control writes — /stop, /rc Enter — don't count, review
+   *  F3: they must never mark a delivered prompt undelivered). */
+  private cancelPendingDeferredWrites(): number {
+    let promptCancels = 0;
+    for (const handle of [...this.pendingDeferredWrites]) {
+      if (handle.owner === "prompt") {
+        promptCancels += 1;
+      }
+      handle.cancel();
+    }
+    return promptCancels;
   }
 
   private get duetWriting(): boolean {
@@ -960,38 +1061,71 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalDecisionAt = null;
     this.approvalSuppressedInSettleWindow = false;
     this.clearApprovalSettleTimer();
+    // A run-starting send supersedes any armed stop-Esc retry: an Esc fired
+    // now would kill the very turn this submission is starting. A control
+    // send (createRun:false — the codex /stop follow-up) is PART of the stop
+    // and must not shorten the retry window (review F5).
+    const submissionOwner: "prompt" | "control" =
+      options.createRun === false ? "control" : "prompt";
+    if (submissionOwner === "prompt") {
+      this.stopEscRetry = null;
+    }
     // Hold the write-lock across the whole sync+deferred sequence so a human
     // keystroke landing mid-paste buffers (and flushes after) rather than
     // splitting the bracketed-paste frame (S2). The initial begin covers the
     // synchronous attachment writes; each deferred write keeps the depth > 0
     // until it fires, so endDuetWrite() below does not release early.
     this.beginDuetWrite();
+    // Suspenders for the post-stop belt: if the CLI's input line may still
+    // hold an Esc-restored prompt (fast resend beat the belt timer, or the
+    // belt was skipped behind an approval), kill it before ANY of this
+    // submission's bytes land — otherwise the paste concatenates onto it
+    // (probe C1/C8). No-op on a clean line.
+    this.writeCliInputClearFlood("pre-submit");
     for (const attachment of attachments) {
       this.ptyProcess.write(`${BRACKETED_PASTE_START}${shellQuotePath(attachment.path)}${BRACKETED_PASTE_END}`);
     }
     const textDelayMs = attachments.length > 0 ? 120 : 0;
     const enterDelayMs = attachments.length > 0 ? 260 : 120;
-    this.deferDuetWrite(textDelayMs, () => {
-      if (this.ptyProcess && trimmed) {
-        this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
-      }
-    });
-    this.deferDuetWrite(enterDelayMs, () => {
-      if (this.ptyProcess) {
-        this.ptyProcess.write(CSI_U_ENTER);
-      }
-    });
+    // Ratchet the flood high-water: prompt lines + one line per pasted
+    // attachment path (each is its own composer line).
+    this.cliDirtyLineHighWater = Math.max(
+      this.cliDirtyLineHighWater,
+      trimmed.split("\n").length + attachments.length,
+    );
+    this.deferDuetWrite(
+      textDelayMs,
+      () => {
+        if (this.ptyProcess && trimmed) {
+          this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
+        }
+      },
+      submissionOwner,
+    );
+    this.deferDuetWrite(
+      enterDelayMs,
+      () => {
+        if (this.ptyProcess) {
+          this.ptyProcess.write(CSI_U_ENTER);
+        }
+      },
+      submissionOwner,
+    );
     // A bare Codex skill mention ("$name") opens the skill-mention popup,
     // whose "Press enter to insert" consumes the first Enter. The second
     // Enter submits the inserted mention. Both steps verified by probe
     // s3b.codexSkillDoubleEnter; with trailing text the popup closes on its
     // own and the extra Enter never fires.
     if (this.profile.provider === "codex" && /^\$[A-Za-z0-9][\w.-]*$/.test(trimmed)) {
-      this.deferDuetWrite(enterDelayMs + 320, () => {
-        if (this.ptyProcess) {
-          this.ptyProcess.write(CSI_U_ENTER);
-        }
-      });
+      this.deferDuetWrite(
+        enterDelayMs + 320,
+        () => {
+          if (this.ptyProcess) {
+            this.ptyProcess.write(CSI_U_ENTER);
+          }
+        },
+        submissionOwner,
+      );
     }
     // Release the initial begin; the deferred writes hold the depth until they
     // fire, so the lock spans the full sequence.
@@ -1320,10 +1454,31 @@ export class TerminalHost extends EventEmitter {
     }
   }
 
-  async stopRun(options: { inspectDelayMs?: number; forceSlashStop?: boolean } = {}): Promise<void> {
+  async stopRun(
+    options: { inspectDelayMs?: number; forceSlashStop?: boolean } = {},
+  ): Promise<{ canceledPendingPromptWrite: boolean }> {
     const stoppedRunId = this.activeRun ? this.activeRun.id : null;
     const stoppedCommandApprovalRun = this.activeRun?.approvalKind === "command";
+    // Abort our own undelivered bytes FIRST: submitPrompt defers its text and
+    // Enter writes on timers, so a stop clicked right after a send would
+    // otherwise be trailed by our own paste starting the very turn the user
+    // tried to stop (probe S0, stop-after-send race). The caller relays
+    // `canceledPendingPromptWrite` to the DeliveryController so the aborted
+    // item is reported honestly instead of waiting out the receipt timeout.
+    const canceledPendingPromptWrite = this.cancelPendingDeferredWrites() > 0;
     this.writeRaw(ESC);
+    // Esc-interrupt restores the interrupted prompt into the CLI's own input
+    // box when the turn had produced nothing yet (probe C1/X1, claude
+    // 2.1.212 + codex 0.144.5) — and a canceled text write can likewise
+    // strand a pasted prompt there. Either way the next injection would
+    // concatenate onto it: mark the line dirty, clear it once the TUI
+    // settles (belt), and let the next submission's prefix flood cover a
+    // straggler (suspenders).
+    this.cliInputMaybeDirty = true;
+    this.armCliInputClear();
+    // Arm the one-shot Esc resend: if a PreToolUse hook lands after this
+    // stop, the turn provably survived the Esc (swallowed key) — resend once.
+    this.stopEscRetry = { requestedAt: Date.now(), retried: false, runId: stoppedRunId };
     this.taskReady = false;
     this.emitEvent("run:stop-requested", {
       taskId: this.taskId,
@@ -1343,13 +1498,109 @@ export class TerminalHost extends EventEmitter {
       completionConfidence: "high",
     });
     const inspectDelayMs = Number(options.inspectDelayMs) || 900;
-    setTimeout(
-      () => this.inspectSlashStop(stoppedRunId, {
+    if (this.slashStopTimer) {
+      clearTimeout(this.slashStopTimer);
+    }
+    this.slashStopTimer = setTimeout(() => {
+      this.slashStopTimer = null;
+      this.inspectSlashStop(stoppedRunId, {
         ...options,
         stoppedCommandApprovalRun,
-      }),
-      inspectDelayMs,
+      });
+    }, inspectDelayMs);
+    this.slashStopTimer.unref?.();
+    return { canceledPendingPromptWrite };
+  }
+
+  /** Arm (or re-arm) the post-stop belt clear of the CLI input line. */
+  private armCliInputClear(): void {
+    if (this.cliInputClearTimer) {
+      clearTimeout(this.cliInputClearTimer);
+    }
+    this.cliInputClearTimer = setTimeout(() => {
+      this.cliInputClearTimer = null;
+      this.writeCliInputClearFlood("post-stop settle");
+    }, CLI_INPUT_CLEAR_DELAY_MS);
+    this.cliInputClearTimer.unref?.();
+  }
+
+  /**
+   * Clear the CLI's input line with a counted kill-line flood. Ctrl+U kills
+   * per-LINE on Claude (an emptied line can cost a second kill), so the
+   * flood is sized from the session's high-water pasted line count — the
+   * restore is the interrupted TURN's prompt, not necessarily the last
+   * submission (review F2) — with a floor for wrapped lines; every extra
+   * kill on an empty line is a no-op (probe C2/C6/C8/C9/X2/X3).
+   *
+   * Only the `pre-submit` path consumes the dirty flag: its flood provably
+   * precedes its own paste, so the line is clean when it matters. The belt
+   * path leaves the flag armed — the restore's latency has no probed lower
+   * tail, and a belt that fired before a slow restore must not stand the
+   * submit-time guard down (review F1). The belt also skips (flag kept)
+   * while an approval owns the screen, another automation write is
+   * mid-sequence, or a co-present human typed in the terminal within the
+   * activity window (their in-terminal edit of the restored text must not be
+   * wiped — review F7).
+   */
+  private writeCliInputClearFlood(reason: "pre-submit" | "post-stop settle"): boolean {
+    if (!this.cliInputMaybeDirty || !this.ptyProcess) {
+      return false;
+    }
+    if (reason !== "pre-submit") {
+      if (this.approvalActive || this.duetWriteDepth > 0 || this.isHumanActivelyTyping()) {
+        return false;
+      }
+    }
+    const kills = Math.min(
+      Math.max(this.cliDirtyLineHighWater * 2 + 2, CLI_INPUT_CLEAR_MIN_KILLS),
+      CLI_INPUT_CLEAR_MAX_KILLS,
     );
+    const flood = KILL_LINE.repeat(kills);
+    if (reason === "pre-submit") {
+      this.cliInputMaybeDirty = false;
+      // Caller (submitPrompt) already holds the write-lock; write directly so
+      // the flood lands ahead of the attachment/text pastes in order.
+      this.ptyProcess.write(flood);
+    } else {
+      this.beginDuetWrite();
+      this.ptyProcess.write(flood);
+      this.endDuetWrite();
+    }
+    return true;
+  }
+
+  /**
+   * A PreToolUse hook arrived for this task. If a stop was requested and the
+   * turn is still running tools afterwards, the Esc was swallowed — resend it
+   * ONCE. PreToolUse is the only admissible evidence: Notification fires at
+   * idle ("waiting for your input") and PostToolUse can be the death rattle
+   * of the very tool the Esc interrupted, so acting on either would fire an
+   * Esc into an idle TUI — which opens Claude's rewind menu / prefills
+   * Codex's edit-previous buffer (probe C6/X2). A new run (activeRun) means
+   * the user moved on: never retry into it.
+   */
+  noteToolActivityAfterStop(): void {
+    const retry = this.stopEscRetry;
+    if (!retry || retry.retried || this.activeRun || !this.ptyProcess) {
+      return;
+    }
+    const elapsed = Date.now() - retry.requestedAt;
+    if (elapsed < STOP_ESC_RETRY_MIN_MS || elapsed > STOP_ESC_RETRY_WINDOW_MS) {
+      return;
+    }
+    retry.retried = true;
+    this.writeRaw(ESC);
+    this.cliInputMaybeDirty = true;
+    this.armCliInputClear();
+    // The stopped run's id makes the resend recordable: run-index drops
+    // null-runId stop events, which would leave the durable report blind to
+    // every retry (review F4).
+    this.emitEvent("run:stop-requested", {
+      taskId: this.taskId,
+      runId: retry.runId,
+      phase: "interrupt-retry",
+      encodedAs: "Esc",
+    });
   }
 
   completeActiveRun(reason = "manual"): ActiveRun | null {
@@ -1391,7 +1642,28 @@ export class TerminalHost extends EventEmitter {
     this.clearNativeAnswerRecheckTimers();
   }
 
+  /** Reset every piece of stop/interrupt hygiene bound to the CURRENT
+   *  process. Called on dispose AND pty exit (review F8: a leaked retry or
+   *  dirty flag must not act on the next session). */
+  private clearStopHygieneState(): void {
+    this.cancelPendingDeferredWrites();
+    if (this.cliInputClearTimer) {
+      clearTimeout(this.cliInputClearTimer);
+      this.cliInputClearTimer = null;
+    }
+    if (this.slashStopTimer) {
+      clearTimeout(this.slashStopTimer);
+      this.slashStopTimer = null;
+    }
+    this.cliInputMaybeDirty = false;
+    this.cliDirtyLineHighWater = 1;
+    this.stopEscRetry = null;
+  }
+
   private disposeProcess(): void {
+    // Outside the ptyProcess guard: after a crash-exit already nulled the
+    // process, a following dispose/startTask must still not leak timers.
+    this.clearStopHygieneState();
     if (!this.ptyProcess) {
       return;
     }
