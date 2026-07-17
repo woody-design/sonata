@@ -151,8 +151,8 @@ const run = (status, extra = {}) => ({
   );
   assert.equal(
     p(view({ pendingApproval: true }), false, true),
-    "Claude approval is waiting — Enter queues your message",
-    "approval outranks everything",
+    "Claude is working — Enter queues your message",
+    "pendingApproval reads as working (the composer is hidden behind the drawer — S2)",
   );
   assert.equal(
     p(view(), true, false),

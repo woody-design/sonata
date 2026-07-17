@@ -233,8 +233,10 @@ export function composerPlaceholder(
     return "Describe a task or ask a question";
   }
   const providerName = providerLabel(view.task.provider);
+  // (No pendingApproval branch: the composer is hidden behind the drawer
+  // whenever an approval is pending — drawer S2; the string was dead.)
   if (pendingApproval) {
-    return `${providerName} approval is waiting — Enter queues your message`;
+    return `${providerName} is working — Enter queues your message`;
   }
   if (activeRun) {
     return `${providerName} is working — Enter queues your message`;
