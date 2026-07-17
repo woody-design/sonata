@@ -1,4 +1,4 @@
-# Duet App Architecture — the Reading Window
+# Sonata App Architecture — the Reading Window
 
 This document describes the renderer architecture that emerged from the
 2026-07 decomposition program (design record:
@@ -191,7 +191,7 @@ Two fence families, zero test frameworks:
   treat renames as breaking changes.
 
 Visual acceptance (screenshot evidence) lives INSIDE the owning functional
-e2e behind an env flag (`DUET_*_EVIDENCE=1` + a `-screenshots` npm alias),
+e2e behind an env flag (`SONATA_*_EVIDENCE=1` + a `-screenshots` npm alias),
 captured only after the functional path has fully passed — so every screenshot
 depicts a state the fence just proved correct, on app state the run already
 drove (ratified 2026-07-14, `copy-to-clipboard`). Older standalone
@@ -199,7 +199,7 @@ drove (ratified 2026-07-14, `copy-to-clipboard`). Older standalone
 touched, don't add new ones.
 
 The recorder that feeds the corpus is env-gated main-process instrumentation
-(`DUET_RUNTIME_EVENT_LOG=<dir>`) tapped at the `sendEvent` broadcast seam —
+(`SONATA_RUNTIME_EVENT_LOG=<dir>`) tapped at the `sendEvent` broadcast seam —
 test/dev capture semantics, synchronous by design (lossless beats latency;
 measured overhead is noise).
 
@@ -210,13 +210,13 @@ those events are *born*: the main-process subsystem that turns two live CLIs
 (Claude, Codex) into one stream of structured signals — busy/idle, turn
 boundaries, identity, usage, approvals — without either CLI losing a feature
 (design record: `product-thinking/2026-07-06-codex-control-plane-plan-v0.md`).
-Duet is an experience shell over the user's *real* CLI, so the rule is additive:
+Sonata is an experience shell over the user's *real* CLI, so the rule is additive:
 observe the process, never replace or reconfigure it.
 
-**The hook contract is an adopted industry standard, not a Duet invention.**
+**The hook contract is an adopted industry standard, not a Sonata invention.**
 Codex GA'd a hooks system that clones Claude Code's field-for-field (envelope,
 values vocabulary, `tool_name:"Bash"`). We consume that wire schema verbatim —
-snake_case field names and all (`shared/types/cli-signal.ts: HookPayload`). Duet
+snake_case field names and all (`shared/types/cli-signal.ts: HookPayload`). Sonata
 metadata lives *outside* the payload in an envelope
 (`HookEnvelope { provider, taskId, receivedAt, payload }`), so "aligned with the
 standard or not" stays greppable forever. Boundary validation is **tolerant**:
@@ -242,26 +242,26 @@ runtime/cli-signal/claude-runtime-settings.ts — EDGE 1a: --settings file
                           (historically homed with the shared core; the codex
                           edge got the providers/ home — a future tidy, not a rule)
 runtime/providers/codex/
-  codex-runtime-settings.ts  EDGE 1b: writes ~/.codex/duet.config.toml + shims
+  codex-runtime-settings.ts  EDGE 1b: writes ~/.codex/sonata.config.toml + shims
   codex-approvals.ts         EDGE 2b: decision JSON shape + answering marker
 ```
 
 - **Edge 1 — injection** (how our hooks get registered). Claude takes a
-  `--settings` file; Codex takes a `-p duet` profile
-  (`$CODEX_HOME/duet.config.toml`, `CONFIG_PROFILE_V2`) that layers onto — never
+  `--settings` file; Codex takes a `-p sonata` profile
+  (`$CODEX_HOME/sonata.config.toml`, `CONFIG_PROFILE_V2`) that layers onto — never
   clobbers — the user's own config, unioning with their hooks both ways. ONE
-  additive, Duet-named file; inert unless Duet passes `-p duet`; the user's files
+  additive, Sonata-named file; inert unless Sonata passes `-p sonata`; the user's files
   are never edited.
 - **Edge 2 — decision shape** (what JSON answers an approval). The broker echoes
-  whatever Duet writes; only the reply JSON differs per provider (Codex =
+  whatever Sonata writes; only the reply JSON differs per provider (Codex =
   `{hookSpecificOutput:{hookEventName:"PermissionRequest",decision:{behavior}}}`),
   and it fails **closed** (only an explicit approve-family value allows).
 
 **Trust: one stable shim, one-time ceremony, never the bypass flag.** Codex binds
 hook trust to the *exact* command-string text — change the string and that hook
-is silently untrusted. So all Duet hooks route through **stable shim paths with
-task-invariant args** (`~/.duet/bin/*.js`, path+args frozen, content refreshed
-behind them); per-task binding travels via **environment** (`DUET_RUNTIME_DIR`),
+is silently untrusted. So all Sonata hooks route through **stable shim paths with
+task-invariant args** (`~/.sonata/bin/*.js`, path+args frozen, content refreshed
+behind them); per-task binding travels via **environment** (`SONATA_RUNTIME_DIR`),
 which hook processes inherit (probe-verified), never via argv. The full frozen
 hook set (5 core events → sink; `PermissionRequest` → broker, `timeout=120`) is
 registered up front; interim behavior is gated by runtime **marker files** the
@@ -271,8 +271,8 @@ is deterministic and **byte-stable** (`smoke:codex-runtime-settings` sha-pins it
 
 > **D4 overturned (2026-07-06).** The shim-stability design above was motivated
 > by making a hook-trust grant persist — but field use proved codex does NOT
-> persist hook trust for a `-p duet` PROFILE layer (only User/SessionFlags
-> layers can; compounded by a silent write bug under node-pty). So Duet now
+> persist hook trust for a `-p sonata` PROFILE layer (only User/SessionFlags
+> layers can; compounded by a silent write bug under node-pty). So Sonata now
 > passes `--dangerously-bypass-hook-trust` on every codex spawn (codex's
 > documented path for automation that vets its own hooks; it does NOT un-gate
 > untrusted-repo hooks). The stable shim stays (still tidy, keeps the hook
@@ -280,7 +280,7 @@ is deterministic and **byte-stable** (`smoke:codex-runtime-settings` sha-pins it
 > `spikes/codex-hook-trust-research/`.
 
 **Liveness is the honesty valve.** With trust bypassed, hooks fire on every
-spawn, so absence is the only failure signal — Duet never guesses. The
+spawn, so absence is the only failure signal — Sonata never guesses. The
 `SessionStart` handshake doubles as the liveness check: no handshake within a
 beat of spawn ⇒ the hook shim failed to fire (e.g. its interpreter isn't on
 PATH), and a renderer-local banner points the user at the Terminal (a codex
@@ -294,7 +294,7 @@ accepted degrade, surfaced not silent.
 mtime/cwd fallback** for either provider — the fix for two same-cwd sessions
 cross-binding. Native resume rides the same seam: the persisted
 `transcript-sources` tail becomes the `resumeRef`, the spawn is `codex resume
-<ref> -p duet` / `claude --resume`, and SessionStart re-fires (`source:"resume"`
+<ref> -p sonata` / `claude --resume`, and SessionStart re-fires (`source:"resume"`
 on codex) to re-confirm the *same* id — identity continues, the rollout is
 re-tailed, no fork (`e2e:codex-resume-reopen`).
 
@@ -314,7 +314,7 @@ one honest owner:
 
 - **Disk truth** — what exists and what its bytes are. Observed, never stored,
   through `main/workspace-files.ts` (`WorkspaceFiles`: the single audited
-  path/symlink guard, the read + classification ladder, the `duet-file://` image
+  path/symlink guard, the read + classification ladder, the `sonata-file://` image
   protocol, and Finder/Cursor external-open).
 - **Session truth** — the ordered tab claims, active path, per-path scroll, and
   panel-open flag. Owned by main and durable in `main/preview-sessions.ts`
@@ -331,7 +331,7 @@ active task. Deliberately smaller than the Reading window: no reducer, no corpus
 replay (its event rate is human-writing-pace, not an event firehose).
 
 **Freshness caveat (do not "fix"):** the tree shows every entry including hidden
-ones (R4), but the per-task `fs.watch` stream excludes `.git`, `.duet`,
+ones (R4), but the per-task `fs.watch` stream excludes `.git`, `.sonata`,
 `node_modules`, `__pycache__`, etc. (`shouldIgnorePath`). Those directories
 render and give a correct one-shot listing on expand, but emit no `file:changed`,
 so they will not *live-refresh* in place. That is intended noise control, not a

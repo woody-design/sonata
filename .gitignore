@@ -15,6 +15,8 @@ Temp/
 design/verify-2026-07-15/
 
 # Per-workspace runtime artifacts (statusline/hook sinks, usage) — never source.
+# .duet/ kept: pre-rename dirs may linger on disk in either worktree.
+.sonata/
 .duet/
 
 # Local env / logs

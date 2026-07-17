@@ -1,6 +1,6 @@
-# Duet
+# Sonata
 
-Duet is a reading-first desktop workspace around native CLI coding agents.
+Sonata is a reading-first desktop workspace around native CLI coding agents.
 
 It runs your real `claude` / `codex` CLIs and keeps their native behavior,
 but wraps them in a task-oriented, readable, trustable surface. It is not a
@@ -9,11 +9,11 @@ terminal skin, not an IDE, and not a new agent runtime.
 The bet: with capable CLI agents, the bottleneck is no longer the model —
 it's the surface. You need to *read* what the agent did, *trust* where it is
 right now, and *step in* when it matters. A raw terminal gives you none of
-those well. Duet is the layer that does.
+those well. Sonata is the layer that does.
 
 ## Status
 
-Duet is my daily driver — I run real work through it. It's well past the
+Sonata is my daily driver — I run real work through it. It's well past the
 walking-skeleton stage, but still personal and early: not packaged, no
 polish promises for anyone but me.
 
@@ -30,11 +30,11 @@ What works today:
   controls (`/model`, `/permissions`…) open native popovers; panels and
   unknown commands route to the Terminal view.
 - **Read / Terminal switch** — the raw terminal is a co-equal surface, picked
-  by a header switch (default Read). Both *are* Duet; the switch chooses the
+  by a header switch (default Read). Both *are* Sonata; the switch chooses the
   lens. You type into the terminal anytime — no take-over gesture. A single
   writer is held automatically: an in-flight automation write buffers your
   keystrokes (no interleave), and delivery pauses while you're typing or have
-  an uncommitted line. Auto-surfaced on a native panel Duet can't drive.
+  an uncommitted line. Auto-surfaced on a native panel Sonata can't drive.
 - **Sidebar** — past sessions and projects; instant read of a dormant
   session (file I/O), lazy resume on first new message.
 - **Window shell** — a macOS full-height-sidebar window (no OS titlebar
@@ -72,14 +72,14 @@ product-thinking/2026-06-17-dev-worktree-workflow-v0.md          # how I run + s
 
 ## Running it
 
-Day to day I keep two checkouts — a git **worktree** — so I can develop Duet
+Day to day I keep two checkouts — a git **worktree** — so I can develop Sonata
 while using it, without a build ever disturbing the running app:
 
 | Desktop shortcut | Does |
 |---|---|
-| `Duet Latest.command` | launch the daily driver |
-| `Duet Dev.command` | launch the workshop (the dev worktree, fully isolated data) |
-| `Promote Duet to Latest.command` | ship a verified change from the workshop to the daily driver |
+| `Sonata Latest.command` | launch the daily driver |
+| `Sonata Dev.command` | launch the workshop (the dev worktree, fully isolated data) |
+| `Promote Sonata to Latest.command` | ship a verified change from the workshop to the daily driver |
 
 The full model — isolation layers, the daily loop, the one rule (*never build
 in the daily driver*) — is in
@@ -92,12 +92,12 @@ cd app
 npm run dev            # build + launch
 ```
 
-Throwaway session with isolated Duet data (data + config + visible workspaces):
+Throwaway session with isolated Sonata data (data + config + visible workspaces):
 
 ```bash
 cd app
-TMP="$(mktemp -d /tmp/duet-XXXXXX)"
-DUET_DATA_DIR="$TMP" DUET_WORKSPACES_DIR="$TMP/workspaces" npm run dev
+TMP="$(mktemp -d /tmp/sonata-XXXXXX)"
+SONATA_DATA_DIR="$TMP" SONATA_WORKSPACES_DIR="$TMP/workspaces" npm run dev
 ```
 
 ## Verifying

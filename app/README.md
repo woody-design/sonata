@@ -1,4 +1,4 @@
-# Duet App
+# Sonata App
 
 This directory is reserved for the formal TypeScript Electron app.
 
