@@ -121,11 +121,27 @@ function renderStripStatus(view: TaskViewState, working: boolean): void {
     }
     const status = document.createElement("div");
     status.className = "strip-status-line";
-    status.textContent = native.line;
+    // Presentational split only — the scrape contract stays verbatim, and the
+    // div's textContent still equals native.line character-for-character. The
+    // headline (glyph + title) takes the accent; a trailing "(elapsed · …)"
+    // group, when present, stays a bare text node inheriting tertiary ink.
+    const split = native.line.match(/^(.*\S)(\s+\(.*\))$/);
+    const headline = document.createElement("span");
+    headline.className = "strip-status-headline";
+    headline.textContent = split?.[1] ?? native.line;
+    status.append(headline);
+    const meta = split?.[2];
+    if (meta !== undefined) {
+      status.append(document.createTextNode(meta));
+    }
     container.append(status);
     for (const sub of native.subLines) {
       const line = document.createElement("div");
       line.className = "strip-status-sub";
+      // The provider marks its current todo with ■ (done ✔, pending □). Tint
+      // that line — a cosmetic read of the relayed glyph, not state detection:
+      // if upstream redraws the marker this silently degrades to no tint.
+      line.classList.toggle("current", sub.includes("■"));
       line.textContent = sub;
       container.append(line);
     }

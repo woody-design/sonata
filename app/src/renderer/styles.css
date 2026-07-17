@@ -93,8 +93,11 @@
   --accent-subtle: rgb(var(--p-blue) / 0.10);
   --selection: rgb(var(--p-blue) / 0.28);           /* text selection */
   /* Focus/active edges are NEUTRAL — ink hue, same alpha the blue ring had.
-     Blue stays reserved for links/file chips/quote-comment/selection and the
-     active-tool icon (Woody ruling 2026-07-16). */
+     Blue stays reserved for links/file chips/quote-comment/selection, the
+     active-tool icon (Woody ruling 2026-07-16), and the status-strip working
+     headline + current sub-task (amended 2026-07-17): the strip is the one
+     attention anchor for "what is the agent doing right now", transient by
+     nature, so it doesn't dilute blue's interactive scarcity. */
   --focus-ring: rgb(var(--p-ink) / 0.55);
   --focus-halo: rgb(var(--p-ink) / 0.07);           /* outer wash around focused cards */
 
@@ -4911,6 +4914,13 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+/* The native headline (spinner glyph + title) carries the accent; the trailing
+   "(elapsed · tokens)" text node beside it inherits the line's tertiary ink.
+   Derived voice stays neutral — blue is the CLI's voice only. */
+.strip-status-headline {
+  color: var(--accent);
+}
+
 .strip-status-sub {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -4919,6 +4929,14 @@ h2 {
   opacity: 0.75;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* The provider's ■ current-task line, relayed. Full ink + accent lifts it the
+   same way the TUI bolds it; quiet-state dimming still wins (stale evidence
+   dims everything). */
+.strip-status-sub.current {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .status-strip-status.derived .strip-status-line {
