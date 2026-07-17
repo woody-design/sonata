@@ -2817,7 +2817,9 @@ h2 {
    as an option; the input inherits the row's voice. */
 .option-prompt-freetext {
   display: flex;
-  align-items: center;
+  /* Top-aligned so the pencil stays on the first line as the textarea grows;
+     the marker's margin optically centers it against a one-line answer. */
+  align-items: flex-start;
   gap: var(--space-8);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -2835,6 +2837,7 @@ h2 {
 
 .freetext-marker {
   border-style: dashed;
+  margin-top: 4px; /* optical center against the first text line */
 }
 
 .option-prompt-freetext-input {
@@ -2846,6 +2849,15 @@ h2 {
   font: 400 var(--type-ui-md) var(--font-ui);
   color: var(--text-primary);
   outline: none;
+  /* Auto-grow (drawer S2 revision): one-row textarea sized by its content —
+     the standard CSS mechanism (Chromium 123+; Electron 42 ships far past
+     it). Soft-wraps long single-line answers; caps at ~6 lines then scrolls.
+     The flex row and the drawer grid follow the height automatically. */
+  field-sizing: content;
+  resize: none;
+  overflow-y: auto;
+  max-height: 112px;
+  overflow-wrap: anywhere;
 }
 
 .option-prompt-freetext-input::placeholder {
@@ -2854,6 +2866,8 @@ h2 {
 
 .option-prompt-freetext-next {
   flex: 0 0 auto;
+  align-self: flex-end;
+  margin-bottom: 3px; /* hugs the last text line as the row grows */
   border: 0;
   border-radius: var(--radius-pill);
   padding: 3px 12px;
@@ -2923,11 +2937,6 @@ h2 {
 .option-prompt-receipt-choice {
   font: 400 var(--type-ui-md) var(--font-ui);
   color: var(--text-secondary);
-}
-
-.option-prompt-sub {
-  font: 500 var(--type-ui-xs) var(--font-ui);
-  color: var(--text-tertiary);
 }
 
 /* — Permission drawer (S2): kind badge → plain question → raw subject in a

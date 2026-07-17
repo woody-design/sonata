@@ -385,13 +385,28 @@ function renderQuestionStep(
     const icon = document.createElement("span");
     icon.className = "option-prompt-marker freetext-marker";
     icon.textContent = "✎";
-    const input = document.createElement("input");
-    input.type = "text";
+    // A one-row textarea that grows with the text (CSS `field-sizing: content`
+    // — the standard auto-grow; no JS measuring, no caret jumps; capped by
+    // max-height then scrolls). The ANSWER stays one logical line: the TUI's
+    // editor is single-line (the S1 grammar rejects CR/LF), so Enter never
+    // inserts a newline here — long answers soft-wrap, pasted newlines are
+    // flattened to spaces.
+    const input = document.createElement("textarea");
+    input.rows = 1;
     input.className = "option-prompt-freetext-input";
     input.placeholder = "Type your own answer…";
     input.value = draft?.text ?? "";
     input.disabled = !interactive;
     input.addEventListener("input", () => {
+      if (/[\r\n]/.test(input.value)) {
+        // Delta-aware caret restore: newline RUNS collapse to one space, so
+        // sanitize the head separately to know how much shrank before the caret.
+        const caret = input.selectionStart ?? input.value.length;
+        const head = input.value.slice(0, caret).replace(/[\r\n]+/g, " ");
+        input.value = input.value.replace(/[\r\n]+/g, " ");
+        const position = Math.min(head.length, input.value.length);
+        input.setSelectionRange(position, position);
+      }
       actions.setOptionPromptText(view, qIndex, input.value);
       // Local DOM refresh only — a full rebuild would drop focus/caret. The
       // row highlight, the Next affordance, and any stale option selection
@@ -422,7 +437,7 @@ function renderQuestionStep(
         // implicit submission — sending the hidden, parked composer draft
         // into the TUI's open question form (S2 review B2).
         event.preventDefault();
-        if (!event.isComposing && input.value.trim()) {
+        if (!event.isComposing && !event.shiftKey && input.value.trim()) {
           actions.setOptionPromptStep(view, qIndex + 1);
         }
       }
@@ -482,15 +497,15 @@ function renderOptionPromptReceiptCard(receipt: OptionPromptReceipt): HTMLElemen
   const root = document.createElement("div");
   root.className = "option-prompt-body option-prompt-receipt";
 
+  // "You answered" IS the state (Woody, 2026-07-17) — no separate status
+  // word on the right. (The un-reconciled "Answer sent" wording died with the
+  // S1 corroboration change: receipts are only ever built reconciled.)
   const heading = document.createElement("div");
   heading.className = "option-prompt-heading";
   const eyebrow = document.createElement("p");
   eyebrow.className = "eyebrow";
-  eyebrow.textContent = "Claude is asking";
-  const status = document.createElement("span");
-  status.className = "option-prompt-sub";
-  status.textContent = receipt.reconciled ? "Answered" : "Answer sent";
-  heading.append(eyebrow, status);
+  eyebrow.textContent = "You answered";
+  heading.append(eyebrow);
   root.append(heading);
 
   // A long receipt scrolls under the pinned heading rather than clipping.

@@ -102,7 +102,7 @@ try {
   // Corroborated receipt: reconciled from Claude's own answers — digits AND
   // the free-text editor sequence landed.
   await page.locator('#option-prompt-card[data-state="answered"]').waitFor({ state: "visible", timeout: 180000 });
-  await card.locator(".option-prompt-sub", { hasText: "Answered" }).waitFor({ state: "visible", timeout: 180000 });
+  await card.locator(".eyebrow", { hasText: "You answered" }).waitFor({ state: "visible", timeout: 180000 });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Apple" }).waitFor({ state: "visible" });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Seven" }).waitFor({ state: "visible" });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Bee" }).waitFor({ state: "visible" });

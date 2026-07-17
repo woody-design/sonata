@@ -96,7 +96,7 @@ try {
   // PostToolUse (option-prompt:resolved) — the receipt labels are Claude's
   // verbatim answers, proving the toggle/advance/submit sequence landed.
   await page.locator('#option-prompt-card[data-state="answered"]').waitFor({ state: "visible", timeout: 180000 });
-  await card.locator(".option-prompt-sub", { hasText: "Answered" }).waitFor({ state: "visible", timeout: 180000 });
+  await card.locator(".eyebrow", { hasText: "You answered" }).waitFor({ state: "visible", timeout: 180000 });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Python" }).waitFor({ state: "visible" });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Go" }).waitFor({ state: "visible" });
   await card.locator(".option-prompt-receipt-choice", { hasText: "VSCode" }).waitFor({ state: "visible" });

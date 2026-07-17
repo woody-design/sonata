@@ -12,7 +12,7 @@
 //  1. S4 negative control: a fresh createTask cold start is pre-trusted —
 //     no workspace-trust card ever renders.
 //  2. Broker card content: data-approval-kind, badge text, tool-summary
-//     title ("Run  python3 …"), the honest "Always: <scope>" middle button.
+//     title ("Run  python3 …"), the "Always approve" middle button (scope in its tooltip).
 //  3. Report provenance: approvalEvents carry source "hook-broker" with a
 //     matching approve decision (the reply channel, not key replay).
 import fs from "node:fs";
@@ -80,6 +80,7 @@ try {
   const middle = page.locator("#approve-session-approval");
   cardChecks.alwaysVisible = await middle.isVisible();
   cardChecks.alwaysLabel = (await middle.textContent())?.trim();
+  cardChecks.alwaysTitle = (await middle.getAttribute("title"))?.trim();
   cardChecks.denyLabel = (await page.locator("#deny-approval").textContent())?.trim();
 
   const cardOk =
@@ -87,10 +88,10 @@ try {
     Boolean(cardChecks.title?.startsWith("Run")) &&
     Boolean(cardChecks.detail?.includes("python3")) &&
     cardChecks.alwaysVisible === true &&
-    // The middle button states the ACTUAL persisted rule scope ("<tool> *"),
-    // never a vague promise (reviewer P2, trust boundary).
-    Boolean(cardChecks.alwaysLabel?.startsWith("Always:")) &&
-    Boolean(cardChecks.alwaysLabel?.includes("python3")) &&
+    // Plain label (2026-07-17 ruling); the tooltip carries the ACTUAL persisted
+    // rule scope (reviewer P2, trust boundary — detail moved to title).
+    cardChecks.alwaysLabel === "Always approve" &&
+    Boolean(cardChecks.alwaysTitle?.includes("python3")) &&
     cardChecks.denyLabel === "Deny";
 
   // 3. Approve once (reply channel) and drain any later asks until the turn

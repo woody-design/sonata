@@ -3131,8 +3131,11 @@ export function brokerApprovalChoices(
     approve,
     {
       decision: "approve-always",
-      label: scope ? `Always: ${scope}` : "Always",
-      description: scope ? `Persist an allow rule for ${scope}` : "Always allow",
+      // Plain label (Woody, 2026-07-17); the tooltip keeps the ACTUAL persisted
+      // rule scope so the button still never promises narrower than it grants
+      // (reviewer P2, trust boundary — the detail moved, it didn't disappear).
+      label: "Always approve",
+      description: scope ? `Always approve ${scope} — saves an allow rule` : "Always allow",
       encodedAs: "reply-file",
     },
     deny,
