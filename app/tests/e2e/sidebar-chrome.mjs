@@ -54,7 +54,8 @@ let electronApp = null;
 //   border        sidebar border-right   --border-hairline (p-ink @ .09)
 //   menuBorder    menu border            --border-default  (p-ink @ .16)
 //   input / menu  rename input / menu bg --surface-canvas / --surface-raised
-//   focus         focus rings + resizer  --focus-ring     (p-blue @ .55)
+//   focus         focus rings            --focus-ring     (p-ink @ .55, NEUTRAL — Woody ruling 2026-07-16, f2d0bee)
+//   resizer       drag-handle seam line   --border-strong  (p-ink @ .30 — neutral seam, matches the preview resizer; NOT the focus role since f2d0bee's token split)
 //   attention     needs-you dot          --attention-icon (p-red-icon)
 //   done          finished-away dot      --text-tertiary  (== muted)
 //   danger        menu danger item       --attention-text (p-red)
@@ -70,7 +71,8 @@ const expectedByMode = {
     menuBorder: "rgba(55, 53, 47, 0.16)",
     input: "rgb(255, 255, 255)",
     menu: "rgb(255, 255, 255)",
-    focus: "rgba(39, 110, 241, 0.55)",
+    focus: "rgba(55, 53, 47, 0.55)",
+    resizer: "rgba(55, 53, 47, 0.3)",
     attention: "rgb(222, 17, 53)",
     done: "rgba(55, 53, 47, 0.5)",
     danger: "rgb(222, 17, 53)",
@@ -88,7 +90,8 @@ const expectedByMode = {
     menuBorder: "rgba(216, 214, 209, 0.16)",
     input: "rgb(25, 25, 25)",
     menu: "rgb(25, 25, 25)",
-    focus: "rgba(91, 146, 242, 0.55)",
+    focus: "rgba(216, 214, 209, 0.55)",
+    resizer: "rgba(216, 214, 209, 0.3)",
     attention: "rgb(241, 85, 108)",
     done: "rgba(216, 214, 209, 0.5)",
     danger: "rgb(241, 85, 108)",
@@ -617,8 +620,8 @@ function assertChromeSnapshot(actual, expected, label) {
     { color: expected.focus, style: "solid", width: "2px" },
     `${label} collapsed toggle focus ring`,
   );
-  if (!actual.resizerBackground.includes(expected.focus)) {
-    throw new Error(`${label} resizer does not use the Sidebar focus role`);
+  if (!actual.resizerBackground.includes(expected.resizer)) {
+    throw new Error(`${label} resizer does not use the --border-strong seam role`);
   }
 }
 
