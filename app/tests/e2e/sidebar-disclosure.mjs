@@ -17,9 +17,9 @@ const appRoot = path.join(repoRoot, "app");
 // (product-thinking/sidebar-refactor-evidence/) is historical and must not
 // churn on verification runs — publishing there is an explicit argv[2] act.
 const outputDir = path.resolve(
-  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-disclosure-out-")),
+  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-disclosure-out-")),
 );
-const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-disclosure-"));
+const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-disclosure-"));
 const viewport = { width: 1280, height: 800 };
 const screenshots = [];
 const pageErrors = [];
@@ -464,7 +464,7 @@ async function assertIndexRefreshAndFallback(page, fixture) {
   const before = await focusGeometry(page);
 
   await page.evaluate(
-    ({ projectPath, nextName }) => window.duetRuntime.renameProject({ path: projectPath, displayName: nextName }),
+    ({ projectPath, nextName }) => window.sonataRuntime.renameProject({ path: projectPath, displayName: nextName }),
     { projectPath: fixture.projects[0].path, nextName: "Mango refreshed" },
   );
   await projectByName(page, "Mango refreshed").locator(".sidebar-project-name").waitFor({
@@ -476,13 +476,13 @@ async function assertIndexRefreshAndFallback(page, fixture) {
   assertEqual(Math.abs(after.scrollTop - before.scrollTop) <= 1, true, "background refresh preserves scrollTop");
 
   await page.evaluate(
-    ({ projectPath, nextName }) => window.duetRuntime.renameProject({ path: projectPath, displayName: nextName }),
+    ({ projectPath, nextName }) => window.sonataRuntime.renameProject({ path: projectPath, displayName: nextName }),
     { projectPath: fixture.projects[0].path, nextName: "Mango" },
   );
   await projectByName(page, "Mango").locator(".sidebar-project-name").waitFor({ state: "visible" });
 
   await target.focus();
-  await page.evaluate((taskId) => window.duetRuntime.deleteSession({ taskId }), targetId);
+  await page.evaluate((taskId) => window.sonataRuntime.deleteSession({ taskId }), targetId);
   await page.locator(`.sidebar-session[data-task-id="${targetId}"]`).waitFor({ state: "detached" });
   assertEqual(
     await activeSidebarFocusKey(page),
@@ -499,7 +499,7 @@ async function assertIndexRefreshAndFallback(page, fixture) {
     throw new Error("Missing singleton-project cross-group fallback fixture");
   }
   await singletonSession.focus();
-  await page.evaluate((taskId) => window.duetRuntime.deleteSession({ taskId }), singletonId);
+  await page.evaluate((taskId) => window.sonataRuntime.deleteSession({ taskId }), singletonId);
   await singletonProject.waitFor({ state: "detached" });
   assertEqual(
     await activeSidebarFocusKey(page),
@@ -769,7 +769,7 @@ function readGitHead(cwd) {
 function isolatedElectronEnv(overrides) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith("DUET_")) {
+    if (key.startsWith("SONATA_")) {
       delete env[key];
     }
   }
@@ -777,9 +777,9 @@ function isolatedElectronEnv(overrides) {
   return {
     ...env,
     ...overrides,
-    DUET_NOTIFICATIONS: "0",
-    DUET_LOCAL_API: "0",
-    DUET_INSTANCE_LABEL: "",
+    SONATA_NOTIFICATIONS: "0",
+    SONATA_LOCAL_API: "0",
+    SONATA_INSTANCE_LABEL: "",
   };
 }
 

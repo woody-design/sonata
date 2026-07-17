@@ -10,11 +10,11 @@ import { approvalsDirectory } from "./approval-protocol";
 import type { HookEventName } from "../../shared/types/cli-signal";
 
 /**
- * The single `--settings` file duet injects into every Claude spawn. It carries
+ * The single `--settings` file sonata injects into every Claude spawn. It carries
  * BOTH the statusLine sink (usage) AND the hooks sink (signal layer). Phase 0
  * proved hooks UNION across all settings sources, so injecting our hooks here
  * does NOT clobber the user's own `~/.claude/settings.json` or project hooks —
- * we deliberately write ONLY duet's entries and let Claude merge.
+ * we deliberately write ONLY sonata's entries and let Claude merge.
  */
 
 /** Where the hook sink drops payload files; watched by HookWatcher. */
@@ -22,7 +22,7 @@ export function claudeHooksDirectory(runtimeDir: string): string {
   return path.join(runtimeDir, "hooks");
 }
 
-// Broker (S2): how long it HOLDS the CLI waiting for Duet's card answer before
+// Broker (S2): how long it HOLDS the CLI waiting for Sonata's card answer before
 // giving up to the native panel. The hook's own timeout must exceed it so the
 // CLI doesn't kill the broker mid-poll (which would look like a crash, not a
 // graceful fallback).
@@ -37,7 +37,7 @@ const APPROVAL_BROKER_TIMEOUT_MS = 580_000;
 const APPROVAL_HOOK_TIMEOUT_S = 600;
 
 /**
- * Fire-and-forget hook events duet injects (the sink). UserPromptSubmit/
+ * Fire-and-forget hook events sonata injects (the sink). UserPromptSubmit/
  * PreToolUse drive busy, Stop drives turn-end. The rest corroborate.
  * `PermissionRequest` is DELIBERATELY absent — it is owned by the approval
  * BROKER (S2), which holds the CLI and answers from the Reading card; a second
@@ -94,7 +94,7 @@ function buildHooks(
       : [{ hooks: [entry] }];
   }
   hooks.PermissionRequest = brokerCommand
-    ? // The broker holds the CLI until Duet's card answers (or times out to the
+    ? // The broker holds the CLI until Sonata's card answers (or times out to the
       // native panel). Its hook timeout exceeds the broker's internal poll
       // ceiling so the CLI never kills it mid-decision.
       [{ matcher: "*", hooks: [{ type: "command", command: brokerCommand, timeout: APPROVAL_HOOK_TIMEOUT_S }] }]
@@ -112,11 +112,11 @@ export function claudeApprovalsDirectory(runtimeDir: string): string {
 }
 
 /**
- * Ensure (and return the path to) duet's merged Claude `--settings` file: the
+ * Ensure (and return the path to) sonata's merged Claude `--settings` file: the
  * statusLine sink + hook sink, both pointed at subdirs of `runtimeDir`.
  *
- * `runtimeDir` is the session's Duet-owned runtime home — `~/.duet/data/runtime/
- * <taskId>` in the app (D8), so nothing Duet-owned is written into the agent's
+ * `runtimeDir` is the session's Sonata-owned runtime home — `~/.sonata/data/runtime/
+ * <taskId>` in the app (D8), so nothing Sonata-owned is written into the agent's
  * working directory. All three paths the file carries are absolute; G1 verified
  * Claude fires hooks from a `--settings` file located outside the agent cwd.
  */

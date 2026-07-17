@@ -85,7 +85,7 @@ setInterval(() => {}, 1000);
 }
 
 async function runScenario(name, scenario) {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), `duet-resurface-${scenario}-`));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), `sonata-resurface-${scenario}-`));
   const scriptPath = path.join(workspace, "fake-claude.mjs");
   fs.writeFileSync(scriptPath, fakeCliScript(scenario), "utf8");
 
@@ -183,7 +183,7 @@ async function runScenario(name, scenario) {
  *  later send (s5-diags/evidence-walking-skeleton). Locks: the resync
  *  resumes the run AND the Stop-hook completion then lands. */
 async function runBrokerResyncScenario(name, mode) {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-resurface-broker-"));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-resurface-broker-"));
   const scriptPath = path.join(workspace, "fake-claude.mjs");
   fs.writeFileSync(
     scriptPath,
@@ -297,7 +297,7 @@ setInterval(() => {}, 1000);
  *  (notification-policy then stays quiet — the user was already told). Locks the
  *  no-double-notification contract. */
 async function runBrokerExpiryResurfaceScenario(name) {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-resurface-bexpire-"));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-resurface-bexpire-"));
   const scriptPath = path.join(workspace, "fake-claude.mjs");
   fs.writeFileSync(
     scriptPath,
@@ -342,7 +342,7 @@ setInterval(() => {}, 1000);
     });
     await delay(400);
     host.submitPrompt("run echo");
-    // The broker held this request, timed out, and Duet is about to raise its
+    // The broker held this request, timed out, and Sonata is about to raise its
     // native card — arm the resurface recognition BEFORE the card paints.
     host.noteBrokerApprovalExpiry();
     const detected = await waitUntil(

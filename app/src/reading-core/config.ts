@@ -100,7 +100,7 @@ export function speedOptionsForModel(
 }
 
 /**
- * Keep the old Duet menu shape, but do not offer a launch combination the
+ * Keep the old Sonata menu shape, but do not offer a launch combination the
  * selected model cannot accept. Native Default (null model) shows neither
  * gated tier — the conservative menu until a model is chosen.
  */

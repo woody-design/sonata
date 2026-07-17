@@ -24,7 +24,7 @@ export function hasActiveRun(view: TaskViewState | null): boolean {
 }
 
 /**
- * The draft to refill into the Duet composer when the user stops the active
+ * The draft to refill into the Sonata composer when the user stops the active
  * run (stop S2): stopping is usually "I said it wrong" — hand the words back
  * for editing instead of forcing a retype. The run report's prompt is the
  * source of truth (it carries the REAL turn text even for prompts typed in

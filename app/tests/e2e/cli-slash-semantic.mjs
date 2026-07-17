@@ -18,8 +18,8 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-e2e-"));
-const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-settings-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-slash-e2e-"));
+const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-slash-settings-"));
 let electronApp = null;
 const checks = {};
 
@@ -59,7 +59,7 @@ try {
   await input.fill("");
   await page.locator(".slash-picker").waitFor({ state: "hidden" });
 
-  // A verbatim slash submit begins a Duet run (kind "slash") — the send button
+  // A verbatim slash submit begins a Sonata run (kind "slash") — the send button
   // is Stop (■) while it is active, so each step must wait for the run to
   // settle before the next submit. The settle itself is load-bearing: it is
   // the quiescence completion that replaced armModalPanel's close-the-slash-run
@@ -196,8 +196,8 @@ async function launchApp() {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsDir,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsDir,
     },
   });
   const page = await electronApp.firstWindow();

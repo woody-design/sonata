@@ -1,8 +1,8 @@
-import type { DuetRuntimeBridge } from "../shared/types";
+import type { SonataRuntimeBridge } from "../shared/types";
 
 declare global {
   interface Window {
-    duetRuntime: DuetRuntimeBridge;
+    sonataRuntime: SonataRuntimeBridge;
   }
 }
 

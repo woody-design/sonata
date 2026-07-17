@@ -4,7 +4,7 @@ import path from "node:path";
  * The approval broker's on-disk protocol — the SINGLE source of truth for the
  * ask/reply/expired/answered file contract, shared by every producer (the Claude
  * broker `approval-broker.ts`, the Codex broker shim), the neutral
- * `ApprovalWatcher` that consumes it, and Duet's reply/expiry paths in the
+ * `ApprovalWatcher` that consumes it, and Sonata's reply/expiry paths in the
  * controller. Both providers speak this identical protocol in the identical
  * `<runtimeDir>/approvals` layout, so single-sourcing it here means a rename can
  * never silently desync a producer from the consumer — the failure mode is

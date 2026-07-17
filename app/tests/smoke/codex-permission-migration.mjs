@@ -4,7 +4,7 @@
 //     (sandbox, approval) priority order (danger-full-access beats never), the
 //     Claude-null invariant (a Claude manifest that persisted explicit
 //     sandbox/approval nulls carries NO Codex mode — verified against real
-//     ~/.duet manifests), and passthrough of an already-migrated value.
+//     ~/.sonata manifests), and passthrough of an already-migrated value.
 //
 //  B. Seam: the real RuntimeController's manifest-read migration. A legacy
 //     manifest written to disk, read + re-persisted through archiveSession
@@ -76,10 +76,10 @@ assert(
 
 // ---- B. Seam: RuntimeController manifest-read migration -------------------
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-migration-"));
-process.env.DUET_DATA_DIR = path.join(tempRoot, "duet-data");
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-migration-"));
+process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 
-const { projectRecordRoot } = require("../../dist/main/duet-paths");
+const { projectRecordRoot } = require("../../dist/main/sonata-paths");
 const { RuntimeController } = require("../../dist/main/runtime-controller");
 const { ProjectsStore } = require("../../dist/main/projects-store");
 const {

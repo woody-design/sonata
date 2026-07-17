@@ -140,7 +140,7 @@ export function reduceRuntimeEvent(
     }
     // A dispatched slash command settled by quiescence: the write happened and
     // the CLI painted whatever it had to say. If that was a panel, it is now
-    // waiting in the co-visible terminal — Duet cannot tell (panel detection
+    // waiting in the co-visible terminal — Sonata cannot tell (panel detection
     // was retired with S3; a panel's own ❯ defeats the idle-prompt scrape), so
     // the honest surface is a passive pointer, not a state (S4 handoff → S5).
     if (event.payload.kind === "slash" && event.payload.status === "completed") {
@@ -286,7 +286,7 @@ export function reduceRuntimeEvent(
     // The structured CLI activity (Slice 1, hooks-primary). Its unique value:
     // the approval indicator now also fires from the PermissionRequest hook
     // (earlier/more reliable than the footer scrape), and a take-over turn
-    // shows as busy without a Duet-owned run.
+    // shows as busy without a Sonata-owned run.
     //
     // S0 discipline: only the `activity` drives the sidebar indicator, not the
     // `tool`, so a tool-only change (every Pre/PostToolUse) must NOT rebuild —

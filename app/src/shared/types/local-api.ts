@@ -2,12 +2,12 @@
  * Local API: a unix-socket ndjson surface that mirrors runtime events
  * and accepts a few commands, so local companion processes (e.g. inkAI,
  * the e-ink reading companion) can follow sessions and submit input
- * without Duet ever listening on a network.
+ * without Sonata ever listening on a network.
  *
  * Message shape is a JSON-RPC 2.0 subset: a frame with `id` is a
  * request expecting one response; a frame without `id` is a
  * notification. The normative protocol spec is the frozen contract:
- * Product/duet-eink/docs/contracts-v2.md, Part A (FROZEN 2026-07-07).
+ * Product/sonata-eink/docs/contracts-v2.md, Part A (FROZEN 2026-07-07).
  */
 
 export const LOCAL_API_PROTOCOL_VERSION = 1;

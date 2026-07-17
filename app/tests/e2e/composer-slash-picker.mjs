@@ -6,7 +6,7 @@ import { _electron as electron } from "playwright-core";
 // Drives the New Chat composer (default draft provider: codex), so the
 // picker is exercised end-to-end — IPC registry fetch included — without
 // spawning a provider CLI.
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-picker-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-slash-picker-"));
 
 let electronApp = null;
 
@@ -15,7 +15,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
     },
   });
   const page = await electronApp.firstWindow();
@@ -26,11 +26,11 @@ try {
 
   // Block real session creation in case a submit slips through.
   await page.evaluate(() => {
-    window.__duetComposerSubmitCount = 0;
+    window.__sonataComposerSubmitCount = 0;
     document.querySelector("#composer")?.addEventListener(
       "submit",
       (event) => {
-        window.__duetComposerSubmitCount += 1;
+        window.__sonataComposerSubmitCount += 1;
         event.preventDefault();
         event.stopImmediatePropagation();
       },
@@ -126,7 +126,7 @@ async function assertPickerHidden(page, label) {
 }
 
 async function expectSubmitCount(page, expected, label) {
-  const actual = await page.evaluate(() => window.__duetComposerSubmitCount);
+  const actual = await page.evaluate(() => window.__sonataComposerSubmitCount);
   if (actual !== expected) {
     throw new Error(`${label}. Expected ${expected}, got ${actual}.`);
   }

@@ -173,7 +173,7 @@ let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "
 
 const state: RendererState = createInitialState(bootReadingSettingsFromDom());
 
-const SIDEBAR_PREFS_KEY = "duet.sidebar.prefs";
+const SIDEBAR_PREFS_KEY = "sonata.sidebar.prefs";
 
 state.sidebar.prefs = loadSidebarPrefs();
 
@@ -211,7 +211,7 @@ function setSidebarPrefs(patch: Partial<SidebarPrefs>): void {
 }
 
 
-const COLLAPSED_PROJECTS_KEY = "duet.sidebar.collapsed-projects";
+const COLLAPSED_PROJECTS_KEY = "sonata.sidebar.collapsed-projects";
 
 state.sidebar.collapsedProjects = new Set<string>(loadCollapsedProjects());
 
@@ -281,7 +281,7 @@ initEntryView(state);
 initTranscriptView(state, { composeEntryPanel: renderTaskEntryPanel });
 initTranscriptChips(state, {
   resolvePaths: (taskId, candidates) =>
-    window.duetRuntime.resolveWorkspacePaths({ taskId, candidates }).then((r) => r.existing),
+    window.sonataRuntime.resolveWorkspacePaths({ taskId, candidates }).then((r) => r.existing),
 });
 initQuoteComment({
   appendToComposer: (paragraph) => {
@@ -468,10 +468,10 @@ initActions({
   completeRenameComposition: (editor) => completeRenameComposition(editor),
   prepareSidebarStructureChange: () => prepareSidebarStructureChange(),
   revealSession: (taskId) => {
-    void window.duetRuntime.revealSession({ taskId });
+    void window.sonataRuntime.revealSession({ taskId });
   },
   revealProject: (path) => {
-    void window.duetRuntime.revealProject({ path });
+    void window.sonataRuntime.revealProject({ path });
   },
   archiveSessionFromSidebar: (taskId) => {
     runAfterRename(() => archiveSessionFromSidebar(taskId));
@@ -623,7 +623,7 @@ elements.remoteControlToggle.append(lucideIcon(Smartphone));
 elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIcon(Plus));
 initTooltips();
 
-const SIDEBAR_COLLAPSED_KEY = "duet.sidebar.collapsed";
+const SIDEBAR_COLLAPSED_KEY = "sonata.sidebar.collapsed";
 
 function setSidebarCollapsed(collapsed: boolean): void {
   elements.sidebar.classList.toggle("collapsed", collapsed);
@@ -640,7 +640,7 @@ function setSidebarCollapsed(collapsed: boolean): void {
   }
 }
 
-const SIDEBAR_WIDTH_KEY = "duet.sidebar.width";
+const SIDEBAR_WIDTH_KEY = "sonata.sidebar.width";
 const SIDEBAR_WIDTH_MIN = 180;
 const SIDEBAR_WIDTH_MAX = 420;
 
@@ -757,11 +757,11 @@ elements.openPreviewWindow.addEventListener("click", () => {
 
 elements.toggleTerminalWindow.addEventListener("click", () => {
   const open = elements.toggleTerminalWindow.getAttribute("aria-pressed") === "true";
-  void window.duetRuntime.setTerminalWindowOpen(!open).then(applyTerminalWindowState);
+  void window.sonataRuntime.setTerminalWindowOpen(!open).then(applyTerminalWindowState);
 });
 
-window.duetRuntime.onTerminalWindowState(applyTerminalWindowState);
-void window.duetRuntime.readTerminalWindowState().then(applyTerminalWindowState);
+window.sonataRuntime.onTerminalWindowState(applyTerminalWindowState);
+void window.sonataRuntime.readTerminalWindowState().then(applyTerminalWindowState);
 
 // Ctrl+` opens/focuses the terminal window (repurposed from VS Code's terminal
 // binding — devs reach for it without thinking). Capture phase + stopPropagation
@@ -1005,7 +1005,7 @@ elements.sendPrompt.addEventListener("click", () => {
 
 async function hydrateReadingSettings(): Promise<void> {
   try {
-    const settings = normalizeReadingSettings(await window.duetRuntime.readReadingSettings());
+    const settings = normalizeReadingSettings(await window.sonataRuntime.readReadingSettings());
     state.readingSettings = settings;
     applyReadingSettings(settings);
     renderReadingPopover();
@@ -1020,7 +1020,7 @@ async function hydrateReadingSettings(): Promise<void> {
  *  dormant sessions clickable, so a dormant view never arms from a stale default. */
 async function hydrateClaudeDefaults(): Promise<void> {
   try {
-    const settings = normalizeClaudeSettings(await window.duetRuntime.readClaudeSettings());
+    const settings = normalizeClaudeSettings(await window.sonataRuntime.readClaudeSettings());
     state.remoteControlDefault = settings.defaultRemoteControl;
     state.taskDraft.remoteControl = settings.defaultRemoteControl;
     state.claudeDefaultPermissionMode = settings.defaultPermissionMode;
@@ -1037,7 +1037,7 @@ async function hydrateClaudeDefaults(): Promise<void> {
  *  local initial default until the user opened Settings. */
 async function hydrateCodexDefaults(): Promise<void> {
   try {
-    const settings = normalizeCodexSettings(await window.duetRuntime.readCodexSettings());
+    const settings = normalizeCodexSettings(await window.sonataRuntime.readCodexSettings());
     state.codexDefaultPermissionMode = settings.defaultPermissionMode;
     render();
   } catch {
@@ -1114,7 +1114,7 @@ async function enableRemoteControl(): Promise<void> {
   }
   state.remoteControlNote = null;
   try {
-    const result = await window.duetRuntime.injectRemoteControl({ taskId: view.task.id });
+    const result = await window.sonataRuntime.injectRemoteControl({ taskId: view.task.id });
     if (!result.ok) {
       state.remoteControlNote =
         result.reason === "panel-open"
@@ -1134,7 +1134,7 @@ async function enableRemoteControl(): Promise<void> {
 
 /** Manage an active RC session: inject `/rc` to open claude's own panel
  *  (Disconnect / Show QR / Continue), then switch to Terminal so the user acts
- *  in it. The native panel — not a Duet-driven menu — is the honest,
+ *  in it. The native panel — not a Sonata-driven menu — is the honest,
  *  fragility-free management surface. */
 async function manageRemoteControl(): Promise<void> {
   const view = activeTaskView();
@@ -1143,7 +1143,7 @@ async function manageRemoteControl(): Promise<void> {
   }
   closeRemoteControlPopover();
   try {
-    const result = await window.duetRuntime.injectRemoteControl({ taskId: view.task.id });
+    const result = await window.sonataRuntime.injectRemoteControl({ taskId: view.task.id });
     if (result.ok) {
       setViewMode("terminal");
     }
@@ -1159,7 +1159,7 @@ async function persistReadingSettings(nextSettings: ReadingSettings): Promise<vo
   renderReadingPopover();
 
   try {
-    const persisted = normalizeReadingSettings(await window.duetRuntime.writeReadingSettings(settings));
+    const persisted = normalizeReadingSettings(await window.sonataRuntime.writeReadingSettings(settings));
     state.readingSettings = persisted;
     applyReadingSettings(persisted);
   } catch (error) {
@@ -1190,9 +1190,9 @@ function closeSettingsOverlay(): void {
 async function refreshSettingsOverlay(): Promise<void> {
   try {
     const [resumeResponse, claudeResponse, codexResponse] = await Promise.all([
-      window.duetRuntime.readResumeSettings(),
-      window.duetRuntime.readClaudeSettings(),
-      window.duetRuntime.readCodexSettings(),
+      window.sonataRuntime.readResumeSettings(),
+      window.sonataRuntime.readClaudeSettings(),
+      window.sonataRuntime.readCodexSettings(),
     ]);
     if (!state.settingsOverlay) {
       return;
@@ -1227,7 +1227,7 @@ async function persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): 
   overlay.claude.settings = next;
   render();
   try {
-    const persisted = normalizeClaudeSettings(await window.duetRuntime.writeClaudeSettings(next));
+    const persisted = normalizeClaudeSettings(await window.sonataRuntime.writeClaudeSettings(next));
     if (state.settingsOverlay?.claude) {
       state.settingsOverlay.claude.settings = persisted;
     }
@@ -1256,7 +1256,7 @@ async function persistCodexDefaultPermissionMode(mode: CodexPermissionMode): Pro
   overlay.codex.settings = next;
   render();
   try {
-    const persisted = normalizeCodexSettings(await window.duetRuntime.writeCodexSettings(next));
+    const persisted = normalizeCodexSettings(await window.sonataRuntime.writeCodexSettings(next));
     if (state.settingsOverlay?.codex) {
       state.settingsOverlay.codex.settings = persisted;
     }
@@ -1290,7 +1290,7 @@ async function persistResumePolicy(policy: ResumePolicyId): Promise<void> {
   overlay.policyMenuOpen = false;
   render();
   try {
-    const persisted = normalizeResumeSettings(await window.duetRuntime.writeResumeSettings(next));
+    const persisted = normalizeResumeSettings(await window.sonataRuntime.writeResumeSettings(next));
     if (state.settingsOverlay?.resume) {
       state.settingsOverlay.resume.settings = persisted;
     }
@@ -1310,7 +1310,7 @@ async function restoreResumeBridge(): Promise<void> {
   render();
   let cleared = false;
   try {
-    cleared = (await window.duetRuntime.revertResumeBridge()).cleared;
+    cleared = (await window.sonataRuntime.revertResumeBridge()).cleared;
   } catch {
     cleared = false;
   }
@@ -1337,7 +1337,7 @@ async function setDefaultRemoteControl(value: boolean): Promise<void> {
   state.taskDraft.remoteControl = value;
   render();
   try {
-    const persisted = normalizeClaudeSettings(await window.duetRuntime.writeClaudeSettings(next));
+    const persisted = normalizeClaudeSettings(await window.sonataRuntime.writeClaudeSettings(next));
     if (state.settingsOverlay?.claude) {
       state.settingsOverlay.claude.settings = persisted;
     }
@@ -1363,7 +1363,7 @@ elements.runList.addEventListener("click", (event) => {
     // triggers the anchor's default navigation (the main window's will-navigate
     // guard would swallow it, but the chip should own its own activation).
     event.preventDefault();
-    void window.duetRuntime.openPreview(chipTarget).catch(() => {});
+    void window.sonataRuntime.openPreview(chipTarget).catch(() => {});
     return;
   }
   const target = event.target;
@@ -1391,7 +1391,7 @@ elements.runList.addEventListener("keydown", (event) => {
     return;
   }
   event.preventDefault();
-  void window.duetRuntime.openPreview(chipTarget).catch(() => {});
+  void window.sonataRuntime.openPreview(chipTarget).catch(() => {});
 });
 
 elements.runList.addEventListener("scroll", () => {
@@ -1438,7 +1438,7 @@ elements.resumeBridgeRevert.addEventListener("click", () => {
   // resolve to the wrong view. Update THIS view after the await, iff its choice
   // still exists (object-identity survival check).
   const originView = activeTaskView();
-  void window.duetRuntime
+  void window.sonataRuntime
     .revertResumeBridge()
     .then((result) => {
       if (originView?.resumeChoice) {
@@ -1446,7 +1446,7 @@ elements.resumeBridgeRevert.addEventListener("click", () => {
       }
       if (originView) {
         originView.status = result.cleared
-          ? "Claude's own resume warning is back on (outside Duet)"
+          ? "Claude's own resume warning is back on (outside Sonata)"
           : "Couldn't update ~/.claude.json — check it manually";
       }
       render();
@@ -1565,11 +1565,11 @@ readingModeQuery.addEventListener("change", () => {
   applySystemReadingMode(readingModeQuery.matches ? "dark" : "light");
 });
 
-window.duetRuntime.onReadingSystemModeChanged((mode) => {
+window.sonataRuntime.onReadingSystemModeChanged((mode) => {
   applySystemReadingMode(mode);
 });
 
-window.duetRuntime.onSettingsOpen(() => {
+window.sonataRuntime.onSettingsOpen(() => {
   openSettingsOverlay();
 });
 
@@ -1586,7 +1586,7 @@ function applySystemReadingMode(mode: ResolvedReadingMode): void {
 // render-path CHOICE (§1.3 policy-as-data, corpus-fenced); the shell performs
 // the returned directive list 1:1, in order. No logic beyond the mapping
 // lives here — a directive's payload already carries the reducer's decisions.
-window.duetRuntime.onRuntimeEvent((event) => {
+window.sonataRuntime.onRuntimeEvent((event) => {
   // Codex hooks-liveness is display-only shell chrome, handled OUTSIDE the
   // reading-core reducer (renderer-local banner store, never a view field).
   // renderAttentionBanners() re-reads the ACTIVE view, so a background task's
@@ -1606,11 +1606,11 @@ window.duetRuntime.onRuntimeEvent((event) => {
 // not be materialized yet (opened via the Local API, or not yet hydrated after
 // a reload) — runtime events for an unloaded view are dropped, so activateTask
 // alone would no-op. selectSession loads the session first, then activates.
-window.duetRuntime.onNotificationActivateTask((taskId) => {
+window.sonataRuntime.onNotificationActivateTask((taskId) => {
   runAfterRename(() => selectSession(taskId));
 });
 
-window.duetRuntime.onCliAction((request) => {
+window.sonataRuntime.onCliAction((request) => {
   // The main process validates both sender and shape; Reading validates the
   // shape again at its own trust boundary and the flow revalidates current
   // selection/liveness before claiming lifecycle ownership.
@@ -1655,9 +1655,9 @@ function activeTaskView(): TaskViewState | null {
 // and complete commands, but typed text always reaches the PTY verbatim.
 // The only submit-time interventions are safety guards backed by probe
 // evidence (spikes/slash-probes): bare "/" and unmatched prefixes dispatch
-// the CLI's first popup item when blind-injected, so they never leave duet
+// the CLI's first popup item when blind-injected, so they never leave sonata
 // without confirmation; bare native-menu commands (/model, /permissions)
-// open the duet menu instead of an invisible TUI panel.
+// open the sonata menu instead of an invisible TUI panel.
 
 const SLASH_COMMANDS_CACHE_TTL_MS = 10_000;
 const slashCommandsCache = new Map<string, { at: number; response: SlashCommandsResponse }>();
@@ -1691,7 +1691,7 @@ function refreshSlashCommands(): void {
   const request = view?.task
     ? { taskId: view.task.id }
     : { provider: state.taskDraft.provider, ...(state.taskDraft.cwd ? { cwd: state.taskDraft.cwd } : {}) };
-  void window.duetRuntime
+  void window.sonataRuntime
     .readSlashCommands(request)
     .then((response) => {
       slashCommandsCache.set(key, { at: Date.now(), response });

@@ -106,7 +106,7 @@ export function syncActiveTerminalTaskBinding(): void {
     return;
   }
   lastPushedTerminalTask = key;
-  void window.duetRuntime.setActiveTerminalTask(binding).catch(() => {});
+  void window.sonataRuntime.setActiveTerminalTask(binding).catch(() => {});
 }
 
 function cliProjectName(view: TaskViewState | null): string {
@@ -144,7 +144,7 @@ function cliEmptySurface(view: TaskViewState | null): CliEmptySurface {
   // The resume choice is pure view state (D3), so key off it — not a lifecycle
   // phase — and check it BEFORE the dormant-ready branch: a dormant task with a
   // pending choice reads resume-choice even while another lifecycle op is in
-  // flight (the CLI side keeps showing "Choose how to resume in Duet").
+  // flight (the CLI side keeps showing "Choose how to resume in Sonata").
   if (view.resumeChoice) {
     return { kind: "resume-choice", taskId: view.task.id };
   }

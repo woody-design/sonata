@@ -112,7 +112,7 @@ function harness() {
   h.meta.set("t1", { title: "New Task", provider: "claude" });
   h.controller.handleEvent(cli("t1", "busy", 0));
   h.controller.handleEvent(cli("t1", "turn-ended", 45));
-  assert.equal(h.shown[0].title, "Duet", "placeholder title → fallback");
+  assert.equal(h.shown[0].title, "Sonata", "placeholder title → fallback");
 }
 
 // 7) No live meta → neutral copy, no crash.
@@ -125,7 +125,7 @@ function harness() {
   });
   h.controller.handleEvent(cli("t1", "busy", 0));
   h.controller.handleEvent(cli("t1", "turn-ended", 45));
-  assert.equal(h.shown[0].title, "Duet", "dated automatic placeholder → fallback");
+  assert.equal(h.shown[0].title, "Sonata", "dated automatic placeholder → fallback");
 }
 
 // 8) The same text under user ownership is intentional and must surface.
@@ -159,7 +159,7 @@ function harness() {
   const h = harness(); // meta map empty → resolveTaskMeta returns null
   h.controller.handleEvent(cli("t1", "busy", 0));
   h.controller.handleEvent(cli("t1", "turn-ended", 45));
-  assert.deepEqual(h.shown[0], { title: "Duet", body: "Agent finished" });
+  assert.deepEqual(h.shown[0], { title: "Sonata", body: "Agent finished" });
 }
 
 // 11) A sub-floor turn shows nothing (policy wired through).

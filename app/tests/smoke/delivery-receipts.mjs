@@ -154,7 +154,7 @@ await check("attachment markers and image evidence complete delivery", async () 
 
   const attachment = {
     id: "attachment-smoke-1",
-    path: "/tmp/duet-attachment-smoke/red.png",
+    path: "/tmp/sonata-attachment-smoke/red.png",
     originalName: "red.png",
     mediaType: "image/png",
     size: 68,
@@ -259,7 +259,7 @@ await check("mixed image + file reference: file folds to text, image chips, item
   });
   const imageRef = {
     id: "mixed-img-1",
-    path: "/tmp/duet-mixed/shot.png",
+    path: "/tmp/sonata-mixed/shot.png",
     originalName: "shot.png",
     mediaType: "image/png",
     size: 10,
@@ -268,7 +268,7 @@ await check("mixed image + file reference: file folds to text, image chips, item
   };
   const fileRef = {
     id: "mixed-file-1",
-    path: "/tmp/duet-mixed/report.pdf",
+    path: "/tmp/sonata-mixed/report.pdf",
     originalName: "report.pdf",
     mediaType: "application/pdf",
     size: 20,

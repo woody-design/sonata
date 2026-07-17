@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const { ensureClaudeProjectTrust, updateClaudeConfig, claudeProjectKey } =
   require("../../dist/main/claude-config");
 
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-claude-config-smoke-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-claude-config-smoke-"));
 const failures = [];
 const assert = (cond, label) => {
   if (!cond) failures.push(label);
@@ -112,7 +112,7 @@ function freshConfig(configPath) {
 // --- 6. backup-once, from the exact pre-write bytes ---------------------------
 {
   const configPath = path.join(workspace, "config-6.json");
-  const backupPath = path.join(workspace, "config-6.json.duet-bak");
+  const backupPath = path.join(workspace, "config-6.json.sonata-bak");
   const original = freshConfig(configPath);
   const dirA = fs.mkdtempSync(path.join(workspace, "bak-a-"));
   const dirB = fs.mkdtempSync(path.join(workspace, "bak-b-"));
@@ -125,7 +125,7 @@ function freshConfig(configPath) {
   assert(second.applied && !second.backupCreated, "6: second write reuses the backup");
   assert(
     fs.readFileSync(backupPath, "utf8") === original,
-    "6: backup still the OLDEST pre-Duet bytes",
+    "6: backup still the OLDEST pre-Sonata bytes",
   );
 }
 
@@ -150,7 +150,7 @@ function freshConfig(configPath) {
 //        and the backup captures the SURVIVING attempt's bytes ---------------
 {
   const configPath = path.join(workspace, "config-8.json");
-  const backupPath = path.join(workspace, "config-8.json.duet-bak");
+  const backupPath = path.join(workspace, "config-8.json.sonata-bak");
   freshConfig(configPath);
   let calls = 0;
   const result = updateClaudeConfig(
@@ -162,7 +162,7 @@ function freshConfig(configPath) {
         concurrent.numStartups = 43;
         fs.writeFileSync(configPath, JSON.stringify(concurrent, null, 2), "utf8");
       }
-      config.duetProbe = true;
+      config.sonataProbe = true;
       return true;
     },
     { configPath, backupPath },
@@ -170,13 +170,13 @@ function freshConfig(configPath) {
   assert(result.applied && calls === 2, "8: conflict retried from a fresh read");
   const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
   assert(parsed.numStartups === 43, "8: the concurrent write survived");
-  assert(parsed.duetProbe === true, "8: our edit landed on top of it");
+  assert(parsed.sonataProbe === true, "8: our edit landed on top of it");
   // The recovery point must be the bytes the SURVIVING write was computed
   // from — i.e. include the concurrent change, not attempt 1's stale read
   // (review P2: a stale backup would lose the CLI's write on restore).
   const backup = JSON.parse(fs.readFileSync(backupPath, "utf8"));
   assert(backup.numStartups === 43, "8: backup holds the fresh (post-conflict) bytes");
-  assert(!("duetProbe" in backup), "8: backup is pre-write (no Duet edit)");
+  assert(!("sonataProbe" in backup), "8: backup is pre-write (no Sonata edit)");
   assert(result.backupCreated === true, "8: backupCreated reported on the surviving attempt");
 }
 

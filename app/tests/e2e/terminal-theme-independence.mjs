@@ -5,7 +5,7 @@
 // terminal owns its OWN appearance — a colour SCHEME (data-term-scheme, its Aa
 // picker) plus mode — and must NOT follow the Reading window's theme. S1's
 // near-regression was the content-fallback sweeping terminal.html into the
-// reading-stamp path (it then shipped a static data-theme="duet" equal to the
+// reading-stamp path (it then shipped a static data-theme="sonata" equal to the
 // reading default), which armed the readingSettingsChanged listener and fought
 // terminal.ts's ownership. Since the scheme axis, terminal.html carries NO
 // data-theme at all; this fences both halves: the terminal's root never GAINS
@@ -21,12 +21,12 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { waitForWindowByUrl } from "./helpers/session.mjs";
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-terminal-theme-e2e-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-terminal-theme-e2e-"));
 const launchEnv = {
   ...process.env,
-  DUET_DATA_DIR: dataRoot,
-  DUET_WORKSPACES_DIR: dataRoot,
-  DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+  SONATA_DATA_DIR: dataRoot,
+  SONATA_WORKSPACES_DIR: dataRoot,
+  SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
 };
 
 const results = {};
@@ -54,7 +54,7 @@ try {
   // the same gesture reading-settings.mjs uses. This both applies to the Reading
   // window locally AND broadcasts readingSettingsChanged to EVERY window; the
   // terminal receives it and must ignore it. Focus differs from the terminal's
-  // default ("duet"), so a leak would be unmistakable.
+  // default ("sonata"), so a leak would be unmistakable.
   const readingTheme = "focus";
   await page.locator("#reading-settings").click();
   await page.locator(".reading-settings-popover").waitFor({ state: "visible" });

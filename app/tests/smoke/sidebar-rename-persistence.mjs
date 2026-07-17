@@ -8,8 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rename-persistence-"));
-process.env.DUET_DATA_DIR = path.join(tempRoot, "duet-data");
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rename-persistence-"));
+process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 const require = createRequire(import.meta.url);
 const { RuntimeController } = require("../../dist/main/runtime-controller");
 const { ProjectsStore } = require("../../dist/main/projects-store");
@@ -18,7 +18,7 @@ const {
   ClaudeSettingsStore,
   CodexSettingsStore,
 } = require("../../dist/main/settings-store");
-const { projectRecordRoot } = require("../../dist/main/duet-paths");
+const { projectRecordRoot } = require("../../dist/main/sonata-paths");
 const { freshTaskManifestV1 } = require("../../dist/shared/schemas/task-manifest");
 
 const projectsPath = path.join(tempRoot, "settings", "projects.json");

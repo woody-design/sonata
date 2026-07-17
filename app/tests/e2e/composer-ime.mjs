@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-composer-ime-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-composer-ime-"));
 
 let electronApp = null;
 
@@ -12,7 +12,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
     },
   });
   const page = await electronApp.firstWindow();
@@ -24,11 +24,11 @@ try {
   await page.locator("#prompt-input").fill("G4");
 
   await page.evaluate(() => {
-    window.__duetComposerSubmitCount = 0;
+    window.__sonataComposerSubmitCount = 0;
     document.querySelector("#composer")?.addEventListener(
       "submit",
       (event) => {
-        window.__duetComposerSubmitCount += 1;
+        window.__sonataComposerSubmitCount += 1;
         event.preventDefault();
         event.stopImmediatePropagation();
       },
@@ -104,7 +104,7 @@ async function dispatchPlainEnter(page) {
 }
 
 async function expectSubmitCount(page, expected, label) {
-  const actual = await page.evaluate(() => window.__duetComposerSubmitCount);
+  const actual = await page.evaluate(() => window.__sonataComposerSubmitCount);
   if (actual !== expected) {
     throw new Error(`${label}. Expected ${expected}, got ${actual}.`);
   }

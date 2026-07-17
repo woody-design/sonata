@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const { TerminalHost, readClaudeResumeStats } = require("../../dist/runtime");
 const { ResumeSettingsStore } = require("../../dist/main/settings-store");
 
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-resume-units-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-resume-units-"));
 const failures = [];
 function assert(condition, label) {
   if (!condition) {

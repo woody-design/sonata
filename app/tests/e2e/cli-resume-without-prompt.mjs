@@ -1,4 +1,4 @@
-// Slice 3 + Slice C: Resume task reuses Duet's prepare/choice/open lifecycle.
+// Slice 3 + Slice C: Resume task reuses Sonata's prepare/choice/open lifecycle.
 // This pins the full/summary × sendAfterResume true/false matrix, ownership, and
 // lifecycle release after preparation/open/settings failures. Slice C (D3)
 // de-modalized the choice: it is pure view state holding no lifecycle claim, so
@@ -15,7 +15,7 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { activeSessionTaskId } from "./helpers/session.mjs";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-cli-resume-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-resume-"));
 const dataRoot = path.join(root, "data-root");
 const settingsDir = path.join(root, "settings");
 const fakeBin = path.join(root, "bin");
@@ -42,11 +42,11 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: dataRoot,
-      DUET_WORKSPACES_DIR: path.join(root, "workspaces"),
-      DUET_SETTINGS_DIR: settingsDir,
-      DUET_TEST_PICK_FOLDER: project,
-      DUET_NOTIFICATIONS: "0",
+      SONATA_DATA_DIR: dataRoot,
+      SONATA_WORKSPACES_DIR: path.join(root, "workspaces"),
+      SONATA_SETTINGS_DIR: settingsDir,
+      SONATA_TEST_PICK_FOLDER: project,
+      SONATA_NOTIFICATIONS: "0",
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
     },
   });
@@ -77,7 +77,7 @@ try {
   const initialDraftOwnership = await readOwnership(main);
   const initialReport = readReport(taskId);
 
-  await main.evaluate((id) => window.duetRuntime.closeTask({ taskId: id }), taskId);
+  await main.evaluate((id) => window.sonataRuntime.closeTask({ taskId: id }), taskId);
   await waitForCliActionReady(cli, "Resume task");
   if (evidenceDir) {
     await cli.screenshot({
@@ -111,12 +111,12 @@ try {
 
   // Return dormant, switch to policy=ask, and prove stale/double intents cannot
   // bypass the choice or open more than one generation.
-  await main.evaluate((id) => window.duetRuntime.closeTask({ taskId: id }), taskId);
+  await main.evaluate((id) => window.sonataRuntime.closeTask({ taskId: id }), taskId);
   await waitForCliActionReady(cli, "Resume task");
   writeResumePolicy("ask");
 
   await cli.evaluate(() =>
-    window.duetRuntime.requestCliAction({ action: "resume", expectedTaskId: "stale-task" }),
+    window.sonataRuntime.requestCliAction({ action: "resume", expectedTaskId: "stale-task" }),
   );
   await new Promise((resolve) => setTimeout(resolve, 200));
   const staleResumeRejected = spawnCount(taskId) === 2;
@@ -141,7 +141,7 @@ try {
   // prepareResume, gets needsChoice again, and re-sets the same view choice
   // (not because a held claim blocks it). The lifecycle is idle throughout.
   await cli.evaluate((id) =>
-    window.duetRuntime.requestCliAction({ action: "resume", expectedTaskId: id }),
+    window.sonataRuntime.requestCliAction({ action: "resume", expectedTaskId: id }),
     taskId,
   );
   await new Promise((resolve) => setTimeout(resolve, 150));
@@ -190,13 +190,13 @@ try {
   // Remembering is deliberately rejected at IPC; that preference write is
   // best-effort and must not strand or suppress the chosen resume.
   await main.locator("#resume-remember").check();
-  await setMainProcessEnv(app, "DUET_TEST_RESUME_SETTINGS_WRITE_FAIL", "1");
+  await setMainProcessEnv(app, "SONATA_TEST_RESUME_SETTINGS_WRITE_FAIL", "1");
   await main.locator("#resume-full").evaluate((button) => {
     button.click();
     button.click();
   });
   await waitFor(() => spawnCount(taskId) === 3, "full resume spawn");
-  await setMainProcessEnv(app, "DUET_TEST_RESUME_SETTINGS_WRITE_FAIL", null);
+  await setMainProcessEnv(app, "SONATA_TEST_RESUME_SETTINGS_WRITE_FAIL", null);
   await new Promise((resolve) => setTimeout(resolve, 300));
   const fullReport = readReport(taskId);
   const fullStdin = readStdin(taskId);
@@ -213,7 +213,7 @@ try {
   // sendAfterResume=true CHOICE (policy=ask): the composer-initiated send
   // converts into a choice; editing the composer mid-choice and confirming full
   // delivers the EDITED text exactly once (WYSIWYG APPLIES), with no /compact.
-  await main.evaluate((id) => window.duetRuntime.closeTask({ taskId: id }), taskId);
+  await main.evaluate((id) => window.sonataRuntime.closeTask({ taskId: id }), taskId);
   await waitForCliActionReady(cli, "Resume task");
   writeResumePolicy("ask");
   await main.locator("#send-prompt:not(:disabled)").click();
@@ -235,7 +235,7 @@ try {
   // Claude hooks close/start those two turns in their real order.
   const summarySendDraft = "SUMMARY RESUME THEN SEND THIS";
   await addBitmapDraft(main, summarySendDraft);
-  await main.evaluate((id) => window.duetRuntime.closeTask({ taskId: id }), taskId);
+  await main.evaluate((id) => window.sonataRuntime.closeTask({ taskId: id }), taskId);
   await waitForCliActionReady(cli, "Resume task");
   writeResumePolicy("summary");
   const beforeSummarySend = readReport(taskId).runs.length;
@@ -260,13 +260,13 @@ try {
   // non-empty draft/bitmap owner.
   const failureDraft = "FAILED RESUME DRAFT — preserve this";
   await addBitmapDraft(main, failureDraft);
-  await main.evaluate((id) => window.duetRuntime.closeTask({ taskId: id }), taskId);
+  await main.evaluate((id) => window.sonataRuntime.closeTask({ taskId: id }), taskId);
   await waitForCliActionReady(cli, "Resume task");
   const failureBaseline = readPersistenceCounts(taskId);
-  await setMainProcessEnv(app, "DUET_TEST_TASK_OPEN_FAIL", "1");
+  await setMainProcessEnv(app, "SONATA_TEST_TASK_OPEN_FAIL", "1");
   await cli.locator("#terminal-empty-action", { hasText: "Resume task" }).click();
   await waitForCliActionReady(cli, "Resume task");
-  await setMainProcessEnv(app, "DUET_TEST_TASK_OPEN_FAIL", null);
+  await setMainProcessEnv(app, "SONATA_TEST_TASK_OPEN_FAIL", null);
   const openFailureOwnership = await readOwnership(main);
   const openFailureStayedDormant =
     spawnCount(taskId) === 5 &&
@@ -315,7 +315,7 @@ try {
   // Unarchive (raw IPC — unarchive has no renderer-side clearing to exercise) and
   // prove a fresh resume RE-DERIVES the choice; nothing was permanently lost.
   await main.evaluate(
-    (p) => window.duetRuntime.archiveProject({ path: p, archived: false }),
+    (p) => window.sonataRuntime.archiveProject({ path: p, archived: false }),
     path.resolve(project),
   );
   await waitForCliActionReady(cli, "Resume task");
@@ -421,7 +421,7 @@ function installFakeClaude() {
     `#!/usr/bin/env node
 const fs = require("node:fs");
 const path = require("node:path");
-const runtimeDir = process.env.DUET_RUNTIME_DIR;
+const runtimeDir = process.env.SONATA_RUNTIME_DIR;
 fs.mkdirSync(runtimeDir, { recursive: true });
 const countPath = path.join(runtimeDir, "spawn-count");
 let count = 0;
@@ -469,7 +469,7 @@ function writeLargeDormantTranscript(taskId) {
   fs.writeFileSync(
     path.join(taskRecordRoot(taskId), "transcript-sources.json"),
     `${JSON.stringify({
-      schemaId: "duet.transcript-sources.v1",
+      schemaId: "sonata.transcript-sources.v1",
       version: 1,
       taskId,
       sources: [source],

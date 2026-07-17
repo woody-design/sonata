@@ -18,7 +18,7 @@ import {
   waitForWindowByUrl,
 } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-e2e-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-e2e-"));
 let electronApp = null;
 
 try {
@@ -26,7 +26,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
     },
   });
 
@@ -164,7 +164,7 @@ async function startFileSession(page, options) {
 // transcript chips, folder tree, and in-doc links all use.
 async function openPreviewTab(page, taskId, relativePath) {
   await page.evaluate(
-    (args) => window.duetRuntime.openPreview(args),
+    (args) => window.sonataRuntime.openPreview(args),
     { taskId, relativePath },
   );
 }

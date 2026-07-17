@@ -4,8 +4,8 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { chooseDraftProvider, openNewChat, sendFirstPrompt } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-usage-shots-"));
-const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-usage-settings-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-usage-shots-"));
+const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-usage-settings-"));
 const screenshotRoot = path.resolve("..", "product-thinking", "usage-indicator-slice-1-evidence");
 fs.mkdirSync(screenshotRoot, { recursive: true });
 
@@ -14,7 +14,7 @@ let electronApp = null;
 try {
   fs.writeFileSync(
     path.join(settingsRoot, "reading-settings.json"),
-    `${JSON.stringify({ theme: "duet", mode: "light", textStep: 16 }, null, 2)}\n`,
+    `${JSON.stringify({ theme: "sonata", mode: "light", textStep: 16 }, null, 2)}\n`,
     "utf8",
   );
 
@@ -22,8 +22,8 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsRoot,
     },
   });
   const page = await electronApp.firstWindow();
@@ -32,7 +32,7 @@ try {
   // Sessions are born from the first composer message; the indicator is
   // disabled until the session exists, so the degraded (no usage data yet)
   // state is captured between session creation and the first usage snapshot.
-  await sendFirstPrompt(page, "Reply exactly DUET_USAGE_CODEX.");
+  await sendFirstPrompt(page, "Reply exactly SONATA_USAGE_CODEX.");
   await stageComposerForScreenshot(page);
   await page.locator("#usage-indicator").click();
   await page.locator(".usage-popover", { hasText: "No usage data yet" }).waitFor({
@@ -41,7 +41,7 @@ try {
   await page.screenshot({ path: path.join(screenshotRoot, "06-degraded-no-data.png") });
   await page.locator("#usage-indicator").click();
 
-  await page.locator(".turn-card", { hasText: "Reply exactly DUET_USAGE_CODEX." }).first().waitFor({
+  await page.locator(".turn-card", { hasText: "Reply exactly SONATA_USAGE_CODEX." }).first().waitFor({
     state: "visible",
     timeout: 180000,
   });
@@ -68,7 +68,7 @@ try {
 
   await openNewChat(page);
   await chooseDraftProvider(page, "claude");
-  await runPrompt(page, "Reply exactly DUET_USAGE_CLAUDE.");
+  await runPrompt(page, "Reply exactly SONATA_USAGE_CLAUDE.");
   await waitForUsageSnapshot(page, 240000);
   await stageComposerForScreenshot(page);
   await page.locator("#usage-indicator").click();

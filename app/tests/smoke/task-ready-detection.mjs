@@ -245,7 +245,7 @@ function codexPromptRun() {
 function claudePlaceholderTail() {
   return [
     "Welcome to Claude Code",
-    "cwd ~/Workspace/Product/duet",
+    "cwd ~/Workspace/Product/sonata",
     '❯ Try "fix typecheck errors"',
     "Opus 4.1 · low · ? for shortcuts",
   ].join("\n");

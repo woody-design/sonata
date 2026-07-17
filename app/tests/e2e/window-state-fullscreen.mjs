@@ -12,17 +12,17 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-window-fs-e2e-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-window-fs-e2e-"));
 const stateFile = path.join(dataRoot, "config", "window-state.json");
 // Above the main window's 960x640 minimums so setBounds is honored verbatim.
 const normalBounds = { x: 200, y: 140, width: 1100, height: 760 };
-// Pin DUET_SETTINGS_DIR too (precedence over duetConfigDir, exported by the
+// Pin SONATA_SETTINGS_DIR too (precedence over sonataConfigDir, exported by the
 // workshop launcher) so the app and this test agree on the state file path.
 const env = {
   ...process.env,
-  DUET_DATA_DIR: dataRoot,
-  DUET_WORKSPACES_DIR: dataRoot,
-  DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+  SONATA_DATA_DIR: dataRoot,
+  SONATA_WORKSPACES_DIR: dataRoot,
+  SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
 };
 
 let app = null;
@@ -80,7 +80,7 @@ try {
 
 async function setBounds(app, bounds) {
   await app.evaluate(({ BrowserWindow }, b) => {
-    const win = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Duet");
+    const win = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Sonata");
     if (!win) throw new Error("main window not found");
     win.setBounds(b);
   }, bounds);
@@ -88,7 +88,7 @@ async function setBounds(app, bounds) {
 
 async function getBounds(app) {
   return app.evaluate(({ BrowserWindow }) => {
-    const win = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Duet");
+    const win = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Sonata");
     if (!win) throw new Error("main window not found");
     return win.getBounds();
   });
@@ -96,7 +96,7 @@ async function getBounds(app) {
 
 async function setFullScreen(app, value) {
   await app.evaluate(({ BrowserWindow }, v) => {
-    const win = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Duet");
+    const win = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Sonata");
     if (!win) throw new Error("main window not found");
     win.setFullScreen(v);
   }, value);
@@ -106,7 +106,7 @@ async function pollFullScreen(app, expected, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const isFs = await app.evaluate(({ BrowserWindow }) => {
-      const win = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Duet");
+      const win = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Sonata");
       return win ? win.isFullScreen() : null;
     });
     if (isFs === expected) return true;

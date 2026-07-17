@@ -142,7 +142,7 @@ export interface TaskViewState {
   cliState: { activity: CliActivity; tool: string | null; approvalKind: string | null } | null;
   /** Remote Control (phone access) for this task. `active` is optimistic (we
    *  injected `/rc`); `url` is the session link scraped from the stream — the
-   *  phone surface is Anthropic's Claude app, not a Duet-built UI. */
+   *  phone surface is Anthropic's Claude app, not a Sonata-built UI. */
   /** `active`/`url`: the LIVE connected state (from `remote-control:state`). For a
    *  DORMANT view, `armedOverride` is the "will start with RC" desire — null =
    *  follow the global default (`state.remoteControlDefault`); true/false = user set. */
@@ -418,9 +418,9 @@ export type SessionLifecycle =
 export interface SettingsOverlayState {
   /** Snapshot read on open; null while the read is in flight. */
   resume: { settings: ResumeSettings; bridgeDismissed: boolean } | null;
-  /** Duet-owned Claude launch policy; null while the read is in flight. */
+  /** Sonata-owned Claude launch policy; null while the read is in flight. */
   claude: { settings: ClaudeSettings } | null;
-  /** Duet-owned Codex launch policy; null while the read is in flight. */
+  /** Sonata-owned Codex launch policy; null while the read is in flight. */
   codex: { settings: CodexSettings } | null;
   /** The resume-policy popup menu is showing. */
   policyMenuOpen: boolean;

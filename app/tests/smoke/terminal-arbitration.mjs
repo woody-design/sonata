@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const { TerminalHost } = require("../../dist/runtime");
 
 const taskId = "task-terminal-arbitration-smoke";
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-arbitration-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-arbitration-"));
 const scriptPath = path.join(workspace, "fake-cli.mjs");
 const inputLogPath = path.join(workspace, "stdin.log");
 

@@ -2,7 +2,7 @@
 //
 // Drives the built app end-to-end and exercises the document-scale reader:
 //   - rich markdown renders (heading / list / inline-code / table / blockquote)
-//   - a relative image resolves via duet-file:// and actually PAINTS (naturalWidth > 0)
+//   - a relative image resolves via sonata-file:// and actually PAINTS (naturalWidth > 0)
 //   - a #fragment link scrolls within the document
 //   - a relative .md link opens a new Preview tab
 //   - an external http(s) link routes to shell.openExternal and NEVER navigates the window
@@ -30,12 +30,12 @@ const PNG_1x1 = Buffer.from(
   "base64",
 );
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-preview-reader-e2e-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-preview-reader-e2e-"));
 const launchEnv = {
   ...process.env,
-  DUET_DATA_DIR: dataRoot,
-  DUET_WORKSPACES_DIR: dataRoot,
-  DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+  SONATA_DATA_DIR: dataRoot,
+  SONATA_WORKSPACES_DIR: dataRoot,
+  SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
 };
 
 const results = {};
@@ -46,7 +46,7 @@ try {
   page.setDefaultTimeout(180000);
 
   await sendFirstPrompt(page, [
-    "Reply exactly DUET_PREVIEW_READER_READY.",
+    "Reply exactly SONATA_PREVIEW_READER_READY.",
     "Do not create or modify any files.",
   ]);
   const taskId = await activeSessionTaskId(page);
@@ -129,11 +129,11 @@ try {
     (await md.locator("table td", { hasText: "b1" }).count()) === 1;
   results.blockquote = (await md.locator("blockquote", { hasText: "calm blockquote" }).count()) === 1;
 
-  // ── Relative image resolves via duet-file:// and PAINTS ────────────────────
+  // ── Relative image resolves via sonata-file:// and PAINTS ────────────────────
   const img = md.locator("img").first();
   await img.waitFor({ state: "visible" });
   const imgSrc = await img.getAttribute("src");
-  results.imageProtocol = Boolean(imgSrc && imgSrc.startsWith("duet-file://") && imgSrc.endsWith("/pixel.png"));
+  results.imageProtocol = Boolean(imgSrc && imgSrc.startsWith("sonata-file://") && imgSrc.endsWith("/pixel.png"));
   await preview.waitForFunction(
     () => {
       const el = document.querySelector('.preview-md img');
@@ -287,7 +287,7 @@ function writeText(root, relative, contents) {
 }
 
 async function openTab(page, taskId, relativePath) {
-  await page.evaluate((args) => window.duetRuntime.openPreview(args), { taskId, relativePath });
+  await page.evaluate((args) => window.sonataRuntime.openPreview(args), { taskId, relativePath });
 }
 
 async function tabCount(preview) {

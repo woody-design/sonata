@@ -7,9 +7,9 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { sendFirstPrompt, chooseDraftProvider } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-new-chat-e2e-"));
-const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-new-chat-folder-"));
-const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-new-chat-settings-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-new-chat-e2e-"));
+const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-new-chat-folder-"));
+const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-new-chat-settings-"));
 let electronApp = null;
 
 try {
@@ -32,7 +32,7 @@ try {
   await page.locator("#permission-chip", { hasText: "Accept edits" }).waitFor({ state: "visible" });
 
   // Pick the working folder (project chip → "Use an existing folder" → native
-  // dialog, answered by DUET_TEST_PICK_FOLDER) and a launch setting before the
+  // dialog, answered by SONATA_TEST_PICK_FOLDER) and a launch setting before the
   // first message.
   await page.locator("#project-chip").click();
   await page.locator("#entry-choose-folder").click();
@@ -128,7 +128,7 @@ try {
   const createdReport = fs.existsSync(createdReportPath)
     ? JSON.parse(fs.readFileSync(createdReportPath, "utf8"))
     : null;
-  const selectedFolderManifestExists = fs.existsSync(path.join(selectedFolder, ".duet", "task.json"));
+  const selectedFolderManifestExists = fs.existsSync(path.join(selectedFolder, ".sonata", "task.json"));
   const projectsFile = JSON.parse(
     fs.readFileSync(path.join(settingsDir, "projects.json"), "utf8"),
   );
@@ -164,7 +164,7 @@ try {
     resurrectedDraft === "" &&
     placeholder === "Describe a task or ask a question" &&
     Boolean(dormantPlaceholder?.includes("resumes this session")) &&
-    createdManifest.schemaId === "duet.task-manifest.v1" &&
+    createdManifest.schemaId === "sonata.task-manifest.v1" &&
     codexMenuCopyMatches &&
     createdManifest.task.provider === "codex" &&
     createdManifest.task.model === "gpt-5.6-sol" &&
@@ -224,9 +224,9 @@ async function launchApp() {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsDir,
-      DUET_TEST_PICK_FOLDER: selectedFolder,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsDir,
+      SONATA_TEST_PICK_FOLDER: selectedFolder,
     },
   });
   const page = await electronApp.firstWindow();

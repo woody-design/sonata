@@ -9,9 +9,9 @@ import { _electron as electron } from "playwright-core";
 const outDir = process.argv[2] ?? path.join(process.cwd(), "..", "Temp", "screenshots", "settings");
 fs.mkdirSync(outDir, { recursive: true });
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-shots-workspace-"));
-const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-shots-store-"));
-const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-shots-home-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-settings-shots-workspace-"));
+const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-settings-shots-store-"));
+const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-settings-shots-home-"));
 let electronApp = null;
 
 try {
@@ -30,8 +30,8 @@ try {
     env: {
       ...process.env,
       HOME: homeRoot,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsRoot,
     },
   });
   const page = await electronApp.firstWindow();

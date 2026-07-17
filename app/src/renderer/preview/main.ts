@@ -79,7 +79,7 @@ const deps: PreviewDeps = {
       return;
     }
     flushScroll();
-    void window.duetRuntime.activatePreviewTab({ taskId, path }).catch(() => {});
+    void window.sonataRuntime.activatePreviewTab({ taskId, path }).catch(() => {});
   },
   close(path) {
     const taskId = state.binding.taskId;
@@ -92,7 +92,7 @@ const deps: PreviewDeps = {
       window.close();
       return;
     }
-    void window.duetRuntime.closePreviewTab({ taskId, path }).catch(() => {});
+    void window.sonataRuntime.closePreviewTab({ taskId, path }).catch(() => {});
   },
   closeOthers(path) {
     const taskId = state.binding.taskId;
@@ -102,11 +102,11 @@ const deps: PreviewDeps = {
     }
     // Keep `path` active, then close the rest — focus never lands on a doomed tab.
     if (session.activePath !== path) {
-      void window.duetRuntime.activatePreviewTab({ taskId, path }).catch(() => {});
+      void window.sonataRuntime.activatePreviewTab({ taskId, path }).catch(() => {});
     }
     for (const tab of session.tabs) {
       if (tab.path !== path) {
-        void window.duetRuntime.closePreviewTab({ taskId, path: tab.path }).catch(() => {});
+        void window.sonataRuntime.closePreviewTab({ taskId, path: tab.path }).catch(() => {});
       }
     }
   },
@@ -118,7 +118,7 @@ const deps: PreviewDeps = {
     }
     const index = session.tabs.findIndex((tab) => tab.path === path);
     for (const tab of session.tabs.slice(index + 1)) {
-      void window.duetRuntime.closePreviewTab({ taskId, path: tab.path }).catch(() => {});
+      void window.sonataRuntime.closePreviewTab({ taskId, path: tab.path }).catch(() => {});
     }
   },
   openExternal(target) {
@@ -127,7 +127,7 @@ const deps: PreviewDeps = {
     if (!taskId || !path) {
       return;
     }
-    void window.duetRuntime
+    void window.sonataRuntime
       .openWorkspaceExternal({ taskId, target: target === "cursor" ? "cursor" : "folder", relativePath: path })
       .catch(() => {});
   },
@@ -137,7 +137,7 @@ const deps: PreviewDeps = {
       return;
     }
     const open = !(state.binding.session?.panelOpen ?? false);
-    void window.duetRuntime.setPreviewPanel({ taskId, open }).catch(() => {});
+    void window.sonataRuntime.setPreviewPanel({ taskId, open }).catch(() => {});
   },
   closeWindow() {
     window.close();
@@ -157,14 +157,14 @@ const readerCtx: ReaderContext = {
     // A relative doc link opens (or focuses) that file as a Preview tab — the
     // same open-or-focus bridge chips (S4) use; the task is already the bound
     // one, so this never crosses tasks.
-    void window.duetRuntime.openPreview({ taskId, relativePath }).catch(() => {});
+    void window.sonataRuntime.openPreview({ taskId, relativePath }).catch(() => {});
   },
   revealInFinder(relativePath) {
     const taskId = state.binding.taskId;
     if (!taskId) {
       return;
     }
-    void window.duetRuntime
+    void window.sonataRuntime
       .openWorkspaceExternal({ taskId, target: "folder", relativePath })
       .catch(() => {});
   },
@@ -180,7 +180,7 @@ const treeDeps: TreeDeps = {
       return [];
     }
     try {
-      return await window.duetRuntime.readWorkspaceDir({ taskId, relativePath });
+      return await window.sonataRuntime.readWorkspaceDir({ taskId, relativePath });
     } catch {
       return [];
     }
@@ -259,7 +259,7 @@ async function readActiveDoc(path: string): Promise<boolean> {
   }
   let doc;
   try {
-    doc = await window.duetRuntime.readWorkspaceDoc({ taskId, relativePath: path });
+    doc = await window.sonataRuntime.readWorkspaceDoc({ taskId, relativePath: path });
   } catch {
     // A guard violation (never for a merely-missing file) — draw the tombstone.
     doc = { path, name: basename(path), extension: "", size: 0, kind: "absent" as const };
@@ -399,7 +399,7 @@ function reportScroll(): void {
   const taskId = state.binding.taskId;
   const path = state.binding.session?.activePath;
   if (taskId && path) {
-    void window.duetRuntime
+    void window.sonataRuntime
       .setPreviewScroll({ taskId, path, scroll: els.content.scrollTop })
       .catch(() => {});
   }
@@ -417,7 +417,7 @@ function flushScroll(): void {
 // ── In-document links: the window NEVER navigates itself (§4) ─────────────────
 // Every link click inside a rendered doc is intercepted here (the composition
 // root owns the scroll box + the current doc path). Because we inject no global
-// <base>, relative refs are resolved explicitly against the doc's duet-file base
+// <base>, relative refs are resolved explicitly against the doc's sonata-file base
 // — identical semantics, scoped to the reader. Three destinations:
 //   #fragment                      → scroll within the document
 //   workspace-relative file        → open (or focus) it as a Preview tab
@@ -455,7 +455,7 @@ function routeDocLink(raw: string): void {
   } catch {
     return;
   }
-  if (url.protocol === "duet-file:") {
+  if (url.protocol === "sonata-file:") {
     // Relative doc link → a workspace-relative path. The URL host clamps `..` at
     // the root, and readDoc's guard rejects any escape (tombstone), so this can
     // never leave the workspace.
@@ -564,7 +564,7 @@ function switchToIndex(index: number | "last"): void {
 // seam, pointer capture + rAF-throttled apply, localStorage-persisted width,
 // double-click to reset. Right-anchored — the panel hugs the window's right
 // edge, so its width is the pointer's distance from that edge.
-const PANEL_WIDTH_KEY = "duet.preview.panel.width";
+const PANEL_WIDTH_KEY = "sonata.preview.panel.width";
 const PANEL_WIDTH_MIN = 220;
 const PANEL_WIDTH_MAX = 560;
 const PANEL_WIDTH_DEFAULT = 280; // matches the CSS .preview-panel width
@@ -669,9 +669,9 @@ els.panelResizer.addEventListener("dblclick", () => {
 initTabs(els.tabstrip, deps);
 initToolbar(toolbarEls, deps);
 initTree(els.panel, treeDeps);
-window.duetRuntime.onPreviewBinding(applyBinding);
-window.duetRuntime.onRuntimeEvent(reconcile);
-void window.duetRuntime
+window.sonataRuntime.onPreviewBinding(applyBinding);
+window.sonataRuntime.onRuntimeEvent(reconcile);
+void window.sonataRuntime
   .readPreviewBinding()
   .then(applyBinding)
   .catch(() => {

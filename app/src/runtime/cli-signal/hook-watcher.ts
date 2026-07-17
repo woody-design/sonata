@@ -11,14 +11,14 @@ export interface HookWatcherOptions {
    *  provider's edge (e.g. Claude's `claudeHooksDirectory`). */
   sinkDir: (workspace: string) => string;
   /** Called once per hook payload, in filename (≈ emission) order, with the
-   *  RUNTIME DIR it was observed under (~/.duet/data/runtime/<taskId> since D8;
+   *  RUNTIME DIR it was observed under (~/.sonata/data/runtime/<taskId> since D8;
    *  route by runtime dir → task — NOT the agent cwd). */
   onPayload: (payload: HookPayload, runtimeDir: string) => void;
   onError?: (error: Error, filePath?: string) => void;
 }
 
 /**
- * Polls Duet-owned hook sink dirs (`.duet/hooks/`), mirroring the statusline
+ * Polls Sonata-owned hook sink dirs (`.sonata/hooks/`), mirroring the statusline
  * watcher's per-workspace poll. Each `hook-*.json` is a single hook payload
  * written via tmp+rename; the watcher reads it in name order, hands it off, then
  * DELETES it (the dir is a queue, not a log — bounded growth). Provider-neutral:

@@ -70,7 +70,7 @@ function composerChipModels(view: TaskViewState | null): ComposerChipModel[] {
 }
 
 /** A copied bitmap shows its thumbnail; a reference shows a kind icon — honestly
- *  a pointer to the user's file/folder, not content Duet ingested. */
+ *  a pointer to the user's file/folder, not content Sonata ingested. */
 function attachmentKindIcon(kind: AttachmentKind, size = 18): SVGElement {
   const node = kind === "folder" ? Folder : kind === "image" ? ImageIcon : FileIcon;
   return lucideIcon(node, size);

@@ -63,7 +63,7 @@ interface AttachedSource {
 /**
  * Owns the semantic transcript channel of one Task: discovers the provider
  * session file behind the live PTY, tails it, normalizes records into
- * transcript blocks, attributes turns to Duet Runs, and emits runtime events.
+ * transcript blocks, attributes turns to Sonata Runs, and emits runtime events.
  */
 export class ProviderTranscript {
   private readonly options: ProviderTranscriptOptions;

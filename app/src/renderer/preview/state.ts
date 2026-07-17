@@ -100,20 +100,20 @@ function parentDirName(path: string): string | null {
 }
 
 /**
- * The `duet-file://` URL for a workspace-relative path (design record §4). The
+ * The `sonata-file://` URL for a workspace-relative path (design record §4). The
  * task id is the URL host; each path segment is percent-encoded (spaces/unicode)
  * while the slashes stay real, so main can decode the pathname back to the
  * workspace-relative path. Used both to point a direct image tab's <img> at the
  * protocol and to rewrite relative markdown image sources.
  */
-export function duetFileUrl(taskId: string, relativePath: string): string {
+export function sonataFileUrl(taskId: string, relativePath: string): string {
   const encoded = relativePath.split("/").map(encodeURIComponent).join("/");
-  return `duet-file://${taskId}/${encoded}`;
+  return `sonata-file://${taskId}/${encoded}`;
 }
 
 /**
  * The base URL for resolving a markdown document's relative links/images —
- * `duet-file://<taskId>/<dir-of-file>/`. Replaces VS Code's global `<base href>`
+ * `sonata-file://<taskId>/<dir-of-file>/`. Replaces VS Code's global `<base href>`
  * trick, which is unsafe in this app: the Preview is a single bundled document
  * (vite `base: "./"`, relative asset URLs), so a document-global <base> would
  * hijack the whole app's URL resolution. Instead relative refs resolve
@@ -124,7 +124,7 @@ export function docBaseUrl(taskId: string, docPath: string): string {
   const slash = docPath.lastIndexOf("/");
   const dir = slash >= 0 ? docPath.slice(0, slash + 1) : "";
   const encodedDir = dir.split("/").map(encodeURIComponent).join("/");
-  return `duet-file://${taskId}/${encodedDir}`;
+  return `sonata-file://${taskId}/${encodedDir}`;
 }
 
 /** Human byte count for the binary/too-large typed states. */

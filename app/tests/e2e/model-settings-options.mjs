@@ -7,8 +7,8 @@ import { chooseDraftProvider } from "./helpers/session.mjs";
 
 // Pure launch-settings UI regression: no provider process is started and no
 // model call is made. The test pins the current native option order while
-// preserving Duet's existing single-popover architecture.
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-model-options-e2e-"));
+// preserving Sonata's existing single-popover architecture.
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-model-options-e2e-"));
 let electronApp = null;
 
 try {
@@ -16,8 +16,8 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot,
-      DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot,
+      SONATA_WORKSPACES_DIR: workspaceRoot,
     },
   });
   const page = await electronApp.firstWindow();
@@ -97,8 +97,8 @@ try {
     "Native Default",
   ]);
   assert.deepEqual(await settingOptionLabels(page, "Speed"), ["Standard", "Fast"]);
-  if (process.env.DUET_TEST_SCREENSHOT) {
-    await page.screenshot({ path: process.env.DUET_TEST_SCREENSHOT });
+  if (process.env.SONATA_TEST_SCREENSHOT) {
+    await page.screenshot({ path: process.env.SONATA_TEST_SCREENSHOT });
   }
 
   await settingSection(page, "Reasoning").locator("button", { hasText: "Ultra" }).click();

@@ -3,14 +3,14 @@
  *
  * The payload below is NOT "Claude's" — it is the hook contract both Claude Code
  * and Codex speak, wire-field-for-wire-field (verified 2026-07-06 on codex
- * 0.142.5: same envelope, same values vocabulary, `tool_name:"Bash"`). Duet
+ * 0.142.5: same envelope, same values vocabulary, `tool_name:"Bash"`). Sonata
  * treats it as an emerging industry standard and adopts it verbatim (snake_case
- * wire names, no Duet renames); provider metadata lives OUTSIDE the payload in
+ * wire names, no Sonata renames); provider metadata lives OUTSIDE the payload in
  * `HookEnvelope`.
  *
- * Phase 0 (2026-06-13, real claude 2.1.177 under duet's spawn) established the
+ * Phase 0 (2026-06-13, real claude 2.1.177 under sonata's spawn) established the
  * medium truths this layer is built on:
- *  - Hooks UNION across every settings source, so duet injects its own hooks
+ *  - Hooks UNION across every settings source, so sonata injects its own hooks
  *    into the `--settings` file without clobbering the user's.
  *  - The reliable structured signals are HOOKS, not OSC: `PermissionRequest`
  *    (approval, names the tool), `Stop` (turn end), `UserPromptSubmit` /
@@ -23,7 +23,7 @@
 import type { RuntimeProvider, TaskId } from "./domain";
 
 /**
- * Hook events duet injects + observes. Discriminator = `hook_event_name`.
+ * Hook events sonata injects + observes. Discriminator = `hook_event_name`.
  *
  * The first six — `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
  * `PostToolUse`, `PermissionRequest`, `Stop` — are the shared core BOTH
@@ -31,7 +31,7 @@ import type { RuntimeProvider, TaskId } from "./domain";
  *
  * `SubagentStart` / `SubagentStop` are the subagent lifecycle pair. Codex emits
  * BOTH (verified 0.144.4, S6) with rich payloads (`agent_id`, `agent_type`,
- * `agent_transcript_path`) and Duet feeds them into the status-strip roster;
+ * `agent_transcript_path`) and Sonata feeds them into the status-strip roster;
  * Claude emits only `SubagentStop` (no `SubagentStart`) and its roster is
  * derived from the session file instead, so Claude's `SubagentStop` stays a
  * cli-state no-op. `StopFailure` (structured API error) and `Notification`
@@ -39,7 +39,7 @@ import type { RuntimeProvider, TaskId } from "./domain";
  *
  * `PreCompact` / `PostCompact` are the context-compaction lifecycle pair. Both
  * providers fire them (Codex verified 0.144.4, P2; Claude verified 2.1.210, P3),
- * and Codex now registers them in its sink for signal completeness — but Duet
+ * and Codex now registers them in its sink for signal completeness — but Sonata
  * consumes NEITHER into cli-state or run lifecycle: the Reading compaction marker
  * is TRANSCRIPT-derived (Claude's `system/compact_boundary`, Codex's `compacted`),
  * so it survives resume/replay where an ephemeral hook could not.
@@ -87,7 +87,7 @@ export interface HookPayload {
   /** SubagentStart / SubagentStop (Codex, verified 0.144.4). `agent_id` is the
    *  child agent's stable id (the roster join key); `agent_type` is its kind
    *  ("default" for a plain subagent); `agent_transcript_path` points at the
-   *  child's OWN rollout file — Duet does not read it (future door). */
+   *  child's OWN rollout file — Sonata does not read it (future door). */
   agent_id?: string;
   agent_type?: string;
   agent_transcript_path?: string;
@@ -101,7 +101,7 @@ export interface HookPayload {
 
 /**
  * A provider-stamped hook payload. The `payload` stays the verbatim standard
- * contract (above); everything Duet knows ABOUT it — which provider emitted it,
+ * contract (above); everything Sonata knows ABOUT it — which provider emitted it,
  * which task it belongs to, when we saw it — lives here, OUTSIDE the wire shape,
  * so "aligned with the standard or not" stays greppable forever.
  *

@@ -17,7 +17,7 @@ import type {
 } from "../types/domain";
 
 export const RUNTIME_REPORT_SCHEMA_VERSION = 1 as const;
-export const RUNTIME_REPORT_SCHEMA_ID = "duet.runtime-report.v1" as const;
+export const RUNTIME_REPORT_SCHEMA_ID = "sonata.runtime-report.v1" as const;
 export const RAW_TERMINAL_POLICY = "raw-terminal-not-persisted-by-default" as const;
 
 export interface RuntimeReportV1 {

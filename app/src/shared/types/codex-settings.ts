@@ -1,15 +1,15 @@
 import type { CodexPermissionMode } from "./domain";
 
 /**
- * Duet-owned launch policy for Codex sessions (the Duet mirror of
- * `ClaudeSettings` — this is Duet's standing default, not Codex's own config).
+ * Sonata-owned launch policy for Codex sessions (the Sonata mirror of
+ * `ClaudeSettings` — this is Sonata's standing default, not Codex's own config).
  * `defaultPermissionMode` is the permission preset new Codex sessions launch
  * with, so a user who trusts the direction can set it once instead of answering
  * every command.
  *
  * The vocabulary is Codex 0.144's own `/permissions` picker: "Ask for approval"
  * (workspace-write, ask on escalation), "Approve for me" (auto-review), "Full
- * Access" (danger-full-access). Duet threads this ONE value everywhere above
+ * Access" (danger-full-access). Sonata threads this ONE value everywhere above
  * the spawn seam; terminal-host is the only place it fans back out to the
  * legacy (sandbox × approval × reviewer) flags.
  */
@@ -73,7 +73,7 @@ export function normalizeCodexSettings(value: unknown): CodexSettings {
  * has one, so:
  *  - a record whose `provider` is present and not "codex" ⇒ null (a Claude
  *    manifest persisted explicit `sandbox: null` / `approval: null` — verified
- *    against real ~/.duet manifests — so the null/undefined guard alone is not
+ *    against real ~/.sonata manifests — so the null/undefined guard alone is not
  *    enough; the provider check makes the Claude-null invariant robust);
  *  - a record with neither axis field set (null OR undefined) ⇒ null.
  */

@@ -23,7 +23,7 @@ const DAY = 24 * HOUR;
 let sessionSequence = 0;
 
 function freshState() {
-  return createInitialState({ theme: "duet", mode: "light", textStep: 16 });
+  return createInitialState({ theme: "sonata", mode: "light", textStep: 16 });
 }
 
 function makeSession(

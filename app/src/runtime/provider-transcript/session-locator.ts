@@ -5,7 +5,7 @@ import type { RuntimeProvider } from "../../shared/types/domain";
 import type { TranscriptSourceRef } from "../../shared/types/transcript";
 
 /**
- * Locates the provider-owned session file backing a Duet Task.
+ * Locates the provider-owned session file backing a Sonata Task.
  *
  * Claude Code writes one JSONL per session under
  *   ~/.claude/projects/<cwd-slug>/<session-id>.jsonl

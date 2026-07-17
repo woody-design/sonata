@@ -10,7 +10,7 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { activeSessionTaskId, chooseDraftProvider } from "./helpers/session.mjs";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-cli-start-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-start-"));
 const dataRoot = path.join(root, "data-root");
 const settingsDir = path.join(root, "settings");
 const fakeBin = path.join(root, "bin");
@@ -39,11 +39,11 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: dataRoot,
-      DUET_WORKSPACES_DIR: path.join(root, "workspaces"),
-      DUET_SETTINGS_DIR: settingsDir,
-      DUET_TEST_PICK_FOLDER: project,
-      DUET_NOTIFICATIONS: "0",
+      SONATA_DATA_DIR: dataRoot,
+      SONATA_WORKSPACES_DIR: path.join(root, "workspaces"),
+      SONATA_SETTINGS_DIR: settingsDir,
+      SONATA_TEST_PICK_FOLDER: project,
+      SONATA_NOTIFICATIONS: "0",
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
     },
   });
@@ -94,8 +94,8 @@ try {
   // exactly one task.
   await cli.evaluate(() =>
     Promise.all([
-      window.duetRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
-      window.duetRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
+      window.sonataRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
+      window.sonataRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
     ]),
   );
   const codexTaskId = await waitForActiveTask(main, claudeTaskId);
@@ -112,7 +112,7 @@ try {
   // A stale Start intent while a task is selected is validly shaped but must
   // fail closed in Reading rather than create a third task.
   await cli.evaluate(() =>
-    window.duetRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
+    window.sonataRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
   );
   await new Promise((resolve) => setTimeout(resolve, 200));
   const staleStartRejected = listTaskIds().length === 2;
@@ -158,7 +158,7 @@ try {
       hasArgPair(claudeProjection.argv, "--model", "sonnet") &&
       hasArgPair(claudeProjection.argv, "--effort", "high") &&
       claudeProjection.argv.at(-1) === "--remote-control" &&
-      claudeProjection.duetRuntimeDir === runtimeRoot(claudeTaskId),
+      claudeProjection.sonataRuntimeDir === runtimeRoot(claudeTaskId),
     codexLaunchProjection:
       codexRecord.task.provider === "codex" &&
       codexRecord.task.providerCwd === project &&
@@ -173,7 +173,7 @@ try {
       hasArgPair(codexProjection.argv, "-s", "workspace-write") &&
       hasArgPair(codexProjection.argv, "-a", "on-request") &&
       hasArgPair(codexProjection.argv, "-c", 'approvals_reviewer="auto_review"') &&
-      codexProjection.duetRuntimeDir === runtimeRoot(codexTaskId),
+      codexProjection.sonataRuntimeDir === runtimeRoot(codexTaskId),
     claudeDraftNotDelivered:
       claudeOwnership.text === claudeDraft &&
       claudeOwnership.attachmentCount === 1 &&
@@ -238,9 +238,9 @@ const path = require("node:path");
 const provider = path.basename(process.argv[1]);
 const argv = process.argv.slice(2);
 const settingsIndex = argv.indexOf("--settings");
-const runtimeDir = process.env.DUET_RUNTIME_DIR || (settingsIndex >= 0 ? path.dirname(argv[settingsIndex + 1]) : null);
+const runtimeDir = process.env.SONATA_RUNTIME_DIR || (settingsIndex >= 0 ? path.dirname(argv[settingsIndex + 1]) : null);
 fs.mkdirSync(runtimeDir, { recursive: true });
-fs.writeFileSync(path.join(runtimeDir, "spawn-record.json"), JSON.stringify({ provider, argv, duetRuntimeDir: process.env.DUET_RUNTIME_DIR || null }));
+fs.writeFileSync(path.join(runtimeDir, "spawn-record.json"), JSON.stringify({ provider, argv, sonataRuntimeDir: process.env.SONATA_RUNTIME_DIR || null }));
 if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch {} }
 process.stdin.resume();
 process.stdin.on("data", (chunk) => fs.appendFileSync(path.join(runtimeDir, "stdin.bin"), chunk));

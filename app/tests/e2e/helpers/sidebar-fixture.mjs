@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const TASK_MANIFEST_SCHEMA_ID = "duet.task-manifest.v1";
+const TASK_MANIFEST_SCHEMA_ID = "sonata.task-manifest.v1";
 const RAW_TERMINAL_POLICY = "raw-terminal-not-persisted-by-default";
 
 export const SIDEBAR_FIXED_NOW = "2030-01-15T17:00:00.000Z";
@@ -58,8 +58,8 @@ export function createSidebarFixture(options = {}) {
     throw new Error("archivedChatCount must not exceed chatCount");
   }
 
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-fixture-"));
-  const dataRoot = path.join(root, "duet-data");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-fixture-"));
+  const dataRoot = path.join(root, "sonata-data");
   const settingsRoot = path.join(root, "settings");
   const userDataDir = path.join(root, "electron-user-data");
   const workspacesRoot = path.join(root, "workspaces");
@@ -132,7 +132,7 @@ export function createSidebarFixture(options = {}) {
     folders: overlayFolders,
   });
   writeJson(path.join(settingsRoot, "reading-settings.json"), {
-    theme: "duet",
+    theme: "sonata",
     mode: "light",
     textStep: 16,
   });
@@ -149,9 +149,9 @@ export function createSidebarFixture(options = {}) {
     projects,
     chats,
     env: {
-      DUET_DATA_DIR: dataRoot,
-      DUET_WORKSPACES_DIR: workspacesRoot,
-      DUET_SETTINGS_DIR: settingsRoot,
+      SONATA_DATA_DIR: dataRoot,
+      SONATA_WORKSPACES_DIR: workspacesRoot,
+      SONATA_SETTINGS_DIR: settingsRoot,
     },
     expectations: {
       projectOrder: projectSpecs.filter((project) => project.count > 0).map((project) => project.name),

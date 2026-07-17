@@ -22,9 +22,9 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-local-api-ctrl-"));
-// Isolate every Duet-owned path to temp — NEVER touch the real ~/.duet.
-process.env.DUET_DATA_DIR = path.join(tempRoot, "duet-data");
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-local-api-ctrl-"));
+// Isolate every Sonata-owned path to temp — NEVER touch the real ~/.sonata.
+process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 
 const { RuntimeController } = require("../../dist/main/runtime-controller");
 const { ProjectsStore } = require("../../dist/main/projects-store");
@@ -33,7 +33,7 @@ const {
   ClaudeSettingsStore,
   CodexSettingsStore,
 } = require("../../dist/main/settings-store");
-const { projectRecordRoot } = require("../../dist/main/duet-paths");
+const { projectRecordRoot } = require("../../dist/main/sonata-paths");
 const { freshTaskManifestV1 } = require("../../dist/shared/schemas/task-manifest");
 const { TaskNotFoundError, TaskNotLiveError } = require("../../dist/main/errors");
 

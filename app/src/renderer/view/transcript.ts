@@ -288,7 +288,7 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   }
   // A reply-less completed turn speaks ONLY when it has something actionable
   // to say (an API error excerpt). The plain "returned to the prompt without
-  // a reply" self-narration retired 2026-07-03: it was Duet reporting an
+  // a reply" self-narration retired 2026-07-03: it was Sonata reporting an
   // observation gap (idle-heuristic completion, zero blocks), not user
   // information — the co-visible Terminal already shows what happened, and a
   // slash command producing no reply is simply normal.

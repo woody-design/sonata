@@ -85,14 +85,14 @@ export function commitActiveRename(trigger: RenameCommitTrigger): Promise<Rename
   const flowPromise = commitRenameFlow(state, trigger, {
     renameSession: async (taskId, title) => {
       try {
-        return await window.duetRuntime.renameSession({ taskId, title });
+        return await window.sonataRuntime.renameSession({ taskId, title });
       } catch (error) {
         throw asRenameTransportFailure(error);
       }
     },
     renameProject: async (path, displayName) => {
       try {
-        return await window.duetRuntime.renameProject({ path, displayName });
+        return await window.sonataRuntime.renameProject({ path, displayName });
       } catch (error) {
         throw asRenameTransportFailure(error);
       }

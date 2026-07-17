@@ -14,13 +14,13 @@ const { ensureClaudeRuntimeSettings, claudeHooksDirectory, HookWatcher } = requi
 const { CliStateModel } = require(path.join(distRoot, "runtime/cli-signal/cli-state"));
 const hookSinkJs = path.join(distRoot, "runtime/cli-signal/hook-sink.js");
 
-const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "duet-hooksink-"));
+const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-hooksink-"));
 
 // ── 1) Merge-safe settings injection ────────────────────────────────────────
-// duet writes ONLY its own statusLine + hooks into the --settings file; it never
+// sonata writes ONLY its own statusLine + hooks into the --settings file; it never
 // reads or embeds the user's hooks. Phase 0 proved Claude UNIONs hooks across
 // all settings sources live (user + project + --settings all fired), so writing
-// duet-only entries here cannot clobber the user's hooks — the non-clobber is a
+// sonata-only entries here cannot clobber the user's hooks — the non-clobber is a
 // property of NOT managing them, plus Claude's union. Here we assert the shape.
 const settingsPath = ensureClaudeRuntimeSettings(cwd);
 const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
@@ -28,17 +28,17 @@ assert.ok(settings.statusLine?.command, "statusLine coexists in the injected fil
 assert.ok(settings.statusLine.command.includes("claude-statusline-sink.js"), "statusLine → usage sink");
 for (const event of ["UserPromptSubmit", "PreToolUse", "Stop"]) {
   const groups = settings.hooks?.[event];
-  assert.ok(Array.isArray(groups) && groups.length === 1, `${event} has exactly one duet group`);
+  assert.ok(Array.isArray(groups) && groups.length === 1, `${event} has exactly one sonata group`);
   const cmds = groups.flatMap((g) => g.hooks.map((h) => h.command));
-  assert.equal(cmds.length, 1, `${event} injects exactly one duet command (no user clobber)`);
-  assert.ok(cmds[0].includes("hook-sink.js"), `${event} → duet hook sink`);
+  assert.equal(cmds.length, 1, `${event} injects exactly one sonata command (no user clobber)`);
+  assert.ok(cmds[0].includes("hook-sink.js"), `${event} → sonata hook sink`);
 }
 // PermissionRequest is owned by the approval broker (S2b), not the sink.
 {
   const groups = settings.hooks?.PermissionRequest;
-  assert.ok(Array.isArray(groups) && groups.length === 1, "PermissionRequest has one duet group");
+  assert.ok(Array.isArray(groups) && groups.length === 1, "PermissionRequest has one sonata group");
   const cmds = groups.flatMap((g) => g.hooks.map((h) => h.command));
-  assert.equal(cmds.length, 1, "PermissionRequest injects exactly one duet command");
+  assert.equal(cmds.length, 1, "PermissionRequest injects exactly one sonata command");
   assert.ok(cmds[0].includes("approval-broker.js"), "PermissionRequest → approval broker (S2b)");
 }
 

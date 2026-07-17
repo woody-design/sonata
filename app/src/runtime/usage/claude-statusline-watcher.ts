@@ -16,7 +16,7 @@ interface FileState {
 }
 
 /**
- * Polls Duet-owned Claude statusline sink files. Polling mirrors JsonlTailer:
+ * Polls Sonata-owned Claude statusline sink files. Polling mirrors JsonlTailer:
  * cheap, predictable, and insensitive to tmp+rename behavior.
  */
 export class ClaudeStatuslineUsageWatcher {

@@ -1,5 +1,5 @@
 // G1b — the authoritative in-app confirmation for D8: Claude's hooks/usage/settings
-// live OUTSIDE the agent cwd (~/.duet/data/runtime/<taskId>), and the live app still
+// live OUTSIDE the agent cwd (~/.sonata/data/runtime/<taskId>), and the live app still
 // detects turn-end from them. A real Claude turn (driven through the normal composer
 // send path) whose run completes with completionSource "hook-stop" proves the whole
 // chain: Claude fires the Stop hook from a --settings file outside its cwd → into the
@@ -12,9 +12,9 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { sendFirstPrompt } from "./helpers/session.mjs";
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-g1b-data-"));
-const workspacesDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-g1b-workspaces-"));
-const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-g1b-folder-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-g1b-data-"));
+const workspacesDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-g1b-workspaces-"));
+const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-g1b-folder-"));
 let electronApp = null;
 
 try {
@@ -27,9 +27,9 @@ try {
   // Stop hook deliberately won't complete a run while one is pending). This is what the
   // user does by clicking approve — it does not weaken the hook test.
   await page.evaluate(() => {
-    window.duetRuntime.onRuntimeEvent((event) => {
+    window.sonataRuntime.onRuntimeEvent((event) => {
       if (event.type === "approval:detected") {
-        void window.duetRuntime.decideApproval({
+        void window.sonataRuntime.decideApproval({
           taskId: event.payload.taskId,
           decision: "approve-always",
         });
@@ -49,7 +49,7 @@ try {
 
   await page.locator('.turn-card[data-run-status="completed"]').waitFor({ state: "visible" });
 
-  // Read the completed run's provenance from the report (records live in ~/.duet).
+  // Read the completed run's provenance from the report (records live in ~/.sonata).
   const projectsDir = path.join(dataRoot, "data", "projects");
   const taskId = fs
     .readdirSync(projectsDir)
@@ -65,7 +65,7 @@ try {
     completionSource: completedRun?.completionSource ?? null,
     completionConfidence: completedRun?.completionConfidence ?? null,
     runCount: report.runs.length,
-    selectedFolderHasDuet: fs.existsSync(path.join(selectedFolder, ".duet")),
+    selectedFolderHasSonata: fs.existsSync(path.join(selectedFolder, ".sonata")),
     settingsAtRuntimeDir: fs.existsSync(path.join(runtimeDir, "claude-runtime-settings.json")),
     hooksDirAtRuntimeDir: fs.existsSync(path.join(runtimeDir, "hooks")),
     usageDirAtRuntimeDir: fs.existsSync(path.join(runtimeDir, "usage")),
@@ -73,7 +73,7 @@ try {
 
   const success =
     completedRun?.completionSource === "hook-stop" &&
-    !result.selectedFolderHasDuet &&
+    !result.selectedFolderHasSonata &&
     result.settingsAtRuntimeDir &&
     result.hooksDirAtRuntimeDir;
 
@@ -93,9 +93,9 @@ async function launchApp() {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: dataRoot,
-      DUET_WORKSPACES_DIR: workspacesDir,
-      DUET_TEST_PICK_FOLDER: selectedFolder,
+      SONATA_DATA_DIR: dataRoot,
+      SONATA_WORKSPACES_DIR: workspacesDir,
+      SONATA_TEST_PICK_FOLDER: selectedFolder,
     },
   });
   const page = await electronApp.firstWindow();

@@ -21,7 +21,7 @@ const distRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "
 const brokerJs = path.join(distRoot, "runtime/cli-signal/approval-broker.js");
 const { ensureClaudeRuntimeSettings } = require(path.join(distRoot, "runtime/cli-signal"));
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "duet-broker-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-broker-"));
 
 function runBroker(payload, { timeoutMs = 5_000, onAsk } = {}) {
   return new Promise((resolve, reject) => {

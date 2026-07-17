@@ -1,5 +1,5 @@
 // Slice B: referencing a FILE and a FOLDER via the Add button (the native picker
-// is stubbed by DUET_TEST_PICK_REFERENCES). References are NEVER copied (no blob),
+// is stubbed by SONATA_TEST_PICK_REFERENCES). References are NEVER copied (no blob),
 // chip as kind icons (not thumbnails), and deliver as a path mention folded into
 // the prompt text. The user's originals are never touched (Invariant 4).
 
@@ -10,15 +10,15 @@ import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
 import { waitForCompletedTurns } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-ref-attach-"));
-const evidenceRoot = process.env.DUET_EVIDENCE_DIR ?? path.join(workspaceRoot, "evidence");
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-ref-attach-"));
+const evidenceRoot = process.env.SONATA_EVIDENCE_DIR ?? path.join(workspaceRoot, "evidence");
 fs.mkdirSync(evidenceRoot, { recursive: true });
 
 let electronApp = null;
 const checks = {};
 
 try {
-  // The user's own file + folder, at a spacey path, OUTSIDE Duet's data dir.
+  // The user's own file + folder, at a spacey path, OUTSIDE Sonata's data dir.
   const userDir = path.join(workspaceRoot, "user docs");
   const refImage = path.join(userDir, "shot.png");
   const refFile = path.join(userDir, "report.pdf");
@@ -36,9 +36,9 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot,
-      DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_TEST_PICK_REFERENCES: `${refImage}\n${refFile}\n${refFolder}\n${missing}`,
+      SONATA_DATA_DIR: workspaceRoot,
+      SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_TEST_PICK_REFERENCES: `${refImage}\n${refFile}\n${refFolder}\n${missing}`,
     },
   });
   const page = await electronApp.firstWindow();
@@ -79,7 +79,7 @@ try {
   await page.screenshot({ path: path.join(evidenceRoot, "reference-chips.png"), fullPage: true });
 
   // Send -> session is created, references fold into the prompt text and deliver.
-  await page.locator("#prompt-input").fill("Reply exactly DUET_REF_RECEIPT. Do not create or modify any files.");
+  await page.locator("#prompt-input").fill("Reply exactly SONATA_REF_RECEIPT. Do not create or modify any files.");
   await page.locator("#send-prompt").click();
   // S4 pre-trusts the auto workspace — the banner normally never comes; the
   // short wait is fallback tolerance, not the expected path.

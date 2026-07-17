@@ -2,11 +2,11 @@
 //
 // Proves the codex resume chain closes the loop the plan describes:
 //   persisted transcript-sources tail → resumeRef → respawn `codex resume <ref>
-//   -p duet` → SessionStart re-fires source:"resume" → handshake re-adoption
+//   -p sonata` → SessionStart re-fires source:"resume" → handshake re-adoption
 //   (identity preserved, no fork) → the rollout continues and re-tails.
 //
 // The fake `codex` (helpers/fake-codex-source.mjs) records its argv (so we can
-// read the resume positional + `-p duet`) and, on a resume spawn, APPENDS a
+// read the resume positional + `-p sonata`) and, on a resume spawn, APPENDS a
 // fresh line to the same rollout (so the reopened tailer has something new to
 // surface). Real codex needs a human trust ceremony + auth; that live pass is
 // run separately (spikes probe-home method).
@@ -16,10 +16,10 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { FAKE_CODEX_SOURCE } from "./helpers/fake-codex-source.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-resume-e2e-"));
-const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-home-"));
-const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-fake-bin-"));
-const folder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-resume-folder-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-resume-e2e-"));
+const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-home-"));
+const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-fake-bin-"));
+const folder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-resume-folder-"));
 
 const fakeCodex = path.join(fakeBinDir, "codex");
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
@@ -33,8 +33,8 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot,
-      DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot,
+      SONATA_WORKSPACES_DIR: workspaceRoot,
       CODEX_HOME: codexHome,
       PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
     },
@@ -45,7 +45,7 @@ try {
 
   // --- 1. Fresh codex session: adopt identity via the startup handshake --------
   const created = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "codex", cwd }),
     folder,
   );
   const taskId = created.task.id;
@@ -61,7 +61,7 @@ try {
   const initialSource = readLastSessionStart(taskId)?.source ?? null;
 
   // --- 2. Close the session — the PTY dies, the binding persists ----------------
-  await page.evaluate(async (id) => window.duetRuntime.closeTask({ taskId: id }), taskId);
+  await page.evaluate(async (id) => window.sonataRuntime.closeTask({ taskId: id }), taskId);
   // The reopen must observe a genuinely NEW spawn. The startup spawn wrote
   // resumeArg:null; wait until the record is superseded by the resume spawn.
   await waitFor(
@@ -70,7 +70,7 @@ try {
     "resume spawn superseding the startup spawn-record",
     // Kick the reopen once the close has settled.
     async () => {
-      await page.evaluate(async (id) => window.duetRuntime.openTask({ taskId: id, resume: true }), taskId);
+      await page.evaluate(async (id) => window.sonataRuntime.openTask({ taskId: id, resume: true }), taskId);
     },
   );
 
@@ -92,7 +92,7 @@ try {
   await waitFor(
     async () => {
       const transcript = await page.evaluate(
-        async (id) => window.duetRuntime.readTranscript({ taskId: id }),
+        async (id) => window.sonataRuntime.readTranscript({ taskId: id }),
         taskId,
       );
       transcriptContinues = (transcript?.blocks ?? []).some((block) =>

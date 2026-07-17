@@ -2,7 +2,7 @@
 //
 // Guards two seams:
 //  A. The scheme vocabulary: every advertised TermSchemeId round-trips the
-//     normalizer, and the default is duet.
+//     normalizer, and the default is sonata.
 //  B. The pre-scheme MIGRATION: records persisted before the scheme axis
 //     carried `theme` (a reading-theme id — by then a no-op axis). They must
 //     silently land on the default scheme while PRESERVING open + mode, and
@@ -28,7 +28,7 @@ function check(name, condition) {
 }
 
 // A. Vocabulary round-trip.
-check("default scheme is duet", DEFAULT_TERMINAL_WINDOW_SETTINGS.scheme === "duet");
+check("default scheme is sonata", DEFAULT_TERMINAL_WINDOW_SETTINGS.scheme === "sonata");
 for (const scheme of TERM_SCHEME_IDS) {
   const normalized = normalizeTerminalWindowSettings({ open: false, scheme, mode: "dark" });
   check(`scheme ${scheme} round-trips`, normalized.scheme === scheme);
@@ -40,7 +40,7 @@ check("guard rejects a reading-theme id", !isTermSchemeId("paper"));
 // Font-size ladder round-trip; default is the pre-M2 hardcoded 13.
 check("default font size is 13", DEFAULT_TERMINAL_WINDOW_SETTINGS.fontSize === 13);
 for (const fontSize of TERM_FONT_SIZES) {
-  const normalized = normalizeTerminalWindowSettings({ open: true, scheme: "duet", fontSize });
+  const normalized = normalizeTerminalWindowSettings({ open: true, scheme: "sonata", fontSize });
   check(`fontSize ${fontSize} round-trips`, normalized.fontSize === fontSize);
 }
 for (const bad of [10, 17, 13.5, "13", null]) {
@@ -56,13 +56,13 @@ check(
 );
 
 // B. Pre-scheme record migration (theme was the no-op reading-theme axis).
-for (const legacyTheme of ["duet", "paper", "calm", "focus"]) {
+for (const legacyTheme of ["sonata", "paper", "calm", "focus"]) {
   const migrated = normalizeTerminalWindowSettings({
     open: false,
     theme: legacyTheme,
     mode: "light",
   });
-  check(`legacy theme=${legacyTheme} lands on duet`, migrated.scheme === "duet");
+  check(`legacy theme=${legacyTheme} lands on sonata`, migrated.scheme === "sonata");
   check(
     `legacy theme=${legacyTheme} preserves open/mode`,
     !migrated.open && migrated.mode === "light",
@@ -71,7 +71,7 @@ for (const legacyTheme of ["duet", "paper", "calm", "focus"]) {
 }
 
 // Garbage tolerance (the store may hold anything).
-for (const garbage of [null, 7, "duet", [], { scheme: "dracula" }, { scheme: 3, mode: "loud" }]) {
+for (const garbage of [null, 7, "sonata", [], { scheme: "dracula" }, { scheme: 3, mode: "loud" }]) {
   const normalized = normalizeTerminalWindowSettings(garbage);
   check(
     `garbage ${JSON.stringify(garbage)} → defaults`,

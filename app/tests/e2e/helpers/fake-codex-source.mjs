@@ -1,10 +1,10 @@
 // The source of the fake `codex` binary used by codex control-plane e2es.
 // Exported as a string so the test writes it to a temp PATH dir + chmods it.
 //
-// It stands in for the real Codex TUI just enough to exercise Duet's S2 wiring:
-//   - records its argv + DUET_RUNTIME_DIR to prove `-p duet` and the per-task
+// It stands in for the real Codex TUI just enough to exercise Sonata's S2 wiring:
+//   - records its argv + SONATA_RUNTIME_DIR to prove `-p sonata` and the per-task
 //     env binding reached the spawn;
-//   - UNLESS a `DUET_FAKE_SILENT` marker exists in its cwd, emits a SessionStart
+//   - UNLESS a `SONATA_FAKE_SILENT` marker exists in its cwd, emits a SessionStart
 //     hook (a rollout file + the `hook-*.json` tmp+rename payload the sink shim
 //     would write) — the handshake that carries identity + proves liveness;
 //   - stays alive so the PTY does not exit (which would end the run).
@@ -16,9 +16,9 @@ const path = require("node:path");
 const argv = process.argv.slice(2);
 const cIndex = argv.indexOf("-C");
 const cwd = cIndex >= 0 && argv[cIndex + 1] ? argv[cIndex + 1] : process.cwd();
-const runtimeDir = process.env.DUET_RUNTIME_DIR;
+const runtimeDir = process.env.SONATA_RUNTIME_DIR;
 // A native resume reads \`codex resume <ref>\` as the leading positional (see
-// codexArgs). Capture the ref so a reopen fence can prove Duet reconstructed it
+// codexArgs). Capture the ref so a reopen fence can prove Sonata reconstructed it
 // from the persisted transcript-sources tail; startup spawns have neither.
 const isResume = argv[0] === "resume";
 const resumeArg = isResume ? (argv[1] ?? null) : null;
@@ -28,17 +28,17 @@ if (runtimeDir) {
     fs.mkdirSync(runtimeDir, { recursive: true });
     fs.writeFileSync(
       path.join(runtimeDir, "spawn-record.json"),
-      JSON.stringify({ argv, duetRuntimeDir: runtimeDir, cwd, resumeArg, hasProfileFlag: argv.includes("-p") && argv[argv.indexOf("-p") + 1] === "duet" }),
+      JSON.stringify({ argv, sonataRuntimeDir: runtimeDir, cwd, resumeArg, hasProfileFlag: argv.includes("-p") && argv[argv.indexOf("-p") + 1] === "sonata" }),
     );
   } catch (_e) {}
 }
 
 const has = (marker) => { try { return fs.existsSync(path.join(cwd, marker)); } catch (_e) { return false; } };
-const silent = has("DUET_FAKE_SILENT") || has("DUET_FAKE_EXIT");
+const silent = has("SONATA_FAKE_SILENT") || has("SONATA_FAKE_EXIT");
 
 // A crash/quit stand-in: exit before the liveness window elapses, emitting no
 // hook — the PTY exit must retire the pending liveness so no banner appears.
-if (has("DUET_FAKE_EXIT")) {
+if (has("SONATA_FAKE_EXIT")) {
   setTimeout(() => process.exit(0), 800);
 }
 
@@ -62,7 +62,7 @@ if (runtimeDir && !silent) {
       );
     }
     // Observable proof of the emitted handshake source (hook files are consumed
-    // by Duet's watcher, so a durable marker lets the fence read it).
+    // by Sonata's watcher, so a durable marker lets the fence read it).
     try {
       fs.writeFileSync(path.join(runtimeDir, "last-session-start.json"), JSON.stringify({ source: isResume ? "resume" : "startup", sessionId }));
     } catch (_e) {}
@@ -88,29 +88,29 @@ if (runtimeDir && !silent) {
 }
 
 // Stay alive — a real TUI holds the PTY open until the user quits. Raw mode
-// (like a real TUI) so PTY input surfaces as data events byte-by-byte — Duet
+// (like a real TUI) so PTY input surfaces as data events byte-by-byte — Sonata
 // terminates prompts with CSI-u Enter (\\x1b[13u), not a newline, so a
 // canonical-mode TTY would line-buffer them forever and never emit "data".
 if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch (_e) {} }
 process.stdin.resume();
-// Record what Duet writes to the PTY (delivered prompts, answer keys) so a test
+// Record what Sonata writes to the PTY (delivered prompts, answer keys) so a test
 // can prove a send actually reached the CLI — i.e. the delivery gate was open.
 process.stdin.on("data", (chunk) => {
   try {
-    fs.appendFileSync(path.join(cwd, "DUET_FAKE_STDIN.log"), chunk);
+    fs.appendFileSync(path.join(cwd, "SONATA_FAKE_STDIN.log"), chunk);
   } catch (_e) {}
 });
 setInterval(() => {}, 1 << 30);
 
 // --- S3 approval flow (opt-in) ---------------------------------------------
-// When DUET_FAKE_BROKER_SHIM is set, poll cwd for a DUET_FAKE_ASK.json trigger.
+// When SONATA_FAKE_BROKER_SHIM is set, poll cwd for a SONATA_FAKE_ASK.json trigger.
 // On trigger: emit a UserPromptSubmit hook (busy), spawn the REAL generated
 // broker shim with a PermissionRequest payload (the path a live Codex takes —
-// the shim holds, surfaces ask-<id>.json, and echoes Duet's reply), then on the
+// the shim holds, surfaces ask-<id>.json, and echoes Sonata's reply), then on the
 // broker's exit record its stdout (the decision, or empty on native fallback)
-// and emit a Stop hook (turn-ended). This exercises Duet's full card→reply
+// and emit a Stop hook (turn-ended). This exercises Sonata's full card→reply
 // channel, the busy/turn-end cli-state, and the expiry→native-fallback path.
-const brokerShim = process.env.DUET_FAKE_BROKER_SHIM;
+const brokerShim = process.env.SONATA_FAKE_BROKER_SHIM;
 if (runtimeDir && brokerShim) {
   const { spawn } = require("node:child_process");
   const emitHook = (payload) => {
@@ -126,7 +126,7 @@ if (runtimeDir && brokerShim) {
   const sessionId = "codexsess-" + path.basename(runtimeDir);
   const rolloutPath = path.join(runtimeDir, "rollout-" + sessionId + ".jsonl");
   const base = { session_id: sessionId, transcript_path: rolloutPath, cwd: cwd, model: "gpt-5.5", permission_mode: "default" };
-  const triggerPath = path.join(cwd, "DUET_FAKE_ASK.json");
+  const triggerPath = path.join(cwd, "SONATA_FAKE_ASK.json");
   let handling = false;
   setInterval(() => {
     if (handling) return;
@@ -152,13 +152,13 @@ if (runtimeDir && brokerShim) {
         tool_input: trigger.tool_input || { command: "echo hi", description: "Allow this?" },
       };
       const child = spawn("node", [brokerShim], {
-        env: { ...process.env, DUET_RUNTIME_DIR: runtimeDir, DUET_BROKER_HOLD_MS: String(trigger.holdMs || 60000) },
+        env: { ...process.env, SONATA_RUNTIME_DIR: runtimeDir, SONATA_BROKER_HOLD_MS: String(trigger.holdMs || 60000) },
       });
       let out = "";
       child.stdout.on("data", (c) => { out += c.toString(); });
       child.on("close", () => {
         try {
-          fs.writeFileSync(path.join(cwd, "DUET_FAKE_ASK_RESULT.json"), JSON.stringify({ stdout: out }));
+          fs.writeFileSync(path.join(cwd, "SONATA_FAKE_ASK_RESULT.json"), JSON.stringify({ stdout: out }));
         } catch (_e) {}
         // A card answer (allow/deny) ends the turn → Stop. A broker timeout
         // (empty stdout) means Codex's NATIVE card is now up and the turn is
@@ -176,7 +176,7 @@ if (runtimeDir && brokerShim) {
         } else if (trigger.afterExpiry === "quiescence") {
           // Simulate: an API-failed turn after the expiry — NO Stop ever fires;
           // the composer just returns. Paint a codex idle composer to stdout so
-          // Duet's D6 quiescence net (checkCompletionHeuristic) closes the run.
+          // Sonata's D6 quiescence net (checkCompletionHeuristic) closes the run.
           setTimeout(() => {
             try {
               process.stdout.write("• Working (1s · esc to interrupt)\\r\\ngpt-5.5 · medium\\r\\n\\u203a \\r\\n");

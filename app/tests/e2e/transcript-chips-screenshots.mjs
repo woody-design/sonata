@@ -20,12 +20,12 @@ const evidenceDir = path.resolve(
 );
 fs.mkdirSync(evidenceDir, { recursive: true });
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-chips-shots-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-chips-shots-"));
 const launchEnv = {
   ...process.env,
-  DUET_DATA_DIR: dataRoot,
-  DUET_WORKSPACES_DIR: dataRoot,
-  DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+  SONATA_DATA_DIR: dataRoot,
+  SONATA_WORKSPACES_DIR: dataRoot,
+  SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
 };
 
 const shots = [];
@@ -36,7 +36,7 @@ try {
   page.setDefaultTimeout(180000);
 
   await sendFirstPrompt(page, [
-    "Reply exactly DUET_CHIPS_SHOTS_READY.",
+    "Reply exactly SONATA_CHIPS_SHOTS_READY.",
     "Do not create or modify any files.",
   ]);
   const taskId = await activeSessionTaskId(page);

@@ -12,7 +12,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { TerminalHost } = require("../../dist/runtime");
 
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-env-scrub-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-env-scrub-"));
 const scriptPath = path.join(workspace, "print-env.mjs");
 const envDumpPath = path.join(workspace, "env.json");
 
@@ -33,11 +33,11 @@ setTimeout(() => {}, 5000);
   "utf8",
 );
 
-// Simulate a Duet that was itself launched from inside a Claude Code session.
+// Simulate a Sonata that was itself launched from inside a Claude Code session.
 process.env.CLAUDECODE = "1";
 process.env.CLAUDE_CODE_ENTRYPOINT = "cli";
 process.env.CLAUDE_CODE_SSE_PORT = "12345";
-process.env.CLAUDE_CONFIG_DIR = "/tmp/duet-smoke-keepme";
+process.env.CLAUDE_CONFIG_DIR = "/tmp/sonata-smoke-keepme";
 
 const host = new TerminalHost({
   taskId: "task-env-scrub-smoke",
@@ -63,7 +63,7 @@ try {
     childEnv.CLAUDECODE === null &&
     childEnv.CLAUDE_CODE_ENTRYPOINT === null &&
     childEnv.CLAUDE_CODE_SSE_PORT === null &&
-    childEnv.CLAUDE_CONFIG_DIR === "/tmp/duet-smoke-keepme" &&
+    childEnv.CLAUDE_CONFIG_DIR === "/tmp/sonata-smoke-keepme" &&
     childEnv.TERM === "xterm-256color";
 
   console.log(JSON.stringify({ success, childEnv }, null, 2));

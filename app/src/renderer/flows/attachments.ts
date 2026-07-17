@@ -63,7 +63,7 @@ export async function pickAndAddReferences(): Promise<void> {
   }
   render();
   try {
-    const paths = await window.duetRuntime.pickReferences();
+    const paths = await window.sonataRuntime.pickReferences();
     if (paths.length > 0) {
       await addReferences(paths, owner);
     }
@@ -98,7 +98,7 @@ export async function intakeFiles(files: File[]): Promise<void> {
   const referencePaths: string[] = [];
   try {
     for (const file of files) {
-      const filePath = window.duetRuntime.getPathForFile(file);
+      const filePath = window.sonataRuntime.getPathForFile(file);
       if (filePath) {
         referencePaths.push(filePath);
       } else if (isSupportedImageFile(file)) {
@@ -146,7 +146,7 @@ function addBitmaps(list: ComposerAttachment[], files: File[]): void {
 async function addReferences(paths: string[], owner: ComposerOwner): Promise<void> {
   let references: ReferenceResult[];
   try {
-    references = await window.duetRuntime.createReference({ paths });
+    references = await window.sonataRuntime.createReference({ paths });
   } catch (error) {
     setComposerOwnerStatus(owner, errorMessage(error));
     return;
@@ -249,7 +249,7 @@ export async function materializeAttachments(
       const file = item.file as File;
       const bytes = await file.arrayBuffer();
       attachments.push(
-        await window.duetRuntime.createAttachment({
+        await window.sonataRuntime.createAttachment({
           taskId,
           originalName: file.name,
           mediaType: file.type,

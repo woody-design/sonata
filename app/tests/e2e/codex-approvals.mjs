@@ -4,7 +4,7 @@
 // `codex` on PATH (helpers/fake-codex-source.mjs) drives the REAL generated
 // broker shim: on a trigger it emits a UserPromptSubmit hook (busy), spawns the
 // broker with a PermissionRequest payload (the shim holds, surfaces ask-<id>,
-// echoes Duet's reply), records the broker's stdout, then emits Stop
+// echoes Sonata's reply), records the broker's stdout, then emits Stop
 // (turn-ended). This fence holds four S3 contracts:
 //   1. ALLOW — the card renders (copy = tool_input.description), clicking
 //      Approve writes the Codex allow decision, and the broker echoes it to the
@@ -13,7 +13,7 @@
 //   3. Durable report — the approval detected + decision reach runtime-report.json
 //      (verify the EFFECT, not the ask-file — the S6-sibling lesson).
 //   4. EXPIRY → native fallback — an unanswered ask times out: the broker emits
-//      NO stdout (Codex's native card takes over) and Duet clears the hook card
+//      NO stdout (Codex's native card takes over) and Sonata clears the hook card
 //      and raises the approval-expired banner.
 import fs from "node:fs";
 import os from "node:os";
@@ -28,18 +28,18 @@ const { codexBrokerDecisionJson } = require("../../dist/runtime/providers/codex/
 const ALLOW_JSON = JSON.stringify(codexBrokerDecisionJson("approve"));
 const DENY_JSON = JSON.stringify(codexBrokerDecisionJson("deny"));
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-appr-e2e-"));
-const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-appr-home-"));
-const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-appr-bin-"));
-const folderAllow = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-appr-allow-"));
-const folderDeny = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-appr-deny-"));
-const folderExpire = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-appr-expire-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-appr-e2e-"));
+const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-appr-home-"));
+const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-appr-bin-"));
+const folderAllow = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-appr-allow-"));
+const folderDeny = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-appr-deny-"));
+const folderExpire = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-appr-expire-"));
 
 const fakeCodex = path.join(fakeBinDir, "codex");
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
 fs.chmodSync(fakeCodex, 0o755);
 
-// The generated broker shim the fake will drive (Duet writes it at spawn-prep).
+// The generated broker shim the fake will drive (Sonata writes it at spawn-prep).
 const brokerShimPath = path.join(workspaceRoot, "bin", "codex-approval-broker.js");
 
 let electronApp = null;
@@ -50,11 +50,11 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot,
-      DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot,
+      SONATA_WORKSPACES_DIR: workspaceRoot,
       CODEX_HOME: codexHome,
       // The fake reads this to find the real broker shim (spawn env inherits it).
-      DUET_FAKE_BROKER_SHIM: brokerShimPath,
+      SONATA_FAKE_BROKER_SHIM: brokerShimPath,
       PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
     },
   });
@@ -157,7 +157,7 @@ try {
 
 async function createCodexTask(page, cwd) {
   const created = await page.evaluate(
-    async (dir) => window.duetRuntime.createTask({ provider: "codex", cwd: dir }),
+    async (dir) => window.sonataRuntime.createTask({ provider: "codex", cwd: dir }),
     cwd,
   );
   // The SessionStart handshake writes transcript-sources.json — wait for it so
@@ -167,11 +167,11 @@ async function createCodexTask(page, cwd) {
 }
 
 function writeTrigger(cwd, trigger) {
-  fs.writeFileSync(path.join(cwd, "DUET_FAKE_ASK.json"), JSON.stringify(trigger));
+  fs.writeFileSync(path.join(cwd, "SONATA_FAKE_ASK.json"), JSON.stringify(trigger));
 }
 
 async function waitForResult(cwd) {
-  const resultPath = path.join(cwd, "DUET_FAKE_ASK_RESULT.json");
+  const resultPath = path.join(cwd, "SONATA_FAKE_ASK_RESULT.json");
   await waitFor(() => fs.existsSync(resultPath), 30000, "broker result");
   return JSON.parse(fs.readFileSync(resultPath, "utf8"));
 }

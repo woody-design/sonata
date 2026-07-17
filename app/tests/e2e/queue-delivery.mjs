@@ -5,12 +5,12 @@ import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.mjs";
 import { sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-queue-delivery-e2e-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-queue-delivery-e2e-"));
 // Without an isolated settings dir, the global lastUsedFolder leaks in as the
 // provider cwd, so the command's flag files land outside workspaceRoot and the
-// test times out waiting for "first command start" (see memory: duet-e2e-test
+// test times out waiting for "first command start" (see memory: sonata-e2e-test
 // -isolation). Isolate settings too.
-const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-queue-delivery-settings-"));
+const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-queue-delivery-settings-"));
 let electronApp = null;
 let page = null;
 let workspace = null;
@@ -22,8 +22,8 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsDir,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsDir,
     },
   });
 
@@ -68,7 +68,7 @@ try {
   await waitForEngagement(page);
 
   // Send-is-send (S1c/S6): a mid-turn send writes straight through into the
-  // CLI's native queue — there is no Duet-side queue panel to observe (the
+  // CLI's native queue — there is no Sonata-side queue panel to observe (the
   // .delivery-item DOM died with it). The observable contract is the
   // outcome: the second run happens AFTER the first, its artifact lands,
   // and the report orders them.

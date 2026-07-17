@@ -5,7 +5,7 @@ import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval } from "./helpers/approval.mjs";
 import { activeSessionTaskId, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-change-summary-e2e-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-change-summary-e2e-"));
 let electronApp = null;
 let page = null;
 let taskId = null;
@@ -15,7 +15,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
     },
   });
 

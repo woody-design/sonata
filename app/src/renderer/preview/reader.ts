@@ -4,14 +4,14 @@ import { marked } from "marked";
 import { BookOpen, FileX, Image as ImageIcon, FileWarning } from "lucide";
 import { lucideIcon } from "../view/icons";
 import type { PreviewDocument } from "../../shared/types";
-import { activePath, docBaseUrl, duetFileUrl, formatBytes, type PreviewViewState } from "./state";
+import { activePath, docBaseUrl, sonataFileUrl, formatBytes, type PreviewViewState } from "./state";
 
 /**
  * The reading surface (design record §4/§6.2). Presenters are the only
  * polymorphism: a data-directed table keyed by document `kind`, no class
  * hierarchy. S2 lands the document-scale markdown render — `marked` + `DOMPurify`
  * (the transcript's audited pipeline) into a document-scale stylesheet, local
- * images through the `duet-file://` protocol, and live morphing that holds the
+ * images through the `sonata-file://` protocol, and live morphing that holds the
  * reader's position. Everything is read-only but always selectable.
  */
 
@@ -128,7 +128,7 @@ function presentMarkdown(doc: PreviewDocument, ctx: ReaderContext): HTMLElement 
     markdownSanitizerConfig,
   );
   // Post-sanitize enhancements — NEVER routed back through DOMPurify: resolve
-  // relative image sources onto the duet-file protocol, and slug heading ids so
+  // relative image sources onto the sonata-file protocol, and slug heading ids so
   // that #fragment links have a target. Relative LINK clicks are intercepted in
   // the composition root (it holds the scroll box + current doc path).
   resolveDocImages(article, ctx, doc.path);
@@ -200,7 +200,7 @@ function presentImage(doc: PreviewDocument, ctx: ReaderContext): HTMLElement {
   img.className = "preview-image";
   // Direct image tabs stream from disk via the protocol (no base64 IPC payload,
   // no size cap).
-  img.src = duetFileUrl(ctx.taskId, doc.path);
+  img.src = sonataFileUrl(ctx.taskId, doc.path);
   img.alt = doc.name;
   wrap.append(img);
   return wrap;
@@ -215,7 +215,7 @@ function presentTombstone(doc: PreviewDocument): HTMLElement {
 // ── Post-sanitize enhancements ────────────────────────────────────────────────
 
 /**
- * Rewrite relative markdown image sources onto the duet-file protocol so they
+ * Rewrite relative markdown image sources onto the sonata-file protocol so they
  * paint from disk. Absolute http(s) sources are left untouched (CSP blocks them
  * — the threat model gives agent-written markdown no remote-fetch channel); data:
  * URLs pass through (CSP-allowed). Resolution against the doc's base URL is the
@@ -238,7 +238,7 @@ function resolveDocImages(root: HTMLElement, ctx: ReaderContext, docPath: string
     } catch {
       continue;
     }
-    if (resolved.protocol === "duet-file:") {
+    if (resolved.protocol === "sonata-file:") {
       img.setAttribute("src", resolved.href);
       img.loading = "lazy";
       img.decoding = "async";

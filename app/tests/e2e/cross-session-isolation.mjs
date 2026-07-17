@@ -17,9 +17,9 @@ import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval } from "./helpers/approval.mjs";
 import { selectSidebarSession } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-cross-session-e2e-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cross-session-e2e-"));
 // ONE shared folder for both sessions — the topology under test.
-const sharedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-shared-folder-"));
+const sharedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-shared-folder-"));
 let electronApp = null;
 
 const ALPHA_PROMPT = [
@@ -38,7 +38,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
     },
   });
 
@@ -50,22 +50,22 @@ try {
   // keeps the file-write approvals out of the way; any residual ask (trust,
   // command) is drained below while alternating between the sessions.
   const alpha = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "claude", cwd, permissionMode: "acceptEdits" }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "claude", cwd, permissionMode: "acceptEdits" }),
     sharedFolder,
   );
   await page.evaluate(
-    async (request) => window.duetRuntime.submitPrompt(request),
+    async (request) => window.sonataRuntime.submitPrompt(request),
     { taskId: alpha.task.id, text: ALPHA_PROMPT },
   );
 
   // Create the sibling IMMEDIATELY — the discovery windows must overlap for
   // this fence to mean anything.
   const beta = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "claude", cwd, permissionMode: "acceptEdits" }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "claude", cwd, permissionMode: "acceptEdits" }),
     sharedFolder,
   );
   await page.evaluate(
-    async (request) => window.duetRuntime.submitPrompt(request),
+    async (request) => window.sonataRuntime.submitPrompt(request),
     { taskId: beta.task.id, text: BETA_PROMPT },
   );
 
@@ -141,12 +141,12 @@ try {
   // session), and Reading must follow the new transcript.
   await selectSidebarSession(page, alpha.task.id);
   await page.evaluate(
-    async (request) => window.duetRuntime.submitPrompt(request),
+    async (request) => window.sonataRuntime.submitPrompt(request),
     { taskId: alpha.task.id, text: "/clear" },
   );
   await page.waitForTimeout(4000);
   await page.evaluate(
-    async (request) => window.duetRuntime.submitPrompt(request),
+    async (request) => window.sonataRuntime.submitPrompt(request),
     {
       taskId: alpha.task.id,
       text: [

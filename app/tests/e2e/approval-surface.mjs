@@ -21,8 +21,8 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { sendFirstPrompt } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-surface-e2e-"));
-const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-surface-settings-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-approval-surface-e2e-"));
+const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-approval-surface-settings-"));
 let electronApp = null;
 
 try {
@@ -30,8 +30,8 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsDir,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsDir,
     },
   });
 

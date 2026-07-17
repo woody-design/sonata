@@ -186,7 +186,7 @@ export class WorkspaceFiles {
     const ext = `.${extension}`;
     if (IMAGE_EXTENSIONS.has(ext)) {
       // Image bytes no longer ride the IPC as a base64 data URL — the renderer
-      // points the <img> at `duet-file://<taskId>/<path>` and this seam streams
+      // points the <img> at `sonata-file://<taskId>/<path>` and this seam streams
       // the file through the protocol handler (S2). That drops the old size cap
       // (a direct image tab is now served from disk, not inlined).
       return { ...base, kind: "image" };
@@ -222,7 +222,7 @@ export class WorkspaceFiles {
   }
 
   /**
-   * Serve a workspace file as image bytes for the `duet-file://` protocol (§4,
+   * Serve a workspace file as image bytes for the `sonata-file://` protocol (§4,
    * S2). Returns null — the handler answers 404 — for ANYTHING that is not a
    * real, in-workspace image: a guard violation (path escape), a non-image
    * extension, a missing file, or a directory. This is the whole security

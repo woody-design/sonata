@@ -22,7 +22,7 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { activeSessionTaskId } from "./helpers/session.mjs";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-composer-focus-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-composer-focus-"));
 const dataRoot = path.join(root, "data-root");
 const settingsDir = path.join(root, "settings");
 const fakeBin = path.join(root, "bin");
@@ -42,14 +42,14 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: dataRoot,
-      DUET_WORKSPACES_DIR: path.join(root, "workspaces"),
-      DUET_SETTINGS_DIR: settingsDir,
-      DUET_TEST_PICK_FOLDER: project,
+      SONATA_DATA_DIR: dataRoot,
+      SONATA_WORKSPACES_DIR: path.join(root, "workspaces"),
+      SONATA_SETTINGS_DIR: settingsDir,
+      SONATA_TEST_PICK_FOLDER: project,
       // Hold the resume-open boundary so part (c) can observe the draft-moving
       // freeze; createTask is a different gate, so the initial send stays fast.
-      DUET_TEST_TASK_OPEN_DELAY_MS: "900",
-      DUET_NOTIFICATIONS: "0",
+      SONATA_TEST_TASK_OPEN_DELAY_MS: "900",
+      SONATA_NOTIFICATIONS: "0",
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
     },
   });
@@ -84,7 +84,7 @@ try {
   // settle before the typing runs, and the assertion would pass even against
   // the old post-await clear). Finding 1 is re-pinned inside the window: a fast
   // second Enter on the now-empty composer must leave no stray newline.
-  await setMainProcessEnv(app, "DUET_TEST_PROMPT_SUBMIT_DELAY_MS", "2500");
+  await setMainProcessEnv(app, "SONATA_TEST_PROMPT_SUBMIT_DELAY_MS", "2500");
   await main.locator("#prompt-input").focus();
   await main.locator("#prompt-input").fill("SENT-TEXT");
   await main.keyboard.press("Enter");
@@ -96,7 +96,7 @@ try {
   await main.keyboard.press("Enter");
   await main.keyboard.type("typed-after");
   const midWindowValue = await main.locator("#prompt-input").inputValue();
-  await setMainProcessEnv(app, "DUET_TEST_PROMPT_SUBMIT_DELAY_MS", null);
+  await setMainProcessEnv(app, "SONATA_TEST_PROMPT_SUBMIT_DELAY_MS", null);
   await waitFor(() => readStdin(taskId).includes("SENT-TEXT"), "typed-through delivery");
   const typedThroughValue = await main.locator("#prompt-input").inputValue();
   const sentTextDelivered = occurrences(readStdin(taskId), "SENT-TEXT") === 1;
@@ -197,7 +197,7 @@ function installFakeClaude() {
     `#!/usr/bin/env node
 const fs = require("node:fs");
 const path = require("node:path");
-const runtimeDir = process.env.DUET_RUNTIME_DIR;
+const runtimeDir = process.env.SONATA_RUNTIME_DIR;
 fs.mkdirSync(runtimeDir, { recursive: true });
 const countPath = path.join(runtimeDir, "spawn-count");
 let count = 0;
@@ -208,7 +208,7 @@ if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch {} }
 process.stdin.resume();
 process.stdin.on("data", (chunk) => {
   fs.appendFileSync(path.join(runtimeDir, "stdin.bin"), chunk);
-  // Echo the prompt back so Duet's DeliveryController earns a pty-composer-echo
+  // Echo the prompt back so Sonata's DeliveryController earns a pty-composer-echo
   // receipt and clears inFlight — otherwise each send waits out the 45s receipt
   // timeout and the next one can't deliver.
   process.stdout.write(chunk);
@@ -242,7 +242,7 @@ async function setMainProcessEnv(electronApp, key, value) {
 }
 
 async function closeAndAwaitDormant(page, taskId) {
-  await page.evaluate((id) => window.duetRuntime.closeTask({ taskId: id }), taskId);
+  await page.evaluate((id) => window.sonataRuntime.closeTask({ taskId: id }), taskId);
   // The dormant placeholder is the main window's proof that view.live flipped.
   await page
     .locator('#prompt-input[placeholder="Message Claude — resumes this session"]')

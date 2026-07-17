@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-cli-liveness-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-liveness-"));
 const fakeBin = path.join(root, "bin");
 const workspace = path.join(root, "workspace");
 const spawnCountPath = path.join(root, "spawn-count");
@@ -53,9 +53,9 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: path.join(root, "data"),
-      DUET_WORKSPACES_DIR: path.join(root, "workspaces"),
-      DUET_NOTIFICATIONS: "0",
+      SONATA_DATA_DIR: path.join(root, "data"),
+      SONATA_WORKSPACES_DIR: path.join(root, "workspaces"),
+      SONATA_NOTIFICATIONS: "0",
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
     },
   });
@@ -63,7 +63,7 @@ try {
   main.setDefaultTimeout(20_000);
 
   const created = await main.evaluate((cwd) =>
-    window.duetRuntime.createTask({ provider: "codex", cwd }),
+    window.sonataRuntime.createTask({ provider: "codex", cwd }),
     workspace,
   );
   const taskId = created.task.id;
@@ -73,18 +73,18 @@ try {
     "first PTY to retire into a dormant session",
   );
   const dormantSnapshot = await main.evaluate(
-    (id) => window.duetRuntime.readSession({ taskId: id }),
+    (id) => window.sonataRuntime.readSession({ taskId: id }),
     taskId,
   );
   const dormantSubmitRejected = await rejects(() =>
     main.evaluate(
-      (id) => window.duetRuntime.submitPrompt({ taskId: id, text: "must not reach dead PTY" }),
+      (id) => window.sonataRuntime.submitPrompt({ taskId: id, text: "must not reach dead PTY" }),
       taskId,
     ),
   );
 
   const reopened = await main.evaluate(
-    (id) => window.duetRuntime.openTask({ taskId: id, resume: true }),
+    (id) => window.sonataRuntime.openTask({ taskId: id, resume: true }),
     taskId,
   );
   await waitFor(
@@ -100,9 +100,9 @@ try {
   // onExit can arrive after the same persistent task id already owns a fresh
   // runtime. Keep generation 2 alive for 750ms after its close signal, reopen
   // immediately as generation 3, then wait for the OLD exit before asserting.
-  await main.evaluate((id) => window.duetRuntime.closeTask({ taskId: id }), taskId);
+  await main.evaluate((id) => window.sonataRuntime.closeTask({ taskId: id }), taskId);
   const reopenedImmediately = await main.evaluate(
-    (id) => window.duetRuntime.openTask({ taskId: id, resume: true }),
+    (id) => window.sonataRuntime.openTask({ taskId: id, resume: true }),
     taskId,
   );
   await waitFor(
@@ -122,7 +122,7 @@ try {
   const afterStaleExit = await readSummary(main, taskId);
   const newRuntimeAcceptsPrompt = await resolves(() =>
     main.evaluate(
-      (id) => window.duetRuntime.submitPrompt({ taskId: id, text: "still generation three" }),
+      (id) => window.sonataRuntime.submitPrompt({ taskId: id, text: "still generation three" }),
       taskId,
     ),
   );
@@ -148,7 +148,7 @@ try {
 
 async function readSummary(page, taskId) {
   return page.evaluate(async (id) => {
-    const index = await window.duetRuntime.readSessionIndex({ includeArchived: true });
+    const index = await window.sonataRuntime.readSessionIndex({ includeArchived: true });
     return [...index.chats, ...index.projects.flatMap((project) => project.sessions)].find(
       (session) => session.task.id === id,
     );

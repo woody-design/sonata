@@ -39,12 +39,16 @@ export const SIDEBAR_RENAME_ASSERTIONS = Object.freeze([
   "accessibleValidationAndBusyState",
 ]);
 
-export const SIDEBAR_VISUAL_THEMES = Object.freeze(["duet", "paper", "calm", "focus"]);
+export const SIDEBAR_VISUAL_THEMES = Object.freeze(["sonata", "paper", "calm", "focus"]);
+// Historical: the committed evidence manifests predate the Duet→Sonata rename,
+// so the STORY they tell still uses the old "duet" theme id. Fresh runs assert
+// against SIDEBAR_VISUAL_THEMES (the current product vocabulary) instead.
+export const SIDEBAR_VISUAL_THEMES_HISTORICAL = Object.freeze(["duet", "paper", "calm", "focus"]);
 export const SIDEBAR_VISUAL_MODES = Object.freeze(["light", "dark"]);
 export const SIDEBAR_VISUAL_TEXT_STEPS = Object.freeze([14, 20]);
 
-export function assertExactVisualMatrix(results, label) {
-  const expectedKeys = SIDEBAR_VISUAL_THEMES.flatMap((theme) =>
+export function assertExactVisualMatrix(results, label, themes = SIDEBAR_VISUAL_THEMES) {
+  const expectedKeys = themes.flatMap((theme) =>
     SIDEBAR_VISUAL_MODES.flatMap((mode) =>
       SIDEBAR_VISUAL_TEXT_STEPS.map((textStep) => `${theme}:${mode}:${textStep}`),
     ),

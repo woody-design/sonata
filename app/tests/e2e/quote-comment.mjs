@@ -105,13 +105,13 @@ async function selectSubstring(page, selector) {
   }, selector);
 }
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-quote-comment-e2e-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-quote-comment-e2e-"));
 let electronApp = null;
 
 try {
   electronApp = await electron.launch({
     args: ["dist/main/main.js"],
-    env: { ...process.env, DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot },
+    env: { ...process.env, SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot },
   });
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);

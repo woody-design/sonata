@@ -40,8 +40,8 @@ assert.match(source.cli, />Start CLI<\/button>/, "fresh CLI action");
 assert.match(source.cli, /: "Resume task";/, "dormant CLI action");
 assert.match(source.cli, />Tasks<\/span>/, "fresh breadcrumb project");
 assert.match(source.cli, />New task<\/span>/, "fresh breadcrumb task");
-assert.match(source.main, /title:\s*"Duet CLI"/, "native CLI window title");
-assert.match(source.cliHtml, /<title>Duet CLI<\/title>/, "CLI document title");
+assert.match(source.main, /title:\s*"Sonata CLI"/, "native CLI window title");
+assert.match(source.cliHtml, /<title>Sonata CLI<\/title>/, "CLI document title");
 
 const rendererFiles = filesUnder("src/renderer", ".ts").filter(
   (file) => ![paths.dom, paths.cli].includes(file),
@@ -69,7 +69,7 @@ const uiCorpus = [
     .map((file) => ({ file, values: visibleHtmlCopy(read(file)) })),
 ];
 
-// New chat / Chats have no truthful user-facing exception: Duet's work unit is
+// New chat / Chats have no truthful user-facing exception: Sonata's work unit is
 // a task. The sole compatibility value is the internal disclosure group id.
 // Apply this to the same extracted corpus as Terminal so HTML templates and
 // every renderer view/flow are covered, not just the original two source files.
@@ -111,7 +111,7 @@ const allowedTerminalCopy = [
   exact(paths.runs, "Completed by terminal idle heuristic", 1),
   exact(
     paths.settings,
-    "Turned off by Duet's earlier bridge. Restoring affects terminals outside Duet.",
+    "Turned off by Sonata's earlier bridge. Restoring affects terminals outside Sonata.",
     1,
   ),
 ];

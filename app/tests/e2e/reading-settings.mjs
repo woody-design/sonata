@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-reading-settings-workspace-"));
-const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-reading-settings-store-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-reading-settings-workspace-"));
+const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-reading-settings-store-"));
 const settingsPath = path.join(settingsRoot, "reading-settings.json");
 let electronApp = null;
 
@@ -68,13 +68,13 @@ try {
     state: "visible",
   });
   const defaults = await readReadingDom(page);
-  assertEqual(defaults.theme, "duet", "corrupt settings default theme");
+  assertEqual(defaults.theme, "sonata", "corrupt settings default theme");
   assertEqual(defaults.modeSetting, "auto", "corrupt settings default mode setting");
   assertEqual(defaults.textBody, "16px", "corrupt settings default text size");
   if (defaults.mode !== "light" && defaults.mode !== "dark") {
     throw new Error(`Corrupt settings did not resolve auto to an explicit mode: ${defaults.mode}`);
   }
-  assertEqual(defaults.firstFrame, `duet/${defaults.mode}/16px`, "corrupt settings first frame");
+  assertEqual(defaults.firstFrame, `sonata/${defaults.mode}/16px`, "corrupt settings first frame");
   await setNativeThemeSource("light");
   await waitForResolvedMode(page, "light");
   await setNativeThemeSource("dark");
@@ -114,8 +114,8 @@ async function launchApp() {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsRoot,
     },
   });
   const page = await electronApp.firstWindow();

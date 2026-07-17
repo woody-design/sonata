@@ -132,7 +132,7 @@ export class LocalApiServer {
   }
 
   /** A leftover socket file from a crashed instance refuses new binds.
-   *  Probe it: a live listener answers (abort — another Duet owns it);
+   *  Probe it: a live listener answers (abort — another Sonata owns it);
    *  a refused/failed connect means the file is stale and removable. */
   private async removeStaleSocket(): Promise<void> {
     if (!fs.existsSync(this.socketPath)) {
@@ -244,7 +244,7 @@ export class LocalApiServer {
     switch (method) {
       case "hello":
         return {
-          app: "duet",
+          app: "sonata",
           appVersion: this.appVersion,
           protocolVersion: LOCAL_API_PROTOCOL_VERSION,
         };
@@ -366,9 +366,9 @@ function stringParam(params: unknown, key: string): string {
 
 export function localApiSocketPath(userDataPath: string): string {
   // Honor an explicit override for hermetic tests / app-level e2e,
-  // mirroring how the settings stores honor DUET_SETTINGS_DIR.
+  // mirroring how the settings stores honor SONATA_SETTINGS_DIR.
   return (
-    process.env.DUET_LOCAL_API_SOCKET ||
+    process.env.SONATA_LOCAL_API_SOCKET ||
     path.join(userDataPath, "run", "control.sock")
   );
 }

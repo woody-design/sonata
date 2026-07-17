@@ -29,12 +29,12 @@ import {
   waitForWindowByUrl,
 } from "./helpers/session.mjs";
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-transcript-chips-e2e-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-transcript-chips-e2e-"));
 const launchEnv = {
   ...process.env,
-  DUET_DATA_DIR: dataRoot,
-  DUET_WORKSPACES_DIR: dataRoot,
-  DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+  SONATA_DATA_DIR: dataRoot,
+  SONATA_WORKSPACES_DIR: dataRoot,
+  SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
 };
 
 const results = {};
@@ -46,7 +46,7 @@ try {
 
   // ── Turn 1: birth the task ───────────────────────────────────────────────
   await sendFirstPrompt(page, [
-    "Reply exactly DUET_CHIPS_READY.",
+    "Reply exactly SONATA_CHIPS_READY.",
     "Do not create or modify any files.",
   ]);
   const taskId = await activeSessionTaskId(page);
@@ -115,7 +115,7 @@ try {
     const cards = document.querySelectorAll(".turn-card");
     cards[cards.length - 1]?.setAttribute("data-chip-e2e-marker", "turn2");
   });
-  await sendPrompt(page, ["Reply exactly DUET_CHIPS_TURN3."]);
+  await sendPrompt(page, ["Reply exactly SONATA_CHIPS_TURN3."]);
   await waitForCompletedTurns(page, 3);
   results.chipSurvivesReRender = await page.evaluate(() => {
     const card = document.querySelector('[data-chip-e2e-marker="turn2"]');
@@ -149,7 +149,7 @@ try {
   //    assistant HTML could inject) is ignored: the click trust boundary is the
   //    module registry (node identity), NOT the forgeable attribute. Observed by
   //    effect: the forged click must add NO Preview tab. (Real chips are already
-  //    proven to open, above; window.duetRuntime is a frozen contextBridge object
+  //    proven to open, above; window.sonataRuntime is a frozen contextBridge object
   //    so it can't be stubbed in the renderer — we watch the real outcome.)
   const tabsBefore = await preview.locator(".preview-tab").count();
   await page.evaluate(() => {

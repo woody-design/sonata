@@ -30,8 +30,8 @@ import { positionCenteredAbove } from "./popover-geometry";
 import { Check } from "lucide";
 
 /** The name registered in `CSS.highlights` and matched by
- *  `::highlight(duet-quote-pending)` in styles.css. */
-const PENDING_HIGHLIGHT = "duet-quote-pending";
+ *  `::highlight(sonata-quote-pending)` in styles.css. */
+const PENDING_HIGHLIGHT = "sonata-quote-pending";
 const SELECTION_DEBOUNCE_MS = 150; // T17
 // Mirror of the composer's G2 window (main.ts COMPOSITION_END_SHORTCUT_GUARD_MS):
 // a candidate-commit Enter can arrive just after compositionend with

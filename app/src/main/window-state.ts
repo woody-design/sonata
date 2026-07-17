@@ -32,7 +32,7 @@ const KEEP_VISIBLE_PX = 80;
 const PERSIST_DEBOUNCE_MS = 400;
 
 /**
- * Owns cross-launch window geometry for every Duet window. One concept,
+ * Owns cross-launch window geometry for every Sonata window. One concept,
  * expressed once: read saved state on construction, hand validated restore
  * decisions to each window factory, track move/resize/fullscreen changes, and
  * persist (debounced) to a single JSON document.

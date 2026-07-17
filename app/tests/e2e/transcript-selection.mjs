@@ -18,13 +18,13 @@ import assert from "node:assert/strict";
 import { _electron as electron } from "playwright-core";
 import { sendFirstPrompt, sendPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-transcript-selection-e2e-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-transcript-selection-e2e-"));
 let electronApp = null;
 
 try {
   electronApp = await electron.launch({
     args: ["dist/main/main.js"],
-    env: { ...process.env, DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot },
+    env: { ...process.env, SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot },
   });
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);

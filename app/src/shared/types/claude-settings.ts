@@ -1,7 +1,7 @@
 import type { ClaudePermissionMode } from "./domain";
 
 /**
- * Duet-owned launch policy for Claude sessions (NOT Claude's own state —
+ * Sonata-owned launch policy for Claude sessions (NOT Claude's own state —
  * this never touches ~/.claude.json). `defaultPermissionMode` is the mode
  * new Claude sessions launch in, so a user who trusts the direction can
  * set it once instead of approving every tool call.

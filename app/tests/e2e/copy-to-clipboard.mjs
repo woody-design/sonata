@@ -5,7 +5,7 @@
 // prompt (hover/focus row), Markdown <pre> (permanent control), and one whole
 // assistant reply (settled/runless transcript fixture). The assertions witness
 // the system clipboard itself through the preload read bridge — not a stub.
-// DUET_COPY_EVIDENCE=1 appends an isolated, color-normalized light/dark visual
+// SONATA_COPY_EVIDENCE=1 appends an isolated, color-normalized light/dark visual
 // matrix only after the full functional path has passed.
 
 import assert from "node:assert/strict";
@@ -16,10 +16,10 @@ import { _electron as electron } from "playwright-core";
 import { FAKE_CODEX_SOURCE } from "./helpers/fake-codex-source.mjs";
 import { selectSidebarSession } from "./helpers/session.mjs";
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-copy-e2e-"));
-const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-copy-codex-home-"));
-const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-copy-bin-"));
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-copy-workspace-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-copy-e2e-"));
+const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-copy-codex-home-"));
+const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-copy-bin-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-copy-workspace-"));
 const fakeCodex = path.join(fakeBinDir, "codex");
 const evidenceDir = resolveEvidenceDir();
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
@@ -41,9 +41,9 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: dataRoot,
-      DUET_WORKSPACES_DIR: dataRoot,
-      DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+      SONATA_DATA_DIR: dataRoot,
+      SONATA_WORKSPACES_DIR: dataRoot,
+      SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
       CODEX_HOME: codexHome,
       PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
       ...(evidenceDir ? { TZ: "UTC", LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" } : {}),
@@ -53,7 +53,7 @@ try {
   page.setDefaultTimeout(60000);
 
   const created = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "codex", cwd }),
     workspace,
   );
   const taskId = created.task.id;
@@ -66,7 +66,7 @@ try {
     record(USER_TS, "task_started", { turn_id: "copy-turn-1" }),
     record(USER_TS, "user_message", {
       message: `[Image #1] ${PROMPT_TEXT}`,
-      local_images: ["/tmp/duet-copy-fixture.png"],
+      local_images: ["/tmp/sonata-copy-fixture.png"],
     }),
     record(FIRST_REPLY_TS, "agent_message", { message: FIRST_REPLY }),
   ]);
@@ -209,7 +209,7 @@ try {
     record(IMAGE_ONLY_TS, "task_started", { turn_id: "copy-turn-2" }),
     record(IMAGE_ONLY_TS, "user_message", {
       message: "[Image #1]",
-      local_images: ["/tmp/duet-copy-image-only.png"],
+      local_images: ["/tmp/sonata-copy-image-only.png"],
     }),
   ]);
   await page.locator(".turn-card").nth(1).waitFor({ state: "visible" });
@@ -263,7 +263,7 @@ function readSources(taskId) {
 }
 
 async function readClipboard(page) {
-  const response = await page.evaluate(() => window.duetRuntime.readClipboardText());
+  const response = await page.evaluate(() => window.sonataRuntime.readClipboardText());
   return response.text;
 }
 
@@ -272,7 +272,7 @@ async function installClipboardFailure(page) {
     const clipboard = navigator.clipboard;
     try {
       const original = clipboard.writeText.bind(clipboard);
-      Object.defineProperty(window, "__duetOriginalWriteText", {
+      Object.defineProperty(window, "__sonataOriginalWriteText", {
         value: original,
         configurable: true,
       });
@@ -291,25 +291,25 @@ async function installClipboardFailure(page) {
 async function restoreClipboard(page) {
   await page.evaluate(() => {
     const clipboard = navigator.clipboard;
-    const original = window.__duetOriginalWriteText;
+    const original = window.__sonataOriginalWriteText;
     if (typeof original === "function") {
       Object.defineProperty(clipboard, "writeText", { configurable: true, value: original });
     }
-    delete window.__duetOriginalWriteText;
+    delete window.__sonataOriginalWriteText;
   });
 }
 
 function resolveEvidenceDir() {
-  const configured = process.env.DUET_COPY_EVIDENCE_DIR?.trim();
+  const configured = process.env.SONATA_COPY_EVIDENCE_DIR?.trim();
   if (configured) {
     const directory = path.resolve(configured);
     fs.mkdirSync(directory, { recursive: true });
     return directory;
   }
-  if (process.env.DUET_COPY_EVIDENCE !== "1") {
+  if (process.env.SONATA_COPY_EVIDENCE !== "1") {
     return null;
   }
-  return fs.mkdtempSync(path.join(os.tmpdir(), "duet-copy-evidence-"));
+  return fs.mkdtempSync(path.join(os.tmpdir(), "sonata-copy-evidence-"));
 }
 
 async function captureVisualEvidence(page, card) {

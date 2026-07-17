@@ -9,18 +9,18 @@ import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.mjs";
 import { activeSessionTaskId, selectSidebarSession, sendFirstPrompt, sendPrompt } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-open-task-e2e-"));
-// Isolate the projects/settings store too — NOT just DUET_DATA_DIR. Without
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-open-task-e2e-"));
+// Isolate the projects/settings store too — NOT just SONATA_DATA_DIR. Without
 // this the renderer boot preselects the global store's `lastUsedFolder` as the
 // New Chat cwd (Settings persist in Electron userData, shared with the real
 // app and across runs), so the provider launches in whatever folder was used
 // last — e.g. this repo — and writes its artifacts THERE instead of the temp
 // workspace this test polls. A hermetic settings dir keeps `lastUsedFolder`
 // null, so the provider cwd falls back to the task's own storage root.
-const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-open-task-settings-"));
+const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-open-task-settings-"));
 // Failure forensics (report excerpt + screenshot) land here and SURVIVE the
 // workspace cleanup so a flake is inspectable after the run.
-const diagnosticsRoot = path.join(os.tmpdir(), "duet-open-task-diagnostics");
+const diagnosticsRoot = path.join(os.tmpdir(), "sonata-open-task-diagnostics");
 const CODEWORD = "OPENTASK-99";
 let electronApp = null;
 
@@ -135,7 +135,7 @@ try {
     run.artifactCandidates?.some((artifact) => artifact.path === "open_followup.md"),
   );
   const success =
-    manifest.schemaId === "duet.task-manifest.v1" &&
+    manifest.schemaId === "sonata.task-manifest.v1" &&
     manifest.task.id === report.taskId &&
     manifest.task.id === taskId &&
     typeof manifest.task.title === "string" &&
@@ -181,8 +181,8 @@ async function launchApp(label) {
       args: ["dist/main/main.js"],
       env: {
         ...process.env,
-        DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-        DUET_SETTINGS_DIR: settingsRoot,
+        SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+        SONATA_SETTINGS_DIR: settingsRoot,
       },
     });
   } catch (error) {

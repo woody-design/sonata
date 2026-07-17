@@ -13,7 +13,7 @@ const {
   cleanTerminal,
 } = require("../../dist/runtime");
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-native-image-smoke-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-native-image-smoke-"));
 const results = [];
 
 try {
@@ -67,7 +67,7 @@ async function runImageDeliveryCheck(provider) {
   try {
     const imagePath = path.join(controller.workspace, "red.png");
     fs.writeFileSync(imagePath, redPngBytes());
-    const prompt = `Reply exactly DUET_${provider.toUpperCase()}_IMAGE_ATTACHMENT_RECEIPT.`;
+    const prompt = `Reply exactly SONATA_${provider.toUpperCase()}_IMAGE_ATTACHMENT_RECEIPT.`;
     const attachment = {
       id: `attachment-${provider}-smoke`,
       path: imagePath,
@@ -110,7 +110,7 @@ async function runSpaceyImageDeliveryCheck(provider) {
     fs.mkdirSync(dir, { recursive: true });
     const imagePath = path.join(dir, "a'b.png");
     fs.writeFileSync(imagePath, redPngBytes());
-    const prompt = `Reply exactly DUET_${provider.toUpperCase()}_SPACEY_IMAGE_RECEIPT.`;
+    const prompt = `Reply exactly SONATA_${provider.toUpperCase()}_SPACEY_IMAGE_RECEIPT.`;
     const attachment = {
       id: `attachment-${provider}-spacey`,
       path: imagePath,
@@ -158,7 +158,7 @@ async function runReferenceTextCheck(provider) {
     fs.mkdirSync(dir, { recursive: true });
     const refPath = path.join(dir, "notes.txt");
     fs.writeFileSync(refPath, "reference target");
-    const prompt = `Reply exactly DUET_${provider.toUpperCase()}_REF_FILE_RECEIPT.`;
+    const prompt = `Reply exactly SONATA_${provider.toUpperCase()}_REF_FILE_RECEIPT.`;
     const attachment = {
       id: `attachment-${provider}-ref-file`,
       path: refPath,

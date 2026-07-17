@@ -4,7 +4,7 @@ import type { CliActivity } from "../shared/types/cli-signal";
 /**
  * The native-notification decision layer — pure, Electron-free, deterministic.
  *
- * A notification is the OUT-OF-APP channel of an attention signal Duet already
+ * A notification is the OUT-OF-APP channel of an attention signal Sonata already
  * renders in-app (the attention banners, the "finished while away" dot). We do
  * NOT gate on window focus: a focused window is a poor proxy for a present human
  * (you can walk away leaving it up), and the error is asymmetric — suppressing a

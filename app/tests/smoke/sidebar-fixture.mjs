@@ -73,7 +73,7 @@ try {
   fs.rmSync(blockerPath);
 
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  assert.equal(manifest.schemaId, "duet.task-manifest.v1");
+  assert.equal(manifest.schemaId, "sonata.task-manifest.v1");
   assert.equal(manifest.task.id, taskId);
   assert.equal(manifest.rawTerminalPolicy, "raw-terminal-not-persisted-by-default");
 } finally {

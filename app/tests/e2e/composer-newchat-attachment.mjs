@@ -1,7 +1,7 @@
 // Slice A (reframed): a screenshot/bitmap pasted into a BRAND-NEW chat (no
 // session yet) becomes an attachment chip, is held in the draft (NOTHING on
 // disk), and is materialized + delivered when the first send creates the
-// session. This is the real headline flow: screenshot -> open Duet -> paste ->
+// session. This is the real headline flow: screenshot -> open Sonata -> paste ->
 // ask, which is a new chat by definition.
 //
 // NOTE: overwrites the machine clipboard (puts a PNG on it). macOS-only.
@@ -14,8 +14,8 @@ import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
 import { waitForCompletedTurns } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-newchat-attach-"));
-const evidenceRoot = process.env.DUET_EVIDENCE_DIR ?? path.join(workspaceRoot, "evidence");
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-newchat-attach-"));
+const evidenceRoot = process.env.SONATA_EVIDENCE_DIR ?? path.join(workspaceRoot, "evidence");
 fs.mkdirSync(evidenceRoot, { recursive: true });
 
 let electronApp = null;
@@ -28,7 +28,7 @@ try {
 
   electronApp = await electron.launch({
     args: ["dist/main/main.js"],
-    env: { ...process.env, DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot },
+    env: { ...process.env, SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot },
   });
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
@@ -55,7 +55,7 @@ try {
   await page.screenshot({ path: path.join(evidenceRoot, "newchat-chip-before-send.png"), fullPage: true });
 
   // First send creates the session and materializes + delivers the attachment.
-  await page.locator("#prompt-input").fill("Reply exactly DUET_NEWCHAT_IMAGE_RECEIPT. Do not create or modify any files.");
+  await page.locator("#prompt-input").fill("Reply exactly SONATA_NEWCHAT_IMAGE_RECEIPT. Do not create or modify any files.");
   await page.locator("#send-prompt").click();
   // S4 pre-trusts the auto workspace — the banner normally never comes; the
   // short wait is fallback tolerance, not the expected path.

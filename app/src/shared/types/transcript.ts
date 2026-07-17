@@ -39,7 +39,7 @@ interface TranscriptBlockBase {
   provider: RuntimeProvider;
   /** Groups blocks into conversational turns (provider turn id or synthesized). */
   turnKey: string;
-  /** Duet Run attribution. Null when the turn cannot be matched to a Run. */
+  /** Sonata Run attribution. Null when the turn cannot be matched to a Run. */
   runId: RunId | null;
   ts: string;
   /** Ordering within one source. */
@@ -171,7 +171,7 @@ export type CompactionTrigger = "manual" | "auto";
  * A state-register kind, like `system-note`: it is NOT in the daemon's narrow
  * `BlockView` (contracts-v2 B2/B3 surface only user-message + assistant-text),
  * so the frozen Part A consumer reduces it to nothing — the daemon's mirror
- * assembly ignores any kind it does not promote (duet-eink daemon/src/mirror/
+ * assembly ignores any kind it does not promote (sonata-eink daemon/src/mirror/
  * turns.ts). Adding it is additive under the contract's extensibility (B6).
  *
  * `trigger` is the one v2-disclosure-relevant field carried where cheap
@@ -198,7 +198,7 @@ export type TranscriptBlock =
   | SystemNoteBlock
   | CompactionBlock;
 
-export const TRANSCRIPT_SOURCES_SCHEMA_ID = "duet.transcript-sources.v1" as const;
+export const TRANSCRIPT_SOURCES_SCHEMA_ID = "sonata.transcript-sources.v1" as const;
 export const TRANSCRIPT_SOURCES_SCHEMA_VERSION = 1 as const;
 
 export interface TranscriptSourcesFileV1 {

@@ -8,7 +8,7 @@
 //      sink; PermissionRequest → broker, timeout=120) in the probe-verified TOML
 //      shape (PascalCase events, STRING command, `[[hooks.Event]]` / `.hooks`);
 //   3. the command strings route through the STABLE shim paths (task-invariant),
-//      and the shims are written and read DUET_RUNTIME_DIR from the environment;
+//      and the shims are written and read SONATA_RUNTIME_DIR from the environment;
 //   4. write-if-changed leaves an unchanged file untouched (idempotent).
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -21,7 +21,7 @@ const require = createRequire(import.meta.url);
 const {
   ensureCodexRuntimeSettings,
   codexProfilePath,
-  CODEX_DUET_PROFILE,
+  CODEX_SONATA_PROFILE,
   CODEX_ANSWERING_MARKER,
   codexHooksDirectory,
   codexApprovalsDirectory,
@@ -31,7 +31,7 @@ const {
 } = require("../../dist/runtime/providers/codex/index");
 const { spawn } = require("node:child_process");
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-settings-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-settings-"));
 // Isolate the profile file to a temp CODEX_HOME — NEVER touch the real ~/.codex.
 process.env.CODEX_HOME = path.join(tempRoot, "codex-home");
 const failures = [];
@@ -57,7 +57,7 @@ function sha(filePath) {
 }
 
 check("profile name is the layered profile flag value", () => {
-  assert.equal(CODEX_DUET_PROFILE, "duet");
+  assert.equal(CODEX_SONATA_PROFILE, "sonata");
 });
 
 check("ensure writes profile + both shims", () => {
@@ -72,7 +72,7 @@ check("profile is BYTE-STABLE across two spawn-preps (sha unchanged)", () => {
   ensureCodexRuntimeSettings({ binDir });
   ensureCodexRuntimeSettings({ binDir });
   const second = sha(profilePath);
-  assert.equal(second, first, "duet.config.toml sha drifted across spawn-preps");
+  assert.equal(second, first, "sonata.config.toml sha drifted across spawn-preps");
 });
 
 check("profile carries the consumed hook set in the probe-verified shape", () => {
@@ -81,7 +81,7 @@ check("profile carries the consumed hook set in the probe-verified shape", () =>
   // (S7). SubagentStart/Stop feed the status-strip roster (Codex subagents live
   // in their own rollouts, so the hooks are the only source). PreCompact/
   // PostCompact are registered for signal completeness (they flow to the sink);
-  // Duet does not consume them — the compaction marker is transcript-derived.
+  // Sonata does not consume them — the compaction marker is transcript-derived.
   for (const event of [
     "SessionStart",
     "UserPromptSubmit",
@@ -118,11 +118,11 @@ check("commands route through the stable shim paths (task-invariant)", () => {
   );
 });
 
-check("shims read DUET_RUNTIME_DIR from the env (task binding via env, not argv)", () => {
+check("shims read SONATA_RUNTIME_DIR from the env (task binding via env, not argv)", () => {
   const sink = fs.readFileSync(sinkShim, "utf8");
   const broker = fs.readFileSync(brokerShim, "utf8");
-  assert.ok(sink.includes("process.env.DUET_RUNTIME_DIR"), "sink reads DUET_RUNTIME_DIR");
-  assert.ok(broker.includes("process.env.DUET_RUNTIME_DIR"), "broker reads DUET_RUNTIME_DIR");
+  assert.ok(sink.includes("process.env.SONATA_RUNTIME_DIR"), "sink reads SONATA_RUNTIME_DIR");
+  assert.ok(broker.includes("process.env.SONATA_RUNTIME_DIR"), "broker reads SONATA_RUNTIME_DIR");
   // The sink writes into runtimeDir/hooks (same layout the HookWatcher polls).
   assert.ok(sink.includes('"hooks"'), "sink writes into the hooks/ subdir");
   // The broker gates on the answering marker, then holds-and-answers (S3).
@@ -133,7 +133,7 @@ check("shims read DUET_RUNTIME_DIR from the env (task binding via env, not argv)
 
 check("broker CLAMPS the hold override below the hook timeout (S4 #6)", () => {
   const broker = fs.readFileSync(brokerShim, "utf8");
-  // A DUET_BROKER_HOLD_MS inherited into production above the 120s hook timeout
+  // A SONATA_BROKER_HOLD_MS inherited into production above the 120s hook timeout
   // would let Codex kill the hook before the shim writes `expired` — clamp it.
   assert.ok(broker.includes("Math.min("), "holdMs is clamped with Math.min");
   // The ceiling must be < the 120s hook timeout (its interpolated ms literal).
@@ -165,7 +165,7 @@ check("shim writes are idempotent (write-if-changed leaves stable bytes)", () =>
 });
 
 check("directory helpers derive the standard sink/approvals layout", () => {
-  const rd = "/tmp/duet/runtime/task-x";
+  const rd = "/tmp/sonata/runtime/task-x";
   assert.equal(codexHooksDirectory(rd), path.join(rd, "hooks"));
   assert.equal(codexApprovalsDirectory(rd), path.join(rd, "approvals"));
 });
@@ -178,7 +178,7 @@ check("sink shim writes a hook-*.json via tmp+rename when fed a payload", () => 
   const { execFileSync } = require("node:child_process");
   execFileSync("node", [sinkShim], {
     input: JSON.stringify({ hook_event_name: "SessionStart", session_id: "s1" }),
-    env: { ...process.env, DUET_RUNTIME_DIR: runtimeDir },
+    env: { ...process.env, SONATA_RUNTIME_DIR: runtimeDir },
   });
   const hooksDir = path.join(runtimeDir, "hooks");
   const files = fs.readdirSync(hooksDir).filter((f) => /^hook-.+\.json$/.test(f));
@@ -195,7 +195,7 @@ check("inert broker exits 0 with no stdout when the marker is absent", () => {
   const { execFileSync } = require("node:child_process");
   const out = execFileSync("node", [brokerShim], {
     input: JSON.stringify({ hook_event_name: "PermissionRequest", tool_name: "Bash" }),
-    env: { ...process.env, DUET_RUNTIME_DIR: runtimeDir },
+    env: { ...process.env, SONATA_RUNTIME_DIR: runtimeDir },
   });
   assert.equal(out.toString(), "", "broker emitted no stdout (native card takes over)");
 });
@@ -261,7 +261,7 @@ check("enable/disableCodexAnswering writes and clears the marker", () => {
 function runBroker(runtimeDir, payload, holdMs) {
   return new Promise((resolve) => {
     const child = spawn("node", [brokerShim], {
-      env: { ...process.env, DUET_RUNTIME_DIR: runtimeDir, DUET_BROKER_HOLD_MS: String(holdMs) },
+      env: { ...process.env, SONATA_RUNTIME_DIR: runtimeDir, SONATA_BROKER_HOLD_MS: String(holdMs) },
     });
     let out = "";
     child.stdout.on("data", (c) => (out += c.toString()));
@@ -292,7 +292,7 @@ await acheck("armed broker surfaces ask-<id>, echoes the reply, then cleans up",
     { hook_event_name: "PermissionRequest", tool_name: "Bash", tool_input: { command: "echo hi", description: "Allow echo?" } },
     5000,
   );
-  // Wait for the ask, then answer it (mirrors Duet's ApprovalWatcher → decideApproval).
+  // Wait for the ask, then answer it (mirrors Sonata's ApprovalWatcher → decideApproval).
   const decisionJson = JSON.stringify(codexBrokerDecisionJson("approve"));
   let askId = null;
   for (let i = 0; i < 100 && !askId; i += 1) {

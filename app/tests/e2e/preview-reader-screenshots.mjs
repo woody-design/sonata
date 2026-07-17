@@ -21,12 +21,12 @@ const evidenceDir = path.resolve(
 );
 fs.mkdirSync(evidenceDir, { recursive: true });
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-preview-reader-shots-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-preview-reader-shots-"));
 const launchEnv = {
   ...process.env,
-  DUET_DATA_DIR: dataRoot,
-  DUET_WORKSPACES_DIR: dataRoot,
-  DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+  SONATA_DATA_DIR: dataRoot,
+  SONATA_WORKSPACES_DIR: dataRoot,
+  SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
 };
 
 let app = null;
@@ -36,7 +36,7 @@ try {
   const page = await app.firstWindow();
   page.setDefaultTimeout(180000);
 
-  await sendFirstPrompt(page, ["Reply exactly DUET_PREVIEW_S2_SHOTS_READY.", "Do not create or modify any files."]);
+  await sendFirstPrompt(page, ["Reply exactly SONATA_PREVIEW_S2_SHOTS_READY.", "Do not create or modify any files."]);
   const taskId = await activeSessionTaskId(page);
   await waitForCompletedTurns(page, 1);
   const workspace = JSON.parse(
@@ -59,7 +59,7 @@ try {
       "- Headings and prose on `--font-reading`",
       "- Lists, `inline code`, and fenced blocks",
       "- Tables that scroll inside their own measure",
-      "- Local images through the `duet-file://` protocol",
+      "- Local images through the `sonata-file://` protocol",
       "",
       "![a diagram](./diagram.png)",
       "",
@@ -130,12 +130,12 @@ function writeFile(root, relative, contents) {
 }
 
 async function openTab(page, taskId, relativePath) {
-  await page.evaluate((args) => window.duetRuntime.openPreview(args), { taskId, relativePath });
+  await page.evaluate((args) => window.sonataRuntime.openPreview(args), { taskId, relativePath });
 }
 
 async function setMode(page, preview, mode) {
-  const current = await page.evaluate(() => window.duetRuntime.readReadingSettings());
-  await page.evaluate((next) => window.duetRuntime.writeReadingSettings(next), { ...current, mode });
+  const current = await page.evaluate(() => window.sonataRuntime.readReadingSettings());
+  await page.evaluate((next) => window.sonataRuntime.writeReadingSettings(next), { ...current, mode });
   await preview.locator(`html[data-mode="${mode}"]`).waitFor({ state: "attached" });
   await preview.waitForTimeout(120);
 }

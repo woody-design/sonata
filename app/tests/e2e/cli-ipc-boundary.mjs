@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-cli-ipc-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-ipc-"));
 let app;
 
 try {
@@ -11,9 +11,9 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: root,
-      DUET_WORKSPACES_DIR: root,
-      DUET_NOTIFICATIONS: "0",
+      SONATA_DATA_DIR: root,
+      SONATA_WORKSPACES_DIR: root,
+      SONATA_NOTIFICATIONS: "0",
     },
   });
   const main = await app.firstWindow();
@@ -22,29 +22,29 @@ try {
 
   await main.evaluate(() => {
     window.__cliActions = [];
-    window.duetRuntime.onCliAction((request) => window.__cliActions.push(request));
+    window.sonataRuntime.onCliAction((request) => window.__cliActions.push(request));
   });
   await terminal.evaluate(() => {
     window.__cliActions = [];
-    window.duetRuntime.onCliAction((request) => window.__cliActions.push(request));
+    window.sonataRuntime.onCliAction((request) => window.__cliActions.push(request));
   });
 
-  const binding = await terminal.evaluate(() => window.duetRuntime.readActiveTerminalTask());
+  const binding = await terminal.evaluate(() => window.sonataRuntime.readActiveTerminalTask());
   const terminalCannotSetBinding = await rejects(() =>
-    terminal.evaluate((value) => window.duetRuntime.setActiveTerminalTask(value), binding),
+    terminal.evaluate((value) => window.sonataRuntime.setActiveTerminalTask(value), binding),
   );
   const mainCanSetBinding = await main.evaluate((value) =>
-    window.duetRuntime.setActiveTerminalTask(value).then(() => true),
+    window.sonataRuntime.setActiveTerminalTask(value).then(() => true),
     binding,
   );
   const mainCannotRequestAction = await rejects(() =>
     main.evaluate(() =>
-      window.duetRuntime.requestCliAction({ action: "resume", expectedTaskId: "ghost" }),
+      window.sonataRuntime.requestCliAction({ action: "resume", expectedTaskId: "ghost" }),
     ),
   );
   const malformedRejected = await rejects(() =>
     terminal.evaluate(() =>
-      window.duetRuntime.setActiveTerminalTask({
+      window.sonataRuntime.setActiveTerminalTask({
         taskId: null,
         live: true,
         openTaskIds: [],
@@ -56,7 +56,7 @@ try {
   );
 
   await terminal.evaluate(() =>
-    window.duetRuntime.requestCliAction({ action: "resume", expectedTaskId: "ghost" }),
+    window.sonataRuntime.requestCliAction({ action: "resume", expectedTaskId: "ghost" }),
   );
   await main.waitForFunction(() => window.__cliActions.length === 1);
   const mainActions = await main.evaluate(() => window.__cliActions);
@@ -74,7 +74,7 @@ try {
     sessionTitle: "Lifecycle task",
     emptySurface: { kind: "none" },
   };
-  await main.evaluate((value) => window.duetRuntime.setActiveTerminalTask(value), liveBinding);
+  await main.evaluate((value) => window.sonataRuntime.setActiveTerminalTask(value), liveBinding);
   const firstTerminal = terminal.locator(".task-terminal");
   await firstTerminal.waitFor({ state: "attached" });
   await firstTerminal.evaluate((element) => {
@@ -83,7 +83,7 @@ try {
 
   await main.evaluate(
     ({ value, taskId }) =>
-      window.duetRuntime.setActiveTerminalTask({
+      window.sonataRuntime.setActiveTerminalTask({
         ...value,
         live: false,
         emptySurface: { kind: "dormant", phase: "ready", taskId },
@@ -95,7 +95,7 @@ try {
   });
   const dormantDisposedXterm = (await terminal.locator(".task-terminal").count()) === 0;
 
-  await main.evaluate((value) => window.duetRuntime.setActiveTerminalTask(value), liveBinding);
+  await main.evaluate((value) => window.sonataRuntime.setActiveTerminalTask(value), liveBinding);
   const resumedTerminal = terminal.locator(".task-terminal");
   await resumedTerminal.waitFor({ state: "attached" });
   const resumedWithFreshXterm = await resumedTerminal.evaluate(

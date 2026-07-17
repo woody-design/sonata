@@ -21,12 +21,12 @@ import {
   waitForWindowByUrl,
 } from "./helpers/session.mjs";
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-preview-tabs-e2e-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-preview-tabs-e2e-"));
 const launchEnv = {
   ...process.env,
-  DUET_DATA_DIR: dataRoot,
-  DUET_WORKSPACES_DIR: dataRoot,
-  DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+  SONATA_DATA_DIR: dataRoot,
+  SONATA_WORKSPACES_DIR: dataRoot,
+  SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
 };
 
 const results = {};
@@ -38,7 +38,7 @@ try {
   page.setDefaultTimeout(180000);
 
   await sendFirstPrompt(page, [
-    "Reply exactly DUET_PREVIEW_TABS_READY.",
+    "Reply exactly SONATA_PREVIEW_TABS_READY.",
     "Do not create or modify any files.",
   ]);
   const taskId = await activeSessionTaskId(page);
@@ -209,10 +209,10 @@ try {
   // on-disk store — the layer the store-level smoke:preview-sessions can't reach.
   const previewSessionFor = () =>
     JSON.parse(fs.readFileSync(sessionsFile, "utf8"))?.sessions?.[taskId] ?? null;
-  await page.evaluate((id) => window.duetRuntime.archiveSession({ taskId: id, archived: true }), taskId);
+  await page.evaluate((id) => window.sonataRuntime.archiveSession({ taskId: id, archived: true }), taskId);
   await page.waitForTimeout(700);
   results.archivePreservesSession = (previewSessionFor()?.tabs?.length ?? 0) > 0;
-  await page.evaluate((id) => window.duetRuntime.deleteSession({ taskId: id }), taskId);
+  await page.evaluate((id) => window.sonataRuntime.deleteSession({ taskId: id }), taskId);
   await page.waitForTimeout(700);
   results.deleteForgetsSession = previewSessionFor() === null;
 
@@ -243,27 +243,27 @@ function writeFile(root, relative, contents) {
 // keeps this fence here).
 async function installExternalOpenProbe(electronApp) {
   await electronApp.evaluate(({ shell }) => {
-    globalThis.__duetExternalOpenCalls = [];
+    globalThis.__sonataExternalOpenCalls = [];
     shell.openPath = async (targetPath) => {
-      globalThis.__duetExternalOpenCalls.push({ method: "openPath", path: targetPath });
+      globalThis.__sonataExternalOpenCalls.push({ method: "openPath", path: targetPath });
       return "";
     };
     shell.openExternal = async (url) => {
-      globalThis.__duetExternalOpenCalls.push({ method: "openExternal", url });
+      globalThis.__sonataExternalOpenCalls.push({ method: "openExternal", url });
     };
     shell.showItemInFolder = (targetPath) => {
-      globalThis.__duetExternalOpenCalls.push({ method: "showItemInFolder", path: targetPath });
+      globalThis.__sonataExternalOpenCalls.push({ method: "showItemInFolder", path: targetPath });
     };
   });
 }
 
 async function readExternalOpenCalls(electronApp) {
-  return electronApp.evaluate(() => globalThis.__duetExternalOpenCalls ?? []);
+  return electronApp.evaluate(() => globalThis.__sonataExternalOpenCalls ?? []);
 }
 
 async function openTab(page, taskId, relativePath) {
   await page.evaluate(
-    (args) => window.duetRuntime.openPreview(args),
+    (args) => window.sonataRuntime.openPreview(args),
     { taskId, relativePath },
   );
 }

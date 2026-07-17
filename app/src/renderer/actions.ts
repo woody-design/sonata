@@ -38,7 +38,7 @@ import type {
 } from "../reading-core/state";
 
 /** The two co-equal surfaces of a task: the crafted reading view and the raw
- *  terminal. Both ARE Duet — the switch picks which lens is in front. */
+ *  terminal. Both ARE Sonata — the switch picks which lens is in front. */
 export type ViewMode = "read" | "terminal";
 
 export interface Actions {

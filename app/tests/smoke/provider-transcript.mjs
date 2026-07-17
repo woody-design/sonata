@@ -15,7 +15,7 @@ const {
 } = require("../../dist/runtime/provider-transcript/index");
 const { userPromptDisplay } = require("../../dist/reading-core/selectors/turns");
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-provider-transcript-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-provider-transcript-"));
 const failures = [];
 
 function check(name, fn) {
@@ -276,7 +276,7 @@ check("claude: isMeta user records are skipped", () => {
 check("claude: image prompt attributes to its raw-text run through the real chain (2026-07-05)", () => {
   // The seam the image double-card bug lived in: the normalizer emits a
   // user-message whose text carries the CLI's `[Image #N]` prefix, but the run
-  // Duet's idle-send path created stored the RAW typed text with no promptId.
+  // Sonata's idle-send path created stored the RAW typed text with no promptId.
   // resolveRunForTurn must attribute the one to the other — pre-fix it returned
   // null (raw !== decorated) and the run rendered as a second husk card.
   const { RunIndex, resolveRunForTurn } = require("../../dist/runtime");

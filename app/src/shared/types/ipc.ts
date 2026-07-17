@@ -681,7 +681,7 @@ export interface FolderPickResponse {
   path: string | null;
 }
 
-export interface DuetRuntimeBridge {
+export interface SonataRuntimeBridge {
   createTask(request: CreateTaskRequest): Promise<CreateTaskResponse>;
   openTask(request: OpenTaskRequest): Promise<OpenTaskResponse>;
   closeTask(request: CloseTaskRequest): Promise<void>;

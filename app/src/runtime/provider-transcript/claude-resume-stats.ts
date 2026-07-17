@@ -4,7 +4,7 @@ import fs from "node:fs";
  * Pre-spawn resume cost context, read from the Claude transcript JSONL —
  * the same numbers the native resume interstitial would show (P1 evidence
  * 2026-06-12: panel said "2h 15m old and 105.9k tokens", this parser said
- * 105.8k from the identical clone). Duet can therefore offer the
+ * 105.8k from the identical clone). Sonata can therefore offer the
  * summary-vs-full choice BEFORE spawning, which no scraping host can.
  */
 export interface ClaudeResumeStats {

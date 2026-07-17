@@ -25,12 +25,12 @@ import {
   waitForWindowByUrl,
 } from "./helpers/session.mjs";
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-preview-tree-e2e-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-preview-tree-e2e-"));
 const launchEnv = {
   ...process.env,
-  DUET_DATA_DIR: dataRoot,
-  DUET_WORKSPACES_DIR: dataRoot,
-  DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+  SONATA_DATA_DIR: dataRoot,
+  SONATA_WORKSPACES_DIR: dataRoot,
+  SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
 };
 
 const results = {};
@@ -41,7 +41,7 @@ try {
   page.setDefaultTimeout(180000);
 
   await sendFirstPrompt(page, [
-    "Reply exactly DUET_PREVIEW_TREE_READY.",
+    "Reply exactly SONATA_PREVIEW_TREE_READY.",
     "Do not create or modify any files.",
   ]);
   const taskId = await activeSessionTaskId(page);
@@ -267,7 +267,7 @@ try {
     preview.evaluate(() => Math.round(document.querySelector("#preview-panel").getBoundingClientRect().width));
   const canvasWidth = () =>
     preview.evaluate(() => Math.round(document.querySelector("#preview-content").getBoundingClientRect().width));
-  const storedWidth = () => preview.evaluate(() => localStorage.getItem("duet.preview.panel.width"));
+  const storedWidth = () => preview.evaluate(() => localStorage.getItem("sonata.preview.panel.width"));
   const dragResizerTo = async (targetClientX) => {
     const box = await preview.locator("#preview-panel-resizer").boundingBox();
     const cy = box.y + box.height / 2;
@@ -329,7 +329,7 @@ function writeFile(root, relative, contents) {
 }
 
 async function openTab(page, taskId, relativePath) {
-  await page.evaluate((args) => window.duetRuntime.openPreview(args), { taskId, relativePath });
+  await page.evaluate((args) => window.sonataRuntime.openPreview(args), { taskId, relativePath });
 }
 
 /** Expand a directory row only if it is currently collapsed (clicking blindly

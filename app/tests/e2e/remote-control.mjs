@@ -5,18 +5,18 @@
 //
 // NOTE: this drives a REAL authenticated `claude`, so it registers a real
 // Remote Control session on the signed-in account (disconnected when the app
-// closes). Fully isolated (--user-data-dir + DUET_* temp dirs) so it never
-// collides with a running Duet.
+// closes). Fully isolated (--user-data-dir + SONATA_* temp dirs) so it never
+// collides with a running Sonata.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { sendFirstPrompt } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rc-e2e-"));
-const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rc-settings-"));
-const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rc-userdata-"));
-const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rc-folder-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rc-e2e-"));
+const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rc-settings-"));
+const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rc-userdata-"));
+const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rc-folder-"));
 const shotDir = process.env.RC_SHOT_DIR || workspaceRoot;
 let electronApp = null;
 const pageErrors = [];
@@ -97,10 +97,10 @@ async function launchApp() {
     args: ["dist/main/main.js", `--user-data-dir=${userDataDir}`],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot,
-      DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsDir,
-      DUET_TEST_PICK_FOLDER: selectedFolder,
+      SONATA_DATA_DIR: workspaceRoot,
+      SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsDir,
+      SONATA_TEST_PICK_FOLDER: selectedFolder,
     },
   });
   const page = await electronApp.firstWindow();

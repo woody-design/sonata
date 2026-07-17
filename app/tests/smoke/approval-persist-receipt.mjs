@@ -2,7 +2,7 @@
 // claude CLI speaking the 2.1.176 panel grammar:
 //   v2 panel with a "don't ask again" option → detector offers
 //   approve-always → sendApproveAlways() answers with digit 2 → the CLI
-//   (not Duet) writes .claude/settings.local.json → the receipt watcher
+//   (not Sonata) writes .claude/settings.local.json → the receipt watcher
 //   observes the write → approval:persisted carries the EXACT rule → the
 //   runtime report holds the full forensic trail (detected → decision →
 //   persisted).
@@ -16,9 +16,9 @@ const require = createRequire(import.meta.url);
 const { RunIndex, TerminalHost } = require("../../dist/runtime");
 
 const taskId = "task-approval-persist-receipt-smoke";
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-persist-receipt-smoke-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-approval-persist-receipt-smoke-"));
 const scriptPath = path.join(workspace, "fake-claude-persist-cli.mjs");
-const reportPath = path.join(workspace, ".duet", "runtime-report.json");
+const reportPath = path.join(workspace, ".sonata", "runtime-report.json");
 const settingsPath = path.join(workspace, ".claude", "settings.local.json");
 
 fs.writeFileSync(
@@ -67,7 +67,7 @@ process.stdin.on("data", (data) => {
     return;
   }
   if (text === "2") {
-    // The CLI owns the write — Duet only observes it.
+    // The CLI owns the write — Sonata only observes it.
     const dir = path.join(process.cwd(), ".claude");
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
@@ -75,7 +75,7 @@ process.stdin.on("data", (data) => {
       JSON.stringify({ permissions: { allow: ["Bash(md5 *)"] } }, null, 2),
     );
     process.stdout.write("Thinking with fake Claude\\n");
-    process.stdout.write("duet-fake-md5-hash\\n");
+    process.stdout.write("sonata-fake-md5-hash\\n");
     process.stdout.write("Persist approval accepted.\\n\\u276F opus xhigh ~\\n");
   }
 });

@@ -21,8 +21,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { TerminalHost, DeliveryController, cleanTerminal } = require("../../dist/runtime");
 
-const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-dispatch-"));
-const hooksDir = path.join(cwd, ".duet", "hooks");
+const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-slash-dispatch-"));
+const hooksDir = path.join(cwd, ".sonata", "hooks");
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const MULTILINE = [

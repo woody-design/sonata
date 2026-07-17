@@ -5,7 +5,7 @@ import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval } from "./helpers/approval.mjs";
 import { sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-gui-e2e-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-gui-e2e-"));
 let electronApp = null;
 
 try {
@@ -13,7 +13,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
     },
   });
 
@@ -22,7 +22,7 @@ try {
 
   const prompt = [
     "Create exactly two files in this workspace:",
-    "1. report.md with the heading '# Duet GUI Gate' and one sentence saying 'Markdown artifact ready.'",
+    "1. report.md with the heading '# Sonata GUI Gate' and one sentence saying 'Markdown artifact ready.'",
     "2. page.html with a minimal HTML page whose body contains 'HTML artifact ready.'",
     "Do not modify any other files.",
   ].join("\n");

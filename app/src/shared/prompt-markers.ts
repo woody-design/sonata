@@ -1,9 +1,9 @@
 /**
  * Prompt-marker canonicalization — the single source of truth for reconciling a
- * prompt as Duet stored it (the raw text the user typed) against the same prompt
+ * prompt as Sonata stored it (the raw text the user typed) against the same prompt
  * as the CLI later reports it (transcript `user-message`, and the
  * `UserPromptSubmit` hook payload). The CLI decorates image attachments with
- * `[Image #N]` placeholders; Duet stores the undecorated text. Every place that
+ * `[Image #N]` placeholders; Sonata stores the undecorated text. Every place that
  * asks "are these the same prompt?" must read THROUGH that decoration with one
  * rule.
  *

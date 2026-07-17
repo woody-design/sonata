@@ -7,7 +7,7 @@ import type { RuntimeReportV1 } from "../schemas/runtime-report";
  * in a folder (today's Task — the code-level rename is a later mechanical
  * slice). A "project" is a working folder derived from the distinct
  * providerCwd values across session manifests; it is never stored as its
- * own entity. Sessions in Duet auto-workspaces (no user-picked folder)
+ * own entity. Sessions in Sonata auto-workspaces (no user-picked folder)
  * group under "Chats".
  */
 

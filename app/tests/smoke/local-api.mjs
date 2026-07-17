@@ -12,7 +12,7 @@ const { LocalApiServer } = require("../../dist/main/local-api/local-api-server")
 // persisted case the server must map to -32002 (distinct from -32001).
 const { TaskNotFoundError, TaskNotLiveError } = require("../../dist/main/errors");
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-local-api-smoke-"));
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-local-api-smoke-"));
 const socketPath = path.join(tmpDir, "control.sock");
 
 const submitted = [];
@@ -123,7 +123,7 @@ function rawRequest(frameObject) {
 
 // hello
 const hello = await request("hello", { protocolVersion: 1, client: "smoke" });
-assert.equal(hello.result.app, "duet");
+assert.equal(hello.result.app, "sonata");
 assert.equal(hello.result.protocolVersion, 1);
 
 // sessionIndex passes through; absent includeArchived → undefined options

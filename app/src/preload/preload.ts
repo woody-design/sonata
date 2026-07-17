@@ -3,7 +3,7 @@ import {
   DEFAULT_READING_SETTINGS,
   IPC_CHANNELS,
   type CliActionRequest,
-  type DuetRuntimeBridge,
+  type SonataRuntimeBridge,
   type PreviewBinding,
   type ReadingSettings,
   type ResolvedReadingMode,
@@ -96,7 +96,7 @@ function stampInstanceLabel(label: string): void {
   }
   root.dataset.instanceLabel = label;
   root.style.setProperty("--instance-label", JSON.stringify(label));
-  document.title = `Duet — ${label}`;
+  document.title = `Sonata — ${label}`;
 }
 
 if (isReadingThemedDocument()) {
@@ -141,7 +141,7 @@ if (isReadingThemedDocument()) {
   }
 }
 
-const duetRuntime: DuetRuntimeBridge = {
+const sonataRuntime: SonataRuntimeBridge = {
   createTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskCreate, request),
   openTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskOpen, request),
   closeTask: (request) => ipcRenderer.invoke(IPC_CHANNELS.taskClose, request),
@@ -273,4 +273,4 @@ const duetRuntime: DuetRuntimeBridge = {
   },
 };
 
-contextBridge.exposeInMainWorld("duetRuntime", duetRuntime);
+contextBridge.exposeInMainWorld("sonataRuntime", sonataRuntime);

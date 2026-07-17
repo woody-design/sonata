@@ -7,13 +7,13 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { activeSessionTaskId } from "./helpers/session.mjs";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-cli-surface-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-surface-"));
 const dataRoot = path.join(root, "data-root");
 const settingsDir = path.join(root, "settings");
 const fakeBin = path.join(root, "bin");
 const project = path.join(root, "project-with-a-longish-name");
 const outputDir = path.resolve(
-  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "duet-cli-surface-evidence-")),
+  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-surface-evidence-")),
 );
 for (const dir of [settingsDir, fakeBin, project, outputDir]) {
   fs.mkdirSync(dir, { recursive: true });
@@ -30,11 +30,11 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: dataRoot,
-      DUET_WORKSPACES_DIR: path.join(root, "workspaces"),
-      DUET_SETTINGS_DIR: settingsDir,
-      DUET_TEST_PICK_FOLDER: project,
-      DUET_NOTIFICATIONS: "0",
+      SONATA_DATA_DIR: dataRoot,
+      SONATA_WORKSPACES_DIR: path.join(root, "workspaces"),
+      SONATA_SETTINGS_DIR: settingsDir,
+      SONATA_TEST_PICK_FOLDER: project,
+      SONATA_NOTIFICATIONS: "0",
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
     },
   });
@@ -185,7 +185,7 @@ try {
       freshLabels.action === "Start CLI",
     emptyActionIsLocalNeutral:
       near(emptyActionVisual.height, 36) && emptyActionVisual.borderRadius === "8px",
-    // Two rulers (scheme-axis decision 2026-07-17): DUET is OUR authored
+    // Two rulers (scheme-axis decision 2026-07-17): SONATA is OUR authored
     // palette — it must meet the design system's WCAG bar (AA text, 3:1
     // furniture). The named schemes are QUOTED palettes carrying their own
     // contrast philosophy (Solarized's foreground is 4.1:1 by design); grading
@@ -194,7 +194,7 @@ try {
     // they catch a broken derivation (muted ≈ background after a token typo),
     // not aesthetic shortfalls. Focus visibility stays asserted everywhere.
     themeContrastAccessible: contrastMatrix.every((entry) =>
-      entry.scheme === "duet"
+      entry.scheme === "sonata"
         ? entry.projectContrast >= 4.5 &&
           entry.supportContrast >= 4.5 &&
           entry.borderContrast >= 3 &&
@@ -250,7 +250,7 @@ function installFakeClaude() {
     `#!/usr/bin/env node
 const fs = require("node:fs");
 const path = require("node:path");
-const runtimeDir = process.env.DUET_RUNTIME_DIR;
+const runtimeDir = process.env.SONATA_RUNTIME_DIR;
 fs.mkdirSync(runtimeDir, { recursive: true });
 if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch {} }
 process.stdin.resume();
@@ -372,7 +372,7 @@ async function readToggle(page) {
 async function readContrastMatrix(page) {
   const entries = [];
   await page.locator("#terminal-theme-trigger").click();
-  const schemes = ["duet", "catppuccin", "gruvbox", "solarized", "tokyo-night", "rose-pine"];
+  const schemes = ["sonata", "catppuccin", "gruvbox", "solarized", "tokyo-night", "rose-pine"];
   for (const scheme of schemes) {
     for (const mode of ["light", "dark"]) {
       await page.locator(`[data-scheme-choice="${scheme}"]`).click();
@@ -415,7 +415,7 @@ async function readContrastMatrix(page) {
       });
     }
   }
-  await page.locator('[data-scheme-choice="duet"]').click();
+  await page.locator('[data-scheme-choice="sonata"]').click();
   await page.locator('[data-mode-choice="auto"]').click();
   await page.locator("#terminal-theme-trigger").click();
   return entries;

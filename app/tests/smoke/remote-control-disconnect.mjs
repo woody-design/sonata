@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const { TerminalHost } = require("../../dist/runtime");
 
 const taskId = "task-rc-disconnect-smoke";
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rc-disc-smoke-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rc-disc-smoke-"));
 
 let rawTail = "";
 let trustApproved = false;

@@ -85,7 +85,7 @@ export function initDom(): void {
   }
 
   appElement.innerHTML = `
-  <section class="shell" aria-label="Duet">
+  <section class="shell" aria-label="Sonata">
     <aside id="sidebar" class="sidebar" aria-label="Sessions">
       <div class="sidebar-top">
         <div class="sidebar-rail">

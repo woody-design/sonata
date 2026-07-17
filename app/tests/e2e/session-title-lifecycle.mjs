@@ -8,12 +8,12 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-session-title-lifecycle-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-session-title-lifecycle-"));
 const fakeBin = path.join(tempRoot, "bin");
 fs.mkdirSync(fakeBin, { recursive: true });
 installFakeClaude();
 process.env.PATH = `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`;
-process.env.DUET_DATA_DIR = path.join(tempRoot, "duet-data");
+process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 const require = createRequire(import.meta.url);
 const { RuntimeController } = require("../../dist/main/runtime-controller");
 const { ProjectsStore } = require("../../dist/main/projects-store");
@@ -22,7 +22,7 @@ const {
   ClaudeSettingsStore,
   CodexSettingsStore,
 } = require("../../dist/main/settings-store");
-const { projectRecordRoot } = require("../../dist/main/duet-paths");
+const { projectRecordRoot } = require("../../dist/main/sonata-paths");
 const { freshTaskManifestV1 } = require("../../dist/shared/schemas/task-manifest");
 const reducer = require("../../dist/reading-core/runtime-reducer");
 const readingState = require("../../dist/reading-core/state");

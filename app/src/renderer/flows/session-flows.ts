@@ -80,7 +80,7 @@ function activeTaskView(): TaskViewState | null {
 export async function refreshSessionIndex(): Promise<void> {
   try {
     // Always fetch the full record; status filtering is a view decision.
-    state.sessionIndex = await window.duetRuntime.readSessionIndex({ includeArchived: true });
+    state.sessionIndex = await window.sonataRuntime.readSessionIndex({ includeArchived: true });
     if (renameTargetDisappeared()) {
       renameTransitions.terminateRenameForMissingEntity(state);
       render();
@@ -136,7 +136,7 @@ export async function archiveSessionFromSidebar(taskId: string): Promise<void> {
   }
   render();
   try {
-    await window.duetRuntime.archiveSession({ taskId, archived: true });
+    await window.sonataRuntime.archiveSession({ taskId, archived: true });
     // The main process stopped the PTY; drop the local view either way.
     removeTaskViewLocally(taskId);
   } catch (error) {
@@ -159,7 +159,7 @@ export async function unarchiveSessionFromSidebar(taskId: string): Promise<void>
   }
   render();
   try {
-    await window.duetRuntime.archiveSession({ taskId, archived: false });
+    await window.sonataRuntime.archiveSession({ taskId, archived: false });
   } catch (error) {
     state.status = errorMessage(error);
   } finally {
@@ -170,7 +170,7 @@ export async function unarchiveSessionFromSidebar(taskId: string): Promise<void>
 
 export async function deleteSessionFromSidebar(taskId: string, title: string): Promise<void> {
   const confirmed = window.confirm(
-    `Delete "${title}"?\n\nThis removes the session from Duet. The provider transcript and your working folder are kept.`,
+    `Delete "${title}"?\n\nThis removes the session from Sonata. The provider transcript and your working folder are kept.`,
   );
   if (!confirmed) {
     return;
@@ -186,7 +186,7 @@ export async function deleteSessionFromSidebar(taskId: string, title: string): P
   }
   render();
   try {
-    await window.duetRuntime.deleteSession({ taskId });
+    await window.sonataRuntime.deleteSession({ taskId });
     removeTaskViewLocally(taskId);
   } catch (error) {
     state.status = errorMessage(error);
@@ -211,7 +211,7 @@ export async function archiveProjectFromSidebar(
   }
   render();
   try {
-    await window.duetRuntime.archiveProject({ path, archived });
+    await window.sonataRuntime.archiveProject({ path, archived });
     if (archived) {
       clearParkedResumeChoicesForArchivedProject(path);
     }
@@ -274,7 +274,7 @@ export async function selectSession(taskId: string): Promise<void> {
   state.status = "Opening session";
   render();
   try {
-    const snapshot = await window.duetRuntime.readSession({ taskId });
+    const snapshot = await window.sonataRuntime.readSession({ taskId });
     const view = createTaskView(snapshot.task, snapshot.live ? "Ready" : "Idle", snapshot.live);
     view.report = snapshot.report;
     view.transcriptSources = snapshot.sources;
@@ -314,7 +314,7 @@ async function hydrateTranscript(taskId: string): Promise<void> {
   if (!view?.task) {
     return;
   }
-  const response = await window.duetRuntime.readTranscript({ taskId });
+  const response = await window.sonataRuntime.readTranscript({ taskId });
   view.transcriptSources = response.sources;
   view.transcriptBlocks = new Map();
   view.transcriptBlockOrder = [];
@@ -330,7 +330,7 @@ async function hydrateUsage(taskId: string): Promise<void> {
   if (!view?.task) {
     return;
   }
-  view.usageSnapshot = await window.duetRuntime.readUsage({ taskId });
+  view.usageSnapshot = await window.sonataRuntime.readUsage({ taskId });
   markViewChanged(view);
 }
 
@@ -426,7 +426,7 @@ async function createTask(
 
   try {
     const launchSettings = taskLaunchSettings(provider);
-    const response = await window.duetRuntime.createTask({
+    const response = await window.sonataRuntime.createTask({
       provider,
       ...(options.cwd ? { cwd: options.cwd } : {}),
       model: launchSettings.model,
@@ -545,7 +545,7 @@ export async function submitPrompt(): Promise<void> {
       view.status = "Queued";
       render();
       const attachments = await materializeAttachments(view.pendingAttachments, taskId);
-      await window.duetRuntime.submitPrompt({ taskId, text, attachments });
+      await window.sonataRuntime.submitPrompt({ taskId, text, attachments });
       clearComposerAttachments(view.pendingAttachments);
     }
   } catch (error) {
@@ -595,7 +595,7 @@ async function createSessionFromComposer(text: string, ownerToken: string): Prom
     // The session now exists — materialize the held draft (copy bitmaps, pass
     // references through) and deliver with the first prompt.
     const attachments = await materializeAttachments(state.draftAttachments, taskId);
-    await window.duetRuntime.submitPrompt({ taskId, text, attachments });
+    await window.sonataRuntime.submitPrompt({ taskId, text, attachments });
     view.composerDraft = "";
     if (state.activeTaskId === taskId) {
       elements.promptInput.value = "";
@@ -722,7 +722,7 @@ async function resumeSession(
   // claims a fresh lifecycle at confirm time. The prompt text is NOT stored: it
   // is read from the composer at confirm (WYSIWYG).
   let resumeMode: "full" | "summary" | undefined;
-  const preparation = await window.duetRuntime.prepareResume({ taskId });
+  const preparation = await window.sonataRuntime.prepareResume({ taskId });
   if (preparation.needsChoice) {
     view.resumeChoice = {
       idleMs: preparation.idleMs,
@@ -776,7 +776,7 @@ async function openDormantSessionAndSend(
   }
   render();
   try {
-    const response = await window.duetRuntime.openTask({
+    const response = await window.sonataRuntime.openTask({
       taskId,
       ...(resumeMode ? { resumeMode } : {}),
       ...(view.task.provider === "claude" && dormantArmed(view, state.remoteControlDefault)
@@ -796,7 +796,7 @@ async function openDormantSessionAndSend(
       // pass references through) and deliver.
       const attachments = await materializeAttachments(view.pendingAttachments, taskId);
       if (text || attachments.length > 0) {
-        await window.duetRuntime.submitPrompt({ taskId, text, attachments });
+        await window.sonataRuntime.submitPrompt({ taskId, text, attachments });
         view.composerDraft = "";
         if (state.activeTaskId === taskId) {
           elements.promptInput.value = "";
@@ -847,10 +847,10 @@ export async function resolveResumeChoice(mode: "full" | "summary"): Promise<voi
   try {
     if (remember) {
     // The moment is where the setting is born; the chooser collapses for
-    // future resumes and the policy lives in Duet's own settings store.
+    // future resumes and the policy lives in Sonata's own settings store.
     // Provenance marks the birth so the Settings page can attribute it.
       try {
-        await window.duetRuntime.writeResumeSettings({
+        await window.sonataRuntime.writeResumeSettings({
           policy: mode,
           provenance: { source: "moment", at: new Date().toISOString() },
         });
@@ -885,7 +885,7 @@ export async function decideApproval(decision: ApprovalDecision): Promise<void> 
   state.busy = true;
   render();
   try {
-    await window.duetRuntime.decideApproval({
+    await window.sonataRuntime.decideApproval({
       taskId: view.task.id,
       decision,
       approvalId: view.pendingApproval?.approvalId ?? null,
@@ -920,7 +920,7 @@ export async function stopRun(): Promise<void> {
   view.status = "Stopped";
   render();
   try {
-    await window.duetRuntime.stopRun({ taskId, inspectDelayMs: 6000 });
+    await window.sonataRuntime.stopRun({ taskId, inspectDelayMs: 6000 });
     // Hand the stopped words back for editing. Re-checked for emptiness: the
     // user may have started typing during the IPC round-trip, and their text
     // always wins. The check must consult the right truth — after a view
@@ -958,7 +958,7 @@ export async function refreshReport(taskId = state.activeTaskId): Promise<void> 
     return;
   }
 
-  view.report = await window.duetRuntime.readReport({ taskId: view.task.id });
+  view.report = await window.sonataRuntime.readReport({ taskId: view.task.id });
   markViewChanged(view);
 }
 
@@ -980,7 +980,7 @@ export async function answerOptionPrompt(): Promise<void> {
     // PostToolUse cleared the prompt — by then the `option-prompt:resolved`
     // event has set the reconciled receipt (receipt-by-observation, never
     // optimistic). A swallowed injection REJECTS instead of faking a receipt.
-    await window.duetRuntime.answerOptionPrompt({
+    await window.sonataRuntime.answerOptionPrompt({
       taskId: view.task.id,
       toolUseId: prompt.toolUseId,
       selections,
@@ -1007,7 +1007,7 @@ export async function dismissOptionPrompt(): Promise<void> {
   view.optionPromptBusy = true;
   deps.renderOptionPrompt();
   try {
-    await window.duetRuntime.dismissOptionPrompt({
+    await window.sonataRuntime.dismissOptionPrompt({
       taskId: view.task.id,
       toolUseId: prompt.toolUseId,
     });
@@ -1029,7 +1029,7 @@ export async function pickTaskFolder(): Promise<void> {
   render();
 
   try {
-    const response = await window.duetRuntime.pickFolder();
+    const response = await window.sonataRuntime.pickFolder();
     if (response.path) {
       sessionTransitions.applyPickedTaskFolder(state, response.path);
     }
@@ -1064,7 +1064,7 @@ export async function openFloatingPreview(): Promise<void> {
     return;
   }
 
-  await window.duetRuntime.openPreview({ taskId: view.task.id });
+  await window.sonataRuntime.openPreview({ taskId: view.task.id });
 }
 
 /** Switch the active task's surface (Read ⇄ Terminal). Per-task: only the active
@@ -1072,7 +1072,7 @@ export async function openFloatingPreview(): Promise<void> {
  *  held where the human can't type (model Y). Entering Terminal attaches + fits
  *  the xterm once the pane is visible. */
 export function surfaceTerminalWindow(): void {
-  void window.duetRuntime.setTerminalWindowOpen(true).catch(() => {});
+  void window.sonataRuntime.setTerminalWindowOpen(true).catch(() => {});
 }
 
 export function setViewMode(mode: ViewMode): void {

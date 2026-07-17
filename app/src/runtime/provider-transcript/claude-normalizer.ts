@@ -192,7 +192,7 @@ export class ClaudeSessionNormalizer {
     //
     // Deliberately NOT extended to `sdk`: in a Claude-Agent-SDK session every
     // user message is tagged `sdk` (including the prompts driving this very
-    // Duet workshop), so excluding it would erase the user's own words from
+    // Sonata workshop), so excluding it would erase the user's own words from
     // the reading surface — a worse failure than showing a stray
     // notification. `sdk` and legacy un-tagged records keep the heuristic
     // below.

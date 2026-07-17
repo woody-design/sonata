@@ -1,5 +1,5 @@
 // Layer-1 fence — the CodexPermissionMode → spawn-args mapping at the codexArgs
-// seam. This is the ONE place Duet's user-facing permission vocabulary fans
+// seam. This is the ONE place Sonata's user-facing permission vocabulary fans
 // back out to Codex's legacy (sandbox × approval × reviewer) flags, so it is
 // pinned EXACTLY. Every row was live-verified against codex 0.144.4 to show the
 // matching "(current)" in the TUI `/permissions` picker
@@ -24,7 +24,7 @@ const arrayEqual = (a, b) =>
   Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i]);
 const count = (argv, pred) => argv.filter(pred).length;
 
-const CWD = "/tmp/duet perm fence";
+const CWD = "/tmp/sonata perm fence";
 
 // The exact ordered permission tail each mode must emit (order within the row
 // is fixed: `-s <sandbox> -a <approval> -c approvals_reviewer="<reviewer>"`).

@@ -15,7 +15,7 @@ import { CODEX_ANSWERING_MARKER, codexApprovalsDirectory } from "./codex-runtime
  *     UNVERIFIED on Codex — an open probe, out of scope — so an `approve-always`
  *     maps to a plain one-shot allow here, never a guessed rule shape.
  *  2. The answering MARKER lifecycle: the broker shim is inert (native card,
- *     zero stall) until Duet drops the marker, and Duet drops it exactly when
+ *     zero stall) until Sonata drops the marker, and Sonata drops it exactly when
  *     the approval-card wiring is live for the task (it is watching the task's
  *     approvals dir). Single-sourced with the shim via `CODEX_ANSWERING_MARKER`.
  */
@@ -52,7 +52,7 @@ export function codexAnsweringMarkerPath(runtimeDir: string): string {
 
 /**
  * Arm the broker's hold-and-answer path for a task by dropping the marker the
- * shim checks. Idempotent; creates the approvals dir if needed. Called when Duet
+ * shim checks. Idempotent; creates the approvals dir if needed. Called when Sonata
  * starts watching the task's approvals (i.e. the card channel is live).
  */
 export function enableCodexAnswering(runtimeDir: string): void {
@@ -68,7 +68,7 @@ export function enableCodexAnswering(runtimeDir: string): void {
 /**
  * Disarm answering (task closed / no longer watched): the broker reverts to the
  * instant-native-card path. Best-effort; a stale marker is harmless because the
- * broker only ever runs while Duet is spawning — and Duet re-drops the marker on
+ * broker only ever runs while Sonata is spawning — and Sonata re-drops the marker on
  * the next watch — so answering is never falsely armed without a live watcher.
  */
 export function disableCodexAnswering(runtimeDir: string): void {

@@ -23,9 +23,9 @@
 // correct three-truths behavior (the disk is the truth, the chip is a claim).
 //
 // Seam discipline (ARCHITECTURE.md): this view does DOM only. The IPC round-trip
-// arrives as an init-bound dep (main.ts wires it to window.duetRuntime); the
+// arrives as an init-bound dep (main.ts wires it to window.sonataRuntime); the
 // click behavior is a delegated listener in the composition root. This module
-// never touches window.duetRuntime or the actions registry.
+// never touches window.sonataRuntime or the actions registry.
 
 import { activeTaskView, type RendererState } from "../../reading-core/state";
 import { elements } from "../dom";

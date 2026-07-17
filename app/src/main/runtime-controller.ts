@@ -81,9 +81,9 @@ import {
   projectRecordRoot,
   projectsDataDir,
   runtimeDir,
-  duetBinDir,
+  sonataBinDir,
   attachmentsRootForTask,
-} from "./duet-paths";
+} from "./sonata-paths";
 import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
 import type {
@@ -115,7 +115,7 @@ import os from "node:os";
 
 // Undocumented but botmux-proven per-process levers (research §2.1). Both
 // force the full-session path, which is exactly what we want: the panel
-// never renders in the hidden PTY; Duet owns the choice. Version-fragile —
+// never renders in the hidden PTY; Sonata owns the choice. Version-fragile —
 // the ambient modal detector (slice B) remains the net if they drift.
 const RESUME_PANEL_SUPPRESS_ENV: Record<string, string> = {
   CLAUDE_CODE_RESUME_THRESHOLD_MINUTES: "999999999",
@@ -277,7 +277,7 @@ export class RuntimeController {
     const now = creationInstant.toISOString();
     const taskId = this.nextTaskId();
     const initialTitle = initialSessionTitle(request.title, creationInstant);
-    // Duet's own records live under ~/.duet (hidden, Duet-owned), keyed by taskId
+    // Sonata's own records live under ~/.sonata (hidden, Sonata-owned), keyed by taskId
     // and fully decoupled from where the agent works. providerCwd is the user's
     // work: a chosen folder, or — for a project-less session — a VISIBLE generated
     // workspace (D7), never the hidden record dir.
@@ -295,9 +295,9 @@ export class RuntimeController {
     }
     if (request.provider === "claude") {
       // Trust pre-write (two-window contract §2, S4): every cwd a task can be
-      // born with was designated by the user in Duet's own UI — picked in the
+      // born with was designated by the user in Sonata's own UI — picked in the
       // folder dialog, chosen from recents / a project row, carried over as
-      // the last-used folder — or is the auto workspace Duet itself just
+      // the last-used folder — or is the auto workspace Sonata itself just
       // created (trustworthy by construction: it is empty). That gesture IS
       // the trust grant (Woody, 2026-07-02: all four sources count), so the
       // native dialog is pre-answered instead of mirrored. Resume/reopen adds
@@ -311,7 +311,7 @@ export class RuntimeController {
       );
     }
     const launchSettings = normalizeLaunchSettings(request);
-    // New sessions inherit the Duet-owned default approval policy (Settings →
+    // New sessions inherit the Sonata-owned default approval policy (Settings →
     // Approvals for Claude, Settings → Codex for Codex) unless the request
     // names one explicitly. This is the "set it once" that keeps a trusted
     // session from prompting on every tool call / command.
@@ -531,9 +531,9 @@ export class RuntimeController {
     });
     const cliState = new CliStateModel((snapshot) => this.emitCliState(runningTask.id, snapshot));
 
-    // Duet owns the resume moment (slice C): the interstitial is suppressed
+    // Sonata owns the resume moment (slice C): the interstitial is suppressed
     // per-spawn for every Claude resume — the choice happened (or the
-    // policy applied) BEFORE the spawn, in Duet's own UI, from Duet's own
+    // policy applied) BEFORE the spawn, in Sonata's own UI, from Sonata's own
     // numbers. Per-spawn env, never a ~/.claude.json write.
     const claudeResume = runningTask.provider === "claude" && Boolean(resumeRef);
     const ptyStartedAt = new Date().toISOString();
@@ -606,7 +606,7 @@ export class RuntimeController {
   /**
    * Pre-spawn resume context (slice C): whether the resume moment needs
    * the inline choice, with the cost numbers the native panel would have
-   * shown — computed from Duet's own data before any PTY exists.
+   * shown — computed from Sonata's own data before any PTY exists.
    */
   prepareResume(taskId: TaskId): PrepareResumeResponse {
     const settings = this.resumeSettingsStore.read();
@@ -681,9 +681,9 @@ export class RuntimeController {
 
   /**
    * Removes the temporary `resumeReturnDismissed: true` bridge from
-   * ~/.claude.json, only on an explicit click. Inside Duet the panel is
+   * ~/.claude.json, only on an explicit click. Inside Sonata the panel is
    * suppressed per-spawn regardless; this restores Claude's own warning
-   * for terminals OUTSIDE Duet. Rides the shared `updateClaudeConfig`
+   * for terminals OUTSIDE Sonata. Rides the shared `updateClaudeConfig`
    * primitive (S4) — same backup-once / atomic / conflict-retry rules as
    * the trust pre-write, one write path for the user-global config.
    */
@@ -833,10 +833,10 @@ export class RuntimeController {
     }
     const record = this.persistedSessionRecord(taskId);
     if (record) {
-      // storageRoot is Duet's own hidden record dir — remove it wholesale, with
-      // the task's Duet-owned attachment and runtime subtrees. The agent's working
+      // storageRoot is Sonata's own hidden record dir — remove it wholesale, with
+      // the task's Sonata-owned attachment and runtime subtrees. The agent's working
       // directory (providerCwd) is the user's VISIBLE work — a chosen folder or a
-      // generated ~/Documents/Duet workspace — and is NEVER touched (C4). The CLI
+      // generated ~/Documents/Sonata workspace — and is NEVER touched (C4). The CLI
       // transcript (CLI-owned) also stays.
       fs.rmSync(record.storageRoot, { recursive: true, force: true });
       fs.rmSync(attachmentsRootForTask(taskId), { recursive: true, force: true });
@@ -1005,7 +1005,7 @@ export class RuntimeController {
       // Orphan-reply guard (reviewer C2): if the broker already self-expired in
       // the poll gap (its `expired-<id>.json` is on disk), its native card is now
       // the live surface and no broker will ever read a reply. Writing one would
-      // let Duet record a decision the CLI never received and release the delivery
+      // let Sonata record a decision the CLI never received and release the delivery
       // gate over a wedged turn. Leave the pending entry so the watcher's expiry
       // path (handleApprovalExpired) clears the card + raises the banner; the user
       // answers the native card in the Terminal. (The broker's own final
@@ -1018,7 +1018,7 @@ export class RuntimeController {
       // approval channel (plan §2): Claude carries persistent-rule vocabulary
       // (`updatedPermissions`/`addRules`), Codex honors only `behavior:
       // allow|deny` (its "Always" rule support is an UNVERIFIED open probe — see
-      // codex-approvals.ts). The broker echoes whatever Duet writes verbatim.
+      // codex-approvals.ts). The broker echoes whatever Sonata writes verbatim.
       const decisionJson =
         active.task.provider === "codex"
           ? codexBrokerDecisionJson(decision)
@@ -1074,7 +1074,7 @@ export class RuntimeController {
   }
 
   /** True iff the broker for this ask already wrote its expired marker (it gave
-   *  up before Duet answered) — the synchronous signal that a reply would be
+   *  up before Sonata answered) — the synchronous signal that a reply would be
    *  orphaned. The watcher consumes+deletes the marker on its next poll, so this
    *  is a narrow window; the broker's own final reply-check covers the other side. */
   private brokerAlreadyExpired(taskId: TaskId, approvalId: string): boolean {
@@ -1113,7 +1113,7 @@ export class RuntimeController {
         payload: {
           taskId: active.task.id,
           // Broker asks carry no runId of their own; attribute to the open
-          // Duet run — the same attribution the scrape path records.
+          // Sonata run — the same attribution the scrape path records.
           runId: active.terminalHost.activeRunId(),
           kind,
           source: "hook-broker",
@@ -1282,8 +1282,8 @@ export class RuntimeController {
    * the native card, so we arm the one-shot resurface recognition below to keep
    * it from double-notifying. For CODEX the approval scrape is retired — the
    * native card is answered by the user in the Terminal and is never re-scraped
-   * into a Duet card, so no resurface arming is needed (nor possible to trip):
-   * the expired banner is the whole of Duet's post-expiry role.
+   * into a Sonata card, so no resurface arming is needed (nor possible to trip):
+   * the expired banner is the whole of Sonata's post-expiry role.
    */
   private handleApprovalExpired(id: string, workspace: string): void {
     const pending = this.pendingBrokerApprovals.get(id);
@@ -1432,7 +1432,7 @@ export class RuntimeController {
     // Turn-terminal signals drive two broker-approval release paths with
     // DIFFERENT scopes. `abortPendingBrokerApprovals` orphans still-PENDING asks
     // — a live holding hook blocks the turn, so a normal hook-Stop completion
-    // can't coexist with one; it fires only on Duet's ■/Esc (run:stopped), the
+    // can't coexist with one; it fires only on Sonata's ■/Esc (run:stopped), the
     // quiescence run-closer (completed + terminal-idle-heuristic), or the PTY
     // dying. `concludeExpiredBrokerApprovals` handles EXPIRED codex asks — the
     // broker already gave up and the native card was answered in the Terminal,
@@ -1752,7 +1752,7 @@ export class RuntimeController {
     // Hook-capable providers feed the same sink + approvals layout (S3), so both
     // get watched. The broker's hold-and-answer path is armed per provider:
     // Codex's broker shim is inert-until-marker (D4), so dropping the
-    // answering-enabled marker here — exactly when Duet's card wiring goes live —
+    // answering-enabled marker here — exactly when Sonata's card wiring goes live —
     // is what turns its native-card fallback into the Reading approval channel.
     if (isHookCapable(active.task.provider)) {
       this.hookWatcher.watchWorkspace(runtimeDir(active.task.id));
@@ -1966,7 +1966,7 @@ export class RuntimeController {
     // CLI just began (or dequeued) a prompt. Begin the run from it (no-op if the
     // idle-send path already began one). This is what makes mid-turn
     // write-through honest: a queued send's run starts when the CLI dequeues it,
-    // not when Duet wrote the bytes. Symmetric with the Stop-hook completion.
+    // not when Sonata wrote the bytes. Symmetric with the Stop-hook completion.
     if (event === "UserPromptSubmit") {
       const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
       // Authoritative submission proof: corroborate the echo-retry ladder from
@@ -2120,7 +2120,7 @@ export class RuntimeController {
   }
 
   /**
-   * Surface / reconcile a native AskUserQuestion (Slice 5) from the hooks duet
+   * Surface / reconcile a native AskUserQuestion (Slice 5) from the hooks sonata
    * already injects. Phase 0: `PreToolUse` carries the questions structurally,
    * `PostToolUse` carries the verbatim answers. `Stop` with a prompt still open
    * means it was cancelled (or finished without a PostToolUse) → clear the card.
@@ -2402,7 +2402,7 @@ export class RuntimeController {
         // unreachable; if it fires, the live process diverged (e.g. a hand
         // /resume to another conversation) — keep the original binding.
         console.warn(
-          `[duet] suppressed session rebind for ${active.task.id}: bound=${current} located=${latest.providerSessionId}`,
+          `[sonata] suppressed session rebind for ${active.task.id}: bound=${current} located=${latest.providerSessionId}`,
         );
       }
     }
@@ -2457,20 +2457,20 @@ export class RuntimeController {
     cols?: number | undefined;
   }): StartTaskOptions {
     // Per-task hook binding travels via env (D4): Codex hooks inherit the spawn
-    // env, so the frozen shim commands read DUET_RUNTIME_DIR to find THIS task's
+    // env, so the frozen shim commands read SONATA_RUNTIME_DIR to find THIS task's
     // sink — sink-dir ownership is the nonce that keeps two same-cwd tasks
-    // isolated. Force the binding for BOTH providers: Duet itself may have been
+    // isolated. Force the binding for BOTH providers: Sonata itself may have been
     // launched inside a Codex session, and a Claude child must not inherit that
-    // parent task's DUET_RUNTIME_DIR. The forced binding follows caller overlays
+    // parent task's SONATA_RUNTIME_DIR. The forced binding follows caller overlays
     // (e.g. Claude's resume-panel suppression), so no call site can replace it.
     const extraEnv: Record<string, string> = {
       ...(args.extraEnv ?? {}),
-      DUET_RUNTIME_DIR: runtimeDir(args.taskId),
+      SONATA_RUNTIME_DIR: runtimeDir(args.taskId),
     };
     return {
       cwd: args.cwd,
-      // Claude's hooks/usage/settings live HERE (D8) — Duet-owned, outside the
-      // agent's working directory, so nothing Duet writes into the user's repo
+      // Claude's hooks/usage/settings live HERE (D8) — Sonata-owned, outside the
+      // agent's working directory, so nothing Sonata writes into the user's repo
       // and the hook watcher (also keyed by runtimeDir) keeps seeing them —
       // on fresh spawn and resume alike.
       runtimeDir: runtimeDir(args.taskId),
@@ -2485,9 +2485,9 @@ export class RuntimeController {
           }),
       ...(args.provider === "claude" && args.remoteControl ? { remoteControl: true } : {}),
       // Codex hook injection (S2): buildArgs writes the profile+shims and adds
-      // `-p duet`. The controller supplies the Duet-home shim dir because it
-      // owns Duet-home; the codex edge owns the profile-file location.
-      ...(args.provider === "codex" ? { codexHookPaths: { binDir: duetBinDir() } } : {}),
+      // `-p sonata`. The controller supplies the Sonata-home shim dir because it
+      // owns Sonata-home; the codex edge owns the profile-file location.
+      ...(args.provider === "codex" ? { codexHookPaths: { binDir: sonataBinDir() } } : {}),
       ...(args.resumeRef ? { resumeRef: args.resumeRef } : {}),
       // --session-id pins a fresh session only; --resume already owns the id.
       ...(!args.resumeRef && args.sessionId ? { sessionId: args.sessionId } : {}),
@@ -2499,7 +2499,7 @@ export class RuntimeController {
 
   private autoWorkspacePath(taskId: TaskId): string {
     // The user's VISIBLE work for a project-less session — kept cleanly separate
-    // from Duet's hidden records (P1). The folder name is display-only; the stored
+    // from Sonata's hidden records (P1). The folder name is display-only; the stored
     // absolute path is the ground truth (never reverse-decoded). A LOCAL-date prefix
     // makes Finder's name-sort match time-sort; a short session id keeps it unique
     // and recognizable without depending on a title that isn't set yet at creation
@@ -2520,7 +2520,7 @@ export class RuntimeController {
   }
 
   private visibleWorkspacesDir(): string {
-    return process.env.DUET_WORKSPACES_DIR || path.join(app.getPath("documents"), "Duet");
+    return process.env.SONATA_WORKSPACES_DIR || path.join(app.getPath("documents"), "Sonata");
   }
 
   private normalizeDeliveryAttachments(
@@ -2531,10 +2531,10 @@ export class RuntimeController {
     return attachments.map((attachment) => {
       const resolved = path.resolve(attachment.path);
       if (attachment.provenance === "blob") {
-        // Duet-owned blob: MUST live inside the per-task attachments dir and be a
+        // Sonata-owned blob: MUST live inside the per-task attachments dir and be a
         // real image. (No space-reject — delivery double-quotes the path now.)
         if (!resolved.startsWith(attachmentDirectory)) {
-          throw new Error("Attachment path was not a generated Duet attachment path.");
+          throw new Error("Attachment path was not a generated Sonata attachment path.");
         }
         if (!fs.existsSync(resolved)) {
           throw new Error(`Attachment file is missing: ${attachment.originalName}`);
@@ -2544,7 +2544,7 @@ export class RuntimeController {
         }
         return { ...attachment, path: resolved };
       }
-      // Referenced: the user's own path, anywhere. It MUST exist; Duet NEVER reads
+      // Referenced: the user's own path, anywhere. It MUST exist; Sonata NEVER reads
       // or deletes it. No image media re-read (it may be a huge file) and no
       // readFileSync on a folder — its kind was classified at attach time, and the
       // agent reads it with its own tools (it already has the user's FS authority).
@@ -2583,7 +2583,7 @@ export class RuntimeController {
       if (matchingTaskStorageRoot) {
         return matchingTaskStorageRoot;
       }
-      throw new Error("No persisted Duet Task was found for the selected folder.");
+      throw new Error("No persisted Sonata Task was found for the selected folder.");
     }
     return this.latestTaskStorageRoot();
   }
@@ -2594,7 +2594,7 @@ export class RuntimeController {
 
     const latest = candidates[0]?.storageRoot;
     if (!latest) {
-      throw new TaskNotFoundError("No persisted Duet Task was found.");
+      throw new TaskNotFoundError("No persisted Sonata Task was found.");
     }
     return latest;
   }
@@ -2740,9 +2740,9 @@ export class RuntimeController {
   }
 }
 
-// Records live DIRECTLY under the task's record root (~/.duet/data/projects/
-// <taskId>/) — no nested `.duet`, which was redundant once the whole tree is
-// Duet-owned and hidden (C6).
+// Records live DIRECTLY under the task's record root (~/.sonata/data/projects/
+// <taskId>/) — no nested `.sonata`, which was redundant once the whole tree is
+// Sonata-owned and hidden (C6).
 
 function taskManifestPath(recordRoot: string): string {
   return path.join(recordRoot, "task.json");
@@ -2818,8 +2818,8 @@ function assertSupportedProvider(provider: RuntimeProvider): void {
   }
 }
 
-/** Providers whose sessions Duet injects hooks into (Claude via `--settings`,
- *  Codex via `-p duet`). Both currently, but a named capability — not a
+/** Providers whose sessions Sonata injects hooks into (Claude via `--settings`,
+ *  Codex via `-p sonata`). Both currently, but a named capability — not a
  *  provider list — so a future non-hook provider is opted OUT by default. */
 function isHookCapable(provider: RuntimeProvider): boolean {
   return provider === "claude" || provider === "codex";
@@ -3005,7 +3005,7 @@ function toolInputRecord(payload: HookPayload): Record<string, unknown> {
     : {};
 }
 
-/** Map the hook's tool to Duet's ApprovalKind (mirrors the scrape grammar). */
+/** Map the hook's tool to Sonata's ApprovalKind (mirrors the scrape grammar). */
 export function classifyApprovalKind(payload: HookPayload): ApprovalKind {
   const tool = typeof payload.tool_name === "string" ? payload.tool_name : "";
   if (tool === "Bash") return "command";

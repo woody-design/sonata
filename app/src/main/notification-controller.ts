@@ -50,7 +50,7 @@ const NEUTRAL_LABEL = "Agent";
 
 /** Fall back to the app name when a task has no human-readable title yet, and
  *  never surface the auto-title placeholders (they read as noise). */
-const FALLBACK_TITLE = "Duet";
+const FALLBACK_TITLE = "Sonata";
 
 /**
  * Turns the pure {@link NotificationPolicy}'s decisions into native macOS

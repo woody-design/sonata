@@ -76,7 +76,7 @@ function fail(check, message) {
 // they are deliberately NOT defined in the stylesheet. Enumerated honestly from
 // the current tree — add here only with a written reason.
 //   --depth                 tree-row indentation depth (sidebar / preview tree)
-//   --instance-label        DEV badge text, injected when DUET_INSTANCE_LABEL set
+//   --instance-label        DEV badge text, injected when SONATA_INSTANCE_LABEL set
 //   --usage-ring-dashoffset usage ring stroke offset, injected from usage %
 const JS_INJECTED = new Set(["--depth", "--instance-label", "--usage-ring-dashoffset"]);
 

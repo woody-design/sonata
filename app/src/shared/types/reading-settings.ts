@@ -1,4 +1,4 @@
-export const READING_THEME_IDS = ["duet", "paper", "calm", "focus"] as const;
+export const READING_THEME_IDS = ["sonata", "paper", "calm", "focus"] as const;
 export type ReadingThemeId = (typeof READING_THEME_IDS)[number];
 
 export const READING_MODE_IDS = ["light", "dark", "auto"] as const;
@@ -17,7 +17,7 @@ export interface ReadingSettings {
 }
 
 export const DEFAULT_READING_SETTINGS: ReadingSettings = {
-  theme: "duet",
+  theme: "sonata",
   mode: "auto",
   textStep: 16,
 };

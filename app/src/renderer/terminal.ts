@@ -44,7 +44,7 @@ function requireEl<T extends HTMLElement>(selector: string): T {
 
 const appElement = requireEl<HTMLDivElement>("#app");
 appElement.innerHTML = `
-  <section class="terminal-window-shell" aria-label="Duet CLI">
+  <section class="terminal-window-shell" aria-label="Sonata CLI">
     <header class="terminal-window-topbar">
       <p class="eyebrow terminal-window-label">CLI</p>
       <div class="terminal-window-breadcrumb" aria-label="Active project and task">
@@ -126,7 +126,7 @@ function ligatureJoiner(text: string): Array<[number, number]> {
 // Terminal links are untrusted; route every click through the main process,
 // which enforces the http/https/mailto allowlist before the OS opener.
 function openExternalTerminalLink(url: string): void {
-  void window.duetRuntime.openTerminalLink({ url }).catch(() => {});
+  void window.sonataRuntime.openTerminalLink({ url }).catch(() => {});
 }
 
 // Resolve the app's --term-* palette tokens (which may be var()/color-mix())
@@ -238,7 +238,7 @@ function forwardUserInput(taskId: string, data: string): void {
   if (taskId !== activeTaskId || !activeLive || !data) {
     return;
   }
-  void window.duetRuntime.writeTerminalUserInput({ taskId, data }).catch(() => {});
+  void window.sonataRuntime.writeTerminalUserInput({ taskId, data }).catch(() => {});
 }
 
 function fitAndResize(entry: TaskTerminal): void {
@@ -250,7 +250,7 @@ function fitAndResize(entry: TaskTerminal): void {
   } catch {
     // Measurable only after layout is ready; the next fit reconciles.
   }
-  void window.duetRuntime
+  void window.sonataRuntime
     .resizeTerminal({ taskId: entry.taskId, cols: entry.terminal.cols, rows: entry.terminal.rows })
     .catch(() => {
       // The host rejects a resize for a task that just ended; harmless.
@@ -323,7 +323,7 @@ function createTaskTerminal(taskId: string): TaskTerminal {
     if (taskId !== activeTaskId || !activeLive) {
       return;
     }
-    void window.duetRuntime
+    void window.sonataRuntime
       .readClipboardText()
       .then(({ text }) => {
         if (text) {
@@ -375,7 +375,7 @@ function ensureTaskTerminal(taskId: string): TaskTerminal {
 async function hydrateData(entry: TaskTerminal): Promise<void> {
   let snapshot: TerminalReplaySnapshot | null = null;
   try {
-    snapshot = await window.duetRuntime.replayTerminal({ taskId: entry.taskId });
+    snapshot = await window.sonataRuntime.replayTerminal({ taskId: entry.taskId });
   } catch {
     // No mirror (task not live yet) — start blank and tail forward.
   }
@@ -551,7 +551,7 @@ function renderEmptySurface(): void {
   emptyAction.disabled = true;
   emptyDetail.textContent =
     surface.kind === "resume-choice"
-      ? "Choose how to resume in Duet. Summary mode compacts first."
+      ? "Choose how to resume in Sonata. Summary mode compacts first."
       : "CLI is getting ready…";
 }
 
@@ -573,12 +573,12 @@ emptyAction.addEventListener("click", () => {
   // authoritative state owner and will shortly push the claimed phase back.
   emptyAction.disabled = true;
   emptyDetail.textContent = request.action === "start" ? "Starting CLI…" : "Preparing resume…";
-  void window.duetRuntime.requestCliAction(request).catch(() => {
+  void window.sonataRuntime.requestCliAction(request).catch(() => {
     // The relay never reached Reading, so no claimed phase is coming to replace
     // the local optimistic state. Restore the ready surface (re-enabling the
     // button so retry works), then leave an honest receipt in its place.
     renderEmptySurface();
-    emptyDetail.textContent = "Couldn’t reach Duet — try again.";
+    emptyDetail.textContent = "Couldn’t reach Sonata — try again.";
   });
 });
 
@@ -719,7 +719,7 @@ document.addEventListener(
 // AND dark palette (token blocks in styles.css), so any scheme × any mode —
 // including Auto following the system — is a designed combination.
 const SCHEME_OPTIONS: Array<{ id: TermSchemeId; label: string }> = [
-  { id: "duet", label: "Duet" },
+  { id: "sonata", label: "Sonata" },
   { id: "catppuccin", label: "Catppuccin" },
   { id: "gruvbox", label: "Gruvbox" },
   { id: "solarized", label: "Solarized" },
@@ -803,7 +803,7 @@ function renderThemePopover(): void {
 }
 
 function persistAppearance(): void {
-  void window.duetRuntime.writeTerminalWindowSettings({ ...settings }).catch(() => {});
+  void window.sonataRuntime.writeTerminalWindowSettings({ ...settings }).catch(() => {});
 }
 
 function setPopoverOpen(open: boolean): void {
@@ -856,7 +856,7 @@ document.addEventListener("click", (event) => {
   }
 });
 
-window.duetRuntime.onRuntimeEvent((event) => {
+window.sonataRuntime.onRuntimeEvent((event) => {
   if (event.type === "pty:exit") {
     const entry = terminals.get(event.payload.taskId);
     const knownGeneration = entry
@@ -951,8 +951,8 @@ window.duetRuntime.onRuntimeEvent((event) => {
   entry.terminal.write(event.payload.data);
 });
 
-window.duetRuntime.onActiveTerminalTask(applyActiveTask);
-window.duetRuntime.onReadingSystemModeChanged(() => {
+window.sonataRuntime.onActiveTerminalTask(applyActiveTask);
+window.sonataRuntime.onReadingSystemModeChanged(() => {
   // Only "auto" follows the system; an explicit light/dark choice is pinned.
   if (settings.mode === "auto") {
     applyAppearance();
@@ -970,13 +970,13 @@ window.addEventListener("resize", () => {
 
 void (async () => {
   try {
-    settings = await window.duetRuntime.readTerminalWindowSettings();
+    settings = await window.sonataRuntime.readTerminalWindowSettings();
   } catch {
     settings = { ...DEFAULT_TERMINAL_WINDOW_SETTINGS };
   }
   applyAppearance();
   try {
-    applyActiveTask(await window.duetRuntime.readActiveTerminalTask());
+    applyActiveTask(await window.sonataRuntime.readActiveTerminalTask());
   } catch {
     // No active task read yet; the onActiveTerminalTask broadcast populates it.
   }

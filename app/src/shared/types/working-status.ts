@@ -3,7 +3,7 @@
  * verbatim from a per-task headless screen model over the PTY stream.
  *
  * Fidelity rule: every string here is the provider's own rendering,
- * untouched. Duet's derived/stall voice is computed downstream and must
+ * untouched. Sonata's derived/stall voice is computed downstream and must
  * stay visually distinct from these fields (two voices, one boundary).
  * Slice 4 extends this payload with phase/liveness; the `native` shape
  * is stable.

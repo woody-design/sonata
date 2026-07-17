@@ -7,8 +7,8 @@ const require = createRequire(import.meta.url);
 const { RunIndex, TerminalHost } = require("../../dist/runtime");
 
 const taskId = "task-runtime-smoke";
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-runtime-smoke-"));
-const reportPath = path.join(workspace, ".duet", "runtime-report.json");
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-runtime-smoke-"));
+const reportPath = path.join(workspace, ".sonata", "runtime-report.json");
 const artifactName = "artifact.md";
 const artifactPath = path.join(workspace, artifactName);
 
@@ -50,7 +50,7 @@ try {
   host.submitPrompt("Runtime module smoke prompt.");
   await waitUntil(() => Boolean(runId), 4000);
 
-  fs.writeFileSync(artifactPath, "# Duet runtime smoke\n\nArtifact candidate content.\n");
+  fs.writeFileSync(artifactPath, "# Sonata runtime smoke\n\nArtifact candidate content.\n");
   await waitUntil(() => fileAttributedToRun, 8000);
 
   host.completeActiveRun("runtime module smoke");

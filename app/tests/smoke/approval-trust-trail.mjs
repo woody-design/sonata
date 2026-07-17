@@ -18,9 +18,9 @@ const require = createRequire(import.meta.url);
 const { RunIndex, TerminalHost } = require("../../dist/runtime");
 
 const taskId = "task-approval-trust-trail-smoke";
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-trust-trail-smoke-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-approval-trust-trail-smoke-"));
 const scriptPath = path.join(workspace, "fake-claude-trust-cli.mjs");
-const reportPath = path.join(workspace, ".duet", "runtime-report.json");
+const reportPath = path.join(workspace, ".sonata", "runtime-report.json");
 
 // Fake claude that opens with a v2 workspace-trust panel at startup (no run
 // yet), then drops to a composer once the panel is answered with CR.

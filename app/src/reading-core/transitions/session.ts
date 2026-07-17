@@ -123,7 +123,7 @@ export function chooseDraftFolder(state: RendererState, path: string): void {
   state.taskDraft.menu = null;
 }
 
-/** Back to the default Duet workspace — an explicit clear also counts as
+/** Back to the default Sonata workspace — an explicit clear also counts as
  *  touching the folder. The greeting and the project chip both restate the
  *  choice, so no draft message (2026-07-04: state speaks once, in place). */
 export function clearDraftFolder(state: RendererState): void {

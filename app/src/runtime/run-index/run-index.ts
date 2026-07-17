@@ -469,7 +469,7 @@ export function resolveRunForTurn(runIndex: RunIndex, input: ResolveRunIdInput):
   }
   // Read through the CLI's `[Image #N]` decoration on BOTH sides: the turn text
   // (transcript `user-message`) carries the markers, the run prompt (raw typed
-  // text Duet stored) does not. Without this, an image prompt whose promptId
+  // text Sonata stored) does not. Without this, an image prompt whose promptId
   // never bridged (the stage-1 miss above) fell through to an un-attributed run
   // and a second husk card (2026-07-05). Same canonical rule as the delivery
   // matcher and the hook back-stamp guards.

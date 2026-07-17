@@ -32,6 +32,8 @@ const REPLACEMENTS = [
   [/\bsk-[A-Za-z0-9-]{10,}/g, "sk-REDACTED"],
   // home-anchored paths (keep structure: tests rely on path SHAPE, not owner)
   [new RegExp(escapeRe(`${HOME}/.claude`), "g"), "/Users/user/.claude"],
+  [new RegExp(escapeRe(`${HOME}/.sonata`), "g"), "/Users/user/.sonata"],
+  // pre-rename recordings still carry ~/.duet paths — keep redacting them
   [new RegExp(escapeRe(`${HOME}/.duet`), "g"), "/Users/user/.duet"],
   [new RegExp(escapeRe(HOME), "g"), "/Users/user"],
   [new RegExp(`/Users/${escapeRe(USER)}\\b`, "g"), "/Users/user"],

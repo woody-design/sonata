@@ -128,7 +128,7 @@ export function renderApproval(): void {
 
   // The middle button is a faithful projection of the panel's own option 2:
   // session-scoped ("Allow for this session") or persistent ("Don't ask
-  // again" — Claude writes its own allow rule; Duet receipts the write).
+  // again" — Claude writes its own allow rule; Sonata receipts the write).
   // Separate buttons by design (Woody, 2026-07-17): no split/dropdown.
   const middleChoice =
     approval.choices?.find(

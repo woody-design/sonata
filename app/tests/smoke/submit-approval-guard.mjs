@@ -7,10 +7,10 @@ const require = createRequire(import.meta.url);
 const { DeliveryController, RunIndex, TerminalHost } = require("../../dist/runtime");
 
 const taskId = "task-submit-approval-guard-smoke";
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-submit-approval-guard-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-submit-approval-guard-"));
 const scriptPath = path.join(workspace, "fake-active-approval-cli.mjs");
 const inputLogPath = path.join(workspace, "stdin.log");
-const reportPath = path.join(workspace, ".duet", "runtime-report.json");
+const reportPath = path.join(workspace, ".sonata", "runtime-report.json");
 const blockedPrompt = "This prompt must not reach an active approval screen.";
 
 fs.writeFileSync(

@@ -7,10 +7,10 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rcdef-e2e-"));
-const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rcdef-settings-"));
-const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rcdef-userdata-"));
-const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-rcdef-folder-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdef-e2e-"));
+const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdef-settings-"));
+const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdef-userdata-"));
+const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdef-folder-"));
 let electronApp = null;
 const pageErrors = [];
 
@@ -81,10 +81,10 @@ async function launchApp() {
     args: ["dist/main/main.js", `--user-data-dir=${userDataDir}`],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot,
-      DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsDir,
-      DUET_TEST_PICK_FOLDER: selectedFolder,
+      SONATA_DATA_DIR: workspaceRoot,
+      SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsDir,
+      SONATA_TEST_PICK_FOLDER: selectedFolder,
     },
   });
   const page = await electronApp.firstWindow();

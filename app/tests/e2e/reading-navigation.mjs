@@ -5,10 +5,10 @@ import { spawnSync } from "node:child_process";
 import { _electron as electron } from "playwright-core";
 import { sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-reading-navigation-workspace-"));
-const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-reading-navigation-store-"));
-const evidenceDir = process.env.DUET_READING_NAV_EVIDENCE_DIR
-  ? path.resolve(process.env.DUET_READING_NAV_EVIDENCE_DIR)
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-reading-navigation-workspace-"));
+const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-reading-navigation-store-"));
+const evidenceDir = process.env.SONATA_READING_NAV_EVIDENCE_DIR
+  ? path.resolve(process.env.SONATA_READING_NAV_EVIDENCE_DIR)
   : null;
 let electronApp = null;
 
@@ -59,8 +59,8 @@ async function launchApp(options = {}) {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsRoot,
     },
   });
   const page = await electronApp.firstWindow();
@@ -172,7 +172,7 @@ async function startFixtureTask(page) {
   // start the session with a no-op prompt and let the run settle before the
   // fixture replaces the run list contents.
   await sendFirstPrompt(page, [
-    "Reply exactly DUET_READING_NAV_READY.",
+    "Reply exactly SONATA_READING_NAV_READY.",
     "Do not create or modify any files.",
   ]);
   await waitForCompletedTurns(page, 1);
@@ -180,7 +180,7 @@ async function startFixtureTask(page) {
 }
 
 async function assertPromptNavigation(page) {
-  await setTheme(page, "duet", "light");
+  await setTheme(page, "sonata", "light");
   await focusComposer(page);
   await page.keyboard.press("Meta+ArrowUp");
   await assertActivePrompt(page, "Third prompt", "Cmd+Up enters on newest prompt");
@@ -287,10 +287,10 @@ async function assertStickyPromptHeader(page) {
 
 async function captureScreenshots(page, dir) {
   await injectReadingFixture(page);
-  await setTheme(page, "duet", "light");
+  await setTheme(page, "sonata", "light");
   await focusComposer(page);
   await page.keyboard.press("Meta+ArrowUp");
-  await page.screenshot({ path: path.join(dir, "01-nav-active-duet-light.png"), fullPage: false });
+  await page.screenshot({ path: path.join(dir, "01-nav-active-sonata-light.png"), fullPage: false });
 
   await page.keyboard.press("Escape");
   await setTheme(page, "calm", "dark");
@@ -301,9 +301,9 @@ async function captureScreenshots(page, dir) {
   await page.screenshot({ path: path.join(dir, "02-nav-active-calm-dark.png"), fullPage: false });
 
   await page.keyboard.press("Escape");
-  await setTheme(page, "duet", "light");
+  await setTheme(page, "sonata", "light");
   await scrollUntilSticky(page, "First prompt");
-  await page.screenshot({ path: path.join(dir, "03-sticky-header-duet-light.png"), fullPage: false });
+  await page.screenshot({ path: path.join(dir, "03-sticky-header-sonata-light.png"), fullPage: false });
 
   await setTheme(page, "focus", "dark");
   await scrollUntilSticky(page, "First prompt");
@@ -321,7 +321,7 @@ async function captureGestureRecording() {
   fs.mkdirSync(framesDir, { recursive: true });
   const page = await launchApp();
   await injectReadingFixture(page, { preserveTasklessComposerFocus: true });
-  await setTheme(page, "duet", "light");
+  await setTheme(page, "sonata", "light");
   const fps = 2;
   let frameIndex = 0;
   const hold = async (seconds) => {

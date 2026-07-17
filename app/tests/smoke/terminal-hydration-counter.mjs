@@ -30,7 +30,7 @@ const { Unicode11Addon } = require("@xterm/addon-unicode11");
 const COUNT = 800; // fits the mirror's 1000-line scrollback with margin (no scroll-out)
 const HYDRATE_AT = 30; // create the terminal entry (start hydrating) once this integer streams
 const PACE_SECONDS = 0.0018; // per-line pacing so the stream is still live across the hydration
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-hydration-counter-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-hydration-counter-"));
 
 const failures = [];
 const check = (name, cond, detail) => {

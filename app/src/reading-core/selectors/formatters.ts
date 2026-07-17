@@ -242,7 +242,7 @@ export function readingThemeLabel(theme: ReadingThemeId): string {
   if (theme === "focus") {
     return "Focus";
   }
-  return "Duet";
+  return "Sonata";
 }
 
 export function readingModeLabel(mode: ReadingModeSetting): string {
@@ -276,7 +276,7 @@ export function permissionModeLabel(mode: ClaudePermissionMode): string {
     return "Don't ask";
   }
   // The `default` mode's display label. Claude 2.1.200 relabeled this mode
-  // "Manual" across its own surfaces (identifier unchanged — Duet still
+  // "Manual" across its own surfaces (identifier unchanged — Sonata still
   // reads/writes `default`); the display follows suit.
   return "Manual";
 }
@@ -309,7 +309,7 @@ export function permissionModeDescription(mode: ClaudePermissionMode): string {
 
 /** One vocabulary for every Codex permission surface (the Settings default
  *  popup; the live-session chip in composer.ts). Codex 0.144's own
- *  `/permissions` picker labels, so Duet's chip reads exactly as the TUI's
+ *  `/permissions` picker labels, so Sonata's chip reads exactly as the TUI's
  *  "(current)" marker does. */
 export function codexPermissionModeLabel(mode: CodexPermissionMode): string {
   if (mode === "approve-for-me") {

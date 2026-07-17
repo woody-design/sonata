@@ -7,8 +7,8 @@ const require = createRequire(import.meta.url);
 const { TerminalHost, cleanTerminal } = require("../../dist/runtime");
 
 const taskId = "task-codex-smoke";
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-smoke-"));
-const marker = "FORMAL_DUET_CODEX_TERMINALHOST_READY";
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-smoke-"));
+const marker = "FORMAL_SONATA_CODEX_TERMINALHOST_READY";
 
 let rawTail = "";
 let sawMarker = false;

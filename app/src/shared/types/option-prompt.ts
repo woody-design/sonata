@@ -1,6 +1,6 @@
 /**
  * Native option prompts (Slice 5) — Claude's `AskUserQuestion` tool surfaced as
- * an in-view card. Phase 0 (real claude 2.1.178 under duet's spawn) established:
+ * an in-view card. Phase 0 (real claude 2.1.178 under sonata's spawn) established:
  *  - The `PreToolUse` hook fires for `AskUserQuestion` and carries the full
  *    `tool_input` ({ questions: [...] }) — the structured detection signal.
  *  - The `PostToolUse` hook fires after submit with

@@ -37,9 +37,9 @@ export interface ApprovalWatcherOptions {
 }
 
 /**
- * Polls Duet-owned approval control dirs (`<runtimeDir>/approvals`) for the
+ * Polls Sonata-owned approval control dirs (`<runtimeDir>/approvals`) for the
  * broker's `ask-<id>.json` (surface a card, once per id) and `expired-<id>.json`
- * (the broker gave up → native panel). Duet answers by writing `reply-<id>.json`
+ * (the broker gave up → native panel). Sonata answers by writing `reply-<id>.json`
  * (see `writeApprovalReply`), which the broker consumes and deletes along with
  * the ask; a vanished ask therefore needs no watcher action. Mirrors
  * HookWatcher's per-workspace refcount + crash-residue prune.
@@ -183,7 +183,7 @@ export class ApprovalWatcher {
 }
 
 /**
- * Duet's answer to a held approval: write `reply-<id>.json` (the decision JSON
+ * Sonata's answer to a held approval: write `reply-<id>.json` (the decision JSON
  * the broker emits verbatim to the CLI) via tmp+rename so the broker only reads
  * a complete file.
  */

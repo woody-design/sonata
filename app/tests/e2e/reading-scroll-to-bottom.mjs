@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-reading-scroll-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-reading-scroll-"));
 const evidenceDir = process.argv[2] ? path.resolve(process.argv[2]) : null;
 if (evidenceDir) {
   fs.mkdirSync(evidenceDir, { recursive: true });
@@ -18,10 +18,10 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: path.join(root, "data"),
-      DUET_WORKSPACES_DIR: path.join(root, "workspaces"),
-      DUET_SETTINGS_DIR: path.join(root, "settings"),
-      DUET_NOTIFICATIONS: "0",
+      SONATA_DATA_DIR: path.join(root, "data"),
+      SONATA_WORKSPACES_DIR: path.join(root, "workspaces"),
+      SONATA_SETTINGS_DIR: path.join(root, "settings"),
+      SONATA_NOTIFICATIONS: "0",
     },
   });
   const page = await app.firstWindow();
@@ -29,7 +29,7 @@ try {
   await page.setViewportSize({ width: 1180, height: 820 });
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
   await page.waitForFunction(() => Boolean(document.documentElement.dataset.readingFirstFrame));
-  await setAppearance(page, "duet", "light");
+  await setAppearance(page, "sonata", "light");
 
   const initial = await readControl(page);
   assert(initial.hidden && initial.ariaHidden === "true" && initial.tabIndex === -1, "no overflow hides control");
@@ -53,12 +53,12 @@ try {
       path: path.join(evidenceDir, "scroll-to-bottom-light.png"),
       animations: "disabled",
     });
-    await setAppearance(page, "duet", "dark");
+    await setAppearance(page, "sonata", "dark");
     await page.locator("#run-column").screenshot({
       path: path.join(evidenceDir, "scroll-to-bottom-dark.png"),
       animations: "disabled",
     });
-    await setAppearance(page, "duet", "light");
+    await setAppearance(page, "sonata", "light");
   }
 
   // The disabled-textarea fallback moves focus to the Composer form itself.
@@ -316,7 +316,7 @@ async function setAppearance(page, theme, mode) {
 
 async function readComposerFocusContrastMatrix(page) {
   const entries = [];
-  for (const theme of ["duet", "paper", "calm", "focus"]) {
+  for (const theme of ["sonata", "paper", "calm", "focus"]) {
     for (const mode of ["light", "dark"]) {
       await setAppearance(page, theme, mode);
       // Make keyboard modality explicit before programmatic focus so the
@@ -343,7 +343,7 @@ async function readComposerFocusContrastMatrix(page) {
       });
     }
   }
-  await setAppearance(page, "duet", "light");
+  await setAppearance(page, "sonata", "light");
   return entries;
 }
 

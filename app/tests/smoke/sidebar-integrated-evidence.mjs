@@ -20,6 +20,7 @@ import {
   SIDEBAR_RENAME_ASSERTIONS,
   SIDEBAR_VISUAL_MODES,
   assertExactVisualMatrix,
+  SIDEBAR_VISUAL_THEMES_HISTORICAL,
   assertExactTrueAssertions,
 } from "../helpers/sidebar-program-acceptance.mjs";
 
@@ -90,6 +91,8 @@ console.log(
 );
 
 function assertCharacterizationEvidence(manifest) {
+  // Historical: the committed evidence manifests predate the Duet→Sonata
+  // rename, so the STORY they tell still names the old "duet" theme id.
   assert.deepEqual(manifest.themes, ["duet", "paper", "calm", "focus"]);
   assert.deepEqual(manifest.modes, ["light", "dark"]);
   assert.equal(manifest.visualBaselines.length, 8, "4 themes × 2 modes baseline inventory");
@@ -97,7 +100,11 @@ function assertCharacterizationEvidence(manifest) {
 }
 
 function assertVisualEvidence(manifest) {
-  assertExactVisualMatrix(manifest.results, "complete historical visual matrix");
+  assertExactVisualMatrix(
+    manifest.results,
+    "complete historical visual matrix",
+    SIDEBAR_VISUAL_THEMES_HISTORICAL,
+  );
 
   const expectedByMode = {
     light: {
@@ -156,7 +163,12 @@ function assertRegisteredCommands() {
 function assertAcceptanceGuardsRejectDrift(availableManifests) {
   const visualResults = availableManifests.get(1).results;
   assert.throws(
-    () => assertExactVisualMatrix(visualResults.slice(1), "missing visual tuple"),
+    () =>
+      assertExactVisualMatrix(
+        visualResults.slice(1),
+        "missing visual tuple",
+        SIDEBAR_VISUAL_THEMES_HISTORICAL,
+      ),
     /missing visual tuple/,
   );
   assert.throws(
@@ -164,6 +176,7 @@ function assertAcceptanceGuardsRejectDrift(availableManifests) {
       assertExactVisualMatrix(
         [...visualResults.slice(0, -1), visualResults[0]],
         "duplicated visual tuple",
+        SIDEBAR_VISUAL_THEMES_HISTORICAL,
       ),
     /duplicated visual tuple/,
   );

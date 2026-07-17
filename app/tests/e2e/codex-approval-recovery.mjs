@@ -20,12 +20,12 @@ import { selectSidebarSession } from "./helpers/session.mjs";
 import { _electron as electron } from "playwright-core";
 import { FAKE_CODEX_SOURCE } from "./helpers/fake-codex-source.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-recover-e2e-"));
-const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-recover-home-"));
-const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-recover-bin-"));
-const folderStop = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-recover-stop-"));
-const folderQuiesce = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-recover-quiesce-"));
-const folderReopen = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-recover-reopen-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-recover-e2e-"));
+const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-recover-home-"));
+const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-recover-bin-"));
+const folderStop = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-recover-stop-"));
+const folderQuiesce = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-recover-quiesce-"));
+const folderReopen = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-recover-reopen-"));
 
 const fakeCodex = path.join(fakeBinDir, "codex");
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
@@ -41,10 +41,10 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot,
-      DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot,
+      SONATA_WORKSPACES_DIR: workspaceRoot,
       CODEX_HOME: codexHome,
-      DUET_FAKE_BROKER_SHIM: brokerShimPath,
+      SONATA_FAKE_BROKER_SHIM: brokerShimPath,
       PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
     },
   });
@@ -91,12 +91,12 @@ try {
   // Close WHILE the card is shown, then reopen the SAME task id. dispose must
   // clear shownBrokerApproval[taskId] (keyed by the persistent id) or the stale
   // slot suppresses every future card (surfaceBrokerApproval sees it "shown").
-  fs.rmSync(path.join(folderReopen, "DUET_FAKE_ASK.json"), { force: true });
-  await page.evaluate((id) => window.duetRuntime.closeTask({ taskId: id }), reopen.task.id);
-  await page.evaluate((id) => window.duetRuntime.openTask({ taskId: id, resume: false }), reopen.task.id);
+  fs.rmSync(path.join(folderReopen, "SONATA_FAKE_ASK.json"), { force: true });
+  await page.evaluate((id) => window.sonataRuntime.closeTask({ taskId: id }), reopen.task.id);
+  await page.evaluate((id) => window.sonataRuntime.openTask({ taskId: id, resume: false }), reopen.task.id);
   await selectSidebarSession(page, reopen.task.id);
   // Let the reopened fake spawn + start polling for triggers (it re-emits
-  // SessionStart and polls DUET_FAKE_ASK.json every 200ms).
+  // SessionStart and polls SONATA_FAKE_ASK.json every 200ms).
   await page.waitForTimeout(3000);
   writeTrigger(folderReopen, {
     tool_input: { command: "echo reopen2", description: "Allow the SECOND reopen write?" },
@@ -130,7 +130,7 @@ try {
 
 async function createCodexTask(page, cwd) {
   const created = await page.evaluate(
-    async (dir) => window.duetRuntime.createTask({ provider: "codex", cwd: dir }),
+    async (dir) => window.sonataRuntime.createTask({ provider: "codex", cwd: dir }),
     cwd,
   );
   await waitFor(() => readSources(created.task.id).length > 0, 30000, "codex handshake");
@@ -138,18 +138,18 @@ async function createCodexTask(page, cwd) {
 }
 
 function writeTrigger(cwd, trigger) {
-  fs.writeFileSync(path.join(cwd, "DUET_FAKE_ASK.json"), JSON.stringify(trigger));
+  fs.writeFileSync(path.join(cwd, "SONATA_FAKE_ASK.json"), JSON.stringify(trigger));
 }
 
 async function submitPrompt(page, taskId, text) {
   await page.evaluate(
-    ({ id, body }) => window.duetRuntime.submitPrompt({ taskId: id, text: body }),
+    ({ id, body }) => window.sonataRuntime.submitPrompt({ taskId: id, text: body }),
     { id: taskId, body: text },
   );
 }
 
 async function waitForStdin(cwd, needle) {
-  const logPath = path.join(cwd, "DUET_FAKE_STDIN.log");
+  const logPath = path.join(cwd, "SONATA_FAKE_STDIN.log");
   try {
     await waitFor(
       () => fs.existsSync(logPath) && fs.readFileSync(logPath, "utf8").includes(needle),

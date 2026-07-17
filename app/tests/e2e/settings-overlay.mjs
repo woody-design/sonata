@@ -9,9 +9,9 @@ import { _electron as electron } from "playwright-core";
 // and the Claude bridge row (visibility-first, restore-on-click).
 // HOME is pointed at a temp dir so ~/.claude.json is hermetic.
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-overlay-workspace-"));
-const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-overlay-store-"));
-const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-settings-overlay-home-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-settings-overlay-workspace-"));
+const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-settings-overlay-store-"));
+const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-settings-overlay-home-"));
 const resumeSettingsPath = path.join(settingsRoot, "resume-settings.json");
 const claudeSettingsPath = path.join(settingsRoot, "claude-settings.json");
 const codexSettingsPath = path.join(settingsRoot, "codex-settings.json");
@@ -74,7 +74,7 @@ try {
 
   // Permissions group, Claude sessions row: the default permission mode for
   // new Claude sessions. Defaults to "Manual" (the `default` mode's label since
-  // Claude 2.1.200); choosing Auto persists to the Duet-owned
+  // Claude 2.1.200); choosing Auto persists to the Sonata-owned
   // claude-settings.json (never ~/.claude.json). The Permissions box holds two
   // popups now (Claude + Codex), so scope by row title.
   const claudeRow = page.locator('section[aria-label="Permissions"] .settings-row', {
@@ -146,7 +146,7 @@ try {
   await page.locator(".settings-window").waitFor({ state: "visible" });
   await page.locator(".settings-value", { hasText: "Off" }).waitFor({ state: "visible" });
   await page
-    .locator(".settings-row-note", { hasText: "Turned off by Duet's earlier bridge" })
+    .locator(".settings-row-note", { hasText: "Turned off by Sonata's earlier bridge" })
     .waitFor({ state: "visible" });
   await page.locator(".settings-restore").click();
   await page.locator(".settings-value", { hasText: "On" }).waitFor({ state: "visible" });
@@ -225,8 +225,8 @@ async function launchApp() {
     env: {
       ...process.env,
       HOME: homeRoot,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
-      DUET_SETTINGS_DIR: settingsRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
+      SONATA_SETTINGS_DIR: settingsRoot,
     },
   });
   const page = await electronApp.firstWindow();

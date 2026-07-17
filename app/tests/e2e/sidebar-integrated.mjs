@@ -14,7 +14,7 @@ import {
 } from "../helpers/sidebar-program-acceptance.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-integrated-"));
+const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-integrated-"));
 const completedChecks = [];
 
 try {

@@ -17,10 +17,10 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-inject-"));
-// Isolate every Duet-owned path (config/data/runtime/bin) AND the Codex profile
-// home to temp — NEVER touch the real ~/.duet or ~/.codex.
-process.env.DUET_DATA_DIR = path.join(tempRoot, "duet-data");
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-inject-"));
+// Isolate every Sonata-owned path (config/data/runtime/bin) AND the Codex profile
+// home to temp — NEVER touch the real ~/.sonata or ~/.codex.
+process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 process.env.CODEX_HOME = path.join(tempRoot, "codex-home");
 
 // Shadow PATH with a no-op `codex` so node-pty spawns something harmless. The

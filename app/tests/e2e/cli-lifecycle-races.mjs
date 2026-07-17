@@ -9,7 +9,7 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { activeSessionTaskId } from "./helpers/session.mjs";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-cli-lifecycle-races-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-lifecycle-races-"));
 const dataRoot = path.join(root, "data-root");
 const settingsDir = path.join(root, "settings");
 const fakeBin = path.join(root, "bin");
@@ -31,12 +31,12 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: dataRoot,
-      DUET_WORKSPACES_DIR: path.join(root, "workspaces"),
-      DUET_SETTINGS_DIR: settingsDir,
-      DUET_TEST_PICK_FOLDER: project,
-      DUET_TEST_TASK_CREATE_DELAY_MS: "700",
-      DUET_NOTIFICATIONS: "0",
+      SONATA_DATA_DIR: dataRoot,
+      SONATA_WORKSPACES_DIR: path.join(root, "workspaces"),
+      SONATA_SETTINGS_DIR: settingsDir,
+      SONATA_TEST_PICK_FOLDER: project,
+      SONATA_TEST_TASK_CREATE_DELAY_MS: "700",
+      SONATA_NOTIFICATIONS: "0",
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
     },
   });
@@ -63,7 +63,7 @@ try {
   const taskIdsBeforeRace = listTaskIds();
 
   await cli.evaluate(() =>
-    window.duetRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
+    window.sonataRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
   );
   await main.locator("#prompt-input:disabled").waitFor({ state: "visible" });
 
@@ -109,7 +109,7 @@ try {
   await main.locator("#composer").dispatchEvent("submit");
   await main.locator("#prompt-input:disabled").waitFor({ state: "visible" });
   await cli.evaluate(() =>
-    window.duetRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
+    window.sonataRuntime.requestCliAction({ action: "start", expectedTaskId: null }),
   );
   const composerOwnedTaskId = await waitForActiveTask(main);
   await waitFor(
@@ -169,7 +169,7 @@ function installFakeClaude() {
     `#!/usr/bin/env node
 const fs = require("node:fs");
 const path = require("node:path");
-const runtimeDir = process.env.DUET_RUNTIME_DIR;
+const runtimeDir = process.env.SONATA_RUNTIME_DIR;
 fs.mkdirSync(runtimeDir, { recursive: true });
 fs.writeFileSync(path.join(runtimeDir, "spawned"), "1");
 if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch {} }

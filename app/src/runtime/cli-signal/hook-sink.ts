@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * Duet's Claude hook sink — the small script the CLI invokes for every injected
+ * Sonata's Claude hook sink — the small script the CLI invokes for every injected
  * hook event (mirrors the statusline sink). It reads the hook payload (JSON) on
  * stdin and writes it as ONE uniquely-named file into the directory passed as
  * argv[2], via tmp+rename so the watcher only ever sees complete files.

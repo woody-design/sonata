@@ -17,7 +17,7 @@ const dormant = {
   taskId: "task-1",
   live: false,
   openTaskIds: ["task-1"],
-  projectName: "Duet",
+  projectName: "Sonata",
   sessionTitle: "Review lifecycle",
   emptySurface: { kind: "dormant", phase: "ready", taskId: "task-1" },
 };

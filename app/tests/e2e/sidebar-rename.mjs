@@ -17,9 +17,9 @@ const appRoot = path.join(repoRoot, "app");
 // (product-thinking/sidebar-refactor-evidence/) is historical and must not
 // churn on verification runs — publishing there is an explicit argv[2] act.
 const outputDir = path.resolve(
-  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-rename-out-")),
+  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-rename-out-")),
 );
-const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-rename-"));
+const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-rename-"));
 const viewport = { width: 1280, height: 800 };
 const screenshots = [];
 const pageErrors = [];
@@ -313,7 +313,7 @@ async function assertProtectedNode(page, fixture, task) {
   const otherProject = fixture.projects[1];
   await page.evaluate(
     ({ projectPath, displayName }) =>
-      window.duetRuntime.renameProject({ path: projectPath, displayName }),
+      window.sonataRuntime.renameProject({ path: projectPath, displayName }),
     { projectPath: otherProject.path, displayName: "Zulu background refresh" },
   );
   await page.waitForTimeout(350);
@@ -355,7 +355,7 @@ async function assertProtectedNode(page, fixture, task) {
   await page.locator("#reading-settings").click();
   await page.evaluate(
     ({ projectPath, displayName }) =>
-      window.duetRuntime.renameProject({ path: projectPath, displayName }),
+      window.sonataRuntime.renameProject({ path: projectPath, displayName }),
     { projectPath: otherProject.path, displayName: otherProject.name },
   );
 }
@@ -740,7 +740,7 @@ async function assertStaleRequestDoesNotBlockNewEditor(page, fixture) {
   );
 
   await page.evaluate(
-    (taskId) => window.duetRuntime.deleteSession({ taskId }),
+    (taskId) => window.sonataRuntime.deleteSession({ taskId }),
     staleTargetId,
   );
   await renameInput(page, "sidebar").waitFor({ state: "detached" });
@@ -865,7 +865,7 @@ async function assertSidebarDisappearance(page, fixture) {
   const target = fixture.projects[0].sessions[4];
   await openSidebarSessionRename(page, target.id);
   await renameInput(page, "sidebar").fill("Orphaned Sidebar draft");
-  await page.evaluate((taskId) => window.duetRuntime.deleteSession({ taskId }), target.id);
+  await page.evaluate((taskId) => window.sonataRuntime.deleteSession({ taskId }), target.id);
   await renameInput(page, "sidebar").waitFor({ state: "detached" });
   const notice = page.locator("#sidebar-rename-notice");
   await notice.waitFor({ state: "visible" });
@@ -883,7 +883,7 @@ async function assertHeaderDisappearance(page) {
   await selectSession(page, targetId);
   await openHeaderSessionRename(page);
   await renameInput(page, "header").fill("Orphaned Header draft");
-  await page.evaluate((taskId) => window.duetRuntime.deleteSession({ taskId }), targetId);
+  await page.evaluate((taskId) => window.sonataRuntime.deleteSession({ taskId }), targetId);
   await renameInput(page, "header").waitFor({ state: "detached" });
   const notice = page.locator("#header-rename-notice");
   await notice.waitFor({ state: "visible" });
@@ -1099,16 +1099,16 @@ function readGitHead(root) {
 function isolatedElectronEnv(overrides) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith("DUET_")) {
+    if (key.startsWith("SONATA_")) {
       delete env[key];
     }
   }
   return {
     ...env,
     ...overrides,
-    DUET_DISABLE_TERMINAL_WINDOW: "1",
-    DUET_DISABLE_AUTO_UPDATE: "1",
-    DUET_DISABLE_NOTIFICATIONS: "1",
+    SONATA_DISABLE_TERMINAL_WINDOW: "1",
+    SONATA_DISABLE_AUTO_UPDATE: "1",
+    SONATA_DISABLE_NOTIFICATIONS: "1",
   };
 }
 

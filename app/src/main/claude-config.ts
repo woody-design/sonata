@@ -4,14 +4,14 @@ import path from "node:path";
 
 /**
  * The single write path for `~/.claude.json` — the user's REAL, daily-driver
- * Claude config, shared with every claude process on the machine. Duet makes
+ * Claude config, shared with every claude process on the machine. Sonata makes
  * exactly two kinds of edits (the resume-bridge revert and the project-trust
  * pre-write), and both flow through `updateClaudeConfig` so the safety rules
  * live in one place:
  *
- * - **Backup-once**: before Duet's first-ever write, the exact bytes the
- *   mutation was computed from are copied to `<config>.duet-bak` and verified.
- *   An existing backup is never overwritten — it stays the oldest pre-Duet
+ * - **Backup-once**: before Sonata's first-ever write, the exact bytes the
+ *   mutation was computed from are copied to `<config>.sonata-bak` and verified.
+ *   An existing backup is never overwritten — it stays the oldest pre-Sonata
  *   recovery point.
  * - **Atomic**: tmp file + rename; the config is never open for in-place edit.
  * - **Concurrent-writer aware**: the CLI rewrites this file whole (last-writer
@@ -29,7 +29,7 @@ import path from "node:path";
 export interface ClaudeConfigWriteOptions {
   /** Test seam; defaults to the real `~/.claude.json`. */
   configPath?: string;
-  /** Backup destination; `null` disables. Defaults to `<configPath>.duet-bak`. */
+  /** Backup destination; `null` disables. Defaults to `<configPath>.sonata-bak`. */
   backupPath?: string | null;
 }
 
@@ -42,7 +42,7 @@ export interface ClaudeConfigUpdateResult {
     | "config-invalid"
     | "conflict"
     | "write-failed";
-  /** True when this write created the backup (first Duet write ever). */
+  /** True when this write created the backup (first Sonata write ever). */
   backupCreated: boolean;
 }
 
@@ -62,7 +62,7 @@ export function updateClaudeConfig(
 ): ClaudeConfigUpdateResult {
   const configPath = options.configPath ?? defaultClaudeConfigPath();
   const backupPath =
-    options.backupPath === null ? null : (options.backupPath ?? `${configPath}.duet-bak`);
+    options.backupPath === null ? null : (options.backupPath ?? `${configPath}.sonata-bak`);
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let raw: string;
@@ -116,7 +116,7 @@ export function updateClaudeConfig(
         backupCreated = true;
       }
 
-      const tempPath = `${configPath}.duet-tmp-${process.pid}`;
+      const tempPath = `${configPath}.sonata-tmp-${process.pid}`;
       fs.writeFileSync(tempPath, JSON.stringify(parsed, null, 2), "utf8");
       fs.renameSync(tempPath, configPath);
       return { applied: true, reason: "written", backupCreated };
@@ -149,7 +149,7 @@ export interface EnsureProjectTrustResult extends ClaudeConfigUpdateResult {
 }
 
 /**
- * Pre-grant folder trust for a workspace the user designated in Duet's own UI
+ * Pre-grant folder trust for a workspace the user designated in Sonata's own UI
  * (two-window contract §2: the folder-designating gesture IS the consent —
  * the native "do you trust this folder?" dialog is redundant for it, so it is
  * eliminated, not mirrored).

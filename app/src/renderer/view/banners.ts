@@ -57,7 +57,7 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
       );
     }
     // Codex's injected hooks never handshook within the spawn window — they are
-    // not running. Since Duet passes `--dangerously-bypass-hook-trust` on every
+    // not running. Since Sonata passes `--dangerously-bypass-hook-trust` on every
     // codex spawn (D4 overturn: trust can't persist through a profile layer),
     // this is no longer a trust-ceremony gap — it means the hook shim itself
     // failed to fire (e.g. its interpreter isn't on PATH in a non-login launch).

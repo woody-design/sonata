@@ -47,11 +47,11 @@ type IpcTestGate = "TASK_CREATE" | "TASK_OPEN" | "PROMPT_SUBMIT" | "RESUME_SETTI
 // process boundary (rather than mocking renderer APIs) and inert unless an
 // explicitly test-scoped launch variable is present.
 async function passIpcTestGate(gate: IpcTestGate): Promise<void> {
-  const delay = Number(process.env[`DUET_TEST_${gate}_DELAY_MS`] ?? "0");
+  const delay = Number(process.env[`SONATA_TEST_${gate}_DELAY_MS`] ?? "0");
   if (Number.isFinite(delay) && delay > 0) {
     await new Promise<void>((resolve) => setTimeout(resolve, Math.min(delay, 10_000)));
   }
-  if (process.env[`DUET_TEST_${gate}_FAIL`] === "1") {
+  if (process.env[`SONATA_TEST_${gate}_FAIL`] === "1") {
     throw new Error(`Injected ${gate.toLowerCase()} failure.`);
   }
 }
@@ -112,7 +112,7 @@ export function registerIpcHandlers(
     // Drives the instance badge. Read from the launch env so the same build
     // shows the badge only when the launcher sets it (the workshop does; the
     // daily driver does not) — nothing branch-specific to promote.
-    event.returnValue = (process.env.DUET_INSTANCE_LABEL ?? "").trim();
+    event.returnValue = (process.env.SONATA_INSTANCE_LABEL ?? "").trim();
   });
 
   ipcMain.handle(IPC_CHANNELS.taskCreate, async (_event, request) => {

@@ -5,7 +5,7 @@ import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
 import { chooseDraftProvider, sendFirstPrompt } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-provider-locked-e2e-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-provider-locked-e2e-"));
 let electronApp = null;
 
 try {
@@ -26,7 +26,7 @@ try {
   await page.locator("#permission-chip", { hasText: "Accept edits" }).waitFor({ state: "visible" });
 
   // The first composer message creates the provider-locked session.
-  await sendFirstPrompt(page, "Reply exactly DUET_PROVIDER_LOCKED. Do not create or modify any files.");
+  await sendFirstPrompt(page, "Reply exactly SONATA_PROVIDER_LOCKED. Do not create or modify any files.");
 
   const taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 45000);
   const workspace = path.join(workspaceRoot, "data", "projects", taskDirectory);
@@ -94,7 +94,7 @@ async function launchApp() {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
     },
   });
   const page = await electronApp.firstWindow();

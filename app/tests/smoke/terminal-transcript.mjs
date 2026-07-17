@@ -19,7 +19,7 @@ const claudeChrome = [
 
 const normalAnswer = [
   "\x1b[32mHere is the result:\x1b[0m",
-  "DUET_TRANSCRIPT_VISIBLE artifact ready.",
+  "SONATA_TRANSCRIPT_VISIBLE artifact ready.",
   "Created transcript.md in the selected folder.",
 ].join("\r\n");
 
@@ -80,7 +80,7 @@ const cleanProviderErrorExcerpt = extractProviderErrorExcerpt(
 
 const success =
   cleanChrome.trim() === "" &&
-  cleanNormal.includes("DUET_TRANSCRIPT_VISIBLE artifact ready.") &&
+  cleanNormal.includes("SONATA_TRANSCRIPT_VISIBLE artifact ready.") &&
   cleanNormal.includes("Created transcript.md in the selected folder.") &&
   !cleanNormal.includes("\u001b") &&
   !cleanMixed.includes("esc to interrupt") &&

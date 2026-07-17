@@ -1,6 +1,6 @@
 // Deterministic visual evidence for the Sidebar. The corpus, settings,
-// Chromium userData, clock, and Duet-specific environment are isolated; this
-// generator never reads or mutates real Duet sessions or preferences.
+// Chromium userData, clock, and Sonata-specific environment are isolated; this
+// generator never reads or mutates real Sonata sessions or preferences.
 //
 //   node tests/e2e/sidebar-screenshots.mjs [outputDir]
 import crypto from "node:crypto";
@@ -19,10 +19,10 @@ const appRoot = path.join(repoRoot, "app");
 // (product-thinking/sidebar-refactor-evidence/) is historical and must not
 // churn on verification runs — publishing there is an explicit argv[2] act.
 const outputDir = path.resolve(
-  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-screenshots-out-")),
+  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-screenshots-out-")),
 );
-const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-evidence-"));
-const themes = ["duet", "paper", "calm", "focus"];
+const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-evidence-"));
+const themes = ["sonata", "paper", "calm", "focus"];
 const modes = ["light", "dark"];
 const viewport = { width: 1280, height: 800 };
 const capturedFiles = [];
@@ -55,7 +55,7 @@ try {
   assertEqual(
     await page.locator("html").getAttribute("data-instance-label"),
     null,
-    "inherited Duet instance label is stripped",
+    "inherited Sonata instance label is stripped",
   );
   await assertFixtureIndex(page, fixture.expectations);
   await disableVisualNondeterminism(page);
@@ -75,7 +75,7 @@ try {
     }
   }
 
-  await setReadingSettings(page, { theme: "duet", mode: "light", textStep: 16 });
+  await setReadingSettings(page, { theme: "sonata", mode: "light", textStep: 16 });
 
   const firstSession = page.locator(".sidebar-session-button").first();
   await firstSession.click();
@@ -192,15 +192,15 @@ try {
 function isolatedElectronEnv(overrides) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith("DUET_")) {
+    if (key.startsWith("SONATA_")) {
       delete env[key];
     }
   }
   return {
     ...env,
     ...overrides,
-    DUET_LOCAL_API: "0",
-    DUET_NOTIFICATIONS: "0",
+    SONATA_LOCAL_API: "0",
+    SONATA_NOTIFICATIONS: "0",
   };
 }
 
@@ -226,7 +226,7 @@ async function installFixedClock(page, nowMs) {
 
 async function assertFixtureIndex(page, expectations) {
   const index = await page.evaluate(() =>
-    window.duetRuntime.readSessionIndex({ includeArchived: true }),
+    window.sonataRuntime.readSessionIndex({ includeArchived: true }),
   );
   const projectOrder = index.projects.map((project) => project.name);
   assertDeepEqual(projectOrder, expectations.projectOrder, "fixture project order");
@@ -244,7 +244,7 @@ async function setReadingSettings(page, settings) {
   // harness, stamp the same root attributes directly after persisting the
   // isolated settings store so the main window and cold-relaunch record agree.
   await page.evaluate(async (next) => {
-    await window.duetRuntime.writeReadingSettings(next);
+    await window.sonataRuntime.writeReadingSettings(next);
     const root = document.documentElement;
     root.dataset.theme = next.theme;
     root.dataset.mode = next.mode;

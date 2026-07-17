@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-cli-background-generation-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-background-generation-"));
 const fakeBin = path.join(root, "bin");
 const workspaceA = path.join(root, "task-a");
 const workspaceB = path.join(root, "task-b");
@@ -27,9 +27,9 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: path.join(root, "data"),
-      DUET_WORKSPACES_DIR: path.join(root, "workspaces"),
-      DUET_NOTIFICATIONS: "0",
+      SONATA_DATA_DIR: path.join(root, "data"),
+      SONATA_WORKSPACES_DIR: path.join(root, "workspaces"),
+      SONATA_NOTIFICATIONS: "0",
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
     },
   });
@@ -41,12 +41,12 @@ try {
 
   const [taskA, taskB] = await main.evaluate(
     async ({ cwdA, cwdB }) => {
-      const a = await window.duetRuntime.createTask({
+      const a = await window.sonataRuntime.createTask({
         provider: "codex",
         cwd: cwdA,
         title: "Generation A",
       });
-      const b = await window.duetRuntime.createTask({
+      const b = await window.sonataRuntime.createTask({
         provider: "codex",
         cwd: cwdB,
         title: "Generation B",
@@ -81,7 +81,7 @@ try {
   // Reopen A through the runtime IPC while B remains selected. No renderer
   // binding is needed to retain output: selecting A later hydrates the current
   // generation's mirror into a new xterm.
-  await main.evaluate((taskId) => window.duetRuntime.openTask({ taskId }), taskA.id);
+  await main.evaluate((taskId) => window.sonataRuntime.openTask({ taskId }), taskA.id);
   await waitFor(() => readSpawnCount("task-a") === 2, "A generation 2 spawn");
   await selectTask(main, taskA.id);
   const aTwo = await waitForTerminalMarker(cli, taskA.id, "A_GENERATION_2_CURRENT");
@@ -94,8 +94,8 @@ try {
   // entry when generation 3 data arrives.
   await selectTask(main, taskB.id);
   await main.evaluate(async (taskId) => {
-    await window.duetRuntime.closeTask({ taskId });
-    await window.duetRuntime.openTask({ taskId });
+    await window.sonataRuntime.closeTask({ taskId });
+    await window.sonataRuntime.openTask({ taskId });
   }, taskA.id);
   await waitFor(() => readSpawnCount("task-a") === 3, "A generation 3 spawn");
   await cli.waitForFunction(
@@ -125,7 +125,7 @@ try {
   // first byte so close/open session-index refreshes coalesce and no binding
   // edge recreates the entry. Newer no-entry data must use the tombstone to
   // restore the active xterm and forwarding.
-  await main.evaluate((taskId) => window.duetRuntime.closeTask({ taskId }), taskA.id);
+  await main.evaluate((taskId) => window.sonataRuntime.closeTask({ taskId }), taskA.id);
   await cli.waitForFunction(
     (taskId) => !document.querySelector(`.task-terminal[data-task-id="${taskId}"]`),
     taskA.id,
@@ -135,7 +135,7 @@ try {
   const bindingRevisionBeforeOpen = Number(
     await cli.locator("#app").getAttribute("data-active-task-binding-revision"),
   );
-  await main.evaluate((taskId) => window.duetRuntime.openTask({ taskId }), taskA.id);
+  await main.evaluate((taskId) => window.sonataRuntime.openTask({ taskId }), taskA.id);
   await waitFor(() => readSpawnCount("task-a") === 4, "A generation 4 spawn");
   // Cross the 150ms session-index debounce while the provider's first byte is
   // still fenced by the sentinel. If a close/open binding edge is delivered,
@@ -300,7 +300,7 @@ async function waitForTerminalMarker(page, taskId, marker) {
 
 async function readSummary(page, taskId) {
   return page.evaluate(async (id) => {
-    const index = await window.duetRuntime.readSessionIndex({ includeArchived: true });
+    const index = await window.sonataRuntime.readSessionIndex({ includeArchived: true });
     return [...index.chats, ...index.projects.flatMap((project) => project.sessions)].find(
       (session) => session.task.id === id,
     );

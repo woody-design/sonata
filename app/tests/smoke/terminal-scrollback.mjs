@@ -17,7 +17,7 @@ const mirror = new TerminalScrollback(120, 36);
 
 // 2) Representative CLI output: a colored header, plain lines, CJK, a cursor-
 //    positioned redraw (as claude/codex draw), and a final unique marker.
-mirror.write("\x1b[32mDUET_SCROLLBACK header\x1b[0m\r\n");
+mirror.write("\x1b[32mSONATA_SCROLLBACK header\x1b[0m\r\n");
 for (let i = 0; i < 5; i += 1) {
   mirror.write(`line ${i} — plain output\r\n`);
 }
@@ -28,7 +28,7 @@ mirror.write("LAST_LINE_MARKER_XYZ\r\n");
 const snap = await mirror.snapshot();
 results.snapshotDims = { cols: snap.cols, rows: snap.rows };
 
-check("content", snap.data.includes("DUET_SCROLLBACK header"), "header missing");
+check("content", snap.data.includes("SONATA_SCROLLBACK header"), "header missing");
 check("color-sgr", /\x1b\[3(1|2)m/.test(snap.data), "no SGR color sequence preserved");
 check("cjk", snap.data.includes("你好世界终端"), "CJK glyphs missing");
 // The final write must appear — this proves snapshot() flushes pending writes

@@ -1,7 +1,7 @@
 // Transcript contract fence — pins the FROZEN `transcript:blocks` semantics an
 // external consumer (the e-ink daemon) depends on. Contract document of record:
-//   Product/duet-eink/docs/contracts-v2.md, Part A (FROZEN 2026-07-07).
-// Derivation & evidence: Product/duet-eink/docs/s1-audit-report.md (Q1, file:line).
+//   Product/sonata-eink/docs/contracts-v2.md, Part A (FROZEN 2026-07-07).
+// Derivation & evidence: Product/sonata-eink/docs/s1-audit-report.md (Q1, file:line).
 // Program plan / invariant anchors: this repo's
 //   product-thinking/2026-07-07-s1-local-api-hardening-plan-v0.md (Slice A).
 //
@@ -40,7 +40,7 @@ const {
 // fold the renderer uses. INV-5's "snapshot ≡ replay" is proven against it.
 const { applyTranscriptUpserts } = require("../../dist/reading-core/state");
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-transcript-contract-fence-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-transcript-contract-fence-"));
 const failures = [];
 
 function check(name, fn) {

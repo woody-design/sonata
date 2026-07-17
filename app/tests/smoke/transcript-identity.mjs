@@ -26,7 +26,7 @@ const {
   locateSessionFile,
 } = require("../../dist/runtime/provider-transcript/index");
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-transcript-identity-"));
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-transcript-identity-"));
 const failures = [];
 
 function check(name, fn) {

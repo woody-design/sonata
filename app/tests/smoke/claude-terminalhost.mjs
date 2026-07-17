@@ -7,9 +7,9 @@ const require = createRequire(import.meta.url);
 const { RunIndex, TerminalHost, cleanTerminal, isRunIndexEvent } = require("../../dist/runtime");
 
 const taskId = "task-claude-smoke";
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-claude-smoke-"));
-const reportPath = path.join(workspace, ".duet", "runtime-report.json");
-const marker = "FORMAL_DUET_CLAUDE_TERMINALHOST_READY";
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-claude-smoke-"));
+const reportPath = path.join(workspace, ".sonata", "runtime-report.json");
+const marker = "FORMAL_SONATA_CLAUDE_TERMINALHOST_READY";
 
 let rawTail = "";
 let sawMarker = false;

@@ -17,8 +17,8 @@ import {
  *
  * D4 OVERTURNED (2026-07-06): the "one-time trust ceremony survives every task /
  * app update" framing below is MOOT. Field use proved codex does NOT persist
- * hook trust for a `-p duet` PROFILE layer (only User/SessionFlags layers can),
- * so Duet passes `--dangerously-bypass-hook-trust` on every spawn (in
+ * hook trust for a `-p sonata` PROFILE layer (only User/SessionFlags layers can),
+ * so Sonata passes `--dangerously-bypass-hook-trust` on every spawn (in
  * `codexArgs`). The stable shim path still matters — it keeps the hook COMMAND
  * HASH constant so the bypassed hooks stay identical — but it no longer persists
  * a trust grant. Wherever the comments below say "trust ceremony persists," read
@@ -28,17 +28,17 @@ import {
  * field-for-field (verified 2026-07-06, codex-cli 0.142.5), but its injection
  * seam and trust model differ, so this edge is Codex-specific:
  *
- *  - Injection is a Duet-named PROFILE FILE, `$CODEX_HOME/duet.config.toml`,
- *    layered onto the user's own config by `codex -p duet` (CONFIG_PROFILE_V2).
- *    Additive and inert: Duet writes ONLY this file; the user's config.toml,
+ *  - Injection is a Sonata-named PROFILE FILE, `$CODEX_HOME/sonata.config.toml`,
+ *    layered onto the user's own config by `codex -p sonata` (CONFIG_PROFILE_V2).
+ *    Additive and inert: Sonata writes ONLY this file; the user's config.toml,
  *    MCP servers, auth, trust, and history are never touched, and nothing fires
- *    unless Duet passes `-p duet`. Profile `[hooks]` UNION with the user's own
+ *    unless Sonata passes `-p sonata`. Profile `[hooks]` UNION with the user's own
  *    hooks both ways (verified) — no clobber.
  *  - Trust binds to the EXACT hook command string, and untrusted/misconfigured
  *    hooks are SILENTLY skipped (probe hazard). So every command routes through
  *    a STABLE shim path (`<binDir>/codex-*-shim.js`) whose text is
  *    task-invariant: the one-time Codex trust ceremony then survives every task
- *    and every app update. Per-task binding travels via the `DUET_RUNTIME_DIR`
+ *    and every app update. Per-task binding travels via the `SONATA_RUNTIME_DIR`
  *    environment variable the shims read at runtime (hooks inherit the spawn
  *    env — verified), never argv.
  *  - The hook SET is FROZEN at S2 — the complete final shape (5 core events →
@@ -54,15 +54,15 @@ import {
  * `type = "command"`, and a per-hook `timeout` in seconds.
  */
 
-/** The stable shim home (`duetBinDir()`, e.g. `~/.duet/bin`) — the ONE input
- *  the controller supplies, because Duet-home is the controller's path truth.
+/** The stable shim home (`sonataBinDir()`, e.g. `~/.sonata/bin`) — the ONE input
+ *  the controller supplies, because Sonata-home is the controller's path truth.
  *  The profile file location is THIS module's truth (codexProfilePath). */
 export interface CodexHookPaths {
   binDir: string;
 }
 
-/** The profile name Duet layers via `codex -p <name>`. */
-export const CODEX_DUET_PROFILE = "duet";
+/** The profile name Sonata layers via `codex -p <name>`. */
+export const CODEX_SONATA_PROFILE = "sonata";
 
 /** Shim filenames — part of the FROZEN command strings; never rename without
  *  accepting a Codex re-trust for every user. */
@@ -76,17 +76,17 @@ const BROKER_SHIM = "codex-approval-broker.js";
  *  never desync from the Claude broker / the ApprovalWatcher. */
 const HOOKS_SUBDIR = "hooks";
 
-/** The marker file Duet drops in a task's approvals dir to arm the broker shim's
+/** The marker file Sonata drops in a task's approvals dir to arm the broker shim's
  *  hold-and-answer path. Absent (S2, or any task whose card wiring is not live)
  *  → the broker exits 0 with no output → Codex's native card shows instantly.
- *  Present (S3, once Duet is watching the task's approvals) → the broker holds
- *  and answers from Duet's reply file. Single-sourced: the shim template
+ *  Present (S3, once Sonata is watching the task's approvals) → the broker holds
+ *  and answers from Sonata's reply file. Single-sourced: the shim template
  *  interpolates it, and `codex-approvals.ts` reuses it to write/clear the marker,
  *  so the two can never drift. */
 export const CODEX_ANSWERING_MARKER = "answering-enabled";
 
 /**
- * How long the broker HOLDS the CLI waiting for Duet's card answer before giving
+ * How long the broker HOLDS the CLI waiting for Sonata's card answer before giving
  * up to Codex's native card. INDEPENDENT of the Claude broker's hold (580s since
  * drawer S0) — do NOT re-sync them: this 60s sits under the frozen hook
  * `timeout` (120s), and that 120 is part of the exact trusted command definition
@@ -94,25 +94,25 @@ export const CODEX_ANSWERING_MARKER = "answering-enabled";
  * the codex hold needs its own probe (timeout semantics + re-trust path) first.
  * The frozen timeout sits comfortably above the hold so Codex never kills the
  * broker mid-poll (which would read as a crash, not a graceful fallback). The
- * shim reads an optional `DUET_BROKER_HOLD_MS` env override (same env-binding
- * rationale as `DUET_RUNTIME_DIR`; used by tests, never changes the trusted
+ * shim reads an optional `SONATA_BROKER_HOLD_MS` env override (same env-binding
+ * rationale as `SONATA_RUNTIME_DIR`; used by tests, never changes the trusted
  * command string), falling back to this default. */
 const APPROVAL_BROKER_HOLD_MS = 60_000;
 
 /**
- * The Duet Codex hook profile file — an ADDITIVE, Duet-named file inside the
- * user's Codex home, layered by `codex -p duet`. Honors `$CODEX_HOME` (so the
+ * The Sonata Codex hook profile file — an ADDITIVE, Sonata-named file inside the
+ * user's Codex home, layered by `codex -p sonata`. Honors `$CODEX_HOME` (so the
  * user's real Codex world is respected, and tests/live-passes can isolate to a
- * temp home) and defaults to `~/.codex`. Duet writes ONLY this file; the user's
+ * temp home) and defaults to `~/.codex`. Sonata writes ONLY this file; the user's
  * own `config.toml` is never read or modified. This module owns the resolution
  * (the declared owner of Codex path truth).
  */
 export function codexProfilePath(): string {
   const home = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), ".codex");
-  return path.join(home, "duet.config.toml");
+  return path.join(home, "sonata.config.toml");
 }
 
-/** Fire-and-forget sink events (the events Codex emits and Duet's watcher
+/** Fire-and-forget sink events (the events Codex emits and Sonata's watcher
  *  consumes). PermissionRequest is DELIBERATELY absent — it is owned by the
  *  broker shim (a second sink on it would double-write the payload).
  *
@@ -122,7 +122,7 @@ export function codexProfilePath(): string {
  *  the parent rollout the normalizer tails never shows them — these hooks are the
  *  only source. `PreCompact` / `PostCompact` (verified firing under this injection
  *  at 0.144.4, P2) are registered for signal completeness: they flow to the sink
- *  like every other event. Duet does NOT consume them today — the Reading
+ *  like every other event. Sonata does NOT consume them today — the Reading
  *  compaction marker is TRANSCRIPT-derived (the rollout's `compacted` record), so
  *  it survives resume/replay where an ephemeral hook could not. `Notification` /
  *  `StopFailure` stay unregistered (Claude-only, no Codex equivalent). */
@@ -148,7 +148,7 @@ const SINK_EVENTS = [
 const APPROVAL_HOOK_TIMEOUT_S = 120;
 
 /**
- * Hard ceiling on the shim's hold, regardless of the `DUET_BROKER_HOLD_MS`
+ * Hard ceiling on the shim's hold, regardless of the `SONATA_BROKER_HOLD_MS`
  * override. The override is env-delivered (tests use it), but an env var
  * inherited into production above the frozen hook `timeout` (120s) would let
  * Codex KILL the hook mid-poll BEFORE the shim writes `expired-<id>.json` — no
@@ -159,7 +159,7 @@ const APPROVAL_HOOK_TIMEOUT_S = 120;
 const APPROVAL_BROKER_HOLD_CEILING_MS = (APPROVAL_HOOK_TIMEOUT_S - 20) * 1000;
 
 /** Path the sink drops `hook-*.json` into, under a task's runtime dir. The
- *  shim derives this from `DUET_RUNTIME_DIR` — same layout Claude's sink
+ *  shim derives this from `SONATA_RUNTIME_DIR` — same layout Claude's sink
  *  writes, so the same HookWatcher consumes both. */
 export function codexHooksDirectory(runtimeDir: string): string {
   return path.join(runtimeDir, HOOKS_SUBDIR);
@@ -172,7 +172,7 @@ export function codexApprovalsDirectory(runtimeDir: string): string {
 }
 
 /**
- * Ensure the Duet Codex profile + shims exist and are current (write-if-changed
+ * Ensure the Sonata Codex profile + shims exist and are current (write-if-changed
  * on all three files). Idempotent and task-invariant: the profile content
  * depends only on `binDir`, and the shims read their per-task binding from the
  * environment — so repeated spawn-prep calls converge on byte-identical files,
@@ -223,17 +223,17 @@ function guardShimPath(shimPath: string): string {
  *  single quote to break this, which macOS/Linux paths effectively never do. */
 function buildProfileToml(binDir: string): string {
   const header = [
-    "# Duet-managed Codex hook profile — DO NOT EDIT (regenerated by Duet).",
+    "# Sonata-managed Codex hook profile — DO NOT EDIT (regenerated by Sonata).",
     "#",
-    "# Additive: `codex -p duet` layers this onto your own ~/.codex/config.toml",
-    "# (union, never clobber). Duet writes ONLY this file; your config, MCP",
+    "# Additive: `codex -p sonata` layers this onto your own ~/.codex/config.toml",
+    "# (union, never clobber). Sonata writes ONLY this file; your config, MCP",
     "# servers, auth, and session history are untouched.",
     "#",
-    "# Duet registers the events it consumes (run lifecycle + subagent roster +",
+    "# Sonata registers the events it consumes (run lifecycle + subagent roster +",
     "# the PermissionRequest broker). Adding an event rewrites this file, but that",
-    "# is safe: Duet spawns with --dangerously-bypass-hook-trust (D4), so a changed",
-    "# hook-trust hash never re-prompts. Commands route through stable ~/.duet/bin",
-    "# shims; per-task binding travels via the DUET_RUNTIME_DIR environment",
+    "# is safe: Sonata spawns with --dangerously-bypass-hook-trust (D4), so a changed",
+    "# hook-trust hash never re-prompts. Commands route through stable ~/.sonata/bin",
+    "# shims; per-task binding travels via the SONATA_RUNTIME_DIR environment",
     "# variable, so these command strings stay identical across every task.",
     "",
   ];
@@ -286,24 +286,24 @@ function writeIfChanged(filePath: string, contents: string): void {
 }
 
 // ── Frozen shim sources ──────────────────────────────────────────────────────
-// These are the exact bytes Duet writes to the stable shim paths. They are
+// These are the exact bytes Sonata writes to the stable shim paths. They are
 // plain CommonJS Node scripts (run as `node <path>`), self-contained so the
 // TRUSTED TEXT is decoupled from any refactor of the Claude-side sink. Trust
-// binds to the profile's command STRING, not these bytes, so Duet may refresh
+// binds to the profile's command STRING, not these bytes, so Sonata may refresh
 // the content freely (S3 rewrites the broker); the command string never changes.
 
 /** Reads the hook payload (JSON) on stdin and writes it as ONE uniquely-named
- *  file into `$DUET_RUNTIME_DIR/hooks` via tmp+rename — the exact protocol of
+ *  file into `$SONATA_RUNTIME_DIR/hooks` via tmp+rename — the exact protocol of
  *  `cli-signal/hook-sink.ts`, but keyed by env (task-invariant argv). Exit 0
  *  always; observation must never block the CLI's turn. */
 const SINK_SHIM_SOURCE = `"use strict";
-// Duet Codex hook sink — FROZEN shim (control plane S2). Task binding arrives
-// via the DUET_RUNTIME_DIR env var (hooks inherit the spawn env), never argv,
+// Sonata Codex hook sink — FROZEN shim (control plane S2). Task binding arrives
+// via the SONATA_RUNTIME_DIR env var (hooks inherit the spawn env), never argv,
 // so the command string this file is invoked by stays task-invariant and the
-// one-time Codex trust ceremony persists. Regenerated by Duet at spawn-prep.
+// one-time Codex trust ceremony persists. Regenerated by Sonata at spawn-prep.
 const fs = require("node:fs");
 const path = require("node:path");
-const runtimeDir = process.env.DUET_RUNTIME_DIR;
+const runtimeDir = process.env.SONATA_RUNTIME_DIR;
 let raw = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", function (chunk) { raw += chunk; });
@@ -326,8 +326,8 @@ process.stdin.on("end", function () {
 `;
 
 /** S3: the hold-and-answer broker. Reads the PermissionRequest payload on stdin;
- *  if Duet has armed answering for this task (the answering-enabled marker
- *  exists in `$DUET_RUNTIME_DIR/approvals/`), it surfaces `ask-<id>.json`, holds
+ *  if Sonata has armed answering for this task (the answering-enabled marker
+ *  exists in `$SONATA_RUNTIME_DIR/approvals/`), it surfaces `ask-<id>.json`, holds
  *  the CLI polling for `reply-<id>.json`, and prints the decision JSON to stdout
  *  on reply (Codex's structured answer channel) — the exact protocol of
  *  `cli-signal/approval-broker.ts`, but keyed by env (task-invariant argv). On
@@ -337,19 +337,19 @@ process.stdin.on("end", function () {
  *  broker failure must never block or corrupt the CLI's turn. The command string
  *  this file is invoked by is FROZEN; only these BYTES change, so no re-trust. */
 const BROKER_SHIM_SOURCE = `"use strict";
-// Duet Codex approval broker — FROZEN command, refreshable content (control
+// Sonata Codex approval broker — FROZEN command, refreshable content (control
 // plane S3). The profile registers this on PermissionRequest with a timeout;
 // that command string is what the one-time trust ceremony binds to and never
-// changes. This file's BYTES, however, Duet refreshes freely. Task binding +
-// control dir arrive via the DUET_RUNTIME_DIR env var (hooks inherit the spawn
+// changes. This file's BYTES, however, Sonata refreshes freely. Task binding +
+// control dir arrive via the SONATA_RUNTIME_DIR env var (hooks inherit the spawn
 // env), never argv, so the command string stays task-invariant. Regenerated by
-// Duet at spawn-prep.
+// Sonata at spawn-prep.
 const fs = require("node:fs");
 const path = require("node:path");
-const runtimeDir = process.env.DUET_RUNTIME_DIR;
+const runtimeDir = process.env.SONATA_RUNTIME_DIR;
 const POLL_MS = ${APPROVAL_POLL_MS};
 const holdMs = Math.min(
-  Number(process.env.DUET_BROKER_HOLD_MS) || ${APPROVAL_BROKER_HOLD_MS},
+  Number(process.env.SONATA_BROKER_HOLD_MS) || ${APPROVAL_BROKER_HOLD_MS},
   ${APPROVAL_BROKER_HOLD_CEILING_MS},
 );
 let raw = "";
@@ -389,7 +389,7 @@ process.stdin.on("end", function () {
   function answer(decision) {
     // The ask cleanup MUST be independent of the audit write: if writeAtomic
     // throws (ENOSPC), a nested rmSync would be skipped → the ask-<id>.json
-    // lingers and Duet's card never clears. Each step gets its own try.
+    // lingers and Sonata's card never clears. Each step gets its own try.
     try { writeAtomic(answeredPath, decision); } catch (_e) { /* audit best-effort */ }
     try { fs.rmSync(replyPath, { force: true }); } catch (_e) { /* best-effort */ }
     try { fs.rmSync(askPath, { force: true }); } catch (_e) { /* best-effort */ }
@@ -413,7 +413,7 @@ process.stdin.on("end", function () {
     if (Date.now() > deadline) {
       clearInterval(timer);
       // FINAL reply check before giving up: a reply written in the poll gap must
-      // still win, else Duet records an answer the CLI never received and the turn
+      // still win, else Sonata records an answer the CLI never received and the turn
       // wedges (reviewer C2). Mirrors approval-broker.ts.
       const late = readReply();
       if (late !== null) { answer(late); }

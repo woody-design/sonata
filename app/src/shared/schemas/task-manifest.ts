@@ -2,7 +2,7 @@ import type { Task } from "../types/domain";
 import { RAW_TERMINAL_POLICY } from "./runtime-report";
 
 export const TASK_MANIFEST_SCHEMA_VERSION = 1 as const;
-export const TASK_MANIFEST_SCHEMA_ID = "duet.task-manifest.v1" as const;
+export const TASK_MANIFEST_SCHEMA_ID = "sonata.task-manifest.v1" as const;
 
 export interface TaskManifestV1 {
   schemaId: typeof TASK_MANIFEST_SCHEMA_ID;

@@ -186,7 +186,7 @@ check(
 
 // 9. Choices sanity-check: a codex apply_patch ask offers ONLY Approve/Deny —
 //    no "Always allow" button (codex honors only one-shot allow/deny). The
-//    kind classifies to "unknown" (apply_patch is not in Duet's Claude tool
+//    kind classifies to "unknown" (apply_patch is not in Sonata's Claude tool
 //    grammar), but the codex choice path is kind-agnostic, so this holds.
 const applyKind = classifyApprovalKind(realApplyPatch);
 const codexChoices = brokerApprovalChoices(applyKind, realApplyPatch, "codex");

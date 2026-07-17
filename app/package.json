@@ -1,8 +1,8 @@
 {
-  "name": "duet-app",
+  "name": "sonata-app",
   "version": "0.1.0",
   "private": true,
-  "description": "Formal TypeScript Electron walking skeleton for Duet.",
+  "description": "Formal TypeScript Electron walking skeleton for Sonata.",
   "main": "dist/main/main.js",
   "scripts": {
     "clean": "node scripts/clean.mjs",
@@ -32,7 +32,7 @@
     "e2e:run-reading-surface": "npm run build && node tests/e2e/run-reading-surface.mjs",
     "e2e:transcript-selection": "npm run build && node tests/e2e/transcript-selection.mjs",
     "e2e:copy-to-clipboard": "npm run build && node tests/e2e/copy-to-clipboard.mjs",
-    "e2e:copy-to-clipboard-screenshots": "npm run build && DUET_COPY_EVIDENCE=1 node tests/e2e/copy-to-clipboard.mjs",
+    "e2e:copy-to-clipboard-screenshots": "npm run build && SONATA_COPY_EVIDENCE=1 node tests/e2e/copy-to-clipboard.mjs",
     "e2e:transcript-chips": "npm run build && node tests/e2e/transcript-chips.mjs",
     "e2e:quote-comment": "npm run build && node tests/e2e/quote-comment.mjs",
     "e2e:transcript-chips-screenshots": "npm run build && node tests/e2e/transcript-chips-screenshots.mjs",
@@ -84,7 +84,7 @@
     "smoke:sidebar-disclosure-core": "npm run build:main && node tests/smoke/sidebar-disclosure-core.mjs",
     "smoke:sidebar-rename-core": "npm run build:main && node tests/smoke/sidebar-rename-core.mjs && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/sidebar-rename-persistence.mjs",
     "smoke:sidebar-integrated-evidence": "node tests/smoke/sidebar-integrated-evidence.mjs",
-    "smoke:duet-paths": "npm run build:main && node tests/smoke/duet-paths.mjs",
+    "smoke:sonata-paths": "npm run build:main && node tests/smoke/sonata-paths.mjs",
     "smoke:task-ready-detection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/task-ready-detection.mjs",
     "smoke:native-image-attachments": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/native-image-attachments.mjs",
     "smoke:codex-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-terminalhost.mjs",

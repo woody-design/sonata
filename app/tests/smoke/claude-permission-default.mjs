@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const { claudeArgs } = require("../../dist/runtime");
 const { ClaudeSettingsStore } = require("../../dist/main/settings-store");
 
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-claude-perm-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-claude-perm-"));
 const failures = [];
 const assert = (cond, label) => { if (!cond) failures.push(label); };
 

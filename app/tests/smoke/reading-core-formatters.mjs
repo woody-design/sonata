@@ -155,7 +155,7 @@ const DAY = 24 * HOUR;
   assert.equal(F.readingThemeLabel("paper"), "Paper");
   assert.equal(F.readingThemeLabel("calm"), "Calm");
   assert.equal(F.readingThemeLabel("focus"), "Focus");
-  assert.equal(F.readingThemeLabel("duet"), "Duet", "default theme label");
+  assert.equal(F.readingThemeLabel("sonata"), "Sonata", "default theme label");
   assert.equal(F.readingModeLabel("light"), "Light");
   assert.equal(F.readingModeLabel("dark"), "Dark");
   assert.equal(F.readingModeLabel("auto"), "Auto");

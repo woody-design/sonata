@@ -4,7 +4,7 @@ import type { RuntimeEvent } from "../shared/types";
 
 /**
  * Env-gated runtime-event recorder (decomposition map §2.4). When
- * DUET_RUNTIME_EVENT_LOG names a directory, every RuntimeEvent broadcast to
+ * SONATA_RUNTIME_EVENT_LOG names a directory, every RuntimeEvent broadcast to
  * the renderer is appended (JSONL) to one file per app instance — recorded
  * reality for the reading-core reducer's replay fixtures.
  *

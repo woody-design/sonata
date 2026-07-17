@@ -70,17 +70,17 @@ import { WindowStateManager, type WindowDefaults } from "./window-state";
 import { LocalApiServer, localApiSocketPath } from "./local-api/local-api-server";
 import { ProjectsStore, projectsStorePath } from "./projects-store";
 
-// The `duet-file://` scheme serves a task workspace's local images to the
+// The `sonata-file://` scheme serves a task workspace's local images to the
 // Preview reader (design record §4/§6.1). It MUST be registered as privileged
 // BEFORE `app` is ready — this runs at module load, before `whenReady`. It is
-// `standard` so `duet-file://<taskId>/<path>` parses hierarchically (host +
+// `standard` so `sonata-file://<taskId>/<path>` parses hierarchically (host +
 // path) and relative `./img.png` resolution behaves like a normal URL; `secure`
 // so it is a trustworthy origin; `supportFetchAPI` so <img> subresource loads
 // resolve cleanly. The handler (registered at ready) serves image bytes ONLY —
 // everything else is a 404 (WorkspaceFiles.readImage is the whole gate).
 protocol.registerSchemesAsPrivileged([
   {
-    scheme: "duet-file",
+    scheme: "sonata-file",
     privileges: { standard: true, secure: true, supportFetchAPI: true },
   },
 ]);
@@ -145,7 +145,7 @@ function createMainWindow(): BrowserWindow {
     // Only set fullscreen when restoring into it — passing `false` explicitly
     // disables the macOS fullscreen (green) button.
     ...(decision?.fullScreen ? { fullscreen: true } : {}),
-    title: "Duet",
+    title: "Sonata",
     // Full-height sidebar window (Notion/Codex/Finder pattern): no OS titlebar
     // strip — the renderer owns the whole window and the traffic lights float
     // over the sidebar's top-left. Fixes the dark-mode black titlebar (the app
@@ -194,7 +194,7 @@ function createPreviewWindow(): BrowserWindow {
     // Only set fullscreen when restoring into it — passing `false` explicitly
     // disables the macOS fullscreen (green) button.
     ...(decision?.fullScreen ? { fullscreen: true } : {}),
-    title: "Duet Preview",
+    title: "Sonata Preview",
     // Frameless like the main + terminal windows: the tab strip is the drag
     // region and reserves a traffic-light inset on its left, so the strip reads
     // as a peer of the browser tab bars the design borrows from. macOS-only
@@ -216,7 +216,7 @@ function createPreviewWindow(): BrowserWindow {
   // The reader intercepts every in-document link click and routes it (fragment /
   // workspace tab / external), so the window itself must NEVER navigate — a
   // stray relative href (resolved against the injected doc base) would otherwise
-  // replace the whole app with a `duet-file://` page. Same guard the Reading
+  // replace the whole app with a `sonata-file://` page. Same guard the Reading
   // window carries.
   window.webContents.on("will-navigate", (event) => {
     event.preventDefault();
@@ -243,7 +243,7 @@ function createTerminalWindow(): BrowserWindow {
     minWidth: TERMINAL_WINDOW_DEFAULTS.minWidth,
     minHeight: TERMINAL_WINDOW_DEFAULTS.minHeight,
     ...(decision?.fullScreen ? { fullscreen: true } : {}),
-    title: "Duet CLI",
+    title: "Sonata CLI",
     // Frameless like the main window: the renderer owns the whole surface and
     // the traffic lights float over the topbar's reserved left corner, so the
     // CLI reads as a peer of the main column (its "CLI" label sits
@@ -403,7 +403,7 @@ function readWorkspaceDoc(request: WorkspaceReadDocRequest): PreviewDocument {
   return workspaceFiles.readDoc(request.taskId, request.relativePath);
 }
 
-/** The `duet-file://` handler body: parse `duet-file://<taskId>/<enc-path>`,
+/** The `sonata-file://` handler body: parse `sonata-file://<taskId>/<enc-path>`,
  *  resolve to an image STREAM through WorkspaceFiles' audited guard, and answer
  *  404 for anything that is not a real in-workspace image (a script can never
  *  ride an image content-type). Genuinely never throws — a bad URL (incl.
@@ -411,7 +411,7 @@ function readWorkspaceDoc(request: WorkspaceReadDocRequest): PreviewDocument {
  *  bound task: a request for any OTHER task's id is refused even though it would
  *  still be workspace-guarded, keeping the capability matched to the "one task's
  *  reading surface" model (least privilege). */
-function serveDuetFileImage(rawUrl: string): Response {
+function serveSonataFileImage(rawUrl: string): Response {
   const notFound = new Response("Not found", {
     status: 404,
     headers: { "content-type": "text/plain" },
@@ -640,9 +640,9 @@ async function openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise
 }
 
 async function pickFolder(): Promise<FolderPickResponse> {
-  if (process.env.DUET_TEST_PICK_FOLDER) {
+  if (process.env.SONATA_TEST_PICK_FOLDER) {
     return {
-      path: process.env.DUET_TEST_PICK_FOLDER,
+      path: process.env.SONATA_TEST_PICK_FOLDER,
     };
   }
   const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
@@ -657,8 +657,8 @@ async function pickFolder(): Promise<FolderPickResponse> {
 }
 
 async function pickReferences(): Promise<string[]> {
-  if (process.env.DUET_TEST_PICK_REFERENCES) {
-    return process.env.DUET_TEST_PICK_REFERENCES.split("\n").map((entry) => entry.trim()).filter(Boolean);
+  if (process.env.SONATA_TEST_PICK_REFERENCES) {
+    return process.env.SONATA_TEST_PICK_REFERENCES.split("\n").map((entry) => entry.trim()).filter(Boolean);
   }
   const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
   // macOS shows files AND folders in one panel — no split menu (D6).
@@ -766,15 +766,15 @@ function sendReadingSystemMode(): void {
 }
 
 function startLocalApiIfEnabled(controller: RuntimeController): void {
-  // DUET_LOCAL_API=0 is a hard off that overrides the settings file —
+  // SONATA_LOCAL_API=0 is a hard off that overrides the settings file —
   // a kill switch that wins regardless of persisted preference.
-  if (process.env.DUET_LOCAL_API === "0") {
+  if (process.env.SONATA_LOCAL_API === "0") {
     return;
   }
   const settings = new LocalApiSettingsStore(
     localApiSettingsPath(),
   ).read();
-  const enabled = settings.enabled || process.env.DUET_LOCAL_API === "1";
+  const enabled = settings.enabled || process.env.SONATA_LOCAL_API === "1";
   if (!enabled) {
     return;
   }
@@ -797,9 +797,9 @@ function startLocalApiIfEnabled(controller: RuntimeController): void {
 }
 
 // Recorded reality for the reading-core reducer fixtures (map §2.4): default
-// off; set DUET_RUNTIME_EVENT_LOG=<dir> to capture the renderer-bound event
+// off; set SONATA_RUNTIME_EVENT_LOG=<dir> to capture the renderer-bound event
 // stream as JSONL.
-const recordRuntimeEvent = createRuntimeEventRecorder(process.env.DUET_RUNTIME_EVENT_LOG);
+const recordRuntimeEvent = createRuntimeEventRecorder(process.env.SONATA_RUNTIME_EVENT_LOG);
 
 app.whenReady().then(() => {
   readingSettingsStore = new ReadingSettingsStore(readingSettingsPath());
@@ -814,15 +814,15 @@ app.whenReady().then(() => {
       return null;
     }
   });
-  // Serve `duet-file://<taskId>/<path>` local images to the Preview reader.
+  // Serve `sonata-file://<taskId>/<path>` local images to the Preview reader.
   // The URL host is the task id, the path is the (percent-encoded) workspace-
   // relative path; resolution + the image-only allowlist live in WorkspaceFiles
   // (the ONE audited guard). Anything that is not a real, in-workspace image →
   // 404, so this channel can never serve a script or escape the workspace.
-  protocol.handle("duet-file", (request) => serveDuetFileImage(request.url));
-  // DUET_NOTIFICATIONS=0 is a hard off (kill switch for test harnesses and for
+  protocol.handle("sonata-file", (request) => serveSonataFileImage(request.url));
+  // SONATA_NOTIFICATIONS=0 is a hard off (kill switch for test harnesses and for
   // anyone who prefers the macOS per-app toggle as their only control).
-  if (process.env.DUET_NOTIFICATIONS !== "0") {
+  if (process.env.SONATA_NOTIFICATIONS !== "0") {
     notificationController = new NotificationController({
       activateTask: activateTaskFromNotification,
       // Pull the current name + provider from the live task registry at fire

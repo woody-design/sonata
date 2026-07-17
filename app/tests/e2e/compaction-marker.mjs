@@ -3,7 +3,7 @@
 // not a husk turn card and not folded into a reply.
 //
 // The full path is exercised end-to-end with a FAKE codex: it writes a rollout +
-// SessionStart handshake (helpers/fake-codex-source.mjs), Duet adopts + tails it,
+// SessionStart handshake (helpers/fake-codex-source.mjs), Sonata adopts + tails it,
 // and the test appends a real `task_started` + `compacted` boundary turn to that
 // rollout. The tailer → codex-normalizer → reducer → renderRuns then draws the
 // marker. We assert the marker is present with role="separator", the exact copy
@@ -18,10 +18,10 @@ import assert from "node:assert/strict";
 import { _electron as electron } from "playwright-core";
 import { FAKE_CODEX_SOURCE } from "./helpers/fake-codex-source.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-compaction-e2e-"));
-const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-home-"));
-const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-fake-bin-"));
-const folder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-compaction-folder-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-compaction-e2e-"));
+const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-home-"));
+const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-fake-bin-"));
+const folder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-compaction-folder-"));
 
 const fakeCodex = path.join(fakeBinDir, "codex");
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
@@ -35,8 +35,8 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot,
-      DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot,
+      SONATA_WORKSPACES_DIR: workspaceRoot,
       CODEX_HOME: codexHome,
       PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
     },
@@ -48,7 +48,7 @@ try {
   // Create the codex task, then select it so its reading surface is the active
   // view (createTask alone does not switch the renderer's active task).
   const created = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "codex", cwd }),
     folder,
   );
   const taskId = created.task.id;

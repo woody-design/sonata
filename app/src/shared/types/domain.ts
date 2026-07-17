@@ -66,11 +66,11 @@ export interface Task {
   /** Session is hidden from the default sidebar list. Absent on old manifests. */
   archived?: boolean;
   /**
-   * True when Duet generated the working directory itself — a project-less
+   * True when Sonata generated the working directory itself — a project-less
    * "chat" — rather than the user choosing a folder. Set explicitly at creation
    * and read for sidebar grouping (chat vs project) and deletion policy. Replaces
    * the old "is providerCwd inside the central storage root?" inference, which D7
-   * dissolved by moving the auto-workspace cwd to a visible ~/Documents/Duet/<slug>.
+   * dissolved by moving the auto-workspace cwd to a visible ~/Documents/Sonata/<slug>.
    * Absent on pre-D7 manifests → treat as false (a chosen project).
    */
   autoWorkspace?: boolean;
@@ -147,9 +147,9 @@ export type DeliveryReceiptSource =
   // panel/output is visible in the co-present terminal.
   | "slash-write";
 
-/** Who owns the bytes. `blob` = Duet copied them into the per-task attachments
+/** Who owns the bytes. `blob` = Sonata copied them into the per-task attachments
  *  dir (deleted with the chip/session). `referenced` = the user's own path, never
- *  copied and NEVER deleted by Duet. */
+ *  copied and NEVER deleted by Sonata. */
 export type AttachmentProvenance = "blob" | "referenced";
 
 /** Decides the delivery channel and the chip's visual. `image` chips natively as
@@ -238,15 +238,15 @@ export type ApprovalKind =
   | "file-edit"
   | "command"
   // The native "Bypass Permissions mode" warning interstitial — a mode
-  // acceptance, not a tool approval. Its safe default is "No, exit"; Duet
+  // acceptance, not a tool approval. Its safe default is "No, exit"; Sonata
   // mirrors that (deny is the primary action, accept is a deliberate opt-in).
   | "dangerous-bypass"
   | "unknown";
 export type ApprovalRisk = "file-read" | "file-write" | "network" | "mixed" | "unknown";
 /** "answered-natively": the human resolved the screen with their own keys
- *  (take-over) — observed from screen evidence, not sent by Duet.
+ *  (take-over) — observed from screen evidence, not sent by Sonata.
  *  "approve-always": the panel's native persistent option ("don't ask
- *  again…") — Claude writes its own allow rule; Duet receipts the write. */
+ *  again…") — Claude writes its own allow rule; Sonata receipts the write. */
 export type ApprovalDecision =
   | "approve"
   | "approve-for-session"

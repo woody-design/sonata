@@ -3,8 +3,8 @@
 // Real Codex needs a one-time human trust ceremony and auth, so this fence
 // drives a stand-in `codex` on PATH (helpers/fake-codex-source.mjs) that speaks
 // exactly the sink shim's `hook-*.json` protocol. It holds three S2 contracts:
-//   1. Spawn wiring — the codex spawn carries `-p duet` + DUET_RUNTIME_DIR, and
-//      Duet wrote its profile into $CODEX_HOME and its shims into ~/.duet/bin.
+//   1. Spawn wiring — the codex spawn carries `-p sonata` + SONATA_RUNTIME_DIR, and
+//      Sonata wrote its profile into $CODEX_HOME and its shims into ~/.sonata/bin.
 //   2. Same-cwd isolation — two codex tasks in ONE folder each adopt THEIR OWN
 //      transcript from the per-task hook handshake; bindings never cross (the
 //      historical mtime blind spot, now hooks-only for codex).
@@ -17,17 +17,17 @@ import { _electron as electron } from "playwright-core";
 import { selectSidebarSession } from "./helpers/session.mjs";
 import { FAKE_CODEX_SOURCE } from "./helpers/fake-codex-source.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-hooks-e2e-"));
-const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-home-"));
-const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-fake-bin-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-hooks-e2e-"));
+const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-home-"));
+const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-fake-bin-"));
 // ONE shared folder for the isolation pair; a separate silent folder for
 // liveness; an exit folder for the crash-before-window case.
-const sharedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-shared-"));
-const silentFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-silent-"));
-const exitFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-exit-"));
-const subagentFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-subagent-"));
-fs.writeFileSync(path.join(silentFolder, "DUET_FAKE_SILENT"), "");
-fs.writeFileSync(path.join(exitFolder, "DUET_FAKE_EXIT"), "");
+const sharedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-shared-"));
+const silentFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-silent-"));
+const exitFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-exit-"));
+const subagentFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-subagent-"));
+fs.writeFileSync(path.join(silentFolder, "SONATA_FAKE_SILENT"), "");
+fs.writeFileSync(path.join(exitFolder, "SONATA_FAKE_EXIT"), "");
 
 const fakeCodex = path.join(fakeBinDir, "codex");
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
@@ -41,8 +41,8 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot,
-      DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot,
+      SONATA_WORKSPACES_DIR: workspaceRoot,
       CODEX_HOME: codexHome,
       // Fake codex wins PATH resolution over any real one.
       PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
@@ -54,11 +54,11 @@ try {
 
   // --- Same-cwd isolation: two codex tasks, one folder --------------------------
   const alpha = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "codex", cwd }),
     sharedFolder,
   );
   const beta = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "codex", cwd }),
     sharedFolder,
   );
 
@@ -83,18 +83,18 @@ try {
   const spawnWired =
     alphaSpawn?.hasProfileFlag === true &&
     betaSpawn?.hasProfileFlag === true &&
-    alphaSpawn.duetRuntimeDir === runtimeDir(alpha.task.id) &&
-    betaSpawn.duetRuntimeDir === runtimeDir(beta.task.id);
+    alphaSpawn.sonataRuntimeDir === runtimeDir(alpha.task.id) &&
+    betaSpawn.sonataRuntimeDir === runtimeDir(beta.task.id);
 
-  // Duet's injection artifacts on disk.
-  const profileWritten = fs.existsSync(path.join(codexHome, "duet.config.toml"));
+  // Sonata's injection artifacts on disk.
+  const profileWritten = fs.existsSync(path.join(codexHome, "sonata.config.toml"));
   const shimsWritten =
     fs.existsSync(path.join(workspaceRoot, "bin", "codex-hook-sink.js")) &&
     fs.existsSync(path.join(workspaceRoot, "bin", "codex-approval-broker.js"));
 
   // --- Liveness: a codex task whose hooks never handshake -----------------------
   const gamma = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "codex", cwd }),
     silentFolder,
   );
   await selectSidebarSession(page, gamma.task.id);
@@ -104,7 +104,7 @@ try {
   const bannerAppeared = await banner.isVisible();
 
   // Late handshake: the user completes the trust ceremony → a SessionStart hook
-  // finally lands. Duet must clear the banner.
+  // finally lands. Sonata must clear the banner.
   const lateRuntimeDir = runtimeDir(gamma.task.id);
   const lateRollout = path.join(lateRuntimeDir, "rollout-late.jsonl");
   fs.writeFileSync(lateRollout, `${JSON.stringify({ type: "session_meta", payload: { id: "codexsess-late", cwd: silentFolder, timestamp: new Date().toISOString() } })}\n`);
@@ -124,7 +124,7 @@ try {
 
   // --- Liveness #3: a codex crash BEFORE the window must NOT raise a banner ----
   const delta = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "codex", cwd }),
     exitFolder,
   );
   await selectSidebarSession(page, delta.task.id);
@@ -140,7 +140,7 @@ try {
   // transcript:blocks → the status strip. Removing that controller routing turns
   // this red (reviewer F3). SubagentStop clears the row.
   const epsilon = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "codex", cwd }),
     subagentFolder,
   );
   // The fake emits SessionStart (adopts the rollout source) — wait for it, so the

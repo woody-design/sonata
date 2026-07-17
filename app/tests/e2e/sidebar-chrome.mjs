@@ -22,15 +22,15 @@ const appRoot = path.join(repoRoot, "app");
 // (product-thinking/sidebar-refactor-evidence/) is historical and must not
 // churn on verification runs — publishing there is an explicit argv[2] act.
 const outputDir = path.resolve(
-  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-chrome-out-")),
+  process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-chrome-out-")),
 );
-const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-chrome-evidence-"));
-const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-chrome-codex-home-"));
-const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-sidebar-chrome-bin-"));
+const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-chrome-evidence-"));
+const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-chrome-codex-home-"));
+const fakeBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-chrome-bin-"));
 const fakeCodex = path.join(fakeBinDir, "codex");
 fs.writeFileSync(fakeCodex, FAKE_CODEX_SOURCE, { mode: 0o755 });
 fs.chmodSync(fakeCodex, 0o755);
-const themes = ["duet", "paper", "calm", "focus"];
+const themes = ["sonata", "paper", "calm", "focus"];
 const modes = ["light", "dark"];
 const textSteps = [14, 20];
 const viewport = { width: 1280, height: 800 };
@@ -40,7 +40,7 @@ let fixture = null;
 let electronApp = null;
 
 // Design System Migration (S1b, 2026-07-15): the Sidebar joins the warm-ink
-// role system (spec: design/duet-design-system.html). Every value below is
+// role system (spec: design/sonata-design-system.html). Every value below is
 // derived from a role token, NOT from what happens to render. Chrome is
 // mode-aware but reading-theme/size invariant; chroma survives only for
 // needs-you (attention). Alpha overlays (hover/selected/tertiary) serialize
@@ -106,7 +106,7 @@ const expectedByMode = {
 // only. So Sidebar work is now guarded against perturbing a THEME-aware reading
 // surface (a strictly stronger fence than the old theme-invariant assertion).
 // Every value is derived from the spec's reading-theme layer
-// (design/duet-design-system.html §READING THEME LAYER), NOT from what renders:
+// (design/sonata-design-system.html §READING THEME LAYER), NOT from what renders:
 //   paper  .run-column background        --reading-paper           (hex→rgb)
 //   ink    .task-entry-panel color       rgb(--reading-ink / 0.92) (alpha→rgba)
 //   font   .task-entry-panel font-family --font-reading            (per theme)
@@ -114,7 +114,7 @@ const expectedByMode = {
 // the quoted "system-ui" string (S1b lesson); the two serif rosters serialize
 // verbatim from their --font-reading source.
 const READING_FONT = {
-  duet: '-apple-system, "system-ui", "PingFang SC", sans-serif',
+  sonata: '-apple-system, "system-ui", "PingFang SC", sans-serif',
   paper: 'Charter, "Bitstream Charter", "PingFang SC", serif',
   // Chromium's getComputedStyle strips the unnecessary quotes from the single-
   // identifier "Literata" (kept quoted in the --font-reading source); multi-word
@@ -123,7 +123,7 @@ const READING_FONT = {
   focus: '-apple-system, "system-ui", "PingFang SC", sans-serif',
 };
 const expectedReadingPaneByThemeMode = {
-  duet: {
+  sonata: {
     light: { paper: "rgb(251, 250, 247)", ink: "rgba(55, 53, 47, 0.92)" },
     dark: { paper: "rgb(30, 29, 26)", ink: "rgba(232, 227, 217, 0.92)" },
   },
@@ -187,7 +187,7 @@ try {
   // resulting Sidebar row, spinner SVG, role, title, and aria-label all come
   // from production code; the test never manufactures a status node.
   const liveTask = await page.evaluate(
-    async (cwd) => window.duetRuntime.createTask({ provider: "codex", cwd }),
+    async (cwd) => window.sonataRuntime.createTask({ provider: "codex", cwd }),
     fixture.projects[0].path,
   );
   const liveTaskId = liveTask.task.id;
@@ -241,7 +241,7 @@ try {
     liveTaskId,
   );
 
-  await setReadingSettingsViaUi(page, { theme: "duet", mode: "dark", textStep: 14 });
+  await setReadingSettingsViaUi(page, { theme: "sonata", mode: "dark", textStep: 14 });
   await sendCliState(electronApp, liveTaskId, "busy");
   await liveRow.locator(".sidebar-session-spinner").waitFor({ state: "attached" });
 
@@ -720,7 +720,7 @@ async function waitForReadingSetting(page, key, value) {
       if (rootValue !== String(expected)) {
         return false;
       }
-      const persisted = await window.duetRuntime.readReadingSettings();
+      const persisted = await window.sonataRuntime.readReadingSettings();
       return String(persisted[field]) === String(expected);
     },
     { field: key, expected: value },
@@ -983,7 +983,7 @@ async function waitForRemoved(filePath, label) {
 async function waitForIndexedStatus(page, taskId, status) {
   await page.waitForFunction(
     async ({ id, expectedStatus }) => {
-      const index = await window.duetRuntime.readSessionIndex({ includeArchived: true });
+      const index = await window.sonataRuntime.readSessionIndex({ includeArchived: true });
       const sessions = [
         ...index.projects.flatMap((project) => project.sessions),
         ...index.chats,
@@ -1019,11 +1019,11 @@ async function installFixedClock(page, nowMs) {
 function isolatedElectronEnv(overrides) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith("DUET_")) {
+    if (key.startsWith("SONATA_")) {
       delete env[key];
     }
   }
-  return { ...env, ...overrides, DUET_LOCAL_API: "0", DUET_NOTIFICATIONS: "0" };
+  return { ...env, ...overrides, SONATA_LOCAL_API: "0", SONATA_NOTIFICATIONS: "0" };
 }
 
 async function settleFrames(page) {

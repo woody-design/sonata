@@ -8,14 +8,14 @@ const require = createRequire(import.meta.url);
 const { buildSessionIndex } = require("../../dist/main/session-index");
 const { ProjectsStore } = require("../../dist/main/projects-store");
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "duet-session-index-smoke-"));
-const storageRoot = path.join(root, "Duet Projects");
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-session-index-smoke-"));
+const storageRoot = path.join(root, "Sonata Projects");
 const userFolder = path.join(root, "my-project");
 fs.mkdirSync(userFolder, { recursive: true });
 
 function manifest(taskId, providerCwd, { title = taskId, archived, autoWorkspace, updatedAt } = {}) {
   return {
-    schemaId: "duet.task-manifest.v1",
+    schemaId: "sonata.task-manifest.v1",
     version: 1,
     generatedAt: updatedAt,
     task: {
@@ -52,10 +52,10 @@ function candidate(taskId, providerCwd, options = {}) {
   };
 }
 
-// A project-less chat now lives in a VISIBLE workspace (~/Documents/Duet/<…>),
+// A project-less chat now lives in a VISIBLE workspace (~/Documents/Sonata/<…>),
 // outside the record root — proving the explicit autoWorkspace flag, not the
 // path, is what sorts it into Chats.
-const chatsCwd = path.join(root, "Documents", "Duet", "2026-06-09-quick-chat");
+const chatsCwd = path.join(root, "Documents", "Sonata", "2026-06-09-quick-chat");
 const candidates = [
   candidate("task-1", userFolder, { title: "Older session", updatedAt: "2026-06-10T10:00:00.000Z" }),
   candidate("task-2", userFolder, { title: "Newer session", updatedAt: "2026-06-11T10:00:00.000Z" }),

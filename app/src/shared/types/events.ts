@@ -96,7 +96,7 @@ export type TaskReadyEvent = BaseRuntimeEvent<
 >;
 
 /**
- * Codex hooks-liveness (control plane S2; D4 overturned 2026-07-06). Duet passes
+ * Codex hooks-liveness (control plane S2; D4 overturned 2026-07-06). Sonata passes
  * `--dangerously-bypass-hook-trust` on every codex spawn (trust can't persist
  * through a profile layer), so hooks should fire on every spawn — the
  * SessionStart handshake IS the effect-check that they are. `missing` = no
@@ -242,7 +242,7 @@ export type RunStoppedEvent = BaseRuntimeEvent<
  * injected `/rc`, verified to work mid-stream); `url` is the session link
  * scraped from the stream — the one datum with no hook/structured channel,
  * matched by its stable format, never the surrounding prose. The phone surface
- * is Anthropic's claude.ai/code + Claude app, not a Duet-built UI.
+ * is Anthropic's claude.ai/code + Claude app, not a Sonata-built UI.
  */
 export type RemoteControlStateEvent = BaseRuntimeEvent<
   "remote-control:state",
@@ -266,7 +266,7 @@ export type ApprovalDetectedEvent = BaseRuntimeEvent<
     fingerprintHash?: string | null;
     choices?: ApprovalChoice[];
     /** How the card's answer reaches the CLI: "reply" = the hook broker (S2,
-     *  Claude) — Duet writes reply-<approvalId>.json; "keys" = the scraped
+     *  Claude) — Sonata writes reply-<approvalId>.json; "keys" = the scraped
      *  native panel (Codex + the broker's timeout fallback). Absent ⇒ "keys". */
     answerVia?: "reply" | "keys";
     /** The broker's id — the reply file to write when answerVia === "reply". */

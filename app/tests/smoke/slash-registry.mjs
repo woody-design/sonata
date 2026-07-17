@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 
 // Fake HOME/CODEX_HOME before requiring the modules: os.homedir() reads $HOME
 // on POSIX at call time, so discovery scans the fixture tree, not the real one.
-const fixtureHome = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-smoke-"));
+const fixtureHome = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-slash-smoke-"));
 process.env.HOME = fixtureHome;
 process.env.CODEX_HOME = path.join(fixtureHome, ".codex");
 
@@ -70,7 +70,7 @@ fs.writeFileSync(
   "---\ndescription: Legacy ship command\n---\n\nShip it.\n",
 );
 
-const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-project-"));
+const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-slash-project-"));
 fs.mkdirSync(path.join(projectRoot, ".git"), { recursive: true });
 writeSkill(path.join(projectRoot, ".claude", "skills"), "deploy-docs", [
   "description: Project-local deploy override",
@@ -93,16 +93,16 @@ writeSkill(path.join(fixtureHome, ".codex", "skills", ".system"), "skill-creator
 writeSkill(path.join(fixtureHome, ".agents", "skills"), "publish-changes", [
   "description: Commit, push, and open a PR",
 ]);
-writeSkill(path.join(projectRoot, ".agents", "skills"), "duet-probe-skill", [
-  "name: duet-probe-skill",
+writeSkill(path.join(projectRoot, ".agents", "skills"), "sonata-probe-skill", [
+  "name: sonata-probe-skill",
   "description: Probe skill",
 ]);
 
 clearSlashCommandCache();
 const codex = listSlashCommands("codex", projectRoot);
 const codexByName = new Map(codex.entries.map((entry) => [entry.name, entry]));
-assert.equal(codexByName.get("duet-probe-skill")?.invocation, "$duet-probe-skill");
-assert.equal(codexByName.get("duet-probe-skill")?.scope, "project");
+assert.equal(codexByName.get("sonata-probe-skill")?.invocation, "$sonata-probe-skill");
+assert.equal(codexByName.get("sonata-probe-skill")?.scope, "project");
 assert.equal(codexByName.get("skill-creator")?.scope, "system");
 assert.equal(codexByName.get("publish-changes")?.scope, "personal");
 assert.equal(
@@ -116,7 +116,7 @@ assert.equal(
 // dirent reports isDirectory()/isFile() === false, so a bare guard dropped
 // every one of them silently (0 entries, 0 warnings). Discovery must follow
 // the link. Mirror that exact shape here — the regression was untested.
-const linkStore = fs.mkdtempSync(path.join(os.tmpdir(), "duet-slash-linkstore-"));
+const linkStore = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-slash-linkstore-"));
 
 // Claude skill whose <name>/ directory is a symlink into the store.
 writeSkill(linkStore, "linked-skill", ["name: linked-skill", "description: Reached through a symlink"]);

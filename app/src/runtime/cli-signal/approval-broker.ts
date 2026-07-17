@@ -9,9 +9,9 @@ import {
 } from "./approval-protocol";
 
 /**
- * Duet's approval broker — the single hook Duet installs on `PermissionRequest`
+ * Sonata's approval broker — the single hook Sonata installs on `PermissionRequest`
  * (S2). Unlike the fire-and-forget sink, this HOLDS the CLI: it reads the
- * permission payload on stdin, surfaces it to Duet as `ask-<id>.json`, then
+ * permission payload on stdin, surfaces it to Sonata as `ask-<id>.json`, then
  * blocks polling for `reply-<id>.json`. On a reply it prints the decision JSON
  * to stdout (the CLI's structured answer channel) and exits 0. On timeout it
  * writes `expired-<id>.json` and exits 0 with NO output — the CLI then renders
@@ -19,12 +19,12 @@ import {
  * in Phase 0). It never writes to stderr; a broker failure must never block or
  * corrupt the CLI's turn.
  *
- * Protocol dir is argv[2] (Duet's `runtimeDir/approvals`). Timeout ms is argv[3]
- * (Duet passes the tuned ceiling; the CLI is visibly "in hook" until then).
+ * Protocol dir is argv[2] (Sonata's `runtimeDir/approvals`). Timeout ms is argv[3]
+ * (Sonata passes the tuned ceiling; the CLI is visibly "in hook" until then).
  *
- * Files (all one-shot, tmp+rename so Duet only sees complete writes):
- *  - `ask-<id>.json`     : `{ id, receivedAt, payload }` — Duet renders the card.
- *  - `reply-<id>.json`   : the decision JSON (Duet writes it; broker emits it).
+ * Files (all one-shot, tmp+rename so Sonata only sees complete writes):
+ *  - `ask-<id>.json`     : `{ id, receivedAt, payload }` — Sonata renders the card.
+ *  - `reply-<id>.json`   : the decision JSON (Sonata writes it; broker emits it).
  *  - `expired-<id>.json` : `{}` — broker gave up; native panel took over.
  *  - `answered-<id>.json`: the decision the broker actually emitted (audit).
  */
@@ -93,7 +93,7 @@ process.stdin.on("end", () => {
   const answer = (decision: string): never => {
     // The ask cleanup MUST be independent of the audit write: if writeAtomic
     // throws (ENOSPC), a nested rmSync would be skipped → the ask-<id>.json
-    // lingers and Duet's card never clears. Each step gets its own try.
+    // lingers and Sonata's card never clears. Each step gets its own try.
     try {
       writeAtomic(answeredPath, decision);
     } catch {
@@ -123,7 +123,7 @@ process.stdin.on("end", () => {
     if (Date.now() > deadline) {
       clearInterval(timer);
       // FINAL reply check before giving up: a reply written in the poll gap must
-      // still win, else Duet records an allow the CLI never received and the turn
+      // still win, else Sonata records an allow the CLI never received and the turn
       // wedges (a reply is orphaned into a dead broker's absence — reviewer C2).
       const late = readReply();
       if (late !== null) {

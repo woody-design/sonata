@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-// DUET_DATA_DIR — Duet's hidden home (records / runtime / attachments).
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-data-root-"));
-// DUET_WORKSPACES_DIR — the user's VISIBLE work area for project-less sessions.
-const workspacesDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-workspaces-"));
+// SONATA_DATA_DIR — Sonata's hidden home (records / runtime / attachments).
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-data-root-"));
+// SONATA_WORKSPACES_DIR — the user's VISIBLE work area for project-less sessions.
+const workspacesDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-workspaces-"));
 // A user-chosen project folder.
-const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "duet-selected-task-folder-"));
+const selectedFolder = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-selected-task-folder-"));
 let electronApp = null;
 
 const recordRoot = (taskId) => path.join(dataRoot, "data", "projects", taskId);
@@ -19,10 +19,10 @@ try {
     state: "visible",
   });
 
-  // 1) A chosen-folder task — provider works IN the user's folder; Duet's records
-  //    live OUT in ~/.duet.
+  // 1) A chosen-folder task — provider works IN the user's folder; Sonata's records
+  //    live OUT in ~/.sonata.
   const created = await page.evaluate(async (cwd) => {
-    return window.duetRuntime.createTask({
+    return window.sonataRuntime.createTask({
       provider: "codex",
       cwd,
       model: "gpt-5.5",
@@ -33,7 +33,7 @@ try {
   }, selectedFolder);
 
   const second = await page.evaluate(async (cwd) => {
-    return window.duetRuntime.createTask({
+    return window.sonataRuntime.createTask({
       provider: "claude",
       cwd,
       model: "opus",
@@ -43,10 +43,10 @@ try {
     });
   }, selectedFolder);
 
-  // 2) A project-less task — NO cwd. Duet generates a VISIBLE workspace (D7) and
+  // 2) A project-less task — NO cwd. Sonata generates a VISIBLE workspace (D7) and
   //    marks it autoWorkspace.
   const chat = await page.evaluate(async () => {
-    return window.duetRuntime.createTask({
+    return window.sonataRuntime.createTask({
       provider: "claude",
       model: "opus",
       reasoningEffort: "xhigh",
@@ -56,7 +56,7 @@ try {
   });
 
   const opened = await page.evaluate(async (cwd) => {
-    return window.duetRuntime.openTask({ cwd });
+    return window.sonataRuntime.openTask({ cwd });
   }, selectedFolder);
 
   const manifestPath = path.join(recordRoot(created.task.id), "task.json");
@@ -73,17 +73,17 @@ try {
     ? fs.readdirSync(projectsDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
     : [];
 
-  // D8: the chosen folder holds NOTHING Duet-owned — no `.duet` at all. Claude's
-  // runtime sink (hooks/usage/settings) now lives under ~/.duet/data/runtime/<id>,
+  // D8: the chosen folder holds NOTHING Sonata-owned — no `.sonata` at all. Claude's
+  // runtime sink (hooks/usage/settings) now lives under ~/.sonata/data/runtime/<id>,
   // not in the user's repo. (`second` is the Claude task — the only writer.)
-  const selectedFolderHasDuet = fs.existsSync(path.join(selectedFolder, ".duet"));
+  const selectedFolderHasSonata = fs.existsSync(path.join(selectedFolder, ".sonata"));
   const claudeRuntimeDir = path.join(dataRoot, "data", "runtime", second.task.id);
   const claudeSettingsAtRuntimeDir = fs.existsSync(
     path.join(claudeRuntimeDir, "claude-runtime-settings.json"),
   );
   const claudeHooksAtRuntimeDir = fs.existsSync(path.join(claudeRuntimeDir, "hooks"));
 
-  // The project-less workspace is VISIBLE (under DUET_WORKSPACES_DIR) and exists.
+  // The project-less workspace is VISIBLE (under SONATA_WORKSPACES_DIR) and exists.
   const chatCwd = chatManifest.task.providerCwd;
   const chatCwdIsVisible = chatCwd.startsWith(`${workspacesDir}${path.sep}`);
   const chatCwdExists = fs.existsSync(chatCwd);
@@ -94,7 +94,7 @@ try {
 
   // C4 — deleting the project-less session removes its hidden record dir but NEVER
   // the user's visible work folder.
-  await page.evaluate(async (taskId) => window.duetRuntime.deleteSession({ taskId }), chat.task.id);
+  await page.evaluate(async (taskId) => window.sonataRuntime.deleteSession({ taskId }), chat.task.id);
   const chatRecordGoneAfterDelete = !fs.existsSync(recordRoot(chat.task.id));
   const chatWorkSurvivesDelete = fs.existsSync(chatCwd);
 
@@ -125,10 +125,10 @@ try {
     chatCwdExists &&
     // D7 naming
     slugOk &&
-    // records live in ~/.duet, keyed by taskId; chosen folder stays clean (D8)
+    // records live in ~/.sonata, keyed by taskId; chosen folder stays clean (D8)
     recordDirs.includes(created.task.id) &&
     recordDirs.includes(second.task.id) &&
-    !selectedFolderHasDuet &&
+    !selectedFolderHasSonata &&
     claudeSettingsAtRuntimeDir &&
     claudeHooksAtRuntimeDir &&
     // C4: delete spares the user's visible work
@@ -153,7 +153,7 @@ try {
         chatCwdIsVisible,
         openedTaskId: opened.task.id,
         recordDirs,
-        selectedFolderHasDuet,
+        selectedFolderHasSonata,
         claudeSettingsAtRuntimeDir,
         claudeHooksAtRuntimeDir,
         chatRecordGoneAfterDelete,
@@ -181,8 +181,8 @@ async function launchApp() {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: dataRoot,
-      DUET_WORKSPACES_DIR: workspacesDir,
+      SONATA_DATA_DIR: dataRoot,
+      SONATA_WORKSPACES_DIR: workspacesDir,
     },
   });
   const page = await electronApp.firstWindow();

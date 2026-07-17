@@ -69,7 +69,7 @@ export function renderSettingsOverlay(): void {
   dialog.className = "settings-window";
   dialog.setAttribute("role", "dialog");
   dialog.setAttribute("aria-modal", "true");
-  dialog.setAttribute("aria-label", "Duet Settings");
+  dialog.setAttribute("aria-label", "Sonata Settings");
   dialog.tabIndex = -1;
   dialog.addEventListener("mousedown", (event) => {
     const outsidePopup =
@@ -443,7 +443,7 @@ function renderClaudeCodeSettingsGroup(overlay: SettingsOverlayState): HTMLEleme
     const note = document.createElement("span");
     note.className = "settings-row-note";
     note.textContent =
-      "Turned off by Duet's earlier bridge. Restoring affects terminals outside Duet.";
+      "Turned off by Sonata's earlier bridge. Restoring affects terminals outside Sonata.";
     notes.push(note);
   }
 
@@ -472,11 +472,11 @@ function renderClaudeCodeSettingsGroup(overlay: SettingsOverlayState): HTMLEleme
   });
 
   // The territory declaration: provider passthrough is an IA axis, worn
-  // visibly but quietly — Duet renders Claude's state, never owns it. It rides
+  // visibly but quietly — Sonata renders Claude's state, never owns it. It rides
   // as the group's description line.
   return renderSettingsGroup({
     label: "Claude Code",
-    description: "Claude Code's own state. Duet never changes it without you.",
+    description: "Claude Code's own state. Sonata never changes it without you.",
     rows: [row],
   });
 }

@@ -3,25 +3,25 @@
 // The floating-window lifecycle test covers within-session restore; this covers
 // the headline feature: resize/move the main window, fully quit, relaunch, and
 // confirm the window reopens at the same size + position — persisted to
-// `<DUET_DATA_DIR>/config/window-state.json` and re-applied on next launch.
+// `<SONATA_DATA_DIR>/config/window-state.json` and re-applied on next launch.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 
-const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-window-state-e2e-"));
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-window-state-e2e-"));
 const windowStateFile = path.join(dataRoot, "config", "window-state.json");
 // Within each display's work area on any reasonable test machine, and above the
 // main window's 960x640 minimums so setBounds is honored verbatim.
 const targetBounds = { x: 160, y: 120, width: 1120, height: 780 };
-// Pin DUET_SETTINGS_DIR too: it takes precedence over duetConfigDir() in
+// Pin SONATA_SETTINGS_DIR too: it takes precedence over sonataConfigDir() in
 // windowStatePath(), and the workshop launcher exports it — without this the
 // app would write outside dataRoot and the test would read the wrong file.
 const launchEnv = {
   ...process.env,
-  DUET_DATA_DIR: dataRoot,
-  DUET_WORKSPACES_DIR: dataRoot,
-  DUET_SETTINGS_DIR: path.join(dataRoot, "config"),
+  SONATA_DATA_DIR: dataRoot,
+  SONATA_WORKSPACES_DIR: dataRoot,
+  SONATA_SETTINGS_DIR: path.join(dataRoot, "config"),
 };
 
 let app = null;
@@ -29,8 +29,8 @@ try {
   // ── Launch 1: move/resize the main window, then quit ──────────────────────
   app = await electron.launch({ args: ["dist/main/main.js"], env: launchEnv });
   await app.firstWindow();
-  await setWindowBounds(app, "Duet", targetBounds);
-  const movedBounds = await waitForWindowBounds(app, "Duet", targetBounds);
+  await setWindowBounds(app, "Sonata", targetBounds);
+  const movedBounds = await waitForWindowBounds(app, "Sonata", targetBounds);
   await app.close();
   app = null;
 
@@ -43,7 +43,7 @@ try {
   // ── Launch 2: a fresh process must reopen the main window at those bounds ──
   app = await electron.launch({ args: ["dist/main/main.js"], env: launchEnv });
   await app.firstWindow();
-  const restoredBounds = await waitForWindowBounds(app, "Duet", targetBounds);
+  const restoredBounds = await waitForWindowBounds(app, "Sonata", targetBounds);
 
   const restoredOk = boundsMatch(restoredBounds, targetBounds);
   const success = persistedOk && restoredOk;

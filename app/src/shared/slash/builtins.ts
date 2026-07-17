@@ -31,7 +31,7 @@ import type { SlashCommandEntry } from "../types/slash";
  *
  * Listing policy (v0 carried forward): the listed set predates S3; panels are
  * now safe to list (visible terminal) — widening the set is a follow-up, not
- * a routing concern. `/fast` (both providers) is listed as a first-class Duet
+ * a routing concern. `/fast` (both providers) is listed as a first-class Sonata
  * concept (fast/speed mode); every other new command defaults to unlisted.
  */
 

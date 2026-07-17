@@ -111,7 +111,7 @@ export async function chooseDraftProvider(page, provider) {
 }
 
 /** Pick the New Chat working folder through the project chip's menu. The
- *  "Use an existing folder" item opens the native dialog (DUET_TEST_PICK_FOLDER
+ *  "Use an existing folder" item opens the native dialog (SONATA_TEST_PICK_FOLDER
  *  answers it in tests). */
 export async function chooseDraftFolderViaDialog(page) {
   await page.locator("#project-chip").click();

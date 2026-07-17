@@ -4,7 +4,7 @@
 // areas, updated on different cadences so render hygiene holds:
 //  - status: the provider's native status region verbatim (display-only relay
 //    from StatusRegionTracker — if the scrape breaks, a string goes stale,
-//    nothing acts), with Duet's derived "current step" voice as the fallback
+//    nothing acts), with Sonata's derived "current step" voice as the fallback
 //    while a run is active, and the stall voice at "silent" liveness. Text
 //    only — safe to rebuild at the ~3Hz relay cadence.
 //  - agents: every subagent currently running, from the transcript-derived
@@ -64,7 +64,7 @@ export function renderStatusStrip(view = activeTaskView(state)): void {
     const strip = elements.statusStrip;
     const runningAgents = view?.task ? stripRunningAgents(view) : [];
     // One derivation (S1b): the strip is visible whenever the turn is not idle,
-    // and its status area speaks Duet's derived voice only while WORKING — a
+    // and its status area speaks Sonata's derived voice only while WORKING — a
     // background turn (main done, agents alive) shows the agents area alone.
     const activity = turnActivity(view);
     const visible = Boolean(view?.task) && activity !== "idle";
@@ -146,8 +146,8 @@ function renderStripStatus(view: TaskViewState, working: boolean): void {
       container.append(line);
     }
   } else if (working) {
-    // Duet's voice: visibly different styling, derived from durable signals
-    // (plan step, running tool) with Duet's own clock.
+    // Sonata's voice: visibly different styling, derived from durable signals
+    // (plan step, running tool) with Sonata's own clock.
     container.classList.add("derived");
     const line = document.createElement("div");
     line.className = "strip-status-line";
@@ -166,7 +166,7 @@ function renderStripStatus(view: TaskViewState, working: boolean): void {
   applyStripLiveness(view);
 }
 
-// Duet's stall voice — the one thing the native UIs never say. Appears at
+// Sonata's stall voice — the one thing the native UIs never say. Appears at
 // "silent", self-heals without residue when evidence resumes.
 function applyStripLiveness(view: TaskViewState): void {
   const strip = elements.statusStrip;

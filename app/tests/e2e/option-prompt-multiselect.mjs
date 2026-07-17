@@ -12,15 +12,15 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { sendFirstPrompt } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-optms-e2e-"));
-const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-optms-settings-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-optms-e2e-"));
+const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-optms-settings-"));
 let electronApp = null;
 const checks = {};
 
 try {
   electronApp = await electron.launch({
     args: ["dist/main/main.js"],
-    env: { ...process.env, DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot, DUET_SETTINGS_DIR: settingsDir },
+    env: { ...process.env, SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot, SONATA_SETTINGS_DIR: settingsDir },
   });
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);

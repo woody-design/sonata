@@ -7,9 +7,9 @@ const require = createRequire(import.meta.url);
 const { RunIndex, TerminalHost } = require("../../dist/runtime");
 
 const taskId = "task-approval-session-choice-smoke";
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-approval-session-choice-smoke-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-approval-session-choice-smoke-"));
 const scriptPath = path.join(workspace, "fake-claude-approval-cli.mjs");
-const reportPath = path.join(workspace, ".duet", "runtime-report.json");
+const reportPath = path.join(workspace, ".sonata", "runtime-report.json");
 // Numbered panels are answered by digit instant-select (probe findings
 // 2026-06-13); the session option is option 2.
 const expectedKeyHex = "32";

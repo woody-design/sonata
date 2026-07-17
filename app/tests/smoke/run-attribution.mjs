@@ -12,7 +12,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { RunIndex, resolveRunForTurn } = require("../../dist/runtime");
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), "duet-run-attribution-"));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-run-attribution-"));
 const runIndex = new RunIndex({ taskId: "t", reportPath: path.join(dir, "report.json") });
 
 const runStarted = (id, prompt, promptId, startedAt) => ({
@@ -148,7 +148,7 @@ assert.equal(
 );
 
 // 7) Image prompt (2026-07-05): the CLI prepends `[Image #N]` to the turn text
-//    (transcript user-message), but Duet stored the raw typed prompt and the
+//    (transcript user-message), but Sonata stored the raw typed prompt and the
 //    typed run never got a promptId. Before the shared normalizer this fell
 //    through to an un-attributed run → a second husk card. The equivalence
 //    relation must read through the markers. run-img carries NO promptId, so an

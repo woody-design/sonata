@@ -1,15 +1,15 @@
 /**
  * Resume policy for large dormant Claude sessions — a positive enum, never
  * a suppression flag (the upstream `resumeReturnDismissed` boolean is the
- * documented confusion: #60848). "ask" renders Duet's inline choice at the
+ * documented confusion: #60848). "ask" renders Sonata's inline choice at the
  * resume moment; "summary"/"full" apply silently with a receipt.
  */
 export const RESUME_POLICY_IDS = ["ask", "summary", "full"] as const;
 export type ResumePolicyId = (typeof RESUME_POLICY_IDS)[number];
 
-// Duet's own resume-cost thresholds. They default-mirror the upstream
-// interstitial's (≥70min idle AND ≥100k tokens) but are DUET policy — the
-// choice renders from Duet's own data, so upstream drift cannot break it.
+// Sonata's own resume-cost thresholds. They default-mirror the upstream
+// interstitial's (≥70min idle AND ≥100k tokens) but are SONATA policy — the
+// choice renders from Sonata's own data, so upstream drift cannot break it.
 // Shared so the Settings page discloses the same numbers the runtime uses.
 export const RESUME_PROMPT_MIN_IDLE_MS = 70 * 60_000;
 export const RESUME_PROMPT_MIN_TOKENS = 100_000;

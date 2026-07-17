@@ -45,10 +45,10 @@
 
 /* ════════════════════════════════════════════════════════════════════════
    DESIGN TOKENS — new architecture (Design System Migration S0, 2026-07-15).
-   Spec: design/duet-design-system.html. primitives → roles → scales.
+   Spec: design/sonata-design-system.html. primitives → roles → scales.
    Chrome consumes ONLY roles; reading "paper" lives in the READING THEME LAYER;
    UI themes no longer vary chrome (structural decision 6). The app's attribute
-   axes are `data-theme` (duet/paper/calm/focus = reading theme) and
+   axes are `data-theme` (sonata/paper/calm/focus = reading theme) and
    `data-mode="dark"` (appearance) — the spec's data-reading-theme/data-appearance
    are adapted to these names here. The migration's transitional LEGACY ALIAS
    BLOCK (which re-pointed every pre-S0 token name onto these roles through
@@ -192,11 +192,11 @@
    READING THEME LAYER — only the "paper": paper color + reading ink + reading
    font + reading leading. Chrome does NOT consume these. Light/dark axis is
    orthogonal (Apple Books model). In the app, `data-theme` IS the reading
-   theme; `:root` with no data-theme behaves as duet.
+   theme; `:root` with no data-theme behaves as sonata.
    ════════════════════════════════════════════════════════════════════════ */
 
 :root,
-[data-theme="duet"] {
+[data-theme="sonata"] {
   --reading-paper: #fbfaf7;
   --reading-ink: 55 53 47;
   --font-reading: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
@@ -221,7 +221,7 @@
   --reading-leading: 1.55;
 }
 
-[data-mode="dark"][data-theme="duet"],
+[data-mode="dark"][data-theme="sonata"],
 :root:not([data-theme])[data-mode="dark"] { --reading-paper: #1e1d1a; --reading-ink: 232 227 217; }
 [data-mode="dark"][data-theme="paper"] { --reading-paper: #1c1c1d; --reading-ink: 240 240 238; }
 [data-mode="dark"][data-theme="calm"]  { --reading-paper: #2a251c; --reading-ink: 247 236 221; }
@@ -249,7 +249,7 @@
 
 /* ── Terminal lens palette (structural decision 1). ANSI slots are CONTENT
      semantics (1=red 2=green 3=yellow …), not UI status, so the hues are
-     SELF-OWNED literals frozen at the pre-S0 duet-theme resolved shades — light
+     SELF-OWNED literals frozen at the pre-S0 sonata-theme resolved shades — light
      here, dark in the [data-mode="dark"] block below — instead of riding the
      retired --status-* and --accent tokens. The grayscale ramp + bg/fg/muted ride
      the new neutral roles so they track the system. --term-cursor now reads
@@ -268,13 +268,13 @@
      hues (blue #3f6593 / magenta #8a5b93). Resolved to rgb() in terminalTheme()
      via a probe element.
 
-     The duet grouping ([data-term-scheme="duet"]) exists for the Aa picker's
+     The sonata grouping ([data-term-scheme="sonata"]) exists for the Aa picker's
      preview cards: a card stamps [data-term-scheme][data-mode] and needs the
-     DUET values as its OWN declarations, or a card would inherit whatever
+     SONATA values as its OWN declarations, or a card would inherit whatever
      scheme the window root currently wears. On the root itself the grouping is
      a no-op (same values as :root). */
 :root,
-[data-term-scheme="duet"] {
+[data-term-scheme="sonata"] {
   --term-bg: var(--surface-canvas);
   --term-fg: var(--text-primary);
   --term-muted: color-mix(in srgb, var(--term-fg) 74%, var(--term-bg));
@@ -290,7 +290,7 @@
   --term-bright-black: color-mix(in srgb, var(--text-primary) 50%, var(--term-bg));
   --term-bright-white: var(--surface-canvas);
 
-  /* hue slots — pre-S0 duet-LIGHT resolved shades, frozen as literals
+  /* hue slots — pre-S0 sonata-LIGHT resolved shades, frozen as literals
      (--term-cyan hand-authored in S5, muted cyan H≈191) */
   --term-red: #a04b3c;
   --term-green: #2f5d50;
@@ -308,7 +308,7 @@
 
 [data-mode="dark"] {
   /* Terminal grayscale flips (black hugs bg, white/bright-white hug brightest
-     ink); the hue slots take their pre-S0 duet-DARK resolved shades. --term-white
+     ink); the hue slots take their pre-S0 sonata-DARK resolved shades. --term-white
      is already opaque (text-primary is opaque); --term-bright-black inherits the
      :root opaque composite (dark ≈ #787875). */
   --term-black: color-mix(in srgb, var(--surface-canvas) 89%, var(--text-primary) 11%);
@@ -333,7 +333,7 @@
      Palettes are VERBATIM from iTerm2-Color-Schemes (mbadolato) ghostty
      exports — the canonical corpus Ghostty's own built-ins derive from. Do not
      hand-tune individual slots; a scheme is quoted, not authored (the authored
-     scheme is duet, above). Curation rule: only schemes with an authentic
+     scheme is sonata, above). Curation rule: only schemes with an authentic
      light AND dark palette qualify, so every scheme travels across the
      Light/Dark/Auto mode axis (Ghostty's `light:X,dark:Y` model) — this is why
      Dracula/Nord are absent. All values are opaque hex: xterm ANSI slots must
@@ -342,8 +342,8 @@
      Selectors are attribute-scoped, NOT :root-bound, so the picker's preview
      cards can stamp [data-term-scheme][data-mode] and render true swatches.
      The dark variant ([scheme][mode]) out-specifies both the light variant and
-     the duet dark block, and each dark block redefines the full family, so no
-     duet value bleeds through. --term-muted / --term-control-border are NOT
+     the sonata dark block, and each dark block redefines the full family, so no
+     sonata value bleeds through. --term-muted / --term-control-border are NOT
      redefined here: they are DECLARED at :root, where the cascade-winning
      scheme fg/bg feed the color-mix, so the whole window chrome tracks the
      root's scheme for free. Landmine: the resolved values inherit — an element
@@ -1226,7 +1226,7 @@ body.sidebar-resizing {
    to the input, so the quoted range is painted via the CSS Custom Highlight API
    instead (scoped to the bar's lifetime — NOT the rejected persistent-highlight
    infrastructure, plan D3). */
-::highlight(duet-quote-pending) {
+::highlight(sonata-quote-pending) {
   background-color: var(--selection);
 }
 
@@ -4263,7 +4263,7 @@ h2 {
 }
 
 /* Find box — floats over the terminal's top-right (VS Code / browser-find idiom),
-   never reflows the grid. Duet's panel surface + tokens so it reads native, not
+   never reflows the grid. Sonata's panel surface + tokens so it reads native, not
    like terminal chrome. Woody dials placement/spacing. */
 .terminal-search {
   position: absolute;
@@ -4876,13 +4876,13 @@ h2 {
 
 /* Thinking, notes, fallback, working */
 
-/* Live status row — the agent's voice (native relay) vs Duet's voice
+/* Live status row — the agent's voice (native relay) vs Sonata's voice
    (derived). The two must stay visually distinct: native is the provider's
-   terminal text verbatim (mono); derived is Duet UI text. */
+   terminal text verbatim (mono); derived is Sonata UI text. */
 /* — Status strip (S5) — the slim live-activity surface between the run list
    and the composer. The per-turn working-detail row retired into it; visual
    language carried over: mono verbatim for the agent's voice, italic UI font
-   for Duet's derived voice. */
+   for Sonata's derived voice. */
 .status-strip {
   /* In the reading flow (last child of the scroll container), wearing the
      flow's clothes: the turn-card measure, centered. Flat with the reading
@@ -5107,7 +5107,7 @@ h2 {
   color: var(--attention-text);
 }
 
-/* Instance badge — only shows when the launcher exports DUET_INSTANCE_LABEL
+/* Instance badge — only shows when the launcher exports SONATA_INSTANCE_LABEL
    (the workshop sets it to "DEV"; the daily driver never sets it). The label
    is env-driven, so the same build ships to both worktrees and only the
    labeled instance paints the badge — nothing branch-specific to promote. */

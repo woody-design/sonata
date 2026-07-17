@@ -28,7 +28,7 @@ import type {
 import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
 import type { RemoteControlInjectResponse, TerminalReplaySnapshot } from "../../shared/types/ipc";
 import { ensureClaudeRuntimeSettings } from "../cli-signal";
-import { CODEX_DUET_PROFILE, ensureCodexRuntimeSettings } from "../providers/codex";
+import { CODEX_SONATA_PROFILE, ensureCodexRuntimeSettings } from "../providers/codex";
 import { shellQuotePath } from "../shell-quote";
 import { TerminalScrollback } from "./terminal-scrollback";
 
@@ -118,7 +118,7 @@ const BROKER_EXPIRY_RESURFACE_MS = 5000;
  *  auto-advance (and the final Submit-tab render) settles before the next key.
  *  Phase 0 saw the advance repaint well under this; generous = robust. */
 const OPTION_PROMPT_KEY_DELAY_MS = 300;
-/** How long after the human's last terminal keystroke Duet treats them as
+/** How long after the human's last terminal keystroke Sonata treats them as
  *  actively typing and holds delivery (S2). Bridges the gaps between keystrokes
  *  — and the pause-to-think over a half-typed line — that the idle-prompt
  *  heuristic alone cannot see. Dogfood-tuned. */
@@ -251,9 +251,9 @@ export interface TerminalHostOptions {
 export interface StartTaskOptions {
   cwd?: string;
   /**
-   * The session's Duet-owned runtime home for Claude's hooks/usage/settings (D8).
-   * The app passes ~/.duet/data/runtime/<taskId> so nothing Duet-owned lands in
-   * the agent's working directory. Defaults to `<cwd>/.duet` when unset (the
+   * The session's Sonata-owned runtime home for Claude's hooks/usage/settings (D8).
+   * The app passes ~/.sonata/data/runtime/<taskId> so nothing Sonata-owned lands in
+   * the agent's working directory. Defaults to `<cwd>/.sonata` when unset (the
    * legacy in-cwd location) so a bare TerminalHost in a test still works.
    */
   runtimeDir?: string;
@@ -273,16 +273,16 @@ export interface StartTaskOptions {
    *  to the scrape/keys fallback instead of the hook-intercept broker (S2).
    *  Default (undefined) is broker-on. */
   approvalBroker?: boolean;
-  /** Codex only: the Duet-home shim dir for the injected hook profile. Present →
+  /** Codex only: the Sonata-home shim dir for the injected hook profile. Present →
    *  buildArgs writes the profile+shims (write-if-changed) and spawns with
-   *  `-p duet`. The controller supplies binDir because it owns Duet-home; the
+   *  `-p sonata`. The controller supplies binDir because it owns Sonata-home; the
    *  codex edge owns the `$CODEX_HOME` profile-file location. */
   codexHookPaths?: { binDir: string };
   resumeLast?: boolean;
   /** Provider session id to resume natively (claude --resume / codex resume). */
   resumeRef?: string;
   /**
-   * Fresh-spawn only: pin the new session to an id Duet chose up front
+   * Fresh-spawn only: pin the new session to an id Sonata chose up front
    * (claude --session-id), so the Task's binding is known at birth instead
    * of guessed by file mtime. Ignored when resuming. Claude-only today.
    */
@@ -392,7 +392,7 @@ export class TerminalHost extends EventEmitter {
   private lastApprovalFingerprint: string | null = null;
   private lastApprovalDecision: ApprovalDecision | null = null;
   private lastApprovalDecisionAt: number | null = null;
-  /** Epoch ms of the most recent hook-broker approval TIMEOUT (Duet answered
+  /** Epoch ms of the most recent hook-broker approval TIMEOUT (Sonata answered
    *  nothing → the CLI's native card is taking over). One-shot: the next scraped
    *  candidate within the resurface window is the SAME request reappearing, so it
    *  is marked `resurfacedAfterDecision` (a broker payload can never share the
@@ -463,8 +463,8 @@ export class TerminalHost extends EventEmitter {
   // fire after a reconnect.
   private remoteControlScan = "";
   /**
-   * Single-writer arbitration between Duet's automation and the human typing in
-   * the terminal (S2 — the AtomicWriter). `duetWriteDepth` > 0 means an
+   * Single-writer arbitration between Sonata's automation and the human typing in
+   * the terminal (S2 — the AtomicWriter). `sonataWriteDepth` > 0 means an
    * automation write SEQUENCE is in flight — a prompt paste (sync attachment
    * writes + the deferred text/Enter timers) or an option-prompt key run. Human
    * keystrokes that arrive during that window are held in `pendingHumanInput` and
@@ -473,7 +473,7 @@ export class TerminalHost extends EventEmitter {
    * `lastHumanInputAt` timestamps the human's last terminal keystroke — used
    * ONLY to reconcile natively-answered approvals, never to hold delivery.
    */
-  private duetWriteDepth = 0;
+  private sonataWriteDepth = 0;
   private pendingHumanInput = "";
   private lastHumanInputAt = 0;
   private humanSettleTimer: NodeJS.Timeout | null = null;
@@ -488,7 +488,7 @@ export class TerminalHost extends EventEmitter {
     owner: "prompt" | "control";
     cancel: () => void;
   }>();
-  // The CLI's input line may hold text Duet did not put there on purpose —
+  // The CLI's input line may hold text Sonata did not put there on purpose —
   // Esc-interrupt restores the interrupted prompt into the composer (probe
   // C1/X1). While set, the next injection prefixes a kill-line flood; the
   // post-stop belt timer also clears the line in place but does NOT consume
@@ -536,7 +536,7 @@ export class TerminalHost extends EventEmitter {
     return Boolean(this.activeRun);
   }
 
-  /** The Duet-owned run currently open, for attribution of controller-side
+  /** The Sonata-owned run currently open, for attribution of controller-side
    *  events (hook-broker approvals carry no runId of their own). */
   activeRunId(): RunId | null {
     return this.activeRun ? this.activeRun.id : null;
@@ -718,18 +718,18 @@ export class TerminalHost extends EventEmitter {
     if (this.approvalActive) {
       return { ok: false, reason: "panel-open" };
     }
-    // The write-lock (beginDuetWrite) only BUFFERS human keystrokes; it does NOT
+    // The write-lock (beginSonataWrite) only BUFFERS human keystrokes; it does NOT
     // serialise two automation writers. If a prompt delivery is mid-sequence (its
     // deferred paste/Enter still pending), injecting now would interleave `/rc`
     // bytes with the prompt's — refuse and let the caller retry once it clears.
-    if (this.duetWriting) {
+    if (this.sonataWriting) {
       return { ok: false, reason: "busy" };
     }
-    this.beginDuetWrite();
+    this.beginSonataWrite();
     this.ptyProcess.write(`${BRACKETED_PASTE_START}/remote-control${BRACKETED_PASTE_END}`);
     // Defer the Enter under the held lock (mirrors the prompt-delivery path): a
     // human keystroke landing in the gap buffers rather than splitting the frame.
-    this.deferDuetWrite(
+    this.deferSonataWrite(
       120,
       () => {
         if (this.ptyProcess) {
@@ -738,7 +738,7 @@ export class TerminalHost extends EventEmitter {
       },
       "control",
     );
-    this.endDuetWrite();
+    this.endSonataWrite();
     // Optimistic: we asked to connect. The scraped URL confirms + carries the
     // link. A second invocation opens the panel (still active), so flipping to
     // true is always correct here.
@@ -821,14 +821,14 @@ export class TerminalHost extends EventEmitter {
     }
     // A lone Esc typed into the Terminal window during a run is the human
     // interrupting natively — the CLI restores the interrupted prompt into
-    // its input box just like a Duet stop (probe C1/X1). Mark the line dirty
-    // so the next Duet injection pre-clears instead of concatenating. Flag
+    // its input box just like a Sonata stop (probe C1/X1). Mark the line dirty
+    // so the next Sonata injection pre-clears instead of concatenating. Flag
     // only — NO belt timer: the human is driving the terminal and may want
     // to edit the restored text right there.
     if (data === ESC && this.activeRun) {
       this.cliInputMaybeDirty = true;
     }
-    if (this.duetWriting) {
+    if (this.sonataWriting) {
       this.pendingHumanInput += data;
       return;
     }
@@ -862,17 +862,17 @@ export class TerminalHost extends EventEmitter {
   /** Marks the start of an automation write sequence (a prompt paste, an
    *  approval/option key run, a control-change drive). Nestable; while the depth
    *  is > 0, human keystrokes buffer instead of splitting the sequence (S2). */
-  private beginDuetWrite(): void {
-    this.duetWriteDepth++;
+  private beginSonataWrite(): void {
+    this.sonataWriteDepth++;
   }
 
   /** Ends one automation write sequence; when the last one finishes, flush any
    *  human keystrokes that arrived mid-sequence so they land contiguously. */
-  private endDuetWrite(): void {
-    if (this.duetWriteDepth > 0) {
-      this.duetWriteDepth--;
+  private endSonataWrite(): void {
+    if (this.sonataWriteDepth > 0) {
+      this.sonataWriteDepth--;
     }
-    if (this.duetWriteDepth === 0 && this.pendingHumanInput && this.ptyProcess) {
+    if (this.sonataWriteDepth === 0 && this.pendingHumanInput && this.ptyProcess) {
       const buffered = this.pendingHumanInput;
       this.pendingHumanInput = "";
       this.ptyProcess.write(buffered);
@@ -883,21 +883,21 @@ export class TerminalHost extends EventEmitter {
    *  the timer gap so a human keystroke in that window buffers rather than
    *  splitting the sequence. Cancellable as a group by stopRun (a canceled
    *  handle releases its write-lock hold without writing). */
-  private deferDuetWrite(ms: number, fn: () => void, owner: "prompt" | "control" = "prompt"): void {
-    this.beginDuetWrite();
+  private deferSonataWrite(ms: number, fn: () => void, owner: "prompt" | "control" = "prompt"): void {
+    this.beginSonataWrite();
     const handle = { owner, cancel: () => {} };
     const timer = setTimeout(() => {
       this.pendingDeferredWrites.delete(handle);
       try {
         fn();
       } finally {
-        this.endDuetWrite();
+        this.endSonataWrite();
       }
     }, ms);
     handle.cancel = () => {
       clearTimeout(timer);
       this.pendingDeferredWrites.delete(handle);
-      this.endDuetWrite();
+      this.endSonataWrite();
     };
     this.pendingDeferredWrites.add(handle);
   }
@@ -917,8 +917,8 @@ export class TerminalHost extends EventEmitter {
     return promptCancels;
   }
 
-  private get duetWriting(): boolean {
-    return this.duetWriteDepth > 0;
+  private get sonataWriting(): boolean {
+    return this.sonataWriteDepth > 0;
   }
 
   /** True within the activity window of the human's last terminal keystroke.
@@ -1074,8 +1074,8 @@ export class TerminalHost extends EventEmitter {
     // keystroke landing mid-paste buffers (and flushes after) rather than
     // splitting the bracketed-paste frame (S2). The initial begin covers the
     // synchronous attachment writes; each deferred write keeps the depth > 0
-    // until it fires, so endDuetWrite() below does not release early.
-    this.beginDuetWrite();
+    // until it fires, so endSonataWrite() below does not release early.
+    this.beginSonataWrite();
     // Suspenders for the post-stop belt: if the CLI's input line may still
     // hold an Esc-restored prompt (fast resend beat the belt timer, or the
     // belt was skipped behind an approval), kill it before ANY of this
@@ -1093,7 +1093,7 @@ export class TerminalHost extends EventEmitter {
       this.cliDirtyLineHighWater,
       trimmed.split("\n").length + attachments.length,
     );
-    this.deferDuetWrite(
+    this.deferSonataWrite(
       textDelayMs,
       () => {
         if (this.ptyProcess && trimmed) {
@@ -1102,7 +1102,7 @@ export class TerminalHost extends EventEmitter {
       },
       submissionOwner,
     );
-    this.deferDuetWrite(
+    this.deferSonataWrite(
       enterDelayMs,
       () => {
         if (this.ptyProcess) {
@@ -1117,7 +1117,7 @@ export class TerminalHost extends EventEmitter {
     // s3b.codexSkillDoubleEnter; with trailing text the popup closes on its
     // own and the extra Enter never fires.
     if (this.profile.provider === "codex" && /^\$[A-Za-z0-9][\w.-]*$/.test(trimmed)) {
-      this.deferDuetWrite(
+      this.deferSonataWrite(
         enterDelayMs + 320,
         () => {
           if (this.ptyProcess) {
@@ -1129,7 +1129,7 @@ export class TerminalHost extends EventEmitter {
     }
     // Release the initial begin; the deferred writes hold the depth until they
     // fire, so the lock spans the full sequence.
-    this.endDuetWrite();
+    this.endSonataWrite();
     // The run this submission belongs to: a freshly-begun run (idle send), or —
     // for a control action that doesn't start one (createRun:false, e.g. /stop)
     // — the run it acts upon. A mid-turn write-through has NO run yet (null);
@@ -1169,16 +1169,16 @@ export class TerminalHost extends EventEmitter {
    *
    * Guards: no PTY → nothing to write; an active approval → a stray Enter would
    * confirm the panel (the caller also guards this, belt-and-suspenders); an
-   * in-flight automation sequence (duetWriting) → never interleave our own bytes
+   * in-flight automation sequence (sonataWriting) → never interleave our own bytes
    * mid-paste. Returns whether it wrote.
    */
   nudgePromptSubmit(): boolean {
-    if (!this.ptyProcess || this.approvalActive || this.duetWriting) {
+    if (!this.ptyProcess || this.approvalActive || this.sonataWriting) {
       return false;
     }
-    this.beginDuetWrite();
+    this.beginSonataWrite();
     this.ptyProcess.write(CSI_U_ENTER);
-    this.endDuetWrite();
+    this.endSonataWrite();
     return true;
   }
 
@@ -1273,7 +1273,7 @@ export class TerminalHost extends EventEmitter {
    * to (v2 grammar: digits instant-select; trust: plain CR). Legacy-grammar
    * panels keep their historically verified encodings. `approve-always`
    * exists only where the panel offered a native persistent option — there
-   * is no Duet-invented persistence to fall back to.
+   * is no Sonata-invented persistence to fall back to.
    */
   sendApprovalDecision(
     decision: Extract<ApprovalDecision, "approve" | "approve-for-session" | "approve-always">,
@@ -1380,7 +1380,7 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
-   * A hook-broker approval TIMED OUT (Duet answered nothing; the CLI's native
+   * A hook-broker approval TIMED OUT (Sonata answered nothing; the CLI's native
    * card is taking over for the SAME request). Arm the resurface recognition so
    * the scrape's imminent re-detection of that native card is marked as a
    * resurface, not a fresh ask — else the user gets a second "needs you"
@@ -1434,7 +1434,7 @@ export class TerminalHost extends EventEmitter {
     // Hold the write-lock across the whole multi-key run (with its inter-key
     // delays) so a human keystroke buffers rather than interleaving into the
     // answer sequence (S2).
-    this.beginDuetWrite();
+    this.beginSonataWrite();
     try {
       for (let i = 0; i < keys.length; i++) {
         const key = keys[i];
@@ -1450,7 +1450,7 @@ export class TerminalHost extends EventEmitter {
         this.writeRaw(key);
       }
     } finally {
-      this.endDuetWrite();
+      this.endSonataWrite();
     }
   }
 
@@ -1547,7 +1547,7 @@ export class TerminalHost extends EventEmitter {
       return false;
     }
     if (reason !== "pre-submit") {
-      if (this.approvalActive || this.duetWriteDepth > 0 || this.isHumanActivelyTyping()) {
+      if (this.approvalActive || this.sonataWriteDepth > 0 || this.isHumanActivelyTyping()) {
         return false;
       }
     }
@@ -1562,9 +1562,9 @@ export class TerminalHost extends EventEmitter {
       // the flood lands ahead of the attachment/text pastes in order.
       this.ptyProcess.write(flood);
     } else {
-      this.beginDuetWrite();
+      this.beginSonataWrite();
       this.ptyProcess.write(flood);
-      this.endDuetWrite();
+      this.endSonataWrite();
     }
     return true;
   }
@@ -1697,7 +1697,7 @@ export class TerminalHost extends EventEmitter {
     if (printable) {
       this.lastPrintablePtyDataAt = this.lastPtyDataAt;
     }
-    if (process.env.DUET_DEBUG_COMPLETION && this.activeRun && printable) {
+    if (process.env.SONATA_DEBUG_COMPLETION && this.activeRun && printable) {
       console.log(
         `[completion] ${new Date().toISOString()} run=${this.activeRun.id} pty-data len=${data.length} printable=${JSON.stringify(cleanTerminal(data).trim().slice(0, 60))}`,
       );
@@ -1758,7 +1758,7 @@ export class TerminalHost extends EventEmitter {
     // PermissionRequest broker) never surfaces a scraped card — the broker owns
     // that channel end-to-end (ask → card → reply). A codex native card only
     // appears AFTER a broker timeout, and it is answered in the Terminal, not
-    // re-scraped into a phantom Duet card (see handleApprovalExpired).
+    // re-scraped into a phantom Sonata card (see handleApprovalExpired).
     if (this.profile.provider !== "claude") {
       return;
     }
@@ -1789,7 +1789,7 @@ export class TerminalHost extends EventEmitter {
     ) {
       this.approvalSuppressedInSettleWindow = true;
       // Whoever suppresses must guarantee the honesty re-check (review P2,
-      // 2026-07-02): only positive Duet sends arm the settle check at
+      // 2026-07-02): only positive Sonata sends arm the settle check at
       // decision time — an answered-natively or deny decision records
       // lastApprovalDecisionAt WITHOUT one, so a candidate suppressed here
       // would have no path back on a static screen. Worse than a hold: the
@@ -2255,7 +2255,7 @@ export class TerminalHost extends EventEmitter {
 
   private debugCompletion(message: string): void {
     // Diag-only telemetry (s4-diags); inert unless the env flag is set.
-    if (process.env.DUET_DEBUG_COMPLETION) {
+    if (process.env.SONATA_DEBUG_COMPLETION) {
       console.log(
         `[completion] ${new Date().toISOString()} run=${this.activeRun?.id ?? "none"} kind=${this.activeRun?.kind ?? "-"} ${message}`,
       );
@@ -2354,7 +2354,7 @@ export class TerminalHost extends EventEmitter {
    * stays as the fallback (for hook-less sessions or a missed Stop), so this is
    * purely additive — Stop completes promptly, the scrape still backstops it.
    *
-   * A no-op when no Duet-owned run is active (a take-over turn, or the scrape
+   * A no-op when no Sonata-owned run is active (a take-over turn, or the scrape
    * already finished it — which also avoids any double-completion) and for
    * runs mid-stop. UNLIKE the heuristic it is NOT gated on the approval flag:
    * a genuinely pending ask holds its turn open, so Stop arriving while we
@@ -2468,13 +2468,13 @@ export class TerminalHost extends EventEmitter {
 }
 
 /**
- * The ONE place Duet's user-facing `CodexPermissionMode` fans back out to
+ * The ONE place Sonata's user-facing `CodexPermissionMode` fans back out to
  * Codex's legacy (sandbox × approval × reviewer) axes — verified live against
  * codex 0.144.4 (spikes/codex-perm-profile-probe, probe-modes.mjs): each row
  * shows the matching "(current)" in the TUI `/permissions` picker, full-access
  * boots straight into "YOLO mode" with no confirmation modal, and every row's
  * `approvals_reviewer` is accepted at spawn. The explicit `approvals_reviewer`
- * on ALL rows shields Duet sessions from a globally-persisted `auto_review`
+ * on ALL rows shields Sonata sessions from a globally-persisted `auto_review`
  * (which the Codex TUI writes into the active config layer) bleeding in.
  *
  * `permission_profile`/`default_permissions` (the upstream profile system) are
@@ -2498,7 +2498,7 @@ export function codexArgs(options: {
   speedMode?: LaunchSpeedMode | null | undefined;
   resumeLast?: boolean;
   resumeRef?: string | undefined;
-  /** Layer the Duet hook profile via `-p <profile>` (CONFIG_PROFILE_V2). Unset
+  /** Layer the Sonata hook profile via `-p <profile>` (CONFIG_PROFILE_V2). Unset
    *  → no profile flag (bare TerminalHost in a test still works). */
   profile?: string | undefined;
 }): string[] {
@@ -2517,7 +2517,7 @@ export function codexArgs(options: {
   const permission = CODEX_PERMISSION_MODE_FLAGS[options.permissionMode];
   return [
     ...base,
-    // `-p duet` layers Duet's hook profile onto the user's own config (union,
+    // `-p sonata` layers Sonata's hook profile onto the user's own config (union,
     // never clobber — verified). Placed ahead of the run flags; Codex accepts
     // it on both the TUI and exec forms.
     ...(options.profile ? ["-p", options.profile] : []),
@@ -2620,7 +2620,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
           model: options.model,
           reasoningEffort: options.reasoningEffort,
           settingsPath: ensureClaudeRuntimeSettings(
-            options.runtimeDir ?? path.join(options.cwd, ".duet"),
+            options.runtimeDir ?? path.join(options.cwd, ".sonata"),
             {
               approvalBroker: options.approvalBroker !== false,
               // Native fast mode (2.1.205+) rides in the injected `--settings`;
@@ -2653,20 +2653,20 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       // Spawn-prep the injected hook profile + stable shims (write-if-changed).
       // Byte-stable and task-invariant: the SessionStart handshake then carries
       // identity + hook liveness. Absent codexHookPaths (a bare TerminalHost in
-      // a test) → no injection, no `-p duet`.
+      // a test) → no injection, no `-p sonata`.
       //
       // If the write fails (unwritable dir, ENOSPC, a shell-unsafe shim path),
       // DEGRADE to a hookless spawn rather than aborting the launch. Post-S4
       // there is NO scrape beneath: hookless codex degrades to Terminal-driven
       // use — the missing handshake raises the liveness banner AND a needs-you
       // notification (notification-policy: cli-hooks:liveness→missing), and any
-      // approval is answered natively in the Terminal (no per-approval Duet
+      // approval is answered natively in the Terminal (no per-approval Sonata
       // card in this state; recorded in the plan's negative space).
       let profile: string | undefined;
       if (options.codexHookPaths) {
         try {
           ensureCodexRuntimeSettings(options.codexHookPaths);
-          profile = CODEX_DUET_PROFILE;
+          profile = CODEX_SONATA_PROFILE;
         } catch (error) {
           console.error(
             `[codex] hook profile write failed; launching hookless (scrape-driven): ${
@@ -2741,7 +2741,7 @@ function attachmentPromptTitle(count: number): string {
 
 // "This hook echo is that stored prompt" — the equivalence relation for every
 // UserPromptSubmit-hook comparison in beginRunFromHook. Reads through the CLI's
-// [Image #N] decoration: the hook payload carries it, the run prompt Duet stored
+// [Image #N] decoration: the hook payload carries it, the run prompt Sonata stored
 // does not. All three call sites (finishedTwin, back-stamp guard, echo-swallow)
 // share it, so the image back-stamp fix can never outrun the twin-safety guard —
 // normalizing only the back-stamp would let a just-finished twin's late image
@@ -2804,7 +2804,7 @@ function isTerminalChromeLine(line: string, provider?: RuntimeProvider): boolean
 function ptyEnvironment(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
-  // Nested-session markers inherited when Duet itself was launched from a
+  // Nested-session markers inherited when Sonata itself was launched from a
   // Claude Code session. A child `claude` that sees them registers NO
   // ~/.claude/sessions/<pid>.json — the waitingFor side channel goes dark
   // (research 2026-06-12 §4.2). CLAUDE_CONFIG_DIR is intentionally kept:
@@ -3309,7 +3309,7 @@ function claudePanelChoices(panel: ParsedClaudePanel): ApprovalChoice[] {
       description:
         `Choose Claude's native persistent option (“${optionTwo.compact}”). ` +
         "Claude writes the allow rule to .claude/settings.local.json in this project; " +
-        "Duet shows a receipt of what was written.",
+        "Sonata shows a receipt of what was written.",
       encodedAs: "digit 2",
     });
   } else if (optionTwo?.semantic === "session-allow") {
@@ -3469,7 +3469,7 @@ function shouldIgnorePath(relativePath: string): boolean {
   const parts = relativePath.split(/[\\/]/);
   return (
     parts.includes(".git") ||
-    parts.includes(".duet") ||
+    parts.includes(".sonata") ||
     parts.includes("node_modules") ||
     parts.includes("__pycache__") ||
     parts.includes("sample-output") ||

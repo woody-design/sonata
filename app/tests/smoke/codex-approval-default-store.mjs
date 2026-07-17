@@ -1,4 +1,4 @@
-// Layer-1 smoke — the CodexSettingsStore round-trip (the Duet-owned default
+// Layer-1 smoke — the CodexSettingsStore round-trip (the Sonata-owned default
 // permission preset new Codex sessions launch with). Mirrors the Claude
 // permission-default store fence: positive enum for the three offered modes,
 // legacy `-a` defaults migrate on read (never escalating), garbage/missing
@@ -12,7 +12,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { CodexSettingsStore } = require("../../dist/main/settings-store");
 
-const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "duet-codex-permission-"));
+const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-codex-permission-"));
 const failures = [];
 const assert = (cond, label) => {
   if (!cond) failures.push(label);

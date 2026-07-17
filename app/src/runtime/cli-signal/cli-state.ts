@@ -19,7 +19,7 @@ import type {
  *    →idle. With hooks disabled entirely this degrades to today's behavior.
  *
  * (OSC 9;4 is intentionally absent — Phase 0 found it does not arrive under
- * duet's spawn; the glyph-scrape/quiescence in StatusRegionTracker remains the
+ * sonata's spawn; the glyph-scrape/quiescence in StatusRegionTracker remains the
  * deeper net behind both feeds.)
  */
 export class CliStateModel {

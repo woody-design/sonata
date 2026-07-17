@@ -45,7 +45,7 @@ const REFRESH_COALESCE_MS = 200;
 /** The bridges the tree reaches back into, bound once by the composition root:
  *  a per-directory listing read and the open-or-focus path a file click takes
  *  (the same `openPreview` bridge chips/links use). The root stays decoupled
- *  from the runtime — the tree never touches `window.duetRuntime` directly. */
+ *  from the runtime — the tree never touches `window.sonataRuntime` directly. */
 export interface TreeDeps {
   readDir(relativePath: string): Promise<WorkspaceDirEntry[]>;
   openFile(relativePath: string): void;

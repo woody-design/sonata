@@ -5,7 +5,7 @@ import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval, approveVisibleBanner } from "./helpers/approval.mjs";
 import { activeSessionTaskId, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
-const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "duet-run-chat-e2e-"));
+const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-run-chat-e2e-"));
 let electronApp = null;
 
 try {
@@ -13,7 +13,7 @@ try {
     args: ["dist/main/main.js"],
     env: {
       ...process.env,
-      DUET_DATA_DIR: workspaceRoot, DUET_WORKSPACES_DIR: workspaceRoot,
+      SONATA_DATA_DIR: workspaceRoot, SONATA_WORKSPACES_DIR: workspaceRoot,
     },
   });
 
@@ -22,8 +22,8 @@ try {
 
   const prompt = [
     "Create exactly one file named transcript.md.",
-    "The file must contain exactly this sentence: DUET_TRANSCRIPT_VISIBLE artifact ready.",
-    "After creating it, include the phrase DUET_TRANSCRIPT_VISIBLE in your response.",
+    "The file must contain exactly this sentence: SONATA_TRANSCRIPT_VISIBLE artifact ready.",
+    "After creating it, include the phrase SONATA_TRANSCRIPT_VISIBLE in your response.",
     "Do not modify any other files.",
   ].join("\n");
 
@@ -35,7 +35,7 @@ try {
   }
 
   const runCard = page.locator(".turn-card").first();
-  await runCard.locator(".turn-user", { hasText: "DUET_TRANSCRIPT_VISIBLE" }).waitFor({
+  await runCard.locator(".turn-user", { hasText: "SONATA_TRANSCRIPT_VISIBLE" }).waitFor({
     state: "visible",
   });
 
@@ -62,7 +62,7 @@ try {
   // raw ANSI.
   const transcriptClean =
     Boolean(assistantText) &&
-    assistantText.includes("DUET_TRANSCRIPT_VISIBLE") &&
+    assistantText.includes("SONATA_TRANSCRIPT_VISIBLE") &&
     !assistantText.includes("\u001b") &&
     !assistantText.includes("[?25");
   const promptComplete = userText === prompt;

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { duetConfigDir } from "./duet-paths";
+import { sonataConfigDir } from "./sonata-paths";
 import {
   type ClaudeSettings,
   normalizeClaudeSettings,
@@ -75,7 +75,7 @@ export class ReadingSettingsStore extends JsonSettingsStore<ReadingSettings> {
 }
 
 export function readingSettingsPath(): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "reading-settings.json");
+  return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "reading-settings.json");
 }
 
 export class ResumeSettingsStore extends JsonSettingsStore<ResumeSettings> {
@@ -85,7 +85,7 @@ export class ResumeSettingsStore extends JsonSettingsStore<ResumeSettings> {
 }
 
 export function resumeSettingsPath(): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "resume-settings.json");
+  return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "resume-settings.json");
 }
 
 export class LocalApiSettingsStore extends JsonSettingsStore<LocalApiSettings> {
@@ -95,7 +95,7 @@ export class LocalApiSettingsStore extends JsonSettingsStore<LocalApiSettings> {
 }
 
 export function localApiSettingsPath(): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "local-api-settings.json");
+  return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "local-api-settings.json");
 }
 
 export class ClaudeSettingsStore extends JsonSettingsStore<ClaudeSettings> {
@@ -105,7 +105,7 @@ export class ClaudeSettingsStore extends JsonSettingsStore<ClaudeSettings> {
 }
 
 export function claudeSettingsPath(): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "claude-settings.json");
+  return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "claude-settings.json");
 }
 
 export class CodexSettingsStore extends JsonSettingsStore<CodexSettings> {
@@ -115,7 +115,7 @@ export class CodexSettingsStore extends JsonSettingsStore<CodexSettings> {
 }
 
 export function codexSettingsPath(): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "codex-settings.json");
+  return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "codex-settings.json");
 }
 
 export class WindowStateStore extends JsonSettingsStore<WindowStateDocument> {
@@ -125,7 +125,7 @@ export class WindowStateStore extends JsonSettingsStore<WindowStateDocument> {
 }
 
 export function windowStatePath(): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "window-state.json");
+  return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "window-state.json");
 }
 
 export class TerminalWindowSettingsStore extends JsonSettingsStore<TerminalWindowSettings> {
@@ -136,7 +136,7 @@ export class TerminalWindowSettingsStore extends JsonSettingsStore<TerminalWindo
 
 export function terminalWindowSettingsPath(): string {
   return path.join(
-    process.env.DUET_SETTINGS_DIR || duetConfigDir(),
+    process.env.SONATA_SETTINGS_DIR || sonataConfigDir(),
     "terminal-window-settings.json",
   );
 }
@@ -148,5 +148,5 @@ export class PreviewSessionsStore extends JsonSettingsStore<PreviewSessionsDocum
 }
 
 export function previewSessionsPath(): string {
-  return path.join(process.env.DUET_SETTINGS_DIR || duetConfigDir(), "preview-sessions.json");
+  return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "preview-sessions.json");
 }
