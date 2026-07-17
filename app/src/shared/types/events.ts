@@ -272,6 +272,10 @@ export type ApprovalDetectedEvent = BaseRuntimeEvent<
      *  tool_name/tool_input (e.g. "Run `touch x`"). The card shows THIS instead
      *  of the low-level panel encodings. Absent for scrape cards. */
     summary?: string | null;
+    /** The raw subject of the ask — the full command / file path — for the
+     *  drawer's code block (drawer S2). Longer than summary (soft 400 cap),
+     *  never parsed. Absent for scrape cards and kind-only asks. */
+    detail?: string | null;
   }
 >;
 

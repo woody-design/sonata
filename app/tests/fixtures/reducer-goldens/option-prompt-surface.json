@@ -82,6 +82,7 @@
                 "text": null
               }
             ],
+            "optionPromptStep": 0,
             "optionPromptBusy": false,
             "optionPromptReceipt": {
               "toolUseId": "toolu_012fQnqFiF73dXc7GEi2gG53",
@@ -261,7 +262,7 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "approvalExpiredAttention": false,
+            "approvalExpired": false,
             "status": "Answered",
             "unread": false,
             "completedUnseen": false
@@ -349,6 +350,7 @@
                 "text": null
               }
             ],
+            "optionPromptStep": 0,
             "optionPromptBusy": false,
             "optionPromptReceipt": {
               "toolUseId": "toolu_012fQnqFiF73dXc7GEi2gG53",
@@ -528,7 +530,7 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "approvalExpiredAttention": false,
+            "approvalExpired": false,
             "status": "Answered",
             "unread": true,
             "completedUnseen": false

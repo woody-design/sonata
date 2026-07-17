@@ -207,6 +207,12 @@ export function composerNotice(status: string): string {
     /^Resumed — /,
     /^Choose how to resume$/,
     /^Answer sent$/,
+    // Drawer states narrate themselves in the drawer (S2) — the red action-
+    // feedback line must not double them (and never in the attention voice).
+    /^\S+ is asking$/,
+    /^Waiting in the CLI$/,
+    /^Questions dismissed$/,
+    /^Answered$/,
     // Dead affordance: send is disabled while the composer is empty.
     /^Type a message before sending$/,
   ];

@@ -398,6 +398,27 @@ export function approvalTitle(kind: RuntimeRunReport["approvalKind"] | null | un
   return "Native approval requested";
 }
 
+/** The drawer's plain-language ask (drawer S2) — a question, not a system
+ *  label. Provider-neutral (Claude and Codex share the drawer). */
+export function approvalQuestion(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
+  if (kind === "workspace-trust") {
+    return "Trust this workspace?";
+  }
+  if (kind === "file-edit") {
+    return "Edit this file?";
+  }
+  if (kind === "file-read") {
+    return "Read this file?";
+  }
+  if (kind === "command") {
+    return "Run this command?";
+  }
+  if (kind === "dangerous-bypass") {
+    return "Enable Bypass Permissions mode?";
+  }
+  return "Approve this action?";
+}
+
 export function approvalKindLabel(kind: RuntimeRunReport["approvalKind"] | null | undefined): string {
   if (kind === "workspace-trust") {
     return "Workspace trust";

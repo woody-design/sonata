@@ -1,11 +1,12 @@
-// CLI Slice 5 e2e — native option prompts (AskUserQuestion) as an in-view card,
-// end to end against REAL claude. Triggers a real 3-question single-select
-// prompt, asserts it renders as a stacked card in the main view, picks a
-// DISTINCT option per question, sends — and asserts the card freezes into a
-// receipt whose VERBATIM labels are RECONCILED from Claude's own answer
-// (data-state="answered" + "Answered"), proving the chosen digits reached
-// Claude. The floor fallback + single-writer guard are covered by the runtime
-// live probe (Temp/probes/cli-slice5-live-probe.mjs).
+// Drawer S2 e2e — the question drawer (AskUserQuestion) as a stepped 1/N form
+// in the composer slot, end to end against REAL claude. Triggers a real
+// 3-question single-select prompt and walks the whole stepper: composer card
+// hides (drawer-active), step indicator advances on pick, back-chevron
+// re-opens an answered question, Q2 is answered via the FREE-TEXT row (live
+// verification of the P3/P9c editor injection), the Review step lists every
+// answer, Send — and the card freezes into a receipt whose VERBATIM labels are
+// RECONCILED from Claude's own PostToolUse (data-state="answered"), proving
+// digits + free text reached Claude.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -31,7 +32,6 @@ try {
   });
   await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
 
-  // The trigger reliably induces a 3-question single-select AskUserQuestion.
   const trigger = [
     "You are inside a UI test harness. Do EXACTLY one thing and nothing else:",
     "call the AskUserQuestion tool ONE time with exactly these three single-select",
@@ -45,53 +45,52 @@ try {
   ].join(" ");
   await sendFirstPrompt(page, trigger, { approveTrust: true, trustTimeout: 120000 });
 
-  // The card surfaces, structured from the PreToolUse hook.
+  // The drawer surfaces in the composer slot; the composer card hides.
   const card = page.locator("#option-prompt-card");
   await card.waitFor({ state: "visible", timeout: 180000 });
   await page.locator('#option-prompt-card[data-state="asking"]').waitFor({ state: "visible" });
-  checks.cardRendered = true;
-
-  const questions = card.locator(".option-prompt-question");
-  await questions.nth(2).waitFor({ state: "visible" });
-  checks.questionCount = await questions.count();
-  if (checks.questionCount !== 3) {
-    throw new Error(`Expected 3 questions in the card, saw ${checks.questionCount}.`);
+  await page.locator("#composer.drawer-active").waitFor({ state: "visible" });
+  if (await page.locator("#composer .composer-card").isVisible()) {
+    throw new Error("The composer card must hide while the drawer owns the slot.");
   }
-  // Headers + options + descriptions present (provenance + the label/desc rows).
-  await card.locator(".option-prompt-badge", { hasText: "Fruit" }).first().waitFor({ state: "visible" });
-  await card.locator(".option-prompt-option-label", { hasText: "Banana" }).waitFor({ state: "visible" });
+  checks.composerTransformed = true;
+
+  // Step 1 of 3: only Q1 renders; the indicator says so.
+  await card.locator(".drawer-step", { hasText: "1 of 3" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-badge", { hasText: "Fruit" }).waitFor({ state: "visible" });
+  if ((await card.locator(".option-prompt-question").count()) !== 1) {
+    throw new Error("The stepper must render exactly ONE question per step.");
+  }
   await card.locator(".option-prompt-option-desc", { hasText: "a pome fruit" }).waitFor({ state: "visible" });
-  checks.labelsAndDescriptionsShown = true;
+  checks.steppedOneQuestion = true;
 
-  // Fix #1 (card scroll): force a short window so the card overflows, then
-  // assert the questions region actually scrolls AND the Send footer stays
-  // pinned/visible (never scrolled away). Playwright clicks auto-scroll into
-  // view, so this must be verified explicitly.
-  await page.setViewportSize({ width: 1000, height: 600 });
-  const sendFooter = card.locator(".option-prompt-actions button.primary");
-  await sendFooter.waitFor({ state: "visible" });
-  const scrollMetrics = await card.locator(".option-prompt-scroll").evaluate((el) => {
-    el.scrollTop = el.scrollHeight; // scroll the questions to the very bottom
-    return { scrollHeight: el.scrollHeight, clientHeight: el.clientHeight, scrollTop: el.scrollTop };
-  });
-  const sendBox = await sendFooter.boundingBox();
-  const viewport = page.viewportSize();
-  checks.scroll = {
-    overflows: scrollMetrics.scrollHeight > scrollMetrics.clientHeight + 1,
-    scrolled: scrollMetrics.scrollTop > 0,
-    // Send stays within the window even after the questions scrolled to bottom.
-    sendPinnedVisible: Boolean(sendBox) && sendBox.y >= 0 && sendBox.y + sendBox.height <= viewport.height + 1,
-  };
-  if (!checks.scroll.overflows || !checks.scroll.scrolled || !checks.scroll.sendPinnedVisible) {
-    throw new Error(`Card scroll fix failed: ${JSON.stringify(checks.scroll)}`);
-  }
+  // Pick Apple → auto-advance to step 2.
+  await card.locator(".option-prompt-option", { hasText: "Apple" }).click();
+  await card.locator(".drawer-step", { hasText: "2 of 3" }).waitFor({ state: "visible" });
+  checks.singleSelectAutoAdvances = true;
 
-  // Pick a DISTINCT option per question: Apple (Q1 opt 3), One (Q2 opt 1), Bee (Q3 opt 2).
-  await questions.nth(0).locator(".option-prompt-option").nth(2).click();
-  await questions.nth(1).locator(".option-prompt-option").nth(0).click();
-  await questions.nth(2).locator(".option-prompt-option").nth(1).click();
-  // Selection reflected (radio state).
-  await questions.nth(0).locator(".option-prompt-option.selected", { hasText: "Apple" }).waitFor({ state: "visible" });
+  // Back-chevron re-opens Q1 with the selection intact; forward returns.
+  await card.locator('.drawer-nav-button[aria-label="Previous question"]').click();
+  await card.locator(".option-prompt-option.selected", { hasText: "Apple" }).waitFor({ state: "visible" });
+  await card.locator('.drawer-nav-button[aria-label="Next question"]').click();
+  await card.locator(".option-prompt-badge", { hasText: "Number" }).waitFor({ state: "visible" });
+  checks.backNavigation = true;
+
+  // Q2: answer via the FREE-TEXT row (live editor-injection coverage).
+  const freeText = card.locator(".option-prompt-freetext-input");
+  await freeText.click();
+  await freeText.fill("Seven");
+  await card.locator(".option-prompt-freetext-next", { hasText: "Next" }).click();
+  await card.locator(".drawer-step", { hasText: "3 of 3" }).waitFor({ state: "visible" });
+  checks.freeTextAdvances = true;
+
+  // Q3: pick Bee → Review step lists all three answers.
+  await card.locator(".option-prompt-option", { hasText: "Bee" }).click();
+  await card.locator(".drawer-step", { hasText: "Review" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-review-row", { hasText: "Apple" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-review-row", { hasText: "Seven" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-review-row", { hasText: "Bee" }).waitFor({ state: "visible" });
+  checks.reviewStep = true;
 
   const send = card.locator(".option-prompt-actions button.primary");
   await send.waitFor({ state: "visible" });
@@ -100,13 +99,15 @@ try {
   }
   await send.click();
 
-  // The card freezes into a receipt and RECONCILES from Claude's own answer
-  // (verbatim labels) — proving our chosen digits reached Claude.
+  // Corroborated receipt: reconciled from Claude's own answers — digits AND
+  // the free-text editor sequence landed.
   await page.locator('#option-prompt-card[data-state="answered"]').waitFor({ state: "visible", timeout: 180000 });
   await card.locator(".option-prompt-sub", { hasText: "Answered" }).waitFor({ state: "visible", timeout: 180000 });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Apple" }).waitFor({ state: "visible" });
-  await card.locator(".option-prompt-receipt-choice", { hasText: "One" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-receipt-choice", { hasText: "Seven" }).waitFor({ state: "visible" });
   await card.locator(".option-prompt-receipt-choice", { hasText: "Bee" }).waitFor({ state: "visible" });
+  // The composer returns once the drawer resolves.
+  await page.locator("#composer:not(.drawer-active)").waitFor({ state: "visible" });
   checks.reconciledReceipt = true;
 
   checks.success = true;

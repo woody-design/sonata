@@ -33,6 +33,9 @@ function queryElements() {
     approvalTitle: getElement<HTMLElement>("approval-title"),
     approvalSummary: getElement<HTMLParagraphElement>("approval-summary"),
     approvalContext: getElement<HTMLDivElement>("approval-context"),
+    approvalActions: getElement<HTMLDivElement>("approval-actions"),
+    approvalExpiredRow: getElement<HTMLDivElement>("approval-expired-row"),
+    approvalOpenCli: getElement<HTMLButtonElement>("approval-open-cli"),
     denyApproval: getElement<HTMLButtonElement>("deny-approval"),
     approveSessionApproval: getElement<HTMLButtonElement>("approve-session-approval"),
     approveApproval: getElement<HTMLButtonElement>("approve-approval"),
@@ -131,32 +134,6 @@ export function initDom(): void {
 
     <section class="workspace">
       <section id="run-column" class="run-column" aria-label="Run reading surface">
-        <div id="approval-banner" class="approval-banner hidden">
-          <div class="approval-copy">
-            <div class="approval-heading">
-              <p class="eyebrow">Approval</p>
-              <span id="approval-kind-badge" class="approval-kind-badge">Unknown</span>
-            </div>
-            <strong id="approval-title">Native approval requested</strong>
-            <p id="approval-summary" class="approval-summary"></p>
-            <div id="approval-context" class="approval-context"></div>
-          </div>
-          <div class="approval-actions">
-            <button id="deny-approval" class="secondary" type="button">Deny</button>
-            <button id="approve-session-approval" class="secondary hidden" type="button">Allow Session</button>
-            <button id="approve-approval" class="primary" type="button">Approve</button>
-          </div>
-        </div>
-
-        <!-- Native option prompt (AskUserQuestion). Built dynamically by
-             renderOptionPrompt() — N questions, each a single-select group. -->
-        <div id="option-prompt-card" class="option-prompt-card hidden"></div>
-
-        <!-- Attention banners (S5): passive "waiting for you in the Terminal"
-             pointers — one family, display-only, click focuses the terminal
-             window, never drives runtime state. -->
-        <div id="attention-banner-root" class="attention-banner-root"></div>
-
         <!-- Status strip (S5; moved into the reading flow 2026-07-03): the
              slim live-activity surface — spinner region verbatim (display-only,
              StatusRegionTracker) + running-subagent roster (transcript-derived).
@@ -185,6 +162,12 @@ export function initDom(): void {
           ></button>
         </div>
 
+        <!-- Bottom zone (drawer S2), three intensity tiers stacked above the
+             composer slot: attention banners (passive pointers) → resume-choice
+             (ignorable decision) → the ACTION DRAWER, which REPLACES the
+             composer card in its own slot (inside the #composer form below). -->
+        <div id="attention-banner-root" class="attention-banner-root"></div>
+
         <section id="resume-choice" class="resume-choice hidden" aria-label="Resume choice">
           <div class="resume-choice-copy">
             <strong id="resume-choice-title">Resume this session?</strong>
@@ -202,6 +185,38 @@ export function initDom(): void {
         </section>
 
         <form id="composer" class="composer" aria-label="Composer" tabindex="-1">
+          <!-- Action drawer (drawer S2): blocking interactions transform the
+               composer in place — same slot, same width. While either drawer
+               is visible, #composer carries .drawer-active which hides the
+               composer card (physically closing the type-into-the-TUI-form
+               hole). Only one drawer shows at a time. -->
+          <div id="approval-banner" class="action-drawer approval-drawer hidden">
+            <div class="drawer-head">
+              <span id="approval-kind-badge" class="drawer-kind">Unknown</span>
+            </div>
+            <strong id="approval-title" class="drawer-title">Approve this action?</strong>
+            <!-- Codex asks carry a human-written description (the "why") —
+                 shown as a sub-line; Claude summaries are derived from the
+                 command and stay redundant with the code block (S2 review F5). -->
+            <p id="approval-summary" class="drawer-summary hidden"></p>
+            <div id="approval-context" class="drawer-code hidden"></div>
+            <div id="approval-actions" class="drawer-actions">
+              <button id="deny-approval" class="secondary" type="button">Deny</button>
+              <button id="approve-session-approval" class="secondary hidden" type="button">Allow Session</button>
+              <button id="approve-approval" class="primary" type="button">Approve</button>
+            </div>
+            <!-- Expired variant (drawer S2): the broker hold lapsed — same
+                 drawer, honest state change. Content stays; actions swap. -->
+            <div id="approval-expired-row" class="drawer-expired hidden">
+              <span class="drawer-expired-copy">Timed out — this request is now waiting in the CLI</span>
+              <button id="approval-open-cli" class="attention-open-terminal" type="button">Answer in CLI →</button>
+            </div>
+          </div>
+
+          <!-- Native option prompt (AskUserQuestion) — the question drawer.
+               Built dynamically by renderOptionPrompt(): stepped 1/N + Review. -->
+          <div id="option-prompt-card" class="action-drawer question-drawer hidden"></div>
+
           <!-- The white card: the message and its controls. The context row
                below is a SEPARATE tinted layer (ref parity, 2026-07-04):
                "where this runs" is the stage the card sits on, not a line

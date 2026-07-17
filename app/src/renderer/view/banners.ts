@@ -47,13 +47,8 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
   const root = elements.attentionBannerRoot;
   const banners: HTMLElement[] = [];
   if (view?.task) {
-    if (view.approvalExpiredAttention) {
-      banners.push(
-        attentionBanner("approval-expired", "Approval waiting for you in the CLI", () => {
-          actions.dismissApprovalExpiredAttention(view);
-        }),
-      );
-    }
+    // (approval-expired banner retired in drawer S2 — the action drawer's
+    // expired variant carries that state in place.)
     if (view.slashAttention) {
       banners.push(
         attentionBanner("slash-sent", `${view.slashAttention.command} ran in the CLI`, () => {

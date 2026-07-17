@@ -52,7 +52,7 @@ try {
   const page = await electronApp.firstWindow();
   page.setDefaultTimeout(60000);
   const banner = page.locator("#approval-banner:not(.hidden)");
-  const expiredBanner = page.locator('.attention-banner[data-kind="approval-expired"]');
+  const expiredBanner = page.locator('#approval-banner[data-state="expired"]:not(.hidden)'); // drawer S2: expired variant in place
 
   // ── 1. EXPIRY → Stop turn-end → next send DELIVERS ──────────────────────────
   const stop = await createCodexTask(page, folderStop);

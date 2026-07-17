@@ -97,6 +97,8 @@ export interface TaskViewState {
    *  indices (one = single-select, many = multi-select toggles) OR a non-null
    *  free-text answer. Empty indices + null text = unanswered. */
   optionPromptDrafts: OptionPromptDraft[];
+  /** Stepper position (drawer S2): 0..N-1 = question index, N = Review step. */
+  optionPromptStep: number;
   /** Send-in-flight: keystrokes are being relayed; the card is frozen. */
   optionPromptBusy: boolean;
   /** The answered card frozen into a receipt — reconciled (verbatim labels)
@@ -142,7 +144,10 @@ export interface TaskViewState {
    *  approval card expired to the native panel. Display-only state: set/cleared
    *  from runtime events, never drives delivery or runs. */
   slashAttention: { runId: string; command: string } | null;
-  approvalExpiredAttention: boolean;
+  /** The broker hold expired — the request now waits in the CLI. The drawer
+   *  keeps showing it (expired variant); cleared by a decision (incl.
+   *  answered-natively) or a fresh detected ask. */
+  approvalExpired: boolean;
   status: string;
   unread: boolean;
   /** A run finished while this session was not the focused view. */
@@ -564,6 +569,7 @@ export function createTaskView(task: Task, status: string, live = true): TaskVie
     pendingApproval: null,
     pendingOptionPrompt: null,
     optionPromptDrafts: [],
+    optionPromptStep: 0,
     optionPromptBusy: false,
     optionPromptReceipt: null,
     highlightedRunId: null,
@@ -583,7 +589,7 @@ export function createTaskView(task: Task, status: string, live = true): TaskVie
     cliState: null,
     resumeChoice: null,
     slashAttention: null,
-    approvalExpiredAttention: false,
+    approvalExpired: false,
     status,
     unread: false,
     completedUnseen: false,

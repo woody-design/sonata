@@ -2624,110 +2624,135 @@ h2 {
 /* Native option prompt (AskUserQuestion) card — Slice 5. Same neutral surface
  * language as the modal banner; a single-select stacked form, then a frozen
  * receipt. "Claude is asking" provenance. */
-.option-prompt-card {
-  margin: 10px 18px 0;
+/* — Action drawer (drawer S2) — blocking interactions transform the composer
+   in place: same slot, same width, same raised-card voice. Two drawers share
+   the .action-drawer shell; while one is visible #composer carries
+   .drawer-active and the composer card hides (the runtime-status line stays —
+   corroboration errors surface there). */
+.composer.drawer-active .composer-card,
+.composer.drawer-active .composer-context-row {
+  display: none;
+}
+
+.action-drawer {
+  display: grid;
+  gap: var(--space-8);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
-  padding: var(--space-16) var(--space-16) var(--space-8);
-  background: var(--surface-canvas);
-  color: var(--text-primary);
+  padding: var(--space-12);
+  background: var(--surface-raised);
   box-shadow: var(--shadow-raised);
-  /* Bound the card in the fixed run-column so a tall multi-question form
-   * scrolls internally instead of clipping its lower questions + Send. The
-   * card sits to its natural (short) height when content is small, and caps
-   * here when tall; the calc reserves room for header/composer on short
-   * windows. The card shrinks + scrolls before it can ever overflow. */
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  max-height: min(60vh, calc(100vh - 280px));
-  overflow: hidden;
 }
 
 .option-prompt-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  gap: var(--space-8);
   min-width: 0;
-  min-height: 0;
-  flex: 1 1 auto;
 }
 
-/* Pinned header + footer; only the questions/receipt region scrolls. */
+/* The step scrolls; the heading above and the footer below stay pinned, so a
+   tall question never hides its options or the action. */
 .option-prompt-scroll {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex: 1 1 auto;
-  min-height: 0;
   overflow-y: auto;
+  max-height: 40vh;
+  display: grid;
+  gap: var(--space-12);
+  min-width: 0;
 }
 
 .option-prompt-heading {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
 }
 
 .option-prompt-heading .eyebrow {
-  margin-bottom: 0;
+  margin: 0;
 }
 
-.option-prompt-sub {
-  font-size: 12px;
+.drawer-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.drawer-step {
+  font: 500 var(--type-ui-xs) var(--font-ui);
   color: var(--text-tertiary);
+  margin-right: var(--space-4);
+}
+
+.drawer-nav-button {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  font: 500 13px/1 var(--font-ui);
+  cursor: pointer;
+}
+
+.drawer-nav-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.drawer-nav-button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .option-prompt-question {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  gap: var(--space-8);
+  min-width: 0;
 }
 
 .option-prompt-question-head {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: var(--space-8);
+  min-width: 0;
 }
 
 .option-prompt-question-head strong {
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.35;
+  font: 600 var(--type-ui-lg) var(--font-ui);
+  color: var(--text-primary);
 }
 
 .option-prompt-badge {
   flex: 0 0 auto;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-pill);
-  padding: 2px 8px;
-  background: var(--surface-hover);
+  font: 500 var(--type-ui-xs) var(--font-ui);
   color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 600;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+  text-transform: none;
 }
 
 .option-prompt-options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .option-prompt-option {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--space-8);
   width: 100%;
   text-align: left;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: var(--radius-md);
-  padding: var(--space-8);
+  padding: var(--space-6) var(--space-8);
   background: transparent;
-  color: var(--text-primary);
   cursor: pointer;
-  transition: border-color 0.12s ease, background 0.12s ease;
+  min-width: 0;
 }
 
 .option-prompt-option:hover:not(:disabled) {
@@ -2743,214 +2768,260 @@ h2 {
   opacity: 0.6;
 }
 
-/* multiSelect questions are read-only CONTEXT in the card (answered in the
- * terminal). Keep them fully legible — not faded like a disabled control —
- * just visibly non-interactive, with a square (checkbox) marker. */
-.option-prompt-option.checkbox,
-.option-prompt-option.checkbox:disabled {
-  opacity: 1;
-  cursor: default;
-  background: transparent;
-  border-color: transparent;
+.option-prompt-marker {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-hairline);
+  border-radius: 50%;
+  font: 500 var(--type-ui-xs) var(--font-ui);
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+
+.option-prompt-option.selected .option-prompt-marker {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }
 
 .option-prompt-option.checkbox .option-prompt-marker {
   border-radius: var(--radius-xs);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .option-prompt-multi-tag {
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-style: italic;
+  font: 400 var(--type-ui-sm) var(--font-ui);
   color: var(--text-tertiary);
-}
-
-.option-prompt-marker {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.option-prompt-option.selected .option-prompt-marker {
-  border-color: var(--control-primary-bg);
-  background: var(--control-primary-bg);
-  color: var(--control-primary-text);
 }
 
 .option-prompt-option-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: block;
   min-width: 0;
+  font: 400 var(--type-ui-md) var(--font-ui);
 }
 
 .option-prompt-option-label {
-  font-size: 13px;
   font-weight: 600;
+  color: var(--text-primary);
+  margin-right: var(--space-8);
 }
 
 .option-prompt-option-desc {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+/* Free-text row — the composer's cameo inside the drawer (S2). Same row shape
+   as an option; the input inherits the row's voice. */
+.option-prompt-freetext {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-8);
+  min-width: 0;
+}
+
+.option-prompt-freetext:focus-within {
+  border-color: var(--focus-ring);
+}
+
+.option-prompt-freetext.selected {
+  background: var(--surface-selected);
+}
+
+.freetext-marker {
+  border-style: dashed;
+}
+
+.option-prompt-freetext-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font: 400 var(--type-ui-md) var(--font-ui);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.option-prompt-freetext-input::placeholder {
+  color: var(--text-placeholder);
+}
+
+.option-prompt-freetext-next {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 3px 12px;
+  background: var(--control-primary-bg);
+  color: var(--control-primary-text);
+  font: 500 var(--type-ui-sm) var(--font-ui);
+  cursor: pointer;
+}
+
+/* Review step (S2): each row re-opens its question for editing. */
+.option-prompt-review {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.option-prompt-review-title {
+  font: 600 var(--type-ui-lg) var(--font-ui);
+  color: var(--text-primary);
+  margin-bottom: var(--space-4);
+}
+
+.option-prompt-review-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: var(--space-6) var(--space-8);
+  background: transparent;
+  cursor: pointer;
+}
+
+.option-prompt-review-row:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.option-prompt-review-answer {
+  font: 400 var(--type-ui-md) var(--font-ui);
+  color: var(--text-primary);
+  min-width: 0;
 }
 
 .option-prompt-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  /* Pinned footer — the Send action stays visible while questions scroll. A
-   * hairline separates it from the scrolled content above. */
-  flex: 0 0 auto;
-  padding-top: 10px;
+  gap: var(--space-8);
+  padding-top: var(--space-6);
   border-top: 1px solid var(--border-hairline);
 }
 
 .option-prompt-hint {
-  font-size: 12px;
+  font: 400 var(--type-ui-sm) var(--font-ui);
   color: var(--text-tertiary);
 }
 
 .option-prompt-receipt-line {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: var(--space-8);
+  padding: var(--space-2) 0;
 }
 
 .option-prompt-receipt-choice {
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-/* Approval cards render ONE neutral chrome for every kind (structural decision
- * 2): canvas card + hairline-default border + secondary ink. The per-kind
- * data-attributes survive in markup/TS (information architecture), but the paint
- * no longer forks — the five-colour family is retired. ONLY dangerous-bypass
- * carries attention (red border + red kind label + de-emphasised danger button);
- * its surface stays neutral canvas, per the spec .approval.dangerous specimen. */
-.approval-banner {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-12);
-  margin: 10px 18px 0;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  padding: var(--space-12) var(--space-16);
+  font: 400 var(--type-ui-md) var(--font-ui);
   color: var(--text-secondary);
-  background: var(--surface-canvas);
 }
 
-.approval-copy {
+.option-prompt-sub {
+  font: 500 var(--type-ui-xs) var(--font-ui);
+  color: var(--text-tertiary);
+}
+
+/* — Permission drawer (S2): kind badge → plain question → raw subject in a
+   code block → separate decision buttons, right-aligned. — */
+.approval-drawer {
   min-width: 0;
 }
 
-.approval-heading {
+.drawer-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: var(--space-8);
 }
 
-.approval-heading .eyebrow {
-  margin-bottom: 0;
-}
-
-.approval-kind-badge {
-  flex: 0 0 auto;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-pill);
-  padding: 3px 7px;
+.drawer-kind {
+  font: 500 var(--type-ui-xs) var(--font-ui);
   color: var(--text-tertiary);
-  background: var(--surface-hover);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-/* The bypass interstitial is a dangerous mode acceptance, not a tool approval:
- * the only approval kind that keeps chroma. Red border + red kind label mark the
- * danger; the accept button is de-emphasised as an outlined danger action (a
- * destructive act must not read as the primary CTA — its native default is
- * "No, exit"), while Deny stays the emphasised safe choice. */
-.approval-banner[data-approval-kind="dangerous-bypass"] {
-  border-color: var(--attention-border);
-}
-
-.approval-banner[data-approval-kind="dangerous-bypass"] .approval-kind-badge {
-  color: var(--attention-text);
-  border-color: var(--attention-border);
-  background: var(--attention-surface);
-}
-
-.approval-banner[data-approval-kind="dangerous-bypass"] #approve-approval {
-  background: transparent;
-  border: 1px solid var(--attention-border);
-  color: var(--attention-text);
-  font-weight: 600;
-}
-
-.approval-banner[data-approval-kind="dangerous-bypass"] #approve-approval:hover {
-  background: var(--attention-surface);
-}
-
-.approval-banner[data-approval-kind="dangerous-bypass"] #deny-approval {
-  font-weight: 600;
-}
-
-.approval-summary {
-  max-width: 760px;
-  margin: 4px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.approval-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 7px;
-}
-
-.approval-context span {
   border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-pill);
-  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+}
+
+.drawer-title {
+  font: 600 var(--type-ui-lg) var(--font-ui);
+  color: var(--text-primary);
+}
+
+.drawer-summary {
+  margin: 0;
+  font: 400 var(--type-ui-md) var(--font-ui);
   color: var(--text-secondary);
-  background: var(--surface-hover);
-  font-size: 12px;
 }
 
-.approval-context span[data-approval-label="Source"],
-.approval-context span[data-approval-label="Approve"],
-.approval-context span[data-approval-label="Deny"] {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
+.drawer-code {
+  font: 400 12px/18px var(--font-mono);
+  color: var(--text-secondary);
+  background: var(--surface-shell);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  padding: var(--space-8) var(--space-12);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 96px;
+  overflow-y: auto;
 }
 
-.approval-actions {
-  flex: 0 0 auto;
-  padding-top: 2px;
-  flex-wrap: nowrap;
+.drawer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  padding-top: var(--space-2);
+}
+
+/* Expired variant: content stays, the action row swaps for the honest
+   "waiting in the CLI" line + pointer. */
+.drawer-expired {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding-top: var(--space-2);
+}
+
+.drawer-expired-copy {
+  font: 400 var(--type-ui-sm) var(--font-ui);
+  color: var(--text-secondary);
+}
+
+/* The bypass interstitial keeps its danger voice: deny is the safe primary,
+   approve is the deliberate opt-in. */
+.approval-drawer[data-approval-kind="dangerous-bypass"] {
+  border-color: var(--attention-border);
+}
+
+.approval-drawer[data-approval-kind="dangerous-bypass"] .drawer-kind {
+  color: var(--attention-text);
+  border-color: var(--attention-border);
+  background: var(--attention-surface);
+}
+
+.approval-drawer[data-approval-kind="dangerous-bypass"] #approve-approval {
+  background: transparent;
+  color: var(--attention-text);
+  border: 1px solid var(--attention-border);
+}
+
+.approval-drawer[data-approval-kind="dangerous-bypass"] #approve-approval:hover {
+  background: var(--attention-surface);
+}
+
+.approval-drawer[data-approval-kind="dangerous-bypass"] #deny-approval {
+  background: var(--control-primary-bg);
+  color: var(--control-primary-text);
 }
 
 /* — Attention banners (S5) — one family of passive "in the Terminal" pointers
@@ -4009,13 +4080,10 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .approval-banner {
-    flex-direction: column;
-  }
-
-  .approval-actions {
+  .drawer-actions {
     width: 100%;
     justify-content: flex-end;
+    flex-wrap: wrap;
   }
 }
 

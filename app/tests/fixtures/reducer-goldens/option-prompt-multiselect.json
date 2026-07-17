@@ -117,6 +117,7 @@
                 "text": null
               }
             ],
+            "optionPromptStep": 0,
             "optionPromptBusy": false,
             "optionPromptReceipt": null,
             "highlightedRunId": null,
@@ -266,7 +267,7 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "approvalExpiredAttention": false,
+            "approvalExpired": false,
             "status": "Claude is working",
             "unread": false,
             "completedUnseen": false
@@ -389,6 +390,7 @@
                 "text": null
               }
             ],
+            "optionPromptStep": 0,
             "optionPromptBusy": false,
             "optionPromptReceipt": null,
             "highlightedRunId": null,
@@ -538,7 +540,7 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "approvalExpiredAttention": false,
+            "approvalExpired": false,
             "status": "Claude is working",
             "unread": true,
             "completedUnseen": false

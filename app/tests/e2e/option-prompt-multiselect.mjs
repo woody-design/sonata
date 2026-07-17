@@ -46,16 +46,17 @@ try {
   await page.locator('#option-prompt-card[data-state="asking"]').waitFor({ state: "visible" });
   checks.cardRendered = true;
 
-  const questions = card.locator(".option-prompt-question");
-  await questions.nth(1).waitFor({ state: "visible" });
-  const langs = questions.nth(0);
-  const editor = questions.nth(1);
-
-  // The multiSelect question still announces itself…
+  // Step 1 of 2: the multiSelect question, alone, with its tag and an
+  // explicit Next (toggling can't imply "done").
+  await card.locator(".drawer-step", { hasText: "1 of 2" }).waitFor({ state: "visible" });
+  const langs = card.locator(".option-prompt-question");
   await card.locator(".option-prompt-multi-tag", { hasText: "choose one or more" }).waitFor({ state: "visible" });
+  const nextButton = card.locator(".option-prompt-actions button.primary", { hasText: "Next" });
+  if (!(await nextButton.isDisabled())) {
+    throw new Error("Next must stay disabled before any option is toggled.");
+  }
 
-  // …and its options TOGGLE (S1): select Python + Go, then untoggle Go —
-  // the checkbox marker and .selected state must follow every click.
+  // Options TOGGLE: select Python + Go, untoggle Go, re-toggle Go.
   const python = langs.locator(".option-prompt-option", { hasText: "Python" });
   const go = langs.locator(".option-prompt-option", { hasText: "Go" });
   await python.click();
@@ -69,19 +70,26 @@ try {
   await go.click(); // re-toggle — final picks: Python + Go
   checks.multiSelectToggles = true;
 
-  // Send stays disabled until EVERY question is answered.
+  // A multiSelect question exposes NO free-text row (P9f: not injectable).
+  if ((await card.locator(".option-prompt-freetext").count()) !== 0) {
+    throw new Error("A multiSelect step must not offer the free-text row.");
+  }
+  checks.noFreeTextOnMulti = true;
+
+  await nextButton.click();
+  await card.locator(".drawer-step", { hasText: "2 of 2" }).waitFor({ state: "visible" });
+  checks.multiNextAdvances = true;
+
+  // Step 2: single-select — picking auto-advances to Review; Send gates there.
+  await card.locator(".option-prompt-option", { hasText: "VSCode" }).click();
+  await card.locator(".drawer-step", { hasText: "Review" }).waitFor({ state: "visible" });
+  await card.locator(".option-prompt-review-row", { hasText: "Python, Go" }).waitFor({ state: "visible" });
   const send = card.locator(".option-prompt-actions button.primary", { hasText: "Send answers" });
   await send.waitFor({ state: "visible" });
-  if (!(await send.isDisabled())) {
-    throw new Error("Send must stay disabled while the single-select question is unanswered.");
-  }
-  checks.sendGatedOnAllAnswered = true;
-
-  await editor.locator(".option-prompt-option", { hasText: "VSCode" }).click();
-  await editor.locator(".option-prompt-option.selected", { hasText: "VSCode" }).waitFor({ state: "visible" });
   if (await send.isDisabled()) {
     throw new Error("Send stayed disabled after all questions were answered.");
   }
+  checks.sendGatedOnAllAnswered = true;
   await send.click();
 
   // Corroborated receipt: the card flips to answered ONLY after Claude's own

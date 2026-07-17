@@ -1120,6 +1120,7 @@ export class RuntimeController {
           answerVia: "reply",
           approvalId: ask.id,
           summary: approvalSummary(ask.payload, provider),
+          detail: approvalDetail(ask.payload),
           choices: brokerApprovalChoices(kind, ask.payload, provider),
         },
         ts: new Date().toISOString(),
@@ -1226,7 +1227,7 @@ export class RuntimeController {
    * resolved it. One `approval:decision(answered-natively)` per expired ask
    * repairs all three consumers through their existing contracts: the keyed
    * delivery gate releases (approvalId path, delivery-controller), the reducer
-   * clears `approvalExpiredAttention` + the "Waiting in the terminal" status,
+   * clears the drawer's expired state + the "Waiting in the CLI" status,
    * and the run-index records a balanced decision row for the earlier detected
    * ask. Covers BOTH turn-end paths (Stop hook AND the D6 quiescence net) —
    * called from the turn-terminal branch of handleRuntimeEvent for both. Idempotent:
@@ -3011,6 +3012,23 @@ export function classifyApprovalKind(payload: HookPayload): ApprovalKind {
  *  envelope). Without a branch it fell through to the generic tail and rendered
  *  a bare "apply_patch" with no file names — so we parse the envelope's file-op
  *  lines for a human summary (probe P2, spikes/codex-hooks-probe/probe-0144). */
+/** The raw subject of an ask — full command or file path — for the drawer's
+ *  code block (drawer S2). Soft 400 cap; null when the payload has no single
+ *  subject (kind-only asks like workspace-trust / dangerous-bypass). */
+export function approvalDetail(payload: HookPayload): string | null {
+  const input = toolInputRecord(payload);
+  const str = (key: string): string | null =>
+    typeof input[key] === "string" && (input[key] as string).trim()
+      ? (input[key] as string)
+      : null;
+  const subject =
+    str("command") ?? str("file_path") ?? str("path") ?? str("notebook_path");
+  if (!subject) {
+    return null;
+  }
+  return subject.length > 400 ? `${subject.slice(0, 399)}…` : subject;
+}
+
 export function approvalSummary(payload: HookPayload, provider: RuntimeProvider): string {
   const input = toolInputRecord(payload);
   const str = (key: string): string | null =>

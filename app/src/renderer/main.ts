@@ -380,10 +380,8 @@ initActions({
     render();
   },
   // Banner dismiss mutations, verbatim from their pre-D3 inline homes.
-  dismissApprovalExpiredAttention: (view) => {
-    view.approvalExpiredAttention = false;
-    renderAttentionBanners(view);
-  },
+  // (approval-expired banner retired in drawer S2 — the drawer's expired
+  // variant owns that state now.)
   dismissSlashAttention: (view) => {
     view.slashAttention = null;
     renderAttentionBanners(view);
@@ -402,8 +400,45 @@ initActions({
         : [...draft.optionIndices, optionIndex];
     } else {
       draft.optionIndices = [optionIndex];
+      draft.text = null;
+      // Single-select picking answers the step — auto-advance to the next
+      // UNANSWERED question, else Review (S2 review N13: a re-pick from the
+      // Review step returns to Review instead of re-walking answered steps).
+      const questions = view.pendingOptionPrompt?.questions ?? [];
+      let target = questions.length; // Review
+      for (let i = questionIndex + 1; i < questions.length; i++) {
+        const other = view.optionPromptDrafts[i];
+        const answered =
+          (other?.optionIndices.length ?? 0) > 0 ||
+          Boolean(!questions[i]?.multiSelect && (other?.text ?? "").trim());
+        if (!answered) {
+          target = i;
+          break;
+        }
+      }
+      view.optionPromptStep = target;
     }
     draft.text = null; // picking an option supersedes a free-text draft
+    renderOptionPrompt();
+  },
+  setOptionPromptText: (view, questionIndex, text) => {
+    const draft = view.optionPromptDrafts[questionIndex];
+    const question = view.pendingOptionPrompt?.questions[questionIndex];
+    if (!draft || !question || question.multiSelect) {
+      return; // free-text is single-select-only (P9f)
+    }
+    draft.text = text;
+    if (text.trim()) {
+      draft.optionIndices = []; // typing supersedes the picked option
+    }
+    // NO re-render here: the input is live DOM; a full rebuild would drop
+    // focus/caret every keystroke. The dependent affordances (Next button,
+    // chevron state) refresh on the next render, and the step-advance path
+    // re-renders anyway.
+  },
+  setOptionPromptStep: (view, step) => {
+    const questionCount = view.pendingOptionPrompt?.questions.length ?? 0;
+    view.optionPromptStep = Math.max(0, Math.min(step, questionCount));
     renderOptionPrompt();
   },
   answerOptionPrompt: () => {
@@ -768,6 +803,13 @@ elements.remoteControlToggle.addEventListener("click", (event) => {
 
 elements.composer.addEventListener("submit", (event) => {
   event.preventDefault();
+  // While a drawer owns the slot the composer is hidden — an implicit form
+  // submission (e.g. Enter in a drawer input) must never send the parked
+  // draft into the TUI's open form (S2 review B2; defense in depth with the
+  // drawer inputs' own preventDefault).
+  if (elements.composer.classList.contains("drawer-active")) {
+    return;
+  }
   void submitPrompt();
 });
 
@@ -843,6 +885,11 @@ elements.composer.addEventListener("paste", (event) => {
   if (isSessionLifecycleActive(state)) {
     return;
   }
+  // Drawer-active: the attachment strip is hidden — a file landing here would
+  // become an invisible attachment that surprise-sends later (S2 review N12).
+  if (elements.composer.classList.contains("drawer-active")) {
+    return;
+  }
   const files = Array.from(event.clipboardData?.files ?? []);
   if (files.length === 0) {
     return;
@@ -862,6 +909,11 @@ elements.composer.addEventListener("dragover", (event) => {
 
 elements.composer.addEventListener("drop", (event) => {
   if (isSessionLifecycleActive(state)) {
+    return;
+  }
+  // Drawer-active: the attachment strip is hidden — a file landing here would
+  // become an invisible attachment that surprise-sends later (S2 review N12).
+  if (elements.composer.classList.contains("drawer-active")) {
     return;
   }
   const files = Array.from(event.dataTransfer?.files ?? []);

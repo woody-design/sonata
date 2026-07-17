@@ -73,11 +73,14 @@ export interface Actions {
   // — Attention banners (view/banners.ts) dismiss mutations: bare
   //   assignments are grammar (C3 ruling) — implemented shell-side, each the
   //   verbatim body of the dismiss handler it replaced. —
-  dismissApprovalExpiredAttention(view: TaskViewState): void;
   dismissSlashAttention(view: TaskViewState): void;
   // — Option-prompt card (view/approvals.ts): select grammar + answer flow
   //   (IPC injection; optimistic receipt) —
   selectOptionPromptChoice(view: TaskViewState, questionIndex: number, optionIndex: number): void;
+  /** Free-text draft for a (single-select) question — clears its picked option. */
+  setOptionPromptText(view: TaskViewState, questionIndex: number, text: string): void;
+  /** Stepper navigation (drawer S2): 0..N-1 = questions, N = Review. Clamped. */
+  setOptionPromptStep(view: TaskViewState, step: number): void;
   answerOptionPrompt(): void;
   /** Dismiss the pending questions ("Chat about this") — decline + steer. */
   dismissOptionPrompt(): void;

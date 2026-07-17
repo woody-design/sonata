@@ -21,6 +21,7 @@ import {
   taskViewForId,
 } from "./state";
 import { deliveryStatusLabel, isActiveRunStatus, taskStatusLabel } from "./selectors/runs";
+import { providerLabel } from "./selectors/formatters";
 import {
   optionPromptQuestionMeta,
   reconcileReceiptLines,
@@ -112,6 +113,7 @@ export function reduceRuntimeEvent(
     view.pendingOptionPrompt = null;
     view.optionPromptReceipt = null;
     view.optionPromptBusy = false;
+    view.optionPromptStep = 0;
     // …and so is a prior slash-attention pointer (attention moved on).
     view.slashAttention = null;
     ensureRunTranscript(view, event.payload.id);
@@ -130,6 +132,7 @@ export function reduceRuntimeEvent(
       view.pendingApproval?.runId === event.payload.id
     ) {
       view.pendingApproval = null;
+      view.approvalExpired = false; // stale-flag hygiene (S2 review F8)
     }
     if (!isActiveRunStatus(event.payload.status) && !isActiveView(state, view)) {
       // The settled sidebar grammar's fourth state: finished while away.
@@ -152,9 +155,9 @@ export function reduceRuntimeEvent(
   if (event.type === "approval:detected") {
     view.pendingApproval = event.payload;
     view.status = "Waiting for approval";
-    // A live card supersedes the "waiting in the terminal" pointer (e.g. the
-    // scrape resurfaced the native panel after a broker expiry).
-    view.approvalExpiredAttention = false;
+    // A live ask supersedes any expired drawer (e.g. the scrape resurfaced the
+    // native panel after a broker expiry).
+    view.approvalExpired = false;
     return [viewChangedDirective(state, view, taskId)];
   }
 
@@ -168,7 +171,7 @@ export function reduceRuntimeEvent(
 
   if (event.type === "approval:decision") {
     view.pendingApproval = null;
-    view.approvalExpiredAttention = false;
+    view.approvalExpired = false;
     view.status =
       event.payload.decision === "deny"
         ? "Approval denied"
@@ -179,18 +182,18 @@ export function reduceRuntimeEvent(
   }
 
   if (event.type === "approval:expired") {
-    // The hook broker timed out → the native panel is taking over. Clear the
-    // hook card (the scrape surfaces the native one next); the request is still
-    // unanswered, so keep the "waiting" truth (cli-state stays waiting-approval)
-    // and raise the passive attention banner in the card's place (S5).
-    // Keyed (S6 review P2): only the ask THIS card shows may clear it — the
+    // The hook broker timed out → the native panel is taking over. The drawer
+    // STAYS, switched to its expired variant (drawer S2): same surface, honest
+    // state change — the request content remains legible and the action becomes
+    // "Answer in CLI". Cleared by a decision (incl. answered-natively) or a
+    // fresh detected ask.
+    // Keyed (S6 review P2): only the ask THIS drawer shows may flip it — the
     // controller already filters hidden-ask expiries, this is the renderer's
     // own defense (a queued ask expiring must not blank a live unrelated card).
     if (view.pendingApproval?.approvalId !== event.payload.approvalId) {
       return [{ kind: "none" }];
     }
-    view.pendingApproval = null;
-    view.approvalExpiredAttention = true;
+    view.approvalExpired = true;
     view.status = "Waiting in the CLI";
     return [viewChangedDirective(state, view, taskId)];
   }
@@ -210,9 +213,12 @@ export function reduceRuntimeEvent(
       optionIndices: [],
       text: null,
     }));
+    // Step MUST reset with the drafts: a superseding prompt inherits the old
+    // step otherwise and opens on Review/out-of-range (S2 review B1).
+    view.optionPromptStep = 0;
     view.optionPromptBusy = false;
     view.optionPromptReceipt = null;
-    view.status = "Claude is asking";
+    view.status = `${providerLabel(view.task?.provider ?? "claude")} is asking`;
     return [viewChangedDirective(state, view, taskId)];
   }
 

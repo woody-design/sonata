@@ -75,6 +75,8 @@ try {
 
   cardChecks.badge = (await page.locator("#approval-kind-badge").textContent())?.trim();
   cardChecks.title = (await page.locator("#approval-title").textContent())?.trim();
+  // Drawer S2: the raw command moved from the title into the code block.
+  cardChecks.detail = (await page.locator("#approval-context").textContent())?.trim();
   const middle = page.locator("#approve-session-approval");
   cardChecks.alwaysVisible = await middle.isVisible();
   cardChecks.alwaysLabel = (await middle.textContent())?.trim();
@@ -83,7 +85,7 @@ try {
   const cardOk =
     cardChecks.badge === "Command" &&
     Boolean(cardChecks.title?.startsWith("Run")) &&
-    Boolean(cardChecks.title?.includes("python3")) &&
+    Boolean(cardChecks.detail?.includes("python3")) &&
     cardChecks.alwaysVisible === true &&
     // The middle button states the ACTUAL persisted rule scope ("<tool> *"),
     // never a vague promise (reviewer P2, trust boundary).

@@ -405,7 +405,7 @@ function hookApproval(overrides = {}) {
   );
   assert.deepEqual(mismatch, [{ kind: "none" }], "non-matching expiry → deliberate no-op");
   assert.equal(view.pendingApproval, card, "non-matching expiry keeps the live card (same ref)");
-  assert.equal(view.approvalExpiredAttention, false, "no banner on a rejected expiry");
+  assert.equal(view.approvalExpired, false, "no expired flag on a rejected expiry");
   assert.equal(view.status, "Waiting for approval", "status untouched");
 
   const match = R.reduceRuntimeEvent(
@@ -414,8 +414,8 @@ function hookApproval(overrides = {}) {
     NOW_MS,
   );
   assert.deepEqual(match, [{ kind: "full", taskId: "task-A" }], "matching expiry → full render");
-  assert.equal(view.pendingApproval, null, "matching expiry clears the card");
-  assert.equal(view.approvalExpiredAttention, true, "…and raises the passive banner");
+  assert.equal(view.pendingApproval, card, "matching expiry KEEPS the ask (drawer S2: expired variant)");
+  assert.equal(view.approvalExpired, true, "…and flips the expired flag");
   assert.equal(view.status, "Waiting in the CLI", "…with the S5 status voice");
 }
 {
@@ -438,18 +438,19 @@ function hookApproval(overrides = {}) {
     NOW_MS,
   );
   assert.deepEqual(d, [{ kind: "none" }], "expiry with no card → no-op");
-  assert.equal(view.approvalExpiredAttention, false, "no banner without a card");
+  assert.equal(view.approvalExpired, false, "no expired flag without a card");
 }
 {
   // MEASURED quirk, pinned: a scrape card carries no approvalId, so a
   // malformed expiry that ALSO lacks one matches (undefined === undefined)
-  // and clears the card — today's verbatim keyed-guard semantics.
-  const { state, view } = seedView({
-    pendingApproval: hookApproval({ approvalId: undefined, answerVia: undefined, source: "scrape" }),
-  });
+  // and flips the drawer to its expired variant (drawer S2) — today's
+  // verbatim keyed-guard semantics.
+  const card = hookApproval({ approvalId: undefined, answerVia: undefined, source: "scrape" });
+  const { state, view } = seedView({ pendingApproval: card });
   const d = R.reduceRuntimeEvent(state, evt("approval:expired", { taskId: "task-A" }), NOW_MS);
   assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }]);
-  assert.equal(view.pendingApproval, null, "undefined-vs-undefined expiry clears (measured)");
+  assert.equal(view.pendingApproval, card, "undefined-vs-undefined expiry matches (measured)…");
+  assert.equal(view.approvalExpired, true, "…and flips the expired variant");
 }
 
 // 2) MANDATORY — approval:persisted receipt (receipt-by-observation label).
@@ -571,6 +572,27 @@ function optionPrompt() {
       },
     ],
   };
+}
+{
+  // A superseding prompt resets the WHOLE stepper: drafts AND step (S2 review
+  // B1 — a stale step from a previous answered prompt opened the new drawer
+  // on Review/out-of-range).
+  const { state, view } = seedView({ optionPromptStep: 3, optionPromptReceipt: null });
+  R.reduceRuntimeEvent(
+    state,
+    evt("option-prompt:detected", {
+      taskId: "task-A",
+      toolUseId: "tu-9",
+      questions: optionPrompt().questions,
+    }),
+    NOW_MS,
+  );
+  assert.equal(view.optionPromptStep, 0, "detected resets the stepper to Q1");
+  assert.deepEqual(
+    view.optionPromptDrafts,
+    [{ optionIndices: [], text: null }],
+    "detected resets the drafts",
+  );
 }
 {
   const { state, view } = seedView({

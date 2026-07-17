@@ -63,7 +63,7 @@ try {
   page.setDefaultTimeout(60000);
 
   const banner = page.locator("#approval-banner:not(.hidden)");
-  const expiredBanner = page.locator('.attention-banner[data-kind="approval-expired"]');
+  const expiredBanner = page.locator('#approval-banner[data-state="expired"]:not(.hidden)'); // drawer S2: expired variant in place
 
   // ── ALLOW ──────────────────────────────────────────────────────────────────
   const allow = await createCodexTask(page, folderAllow);
@@ -73,9 +73,11 @@ try {
     holdMs: 60000,
   });
   await banner.waitFor({ state: "visible", timeout: 40000 });
-  // The card leads with the summary as its TITLE — for Codex that is the
-  // ready-made `tool_input.description` copy (rendered verbatim).
-  const allowSummary = (await page.locator("#approval-title").innerText()).trim();
+  // Drawer S2: the title is the plain question; Codex's human-written
+  // `tool_input.description` surfaces on the summary sub-line (verbatim),
+  // and the raw command sits in the code block.
+  const allowSummary = (await page.locator("#approval-summary").innerText()).trim();
+  const allowDetail = (await page.locator("#approval-context").innerText()).trim();
   await page.locator("#approve-approval").click();
   await banner.waitFor({ state: "hidden", timeout: 20000 });
   const allowResult = await waitForResult(folderAllow);
@@ -102,15 +104,19 @@ try {
     holdMs: 1500, // short hold: no one answers → the broker gives up
   });
   await banner.waitFor({ state: "visible", timeout: 40000 });
-  // Do NOT answer. The broker times out → Duet clears the hook card + raises the
-  // approval-expired banner; the broker's stdout is empty (native card takes over).
+  // Do NOT answer. The broker times out → the drawer STAYS, flipped to its
+  // expired variant (drawer S2); the broker's stdout is empty (native card
+  // takes over in the CLI).
   await expiredBanner.waitFor({ state: "visible", timeout: 20000 });
-  const cardClearedOnExpiry = !(await banner.isVisible().catch(() => false));
+  const drawerStaysExpired =
+    (await banner.isVisible().catch(() => false)) &&
+    (await page.locator("#approval-expired-row").isVisible().catch(() => false));
   const expireResult = await waitForResult(folderExpire);
 
   const allowEchoed = allowResult.stdout === ALLOW_JSON;
   const denyEchoed = denyResult.stdout === DENY_JSON;
   const summaryIsDescription = allowSummary.includes("Allow the allow-flow write?");
+  const detailIsCommand = allowDetail.includes("echo allow");
   const reportRecorded = Boolean(allowReport) && Boolean(denyReport);
   const nativeFallback = expireResult.stdout === "";
 
@@ -124,17 +130,18 @@ try {
     reportRecorded,
     allowReportDecision: allowReport,
     denyReportDecision: denyReport,
-    cardClearedOnExpiry,
+    drawerStaysExpired,
     nativeFallback,
     expireStdout: expireResult.stdout,
   });
 
   const success =
     summaryIsDescription &&
+    detailIsCommand &&
     allowEchoed &&
     denyEchoed &&
     reportRecorded &&
-    cardClearedOnExpiry &&
+    drawerStaysExpired &&
     nativeFallback;
   results.success = success;
   console.log(JSON.stringify(results, null, 2));

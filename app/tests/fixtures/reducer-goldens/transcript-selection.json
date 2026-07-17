@@ -41,6 +41,7 @@
             "pendingApproval": null,
             "pendingOptionPrompt": null,
             "optionPromptDrafts": [],
+            "optionPromptStep": 0,
             "optionPromptBusy": false,
             "optionPromptReceipt": null,
             "highlightedRunId": null,
@@ -228,7 +229,7 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "approvalExpiredAttention": false,
+            "approvalExpired": false,
             "status": "Ready",
             "unread": false,
             "completedUnseen": false
@@ -275,6 +276,7 @@
             "pendingApproval": null,
             "pendingOptionPrompt": null,
             "optionPromptDrafts": [],
+            "optionPromptStep": 0,
             "optionPromptBusy": false,
             "optionPromptReceipt": null,
             "highlightedRunId": null,
@@ -462,7 +464,7 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "approvalExpiredAttention": false,
+            "approvalExpired": false,
             "status": "Ready",
             "unread": true,
             "completedUnseen": true
