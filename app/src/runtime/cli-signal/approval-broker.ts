@@ -30,7 +30,9 @@ import {
  */
 
 const controlDir = process.argv[2];
-const timeoutMs = Number(process.argv[3]) || 60_000;
+// Fallback mirrors the injected production hold (claude-runtime-settings) so a
+// direct spawn without argv can't silently regress to the pre-S0 60s behavior.
+const timeoutMs = Number(process.argv[3]) || 580_000;
 const POLL_MS = APPROVAL_POLL_MS;
 
 let raw = "";
@@ -48,6 +50,21 @@ process.stdin.on("end", () => {
     payload = JSON.parse(raw.trim() || "{}");
   } catch {
     payload = { parseError: true };
+  }
+
+  // AskUserQuestion is NOT an approval — since ~2.1.2xx the CLI fires
+  // PermissionRequest for it alongside PreToolUse (probed 2.1.212,
+  // spikes/drawer-option-prompt-probe P5). Holding it here surfaced a phantom
+  // approval card next to the option-prompt card, locked the keyed delivery
+  // gate, and expired into a false "waiting in the CLI" banner. Exit undecided
+  // immediately (no ask file, no stdout): P1 proved the option form renders
+  // and answers normally after an undecided hook exit.
+  const toolName =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>).tool_name
+      : undefined;
+  if (toolName === "AskUserQuestion") {
+    process.exit(0);
   }
 
   // Sortable, collision-free id across concurrent brokers (parallel tool

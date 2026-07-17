@@ -87,8 +87,12 @@ export const CODEX_ANSWERING_MARKER = "answering-enabled";
 
 /**
  * How long the broker HOLDS the CLI waiting for Duet's card answer before giving
- * up to Codex's native card. Mirrors the Claude broker's 60s hold; the frozen
- * hook `timeout` (120s) sits comfortably above it so Codex never kills the
+ * up to Codex's native card. INDEPENDENT of the Claude broker's hold (580s since
+ * drawer S0) — do NOT re-sync them: this 60s sits under the frozen hook
+ * `timeout` (120s), and that 120 is part of the exact trusted command definition
+ * (ARCHITECTURE.md hook-trust) — raising it silently untrusts the hook. Extending
+ * the codex hold needs its own probe (timeout semantics + re-trust path) first.
+ * The frozen timeout sits comfortably above the hold so Codex never kills the
  * broker mid-poll (which would read as a crash, not a graceful fallback). The
  * shim reads an optional `DUET_BROKER_HOLD_MS` env override (same env-binding
  * rationale as `DUET_RUNTIME_DIR`; used by tests, never changes the trusted

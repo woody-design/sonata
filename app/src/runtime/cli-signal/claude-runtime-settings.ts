@@ -26,8 +26,15 @@ export function claudeHooksDirectory(runtimeDir: string): string {
 // giving up to the native panel. The hook's own timeout must exceed it so the
 // CLI doesn't kill the broker mid-poll (which would look like a crash, not a
 // graceful fallback).
-const APPROVAL_BROKER_TIMEOUT_MS = 60_000;
-const APPROVAL_HOOK_TIMEOUT_S = 120;
+//
+// 580s/600s (drawer S0, 2026-07-17): the CLI's native permission prompt has no
+// timeout of its own (upstream declined one, #37913), so the ONLY thing that
+// forced answers back into the terminal was our own hold expiring. 600 is the
+// documented per-hook `timeout` default/ceiling-of-record (seconds); the broker
+// holds 20s less so it always expires gracefully (writes its marker) before the
+// CLI would kill it. Values >600 are undocumented — deliberately not used.
+const APPROVAL_BROKER_TIMEOUT_MS = 580_000;
+const APPROVAL_HOOK_TIMEOUT_S = 600;
 
 /**
  * Fire-and-forget hook events duet injects (the sink). UserPromptSubmit/
