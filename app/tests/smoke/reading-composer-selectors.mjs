@@ -719,4 +719,77 @@ const run = (status, extra = {}) => ({
   );
 }
 
-console.log("reading-composer-selectors: 11 fixture groups pass");
+// --- stoppedRunRefillDraft (stop S2): stopping hands the words back --------
+{
+  const runReport = (extra = {}) => ({
+    runId: "run-1",
+    taskId: "task-1",
+    kind: "prompt",
+    prompt: "fix the login bug\nand add a test",
+    title: "fix the login bug",
+    status: "active",
+    lifecyclePhase: "active",
+    startedAt: "2026-07-17T00:00:00.000Z",
+    endedAt: null,
+    elapsedMs: null,
+    completionSource: null,
+    completionConfidence: null,
+    ...extra,
+  });
+  const viewWithRun = (runExtra = {}) => view({ report: { runs: [runReport(runExtra)] } });
+
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun(), ""),
+    "fix the login bug\nand add a test",
+    "an empty composer refills with the stopped run's full (multi-line) prompt",
+  );
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun(), "already typing a correction"),
+    null,
+    "an occupied composer is never clobbered",
+  );
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun(), "   \n  "),
+    "fix the login bug\nand add a test",
+    "a whitespace-only composer counts as empty and still refills",
+  );
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun({ status: "completed" }), ""),
+    null,
+    "a settled run refills nothing (the stop targeted nothing)",
+  );
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun({ prompt: "   " }), ""),
+    null,
+    "a blank run prompt refills nothing",
+  );
+  assert.equal(R.stoppedRunRefillDraft(view({ report: { runs: [] } }), ""), null, "no runs → null");
+  assert.equal(R.stoppedRunRefillDraft(null, ""), null, "no view → null");
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun({ prompt: "  indented code\n  matters  " }), ""),
+    "  indented code\n  matters  ",
+    "the prompt returns VERBATIM — leading/trailing whitespace can be meaningful",
+  );
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun({ prompt: "<task-notification>\n…\n</task-notification>" }), ""),
+    null,
+    "a background task-notification run's envelope XML is never handed back",
+  );
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun({ prompt: "[Image attachment]" }), ""),
+    null,
+    "the attachment-only placeholder is never handed back",
+  );
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun({ prompt: "[3 image attachments]" }), ""),
+    null,
+    "the multi-attachment placeholder is never handed back",
+  );
+  assert.equal(
+    R.stoppedRunRefillDraft(viewWithRun({ prompt: "(prompt)" }), ""),
+    null,
+    "the hook-echo fallback placeholder is never handed back",
+  );
+}
+
+console.log("reading-composer-selectors: 12 fixture groups pass");

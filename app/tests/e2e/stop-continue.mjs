@@ -89,6 +89,15 @@ try {
   );
   const endFileSeen = fs.existsSync(paths.end);
 
+  // Stop S2: the stopped prompt is handed back into the composer for editing
+  // (no select-all; an occupied composer would win — here it was empty). The
+  // recovery `.fill()` below replaces it, which doubles as the "user edits
+  // and resends" step of the field flow.
+  const composerAfterStop = await page.locator("#prompt-input").inputValue();
+  const composerRefilledWithStoppedPrompt = composerAfterStop.includes(
+    "Run exactly this shell command",
+  );
+
   const recoveryPrompt = [
     "Create a Markdown file named stop_recovery.md with exactly this content:",
     "# Stop Recovery",
@@ -137,6 +146,7 @@ try {
     commandAliveBeforeStop &&
     commandStopped &&
     !endFileSeen &&
+    composerRefilledWithStoppedPrompt &&
     stoppedRun?.completionSource === "native-control" &&
     stoppedRun?.completionConfidence === "high" &&
     stoppedRun?.stopEvents?.some((event) => event.action === "stopped") &&
@@ -156,6 +166,7 @@ try {
         commandAliveBeforeStop,
         commandStopped,
         endFileSeen,
+        composerRefilledWithStoppedPrompt,
         stoppedRunStatus: stoppedRun?.status,
         stoppedCompletionSource: stoppedRun?.completionSource,
         stoppedCompletionConfidence: stoppedRun?.completionConfidence,

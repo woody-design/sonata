@@ -23,6 +23,49 @@ export function hasActiveRun(view: TaskViewState | null): boolean {
   return isActiveRunStatus(latestRun?.status ?? "");
 }
 
+/**
+ * The draft to refill into the Duet composer when the user stops the active
+ * run (stop S2): stopping is usually "I said it wrong" — hand the words back
+ * for editing instead of forcing a retype. The run report's prompt is the
+ * source of truth (it carries the REAL turn text even for prompts typed in
+ * the Terminal or delivered mid-turn, via the UserPromptSubmit hook), and the
+ * refill must never clobber anything the user has typed since — an occupied
+ * composer wins unconditionally. Deliberately NOT select-all: the user
+ * decides what to keep (Woody, 2026-07-17). Returns null when there is
+ * nothing to refill.
+ */
+export function stoppedRunRefillDraft(
+  view: TaskViewState | null,
+  composerValue: string,
+): string | null {
+  if (composerValue.trim()) {
+    return null;
+  }
+  const latestRun = view?.report?.runs.at(-1);
+  if (!latestRun || !isActiveRunStatus(latestRun.status)) {
+    return null;
+  }
+  const prompt = latestRun.prompt ?? "";
+  if (!prompt.trim() || isSyntheticRunPrompt(prompt)) {
+    return null;
+  }
+  return prompt;
+}
+
+/** Run prompts the user never typed and must not be handed back as a draft
+ *  (S2 review F3): background task-notification runs keep their raw
+ *  envelope XML as the prompt; attachment-only sends carry the
+ *  "[Image attachment]" placeholder; a hook-begun run with a swallowed echo
+ *  falls back to "(prompt)". */
+function isSyntheticRunPrompt(prompt: string): boolean {
+  const trimmed = prompt.trim();
+  return (
+    trimmed.startsWith("<task-notification") ||
+    trimmed === "(prompt)" ||
+    /^\[(?:\d+ )?image attachments?\]$/i.test(trimmed)
+  );
+}
+
 export type TurnActivity = "working" | "background" | "idle";
 
 /**

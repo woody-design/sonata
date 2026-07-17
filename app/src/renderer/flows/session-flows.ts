@@ -21,7 +21,7 @@ import {
   providerLabel,
 } from "../../reading-core/selectors/formatters";
 import { optionPromptSelectionsFromDrafts } from "../../reading-core/selectors/composer";
-import { dormantArmed } from "../../reading-core/selectors/runs";
+import { dormantArmed, stoppedRunRefillDraft } from "../../reading-core/selectors/runs";
 import {
   activeTaskView as activeTaskViewOf,
   createTaskView,
@@ -912,11 +912,36 @@ export async function stopRun(): Promise<void> {
   if (!view?.task) {
     return;
   }
+  const taskId = view.task.id;
 
+  // Captured BEFORE the stop settles the run: the refill source is the run
+  // being stopped (stop S2 — stopping usually means "I said it wrong").
+  const refillDraft = stoppedRunRefillDraft(view, elements.promptInput.value);
   view.status = "Stopped";
   render();
   try {
-    await window.duetRuntime.stopRun({ taskId: view.task.id, inspectDelayMs: 6000 });
+    await window.duetRuntime.stopRun({ taskId, inspectDelayMs: 6000 });
+    // Hand the stopped words back for editing. Re-checked for emptiness: the
+    // user may have started typing during the IPC round-trip, and their text
+    // always wins. The check must consult the right truth — after a view
+    // switch the DOM textarea belongs to ANOTHER view, and this view's words
+    // live in its parked composerDraft (S2 review F2). No select-all — the
+    // user decides what to keep. The message itself stays in the transcript
+    // with its Stopped note (it is in the CLI's session history either way);
+    // the refill is a draft quoting it, not an unsend.
+    const composerStillEmpty =
+      state.activeTaskId === taskId
+        ? !elements.promptInput.value.trim()
+        : !view.composerDraft.trim();
+    if (refillDraft && composerStillEmpty) {
+      view.composerDraft = refillDraft;
+      if (state.activeTaskId === taskId) {
+        elements.promptInput.value = refillDraft;
+        const caret = refillDraft.length;
+        elements.promptInput.setSelectionRange(caret, caret);
+        elements.promptInput.focus();
+      }
+    }
   } catch (error) {
     view.status = errorMessage(error);
   } finally {

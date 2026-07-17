@@ -249,6 +249,53 @@ await check("a lone human Esc during a run marks the CLI line dirty for the next
   }
 });
 
+await check("codex /stop inspection stands down when a NEW run started (stop→edit→resend)", async () => {
+  const writes = [];
+  const host = new TerminalHost({
+    taskId: "stop-interrupt-hygiene-smoke",
+    provider: "codex",
+    defaultWorkspace: process.cwd(),
+    eventSink: () => {},
+  });
+  try {
+    host.ptyProcess = fakePty(writes);
+    host.submitPrompt("codex turn to stop");
+    await delay(250);
+    await host.stopRun({ inspectDelayMs: 300, forceSlashStop: true });
+    host.submitPrompt("corrected turn sent before the inspection"); // the S2 happy path
+    await delay(700);
+    assert.ok(
+      !writes.some((write) => write.includes("/stop")),
+      "the deferred /stop must not kill the corrected turn (S2 review F1)",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+await check("codex /stop inspection still runs when nothing new started", async () => {
+  const writes = [];
+  const host = new TerminalHost({
+    taskId: "stop-interrupt-hygiene-smoke",
+    provider: "codex",
+    defaultWorkspace: process.cwd(),
+    eventSink: () => {},
+  });
+  try {
+    host.ptyProcess = fakePty(writes);
+    host.submitPrompt("codex turn to stop");
+    await delay(250);
+    await host.stopRun({ inspectDelayMs: 300, forceSlashStop: true });
+    await delay(700);
+    assert.ok(
+      writes.some((write) => write.includes("/stop")),
+      "with no new run the cleanup /stop still goes out",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
 await check("handleStopRequested reports a write-canceled in-flight item undelivered", async () => {
   const states = [];
   const host = {

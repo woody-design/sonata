@@ -1934,6 +1934,15 @@ export class TerminalHost extends EventEmitter {
     stoppedRunId: RunId | null,
     options: { forceSlashStop?: boolean; stoppedCommandApprovalRun?: boolean },
   ): void {
+    // A NEW run means the user already moved on — stop→refill→edit→resend
+    // can complete well inside the inspection delay (S2 invites exactly
+    // that), and a `/stop` now would kill the corrected turn, not clean up
+    // the stopped one (S2 review F1). Cleanup still runs when the old run is
+    // somehow still the active one (approval-parked command) or nothing new
+    // started.
+    if (this.activeRun && this.activeRun.id !== stoppedRunId) {
+      return;
+    }
     const shouldSubmitSlashStop =
       this.profile.supportsSlashStop &&
       (Boolean(options.forceSlashStop) ||
