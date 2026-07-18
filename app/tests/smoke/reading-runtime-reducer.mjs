@@ -1241,9 +1241,11 @@ function workingStatus(liveness) {
     assert.equal(view.status, "Ready", "needs-attention does not overwrite status (banner carries it)");
   }
 
-  // observedModes MERGE (D4 — reachable-modes set grows, never shrinks): a
-  // choreography that confirmed `auto` en route teaches the menu auto exists,
-  // on BOTH settle and needs-attention, de-duplicated and order-stable.
+  // observedModes MERGE (the reachable-modes set grows, never shrinks): a
+  // choreography confirms modes en route, on BOTH settle and needs-attention,
+  // de-duplicated and order-stable. Since the D4 field revision (2026-07-18) this
+  // set gates only `bypassPermissions` in the menu (auto is always offered), but
+  // the merge behavior under test is unchanged — every confirmed mode is recorded.
   {
     const { state, view } = seedView();
     assert.deepEqual(view.observedPermissionModes, [], "seed: synthetic task has null mode → empty set");
@@ -1270,7 +1272,8 @@ function workingStatus(liveness) {
   }
 
   // task:updated reconciling permission_mode adds the mode to the reachable set
-  // (how a native Shift+Tab to the account-gated `auto` becomes menu-eligible).
+  // (which since the D4 revision gates bypass menu-eligibility; auto is always
+  // offered, so recording it here is harmless corroboration).
   {
     const { state, view } = seedView();
     R.reduceRuntimeEvent(

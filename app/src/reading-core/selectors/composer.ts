@@ -131,13 +131,23 @@ export function sessionModelSummaryLabel(view: TaskViewState | null): string | n
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
-/** The permission modes the live-session access menu offers (S2). The base triad
- *  (default / acceptEdits / plan) is always reachable via Shift+Tab; the gated
- *  modes (auto — account-gated; bypassPermissions — spawn-only) appear ONLY once
- *  this session has been OBSERVED in them, so the menu never lists a mode the
- *  cycle can't reach (D4 — no dead steps). Order follows the mode vocabulary. */
-const PERMISSION_MENU_BASE: readonly ClaudePermissionMode[] = ["default", "acceptEdits", "plan"];
-const PERMISSION_MENU_GATED: readonly ClaudePermissionMode[] = ["auto", "bypassPermissions"];
+/** The permission modes the live-session access menu offers (S2; D4 revised by
+ *  the 2026-07-18 field test). default / acceptEdits / plan / **auto** are always
+ *  offered — a session spawned Manual never OBSERVES auto, so the old observed-only
+ *  rule made Auto permanently unreachable (a dead END, worse than a dead step). An
+ *  account whose Shift+Tab cycle lacks auto now fails GRACEFULLY when Auto is
+ *  picked (the stepping engine seeks, exhausts, returns home, and raises
+ *  needs-attention) — rare, honest, and the accepted trade. `bypassPermissions`
+ *  stays gated to a session that was SPAWNED into it (observed, seeded from the
+ *  spawn mode) — a Sonata launch never offers it, so it is non-dead by
+ *  construction and must not appear as a dead step. Order follows the vocabulary. */
+const PERMISSION_MENU_BASE: readonly ClaudePermissionMode[] = [
+  "default",
+  "acceptEdits",
+  "plan",
+  "auto",
+];
+const PERMISSION_MENU_GATED: readonly ClaudePermissionMode[] = ["bypassPermissions"];
 
 export function sessionPermissionMenuModes(view: TaskViewState): ClaudePermissionMode[] {
   const observed = view.observedPermissionModes;

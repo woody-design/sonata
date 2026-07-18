@@ -193,9 +193,11 @@ export function reduceRuntimeEvent(
     // this event; so `settled` only clears the pending affordance.
     //
     // Permission choreography also teaches us which gated modes this session can
-    // reach (D4 — no dead steps): merge every mode a receipt confirmed into the
-    // reachable-modes set, on settle AND on needs-attention (a return-home run
-    // still observed real modes en route).
+    // reach: merge every mode a receipt confirmed into the reachable-modes set, on
+    // settle AND on needs-attention (a return-home run still observed real modes en
+    // route). Since the D4 field revision (2026-07-18) this set gates only
+    // `bypassPermissions` in the access menu — auto is always offered — so the
+    // pass-through observation mainly matters when a native step reaches bypass.
     if (event.payload.observedModes && event.payload.observedModes.length > 0) {
       view.observedPermissionModes = mergePermissionModes(
         view.observedPermissionModes,
@@ -438,8 +440,11 @@ export function reduceRuntimeEvent(
     view.status = taskStatusLabel(event.payload.task);
     // The hook payload's `permission_mode` reconciles onto the task here (the
     // permission SSOT). Learning a mode from a hook proves the session can reach
-    // it — record it so the access menu can offer it (D4; how a native Shift+Tab
-    // to the account-gated `auto` becomes menu-eligible).
+    // it — record it in observedPermissionModes, which since the D4 field revision
+    // (2026-07-18) gates only `bypassPermissions` in the access menu (auto is now
+    // always offered; see sessionPermissionMenuModes). Recording every observed
+    // mode is harmless — the base modes are offered regardless — and keeps a
+    // spawned-into-bypass session's menu honest.
     if (event.payload.task.permissionMode) {
       view.observedPermissionModes = mergePermissionModes(view.observedPermissionModes, [
         event.payload.task.permissionMode,

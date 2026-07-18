@@ -9,16 +9,18 @@ import { sendFirstPrompt, sendPrompt, waitForEngagement } from "./helpers/sessio
 // and switches its permission mode via the composer's now-interactive ACCESS
 // chip, using the native Shift+Tab (`\x1b[Z`) stepping engine:
 //   (d) while the cold-start turn runs, the chip is a designed DISABLED state;
-//   (2) at idle it opens the Approvals menu (current mode marked; only reachable
-//       modes offered — auto/bypass absent on a default-spawned session);
-//   (a) selecting Plan steps default → accept edits → plan; the settled event's
-//       `observedModes` lists every mode a step's mode-line receipt confirmed
-//       (the proof each step was READ);
+//   (2) at idle it opens the Approvals menu — default/acceptEdits/plan/AUTO are
+//       always offered (D4 field revision 2026-07-18: auto is no longer
+//       observed-gated, so it is reachable from a Manual-spawned session); bypass
+//       stays absent (spawn-only). Current mode marked;
+//   (a) selecting Auto steps default → accept edits → plan → auto; the settled
+//       event's `observedModes` lists every mode a step's mode-line receipt
+//       confirmed (the proof each step was READ, incl. the plan pass-through);
 //   (b/c) after a trivial prompt, the hook payload's permission_mode reconciles
-//       the task to `plan` (SSOT) and the chip label follows to "Plan mode";
+//       the task to `auto` (SSOT) and the chip label follows to "Auto" —
+//       Manual→Auto works LIVE, which is the point of the D4 revision;
 //   (e) a NATIVE terminal Shift+Tab (injected outside the engine) still mirrors
-//       correctly — the pre-existing display path didn't regress. We also record
-//       whether `auto` appears in the cycle and what the hook payload calls it.
+//       correctly FROM auto — the pre-existing display path didn't regress.
 //
 // Shift+Tab is SESSION-SCOPED — it must NOT persist to ~/.claude.json /
 // settings.json (unlike `/model` / `/effort`). This test snapshots settings.json
@@ -94,11 +96,14 @@ try {
   await menu.waitFor({ state: "visible" });
   const optionLabels = await settingOptionLabels(page, "Approvals");
   findings.menuOptions = optionLabels;
-  // A default-spawned session: the base triad only, NO account-gated modes (D4).
+  // A default-spawned session: default/acceptEdits/plan/AUTO always offered (D4
+  // field revision 2026-07-18 — auto is no longer observed-gated, or it would be
+  // unreachable forever on a Manual-spawned session). Bypass stays absent (it is
+  // spawn-only, and a Sonata launch never offers it — non-dead by construction).
   assert.deepEqual(
     optionLabels,
-    ["Manual", "Accept edits", "Plan mode"],
-    "the menu offers only the reachable base triad on a default-spawned session (no dead auto/bypass steps)",
+    ["Manual", "Accept edits", "Plan mode", "Auto"],
+    "the menu always offers Auto (D4 revision) and omits the spawn-only bypass on a default-spawned session",
   );
   const currentMarked = (
     await settingSection(page, "Approvals")
@@ -114,26 +119,30 @@ try {
     await page.screenshot({ path: path.join(evidenceDir, "01-access-menu.png") });
   }
 
-  // (a) DRIVE default → plan. The engine steps `\x1b[Z` default→acceptEdits→plan,
-  //     reading each mode line as the per-step receipt.
-  await settingSection(page, "Approvals").locator("button", { hasText: exact("Plan mode") }).click();
+  // (a) DRIVE Manual → Auto (the D4-revision leg). The engine steps `\x1b[Z`
+  //     default→acceptEdits→plan→auto, reading each mode line as the per-step
+  //     receipt. Auto is only reachable because it is now always offered — the
+  //     observed-only rule would have hidden it on this Manual-spawned session.
+  await settingSection(page, "Approvals").locator("button", { hasText: exact("Auto") }).click();
 
   // Wait for the permission switch to resolve (settled or needs-attention).
   const resolved = await waitForControlSwitch(page, "permission", ["settled", "needs-attention"], 30000);
   findings.permissionResolve = resolved;
   assert.ok(resolved, "the permission switch emitted a terminal control-switch:state event");
   // observedModes proves each step's mode line was READ (a per-step receipt):
-  // stepping default→plan must have confirmed acceptEdits (pass-through) and plan.
+  // stepping default→auto passes THROUGH acceptEdits and plan, then lands on auto.
   assert.ok(
     Array.isArray(resolved.observedModes),
     "the permission event carries the modes its receipts confirmed",
   );
   findings.observedModes = resolved.observedModes;
   assert.ok(
-    resolved.observedModes.includes("plan") && resolved.observedModes.includes("acceptEdits"),
-    "observedModes includes the pass-through (acceptEdits) and target (plan) — each step's receipt was read",
+    resolved.observedModes.includes("acceptEdits") &&
+      resolved.observedModes.includes("plan") &&
+      resolved.observedModes.includes("auto"),
+    "observedModes includes the pass-throughs (acceptEdits, plan) and target (auto) — each step's receipt was read",
   );
-  assert.equal(resolved.phase, "settled", "the target (plan) was reached and settled");
+  assert.equal(resolved.phase, "settled", "the target (auto) was reached and settled — Manual→Auto works live");
 
   if (evidenceDir) {
     await page.screenshot({ path: path.join(evidenceDir, "02-after-switch-settled.png") });
@@ -155,22 +164,21 @@ try {
   await waitForEngagement(page);
   await page.locator("#send-prompt:not(.stop-mode)").waitFor({ state: "attached", timeout: 180000 });
 
-  const modeAfterPlan = await waitForManifestMode(projectsDir, taskId, "plan", 60000);
-  findings.hookModeAfterPlan = modeAfterPlan;
-  assert.equal(modeAfterPlan, "plan", "the hook payload reconciled task.permissionMode to plan (SSOT)");
-  const chipAfterPlan = (await accessChip.textContent())?.trim() ?? "";
-  findings.chipAfterPlan = chipAfterPlan;
-  assert.ok(chipAfterPlan.includes("Plan mode"), "the access chip label followed the hook to Plan mode");
+  const modeAfterAuto = await waitForManifestMode(projectsDir, taskId, "auto", 60000);
+  findings.hookModeAfterAuto = modeAfterAuto;
+  assert.equal(modeAfterAuto, "auto", "the hook payload reconciled task.permissionMode to auto (SSOT)");
+  const chipAfterAuto = (await accessChip.textContent())?.trim() ?? "";
+  findings.chipAfterAuto = chipAfterAuto;
+  assert.ok(chipAfterAuto.includes("Auto"), "the access chip label followed the hook to Auto");
 
   if (evidenceDir) {
     await page.screenshot({ path: path.join(evidenceDir, "03-chip-follows-plan.png") });
   }
 
   // (e) NATIVE Shift+Tab — inject `\x1b[Z` OURSELVES (outside the stepping engine)
-  //     and confirm the pre-existing mirror path still tracks the mode. From plan
-  //     the cycle advances to auto (if account-gated on) or manual. We record what
-  //     the hook payload calls whatever we land in (answers "what does auto look
-  //     like in the payload?").
+  //     and confirm the pre-existing mirror path still tracks the mode. From auto
+  //     the cycle advances (to bypass if account-gated on, else back to manual);
+  //     whatever it lands in, task.permissionMode must follow the hook.
   await page.evaluate(
     ({ id }) => window.sonataRuntime.writeTerminalUserInput({ taskId: id, data: "\x1b[Z" }),
     { id: taskId },
@@ -178,17 +186,15 @@ try {
   await sendPrompt(page, "Reply with just: ok");
   await waitForEngagement(page);
   await page.locator("#send-prompt:not(.stop-mode)").waitFor({ state: "attached", timeout: 180000 });
-  const modeAfterNative = await waitForManifestModeChange(projectsDir, taskId, "plan", 60000);
+  const modeAfterNative = await waitForManifestModeChange(projectsDir, taskId, "auto", 60000);
   findings.hookModeAfterNativeShiftTab = modeAfterNative;
   assert.notEqual(
     modeAfterNative,
-    "plan",
-    "a native Shift+Tab advanced the mode (the pre-existing mirror path did not regress)",
+    "auto",
+    "a native Shift+Tab advanced the mode off auto (the pre-existing mirror path did not regress)",
   );
   const chipAfterNative = (await accessChip.textContent())?.trim() ?? "";
   findings.chipAfterNative = chipAfterNative;
-  // Record the auto observation explicitly.
-  findings.autoObservedInCycle = modeAfterNative === "auto";
 
   if (evidenceDir) {
     await page.screenshot({ path: path.join(evidenceDir, "04-after-native-shifttab.png") });
