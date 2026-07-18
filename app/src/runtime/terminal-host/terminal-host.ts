@@ -138,13 +138,15 @@ export function parseClaudeControlReceipt(
 // (escapes + ALL whitespace removed) the other claude parsers key on.
 const CLAUDE_CACHE_MISS_BODY_RE = /thefullhistorygetsre-readonyournextmessage/;
 const CLAUDE_CACHE_MISS_NO_ROW_RE = /2\.No,goback/;
-// Cursor rows: `❯` (U+276F) + digit + `.` + the row LABEL (the digit/label anchor
-// rejects the composer `❯ ` prompt, which is never followed by digit+dot+label).
-// "Most recent wins" (greatest match index) so a stale pre-move cursor repaint
-// can't outvote the row the latest frame highlights — like the codex cursor.
+// Cursor rows: `❯` (U+276F) + the row LABEL. The digit+dot (`1.`/`2.`) appear in
+// the INITIAL full render but claude DROPS them in the partial arrow-move repaint
+// (measured: after ↓ the row renders `❯No, go back`, no digit) — so the digit is
+// OPTIONAL and the LABEL is the anchor (it also rejects the composer `❯ ` prompt,
+// which is never followed by a row label). "Most recent wins" (greatest match
+// index) so a stale pre-move cursor repaint can't outvote the latest frame.
 const CLAUDE_CACHE_MISS_CURSOR_RES: ReadonlyArray<readonly [RegExp, 1 | 2]> = [
-  [/❯\d\.Yes,switchto/, 1],
-  [/❯\d\.No,goback/, 2],
+  [/❯\d?\.?Yes,switchto/, 1],
+  [/❯\d?\.?No,goback/, 2],
 ];
 // Cancel receipt: choosing No (or Esc) closes the dialog with a `Kept …` line —
 // the switch did NOT apply (measured; settings.json byte-unchanged). Axis-scoped

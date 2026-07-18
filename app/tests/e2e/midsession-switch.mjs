@@ -40,7 +40,6 @@ try {
   page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
-  const projectsDir = path.join(workspaceRoot, "data", "projects");
 
   // A prompt that streams for a few seconds (no tool approval) so the running
   // turn is observable — long enough to assert the disabled chip.
@@ -88,102 +87,194 @@ try {
     "the CLI-default caption is gone (S6 removal)",
   );
 
-  // Current model is marked selected in the menu.
-  const selectedModelLabel = (
-    await settingSection(page, "Model").locator("button.selected").first().evaluate(
-      (el) => el.childNodes.item(0)?.textContent?.trim() ?? "",
-    )
-  );
-  assert.ok(selectedModelLabel.length > 0, "the current model is marked in the menu");
+  // (S7 Part 1) The menu is a STAGED selector — a Save/Cancel footer, Save disabled
+  // while the staged pair equals current (clean). Staging seeds to the current pair,
+  // so on open the current model + effort carry the `selected` badge.
+  const footer = menu.locator(".composer-staged-footer");
+  await footer.waitFor({ state: "visible" });
+  const saveBtn = footer.locator(".composer-staged-action.primary");
+  assert.equal(await saveBtn.isDisabled(), true, "Save is disabled while the staged pair == current (clean)");
+
+  const currentModelLabel = await settingSection(page, "Model")
+    .locator("button.selected")
+    .first()
+    .evaluate((el) => el.childNodes.item(0)?.textContent?.trim() ?? "");
+  const currentEffortLabel = await settingSection(page, "Reasoning")
+    .locator("button.selected")
+    .first()
+    .evaluate((el) => el.childNodes.item(0)?.textContent?.trim() ?? "");
+  assert.ok(currentModelLabel.length > 0, "the current model is marked in the menu");
 
   if (evidenceDir) {
     await page.screenshot({ path: path.join(evidenceDir, "01-session-model-menu.png") });
   }
 
-  // (3) DRIVE A REAL SWITCH — pick a DIFFERENT model. Two probe-verified outcomes,
-  //     both valid, both proving the injection was driven AND observed:
-  //       - clean settle → the chip follows the statusline immediately; OR
-  //       - the CLI pops its cache-miss confirm ("the full history gets re-read…
-  //         Yes / No") → the RED LINE fires: a needs-attention banner, Sonata does
-  //         NOTHING (never auto-answers). The switch completes only once the USER
-  //         answers in the CLI — which this test then simulates.
-  const target = ["Sonnet 5", "Opus 4.8", "Haiku 4.5"].find(
-    (label) => label !== selectedModelLabel,
+  // (S7 verification b) DRAWER NO → CLEAN REVERT, run FIRST (this fresh session's
+  // first switch reliably raises the cache-miss dialog). Stage a model, Save → the
+  // confirm PARKS in the drawer → answer NO. Nothing changes: the chip holds, no
+  // needs-attention banner, and the session is left intact for the Yes demo below
+  // (a cancel applies nothing, so the cache is still primed to raise the dialog).
+  const noTarget = ["Sonnet 5", "Opus 4.8", "Haiku 4.5"].find((l) => l !== currentModelLabel);
+  await settingSection(page, "Model").locator("button", { hasText: exact(noTarget) }).click();
+  await menu.locator(".composer-staged-action.primary").click();
+  const noDrawer = page.locator("#control-confirm-card:not(.hidden)");
+  await noDrawer.waitFor({ state: "visible", timeout: 30000 });
+  assert.ok(
+    (await noDrawer.locator(".control-confirm-row", { hasText: `Yes, switch to ${noTarget}` }).count()) > 0,
+    "the No-leg drawer surfaces the verbatim Yes/No rows",
   );
-  await settingSection(page, "Model").locator("button", { hasText: exact(target) }).click();
+  await noDrawer.locator(".control-confirm-row", { hasText: "No, go back" }).click();
+  await page.locator("#control-confirm-card.hidden").waitFor({ state: "attached", timeout: 30000 });
+  await chip.waitFor({ state: "visible", timeout: 30000 });
+  const afterNoLabel = (await chip.textContent())?.trim() ?? "";
+  const noRevert = { currentModelLabel, afterNoLabel, unchanged: afterNoLabel.startsWith(currentModelLabel) };
+  assert.ok(
+    afterNoLabel.startsWith(currentModelLabel),
+    `No, go back → the model chip held (${afterNoLabel} still starts with ${currentModelLabel})`,
+  );
+  assert.equal(
+    await page.locator('.attention-banner[data-kind="control-switch"]').isVisible().catch(() => false),
+    false,
+    "the No path shows no needs-attention banner — the user chose it",
+  );
 
-  const followed = page.locator("#model-chip", { hasText: target });
+  // (S7 THE DEMO FLOW) Reopen the menu (the No leg closed it) and stage a DIFFERENT
+  // model AND a DIFFERENT effort — both axes — then Save applies them as ONE logical
+  // switch, the cache-miss confirm relayed through the drawer.
+  await chip.click();
+  await menu.waitFor({ state: "visible" });
+  const targetModel = ["Sonnet 5", "Opus 4.8", "Haiku 4.5"].find((l) => l !== currentModelLabel);
+  const targetEffort = ["Low", "Medium", "High", "Extra High", "Max"].find(
+    (l) => l !== currentEffortLabel,
+  );
+  await settingSection(page, "Model").locator("button", { hasText: exact(targetModel) }).click();
+  await settingSection(page, "Reasoning").locator("button", { hasText: exact(targetEffort) }).click();
+
+  // Staged markers: the live value now carries `.is-current` (muted "Current"
+  // badge), the staged pick carries `.selected` — visually distinct (S7 Part 1).
+  const liveModelRow = settingSection(page, "Model").locator("button.is-current");
+  assert.equal(await liveModelRow.count(), 1, "exactly one model row is the muted Current (the live value)");
+  assert.equal(
+    await liveModelRow.first().evaluate((el) => el.childNodes.item(0)?.textContent?.trim() ?? ""),
+    currentModelLabel,
+    "the Current-marked model row is the session's live model",
+  );
+  const stagedModelLabel = await settingSection(page, "Model")
+    .locator("button.selected")
+    .first()
+    .evaluate((el) => el.childNodes.item(0)?.textContent?.trim() ?? "");
+  assert.equal(stagedModelLabel, targetModel, "the staged model pick carries the selected badge");
+  assert.equal(
+    await saveBtn.isDisabled(),
+    false,
+    "Save enables once the staged pair differs from current",
+  );
+  if (evidenceDir) {
+    await page.screenshot({ path: path.join(evidenceDir, "02-staged.png") });
+  }
+
+  // (S7 Part 2) SAVE. On a session WITH history the `/model` inject raises the
+  // cache-miss confirm — which PARKS in the Action Drawer (revision 3), NOT a
+  // needs-attention banner (the whole point: the dialog stays put, the user answers
+  // it in Reading).
+  await saveBtn.click();
+
+  const drawer = page.locator("#control-confirm-card:not(.hidden)");
+  const followedModel = page.locator("#model-chip", { hasText: targetModel });
   const needsAttention = page.locator('.attention-banner[data-kind="control-switch"]');
   await Promise.race([
-    followed.waitFor({ state: "visible", timeout: 30000 }),
+    drawer.waitFor({ state: "visible", timeout: 30000 }),
+    followedModel.waitFor({ state: "visible", timeout: 30000 }),
     needsAttention.waitFor({ state: "visible", timeout: 30000 }),
   ]);
 
-  let sawNeedsAttention = false;
-  if (await needsAttention.isVisible().catch(() => false)) {
-    // RED LINE path (cache-miss confirm). Screenshot the banner, then play the
-    // user answering natively in the terminal (Enter selects the default "Yes").
-    // This is the TEST simulating the user — Sonata itself never answers.
-    sawNeedsAttention = true;
-    if (evidenceDir) {
-      await page.screenshot({ path: path.join(evidenceDir, "02-needs-attention.png") });
-    }
-    // (S5 item F) Double-surface check: the cache-miss confirm dialog is a plain
-    // TUI select prompt (about re-reading history), NOT a tool-approval panel — its
-    // prose carries none of parseClaudeApprovalPanel's anchors (do-you-want-to /
-    // quick-safety-check / by-proceeding-you-accept), so the approval scrape must
-    // NOT mis-read it as a phantom approval card alongside the designed banner.
-    // Empirically confirmed here on the real CLI: the approval banner stays hidden.
+  let usedDrawer = false;
+  if (await drawer.isVisible().catch(() => false)) {
+    usedDrawer = true;
+    // The drawer surfaces the dialog's rows VERBATIM — the Yes row carries the
+    // target's display name (composed from the curated list).
+    await drawer.locator(".drawer-title").waitFor({ state: "visible" });
+    const yesRow = drawer.locator(".control-confirm-row", {
+      hasText: `Yes, switch to ${targetModel}`,
+    });
+    assert.ok(
+      (await yesRow.count()) > 0,
+      "the drawer surfaces the CLI's `Yes, switch to <model>` row verbatim",
+    );
+    assert.ok(
+      (await drawer.locator(".control-confirm-row", { hasText: "No, go back" }).count()) > 0,
+      "the drawer surfaces the `No, go back` row",
+    );
+    // No phantom approval card; the drawer OWNS the composer slot while parked
+    // (composer card hidden → no send is even reachable — stronger than gating).
     assert.equal(
       await page.locator("#approval-banner").isVisible(),
       false,
-      "F: the cache-miss dialog is not double-surfaced as a phantom approval card",
+      "the cache-miss dialog is not double-surfaced as a phantom approval card",
     );
-    // Send is gated while the switch is unresolved (review fix A): the CLI's
-    // Yes/No confirm is still on screen, so a send here would bracket-paste into
-    // it. Type text FIRST so the empty-composer disable can't mask the result —
-    // the switch gate must be the ONLY reason send stays disabled.
-    await page.locator("#prompt-input").fill("this must not send into the confirm dialog");
     assert.equal(
-      await page.locator("#send-prompt").isDisabled(),
-      true,
-      "send is gated (with a non-empty composer) while the switch is unresolved",
+      await page.locator("#composer.drawer-active").count(),
+      1,
+      "the parked confirm owns the composer slot (composer hidden — send unreachable)",
     );
-    await page.locator("#prompt-input").fill("");
-    const taskId = await waitForTaskId(projectsDir, 30000);
-    await page.evaluate(
-      ({ id }) => window.sonataRuntime.writeTerminalUserInput({ taskId: id, data: "\r" }),
-      { id: taskId },
+    assert.equal(
+      await page.locator("#prompt-input").isVisible(),
+      false,
+      "the composer input is hidden while the confirm is parked",
     );
+    if (evidenceDir) {
+      await page.screenshot({ path: path.join(evidenceDir, "03-drawer.png") });
+    }
+    // Answer YES in the drawer — the ONLY answer injected (RED LINE). THE demo flow.
+    await yesRow.click();
   }
 
-  // Either way, the chip must end up following the live model via the statusline
-  // mirror — the switch actually took effect (verification 3b).
-  await followed.waitFor({ state: "visible", timeout: 60000 });
+  // The staged EFFORT leg runs after the model leg settles; usually the pending
+  // reread suppresses a second dialog (measured), but if one appears it PARKS the
+  // same way — drain it FIRST (nothing else answers it), THEN wait for the whole
+  // composite to settle (the chip shows the summary with the new model only once
+  // controlSwitch clears — i.e. both legs done).
+  await drainPendingConfirms(page, 4000, 40000);
+  await followedModel.waitFor({ state: "visible", timeout: 60000 });
+
   const switchedLabel = (await chip.textContent())?.trim() ?? "";
-  assert.ok(switchedLabel.includes(target), `the chip followed the /model switch to ${target}`);
+  assert.ok(
+    switchedLabel.includes(targetModel),
+    `the chip followed the staged Save to ${targetModel}`,
+  );
+  assert.equal(
+    await needsAttention.isVisible().catch(() => false),
+    false,
+    "no needs-attention banner — the confirm was relayed via the drawer",
+  );
+
+  // BOTH axes applied: reopen the menu and confirm the effort leg landed too — its
+  // row is now the current/selected value. Reopen-and-poll (the menu re-seeds staged
+  // to the live pair each open), robust to the effort leg settling a beat late.
+  let effortApplied = false;
+  for (let i = 0; i < 40 && !effortApplied; i++) {
+    if (!(await menu.isVisible().catch(() => false))) {
+      await chip.click().catch(() => {});
+    }
+    if (await menu.isVisible().catch(() => false)) {
+      const label = await settingSection(page, "Reasoning")
+        .locator("button.selected")
+        .first()
+        .evaluate((el) => el.childNodes.item(0)?.textContent?.trim() ?? "")
+        .catch(() => "");
+      if (label === targetEffort) {
+        effortApplied = true;
+        break;
+      }
+      await page.keyboard.press("Escape");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  assert.ok(effortApplied, `the effort leg applied: Reasoning shows ${targetEffort} as current`);
+  await page.keyboard.press("Escape").catch(() => {});
 
   if (evidenceDir) {
-    await page.screenshot({ path: path.join(evidenceDir, "03-after-model-switch.png") });
-  }
-
-  // (S5 item D) Auto-clear on confirmed landing: once the statusline mirror (the
-  // SSOT) confirmed the switched model — the chip followed, above — the lingering
-  // needs-attention banner clears ITSELF, no manual dismiss, so it never reads
-  // "Confirm the switch…" while the chip already shows the new model. Send
-  // re-enables in the same paint. Only meaningful on the RED LINE path (a banner
-  // existed to clear); on a clean settle there was never a banner.
-  let bannerAutoCleared = null;
-  if (sawNeedsAttention) {
-    await needsAttention.waitFor({ state: "detached", timeout: 15000 });
-    bannerAutoCleared = true;
-    await page.locator("#prompt-input").fill("now this should be sendable");
-    assert.equal(
-      await page.locator("#send-prompt").isDisabled(),
-      false,
-      "D: send re-enables once the statusline auto-clears the switch pointer",
-    );
-    await page.locator("#prompt-input").fill("");
+    await page.screenshot({ path: path.join(evidenceDir, "04-after-save.png") });
   }
 
   console.log(
@@ -194,11 +285,14 @@ try {
         disabledWhileRunning,
         interactiveWhileRunning,
         startingLabel,
-        selectedModelLabel,
-        target,
-        sawNeedsAttention,
-        bannerAutoCleared,
+        currentModelLabel,
+        currentEffortLabel,
+        targetModel,
+        targetEffort,
+        noRevert,
+        usedDrawer,
         switchedLabel,
+        effortApplied,
         success: true,
       },
       null,
@@ -251,25 +345,30 @@ async function settingOptionLabels(page, label) {
     );
 }
 
-/** The session's taskId is the directory name Sonata creates under data/projects
- *  (deferred creation — it appears once the first prompt lands). */
-async function waitForTaskId(projectsDir, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
+/** Answer every parked recognized-confirm drawer with its affirmative (Yes) row
+ *  until none appears for `quietMs` continuously. The staged EFFORT leg may raise
+ *  its own cache-miss dialog (rare — the pending reread usually suppresses it), and
+ *  it appears a beat after the model leg settles, so a quiet window (not a single
+ *  check) is what reliably catches or clears it. */
+async function drainPendingConfirms(page, quietMs, maxMs) {
+  const deadline = Date.now() + maxMs;
+  const drawer = page.locator("#control-confirm-card:not(.hidden)");
+  let lastSeen = Date.now();
   while (Date.now() < deadline) {
-    let entry = null;
-    try {
-      entry = fs
-        .readdirSync(projectsDir, { withFileTypes: true })
-        .find((item) => item.isDirectory())?.name;
-    } catch {
-      entry = null;
+    if (await drawer.isVisible().catch(() => false)) {
+      const yes = drawer.locator(".control-confirm-row", { hasText: "Yes, switch to" }).first();
+      // Tolerant click: the model drawer may be mid-CLOSE when we arrive (already
+      // answered in the main flow), so a detaching element must not hang the drain.
+      // A short timeout + catch lets the loop fall through to the quiet-period exit.
+      if ((await yes.count().catch(() => 0)) > 0) {
+        await yes.click({ timeout: 2500 }).catch(() => {});
+      }
+      lastSeen = Date.now();
+    } else if (Date.now() - lastSeen > quietMs) {
+      return;
     }
-    if (entry) {
-      return entry;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
-  throw new Error("Timed out waiting for the session's task directory.");
 }
 
 async function safeText(locator) {

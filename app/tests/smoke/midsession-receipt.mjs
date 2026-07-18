@@ -640,6 +640,18 @@ assert.equal(
   2,
   "cursor on row 2 (No) after a down-arrow",
 );
+// The partial arrow-move repaint DROPS the row digit (measured): `❯No, go back`
+// with no `2.` — the cursor must still read row 2 (label-anchored, digit optional).
+assert.equal(
+  parseClaudeCacheMissCursor("  Yes, switch to Sonnet 5\n❯No, go back"),
+  2,
+  "cursor on row 2 when the arrow-move repaint dropped the digit (label-anchored)",
+);
+assert.equal(
+  parseClaudeCacheMissCursor("❯Yes, switch to Sonnet 5\n  No, go back"),
+  1,
+  "cursor on row 1 when the repaint dropped the digit",
+);
 assert.equal(
   parseClaudeCacheMissCursor(
     "❯ 1. Yes, switch to Sonnet 5\n  2. No, go back\n  1. Yes, switch to Sonnet 5\n❯ 2. No, go back",
