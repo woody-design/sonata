@@ -40,6 +40,7 @@ function queryElements() {
     approveSessionApproval: getElement<HTMLButtonElement>("approve-session-approval"),
     approveApproval: getElement<HTMLButtonElement>("approve-approval"),
     optionPromptCard: getElement<HTMLDivElement>("option-prompt-card"),
+    controlConfirmCard: getElement<HTMLDivElement>("control-confirm-card"),
     attentionBannerRoot: getElement<HTMLDivElement>("attention-banner-root"),
     statusStrip: getElement<HTMLElement>("status-strip"),
     statusStripStatus: getElement<HTMLDivElement>("status-strip-status"),
@@ -216,6 +217,13 @@ export function initDom(): void {
           <!-- Native option prompt (AskUserQuestion) — the question drawer.
                Built dynamically by renderOptionPrompt(): stepped 1/N + Review. -->
           <div id="option-prompt-card" class="action-drawer question-drawer hidden"></div>
+
+          <!-- Recognized-confirm relay (S7 revision 3) — the CLI raised a whitelisted
+               confirm dialog (claude cache-miss / codex Full Access consent) and
+               Sonata PARKED on it. Built dynamically by renderControlConfirm(): the
+               dialog's verbatim rows as answer buttons. Its home turf: the CLI asks,
+               the user answers here, the choice is relayed into the parked dialog. -->
+          <div id="control-confirm-card" class="action-drawer question-drawer hidden"></div>
 
           <!-- The white card: the message and its controls. The context row
                below is a SEPARATE tinted layer (ref parity, 2026-07-04):

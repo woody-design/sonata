@@ -8,6 +8,7 @@
 // Flows and grammar route through the actions seam.
 
 import type { OptionPromptDetectedEvent } from "../../shared/types/events";
+import { MODEL_OPTIONS, REASONING_OPTIONS } from "../../reading-core/config";
 import {
   approvalKindLabel,
   approvalQuestion,
@@ -57,7 +58,10 @@ function updateDrawerActive(): void {
   const blocking =
     !elements.approvalBanner.classList.contains("hidden") ||
     (!elements.optionPromptCard.classList.contains("hidden") &&
-      elements.optionPromptCard.dataset.state === "asking");
+      elements.optionPromptCard.dataset.state === "asking") ||
+    // A PARKED recognized-confirm relay (S7) owns the slot the same way — the CLI
+    // asked, the user must answer here (or the co-visible Terminal) to unblock.
+    !elements.controlConfirmCard.classList.contains("hidden");
   elements.composer.classList.toggle("drawer-active", blocking);
   if (drawerWasBlocking && !blocking) {
     // The drawer resolved — it's the user's turn again; hand the caret back
@@ -195,6 +199,159 @@ export function renderOptionPrompt(): void {
     card.replaceChildren(renderOptionPromptReceiptCard(receipt));
   }
   updateDrawerActive();
+}
+
+// ── Recognized-confirm relay drawer (S7 revision 3) ─────────────────────────
+//
+// The CLI raised a WHITELISTED confirm dialog (claude cache-miss / codex Full
+// Access consent) and the choreography PARKED on it. This drawer surfaces the
+// dialog's rows VERBATIM (composed from the dialog id + kind + value + registered
+// copy — the host navigates by row number, never the row text) and relays the
+// user's chosen row into the parked dialog. The drawer's home turf: the CLI asks,
+// the user answers here.
+
+interface ControlConfirmRow {
+  /** 1-based CLI row — what answerControlConfirm relays. */
+  rowNumber: number;
+  label: string;
+  desc?: string;
+}
+interface ControlConfirmContent {
+  eyebrow: string;
+  title: string;
+  body: string;
+  rows: ControlConfirmRow[];
+  /** The row a dismiss (✕) maps to (never leave a dialog parked silently). */
+  cancelRow: number;
+}
+
+/** The verbatim rows + copy for a parked dialog. Codex consent rows are the
+ *  measured fixed strings; the claude Yes row embeds the target's display name,
+ *  resolved from the curated lists (falling back to the raw value). */
+function controlConfirmContent(
+  provider: "claude" | "codex",
+  kind: string,
+  value: string,
+  dialog: "claude-cachemiss" | "codex-consent",
+): ControlConfirmContent {
+  if (dialog === "codex-consent") {
+    return {
+      eyebrow: `${providerLabel(provider)} is asking`,
+      title: "Enable Full Access?",
+      body:
+        "Codex will be able to edit any file on your computer and run commands " +
+        "with network access, without asking for approval. Exercise caution.",
+      rows: [
+        { rowNumber: 1, label: "Yes, continue anyway", desc: "Apply full access for this session" },
+        {
+          rowNumber: 2,
+          label: "Yes, and don't ask again",
+          desc: "Enable full access and remember this choice",
+        },
+        { rowNumber: 3, label: "Cancel", desc: "Go back without enabling full access" },
+      ],
+      cancelRow: 3,
+    };
+  }
+  const isEffort = kind === "effort";
+  const targetLabel = claudeTargetLabel(isEffort ? "effort" : "model", value);
+  return {
+    eyebrow: `${providerLabel(provider)} is asking`,
+    title: isEffort ? "Change effort level?" : "Switch model?",
+    body:
+      `This conversation is cached for the current ${isEffort ? "effort level" : "model"}. ` +
+      `Switching means your next response re-reads the full history (slower, more tokens).`,
+    rows: [
+      { rowNumber: 1, label: `Yes, switch to ${targetLabel}` },
+      { rowNumber: 2, label: "No, go back" },
+    ],
+    cancelRow: 2,
+  };
+}
+
+/** Resolve a claude `/model` alias / `/effort` id to its display label. */
+function claudeTargetLabel(kind: "model" | "effort", value: string): string {
+  const options = kind === "effort" ? REASONING_OPTIONS.claude : MODEL_OPTIONS.claude;
+  return options.find((option) => option.value === value)?.label ?? value;
+}
+
+export function renderControlConfirm(): void {
+  const view = activeTaskView(state);
+  const card = elements.controlConfirmCard;
+  const cs = view?.controlSwitch ?? null;
+  const parked = cs && cs.phase === "parked" && cs.dialog ? cs : null;
+  if (!view || !parked || !parked.dialog) {
+    card.classList.add("hidden");
+    card.removeAttribute("data-state");
+    card.replaceChildren();
+    updateDrawerActive();
+    return;
+  }
+  card.classList.remove("hidden");
+  card.dataset.state = "asking";
+  const provider = view.task?.provider === "codex" ? "codex" : "claude";
+  const content = controlConfirmContent(provider, parked.kind, parked.value, parked.dialog);
+  card.replaceChildren(renderControlConfirmForm(content));
+  updateDrawerActive();
+}
+
+function renderControlConfirmForm(content: ControlConfirmContent): HTMLElement {
+  const root = document.createElement("div");
+  root.className = "option-prompt-body control-confirm-body";
+
+  const heading = document.createElement("div");
+  heading.className = "option-prompt-heading";
+  const eyebrow = document.createElement("p");
+  eyebrow.className = "eyebrow";
+  eyebrow.textContent = content.eyebrow;
+  heading.append(eyebrow);
+  // Dismiss (✕) = the Cancel row (never leave a dialog parked silently — S7).
+  const dismiss = document.createElement("button");
+  dismiss.type = "button";
+  dismiss.className = "drawer-nav-button";
+  dismiss.textContent = "✕";
+  dismiss.setAttribute("aria-label", "Dismiss (cancel)");
+  dismiss.addEventListener("click", () => actions.answerControlConfirm(content.cancelRow));
+  heading.append(dismiss);
+  root.append(heading);
+
+  const title = document.createElement("strong");
+  title.className = "drawer-title";
+  title.textContent = content.title;
+  root.append(title);
+
+  const body = document.createElement("p");
+  body.className = "drawer-summary";
+  body.textContent = content.body;
+  root.append(body);
+
+  const rows = document.createElement("div");
+  rows.className = "control-confirm-rows";
+  for (const row of content.rows) {
+    const button = document.createElement("button");
+    button.type = "button";
+    // The primary (row 1) is the affirmative action; the cancel row is muted.
+    button.className =
+      "task-setting-option control-confirm-row" +
+      (row.rowNumber === content.cancelRow ? " is-cancel" : "");
+    const copy = document.createElement("span");
+    copy.className = "task-setting-option-copy";
+    const label = document.createElement("span");
+    label.textContent = row.label;
+    copy.append(label);
+    if (row.desc) {
+      const desc = document.createElement("span");
+      desc.className = "task-setting-option-desc";
+      desc.textContent = row.desc;
+      copy.append(desc);
+    }
+    button.append(copy);
+    button.addEventListener("click", () => actions.answerControlConfirm(row.rowNumber));
+    rows.append(button);
+  }
+  root.append(rows);
+
+  return root;
 }
 
 function renderOptionPromptForm(

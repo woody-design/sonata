@@ -76,20 +76,26 @@ export interface Actions {
   dismissSlashAttention(view: TaskViewState): void;
   /** Clear the mid-session control-switch pointer (needs-attention banner). */
   dismissControlSwitch(view: TaskViewState): void;
-  // — Live session chips (mid-session switch): drive THIS Claude session's
-  //   model/effort (S1 — `/model <id>` / `/effort <level>`) or permission mode
-  //   (S2 — the Shift+Tab stepping engine). The receipt(s) drive the chips
-  //   through the control-switch:state event, so these fire-and-forget. —
-  switchSessionModel(view: TaskViewState, value: string): void;
-  switchSessionEffort(view: TaskViewState, value: string): void;
+  // — Live session chips (mid-session switch). The permission chips are
+  //   immediate-apply single-axis switches (S2 Shift+Tab / S3 codex picker); the
+  //   model+effort menu is a STAGED selector (S7 Part 1): row clicks stage a pair,
+  //   Save applies the changed axes as ONE logical switch. Receipts drive the chip
+  //   through control-switch:state, so the dispatches are fire-and-forget. —
   switchSessionPermission(view: TaskViewState, mode: string): void;
   //   Codex permission preset (S3 — the `/permissions` picker choreography).
   switchSessionCodexPermission(view: TaskViewState, mode: string): void;
-  //   Codex model/effort (S4 — the `/model` two-level picker choreography). The
-  //   picker forces a (model, effort) pair, so each preserves the non-selected
-  //   dimension via the level's `(current)` row; the receipt drives the chip.
-  switchSessionCodexModel(view: TaskViewState, value: string): void;
-  switchSessionCodexEffort(view: TaskViewState, value: string): void;
+  //   Staged model+effort (S7 Part 1): stage a row (no CLI), then Save the pair.
+  //   `saveStagedModelSwitch` branches on provider — claude runs the sequential
+  //   `/model`+`/effort` (cache-miss relayed via the drawer), codex the one
+  //   two-level picker run. `closeSessionMenu` is the Cancel/Esc/outside-click
+  //   discard. `null` values mean "native default" (only when current is null too).
+  stageSessionModel(value: string | null): void;
+  stageSessionEffort(value: string | null): void;
+  saveStagedModelSwitch(view: TaskViewState): void;
+  closeSessionMenu(): void;
+  //   Recognized-confirm relay (S7 Part 2): relay the user's chosen drawer row
+  //   (1-based CLI row) into the parked dialog. A dismiss passes the Cancel row.
+  answerControlConfirm(rowNumber: number): void;
   // — Option-prompt card (view/approvals.ts): select grammar + answer flow
   //   (IPC injection; optimistic receipt) —
   selectOptionPromptChoice(view: TaskViewState, questionIndex: number, optionIndex: number): void;

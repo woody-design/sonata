@@ -395,6 +395,11 @@ export function renderSettingSection<T extends string | null>(
   options: Array<{ label: string; value: T }>,
   selected: T,
   onSelect: (value: T) => void,
+  /** STAGED mode (S7 Part 1): `selected` is the STAGED pick (the one Save applies —
+   *  the "selected" badge), and `current` marks the session's live value with a muted
+   *  "Current" badge when it differs. Omit for immediate-apply menus (new-chat, the
+   *  access menus): only the `selected` badge renders, as before. */
+  extra?: { current?: T },
 ): HTMLElement {
   const section = document.createElement("div");
   section.className = "task-setting-section";
@@ -404,16 +409,24 @@ export function renderSettingSection<T extends string | null>(
   title.textContent = label;
   section.append(title);
 
+  const hasCurrent = extra !== undefined && "current" in extra;
   for (const option of options) {
     const button = document.createElement("button");
     button.className = "task-setting-option";
-    button.classList.toggle("selected", option.value === selected);
+    const isSelected = option.value === selected;
+    const isCurrent = hasCurrent && option.value === extra?.current;
+    button.classList.toggle("selected", isSelected);
+    // The current-but-not-staged row reads as "where you are" without the strong
+    // staged highlight — a hairline outline distinguishes it (see .is-current CSS).
+    button.classList.toggle("is-current", isCurrent && !isSelected);
     button.type = "button";
     button.setAttribute("role", "menuitemradio");
-    button.ariaChecked = String(option.value === selected);
+    button.ariaChecked = String(isSelected);
     button.textContent = option.label;
-    if (option.value === selected) {
+    if (isSelected) {
       button.append(selectedBadge());
+    } else if (isCurrent) {
+      button.append(currentBadge());
     }
     button.addEventListener("click", () => {
       onSelect(option.value);
@@ -428,6 +441,15 @@ function selectedBadge(): HTMLElement {
   const badge = document.createElement("span");
   badge.className = "task-setting-badge";
   badge.textContent = "selected";
+  return badge;
+}
+
+/** The session's live value in a STAGED menu (S7): muted, so the accent-marked
+ *  staged pick reads as the pending change and this reads as the current state. */
+function currentBadge(): HTMLElement {
+  const badge = document.createElement("span");
+  badge.className = "task-setting-badge task-setting-badge-current";
+  badge.textContent = "Current";
   return badge;
 }
 

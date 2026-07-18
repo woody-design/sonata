@@ -134,6 +134,7 @@ import {
   renderRemoteControlPopover,
 } from "./view/chrome";
 import {
+  currentSessionModelPair,
   initComposerView,
   renderComposerControls,
   renderComposerPopover,
@@ -396,24 +397,14 @@ initActions({
     // unrelated render.
     render();
   },
-  // Live session chips (mid-session switch): drive this Claude session's
-  // model/effort (S1 — `/model <id>` / `/effort <level>`) or permission mode
-  // (S2 — the Shift+Tab stepping engine, `from` = the session's current mode as
-  // the return-home anchor). Fire-and-forget — the pending state and the
-  // receipt(s) arrive on the control-switch:state event.
-  switchSessionModel: (view, value) => {
-    void applyClaudeControlSwitch(view, "model", value);
-  },
-  switchSessionEffort: (view, value) => {
-    void applyClaudeControlSwitch(view, "effort", value);
-  },
+  // Live session PERMISSION chips (mid-session switch): immediate-apply single-axis
+  // switches — claude via the Shift+Tab stepping engine (S2; `from` = the current
+  // mode, the return-home anchor), codex via the `/permissions` picker (S3; `from`
+  // = the current preset, to skip a no-op). Fire-and-forget — the receipt(s) arrive
+  // on the control-switch:state event.
   switchSessionPermission: (view, mode) => {
     void applyClaudeControlSwitch(view, "permission", mode, view.task?.permissionMode ?? undefined);
   },
-  // Codex permission preset (S3 — the `/permissions` picker choreography). `from`
-  // = the session's current codex mode, so a no-op switch to the current preset
-  // resolves without touching the picker. The chip follows task.codexPermissionMode,
-  // which the controller writes off the picker receipt (settled event).
   switchSessionCodexPermission: (view, mode) => {
     void applyClaudeControlSwitch(
       view,
@@ -422,38 +413,31 @@ initActions({
       view.task?.codexPermissionMode ?? undefined,
     );
   },
-  // Codex model / effort (S4 — the `/model` two-level picker choreography). The
-  // picker forces a (model, effort) pair; each action switches ONE dimension and
-  // preserves the other via the picker's `(current)` row, so no `from` is needed.
-  // A no-op selection (already the current value) never fires — the codex picker
-  // may not print a receipt for an unchanged confirm, so we short-circuit here.
-  // The chip follows task.model + task.reasoningEffort, which the controller writes
-  // off the picker receipt (settled event).
-  switchSessionCodexModel: (view, value) => {
-    if (view.task?.model === value) {
-      state.composerMenu = null;
+  // STAGED model+effort menu (S7 Part 1). Row clicks only STAGE the pair (no CLI);
+  // Save applies the changed axes as ONE logical switch. Staging just mutates the
+  // open menu's staged pair and re-renders (Save enables when it differs from
+  // current). Cancel / Esc / outside-click discard by closing the menu.
+  stageSessionModel: (value) => {
+    if (state.composerMenu?.staged) {
+      state.composerMenu.staged.model = value;
       render();
-      return;
     }
-    // `from` = the current effort to PRESERVE at the picker's level 2: after a
-    // model change codex drops the level-2 `(current)` marker, so the effort must
-    // be navigated to explicitly (terminal-host). task.reasoningEffort is the SSOT
-    // (codex has no statusline). Null/Max/Ultra can't be held on a v1 row → the
-    // switch rolls back to needs-attention (a documented v1 limit).
-    void applyClaudeControlSwitch(
-      view,
-      "codex-model",
-      value,
-      view.task?.reasoningEffort ?? undefined,
-    );
   },
-  switchSessionCodexEffort: (view, value) => {
-    if (view.task?.reasoningEffort === value) {
-      state.composerMenu = null;
+  stageSessionEffort: (value) => {
+    if (state.composerMenu?.staged) {
+      state.composerMenu.staged.effort = value;
       render();
-      return;
     }
-    void applyClaudeControlSwitch(view, "codex-effort", value);
+  },
+  saveStagedModelSwitch: (view) => {
+    void applyStagedModelSwitch(view);
+  },
+  closeSessionMenu: () => {
+    state.composerMenu = null;
+    render();
+  },
+  answerControlConfirm: (rowNumber) => {
+    void applyControlConfirmAnswer(rowNumber);
   },
   // Option-prompt card: the select grammar (single-select picks, multi-select
   // toggles — drawer S1) and the answer flow.
@@ -955,12 +939,16 @@ function toggleSessionModelMenuFromChip(event: MouseEvent, provider: RuntimeProv
   event.stopPropagation();
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
   const menuType = provider === "codex" ? "session-codex-model" : "session-model";
+  const view = activeTaskView();
   state.composerMenu =
     state.composerMenu?.type === menuType
       ? null
       : {
           type: menuType,
           anchor: { left: rect.left, top: rect.top, width: rect.width },
+          // Seed the staged pair to the session's current (model, effort) — a row
+          // click restages, Save applies the changed axes (S7 Part 1).
+          staged: view ? { ...currentSessionModelPair(view, provider) } : { model: null, effort: null },
         };
   state.taskDraft.menu = null;
   composerTransitions.closeSlashPicker(state);
@@ -1268,6 +1256,79 @@ async function applyClaudeControlSwitch(
   } catch (error) {
     view.status = errorMessage(error);
     render();
+  }
+}
+
+/** Apply a STAGED model+effort Save (S7 Part 1). Compares the staged pair to the
+ *  session's current and dispatches the changed axes as ONE logical switch:
+ *   - claude → `switchClaudeStaged` (sequential `/model`+`/effort`, the cache-miss
+ *     confirm relayed via the drawer between them);
+ *   - codex → the existing `codex-model` two-level picker with the pair (value =
+ *     staged model, from = staged effort as the level-2 target — one picker run).
+ *  Save is disabled when clean, so this normally has a real change; a defensive
+ *  no-change still closes the menu. The receipt(s) drive the chip via
+ *  control-switch:state. */
+async function applyStagedModelSwitch(view: TaskViewState): Promise<void> {
+  const task = view.task;
+  const staged = state.composerMenu?.staged;
+  if (!task || !staged) {
+    return;
+  }
+  const provider = task.provider;
+  const current = currentSessionModelPair(view, provider);
+  const modelChanged = staged.model !== current.model;
+  const effortChanged = staged.effort !== current.effort;
+  state.composerMenu = null;
+  render();
+  if (!modelChanged && !effortChanged) {
+    return; // nothing to apply (defensive — Save is disabled when clean)
+  }
+  try {
+    const result =
+      provider === "codex"
+        ? await window.sonataRuntime.switchClaudeControl({
+            taskId: task.id,
+            kind: "codex-model",
+            // value = the staged model (or current, if only effort changed) — the
+            // level-1 target; from = the staged effort — the level-2 target.
+            value: staged.model ?? current.model ?? "",
+            ...(staged.effort ? { from: staged.effort } : {}),
+          })
+        : await window.sonataRuntime.switchClaudeStaged({
+            taskId: task.id,
+            model: modelChanged ? staged.model : null,
+            effort: effortChanged ? staged.effort : null,
+          });
+    if (!result.ok) {
+      view.status = controlSwitchRefusalCopy(
+        provider === "codex" ? "codex-model" : "model",
+        result.reason,
+      );
+      render();
+    }
+  } catch (error) {
+    view.status = errorMessage(error);
+    render();
+  }
+}
+
+/** Relay the user's chosen row for a PARKED recognized-confirm dialog (S7 Part 2).
+ *  The choreography navigates the dialog's cursor there + Enters it; the settle
+ *  (or needs-attention) arrives on control-switch:state, which clears the drawer.
+ *  Fire-and-forget; a double-answer is ignored backend-side (phase left waiting). */
+async function applyControlConfirmAnswer(rowNumber: number): Promise<void> {
+  const view = activeTaskView();
+  const task = view?.task;
+  if (!task) {
+    return;
+  }
+  try {
+    await window.sonataRuntime.answerControlConfirm({ taskId: task.id, rowNumber });
+  } catch (error) {
+    if (view) {
+      view.status = errorMessage(error);
+      render();
+    }
   }
 }
 
@@ -1757,6 +1818,17 @@ document.addEventListener("keydown", (event) => {
   if (state.taskDraft.menu) {
     event.preventDefault();
     state.taskDraft.menu = null;
+    render();
+    elements.promptInput.focus();
+    return;
+  }
+  if (state.composerMenu) {
+    // Esc discards an open composer menu — for the staged model+effort menu (S7
+    // Part 1) this drops the staged pair without touching the CLI, matching the
+    // Cancel button and outside-click; the same close is the natural gesture for
+    // the add / access menus (outside-click already dismisses them).
+    event.preventDefault();
+    state.composerMenu = null;
     render();
     elements.promptInput.focus();
     return;

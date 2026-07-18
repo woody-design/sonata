@@ -3554,6 +3554,80 @@ h2 {
   font-size: 11px;
 }
 
+/* Staged model+effort menu (S7 Part 1). The staged pick reads as a pending change
+   (accent), the session's live value as muted context ("Current"). */
+.composer-staged-menu .task-setting-option.selected .task-setting-badge {
+  color: var(--accent);
+  font-weight: 600;
+}
+.task-setting-badge-current {
+  color: var(--text-tertiary);
+}
+.task-setting-option.is-current {
+  box-shadow: inset 0 0 0 1px var(--border-hairline);
+}
+
+/* The Save / Cancel footer — the staged menu applies only on Save. */
+.composer-staged-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-hairline);
+}
+.composer-staged-action {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: transparent;
+}
+.composer-staged-action:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.composer-staged-action.primary {
+  border-color: var(--control-primary-bg);
+  background: var(--control-primary-bg);
+  color: var(--control-primary-text);
+}
+.composer-staged-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.composer-staged-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* Recognized-confirm relay drawer (S7 Part 2): the parked dialog's rows as
+   answer buttons. Neutral by default (no nudge toward a consequential grant);
+   the cancel row is muted. */
+.control-confirm-body {
+  display: grid;
+  gap: 8px;
+}
+.control-confirm-rows {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+}
+.control-confirm-row {
+  border: 1px solid var(--border-hairline);
+}
+.control-confirm-row:hover {
+  background: var(--surface-hover);
+}
+.control-confirm-row.is-cancel {
+  color: var(--text-tertiary);
+}
+.control-confirm-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
 /* Wins the source-order trap against .task-setting-option{display:flex}
    (see .run-column.hidden) — the project menu's search filter relies on it. */
 .task-setting-option.hidden {

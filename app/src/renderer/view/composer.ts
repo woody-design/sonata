@@ -481,14 +481,40 @@ function renderSessionCodexAccessMenu(view: TaskViewState): HTMLElement {
   return menu;
 }
 
-/** The live session's model + effort switch menu (S1) — same visual family as
- *  the New Chat launch menu (renderSettingSection). The CLI-default caption was
- *  REMOVED (S6, field revision 5, 2026-07-18): a `/model` / `/effort` switch does
- *  persist as Claude's global default, but that disclosure now lives in docs, not
- *  menu chrome (Sonata sessions are immune — spawn flags override). */
+/** The live session's model + effort switch menu — a STAGED selector (S7 Part 1).
+ *  Row clicks STAGE a (model, effort) pair (no CLI); Save applies the changed axes
+ *  as ONE logical switch (claude: sequential `/model`+`/effort`, the cache-miss
+ *  confirm relayed via the drawer). Same visual family as the New Chat launch menu
+ *  (renderSettingSection), with the staged pick accent-marked and the session's
+ *  live value a muted "Current". No CLI-default caption (removed S6). */
 function renderSessionModelMenu(view: TaskViewState): HTMLElement {
+  const menu = stagedMenuRoot();
+  const staged = stagedPair(view, "claude");
+  const current = currentSessionModelPair(view, "claude");
+  menu.append(
+    renderSettingSection(
+      "Model",
+      sessionModelOptions(),
+      staged.model ?? "",
+      (value) => actions.stageSessionModel(value),
+      { current: current.model ?? "" },
+    ),
+    renderSettingSection(
+      "Reasoning",
+      sessionEffortOptions(),
+      staged.effort ?? "",
+      (value) => actions.stageSessionEffort(value),
+      { current: current.effort ?? "" },
+    ),
+    renderStagedFooter(view, staged, current),
+  );
+  return menu;
+}
+
+/** The staged-menu container (shared by both providers' model menus). */
+function stagedMenuRoot(): HTMLElement {
   const menu = document.createElement("div");
-  menu.className = "task-settings-popover composer-session-menu";
+  menu.className = "task-settings-popover composer-session-menu composer-staged-menu";
   menu.setAttribute("role", "menu");
   menu.ariaLabel = "Model and reasoning";
   // stopPropagation: render() rebuilds the chip mid-click; without this the
@@ -496,21 +522,56 @@ function renderSessionModelMenu(view: TaskViewState): HTMLElement {
   menu.addEventListener("click", (event) => {
     event.stopPropagation();
   });
-
-  menu.append(
-    renderSettingSection("Model", sessionModelOptions(), sessionModelValue(view) ?? "", (value) => {
-      actions.switchSessionModel(view, value);
-    }),
-    renderSettingSection(
-      "Reasoning",
-      sessionEffortOptions(),
-      sessionEffortValue(view) ?? "",
-      (value) => {
-        actions.switchSessionEffort(view, value);
-      },
-    ),
-  );
   return menu;
+}
+
+/** The open menu's staged pair, seeded to the current pair at open time; falls back
+ *  to current if (defensively) absent. */
+function stagedPair(
+  view: TaskViewState,
+  provider: RuntimeProvider,
+): { model: string | null; effort: string | null } {
+  return state.composerMenu?.staged ?? currentSessionModelPair(view, provider);
+}
+
+/** The session's live (model, effort) pair — the seed for staging and the
+ *  Save-disabled-when-clean comparison. */
+export function currentSessionModelPair(
+  view: TaskViewState,
+  provider: RuntimeProvider,
+): { model: string | null; effort: string | null } {
+  return provider === "codex"
+    ? { model: sessionCodexModelValue(view), effort: sessionCodexEffortValue(view) }
+    : { model: sessionModelValue(view), effort: sessionEffortValue(view) };
+}
+
+/** The Save / Cancel footer: the staged menu touches the CLI only on Save; Save is
+ *  disabled while the staged pair equals current. Cancel discards (closes the menu);
+ *  Esc / outside-click discard the same way (the composer's document handlers). */
+function renderStagedFooter(
+  view: TaskViewState,
+  staged: { model: string | null; effort: string | null },
+  current: { model: string | null; effort: string | null },
+): HTMLElement {
+  const footer = document.createElement("div");
+  footer.className = "composer-staged-footer";
+  const dirty = staged.model !== current.model || staged.effort !== current.effort;
+
+  const cancel = document.createElement("button");
+  cancel.className = "composer-staged-action";
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => actions.closeSessionMenu());
+
+  const save = document.createElement("button");
+  save.className = "composer-staged-action primary";
+  save.type = "button";
+  save.textContent = "Save";
+  save.disabled = !dirty;
+  save.addEventListener("click", () => actions.saveStagedModelSwitch(view));
+
+  footer.append(cancel, save);
+  return footer;
 }
 
 /** Concrete Claude models only — "Native Default" (null) has no mid-session
@@ -564,31 +625,25 @@ function sessionEffortValue(view: TaskViewState): string | null {
  *  switch globally into ~/.codex/config.toml, but that disclosure now lives in
  *  docs, not menu chrome (Sonata sessions are immune — spawn flags override). */
 function renderSessionCodexModelMenu(view: TaskViewState): HTMLElement {
-  const menu = document.createElement("div");
-  menu.className = "task-settings-popover composer-session-menu";
-  menu.setAttribute("role", "menu");
-  menu.ariaLabel = "Model and reasoning";
-  menu.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
-
+  const menu = stagedMenuRoot();
+  const staged = stagedPair(view, "codex");
+  const current = currentSessionModelPair(view, "codex");
   menu.append(
     renderSettingSection(
       "Model",
       sessionCodexModelOptions(),
-      sessionCodexModelValue(view) ?? "",
-      (value) => {
-        actions.switchSessionCodexModel(view, value);
-      },
+      staged.model ?? "",
+      (value) => actions.stageSessionModel(value),
+      { current: current.model ?? "" },
     ),
     renderSettingSection(
       "Reasoning",
       sessionCodexEffortOptions(),
-      sessionCodexEffortValue(view) ?? "",
-      (value) => {
-        actions.switchSessionCodexEffort(view, value);
-      },
+      staged.effort ?? "",
+      (value) => actions.stageSessionEffort(value),
+      { current: current.effort ?? "" },
     ),
+    renderStagedFooter(view, staged, current),
   );
   return menu;
 }

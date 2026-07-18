@@ -23,6 +23,7 @@ import type {
 import { elements } from "./dom";
 import {
   renderApproval,
+  renderControlConfirm,
   renderOptionPrompt,
   renderResumeChoice,
 } from "./view/approvals";
@@ -194,6 +195,7 @@ export function render(): void {
   renderSidebar();
   renderApproval();
   renderOptionPrompt();
+  renderControlConfirm();
   renderResumeChoice();
   renderAttentionBanners(view);
   renderStatusStrip(view);

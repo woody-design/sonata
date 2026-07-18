@@ -503,6 +503,16 @@ export interface ComposerMenuState {
     | "session-access"
     | "session-codex-access";
   anchor: PopoverAnchor;
+  /** The STAGED (model, effort) pair for a session model menu (S7 Part 1). The
+   *  model menus (`session-model` / `session-codex-model`) become staged selectors:
+   *  a row click updates this pair (NOT the CLI), and Save applies the changed axes
+   *  as ONE logical switch. Seeded to the session's current pair when the menu opens;
+   *  Save is disabled while it equals current; Cancel/Esc/outside-click discards it
+   *  (by closing the menu). Absent for the access menus (single-axis, immediate-apply
+   *  — Woody-confirmed) and the add menu. Values are the `/model` alias / effort id,
+   *  or null for "not set / native default" (only reachable when the current value is
+   *  itself null). */
+  staged?: { model: string | null; effort: string | null };
 }
 
 export interface SlashPickerState {
