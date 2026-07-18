@@ -8,16 +8,21 @@
 //   3. confirm — Enter on the target row → the `• Permissions updated to <label>`
 //      receipt → a `settled` control-switch:state event.
 //
-// Three switches, covering the happy path (down + up nav) AND the RED LINE
-// consent-gate rollback:
+// Switches covering the happy path (down + up nav) AND the RED LINE consent
+// relay (S7 revision 3 — the S3 rollback is OVERTURNED; the consent now PARKS):
 //   A. ask-for-approval → approve-for-me   (down ×1)  → settled + receipt
 //   B. approve-for-me   → ask-for-approval (up ×1)    → settled + receipt
-//   C. ask-for-approval → full-access      (down ×2)  → needs-attention
+//   C. ask-for-approval → full-access, then CANCEL (drawer row 3)
 //      Confirming Full Access opens a "Enable full access?" CONSENT dialog, not
-//      a receipt (measured). RED LINE 2: Sonata must NEVER auto-answer that
-//      consent — the engine recognizes it, rolls back with a single Esc (returns
-//      to the composer — measured), and surfaces needs-attention. The session
-//      stays on its previous mode; Full Access is the human's to grant in the CLI.
+//      a receipt (measured). RED LINE 2: Sonata NEVER auto-answers it — it PARKS
+//      (emits `parked`, dialog stays open) and relays ONLY the user's chosen row.
+//      Row 3 (Cancel) → codex returns to the /permissions picker → one Esc →
+//      composer → settled+cancelled (config byte-unchanged — nothing granted).
+//   E. approve-for-me → full-access, then GRANT (drawer row 1)
+//      Row 1 (Yes, continue anyway) → the `• Permissions updated to Full Access`
+//      receipt → settled. Row 1 grants for the session AND persists config
+//      (approvals_reviewer) — snapshot/restore covers it; row 2 ("don't ask
+//      again") is NEVER used in tests (it persists globally more strongly).
 //
 // Byte discipline (RED LINE 1): across ALL switches, NO chat turn may start — an
 // unrecognized codex slash line submits as a prompt and burns a turn, so a
@@ -104,7 +109,8 @@ try {
 
   findings.switchA = await drive("ask-for-approval", "approve-for-me");
   findings.switchB = await drive("approve-for-me", "ask-for-approval");
-  findings.switchC = await drive("ask-for-approval", "full-access");
+  // C — Full Access consent, then CANCEL (row 3): parks, relays, returns clean.
+  findings.switchC = await driveConsent("ask-for-approval", 3);
 
   // (F1 regression) RESIDUAL TEXT: a human types unsubmitted text straight into
   // the idle Terminal composer (no dirty flag), THEN a switch is driven. The
@@ -116,6 +122,8 @@ try {
     residualText: "let me think ZZRESIDUALZZ",
   });
   findings.residualBurnedTurn = runStarts > runsBeforeResidual;
+  // E — Full Access consent, then GRANT (row 1): parks, relays, receipt settles.
+  findings.switchE = await driveConsent("approve-for-me", 1);
   findings.runStarts = runStarts;
 
   // A + B — happy path: settled, receipt matched, picker closed.
@@ -126,28 +134,27 @@ try {
   assert.equal(findings.switchB.receipt, "ask-for-approval", "B: receipt = ask-for-approval");
   assert.equal(findings.switchB.pickerClosed, true, "B: picker closed after confirm");
 
-  // C — Full Access consent gate: NEVER auto-answered → needs-attention + rollback.
-  assert.equal(
-    findings.switchC.phase,
-    "needs-attention",
-    "C: Full Access consent dialog is not auto-answered — the switch rolls back to needs-attention",
-  );
-  assert.equal(
-    findings.switchC.reason,
-    "consent",
-    "C: the consent-gate rollback carries reason 'consent' (S5 — banner says 'Confirm Full Access in the CLI')",
-  );
-  assert.equal(
-    findings.switchC.pickerClosed,
-    true,
-    "C: the rollback Esc returned to the composer (consent dialog + picker both closed)",
-  );
+  // C — Full Access consent PARKED, then CANCELLED via drawer row 3 (S7): NEVER
+  // auto-answered; only the user's Cancel is injected → clean revert, no grant.
+  assert.equal(findings.switchC.parkedDialog, "codex-consent", "C: the consent dialog PARKED (relayed, not rolled back)");
+  assert.equal(findings.switchC.phase, "settled", "C: Cancel (row 3) settles the parked confirm (user chose)");
+  assert.equal(findings.switchC.cancelled, true, "C: a Cancel is a cancelled-settle — nothing granted, NO needs-attention");
+  assert.equal(findings.switchC.pickerClosed, true, "C: Cancel → picker reopened → Esc → composer (measured)");
+  assert.equal(findings.switchC.receipt, null, "C: Cancel wrote no `Permissions updated` receipt — nothing changed");
 
   // (F1) The residual-text switch still settled AND burned no turn — the
   // unconditional clear wiped the human's untracked typing before `/permissions`.
   assert.equal(findings.switchD.phase, "settled", "D: switch with residual composer text still settled");
   assert.equal(findings.switchD.receipt, "approve-for-me", "D: receipt matched despite residual text");
   assert.equal(findings.residualBurnedTurn, false, "D: residual text did NOT concatenate into a burned turn (RED LINE 1)");
+
+  // E — Full Access consent PARKED, then GRANTED via drawer row 1 (S7): the
+  // user's grant IS injected → the `• Permissions updated to Full Access` receipt.
+  assert.equal(findings.switchE.parkedDialog, "codex-consent", "E: the consent dialog PARKED");
+  assert.equal(findings.switchE.phase, "settled", "E: grant (row 1) settles");
+  assert.equal(findings.switchE.cancelled, false, "E: a grant is a real settle (the controller writes the mirror)");
+  assert.equal(findings.switchE.receipt, "full-access", "E: the `Permissions updated to Full Access` receipt landed");
+  assert.equal(findings.switchE.pickerClosed, true, "E: the grant receipt closed the picker");
 
   // Byte discipline (RED LINE 1): no switch started a chat turn.
   assert.equal(runStarts, 0, "no switch burned a turn — zero run:started across the choreography");
@@ -213,6 +220,38 @@ async function drive(from, target, { residualText } = {}) {
     pending: evts.some((e) => e.phase === "pending"),
     phase: terminal?.phase ?? null,
     reason: terminal?.reason ?? null,
+    receipt,
+    pickerClosed,
+  };
+}
+
+/** Drive a Full Access switch to the PARKED consent dialog (S7), then relay the
+ *  user's chosen row (1 = grant this session, 3 = cancel) and collect the settle. */
+async function driveConsent(from, row) {
+  const before = switchEvents.length;
+  rawTail = "";
+  const res = host.injectClaudeControlSwitch("codex-permission", "full-access", from);
+  assert.equal(res.ok, true, `full-access switch from ${from} accepted`);
+  // The choreography navigates to Full Access, Enters, and PARKS on the consent.
+  await waitUntil(() => switchEvents.slice(before).some((e) => e.phase === "parked"), 20000);
+  const parked = switchEvents.slice(before).find((e) => e.phase === "parked");
+  assert.ok(parked, `full-access from ${from} parked on the consent dialog`);
+  // Relay the user's chosen row — the ONLY answer injected (RED LINE).
+  rawTail = "";
+  host.answerParkedControlConfirm(row);
+  await waitUntil(() => resolved(before), 20000);
+  const evts = switchEvents.slice(before);
+  const terminal = evts.find((e) => e.phase === "settled" || e.phase === "needs-attention");
+  const receipt = parseCodexPermissionReceipt(rawTail);
+  rawTail = "";
+  await delay(1200);
+  const pickerClosed = !codexPermissionPickerFooterVisible(rawTail);
+  return {
+    from,
+    row,
+    parkedDialog: parked?.dialog ?? null,
+    phase: terminal?.phase ?? null,
+    cancelled: Boolean(terminal?.cancelled),
     receipt,
     pickerClosed,
   };
