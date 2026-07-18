@@ -33,7 +33,11 @@ import type {
   UsageSnapshot,
 } from "../shared/types";
 import { TaskNotFoundError, TaskNotLiveError } from "./errors";
-import { isCodexPermissionMode, migrateCodexPermissionMode } from "../shared/types";
+import {
+  codexPermissionModeFromTurnContext,
+  isCodexPermissionMode,
+  migrateCodexPermissionMode,
+} from "../shared/types";
 import {
   TRANSCRIPT_SOURCES_SCHEMA_ID,
   TRANSCRIPT_SOURCES_SCHEMA_VERSION,
@@ -2310,10 +2314,14 @@ export class RuntimeController {
    * frozen updatedAt (a runtime-status refresh is metadata, not activity — the
    * sidebar ordering must not jump), persist, and emit ONE task:updated only when
    * something actually changed. Every field is validated/mapped before it lands:
-   * effort against REASONING_EFFORTS; approval + sandbox through the same
-   * migrateCodexPermissionMode reverse-map manifests use — a shape drift yields
-   * null and simply preserves the current mirror. Codex-only by construction
-   * (turn_context is a codex rollout record), but guarded regardless.
+   * effort against REASONING_EFFORTS; the permission mode through
+   * codexPermissionModeFromTurnContext, which reconciles ONLY an unambiguous
+   * projection (in practice just full-access) — the rollout can't tell ask-for-
+   * approval from approve-for-me (they share a projection; the reviewer axis that
+   * splits them isn't a trustworthy per-turn signal), so those pairs preserve the
+   * current mirror rather than corrupt a receipt-set value. Model/effort round-trip
+   * cleanly and are the axes this reconcile actually needed. Codex-only by
+   * construction (turn_context is a codex rollout record), but guarded regardless.
    */
   private reconcileCodexTurnContext(
     active: ActiveTaskRuntime,
@@ -2333,15 +2341,20 @@ export class RuntimeController {
       context.effort && REASONING_EFFORTS.has(context.effort as ReasoningEffort)
         ? (context.effort as ReasoningEffort)
         : active.task.reasoningEffort;
-    // The rollout carries approval + sandbox policies, not a CodexPermissionMode —
-    // map them through the same reverse-map the manifest migration uses. A turn
-    // that carries neither axis (map returns null) leaves the mirror as-is.
-    const mappedMode = migrateCodexPermissionMode({
-      provider: "codex",
-      sandbox: context.sandboxPolicy,
-      approval: context.approvalPolicy,
-    });
-    const nextMode = mappedMode ?? active.task.codexPermissionMode;
+    // The rollout carries (sandbox, approval) but NOT the reviewer axis that
+    // separates ask-for-approval from approve-for-me (they share the same
+    // (workspace-write, on-request) projection). So reconcile the permission mode
+    // ONLY when the pair uniquely identifies a triad member — in practice just
+    // full-access's (danger-full-access, never). An ambiguous or non-representable
+    // pair returns null and keeps the current mirror (fail-safe — never guess a
+    // mode from indistinguishable state; a mislabelled access level is worse than a
+    // stale one). See codexPermissionModeFromTurnContext for the full boundary; the
+    // S3 picker-receipt fast path still reconciles every Sonata-driven switch.
+    const reconciledMode = codexPermissionModeFromTurnContext(
+      context.sandboxPolicy,
+      context.approvalPolicy,
+    );
+    const nextMode = reconciledMode ?? active.task.codexPermissionMode;
     if (
       active.task.model === nextModel &&
       active.task.reasoningEffort === nextEffort &&

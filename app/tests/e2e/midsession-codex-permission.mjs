@@ -144,6 +144,31 @@ try {
   findings.chipAfterApprove = (await accessChip.textContent())?.trim() ?? "";
   assert.ok(findings.chipAfterApprove.includes("Approve for me"), "the chip label followed to Approve for me");
 
+  // (b2) TURN_CONTEXT RECONCILE MUST NOT CORRUPT THE MIRROR (S5 item E / F1 fix).
+  //      approve-for-me and ask-for-approval share the (workspace-write, on-request)
+  //      projection the rollout's turn_context carries — they split only on the
+  //      reviewer axis, which the rollout can't tell apart. So completing a real
+  //      turn now emits a turn_context whose (sandbox, approval) pair is AMBIGUOUS;
+  //      the reconcile must DECLINE (keep the receipt-set approve-for-me), not
+  //      overwrite it to ask-for-approval. This is the live-turn proof of F1.
+  await sendPrompt(page, "Reply with just: two");
+  await waitForEngagement(page);
+  await page.locator("#send-prompt.stop-mode").waitFor({ state: "attached", timeout: 120000 });
+  await page.locator("#send-prompt:not(.stop-mode)").waitFor({ state: "attached", timeout: 180000 });
+  // Give the rollout tailer a beat to observe the turn's turn_context + run the reconcile.
+  await page.waitForTimeout(1500);
+  findings.manifestAfterLiveTurn = readManifestCodexMode(projectsDir, taskId);
+  assert.equal(
+    findings.manifestAfterLiveTurn,
+    "approve-for-me",
+    "approve-for-me SURVIVES a completed turn's turn_context reconcile (F1 — not corrupted to ask-for-approval)",
+  );
+  findings.chipAfterLiveTurn = (await accessChip.textContent())?.trim() ?? "";
+  assert.ok(
+    findings.chipAfterLiveTurn.includes("Approve for me"),
+    "the chip stayed on Approve for me after the live turn (no reconcile corruption)",
+  );
+
   const runsBeforeFullAccess = await page.evaluate(() => window.__runStarts ?? 0);
 
   // (d) FULL ACCESS — codex's consent dialog is NEVER auto-answered (RED LINE 2):

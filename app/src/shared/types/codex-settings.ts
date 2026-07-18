@@ -126,6 +126,45 @@ export function migrateCodexPermissionMode(record: {
   return "ask-for-approval";
 }
 
+/**
+ * Reconcile a CodexPermissionMode from a live rollout `turn_context`'s
+ * (`sandbox_policy.type`, `approval_policy`) pair — the only permission axes the
+ * rollout exposes per turn (item E — mid-session switch S5). Deliberately NARROW:
+ * returns a mode ONLY when the pair UNIQUELY identifies one triad member, else
+ * null (caller keeps the current mirror). This is NOT `migrateCodexPermissionMode`
+ * — that reverse-maps a legacy MANIFEST's (sandbox, approval) and treats
+ * `approval === "never"` as approve-for-me, which is WRONG for a live turn_context.
+ *
+ * Why it must be narrow — the reviewer-axis blind spot (measured, see the spawn
+ * projection table `CODEX_PERMISSION_SPAWN` in terminal-host.ts):
+ *   ask-for-approval → (workspace-write, on-request, reviewer=user)
+ *   approve-for-me   → (workspace-write, on-request, reviewer=auto_review)
+ *   full-access      → (danger-full-access, never,   reviewer=user)
+ * ask and approve share the SAME (sandbox, approval) projection — they diverge
+ * ONLY on `approvals_reviewer`. That axis persists to config.toml at spawn; even
+ * where it appears in a turn_context it reflects the spawn/config value, not the
+ * live-switched mode, so it cannot be trusted to tell a native ask↔approve switch
+ * apart. Guessing would MISLABEL access, so the shared pair (and any
+ * non-representable pair — e.g. a native read-only sandbox) NEVER overwrites; only
+ * full-access's unique `(danger-full-access, never)` projection reconciles.
+ *
+ * Accepted residual staleness (documented in plan S5(ii) + coupling inventory): a
+ * NATIVE ask↔approve switch is not reconciled from the rollout, and a native
+ * DOWNGRADE out of full-access keeps the stale full-access mirror (the pair it
+ * lands on is the ambiguous ask/approve one, so we decline rather than guess).
+ * Both stay on S3's picker-receipt fast path — Sonata-driven switches are always
+ * correct; only pure-native mid-session toggles carry this staleness.
+ */
+export function codexPermissionModeFromTurnContext(
+  sandboxPolicy: string | null,
+  approvalPolicy: string | null,
+): CodexPermissionMode | null {
+  if (sandboxPolicy === "danger-full-access" && approvalPolicy === "never") {
+    return "full-access";
+  }
+  return null;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

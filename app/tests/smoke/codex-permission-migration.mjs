@@ -19,7 +19,9 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { migrateCodexPermissionMode } = require("../../dist/shared/types/codex-settings");
+const { migrateCodexPermissionMode, codexPermissionModeFromTurnContext } = require(
+  "../../dist/shared/types/codex-settings",
+);
 const { freshTaskManifestV1 } = require("../../dist/shared/schemas");
 
 const failures = [];
@@ -72,6 +74,66 @@ assert(migrateCodexPermissionMode({}) === null, "empty record → null");
 assert(
   migrateCodexPermissionMode({ sandbox: null, approval: null }) === null,
   "null/null with no provider → null",
+);
+
+// ---- A2. Unit: codexPermissionModeFromTurnContext (item E reconcile map) --
+// The rollout turn_context reconcile (mid-session switch S5) must NOT reuse the
+// manifest reverse-map above: turn_context carries (sandbox_policy.type,
+// approval_policy) but NOT the reviewer axis that separates ask-for-approval from
+// approve-for-me — they SHARE the (workspace-write, on-request) projection. So the
+// reconcile map returns a mode ONLY on a UNIQUE projection (full-access), else
+// null → the caller keeps the current mirror. Round-trip the whole triad + the
+// review's staleness cases. `reconcile` mimics the controller's `mapped ?? current`
+// so the "survives" assertions read as the real reconcile behavior.
+const reconcile = (current, sandbox, approval) =>
+  codexPermissionModeFromTurnContext(sandbox, approval) ?? current;
+
+// full-access has a UNIQUE projection → reconciles (native upgrade lands it).
+assert(
+  codexPermissionModeFromTurnContext("danger-full-access", "never") === "full-access",
+  "turn_context (danger-full-access, never) → full-access (the one unique projection)",
+);
+assert(
+  reconcile("ask-for-approval", "danger-full-access", "never") === "full-access",
+  "native UPGRADE to full-access reconciles the mirror",
+);
+
+// The shared ask/approve projection NEVER overwrites — the receipt-set mirror
+// survives either way (this is the F1 corruption the fix closes).
+assert(
+  codexPermissionModeFromTurnContext("workspace-write", "on-request") === null,
+  "turn_context (workspace-write, on-request) → null (ambiguous: ask|approve)",
+);
+assert(
+  reconcile("approve-for-me", "workspace-write", "on-request") === "approve-for-me",
+  "approve-for-me mirror SURVIVES an observed (workspace-write, on-request) — no corruption",
+);
+assert(
+  reconcile("ask-for-approval", "workspace-write", "on-request") === "ask-for-approval",
+  "ask-for-approval mirror SURVIVES the same shared projection",
+);
+
+// Native DOWNGRADE out of full-access lands on the ambiguous pair → mirror keeps
+// full-access (accepted residual staleness — the rollout can't say ask vs approve,
+// so we decline rather than guess; documented in plan S5(ii) + coupling inventory).
+assert(
+  reconcile("full-access", "workspace-write", "on-request") === "full-access",
+  "native downgrade from full-access keeps the stale full-access mirror (residual staleness)",
+);
+
+// A non-representable pair (e.g. a native read-only sandbox on a Sonata session)
+// also keeps the current mirror — never advertise a mode from unmapped state (F2).
+assert(
+  codexPermissionModeFromTurnContext("read-only", "on-request") === null,
+  "turn_context (read-only, on-request) → null (non-representable)",
+);
+assert(
+  reconcile("approve-for-me", "read-only", "on-request") === "approve-for-me",
+  "a non-representable (read-only, on-request) keeps the current mirror (F2)",
+);
+assert(
+  codexPermissionModeFromTurnContext(null, null) === null,
+  "turn_context with no axes → null (keep current)",
 );
 
 // ---- B. Seam: RuntimeController manifest-read migration -------------------
