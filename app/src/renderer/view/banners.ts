@@ -56,6 +56,18 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
         }),
       );
     }
+    // Mid-session switch needs-attention (S1 RED LINE): the injected `/model` /
+    // `/effort` earned no receipt and the screen is in an unrecognized state (a
+    // possible cache-miss confirm / consent interstitial). Sonata does nothing
+    // further — a passive pointer to the CLI, where the user resolves it.
+    if (view.modelSwitch?.phase === "needs-attention") {
+      const axis = view.modelSwitch.kind === "model" ? "model" : "reasoning";
+      banners.push(
+        attentionBanner("model-switch", `Couldn't confirm the ${axis} switch — check the CLI`, () => {
+          actions.dismissModelSwitch(view);
+        }),
+      );
+    }
     // Codex's injected hooks never handshook within the spawn window — they are
     // not running. Since Sonata passes `--dangerously-bypass-hook-trust` on every
     // codex spawn (D4 overturn: trust can't persist through a profile layer),

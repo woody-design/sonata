@@ -60,6 +60,7 @@ export const IPC_CHANNELS = {
   usageRead: "usage:read",
   slashCommandsRead: "slash:commands:read",
   remoteControlInject: "remote-control:inject",
+  claudeControlSwitch: "claude-control:switch",
   // Preview window (2026-07 redesign, three-truths model §6). `previewOpen`
   // opens/focuses the window and binds a task (optionally opening a tab);
   // `previewBinding` is main's push of the bound task's session; the transition
@@ -302,6 +303,31 @@ export interface RemoteControlInjectRequest {
 export type RemoteControlInjectResponse =
   | { ok: true }
   | { ok: false; reason: "no-process" | "panel-open" | "busy" };
+
+/** Which axis a mid-session Claude switch drives — `/model <id>` or
+ *  `/effort <level>` (mid-session switch program S1). */
+export type ClaudeControlSwitchKind = "model" | "effort";
+
+export interface ClaudeControlSwitchRequest {
+  taskId: TaskId;
+  kind: ClaudeControlSwitchKind;
+  /** The `/model` alias (e.g. `sonnet`) or `/effort` level (e.g. `high`) to
+   *  inject. Sourced from Sonata's curated launch lists, never free text. */
+  value: string;
+}
+
+/** Result of KICKING OFF a mid-session Claude model/effort switch — the receipt
+ *  itself arrives later on the `model-switch:state` event stream, never here.
+ *  `wrong-provider` guards the codex hazard (inline `/model` args burn a turn);
+ *  `not-idle` = a turn is live (switching is idle-only, no queueing); `busy` = a
+ *  Sonata write (or a prior switch) is still in flight; `panel-open` = an
+ *  approval screen would swallow the command. */
+export type ClaudeControlSwitchResponse =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider";
+    };
 
 export interface StopRunRequest {
   taskId: TaskId;
@@ -721,6 +747,12 @@ export interface SonataRuntimeBridge {
   injectRemoteControl(
     request: RemoteControlInjectRequest,
   ): Promise<RemoteControlInjectResponse>;
+  /** Kick off a mid-session Claude `/model` or `/effort` switch. Resolves once
+   *  the command is on its way; the receipt (settled / failed / needs-attention)
+   *  arrives asynchronously on the `model-switch:state` event. */
+  switchClaudeControl(
+    request: ClaudeControlSwitchRequest,
+  ): Promise<ClaudeControlSwitchResponse>;
   // Preview window (three-truths model §6). `openPreview` opens/focuses + binds
   // (+ optional tab); the transition methods mutate session truth in main, which
   // echoes the updated binding back through `onPreviewBinding`.

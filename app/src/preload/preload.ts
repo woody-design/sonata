@@ -175,6 +175,8 @@ const sonataRuntime: SonataRuntimeBridge = {
   readSlashCommands: (request) => ipcRenderer.invoke(IPC_CHANNELS.slashCommandsRead, request),
   injectRemoteControl: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.remoteControlInject, request),
+  switchClaudeControl: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.claudeControlSwitch, request),
   openPreview: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewOpen, request),
   readPreviewBinding: () => ipcRenderer.invoke(IPC_CHANNELS.previewBindingRead),
   closePreviewTab: (request) => ipcRenderer.invoke(IPC_CHANNELS.previewClose, request),

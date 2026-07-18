@@ -387,6 +387,19 @@ initActions({
     view.slashAttention = null;
     renderAttentionBanners(view);
   },
+  dismissModelSwitch: (view) => {
+    view.modelSwitch = null;
+    renderAttentionBanners(view);
+  },
+  // Live session model chip (mid-session switch S1): inject `/model <id>` /
+  // `/effort <level>` for this Claude session. Fire-and-forget — the pending
+  // state and the receipt arrive on the model-switch:state event.
+  switchSessionModel: (view, value) => {
+    void applyClaudeControlSwitch(view, "model", value);
+  },
+  switchSessionEffort: (view, value) => {
+    void applyClaudeControlSwitch(view, "effort", value);
+  },
   // Option-prompt card: the select grammar (single-select picks, multi-select
   // toggles — drawer S1) and the answer flow.
   selectOptionPromptChoice: (view, questionIndex, optionIndex) => {
@@ -877,10 +890,38 @@ function toggleDraftMenuFromChip(kind: TaskDraftMenuKind, event: MouseEvent): vo
   render();
 }
 
+/** Toggle the live session's model+effort switch menu (S1). Mirrors
+ *  toggleDraftMenuFromChip's stopPropagation reasoning: render() rebuilds the
+ *  chip mid-click, so without it the document click-away closes the menu in the
+ *  same click that opened it. One composer-popover family at a time. */
+function toggleSessionModelMenuFromChip(event: MouseEvent): void {
+  event.stopPropagation();
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  state.composerMenu =
+    state.composerMenu?.type === "session-model"
+      ? null
+      : {
+          type: "session-model",
+          anchor: { left: rect.left, top: rect.top, width: rect.width },
+        };
+  state.taskDraft.menu = null;
+  composerTransitions.closeSlashPicker(state);
+  render();
+}
+
 elements.providerChip.addEventListener("click", (event) => {
   toggleDraftMenuFromChip("provider", event);
 });
 elements.modelChip.addEventListener("click", (event) => {
+  // A live session's model chip opens the session model+effort switch menu (S1,
+  // Claude only — the chip is disabled/read-only otherwise, so a click here on a
+  // codex or busy session never fires). New Chat's chip opens the draft launch
+  // menu. The disabled attribute gates busy/off-idle, so no extra guard here.
+  const view = activeTaskView();
+  if (view?.task) {
+    toggleSessionModelMenuFromChip(event);
+    return;
+  }
   toggleDraftMenuFromChip("launch", event);
 });
 elements.permissionChip.addEventListener("click", (event) => {
@@ -1104,6 +1145,58 @@ function toggleRemoteControlPopover(anchor: HTMLElement): void {
 function closeRemoteControlPopover(): void {
   popoverTransitions.closeRemoteControlPopover(state);
   renderRemoteControlPopover();
+}
+
+/** Drive a mid-session Claude model/effort switch (S1). Close the menu at once;
+ *  the pending state and the receipt (settled / failed / needs-attention) drive
+ *  the chip through the model-switch:state event. A refusal (a rare idle-gate
+ *  race — the chip is disabled off-idle) surfaces as a one-line composer notice. */
+async function applyClaudeControlSwitch(
+  view: TaskViewState,
+  kind: "model" | "effort",
+  value: string,
+): Promise<void> {
+  const task = view.task;
+  if (!task) {
+    return;
+  }
+  state.composerMenu = null;
+  render();
+  try {
+    const result = await window.sonataRuntime.switchClaudeControl({
+      taskId: task.id,
+      kind,
+      value,
+    });
+    if (!result.ok) {
+      view.status = controlSwitchRefusalCopy(kind, result.reason);
+      render();
+    }
+  } catch (error) {
+    view.status = errorMessage(error);
+    render();
+  }
+}
+
+/** One-line reason a switch couldn't be kicked off (idle-gate races + PTY loss).
+ *  User-facing, no CLI internals — the composer-notice register. */
+function controlSwitchRefusalCopy(
+  kind: "model" | "effort",
+  reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider",
+): string {
+  const axis = kind === "model" ? "model" : "reasoning";
+  switch (reason) {
+    case "not-idle":
+      return `Finish the current turn before switching ${axis}.`;
+    case "busy":
+      return "Claude is mid-action — try again in a moment.";
+    case "panel-open":
+      return "Claude is waiting on something in the CLI — answer that first.";
+    case "no-process":
+      return `This session isn't running — reopen it to switch ${axis}.`;
+    default:
+      return `Couldn't switch ${axis}.`;
+  }
 }
 
 /** Turn RC on. The main process injects `/rc` and emits remote-control:state

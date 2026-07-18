@@ -80,6 +80,7 @@ const VIEW_CHANGED_TYPES = new Set([
   "option-prompt:detected",
   "option-prompt:resolved",
   "remote-control:state",
+  "model-switch:state",
   "delivery:state",
   "delivery:receipt",
   "task:updated",
@@ -930,6 +931,119 @@ function workingStatus(liveness) {
   assert.equal(view.transcriptBlocks.has("A2"), false, "source A's stale blocks dropped");
   assert.equal(view.transcriptBlocks.has("B1"), true, "the OTHER source survives its sibling's reset");
   assert.deepEqual(view.transcriptBlockOrder, ["B1", "A3"], "surviving-then-fresh order, no stale ids");
+}
+
+// 12) model-switch:state (S1) — the four phases NOT in the corpus. The chip's
+//     value follows the statusline (usage:updated), so these only drive the
+//     pending affordance / needs-attention banner / failure notice, never the
+//     model label itself.
+{
+  const switchEvt = (phase, extra = {}) =>
+    evt("model-switch:state", {
+      taskId: "task-A",
+      kind: "model",
+      value: "sonnet",
+      phase,
+      error: null,
+      ...extra,
+    });
+
+  // pending → records the in-flight switch (dims the chip); full render active.
+  {
+    const { state, view } = seedView();
+    const d = R.reduceRuntimeEvent(state, switchEvt("pending"), NOW_MS);
+    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pending → full render");
+    assert.deepEqual(
+      view.modelSwitch,
+      { kind: "model", value: "sonnet", phase: "pending" },
+      "pending records the in-flight switch",
+    );
+  }
+
+  // settled → clears the pending affordance (the statusline drives the label).
+  {
+    const { state, view } = seedView({
+      modelSwitch: { kind: "model", value: "sonnet", phase: "pending" },
+    });
+    const d = R.reduceRuntimeEvent(state, switchEvt("settled"), NOW_MS);
+    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "settled → full render");
+    assert.equal(view.modelSwitch, null, "settled drops the pending affordance");
+  }
+
+  // failed → clears the affordance and reports a one-line composer notice.
+  {
+    const { state, view } = seedView({
+      modelSwitch: { kind: "model", value: "bogus", phase: "pending" },
+      status: "Running",
+    });
+    const d = R.reduceRuntimeEvent(
+      state,
+      switchEvt("failed", { value: "bogus", error: "Claude rejected the model \"bogus\"." }),
+      NOW_MS,
+    );
+    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "failed → full render");
+    assert.equal(view.modelSwitch, null, "failed clears the pending affordance");
+    assert.equal(view.status, 'Claude rejected the model "bogus".', "failed surfaces the reason as status");
+  }
+
+  // failed with no error string → a safe default notice.
+  {
+    const { state, view } = seedView();
+    R.reduceRuntimeEvent(state, switchEvt("failed", { error: null }), NOW_MS);
+    assert.equal(view.status, "Couldn't switch — Claude rejected it.", "failed falls back to a default notice");
+  }
+
+  // needs-attention → the RED LINE banner pointer; nothing else happens.
+  {
+    const { state, view } = seedView({ status: "Ready" });
+    const d = R.reduceRuntimeEvent(
+      state,
+      switchEvt("needs-attention", { kind: "effort", value: "high" }),
+      NOW_MS,
+    );
+    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "needs-attention → full render");
+    assert.deepEqual(
+      view.modelSwitch,
+      { kind: "effort", value: "high", phase: "needs-attention" },
+      "needs-attention records the pointer for the banner",
+    );
+    assert.equal(view.status, "Ready", "needs-attention does not overwrite status (banner carries it)");
+  }
+
+  // A new run moots any lingering switch pointer (pending or needs-attention).
+  {
+    const { state, view } = seedView({
+      active: false,
+      modelSwitch: { kind: "model", value: "sonnet", phase: "needs-attention" },
+    });
+    R.reduceRuntimeEvent(
+      state,
+      evt("run:started", {
+        taskId: "task-A",
+        id: "run-2",
+        kind: "prompt",
+        prompt: "next",
+        title: "next",
+        status: "running",
+        lifecyclePhase: "running",
+        startedAt: "2026-07-03T12:00:00.000Z",
+        endedAt: null,
+        elapsedMs: null,
+        completionSource: null,
+        completionConfidence: null,
+      }),
+      NOW_MS,
+    );
+    assert.equal(view.modelSwitch, null, "a new run clears the stale switch pointer");
+  }
+
+  // Background variant: a switch phase on an unfocused view marks unread.
+  {
+    const { state, view } = seedView({ active: false });
+    const d = R.reduceRuntimeEvent(state, switchEvt("pending"), NOW_MS);
+    assert.deepEqual(d, [{ kind: "unread-only", taskId: "task-A" }], "bg switch → unread-only");
+    assert.equal(view.unread, true, "bg switch marks unread");
+  }
 }
 
 if (WRITE_GOLDENS) {

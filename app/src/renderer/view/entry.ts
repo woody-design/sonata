@@ -386,7 +386,11 @@ function positionDraftMenu(popover: HTMLElement, preferredWidth: number): void {
   popover.style.maxHeight = `${Math.max(200, anchorTop - viewportPadding - 8)}px`;
 }
 
-function renderSettingSection<T extends string | null>(
+/** One titled radio section of a settings popover (Reasoning / Model / …).
+ *  Exported so the live session's model+effort menu (composer.ts, S1) renders
+ *  the same component as the New Chat launch menu — one visual family, one
+ *  selection grammar. */
+export function renderSettingSection<T extends string | null>(
   label: string,
   options: Array<{ label: string; value: T }>,
   selected: T,

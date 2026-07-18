@@ -74,6 +74,13 @@ export interface Actions {
   //   assignments are grammar (C3 ruling) — implemented shell-side, each the
   //   verbatim body of the dismiss handler it replaced. —
   dismissSlashAttention(view: TaskViewState): void;
+  /** Clear the mid-session model/effort switch pointer (needs-attention banner). */
+  dismissModelSwitch(view: TaskViewState): void;
+  // — Live session model chip (mid-session switch S1): inject `/model <id>` /
+  //   `/effort <level>` for THIS Claude session; the receipt drives the chip
+  //   through the model-switch:state event, so these fire-and-forget. —
+  switchSessionModel(view: TaskViewState, value: string): void;
+  switchSessionEffort(view: TaskViewState, value: string): void;
   // — Option-prompt card (view/approvals.ts): select grammar + answer flow
   //   (IPC injection; optimistic receipt) —
   selectOptionPromptChoice(view: TaskViewState, questionIndex: number, optionIndex: number): void;

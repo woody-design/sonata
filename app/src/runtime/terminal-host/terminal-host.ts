@@ -26,7 +26,12 @@ import type {
   TaskId,
 } from "../../shared/types/domain";
 import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
-import type { RemoteControlInjectResponse, TerminalReplaySnapshot } from "../../shared/types/ipc";
+import type {
+  ClaudeControlSwitchKind,
+  ClaudeControlSwitchResponse,
+  RemoteControlInjectResponse,
+  TerminalReplaySnapshot,
+} from "../../shared/types/ipc";
 import { ensureClaudeRuntimeSettings } from "../cli-signal";
 import {
   CODEX_SONATA_PROFILE,
@@ -68,6 +73,45 @@ export function hasRemoteControlDisconnect(compact: string): boolean {
 export function findRemoteControlUrl(raw: string): string | null {
   return raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").match(REMOTE_CONTROL_URL_RE)?.[0] ?? null;
 }
+// Mid-session Claude model/effort switch receipt detection (pure; unit-tested
+// in tests/smoke/midsession-receipt.mjs). Sonata injects `/model <id>` /
+// `/effort <level>` as typed text and watches the pty stream for the CLI's own
+// receipt line (probe-verified verbatim, claude 2.1.214 — spikes/midsession-
+// switch-probe/findings.md):
+//   model  success → `⎿ Set model to Sonnet 5 and saved as your default …`
+//   effort success → `⎿ Set effort level to low (saved as your default …)`
+//   model  failure → `⎿ Model 'bogus-model-xyz' not found`
+// The receipt is WORD-POSITIONED — claude lays it out with cursor moves
+// (`\x1b[NG`), not spaces — so stripping ANSI glues the words
+// ("Set model to" → "Setmodelto"). We therefore match the COMPACTED form
+// (escapes + ALL whitespace removed) on the accumulated RAW tail, exactly like
+// the Remote Control detector, so a split landing inside an escape reassembles
+// first. Screen text is a choreography RECEIPT only — the statusline mirror
+// stays the model SSOT.
+export const CONTROL_SWITCH_SCAN_LIMIT = 4096;
+const CONTROL_SWITCH_MODEL_OK_RE = /Setmodelto/;
+const CONTROL_SWITCH_EFFORT_OK_RE = /Seteffortlevelto/;
+const CONTROL_SWITCH_MODEL_FAIL_RE = /Model'[^']*'notfound/;
+
+export function parseClaudeControlReceipt(
+  rawScan: string,
+  kind: "model" | "effort",
+): "settled" | "failed" | null {
+  const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
+  if (kind === "effort") {
+    // No failure receipt is probed for `/effort` (its levels come from a curated
+    // list, so a "not found" is unreachable); an unrecognized outcome times out
+    // to needs-attention rather than being guessed as a failure here.
+    return CONTROL_SWITCH_EFFORT_OK_RE.test(compact) ? "settled" : null;
+  }
+  // Failure first: a `Model '<x>' not found` line never contains `Set model to`,
+  // so checking failure ahead of success is the safe ordering.
+  if (CONTROL_SWITCH_MODEL_FAIL_RE.test(compact)) {
+    return "failed";
+  }
+  return CONTROL_SWITCH_MODEL_OK_RE.test(compact) ? "settled" : null;
+}
+
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
 /** Ctrl+U — kill-line in both CLIs' composers. Idempotent on an empty line
@@ -84,6 +128,11 @@ const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
+/** How long to wait for a `/model` / `/effort` receipt line before declaring
+ *  the screen an unrecognized state and surfacing needs-attention (RED LINE:
+ *  no auto-answer, no retry). ~5s covers the CLI's echo→apply→print latency
+ *  with headroom (probe receipts landed well inside 2.5s). */
+const CONTROL_SWITCH_RECEIPT_TIMEOUT_MS = 5000;
 /** How long after the stop Esc the belt-clear fires. The prompt-restore is
  *  effectively immediate — present at the earliest measured snapshot, +300ms
  *  (probe C10) — so 900ms is comfortably past it; the belt is cosmetic
@@ -478,6 +527,17 @@ export class TerminalHost extends EventEmitter {
   // inside an escape sequence. Reset on every transition so a stale match can't
   // fire after a reconnect.
   private remoteControlScan = "";
+  // Mid-session Claude model/effort switch (S1). `pendingControlSwitch` is the
+  // one in-flight switch (Claude only, idle only); `controlSwitchScan` is the
+  // rolling RAW pty tail we watch for the receipt line while it is set. Both
+  // clear the instant the receipt lands or the timeout fires — the statusline
+  // mirror, not this scrape, remains the model authority.
+  private pendingControlSwitch: {
+    kind: ClaudeControlSwitchKind;
+    value: string;
+    timer: NodeJS.Timeout | null;
+  } | null = null;
+  private controlSwitchScan = "";
   /**
    * Single-writer arbitration between Sonata's automation and the human typing in
    * the terminal (S2 — the AtomicWriter). `sonataWriteDepth` > 0 means an
@@ -631,6 +691,7 @@ export class TerminalHost extends EventEmitter {
     this.remoteControlActive = false;
     this.remoteControlUrl = null;
     this.remoteControlScan = "";
+    this.clearPendingControlSwitch();
     this.startFileWatcher(cwd);
 
     const command = options.command ?? this.profile.defaultCommand;
@@ -810,6 +871,148 @@ export class TerminalHost extends EventEmitter {
         this.setRemoteControlActive(true, url);
       }
     }
+  }
+
+  /**
+   * Drive a mid-session Claude model/effort switch by injecting `/model <id>` /
+   * `/effort <level>` as TYPED text + Enter (mid-session switch program S1). The
+   * command path needs real keystrokes, so this writes the raw bytes under the
+   * write-lock — NOT a bracketed-paste frame (the delivery path) — and never
+   * begins a run: a control switch is not a turn. The receipt is watched on the
+   * pty stream (`detectControlSwitchReceipt`); the statusline mirror, not the
+   * scrape, is the model authority.
+   *
+   * Idle-only, one at a time: an active run, an in-flight Sonata write, an open
+   * approval panel, or a prior pending switch all refuse (the renderer also gates
+   * on turnActivity, this is the backend guard). RED LINE inheritance: we inject
+   * and OBSERVE — the timeout surfaces needs-attention, we never blind-Enter.
+   */
+  injectClaudeControlSwitch(
+    kind: ClaudeControlSwitchKind,
+    value: string,
+  ): ClaudeControlSwitchResponse {
+    if (this.profile.provider !== "claude") {
+      // Codex burns a real turn on an inline `/model` arg (probe hazard) — never
+      // reach the pty on the wrong provider.
+      return { ok: false, reason: "wrong-provider" };
+    }
+    if (!this.ptyProcess) {
+      return { ok: false, reason: "no-process" };
+    }
+    if (this.approvalActive) {
+      return { ok: false, reason: "panel-open" };
+    }
+    if (this.activeRun) {
+      return { ok: false, reason: "not-idle" };
+    }
+    // A prior switch still awaiting its receipt, or any automation write mid
+    // sequence — refuse rather than interleave a second command's bytes.
+    if (this.pendingControlSwitch || this.sonataWriting) {
+      return { ok: false, reason: "busy" };
+    }
+
+    const command = `/${kind} ${value}`;
+    this.beginSonataWrite();
+    // Suspenders (mirrors submitPrompt): if the CLI input line still holds an
+    // Esc-restored prompt, clear it before our command lands so it can't
+    // concatenate. A no-op on a clean line — and idle-only, so no live prompt.
+    this.writeCliInputClearFlood("pre-submit");
+    // Typed text, NOT bracketed paste: write the command bytes as real
+    // keystrokes (probe verified `/model sonnet` typed, then Enter, applies).
+    this.ptyProcess.write(command);
+    // Defer the Enter under the held lock (mirrors the prompt-delivery path): a
+    // human keystroke landing in the gap buffers rather than splitting the frame.
+    // A raw carriage return (`\r`), NOT CSI_U_ENTER: a command typed raw into the
+    // slash path submits on `\r` in BOTH legacy and kitty input modes, whereas
+    // the CSI-u encoding only lands under a negotiated kitty session (probe: raw
+    // `/model` + CSI_U_ENTER did not submit; + `\r` did). The bracketed-paste
+    // prompt path can rely on CSI_U_ENTER; this raw-command path cannot.
+    this.deferSonataWrite(
+      120,
+      () => {
+        if (this.ptyProcess) {
+          this.ptyProcess.write("\r");
+        }
+      },
+      "control",
+    );
+    this.endSonataWrite();
+
+    // Arm the watch: fresh scan window, pending state, and the needs-attention
+    // timeout. The receipt (settled/failed) clears the timer.
+    this.controlSwitchScan = "";
+    const timer = setTimeout(() => {
+      this.onControlSwitchTimeout();
+    }, CONTROL_SWITCH_RECEIPT_TIMEOUT_MS);
+    timer.unref?.();
+    this.pendingControlSwitch = { kind, value, timer };
+    this.emitControlSwitchState("pending", null);
+    return { ok: true };
+  }
+
+  /**
+   * Watch the pty stream for the injected switch's receipt line while a switch is
+   * pending. Success → `settled` (the chip follows the statusline, not this
+   * scrape); a `Model '<x>' not found` → `failed`. Anything else keeps waiting
+   * until the timeout re-classifies the screen as needs-attention.
+   */
+  private detectControlSwitchReceipt(data: string): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending) {
+      return;
+    }
+    this.controlSwitchScan = (this.controlSwitchScan + data).slice(-CONTROL_SWITCH_SCAN_LIMIT);
+    const verdict = parseClaudeControlReceipt(this.controlSwitchScan, pending.kind);
+    if (verdict === "settled") {
+      this.clearPendingControlSwitch();
+      this.emitControlSwitchState("settled", null, pending);
+      return;
+    }
+    if (verdict === "failed") {
+      this.clearPendingControlSwitch();
+      const label = pending.kind === "model" ? "model" : "effort level";
+      this.emitControlSwitchState("failed", `Claude rejected the ${label} "${pending.value}".`, pending);
+    }
+  }
+
+  /**
+   * No receipt arrived in time — the screen is in an unrecognized state (a
+   * possible cache-miss confirm or Fable consent interstitial). RED LINE: surface
+   * needs-attention and do NOTHING further — no auto-answer, no blind-Enter, no
+   * retry. The user resolves it in the co-visible terminal.
+   */
+  private onControlSwitchTimeout(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending) {
+      return;
+    }
+    this.clearPendingControlSwitch();
+    this.emitControlSwitchState("needs-attention", null, pending);
+  }
+
+  private clearPendingControlSwitch(): void {
+    if (this.pendingControlSwitch?.timer) {
+      clearTimeout(this.pendingControlSwitch.timer);
+    }
+    this.pendingControlSwitch = null;
+    this.controlSwitchScan = "";
+  }
+
+  private emitControlSwitchState(
+    phase: "pending" | "settled" | "failed" | "needs-attention",
+    error: string | null,
+    context: { kind: ClaudeControlSwitchKind; value: string } | null = this.pendingControlSwitch,
+  ): void {
+    if (!context) {
+      return;
+    }
+    this.emitEvent("model-switch:state", {
+      taskId: this.taskId,
+      kind: context.kind,
+      value: context.value,
+      phase,
+      error,
+    });
   }
 
   /**
@@ -1680,6 +1883,9 @@ export class TerminalHost extends EventEmitter {
     // Outside the ptyProcess guard: after a crash-exit already nulled the
     // process, a following dispose/startTask must still not leak timers.
     this.clearStopHygieneState();
+    // A switch waiting on its receipt when the PTY dies never gets one — drop it
+    // (no needs-attention: the session is gone, there is nothing to point at).
+    this.clearPendingControlSwitch();
     if (!this.ptyProcess) {
       return;
     }
@@ -1739,6 +1945,7 @@ export class TerminalHost extends EventEmitter {
       seq,
     });
     this.detectRemoteControlState(data);
+    this.detectControlSwitchReceipt(data);
     this.detectApproval();
     if (this.isHumanActivelyTyping()) {
       // While the human is typing in the terminal they may be answering a native

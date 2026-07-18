@@ -9,8 +9,14 @@
 // slash-picker into this popover root (the renderTaskEntryPanel precedent).
 
 import { ChevronDown, File as FileIcon, Folder, Image as ImageIcon, X } from "lucide";
-import type { AttachmentKind, Task, UsageSnapshot } from "../../shared/types";
-import { USAGE_CONTEXT_HIGH_USED_PERCENT } from "../../reading-core/config";
+import type { AttachmentKind, RuntimeProvider, Task, UsageSnapshot } from "../../shared/types";
+import {
+  MODEL_OPTIONS,
+  REASONING_OPTIONS,
+  USAGE_CONTEXT_HIGH_USED_PERCENT,
+} from "../../reading-core/config";
+import { turnActivity } from "../../reading-core/selectors/runs";
+import { renderSettingSection } from "./entry";
 import {
   compactTokenCount,
   fileExtension,
@@ -209,11 +215,7 @@ export function renderComposerControls(view = activeTaskView(state)): void {
       composerChipLabel(view, "permission"),
       sessionPermissionSwitchHint(provider),
     );
-    renderComposerChip(
-      elements.modelChip,
-      composerChipLabel(view, "model"),
-      sessionModelSwitchHint(provider),
-    );
+    renderSessionModelChip(view, provider);
   }
   renderUsageIndicator(view);
   // New-chat state (no view): the composer IS the create action — the
@@ -287,6 +289,139 @@ function renderComposerChip(element: HTMLButtonElement, label: string | null, hi
   } else {
     element.removeAttribute("title");
   }
+}
+
+/**
+ * The live session's model chip. Codex stays exactly as before — a read-only
+ * mirror (S4 owns codex mid-session switching). Claude's becomes interactive
+ * (S1): at idle it opens the model+effort switch menu; while a turn runs it
+ * renders a designed disabled state; while a switch is in flight it dims to a
+ * pending look. The label itself always follows the statusline mirror.
+ */
+function renderSessionModelChip(view: TaskViewState, provider: RuntimeProvider): void {
+  const label = composerChipLabel(view, "model");
+  if (provider !== "claude") {
+    renderComposerChip(elements.modelChip, label, sessionModelSwitchHint(provider));
+    return;
+  }
+  const element = elements.modelChip;
+  element.classList.toggle("hidden", !label);
+  element.removeAttribute("aria-expanded");
+  if (!label) {
+    element.classList.remove("interactive", "active", "switching");
+    element.disabled = true;
+    element.removeAttribute("title");
+    element.removeAttribute("aria-haspopup");
+    return;
+  }
+  const pending = view.modelSwitch?.phase === "pending";
+  // Idle-only (turnActivity SSOT — turn-signal program): no switching while a
+  // turn is live or background work runs, and none while a switch is in flight.
+  const switchable = turnActivity(view) === "idle" && !pending;
+  const open = state.composerMenu?.type === "session-model";
+
+  // Reuse the launch-chip DOM (label span + caret) so the live chip reads as the
+  // same control as New Chat's model chip. Children update in place — the
+  // persistent-control render rule (a blur-driven re-render must not detach the
+  // mousedown target mid-click).
+  let labelEl = element.querySelector<HTMLSpanElement>(".composer-chip-label");
+  if (!labelEl) {
+    element.replaceChildren();
+    labelEl = document.createElement("span");
+    labelEl.className = "composer-chip-label";
+    element.append(labelEl, lucideIcon(ChevronDown, 12));
+  }
+  if (labelEl.textContent !== label) {
+    labelEl.textContent = label;
+  }
+  element.classList.add("interactive");
+  element.classList.toggle("active", open);
+  element.classList.toggle("switching", pending);
+  element.disabled = !switchable;
+  element.title = pending
+    ? `Switching to ${view.modelSwitch?.value ?? ""}…`
+    : switchable
+      ? "Switch model and reasoning for this session"
+      : "Available when Claude is idle";
+  element.setAttribute("aria-haspopup", "menu");
+  element.ariaExpanded = String(open);
+}
+
+/** The live session's model + effort switch menu (S1) — same visual family as
+ *  the New Chat launch menu (renderSettingSection), plus a caption noting the
+ *  CLI-default side effect (a mid-session switch persists as Claude's global
+ *  default; Sonata sessions are immune, bare-terminal Claude is not). */
+function renderSessionModelMenu(view: TaskViewState): HTMLElement {
+  const menu = document.createElement("div");
+  menu.className = "task-settings-popover composer-session-menu";
+  menu.setAttribute("role", "menu");
+  menu.ariaLabel = "Model and reasoning";
+  // stopPropagation: render() rebuilds the chip mid-click; without this the
+  // document click-away would close the menu in the same click that opened it.
+  menu.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  menu.append(
+    renderSettingSection("Model", sessionModelOptions(), sessionModelValue(view) ?? "", (value) => {
+      actions.switchSessionModel(view, value);
+    }),
+    renderSettingSection(
+      "Reasoning",
+      sessionEffortOptions(),
+      sessionEffortValue(view) ?? "",
+      (value) => {
+        actions.switchSessionEffort(view, value);
+      },
+    ),
+  );
+
+  const caption = document.createElement("p");
+  caption.className = "task-setting-caption";
+  caption.textContent = "Also becomes Claude's default for sessions outside Sonata.";
+  menu.append(caption);
+  return menu;
+}
+
+/** Concrete Claude models only — "Native Default" (null) has no mid-session
+ *  meaning (there is no re-spawn to defer to). */
+function sessionModelOptions(): Array<{ label: string; value: string }> {
+  return MODEL_OPTIONS.claude.flatMap((option) =>
+    option.value ? [{ label: option.label, value: option.value }] : [],
+  );
+}
+
+/** The v1 effort set (low → max); "Native Default" (null) is dropped for the
+ *  same reason as the model list. */
+function sessionEffortOptions(): Array<{ label: string; value: string }> {
+  return REASONING_OPTIONS.claude.flatMap((option) =>
+    option.value ? [{ label: option.label, value: option.value }] : [],
+  );
+}
+
+/** The current model as a `/model` alias, so the menu can mark it. The live
+ *  statusline display name wins (it follows a switch); map it back to an alias
+ *  by label, falling back to the spawn model. */
+function sessionModelValue(view: TaskViewState): string | null {
+  const task = view.task;
+  if (!task) {
+    return null;
+  }
+  const displayName = view.usageSnapshot?.modelDisplayName ?? null;
+  if (displayName) {
+    const match = MODEL_OPTIONS.claude.find((option) => option.label === displayName);
+    if (match?.value) {
+      return match.value;
+    }
+  }
+  return task.model;
+}
+
+/** The current effort level — the live statusline value wins (a model switch may
+ *  reset effort, and the statusline carries the live level), spawn value falls
+ *  back. */
+function sessionEffortValue(view: TaskViewState): string | null {
+  return view.usageSnapshot?.reasoningEffort ?? view.task?.reasoningEffort ?? null;
 }
 
 /** A New Chat launch chip: interactive, carets down, toggles its draft menu
@@ -368,6 +503,12 @@ export function renderComposerPopover(view = activeTaskView(state)): void {
   // task guard. The usage popover reads a live session.
   if (state.composerMenu?.type === "add") {
     const menu = renderAddMenu();
+    positionComposerMenu(menu);
+    elements.composerPopoverRoot.append(menu);
+    return;
+  }
+  if (state.composerMenu?.type === "session-model" && view?.task) {
+    const menu = renderSessionModelMenu(view);
     positionComposerMenu(menu);
     elements.composerPopoverRoot.append(menu);
     return;

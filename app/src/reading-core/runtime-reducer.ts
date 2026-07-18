@@ -116,6 +116,9 @@ export function reduceRuntimeEvent(
     view.optionPromptStep = 0;
     // …and so is a prior slash-attention pointer (attention moved on).
     view.slashAttention = null;
+    // A new turn moots any lingering model-switch pointer (a stuck pending or a
+    // needs-attention the user never dismissed): the CLI is doing new work.
+    view.modelSwitch = null;
     ensureRunTranscript(view, event.payload.id);
     return [viewChangedDirective(state, view, taskId)];
   }
@@ -166,6 +169,37 @@ export function reduceRuntimeEvent(
     // connect/disconnect events that flow once it goes live.
     view.remoteControl.active = event.payload.active;
     view.remoteControl.url = event.payload.url;
+    return [viewChangedDirective(state, view, taskId)];
+  }
+
+  if (event.type === "model-switch:state") {
+    // Mid-session Claude model/effort switch (S1). The chip's value follows the
+    // STATUSLINE mirror (usage:updated), never this event — so `settled` only
+    // clears the pending affordance; the label was already re-derived (a model
+    // switch may reset effort, and the statusline carries the live effort too).
+    if (event.payload.phase === "pending") {
+      view.modelSwitch = {
+        kind: event.payload.kind,
+        value: event.payload.value,
+        phase: "pending",
+      };
+    } else if (event.payload.phase === "needs-attention") {
+      // RED LINE surface: no receipt + an unrecognized screen. A passive "check
+      // the CLI" pointer (banners.ts) — Sonata does nothing further.
+      view.modelSwitch = {
+        kind: event.payload.kind,
+        value: event.payload.value,
+        phase: "needs-attention",
+      };
+    } else if (event.payload.phase === "failed") {
+      // A clean rejection (`Model '<x>' not found`): nothing changed CLI-side, so
+      // the chip is already truthful. Report it as a one-line composer notice.
+      view.modelSwitch = null;
+      view.status = event.payload.error ?? "Couldn't switch — Claude rejected it.";
+    } else {
+      // settled — drop the pending affordance; the statusline drives the label.
+      view.modelSwitch = null;
+    }
     return [viewChangedDirective(state, view, taskId)];
   }
 

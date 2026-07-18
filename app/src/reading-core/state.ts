@@ -165,6 +165,13 @@ export interface TaskViewState {
    *  approval card expired to the native panel. Display-only state: set/cleared
    *  from runtime events, never drives delivery or runs. */
   slashAttention: { runId: string; command: string } | null;
+  /** Mid-session Claude model/effort switch (S1) — the non-settled state of the
+   *  one in-flight switch. `pending` dims the model chip while the receipt is
+   *  awaited; `needs-attention` raises the "check the CLI" banner (no receipt +
+   *  unrecognized screen — RED LINE). Cleared on settle (the chip follows the
+   *  statusline), on dismiss, or when a new run moots it. A `failed` switch does
+   *  not live here — it surfaces as a one-line composer notice via `status`. */
+  modelSwitch: { kind: "model" | "effort"; value: string; phase: "pending" | "needs-attention" } | null;
   /** The broker hold expired — the request now waits in the CLI. The drawer
    *  keeps showing it (expired variant); cleared by a decision (incl.
    *  answered-natively) or a fresh detected ask. */
@@ -442,7 +449,10 @@ export interface PromptNavState {
 }
 
 export interface ComposerMenuState {
-  type: "add";
+  /** `add` = the attachment menu; `session-model` = the live session's model +
+   *  effort switch menu (S1 — the interactive model chip, Claude only). One
+   *  composer popover at a time; both anchor above their chip. */
+  type: "add" | "session-model";
   anchor: PopoverAnchor;
 }
 
@@ -610,6 +620,7 @@ export function createTaskView(task: Task, status: string, live = true): TaskVie
     cliState: null,
     resumeChoice: null,
     slashAttention: null,
+    modelSwitch: null,
     approvalExpired: false,
     status,
     unread: false,

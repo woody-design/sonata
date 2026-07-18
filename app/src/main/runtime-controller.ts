@@ -101,6 +101,8 @@ import {
   type ResumeSettings,
 } from "../shared/types/resume-settings";
 import type {
+  ClaudeControlSwitchKind,
+  ClaudeControlSwitchResponse,
   PrepareResumeResponse,
   RemoteControlInjectResponse,
   ResumeSettingsResponse,
@@ -860,6 +862,21 @@ export class RuntimeController {
   injectRemoteControl(taskId: TaskId): RemoteControlInjectResponse {
     const active = this.requireTaskRuntime(taskId);
     return active.terminalHost.injectRemoteControl();
+  }
+
+  /**
+   * Kick off a mid-session Claude `/model` / `/effort` switch (S1). A live PTY is
+   * required — a dormant session has nothing to drive. The provider gate lives in
+   * the TerminalHost (codex refuses: an inline `/model` arg burns a turn); the
+   * receipt drives the `model-switch:state` event, not this return.
+   */
+  switchClaudeControl(
+    taskId: TaskId,
+    kind: ClaudeControlSwitchKind,
+    value: string,
+  ): ClaudeControlSwitchResponse {
+    const active = this.requireLiveTaskRuntime(taskId);
+    return active.terminalHost.injectClaudeControlSwitch(kind, value);
   }
 
   writeTerminalUserInput(taskId: TaskId, data: string): void {
