@@ -1250,10 +1250,13 @@ export class TerminalHost extends EventEmitter {
 
     const command = `/${kind} ${value}`;
     this.beginSonataWrite();
-    // Suspenders (mirrors submitPrompt): if the CLI input line still holds an
-    // Esc-restored prompt, clear it before our command lands so it can't
-    // concatenate. A no-op on a clean line — and idle-only, so no live prompt.
-    this.writeCliInputClearFlood("pre-submit");
+    // Clear the composer line UNCONDITIONALLY before our command lands, so it
+    // can't concatenate onto an Esc-restored prompt OR text a human typed
+    // straight into the idle Terminal (which sets no dirty flag) — a
+    // `<prefix>/model x` line submits as a chat prompt. Screen-blind-safe: a
+    // no-op on a clean line. (F1 review fix: the old dirty-flag-gated flood
+    // no-oped exactly when a human's untracked typing needed clearing.)
+    this.clearComposerBeforeTypedCommand();
     // Typed text, NOT bracketed paste: write the command bytes as real
     // keystrokes (probe verified `/model sonnet` typed, then Enter, applies).
     this.ptyProcess.write(command);
@@ -1494,7 +1497,12 @@ export class TerminalHost extends EventEmitter {
     // `/model` inject), then defer the Enter under the held write-lock so a human
     // keystroke in the gap buffers rather than splitting the frame.
     this.beginSonataWrite();
-    this.writeCliInputClearFlood("pre-submit");
+    // Clear the composer UNCONDITIONALLY first (RED LINE 1): if a human typed
+    // unsubmitted text into the idle Terminal, `/permissions` would concatenate
+    // onto it (`<prefix>/permissions`) and SUBMIT as a chat prompt — codex burns
+    // a real turn and the run:started silently cancels this switch. The old
+    // dirty-flag-gated flood no-oped there (untracked typing sets no flag).
+    this.clearComposerBeforeTypedCommand();
     this.ptyProcess.write("/permissions");
     this.deferSonataWrite(
       120,
@@ -2571,6 +2579,34 @@ export class TerminalHost extends EventEmitter {
    * activity window (their in-terminal edit of the restored text must not be
    * wiped — review F7).
    */
+  /**
+   * Unconditionally kill the composer line before typing a raw slash COMMAND
+   * (`/model`, `/effort`, `/permissions`). This does NOT gate on
+   * `cliInputMaybeDirty` — unlike an Esc-restored prompt, a co-present human can
+   * type unsubmitted text straight into the idle Terminal composer (typeable per
+   * the Two-Window Contract), which sets NO dirty flag. If that text is still on
+   * the line, our command concatenates onto it — and a slash line with a text
+   * prefix SUBMITS as a chat prompt: on codex that burns a real turn (RED LINE 1,
+   * and the `run:started` then silently cancels the switch), and a claude
+   * `<prefix>/model x` misfires the same way. So the clear must be
+   * SCREEN-BLIND-safe rather than flag-conditional. KILL_LINE (`\x15`) on an
+   * already-empty composer is the designed harmless no-op (probe C2/C6/X2). The
+   * caller already holds the write-lock, so the kills land ahead of the typed
+   * command in order.
+   */
+  private clearComposerBeforeTypedCommand(): void {
+    if (!this.ptyProcess) {
+      return;
+    }
+    const kills = Math.min(
+      Math.max(this.cliDirtyLineHighWater * 2 + 2, CLI_INPUT_CLEAR_MIN_KILLS),
+      CLI_INPUT_CLEAR_MAX_KILLS,
+    );
+    this.ptyProcess.write(KILL_LINE.repeat(kills));
+    // Whatever was on the line is gone; a later Esc-restore flag would be stale.
+    this.cliInputMaybeDirty = false;
+  }
+
   private writeCliInputClearFlood(reason: "pre-submit" | "post-stop settle"): boolean {
     if (!this.cliInputMaybeDirty || !this.ptyProcess) {
       return false;

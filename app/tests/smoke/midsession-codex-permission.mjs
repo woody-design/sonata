@@ -105,6 +105,17 @@ try {
   findings.switchA = await drive("ask-for-approval", "approve-for-me");
   findings.switchB = await drive("approve-for-me", "ask-for-approval");
   findings.switchC = await drive("ask-for-approval", "full-access");
+
+  // (F1 regression) RESIDUAL TEXT: a human types unsubmitted text straight into
+  // the idle Terminal composer (no dirty flag), THEN a switch is driven. The
+  // unconditional pre-command clear must wipe it so `/permissions` opens the
+  // picker cleanly — WITHOUT the clear, `<residual>/permissions` submits as a
+  // chat prompt (RED LINE 1: codex burns a turn and the run cancels the switch).
+  const runsBeforeResidual = runStarts;
+  findings.switchD = await drive("ask-for-approval", "approve-for-me", {
+    residualText: "let me think ZZRESIDUALZZ",
+  });
+  findings.residualBurnedTurn = runStarts > runsBeforeResidual;
   findings.runStarts = runStarts;
 
   // A + B — happy path: settled, receipt matched, picker closed.
@@ -126,6 +137,12 @@ try {
     true,
     "C: the rollback Esc returned to the composer (consent dialog + picker both closed)",
   );
+
+  // (F1) The residual-text switch still settled AND burned no turn — the
+  // unconditional clear wiped the human's untracked typing before `/permissions`.
+  assert.equal(findings.switchD.phase, "settled", "D: switch with residual composer text still settled");
+  assert.equal(findings.switchD.receipt, "approve-for-me", "D: receipt matched despite residual text");
+  assert.equal(findings.residualBurnedTurn, false, "D: residual text did NOT concatenate into a burned turn (RED LINE 1)");
 
   // Byte discipline (RED LINE 1): no switch started a chat turn.
   assert.equal(runStarts, 0, "no switch burned a turn — zero run:started across the choreography");
@@ -157,9 +174,15 @@ try {
   }
 }
 
-/** Drive one switch and collect its evidence. */
-async function drive(from, target) {
+/** Drive one switch and collect its evidence. `residualText` (optional) is typed
+ *  into the composer as a co-present human would — no Enter — BEFORE the switch,
+ *  to exercise the unconditional pre-command clear (F1). */
+async function drive(from, target, { residualText } = {}) {
   const before = switchEvents.length;
+  if (residualText) {
+    host.writeUserInput(residualText); // human typing into the idle Terminal (no dirty flag)
+    await delay(600); // let it render on the composer line before we switch
+  }
   rawTail = "";
   const res = host.injectClaudeControlSwitch("codex-permission", target, from);
   assert.equal(res.ok, true, `switch ${from}→${target} accepted`);
