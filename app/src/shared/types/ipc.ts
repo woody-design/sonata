@@ -308,11 +308,21 @@ export type RemoteControlInjectResponse =
  *  <level>` typed-command injection (S1), or `permission` via the Shift+Tab
  *  stepping engine (S2). Codex: `codex-permission` via the `/permissions` picker
  *  choreography (S3 — a three-row text-matched picker, arrows + Enter, receipt
- *  watch). The kind is provider-gated at both layers: `codex-permission` reaches
- *  only a codex session; the other three only a claude session. (The `Claude`
- *  prefix in the type/method names predates S3 — one shared switch pipeline now
- *  carries both providers; not a parallel system. Renaming is deferred to S5.) */
-export type ClaudeControlSwitchKind = "model" | "effort" | "permission" | "codex-permission";
+ *  watch), and `codex-model` / `codex-effort` via the `/model` TWO-level picker
+ *  choreography (S4 — level 1 = curated model rows, level 2 = reasoning rows,
+ *  both text-matched; the non-selected dimension is preserved by landing on the
+ *  level's `(current)`-marked row). The kind is provider-gated at both layers:
+ *  the three `codex-*` kinds reach only a codex session; `model`/`effort`/
+ *  `permission` only a claude session. (The `Claude` prefix in the type/method
+ *  names predates S3 — one shared switch pipeline now carries both providers;
+ *  not a parallel system. Renaming is deferred to S5.) */
+export type ClaudeControlSwitchKind =
+  | "model"
+  | "effort"
+  | "permission"
+  | "codex-permission"
+  | "codex-model"
+  | "codex-effort";
 
 export interface ClaudeControlSwitchRequest {
   taskId: TaskId;
@@ -320,14 +330,19 @@ export interface ClaudeControlSwitchRequest {
   /** model/effort: the `/model` alias (e.g. `sonnet`) or `/effort` level (e.g.
    *  `high`) to inject. permission: the TARGET `ClaudePermissionMode` id (e.g.
    *  `plan`). codex-permission: the TARGET `CodexPermissionMode` id (e.g.
-   *  `approve-for-me`). Sourced from Sonata's curated lists / the session's
-   *  reachable modes, never free text. */
+   *  `approve-for-me`). codex-model: the TARGET curated model slug (e.g.
+   *  `gpt-5.6-luna`) — the picker's level-2 effort is preserved on its
+   *  `(current)` row. codex-effort: the TARGET reasoning id (`low|medium|high|
+   *  xhigh`) — the picker's level-1 model is preserved on its `(current)` row.
+   *  Sourced from Sonata's curated lists / the session's reachable modes, never
+   *  free text. */
   value: string;
   /** permission / codex-permission only: the mode the session is in NOW (the
    *  renderer's SSOT — `task.permissionMode` for claude, `task.codexPermissionMode`
    *  for codex). Claude uses it as the return-home anchor for the Shift+Tab
    *  stepping engine; codex uses it to skip a no-op switch to the current mode.
-   *  Ignored for model/effort. */
+   *  Ignored for model/effort and the codex-model/codex-effort picker axes (which
+   *  preserve the non-selected dimension via the picker's own `(current)` row). */
   from?: string;
 }
 

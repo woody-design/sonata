@@ -1080,6 +1080,69 @@ function workingStatus(liveness) {
     );
   }
 
+  // Codex model/effort axes (S4): pending records a codex-model / codex-effort
+  // pointer (dims the MODEL chip on a codex session); settled clears it. UNLIKE
+  // claude, the label follows this event's mirror (the controller writes
+  // task.model + task.reasoningEffort off the picker receipt) — but the reducer's
+  // job here is only the pending affordance, so it carries no observedModes.
+  {
+    const { state, view } = seedView();
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("pending", { kind: "codex-model", value: "gpt-5.6-luna" }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.controlSwitch,
+      { kind: "codex-model", value: "gpt-5.6-luna", phase: "pending" },
+      "a codex model switch records a codex-model-kind pointer",
+    );
+    // The settled event carries the receipt's pair (codexModel/codexEffort) for
+    // the controller; the reducer only drops the pending affordance.
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("settled", { kind: "codex-model", value: "gpt-5.6-luna", codexModel: "gpt-5.6-luna", codexEffort: "high" }),
+      NOW_MS,
+    );
+    assert.equal(view.controlSwitch, null, "codex-model settled drops the pending affordance");
+    assert.deepEqual(view.observedPermissionModes, [], "codex-model carries no observedModes");
+  }
+  {
+    const { state, view } = seedView();
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("pending", { kind: "codex-effort", value: "xhigh" }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.controlSwitch,
+      { kind: "codex-effort", value: "xhigh", phase: "pending" },
+      "a codex effort switch records a codex-effort-kind pointer",
+    );
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("settled", { kind: "codex-effort", value: "xhigh", codexModel: "gpt-5.6-sol", codexEffort: "xhigh" }),
+      NOW_MS,
+    );
+    assert.equal(view.controlSwitch, null, "codex-effort settled drops the pending affordance");
+  }
+  // codex-model rollback (a target row absent — D5 — or a level-2 (current) that
+  // can't be preserved): needs-attention records the RED LINE banner pointer.
+  {
+    const { state, view } = seedView({ status: "Ready" });
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("needs-attention", { kind: "codex-model", value: "gpt-5.4" }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.controlSwitch,
+      { kind: "codex-model", value: "gpt-5.4", phase: "needs-attention" },
+      "a rolled-back codex model switch records the needs-attention pointer",
+    );
+    assert.equal(view.status, "Ready", "needs-attention does not overwrite status (banner carries it)");
+  }
+
   // observedModes MERGE (D4 — reachable-modes set grows, never shrinks): a
   // choreography that confirmed `auto` en route teaches the menu auto exists,
   // on BOTH settle and needs-attention, de-duplicated and order-stable.

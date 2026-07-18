@@ -267,6 +267,14 @@ export type RemoteControlStateEvent = BaseRuntimeEvent<
  *     line is receipt-only). `observedModes` lists every mode the choreography
  *     confirmed via a receipt this run, so the renderer can learn which
  *     account-gated modes (`auto`) this session can actually reach.
+ *   - `codex-model` / `codex-effort` (S4) — Sonata drove codex's `/model`
+ *     TWO-level picker (level 1 = curated model rows, level 2 = reasoning rows)
+ *     by TEXT, arrows + Enter, landing the non-selected dimension on its
+ *     `(current)`-marked row, and read the `• Model changed to <model> <effort>`
+ *     receipt. `value` is the selected model slug / reasoning id; the settled
+ *     event ALSO carries `codexModel` + `codexEffort` (the receipt's own pair),
+ *     which the controller writes to task.model + task.reasoningEffort (codex has
+ *     no statusline/hook model mirror — the picker receipt is the channel).
  * Phases:
  *   - `pending` — the switch is driving; waiting for its receipt(s).
  *   - `settled` — the target was confirmed (model/effort receipt line, the target
@@ -291,7 +299,7 @@ export type ControlSwitchStateEvent = BaseRuntimeEvent<
   "control-switch:state",
   {
     taskId: TaskId;
-    kind: "model" | "effort" | "permission" | "codex-permission";
+    kind: "model" | "effort" | "permission" | "codex-permission" | "codex-model" | "codex-effort";
     value: string;
     phase: "pending" | "settled" | "failed" | "needs-attention";
     error: string | null;
@@ -300,6 +308,18 @@ export type ControlSwitchStateEvent = BaseRuntimeEvent<
      *  into the session's reachable-modes set so the menu never offers a mode the
      *  cycle can't reach (D4 — no dead steps). Absent on model/effort. */
     observedModes?: ClaudePermissionMode[];
+    /** codex-model / codex-effort SETTLED only: the (model, effort) pair the
+     *  `/model` picker's `• Model changed to <model> <effort>` receipt confirmed.
+     *  Codex has no statusline/hook mirror for its model or effort, so the picker
+     *  RECEIPT is the confirmation channel — the controller writes BOTH task.model
+     *  and task.reasoningEffort off these fields (mirrors the codex-permission
+     *  asymmetry; see runtime-controller `applyCodexModelSwitchReceipt`). Both are
+     *  the receipt's own values (receipt-corroborated, not the requested target).
+     *  Absent on every other kind/phase — the display `value` carries the pending/
+     *  needs-attention target (the model slug for codex-model, the effort id for
+     *  codex-effort). */
+    codexModel?: string | null;
+    codexEffort?: ReasoningEffort | null;
   }
 >;
 

@@ -65,10 +65,11 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
     // with an Esc (an unexpected screen / timeout). Sonata does nothing further —
     // a passive pointer to the CLI, where the user resolves it.
     if (view.controlSwitch?.phase === "needs-attention") {
+      const kind = view.controlSwitch.kind;
       const axis =
-        view.controlSwitch.kind === "model"
+        kind === "model" || kind === "codex-model"
           ? "model"
-          : view.controlSwitch.kind === "effort"
+          : kind === "effort" || kind === "codex-effort"
             ? "reasoning"
             : "access";
       banners.push(

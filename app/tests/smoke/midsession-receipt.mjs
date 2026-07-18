@@ -15,6 +15,12 @@ const {
   codexPermissionPickerOpen,
   codexPermissionPickerFooterVisible,
   codexPermissionConsentDialogOpen,
+  codexModelPickerLevel1Open,
+  codexModelPickerLevel2Open,
+  codexModelPickerFooterVisible,
+  parseCodexModelLevel1,
+  parseCodexModelLevel2,
+  parseCodexModelReceipt,
 } = require("../../dist/runtime");
 
 // — Success: model —
@@ -390,6 +396,206 @@ assert.equal(
   parseCodexPermissionReceipt("⎿ Set model to Sonnet 5"),
   null,
   "a claude model receipt is not a codex permission receipt",
+);
+
+// ===========================================================================
+// Codex `/model` TWO-level picker choreography — level parsers + receipt (S4).
+// Strings are MEASURED from real codex 0.144.5 (spikes/midsession-switch-probe/
+// codex-run2.snaps.log), passed here in near-raw form (spaces + the real glyphs);
+// the parsers compact internally (ANSI + whitespace stripped), so the picker
+// headers, the DYNAMIC model rows, the reasoning rows, the `›` cursor, `(current)`
+// marker, the shared footer, and the `• Model changed to <model> <effort>`
+// receipt are all verbatim frames the parsers key on.
+// ===========================================================================
+
+// Level 1 (models) — the opening frame, cursor + (current) on gpt-5.6-sol.
+const MODEL_L1 =
+  "Select Model and Effort  Access legacy models by running codex -m <model_name> or in your config.toml" +
+  "  › 1. gpt-5.6-sol (current)  Latest frontier agentic coding model." +
+  "  2. gpt-5.6-terra  Balanced agentic coding model for everyday work." +
+  "  3. gpt-5.6-luna  Fast and affordable agentic coding model." +
+  "  4. gpt-5.5  Frontier model for complex coding, research, and real-world work." +
+  "  5. gpt-5.3-codex-spark  Ultra-fast coding model." +
+  "  Press enter to confirm or esc to go back";
+// The SAME frame after two arrow-downs (cursor now on gpt-5.6-luna).
+const MODEL_L1_ON_LUNA =
+  "Select Model and Effort  Access legacy models by running codex -m <model_name> or in your config.toml" +
+  "  1. gpt-5.6-sol (current)  Latest frontier agentic coding model." +
+  "  2. gpt-5.6-terra  Balanced agentic coding model for everyday work." +
+  "  › 3. gpt-5.6-luna  Fast and affordable agentic coding model." +
+  "  4. gpt-5.5  Frontier model for complex coding, research, and real-world work." +
+  "  5. gpt-5.3-codex-spark  Ultra-fast coding model." +
+  "  Press enter to confirm or esc to go back";
+// Level 2 (reasoning) frame — rendered BELOW the level-1 frame (both present),
+// cursor + (current) on High, (default) on Low.
+const MODEL_L2 =
+  MODEL_L1 +
+  "  Select Reasoning Level for gpt-5.6-sol" +
+  "  1. Low (default)  Fast responses with lighter reasoning" +
+  "  2. Medium  Balances speed and reasoning depth for everyday tasks" +
+  "  › 3. High (current)   Greater reasoning depth for complex problems" +
+  "  4. Extra high       Extra high reasoning depth for complex problems" +
+  "  5. More reasoning…  Max and Ultra consume usage limits faster" +
+  "  Press enter to confirm or esc to go back";
+const MODEL_RECEIPT = "• Model changed to gpt-5.6-sol xhigh";
+const MODEL_COMPOSER_AFTER = "›Implement {feature}gpt-5.6-sol xhigh · /tmp/ws";
+
+// — Level headers + footer. —
+assert.equal(codexModelPickerLevel1Open(MODEL_L1), true, "the level-1 header marks the model picker open");
+assert.equal(
+  codexModelPickerLevel1Open(MODEL_COMPOSER_AFTER),
+  false,
+  "the bare composer is NOT the level-1 picker",
+);
+assert.equal(codexModelPickerLevel2Open(MODEL_L2), true, "the level-2 header marks the reasoning picker open");
+assert.equal(
+  codexModelPickerLevel2Open(MODEL_L1),
+  false,
+  "level 1 alone does not read as level 2 (reasoning header absent)",
+);
+assert.equal(
+  codexModelPickerLevel2Open(MODEL_L2, "gpt-5.6-sol"),
+  true,
+  "level 2 names the model chosen at level 1 (the header must match)",
+);
+assert.equal(
+  codexModelPickerLevel2Open(MODEL_L2, "gpt-5.6-luna"),
+  false,
+  "a level-2 header for a DIFFERENT model does not satisfy the chosen-model check",
+);
+assert.equal(codexModelPickerFooterVisible(MODEL_L1), true, "the confirm/cancel footer is up while a level is open");
+assert.equal(
+  codexModelPickerFooterVisible(MODEL_COMPOSER_AFTER),
+  false,
+  "the footer is gone once the picker closes (rollback verification signal)",
+);
+
+// — Level-1 (model) rows: cursor, (current), and the DYNAMIC digit order. Row
+//   identity is the `gpt-` slug (matches Sonata's curated `-m` value verbatim —
+//   D5), never the digit. —
+{
+  const l1 = parseCodexModelLevel1(MODEL_L1);
+  assert.equal(l1.cursor, "gpt-5.6-sol", "opening cursor sits on the current model row");
+  assert.equal(l1.current, "gpt-5.6-sol", "the (current) marker identifies the model to preserve");
+  assert.equal(l1.order.get("gpt-5.6-sol"), 1, "digit order: sol = 1");
+  assert.equal(l1.order.get("gpt-5.6-terra"), 2, "digit order: terra = 2");
+  assert.equal(l1.order.get("gpt-5.6-luna"), 3, "digit order: luna = 3");
+  assert.equal(l1.order.get("gpt-5.5"), 4, "digit order: 5.5 = 4");
+  assert.equal(l1.order.get("gpt-5.3-codex-spark"), 5, "digit order: spark = 5");
+  assert.equal(l1.byDigit.get(2), "gpt-5.6-terra", "the neighbor lookup (digit → slug) resolves");
+  // Legacy models (gpt-5.4 / gpt-5.4-mini) are NOT offered by this picker — a
+  // switch to one must be recognizable as absent (D5 → rollback).
+  assert.equal(l1.order.has("gpt-5.4"), false, "gpt-5.4 (legacy) is absent from the picker rows");
+  assert.equal(l1.order.has("gpt-5.4-mini"), false, "gpt-5.4-mini (legacy) is absent too");
+}
+{
+  const l1 = parseCodexModelLevel1(MODEL_L1_ON_LUNA);
+  assert.equal(l1.cursor, "gpt-5.6-luna", "after two downs the cursor is on luna (validate-each-press)");
+  assert.equal(l1.current, "gpt-5.6-sol", "the (current) marker stays on sol (not the cursor)");
+}
+
+// — Level-2 (reasoning) rows: cursor, (current), the fixed effort order, and the
+//   `More reasoning…` submenu row (recognized ONLY to refuse it, D6). Parsing the
+//   COMBINED (L1+L2) frame proves the level slices don't bleed into each other. —
+{
+  const l2 = parseCodexModelLevel2(MODEL_L2);
+  assert.equal(l2.cursor, "high", "level-2 cursor sits on the current reasoning (High)");
+  assert.equal(l2.current, "high", "the (current) marker identifies the reasoning to preserve");
+  assert.equal(l2.order.get("low"), 1, "Low → low (row 1); (default) is NOT (current)");
+  assert.equal(l2.order.get("medium"), 2, "Medium → medium (row 2)");
+  assert.equal(l2.order.get("high"), 3, "High → high (row 3)");
+  assert.equal(l2.order.get("xhigh"), 4, "Extra high → xhigh (row 4)");
+  assert.equal(l2.order.get("more"), 5, "More reasoning… → more (row 5, never a target)");
+  // The combined frame's level-1 parse still sees ONLY model rows (no bleed).
+  const l1 = parseCodexModelLevel1(MODEL_L2);
+  assert.equal(l1.cursor, "gpt-5.6-sol", "level-1 parse of the combined frame still reads the model cursor");
+  assert.equal(l1.order.has("high"), false, "level-1 rows never include a reasoning label");
+}
+
+// — (current) on a NON-cursor reasoning row (a model switch that preserves xhigh
+//   while the cursor rests elsewhere): current is read independently of cursor. —
+{
+  const frame =
+    "Select Reasoning Level for gpt-5.6-luna" +
+    "  › 1. Low  Fast responses" +
+    "  2. Medium  Balances" +
+    "  3. High  Greater depth" +
+    "  4. Extra high (current)  Extra high reasoning depth" +
+    "  5. More reasoning…  Max and Ultra" +
+    "  Press enter to confirm or esc to go back";
+  const l2 = parseCodexModelLevel2(frame);
+  assert.equal(l2.cursor, "low", "cursor on Low");
+  assert.equal(l2.current, "xhigh", "(current) on Extra high is read as xhigh regardless of the cursor");
+}
+
+// — Receipt parser (bullet-anchored; splits the glued model + reasoning). —
+assert.deepEqual(
+  parseCodexModelReceipt(MODEL_RECEIPT),
+  { model: "gpt-5.6-sol", effort: "xhigh" },
+  "the receipt yields BOTH the model slug and the reasoning token",
+);
+assert.deepEqual(
+  parseCodexModelReceipt("• Model changed to gpt-5.6-luna medium"),
+  { model: "gpt-5.6-luna", effort: "medium" },
+  "…and a medium receipt splits luna + medium",
+);
+assert.deepEqual(
+  parseCodexModelReceipt("• Model changed to gpt-5.5 high"),
+  { model: "gpt-5.5", effort: "high" },
+  "…and `high` (a suffix of `xhigh`) is not mis-split off gpt-5.5",
+);
+assert.deepEqual(
+  parseCodexModelReceipt("• Model changed to gpt-5.4-mini low"),
+  { model: "gpt-5.4-mini", effort: "low" },
+  "…and a hyphenated slug + low splits cleanly",
+);
+
+// — No receipt yet / not a receipt → null (keep waiting). —
+assert.equal(parseCodexModelReceipt(""), null, "empty scan → no receipt yet");
+assert.equal(parseCodexModelReceipt(MODEL_L1), null, "the open picker (row labels) is not a receipt");
+assert.equal(
+  parseCodexModelReceipt(MODEL_COMPOSER_AFTER),
+  null,
+  "the composer footer (model + effort, no bullet) is not a receipt",
+);
+// BULLET ANCHOR (S2 glyph lesson): the phrase without the `•` codex event bullet
+// must NOT read as a receipt — prose could contain the words.
+assert.equal(
+  parseCodexModelReceipt("I changed the model to gpt-5.6-sol high yesterday"),
+  null,
+  "prose containing the words but no `•` bullet is not a receipt",
+);
+// An UNRECOGNIZED reasoning token (Max/Ultra live in the submenu, out of scope
+// v1) → null: the parser only confirms a v1 target.
+assert.equal(
+  parseCodexModelReceipt("• Model changed to gpt-5.6-sol max"),
+  null,
+  "a `max` receipt is not a v1 target — the parser waits rather than mis-settling",
+);
+
+// — ANSI-decorated / whitespace-noisy redraw still parses (compacted internally). —
+assert.deepEqual(
+  parseCodexModelReceipt("\x1b[32m•\x1b[0m Model   changed\n   to   gpt-5.6-sol   xhigh"),
+  { model: "gpt-5.6-sol", effort: "xhigh" },
+  "ANSI + collapsed-whitespace receipt still parses",
+);
+
+// — Cross-vocabulary isolation: a codex /permissions cursor / claude line is not
+//   a /model picker artifact, and vice-versa. —
+assert.equal(
+  parseCodexModelLevel1("› 1. Ask for approval (current)").cursor,
+  null,
+  "a /permissions row (no gpt- slug) is not a /model level-1 cursor",
+);
+assert.equal(
+  parseCodexModelReceipt("• Permissions updated to Approve for me"),
+  null,
+  "a /permissions receipt is not a /model receipt",
+);
+assert.equal(
+  parseCodexPermissionReceipt(MODEL_RECEIPT),
+  null,
+  "a /model receipt is not a /permissions receipt",
 );
 
 console.log("midsession-receipt: OK");

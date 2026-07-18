@@ -333,6 +333,228 @@ export function parseCodexPermissionReceipt(rawScan: string): CodexPermissionMod
   return null;
 }
 
+// ── Codex `/model` two-level picker choreography (S4) ───────────────────────
+//
+// Bare `/model` opens a TWO-level picker (measured, codex 0.144.5 —
+// spikes/midsession-switch-probe/codex-run2.snaps.log, folded through the app's
+// cleanTerminal + whitespace-strip). Every string below is verbatim from that
+// capture; the compacted (whitespace-removed) forms are what the parsers key on:
+//
+//   Level 1 header:  `Select Model and Effort`      → `SelectModelandEffort`
+//   Level 1 rows:    `› 1. gpt-5.6-sol (current)  Latest frontier…`
+//                    `2. gpt-5.6-terra  Balanced…`  … (DYNAMIC set + order —
+//                    the picker shows the account's non-legacy models, which may
+//                    differ from Sonata's curated list; legacy models like
+//                    gpt-5.4 are NOT offered here, only via `codex -m`. D5: a
+//                    target model absent from the visible rows → Esc-rollback +
+//                    needs-attention, turning upstream/legacy drift into signal.)
+//   Level 2 header:  `Select Reasoning Level for gpt-5.6-sol`
+//   Level 2 rows:    `1. Low (default)  Fast…`  `2. Medium…`
+//                    `› 3. High (current)  Greater…`  `4. Extra high…`
+//                    `5. More reasoning…  Max and Ultra…`  (v1 targets low→xhigh;
+//                    `More reasoning…` — Max/Ultra — is NEVER entered, D6.)
+//   Shared footer:   `Press enter to confirm or esc to go back`
+//   Confirm receipt: `• Model changed to gpt-5.6-sol xhigh`  (`•` U+2022 anchor,
+//                    the model slug then the reasoning token, both glued after
+//                    whitespace-strip).
+//
+// The `›` (U+203A) cursor marks the highlighted row and ALSO leads the composer
+// placeholder + the slash-menu, so a cursor anchor needs `›` + DIGIT + `.` to
+// tell a picker row apart from prose (same discipline as S3). Model rows anchor
+// on the `gpt-` slug prefix (never a description word); reasoning rows on the
+// fixed label set. `(current)` — NOT `(default)` — marks the dimension to
+// PRESERVE when the other dimension is the one being switched.
+const CODEX_MODEL_L1_HEADER_RE = /SelectModelandEffort/;
+const CODEX_MODEL_L2_HEADER_RE = /SelectReasoningLevelfor/;
+// Shared with the /permissions picker; kept as its own constant for clarity.
+const CODEX_MODEL_FOOTER_RE = /Pressentertoconfirmoresctogoback/;
+// One model row: optional cursor, digit, `.`, and the `gpt-…` slug. The slug
+// charclass excludes `(` and capitals, so it stops before `(current)` / the
+// capitalized description; the `gpt-` prefix rejects description prose.
+const CODEX_MODEL_L1_ROW_RE = /(›?)(\d)\.(gpt-[a-z0-9.-]+)(\(current\))?/g;
+// One reasoning row: optional cursor, digit, `.`, the label, optional `(current)`.
+// Labels have distinct leading letters (L/M/H/E/M), so alternation order is safe;
+// `Morereasoning` and `Extrahigh` never collide with `Medium`/`High`.
+const CODEX_MODEL_L2_ROW_RE =
+  /(›?)(\d)\.(Low|Medium|High|Extrahigh|Morereasoning)(\(current\)|\(default\))?/g;
+// Confirm receipt: `• Model changed to <model> <effort>`. UNLIKE the picker rows
+// (word-positioned TUI redraws that must be whitespace-stripped), this codex event
+// line is printed with real spaces (measured — codex-run2 line 25), so the parser
+// keeps single-space separators: the SPACE between model and effort is the reliable
+// token boundary. `gpt-\S+` stops at that space (bounding the model correctly even
+// when a composer-footer repaint glues a SECOND `<model> <effort>` right after —
+// the first match wins), and the leading space disambiguates `high` from `xhigh`
+// without a trailing anchor (an end-boundary guard would instead REJECT a valid
+// receipt whenever the next redraw glues text onto the effort with no space).
+const CODEX_MODEL_RECEIPT_RE = /•\s*Model changed to (gpt-\S+) (xhigh|high|medium|low)/;
+
+/** The five reasoning rows the level-2 picker can show. `more` is the
+ *  `More reasoning…` submenu row (Max/Ultra) — recognized ONLY so the
+ *  choreography can refuse to enter it (D6, out of scope v1). */
+export type CodexReasoningRow = "low" | "medium" | "high" | "xhigh" | "more";
+const CODEX_REASONING_ROW_LABELS: ReadonlyArray<readonly [string, CodexReasoningRow]> = [
+  ["Low", "low"],
+  ["Medium", "medium"],
+  ["High", "high"],
+  ["Extrahigh", "xhigh"],
+  ["Morereasoning", "more"],
+];
+/** The four switchable reasoning ids ↔ the codex config.toml / receipt token
+ *  (D6 v1 set). `more` is excluded — it is never a target. */
+const CODEX_REASONING_TARGET_SET: ReadonlySet<ReasoningEffort> = new Set<ReasoningEffort>([
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+]);
+function asCodexReasoningTarget(value: string | undefined): ReasoningEffort | null {
+  return value && CODEX_REASONING_TARGET_SET.has(value as ReasoningEffort)
+    ? (value as ReasoningEffort)
+    : null;
+}
+/** A CodexReasoningRow that is also a switchable target (drops `more`). */
+function reasoningRowToEffort(row: CodexReasoningRow): ReasoningEffort | null {
+  return row === "more" ? null : row;
+}
+
+/** One parsed level of the `/model` picker: which row holds the `›` cursor,
+ *  which carries `(current)`, and the row order keyed by the picker's own digit
+ *  (dynamic for models). Row identities are the model slug (level 1) or the
+ *  CodexReasoningRow id (level 2). */
+export interface CodexPickerLevel<T extends string> {
+  cursor: T | null;
+  current: T | null;
+  /** Row identity → the picker's 1-based digit (nav direction + neighbor). */
+  order: Map<T, number>;
+  /** The picker's digit → row identity (the neighbor lookup for a nav press). */
+  byDigit: Map<number, T>;
+}
+
+function parseCodexPickerRows<T extends string>(
+  slice: string,
+  rowRe: RegExp,
+  identify: (label: string) => T | null,
+): CodexPickerLevel<T> {
+  const order = new Map<T, number>();
+  const byDigit = new Map<number, T>();
+  let cursor: T | null = null;
+  let current: T | null = null;
+  let cursorIndex = -1;
+  const re = new RegExp(rowRe.source, "g");
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(slice)) !== null) {
+    const isCursor = match[1] === "›";
+    const digit = Number(match[2]);
+    const id = identify(match[3] ?? "");
+    if (!id || Number.isNaN(digit)) {
+      continue;
+    }
+    // Last occurrence per digit wins (freshest repaint inside the slice).
+    order.set(id, digit);
+    byDigit.set(digit, id);
+    if ((match[4] ?? "") === "(current)") {
+      current = id;
+    }
+    if (isCursor && match.index > cursorIndex) {
+      cursorIndex = match.index;
+      cursor = id;
+    }
+  }
+  return { cursor, current, order, byDigit };
+}
+
+/** The `/model` level-1 (model) picker is on screen. */
+export function codexModelPickerLevel1Open(rawScan: string): boolean {
+  return CODEX_MODEL_L1_HEADER_RE.test(codexPickerCompact(rawScan));
+}
+
+/** The `/model` level-2 (reasoning) picker is on screen — optionally verifying
+ *  its header names `model` (S4: the level-2 header must name the model chosen at
+ *  level 1, or the screen is unexpected → rollback). */
+export function codexModelPickerLevel2Open(rawScan: string, model?: string): boolean {
+  const compact = codexPickerCompact(rawScan);
+  if (model) {
+    return compact.includes(`SelectReasoningLevelfor${model.replace(/\s+/g, "")}`);
+  }
+  return CODEX_MODEL_L2_HEADER_RE.test(compact);
+}
+
+/** The picker's confirm/cancel footer is on screen (RED LINE 3 rollback
+ *  verification — a picker is still open until it's gone). */
+export function codexModelPickerFooterVisible(rawScan: string): boolean {
+  return CODEX_MODEL_FOOTER_RE.test(codexPickerCompact(rawScan));
+}
+
+/** Parse the level-1 (model) rows. Keyed on the whole compacted tail (NOT a
+ *  header-sliced frame): codex repaints only the changed rows after an arrow, so a
+ *  post-move frame often omits the level header — and the two levels' row regexes
+ *  are disjoint by anchor (`gpt-` slug vs the reasoning labels), so a whole-scan
+ *  parse never bleeds level 2 into level 1. Most-recent-wins (last cursor/digit
+ *  occurrence) keeps a stale repaint from outvoting the latest frame. */
+export function parseCodexModelLevel1(rawScan: string): CodexPickerLevel<string> {
+  const compact = codexPickerCompact(rawScan);
+  return parseCodexPickerRows<string>(compact, CODEX_MODEL_L1_ROW_RE, (slug) => slug || null);
+}
+
+/** Parse the level-2 (reasoning) rows (whole-scan, same rationale as level 1). */
+export function parseCodexModelLevel2(rawScan: string): CodexPickerLevel<CodexReasoningRow> {
+  const compact = codexPickerCompact(rawScan);
+  return parseCodexPickerRows<CodexReasoningRow>(compact, CODEX_MODEL_L2_ROW_RE, (label) => {
+    for (const [text, id] of CODEX_REASONING_ROW_LABELS) {
+      if (label === text) {
+        return id;
+      }
+    }
+    return null;
+  });
+}
+
+/** The (model, effort) a `• Model changed to <model> <effort>` receipt confirms,
+ *  or null if no receipt is on the scan yet (keep waiting until the timeout). The
+ *  effort token is validated against the v1 set; an unrecognized token → null. */
+export function parseCodexModelReceipt(
+  rawScan: string,
+): { model: string; effort: ReasoningEffort } | null {
+  // Single-space normalization (NOT the whitespace-strip the picker parsers use —
+  // see CODEX_MODEL_RECEIPT_RE): keeps the model↔effort space as the token
+  // boundary. cleanTerminal drops ANSI/control; collapse runs of whitespace to one
+  // space so a wrapped/positioned line still reads as one.
+  const normalized = cleanTerminal(rawScan).replace(/\s+/g, " ");
+  const match = CODEX_MODEL_RECEIPT_RE.exec(normalized);
+  if (!match) {
+    return null;
+  }
+  const effort = asCodexReasoningTarget(match[2]);
+  if (!match[1] || !effort) {
+    return null;
+  }
+  return { model: match[1], effort };
+}
+
+/** One arrow press toward `target` from `cursor`, using the picker's own CAPTURED
+ *  digit order (dynamic for models) for direction and the immediate neighbor as
+ *  the expected post-press cursor (validate-each-press). Returns null if the
+ *  cursor/target/neighbor digit is missing from the captured order — the caller
+ *  rolls back. Generic over the level's row identity. */
+function codexPickerNavStep<T extends string>(
+  order: Map<T, number>,
+  byDigit: Map<number, T>,
+  cursor: T,
+  target: T,
+): { down: boolean; expected: T } | null {
+  const cursorDigit = order.get(cursor);
+  const targetDigit = order.get(target);
+  if (cursorDigit === undefined || targetDigit === undefined || cursorDigit === targetDigit) {
+    return null;
+  }
+  const down = targetDigit > cursorDigit;
+  const expected = byDigit.get(cursorDigit + (down ? 1 : -1));
+  if (expected === undefined) {
+    return null;
+  }
+  return { down, expected };
+}
+
 export const ARROW_UP = "\x1b[A";
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
@@ -391,6 +613,31 @@ const CODEX_PICKER_CLOSE_VERIFY_MS = 900;
  *  presses away; 6 (2× the row count) absorbs a dropped/duplicated repaint.
  *  Exhausting it → Esc-rollback + needs-attention (never keep pressing blind). */
 const CODEX_PICKER_MAX_NAV_STEPS = 6;
+/** Codex `/model` two-level picker choreography windows (S4). Each level opens
+ *  after the prior confirm; `open` waits for the level header + a recognized
+ *  cursor, `nav` for a validated post-arrow repaint, `confirm` for the receipt.
+ *  Same "repaints on the same frame as the keypress" reality as the permission
+ *  picker (measured), so the per-step windows are generous; a window that earns
+ *  no recognized frame flips to the Esc-rollback path (RED LINE — never a blind
+ *  retry). */
+const CODEX_MODEL_OPEN_TIMEOUT_MS = 6000;
+const CODEX_MODEL_LEVEL2_OPEN_TIMEOUT_MS = 4000;
+const CODEX_MODEL_NAV_TIMEOUT_MS = 2500;
+const CODEX_MODEL_CONFIRM_TIMEOUT_MS = 4000;
+/** After each rollback Esc, how long to let the screen repaint before deciding
+ *  whether another Esc is needed (a level-2 Esc returns to level 1 — measured;
+ *  the footer's continued presence is the "still in a picker" signal) or the
+ *  choreography can conclude needs-attention. */
+const CODEX_MODEL_CLOSE_VERIFY_MS = 700;
+/** Per-level navigation bound: the model list is short (≤8 rows) and reasoning is
+ *  5 rows, so any reachable row is a handful of presses away; 8 (well past 2× the
+ *  reasoning rows, generous for the model list) absorbs a dropped/duplicated
+ *  repaint. Exhausting it → Esc-rollback + needs-attention (never press blind). */
+const CODEX_MODEL_MAX_NAV_STEPS = 8;
+/** Rollback Esc bound: the picker is at most two levels deep, so two Escs return
+ *  to the composer; a third is a safety cap against a screen whose footer never
+ *  clears (then we conclude needs-attention regardless). */
+const CODEX_MODEL_MAX_ROLLBACK_ESCS = 3;
 /** How long after the stop Esc the belt-clear fires. The prompt-restore is
  *  effectively immediate — present at the earliest measured snapshot, +300ms
  *  (probe C10) — so 900ms is comfortably past it; the belt is cosmetic
@@ -711,6 +958,80 @@ type PendingControlSwitch =
       /** The row the last arrow press is expected to move the cursor to. */
       awaitingCursor: CodexPermissionMode | null;
       navSteps: number;
+      timer: NodeJS.Timeout | null;
+    }
+  | {
+      // `codex-model` (S4) — the `/model` TWO-level picker choreography. Codex has
+      // no arg form (an inline `/model x` burns a turn), so we type bare `/model`+
+      // Enter to OPEN the picker, navigate level 1 (models) then level 2
+      // (reasoning) by TEXT, and read the `• Model changed to <model> <effort>`
+      // receipt. One flow serves both the model chip's model section and its
+      // effort section (`switchKind`): the SELECTED dimension navigates to its
+      // named row, the OTHER dimension navigates to the level's `(current)`-marked
+      // row (preserving it). Phases:
+      //   opening       — typed `/model`+Enter; waiting for level-1 header+cursor.
+      //   navigating-l1 — stepping arrows toward the level-1 model ROW.
+      //   opening-l2    — pressed Enter on the model; waiting for level-2 header
+      //                   (which must name `chosenModel`) + cursor.
+      //   navigating-l2 — stepping arrows toward the level-2 reasoning ROW (never
+      //                   `More reasoning…`).
+      //   confirming    — pressed Enter on the reasoning row; waiting for the
+      //                   receipt.
+      //   closing       — a failure fired the level-appropriate Esc rollback;
+      //                   waiting to verify the picker(s) closed, then
+      //                   needs-attention.
+      axis: "codex-model";
+      /** Which chip section drove this: `codex-model` = the model section (level-1
+       *  target is `value`, level-2 holds the CURRENT effort); `codex-effort` = the
+       *  effort section (level-1 holds the current model via its `(current)` row,
+       *  level-2 target is `value`). Also the event kind echoed back for the
+       *  pending/needs-attention affordance. */
+      switchKind: "codex-model" | "codex-effort";
+      /** The switched dimension's selected value (a model slug or a reasoning id) —
+       *  the display target and the level's navigation target. */
+      value: string;
+      /** codex-model ONLY: the effort to PRESERVE at level 2. Measured: after
+       *  choosing a DIFFERENT model, codex resets the reasoning to that model's
+       *  default and marks NO `(current)` row — so preserving the session's effort
+       *  can't ride the `(current)` marker (that only works when the model is
+       *  unchanged, i.e. the codex-effort case). We instead navigate level 2 to
+       *  this explicit effort (the renderer's `task.reasoningEffort`). Null / a
+       *  non-v1 effort (Native Default / Max / Ultra) can't be preserved → the
+       *  model switch rolls back to needs-attention (a documented v1 limit). */
+      preserveEffort: ReasoningEffort | null;
+      phase:
+        | "opening"
+        | "navigating-l1"
+        | "opening-l2"
+        | "navigating-l2"
+        | "confirming"
+        | "closing";
+      /** How deep the picker is open (0 = closed, 1 = level 1, 2 = level 2) — gates
+       *  the level-appropriate rollback Esc(es) and the cancellation Esc. */
+      pickerLevel: 0 | 1 | 2;
+      /** The model row confirmed at level 1 (the level-2 header must name it, and
+       *  the receipt's model is validated against it). */
+      chosenModel: string | null;
+      /** The reasoning row confirmed at level 2 (the receipt's effort is validated
+       *  against it). */
+      chosenEffort: ReasoningEffort | null;
+      /** The CURRENT level's row order, captured ONCE from its complete opening
+       *  frame (footer visible) and used for the whole level's navigation. Codex
+       *  repaints only the changed rows after an arrow, so a post-move frame lacks
+       *  the far rows — the order is a level-invariant, so capturing it up front
+       *  (rather than re-parsing each partial frame) is what makes multi-step nav
+       *  work. Cleared when the level changes. */
+      order: Map<string, number> | null;
+      byDigit: Map<number, string> | null;
+      /** The CURRENT level's resolved target row (the selected value, or the
+       *  `(current)`-marked row to preserve), resolved once at capture time. */
+      target: string | null;
+      /** The cursor row we last acted from (to recognize a pre-move repaint). */
+      lastCursor: string | null;
+      /** The row the last arrow press is expected to move the cursor to. */
+      awaitingCursor: string | null;
+      navSteps: number;
+      rollbackEscs: number;
       timer: NodeJS.Timeout | null;
     };
 
@@ -1217,11 +1538,13 @@ export class TerminalHost extends EventEmitter {
     from?: string,
   ): ClaudeControlSwitchResponse {
     // Provider gate, BOTH directions (the backend half of the renderer's chip
-    // gate): a `codex-permission` kind reaches only a codex session; the three
+    // gate): the three `codex-*` kinds reach only a codex session; the three
     // claude kinds only a claude session. A claude kind on codex would burn a
     // turn on an inline `/model` arg (probe hazard) and codex has no Shift+Tab
-    // cycle; a codex kind on claude has no `/permissions` picker to drive.
-    const wantProvider: RuntimeProvider = kind === "codex-permission" ? "codex" : "claude";
+    // cycle; a codex kind on claude has no picker to drive.
+    const isCodexKind =
+      kind === "codex-permission" || kind === "codex-model" || kind === "codex-effort";
+    const wantProvider: RuntimeProvider = isCodexKind ? "codex" : "claude";
     if (this.profile.provider !== wantProvider) {
       return { ok: false, reason: "wrong-provider" };
     }
@@ -1243,6 +1566,9 @@ export class TerminalHost extends EventEmitter {
 
     if (kind === "codex-permission") {
       return this.startCodexPermissionSwitch(value, from);
+    }
+    if (kind === "codex-model" || kind === "codex-effort") {
+      return this.startCodexModelSwitch(kind, value, from);
     }
     if (kind === "permission") {
       return this.startPermissionSwitch(value, from);
@@ -1732,6 +2058,424 @@ export class TerminalHost extends EventEmitter {
     this.emitControlSwitchState(phase, { kind: "codex-permission", value: target });
   }
 
+  // ── Codex `/model` two-level picker choreography (S4) ────────────────────────
+
+  /**
+   * Begin a codex model/effort switch via the `/model` two-level picker. Codex has
+   * no arg form (an inline `/model x` submits as a chat prompt and burns a turn —
+   * RED LINE 1), so we type bare `/model` + Enter to OPEN the picker, navigate its
+   * level-1 model rows then level-2 reasoning rows by TEXT, and read the
+   * `• Model changed to <model> <effort>` receipt. `kind` selects which dimension
+   * is being switched: `codex-model` targets the model row and preserves the
+   * current reasoning (its level-2 `(current)` row); `codex-effort` targets the
+   * reasoning row and preserves the current model (its level-1 `(current)` row).
+   */
+  private startCodexModelSwitch(
+    kind: "codex-model" | "codex-effort",
+    value: string,
+    from?: string,
+  ): ClaudeControlSwitchResponse {
+    if (kind === "codex-effort" && !asCodexReasoningTarget(value)) {
+      // The renderer only offers the v1 reasoning ids; a non-target value is a
+      // caller bug, not a screen state — refuse without touching the pty.
+      return { ok: false, reason: "busy" };
+    }
+    if (kind === "codex-model" && value.trim().length === 0) {
+      return { ok: false, reason: "busy" };
+    }
+    if (!this.ptyProcess) {
+      return { ok: false, reason: "no-process" };
+    }
+
+    this.controlSwitchScan = "";
+    this.pendingControlSwitch = {
+      axis: "codex-model",
+      switchKind: kind,
+      value,
+      // codex-model: `from` is the current effort to preserve at level 2 (the
+      // (current) marker is gone after a model change — see the field doc).
+      preserveEffort: kind === "codex-model" ? asCodexReasoningTarget(from) : null,
+      phase: "opening",
+      pickerLevel: 0,
+      chosenModel: null,
+      chosenEffort: null,
+      order: null,
+      byDigit: null,
+      target: null,
+      lastCursor: null,
+      awaitingCursor: null,
+      navSteps: 0,
+      rollbackEscs: 0,
+      timer: null,
+    };
+    this.emitControlSwitchState("pending", { kind, value });
+
+    // Type bare `/model` (typed text, NOT bracketed paste — mirrors S1/S3), then
+    // defer the Enter under the held write-lock so a human keystroke in the gap
+    // buffers rather than splitting the frame.
+    this.beginSonataWrite();
+    // Clear the composer UNCONDITIONALLY first (RED LINE 1): if a human typed
+    // unsubmitted text into the idle Terminal, `/model` would concatenate onto it
+    // (`<prefix>/model`) and SUBMIT as a chat prompt — codex burns a real turn and
+    // the run:started silently cancels this switch. Screen-blind-safe (a no-op on
+    // a clean line). (Shared with S1/S3 — the F1 review lesson.)
+    this.clearComposerBeforeTypedCommand();
+    this.ptyProcess.write("/model");
+    this.deferSonataWrite(
+      120,
+      () => {
+        if (this.ptyProcess) {
+          this.ptyProcess.write("\r");
+        }
+      },
+      "control",
+    );
+    this.endSonataWrite();
+    this.armCodexModelTimeout(CODEX_MODEL_OPEN_TIMEOUT_MS);
+    return { ok: true };
+  }
+
+  /** Drive the two-level picker state machine off a fresh pty frame (called from
+   *  detectControlSwitchReceipt while a codex-model switch is unresolved). Each
+   *  arrow/Enter is validated against the actual post-press cursor — a pre-move
+   *  repaint waits, an unexpected jump rolls back (never keep guessing). */
+  private onCodexModelPickerData(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-model") {
+      return;
+    }
+    const scan = this.controlSwitchScan;
+
+    if (process.env.SONATA_DEBUG_COMPLETION) {
+      console.log(
+        `[codex-model] phase=${pending.phase} await=${pending.awaitingCursor} ` +
+          `l1cursor=${parseCodexModelLevel1(scan).cursor} l2cursor=${parseCodexModelLevel2(scan).cursor}`,
+      );
+    }
+
+    if (pending.phase === "opening") {
+      // Flip pickerLevel the instant the level-1 header renders — BEFORE the cursor
+      // parses — so a timeout that fires while the picker is open (cursor
+      // unreadable) still rolls back with an Esc rather than stranding it.
+      if (codexModelPickerLevel1Open(scan)) {
+        pending.pickerLevel = 1;
+      }
+      if (pending.pickerLevel < 1) {
+        return; // header not up yet — wait (opening timeout Escs if it never comes)
+      }
+      // Capture the level-1 order + resolve the target from the COMPLETE opening
+      // frame (footer up ⇒ all rows painted). This is the only frame guaranteed to
+      // show every row; codex repaints partially after arrows, so the order must be
+      // taken now or multi-step nav strands on a far row it can't see.
+      if (!this.captureCodexModelLevel(parseCodexModelLevel1(scan), "l1")) {
+        return; // frame not complete / target unresolved-yet — wait (open timeout Escs)
+      }
+      pending.phase = "navigating-l1";
+      this.clearCodexModelTimer(pending);
+      this.driveCodexModelNav(parseCodexModelLevel1(scan).cursor, "l1");
+      return;
+    }
+
+    if (pending.phase === "navigating-l1") {
+      this.advanceCodexModelNav(parseCodexModelLevel1(scan).cursor, "l1");
+      return;
+    }
+
+    if (pending.phase === "opening-l2") {
+      // The level-2 header MUST name the model we confirmed at level 1 (S4) — a
+      // header for any other model is an unexpected screen; the open timeout Escs.
+      if (!codexModelPickerLevel2Open(scan, pending.chosenModel ?? undefined)) {
+        return;
+      }
+      pending.pickerLevel = 2;
+      if (!this.captureCodexModelLevel(parseCodexModelLevel2(scan), "l2")) {
+        return; // level-2 frame not complete / target unresolved yet — wait
+      }
+      pending.phase = "navigating-l2";
+      this.clearCodexModelTimer(pending);
+      this.driveCodexModelNav(parseCodexModelLevel2(scan).cursor, "l2");
+      return;
+    }
+
+    if (pending.phase === "navigating-l2") {
+      this.advanceCodexModelNav(parseCodexModelLevel2(scan).cursor, "l2");
+      return;
+    }
+
+    if (pending.phase === "confirming") {
+      const receipt = parseCodexModelReceipt(scan);
+      if (!receipt) {
+        return; // no receipt yet — wait (confirm timeout Escs)
+      }
+      this.clearCodexModelTimer(pending);
+      // Confirm closed both picker levels (Enter applies + dismisses — measured).
+      pending.pickerLevel = 0;
+      const landed = receipt.model === pending.chosenModel && receipt.effort === pending.chosenEffort;
+      this.finishCodexModel(landed ? "settled" : "needs-attention", pending, receipt);
+    }
+    // `closing` — a rollback Esc is in flight; ignore picker frames and let the
+    // close-verify chain conclude needs-attention.
+  }
+
+  /** Capture a level's row ORDER + resolve its navigation target from the COMPLETE
+   *  opening frame (footer visible). Returns false (keep waiting) until the frame
+   *  is complete AND a cursor is readable; rolls back (D5 / `More reasoning…`
+   *  guard) and returns false when the frame is complete but the target row is
+   *  absent. On success the captured order drives the whole level's nav — codex's
+   *  partial post-arrow repaints never show every row, so this one-shot capture is
+   *  what makes multi-step navigation robust. */
+  private captureCodexModelLevel(level: CodexPickerLevel<string>, which: "l1" | "l2"): boolean {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-model") {
+      return false;
+    }
+    if (!level.cursor || !codexModelPickerFooterVisible(this.controlSwitchScan)) {
+      return false; // frame still painting — wait
+    }
+    const seam = process.env.SONATA_TEST_CODEX_MODEL_MISMATCH;
+    let target: string | null;
+    if (seam === which) {
+      // Test seam (real-CLI smoke only): force a target miss at this level to
+      // exercise the rollback (l1 → single Esc; l2 → Esc×2). Inert unless set.
+      target = null;
+    } else if (which === "l1") {
+      target =
+        pending.switchKind === "codex-model"
+          ? level.order.has(pending.value)
+            ? pending.value
+            : null
+          : level.current; // codex-effort → preserve the current model
+    } else {
+      // Level 2 (reasoning). codex-effort navigates to the SELECTED reasoning;
+      // codex-model navigates to the current effort to PRESERVE it — explicitly,
+      // NOT via the level-2 `(current)` marker, which codex drops after a model
+      // change (measured). `preserveEffort` is null when the current effort is
+      // Native Default / Max / Ultra → can't be held on a v1 row → rollback.
+      const wanted =
+        pending.switchKind === "codex-effort" ? (pending.value as string) : pending.preserveEffort;
+      target = wanted && level.order.has(wanted) ? wanted : null;
+      if (target === "more") {
+        target = null; // NEVER enter More reasoning… (Max/Ultra — D6)
+      }
+    }
+    if (!target) {
+      this.failCodexModelPicker(pending); // absent row (D5) / no (current) / seam
+      return false;
+    }
+    pending.order = level.order;
+    pending.byDigit = level.byDigit;
+    pending.target = target;
+    return true;
+  }
+
+  /** Validate the post-arrow cursor, then decide the next move. A pre-move repaint
+   *  (still on the row we pressed FROM) waits; an unexpected jump rolls back. */
+  private advanceCodexModelNav(cursor: string | null, which: "l1" | "l2"): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-model") {
+      return;
+    }
+    if (!cursor) {
+      return; // no recognized cursor row yet — wait
+    }
+    if (pending.awaitingCursor && cursor !== pending.awaitingCursor) {
+      if (cursor === pending.lastCursor) {
+        return; // pre-move repaint of the row we pressed FROM — keep waiting
+      }
+      this.failCodexModelPicker(pending); // unexpected jump — roll back
+      return;
+    }
+    pending.awaitingCursor = null;
+    this.clearCodexModelTimer(pending);
+    this.driveCodexModelNav(cursor, which);
+  }
+
+  /** Confirm (Enter) if the cursor is on the captured target, else press ONE
+   *  validated arrow toward it using the captured order. Bounded by the nav cap →
+   *  Esc-rollback. Shared by both levels; the level only differs in what Enter
+   *  advances TO (level 2 vs the receipt). */
+  private driveCodexModelNav(cursor: string | null, which: "l1" | "l2"): void {
+    const pending = this.pendingControlSwitch;
+    if (
+      !pending ||
+      pending.axis !== "codex-model" ||
+      !this.ptyProcess ||
+      !cursor ||
+      !pending.order ||
+      !pending.byDigit ||
+      !pending.target
+    ) {
+      return;
+    }
+    if (cursor === pending.target) {
+      if (which === "l1") {
+        // Confirm the model → level 2 opens for it. Reset the per-level nav state;
+        // commit pickerLevel to the 2-deep stack for rollback.
+        pending.chosenModel = pending.target;
+        pending.phase = "opening-l2";
+        pending.pickerLevel = 2;
+        pending.navSteps = 0;
+        pending.order = null;
+        pending.byDigit = null;
+        pending.target = null;
+        pending.lastCursor = null;
+        pending.awaitingCursor = null;
+        this.controlSwitchScan = "";
+        this.beginSonataWrite();
+        this.ptyProcess.write("\r");
+        this.endSonataWrite();
+        this.armCodexModelTimeout(CODEX_MODEL_LEVEL2_OPEN_TIMEOUT_MS);
+        return;
+      }
+      // level 2 — confirm the reasoning → the receipt.
+      const effort = reasoningRowToEffort(pending.target as CodexReasoningRow);
+      if (!effort) {
+        this.failCodexModelPicker(pending); // defensive: `more` is never a target
+        return;
+      }
+      pending.chosenEffort = effort;
+      pending.phase = "confirming";
+      this.controlSwitchScan = "";
+      this.beginSonataWrite();
+      this.ptyProcess.write("\r");
+      this.endSonataWrite();
+      this.armCodexModelTimeout(CODEX_MODEL_CONFIRM_TIMEOUT_MS);
+      return;
+    }
+    if (pending.navSteps >= CODEX_MODEL_MAX_NAV_STEPS) {
+      this.failCodexModelPicker(pending);
+      return;
+    }
+    const step = codexPickerNavStep(pending.order, pending.byDigit, cursor, pending.target);
+    if (!step) {
+      this.failCodexModelPicker(pending);
+      return;
+    }
+    // Record the row we moved FROM + the row we expect to land ON, then press one
+    // arrow under the write-lock and re-arm the nav window. Scan is reset so the
+    // post-press cursor reads clean; the ORDER stays captured (not re-read).
+    pending.lastCursor = cursor;
+    pending.awaitingCursor = step.expected;
+    pending.navSteps += 1;
+    this.controlSwitchScan = "";
+    this.beginSonataWrite();
+    this.ptyProcess.write(step.down ? ARROW_DOWN : ARROW_UP);
+    this.endSonataWrite();
+    this.armCodexModelTimeout(CODEX_MODEL_NAV_TIMEOUT_MS);
+  }
+
+  /**
+   * A per-phase timeout fired: the screen is in a state the choreography can't
+   * recognize. RED LINE — roll back with Esc(es) (the ONLY non-navigation bytes we
+   * write, and only while a picker is open), then surface needs-attention. NEVER
+   * retry, NEVER guess a row.
+   */
+  private onCodexModelTimeout(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-model") {
+      return;
+    }
+    pending.timer = null;
+    this.failCodexModelPicker(pending);
+  }
+
+  /** Begin the level-appropriate Esc rollback: a level-2 Esc returns to level 1,
+   *  so we Esc, verify (on the next repaint) whether a picker footer remains, and
+   *  Esc again until the composer is back or the bound is hit — then
+   *  needs-attention. */
+  private failCodexModelPicker(pending: Extract<PendingControlSwitch, { axis: "codex-model" }>): void {
+    this.clearCodexModelTimer(pending);
+    pending.phase = "closing";
+    this.rollbackCodexModelPicker(pending);
+  }
+
+  private rollbackCodexModelPicker(
+    pending: Extract<PendingControlSwitch, { axis: "codex-model" }>,
+  ): void {
+    const pickerOnScreen =
+      pending.pickerLevel > 0 || codexModelPickerFooterVisible(this.controlSwitchScan);
+    if (pickerOnScreen && pending.rollbackEscs < CODEX_MODEL_MAX_ROLLBACK_ESCS && this.ptyProcess) {
+      this.controlSwitchScan = "";
+      this.beginSonataWrite();
+      this.ptyProcess.write(ESC);
+      this.endSonataWrite();
+      pending.rollbackEscs += 1;
+      pending.pickerLevel = Math.max(0, pending.pickerLevel - 1) as 0 | 1 | 2;
+      const timer = setTimeout(() => this.onCodexModelCloseVerify(), CODEX_MODEL_CLOSE_VERIFY_MS);
+      timer.unref?.();
+      pending.timer = timer;
+      return;
+    }
+    // Nothing (more) open, or the Esc bound is hit — conclude. The terminal state
+    // is the user's to reconcile in the co-visible Terminal either way.
+    this.finishCodexModel("needs-attention", pending);
+  }
+
+  /** After a rollback Esc repainted, check whether another level remains open and
+   *  Esc again, or conclude needs-attention. */
+  private onCodexModelCloseVerify(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-model") {
+      return;
+    }
+    pending.timer = null;
+    if (process.env.SONATA_DEBUG_COMPLETION) {
+      const stillOpen = codexModelPickerFooterVisible(this.controlSwitchScan);
+      console.log(
+        `[codex-model] rollback Esc #${pending.rollbackEscs} → pickerStillOpen=${stillOpen}`,
+      );
+    }
+    this.rollbackCodexModelPicker(pending);
+  }
+
+  private armCodexModelTimeout(ms: number): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-model") {
+      return;
+    }
+    const timer = setTimeout(() => this.onCodexModelTimeout(), ms);
+    timer.unref?.();
+    pending.timer = timer;
+  }
+
+  private clearCodexModelTimer(
+    pending: Extract<PendingControlSwitch, { axis: "codex-model" }>,
+  ): void {
+    if (pending.timer) {
+      clearTimeout(pending.timer);
+      pending.timer = null;
+    }
+  }
+
+  /** Resolve a codex model/effort switch. On `settled`, the CONTROLLER writes
+   *  task.model + task.reasoningEffort off the receipt fields — codex has no
+   *  statusline/hook model mirror, so the picker receipt is the confirmation
+   *  channel (the asymmetry vs claude's statusline follow; see runtime-controller
+   *  `applyCodexModelSwitchReceipt`). */
+  private finishCodexModel(
+    phase: "settled" | "needs-attention",
+    pending: Extract<PendingControlSwitch, { axis: "codex-model" }>,
+    receipt?: { model: string; effort: ReasoningEffort },
+  ): void {
+    const kind = pending.switchKind;
+    const value = pending.value;
+    // Our own resolution (a confirm receipt or a completed Esc rollback) already
+    // closed the picker; drop pickerLevel so clearPendingControlSwitch's
+    // cancellation Esc is a no-op (it only fires for an EXTERNAL mid-picker clear).
+    pending.pickerLevel = 0;
+    this.clearPendingControlSwitch();
+    if (phase === "settled" && receipt) {
+      this.emitControlSwitchState("settled", {
+        kind,
+        value,
+        codexModel: receipt.model,
+        codexEffort: receipt.effort,
+      });
+      return;
+    }
+    this.emitControlSwitchState(phase, { kind, value });
+  }
+
   /**
    * Watch the pty stream for the pending switch's receipt while it is unresolved.
    * value axis (model/effort): the printed receipt line → settled/failed, else
@@ -1754,6 +2498,10 @@ export class TerminalHost extends EventEmitter {
     }
     if (pending.axis === "codex-permission") {
       this.onCodexPickerData();
+      return;
+    }
+    if (pending.axis === "codex-model") {
+      this.onCodexModelPickerData();
       return;
     }
     const verdict = parseClaudeControlReceipt(this.controlSwitchScan, pending.kind);
@@ -1807,6 +2555,18 @@ export class TerminalHost extends EventEmitter {
         // Teardown race — the pty is already gone; nothing to close.
       }
     }
+    // Same premise for the codex-model TWO-level picker: an abandoned picker eats
+    // the next typed char, so Esc once PER open level (level 2 → level 1 →
+    // composer). Screen-blind by design, like the codex-permission case; our own
+    // settle/rollback already zeroed pickerLevel, so this only fires for an
+    // EXTERNAL mid-picker clear (run start / PTY teardown).
+    if (pending?.axis === "codex-model" && pending.pickerLevel > 0 && this.ptyProcess) {
+      try {
+        this.ptyProcess.write(ESC.repeat(pending.pickerLevel));
+      } catch {
+        // Teardown race — the pty is already gone; nothing to close.
+      }
+    }
     if (pending?.timer) {
       clearTimeout(pending.timer);
     }
@@ -1821,6 +2581,8 @@ export class TerminalHost extends EventEmitter {
       value: string;
       error?: string | null;
       observedModes?: ClaudePermissionMode[];
+      codexModel?: string | null;
+      codexEffort?: ReasoningEffort | null;
     },
   ): void {
     this.emitEvent("control-switch:state", {
@@ -1830,6 +2592,8 @@ export class TerminalHost extends EventEmitter {
       phase,
       error: payload.error ?? null,
       ...(payload.observedModes ? { observedModes: payload.observedModes } : {}),
+      ...(payload.codexModel !== undefined ? { codexModel: payload.codexModel } : {}),
+      ...(payload.codexEffort !== undefined ? { codexEffort: payload.codexEffort } : {}),
     });
   }
 

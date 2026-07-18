@@ -24,6 +24,7 @@ import {
   type ResumeSettings,
 } from "../shared/types";
 import type {
+  ClaudeControlSwitchKind,
   RuntimeProvider,
   SlashCommandEntry,
   SlashCommandsResponse,
@@ -420,6 +421,39 @@ initActions({
       mode,
       view.task?.codexPermissionMode ?? undefined,
     );
+  },
+  // Codex model / effort (S4 — the `/model` two-level picker choreography). The
+  // picker forces a (model, effort) pair; each action switches ONE dimension and
+  // preserves the other via the picker's `(current)` row, so no `from` is needed.
+  // A no-op selection (already the current value) never fires — the codex picker
+  // may not print a receipt for an unchanged confirm, so we short-circuit here.
+  // The chip follows task.model + task.reasoningEffort, which the controller writes
+  // off the picker receipt (settled event).
+  switchSessionCodexModel: (view, value) => {
+    if (view.task?.model === value) {
+      state.composerMenu = null;
+      render();
+      return;
+    }
+    // `from` = the current effort to PRESERVE at the picker's level 2: after a
+    // model change codex drops the level-2 `(current)` marker, so the effort must
+    // be navigated to explicitly (terminal-host). task.reasoningEffort is the SSOT
+    // (codex has no statusline). Null/Max/Ultra can't be held on a v1 row → the
+    // switch rolls back to needs-attention (a documented v1 limit).
+    void applyClaudeControlSwitch(
+      view,
+      "codex-model",
+      value,
+      view.task?.reasoningEffort ?? undefined,
+    );
+  },
+  switchSessionCodexEffort: (view, value) => {
+    if (view.task?.reasoningEffort === value) {
+      state.composerMenu = null;
+      render();
+      return;
+    }
+    void applyClaudeControlSwitch(view, "codex-effort", value);
   },
   // Option-prompt card: the select grammar (single-select picks, multi-select
   // toggles — drawer S1) and the answer flow.
@@ -911,18 +945,21 @@ function toggleDraftMenuFromChip(kind: TaskDraftMenuKind, event: MouseEvent): vo
   render();
 }
 
-/** Toggle the live session's model+effort switch menu (S1). Mirrors
- *  toggleDraftMenuFromChip's stopPropagation reasoning: render() rebuilds the
- *  chip mid-click, so without it the document click-away closes the menu in the
- *  same click that opened it. One composer-popover family at a time. */
-function toggleSessionModelMenuFromChip(event: MouseEvent): void {
+/** Toggle the live session's model+effort switch menu — Claude's `/model`+
+ *  `/effort` menu (S1, `session-model`) or Codex's `/model` two-level picker menu
+ *  (S4, `session-codex-model`), selected by the session's provider. Mirrors
+ *  toggleDraftMenuFromChip's stopPropagation reasoning: render() rebuilds the chip
+ *  mid-click, so without it the document click-away closes the menu in the same
+ *  click that opened it. One composer-popover family at a time. */
+function toggleSessionModelMenuFromChip(event: MouseEvent, provider: RuntimeProvider): void {
   event.stopPropagation();
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const menuType = provider === "codex" ? "session-codex-model" : "session-model";
   state.composerMenu =
-    state.composerMenu?.type === "session-model"
+    state.composerMenu?.type === menuType
       ? null
       : {
-          type: "session-model",
+          type: menuType,
           anchor: { left: rect.left, top: rect.top, width: rect.width },
         };
   state.taskDraft.menu = null;
@@ -954,13 +991,14 @@ elements.providerChip.addEventListener("click", (event) => {
   toggleDraftMenuFromChip("provider", event);
 });
 elements.modelChip.addEventListener("click", (event) => {
-  // A live session's model chip opens the session model+effort switch menu (S1,
-  // Claude only — the chip is disabled/read-only otherwise, so a click here on a
-  // codex or busy session never fires). New Chat's chip opens the draft launch
-  // menu. The disabled attribute gates busy/off-idle, so no extra guard here.
+  // A live session's model chip opens the session model+effort switch menu —
+  // Claude's `/model`+`/effort` menu (S1) or Codex's `/model` two-level picker
+  // menu (S4), keyed off the session's provider. The chip is disabled off-idle /
+  // mid-switch, so a click here always fires on an idle session. New Chat's chip
+  // opens the draft launch menu.
   const view = activeTaskView();
   if (view?.task) {
-    toggleSessionModelMenuFromChip(event);
+    toggleSessionModelMenuFromChip(event, view.task.provider);
     return;
   }
   toggleDraftMenuFromChip("launch", event);
@@ -1206,7 +1244,7 @@ function closeRemoteControlPopover(): void {
  *  off-idle) surfaces as a one-line composer notice. */
 async function applyClaudeControlSwitch(
   view: TaskViewState,
-  kind: "model" | "effort" | "permission" | "codex-permission",
+  kind: ClaudeControlSwitchKind,
   value: string,
   from?: string,
 ): Promise<void> {
@@ -1236,10 +1274,15 @@ async function applyClaudeControlSwitch(
 /** One-line reason a switch couldn't be kicked off (idle-gate races + PTY loss).
  *  User-facing, no CLI internals — the composer-notice register. */
 function controlSwitchRefusalCopy(
-  kind: "model" | "effort" | "permission" | "codex-permission",
+  kind: ClaudeControlSwitchKind,
   reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider",
 ): string {
-  const axis = kind === "model" ? "model" : kind === "effort" ? "reasoning" : "access";
+  const axis =
+    kind === "model" || kind === "codex-model"
+      ? "model"
+      : kind === "effort" || kind === "codex-effort"
+        ? "reasoning"
+        : "access";
   switch (reason) {
     case "not-idle":
       return `Finish the current turn before switching ${axis}.`;

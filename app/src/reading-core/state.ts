@@ -177,7 +177,13 @@ export interface TaskViewState {
    *  composer notice via `status`. */
   controlSwitch:
     | {
-        kind: "model" | "effort" | "permission" | "codex-permission";
+        kind:
+          | "model"
+          | "effort"
+          | "permission"
+          | "codex-permission"
+          | "codex-model"
+          | "codex-effort";
         value: string;
         phase: "pending" | "needs-attention";
       }
@@ -467,14 +473,21 @@ export interface PromptNavState {
 }
 
 export interface ComposerMenuState {
-  /** `add` = the attachment menu; `session-model` = the live session's model +
-   *  effort switch menu (S1 — the interactive model chip, Claude only);
-   *  `session-access` = the live Claude session's permission-mode switch menu
-   *  (S2); `session-codex-access` = the live Codex session's permission-preset
-   *  switch menu (S3 — the interactive access chip on a codex session). Both
-   *  access menus share the access chip; the session's provider selects which
-   *  opens. One composer popover at a time; each anchors above its chip. */
-  type: "add" | "session-model" | "session-access" | "session-codex-access";
+  /** `add` = the attachment menu; `session-model` = the live Claude session's
+   *  model + effort switch menu (S1); `session-codex-model` = the live Codex
+   *  session's model + effort switch menu (S4 — the `/model` two-level picker
+   *  choreography). Both model menus share the model chip; the session's provider
+   *  selects which opens. `session-access` = the live Claude session's
+   *  permission-mode switch menu (S2); `session-codex-access` = the live Codex
+   *  session's permission-preset switch menu (S3). Both access menus share the
+   *  access chip; the provider selects which opens. One composer popover at a
+   *  time; each anchors above its chip. */
+  type:
+    | "add"
+    | "session-model"
+    | "session-codex-model"
+    | "session-access"
+    | "session-codex-access";
   anchor: PopoverAnchor;
 }
 

@@ -22,6 +22,8 @@ import {
   MODEL_OPTIONS,
   REASONING_OPTIONS,
   USAGE_CONTEXT_HIGH_USED_PERCENT,
+  modelValueLabel,
+  reasoningValueLabel,
 } from "../../reading-core/config";
 import { turnActivity } from "../../reading-core/selectors/runs";
 import { renderSettingSection } from "./entry";
@@ -42,7 +44,6 @@ import {
   lifecycleFreezesComposerText,
   sendPromptTitle,
   sessionModelSummaryLabel,
-  sessionModelSwitchHint,
   sessionPermissionMenuModes,
 } from "../../reading-core/selectors/composer";
 import { hasActiveRun } from "../../reading-core/selectors/runs";
@@ -287,38 +288,19 @@ export function renderUsageIndicator(view: TaskViewState | null): void {
 }
 
 /**
- * Display-only session facts (S3): mid-session model/permission switching
- * lives in the terminal (native Shift+Tab, /model); the chip mirrors the
- * session's current value (task record, updated via hooks/statusline) and
- * its tooltip points at the native switch.
- */
-function renderComposerChip(element: HTMLButtonElement, label: string | null, hint: string): void {
-  element.classList.toggle("hidden", !label);
-  element.classList.remove("interactive", "active");
-  element.textContent = label ?? "";
-  element.disabled = true;
-  element.removeAttribute("aria-haspopup");
-  element.removeAttribute("aria-expanded");
-  if (label) {
-    element.title = `${label} — ${hint}`;
-  } else {
-    element.removeAttribute("title");
-  }
-}
-
-/**
- * The live session's model chip. Codex stays exactly as before — a read-only
- * mirror (S4 owns codex mid-session switching). Claude's becomes interactive
- * (S1): at idle it opens the model+effort switch menu; while a turn runs it
- * renders a designed disabled state; while a switch is in flight it dims to a
- * pending look. The label itself always follows the statusline mirror.
+ * The live session's model chip. Interactive on BOTH providers now: at idle it
+ * opens the model+effort switch menu; while a turn runs it renders a designed
+ * disabled state; while a switch is in flight it dims to a pending look. Claude's
+ * label follows the statusline mirror (S1); Codex has no statusline, so its label
+ * follows task.model + task.reasoningEffort, which the controller writes off the
+ * `/model` picker receipt (S4 — the same receipt-as-SSOT asymmetry as the codex
+ * access chip). The only per-provider differences are the switch axes
+ * (`model`/`effort` vs `codex-model`/`codex-effort`), the menu it opens, and the
+ * vocabulary the "Switching to …" title reads.
  */
 function renderSessionModelChip(view: TaskViewState, provider: RuntimeProvider): void {
   const label = composerChipLabel(view, "model");
-  if (provider !== "claude") {
-    renderComposerChip(elements.modelChip, label, sessionModelSwitchHint(provider));
-    return;
-  }
+  const codex = provider === "codex";
   const element = elements.modelChip;
   element.classList.toggle("hidden", !label);
   element.removeAttribute("aria-expanded");
@@ -335,9 +317,11 @@ function renderSessionModelChip(view: TaskViewState, provider: RuntimeProvider):
   // guard). Idle-only (turnActivity SSOT — turn-signal program): no switching
   // while a turn is live or background work runs, or any switch is in flight.
   const kind = view.controlSwitch?.kind;
-  const pending = kind === "model" || kind === "effort";
+  const pending = codex
+    ? kind === "codex-model" || kind === "codex-effort"
+    : kind === "model" || kind === "effort";
   const switchable = turnActivity(view) === "idle" && !view.controlSwitch;
-  const open = state.composerMenu?.type === "session-model";
+  const open = state.composerMenu?.type === (codex ? "session-codex-model" : "session-model");
 
   // Reuse the launch-chip DOM (label span + caret) so the live chip reads as the
   // same control as New Chat's model chip. Children update in place — the
@@ -353,17 +337,35 @@ function renderSessionModelChip(view: TaskViewState, provider: RuntimeProvider):
   if (labelEl.textContent !== label) {
     labelEl.textContent = label;
   }
+  const providerName = codex ? "Codex" : "Claude";
   element.classList.add("interactive");
   element.classList.toggle("active", open);
   element.classList.toggle("switching", pending);
   element.disabled = !switchable;
   element.title = pending
-    ? `Switching to ${view.controlSwitch?.value ?? ""}…`
+    ? `Switching to ${sessionModelSwitchingLabel(provider, kind, view.controlSwitch?.value ?? "")}…`
     : switchable
       ? "Switch model and reasoning for this session"
-      : "Available when Claude is idle";
+      : `Available when ${providerName} is idle`;
   element.setAttribute("aria-haspopup", "menu");
   element.ariaExpanded = String(open);
+}
+
+/** The "Switching to …" title's human label for the in-flight model/effort
+ *  switch. Codex-model / codex-effort carry a slug / reasoning id in `value`;
+ *  claude carries an alias / effort id — map each to its menu label. */
+function sessionModelSwitchingLabel(
+  provider: RuntimeProvider,
+  kind: string | undefined,
+  value: string,
+): string {
+  if (kind === "codex-model" || kind === "model") {
+    return modelValueLabel(provider, value) ?? value;
+  }
+  if (kind === "codex-effort" || kind === "effort") {
+    return reasoningValueLabel(provider, value as never) ?? value;
+  }
+  return value;
 }
 
 /**
@@ -559,6 +561,82 @@ function sessionEffortValue(view: TaskViewState): string | null {
   return view.usageSnapshot?.reasoningEffort ?? view.task?.reasoningEffort ?? null;
 }
 
+/** The live CODEX session's model + effort switch menu (S4) — same visual family
+ *  as the New Chat launch menu (renderSettingSection). Data source is Sonata's
+ *  curated codex list (D5), current marked from the task record (codex has no
+ *  statusline mirror). Selecting a model switches only the model (effort preserved
+ *  via the picker's level-2 `(current)` row); selecting a reasoning switches only
+ *  the reasoning (model preserved via level-1 `(current)`). Carries the CLI-default
+ *  caption: codex persists a `/model` switch globally into ~/.codex/config.toml
+ *  (measured — S1's caption pattern). Sonata sessions are immune (spawn flags
+ *  override); bare-terminal codex inherits it. */
+function renderSessionCodexModelMenu(view: TaskViewState): HTMLElement {
+  const menu = document.createElement("div");
+  menu.className = "task-settings-popover composer-session-menu";
+  menu.setAttribute("role", "menu");
+  menu.ariaLabel = "Model and reasoning";
+  menu.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  menu.append(
+    renderSettingSection(
+      "Model",
+      sessionCodexModelOptions(),
+      sessionCodexModelValue(view) ?? "",
+      (value) => {
+        actions.switchSessionCodexModel(view, value);
+      },
+    ),
+    renderSettingSection(
+      "Reasoning",
+      sessionCodexEffortOptions(),
+      sessionCodexEffortValue(view) ?? "",
+      (value) => {
+        actions.switchSessionCodexEffort(view, value);
+      },
+    ),
+  );
+
+  const caption = document.createElement("p");
+  caption.className = "task-setting-caption";
+  caption.textContent = "Also becomes Codex's default for sessions outside Sonata.";
+  menu.append(caption);
+  return menu;
+}
+
+/** Concrete curated Codex models only — "Native Default" (null) has no
+ *  mid-session meaning (the picker offers no "reset to default" row). A model the
+ *  running picker doesn't list (a legacy model, or upstream drift) rolls the
+ *  switch back to needs-attention (D5), so the menu offers the full curated list
+ *  and lets the choreography surface any mismatch. */
+function sessionCodexModelOptions(): Array<{ label: string; value: string }> {
+  return MODEL_OPTIONS.codex.flatMap((option) =>
+    option.value ? [{ label: option.label, value: option.value }] : [],
+  );
+}
+
+/** The v1 reasoning set (low → xhigh, D6): "Native Default" (null), Max, and
+ *  Ultra are dropped — Max/Ultra live in the picker's "More reasoning…" submenu,
+ *  which the choreography never enters. */
+function sessionCodexEffortOptions(): Array<{ label: string; value: string }> {
+  const v1 = new Set(["low", "medium", "high", "xhigh"]);
+  return REASONING_OPTIONS.codex.flatMap((option) =>
+    option.value && v1.has(option.value) ? [{ label: option.label, value: option.value }] : [],
+  );
+}
+
+/** The current codex model (the spawn/last-switch value — codex has no statusline
+ *  mirror, so task.model is the SSOT the picker receipt updates). */
+function sessionCodexModelValue(view: TaskViewState): string | null {
+  return view.task?.model ?? null;
+}
+
+/** The current codex reasoning (task.reasoningEffort — same SSOT rationale). */
+function sessionCodexEffortValue(view: TaskViewState): string | null {
+  return view.task?.reasoningEffort ?? null;
+}
+
 /** A New Chat launch chip: interactive, carets down, toggles its draft menu
  *  (the click wiring lives in main.ts — static elements, bound once).
  *
@@ -644,6 +722,12 @@ export function renderComposerPopover(view = activeTaskView(state)): void {
   }
   if (state.composerMenu?.type === "session-model" && view?.task) {
     const menu = renderSessionModelMenu(view);
+    positionComposerMenu(menu);
+    elements.composerPopoverRoot.append(menu);
+    return;
+  }
+  if (state.composerMenu?.type === "session-codex-model" && view?.task) {
+    const menu = renderSessionCodexModelMenu(view);
     positionComposerMenu(menu);
     elements.composerPopoverRoot.append(menu);
     return;
@@ -807,14 +891,24 @@ function positionComposerMenu(menu: HTMLElement): void {
         Math.max(viewportPadding, anchor.left + anchor.width - width),
       )
     : viewportPadding;
-  const estimatedHeight = 190;
-  const top = anchor
-    ? Math.max(viewportPadding, anchor.top - estimatedHeight - 8)
-    : viewportPadding;
   menu.style.left = `${left}px`;
-  menu.style.top = `${top}px`;
   menu.style.width = `${width}px`;
-  menu.style.maxHeight = `${Math.max(180, window.innerHeight - viewportPadding * 2)}px`;
+  // The menu opens UPWARD from its chip. Anchor its BOTTOM just above the chip and
+  // cap its height to the space available above, so a tall menu (the codex model
+  // list — 7 models + reasoning — is the tallest) scrolls INTERNALLY (the popover
+  // is overflow-y:auto) instead of overflowing off the top/bottom of the viewport.
+  // Bottom-anchoring avoids needing the rendered height up front (this runs before
+  // the menu is appended, so it can't be measured). Falls back to a top pin when
+  // there is no anchor (the new-chat slash surfaces).
+  if (anchor) {
+    menu.style.top = "auto";
+    menu.style.bottom = `${Math.max(viewportPadding, window.innerHeight - anchor.top + 8)}px`;
+    menu.style.maxHeight = `${Math.max(180, anchor.top - 8 - viewportPadding)}px`;
+  } else {
+    menu.style.bottom = "auto";
+    menu.style.top = `${viewportPadding}px`;
+    menu.style.maxHeight = `${Math.max(180, window.innerHeight - viewportPadding * 2)}px`;
+  }
 }
 
 function positionUsagePopover(popover: HTMLElement): void {

@@ -85,6 +85,11 @@ export interface Actions {
   switchSessionPermission(view: TaskViewState, mode: string): void;
   //   Codex permission preset (S3 — the `/permissions` picker choreography).
   switchSessionCodexPermission(view: TaskViewState, mode: string): void;
+  //   Codex model/effort (S4 — the `/model` two-level picker choreography). The
+  //   picker forces a (model, effort) pair, so each preserves the non-selected
+  //   dimension via the level's `(current)` row; the receipt drives the chip.
+  switchSessionCodexModel(view: TaskViewState, value: string): void;
+  switchSessionCodexEffort(view: TaskViewState, value: string): void;
   // — Option-prompt card (view/approvals.ts): select grammar + answer flow
   //   (IPC injection; optimistic receipt) —
   selectOptionPromptChoice(view: TaskViewState, questionIndex: number, optionIndex: number): void;

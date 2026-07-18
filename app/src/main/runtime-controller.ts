@@ -1477,6 +1477,26 @@ export class RuntimeController {
       this.applyCodexPermissionSwitchReceipt(eventRuntime, event.payload.value);
     }
 
+    // Mid-session CODEX model/effort switch settled (S4): the same asymmetry as
+    // codex-permission — codex has NO statusline/hook mirror for its model or
+    // reasoning, so the `/model` picker receipt is the confirmation channel. The
+    // settled event carries the receipt's own (model, effort) pair; write BOTH to
+    // the task so the composer's model chip (which reads task.model +
+    // task.reasoningEffort for codex — no statusline) follows. Claude's
+    // model/effort `settled` never lands here — its statusline drives the chip.
+    if (
+      event.type === "control-switch:state" &&
+      (event.payload.kind === "codex-model" || event.payload.kind === "codex-effort") &&
+      event.payload.phase === "settled" &&
+      eventRuntime
+    ) {
+      this.applyCodexModelSwitchReceipt(
+        eventRuntime,
+        event.payload.codexModel ?? null,
+        event.payload.codexEffort ?? null,
+      );
+    }
+
     // Codex hooks-liveness arms at the FIRST submission of a session, not at
     // spawn: SessionStart arrives together with the first UserPromptSubmit
     // (lazy — probed 0.144.4/0.144.5), so only a submission puts the shim on
@@ -2220,6 +2240,40 @@ export class RuntimeController {
       return;
     }
     active.task = { ...active.task, codexPermissionMode: value };
+    this.persistTaskManifest(active.task, active.storageRoot);
+    this.sendEvent({
+      type: "task:updated",
+      payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
+      ts: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Mirror a settled mid-session CODEX model/effort switch onto the task record
+   * (S4). Codex has NO statusline/hook mirror for its model or reasoning (unlike
+   * claude, whose statusline follows a `/model` switch — sessionModelSummaryLabel),
+   * so the `/model` picker's own `• Model changed to <model> <effort>` receipt is
+   * the ONLY confirmation channel. The terminal-host emits the settled event with
+   * the receipt's own values, so writing BOTH task.model and task.reasoningEffort
+   * here is receipt-corroborated, not optimistic. The picker forces a (model,
+   * effort) pair, so both are always present and always written together — this
+   * also captures any codex-side effort reset a model change might carry. Only a
+   * recognized reasoning id is written; a garbage effort leaves both fields alone.
+   * updatedAt stays put (a chip refresh is metadata, like rename/archive — same
+   * rule as applyHookPermissionMode) so the sidebar ordering doesn't jump.
+   */
+  private applyCodexModelSwitchReceipt(
+    active: ActiveTaskRuntime,
+    model: string | null,
+    effort: ReasoningEffort | null,
+  ): void {
+    const nextModel = model && model.trim().length > 0 ? model : active.task.model;
+    const nextEffort =
+      effort && REASONING_EFFORTS.has(effort) ? effort : active.task.reasoningEffort;
+    if (active.task.model === nextModel && active.task.reasoningEffort === nextEffort) {
+      return;
+    }
+    active.task = { ...active.task, model: nextModel, reasoningEffort: nextEffort };
     this.persistTaskManifest(active.task, active.storageRoot);
     this.sendEvent({
       type: "task:updated",
