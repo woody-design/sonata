@@ -11,7 +11,7 @@ import { sendPrompt, selectSidebarSession, waitForEngagement } from "./helpers/s
 // choreography:
 //   (c) while the cold-start turn runs, the chip is a designed DISABLED state;
 //   (a) at idle it opens the Approvals menu — the three codex presets, current
-//       (Ask for approval) marked, plus the CLI-default caption;
+//       (Ask for approval) marked (no CLI-default caption — removed S6);
 //   (b) selecting "Approve for me" drives the picker (open → arrow → confirm),
 //       the `• Permissions updated to Approve for me` receipt settles it, and the
 //       controller writes task.codexPermissionMode (codex's receipt IS the
@@ -117,12 +117,10 @@ try {
   );
   findings.currentMarked = await currentMarkedLabel(page);
   assert.equal(findings.currentMarked, "Ask for approval", "the current preset is marked");
-  // The CLI-default side-effect caption is present (codex persists globally).
-  findings.caption = (await menu.locator(".task-setting-caption").textContent())?.trim() ?? "";
-  assert.ok(
-    /Codex's default/i.test(findings.caption),
-    "the menu notes the CLI-default side effect (codex persists the switch globally)",
-  );
+  // No CLI-default caption (removed S6, field revision 5 — the disclosure lives in
+  // docs, not menu chrome).
+  findings.captionCount = await menu.locator(".task-setting-caption").count();
+  assert.equal(findings.captionCount, 0, "the CLI-default caption is gone (S6 removal)");
 
   // (b) DRIVE ask-for-approval → approve-for-me via the picker choreography.
   await settingSection(page, "Approvals").locator("button", { hasText: exact("Approve for me") }).click();

@@ -9,8 +9,8 @@ import { sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 // and switches its model via the composer's now-interactive model chip:
 //   1. while the cold-start turn runs, the chip is a designed DISABLED state;
 //   2. at idle it is interactive and opens the model+effort menu (same visual
-//      family as New Chat — Model + Reasoning sections + the CLI-default caption,
-//      current value marked);
+//      family as New Chat — Model + Reasoning sections, current value marked; no
+//      CLI-default caption — removed S6);
 //   3. selecting a model injects `/model <id>` and the chip FOLLOWS the live
 //      statusline once the receipt lands (the switch actually took).
 //
@@ -70,7 +70,8 @@ try {
   const menu = page.locator(".composer-session-menu");
   await menu.waitFor({ state: "visible" });
 
-  // Menu structure: Model + Reasoning sections and the CLI-default caption.
+  // Menu structure: Model + Reasoning sections (no CLI-default caption — removed
+  // S6, field revision 5; the disclosure lives in docs, not menu chrome).
   assert.deepEqual(
     await settingOptionLabels(page, "Model"),
     ["Fable 5", "Opus 4.8", "Sonnet 5", "Haiku 4.5"],
@@ -81,11 +82,10 @@ try {
     ["Low", "Medium", "High", "Extra High", "Max"],
     "the Reasoning section is the v1 effort set (low → max), WITHOUT Native Default",
   );
-  const captionText = (await menu.locator(".task-setting-caption").textContent())?.trim();
-  assert.match(
-    captionText ?? "",
-    /default for sessions outside/i,
-    "the caption notes the CLI-default side effect",
+  assert.equal(
+    await menu.locator(".task-setting-caption").count(),
+    0,
+    "the CLI-default caption is gone (S6 removal)",
   );
 
   // Current model is marked selected in the menu.

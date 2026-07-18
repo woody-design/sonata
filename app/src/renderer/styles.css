@@ -3529,17 +3529,6 @@ h2 {
   font-weight: 600;
 }
 
-/* The live session model menu's footnote (S1): the mid-session switch also
-   becomes Claude's CLI-global default. A quiet caption under the sections. */
-.task-setting-caption {
-  margin: 9px 2px 0;
-  padding-top: 9px;
-  border-top: 1px solid var(--border-hairline);
-  color: var(--text-tertiary);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
 .task-setting-option {
   width: 100%;
   display: flex;

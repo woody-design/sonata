@@ -426,8 +426,10 @@ function renderSessionAccessChip(view: TaskViewState, provider: RuntimeProvider)
  *  the model menu (renderSettingSection), current mode marked. No CLI-default
  *  caption: a Shift+Tab switch is session-scoped and does NOT persist to
  *  settings.json (unlike `/model` / `/effort`), so there is no side effect to
- *  note. The offered modes are only those this session can actually reach
- *  (D4 — no dead steps). */
+ *  note. Offered modes = default / acceptEdits / plan / auto always, plus
+ *  bypassPermissions only when the session was spawned into it (D4, as revised by
+ *  the 2026-07-18 field test — see sessionPermissionMenuModes; an account whose
+ *  cycle lacks auto fails gracefully rather than hiding Auto forever). */
 function renderSessionAccessMenu(view: TaskViewState): HTMLElement {
   const menu = document.createElement("div");
   menu.className = "task-settings-popover composer-session-menu";
@@ -451,12 +453,12 @@ function renderSessionAccessMenu(view: TaskViewState): HTMLElement {
 }
 
 /** The live CODEX session's permission-preset switch menu (S3) — same visual
- *  family as the Claude access menu (renderSettingSection), current preset
- *  marked, the three fixed presets always offered (codex's `/permissions` picker
- *  has exactly these rows). UNLIKE Claude's Shift+Tab menu it carries a
- *  CLI-default caption: the `/permissions` switch persists globally into
- *  ~/.codex/config.toml (measured — S1's model-menu caption pattern). Sonata
- *  sessions are immune (spawn flags override); bare-terminal codex inherits it. */
+ *  family as the Claude access menu (renderSettingSection), current preset marked,
+ *  the three fixed presets always offered (codex's `/permissions` picker has
+ *  exactly these rows). The CLI-default caption was REMOVED (S6, field revision 5,
+ *  2026-07-18): the `/permissions` switch does persist globally into
+ *  ~/.codex/config.toml, but that disclosure now lives in docs, not menu chrome
+ *  (Sonata sessions are immune anyway — spawn flags override). */
 function renderSessionCodexAccessMenu(view: TaskViewState): HTMLElement {
   const menu = document.createElement("div");
   menu.className = "task-settings-popover composer-session-menu";
@@ -476,18 +478,14 @@ function renderSessionCodexAccessMenu(view: TaskViewState): HTMLElement {
       actions.switchSessionCodexPermission(view, value);
     }),
   );
-
-  const caption = document.createElement("p");
-  caption.className = "task-setting-caption";
-  caption.textContent = "Also becomes Codex's default for sessions outside Sonata.";
-  menu.append(caption);
   return menu;
 }
 
 /** The live session's model + effort switch menu (S1) — same visual family as
- *  the New Chat launch menu (renderSettingSection), plus a caption noting the
- *  CLI-default side effect (a mid-session switch persists as Claude's global
- *  default; Sonata sessions are immune, bare-terminal Claude is not). */
+ *  the New Chat launch menu (renderSettingSection). The CLI-default caption was
+ *  REMOVED (S6, field revision 5, 2026-07-18): a `/model` / `/effort` switch does
+ *  persist as Claude's global default, but that disclosure now lives in docs, not
+ *  menu chrome (Sonata sessions are immune — spawn flags override). */
 function renderSessionModelMenu(view: TaskViewState): HTMLElement {
   const menu = document.createElement("div");
   menu.className = "task-settings-popover composer-session-menu";
@@ -512,11 +510,6 @@ function renderSessionModelMenu(view: TaskViewState): HTMLElement {
       },
     ),
   );
-
-  const caption = document.createElement("p");
-  caption.className = "task-setting-caption";
-  caption.textContent = "Also becomes Claude's default for sessions outside Sonata.";
-  menu.append(caption);
   return menu;
 }
 
@@ -566,10 +559,10 @@ function sessionEffortValue(view: TaskViewState): string | null {
  *  curated codex list (D5), current marked from the task record (codex has no
  *  statusline mirror). Selecting a model switches only the model (effort preserved
  *  via the picker's level-2 `(current)` row); selecting a reasoning switches only
- *  the reasoning (model preserved via level-1 `(current)`). Carries the CLI-default
- *  caption: codex persists a `/model` switch globally into ~/.codex/config.toml
- *  (measured — S1's caption pattern). Sonata sessions are immune (spawn flags
- *  override); bare-terminal codex inherits it. */
+ *  the reasoning (model preserved via level-1 `(current)`). The CLI-default caption
+ *  was REMOVED (S6, field revision 5, 2026-07-18): codex does persist a `/model`
+ *  switch globally into ~/.codex/config.toml, but that disclosure now lives in
+ *  docs, not menu chrome (Sonata sessions are immune — spawn flags override). */
 function renderSessionCodexModelMenu(view: TaskViewState): HTMLElement {
   const menu = document.createElement("div");
   menu.className = "task-settings-popover composer-session-menu";
@@ -597,11 +590,6 @@ function renderSessionCodexModelMenu(view: TaskViewState): HTMLElement {
       },
     ),
   );
-
-  const caption = document.createElement("p");
-  caption.className = "task-setting-caption";
-  caption.textContent = "Also becomes Codex's default for sessions outside Sonata.";
-  menu.append(caption);
   return menu;
 }
 
