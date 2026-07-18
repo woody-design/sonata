@@ -269,10 +269,14 @@ export type RemoteControlStateEvent = BaseRuntimeEvent<
  *     account-gated modes (`auto`) this session can actually reach.
  * Phases:
  *   - `pending` — the switch is driving; waiting for its receipt(s).
- *   - `settled` — the target was confirmed (model/effort receipt line, or the
- *     target mode line for permission). The chip follows its own SSOT — the
- *     statusline for model/effort, the hook payload for permission — not this
- *     event; `settled` only clears the pending affordance.
+ *   - `settled` — the target was confirmed (model/effort receipt line, the target
+ *     mode line for claude permission, or the `• Permissions updated to <label>`
+ *     receipt for codex-permission). For model/effort/permission the chip follows
+ *     its own SSOT (statusline / hook payload), so `settled` only clears the
+ *     pending affordance. Codex-permission is the ASYMMETRIC case: codex has no
+ *     hook-payload permission mirror, so the picker RECEIPT is the confirmation
+ *     channel — the controller writes `task.codexPermissionMode` off this settled
+ *     event (see `applyCodexPermissionSwitchReceipt` in runtime-controller).
  *   - `failed` — a clean rejection (`Model '<x>' not found`); `error` carries the
  *     surfaced reason, nothing changed CLI-side. (Not used by permission — a
  *     Shift+Tab step cannot be "rejected"; it either lands or aborts home.)
@@ -287,7 +291,7 @@ export type ControlSwitchStateEvent = BaseRuntimeEvent<
   "control-switch:state",
   {
     taskId: TaskId;
-    kind: "model" | "effort" | "permission";
+    kind: "model" | "effort" | "permission" | "codex-permission";
     value: string;
     phase: "pending" | "settled" | "failed" | "needs-attention";
     error: string | null;

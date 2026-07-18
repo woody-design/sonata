@@ -176,7 +176,11 @@ export interface TaskViewState {
    *  moots it. A `failed` switch does not live here — it surfaces as a one-line
    *  composer notice via `status`. */
   controlSwitch:
-    | { kind: "model" | "effort" | "permission"; value: string; phase: "pending" | "needs-attention" }
+    | {
+        kind: "model" | "effort" | "permission" | "codex-permission";
+        value: string;
+        phase: "pending" | "needs-attention";
+      }
     | null;
   /** The permission modes this session can actually reach via Shift+Tab (D4 — no
    *  dead steps). Seeded from the spawn mode (bypassPermissions only appears here
@@ -465,10 +469,12 @@ export interface PromptNavState {
 export interface ComposerMenuState {
   /** `add` = the attachment menu; `session-model` = the live session's model +
    *  effort switch menu (S1 — the interactive model chip, Claude only);
-   *  `session-access` = the live session's permission-mode switch menu (S2 — the
-   *  interactive access chip, Claude only). One composer popover at a time; each
-   *  anchors above its chip. */
-  type: "add" | "session-model" | "session-access";
+   *  `session-access` = the live Claude session's permission-mode switch menu
+   *  (S2); `session-codex-access` = the live Codex session's permission-preset
+   *  switch menu (S3 — the interactive access chip on a codex session). Both
+   *  access menus share the access chip; the session's provider selects which
+   *  opens. One composer popover at a time; each anchors above its chip. */
+  type: "add" | "session-model" | "session-access" | "session-codex-access";
   anchor: PopoverAnchor;
 }
 

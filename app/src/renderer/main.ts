@@ -409,6 +409,18 @@ initActions({
   switchSessionPermission: (view, mode) => {
     void applyClaudeControlSwitch(view, "permission", mode, view.task?.permissionMode ?? undefined);
   },
+  // Codex permission preset (S3 — the `/permissions` picker choreography). `from`
+  // = the session's current codex mode, so a no-op switch to the current preset
+  // resolves without touching the picker. The chip follows task.codexPermissionMode,
+  // which the controller writes off the picker receipt (settled event).
+  switchSessionCodexPermission: (view, mode) => {
+    void applyClaudeControlSwitch(
+      view,
+      "codex-permission",
+      mode,
+      view.task?.codexPermissionMode ?? undefined,
+    );
+  },
   // Option-prompt card: the select grammar (single-select picks, multi-select
   // toggles — drawer S1) and the answer flow.
   selectOptionPromptChoice: (view, questionIndex, optionIndex) => {
@@ -918,16 +930,19 @@ function toggleSessionModelMenuFromChip(event: MouseEvent): void {
   render();
 }
 
-/** Toggle the live session's permission-mode switch menu (S2). Same one-popover
+/** Toggle the live session's permission switch menu — Claude's Shift+Tab menu
+ *  (S2, `session-access`) or Codex's `/permissions`-preset menu (S3,
+ *  `session-codex-access`), selected by the session's provider. Same one-popover
  *  discipline as toggleSessionModelMenuFromChip. */
-function toggleSessionAccessMenuFromChip(event: MouseEvent): void {
+function toggleSessionAccessMenuFromChip(event: MouseEvent, provider: RuntimeProvider): void {
   event.stopPropagation();
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const menuType = provider === "codex" ? "session-codex-access" : "session-access";
   state.composerMenu =
-    state.composerMenu?.type === "session-access"
+    state.composerMenu?.type === menuType
       ? null
       : {
-          type: "session-access",
+          type: menuType,
           anchor: { left: rect.left, top: rect.top, width: rect.width },
         };
   state.taskDraft.menu = null;
@@ -951,13 +966,14 @@ elements.modelChip.addEventListener("click", (event) => {
   toggleDraftMenuFromChip("launch", event);
 });
 elements.permissionChip.addEventListener("click", (event) => {
-  // A live Claude session's access chip opens the permission-mode switch menu
-  // (S2 — Claude only; the chip is disabled/read-only otherwise, so a click on a
-  // codex or busy session never fires). New Chat's chip opens the draft access
-  // menu. The disabled attribute gates busy/off-idle, so no extra guard here.
+  // A live session's access chip opens the permission switch menu — Claude's
+  // Shift+Tab menu (S2) or Codex's `/permissions`-preset menu (S3), keyed off the
+  // session's provider. The chip is disabled off-idle / mid-switch, so a click
+  // here always fires on an idle session. New Chat's chip opens the draft access
+  // menu.
   const view = activeTaskView();
   if (view?.task) {
-    toggleSessionAccessMenuFromChip(event);
+    toggleSessionAccessMenuFromChip(event, view.task.provider);
     return;
   }
   toggleDraftMenuFromChip("access", event);
@@ -1190,7 +1206,7 @@ function closeRemoteControlPopover(): void {
  *  off-idle) surfaces as a one-line composer notice. */
 async function applyClaudeControlSwitch(
   view: TaskViewState,
-  kind: "model" | "effort" | "permission",
+  kind: "model" | "effort" | "permission" | "codex-permission",
   value: string,
   from?: string,
 ): Promise<void> {
@@ -1220,7 +1236,7 @@ async function applyClaudeControlSwitch(
 /** One-line reason a switch couldn't be kicked off (idle-gate races + PTY loss).
  *  User-facing, no CLI internals — the composer-notice register. */
 function controlSwitchRefusalCopy(
-  kind: "model" | "effort" | "permission",
+  kind: "model" | "effort" | "permission" | "codex-permission",
   reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider",
 ): string {
   const axis = kind === "model" ? "model" : kind === "effort" ? "reasoning" : "access";

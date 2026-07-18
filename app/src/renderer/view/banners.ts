@@ -60,8 +60,10 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
     // confirm the target and the screen is in an unrecognized state — model/effort
     // (S1): the injected command earned no receipt (a possible cache-miss confirm
     // / consent interstitial); permission (S2): the Shift+Tab stepping aborted and
-    // returned home, or landed where the hook SSOT must reconcile. Sonata does
-    // nothing further — a passive pointer to the CLI, where the user resolves it.
+    // returned home, or landed where the hook SSOT must reconcile;
+    // codex-permission (S3): the `/permissions` picker choreography rolled back
+    // with an Esc (an unexpected screen / timeout). Sonata does nothing further —
+    // a passive pointer to the CLI, where the user resolves it.
     if (view.controlSwitch?.phase === "needs-attention") {
       const axis =
         view.controlSwitch.kind === "model"

@@ -1033,6 +1033,53 @@ function workingStatus(liveness) {
     assert.equal(view.controlSwitch, null, "permission settled drops the pending affordance");
   }
 
+  // Codex permission axis (S3): pending records a codex-permission-kind pointer
+  // (dims the ACCESS chip on a codex session); settled clears it. UNLIKE claude,
+  // the label follows this event's mirror (the controller writes
+  // task.codexPermissionMode off the picker receipt) — but the reducer's job here
+  // is only the pending affordance, so it carries no observedModes.
+  {
+    const { state, view } = seedView();
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("pending", { kind: "codex-permission", value: "approve-for-me" }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.controlSwitch,
+      { kind: "codex-permission", value: "approve-for-me", phase: "pending" },
+      "a codex permission switch records a codex-permission-kind pointer",
+    );
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("settled", { kind: "codex-permission", value: "approve-for-me" }),
+      NOW_MS,
+    );
+    assert.equal(view.controlSwitch, null, "codex-permission settled drops the pending affordance");
+    // The codex axis never touches the claude reachable-modes set.
+    assert.deepEqual(
+      view.observedPermissionModes,
+      [],
+      "codex-permission carries no observedModes — the claude reachable set is untouched",
+    );
+  }
+
+  // Codex Full Access consent gate (RED LINE 2): the choreography rolls back →
+  // needs-attention (the RED LINE banner pointer), never a silent settle.
+  {
+    const { state, view } = seedView({ status: "Ready" });
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("needs-attention", { kind: "codex-permission", value: "full-access" }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.controlSwitch,
+      { kind: "codex-permission", value: "full-access", phase: "needs-attention" },
+      "a rolled-back codex Full Access switch records the needs-attention pointer",
+    );
+  }
+
   // observedModes MERGE (D4 — reachable-modes set grows, never shrinks): a
   // choreography that confirmed `auto` en route teaches the menu auto exists,
   // on BOTH settle and needs-attention, de-duplicated and order-stable.

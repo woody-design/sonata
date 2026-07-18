@@ -196,6 +196,144 @@ function asClaudePermissionMode(value: string | undefined): ClaudePermissionMode
     : null;
 }
 
+// Mid-session Codex PERMISSION switch (S3). Codex has no arg form and no
+// Shift+Tab cycle: Sonata types bare `/permissions` (RED LINE 1 — a codex slash
+// line WITH args submits as a chat prompt and burns a turn, so NEVER append
+// anything) + Enter to open a single-level picker, then navigates it by arrow
+// keys and Enter, reading the picker's own text as the choreography receipt.
+// Every string below is MEASURED from real codex 0.144.5 through the app's own
+// cleanTerminal + whitespace-strip (spikes/midsession-switch-probe +
+// scratchpad capture, 2026-07-18) — NOT assumed, per the S2 glyph lesson.
+//
+// Picker (compacted): `UpdateModelPermissions` header, then three rows whose
+// LABELS are the match keys (never the row number — D5: match by TEXT, the digit
+// is only part of the cursor anchor):
+//   `›1.Askforapproval(current)…`  `2.Approveforme…`  `3.FullAccess…`
+// The `›` (U+203A) cursor marks the highlighted row; it also leads the composer
+// placeholder (`›Write tests…`), so the cursor anchor requires `›` + a DIGIT +
+// `.` to tell the picker cursor apart from composer prose. Footer while open:
+// `Pressentertoconfirmoresctogoback`. Confirm receipt (a codex event line, `•`
+// U+2022 anchor): `•PermissionsupdatedtoApproveforme`.
+const CODEX_PICKER_HEADER_RE = /UpdateModelPermissions/;
+const CODEX_PICKER_FOOTER_RE = /Pressentertoconfirmoresctogoback/;
+// Confirming the **Full Access** row does NOT print a receipt — it opens a
+// SECOND consent dialog ("Enable full access? … 1. Yes, continue anyway / 2.
+// Yes, and don't ask again / 3. Cancel"; measured, codex 0.144.5). This is a
+// RED LINE 2 interstitial (the codex trust-dialog silent-Yes lineage): granting
+// unrestricted filesystem + network access is a human consent Sonata must NEVER
+// auto-answer. The choreography detects it and rolls back (a single Esc returns
+// all the way to the composer — measured, closes both nested dialogs) → the user
+// grants Full Access in the co-visible Terminal if they mean to.
+const CODEX_FULL_ACCESS_CONSENT_RE = /Enablefullaccess\?/;
+/** Label → mode, ordered as the picker renders (ask → approve → full). The
+ *  order is a stable picker property used ONLY to pick an arrow direction; the
+ *  cursor's actual row is always re-read by TEXT after each press. */
+const CODEX_PICKER_ROWS: ReadonlyArray<readonly [RegExp, CodexPermissionMode]> = [
+  [/Askforapproval/, "ask-for-approval"],
+  [/Approveforme/, "approve-for-me"],
+  [/FullAccess/, "full-access"],
+];
+const CODEX_ROW_ORDER: Record<CodexPermissionMode, number> = {
+  "ask-for-approval": 0,
+  "approve-for-me": 1,
+  "full-access": 2,
+};
+const CODEX_ROW_BY_ORDER: readonly CodexPermissionMode[] = [
+  "ask-for-approval",
+  "approve-for-me",
+  "full-access",
+];
+/** Cursor-row patterns: the `›` glyph + a digit + `.` + the row label. The
+ *  digit/dot are the anchor that rejects the composer placeholder (`›Write…`);
+ *  the LABEL identifies the mode. */
+const CODEX_PICKER_CURSOR_RES: ReadonlyArray<readonly [RegExp, CodexPermissionMode]> = [
+  [/›\d+\.Askforapproval/, "ask-for-approval"],
+  [/›\d+\.Approveforme/, "approve-for-me"],
+  [/›\d+\.FullAccess/, "full-access"],
+];
+/** Confirm-receipt patterns, anchored on the `•` codex event-line bullet so
+ *  prose can't forge them (the S2 glyph-anchor discipline). */
+const CODEX_PICKER_RECEIPT_RES: ReadonlyArray<readonly [RegExp, CodexPermissionMode]> = [
+  [/•PermissionsupdatedtoAskforapproval/, "ask-for-approval"],
+  [/•PermissionsupdatedtoApproveforme/, "approve-for-me"],
+  [/•PermissionsupdatedtoFullAccess/, "full-access"],
+];
+
+const CODEX_PERMISSION_MODE_SET: ReadonlySet<CodexPermissionMode> = new Set<CodexPermissionMode>([
+  "ask-for-approval",
+  "approve-for-me",
+  "full-access",
+]);
+
+/** Narrow an untrusted string (the IPC `value`/`from`) to a CodexPermissionMode. */
+function asCodexPermissionMode(value: string | undefined): CodexPermissionMode | null {
+  return value && CODEX_PERMISSION_MODE_SET.has(value as CodexPermissionMode)
+    ? (value as CodexPermissionMode)
+    : null;
+}
+
+/** The compacted (escapes + ALL whitespace removed) view the codex picker parsers
+ *  key on — same transform as the claude receipt/mode-line parsers and the Remote
+ *  Control detector, so a chunk split inside an escape reassembles first. */
+function codexPickerCompact(rawScan: string): string {
+  return cleanTerminal(rawScan).replace(/\s+/g, "");
+}
+
+/** The `/permissions` picker is on screen (its header rendered). */
+export function codexPermissionPickerOpen(rawScan: string): boolean {
+  return CODEX_PICKER_HEADER_RE.test(codexPickerCompact(rawScan));
+}
+
+/** The picker's confirm/cancel footer is on screen — used only to VERIFY an Esc
+ *  actually closed the picker (RED LINE 3), never to drive navigation. */
+export function codexPermissionPickerFooterVisible(rawScan: string): boolean {
+  return CODEX_PICKER_FOOTER_RE.test(codexPickerCompact(rawScan));
+}
+
+/** The Full Access consent dialog is on screen (a RED LINE 2 interstitial — see
+ *  CODEX_FULL_ACCESS_CONSENT_RE). The choreography treats this as an unrecoverable
+ *  screen and rolls back rather than ever auto-answering the consent. */
+export function codexPermissionConsentDialogOpen(rawScan: string): boolean {
+  return CODEX_FULL_ACCESS_CONSENT_RE.test(codexPickerCompact(rawScan));
+}
+
+/** The mode whose row currently holds the `›` cursor, or null if no cursor row is
+ *  recognized yet. "Most recent wins" (greatest match index) so a stale repaint
+ *  of the pre-move cursor can't outvote the row the latest frame highlights —
+ *  exactly like parseClaudePermissionModeLine. */
+export function parseCodexPermissionPickerCursor(rawScan: string): CodexPermissionMode | null {
+  const compact = codexPickerCompact(rawScan);
+  let best: CodexPermissionMode | null = null;
+  let bestIndex = -1;
+  for (const [re, mode] of CODEX_PICKER_CURSOR_RES) {
+    const globalRe = new RegExp(re.source, "g");
+    let match: RegExpExecArray | null;
+    let lastIndex = -1;
+    while ((match = globalRe.exec(compact)) !== null) {
+      lastIndex = match.index;
+      globalRe.lastIndex = match.index + 1;
+    }
+    if (lastIndex > bestIndex) {
+      bestIndex = lastIndex;
+      best = mode;
+    }
+  }
+  return best;
+}
+
+/** The mode a `• Permissions updated to <label>` receipt confirms, or null if no
+ *  receipt is on the scan yet (keep waiting until the confirm timeout). */
+export function parseCodexPermissionReceipt(rawScan: string): CodexPermissionMode | null {
+  const compact = codexPickerCompact(rawScan);
+  for (const [re, mode] of CODEX_PICKER_RECEIPT_RES) {
+    if (re.test(compact)) {
+      return mode;
+    }
+  }
+  return null;
+}
+
+export const ARROW_UP = "\x1b[A";
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
 /** Shift+Tab (CSI Z / back-tab) — cycles Claude's permission mode (probe:
@@ -236,6 +374,23 @@ const PERMISSION_MAX_SEEK_STEPS = 12;
  *  fully opaque can't loop forever — at the cap we emit needs-attention at the
  *  last-known landing and let the hook-payload SSOT reconcile the display. */
 const PERMISSION_MAX_RETURN_STEPS = 12;
+/** Codex `/permissions` picker choreography windows (S3). Opening waits for the
+ *  picker header after `/permissions`+Enter — generous, since a cold codex may
+ *  take a beat to render the picker. Nav/confirm are per-STEP: the picker
+ *  repaints on the same frame as the arrow/Enter (measured), so ~2s is ample;
+ *  a step that earns no recognized frame in its window flips to the Esc-rollback
+ *  path (RED LINE 3 — never a blind retry). */
+const CODEX_PICKER_OPEN_TIMEOUT_MS = 6000;
+const CODEX_PICKER_NAV_TIMEOUT_MS = 2500;
+const CODEX_PICKER_CONFIRM_TIMEOUT_MS = 4000;
+/** After the rollback Esc, how long to let the composer repaint before checking
+ *  the picker footer is gone (RED LINE 3 verification) and emitting
+ *  needs-attention. Bounded — the check is diagnostic, never a retry. */
+const CODEX_PICKER_CLOSE_VERIFY_MS = 900;
+/** Navigation bound: the picker has 3 rows, so any reachable row is ≤2 arrow
+ *  presses away; 6 (2× the row count) absorbs a dropped/duplicated repaint.
+ *  Exhausting it → Esc-rollback + needs-attention (never keep pressing blind). */
+const CODEX_PICKER_MAX_NAV_STEPS = 6;
 /** How long after the stop Esc the belt-clear fires. The prompt-restore is
  *  effectively immediate — present at the earliest measured snapshot, +300ms
  *  (probe C10) — so 900ms is comfortably past it; the belt is cosmetic
@@ -531,6 +686,31 @@ type PendingControlSwitch =
       seekSteps: number;
       returnSteps: number;
       observed: Set<ClaudePermissionMode>;
+      timer: NodeJS.Timeout | null;
+    }
+  | {
+      // `codex-permission` (S3) — the `/permissions` picker choreography. Codex
+      // has no arg form: we type bare `/permissions`+Enter to OPEN the picker,
+      // then navigate its three text-matched rows with arrow keys, confirming
+      // with Enter, and read the `• Permissions updated to <label>` receipt.
+      //   opening    — typed `/permissions`+Enter; waiting for the picker header.
+      //   navigating — picker open; stepping arrows toward the target ROW (by
+      //                text), re-reading the cursor after each press.
+      //   confirming — pressed Enter on the target row; waiting for the receipt.
+      //   closing    — a failure fired the rollback Esc; waiting to verify the
+      //                picker closed, then needs-attention.
+      // `pickerOpen` gates the cancellation Esc: an abandoned picker swallows the
+      // next typed char, so an EXTERNAL clear (run start / PTY teardown) mid-picker
+      // must Esc once before releasing (measured — an open picker eats input).
+      axis: "codex-permission";
+      target: CodexPermissionMode;
+      phase: "opening" | "navigating" | "confirming" | "closing";
+      pickerOpen: boolean;
+      /** The cursor row we last acted from (to recognize a pre-move repaint). */
+      lastCursor: CodexPermissionMode | null;
+      /** The row the last arrow press is expected to move the cursor to. */
+      awaitingCursor: CodexPermissionMode | null;
+      navSteps: number;
       timer: NodeJS.Timeout | null;
     };
 
@@ -1036,9 +1216,13 @@ export class TerminalHost extends EventEmitter {
     value: string,
     from?: string,
   ): ClaudeControlSwitchResponse {
-    if (this.profile.provider !== "claude") {
-      // Codex burns a real turn on an inline `/model` arg (probe hazard) and has
-      // no Shift+Tab cycle — never reach the pty on the wrong provider.
+    // Provider gate, BOTH directions (the backend half of the renderer's chip
+    // gate): a `codex-permission` kind reaches only a codex session; the three
+    // claude kinds only a claude session. A claude kind on codex would burn a
+    // turn on an inline `/model` arg (probe hazard) and codex has no Shift+Tab
+    // cycle; a codex kind on claude has no `/permissions` picker to drive.
+    const wantProvider: RuntimeProvider = kind === "codex-permission" ? "codex" : "claude";
+    if (this.profile.provider !== wantProvider) {
       return { ok: false, reason: "wrong-provider" };
     }
     if (!this.ptyProcess) {
@@ -1052,11 +1236,14 @@ export class TerminalHost extends EventEmitter {
     }
     // A prior switch still resolving, or any automation write mid-sequence —
     // refuse rather than interleave a second drive's bytes. (The shared
-    // single-switch guard: model/effort and permission can never overlap.)
+    // single-switch guard: no two axes — across BOTH providers — ever overlap.)
     if (this.pendingControlSwitch || this.sonataWriting) {
       return { ok: false, reason: "busy" };
     }
 
+    if (kind === "codex-permission") {
+      return this.startCodexPermissionSwitch(value, from);
+    }
     if (kind === "permission") {
       return this.startPermissionSwitch(value, from);
     }
@@ -1262,11 +1449,287 @@ export class TerminalHost extends EventEmitter {
     this.emitControlSwitchState(phase, { kind: "permission", value: target, observedModes });
   }
 
+  // ── Codex `/permissions` picker choreography (S3) ───────────────────────────
+
+  /**
+   * Begin a codex permission switch. Codex has no arg form and no Shift+Tab
+   * cycle: we OPEN a picker by typing bare `/permissions` (RED LINE 1 — never
+   * with args, that submits as a chat prompt and burns a turn) + Enter, then
+   * navigate its three rows by TEXT and confirm with Enter, reading the picker's
+   * own text as the choreography receipt. `from` (the session's current mode)
+   * only skips a no-op switch to the mode we're already in.
+   */
+  private startCodexPermissionSwitch(value: string, from?: string): ClaudeControlSwitchResponse {
+    const target = asCodexPermissionMode(value);
+    if (!target) {
+      // The renderer only offers the three CodexPermissionMode ids; a non-mode
+      // value is a caller bug, not a screen state — refuse without touching the pty.
+      return { ok: false, reason: "busy" };
+    }
+    const origin = asCodexPermissionMode(from);
+    if (origin && target === origin) {
+      // Already there — nothing to drive. Report settled so no pending affordance
+      // appears (the menu marks the current mode, so this is rare/defensive).
+      this.emitControlSwitchState("settled", { kind: "codex-permission", value: target });
+      return { ok: true };
+    }
+    if (!this.ptyProcess) {
+      return { ok: false, reason: "no-process" };
+    }
+
+    this.controlSwitchScan = "";
+    this.pendingControlSwitch = {
+      axis: "codex-permission",
+      target,
+      phase: "opening",
+      pickerOpen: false,
+      lastCursor: null,
+      awaitingCursor: null,
+      navSteps: 0,
+      timer: null,
+    };
+    this.emitControlSwitchState("pending", { kind: "codex-permission", value: target });
+
+    // Type bare `/permissions` (typed text, NOT bracketed paste — mirrors the S1
+    // `/model` inject), then defer the Enter under the held write-lock so a human
+    // keystroke in the gap buffers rather than splitting the frame.
+    this.beginSonataWrite();
+    this.writeCliInputClearFlood("pre-submit");
+    this.ptyProcess.write("/permissions");
+    this.deferSonataWrite(
+      120,
+      () => {
+        if (this.ptyProcess) {
+          this.ptyProcess.write("\r");
+        }
+      },
+      "control",
+    );
+    this.endSonataWrite();
+    this.armCodexPickerTimeout(CODEX_PICKER_OPEN_TIMEOUT_MS);
+    return { ok: true };
+  }
+
+  /** Drive the picker state machine off a fresh pty frame (called from
+   *  detectControlSwitchReceipt while the codex-permission switch is unresolved). */
+  private onCodexPickerData(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-permission") {
+      return;
+    }
+    const scan = this.controlSwitchScan;
+
+    if (pending.phase === "opening") {
+      // Flip pickerOpen the instant the header renders — BEFORE the cursor parses
+      // — so a timeout that fires while the picker is open (cursor unreadable)
+      // still rolls back with an Esc rather than stranding an open picker.
+      if (codexPermissionPickerOpen(scan)) {
+        pending.pickerOpen = true;
+      }
+      if (!pending.pickerOpen) {
+        return; // header not up yet — wait (opening timeout Escs if it never comes)
+      }
+      const cursor = parseCodexPermissionPickerCursor(scan);
+      if (!cursor) {
+        return; // picker open, cursor row not recognized yet — wait
+      }
+      pending.phase = "navigating";
+      this.clearCodexPickerTimer(pending);
+      this.decideCodexNav(cursor);
+      return;
+    }
+
+    if (pending.phase === "navigating") {
+      const cursor = parseCodexPermissionPickerCursor(scan);
+      if (!cursor) {
+        return; // no recognized cursor row yet — wait
+      }
+      if (pending.awaitingCursor && cursor !== pending.awaitingCursor) {
+        // The move hasn't landed yet: a pre-move repaint still shows the row we
+        // pressed FROM — ignore it and keep waiting. Any OTHER row is an
+        // unexpected jump (wrap, drift) → roll back (never keep guessing).
+        if (cursor === pending.lastCursor) {
+          return;
+        }
+        this.failCodexPicker(pending);
+        return;
+      }
+      pending.awaitingCursor = null;
+      this.clearCodexPickerTimer(pending);
+      this.decideCodexNav(cursor);
+      return;
+    }
+
+    // `confirming` — watch for the `• Permissions updated to <label>` receipt.
+    if (pending.phase === "confirming") {
+      // RED LINE 2: confirming Full Access opens a consent dialog instead of a
+      // receipt. Never auto-answer it — roll back the moment we recognize it (a
+      // consent gate the human owns), rather than waiting out the confirm timeout.
+      if (codexPermissionConsentDialogOpen(scan)) {
+        this.failCodexPicker(pending);
+        return;
+      }
+      const landed = parseCodexPermissionReceipt(scan);
+      if (!landed) {
+        return; // no receipt yet — wait (confirm timeout Escs)
+      }
+      this.clearCodexPickerTimer(pending);
+      // Confirm closed the picker (Enter dismisses it — measured). A receipt for
+      // any mode OTHER than our target should be impossible (we confirmed the
+      // target row), but if it happens the state is unexpected → needs-attention.
+      pending.pickerOpen = false;
+      this.finishCodexPicker(landed === pending.target ? "settled" : "needs-attention", pending);
+    }
+    // `closing` — the rollback Esc is in flight; ignore picker frames and let the
+    // close-verify timer emit needs-attention.
+  }
+
+  /**
+   * Decide the next navigation move from the cursor's CURRENT row (always read by
+   * text): confirm if we're on the target, else press ONE arrow toward it and
+   * re-read. Direction comes from the picker's stable row order, but every press
+   * is validated against the actual post-press cursor (`awaitingCursor`), so an
+   * assumed index never drives blind. Bounded by the nav cap → Esc-rollback.
+   */
+  private decideCodexNav(cursor: CodexPermissionMode): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-permission" || !this.ptyProcess) {
+      return;
+    }
+    if (process.env.SONATA_DEBUG_COMPLETION) {
+      console.log(
+        `[codex-permission] nav cursor=${cursor} target=${pending.target} navSteps=${pending.navSteps}`,
+      );
+    }
+    if (cursor === pending.target) {
+      pending.phase = "confirming";
+      this.controlSwitchScan = "";
+      this.beginSonataWrite();
+      this.ptyProcess.write("\r");
+      this.endSonataWrite();
+      this.armCodexPickerTimeout(CODEX_PICKER_CONFIRM_TIMEOUT_MS);
+      return;
+    }
+    if (pending.navSteps >= CODEX_PICKER_MAX_NAV_STEPS) {
+      this.failCodexPicker(pending);
+      return;
+    }
+    const goingDown = CODEX_ROW_ORDER[pending.target] > CODEX_ROW_ORDER[cursor];
+    const nextOrder = CODEX_ROW_ORDER[cursor] + (goingDown ? 1 : -1);
+    const expected = CODEX_ROW_BY_ORDER[nextOrder];
+    if (!expected) {
+      // Off the ends of the row list — should be unreachable (target is a valid
+      // row and cursor is between it and here). Defensive: roll back.
+      this.failCodexPicker(pending);
+      return;
+    }
+    pending.lastCursor = cursor;
+    pending.awaitingCursor = expected;
+    pending.navSteps += 1;
+    this.controlSwitchScan = "";
+    this.beginSonataWrite();
+    this.ptyProcess.write(goingDown ? ARROW_DOWN : ARROW_UP);
+    this.endSonataWrite();
+    this.armCodexPickerTimeout(CODEX_PICKER_NAV_TIMEOUT_MS);
+  }
+
+  /**
+   * A per-phase timeout fired: the screen is in a state the choreography can't
+   * recognize. RED LINE 3 — roll back with a single Esc (the ONLY non-navigation
+   * byte we ever write, and only while the picker is open), then verify the
+   * picker closed and surface needs-attention. NEVER retry, NEVER guess a row.
+   */
+  private onCodexPickerTimeout(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-permission") {
+      return;
+    }
+    pending.timer = null;
+    this.failCodexPicker(pending);
+  }
+
+  /** Roll back an unrecoverable picker choreography: Esc to close the picker (if
+   *  open), then a bounded verify-window before emitting needs-attention. */
+  private failCodexPicker(pending: Extract<PendingControlSwitch, { axis: "codex-permission" }>): void {
+    this.clearCodexPickerTimer(pending);
+    if (pending.pickerOpen && this.ptyProcess) {
+      this.controlSwitchScan = "";
+      this.beginSonataWrite();
+      this.ptyProcess.write(ESC);
+      this.endSonataWrite();
+    }
+    // Whether or not the picker was open, wait a beat, then conclude. The Esc's
+    // effect (footer gone) is verified in the timer; we surface needs-attention
+    // regardless — the user resolves it in the co-visible Terminal.
+    pending.phase = "closing";
+    pending.pickerOpen = false;
+    const timer = setTimeout(() => {
+      this.onCodexPickerCloseVerify();
+    }, CODEX_PICKER_CLOSE_VERIFY_MS);
+    timer.unref?.();
+    pending.timer = timer;
+  }
+
+  /** After the rollback Esc, conclude the switch as needs-attention. The picker
+   *  footer's absence from the post-Esc scan is the "it closed" evidence (logged
+   *  when SONATA_DEBUG_COMPLETION is set); the terminal state is the user's to
+   *  reconcile either way. */
+  private onCodexPickerCloseVerify(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-permission") {
+      return;
+    }
+    pending.timer = null;
+    if (process.env.SONATA_DEBUG_COMPLETION) {
+      const stillOpen = codexPermissionPickerFooterVisible(this.controlSwitchScan);
+      console.log(
+        `[codex-permission] rollback Esc → pickerClosed=${!stillOpen} target=${pending.target}`,
+      );
+    }
+    this.finishCodexPicker("needs-attention", pending);
+  }
+
+  private armCodexPickerTimeout(ms: number): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "codex-permission") {
+      return;
+    }
+    const timer = setTimeout(() => {
+      this.onCodexPickerTimeout();
+    }, ms);
+    timer.unref?.();
+    pending.timer = timer;
+  }
+
+  private clearCodexPickerTimer(
+    pending: Extract<PendingControlSwitch, { axis: "codex-permission" }>,
+  ): void {
+    if (pending.timer) {
+      clearTimeout(pending.timer);
+      pending.timer = null;
+    }
+  }
+
+  /** Resolve a codex permission switch: clear the pending pointer and emit the
+   *  terminal phase. On `settled`, the CONTROLLER writes `task.codexPermissionMode`
+   *  off this event — codex has no hook-payload permission mirror, so the picker
+   *  receipt is the confirmation channel (the asymmetry vs claude's lazy hook
+   *  reconcile; see runtime-controller `applyCodexPermissionSwitchReceipt`). */
+  private finishCodexPicker(
+    phase: "settled" | "needs-attention",
+    pending: Extract<PendingControlSwitch, { axis: "codex-permission" }>,
+  ): void {
+    const target = pending.target;
+    this.clearPendingControlSwitch();
+    this.emitControlSwitchState(phase, { kind: "codex-permission", value: target });
+  }
+
   /**
    * Watch the pty stream for the pending switch's receipt while it is unresolved.
    * value axis (model/effort): the printed receipt line → settled/failed, else
    * wait for the timeout. permission axis: the TUI mode line → hand to the
-   * stepping engine, else wait for the per-step timeout.
+   * stepping engine. codex-permission axis: hand every frame to the picker state
+   * machine. Else wait for the per-phase timeout.
    */
   private detectControlSwitchReceipt(data: string): void {
     const pending = this.pendingControlSwitch;
@@ -1279,6 +1742,10 @@ export class TerminalHost extends EventEmitter {
       if (landed) {
         this.onPermissionReceipt(landed);
       }
+      return;
+    }
+    if (pending.axis === "codex-permission") {
+      this.onCodexPickerData();
       return;
     }
     const verdict = parseClaudeControlReceipt(this.controlSwitchScan, pending.kind);
@@ -1318,8 +1785,22 @@ export class TerminalHost extends EventEmitter {
   }
 
   private clearPendingControlSwitch(): void {
-    if (this.pendingControlSwitch?.timer) {
-      clearTimeout(this.pendingControlSwitch.timer);
+    const pending = this.pendingControlSwitch;
+    // Cancelling a codex-permission switch mid-picker (an EXTERNAL clear — a run
+    // starting, the PTY tearing down — not our own settle/rollback, which already
+    // dropped pickerOpen) must close the picker first: an abandoned codex picker
+    // swallows the next typed char (measured), so the next prompt/keystroke would
+    // land in the picker instead of the composer. One Esc — the ONLY rollback byte
+    // (RED LINE 3) — before we let go. No-op once the picker has closed.
+    if (pending?.axis === "codex-permission" && pending.pickerOpen && this.ptyProcess) {
+      try {
+        this.ptyProcess.write(ESC);
+      } catch {
+        // Teardown race — the pty is already gone; nothing to close.
+      }
+    }
+    if (pending?.timer) {
+      clearTimeout(pending.timer);
     }
     this.pendingControlSwitch = null;
     this.controlSwitchScan = "";

@@ -83,6 +83,8 @@ export interface Actions {
   switchSessionModel(view: TaskViewState, value: string): void;
   switchSessionEffort(view: TaskViewState, value: string): void;
   switchSessionPermission(view: TaskViewState, mode: string): void;
+  //   Codex permission preset (S3 — the `/permissions` picker choreography).
+  switchSessionCodexPermission(view: TaskViewState, mode: string): void;
   // — Option-prompt card (view/approvals.ts): select grammar + answer flow
   //   (IPC injection; optimistic receipt) —
   selectOptionPromptChoice(view: TaskViewState, questionIndex: number, optionIndex: number): void;

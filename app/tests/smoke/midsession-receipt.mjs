@@ -7,7 +7,15 @@ import { createRequire } from "node:module";
 // keep-waiting verdict. Strings are the probe-verified verbatim receipts
 // (claude 2.1.214 — spikes/midsession-switch-probe/findings.md).
 const require = createRequire(import.meta.url);
-const { parseClaudeControlReceipt, parseClaudePermissionModeLine } = require("../../dist/runtime");
+const {
+  parseClaudeControlReceipt,
+  parseClaudePermissionModeLine,
+  parseCodexPermissionPickerCursor,
+  parseCodexPermissionReceipt,
+  codexPermissionPickerOpen,
+  codexPermissionPickerFooterVisible,
+  codexPermissionConsentDialogOpen,
+} = require("../../dist/runtime");
 
 // — Success: model —
 assert.equal(
@@ -210,6 +218,178 @@ assert.equal(
   parseClaudePermissionModeLine("I'll turn plan mode on next\n⏸ manual mode on"),
   "default",
   "a real glyphed mode line still wins over prose containing a (glyph-less) phrase",
+);
+
+// ===========================================================================
+// Codex `/permissions` picker choreography — cursor + receipt parsers (S3).
+// Strings are MEASURED from real codex 0.144.5 through the app's own
+// cleanTerminal + whitespace-strip (spikes/midsession-switch-probe + the S3
+// capture, 2026-07-18). The picker header, its three rows, the `›` (U+203A)
+// cursor, the `Press enter…` footer, and the `• Permissions updated to <label>`
+// receipt are all verbatim frames the parsers must key on.
+// ===========================================================================
+
+// Real captured frames (compacted form shown for reference; the parsers compact
+// internally, so the tests pass the near-raw redraw text they see on the wire).
+const PICKER_OPEN =
+  "/permissions/permissionschoosewhatCodexisallowedtodoUpdateModelPermissions›1.Askforapproval(current)Codexcanreadandeditfilesinthecurrentworkspace,andruncommands.Approvalisrequiredtoaccesstheinternetoreditotherfiles.2.ApproveformeOnlyaskforactionsdetectedaspotentiallyunsafe.3.FullAccessCodexcaneditfilesoutsidethisworkspaceandaccesstheinternetwithoutaskingforapproval.Exercisecautionwhenusing.Pressentertoconfirmoresctogoback";
+const PICKER_AFTER_DOWN1 =
+  "1.Askforapproval(current)Codexcanreadandeditfilesinthecurrentworkspace,andruncommands.Approvalisrequiredtoaccesstheinternetoreditotherfiles.›2.ApproveformeOnlyaskforactionsdetectedaspotentiallyunsafe.";
+const PICKER_AFTER_DOWN2 =
+  "2.ApproveformeOnlyaskforactionsdetectedaspotentiallyunsafe.›3.FullAccessCodexcaneditfilesoutsidethisworkspaceandaccesstheinternetwithoutaskingforapproval.Exercisecautionwhenusing.";
+const RECEIPT_APPROVE =
+  "›Writetestsfor@filenamegpt-5.6-solhigh·/tmp/ws•PermissionsupdatedtoApproveforme";
+const COMPOSER_AFTER_ESC = "›Writetestsfor@filenamegpt-5.6-solhigh·/tmp/ws";
+
+// — Picker open detection (header anchor). —
+assert.equal(codexPermissionPickerOpen(PICKER_OPEN), true, "the picker header marks it open");
+assert.equal(
+  codexPermissionPickerOpen(COMPOSER_AFTER_ESC),
+  false,
+  "the bare composer (post-Esc) is NOT the picker",
+);
+assert.equal(codexPermissionPickerFooterVisible(PICKER_OPEN), true, "the confirm/cancel footer is up");
+assert.equal(
+  codexPermissionPickerFooterVisible(COMPOSER_AFTER_ESC),
+  false,
+  "the footer is gone once the picker closes (Esc-rollback verification signal)",
+);
+
+// — Cursor row identified by the `›`+digit+label anchor, mapped by LABEL (never
+//   the row number — D5: match by TEXT). The opening frame's cursor is on the
+//   current mode (`›1.Ask for approval (current)`). —
+assert.equal(
+  parseCodexPermissionPickerCursor(PICKER_OPEN),
+  "ask-for-approval",
+  "opening cursor sits on the current row (ask-for-approval)",
+);
+assert.equal(
+  parseCodexPermissionPickerCursor(PICKER_AFTER_DOWN1),
+  "approve-for-me",
+  "one arrow-down moves the cursor to approve-for-me",
+);
+assert.equal(
+  parseCodexPermissionPickerCursor(PICKER_AFTER_DOWN2),
+  "full-access",
+  "a second arrow-down moves the cursor to full-access",
+);
+
+// — The `›` cursor also LEADS the composer placeholder (`›Write tests…`), so a
+//   bare `›` without a digit+row-label must NOT read as a picker cursor. —
+assert.equal(
+  parseCodexPermissionPickerCursor(COMPOSER_AFTER_ESC),
+  null,
+  "the composer placeholder's `›` (no digit/row) is not a picker cursor",
+);
+assert.equal(
+  parseCodexPermissionPickerCursor(""),
+  null,
+  "an empty scan → no cursor yet (keep waiting)",
+);
+
+// — Non-cursor rows carry no `›`, so a picker frame reports ONLY the highlighted
+//   row, never all three. (down1 has row 1 without `›`, only row 2 cursored.) —
+assert.notEqual(
+  parseCodexPermissionPickerCursor(PICKER_AFTER_DOWN1),
+  "ask-for-approval",
+  "a row rendered without the `›` cursor is not reported as the cursor row",
+);
+
+// — Receipt parser (bullet-anchored, LABEL-matched). —
+assert.equal(
+  parseCodexPermissionReceipt(RECEIPT_APPROVE),
+  "approve-for-me",
+  "the `• Permissions updated to Approve for me` receipt maps to approve-for-me",
+);
+assert.equal(
+  parseCodexPermissionReceipt("• Permissions updated to Full Access"),
+  "full-access",
+  "…and Full Access maps to full-access",
+);
+assert.equal(
+  parseCodexPermissionReceipt("• Permissions updated to Ask for approval"),
+  "ask-for-approval",
+  "…and Ask for approval maps to ask-for-approval",
+);
+
+// — No receipt yet → null (keep waiting). The picker frame itself is NOT a
+//   receipt (it names the rows but carries no `• Permissions updated to` line). —
+assert.equal(parseCodexPermissionReceipt(""), null, "empty scan → no receipt yet");
+assert.equal(
+  parseCodexPermissionReceipt(PICKER_OPEN),
+  null,
+  "the open picker (row labels only) is not a confirm receipt",
+);
+
+// — BULLET ANCHOR (S2 glyph lesson): the phrase WITHOUT the leading `•` codex
+//   event bullet must NOT read as a receipt — prose could contain the words. —
+assert.equal(
+  parseCodexPermissionReceipt("I updated the permissions to Approve for me earlier"),
+  null,
+  "prose containing the words but no `•` bullet is not a receipt",
+);
+assert.equal(
+  parseCodexPermissionReceipt("PermissionsupdatedtoApproveforme"),
+  null,
+  "the bare glued phrase (no bullet) is not a receipt",
+);
+
+// — ANSI-decorated / whitespace-noisy redraw still parses (compacted internally). —
+assert.equal(
+  parseCodexPermissionReceipt("\x1b[32m•\x1b[0m Permissions   updated\n   to   Approve for me"),
+  "approve-for-me",
+  "ANSI + collapsed-whitespace receipt still parses",
+);
+assert.equal(
+  parseCodexPermissionPickerCursor("\x1b[7m›\x1b[0m2.\x1b[1mApprove for me\x1b[0m"),
+  "approve-for-me",
+  "ANSI-decorated cursor row still parses",
+);
+
+// — Full Access consent dialog (RED LINE 2): confirming Full Access opens a
+//   "Enable full access?" consent dialog, NOT a receipt. The choreography must
+//   recognize it and roll back — it is never auto-answered. (Measured verbatim,
+//   codex 0.144.5.) —
+const FULL_ACCESS_CONSENT =
+  "Enable full access? When Codex runs with full access, it can edit any file on your computer and run commands with network, without your approval.›1.Yes,continueanywayApplyfullaccessforthissession2.Yes,anddon'taskagainEnablefullaccessandrememberthischoice3.CancelGobackwithoutenablingfullaccessPressentertoconfirmoresctogoback";
+assert.equal(
+  codexPermissionConsentDialogOpen("Enable full access? When Codex runs with full access…"),
+  true,
+  "the `Enable full access?` consent dialog is recognized (roll back, never auto-answer)",
+);
+assert.equal(
+  codexPermissionConsentDialogOpen(FULL_ACCESS_CONSENT),
+  true,
+  "…the full measured consent frame is recognized",
+);
+assert.equal(
+  codexPermissionConsentDialogOpen(PICKER_OPEN),
+  false,
+  "the plain permission picker is NOT the consent dialog",
+);
+assert.equal(
+  codexPermissionConsentDialogOpen(COMPOSER_AFTER_ESC),
+  false,
+  "the bare composer is not the consent dialog",
+);
+// The consent frame carries no `• Permissions updated to` receipt — the engine
+// must not mistake it for a settle.
+assert.equal(
+  parseCodexPermissionReceipt(FULL_ACCESS_CONSENT),
+  null,
+  "the consent dialog is not a confirm receipt",
+);
+
+// — Cross-vocabulary isolation: a claude mode line is not a codex cursor/receipt. —
+assert.equal(
+  parseCodexPermissionPickerCursor("⏸ plan mode on"),
+  null,
+  "a claude mode line is not a codex picker cursor",
+);
+assert.equal(
+  parseCodexPermissionReceipt("⎿ Set model to Sonnet 5"),
+  null,
+  "a claude model receipt is not a codex permission receipt",
 );
 
 console.log("midsession-receipt: OK");

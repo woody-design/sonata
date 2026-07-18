@@ -1462,6 +1462,21 @@ export class RuntimeController {
     eventRuntime?.statusTracker.handleRuntimeEvent(event);
     eventRuntime?.cliState.applyRuntimeEvent(event);
 
+    // Mid-session CODEX permission switch settled (S3): the `/permissions` picker
+    // receipt is codex's confirmation channel — unlike claude, there is NO
+    // hook-payload permission mirror, so the settled event legitimately WRITES the
+    // session's mode here (the asymmetry documented on ControlSwitchStateEvent).
+    // Claude's model/effort/permission `settled` never lands here — its axes' own
+    // SSOTs (statusline / hook payload) drive the chip; only codex-permission does.
+    if (
+      event.type === "control-switch:state" &&
+      event.payload.kind === "codex-permission" &&
+      event.payload.phase === "settled" &&
+      eventRuntime
+    ) {
+      this.applyCodexPermissionSwitchReceipt(eventRuntime, event.payload.value);
+    }
+
     // Codex hooks-liveness arms at the FIRST submission of a session, not at
     // spawn: SessionStart arrives together with the first UserPromptSubmit
     // (lazy — probed 0.144.4/0.144.5), so only a submission puts the shim on
@@ -2181,6 +2196,30 @@ export class RuntimeController {
     // updatedAt stays put — a mode display refresh is metadata, not activity
     // (same rule as rename/archive), so the sidebar ordering doesn't jump.
     active.task = { ...active.task, permissionMode: mode as ClaudePermissionMode };
+    this.persistTaskManifest(active.task, active.storageRoot);
+    this.sendEvent({
+      type: "task:updated",
+      payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
+      ts: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Mirror a settled mid-session CODEX permission switch onto the task record
+   * (S3). Codex is the ASYMMETRIC case: it has no hook-payload permission mirror
+   * (claude rides `permission_mode` on every hook — applyHookPermissionMode
+   * above), so the `/permissions` picker's own confirm receipt is the ONLY
+   * confirmation channel. The terminal-host's picker choreography emits the
+   * settled `control-switch:state` only after reading that receipt, so writing
+   * `task.codexPermissionMode` here is receipt-corroborated, not optimistic.
+   * updatedAt stays put (a mode refresh is metadata, like rename/archive — same
+   * rule as applyHookPermissionMode) so the sidebar ordering doesn't jump.
+   */
+  private applyCodexPermissionSwitchReceipt(active: ActiveTaskRuntime, value: string): void {
+    if (!isCodexPermissionMode(value) || active.task.codexPermissionMode === value) {
+      return;
+    }
+    active.task = { ...active.task, codexPermissionMode: value };
     this.persistTaskManifest(active.task, active.storageRoot);
     this.sendEvent({
       type: "task:updated",

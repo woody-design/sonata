@@ -12,10 +12,12 @@ import { ChevronDown, File as FileIcon, Folder, Image as ImageIcon, X } from "lu
 import type {
   AttachmentKind,
   ClaudePermissionMode,
+  CodexPermissionMode,
   RuntimeProvider,
   Task,
   UsageSnapshot,
 } from "../../shared/types";
+import { CODEX_PERMISSION_MODE_OPTIONS } from "../../shared/types";
 import {
   MODEL_OPTIONS,
   REASONING_OPTIONS,
@@ -42,7 +44,6 @@ import {
   sessionModelSummaryLabel,
   sessionModelSwitchHint,
   sessionPermissionMenuModes,
-  sessionPermissionSwitchHint,
 } from "../../reading-core/selectors/composer";
 import { hasActiveRun } from "../../reading-core/selectors/runs";
 import {
@@ -366,19 +367,17 @@ function renderSessionModelChip(view: TaskViewState, provider: RuntimeProvider):
 }
 
 /**
- * The live session's access (permission-mode) chip. Codex stays a read-only
- * mirror (S3 owns codex mid-session switching). Claude's becomes interactive
- * (S2): at idle it opens the permission-mode switch menu; while a turn runs it
- * renders a designed disabled state; while a switch is in flight it dims to a
- * pending look. The label always follows the session's mode (task.permissionMode,
- * hook-reconciled) — the mode line is receipt-only.
+ * The live session's access (permission-mode) chip. Interactive on BOTH providers
+ * now: at idle it opens the permission switch menu; while a turn runs it renders a
+ * designed disabled state; while a switch is in flight it dims to a pending look.
+ * The label always follows the session's mode SSOT — task.permissionMode
+ * (hook-reconciled) for claude, task.codexPermissionMode (picker-receipt-written)
+ * for codex. The only per-provider differences are the switch axis
+ * (`permission` vs `codex-permission`), the menu it opens, and its vocabulary.
  */
 function renderSessionAccessChip(view: TaskViewState, provider: RuntimeProvider): void {
   const label = composerChipLabel(view, "permission");
-  if (provider !== "claude") {
-    renderComposerChip(elements.permissionChip, label, sessionPermissionSwitchHint(provider));
-    return;
-  }
+  const codex = provider === "codex";
   const element = elements.permissionChip;
   element.classList.toggle("hidden", !label);
   element.removeAttribute("aria-expanded");
@@ -389,9 +388,10 @@ function renderSessionAccessChip(view: TaskViewState, provider: RuntimeProvider)
     element.removeAttribute("aria-haspopup");
     return;
   }
-  const pending = view.controlSwitch?.kind === "permission";
+  const switchKind = codex ? "codex-permission" : "permission";
+  const pending = view.controlSwitch?.kind === switchKind;
   const switchable = turnActivity(view) === "idle" && !view.controlSwitch;
-  const open = state.composerMenu?.type === "session-access";
+  const open = state.composerMenu?.type === (codex ? "session-codex-access" : "session-access");
 
   let labelEl = element.querySelector<HTMLSpanElement>(".composer-chip-label");
   if (!labelEl) {
@@ -403,15 +403,19 @@ function renderSessionAccessChip(view: TaskViewState, provider: RuntimeProvider)
   if (labelEl.textContent !== label) {
     labelEl.textContent = label;
   }
+  const providerName = codex ? "Codex" : "Claude";
+  const switchingLabel = codex
+    ? codexPermissionModeLabel(view.controlSwitch?.value as CodexPermissionMode)
+    : permissionModeLabel(view.controlSwitch?.value as ClaudePermissionMode);
   element.classList.add("interactive");
   element.classList.toggle("active", open);
   element.classList.toggle("switching", pending);
   element.disabled = !switchable;
   element.title = pending
-    ? `Switching to ${permissionModeLabel(view.controlSwitch?.value as ClaudePermissionMode)}…`
+    ? `Switching to ${switchingLabel}…`
     : switchable
-      ? "Switch how Claude actions are approved for this session"
-      : "Available when Claude is idle";
+      ? `Switch how ${providerName} actions are approved for this session`
+      : `Available when ${providerName} is idle`;
   element.setAttribute("aria-haspopup", "menu");
   element.ariaExpanded = String(open);
 }
@@ -441,6 +445,40 @@ function renderSessionAccessMenu(view: TaskViewState): HTMLElement {
       actions.switchSessionPermission(view, value);
     }),
   );
+  return menu;
+}
+
+/** The live CODEX session's permission-preset switch menu (S3) — same visual
+ *  family as the Claude access menu (renderSettingSection), current preset
+ *  marked, the three fixed presets always offered (codex's `/permissions` picker
+ *  has exactly these rows). UNLIKE Claude's Shift+Tab menu it carries a
+ *  CLI-default caption: the `/permissions` switch persists globally into
+ *  ~/.codex/config.toml (measured — S1's model-menu caption pattern). Sonata
+ *  sessions are immune (spawn flags override); bare-terminal codex inherits it. */
+function renderSessionCodexAccessMenu(view: TaskViewState): HTMLElement {
+  const menu = document.createElement("div");
+  menu.className = "task-settings-popover composer-session-menu";
+  menu.setAttribute("role", "menu");
+  menu.ariaLabel = "Approvals";
+  menu.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  const current = view.task?.codexPermissionMode ?? null;
+  const options = CODEX_PERMISSION_MODE_OPTIONS.map((mode) => ({
+    label: codexPermissionModeLabel(mode),
+    value: mode as string,
+  }));
+  menu.append(
+    renderSettingSection("Approvals", options, (current ?? "") as string, (value) => {
+      actions.switchSessionCodexPermission(view, value);
+    }),
+  );
+
+  const caption = document.createElement("p");
+  caption.className = "task-setting-caption";
+  caption.textContent = "Also becomes Codex's default for sessions outside Sonata.";
+  menu.append(caption);
   return menu;
 }
 
@@ -612,6 +650,12 @@ export function renderComposerPopover(view = activeTaskView(state)): void {
   }
   if (state.composerMenu?.type === "session-access" && view?.task) {
     const menu = renderSessionAccessMenu(view);
+    positionComposerMenu(menu);
+    elements.composerPopoverRoot.append(menu);
+    return;
+  }
+  if (state.composerMenu?.type === "session-codex-access" && view?.task) {
+    const menu = renderSessionCodexAccessMenu(view);
     positionComposerMenu(menu);
     elements.composerPopoverRoot.append(menu);
     return;

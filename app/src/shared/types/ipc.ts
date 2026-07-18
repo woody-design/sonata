@@ -304,30 +304,39 @@ export type RemoteControlInjectResponse =
   | { ok: true }
   | { ok: false; reason: "no-process" | "panel-open" | "busy" };
 
-/** Which axis a mid-session Claude switch drives — `/model <id>` /
- *  `/effort <level>` typed-command injection (S1), or `permission` via the
- *  Shift+Tab stepping engine (S2). */
-export type ClaudeControlSwitchKind = "model" | "effort" | "permission";
+/** Which axis a mid-session switch drives. Claude: `/model <id>` / `/effort
+ *  <level>` typed-command injection (S1), or `permission` via the Shift+Tab
+ *  stepping engine (S2). Codex: `codex-permission` via the `/permissions` picker
+ *  choreography (S3 — a three-row text-matched picker, arrows + Enter, receipt
+ *  watch). The kind is provider-gated at both layers: `codex-permission` reaches
+ *  only a codex session; the other three only a claude session. (The `Claude`
+ *  prefix in the type/method names predates S3 — one shared switch pipeline now
+ *  carries both providers; not a parallel system. Renaming is deferred to S5.) */
+export type ClaudeControlSwitchKind = "model" | "effort" | "permission" | "codex-permission";
 
 export interface ClaudeControlSwitchRequest {
   taskId: TaskId;
   kind: ClaudeControlSwitchKind;
   /** model/effort: the `/model` alias (e.g. `sonnet`) or `/effort` level (e.g.
    *  `high`) to inject. permission: the TARGET `ClaudePermissionMode` id (e.g.
-   *  `plan`). Sourced from Sonata's curated lists / the session's reachable
-   *  modes, never free text. */
+   *  `plan`). codex-permission: the TARGET `CodexPermissionMode` id (e.g.
+   *  `approve-for-me`). Sourced from Sonata's curated lists / the session's
+   *  reachable modes, never free text. */
   value: string;
-  /** permission only: the mode the session is in NOW (the renderer's SSOT,
-   *  `task.permissionMode`). The stepping engine uses it as the origin to return
-   *  HOME to if the target can't be reached (a Shift+Tab abort is a state change,
-   *  so it must not strand the session). Ignored for model/effort. */
+  /** permission / codex-permission only: the mode the session is in NOW (the
+   *  renderer's SSOT — `task.permissionMode` for claude, `task.codexPermissionMode`
+   *  for codex). Claude uses it as the return-home anchor for the Shift+Tab
+   *  stepping engine; codex uses it to skip a no-op switch to the current mode.
+   *  Ignored for model/effort. */
   from?: string;
 }
 
 /** Result of KICKING OFF a mid-session Claude control switch — the receipt(s)
  *  themselves arrive later on the `control-switch:state` event stream, never
- *  here. `wrong-provider` guards the codex hazard (inline `/model` args burn a
- *  turn; codex has no Shift+Tab cycle); `not-idle` = a turn is live (switching
+ *  here. `wrong-provider` guards the provider seam both ways (a claude kind on a
+ *  codex session — inline `/model` args burn a turn, codex has no Shift+Tab
+ *  cycle — AND a `codex-permission` kind on a claude session); `not-idle` = a
+ *  turn is live (switching
  *  is idle-only, no queueing); `busy` = a Sonata write (or a prior switch) is
  *  still in flight; `panel-open` = an approval screen would swallow the input. */
 export type ClaudeControlSwitchResponse =
