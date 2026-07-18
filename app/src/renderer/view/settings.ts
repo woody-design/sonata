@@ -370,7 +370,29 @@ function renderPermissionsSettingsGroup(overlay: SettingsOverlayState): HTMLElem
     }),
   });
 
-  return renderSettingsGroup({ label: "Permissions", rows: [claudeRow, codexRow] });
+  // Codex directory-trust pre-grant. Sits directly below "Codex sessions": a
+  // second Codex-scoped row, its provider carried the way the group carries it
+  // — named in the row's own copy (the description says "Codex's safety
+  // prompt"), not in a badge. A real switch, not a picker: the setting is
+  // binary (pre-trust user-opened folders, or leave codex's dialog in place),
+  // and the on-fill is neutral ink — enabling it is a choice, not an alert.
+  const autoTrustOn = overlay.codex?.settings.autoTrustProjectFolders ?? false;
+  const autoTrustRow = renderSettingsRow({
+    title: "Project folder trust",
+    description:
+      "Trust project folders automatically — skips Codex's safety prompt for folders you open. Chat folders Sonata creates are always trusted.",
+    control: renderSwitch({
+      label: "Project folder trust",
+      on: autoTrustOn,
+      disabled: !overlay.codex,
+      onToggle: () => actions.persistCodexAutoTrustProjectFolders(!autoTrustOn),
+    }),
+  });
+
+  return renderSettingsGroup({
+    label: "Permissions",
+    rows: [claudeRow, codexRow, autoTrustRow],
+  });
 }
 
 function renderRemoteControlSettingsGroup(overlay: SettingsOverlayState): HTMLElement {

@@ -28,7 +28,11 @@ import type {
 import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
 import type { RemoteControlInjectResponse, TerminalReplaySnapshot } from "../../shared/types/ipc";
 import { ensureClaudeRuntimeSettings } from "../cli-signal";
-import { CODEX_SONATA_PROFILE, ensureCodexRuntimeSettings } from "../providers/codex";
+import {
+  CODEX_SONATA_PROFILE,
+  ensureCodexRuntimeSettings,
+  type CodexHookPaths,
+} from "../providers/codex";
 import { shellQuotePath } from "../shell-quote";
 import { TerminalScrollback } from "./terminal-scrollback";
 
@@ -273,11 +277,13 @@ export interface StartTaskOptions {
    *  to the scrape/keys fallback instead of the hook-intercept broker (S2).
    *  Default (undefined) is broker-on. */
   approvalBroker?: boolean;
-  /** Codex only: the Sonata-home shim dir for the injected hook profile. Present →
-   *  buildArgs writes the profile+shims (write-if-changed) and spawns with
-   *  `-p sonata`. The controller supplies binDir because it owns Sonata-home; the
-   *  codex edge owns the `$CODEX_HOME` profile-file location. */
-  codexHookPaths?: { binDir: string };
+  /** Codex only: the Sonata-home shim dir for the injected hook profile, plus an
+   *  optional `pretrustCwd` the controller's policy chose for this spawn's trust
+   *  ledger. Present → buildArgs writes the profile+shims (write-if-changed) and
+   *  spawns with `-p sonata`. The controller supplies binDir + pretrustCwd (it owns
+   *  Sonata-home and the trust policy); the codex edge owns the `$CODEX_HOME`
+   *  profile-file location and the ledger mechanism. */
+  codexHookPaths?: CodexHookPaths;
   resumeLast?: boolean;
   /** Provider session id to resume natively (claude --resume / codex resume). */
   resumeRef?: string;

@@ -67,12 +67,16 @@ check("ensure writes profile + both shims", () => {
   assert.ok(fs.existsSync(brokerShim), "broker shim written");
 });
 
-check("profile is BYTE-STABLE across two spawn-preps (sha unchanged)", () => {
+check("profile is BYTE-STABLE across same-input spawn-preps (sha unchanged)", () => {
+  // The contract widened at S1: byte-stability is now conditioned on SAME INPUTS
+  // (binDir, existing-ledger state, pretrustCwd). With no pretrustCwd and an empty
+  // ledger, repeated preps still converge (also proves the ledger-less profile is
+  // byte-identical to the pre-ledger output — no trailing section).
   const first = sha(profilePath);
   ensureCodexRuntimeSettings({ binDir });
   ensureCodexRuntimeSettings({ binDir });
   const second = sha(profilePath);
-  assert.equal(second, first, "sonata.config.toml sha drifted across spawn-preps");
+  assert.equal(second, first, "sonata.config.toml sha drifted across same-input spawn-preps");
 });
 
 check("profile carries the consumed hook set in the probe-verified shape", () => {
@@ -329,6 +333,111 @@ await acheck("armed broker times out to expired-<id> with NO stdout (native fall
   assert.equal(expired.length, 1, "exactly one expired marker written");
   const asks = fs.readdirSync(approvals).filter((f) => /^ask-.+\.json$/.test(f));
   assert.equal(asks.length, 0, "ask cleaned up on expiry");
+});
+
+// ── S1: the trust ledger (add / carry-forward / prune / accumulate / stable) ──
+// Each case isolates to its OWN $CODEX_HOME so it never touches the real ~/.codex
+// and never perturbs the shared profile the checks above assert on. The policy
+// (which cwds qualify) lives in the controller; here we drive the mechanism with
+// an explicit pretrustCwd and pre-seeded codex-written entries.
+
+function freshLedgerEnv(name) {
+  const home = fs.mkdtempSync(path.join(tempRoot, `ledger-${name}-`));
+  process.env.CODEX_HOME = path.join(home, "codex-home");
+  return { profilePath: codexProfilePath(), binDir: path.join(home, "bin") };
+}
+
+/** Simulate codex appending a trust grant the way it does live:
+ *  `[projects."<abs>"]` newline `trust_level = "<level>"`. */
+function appendProjectEntry(profilePath, dirPath, level = "trusted") {
+  fs.appendFileSync(
+    profilePath,
+    `\n[projects.${JSON.stringify(dirPath)}]\ntrust_level = "${level}"\n`,
+  );
+}
+
+function projectHeaders(toml) {
+  return [...toml.matchAll(/^\[projects\.(.+)\]$/gm)].map((m) => JSON.parse(m[1]));
+}
+
+check("ledger: no pretrustCwd + empty existing → no [projects] section at all", () => {
+  const env = freshLedgerEnv("empty");
+  ensureCodexRuntimeSettings({ binDir: env.binDir });
+  const toml = fs.readFileSync(env.profilePath, "utf8");
+  // Byte-identical to the pre-ledger output: nothing appended after the hooks.
+  assert.ok(!toml.includes("[projects."), "no projects section when nothing to trust");
+  assert.ok(!toml.includes("Trust ledger"), "no ledger comment when empty");
+});
+
+check("ledger: pretrustCwd appears as a trusted [projects] entry", () => {
+  const env = freshLedgerEnv("pretrust");
+  const cwd = fs.mkdtempSync(path.join(tempRoot, "pretrust-cwd-"));
+  ensureCodexRuntimeSettings({ binDir: env.binDir, pretrustCwd: cwd });
+  const toml = fs.readFileSync(env.profilePath, "utf8");
+  assert.ok(toml.includes(`[projects.${JSON.stringify(cwd)}]`), "pretrustCwd header present");
+  assert.ok(toml.includes('trust_level = "trusted"'), "trust_level trusted written");
+});
+
+check("ledger: repeated same-input preps with a pretrustCwd converge (sha stable)", () => {
+  const env = freshLedgerEnv("converge");
+  const cwd = fs.mkdtempSync(path.join(tempRoot, "converge-cwd-"));
+  ensureCodexRuntimeSettings({ binDir: env.binDir, pretrustCwd: cwd });
+  const first = sha(env.profilePath);
+  ensureCodexRuntimeSettings({ binDir: env.binDir, pretrustCwd: cwd });
+  ensureCodexRuntimeSettings({ binDir: env.binDir, pretrustCwd: cwd });
+  assert.equal(sha(env.profilePath), first, "ledger profile sha drifted across same-input preps");
+});
+
+check("ledger: a codex-written grant for an EXISTING dir survives regeneration", () => {
+  const env = freshLedgerEnv("carry");
+  const humanDir = fs.mkdtempSync(path.join(tempRoot, "human-grant-"));
+  ensureCodexRuntimeSettings({ binDir: env.binDir });
+  appendProjectEntry(env.profilePath, humanDir);
+  // Regenerate with NO pretrust — the human grant (dir still exists) must carry.
+  ensureCodexRuntimeSettings({ binDir: env.binDir });
+  const toml = fs.readFileSync(env.profilePath, "utf8");
+  assert.ok(toml.includes(`[projects.${JSON.stringify(humanDir)}]`), "human grant carried forward");
+});
+
+check("ledger: an entry for a DELETED dir prunes on regeneration", () => {
+  const env = freshLedgerEnv("prune");
+  const goneDir = fs.mkdtempSync(path.join(tempRoot, "gone-"));
+  ensureCodexRuntimeSettings({ binDir: env.binDir });
+  appendProjectEntry(env.profilePath, goneDir);
+  fs.rmSync(goneDir, { recursive: true, force: true });
+  ensureCodexRuntimeSettings({ binDir: env.binDir });
+  const toml = fs.readFileSync(env.profilePath, "utf8");
+  assert.ok(!toml.includes(goneDir), "dead-dir entry pruned");
+});
+
+check("ledger: a NON-trusted existing entry is dropped from carry-forward", () => {
+  const env = freshLedgerEnv("nontrust");
+  const dir = fs.mkdtempSync(path.join(tempRoot, "nontrust-"));
+  ensureCodexRuntimeSettings({ binDir: env.binDir });
+  appendProjectEntry(env.profilePath, dir, "untrusted");
+  ensureCodexRuntimeSettings({ binDir: env.binDir });
+  const toml = fs.readFileSync(env.profilePath, "utf8");
+  assert.ok(!toml.includes(dir), "non-trusted entry not carried forward (preserve-only-trusted)");
+});
+
+check("ledger: entries ACCUMULATE and emit SORTED, independent of insertion order", () => {
+  const env = freshLedgerEnv("accum");
+  // Seed a codex-written grant that sorts AFTER the pretrustCwd we add next, so
+  // file/insertion order (zzz then aaa) DIFFERS from sorted order. A regression
+  // dropping `[...paths].sort()` would emit [zzz, aaa] and fail the deepEqual —
+  // the previous a/b fixture couldn't catch it (insertion order == sorted order).
+  const late = fs.mkdtempSync(path.join(tempRoot, "accum-zzz-"));
+  const early = fs.mkdtempSync(path.join(tempRoot, "accum-aaa-"));
+  ensureCodexRuntimeSettings({ binDir: env.binDir });
+  appendProjectEntry(env.profilePath, late);
+  ensureCodexRuntimeSettings({ binDir: env.binDir, pretrustCwd: early });
+  const toml = fs.readFileSync(env.profilePath, "utf8");
+  assert.ok(toml.includes(late) && toml.includes(early), "both cwds present (no last-spawn clobber)");
+  assert.deepEqual(
+    projectHeaders(toml),
+    [early, late],
+    "entries emitted in sorted order, not insertion order",
+  );
 });
 
 fs.rmSync(tempRoot, { recursive: true, force: true });

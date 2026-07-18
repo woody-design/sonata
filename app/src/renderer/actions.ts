@@ -138,6 +138,7 @@ export interface Actions {
   toggleSettingsPolicyMenu(overlay: SettingsOverlayState): void;
   persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): void;
   persistCodexDefaultPermissionMode(mode: CodexPermissionMode): void;
+  persistCodexAutoTrustProjectFolders(value: boolean): void;
   persistResumePolicy(policy: ResumePolicyId): void;
   setDefaultRemoteControl(value: boolean): void;
   restoreResumeBridge(): void;

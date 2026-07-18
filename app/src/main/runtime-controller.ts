@@ -410,6 +410,7 @@ export class RuntimeController {
         permissionSettings,
         remoteControl: Boolean(request.remoteControl),
         sessionId: pinnedSessionId ?? null,
+        pretrustCwd: this.codexPretrustCwd(request.provider, autoWorkspace, providerCwd),
         rows: request.rows,
         cols: request.cols,
       }),
@@ -552,6 +553,14 @@ export class RuntimeController {
         remoteControl: Boolean(request.remoteControl),
         resumeRef,
         sessionId: pinnedSessionId ?? null,
+        // A reopen adds no fresh trust gesture, but the ledger is idempotent: it
+        // re-adds an already-trusted cwd under the same policy (auto-workspace, or
+        // the opt-in setting) and carries forward every still-live grant.
+        pretrustCwd: this.codexPretrustCwd(
+          runningTask.provider,
+          Boolean(runningTask.autoWorkspace),
+          providerCwd,
+        ),
         ...(claudeResume ? { extraEnv: RESUME_PANEL_SUPPRESS_ENV } : {}),
         rows: request.rows,
         cols: request.cols,
@@ -2488,6 +2497,9 @@ export class RuntimeController {
     extraEnv?: Record<string, string>;
     rows?: number | undefined;
     cols?: number | undefined;
+    /** Codex only: the cwd this spawn adds to the trust ledger, or null. The
+     *  policy that computes it lives in the callers (createTask/openTask). */
+    pretrustCwd?: string | null;
   }): StartTaskOptions {
     // Per-task hook binding travels via env (D4): Codex hooks inherit the spawn
     // env, so the frozen shim commands read SONATA_RUNTIME_DIR to find THIS task's
@@ -2519,8 +2531,12 @@ export class RuntimeController {
       ...(args.provider === "claude" && args.remoteControl ? { remoteControl: true } : {}),
       // Codex hook injection (S2): buildArgs writes the profile+shims and adds
       // `-p sonata`. The controller supplies the Sonata-home shim dir because it
-      // owns Sonata-home; the codex edge owns the profile-file location.
-      ...(args.provider === "codex" ? { codexHookPaths: { binDir: sonataBinDir() } } : {}),
+      // owns Sonata-home; the codex edge owns the profile-file location. It also
+      // supplies `pretrustCwd` (the trust-ledger policy) — the mechanism that folds
+      // it in lives in the codex edge.
+      ...(args.provider === "codex"
+        ? { codexHookPaths: { binDir: sonataBinDir(), pretrustCwd: args.pretrustCwd ?? null } }
+        : {}),
       ...(args.resumeRef ? { resumeRef: args.resumeRef } : {}),
       // --session-id pins a fresh session only; --resume already owns the id.
       ...(!args.resumeRef && args.sessionId ? { sessionId: args.sessionId } : {}),
@@ -2528,6 +2544,30 @@ export class RuntimeController {
       ...(args.rows !== undefined ? { rows: args.rows } : {}),
       ...(args.cols !== undefined ? { cols: args.cols } : {}),
     };
+  }
+
+  /**
+   * The cwd a codex spawn pre-trusts in its profile trust ledger, or null. Policy
+   * (Woody, 2026-07-18): a Sonata-created task dir is ALWAYS pre-trusted — Sonata
+   * just made the empty dir, so codex's trust question is vacuous. A user-chosen
+   * project dir is pre-trusted ONLY when the user opted in via
+   * `autoTrustProjectFolders`; the default keeps codex's directory-trust dialog
+   * (its prompt-injection defense) rendering in the co-visible Terminal. Non-codex
+   * providers never carry a ledger. This is the single home of the policy;
+   * codex-runtime-settings is mechanism.
+   */
+  private codexPretrustCwd(
+    provider: RuntimeProvider,
+    autoWorkspace: boolean,
+    providerCwd: string,
+  ): string | null {
+    if (provider !== "codex") {
+      return null;
+    }
+    if (autoWorkspace) {
+      return providerCwd;
+    }
+    return this.codexSettingsStore.read().autoTrustProjectFolders ? providerCwd : null;
   }
 
   private autoWorkspacePath(taskId: TaskId): string {

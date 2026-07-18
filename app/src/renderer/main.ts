@@ -547,6 +547,9 @@ initActions({
   persistCodexDefaultPermissionMode: (mode) => {
     void persistCodexDefaultPermissionMode(mode);
   },
+  persistCodexAutoTrustProjectFolders: (value) => {
+    void persistCodexAutoTrustProjectFolders(value);
+  },
   persistResumePolicy: (policy) => {
     void persistResumePolicy(policy);
   },
@@ -1264,6 +1267,31 @@ async function persistCodexDefaultPermissionMode(mode: CodexPermissionMode): Pro
     // (codexPermissionMode null) shows THIS value on its access chip while the
     // draft provider is Codex — mirroring the Claude default's sync above.
     state.codexDefaultPermissionMode = persisted.defaultPermissionMode;
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
+}
+
+async function persistCodexAutoTrustProjectFolders(value: boolean): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.codex) {
+    return;
+  }
+  if (overlay.codex.settings.autoTrustProjectFolders === value) {
+    return;
+  }
+  const next: CodexSettings = { ...overlay.codex.settings, autoTrustProjectFolders: value };
+  overlay.codex.settings = next;
+  render();
+  try {
+    const persisted = normalizeCodexSettings(await window.sonataRuntime.writeCodexSettings(next));
+    if (state.settingsOverlay?.codex) {
+      state.settingsOverlay.codex.settings = persisted;
+    }
+    // No renderer-mirror sync here (unlike the permission-mode default): the
+    // trust flag drives codex spawn args in the main process, not any New Chat
+    // access chip, so there is no draft-following atom to keep live.
   } catch (error) {
     state.status = errorMessage(error);
   }
