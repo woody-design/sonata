@@ -155,49 +155,53 @@ try {
   findings.captionCount = await menu.locator(".task-setting-caption").count();
   assert.equal(findings.captionCount, 0, "the CLI-default caption is gone (S6 removal)");
 
-  // (b) SWITCH REASONING High → Extra High (model preserved via level-1 (current)).
-  await settingSection(page, "Reasoning").locator("button", { hasText: exact("Extra High") }).click();
-  const effortResolve = await waitForControlSwitch(page, ["codex-effort"], ["settled", "needs-attention"], 60000);
-  findings.effortResolve = effortResolve;
-  assert.equal(effortResolve?.phase, "settled", "the codex reasoning switch settled (picker receipt seen)");
-  findings.manifestAfterEffort = await waitForManifest(projectsDir, taskId, (t) => t.reasoningEffort === "xhigh", 30000);
-  assert.equal(
-    findings.manifestAfterEffort?.reasoningEffort,
-    "xhigh",
-    "task.reasoningEffort followed the picker receipt (codex's confirmation channel)",
-  );
-  assert.equal(findings.manifestAfterEffort?.model, SPAWN_MODEL, "the model is preserved by a reasoning switch");
-  await page.waitForFunction(
-    () => /Extra High/i.test(document.querySelector("#model-chip")?.textContent ?? ""),
-    { timeout: 15000 },
-  );
-  findings.chipAfterEffort = (await modelChip.textContent())?.trim() ?? "";
-  assert.ok(findings.chipAfterEffort.includes("Extra High"), "the chip label followed to Extra High");
-
-  // (c) SWITCH MODEL 5.6 Sol → 5.6 Luna (reasoning xhigh preserved EXPLICITLY at
-  //     level 2 — codex drops the (current) marker after a model change).
-  const eventsBeforeModel = await page.evaluate(() => (window.__controlSwitchEvents ?? []).length);
-  await modelChip.click();
-  await menu.waitFor({ state: "visible" });
+  // (b) STAGED PAIR SAVE (S7 Part 1). The menu is a staged selector — a Save/Cancel
+  //     footer, Save disabled while clean. Stage BOTH a new model (5.6 Sol → 5.6
+  //     Luna) AND a new reasoning (High → Extra High); Save applies them in ONE
+  //     `/model` two-level picker run (level-1 = staged model, level-2 = staged
+  //     effort — S4's preserveEffort is now simply "the staged effort always").
+  const footer = menu.locator(".composer-staged-footer");
+  await footer.waitFor({ state: "visible" });
+  const saveBtn = footer.locator(".composer-staged-action.primary");
+  assert.equal(await saveBtn.isDisabled(), true, "Save is disabled while the staged pair == current (clean)");
   await settingSection(page, "Model").locator("button", { hasText: exact(TARGET_MODEL_LABEL) }).click();
-  const modelResolve = await waitForControlSwitch(page, ["codex-model"], ["settled", "needs-attention"], 60000, eventsBeforeModel);
-  findings.modelResolve = modelResolve;
-  assert.equal(modelResolve?.phase, "settled", "the codex model switch settled (both picker levels driven)");
-  findings.manifestAfterModel = await waitForManifest(projectsDir, taskId, (t) => t.model === TARGET_MODEL, 30000);
-  assert.equal(findings.manifestAfterModel?.model, TARGET_MODEL, "task.model followed the picker receipt");
+  await settingSection(page, "Reasoning").locator("button", { hasText: exact("Extra High") }).click();
+  findings.stagedModelMarked = await currentMarkedLabel(page, "Model");
+  findings.stagedReasoningMarked = await currentMarkedLabel(page, "Reasoning");
+  assert.equal(findings.stagedModelMarked, TARGET_MODEL_LABEL, "the staged model pick is marked selected");
+  assert.equal(findings.stagedReasoningMarked, "Extra High", "the staged reasoning pick is marked selected");
   assert.equal(
-    findings.manifestAfterModel?.reasoningEffort,
+    await settingSection(page, "Model").locator("button.is-current", { hasText: SPAWN_MODEL_LABEL }).count(),
+    1,
+    "the live model shows the muted Current badge once a different model is staged",
+  );
+  assert.equal(await saveBtn.isDisabled(), false, "Save enables once the staged pair differs from current");
+
+  const eventsBeforeSave = await page.evaluate(() => (window.__controlSwitchEvents ?? []).length);
+  await saveBtn.click();
+  const pairResolve = await waitForControlSwitch(page, ["codex-model"], ["settled", "needs-attention"], 60000, eventsBeforeSave);
+  findings.pairResolve = pairResolve;
+  assert.equal(pairResolve?.phase, "settled", "the staged (model, effort) pair settled in ONE choreography");
+  findings.manifestAfterPair = await waitForManifest(
+    projectsDir,
+    taskId,
+    (t) => t.model === TARGET_MODEL && t.reasoningEffort === "xhigh",
+    30000,
+  );
+  assert.equal(findings.manifestAfterPair?.model, TARGET_MODEL, "task.model followed the picker receipt");
+  assert.equal(
+    findings.manifestAfterPair?.reasoningEffort,
     "xhigh",
-    "the reasoning (xhigh) is PRESERVED across the model change (navigated explicitly)",
+    "task.reasoningEffort followed the picker receipt (both axes applied in one run)",
   );
   await page.waitForFunction(
     () => /5\.6 Luna/i.test(document.querySelector("#model-chip")?.textContent ?? ""),
     { timeout: 15000 },
   );
-  findings.chipAfterModel = (await modelChip.textContent())?.trim() ?? "";
+  findings.chipAfterPair = (await modelChip.textContent())?.trim() ?? "";
   assert.ok(
-    findings.chipAfterModel.includes(TARGET_MODEL_LABEL) && /Extra High/i.test(findings.chipAfterModel),
-    "the chip followed to 5.6 Luna and kept Extra High",
+    findings.chipAfterPair.includes(TARGET_MODEL_LABEL) && /Extra High/i.test(findings.chipAfterPair),
+    "the chip followed to 5.6 Luna Extra High (the staged pair)",
   );
 
   // RED LINE 1: no switch started a chat turn.
