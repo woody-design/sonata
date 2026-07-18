@@ -1061,11 +1061,11 @@ type PendingControlSwitch =
        *  second changed axis (`/effort Y` after `/model X`). Run as ONE logical
        *  switch only after THIS command settles (a clean receipt OR a relayed Yes
        *  through the cache-miss drawer); dropped on a failure/cancel so the second
-       *  axis never applies when the first didn't. Null for a single-axis switch. */
+       *  axis never applies when the first didn't. Null for a single-axis switch.
+       *  (A failed/needs-attention leg is honest without extra state: the chip
+       *  follows each axis's SSOT — a landed model shows even if the effort leg
+       *  then fails — and the terminal event names the axis that couldn't confirm.) */
       next: { kind: "effort"; value: string } | null;
-      /** True while this is the SECOND leg of a staged sequence — so a failure
-       *  reports honestly which axes did / didn't apply. */
-      composite: boolean;
       timer: NodeJS.Timeout | null;
     }
   | {
@@ -1808,7 +1808,7 @@ export class TerminalHost extends EventEmitter {
     // Single-axis claude model/effort switch: inject the one command, no queued
     // follow-up. The staged Save sequence (Part 1) uses startClaudeStagedSwitch,
     // which threads a `next` through this same writer.
-    this.writeClaudeValueCommand(kind, value, null, false);
+    this.writeClaudeValueCommand(kind, value, null);
     return { ok: true };
   }
 
@@ -1847,15 +1847,10 @@ export class TerminalHost extends EventEmitter {
     }
     if (model) {
       // Model first; queue effort as the continuation (if it also changed).
-      this.writeClaudeValueCommand(
-        "model",
-        model,
-        effort ? { kind: "effort", value: effort } : null,
-        Boolean(effort),
-      );
+      this.writeClaudeValueCommand("model", model, effort ? { kind: "effort", value: effort } : null);
     } else {
       // Only effort changed — single command.
-      this.writeClaudeValueCommand("effort", effort as string, null, false);
+      this.writeClaudeValueCommand("effort", effort as string, null);
     }
     return { ok: true };
   }
@@ -1863,14 +1858,12 @@ export class TerminalHost extends EventEmitter {
   /**
    * Inject one `/model X` / `/effort Y` command and arm the receipt watch. Shared
    * by the single-axis inject, the staged Save sequence, and the parked cache-miss
-   * Yes continuation. `next` is a queued follow-up (run after this settles);
-   * `composite` marks this as part of a multi-axis sequence for honest failure copy.
+   * Yes continuation. `next` is a queued follow-up (run after this settles).
    */
   private writeClaudeValueCommand(
     kind: "model" | "effort",
     value: string,
     next: { kind: "effort"; value: string } | null,
-    composite: boolean,
   ): void {
     if (!this.ptyProcess) {
       return;
@@ -1912,7 +1905,7 @@ export class TerminalHost extends EventEmitter {
       this.onControlSwitchTimeout();
     }, CONTROL_SWITCH_RECEIPT_TIMEOUT_MS);
     timer.unref?.();
-    this.pendingControlSwitch = { axis: "value", kind, value, next, composite, timer };
+    this.pendingControlSwitch = { axis: "value", kind, value, next, timer };
     this.emitControlSwitchState("pending", { kind, value });
   }
 
@@ -2867,8 +2860,8 @@ export class TerminalHost extends EventEmitter {
       // Continue the staged sequence with the second axis — ONE logical switch.
       // The chip stays pending across it (a fresh pending is armed); the cache-miss
       // relay handles a second dialog if it appears (measured: usually the second
-      // command applies cleanly, the reread already pending). `composite` marks it.
-      this.writeClaudeValueCommand(next.kind, next.value, null, true);
+      // command applies cleanly, the reread already pending).
+      this.writeClaudeValueCommand(next.kind, next.value, null);
       return;
     }
     this.emitControlSwitchState("settled", { kind, value });
@@ -3160,7 +3153,7 @@ export class TerminalHost extends EventEmitter {
     const { originKind, value, next } = pending;
     this.clearPendingControlSwitch();
     if (next) {
-      this.writeClaudeValueCommand(next.kind, next.value, null, true);
+      this.writeClaudeValueCommand(next.kind, next.value, null);
       return;
     }
     this.emitControlSwitchState("settled", { kind: originKind, value });

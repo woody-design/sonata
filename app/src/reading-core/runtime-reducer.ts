@@ -506,11 +506,13 @@ export function reduceRuntimeEvent(
 
   if (event.type === "pty:exit") {
     // The session died. Any in-flight control switch is moot — drop its pointer so
-    // the chip doesn't stay stuck in "Switching…" / the needs-attention banner
-    // doesn't linger on a dead session (the backend timer is already cancelled in
-    // onExit). Task status + run completion ride their own events; this only
-    // reconciles the switch pointer, and stays a no-op (no paint) when there was
-    // nothing pending — so the corpus oracle is unchanged.
+    // the chip doesn't stay stuck in "Switching…", the needs-attention banner
+    // doesn't linger, AND a PARKED recognized-confirm drawer (S7) tears down (it
+    // renders off `controlSwitch.phase === "parked"`) — all on a dead session (the
+    // backend timer + parked pointer are already cleared in onExit). Task status +
+    // run completion ride their own events; this only reconciles the switch pointer,
+    // and stays a no-op (no paint) when there was nothing pending — so the corpus
+    // oracle is unchanged.
     if (!view.controlSwitch) {
       return [{ kind: "none" }];
     }
