@@ -17,8 +17,11 @@ import { sendPrompt, selectSidebarSession, waitForEngagement } from "./helpers/s
 //       controller writes task.codexPermissionMode (codex's receipt IS the
 //       confirmation channel — no hook mirror) so the chip label follows;
 //   (d) selecting "Full Access" opens codex's consent dialog, which Sonata NEVER
-//       auto-answers (RED LINE 2) — the switch rolls back to a needs-attention
-//       banner, the chip stays put, and NO chat turn is burned.
+//       auto-answers (RED LINE 2). S7 (revision 3) PARKS on it and surfaces its
+//       rows in the Action Drawer, relaying ONLY the user's chosen row:
+//         (d1) Cancel (row 3) → clean revert (chip stays, no banner, no grant);
+//         (d2) Grant (row 1) → the mode advances to Full Access (mirror written).
+//       NO chat turn is burned on either path.
 //
 // ISOLATION: the app runs against a TEMP CODEX_HOME (real ~/.codex/auth.json
 // copied in for auth), so the switch's global `approvals_reviewer` write, the
@@ -169,43 +172,78 @@ try {
 
   const runsBeforeFullAccess = await page.evaluate(() => window.__runStarts ?? 0);
 
-  // (d) FULL ACCESS — codex's consent dialog is NEVER auto-answered (RED LINE 2):
-  //     the switch rolls back to needs-attention, the chip stays put, no turn burns.
-  const eventsBeforeFullAccess = await page.evaluate(() => (window.__controlSwitchEvents ?? []).length);
+  // (d) FULL ACCESS (S7 revision 3) — codex's consent dialog is NEVER auto-answered
+  //     (RED LINE 2), but it no longer rolls back: it PARKS in the Action Drawer and
+  //     Sonata relays ONLY the user's chosen row. Test BOTH paths, no turn burned.
+  //
+  //   (d1) CANCEL (row 3) → clean revert: chip stays, no needs-attention, no grant.
   await accessChip.click();
   await menu.waitFor({ state: "visible" });
   await settingSection(page, "Approvals").locator("button", { hasText: exact("Full Access") }).click();
-  const fullAccessResolve = await waitForControlSwitch(
+  const drawer = page.locator("#control-confirm-card:not(.hidden)");
+  await drawer.waitFor({ state: "visible", timeout: 60000 });
+  findings.consentDrawerShown = true;
+  assert.ok(
+    (await drawer.locator(".control-confirm-row", { hasText: "Yes, continue anyway" }).count()) > 0,
+    "the parked consent drawer surfaces the grant row verbatim",
+  );
+  assert.ok(
+    (await drawer.locator(".control-confirm-row", { hasText: "Cancel" }).count()) > 0,
+    "the parked consent drawer surfaces the Cancel row verbatim",
+  );
+  assert.equal(
+    await page.locator("#composer.drawer-active").count(),
+    1,
+    "the parked consent owns the composer slot (send unreachable)",
+  );
+  await drawer.locator(".control-confirm-row", { hasText: "Cancel" }).first().click();
+  await page.locator("#control-confirm-card.hidden").waitFor({ state: "attached", timeout: 30000 });
+  findings.chipAfterCancel = (await accessChip.textContent())?.trim() ?? "";
+  assert.ok(
+    !findings.chipAfterCancel.includes("Full Access"),
+    "Cancel → the chip stayed on the prior preset (nothing granted)",
+  );
+  assert.equal(
+    await page.locator('.attention-banner[data-kind="control-switch"]').isVisible().catch(() => false),
+    false,
+    "Cancel shows no needs-attention banner — the user chose it",
+  );
+  findings.manifestAfterCancel = readManifestCodexMode(projectsDir, taskId);
+  assert.equal(
+    findings.manifestAfterCancel,
+    "approve-for-me",
+    "task.codexPermissionMode is unchanged by a cancelled Full Access",
+  );
+
+  //   (d2) GRANT (row 1) → the mode advances to Full Access (the mirror is written
+  //        off the receipt). Isolated CODEX_HOME contains the global config write.
+  const eventsBeforeGrant = await page.evaluate(() => (window.__controlSwitchEvents ?? []).length);
+  await accessChip.click();
+  await menu.waitFor({ state: "visible" });
+  await settingSection(page, "Approvals").locator("button", { hasText: exact("Full Access") }).click();
+  await drawer.waitFor({ state: "visible", timeout: 60000 });
+  await drawer.locator(".control-confirm-row", { hasText: "Yes, continue anyway" }).click();
+  const grantResolve = await waitForControlSwitch(
     page,
     "codex-permission",
     ["settled", "needs-attention"],
     60000,
-    eventsBeforeFullAccess,
+    eventsBeforeGrant,
   );
-  findings.fullAccessResolve = fullAccessResolve;
-  assert.equal(
-    fullAccessResolve?.phase,
-    "needs-attention",
-    "Full Access is not auto-granted — the switch rolls back to needs-attention (consent gate)",
+  findings.grantResolve = grantResolve;
+  assert.equal(grantResolve?.phase, "settled", "the granted Full Access settled (receipt relayed)");
+  findings.manifestAfterGrant = await waitForManifestCodexMode(projectsDir, taskId, "full-access", 30000);
+  assert.equal(findings.manifestAfterGrant, "full-access", "task.codexPermissionMode advanced to Full Access (mirror written)");
+  await page.waitForFunction(
+    () => /Full Access/i.test(document.querySelector("#permission-chip")?.textContent ?? ""),
+    { timeout: 15000 },
   );
-  const attentionBanner = page.locator('.attention-banner[data-kind="control-switch"]').first();
-  findings.bannerVisible = await attentionBanner.isVisible({ timeout: 10000 }).catch(() => false);
-  assert.equal(findings.bannerVisible, true, "the needs-attention banner points the user at the CLI");
-  // The chip did NOT advance to Full Access (the mode never changed).
-  findings.chipAfterFullAccess = (await accessChip.textContent())?.trim() ?? "";
-  assert.ok(
-    !findings.chipAfterFullAccess.includes("Full Access"),
-    "the chip stayed on the prior preset — Full Access was never applied",
-  );
-  findings.manifestAfterFullAccess = readManifestCodexMode(projectsDir, taskId);
-  assert.equal(
-    findings.manifestAfterFullAccess,
-    "approve-for-me",
-    "task.codexPermissionMode is unchanged by the rolled-back Full Access switch",
-  );
+  findings.chipAfterGrant = (await accessChip.textContent())?.trim() ?? "";
+  assert.ok(findings.chipAfterGrant.includes("Full Access"), "the chip advanced to Full Access after the grant");
+
   const runsAfterFullAccess = await page.evaluate(() => window.__runStarts ?? 0);
   findings.fullAccessBurnedTurn = runsAfterFullAccess > runsBeforeFullAccess;
-  assert.equal(findings.fullAccessBurnedTurn, false, "the rolled-back Full Access switch burned NO chat turn (RED LINE 1)");
+  assert.equal(findings.fullAccessBurnedTurn, false, "neither Full Access path burned a chat turn (RED LINE 1)");
 
   findings.success = true;
   console.log(JSON.stringify({ workspaceRoot, findings, success: true }, null, 2));
