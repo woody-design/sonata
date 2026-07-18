@@ -227,8 +227,18 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   // (paste/drop already add there; resume-send materializes them).
   elements.addAttachment.disabled = lifecycleBusy || (newChat ? false : !view.task);
   elements.addAttachment.classList.toggle("active", state.composerMenu?.type === "add");
+  // A mid-session switch that hasn't resolved leaves the CLI on its cache-miss
+  // confirm (Yes/No) — which is NOT a Sonata approval, so submitPrompt would
+  // bracket-paste a prompt straight into that dialog. Gate send while the switch
+  // pointer is set (pending AND needs-attention — the dialog is on screen for
+  // both), consistent with the busy-disable treatments. Cleared by the switch
+  // settling, a new run, or the user dismissing the banner.
+  const switchUnresolved = Boolean(view?.modelSwitch);
   elements.sendPrompt.disabled =
-    state.busy || lifecycleBusy || (!activeRun && !promptHasText && !hasAttachments);
+    state.busy ||
+    lifecycleBusy ||
+    switchUnresolved ||
+    (!activeRun && !promptHasText && !hasAttachments);
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText || hasAttachments);
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";
   elements.sendPrompt.classList.toggle("stop-mode", activeRun);

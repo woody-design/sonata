@@ -1044,6 +1044,33 @@ function workingStatus(liveness) {
     assert.deepEqual(d, [{ kind: "unread-only", taskId: "task-A" }], "bg switch → unread-only");
     assert.equal(view.unread, true, "bg switch marks unread");
   }
+
+  // pty:exit (S1 review fix B): a crash mid-switch drops the pointer so the chip
+  // can't stay stuck in "Switching…" — but ONLY when something was pending, so
+  // the corpus oracle's pty:exit → none stays correct.
+  const ptyExit = () =>
+    evt("pty:exit", {
+      taskId: "task-A",
+      generation: 1,
+      runId: null,
+      exitCode: 1,
+      signal: null,
+      elapsedMs: 1234,
+    });
+  {
+    const { state, view } = seedView({
+      modelSwitch: { kind: "model", value: "sonnet", phase: "needs-attention" },
+    });
+    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pty:exit with a pending switch → full render");
+    assert.equal(view.modelSwitch, null, "pty:exit clears the stuck switch pointer");
+  }
+  {
+    const { state, view } = seedView();
+    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.deepEqual(d, [{ kind: "none" }], "pty:exit with no switch → deliberate no-op (corpus oracle unchanged)");
+    assert.equal(view.modelSwitch, null, "…and leaves modelSwitch null");
+  }
 }
 
 if (WRITE_GOLDENS) {

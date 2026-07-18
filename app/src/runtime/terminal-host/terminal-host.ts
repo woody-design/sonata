@@ -722,6 +722,12 @@ export class TerminalHost extends EventEmitter {
       if (this.remoteControlActive) {
         this.setRemoteControlActive(false, null);
       }
+      // A switch still awaiting its receipt when the PTY dies never gets one —
+      // drop the watch + timeout so it can't fire needs-attention on a dead
+      // session. onExit is the crash path (it does NOT route through
+      // disposeProcess), so this clear is its own. The renderer clears
+      // `view.modelSwitch` off the pty:exit event below.
+      this.clearPendingControlSwitch();
       this.emitEvent("pty:exit", {
         taskId: this.taskId,
         generation: this.generation,
@@ -2360,6 +2366,14 @@ export class TerminalHost extends EventEmitter {
     kind: RunKind,
     options: { title?: string; promptId?: string | null } = {},
   ): ActiveRun {
+    // A run beginning supersedes any in-flight model/effort switch: the switch's
+    // receipt window is over (a new turn is starting), so drop the pending watch
+    // and its timeout — otherwise the timer could later fire a spurious
+    // needs-attention mid-run. Covers a Sonata send AND a submit typed natively
+    // in the terminal (the renderer send-gate can't see the latter). The
+    // matching `run:started` emitted below is what clears the renderer's
+    // `view.modelSwitch`, so the two sides can't disagree.
+    this.clearPendingControlSwitch();
     if (this.activeRun) {
       this.finishActiveRun("completed", "closed by next input");
     }

@@ -389,7 +389,11 @@ initActions({
   },
   dismissModelSwitch: (view) => {
     view.modelSwitch = null;
-    renderAttentionBanners(view);
+    // A full render, not just the banner: clearing the switch pointer also
+    // re-enables the send button (gated on view.modelSwitch — review fix A), so
+    // the composer must repaint too, or send would stay disabled until the next
+    // unrelated render.
+    render();
   },
   // Live session model chip (mid-session switch S1): inject `/model <id>` /
   // `/effort <level>` for this Claude session. Fire-and-forget — the pending

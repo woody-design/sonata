@@ -128,6 +128,17 @@ try {
     if (evidenceDir) {
       await page.screenshot({ path: path.join(evidenceDir, "02-needs-attention.png") });
     }
+    // Send is gated while the switch is unresolved (review fix A): the CLI's
+    // Yes/No confirm is still on screen, so a send here would bracket-paste into
+    // it. Type text FIRST so the empty-composer disable can't mask the result —
+    // the switch gate must be the ONLY reason send stays disabled.
+    await page.locator("#prompt-input").fill("this must not send into the confirm dialog");
+    assert.equal(
+      await page.locator("#send-prompt").isDisabled(),
+      true,
+      "send is gated (with a non-empty composer) while the switch is unresolved",
+    );
+    await page.locator("#prompt-input").fill("");
     const taskId = await waitForTaskId(projectsDir, 30000);
     await page.evaluate(
       ({ id }) => window.sonataRuntime.writeTerminalUserInput({ taskId: id, data: "\r" }),
@@ -145,6 +156,19 @@ try {
     await page.screenshot({ path: path.join(evidenceDir, "03-after-model-switch.png") });
   }
 
+  // Dismissing the lingering needs-attention banner re-enables send in the same
+  // paint (review fix A follow-up: dismissModelSwitch does a full render). Only
+  // meaningful when the RED LINE path was taken (the banner exists).
+  let dismissReenabledSend = null;
+  if (sawNeedsAttention && (await needsAttention.isVisible().catch(() => false))) {
+    await page.locator("#prompt-input").fill("now this should be sendable");
+    await needsAttention.locator(".attention-banner-dismiss").click();
+    await needsAttention.waitFor({ state: "detached", timeout: 5000 });
+    dismissReenabledSend = !(await page.locator("#send-prompt").isDisabled());
+    assert.equal(dismissReenabledSend, true, "dismissing the banner re-enables send in the same paint");
+    await page.locator("#prompt-input").fill("");
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -156,6 +180,7 @@ try {
         selectedModelLabel,
         target,
         sawNeedsAttention,
+        dismissReenabledSend,
         switchedLabel,
         success: true,
       },

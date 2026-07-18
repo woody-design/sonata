@@ -407,5 +407,19 @@ export function reduceRuntimeEvent(
     return [{ kind: "report-refresh", taskId }];
   }
 
+  if (event.type === "pty:exit") {
+    // The session died. Any in-flight model/effort switch is moot — drop its
+    // pointer so the chip doesn't stay stuck in "Switching…" / the needs-
+    // attention banner doesn't linger on a dead session (the backend timer is
+    // already cancelled in onExit). Task status + run completion ride their own
+    // events; this only reconciles the switch pointer, and stays a no-op (no
+    // paint) when there was nothing pending — so the corpus oracle is unchanged.
+    if (!view.modelSwitch) {
+      return [{ kind: "none" }];
+    }
+    view.modelSwitch = null;
+    return [viewChangedDirective(state, view, taskId)];
+  }
+
   return [{ kind: "none" }];
 }
