@@ -196,6 +196,39 @@ await check("Claude welcome screen still does not complete a run", async () => {
   assert.equal(hint.completed, false);
 });
 
+// Codex 0.144.x directory-trust dialog (byte-derived from
+// spikes/codex-boot-input-window/field-repro.json, probe 2026-07-17). The
+// dialog paints its option cursor with the composer's `›`, so before the
+// bootDialogHints guard this screen read as an idle composer — the boot latch
+// opened and the first delivery's Enter silently answered "Yes, continue"
+// while the pasted prompt was discarded (field-hit: the 07-17 BeDog session).
+await check("codex trust dialog screen is NOT an idle composer prompt", async () => {
+  const dialogScreen =
+    ">You are in /var/folders/xx/T/sonata-task-dir\n" +
+    "Do you trust the contents of this directory?\n" +
+    "Working with untrusted contents comes with higher risk of prompt injection.\n" +
+    "Trusting the directory allows project-local config, hooks, and exec policies to load.\n" +
+    "› 1. Yes, continue2.No,quitPress enter to continue";
+  const hint = detectIdlePromptForProvider(dialogScreen, "codex");
+
+  assert.equal(hint.ready, false, "trust dialog must hold readiness");
+});
+
+// After the human answers in the Terminal, the real composer renders AFTER
+// the dialog text (same capture, post-trust screen): readiness restores even
+// with the dialog still in the scanned scrollback window.
+await check("codex composer after an answered trust dialog is ready again", async () => {
+  const postTrustScreen =
+    "Do you trust the contents of this directory?\n" +
+    "› 1. Yes, continue2.No,quitPress enter to continue\n" +
+    "╭───╮\n│ >_ OpenAI Codex (v0.144.5) │\n│ model: gpt-5.6-sol high │\n╰───╯\n" +
+    "• Starting MCP servers (0/4): codex_apps, node_repl (0s • esc to interrupt)\n" +
+    "›Use /skills to list available skillsgpt-5.6-sol high · /var/folders/xx/T/sonata-task-dir";
+  const hint = detectIdlePromptForProvider(postTrustScreen, "codex");
+
+  assert.equal(hint.ready, true, "composer painted after the dialog is the real idle prompt");
+});
+
 if (failures.length > 0) {
   process.exitCode = 1;
 }

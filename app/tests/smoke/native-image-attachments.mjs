@@ -11,7 +11,13 @@ const {
   ProviderTranscript,
   TerminalHost,
   cleanTerminal,
+  codexArgs,
 } = require("../../dist/runtime");
+const {
+  CODEX_SMOKE_PROFILE,
+  ensureSmokeTrustProfile,
+  removeSmokeTrustProfile,
+} = await import("./codex-smoke-trust.mjs");
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-native-image-smoke-"));
 const results = [];
@@ -25,6 +31,7 @@ try {
   console.log(JSON.stringify({ workspaceRoot, success, results }, null, 2));
   process.exitCode = success ? 0 : 1;
 } finally {
+  removeSmokeTrustProfile();
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
 }
 
@@ -252,12 +259,26 @@ async function startHost(provider, name) {
   });
 
   const startedAt = new Date().toISOString();
+  // Codex: pre-trust the fresh temp dir via the throwaway smoke profile —
+  // otherwise the directory-trust dialog renders, and (pre-guard) its `›`
+  // option cursor satisfied the readiness scrape, so the first bracketed
+  // paste went INTO the dialog: text discarded, Enter silently answered
+  // "Yes, continue" (probed spikes/codex-boot-input-window, 2026-07-17).
+  if (provider === "codex") {
+    ensureSmokeTrustProfile(workspace);
+  }
   host.startTask({
     cwd: workspace,
     rows: 42,
     cols: 140,
     ...(provider === "codex"
-      ? { codexPermissionMode: "ask-for-approval" }
+      ? {
+          args: codexArgs({
+            cwd: workspace,
+            permissionMode: "ask-for-approval",
+            profile: CODEX_SMOKE_PROFILE,
+          }),
+        }
       : { permissionMode: "default", model: "opus", reasoningEffort: "xhigh" }),
   });
   transcript.startDiscovery(startedAt);

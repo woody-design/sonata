@@ -122,12 +122,15 @@ const RESUME_PANEL_SUPPRESS_ENV: Record<string, string> = {
   CLAUDE_CODE_RESUME_TOKEN_THRESHOLD: "999999999",
 };
 // Codex hooks-liveness window (S2; D4 overturned 2026-07-06 — hooks now bypass
-// trust review, so they fire on every spawn): how long after spawn we wait for
-// the `SessionStart` handshake before concluding the hook shim failed to fire
-// (e.g. its interpreter isn't on PATH). Generous enough to clear a slow Codex
-// boot (MCP servers, the `apps` feature) without false-positives; short enough
-// that a genuine hook failure surfaces the "hooks aren't running" banner
-// promptly. A late handshake (slow boot) clears it.
+// trust review, so they fire on every spawn): how long after the session's
+// FIRST prompt submission (not spawn — SessionStart is lazy, arriving with
+// the first UserPromptSubmit; probed 0.144.4/0.144.5) we wait for the
+// `SessionStart` handshake before concluding the hook shim failed to fire
+// (e.g. its interpreter isn't on PATH). Sized against the submit→handshake
+// gap, not boot latency; a late handshake still clears it. Known blind spot,
+// accepted: a broken shim in a session driven ONLY from the co-visible
+// Terminal (no Sonata submission) is never probed — the spawn-anchored
+// window that would have caught it false-alarmed every >12s pre-prompt pause.
 const CODEX_HOOKS_LIVENESS_WINDOW_MS = 12_000;
 const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
 const REASONING_EFFORTS = new Set<ReasoningEffort>([
@@ -1429,6 +1432,20 @@ export class RuntimeController {
     eventRuntime?.statusTracker.handleRuntimeEvent(event);
     eventRuntime?.cliState.applyRuntimeEvent(event);
 
+    // Codex hooks-liveness arms at the FIRST submission of a session, not at
+    // spawn: SessionStart arrives together with the first UserPromptSubmit
+    // (lazy — probed 0.144.4/0.144.5), so only a submission puts the shim on
+    // the clock. The map guard keeps later submissions from re-arming a
+    // window the handshake already resolved; pty:exit deletes the entry, so a
+    // reopened session arms afresh on its own first submission.
+    if (
+      event.type === "prompt:submitted" &&
+      eventRuntime?.task.provider === "codex" &&
+      !this.codexHookLiveness.has(eventRuntime.task.id)
+    ) {
+      this.armCodexHooksLiveness(eventRuntime);
+    }
+
     // Turn-terminal signals drive two broker-approval release paths with
     // DIFFERENT scopes. `abortPendingBrokerApprovals` orphans still-PENDING asks
     // — a live holding hook blocks the turn, so a normal hook-Stop completion
@@ -1760,7 +1777,12 @@ export class RuntimeController {
     }
     if (active.task.provider === "codex") {
       enableCodexAnswering(runtimeDir(active.task.id));
-      this.armCodexHooksLiveness(active);
+      // Hooks-liveness is NOT armed here: codex emits SessionStart lazily —
+      // with the first UserPromptSubmit, not at boot (probed at 0.144.4 AND
+      // 0.144.5, spikes/codex-boot-input-window/sessionstart-ab.mjs), so a
+      // spawn-anchored window false-alarms whenever the user pauses >12s
+      // before their first prompt. The window arms on the first
+      // `prompt:submitted` instead (handleRuntimeEvent).
     }
   }
 
@@ -1777,10 +1799,13 @@ export class RuntimeController {
 
   /**
    * Arm the Codex hooks-liveness check (S2; D4 overturned — hooks bypass trust,
-   * so they fire on every spawn). If no `SessionStart` handshake arrives within
-   * a spawn-scaled window, the hook shim failed to fire (e.g. interpreter not on
-   * PATH) — raise the "hooks aren't running" banner. The timer is unref'd: it
-   * must never keep the process alive on its own.
+   * so they fire on every spawn). Armed at the session's FIRST prompt
+   * submission (SessionStart is lazy — it arrives with the first
+   * UserPromptSubmit, not at boot; probed 0.144.4/0.144.5): if no
+   * `SessionStart` handshake arrives within the window from that submission,
+   * the hook shim failed to fire (e.g. interpreter not on PATH) — raise the
+   * "hooks aren't running" banner. The timer is unref'd: it must never keep
+   * the process alive on its own.
    */
   private armCodexHooksLiveness(active: ActiveTaskRuntime): void {
     const taskId = active.task.id;
@@ -1813,6 +1838,14 @@ export class RuntimeController {
     const taskId = active.task.id;
     const entry = this.codexHookLiveness.get(taskId);
     if (!entry) {
+      // A handshake BEFORE any armed window (a resumed session can declare
+      // SessionStart at boot, ahead of the first submission that would arm
+      // it). Record it as alive so the later first `prompt:submitted` does
+      // not arm a window no second SessionStart would ever resolve, and emit
+      // `live` so a stale banner from a prior session of this task clears
+      // (the self-correction property below).
+      this.codexHookLiveness.set(taskId, { timer: null, status: "alive" });
+      this.emitCodexHooksLiveness(taskId, "live");
       return;
     }
     if (entry.timer) {

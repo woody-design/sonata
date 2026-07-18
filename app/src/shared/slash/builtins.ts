@@ -8,8 +8,10 @@ import type { SlashCommandEntry } from "../types/slash";
  * no CLI flag, config, or app-server method — `claude --help` lists only
  * process flags; `codex --help`/`codex completion` cover binary subcommands,
  * not the interactive `/` picker), so these are version-pinned snapshots:
- * Claude Code 2.1.210, Codex CLI 0.144.4 (probed live via node-pty — see
- * spikes/slash-pool-2026-07/). Staleness degrades gracefully by design — an
+ * Claude Code 2.1.212, Codex CLI 0.144.5 (probed live via node-pty — see
+ * spikes/slash-pool-2026-07/; the 0.144.5 tag-compare touches no slash code,
+ * and the 2.1.212 delta is /subtask + the /fork rewrite, verified against the
+ * live picker). Staleness degrades gracefully by design — an
  * unknown typed command still forwards to the PTY (after the unknown-command
  * caution), and a missing new command only means it is absent from the picker
  * until the snapshot is refreshed.
@@ -157,7 +159,11 @@ const CLAUDE_BUILTINS: BuiltinSpec[] = [
   { name: "goal", description: "Set a goal Claude checks before stopping" },
   { name: "add-dir", description: "Add a new working directory" },
   { name: "background", description: "Send this session to the background" },
-  { name: "fork", description: "Spawn a background agent that inherits the conversation" },
+  // 2.1.212: /fork now copies into a background session; the in-session
+  // subagent it used to launch moved to /subtask (picker text probed live,
+  // spikes/slash-pool-2026-07/targeted-212.mjs).
+  { name: "fork", description: "Copy this conversation into a new background session and keep working here" },
+  { name: "subtask", description: "Send a subagent off with your full context; its result comes back here" },
   { name: "branch", description: "Create a conversation branch at this point" },
   { name: "cd", description: "Move this session to a new working directory" },
   { name: "exit", description: "Exit the CLI" },

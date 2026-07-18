@@ -368,6 +368,16 @@ interface TerminalProviderProfile {
    *  blocks readiness until the prompt renders AFTER its footer. Separate
    *  from approvalHints so legacy endNeedle positions stay intact. */
   approvalEndMarkers: string[];
+  /** Boot-dialog footers (directory trust, quit confirms) whose option cursor
+   *  paints the SAME `›` glyph the composer scan reads as an idle prompt.
+   *  Consumed ONLY by `detectIdlePrompt` — never by `detectApprovalCandidate`
+   *  — so the codex approval scrape stays retired (S4) while readiness stops
+   *  lying about a dialog screen. The dialog itself is answered by the human
+   *  in the co-visible Terminal; until then delivery must hold, because a
+   *  submitted prompt's Enter would silently answer it (the trust dialog eats
+   *  the pasted text AND its Enter picks "Yes, continue" — probed 0.144.5,
+   *  spikes/codex-boot-input-window, field-hit 2026-07-17 BeDog session). */
+  bootDialogHints: string[];
 }
 
 export class TerminalHost extends EventEmitter {
@@ -2639,6 +2649,9 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         workspaceTrust: CLAUDE_WORKSPACE_TRUST_APPROVAL_HINTS,
       },
       approvalEndMarkers: CLAUDE_PANEL_END_MARKERS,
+      // Claude's trust dialog already blocks readiness via the workspaceTrust
+      // approval needles above; no separate boot-dialog vocabulary needed.
+      bootDialogHints: [],
     };
   }
 
@@ -2697,6 +2710,23 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       workspaceTrust: [],
     },
     approvalEndMarkers: [],
+    // The 0.144.x directory-trust dialog ("Do you trust the contents of this
+    // directory? › 1. Yes, continue  2. No, quit  Press enter to continue")
+    // renders its option cursor with the composer's own `›`. These footers all
+    // sit AFTER that glyph in the paint stream, so they outrank it in the
+    // idle-prompt ordering and hold readiness until the human answers in the
+    // Terminal. Generic on purpose: any codex boot dialog with these footers
+    // (quit confirm, future onboarding) is equally not-a-composer. The
+    // comma-tight spellings cover the cursor-paint stream's collapsed form
+    // ("continue2.No,quit…"): the needle scan runs raw + fully-compacted
+    // forms, and punctuation-adjacent collapse falls between the two.
+    bootDialogHints: [
+      "press enter to continue",
+      "yes, continue",
+      "yes,continue",
+      "no, quit",
+      "no,quit",
+    ],
   };
 }
 
@@ -2992,6 +3022,11 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
     // a LIVE panel reads as answered (2.1.176 panels lost "enter to
     // confirm", which used to be the de-facto end anchor).
     ...profile.approvalEndMarkers,
+    // Boot dialogs (codex directory trust) paint the composer's `›` as their
+    // option cursor; their footers sit after it and must outrank it, or a
+    // dialog screen reads as an idle composer and the first delivery's Enter
+    // silently answers "Yes, continue" (upstream-sync 2026-07-17).
+    ...profile.bootDialogHints,
   ].flatMap((hint) => [hint, compactText(hint)]);
   const lastApproval = maxLastIndexOf(lowered, approvalNeedles);
   const promptTail = lastAnyPrompt >= 0 ? recent.slice(lastAnyPrompt, lastAnyPrompt + 700) : "";
