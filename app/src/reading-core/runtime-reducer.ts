@@ -210,6 +210,17 @@ export function reduceRuntimeEvent(
         value: event.payload.value,
         phase: "pending",
       };
+    } else if (event.payload.phase === "parked") {
+      // A RECOGNIZED confirm dialog is open in the Terminal (S7 revision 3): keep
+      // send gated (the controlSwitch pointer stays set) AND surface the dialog's
+      // rows in the Action Drawer (approvals.ts reads phase === "parked" + dialog).
+      // The user's choice relays back via answerControlConfirm.
+      view.controlSwitch = {
+        kind: event.payload.kind,
+        value: event.payload.value,
+        phase: "parked",
+        ...(event.payload.dialog ? { dialog: event.payload.dialog } : {}),
+      };
     } else if (event.payload.phase === "needs-attention") {
       // RED LINE surface: model/effort — no receipt + an unrecognized screen;
       // permission — stepping aborted and returned home (or landed where the hook
@@ -231,6 +242,18 @@ export function reduceRuntimeEvent(
     } else {
       // settled — drop the pending affordance; the axis's own SSOT drives the label.
       view.controlSwitch = null;
+      if (event.payload.cancelled) {
+        // The user chose No / Cancel on a parked confirm (S7): nothing changed, the
+        // chip already reflects the unchanged SSOT. A one-line note reports the
+        // honest reverted state (no needs-attention banner — the user chose it).
+        const axis =
+          event.payload.kind === "model"
+            ? "model"
+            : event.payload.kind === "effort"
+              ? "effort level"
+              : "access mode";
+        view.status = `Kept the current ${axis}.`;
+      }
     }
     return [viewChangedDirective(state, view, taskId)];
   }

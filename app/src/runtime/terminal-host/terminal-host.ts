@@ -750,6 +750,23 @@ const CODEX_MODEL_CLOSE_VERIFY_MS = 700;
  *  reasoning rows, generous for the model list) absorbs a dropped/duplicated
  *  repaint. Exhausting it → Esc-rollback + needs-attention (never press blind). */
 const CODEX_MODEL_MAX_NAV_STEPS = 8;
+/** Parked-confirm relay windows (S7). While PARKED (waiting-user) there is NO
+ *  timeout — the drawer is the resolution surface and send is gated, so the
+ *  user takes as long as they like (a dismiss injects the Cancel row). Once the
+ *  user answers, the nav/confirm/cancel windows mirror the codex picker: the
+ *  dialog repaints on the same frame as the arrow/Enter, so ~2.5s per nav step
+ *  and ~4s for the settle receipt are generous; a window that earns no
+ *  recognized frame Escs the dialog and surfaces needs-attention (never a blind
+ *  retry). The cancel-exit verify is the short "did the picker footer clear"
+ *  window after the codex-Cancel Esc. */
+const PARKED_CONFIRM_NAV_TIMEOUT_MS = 2500;
+const PARKED_CONFIRM_SETTLE_TIMEOUT_MS = 4000;
+const PARKED_CONFIRM_CANCEL_VERIFY_MS = 900;
+/** Navigation bound: the parked dialogs have ≤3 rows, so any row is ≤2 presses
+ *  away; 6 absorbs a dropped/duplicated repaint. Exhausting it → Esc + attention. */
+const PARKED_CONFIRM_MAX_NAV_STEPS = 6;
+/** Rollback Esc bound: at most the consent-over-picker two-deep stack. */
+const PARKED_CONFIRM_MAX_ROLLBACK_ESCS = 3;
 /** Rollback Esc bound: the picker is at most two levels deep, so two Escs return
  *  to the composer; a third is a safety cap against a screen whose footer never
  *  clears (then we conclude needs-attention regardless). */
@@ -1038,6 +1055,15 @@ type PendingControlSwitch =
       axis: "value";
       kind: "model" | "effort";
       value: string;
+      /** A queued follow-up command for the staged Save sequence (Part 1, S7): the
+       *  second changed axis (`/effort Y` after `/model X`). Run as ONE logical
+       *  switch only after THIS command settles (a clean receipt OR a relayed Yes
+       *  through the cache-miss drawer); dropped on a failure/cancel so the second
+       *  axis never applies when the first didn't. Null for a single-axis switch. */
+      next: { kind: "effort"; value: string } | null;
+      /** True while this is the SECOND leg of a staged sequence — so a failure
+       *  reports honestly which axes did / didn't apply. */
+      composite: boolean;
       timer: NodeJS.Timeout | null;
     }
   | {
@@ -1168,6 +1194,73 @@ type PendingControlSwitch =
        *  effort to preserve had no v1 row. Absent ⇒ a generic timeout/opaque-screen
        *  rollback. */
       attentionReason: ControlSwitchAttentionReason | null;
+      timer: NodeJS.Timeout | null;
+    }
+  | {
+      // `parked-confirm` (S7) — a RECOGNIZED confirm dialog is open in the
+      // Terminal and Sonata is PARKED on it, relaying its rows through the Action
+      // Drawer (revision 3). Two whitelisted dialogs:
+      //   `claude-cachemiss` — the `Switch model? / Change effort level?` dialog a
+      //     `/model` / `/effort` inject raises on a session with history. Rows:
+      //     1 = Yes (apply), 2 = No (cancel). Yes → the normal `Set …` receipt →
+      //     settle (+ run a queued `next` for the staged sequence, Part 1); No →
+      //     the `Kept … as` line → cancelled (drop `next`).
+      //   `codex-consent` — the `Enable full access?` consent the /permissions
+      //     Full Access row opens. Rows: 1/2 = grant → the `• Permissions updated
+      //     to Full Access` receipt → settle + mirror; 3 = Cancel → returns to the
+      //     /permissions picker → one Esc → composer → cancelled (measured).
+      // The dialog is reached by transforming the driving pending IN PLACE (the
+      // value axis for claude, the codex-permission `confirming` phase for codex),
+      // so the single-switch guard still holds one pointer. RED LINE: only the
+      // user's chosen row is ever injected; a dismiss injects the Cancel row; an
+      // active-phase timeout Escs the dialog (measured clean) → needs-attention.
+      // Phases:
+      //   waiting-user — dialog parked, drawer shown; NO timeout (the drawer is the
+      //                  resolution surface, send is gated). Also settles if the
+      //                  user answers NATIVELY in the co-visible Terminal.
+      //   navigating   — the user answered; driving the cursor to `targetRow`,
+      //                  validating each arrow press.
+      //   confirming   — pressed Enter on the target row; waiting for the settle
+      //                  signal (receipt for a grant/Yes, `Kept …` for a claude No).
+      //   cancel-picker— codex Cancel Enter'd; waiting for the /permissions picker
+      //                  to reappear, then Esc it.
+      //   cancel-exit  — Esc'd the reopened picker; verifying the composer returned,
+      //                  then settle-cancelled.
+      //   closing      — an active-phase timeout fired the Esc rollback; verifying,
+      //                  then needs-attention.
+      axis: "parked-confirm";
+      dialog: "claude-cachemiss" | "codex-consent";
+      /** The kind echoed to the renderer (chip pending label + drawer copy) and,
+       *  for claude-cachemiss, the value axis the settle/cancel receipt is scoped
+       *  to. `model` | `effort` for claude; `codex-permission` for codex. The
+       *  renderer composes the VERBATIM drawer rows from (dialog, kind, value) +
+       *  its own registered copy — the host navigates by row NUMBER (validated by
+       *  the cursor parser), so it never needs the row text. */
+      originKind: ClaudeControlSwitchKind;
+      /** claude-cachemiss: the switched value (a model id / effort level) — the
+       *  display target. Unused for codex-consent (its target is always
+       *  full-access). */
+      value: string;
+      /** claude-cachemiss ONLY: a queued follow-up command (the staged sequence's
+       *  second axis, Part 1). Run only after a Yes settles; dropped on a No. */
+      next: { kind: "effort"; value: string } | null;
+      /** codex-consent ONLY: the mode the grant receipt confirms (full-access). */
+      codexTarget: CodexPermissionMode | null;
+      phase:
+        | "waiting-user"
+        | "navigating"
+        | "confirming"
+        | "cancel-picker"
+        | "cancel-exit"
+        | "closing";
+      /** The CLI row (1-based) the user chose / we're driving the cursor toward. */
+      targetRow: number | null;
+      /** The cursor row we last acted from (to recognize a pre-move repaint). */
+      lastCursor: number | null;
+      /** The row the last arrow press is expected to move the cursor to. */
+      awaitingCursor: number | null;
+      navSteps: number;
+      rollbackEscs: number;
       timer: NodeJS.Timeout | null;
     };
 
@@ -1710,6 +1803,76 @@ export class TerminalHost extends EventEmitter {
       return this.startPermissionSwitch(value, from);
     }
 
+    // Single-axis claude model/effort switch: inject the one command, no queued
+    // follow-up. The staged Save sequence (Part 1) uses startClaudeStagedSwitch,
+    // which threads a `next` through this same writer.
+    this.writeClaudeValueCommand(kind, value, null, false);
+    return { ok: true };
+  }
+
+  /**
+   * Begin a STAGED claude model+effort Save (Part 1, S7): apply only the CHANGED
+   * axes as ONE logical switch. When both change, run `/model X` first, then
+   * `/effort Y` (queued as the first command's `next`); the cache-miss drawer
+   * relay (if it fires) sits between them and the second command runs only after
+   * the first settles. When one changes, it's the single-axis path. The renderer
+   * only calls this with a genuinely-dirty pair (Save is disabled when clean), and
+   * has already run the idle/single-switch guards via injectClaudeControlSwitch's
+   * shape — but we re-check the invariants a mid-session switch always requires.
+   */
+  startClaudeStagedSwitch(
+    model: string | null,
+    effort: string | null,
+  ): ClaudeControlSwitchResponse {
+    if (this.profile.provider !== "claude") {
+      return { ok: false, reason: "wrong-provider" };
+    }
+    if (!this.ptyProcess) {
+      return { ok: false, reason: "no-process" };
+    }
+    if (this.approvalActive) {
+      return { ok: false, reason: "panel-open" };
+    }
+    if (this.activeRun) {
+      return { ok: false, reason: "not-idle" };
+    }
+    if (this.pendingControlSwitch || this.sonataWriting) {
+      return { ok: false, reason: "busy" };
+    }
+    // Nothing to do (defensive — Save is disabled when clean).
+    if (!model && !effort) {
+      return { ok: false, reason: "busy" };
+    }
+    if (model) {
+      // Model first; queue effort as the continuation (if it also changed).
+      this.writeClaudeValueCommand(
+        "model",
+        model,
+        effort ? { kind: "effort", value: effort } : null,
+        Boolean(effort),
+      );
+    } else {
+      // Only effort changed — single command.
+      this.writeClaudeValueCommand("effort", effort as string, null, false);
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Inject one `/model X` / `/effort Y` command and arm the receipt watch. Shared
+   * by the single-axis inject, the staged Save sequence, and the parked cache-miss
+   * Yes continuation. `next` is a queued follow-up (run after this settles);
+   * `composite` marks this as part of a multi-axis sequence for honest failure copy.
+   */
+  private writeClaudeValueCommand(
+    kind: "model" | "effort",
+    value: string,
+    next: { kind: "effort"; value: string } | null,
+    composite: boolean,
+  ): void {
+    if (!this.ptyProcess) {
+      return;
+    }
     const command = `/${kind} ${value}`;
     this.beginSonataWrite();
     // Clear the composer line UNCONDITIONALLY before our command lands, so it
@@ -1747,9 +1910,8 @@ export class TerminalHost extends EventEmitter {
       this.onControlSwitchTimeout();
     }, CONTROL_SWITCH_RECEIPT_TIMEOUT_MS);
     timer.unref?.();
-    this.pendingControlSwitch = { axis: "value", kind, value, timer };
+    this.pendingControlSwitch = { axis: "value", kind, value, next, composite, timer };
     this.emitControlSwitchState("pending", { kind, value });
-    return { ok: true };
   }
 
   /**
@@ -2034,13 +2196,12 @@ export class TerminalHost extends EventEmitter {
     // `confirming` — watch for the `• Permissions updated to <label>` receipt.
     if (pending.phase === "confirming") {
       // RED LINE 2: confirming Full Access opens a consent dialog instead of a
-      // receipt. Never auto-answer it — roll back the moment we recognize it (a
-      // consent gate the human owns), rather than waiting out the confirm timeout.
+      // receipt. Never auto-answer it. S7 (revision 3) OVERTURNS S3's rollback:
+      // instead of Escing the dialog away (it flashed shut before the user could
+      // act), PARK on it and relay its rows through the drawer — the user's grant
+      // is injected only when THEY choose it.
       if (codexPermissionConsentDialogOpen(scan)) {
-        // RED LINE 2 — a Full Access grant is the human's to give. Record WHY so
-        // the banner reads "Confirm Full Access in the CLI" after the rollback.
-        pending.attentionReason = "consent";
-        this.failCodexPicker(pending);
+        this.parkCodexConsent(pending);
         return;
       }
       const landed = parseCodexPermissionReceipt(scan);
@@ -2660,11 +2821,19 @@ export class TerminalHost extends EventEmitter {
       this.onCodexModelPickerData();
       return;
     }
+    if (pending.axis === "parked-confirm") {
+      this.onParkedConfirmData();
+      return;
+    }
+    // value axis (model/effort). On a session WITH history, the inject raises the
+    // cache-miss confirm dialog (S7) INSTEAD of applying — recognize it and PARK
+    // (relay through the drawer) rather than time out to needs-attention. Check the
+    // receipt FIRST: on a session without history the switch applies with a clean
+    // receipt and no dialog (the rare clean path); a settled receipt beats a stale
+    // dialog frame from a prior repaint.
     const verdict = parseClaudeControlReceipt(this.controlSwitchScan, pending.kind);
     if (verdict === "settled") {
-      const { kind, value } = pending;
-      this.clearPendingControlSwitch();
-      this.emitControlSwitchState("settled", { kind, value });
+      this.settleValueSwitch(pending);
       return;
     }
     if (verdict === "failed") {
@@ -2676,7 +2845,422 @@ export class TerminalHost extends EventEmitter {
         value,
         error: `Claude rejected the ${label} "${value}".`,
       });
+      return;
     }
+    if (claudeCacheMissDialogOpen(this.controlSwitchScan)) {
+      this.parkClaudeCacheMiss(pending);
+    }
+  }
+
+  /** A value-axis (model/effort) switch settled — either a clean receipt or a
+   *  relayed Yes through the cache-miss drawer. If a follow-up axis is queued
+   *  (the staged Save sequence, Part 1), run it as the same logical switch; else
+   *  emit the terminal settled. */
+  private settleValueSwitch(
+    pending: Extract<PendingControlSwitch, { axis: "value" }>,
+  ): void {
+    const { kind, value, next } = pending;
+    this.clearPendingControlSwitch();
+    if (next) {
+      // Continue the staged sequence with the second axis — ONE logical switch.
+      // The chip stays pending across it (a fresh pending is armed); the cache-miss
+      // relay handles a second dialog if it appears (measured: usually the second
+      // command applies cleanly, the reread already pending). `composite` marks it.
+      this.writeClaudeValueCommand(next.kind, next.value, null, true);
+      return;
+    }
+    this.emitControlSwitchState("settled", { kind, value });
+  }
+
+  // ── Recognized-confirm drawer relay (S7 parked-confirm) ─────────────────────
+  //
+  // When a choreography meets a WHITELISTED confirm dialog, Sonata PARKS: it
+  // leaves the dialog OPEN in the Terminal, surfaces its rows in the Action
+  // Drawer, and injects ONLY the user's chosen row (RED LINE — never auto-answer;
+  // the codex trust-dialog silent-Yes lineage). Navigation is by ROW NUMBER
+  // (the dialogs number their rows and mark the current one with a cursor glyph),
+  // validated against the actual post-press cursor exactly like the codex pickers.
+
+  /** Park a claude cache-miss confirm (`Switch model? / Change effort level?`):
+   *  transform the pending value-axis switch into the parked-confirm relay, keeping
+   *  the queued `next` (staged sequence) to run only on a Yes. */
+  private parkClaudeCacheMiss(pending: Extract<PendingControlSwitch, { axis: "value" }>): void {
+    if (pending.timer) {
+      clearTimeout(pending.timer);
+    }
+    this.pendingControlSwitch = {
+      axis: "parked-confirm",
+      dialog: "claude-cachemiss",
+      originKind: pending.kind,
+      value: pending.value,
+      next: pending.next,
+      codexTarget: null,
+      phase: "waiting-user",
+      targetRow: null,
+      lastCursor: null,
+      awaitingCursor: null,
+      navSteps: 0,
+      rollbackEscs: 0,
+      timer: null,
+    };
+    this.emitParkedState();
+  }
+
+  /** Park the codex Full Access consent (`Enable full access?`): transform the
+   *  pending codex-permission switch into the parked-confirm relay. The grant
+   *  receipt is `• Permissions updated to Full Access` (codexTarget). */
+  private parkCodexConsent(
+    pending: Extract<PendingControlSwitch, { axis: "codex-permission" }>,
+  ): void {
+    this.clearCodexPickerTimer(pending);
+    this.pendingControlSwitch = {
+      axis: "parked-confirm",
+      dialog: "codex-consent",
+      originKind: "codex-permission",
+      value: "full-access",
+      next: null,
+      codexTarget: "full-access",
+      phase: "waiting-user",
+      targetRow: null,
+      lastCursor: null,
+      awaitingCursor: null,
+      navSteps: 0,
+      rollbackEscs: 0,
+      timer: null,
+    };
+    // Keep the scan: the consent dialog is static until we press a key, so the
+    // cursor must be read from the retained frame, not a (non-existent) new one.
+    this.emitParkedState();
+  }
+
+  private emitParkedState(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "parked-confirm") {
+      return;
+    }
+    this.emitControlSwitchState("parked", {
+      kind: pending.originKind,
+      value: pending.value,
+      dialog: pending.dialog,
+    });
+  }
+
+  /**
+   * The user chose a drawer row (1-based CLI row). Begin navigating the dialog's
+   * cursor to it (validate-each-press), then Enter. A dismiss maps (in the
+   * renderer) to the Cancel row, so this is the ONLY answer channel and it always
+   * carries a user-chosen row. Ignored if no parked dialog is waiting (a stale
+   * click after the dialog already resolved).
+   */
+  answerParkedControlConfirm(rowNumber: number): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "parked-confirm" || pending.phase !== "waiting-user") {
+      return;
+    }
+    const rowCount = pending.dialog === "codex-consent" ? 3 : 2;
+    if (!Number.isInteger(rowNumber) || rowNumber < 1 || rowNumber > rowCount) {
+      return; // out of range — the renderer only offers valid rows; ignore
+    }
+    pending.targetRow = rowNumber;
+    pending.phase = "navigating";
+    pending.navSteps = 0;
+    pending.lastCursor = null;
+    pending.awaitingCursor = null;
+    this.armParkedTimeout(PARKED_CONFIRM_NAV_TIMEOUT_MS);
+    // Drive from the CURRENT screen (the dialog is static — no new frame is coming
+    // until we press a key), reading the cursor out of the retained scan.
+    this.driveParkedNav();
+  }
+
+  /** The current cursor ROW (1-based) for whichever parked dialog is up, or null. */
+  private parseParkedCursor(): number | null {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "parked-confirm") {
+      return null;
+    }
+    return pending.dialog === "codex-consent"
+      ? parseCodexConsentCursor(this.controlSwitchScan)
+      : parseClaudeCacheMissCursor(this.controlSwitchScan);
+  }
+
+  /** One navigation decision: validate the post-press cursor, then Enter on the
+   *  target row or press ONE arrow toward it. A pre-move repaint waits; an
+   *  unexpected jump rolls back (never keep guessing). */
+  private driveParkedNav(): void {
+    const pending = this.pendingControlSwitch;
+    if (
+      !pending ||
+      pending.axis !== "parked-confirm" ||
+      pending.phase !== "navigating" ||
+      !this.ptyProcess ||
+      pending.targetRow == null
+    ) {
+      return;
+    }
+    const cursor = this.parseParkedCursor();
+    if (cursor == null) {
+      return; // cursor row not recognized yet — wait (the nav timeout guards)
+    }
+    if (pending.awaitingCursor != null && cursor !== pending.awaitingCursor) {
+      if (cursor === pending.lastCursor) {
+        return; // pre-move repaint of the row we pressed FROM — keep waiting
+      }
+      this.failParked(pending); // unexpected jump — roll back
+      return;
+    }
+    pending.awaitingCursor = null;
+    this.clearParkedTimer(pending);
+    if (cursor === pending.targetRow) {
+      this.pressParkedConfirm(pending);
+      return;
+    }
+    if (pending.navSteps >= PARKED_CONFIRM_MAX_NAV_STEPS) {
+      this.failParked(pending);
+      return;
+    }
+    const goingDown = pending.targetRow > cursor;
+    pending.lastCursor = cursor;
+    pending.awaitingCursor = cursor + (goingDown ? 1 : -1);
+    pending.navSteps += 1;
+    this.controlSwitchScan = "";
+    this.beginSonataWrite();
+    this.ptyProcess.write(goingDown ? ARROW_DOWN : ARROW_UP);
+    this.endSonataWrite();
+    this.armParkedTimeout(PARKED_CONFIRM_NAV_TIMEOUT_MS);
+  }
+
+  /** Press Enter on the target row, then enter the settle-watch phase: a codex
+   *  Cancel (row 3) returns to the /permissions picker (Esc it out); everything
+   *  else waits for its receipt (grant / Yes) or `Kept …` (claude No). */
+  private pressParkedConfirm(
+    pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+  ): void {
+    if (!this.ptyProcess) {
+      return;
+    }
+    this.controlSwitchScan = "";
+    this.beginSonataWrite();
+    this.ptyProcess.write("\r");
+    this.endSonataWrite();
+    if (pending.dialog === "codex-consent" && pending.targetRow === 3) {
+      pending.phase = "cancel-picker";
+    } else {
+      pending.phase = "confirming";
+    }
+    this.armParkedTimeout(PARKED_CONFIRM_SETTLE_TIMEOUT_MS);
+  }
+
+  /** Drive the parked relay off each pty frame (from detectControlSwitchReceipt).
+   *  Settle signals fire in `waiting-user` too, so a user who answers NATIVELY in
+   *  the co-visible Terminal settles the relay honestly (we never injected). */
+  private onParkedConfirmData(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "parked-confirm") {
+      return;
+    }
+    const scan = this.controlSwitchScan;
+
+    if (pending.dialog === "claude-cachemiss") {
+      const axis = pending.originKind === "effort" ? "effort" : "model";
+      if (
+        pending.phase === "waiting-user" ||
+        pending.phase === "navigating" ||
+        pending.phase === "confirming"
+      ) {
+        if (parseClaudeControlReceipt(scan, axis) === "settled") {
+          this.settleParkedClaudeYes(pending);
+          return;
+        }
+        if (claudeCacheMissCancelled(scan, axis)) {
+          this.settleParkedCancel(pending);
+          return;
+        }
+      }
+      if (pending.phase === "navigating") {
+        this.driveParkedNav();
+      }
+      return;
+    }
+
+    // codex-consent
+    if (
+      pending.phase === "waiting-user" ||
+      pending.phase === "navigating" ||
+      pending.phase === "confirming"
+    ) {
+      if (parseCodexPermissionReceipt(scan) === pending.codexTarget) {
+        this.settleParkedCodexYes(pending);
+        return;
+      }
+    }
+    if (pending.phase === "waiting-user") {
+      // A NATIVE cancel (the user Esc'd / chose Cancel in the Terminal): the consent
+      // closed and the /permissions picker is back — Esc it out and settle cancelled.
+      if (!codexPermissionConsentDialogOpen(scan) && codexPermissionPickerOpen(scan)) {
+        this.escParkedPickerThenCancel(pending);
+      }
+      return;
+    }
+    if (pending.phase === "navigating") {
+      this.driveParkedNav();
+      return;
+    }
+    if (pending.phase === "cancel-picker") {
+      // After our Cancel (row 3) Enter: the picker reappears (measured) — Esc it.
+      if (codexPermissionPickerOpen(scan)) {
+        this.escParkedPickerThenCancel(pending);
+      }
+      return;
+    }
+    if (pending.phase === "cancel-exit") {
+      if (!codexPermissionPickerFooterVisible(scan)) {
+        this.settleParkedCodexCancel(pending); // composer back
+      }
+      return;
+    }
+    // `closing` — the fail Esc is in flight; the close-verify timer concludes.
+  }
+
+  /** Esc the reopened /permissions picker (after a codex Cancel), then verify the
+   *  composer returned and settle cancelled. */
+  private escParkedPickerThenCancel(
+    pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+  ): void {
+    this.clearParkedTimer(pending);
+    pending.phase = "cancel-exit";
+    if (this.ptyProcess) {
+      this.controlSwitchScan = "";
+      this.beginSonataWrite();
+      this.ptyProcess.write(ESC);
+      this.endSonataWrite();
+    }
+    const timer = setTimeout(() => this.onParkedCancelExitVerify(), PARKED_CONFIRM_CANCEL_VERIFY_MS);
+    timer.unref?.();
+    pending.timer = timer;
+  }
+
+  private onParkedCancelExitVerify(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "parked-confirm") {
+      return;
+    }
+    pending.timer = null;
+    // Whether or not the footer cleared, conclude cancelled — the user chose Cancel
+    // and the Terminal is theirs to reconcile either way.
+    this.settleParkedCodexCancel(pending);
+  }
+
+  /** claude Yes: the switch applied (receipt landed). Continue a queued `next`
+   *  (staged sequence) or emit the terminal settled. */
+  private settleParkedClaudeYes(
+    pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+  ): void {
+    const { originKind, value, next } = pending;
+    this.clearPendingControlSwitch();
+    if (next) {
+      this.writeClaudeValueCommand(next.kind, next.value, null, true);
+      return;
+    }
+    this.emitControlSwitchState("settled", { kind: originKind, value });
+  }
+
+  /** A user-chosen CANCEL (claude No, or a native codex cancel routed here):
+   *  nothing changed CLI-side, so NO needs-attention — the chip follows its
+   *  unchanged SSOT. Any queued `next` is dropped (the first axis didn't apply). */
+  private settleParkedCancel(
+    pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+  ): void {
+    const { originKind, value } = pending;
+    this.clearPendingControlSwitch();
+    this.emitControlSwitchState("settled", { kind: originKind, value, cancelled: true });
+  }
+
+  /** codex grant (row 1/2): the `• Permissions updated to Full Access` receipt
+   *  landed — settle; the controller writes task.codexPermissionMode off this. */
+  private settleParkedCodexYes(
+    pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+  ): void {
+    const target = pending.codexTarget ?? "full-access";
+    this.clearPendingControlSwitch();
+    this.emitControlSwitchState("settled", { kind: "codex-permission", value: target });
+  }
+
+  /** codex Cancel (row 3, or native): the picker was Esc'd out — nothing granted,
+   *  NO needs-attention (the human chose Cancel). `cancelled` tells the controller
+   *  NOT to write the full-access mirror. */
+  private settleParkedCodexCancel(
+    pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+  ): void {
+    const target = pending.codexTarget ?? "full-access";
+    this.clearPendingControlSwitch();
+    this.emitControlSwitchState("settled", {
+      kind: "codex-permission",
+      value: target,
+      cancelled: true,
+    });
+  }
+
+  private armParkedTimeout(ms: number): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "parked-confirm") {
+      return;
+    }
+    const timer = setTimeout(() => this.onParkedTimeout(), ms);
+    timer.unref?.();
+    pending.timer = timer;
+  }
+
+  private clearParkedTimer(
+    pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+  ): void {
+    if (pending.timer) {
+      clearTimeout(pending.timer);
+      pending.timer = null;
+    }
+  }
+
+  private onParkedTimeout(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "parked-confirm") {
+      return;
+    }
+    pending.timer = null;
+    this.failParked(pending);
+  }
+
+  /** An ACTIVE phase (navigating / confirming / cancel) got stuck — the screen is
+   *  unrecognized. RED LINE: Esc the dialog once (measured clean: claude Esc =
+   *  cancel → composer; codex consent Esc closes both dialogs → composer), verify,
+   *  then needs-attention. NEVER retry, NEVER guess a row. (waiting-user has no
+   *  timeout, so this only fires after the user has answered.) */
+  private failParked(
+    pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+  ): void {
+    this.clearParkedTimer(pending);
+    pending.phase = "closing";
+    if (this.ptyProcess && pending.rollbackEscs < PARKED_CONFIRM_MAX_ROLLBACK_ESCS) {
+      this.controlSwitchScan = "";
+      this.beginSonataWrite();
+      this.ptyProcess.write(ESC);
+      this.endSonataWrite();
+      pending.rollbackEscs += 1;
+    }
+    const timer = setTimeout(() => this.onParkedCloseVerify(), PARKED_CONFIRM_CANCEL_VERIFY_MS);
+    timer.unref?.();
+    pending.timer = timer;
+  }
+
+  private onParkedCloseVerify(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "parked-confirm") {
+      return;
+    }
+    pending.timer = null;
+    const { originKind, value } = pending;
+    const reason: ControlSwitchAttentionReason =
+      pending.dialog === "codex-consent" ? "consent" : "interstitial";
+    this.clearPendingControlSwitch();
+    this.emitControlSwitchState("needs-attention", { kind: originKind, value, reason });
   }
 
   /**
@@ -2742,7 +3326,7 @@ export class TerminalHost extends EventEmitter {
   }
 
   private emitControlSwitchState(
-    phase: "pending" | "settled" | "failed" | "needs-attention",
+    phase: "pending" | "parked" | "settled" | "failed" | "needs-attention",
     payload: {
       kind: ClaudeControlSwitchKind;
       value: string;
@@ -2751,6 +3335,12 @@ export class TerminalHost extends EventEmitter {
       codexModel?: string | null;
       codexEffort?: ReasoningEffort | null;
       reason?: ControlSwitchAttentionReason;
+      /** `parked` ONLY: which recognized dialog is open (the renderer composes the
+       *  verbatim drawer rows from this + kind + value). */
+      dialog?: "claude-cachemiss" | "codex-consent";
+      /** `settled` ONLY: the switch was user-CANCELLED (claude No / codex Cancel) —
+       *  nothing changed, so the controller must NOT write any mirror off it. */
+      cancelled?: boolean;
     },
   ): void {
     this.emitEvent("control-switch:state", {
@@ -2763,6 +3353,8 @@ export class TerminalHost extends EventEmitter {
       ...(payload.codexModel !== undefined ? { codexModel: payload.codexModel } : {}),
       ...(payload.codexEffort !== undefined ? { codexEffort: payload.codexEffort } : {}),
       ...(payload.reason ? { reason: payload.reason } : {}),
+      ...(payload.dialog ? { dialog: payload.dialog } : {}),
+      ...(payload.cancelled ? { cancelled: true } : {}),
     });
   }
 

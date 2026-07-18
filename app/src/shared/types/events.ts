@@ -301,7 +301,7 @@ export type ControlSwitchStateEvent = BaseRuntimeEvent<
     taskId: TaskId;
     kind: "model" | "effort" | "permission" | "codex-permission" | "codex-model" | "codex-effort";
     value: string;
-    phase: "pending" | "settled" | "failed" | "needs-attention";
+    phase: "pending" | "parked" | "settled" | "failed" | "needs-attention";
     error: string | null;
     /** Permission axis only: the modes this Shift+Tab choreography confirmed via
      *  a mode-line receipt (including pass-throughs). The renderer merges these
@@ -336,6 +336,20 @@ export type ControlSwitchStateEvent = BaseRuntimeEvent<
      *     nothing changed CLI-side. Banner: "Model list changed upstream — switch
      *     in the CLI". */
     reason?: "interstitial" | "consent" | "drift";
+    /** `parked` ONLY (S7): a RECOGNIZED confirm dialog is open in the Terminal and
+     *  Sonata parked on it — the renderer surfaces its rows in the Action Drawer and
+     *  the user's chosen row is relayed back (`answerControlConfirm`). Which dialog:
+     *   - `claude-cachemiss` — the `Switch model? / Change effort level?` confirm a
+     *     `/model` / `/effort` inject raises on a session with history (rows: Yes/No).
+     *   - `codex-consent` — the `Enable full access?` consent the /permissions Full
+     *     Access row opens (rows: Yes continue / Yes & don't ask again / Cancel).
+     *  The renderer composes the VERBATIM rows from (dialog, kind, value) + its own
+     *  registered copy; send stays gated while parked. */
+    dialog?: "claude-cachemiss" | "codex-consent";
+    /** `settled` ONLY (S7): the parked confirm was user-CANCELLED (claude No, or a
+     *  codex Cancel/native cancel) — nothing changed CLI-side, so the chip follows
+     *  its unchanged SSOT and the controller writes NO mirror. */
+    cancelled?: boolean;
   }
 >;
 

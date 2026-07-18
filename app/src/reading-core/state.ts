@@ -186,13 +186,20 @@ export interface TaskViewState {
           | "codex-model"
           | "codex-effort";
         value: string;
-        phase: "pending" | "needs-attention";
+        phase: "pending" | "parked" | "needs-attention";
         /** needs-attention ONLY, when the cause is known (S5): sharpens the banner
          *  from the generic "check the CLI" to the exact next action. See
          *  `ControlSwitchAttentionReason` — `interstitial` (claude cache-miss/consent
          *  handoff), `consent` (codex Full Access gate), `drift` (codex model-list
          *  drift). Absent ⇒ the generic fallback copy. */
         reason?: ControlSwitchAttentionReason;
+        /** `parked` ONLY (S7): a RECOGNIZED confirm dialog is open in the Terminal
+         *  and Sonata parked on it — the Action Drawer surfaces its rows and relays
+         *  the user's choice. Which dialog (drives the drawer copy + row set):
+         *  `claude-cachemiss` (Yes/No) | `codex-consent` (Yes / Yes-remember /
+         *  Cancel). Send stays gated while parked (the `controlSwitch` pointer is
+         *  set), exactly like `pending`. */
+        dialog?: "claude-cachemiss" | "codex-consent";
       }
     | null;
   /** The permission modes this session can actually reach via Shift+Tab (D4 — no

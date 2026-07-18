@@ -226,6 +226,12 @@ export function registerIpcHandlers(
       request.from,
     ),
   );
+  ipcMain.handle(IPC_CHANNELS.claudeStagedSwitch, (_event, request) =>
+    runtimeController.switchClaudeStaged(request.taskId, request.model, request.effort),
+  );
+  ipcMain.handle(IPC_CHANNELS.controlConfirmAnswer, (_event, request) =>
+    runtimeController.answerControlConfirm(request.taskId, request.rowNumber),
+  );
   ipcMain.handle(IPC_CHANNELS.previewOpen, (_event, request) =>
     windowController.openPreview(request),
   );

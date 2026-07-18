@@ -887,6 +887,24 @@ export class RuntimeController {
     return active.terminalHost.injectClaudeControlSwitch(kind, value, from);
   }
 
+  /** Apply a STAGED claude model+effort Save (S7 Part 1) — the changed axes as one
+   *  logical switch. A live PTY is required. */
+  switchClaudeStaged(
+    taskId: TaskId,
+    model: string | null,
+    effort: string | null,
+  ): ClaudeControlSwitchResponse {
+    const active = this.requireLiveTaskRuntime(taskId);
+    return active.terminalHost.startClaudeStagedSwitch(model, effort);
+  }
+
+  /** Relay the user's chosen row for a PARKED recognized-confirm dialog (S7 Part 2)
+   *  to the choreography (which navigates+Enters it). No-op if no dialog is parked. */
+  answerControlConfirm(taskId: TaskId, rowNumber: number): void {
+    const active = this.taskRuntimes.get(taskId);
+    active?.terminalHost.answerParkedControlConfirm(rowNumber);
+  }
+
   writeTerminalUserInput(taskId: TaskId, data: string): void {
     if (typeof data !== "string" || data.length === 0) {
       return;
@@ -1483,10 +1501,15 @@ export class RuntimeController {
     // session's mode here (the asymmetry documented on ControlSwitchStateEvent).
     // Claude's model/effort/permission `settled` never lands here — its axes' own
     // SSOTs (statusline / hook payload) drive the chip; only codex-permission does.
+    // A `cancelled` settle (S7 — the user chose No / Cancel on a parked confirm)
+    // changed NOTHING CLI-side, so it must NOT write the mirror (it would flip the
+    // chip to a Full Access that was declined). It still clears the pending
+    // affordance in the reducer; here we simply skip the state write.
     if (
       event.type === "control-switch:state" &&
       event.payload.kind === "codex-permission" &&
       event.payload.phase === "settled" &&
+      !event.payload.cancelled &&
       eventRuntime
     ) {
       this.applyCodexPermissionSwitchReceipt(eventRuntime, event.payload.value);

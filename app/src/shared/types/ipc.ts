@@ -61,6 +61,15 @@ export const IPC_CHANNELS = {
   slashCommandsRead: "slash:commands:read",
   remoteControlInject: "remote-control:inject",
   claudeControlSwitch: "claude-control:switch",
+  // Staged claude model+effort Save (S7 Part 1): apply the changed axes as ONE
+  // logical switch (`/model X` then `/effort Y`, the cache-miss drawer relaying
+  // any confirm between them). Codex staged Save reuses claudeControlSwitch's
+  // `codex-model` kind (its two-level picker already sets the pair in one run).
+  claudeStagedSwitch: "claude-control:staged",
+  // Answer a PARKED recognized-confirm dialog (S7 Part 2): relay the user's chosen
+  // row back to the choreography, which navigates+Enters it. The ONLY answer
+  // channel for a parked dialog (a drawer dismiss maps to the Cancel row).
+  controlConfirmAnswer: "control-confirm:answer",
   // Preview window (2026-07 redesign, three-truths model §6). `previewOpen`
   // opens/focuses the window and binds a task (optionally opening a tab);
   // `previewBinding` is main's push of the bound task's session; the transition
@@ -369,6 +378,24 @@ export type ClaudeControlSwitchResponse =
       ok: false;
       reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider";
     };
+
+/** A STAGED claude model+effort Save (S7 Part 1). `model` / `effort` carry ONLY
+ *  the axes that CHANGED from the session's current pair (null = unchanged); the
+ *  engine runs the changed axes as one logical switch (model first, effort queued).
+ *  The renderer's Save is disabled when clean, so at least one is non-null. */
+export interface ClaudeStagedSwitchRequest {
+  taskId: TaskId;
+  model: string | null;
+  effort: string | null;
+}
+
+/** Answer a PARKED recognized-confirm dialog (S7 Part 2). `rowNumber` is the
+ *  1-based CLI row the user chose in the drawer (a dismiss maps to the dialog's
+ *  Cancel row). Fire-and-forget — the settle arrives on control-switch:state. */
+export interface ControlConfirmAnswerRequest {
+  taskId: TaskId;
+  rowNumber: number;
+}
 
 export interface StopRunRequest {
   taskId: TaskId;
@@ -795,6 +822,15 @@ export interface SonataRuntimeBridge {
   switchClaudeControl(
     request: ClaudeControlSwitchRequest,
   ): Promise<ClaudeControlSwitchResponse>;
+  /** Apply a STAGED claude model+effort Save (S7 Part 1) as one logical switch —
+   *  only the changed axes, the cache-miss drawer relaying any confirm between the
+   *  two commands. Codex staged Save reuses `switchClaudeControl` with `codex-model`. */
+  switchClaudeStaged(
+    request: ClaudeStagedSwitchRequest,
+  ): Promise<ClaudeControlSwitchResponse>;
+  /** Answer a PARKED recognized-confirm dialog (S7 Part 2) — relay the user's
+   *  chosen row to the choreography (navigate+Enter). Fire-and-forget. */
+  answerControlConfirm(request: ControlConfirmAnswerRequest): Promise<void>;
   // Preview window (three-truths model §6). `openPreview` opens/focuses + binds
   // (+ optional tab); the transition methods mutate session truth in main, which
   // echoes the updated binding back through `onPreviewBinding`.
