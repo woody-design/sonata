@@ -997,7 +997,16 @@ type PendingControlSwitch =
        *  unchanged, i.e. the codex-effort case). We instead navigate level 2 to
        *  this explicit effort (the renderer's `task.reasoningEffort`). Null / a
        *  non-v1 effort (Native Default / Max / Ultra) can't be preserved → the
-       *  model switch rolls back to needs-attention (a documented v1 limit). */
+       *  model switch rolls back to needs-attention (a documented v1 limit).
+       *  STALENESS BOUNDARY (accepted, S5-tracked): `task.reasoningEffort` is a
+       *  MIRROR with no live codex feed (codex has no statusline/effort event —
+       *  the mirror is only written by OUR picker receipts). So after a NATIVE
+       *  terminal `/model` change the mirror is stale, and a Sonata model switch
+       *  will WRITE that stale effort back onto the live CLI (stronger than S3's
+       *  display-only staleness — this pushes it into the running session). The
+       *  codex-EFFORT direction is immune: it reads the live level-1 `(current)`
+       *  marker, never this mirror. Fix rides S5's `turn_context` reconcile
+       *  (widened to task.model/reasoningEffort). */
       preserveEffort: ReasoningEffort | null;
       phase:
         | "opening"
@@ -2557,9 +2566,16 @@ export class TerminalHost extends EventEmitter {
     }
     // Same premise for the codex-model TWO-level picker: an abandoned picker eats
     // the next typed char, so Esc once PER open level (level 2 → level 1 →
-    // composer). Screen-blind by design, like the codex-permission case; our own
-    // settle/rollback already zeroed pickerLevel, so this only fires for an
-    // EXTERNAL mid-picker clear (run start / PTY teardown).
+    // composer). Screen-blind by design, like the codex-permission case, but now
+    // up to TWO Escs — and `pickerLevel` is committed to 2 OPTIMISTICALLY at the
+    // level-1 confirm (before the `\r` that opens level 2 has even rendered it). So
+    // an external clear (run start / PTY teardown) landing in that window emits
+    // ESC×2 while only level 1 is actually open: the first closes it, the SECOND
+    // lands on the idle composer (opening codex's edit-previous buffer) or, in a
+    // narrow race, interrupts a fresh native run. Same accepted screen-blind family
+    // as S3 (rare, recoverable, never submits / burns a turn / auto-answers), now
+    // widened from one Esc to two. Our own settle/rollback zeroes pickerLevel, so
+    // this only fires for an EXTERNAL mid-picker clear.
     if (pending?.axis === "codex-model" && pending.pickerLevel > 0 && this.ptyProcess) {
       try {
         this.ptyProcess.write(ESC.repeat(pending.pickerLevel));

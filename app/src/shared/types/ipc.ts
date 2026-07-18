@@ -331,18 +331,27 @@ export interface ClaudeControlSwitchRequest {
    *  `high`) to inject. permission: the TARGET `ClaudePermissionMode` id (e.g.
    *  `plan`). codex-permission: the TARGET `CodexPermissionMode` id (e.g.
    *  `approve-for-me`). codex-model: the TARGET curated model slug (e.g.
-   *  `gpt-5.6-luna`) — the picker's level-2 effort is preserved on its
-   *  `(current)` row. codex-effort: the TARGET reasoning id (`low|medium|high|
-   *  xhigh`) — the picker's level-1 model is preserved on its `(current)` row.
+   *  `gpt-5.6-luna`) — the picker's level-1 target. codex-effort: the TARGET
+   *  reasoning id (`low|medium|high|xhigh`) — the picker's level-2 target.
    *  Sourced from Sonata's curated lists / the session's reachable modes, never
    *  free text. */
   value: string;
-  /** permission / codex-permission only: the mode the session is in NOW (the
-   *  renderer's SSOT — `task.permissionMode` for claude, `task.codexPermissionMode`
-   *  for codex). Claude uses it as the return-home anchor for the Shift+Tab
-   *  stepping engine; codex uses it to skip a no-op switch to the current mode.
-   *  Ignored for model/effort and the codex-model/codex-effort picker axes (which
-   *  preserve the non-selected dimension via the picker's own `(current)` row). */
+  /** The session's current value for the axis, per kind:
+   *   - permission / codex-permission: the mode the session is in NOW
+   *     (`task.permissionMode` / `task.codexPermissionMode`). Claude uses it as the
+   *     Shift+Tab return-home anchor; codex uses it to skip a no-op switch.
+   *   - **codex-model: REQUIRED — the session's current reasoning effort**
+   *     (`task.reasoningEffort`). This is the ONLY source of the effort to PRESERVE
+   *     at picker level 2: MEASURED that codex drops the level-2 `(current)` marker
+   *     after a model change (it resets to the new model's default), so the effort
+   *     cannot ride that marker — the engine navigates level 2 to this explicit
+   *     value's row. Omitting it (or a non-v1 effort — Native Default / Max / Ultra,
+   *     which has no v1 row) makes the switch roll back to needs-attention BY
+   *     DESIGN. A contract refactor MUST keep threading it or every codex model
+   *     switch 100%-rolls-back.
+   *   - model / effort / codex-effort: ignored. (codex-effort preserves the model
+   *     via level-1's `(current)` marker, which IS reliable — the model is
+   *     unchanged, so it is still a marked, visible row.) */
   from?: string;
 }
 

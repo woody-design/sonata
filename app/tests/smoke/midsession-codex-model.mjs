@@ -9,15 +9,21 @@
 //   4. receipt — the `• Model changed to <model> <effort>` line → a `settled`
 //      control-switch:state carrying the receipt's (model, effort) pair.
 //
-// The picker FORCES a (model, effort) pair, so each switch preserves the
-// non-selected dimension by landing on the level's `(current)`-marked row:
+// The picker FORCES a (model, effort) pair; each switch preserves the non-selected
+// dimension — but by DIFFERENT means per direction (MEASURED, not the plan's first
+// read; see B):
 //   A. effort   high → xhigh   (level 1 stays on the current model's `(current)`
-//               row; level 2 navigates to Extra high)   → settled, effort=xhigh
-//   B. model    sol → luna → sol  (level 1 navigates; level 2 lands on the
-//               `(current)` reasoning to PRESERVE it)    → settled, effort preserved
-//      — THIS is the empirical test of the "level-2 (current) survives a model
-//        change" assumption: if codex did NOT mark (current) after choosing a
-//        different model, the switch would roll back to needs-attention instead.
+//               row — the model is unchanged, so that marker IS reliable; level 2
+//               navigates to Extra high)                 → settled, effort=xhigh
+//   B. model    sol → luna → sol  (level 1 navigates to the new model; level 2
+//               navigates to the current effort EXPLICITLY — `from`=xhigh — NOT via
+//               a `(current)` marker)                     → settled, effort preserved
+//      — MEASURED: after choosing a DIFFERENT model, codex RESETS the reasoning to
+//        that model's default and marks NO level-2 `(current)` row. So an effort can
+//        only be preserved across a model change by navigating to its explicit value
+//        (task.reasoningEffort, threaded as `from`). This case proves that explicit
+//        path holds xhigh across sol→luna→sol; without `from` the switch would roll
+//        back (verified during bring-up).
 //   C. mismatch — a target row the picker doesn't offer rolls back with the
 //      LEVEL-APPROPRIATE Esc(es) + needs-attention (never a blind retry):
 //        C1 level-1 miss (a legacy model absent from the picker — D5): 1 Esc.
@@ -144,14 +150,15 @@ try {
   assert.equal(findings.switchA.codexModel, SPAWN_MODEL, "A: model preserved (level-1 (current))");
   assert.equal(findings.switchA.pickerClosed, true, "A: picker closed after confirm");
 
-  // B — model switch preserved xhigh across BOTH levels (the (current)-survives-
-  //     a-model-change assumption, verified empirically).
+  // B — model switch preserved xhigh by navigating level 2 to the EXPLICIT current
+  //     effort (`from`) — codex drops the level-2 (current) marker after a model
+  //     change (measured), so the marker path can't be used here.
   assert.equal(findings.switchB1.phase, "settled", "B1: sol→luna settled");
   assert.equal(findings.switchB1.codexModel, OTHER_MODEL, "B1: model followed to luna");
   assert.equal(
     findings.switchB1.codexEffort,
     "xhigh",
-    "B1: effort PRESERVED at xhigh via level-2 (current) after a model change",
+    "B1: effort PRESERVED at xhigh via EXPLICIT level-2 navigation after a model change",
   );
   assert.equal(findings.switchB2.phase, "settled", "B2: luna→sol settled");
   assert.equal(findings.switchB2.codexModel, SPAWN_MODEL, "B2: model followed back to sol");
