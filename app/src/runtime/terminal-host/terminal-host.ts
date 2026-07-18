@@ -116,6 +116,81 @@ export function parseClaudeControlReceipt(
   return CONTROL_SWITCH_MODEL_OK_RE.test(compact) ? "settled" : null;
 }
 
+// Mid-session Claude cache-miss confirm dialog (S7). On a session WITH history —
+// the normal Sonata case — a `/model <id>` / `/effort <level>` inject does NOT
+// apply immediately: claude raises a modal confirm (measured, claude 2.1.214 —
+// spikes/midsession-switch-probe/findings.md §"S7 cache-miss probe"):
+//   Switch model?  /  Change effort level?
+//   Your next response will be slower and use more tokens
+//   This conversation is cached for the current <axis>. Switching to <target>
+//   means the full history gets re-read on your next message.
+//   ❯ 1. Yes, switch to <target>
+//     2. No, go back
+// This is NOT a hook option-prompt (parseClaudeApprovalPanel returns null on it —
+// S5-F) — it is a TUI dialog Sonata must scrape-recognize to PARK on and relay
+// through the Action Drawer (S7 revision 3). RED LINE (codex trust-dialog silent-
+// Yes lineage): recognition must be forge-resistant, so it anchors on the
+// CO-OCCURRENCE of the distinctive body phrase AND the numbered-row grammar —
+// neither the title (`Switch model?` vs `Change effort level?`) nor the Yes-row
+// label (it embeds the target name) is axis-stable, but a boundary of assistant
+// prose can't forge BOTH `…re-read on your next message` and `2. No, go back`
+// together (stronger than S2's single-substring lesson). Same compacted form
+// (escapes + ALL whitespace removed) the other claude parsers key on.
+const CLAUDE_CACHE_MISS_BODY_RE = /thefullhistorygetsre-readonyournextmessage/;
+const CLAUDE_CACHE_MISS_NO_ROW_RE = /2\.No,goback/;
+// Cursor rows: `❯` (U+276F) + digit + `.` + the row LABEL (the digit/label anchor
+// rejects the composer `❯ ` prompt, which is never followed by digit+dot+label).
+// "Most recent wins" (greatest match index) so a stale pre-move cursor repaint
+// can't outvote the row the latest frame highlights — like the codex cursor.
+const CLAUDE_CACHE_MISS_CURSOR_RES: ReadonlyArray<readonly [RegExp, 1 | 2]> = [
+  [/❯\d\.Yes,switchto/, 1],
+  [/❯\d\.No,goback/, 2],
+];
+// Cancel receipt: choosing No (or Esc) closes the dialog with a `Kept …` line —
+// the switch did NOT apply (measured; settings.json byte-unchanged). Axis-scoped
+// so a model cancel can't read an effort receipt and vice versa.
+const CLAUDE_CACHE_MISS_CANCEL_MODEL_RE = /Keptmodelas/;
+const CLAUDE_CACHE_MISS_CANCEL_EFFORT_RE = /Kepteffortlevelas/;
+
+/** The claude cache-miss confirm dialog is on screen (a recognized RED-LINE
+ *  interstitial S7 PARKS on and relays through the drawer). Requires BOTH the
+ *  distinctive body phrase and the `2. No, go back` row so prose can't forge it. */
+export function claudeCacheMissDialogOpen(rawScan: string): boolean {
+  const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
+  return CLAUDE_CACHE_MISS_BODY_RE.test(compact) && CLAUDE_CACHE_MISS_NO_ROW_RE.test(compact);
+}
+
+/** Which row the `❯` cursor currently highlights (1 = Yes, 2 = No), or null if no
+ *  cursor row is recognized yet (keep waiting). Most-recent-wins. */
+export function parseClaudeCacheMissCursor(rawScan: string): 1 | 2 | null {
+  const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
+  let best: 1 | 2 | null = null;
+  let bestIndex = -1;
+  for (const [re, row] of CLAUDE_CACHE_MISS_CURSOR_RES) {
+    const globalRe = new RegExp(re.source, "g");
+    let match: RegExpExecArray | null;
+    let lastIndex = -1;
+    while ((match = globalRe.exec(compact)) !== null) {
+      lastIndex = match.index;
+      globalRe.lastIndex = match.index + 1;
+    }
+    if (lastIndex > bestIndex) {
+      bestIndex = lastIndex;
+      best = row;
+    }
+  }
+  return best;
+}
+
+/** The cache-miss dialog closed with a `Kept <model|effort> as …` line — a clean
+ *  cancel (No/Esc), nothing changed CLI-side. Axis-scoped. */
+export function claudeCacheMissCancelled(rawScan: string, kind: "model" | "effort"): boolean {
+  const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
+  return (
+    kind === "model" ? CLAUDE_CACHE_MISS_CANCEL_MODEL_RE : CLAUDE_CACHE_MISS_CANCEL_EFFORT_RE
+  ).test(compact);
+}
+
 // Mid-session Claude PERMISSION switch (S2). Unlike model/effort (a typed
 // command with one printed receipt), permission has no arg form: Sonata drives
 // the native Shift+Tab (`\x1b[Z`) cycle one step at a time and reads the TUI's
@@ -225,10 +300,23 @@ const CODEX_PICKER_FOOTER_RE = /Pressentertoconfirmoresctogoback/;
 // Yes, and don't ask again / 3. Cancel"; measured, codex 0.144.5). This is a
 // RED LINE 2 interstitial (the codex trust-dialog silent-Yes lineage): granting
 // unrestricted filesystem + network access is a human consent Sonata must NEVER
-// auto-answer. The choreography detects it and rolls back (a single Esc returns
-// all the way to the composer — measured, closes both nested dialogs) → the user
-// grants Full Access in the co-visible Terminal if they mean to.
+// auto-answer. S7 (revision 3) OVERTURNS S3's rollback-on-detect: instead of
+// Escing the dialog away (which flashed it shut before the user could act —
+// "一闪就没了"), the choreography PARKS on it and surfaces its three rows in the
+// Action Drawer, injecting ONLY the user's chosen answer (see the parked-confirm
+// relay). Rows (measured, codex 0.144.5): `1. Yes, continue anyway` / `2. Yes,
+// and don't ask again` / `3. Cancel`, cursor `›` (U+203A) + digit + label.
 const CODEX_FULL_ACCESS_CONSENT_RE = /Enablefullaccess\?/;
+// Consent cursor rows: `›` + digit + `.` + the row LABEL. The label anchor tells
+// the consent's cursor apart from the /permissions picker rows painted behind it
+// (both use `›\d.` — the modal's labels are `Yes,continueanyway` / `Yes,anddon't
+// askagain` / `Cancel`, never the picker's `Askforapproval`/…). `.` stands in for
+// the apostrophe in "don't". Most-recent-wins (greatest index).
+const CODEX_CONSENT_CURSOR_RES: ReadonlyArray<readonly [RegExp, 1 | 2 | 3]> = [
+  [/›\d\.Yes,continueanyway/, 1],
+  [/›\d\.Yes,anddon.taskagain/, 2],
+  [/›\d\.Cancel/, 3],
+];
 /** Label → mode, ordered as the picker renders (ask → approve → full). The
  *  order is a stable picker property used ONLY to pick an arrow direction; the
  *  cursor's actual row is always re-read by TEXT after each press. */
@@ -295,10 +383,34 @@ export function codexPermissionPickerFooterVisible(rawScan: string): boolean {
 }
 
 /** The Full Access consent dialog is on screen (a RED LINE 2 interstitial — see
- *  CODEX_FULL_ACCESS_CONSENT_RE). The choreography treats this as an unrecoverable
- *  screen and rolls back rather than ever auto-answering the consent. */
+ *  CODEX_FULL_ACCESS_CONSENT_RE). S7 PARKS on it and relays its rows through the
+ *  Action Drawer rather than auto-answering or Escing it away. */
 export function codexPermissionConsentDialogOpen(rawScan: string): boolean {
   return CODEX_FULL_ACCESS_CONSENT_RE.test(codexPickerCompact(rawScan));
+}
+
+/** Which consent row the `›` cursor currently highlights (1 = Yes continue, 2 =
+ *  Yes & don't ask again, 3 = Cancel), or null if none is recognized yet. The
+ *  label anchor separates it from the /permissions picker rows behind it.
+ *  Most-recent-wins. */
+export function parseCodexConsentCursor(rawScan: string): 1 | 2 | 3 | null {
+  const compact = codexPickerCompact(rawScan);
+  let best: 1 | 2 | 3 | null = null;
+  let bestIndex = -1;
+  for (const [re, row] of CODEX_CONSENT_CURSOR_RES) {
+    const globalRe = new RegExp(re.source, "g");
+    let match: RegExpExecArray | null;
+    let lastIndex = -1;
+    while ((match = globalRe.exec(compact)) !== null) {
+      lastIndex = match.index;
+      globalRe.lastIndex = match.index + 1;
+    }
+    if (lastIndex > bestIndex) {
+      bestIndex = lastIndex;
+      best = row;
+    }
+  }
+  return best;
 }
 
 /** The mode whose row currently holds the `›` cursor, or null if no cursor row is

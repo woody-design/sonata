@@ -21,6 +21,10 @@ const {
   parseCodexModelLevel1,
   parseCodexModelLevel2,
   parseCodexModelReceipt,
+  claudeCacheMissDialogOpen,
+  parseClaudeCacheMissCursor,
+  claudeCacheMissCancelled,
+  parseCodexConsentCursor,
 } = require("../../dist/runtime");
 
 // — Success: model —
@@ -597,5 +601,85 @@ assert.equal(
   null,
   "a /model receipt is not a /permissions receipt",
 );
+
+// ── S7: claude cache-miss confirm dialog (park + drawer relay) ──────────────
+// Verbatim frames (claude 2.1.214 — spikes/midsession-switch-probe/findings.md
+// §"S7 cache-miss probe"). The parser compacts (ANSI-strip + whitespace-strip),
+// so these human-readable strings exercise the same path the pty tail does.
+const CACHE_MISS_MODEL =
+  "Switch model?\n" +
+  "Your next response will be slower and use more tokens\n" +
+  "This conversation is cached for the current model. Switching to Sonnet 5 means the full history gets re-read on your next message.\n" +
+  "❯ 1. Yes, switch to Sonnet 5\n" +
+  "  2. No, go back";
+const CACHE_MISS_EFFORT =
+  "Change effort level?\n" +
+  "Your next response will be slower and use more tokens\n" +
+  "This conversation is cached for the current effort level. Switching to low means the full history gets re-read on your next message.\n" +
+  "❯ 1. Yes, switch to low\n" +
+  "  2. No, go back";
+assert.equal(claudeCacheMissDialogOpen(CACHE_MISS_MODEL), true, "the model cache-miss dialog is recognized");
+assert.equal(claudeCacheMissDialogOpen(CACHE_MISS_EFFORT), true, "the effort cache-miss dialog is recognized");
+// Negative — the co-occurrence guard (RED LINE: prose must not forge it):
+assert.equal(
+  claudeCacheMissDialogOpen(
+    "Sure — the full history gets re-read on your next message when you switch, but you don't need to worry.",
+  ),
+  false,
+  "the body phrase ALONE (assistant prose) is NOT the dialog — needs the No-row too",
+);
+assert.equal(
+  claudeCacheMissDialogOpen("Options:\n 1. keep going\n 2. No, go back"),
+  false,
+  "a `2. No, go back` row ALONE is NOT the dialog — needs the body phrase too",
+);
+// Cursor (arrows move `❯`; Enter selects):
+assert.equal(parseClaudeCacheMissCursor(CACHE_MISS_MODEL), 1, "cursor starts on row 1 (Yes)");
+assert.equal(
+  parseClaudeCacheMissCursor("  1. Yes, switch to Sonnet 5\n❯ 2. No, go back"),
+  2,
+  "cursor on row 2 (No) after a down-arrow",
+);
+assert.equal(
+  parseClaudeCacheMissCursor(
+    "❯ 1. Yes, switch to Sonnet 5\n  2. No, go back\n  1. Yes, switch to Sonnet 5\n❯ 2. No, go back",
+  ),
+  2,
+  "most-recent cursor frame wins (a stale row-1 repaint can't outvote row 2)",
+);
+assert.equal(parseClaudeCacheMissCursor("❯ Write your prompt here"), null, "the composer `❯` prompt is not a dialog cursor");
+// Cancel receipt (No / Esc → `Kept … as …`, axis-scoped):
+assert.equal(claudeCacheMissCancelled("  ⎿  Kept model as Fable 5", "model"), true, "a `Kept model as` line is a model cancel");
+assert.equal(claudeCacheMissCancelled("  ⎿  Kept model as Fable 5", "effort"), false, "a model cancel is not an effort cancel");
+assert.equal(claudeCacheMissCancelled("  ⎿  Kept effort level as high", "effort"), true, "a `Kept effort level as` line is an effort cancel");
+
+// ── S7: codex Full Access consent cursor (park + drawer relay) ──────────────
+const CONSENT_DIALOG =
+  "Enable full access?\n" +
+  "When Codex runs with full access, it can edit any file on your computer and run commands with network, without your approval.\n" +
+  "› 1. Yes, continue anyway      Apply full access for this session\n" +
+  "  2. Yes, and don't ask again  Enable full access and remember this choice\n" +
+  "  3. Cancel                    Go back without enabling full access";
+assert.equal(codexPermissionConsentDialogOpen(CONSENT_DIALOG), true, "the consent dialog is recognized (S3 anchor)");
+assert.equal(parseCodexConsentCursor(CONSENT_DIALOG), 1, "consent cursor starts on row 1 (Yes, continue anyway)");
+assert.equal(
+  parseCodexConsentCursor(
+    "  1. Yes, continue anyway\n  2. Yes, and don't ask again\n› 3. Cancel  Go back without enabling full access",
+  ),
+  3,
+  "consent cursor on row 3 (Cancel) after two down-arrows",
+);
+// Disambiguation: the /permissions picker rows are painted BEHIND the modal —
+// the consent cursor parser must read the CONSENT rows, never the picker's.
+assert.equal(
+  parseCodexConsentCursor(
+    "› 1. Ask for approval (current)  Codex can read and edit files\n" +
+      "Enable full access?\n" +
+      "  1. Yes, continue anyway\n  2. Yes, and don't ask again\n› 3. Cancel  Go back",
+  ),
+  3,
+  "the picker's `› 1. Ask for approval` behind the modal is not the consent cursor",
+);
+assert.equal(parseCodexConsentCursor("› 1. Ask for approval (current)"), null, "a bare /permissions picker frame has no consent cursor");
 
 console.log("midsession-receipt: OK");
