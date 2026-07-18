@@ -118,8 +118,8 @@ export function parseClaudeControlReceipt(
 // mode line as the per-step *choreography receipt* to learn which mode it just
 // landed in. Probe-verified cycle + strings (claude 2.1.214, this account —
 // spikes/midsession-switch-probe/findings.md §S0):
-//   default (Manual) ↔ `manual mode on`   acceptEdits ↔ `accept edits on`
-//   plan             ↔ `plan mode on`      auto        ↔ `auto mode on`
+//   default (Manual) ↔ `⏸ manual mode on`    acceptEdits ↔ `⏵⏵ accept edits on`
+//   plan             ↔ `⏸ plan mode on`      auto        ↔ `⏵⏵ auto mode on`
 //   cycle: manual → accept edits → plan → auto → manual (auto is account-gated).
 // The line is receipt-only — the hook payload's `permission_mode` stays the
 // state SSOT (lazy reconcile). Compacted match (escapes + ALL whitespace
@@ -127,21 +127,31 @@ export function parseClaudeControlReceipt(
 // detector, so a split landing inside an escape reassembles first; LAST match
 // wins so a repaint of a prior mode line can't outvote the current one.
 //
-// bypassPermissions is DELIBERATELY ABSENT: it is not a Shift+Tab cycle member
-// (probe cycle excludes it) and never spawn-reachable for a Sonata session (the
-// launch UI offers only default/acceptEdits/auto), so the stepping engine can
-// never legitimately need to parse or reach it. Its mode-line string is
-// unverified — do NOT guess one; verify in an e2e (spawn `--permission-mode
-// bypassPermissions`) before ever adding it here.
+// ANCHORED on the leading status glyph (measured — spikes/glyph-capture.mjs):
+// every mode line's phrase is immediately preceded, AFTER compaction, by one of
+// exactly two glyphs — `⏸` U+23F8 (manual/plan) or `⏵⏵` U+23F5 U+23F5
+// (accept edits/auto). The glyph is NOT unique per mode (so it can't identify
+// one — the phrase does that), but it is a boundary prose can't forge. This is
+// the S2-specific hardening the review demanded: without the anchor a repaint
+// of assistant prose containing the target phrase (e.g. "…I'll turn plan mode
+// on…" → compacts to `…planmodeon…`) would read as a receipt and settle the
+// choreography ONE MODE SHORT while signalling success — a silent
+// under-delivery (S1's un-anchored false-match is harmless by contrast: it only
+// drops a pending affordance). The glyph never appears in prose immediately
+// before the exact phrase, so anchoring on it rejects the prose without
+// weakening the true positives (re-verified against a real stepping e2e).
+const MODE_LINE_GLYPH = "[\\u23f8\\u23f5]";
 const PERMISSION_MODE_LINE_RES: ReadonlyArray<readonly [RegExp, ClaudePermissionMode]> = [
-  [/accepteditson/, "acceptEdits"],
-  [/manualmodeon/, "default"],
-  [/planmodeon/, "plan"],
-  [/automodeon/, "auto"],
+  [new RegExp(`${MODE_LINE_GLYPH}accepteditson`), "acceptEdits"],
+  [new RegExp(`${MODE_LINE_GLYPH}manualmodeon`), "default"],
+  [new RegExp(`${MODE_LINE_GLYPH}planmodeon`), "plan"],
+  [new RegExp(`${MODE_LINE_GLYPH}automodeon`), "auto"],
 ];
 
 /** Parse the most recent TUI permission mode line out of the compacted RAW tail,
  *  or null if none is recognized yet (keep waiting until the per-step timeout).
+ *  Each pattern is anchored on the leading status glyph (`⏸` / `⏵⏵`) so
+ *  prose that merely contains a mode phrase can't be misread as a receipt.
  *  "Most recent" = the match at the greatest index, so a redraw of the prior
  *  mode line can't mask the step's real landing. */
 export function parseClaudePermissionModeLine(rawScan: string): ClaudePermissionMode | null {
@@ -149,12 +159,15 @@ export function parseClaudePermissionModeLine(rawScan: string): ClaudePermission
   let best: ClaudePermissionMode | null = null;
   let bestIndex = -1;
   for (const [re, mode] of PERMISSION_MODE_LINE_RES) {
-    // `re` sources are lowercase, glued forms — match against the compacted tail.
+    // `re` sources are glyph-anchored, lowercase, glued forms — match against the
+    // compacted tail (the glyphs are case-invariant, so lowercasing is safe).
     const globalRe = new RegExp(re.source, "g");
     let match: RegExpExecArray | null;
     let lastIndex = -1;
     while ((match = globalRe.exec(compact)) !== null) {
-      lastIndex = match.index;
+      // The match index points at the glyph; order by where the PHRASE lands
+      // (index of the last char) so `⏵⏵` (2 chars) and `⏸` (1 char) rank fairly.
+      lastIndex = match.index + match[0].length;
       globalRe.lastIndex = match.index + 1;
     }
     if (lastIndex > bestIndex) {

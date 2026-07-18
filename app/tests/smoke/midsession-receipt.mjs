@@ -176,11 +176,40 @@ assert.equal(
 );
 
 // — Case-insensitive (defensive): the TUI is lowercase, but the parser lowercases
-//   so a capitalization change upstream doesn't silently break detection. —
+//   so a capitalization change upstream doesn't silently break detection. (The
+//   glyph anchor is case-invariant, so the leading `⏵⏵` still qualifies.) —
 assert.equal(
-  parseClaudePermissionModeLine("ACCEPT EDITS ON"),
+  parseClaudePermissionModeLine("⏵⏵ ACCEPT EDITS ON"),
   "acceptEdits",
-  "case-insensitive match",
+  "case-insensitive match (glyph-anchored)",
+);
+
+// — GLYPH ANCHOR (S2 review finding 1): the phrase alone, WITHOUT the leading
+//   status glyph, must NOT settle — otherwise a repaint of assistant prose that
+//   happens to contain the target phrase would halt the choreography one mode
+//   short while signalling success (silent under-delivery). The real mode line
+//   is always glyph-prefixed (measured — spikes/glyph-capture.mjs). —
+assert.equal(
+  parseClaudePermissionModeLine("I'll turn plan mode on next"),
+  null,
+  "prose containing the phrase but NO leading glyph must not be read as a receipt",
+);
+assert.equal(
+  parseClaudePermissionModeLine("please switch to accept edits on the repo"),
+  null,
+  "prose 'accept edits on …' without the glyph is not a receipt",
+);
+assert.equal(
+  parseClaudePermissionModeLine("planmodeon"),
+  null,
+  "the bare glued phrase (no glyph) is not a receipt",
+);
+// …but a real glyphed mode line sitting AFTER prose that contains the phrase
+// still parses to the real landing (the anchor rejects the prose, keeps the line).
+assert.equal(
+  parseClaudePermissionModeLine("I'll turn plan mode on next\n⏸ manual mode on"),
+  "default",
+  "a real glyphed mode line still wins over prose containing a (glyph-less) phrase",
 );
 
 console.log("midsession-receipt: OK");
