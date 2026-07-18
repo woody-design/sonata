@@ -7,12 +7,7 @@
  * Electron, no renderer state. Selectors that read the active view take it
  * as a parameter (the shell passes `activeTaskView()` / draft state).
  */
-import type {
-  ClaudePermissionMode,
-  ReasoningEffort,
-  RuntimeProvider,
-  SlashCommandEntry,
-} from "../../shared/types";
+import type { ClaudePermissionMode, ReasoningEffort, SlashCommandEntry } from "../../shared/types";
 import type { OptionPromptDetectedEvent } from "../../shared/types/events";
 import type { OptionPromptAnswers, OptionPromptSelection } from "../../shared/types/option-prompt";
 import type {
@@ -134,27 +129,6 @@ export function sessionModelSummaryLabel(view: TaskViewState | null): string | n
     (part): part is string => Boolean(part),
   );
   return parts.length > 0 ? parts.join(" ") : null;
-}
-
-/** The live model chip's tooltip: mid-session model/effort switching is a
- *  terminal action, and each CLI names it its own way. Claude's /model swaps
- *  the model; Codex's /model ("Select Model and Effort") covers both — the
- *  chip is display-only either way (contract §2), so the copy points at the
- *  native command instead of implying an in-composer switch. */
-export function sessionModelSwitchHint(provider: RuntimeProvider): string {
-  return provider === "codex"
-    ? "Switch model and effort in the CLI — /model"
-    : "Switch models in the CLI — /model";
-}
-
-/** The live permission chip's tooltip. Claude cycles modes with Shift+Tab or
- *  /permissions; Codex has no Shift+Tab cycle — only /permissions ("choose
- *  what Codex is allowed to do"). Naming Shift+Tab for a Codex session would
- *  point at an affordance that doesn't exist. */
-export function sessionPermissionSwitchHint(provider: RuntimeProvider): string {
-  return provider === "codex"
-    ? "Switch permissions in the CLI — /permissions"
-    : "Switch modes in the CLI — Shift+Tab or /permissions";
 }
 
 /** The permission modes the live-session access menu offers (S2). The base triad
