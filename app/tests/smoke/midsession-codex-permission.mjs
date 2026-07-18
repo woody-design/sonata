@@ -133,6 +133,11 @@ try {
     "C: Full Access consent dialog is not auto-answered — the switch rolls back to needs-attention",
   );
   assert.equal(
+    findings.switchC.reason,
+    "consent",
+    "C: the consent-gate rollback carries reason 'consent' (S5 — banner says 'Confirm Full Access in the CLI')",
+  );
+  assert.equal(
     findings.switchC.pickerClosed,
     true,
     "C: the rollback Esc returned to the composer (consent dialog + picker both closed)",
@@ -207,6 +212,7 @@ async function drive(from, target, { residualText } = {}) {
     pickerOpened,
     pending: evts.some((e) => e.phase === "pending"),
     phase: terminal?.phase ?? null,
+    reason: terminal?.reason ?? null,
     receipt,
     pickerClosed,
   };

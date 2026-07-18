@@ -21,6 +21,20 @@ import {
 } from "./block-helpers";
 
 /**
+ * A codex rollout `turn_context` record's session-state fields (item E). Raw
+ * strings — the controller validates them (effort → ReasoningEffort; approval +
+ * sandbox → CodexPermissionMode via migrateCodexPermissionMode). Emitted per
+ * turn so a NATIVE `/model` / `/permissions` switch (which never touches Sonata's
+ * mirrors) can be reconciled from the rollout, the lazy SSOT.
+ */
+export interface CodexTurnContextObservation {
+  model: string | null;
+  effort: string | null;
+  approvalPolicy: string | null;
+  sandboxPolicy: string | null;
+}
+
+/**
  * Normalizes Codex rollout JSONL records into transcript blocks.
  *
  * Codex stores conversational text twice: as `response_item` protocol records
@@ -32,6 +46,7 @@ export class CodexRolloutNormalizer {
   private readonly taskId: TaskId;
   private readonly sourceId: string;
   private readonly onUsageSnapshot: ((snapshot: UsageSnapshot) => void) | null;
+  private readonly onTurnContext: ((context: CodexTurnContextObservation) => void) | null;
   private seq = 0;
   private turnSeq = 0;
   private currentTurnKey: string | null = null;
@@ -60,10 +75,12 @@ export class CodexRolloutNormalizer {
     taskId: TaskId;
     sourceId: string;
     onUsageSnapshot?: (snapshot: UsageSnapshot) => void;
+    onTurnContext?: (context: CodexTurnContextObservation) => void;
   }) {
     this.taskId = options.taskId;
     this.sourceId = options.sourceId;
     this.onUsageSnapshot = options.onUsageSnapshot ?? null;
+    this.onTurnContext = options.onTurnContext ?? null;
   }
 
   consumeLine(line: string): TranscriptBlock[] {
@@ -94,6 +111,15 @@ export class CodexRolloutNormalizer {
     if (record.type === "response_item") {
       return this.consumeResponseItem(payload, ts);
     }
+    // `turn_context` (item E) — codex writes the turn's live model / effort /
+    // approval / sandbox at turn START. It is the ONLY on-disk mirror of these
+    // axes (codex has no statusline/hook feed for them), so a native `/model` or
+    // `/permissions` switch surfaces here and nowhere else. Not conversational —
+    // no TranscriptBlock; it rides a side-channel callback like onUsageSnapshot.
+    if (record.type === "turn_context") {
+      this.emitTurnContext(payload);
+      return [];
+    }
     // A context-compaction boundary (P3). The top-level `compacted` record lands
     // inside its OWN `task_started` boundary turn (no user_message), so
     // ensureTurn() keys it to that turn — a distinct group the Reading surface
@@ -106,6 +132,28 @@ export class CodexRolloutNormalizer {
       return [this.buildCompactionBlock(ts)];
     }
     return [];
+  }
+
+  /** Extract the turn's session-state fields from a `turn_context` payload and
+   *  hand them to the reconcile callback. Every field is optional/defensive —
+   *  a shape drift silently yields null (the controller then keeps the mirror),
+   *  never a throw. `model`/`effort` are top-level; `sandbox_policy` nests its
+   *  kind under `.type`. */
+  private emitTurnContext(payload: Record<string, unknown>): void {
+    if (!this.onTurnContext) {
+      return;
+    }
+    const sandbox = payload.sandbox_policy;
+    const sandboxPolicy =
+      typeof sandbox === "object" && sandbox !== null && typeof (sandbox as Record<string, unknown>).type === "string"
+        ? ((sandbox as Record<string, unknown>).type as string)
+        : null;
+    this.onTurnContext({
+      model: typeof payload.model === "string" ? payload.model : null,
+      effort: typeof payload.effort === "string" ? payload.effort : null,
+      approvalPolicy: typeof payload.approval_policy === "string" ? payload.approval_policy : null,
+      sandboxPolicy,
+    });
   }
 
   private consumeEventMsg(payload: Record<string, unknown>, ts: string): TranscriptBlock[] {

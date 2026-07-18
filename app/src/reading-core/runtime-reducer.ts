@@ -28,6 +28,7 @@ import {
   reconcileReceiptLines,
   sessionModelSummaryLabel,
 } from "./selectors/composer";
+import { modelValueLabel } from "./config";
 
 function isActiveView(state: RendererState, view: TaskViewState): boolean {
   return Boolean(view.task && view.task.id === state.activeTaskId);
@@ -215,6 +216,9 @@ export function reduceRuntimeEvent(
         kind: event.payload.kind,
         value: event.payload.value,
         phase: "needs-attention",
+        // A known cause (S5) sharpens the banner to the exact next action; absent ⇒
+        // the generic "check the CLI" fallback (banners.ts).
+        ...(event.payload.reason ? { reason: event.payload.reason } : {}),
       };
     } else if (event.payload.phase === "failed") {
       // A clean rejection (`Model '<x>' not found`): nothing changed CLI-side, so
@@ -322,6 +326,32 @@ export function reduceRuntimeEvent(
   if (event.type === "usage:updated") {
     const previousModelSummary = sessionModelSummaryLabel(view);
     view.usageSnapshot = event.payload.snapshot;
+    // (D) Auto-clear a LINGERING claude model/effort needs-attention pointer once
+    // the statusline mirror — the axis's own SSOT, an OWNED observation, not a
+    // scrape — confirms the switched value actually landed. The default S1 flow is:
+    // the injected /model earns a cache-miss interstitial → needs-attention banner →
+    // the user answers natively → the chip follows the statusline. Without this the
+    // banner keeps reading "Confirm the switch…" while the chip already shows the
+    // new value. Guard: clear ONLY when the SWITCHED value matches the live
+    // statusline value, so an unrelated tick (or a DIFFERENT pending switch) never
+    // clears the banner. Claude-only: codex has no statusline mirror, and its
+    // needs-attention is always a rollback (nothing landed) — no lingering case.
+    const pending = view.controlSwitch;
+    let controlSwitchCleared = false;
+    if (pending?.phase === "needs-attention" && (pending.kind === "model" || pending.kind === "effort")) {
+      const snapshot = event.payload.snapshot;
+      const landed =
+        pending.kind === "model"
+          ? Boolean(
+              snapshot.modelDisplayName &&
+                modelValueLabel("claude", pending.value) === snapshot.modelDisplayName,
+            )
+          : Boolean(snapshot.reasoningEffort && snapshot.reasoningEffort === pending.value);
+      if (landed) {
+        view.controlSwitch = null;
+        controlSwitchCleared = true;
+      }
+    }
     // A usage tick is not content and not unread. Update only the usage
     // indicator (and the popover, if open) in place — never a full render(),
     // which would replaceChildren the transcript and wipe any active text
@@ -336,6 +366,10 @@ export function reduceRuntimeEvent(
           taskId,
           chipChanged: sessionModelSummaryLabel(view) !== previousModelSummary,
           popoverOpen: Boolean(state.usagePopover),
+          // (D) The auto-clear dropped the needs-attention pointer — the banner row
+          // must repaint (usage-in-place otherwise never touches banners). Only set
+          // when it actually cleared, so the common tick keeps its minimal shape.
+          ...(controlSwitchCleared ? { bannersChanged: true } : {}),
         },
       ];
     }

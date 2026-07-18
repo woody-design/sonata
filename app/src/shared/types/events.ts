@@ -320,7 +320,27 @@ export type ControlSwitchStateEvent = BaseRuntimeEvent<
      *  codex-effort). */
     codexModel?: string | null;
     codexEffort?: ReasoningEffort | null;
+    /** needs-attention ONLY: WHY the drive couldn't confirm, when the cause is
+     *  known — so the banner can name the exact next action instead of the generic
+     *  "check the CLI" fallback (S5). Absent ⇒ a generic timeout/opaque-screen
+     *  rollback (the fallback copy). Cases:
+     *   - `interstitial` — claude model/effort earned no receipt in time: the CLI
+     *     is showing a cache-miss confirm / Fable-consent dialog the user must
+     *     answer natively (the DEFAULT flow on a session with history — S1). Banner:
+     *     "Confirm the switch in the CLI".
+     *   - `consent` — codex Full Access opened its `Enable full access?` consent
+     *     dialog; Sonata rolled back rather than auto-answer (RED LINE 2 — a human
+     *     grant). Banner: "Confirm Full Access in the CLI".
+     *   - `drift` — a codex `/model` target row was absent from the live picker
+     *     (legacy/curated-list drift, D5) or the effort to preserve had no v1 row;
+     *     nothing changed CLI-side. Banner: "Model list changed upstream — switch
+     *     in the CLI". */
+    reason?: "interstitial" | "consent" | "drift";
   }
+>;
+
+export type ControlSwitchAttentionReason = NonNullable<
+  ControlSwitchStateEvent["payload"]["reason"]
 >;
 
 export type ApprovalDetectedEvent = BaseRuntimeEvent<
@@ -492,6 +512,47 @@ export type UsageUpdatedEvent = BaseRuntimeEvent<
 >;
 
 /**
+ * A codex rollout `turn_context` record was observed (item E — mid-session
+ * switch S5). Codex has NO statusline/hook mirror for its model, reasoning
+ * effort, or permission axes (the asymmetry the whole codex switch design works
+ * around), so a NATIVE switch — the user typing `/model` or `/permissions`
+ * directly in the co-visible Terminal, not driven by Sonata — never updates
+ * task.model / task.reasoningEffort / task.codexPermissionMode; the mirrors go
+ * stale. The rollout writes a per-turn `turn_context` carrying the turn's actual
+ * model + effort + approval/sandbox policy, so it is the lazy SSOT: the
+ * controller reconciles the three mirrors off it (see runtime-controller
+ * `reconcileCodexTurnContext`), backstopping the picker-receipt FAST path with a
+ * rollout-driven correction. This also removes the staleness the S4 codex-model
+ * switch's effort-preservation depends on (it reads task.reasoningEffort to
+ * preserve effort at picker level 2 — a stale mirror would push a stale effort
+ * onto the live CLI; a reconciled mirror can't). turn_context lands at turn
+ * START (well before the Stop signal), so by the next turn's completion a native
+ * switch made in the prior turn is already reflected. CONTROLLER-INTERNAL — the
+ * reconcile emits `task:updated`, which the renderer already consumes, so this
+ * event is never forwarded to the renderer.
+ */
+export type CodexTurnContextObservedEvent = BaseRuntimeEvent<
+  "codex-turn-context:observed",
+  {
+    taskId: TaskId;
+    /** The turn's model slug (`turn_context.payload.model`, e.g. `gpt-5.6-sol`),
+     *  or null when absent. Matches the codex slug task.model already stores. */
+    model: string | null;
+    /** The turn's reasoning effort (`turn_context.payload.effort`, e.g. `high`) —
+     *  a raw string, validated against ReasoningEffort by the controller. */
+    effort: string | null;
+    /** The turn's approval policy (`turn_context.payload.approval_policy`, e.g.
+     *  `on-request` / `never`) — mapped to CodexPermissionMode by the controller
+     *  via `migrateCodexPermissionMode` (the same reverse-map manifests use). */
+    approvalPolicy: string | null;
+    /** The turn's sandbox policy type (`turn_context.payload.sandbox_policy.type`,
+     *  e.g. `read-only` / `workspace-write` / `danger-full-access`) — the other
+     *  input to `migrateCodexPermissionMode`. */
+    sandboxPolicy: string | null;
+  }
+>;
+
+/**
  * The persisted session index changed (session created, renamed, archived,
  * deleted, or a project overlay edit). Carries no data — listeners re-read
  * the index via session:index:read.
@@ -539,6 +600,7 @@ export type ProductRuntimeEvent =
   | TranscriptLocatedEvent
   | TranscriptBlocksEvent
   | UsageUpdatedEvent
+  | CodexTurnContextObservedEvent
   | SessionsUpdatedEvent;
 
 export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
@@ -549,6 +611,7 @@ export type RunIndexEvent = Exclude<
   | TranscriptLocatedEvent
   | TranscriptBlocksEvent
   | UsageUpdatedEvent
+  | CodexTurnContextObservedEvent
   | SessionsUpdatedEvent
   | CliStateChangedEvent
   | CliHooksLivenessEvent

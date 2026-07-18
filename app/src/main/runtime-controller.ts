@@ -1452,6 +1452,17 @@ export class RuntimeController {
       this.maybeApplyProviderSessionName(event.payload.taskId, event.payload.snapshot.sessionName);
       return;
     }
+    if (event.type === "codex-turn-context:observed") {
+      // Item E: the codex rollout's per-turn turn_context is the lazy SSOT for
+      // model/effort/permission — reconcile the mirrors a NATIVE switch left
+      // stale. Controller-internal (emits task:updated, never forwarded to the
+      // renderer), so it early-returns like usage:updated.
+      const runtime = this.taskRuntimes.get(event.payload.taskId);
+      if (runtime) {
+        this.reconcileCodexTurnContext(runtime, event.payload);
+      }
+      return;
+    }
     if (event.type === "sessions:updated") {
       this.sendEvent(event);
       return;
@@ -2274,6 +2285,76 @@ export class RuntimeController {
       return;
     }
     active.task = { ...active.task, model: nextModel, reasoningEffort: nextEffort };
+    this.persistTaskManifest(active.task, active.storageRoot);
+    this.sendEvent({
+      type: "task:updated",
+      payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
+      ts: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Reconcile a codex task's mirrors (model, reasoning effort, permission mode)
+   * from the rollout's per-turn `turn_context` (item E — mid-session switch S5).
+   * This is the LAZY SSOT that backstops the picker-receipt fast paths
+   * (applyCodexModelSwitchReceipt / applyCodexPermissionSwitchReceipt above): a
+   * NATIVE switch — the user typing `/model` or `/permissions` directly in the
+   * co-visible Terminal — earns no receipt and leaves those mirrors stale, since
+   * codex (unlike claude's statusline/hook feed) exposes these axes ONLY in the
+   * rollout. Reading them back from turn_context corrects the drift, and removes
+   * the staleness the S4 codex-model switch's effort-preservation depends on (it
+   * reads task.reasoningEffort to hold effort at picker level 2 — a stale mirror
+   * would push a stale effort onto the live CLI).
+   *
+   * Same write discipline as the receipt reconcilers: mirror in place with a
+   * frozen updatedAt (a runtime-status refresh is metadata, not activity — the
+   * sidebar ordering must not jump), persist, and emit ONE task:updated only when
+   * something actually changed. Every field is validated/mapped before it lands:
+   * effort against REASONING_EFFORTS; approval + sandbox through the same
+   * migrateCodexPermissionMode reverse-map manifests use — a shape drift yields
+   * null and simply preserves the current mirror. Codex-only by construction
+   * (turn_context is a codex rollout record), but guarded regardless.
+   */
+  private reconcileCodexTurnContext(
+    active: ActiveTaskRuntime,
+    context: {
+      model: string | null;
+      effort: string | null;
+      approvalPolicy: string | null;
+      sandboxPolicy: string | null;
+    },
+  ): void {
+    if (active.task.provider !== "codex") {
+      return;
+    }
+    const nextModel =
+      context.model && context.model.trim().length > 0 ? context.model : active.task.model;
+    const nextEffort =
+      context.effort && REASONING_EFFORTS.has(context.effort as ReasoningEffort)
+        ? (context.effort as ReasoningEffort)
+        : active.task.reasoningEffort;
+    // The rollout carries approval + sandbox policies, not a CodexPermissionMode —
+    // map them through the same reverse-map the manifest migration uses. A turn
+    // that carries neither axis (map returns null) leaves the mirror as-is.
+    const mappedMode = migrateCodexPermissionMode({
+      provider: "codex",
+      sandbox: context.sandboxPolicy,
+      approval: context.approvalPolicy,
+    });
+    const nextMode = mappedMode ?? active.task.codexPermissionMode;
+    if (
+      active.task.model === nextModel &&
+      active.task.reasoningEffort === nextEffort &&
+      active.task.codexPermissionMode === nextMode
+    ) {
+      return;
+    }
+    active.task = {
+      ...active.task,
+      model: nextModel,
+      reasoningEffort: nextEffort,
+      codexPermissionMode: nextMode,
+    };
     this.persistTaskManifest(active.task, active.storageRoot);
     this.sendEvent({
       type: "task:updated",

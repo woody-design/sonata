@@ -302,6 +302,9 @@ export function performDirective(directive: Directive): void {
       if (directive.chipChanged) {
         renderComposerControls(view);
       }
+      if (directive.bannersChanged) {
+        renderAttentionBanners(view);
+      }
       if (directive.popoverOpen) {
         renderComposerPopover(view);
       }

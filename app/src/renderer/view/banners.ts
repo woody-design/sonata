@@ -72,8 +72,22 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
           : kind === "effort" || kind === "codex-effort"
             ? "reasoning"
             : "access";
+      // A known cause (S5) names the exact next action; otherwise the generic
+      // fallback. `interstitial` — the CLI is showing the cache-miss/consent
+      // handoff the user answers natively (the DEFAULT claude flow on a session
+      // with history). `consent` — codex's Full Access grant is the human's to give
+      // (RED LINE 2). `drift` — the codex model list moved upstream, so the switch
+      // has to be made natively.
+      const message =
+        view.controlSwitch.reason === "interstitial"
+          ? "Confirm the switch in the CLI"
+          : view.controlSwitch.reason === "consent"
+            ? "Confirm Full Access in the CLI"
+            : view.controlSwitch.reason === "drift"
+              ? "Model list changed upstream — switch in the CLI"
+              : `Couldn't confirm the ${axis} switch — check the CLI`;
       banners.push(
-        attentionBanner("control-switch", `Couldn't confirm the ${axis} switch — check the CLI`, () => {
+        attentionBanner("control-switch", message, () => {
           actions.dismissControlSwitch(view);
         }),
       );

@@ -25,7 +25,11 @@ import type {
   RunStatus,
   TaskId,
 } from "../../shared/types/domain";
-import type { RuntimeEvent, RunUpdatedEvent } from "../../shared/types/events";
+import type {
+  ControlSwitchAttentionReason,
+  RuntimeEvent,
+  RunUpdatedEvent,
+} from "../../shared/types/events";
 import type {
   ClaudeControlSwitchKind,
   ClaudeControlSwitchResponse,
@@ -958,6 +962,11 @@ type PendingControlSwitch =
       /** The row the last arrow press is expected to move the cursor to. */
       awaitingCursor: CodexPermissionMode | null;
       navSteps: number;
+      /** Set once a KNOWN needs-attention cause is recognized mid-flow, so the
+       *  eventual (async, post-rollback) `finishCodexPicker` can name it. `consent`
+       *  = the Full Access `Enable full access?` dialog was seen (RED LINE 2 — never
+       *  auto-answered). Absent ⇒ a generic timeout/opaque-screen rollback. */
+      attentionReason: ControlSwitchAttentionReason | null;
       timer: NodeJS.Timeout | null;
     }
   | {
@@ -1041,6 +1050,12 @@ type PendingControlSwitch =
       awaitingCursor: string | null;
       navSteps: number;
       rollbackEscs: number;
+      /** Set when a KNOWN needs-attention cause is recognized, so the async
+       *  (post-rollback) `finishCodexModel` can name it. `drift` = the target model
+       *  row was absent from the live picker (legacy/curated-list drift, D5), or the
+       *  effort to preserve had no v1 row. Absent ⇒ a generic timeout/opaque-screen
+       *  rollback. */
+      attentionReason: ControlSwitchAttentionReason | null;
       timer: NodeJS.Timeout | null;
     };
 
@@ -1824,6 +1839,7 @@ export class TerminalHost extends EventEmitter {
       lastCursor: null,
       awaitingCursor: null,
       navSteps: 0,
+      attentionReason: null,
       timer: null,
     };
     this.emitControlSwitchState("pending", { kind: "codex-permission", value: target });
@@ -1909,6 +1925,9 @@ export class TerminalHost extends EventEmitter {
       // receipt. Never auto-answer it — roll back the moment we recognize it (a
       // consent gate the human owns), rather than waiting out the confirm timeout.
       if (codexPermissionConsentDialogOpen(scan)) {
+        // RED LINE 2 — a Full Access grant is the human's to give. Record WHY so
+        // the banner reads "Confirm Full Access in the CLI" after the rollback.
+        pending.attentionReason = "consent";
         this.failCodexPicker(pending);
         return;
       }
@@ -2063,8 +2082,13 @@ export class TerminalHost extends EventEmitter {
     pending: Extract<PendingControlSwitch, { axis: "codex-permission" }>,
   ): void {
     const target = pending.target;
+    const reason = phase === "needs-attention" ? pending.attentionReason : null;
     this.clearPendingControlSwitch();
-    this.emitControlSwitchState(phase, { kind: "codex-permission", value: target });
+    this.emitControlSwitchState(phase, {
+      kind: "codex-permission",
+      value: target,
+      ...(reason ? { reason } : {}),
+    });
   }
 
   // ── Codex `/model` two-level picker choreography (S4) ────────────────────────
@@ -2115,6 +2139,7 @@ export class TerminalHost extends EventEmitter {
       awaitingCursor: null,
       navSteps: 0,
       rollbackEscs: 0,
+      attentionReason: null,
       timer: null,
     };
     this.emitControlSwitchState("pending", { kind, value });
@@ -2268,6 +2293,12 @@ export class TerminalHost extends EventEmitter {
       }
     }
     if (!target) {
+      // A curated target absent from the LIVE picker rows (legacy/list drift, D5),
+      // no preservable (current), or the preserve-effort has no v1 row — nothing
+      // changed CLI-side, and the cause is upstream drift, not an opaque screen.
+      // (The test seam forces this path too; it inherits the drift banner, which is
+      // the behavior it exercises.) Name it so the banner says "switch in the CLI".
+      pending.attentionReason = "drift";
       this.failCodexModelPicker(pending); // absent row (D5) / no (current) / seam
       return false;
     }
@@ -2482,7 +2513,11 @@ export class TerminalHost extends EventEmitter {
       });
       return;
     }
-    this.emitControlSwitchState(phase, { kind, value });
+    this.emitControlSwitchState(phase, {
+      kind,
+      value,
+      ...(pending.attentionReason ? { reason: pending.attentionReason } : {}),
+    });
   }
 
   /**
@@ -2546,7 +2581,11 @@ export class TerminalHost extends EventEmitter {
     }
     const { kind, value } = pending;
     this.clearPendingControlSwitch();
-    this.emitControlSwitchState("needs-attention", { kind, value });
+    // The screen is an unrecognized interstitial (cache-miss confirm / Fable
+    // consent) the user must answer natively — the DEFAULT flow on a session with
+    // history (S1). Name it so the banner points at the confirm, not the generic
+    // "couldn't confirm".
+    this.emitControlSwitchState("needs-attention", { kind, value, reason: "interstitial" });
   }
 
   private clearPendingControlSwitch(): void {
@@ -2599,6 +2638,7 @@ export class TerminalHost extends EventEmitter {
       observedModes?: ClaudePermissionMode[];
       codexModel?: string | null;
       codexEffort?: ReasoningEffort | null;
+      reason?: ControlSwitchAttentionReason;
     },
   ): void {
     this.emitEvent("control-switch:state", {
@@ -2610,6 +2650,7 @@ export class TerminalHost extends EventEmitter {
       ...(payload.observedModes ? { observedModes: payload.observedModes } : {}),
       ...(payload.codexModel !== undefined ? { codexModel: payload.codexModel } : {}),
       ...(payload.codexEffort !== undefined ? { codexEffort: payload.codexEffort } : {}),
+      ...(payload.reason ? { reason: payload.reason } : {}),
     });
   }
 

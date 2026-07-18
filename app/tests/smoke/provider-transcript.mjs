@@ -1262,6 +1262,66 @@ check("codex: token_count event fires onUsageSnapshot (display-path wiring)", ()
   assert.equal(snapshot.limits[1]?.label, "weekly");
 });
 
+// Item E (mid-session switch S5): the codex rollout `turn_context` record is the
+// ONLY on-disk mirror of the turn's live model / effort / permission (codex has
+// no statusline/hook feed), so a NATIVE `/model` or `/permissions` switch surfaces
+// here and nowhere else. Verify the normalizer parses it off the REAL 0.144.5
+// shape (top-level model/effort, nested sandbox_policy.type) and fires the
+// side-channel callback — without emitting a transcript block. Shape captured from
+// spikes/compaction-records-2026-07/codex-rollout.jsonl.
+check("codex: turn_context fires onTurnContext (native-switch reconcile wiring)", () => {
+  const contexts = [];
+  const normalizer = new CodexRolloutNormalizer({
+    taskId: "task-1",
+    sourceId: "codex:s1",
+    onTurnContext: (context) => contexts.push(context),
+  });
+  const blocks = normalizer.consumeLine(
+    JSON.stringify({
+      timestamp: "2026-07-15T09:54:20.704Z",
+      type: "turn_context",
+      payload: {
+        turn_id: "019f6532-df91-7dc3-9ca2-905c15010068",
+        approval_policy: "on-request",
+        sandbox_policy: { type: "read-only" },
+        model: "gpt-5.6-sol",
+        effort: "low",
+        summary: "auto",
+      },
+    }),
+  );
+  assert.equal(blocks.length, 0, "turn_context is not a transcript block");
+  assert.equal(contexts.length, 1, "onTurnContext fired exactly once");
+  assert.deepEqual(
+    contexts[0],
+    { model: "gpt-5.6-sol", effort: "low", approvalPolicy: "on-request", sandboxPolicy: "read-only" },
+    "top-level model/effort + nested sandbox_policy.type + approval_policy extracted",
+  );
+});
+
+// A shape-drifted turn_context (missing/renamed fields) must degrade to nulls,
+// never throw — the controller then keeps the current mirror.
+check("codex: turn_context with missing fields degrades to nulls", () => {
+  const contexts = [];
+  const normalizer = new CodexRolloutNormalizer({
+    taskId: "task-1",
+    sourceId: "codex:s1",
+    onTurnContext: (context) => contexts.push(context),
+  });
+  normalizer.consumeLine(
+    JSON.stringify({
+      timestamp: "2026-07-15T09:54:20.704Z",
+      type: "turn_context",
+      payload: { turn_id: "x", sandbox_policy: {} },
+    }),
+  );
+  assert.deepEqual(
+    contexts[0],
+    { model: null, effort: null, approvalPolicy: null, sandboxPolicy: null },
+    "absent fields (and a sandbox_policy with no .type) become null",
+  );
+});
+
 // --- Codex image prompts join the [Image #N] reading rule (S6, S5 carry C1) ---
 // Real codex (0.137–0.142) decorates an attached image as an `[Image #N]`
 // placeholder at the head of `user_message.message`, with the file in

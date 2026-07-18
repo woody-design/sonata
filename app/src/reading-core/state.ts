@@ -31,6 +31,7 @@ import type {
 } from "../shared/types";
 import type {
   ApprovalDetectedEvent,
+  ControlSwitchAttentionReason,
   OptionPromptDetectedEvent,
   TranscriptBlocksEvent,
 } from "../shared/types/events";
@@ -186,6 +187,12 @@ export interface TaskViewState {
           | "codex-effort";
         value: string;
         phase: "pending" | "needs-attention";
+        /** needs-attention ONLY, when the cause is known (S5): sharpens the banner
+         *  from the generic "check the CLI" to the exact next action. See
+         *  `ControlSwitchAttentionReason` — `interstitial` (claude cache-miss/consent
+         *  handoff), `consent` (codex Full Access gate), `drift` (codex model-list
+         *  drift). Absent ⇒ the generic fallback copy. */
+        reason?: ControlSwitchAttentionReason;
       }
     | null;
   /** The permission modes this session can actually reach via Shift+Tab (D4 — no

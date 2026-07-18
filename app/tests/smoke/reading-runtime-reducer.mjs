@@ -1011,6 +1011,104 @@ function workingStatus(liveness) {
     assert.equal(view.status, "Ready", "needs-attention does not overwrite status (banner carries it)");
   }
 
+  // S5 item C — needs-attention carries a `reason` when the cause is known, so the
+  // banner sharpens from the generic "check the CLI" to the exact next action.
+  {
+    const { state, view } = seedView({ status: "Ready" });
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("needs-attention", { kind: "codex-model", value: "gpt-5.4", reason: "drift" }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.controlSwitch,
+      { kind: "codex-model", value: "gpt-5.4", phase: "needs-attention", reason: "drift" },
+      "needs-attention threads the reason onto the pointer",
+    );
+  }
+
+  // S5 item D — a lingering claude model needs-attention pointer AUTO-CLEARS once
+  // the statusline mirror (the SSOT) confirms the switched value landed (the user
+  // answered the cache-miss interstitial natively). The clearing usage tick carries
+  // bannersChanged so the banner row repaints.
+  {
+    const mkSnap = (modelDisplayName, reasoningEffort) => ({
+      provider: "claude",
+      capturedAt: NOW_MS,
+      context: null,
+      limits: [],
+      modelDisplayName,
+      reasoningEffort,
+    });
+
+    // Model: value "sonnet" ↔ statusline "Sonnet 5" → cleared + bannersChanged.
+    {
+      const { state, view } = seedView({
+        controlSwitch: { kind: "model", value: "sonnet", phase: "needs-attention", reason: "interstitial" },
+      });
+      const d = R.reduceRuntimeEvent(
+        state,
+        evt("usage:updated", { taskId: "task-A", snapshot: mkSnap("Sonnet 5", "high") }),
+        NOW_MS,
+      );
+      assert.equal(view.controlSwitch, null, "statusline confirms the model landed → banner auto-clears");
+      assert.equal(
+        d.find((x) => x.kind === "usage-in-place")?.bannersChanged,
+        true,
+        "the clearing tick flags bannersChanged so the banner repaints",
+      );
+    }
+
+    // Model MISMATCH: value "sonnet" but statusline still "Opus 4.8" → NOT cleared
+    // (guards a different pending switch's banner from an unrelated tick).
+    {
+      const { state, view } = seedView({
+        controlSwitch: { kind: "model", value: "sonnet", phase: "needs-attention", reason: "interstitial" },
+      });
+      R.reduceRuntimeEvent(
+        state,
+        evt("usage:updated", { taskId: "task-A", snapshot: mkSnap("Opus 4.8", "high") }),
+        NOW_MS,
+      );
+      assert.deepEqual(
+        view.controlSwitch,
+        { kind: "model", value: "sonnet", phase: "needs-attention", reason: "interstitial" },
+        "an unrelated statusline value leaves the pointer intact",
+      );
+    }
+
+    // Effort: value "high" ↔ statusline reasoningEffort "high" → cleared.
+    {
+      const { state, view } = seedView({
+        controlSwitch: { kind: "effort", value: "high", phase: "needs-attention", reason: "interstitial" },
+      });
+      R.reduceRuntimeEvent(
+        state,
+        evt("usage:updated", { taskId: "task-A", snapshot: mkSnap("Opus 4.8", "high") }),
+        NOW_MS,
+      );
+      assert.equal(view.controlSwitch, null, "statusline confirms the effort landed → banner auto-clears");
+    }
+
+    // A PENDING (not needs-attention) pointer is untouched — auto-clear is a
+    // needs-attention-only polish; pending still settles on its own event.
+    {
+      const { state, view } = seedView({
+        controlSwitch: { kind: "model", value: "sonnet", phase: "pending" },
+      });
+      R.reduceRuntimeEvent(
+        state,
+        evt("usage:updated", { taskId: "task-A", snapshot: mkSnap("Sonnet 5", "high") }),
+        NOW_MS,
+      );
+      assert.deepEqual(
+        view.controlSwitch,
+        { kind: "model", value: "sonnet", phase: "pending" },
+        "a pending pointer is never auto-cleared by the statusline",
+      );
+    }
+  }
+
   // Permission axis (S2): pending records a permission-kind pointer (dims the
   // ACCESS chip); settled clears it. The label follows the hook payload, not this.
   {

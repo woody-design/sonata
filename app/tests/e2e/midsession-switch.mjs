@@ -128,6 +128,17 @@ try {
     if (evidenceDir) {
       await page.screenshot({ path: path.join(evidenceDir, "02-needs-attention.png") });
     }
+    // (S5 item F) Double-surface check: the cache-miss confirm dialog is a plain
+    // TUI select prompt (about re-reading history), NOT a tool-approval panel — its
+    // prose carries none of parseClaudeApprovalPanel's anchors (do-you-want-to /
+    // quick-safety-check / by-proceeding-you-accept), so the approval scrape must
+    // NOT mis-read it as a phantom approval card alongside the designed banner.
+    // Empirically confirmed here on the real CLI: the approval banner stays hidden.
+    assert.equal(
+      await page.locator("#approval-banner").isVisible(),
+      false,
+      "F: the cache-miss dialog is not double-surfaced as a phantom approval card",
+    );
     // Send is gated while the switch is unresolved (review fix A): the CLI's
     // Yes/No confirm is still on screen, so a send here would bracket-paste into
     // it. Type text FIRST so the empty-composer disable can't mask the result —
@@ -156,16 +167,22 @@ try {
     await page.screenshot({ path: path.join(evidenceDir, "03-after-model-switch.png") });
   }
 
-  // Dismissing the lingering needs-attention banner re-enables send in the same
-  // paint (review fix A follow-up: dismissControlSwitch does a full render). Only
-  // meaningful when the RED LINE path was taken (the banner exists).
-  let dismissReenabledSend = null;
-  if (sawNeedsAttention && (await needsAttention.isVisible().catch(() => false))) {
+  // (S5 item D) Auto-clear on confirmed landing: once the statusline mirror (the
+  // SSOT) confirmed the switched model — the chip followed, above — the lingering
+  // needs-attention banner clears ITSELF, no manual dismiss, so it never reads
+  // "Confirm the switch…" while the chip already shows the new model. Send
+  // re-enables in the same paint. Only meaningful on the RED LINE path (a banner
+  // existed to clear); on a clean settle there was never a banner.
+  let bannerAutoCleared = null;
+  if (sawNeedsAttention) {
+    await needsAttention.waitFor({ state: "detached", timeout: 15000 });
+    bannerAutoCleared = true;
     await page.locator("#prompt-input").fill("now this should be sendable");
-    await needsAttention.locator(".attention-banner-dismiss").click();
-    await needsAttention.waitFor({ state: "detached", timeout: 5000 });
-    dismissReenabledSend = !(await page.locator("#send-prompt").isDisabled());
-    assert.equal(dismissReenabledSend, true, "dismissing the banner re-enables send in the same paint");
+    assert.equal(
+      await page.locator("#send-prompt").isDisabled(),
+      false,
+      "D: send re-enables once the statusline auto-clears the switch pointer",
+    );
     await page.locator("#prompt-input").fill("");
   }
 
@@ -180,7 +197,7 @@ try {
         selectedModelLabel,
         target,
         sawNeedsAttention,
-        dismissReenabledSend,
+        bannerAutoCleared,
         switchedLabel,
         success: true,
       },

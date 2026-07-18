@@ -10,6 +10,7 @@ import type {
 import type { UsageSnapshot } from "../../shared/types/usage";
 import { ClaudeSessionNormalizer } from "./claude-normalizer";
 import { CodexRolloutNormalizer } from "./codex-normalizer";
+import type { CodexTurnContextObservation } from "./codex-normalizer";
 import { JsonlTailer } from "./jsonl-tailer";
 import { locateSessionFile } from "./session-locator";
 
@@ -538,6 +539,7 @@ export class ProviderTranscript {
           taskId: this.options.taskId,
           sourceId: ref.sourceId,
           onUsageSnapshot: (snapshot) => this.emitUsageSnapshot(snapshot),
+          onTurnContext: (context) => this.emitCodexTurnContext(context),
         });
   }
 
@@ -739,6 +741,24 @@ export class ProviderTranscript {
       payload: {
         taskId: this.options.taskId,
         snapshot,
+      },
+      ts: new Date().toISOString(),
+    });
+  }
+
+  /** Relay a codex `turn_context` observation to the controller for mirror
+   *  reconcile (item E). Same side-channel shape as emitUsageSnapshot; the event
+   *  is controller-internal (never forwarded to the renderer — the reconcile it
+   *  drives emits task:updated, which the renderer already consumes). */
+  private emitCodexTurnContext(context: CodexTurnContextObservation): void {
+    this.emitEvent({
+      type: "codex-turn-context:observed",
+      payload: {
+        taskId: this.options.taskId,
+        model: context.model,
+        effort: context.effort,
+        approvalPolicy: context.approvalPolicy,
+        sandboxPolicy: context.sandboxPolicy,
       },
       ts: new Date().toISOString(),
     });

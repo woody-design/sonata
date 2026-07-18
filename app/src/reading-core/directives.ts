@@ -31,7 +31,15 @@ export type RenderDirective =
    *  when the model summary label changed (`chipChanged`, S6.5) and the
    *  popover when it is open (`popoverOpen`). NEVER a full render — it would
    *  replaceChildren the transcript and wipe any active text selection. */
-  | { kind: "usage-in-place"; taskId: string; chipChanged: boolean; popoverOpen: boolean }
+  | {
+      kind: "usage-in-place";
+      taskId: string;
+      chipChanged: boolean;
+      popoverOpen: boolean;
+      /** (D) The usage tick also cleared a landed control-switch needs-attention
+       *  pointer — repaint the banner row (usage-in-place otherwise skips banners). */
+      bannersChanged?: boolean;
+    }
   /** New live/structured transcript content: the 160 ms debounced
    *  transcript-stream render (T3). */
   | { kind: "transcript-debounced"; taskId: string }

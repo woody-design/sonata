@@ -167,8 +167,13 @@ try {
   // C — mismatch rollbacks: needs-attention, picker(s) closed, mode unchanged.
   assert.equal(findings.switchC1.phase, "needs-attention", "C1: absent model rolls back (D5)");
   assert.equal(findings.switchC1.pickerClosed, true, "C1: the rollback Esc returned to the composer");
+  // S5 item C: an absent curated target is upstream model-list drift — the
+  // needs-attention event carries reason "drift" so the banner says "switch in the
+  // CLI" instead of the generic "couldn't confirm".
+  assert.equal(findings.switchC1.reason, "drift", "C1: absent-model rollback is reasoned as drift");
   assert.equal(findings.switchC2.phase, "needs-attention", "C2: level-2 miss rolls back");
   assert.equal(findings.switchC2.pickerClosed, true, "C2: the Esc×2 rollback returned to the composer");
+  assert.equal(findings.switchC2.reason, "drift", "C2: level-2 miss (no v1 row) is reasoned as drift");
 
   // D — residual text switch still settled AND burned no turn.
   assert.equal(findings.switchD.phase, "settled", "D: switch with residual composer text still settled");
@@ -238,6 +243,7 @@ async function drive(kind, value, { residualText, from } = {}) {
     pickerOpened,
     pending: evts.some((e) => e.phase === "pending"),
     phase: terminal?.phase ?? null,
+    reason: terminal?.reason ?? null,
     codexModel: terminal?.codexModel ?? null,
     codexEffort: terminal?.codexEffort ?? null,
     pickerClosed,
