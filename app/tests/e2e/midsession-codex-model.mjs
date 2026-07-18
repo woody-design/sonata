@@ -11,8 +11,8 @@ import { sendPrompt, selectSidebarSession, waitForEngagement } from "./helpers/s
 // choreography:
 //   (e) while the cold-start turn runs, the chip is a designed DISABLED state;
 //   (a) at idle it opens the Model + Reasoning menu — the curated codex model list
-//       and the v1 reasoning set (low→xhigh), each with the current value marked,
-//       plus the CLI-default caption;
+//       and the v1 reasoning set (low→xhigh), each with the current value marked
+//       (no CLI-default caption — removed S6);
 //   (b) selecting a REASONING (High → Extra High) drives the picker (open → level 1
 //       stays on the current model's (current) row → level 2 navigates to Extra
 //       high → confirm); the `• Model changed to <model> xhigh` receipt settles it,
@@ -72,11 +72,16 @@ try {
   await page.evaluate(() => {
     window.__controlSwitchEvents = [];
     window.__runStarts = 0;
+    window.__transcriptBlocks = 0;
     window.sonataRuntime.onRuntimeEvent((event) => {
       if (event.type === "control-switch:state") {
         window.__controlSwitchEvents.push(event.payload);
       } else if (event.type === "run:started") {
         window.__runStarts += 1;
+      } else if (event.type === "transcript:blocks") {
+        // The reopen re-attaches the persisted rollout and DRAINS it — that replay
+        // re-emits this source's blocks (reset batch), our signal the drain ran.
+        window.__transcriptBlocks += 1;
       }
     });
   });
@@ -146,8 +151,9 @@ try {
   findings.currentReasoningMarked = await currentMarkedLabel(page, "Reasoning");
   assert.equal(findings.currentModelMarked, SPAWN_MODEL_LABEL, "the current model is marked");
   assert.equal(findings.currentReasoningMarked, "High", "the current reasoning is marked");
-  findings.caption = (await menu.locator(".task-setting-caption").textContent())?.trim() ?? "";
-  assert.ok(/Codex's default/i.test(findings.caption), "the menu notes the CLI-default side effect");
+  // No CLI-default caption (removed S6, field revision 5 — disclosure in docs).
+  findings.captionCount = await menu.locator(".task-setting-caption").count();
+  assert.equal(findings.captionCount, 0, "the CLI-default caption is gone (S6 removal)");
 
   // (b) SWITCH REASONING High → Extra High (model preserved via level-1 (current)).
   await settingSection(page, "Reasoning").locator("button", { hasText: exact("Extra High") }).click();
@@ -197,6 +203,49 @@ try {
   // RED LINE 1: no switch started a chat turn.
   findings.runStarts = await page.evaluate(() => window.__runStarts ?? 0);
   assert.equal(findings.runStarts, 0, "no switch burned a turn — zero run:started across the choreography");
+
+  // (d) RESUME REGRESSION (S6 field bug). The switches above ran NO turn, so the
+  //     rollout's LAST turn_context still reflects the cold-start turn (5.6 Sol /
+  //     High) — the switched Luna/xhigh live ONLY in the manifest (picker receipts).
+  //     On reopen the SAME appended-to rollout is re-attached and DRAINED in full;
+  //     a naive reconcile would REPLAY that stale turn_context and revert the mirror
+  //     (chip 回到 Sol/High — exactly Woody's field report). The fix keeps the
+  //     turn_context reconcile LIVE-only, so a replay drain leaves the switch intact.
+  const blocksBeforeResume = await page.evaluate(() => window.__transcriptBlocks ?? 0);
+  await page.evaluate((id) => window.sonataRuntime.closeTask({ taskId: id }), taskId);
+  await page.evaluate((id) => window.sonataRuntime.openTask({ taskId: id, resume: true }), taskId);
+  await selectSidebarSession(page, taskId);
+  // Wait for the reopened session to re-attach + DRAIN the SAME rollout — the drain
+  // re-emits this source's blocks (the replay that, unfixed, reconciles the stale
+  // turn_context and reverts the mirror).
+  await page.waitForFunction(
+    (before) => (window.__transcriptBlocks ?? 0) > before,
+    blocksBeforeResume,
+    { timeout: 120000 },
+  );
+  // Settle beat: a (buggy) reconcile persists the manifest synchronously on the
+  // drain, so once located has fired the clobber — if any — has already landed.
+  await page.waitForTimeout(2500);
+  findings.manifestAfterResume = readManifest(projectsDir, taskId);
+  assert.equal(
+    findings.manifestAfterResume?.model,
+    TARGET_MODEL,
+    "the switched model SURVIVES a reopen — a replay drain must NOT reconcile the stale turn_context (S6 chip-reverts-on-reopen bug)",
+  );
+  assert.equal(
+    findings.manifestAfterResume?.reasoningEffort,
+    "xhigh",
+    "the switched reasoning SURVIVES a reopen (same replay-drain guard)",
+  );
+  await page.waitForFunction(
+    () => /5\.6 Luna/i.test(document.querySelector("#model-chip")?.textContent ?? ""),
+    { timeout: 15000 },
+  );
+  findings.chipAfterResume = (await modelChip.textContent())?.trim() ?? "";
+  assert.ok(
+    findings.chipAfterResume.includes(TARGET_MODEL_LABEL) && /Extra High/i.test(findings.chipAfterResume),
+    "the chip still shows 5.6 Luna / Extra High after reopen (no revert)",
+  );
 
   findings.success = true;
   console.log(JSON.stringify({ workspaceRoot, findings, success: true }, null, 2));

@@ -2017,6 +2017,115 @@ await (async () => {
   }
 })();
 
+// Mid-session switch S6 — the codex turn_context reconcile (item E) is LIVE-only.
+// The FIELD BUG: a `turn_context` records the state of the turn that WROTE it (the
+// last turn before any post-turn switch). On reopen/resume, the same appended-to
+// rollout is re-attached and DRAINED in full — replaying that last, now-stale
+// turn_context. Item E reconciles unconditionally, so the replay clobbered the
+// manifest's more-recent Sonata-driven switch and the composer chip REVERTED on
+// reopen (exactly what Woody saw: "已经选择的选项并不会 reflect 到 chips 里面").
+// The fresh-session e2es never re-drained, so they missed it. Fix: a drain is a
+// replay, and a replayed turn_context must not reconcile — only one tailed LIVE
+// (a genuine native switch observed as it happens) may.
+await (async () => {
+  const name =
+    "provider-transcript: codex turn_context reconcile is LIVE-only — a resume drain must not replay stale history (S6 midsession-switch)";
+  try {
+    const sessionsDir = path.join(tempRoot, "codex-s6-live-only-sessions");
+    const cwd = path.join(tempRoot, "workspace-s6-live-only");
+    fs.mkdirSync(cwd, { recursive: true });
+    const now = new Date();
+    const dayDir = path.join(
+      sessionsDir,
+      String(now.getFullYear()),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    );
+    fs.mkdirSync(dayDir, { recursive: true });
+
+    // The rollout ALREADY holds the last turn's turn_context (model 5.6 Sol /
+    // high) — the state as of the turn before the user switched, mid-session, to
+    // 5.6 Luna / xhigh (a switch that never wrote its own turn_context: the
+    // picker choreography burns no turn). This is what a reopen re-drains.
+    const rolloutPath = path.join(dayDir, "rollout-2026-07-18T09-00-00-sess-s6.jsonl");
+    fs.writeFileSync(
+      rolloutPath,
+      [
+        JSON.stringify({
+          timestamp: now.toISOString(),
+          type: "session_meta",
+          payload: { id: "sess-s6", cwd, timestamp: now.toISOString() },
+        }),
+        JSON.stringify({
+          timestamp: now.toISOString(),
+          type: "turn_context",
+          payload: {
+            model: "gpt-5.6-sol",
+            effort: "high",
+            approval_policy: "on-request",
+            sandbox_policy: { type: "workspace-write" },
+          },
+        }),
+        "",
+      ].join("\n"),
+    );
+
+    const events = [];
+    const transcript = new ProviderTranscript({
+      taskId: "task-s6-live-only",
+      provider: "codex",
+      providerCwd: cwd,
+      eventSink: (event) => events.push(event),
+      resolveRunId: () => null,
+      expectedSessionId: "sess-s6",
+      allowMtimeFallback: false,
+      locate: (options) => locateSessionFile({ ...options, codexSessionsDir: sessionsDir }),
+      pollMs: 50,
+    });
+
+    // Discovery binds by identity on the first pass (id present, file on disk),
+    // then drains the whole existing rollout.
+    transcript.startDiscovery(new Date(Date.now() - 5_000).toISOString());
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const drainContexts = events.filter((e) => e.type === "codex-turn-context:observed");
+    assert.equal(
+      drainContexts.length,
+      0,
+      "the initial drain REPLAYS pre-existing rollout content — its stale turn_context must NOT reconcile (the manifest, holding the more recent switch, is authoritative; replaying is the S6 chip-reverts-on-reopen bug)",
+    );
+
+    // A genuine LIVE turn now appends a fresh turn_context (a real native switch,
+    // e.g. the user typed /model in the co-visible Terminal) — this one MUST
+    // reconcile, or item E's native-switch coverage is lost.
+    fs.appendFileSync(
+      rolloutPath,
+      `${JSON.stringify({
+        timestamp: new Date().toISOString(),
+        type: "turn_context",
+        payload: {
+          model: "gpt-5.6-luna",
+          effort: "xhigh",
+          approval_policy: "on-request",
+          sandbox_policy: { type: "workspace-write" },
+        },
+      })}\n`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    transcript.dispose();
+
+    const liveContexts = events.filter((e) => e.type === "codex-turn-context:observed");
+    assert.equal(liveContexts.length, 1, "a turn_context tailed LIVE still reconciles (native-switch coverage held)");
+    assert.equal(liveContexts[0].payload.model, "gpt-5.6-luna", "the live observation carries the switched model");
+    assert.equal(liveContexts[0].payload.effort, "xhigh", "the live observation carries the switched effort");
+    console.log(`ok   ${name}`);
+  } catch (error) {
+    failures.push(name);
+    console.error(`FAIL ${name}`);
+    console.error(error);
+  }
+})();
+
 // --- Plan blocks (slice 2: TodoWrite / update_plan extraction) ---------------
 
 check("claude: TodoWrite upserts one plan block per turn; orphan result drops", () => {

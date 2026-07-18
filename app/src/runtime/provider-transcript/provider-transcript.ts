@@ -110,6 +110,19 @@ export class ProviderTranscript {
    *  key for deferral (emit once the source attaches) and for source-scoped
    *  eviction on truncation. */
   private readonly codexRosterSourceId = new Map<string, string>();
+  /** True only while a tailer is REPLAYING a source's pre-existing content (the
+   *  initial `drain()`), false during live forward-tailing. Gates the codex
+   *  `turn_context` reconcile (item E) to LIVE observations — see
+   *  emitCodexTurnContext. A `turn_context` records the state of the turn that
+   *  WROTE it (the last turn before any post-turn switch), so replaying it on a
+   *  reopen/resume — where attachExistingSource re-reads the whole appended-to
+   *  rollout — would reconcile the session's mirrors back to that stale turn and
+   *  clobber a more recent Sonata-driven switch the manifest already holds. That
+   *  is the S6 field bug: a mid-session model/effort/permission switch reverts on
+   *  the chip after the session is reopened. Usage snapshots deliberately do NOT
+   *  gate on this: they are latest-wins and the last token_count IS the current
+   *  usage, so a drain re-emit is correct for them. */
+  private replayingDrain = false;
   private disposed = false;
 
   constructor(options: ProviderTranscriptOptions) {
@@ -140,7 +153,7 @@ export class ProviderTranscript {
       return;
     }
     const attached = this.attachSource(ref);
-    attached.tailer.drain();
+    this.drainReplaying(attached);
     if (options.tail) {
       attached.tailer.start();
     }
@@ -198,7 +211,7 @@ export class ProviderTranscript {
       },
       ts: new Date().toISOString(),
     });
-    attached.tailer.drain();
+    this.drainReplaying(attached);
     attached.tailer.start();
     // The source is now attached (and drained past its first reset) — flush any
     // subagent roster deferred while it was still discovering (reviewer F2). The
@@ -520,7 +533,7 @@ export class ProviderTranscript {
       },
       ts: new Date().toISOString(),
     });
-    attached.tailer.drain();
+    this.drainReplaying(attached);
     attached.tailer.start();
     // The source is now attached (and drained past its first reset) — flush any
     // subagent roster deferred while it was still discovering (reviewer F2). The
@@ -528,6 +541,21 @@ export class ProviderTranscript {
     // adoption-trails race; a no-op when there are no pending rosters or for
     // Claude sources.
     this.syncCodexRostersForSource(ref.sourceId);
+  }
+
+  /** Read a source's existing content through its tailer, marking the pass as a
+   *  REPLAY so the codex `turn_context` reconcile stays live-only (replayingDrain
+   *  — the S6 resume-clobber fix). Synchronous: `drain()` reads and dispatches
+   *  every line before returning, so the flag is correctly scoped to exactly the
+   *  replayed lines and cleared before live tailing (start()) begins. */
+  private drainReplaying(attached: AttachedSource): void {
+    const previous = this.replayingDrain;
+    this.replayingDrain = true;
+    try {
+      attached.tailer.drain();
+    } finally {
+      this.replayingDrain = previous;
+    }
   }
 
   private createNormalizer(
@@ -749,8 +777,18 @@ export class ProviderTranscript {
   /** Relay a codex `turn_context` observation to the controller for mirror
    *  reconcile (item E). Same side-channel shape as emitUsageSnapshot; the event
    *  is controller-internal (never forwarded to the renderer — the reconcile it
-   *  drives emits task:updated, which the renderer already consumes). */
+   *  drives emits task:updated, which the renderer already consumes).
+   *
+   *  LIVE-only (replayingDrain — the S6 resume-clobber fix): a turn_context read
+   *  by the initial drain replays a PAST turn's state, which must not reconcile
+   *  the mirrors backward over a more recent switch the manifest already holds.
+   *  Only a turn_context observed while live forward-tailing — a real native
+   *  switch as it happens — reaches the reconcile. A native switch made while
+   *  Sonata was closed self-heals on that session's next live turn. */
   private emitCodexTurnContext(context: CodexTurnContextObservation): void {
+    if (this.replayingDrain) {
+      return;
+    }
     this.emitEvent({
       type: "codex-turn-context:observed",
       payload: {
