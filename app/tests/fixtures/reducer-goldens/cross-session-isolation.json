@@ -331,7 +331,10 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "modelSwitch": null,
+            "controlSwitch": null,
+            "observedPermissionModes": [
+              "acceptEdits"
+            ],
             "approvalExpired": false,
             "status": "Ready",
             "unread": false,
@@ -524,7 +527,10 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "modelSwitch": null,
+            "controlSwitch": null,
+            "observedPermissionModes": [
+              "acceptEdits"
+            ],
             "approvalExpired": false,
             "status": "Ready",
             "unread": true,
@@ -861,7 +867,10 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "modelSwitch": null,
+            "controlSwitch": null,
+            "observedPermissionModes": [
+              "acceptEdits"
+            ],
             "approvalExpired": false,
             "status": "Ready",
             "unread": true,
@@ -1054,7 +1063,10 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "modelSwitch": null,
+            "controlSwitch": null,
+            "observedPermissionModes": [
+              "acceptEdits"
+            ],
             "approvalExpired": false,
             "status": "Ready",
             "unread": true,

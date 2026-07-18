@@ -219,7 +219,12 @@ export function registerIpcHandlers(
     runtimeController.injectRemoteControl(request.taskId),
   );
   ipcMain.handle(IPC_CHANNELS.claudeControlSwitch, (_event, request) =>
-    runtimeController.switchClaudeControl(request.taskId, request.kind, request.value),
+    runtimeController.switchClaudeControl(
+      request.taskId,
+      request.kind,
+      request.value,
+      request.from,
+    ),
   );
   ipcMain.handle(IPC_CHANNELS.previewOpen, (_event, request) =>
     windowController.openPreview(request),

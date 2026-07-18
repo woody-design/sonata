@@ -865,18 +865,22 @@ export class RuntimeController {
   }
 
   /**
-   * Kick off a mid-session Claude `/model` / `/effort` switch (S1). A live PTY is
-   * required — a dormant session has nothing to drive. The provider gate lives in
-   * the TerminalHost (codex refuses: an inline `/model` arg burns a turn); the
-   * receipt drives the `model-switch:state` event, not this return.
+   * Kick off a mid-session Claude `/model` / `/effort` (S1) or `permission` (S2)
+   * switch. A live PTY is required — a dormant session has nothing to drive. The
+   * provider gate lives in the TerminalHost (codex refuses: an inline `/model`
+   * arg burns a turn, and codex has no Shift+Tab cycle); the receipt(s) drive the
+   * `control-switch:state` event, not this return. `from` is the permission
+   * origin (the session's current mode) — the stepping engine's return-home
+   * anchor; ignored for model/effort.
    */
   switchClaudeControl(
     taskId: TaskId,
     kind: ClaudeControlSwitchKind,
     value: string,
+    from?: string,
   ): ClaudeControlSwitchResponse {
     const active = this.requireLiveTaskRuntime(taskId);
-    return active.terminalHost.injectClaudeControlSwitch(kind, value);
+    return active.terminalHost.injectClaudeControlSwitch(kind, value, from);
   }
 
   writeTerminalUserInput(taskId: TaskId, data: string): void {
@@ -2150,13 +2154,20 @@ export class RuntimeController {
   }
 
   /**
-   * Keep the displayed permission mode current from hook payloads (contract
-   * §2: mid-session switching lives in the Terminal — Shift+Tab, /permissions
-   * — and Reading only DISPLAYS the mode; the banner scrape that used to
-   * verify drives is retired in S4). Every hook event carries
-   * `permission_mode`, so a native switch is reflected on the next hook
-   * activity — not instantly on the keypress; the statusline payload has no
-   * mode field, so hooks are the only structured source.
+   * Keep the displayed permission mode current from hook payloads — the state
+   * SSOT for permission mode. Every hook event carries `permission_mode`, so a
+   * switch is reflected on the next hook activity (lazily — not instantly on the
+   * keypress); the statusline payload has no mode field, so hooks are the only
+   * structured source.
+   *
+   * Contract §2 note: the clause once read "mid-session switching lives in the
+   * Terminal; Reading only DISPLAYS the mode." Amended 2026-07-18 (Mid-session
+   * Switch Program, Woody approved — product-thinking/2026-07-18-midsession-
+   * switch-v0.md): Reading may now also DRIVE the switch, by stepping the native
+   * Shift+Tab cycle (S2) and reading the TUI mode line as a *choreography receipt*.
+   * That does NOT move the SSOT — this reconcile stays authoritative; the mode
+   * line is receipt-only and never writes task.permissionMode. Terminal-native
+   * Shift+Tab / /permissions continue to land here on the next hook, unchanged.
    */
   private applyHookPermissionMode(active: ActiveTaskRuntime, payload: HookPayload): void {
     const mode = payload.permission_mode;

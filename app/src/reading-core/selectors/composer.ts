@@ -8,6 +8,7 @@
  * as a parameter (the shell passes `activeTaskView()` / draft state).
  */
 import type {
+  ClaudePermissionMode,
   ReasoningEffort,
   RuntimeProvider,
   SlashCommandEntry,
@@ -154,6 +155,20 @@ export function sessionPermissionSwitchHint(provider: RuntimeProvider): string {
   return provider === "codex"
     ? "Switch permissions in the CLI — /permissions"
     : "Switch modes in the CLI — Shift+Tab or /permissions";
+}
+
+/** The permission modes the live-session access menu offers (S2). The base triad
+ *  (default / acceptEdits / plan) is always reachable via Shift+Tab; the gated
+ *  modes (auto — account-gated; bypassPermissions — spawn-only) appear ONLY once
+ *  this session has been OBSERVED in them, so the menu never lists a mode the
+ *  cycle can't reach (D4 — no dead steps). Order follows the mode vocabulary. */
+const PERMISSION_MENU_BASE: readonly ClaudePermissionMode[] = ["default", "acceptEdits", "plan"];
+const PERMISSION_MENU_GATED: readonly ClaudePermissionMode[] = ["auto", "bypassPermissions"];
+
+export function sessionPermissionMenuModes(view: TaskViewState): ClaudePermissionMode[] {
+  const observed = view.observedPermissionModes;
+  const gated = PERMISSION_MENU_GATED.filter((mode) => observed.includes(mode));
+  return [...PERMISSION_MENU_BASE, ...gated];
 }
 
 export function sendPromptTitle(

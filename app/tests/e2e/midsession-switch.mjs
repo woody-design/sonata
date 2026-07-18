@@ -113,7 +113,7 @@ try {
   await settingSection(page, "Model").locator("button", { hasText: exact(target) }).click();
 
   const followed = page.locator("#model-chip", { hasText: target });
-  const needsAttention = page.locator('.attention-banner[data-kind="model-switch"]');
+  const needsAttention = page.locator('.attention-banner[data-kind="control-switch"]');
   await Promise.race([
     followed.waitFor({ state: "visible", timeout: 30000 }),
     needsAttention.waitFor({ state: "visible", timeout: 30000 }),
@@ -157,7 +157,7 @@ try {
   }
 
   // Dismissing the lingering needs-attention banner re-enables send in the same
-  // paint (review fix A follow-up: dismissModelSwitch does a full render). Only
+  // paint (review fix A follow-up: dismissControlSwitch does a full render). Only
   // meaningful when the RED LINE path was taken (the banner exists).
   let dismissReenabledSend = null;
   if (sawNeedsAttention && (await needsAttention.isVisible().catch(() => false))) {

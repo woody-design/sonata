@@ -6,6 +6,7 @@ import type {
   ApprovalDecisionEncoding,
   ApprovalKind,
   ChangeKind,
+  ClaudePermissionMode,
   CompletionConfidence,
   CompletionHint,
   CompletionSource,
@@ -254,28 +255,47 @@ export type RemoteControlStateEvent = BaseRuntimeEvent<
 >;
 
 /**
- * A mid-session Claude model/effort switch changed phase (mid-session switch
- * program S1). Sonata injected `/model <id>` / `/effort <level>` as typed text
- * and watches the pty stream for the CLI's own receipt line:
- *   - `pending` — injected; waiting for the receipt.
- *   - `settled` — the CLI printed `Set model to …` / `Set effort level to …`.
- *     The chip follows the STATUSLINE mirror (the model authority), not this
- *     event — screen text is a choreography receipt, never state SSOT.
- *   - `failed` — the CLI printed `Model '<x>' not found`. `error` carries the
- *     surfaced reason; nothing changed CLI-side.
- *   - `needs-attention` — no receipt within the timeout and the screen is in an
- *     unrecognized state (a possible cache-miss confirm / consent interstitial).
- *     RED LINE: Sonata does NOTHING further — no auto-answer, no blind-Enter, no
- *     retry — and points the user at the CLI.
+ * A mid-session Claude control switch changed phase (mid-session switch
+ * program). One event family for every axis Reading can drive natively:
+ *   - `model` / `effort` (S1) — Sonata injected `/model <id>` / `/effort <level>`
+ *     as typed text and watches the pty stream for the CLI's own receipt line
+ *     (`Set model to …` / `Set effort level to …`). One-shot.
+ *   - `permission` (S2) — Sonata drove the Shift+Tab (`\x1b[Z`) stepping engine,
+ *     using the TUI mode line (`plan mode on`, `auto mode on`, …) as the
+ *     per-step choreography receipt. `value` is the TARGET mode id; the state
+ *     SSOT stays the hook payload's `permission_mode` (lazy reconcile — the mode
+ *     line is receipt-only). `observedModes` lists every mode the choreography
+ *     confirmed via a receipt this run, so the renderer can learn which
+ *     account-gated modes (`auto`) this session can actually reach.
+ * Phases:
+ *   - `pending` — the switch is driving; waiting for its receipt(s).
+ *   - `settled` — the target was confirmed (model/effort receipt line, or the
+ *     target mode line for permission). The chip follows its own SSOT — the
+ *     statusline for model/effort, the hook payload for permission — not this
+ *     event; `settled` only clears the pending affordance.
+ *   - `failed` — a clean rejection (`Model '<x>' not found`); `error` carries the
+ *     surfaced reason, nothing changed CLI-side. (Not used by permission — a
+ *     Shift+Tab step cannot be "rejected"; it either lands or aborts home.)
+ *   - `needs-attention` — the drive could not confirm the target and the screen
+ *     is in an unrecognized state (model/effort: a cache-miss confirm / consent
+ *     interstitial; permission: stepping aborted and returned home, or landed
+ *     somewhere the hook SSOT must reconcile). RED LINE: Sonata does NOTHING
+ *     further — no auto-answer, no blind-Enter, no non-`\x1b[Z` key — and points
+ *     the user at the CLI.
  */
-export type ModelSwitchStateEvent = BaseRuntimeEvent<
-  "model-switch:state",
+export type ControlSwitchStateEvent = BaseRuntimeEvent<
+  "control-switch:state",
   {
     taskId: TaskId;
-    kind: "model" | "effort";
+    kind: "model" | "effort" | "permission";
     value: string;
     phase: "pending" | "settled" | "failed" | "needs-attention";
     error: string | null;
+    /** Permission axis only: the modes this Shift+Tab choreography confirmed via
+     *  a mode-line receipt (including pass-throughs). The renderer merges these
+     *  into the session's reachable-modes set so the menu never offers a mode the
+     *  cycle can't reach (D4 — no dead steps). Absent on model/effort. */
+    observedModes?: ClaudePermissionMode[];
   }
 >;
 
@@ -487,7 +507,7 @@ export type ProductRuntimeEvent =
   | OptionPromptDetectedEvent
   | OptionPromptResolvedEvent
   | RemoteControlStateEvent
-  | ModelSwitchStateEvent
+  | ControlSwitchStateEvent
   | FileWatchingEvent
   | FileWatchErrorEvent
   | FileChangedEvent
@@ -512,7 +532,7 @@ export type RunIndexEvent = Exclude<
   | DeliveryReceiptEvent
   | TaskUpdatedEvent
   | RemoteControlStateEvent
-  | ModelSwitchStateEvent
+  | ControlSwitchStateEvent
   | OptionPromptDetectedEvent
   | OptionPromptResolvedEvent
 >;

@@ -112,8 +112,83 @@ export function parseClaudeControlReceipt(
   return CONTROL_SWITCH_MODEL_OK_RE.test(compact) ? "settled" : null;
 }
 
+// Mid-session Claude PERMISSION switch (S2). Unlike model/effort (a typed
+// command with one printed receipt), permission has no arg form: Sonata drives
+// the native Shift+Tab (`\x1b[Z`) cycle one step at a time and reads the TUI's
+// mode line as the per-step *choreography receipt* to learn which mode it just
+// landed in. Probe-verified cycle + strings (claude 2.1.214, this account —
+// spikes/midsession-switch-probe/findings.md §S0):
+//   default (Manual) ↔ `manual mode on`   acceptEdits ↔ `accept edits on`
+//   plan             ↔ `plan mode on`      auto        ↔ `auto mode on`
+//   cycle: manual → accept edits → plan → auto → manual (auto is account-gated).
+// The line is receipt-only — the hook payload's `permission_mode` stays the
+// state SSOT (lazy reconcile). Compacted match (escapes + ALL whitespace
+// removed) on the RAW tail, like the model/effort receipt and the Remote Control
+// detector, so a split landing inside an escape reassembles first; LAST match
+// wins so a repaint of a prior mode line can't outvote the current one.
+//
+// bypassPermissions is DELIBERATELY ABSENT: it is not a Shift+Tab cycle member
+// (probe cycle excludes it) and never spawn-reachable for a Sonata session (the
+// launch UI offers only default/acceptEdits/auto), so the stepping engine can
+// never legitimately need to parse or reach it. Its mode-line string is
+// unverified — do NOT guess one; verify in an e2e (spawn `--permission-mode
+// bypassPermissions`) before ever adding it here.
+const PERMISSION_MODE_LINE_RES: ReadonlyArray<readonly [RegExp, ClaudePermissionMode]> = [
+  [/accepteditson/, "acceptEdits"],
+  [/manualmodeon/, "default"],
+  [/planmodeon/, "plan"],
+  [/automodeon/, "auto"],
+];
+
+/** Parse the most recent TUI permission mode line out of the compacted RAW tail,
+ *  or null if none is recognized yet (keep waiting until the per-step timeout).
+ *  "Most recent" = the match at the greatest index, so a redraw of the prior
+ *  mode line can't mask the step's real landing. */
+export function parseClaudePermissionModeLine(rawScan: string): ClaudePermissionMode | null {
+  const compact = cleanTerminal(rawScan).replace(/\s+/g, "").toLowerCase();
+  let best: ClaudePermissionMode | null = null;
+  let bestIndex = -1;
+  for (const [re, mode] of PERMISSION_MODE_LINE_RES) {
+    // `re` sources are lowercase, glued forms — match against the compacted tail.
+    const globalRe = new RegExp(re.source, "g");
+    let match: RegExpExecArray | null;
+    let lastIndex = -1;
+    while ((match = globalRe.exec(compact)) !== null) {
+      lastIndex = match.index;
+      globalRe.lastIndex = match.index + 1;
+    }
+    if (lastIndex > bestIndex) {
+      bestIndex = lastIndex;
+      best = mode;
+    }
+  }
+  return best;
+}
+
+/** The full ClaudePermissionMode set, for validating the `value`/`from` strings
+ *  that cross the IPC seam into the permission stepping engine. */
+const CLAUDE_PERMISSION_MODE_SET: ReadonlySet<ClaudePermissionMode> = new Set<ClaudePermissionMode>([
+  "acceptEdits",
+  "auto",
+  "bypassPermissions",
+  "default",
+  "dontAsk",
+  "plan",
+]);
+
+/** Narrow an untrusted string to a ClaudePermissionMode, or null. */
+function asClaudePermissionMode(value: string | undefined): ClaudePermissionMode | null {
+  return value && CLAUDE_PERMISSION_MODE_SET.has(value as ClaudePermissionMode)
+    ? (value as ClaudePermissionMode)
+    : null;
+}
+
 export const ARROW_DOWN = "\x1b[B";
 export const ESC = "\x1b";
+/** Shift+Tab (CSI Z / back-tab) — cycles Claude's permission mode (probe:
+ *  manual → accept edits → plan → auto → manual). The ONLY byte the permission
+ *  stepping engine ever writes (S2 RED LINE). */
+export const SHIFT_TAB = "\x1b[Z";
 /** Ctrl+U — kill-line in both CLIs' composers. Idempotent on an empty line
  *  (probe C2/C6/X2, claude 2.1.212 + codex 0.144.5); per-LINE on Claude, so
  *  multi-line clears send a counted flood (see cliInputClearFlood). */
@@ -133,6 +208,21 @@ const DEFAULT_APPROVAL_SETTLE_MS = 1200;
  *  no auto-answer, no retry). ~5s covers the CLI's echo→apply→print latency
  *  with headroom (probe receipts landed well inside 2.5s). */
 const CONTROL_SWITCH_RECEIPT_TIMEOUT_MS = 5000;
+/** Per-STEP receipt window for the permission Shift+Tab stepping engine (S2).
+ *  The mode line is "instant" (probe: it repaints on the same frame as the
+ *  keypress), so 1.5s is generous; a step that earns no recognized mode line in
+ *  this window is treated as an unrecognized outcome and flips the engine to
+ *  return-home (RED LINE: it never blind-presses anything but `\x1b[Z`). */
+const PERMISSION_STEP_RECEIPT_TIMEOUT_MS = 1500;
+/** Seeking bound: 2× the largest possible cycle (the 6 ClaudePermissionModes).
+ *  A reachable target is found within one cycle (≤6 steps); the 2× margin
+ *  absorbs a single dropped/duplicated receipt. Exhausting it → return-home. */
+const PERMISSION_MAX_SEEK_STEPS = 12;
+/** Return-home bound: once seeking is abandoned, keep stepping until the ORIGIN
+ *  mode line is seen again, but cap it so a session whose receipts have gone
+ *  fully opaque can't loop forever — at the cap we emit needs-attention at the
+ *  last-known landing and let the hook-payload SSOT reconcile the display. */
+const PERMISSION_MAX_RETURN_STEPS = 12;
 /** How long after the stop Esc the belt-clear fires. The prompt-restore is
  *  effectively immediate — present at the earliest measured snapshot, +300ms
  *  (probe C10) — so 900ms is comfortably past it; the belt is cosmetic
@@ -400,6 +490,37 @@ interface ApprovalCandidate {
 }
 
 type ActiveRun = RunUpdatedEvent["payload"];
+
+/** The one in-flight mid-session control switch. Two shapes, one pointer (the
+ *  shared single-switch guard):
+ *   - `value` (S1) — a `/model` / `/effort` typed command awaiting its one
+ *     printed receipt line. `timer` is the one-shot receipt→needs-attention
+ *     window.
+ *   - `permission` (S2) — the Shift+Tab stepping engine. Each `\x1b[Z` steps one
+ *     mode; the mode-line receipt says where we landed. `phase` seeks the target,
+ *     then (on abort) returns to `origin`. `landed` is the last confirmed mode
+ *     (needs-attention display anchor); `observed` accumulates every mode a
+ *     receipt confirmed this run (fed to the menu's reachable-modes set). `timer`
+ *     is the CURRENT per-step window, re-armed on each step. */
+type PendingControlSwitch =
+  | {
+      axis: "value";
+      kind: "model" | "effort";
+      value: string;
+      timer: NodeJS.Timeout | null;
+    }
+  | {
+      axis: "permission";
+      target: ClaudePermissionMode;
+      origin: ClaudePermissionMode;
+      phase: "seeking" | "returning";
+      landed: ClaudePermissionMode | null;
+      seekSteps: number;
+      returnSteps: number;
+      observed: Set<ClaudePermissionMode>;
+      timer: NodeJS.Timeout | null;
+    };
+
 interface TerminalProviderProfile {
   provider: RuntimeProvider;
   defaultCommand: string;
@@ -527,16 +648,17 @@ export class TerminalHost extends EventEmitter {
   // inside an escape sequence. Reset on every transition so a stale match can't
   // fire after a reconnect.
   private remoteControlScan = "";
-  // Mid-session Claude model/effort switch (S1). `pendingControlSwitch` is the
-  // one in-flight switch (Claude only, idle only); `controlSwitchScan` is the
-  // rolling RAW pty tail we watch for the receipt line while it is set. Both
-  // clear the instant the receipt lands or the timeout fires — the statusline
-  // mirror, not this scrape, remains the model authority.
-  private pendingControlSwitch: {
-    kind: ClaudeControlSwitchKind;
-    value: string;
-    timer: NodeJS.Timeout | null;
-  } | null = null;
+  // Mid-session Claude control switch (S1 model/effort, S2 permission).
+  // `pendingControlSwitch` is THE one in-flight switch (Claude only, idle only)
+  // — a single pointer, so a permission switch and a model/effort switch can
+  // never overlap (the shared single-switch guard). `controlSwitchScan` is the
+  // rolling RAW pty tail we watch for the receipt line(s) while it is set; the
+  // permission engine resets it each step. Both clear the instant the switch
+  // resolves — the statusline (model/effort) / the hook payload (permission),
+  // not this scrape, remains the state authority. `timer` is the currently
+  // armed timeout: the one-shot receipt window for model/effort, or the CURRENT
+  // per-step window for permission (re-armed on each `\x1b[Z`).
+  private pendingControlSwitch: PendingControlSwitch | null = null;
   private controlSwitchScan = "";
   /**
    * Single-writer arbitration between Sonata's automation and the human typing in
@@ -726,7 +848,7 @@ export class TerminalHost extends EventEmitter {
       // drop the watch + timeout so it can't fire needs-attention on a dead
       // session. onExit is the crash path (it does NOT route through
       // disposeProcess), so this clear is its own. The renderer clears
-      // `view.modelSwitch` off the pty:exit event below.
+      // `view.controlSwitch` off the pty:exit event below.
       this.clearPendingControlSwitch();
       this.emitEvent("pty:exit", {
         taskId: this.taskId,
@@ -880,26 +1002,30 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
-   * Drive a mid-session Claude model/effort switch by injecting `/model <id>` /
-   * `/effort <level>` as TYPED text + Enter (mid-session switch program S1). The
-   * command path needs real keystrokes, so this writes the raw bytes under the
-   * write-lock — NOT a bracketed-paste frame (the delivery path) — and never
-   * begins a run: a control switch is not a turn. The receipt is watched on the
-   * pty stream (`detectControlSwitchReceipt`); the statusline mirror, not the
-   * scrape, is the model authority.
+   * Kick off a mid-session Claude control switch (mid-session switch program).
+   * The idle-only / single-switch guards are shared across every axis; the drive
+   * itself forks by kind:
+   *   - `model` / `effort` (S1) — inject `/model <id>` / `/effort <level>` as
+   *     typed text + Enter and watch for the printed receipt line.
+   *   - `permission` (S2) — drive the Shift+Tab (`\x1b[Z`) stepping engine toward
+   *     the target mode, reading the TUI mode line as the per-step receipt.
+   * `from` is the permission origin (the session's current mode; the return-home
+   * anchor); ignored for model/effort.
    *
    * Idle-only, one at a time: an active run, an in-flight Sonata write, an open
    * approval panel, or a prior pending switch all refuse (the renderer also gates
-   * on turnActivity, this is the backend guard). RED LINE inheritance: we inject
-   * and OBSERVE — the timeout surfaces needs-attention, we never blind-Enter.
+   * on turnActivity — this is the backend guard). RED LINE inheritance: we drive
+   * and OBSERVE; a stuck/opaque screen surfaces needs-attention, and we NEVER
+   * write anything but the axis's own bytes (no blind-Enter, no non-`\x1b[Z` key).
    */
   injectClaudeControlSwitch(
     kind: ClaudeControlSwitchKind,
     value: string,
+    from?: string,
   ): ClaudeControlSwitchResponse {
     if (this.profile.provider !== "claude") {
-      // Codex burns a real turn on an inline `/model` arg (probe hazard) — never
-      // reach the pty on the wrong provider.
+      // Codex burns a real turn on an inline `/model` arg (probe hazard) and has
+      // no Shift+Tab cycle — never reach the pty on the wrong provider.
       return { ok: false, reason: "wrong-provider" };
     }
     if (!this.ptyProcess) {
@@ -911,10 +1037,15 @@ export class TerminalHost extends EventEmitter {
     if (this.activeRun) {
       return { ok: false, reason: "not-idle" };
     }
-    // A prior switch still awaiting its receipt, or any automation write mid
-    // sequence — refuse rather than interleave a second command's bytes.
+    // A prior switch still resolving, or any automation write mid-sequence —
+    // refuse rather than interleave a second drive's bytes. (The shared
+    // single-switch guard: model/effort and permission can never overlap.)
     if (this.pendingControlSwitch || this.sonataWriting) {
       return { ok: false, reason: "busy" };
+    }
+
+    if (kind === "permission") {
+      return this.startPermissionSwitch(value, from);
     }
 
     const command = `/${kind} ${value}`;
@@ -951,16 +1082,178 @@ export class TerminalHost extends EventEmitter {
       this.onControlSwitchTimeout();
     }, CONTROL_SWITCH_RECEIPT_TIMEOUT_MS);
     timer.unref?.();
-    this.pendingControlSwitch = { kind, value, timer };
-    this.emitControlSwitchState("pending", null);
+    this.pendingControlSwitch = { axis: "value", kind, value, timer };
+    this.emitControlSwitchState("pending", { kind, value });
     return { ok: true };
   }
 
   /**
-   * Watch the pty stream for the injected switch's receipt line while a switch is
-   * pending. Success → `settled` (the chip follows the statusline, not this
-   * scrape); a `Model '<x>' not found` → `failed`. Anything else keeps waiting
-   * until the timeout re-classifies the screen as needs-attention.
+   * Begin a permission switch via the Shift+Tab stepping engine (S2). We can't
+   * jump to a mode — there is no arg form — so we press Shift+Tab (`\x1b[Z`) one
+   * step at a time and read the TUI mode line to learn where we landed, repeating
+   * until the target is confirmed. `origin` is where we return to if the target
+   * proves unreachable: a Shift+Tab abort is a STATE CHANGE (unlike Esc, you
+   * cannot back out of it), so we must land the session somewhere honest, not
+   * strand it. Falls back to `default` (Manual — the cycle anchor, always a
+   * member) when the caller's current mode is unknown.
+   */
+  private startPermissionSwitch(value: string, from?: string): ClaudeControlSwitchResponse {
+    const target = asClaudePermissionMode(value);
+    if (!target) {
+      // The renderer only offers reachable ClaudePermissionMode ids; a non-mode
+      // value is a caller bug, not a screen state — refuse without touching the pty.
+      return { ok: false, reason: "busy" };
+    }
+    const origin = asClaudePermissionMode(from) ?? "default";
+    if (target === origin) {
+      // Already there — nothing to step. Report settled so the pending affordance
+      // never appears (defensive; the menu marks the current mode, so this is rare).
+      this.emitControlSwitchState("settled", { kind: "permission", value: target });
+      return { ok: true };
+    }
+
+    this.controlSwitchScan = "";
+    this.pendingControlSwitch = {
+      axis: "permission",
+      target,
+      origin,
+      phase: "seeking",
+      landed: null,
+      seekSteps: 0,
+      returnSteps: 0,
+      observed: new Set<ClaudePermissionMode>([origin]),
+      timer: null,
+    };
+    this.emitControlSwitchState("pending", { kind: "permission", value: target });
+    this.writePermissionStep();
+    return { ok: true };
+  }
+
+  /**
+   * One Shift+Tab step: write `\x1b[Z` under the write-lock (the ONLY byte this
+   * choreography ever emits — RED LINE), reset the scan window so only this
+   * step's mode line is read, and arm the per-step receipt timeout.
+   */
+  private writePermissionStep(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "permission" || !this.ptyProcess) {
+      return;
+    }
+    this.controlSwitchScan = "";
+    this.beginSonataWrite();
+    this.ptyProcess.write(SHIFT_TAB);
+    this.endSonataWrite();
+    const timer = setTimeout(() => {
+      this.onPermissionStepTimeout();
+    }, PERMISSION_STEP_RECEIPT_TIMEOUT_MS);
+    timer.unref?.();
+    pending.timer = timer;
+  }
+
+  /**
+   * A step's mode-line receipt landed. Record it, then decide the next move:
+   *   seeking  — target? settle. else keep seeking until the bound, then flip to
+   *              returning-home.
+   *   returning — origin? we're home (couldn't reach the target) → needs-attention.
+   *              else keep stepping toward origin until the return cap.
+   */
+  private onPermissionReceipt(landed: ClaudePermissionMode): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "permission") {
+      return;
+    }
+    if (pending.timer) {
+      clearTimeout(pending.timer);
+      pending.timer = null;
+    }
+    pending.landed = landed;
+    pending.observed.add(landed);
+
+    if (pending.phase === "seeking") {
+      if (landed === pending.target) {
+        this.finishPermissionSwitch("settled", pending);
+        return;
+      }
+      pending.seekSteps += 1;
+      if (pending.seekSteps >= PERMISSION_MAX_SEEK_STEPS) {
+        this.beginPermissionReturn(pending);
+        return;
+      }
+      this.writePermissionStep();
+      return;
+    }
+
+    // returning home
+    if (landed === pending.origin) {
+      this.finishPermissionSwitch("needs-attention", pending);
+      return;
+    }
+    pending.returnSteps += 1;
+    if (pending.returnSteps >= PERMISSION_MAX_RETURN_STEPS) {
+      this.finishPermissionSwitch("needs-attention", pending);
+      return;
+    }
+    this.writePermissionStep();
+  }
+
+  /**
+   * A step earned no recognized mode line within its window — an unrecognized
+   * outcome (a redraw we don't parse, or an unexpected screen). Per the failure
+   * contract a timeout flips seeking to returning-home; a timeout WHILE returning
+   * keeps trying toward origin, bounded by the return cap. We only ever step with
+   * `\x1b[Z` (RED LINE) — never a blind Enter or other key to "clear" the screen.
+   */
+  private onPermissionStepTimeout(): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending || pending.axis !== "permission") {
+      return;
+    }
+    pending.timer = null;
+    if (pending.phase === "seeking") {
+      this.beginPermissionReturn(pending);
+      return;
+    }
+    pending.returnSteps += 1;
+    if (pending.returnSteps >= PERMISSION_MAX_RETURN_STEPS) {
+      this.finishPermissionSwitch("needs-attention", pending);
+      return;
+    }
+    this.writePermissionStep();
+  }
+
+  /** Enter the return-home phase: if we already know we're at origin, stop and
+   *  raise needs-attention; otherwise keep stepping toward it. */
+  private beginPermissionReturn(
+    pending: Extract<PendingControlSwitch, { axis: "permission" }>,
+  ): void {
+    pending.phase = "returning";
+    if (pending.landed === pending.origin) {
+      this.finishPermissionSwitch("needs-attention", pending);
+      return;
+    }
+    this.writePermissionStep();
+  }
+
+  /** Resolve a permission switch: clear the pending pointer and emit the terminal
+   *  phase with the modes this choreography confirmed (so the menu learns which
+   *  gated modes this session can reach). The hook payload's `permission_mode`
+   *  remains the state SSOT — this event only drives the pending affordance /
+   *  needs-attention banner. */
+  private finishPermissionSwitch(
+    phase: "settled" | "needs-attention",
+    pending: Extract<PendingControlSwitch, { axis: "permission" }>,
+  ): void {
+    const observedModes = [...pending.observed];
+    const target = pending.target;
+    this.clearPendingControlSwitch();
+    this.emitControlSwitchState(phase, { kind: "permission", value: target, observedModes });
+  }
+
+  /**
+   * Watch the pty stream for the pending switch's receipt while it is unresolved.
+   * value axis (model/effort): the printed receipt line → settled/failed, else
+   * wait for the timeout. permission axis: the TUI mode line → hand to the
+   * stepping engine, else wait for the per-step timeout.
    */
   private detectControlSwitchReceipt(data: string): void {
     const pending = this.pendingControlSwitch;
@@ -968,32 +1261,47 @@ export class TerminalHost extends EventEmitter {
       return;
     }
     this.controlSwitchScan = (this.controlSwitchScan + data).slice(-CONTROL_SWITCH_SCAN_LIMIT);
+    if (pending.axis === "permission") {
+      const landed = parseClaudePermissionModeLine(this.controlSwitchScan);
+      if (landed) {
+        this.onPermissionReceipt(landed);
+      }
+      return;
+    }
     const verdict = parseClaudeControlReceipt(this.controlSwitchScan, pending.kind);
     if (verdict === "settled") {
+      const { kind, value } = pending;
       this.clearPendingControlSwitch();
-      this.emitControlSwitchState("settled", null, pending);
+      this.emitControlSwitchState("settled", { kind, value });
       return;
     }
     if (verdict === "failed") {
+      const { kind, value } = pending;
       this.clearPendingControlSwitch();
-      const label = pending.kind === "model" ? "model" : "effort level";
-      this.emitControlSwitchState("failed", `Claude rejected the ${label} "${pending.value}".`, pending);
+      const label = kind === "model" ? "model" : "effort level";
+      this.emitControlSwitchState("failed", {
+        kind,
+        value,
+        error: `Claude rejected the ${label} "${value}".`,
+      });
     }
   }
 
   /**
-   * No receipt arrived in time — the screen is in an unrecognized state (a
-   * possible cache-miss confirm or Fable consent interstitial). RED LINE: surface
-   * needs-attention and do NOTHING further — no auto-answer, no blind-Enter, no
-   * retry. The user resolves it in the co-visible terminal.
+   * No model/effort receipt arrived in time — the screen is in an unrecognized
+   * state (a possible cache-miss confirm or Fable consent interstitial). RED LINE:
+   * surface needs-attention and do NOTHING further — no auto-answer, no blind-
+   * Enter, no retry. The user resolves it in the co-visible terminal. (Permission
+   * steps use their own per-step timeout — `onPermissionStepTimeout`.)
    */
   private onControlSwitchTimeout(): void {
     const pending = this.pendingControlSwitch;
-    if (!pending) {
+    if (!pending || pending.axis !== "value") {
       return;
     }
+    const { kind, value } = pending;
     this.clearPendingControlSwitch();
-    this.emitControlSwitchState("needs-attention", null, pending);
+    this.emitControlSwitchState("needs-attention", { kind, value });
   }
 
   private clearPendingControlSwitch(): void {
@@ -1006,18 +1314,20 @@ export class TerminalHost extends EventEmitter {
 
   private emitControlSwitchState(
     phase: "pending" | "settled" | "failed" | "needs-attention",
-    error: string | null,
-    context: { kind: ClaudeControlSwitchKind; value: string } | null = this.pendingControlSwitch,
+    payload: {
+      kind: ClaudeControlSwitchKind;
+      value: string;
+      error?: string | null;
+      observedModes?: ClaudePermissionMode[];
+    },
   ): void {
-    if (!context) {
-      return;
-    }
-    this.emitEvent("model-switch:state", {
+    this.emitEvent("control-switch:state", {
       taskId: this.taskId,
-      kind: context.kind,
-      value: context.value,
+      kind: payload.kind,
+      value: payload.value,
       phase,
-      error,
+      error: payload.error ?? null,
+      ...(payload.observedModes ? { observedModes: payload.observedModes } : {}),
     });
   }
 
@@ -2366,13 +2676,14 @@ export class TerminalHost extends EventEmitter {
     kind: RunKind,
     options: { title?: string; promptId?: string | null } = {},
   ): ActiveRun {
-    // A run beginning supersedes any in-flight model/effort switch: the switch's
-    // receipt window is over (a new turn is starting), so drop the pending watch
-    // and its timeout — otherwise the timer could later fire a spurious
-    // needs-attention mid-run. Covers a Sonata send AND a submit typed natively
-    // in the terminal (the renderer send-gate can't see the latter). The
-    // matching `run:started` emitted below is what clears the renderer's
-    // `view.modelSwitch`, so the two sides can't disagree.
+    // A run beginning supersedes any in-flight control switch (model/effort OR a
+    // permission stepping run): the receipt window is over (a new turn is
+    // starting), so drop the pending watch and its timer(s) — otherwise a stale
+    // per-step timeout could later fire a spurious needs-attention mid-run. Covers
+    // a Sonata send AND a submit typed natively in the terminal (the renderer
+    // send-gate can't see the latter). The matching `run:started` emitted below is
+    // what clears the renderer's `view.controlSwitch`, so the two sides can't
+    // disagree.
     this.clearPendingControlSwitch();
     if (this.activeRun) {
       this.finishActiveRun("completed", "closed by next input");

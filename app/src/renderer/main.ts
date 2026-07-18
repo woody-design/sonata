@@ -387,22 +387,27 @@ initActions({
     view.slashAttention = null;
     renderAttentionBanners(view);
   },
-  dismissModelSwitch: (view) => {
-    view.modelSwitch = null;
+  dismissControlSwitch: (view) => {
+    view.controlSwitch = null;
     // A full render, not just the banner: clearing the switch pointer also
-    // re-enables the send button (gated on view.modelSwitch — review fix A), so
+    // re-enables the send button (gated on view.controlSwitch — review fix A), so
     // the composer must repaint too, or send would stay disabled until the next
     // unrelated render.
     render();
   },
-  // Live session model chip (mid-session switch S1): inject `/model <id>` /
-  // `/effort <level>` for this Claude session. Fire-and-forget — the pending
-  // state and the receipt arrive on the model-switch:state event.
+  // Live session chips (mid-session switch): drive this Claude session's
+  // model/effort (S1 — `/model <id>` / `/effort <level>`) or permission mode
+  // (S2 — the Shift+Tab stepping engine, `from` = the session's current mode as
+  // the return-home anchor). Fire-and-forget — the pending state and the
+  // receipt(s) arrive on the control-switch:state event.
   switchSessionModel: (view, value) => {
     void applyClaudeControlSwitch(view, "model", value);
   },
   switchSessionEffort: (view, value) => {
     void applyClaudeControlSwitch(view, "effort", value);
+  },
+  switchSessionPermission: (view, mode) => {
+    void applyClaudeControlSwitch(view, "permission", mode, view.task?.permissionMode ?? undefined);
   },
   // Option-prompt card: the select grammar (single-select picks, multi-select
   // toggles — drawer S1) and the answer flow.
@@ -913,6 +918,23 @@ function toggleSessionModelMenuFromChip(event: MouseEvent): void {
   render();
 }
 
+/** Toggle the live session's permission-mode switch menu (S2). Same one-popover
+ *  discipline as toggleSessionModelMenuFromChip. */
+function toggleSessionAccessMenuFromChip(event: MouseEvent): void {
+  event.stopPropagation();
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  state.composerMenu =
+    state.composerMenu?.type === "session-access"
+      ? null
+      : {
+          type: "session-access",
+          anchor: { left: rect.left, top: rect.top, width: rect.width },
+        };
+  state.taskDraft.menu = null;
+  composerTransitions.closeSlashPicker(state);
+  render();
+}
+
 elements.providerChip.addEventListener("click", (event) => {
   toggleDraftMenuFromChip("provider", event);
 });
@@ -929,6 +951,15 @@ elements.modelChip.addEventListener("click", (event) => {
   toggleDraftMenuFromChip("launch", event);
 });
 elements.permissionChip.addEventListener("click", (event) => {
+  // A live Claude session's access chip opens the permission-mode switch menu
+  // (S2 — Claude only; the chip is disabled/read-only otherwise, so a click on a
+  // codex or busy session never fires). New Chat's chip opens the draft access
+  // menu. The disabled attribute gates busy/off-idle, so no extra guard here.
+  const view = activeTaskView();
+  if (view?.task) {
+    toggleSessionAccessMenuFromChip(event);
+    return;
+  }
   toggleDraftMenuFromChip("access", event);
 });
 elements.projectChip.addEventListener("click", (event) => {
@@ -1151,14 +1182,17 @@ function closeRemoteControlPopover(): void {
   renderRemoteControlPopover();
 }
 
-/** Drive a mid-session Claude model/effort switch (S1). Close the menu at once;
- *  the pending state and the receipt (settled / failed / needs-attention) drive
- *  the chip through the model-switch:state event. A refusal (a rare idle-gate
- *  race — the chip is disabled off-idle) surfaces as a one-line composer notice. */
+/** Drive a mid-session Claude control switch (S1 model/effort, S2 permission).
+ *  Close the menu at once; the pending state and the receipt(s) (settled /
+ *  failed / needs-attention) drive the chip through the control-switch:state
+ *  event. `from` is the permission origin (the return-home anchor), ignored for
+ *  model/effort. A refusal (a rare idle-gate race — the chip is disabled
+ *  off-idle) surfaces as a one-line composer notice. */
 async function applyClaudeControlSwitch(
   view: TaskViewState,
-  kind: "model" | "effort",
+  kind: "model" | "effort" | "permission",
   value: string,
+  from?: string,
 ): Promise<void> {
   const task = view.task;
   if (!task) {
@@ -1171,6 +1205,7 @@ async function applyClaudeControlSwitch(
       taskId: task.id,
       kind,
       value,
+      ...(from ? { from } : {}),
     });
     if (!result.ok) {
       view.status = controlSwitchRefusalCopy(kind, result.reason);
@@ -1185,10 +1220,10 @@ async function applyClaudeControlSwitch(
 /** One-line reason a switch couldn't be kicked off (idle-gate races + PTY loss).
  *  User-facing, no CLI internals — the composer-notice register. */
 function controlSwitchRefusalCopy(
-  kind: "model" | "effort",
+  kind: "model" | "effort" | "permission",
   reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider",
 ): string {
-  const axis = kind === "model" ? "model" : "reasoning";
+  const axis = kind === "model" ? "model" : kind === "effort" ? "reasoning" : "access";
   switch (reason) {
     case "not-idle":
       return `Finish the current turn before switching ${axis}.`;

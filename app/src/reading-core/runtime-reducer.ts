@@ -11,6 +11,7 @@
  * default param, map §2.4) so replay fixtures are deterministic.
  */
 import type { RuntimeEvent } from "../shared/types/events";
+import type { ClaudePermissionMode } from "../shared/types/domain";
 import { adoptAutomaticSessionTitle } from "../shared/session-title";
 import type { Directive } from "./directives";
 import type { RendererState, TaskViewState } from "./state";
@@ -30,6 +31,18 @@ import {
 
 function isActiveView(state: RendererState, view: TaskViewState): boolean {
   return Boolean(view.task && view.task.id === state.activeTaskId);
+}
+
+/** Union the session's reachable permission modes with newly-observed ones,
+ *  order-stable and de-duplicated. Returns the SAME array reference when nothing
+ *  is added, so a no-op reconcile doesn't churn the view (the reducer mutates in
+ *  place — map R1). */
+function mergePermissionModes(
+  existing: ClaudePermissionMode[],
+  incoming: ClaudePermissionMode[],
+): ClaudePermissionMode[] {
+  const additions = incoming.filter((mode) => !existing.includes(mode));
+  return additions.length === 0 ? existing : [...existing, ...additions];
 }
 
 /** markViewChanged, reducer-side (map C2: the isActiveView branch becomes
@@ -116,9 +129,9 @@ export function reduceRuntimeEvent(
     view.optionPromptStep = 0;
     // …and so is a prior slash-attention pointer (attention moved on).
     view.slashAttention = null;
-    // A new turn moots any lingering model-switch pointer (a stuck pending or a
+    // A new turn moots any lingering control-switch pointer (a stuck pending or a
     // needs-attention the user never dismissed): the CLI is doing new work.
-    view.modelSwitch = null;
+    view.controlSwitch = null;
     ensureRunTranscript(view, event.payload.id);
     return [viewChangedDirective(state, view, taskId)];
   }
@@ -172,21 +185,33 @@ export function reduceRuntimeEvent(
     return [viewChangedDirective(state, view, taskId)];
   }
 
-  if (event.type === "model-switch:state") {
-    // Mid-session Claude model/effort switch (S1). The chip's value follows the
-    // STATUSLINE mirror (usage:updated), never this event — so `settled` only
-    // clears the pending affordance; the label was already re-derived (a model
-    // switch may reset effort, and the statusline carries the live effort too).
+  if (event.type === "control-switch:state") {
+    // Mid-session Claude control switch (S1 model/effort, S2 permission). The
+    // chip's value follows its own SSOT — the STATUSLINE mirror (usage:updated)
+    // for model/effort, the hook payload (task:updated) for permission — never
+    // this event; so `settled` only clears the pending affordance.
+    //
+    // Permission choreography also teaches us which gated modes this session can
+    // reach (D4 — no dead steps): merge every mode a receipt confirmed into the
+    // reachable-modes set, on settle AND on needs-attention (a return-home run
+    // still observed real modes en route).
+    if (event.payload.observedModes && event.payload.observedModes.length > 0) {
+      view.observedPermissionModes = mergePermissionModes(
+        view.observedPermissionModes,
+        event.payload.observedModes,
+      );
+    }
     if (event.payload.phase === "pending") {
-      view.modelSwitch = {
+      view.controlSwitch = {
         kind: event.payload.kind,
         value: event.payload.value,
         phase: "pending",
       };
     } else if (event.payload.phase === "needs-attention") {
-      // RED LINE surface: no receipt + an unrecognized screen. A passive "check
-      // the CLI" pointer (banners.ts) — Sonata does nothing further.
-      view.modelSwitch = {
+      // RED LINE surface: model/effort — no receipt + an unrecognized screen;
+      // permission — stepping aborted and returned home (or landed where the hook
+      // SSOT must reconcile). A passive "check the CLI" pointer (banners.ts).
+      view.controlSwitch = {
         kind: event.payload.kind,
         value: event.payload.value,
         phase: "needs-attention",
@@ -194,11 +219,12 @@ export function reduceRuntimeEvent(
     } else if (event.payload.phase === "failed") {
       // A clean rejection (`Model '<x>' not found`): nothing changed CLI-side, so
       // the chip is already truthful. Report it as a one-line composer notice.
-      view.modelSwitch = null;
+      // (Permission never fails — a Shift+Tab step can't be rejected.)
+      view.controlSwitch = null;
       view.status = event.payload.error ?? "Couldn't switch — Claude rejected it.";
     } else {
-      // settled — drop the pending affordance; the statusline drives the label.
-      view.modelSwitch = null;
+      // settled — drop the pending affordance; the axis's own SSOT drives the label.
+      view.controlSwitch = null;
     }
     return [viewChangedDirective(state, view, taskId)];
   }
@@ -376,6 +402,15 @@ export function reduceRuntimeEvent(
   if (event.type === "task:updated") {
     view.task = event.payload.task;
     view.status = taskStatusLabel(event.payload.task);
+    // The hook payload's `permission_mode` reconciles onto the task here (the
+    // permission SSOT). Learning a mode from a hook proves the session can reach
+    // it — record it so the access menu can offer it (D4; how a native Shift+Tab
+    // to the account-gated `auto` becomes menu-eligible).
+    if (event.payload.task.permissionMode) {
+      view.observedPermissionModes = mergePermissionModes(view.observedPermissionModes, [
+        event.payload.task.permissionMode,
+      ]);
+    }
     return [viewChangedDirective(state, view, taskId)];
   }
 
@@ -408,16 +443,16 @@ export function reduceRuntimeEvent(
   }
 
   if (event.type === "pty:exit") {
-    // The session died. Any in-flight model/effort switch is moot — drop its
-    // pointer so the chip doesn't stay stuck in "Switching…" / the needs-
-    // attention banner doesn't linger on a dead session (the backend timer is
-    // already cancelled in onExit). Task status + run completion ride their own
-    // events; this only reconciles the switch pointer, and stays a no-op (no
-    // paint) when there was nothing pending — so the corpus oracle is unchanged.
-    if (!view.modelSwitch) {
+    // The session died. Any in-flight control switch is moot — drop its pointer so
+    // the chip doesn't stay stuck in "Switching…" / the needs-attention banner
+    // doesn't linger on a dead session (the backend timer is already cancelled in
+    // onExit). Task status + run completion ride their own events; this only
+    // reconciles the switch pointer, and stays a no-op (no paint) when there was
+    // nothing pending — so the corpus oracle is unchanged.
+    if (!view.controlSwitch) {
       return [{ kind: "none" }];
     }
-    view.modelSwitch = null;
+    view.controlSwitch = null;
     return [viewChangedDirective(state, view, taskId)];
   }
 

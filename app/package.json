@@ -41,6 +41,7 @@
     "e2e:model-settings-options": "npm run build && node tests/e2e/model-settings-options.mjs",
     "e2e:queue-delivery": "npm run build && node tests/e2e/queue-delivery.mjs",
     "e2e:midsession-switch": "npm run build && node tests/e2e/midsession-switch.mjs",
+    "e2e:midsession-permission-switch": "npm run build && node tests/e2e/midsession-permission-switch.mjs",
     "e2e:composer-ime": "npm run build && node tests/e2e/composer-ime.mjs",
     "e2e:task-folder-cwd": "npm run build && node tests/e2e/task-folder-cwd.mjs",
     "e2e:g1b-claude-hook-external": "npm run build && node tests/e2e/g1b-claude-hook-external.mjs",

@@ -9,7 +9,13 @@
 // slash-picker into this popover root (the renderTaskEntryPanel precedent).
 
 import { ChevronDown, File as FileIcon, Folder, Image as ImageIcon, X } from "lucide";
-import type { AttachmentKind, RuntimeProvider, Task, UsageSnapshot } from "../../shared/types";
+import type {
+  AttachmentKind,
+  ClaudePermissionMode,
+  RuntimeProvider,
+  Task,
+  UsageSnapshot,
+} from "../../shared/types";
 import {
   MODEL_OPTIONS,
   REASONING_OPTIONS,
@@ -35,6 +41,7 @@ import {
   sendPromptTitle,
   sessionModelSummaryLabel,
   sessionModelSwitchHint,
+  sessionPermissionMenuModes,
   sessionPermissionSwitchHint,
 } from "../../reading-core/selectors/composer";
 import { hasActiveRun } from "../../reading-core/selectors/runs";
@@ -210,11 +217,7 @@ export function renderComposerControls(view = activeTaskView(state)): void {
     // covers effort too). Provider is read off the task; when there is no task
     // the chip is hidden anyway, so the fallback never surfaces.
     const provider = view.task?.provider ?? "claude";
-    renderComposerChip(
-      elements.permissionChip,
-      composerChipLabel(view, "permission"),
-      sessionPermissionSwitchHint(provider),
-    );
+    renderSessionAccessChip(view, provider);
     renderSessionModelChip(view, provider);
   }
   renderUsageIndicator(view);
@@ -227,13 +230,14 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   // (paste/drop already add there; resume-send materializes them).
   elements.addAttachment.disabled = lifecycleBusy || (newChat ? false : !view.task);
   elements.addAttachment.classList.toggle("active", state.composerMenu?.type === "add");
-  // A mid-session switch that hasn't resolved leaves the CLI on its cache-miss
-  // confirm (Yes/No) — which is NOT a Sonata approval, so submitPrompt would
-  // bracket-paste a prompt straight into that dialog. Gate send while the switch
-  // pointer is set (pending AND needs-attention — the dialog is on screen for
-  // both), consistent with the busy-disable treatments. Cleared by the switch
-  // settling, a new run, or the user dismissing the banner.
-  const switchUnresolved = Boolean(view?.modelSwitch);
+  // A mid-session switch that hasn't resolved may leave the CLI mid-choreography
+  // — a model/effort cache-miss confirm (Yes/No) that is NOT a Sonata approval,
+  // or a permission stepping run still pressing Shift+Tab — so submitPrompt could
+  // bracket-paste a prompt into an unexpected state. Gate send while the switch
+  // pointer is set (pending AND needs-attention), consistent with the busy-disable
+  // treatments. Cleared by the switch settling, a new run, or the user dismissing
+  // the banner.
+  const switchUnresolved = Boolean(view?.controlSwitch);
   elements.sendPrompt.disabled =
     state.busy ||
     lifecycleBusy ||
@@ -324,10 +328,14 @@ function renderSessionModelChip(view: TaskViewState, provider: RuntimeProvider):
     element.removeAttribute("aria-haspopup");
     return;
   }
-  const pending = view.modelSwitch?.phase === "pending";
-  // Idle-only (turnActivity SSOT — turn-signal program): no switching while a
-  // turn is live or background work runs, and none while a switch is in flight.
-  const switchable = turnActivity(view) === "idle" && !pending;
+  // `pending` = a model/effort switch of THIS chip is in flight (the switching
+  // shimmer + "Switching to …" title). A permission switch in flight is not this
+  // chip's — it shows no shimmer, but still disables the chip (single-switch
+  // guard). Idle-only (turnActivity SSOT — turn-signal program): no switching
+  // while a turn is live or background work runs, or any switch is in flight.
+  const kind = view.controlSwitch?.kind;
+  const pending = kind === "model" || kind === "effort";
+  const switchable = turnActivity(view) === "idle" && !view.controlSwitch;
   const open = state.composerMenu?.type === "session-model";
 
   // Reuse the launch-chip DOM (label span + caret) so the live chip reads as the
@@ -349,12 +357,91 @@ function renderSessionModelChip(view: TaskViewState, provider: RuntimeProvider):
   element.classList.toggle("switching", pending);
   element.disabled = !switchable;
   element.title = pending
-    ? `Switching to ${view.modelSwitch?.value ?? ""}…`
+    ? `Switching to ${view.controlSwitch?.value ?? ""}…`
     : switchable
       ? "Switch model and reasoning for this session"
       : "Available when Claude is idle";
   element.setAttribute("aria-haspopup", "menu");
   element.ariaExpanded = String(open);
+}
+
+/**
+ * The live session's access (permission-mode) chip. Codex stays a read-only
+ * mirror (S3 owns codex mid-session switching). Claude's becomes interactive
+ * (S2): at idle it opens the permission-mode switch menu; while a turn runs it
+ * renders a designed disabled state; while a switch is in flight it dims to a
+ * pending look. The label always follows the session's mode (task.permissionMode,
+ * hook-reconciled) — the mode line is receipt-only.
+ */
+function renderSessionAccessChip(view: TaskViewState, provider: RuntimeProvider): void {
+  const label = composerChipLabel(view, "permission");
+  if (provider !== "claude") {
+    renderComposerChip(elements.permissionChip, label, sessionPermissionSwitchHint(provider));
+    return;
+  }
+  const element = elements.permissionChip;
+  element.classList.toggle("hidden", !label);
+  element.removeAttribute("aria-expanded");
+  if (!label) {
+    element.classList.remove("interactive", "active", "switching");
+    element.disabled = true;
+    element.removeAttribute("title");
+    element.removeAttribute("aria-haspopup");
+    return;
+  }
+  const pending = view.controlSwitch?.kind === "permission";
+  const switchable = turnActivity(view) === "idle" && !view.controlSwitch;
+  const open = state.composerMenu?.type === "session-access";
+
+  let labelEl = element.querySelector<HTMLSpanElement>(".composer-chip-label");
+  if (!labelEl) {
+    element.replaceChildren();
+    labelEl = document.createElement("span");
+    labelEl.className = "composer-chip-label";
+    element.append(labelEl, lucideIcon(ChevronDown, 12));
+  }
+  if (labelEl.textContent !== label) {
+    labelEl.textContent = label;
+  }
+  element.classList.add("interactive");
+  element.classList.toggle("active", open);
+  element.classList.toggle("switching", pending);
+  element.disabled = !switchable;
+  element.title = pending
+    ? `Switching to ${permissionModeLabel(view.controlSwitch?.value as ClaudePermissionMode)}…`
+    : switchable
+      ? "Switch how Claude actions are approved for this session"
+      : "Available when Claude is idle";
+  element.setAttribute("aria-haspopup", "menu");
+  element.ariaExpanded = String(open);
+}
+
+/** The live session's permission-mode switch menu (S2) — same visual family as
+ *  the model menu (renderSettingSection), current mode marked. No CLI-default
+ *  caption: a Shift+Tab switch is session-scoped and does NOT persist to
+ *  settings.json (unlike `/model` / `/effort`), so there is no side effect to
+ *  note. The offered modes are only those this session can actually reach
+ *  (D4 — no dead steps). */
+function renderSessionAccessMenu(view: TaskViewState): HTMLElement {
+  const menu = document.createElement("div");
+  menu.className = "task-settings-popover composer-session-menu";
+  menu.setAttribute("role", "menu");
+  menu.ariaLabel = "Approvals";
+  menu.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  const current = view.task?.permissionMode ?? null;
+  const options = sessionPermissionMenuModes(view).map((mode) => ({
+    label: permissionModeLabel(mode),
+    value: mode as string,
+  }));
+  menu.append(
+    renderSettingSection("Approvals", options, (current ?? "") as string, (value) => {
+      actions.switchSessionPermission(view, value);
+    }),
+  );
+  return menu;
 }
 
 /** The live session's model + effort switch menu (S1) — same visual family as
@@ -519,6 +606,12 @@ export function renderComposerPopover(view = activeTaskView(state)): void {
   }
   if (state.composerMenu?.type === "session-model" && view?.task) {
     const menu = renderSessionModelMenu(view);
+    positionComposerMenu(menu);
+    elements.composerPopoverRoot.append(menu);
+    return;
+  }
+  if (state.composerMenu?.type === "session-access" && view?.task) {
+    const menu = renderSessionAccessMenu(view);
     positionComposerMenu(menu);
     elements.composerPopoverRoot.append(menu);
     return;

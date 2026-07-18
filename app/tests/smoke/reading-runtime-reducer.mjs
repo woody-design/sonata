@@ -80,7 +80,7 @@ const VIEW_CHANGED_TYPES = new Set([
   "option-prompt:detected",
   "option-prompt:resolved",
   "remote-control:state",
-  "model-switch:state",
+  "control-switch:state",
   "delivery:state",
   "delivery:receipt",
   "task:updated",
@@ -933,13 +933,14 @@ function workingStatus(liveness) {
   assert.deepEqual(view.transcriptBlockOrder, ["B1", "A3"], "surviving-then-fresh order, no stale ids");
 }
 
-// 12) model-switch:state (S1) — the four phases NOT in the corpus. The chip's
-//     value follows the statusline (usage:updated), so these only drive the
-//     pending affordance / needs-attention banner / failure notice, never the
-//     model label itself.
+// 12) control-switch:state — the phases NOT in the corpus (S1 model/effort,
+//     S2 permission). The chip's value follows its own SSOT (statusline for
+//     model/effort, hook payload for permission), so these only drive the pending
+//     affordance / needs-attention banner / failure notice / reachable-modes set,
+//     never the chip label itself.
 {
   const switchEvt = (phase, extra = {}) =>
-    evt("model-switch:state", {
+    evt("control-switch:state", {
       taskId: "task-A",
       kind: "model",
       value: "sonnet",
@@ -954,7 +955,7 @@ function workingStatus(liveness) {
     const d = R.reduceRuntimeEvent(state, switchEvt("pending"), NOW_MS);
     assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pending → full render");
     assert.deepEqual(
-      view.modelSwitch,
+      view.controlSwitch,
       { kind: "model", value: "sonnet", phase: "pending" },
       "pending records the in-flight switch",
     );
@@ -963,17 +964,17 @@ function workingStatus(liveness) {
   // settled → clears the pending affordance (the statusline drives the label).
   {
     const { state, view } = seedView({
-      modelSwitch: { kind: "model", value: "sonnet", phase: "pending" },
+      controlSwitch: { kind: "model", value: "sonnet", phase: "pending" },
     });
     const d = R.reduceRuntimeEvent(state, switchEvt("settled"), NOW_MS);
     assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "settled → full render");
-    assert.equal(view.modelSwitch, null, "settled drops the pending affordance");
+    assert.equal(view.controlSwitch, null, "settled drops the pending affordance");
   }
 
   // failed → clears the affordance and reports a one-line composer notice.
   {
     const { state, view } = seedView({
-      modelSwitch: { kind: "model", value: "bogus", phase: "pending" },
+      controlSwitch: { kind: "model", value: "bogus", phase: "pending" },
       status: "Running",
     });
     const d = R.reduceRuntimeEvent(
@@ -982,7 +983,7 @@ function workingStatus(liveness) {
       NOW_MS,
     );
     assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "failed → full render");
-    assert.equal(view.modelSwitch, null, "failed clears the pending affordance");
+    assert.equal(view.controlSwitch, null, "failed clears the pending affordance");
     assert.equal(view.status, 'Claude rejected the model "bogus".', "failed surfaces the reason as status");
   }
 
@@ -1003,18 +1004,88 @@ function workingStatus(liveness) {
     );
     assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "needs-attention → full render");
     assert.deepEqual(
-      view.modelSwitch,
+      view.controlSwitch,
       { kind: "effort", value: "high", phase: "needs-attention" },
       "needs-attention records the pointer for the banner",
     );
     assert.equal(view.status, "Ready", "needs-attention does not overwrite status (banner carries it)");
   }
 
+  // Permission axis (S2): pending records a permission-kind pointer (dims the
+  // ACCESS chip); settled clears it. The label follows the hook payload, not this.
+  {
+    const { state, view } = seedView();
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("pending", { kind: "permission", value: "plan" }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.controlSwitch,
+      { kind: "permission", value: "plan", phase: "pending" },
+      "a permission switch records a permission-kind pointer",
+    );
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("settled", { kind: "permission", value: "plan", observedModes: ["plan"] }),
+      NOW_MS,
+    );
+    assert.equal(view.controlSwitch, null, "permission settled drops the pending affordance");
+  }
+
+  // observedModes MERGE (D4 — reachable-modes set grows, never shrinks): a
+  // choreography that confirmed `auto` en route teaches the menu auto exists,
+  // on BOTH settle and needs-attention, de-duplicated and order-stable.
+  {
+    const { state, view } = seedView();
+    assert.deepEqual(view.observedPermissionModes, [], "seed: synthetic task has null mode → empty set");
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("needs-attention", { kind: "permission", value: "plan", observedModes: ["default", "auto"] }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.observedPermissionModes,
+      ["default", "auto"],
+      "needs-attention still merges the modes seen en route",
+    );
+    R.reduceRuntimeEvent(
+      state,
+      switchEvt("settled", { kind: "permission", value: "acceptEdits", observedModes: ["auto", "acceptEdits"] }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.observedPermissionModes,
+      ["default", "auto", "acceptEdits"],
+      "merge de-dupes (auto) and appends the new mode (acceptEdits), order-stable",
+    );
+  }
+
+  // task:updated reconciling permission_mode adds the mode to the reachable set
+  // (how a native Shift+Tab to the account-gated `auto` becomes menu-eligible).
+  {
+    const { state, view } = seedView();
+    R.reduceRuntimeEvent(
+      state,
+      evt("task:updated", {
+        taskId: "task-A",
+        task: { ...syntheticTask("task-A"), permissionMode: "auto" },
+        reason: "runtime-status",
+      }),
+      NOW_MS,
+    );
+    assert.deepEqual(
+      view.observedPermissionModes,
+      ["auto"],
+      "a hook reconcile to auto records it as reachable",
+    );
+  }
+
   // A new run moots any lingering switch pointer (pending or needs-attention).
   {
     const { state, view } = seedView({
       active: false,
-      modelSwitch: { kind: "model", value: "sonnet", phase: "needs-attention" },
+      controlSwitch: { kind: "model", value: "sonnet", phase: "needs-attention" },
     });
     R.reduceRuntimeEvent(
       state,
@@ -1034,7 +1105,7 @@ function workingStatus(liveness) {
       }),
       NOW_MS,
     );
-    assert.equal(view.modelSwitch, null, "a new run clears the stale switch pointer");
+    assert.equal(view.controlSwitch, null, "a new run clears the stale switch pointer");
   }
 
   // Background variant: a switch phase on an unfocused view marks unread.
@@ -1059,17 +1130,17 @@ function workingStatus(liveness) {
     });
   {
     const { state, view } = seedView({
-      modelSwitch: { kind: "model", value: "sonnet", phase: "needs-attention" },
+      controlSwitch: { kind: "model", value: "sonnet", phase: "needs-attention" },
     });
     const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
     assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pty:exit with a pending switch → full render");
-    assert.equal(view.modelSwitch, null, "pty:exit clears the stuck switch pointer");
+    assert.equal(view.controlSwitch, null, "pty:exit clears the stuck switch pointer");
   }
   {
     const { state, view } = seedView();
     const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
     assert.deepEqual(d, [{ kind: "none" }], "pty:exit with no switch → deliberate no-op (corpus oracle unchanged)");
-    assert.equal(view.modelSwitch, null, "…and leaves modelSwitch null");
+    assert.equal(view.controlSwitch, null, "…and leaves controlSwitch null");
   }
 }
 

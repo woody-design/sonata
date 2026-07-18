@@ -232,7 +232,10 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "modelSwitch": null,
+            "controlSwitch": null,
+            "observedPermissionModes": [
+              "default"
+            ],
             "approvalExpired": false,
             "status": "Delivering to Claude",
             "unread": false,
@@ -471,7 +474,10 @@
             },
             "resumeChoice": null,
             "slashAttention": null,
-            "modelSwitch": null,
+            "controlSwitch": null,
+            "observedPermissionModes": [
+              "default"
+            ],
             "approvalExpired": false,
             "status": "Delivering to Claude",
             "unread": true,

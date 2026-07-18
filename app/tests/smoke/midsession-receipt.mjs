@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 // keep-waiting verdict. Strings are the probe-verified verbatim receipts
 // (claude 2.1.214 — spikes/midsession-switch-probe/findings.md).
 const require = createRequire(import.meta.url);
-const { parseClaudeControlReceipt } = require("../../dist/runtime");
+const { parseClaudeControlReceipt, parseClaudePermissionModeLine } = require("../../dist/runtime");
 
 // — Success: model —
 assert.equal(
@@ -121,6 +121,66 @@ assert.equal(
   ),
   "failed",
   "a failure line in the scan wins over a later success line",
+);
+
+// ===========================================================================
+// Permission Shift+Tab stepping engine — mode-line receipt parser (S2). The
+// engine presses `\x1b[Z` and reads the TUI mode line to learn which mode it
+// landed in. Strings are the probe-verified cycle receipts (claude 2.1.214 —
+// spikes/midsession-switch-probe/findings.md §S0).
+// ===========================================================================
+
+// — Each cyclable mode's line maps to its ClaudePermissionMode id. —
+assert.equal(parseClaudePermissionModeLine("⏸ manual mode on"), "default", "`manual mode on` → default");
+assert.equal(
+  parseClaudePermissionModeLine("⏵ accept edits on"),
+  "acceptEdits",
+  "`accept edits on` → acceptEdits",
+);
+assert.equal(parseClaudePermissionModeLine("⏸ plan mode on"), "plan", "`plan mode on` → plan");
+assert.equal(parseClaudePermissionModeLine("⏵⏵ auto mode on"), "auto", "`auto mode on` → auto");
+
+// — No mode line yet → null (the engine keeps waiting until the per-step timeout). —
+assert.equal(parseClaudePermissionModeLine(""), null, "empty scan → keep waiting");
+assert.equal(
+  parseClaudePermissionModeLine("· Thinking… (esc to interrupt)"),
+  null,
+  "unrelated TUI chrome → keep waiting",
+);
+
+// — Word-positioned / ANSI-decorated redraw: claude lays the line out with
+//   cursor moves, so stripping ANSI glues the words. The parser compacts (ANSI
+//   + ALL whitespace removed) before matching, so it still recognizes it. —
+assert.equal(
+  parseClaudePermissionModeLine("\x1b[2m\x1b[38;5;244m⏸ plan\x1b[0m\x1b[20Gmode on\x1b[0m"),
+  "plan",
+  "ANSI + cursor-positioned mode line still parses",
+);
+assert.equal(
+  parseClaudePermissionModeLine("⏵⏵   auto    mode\n   on"),
+  "auto",
+  "collapsed whitespace bridges a wrapped mode line",
+);
+
+// — Last match wins: a repaint that redraws the PRIOR mode line above the
+//   current one must not outvote the most recent landing. —
+assert.equal(
+  parseClaudePermissionModeLine("⏸ plan mode on\n⏵⏵ auto mode on"),
+  "auto",
+  "the most recent (last) mode line wins over a repainted earlier one",
+);
+assert.equal(
+  parseClaudePermissionModeLine("⏵⏵ auto mode on\n⏸ manual mode on"),
+  "default",
+  "…and again in the other order (last match is authoritative)",
+);
+
+// — Case-insensitive (defensive): the TUI is lowercase, but the parser lowercases
+//   so a capitalization change upstream doesn't silently break detection. —
+assert.equal(
+  parseClaudePermissionModeLine("ACCEPT EDITS ON"),
+  "acceptEdits",
+  "case-insensitive match",
 );
 
 console.log("midsession-receipt: OK");

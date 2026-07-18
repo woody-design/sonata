@@ -56,15 +56,22 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
         }),
       );
     }
-    // Mid-session switch needs-attention (S1 RED LINE): the injected `/model` /
-    // `/effort` earned no receipt and the screen is in an unrecognized state (a
-    // possible cache-miss confirm / consent interstitial). Sonata does nothing
-    // further — a passive pointer to the CLI, where the user resolves it.
-    if (view.modelSwitch?.phase === "needs-attention") {
-      const axis = view.modelSwitch.kind === "model" ? "model" : "reasoning";
+    // Mid-session control-switch needs-attention (RED LINE): the drive couldn't
+    // confirm the target and the screen is in an unrecognized state — model/effort
+    // (S1): the injected command earned no receipt (a possible cache-miss confirm
+    // / consent interstitial); permission (S2): the Shift+Tab stepping aborted and
+    // returned home, or landed where the hook SSOT must reconcile. Sonata does
+    // nothing further — a passive pointer to the CLI, where the user resolves it.
+    if (view.controlSwitch?.phase === "needs-attention") {
+      const axis =
+        view.controlSwitch.kind === "model"
+          ? "model"
+          : view.controlSwitch.kind === "effort"
+            ? "reasoning"
+            : "access";
       banners.push(
-        attentionBanner("model-switch", `Couldn't confirm the ${axis} switch — check the CLI`, () => {
-          actions.dismissModelSwitch(view);
+        attentionBanner("control-switch", `Couldn't confirm the ${axis} switch — check the CLI`, () => {
+          actions.dismissControlSwitch(view);
         }),
       );
     }

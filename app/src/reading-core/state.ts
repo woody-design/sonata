@@ -165,13 +165,27 @@ export interface TaskViewState {
    *  approval card expired to the native panel. Display-only state: set/cleared
    *  from runtime events, never drives delivery or runs. */
   slashAttention: { runId: string; command: string } | null;
-  /** Mid-session Claude model/effort switch (S1) — the non-settled state of the
-   *  one in-flight switch. `pending` dims the model chip while the receipt is
-   *  awaited; `needs-attention` raises the "check the CLI" banner (no receipt +
-   *  unrecognized screen — RED LINE). Cleared on settle (the chip follows the
-   *  statusline), on dismiss, or when a new run moots it. A `failed` switch does
-   *  not live here — it surfaces as a one-line composer notice via `status`. */
-  modelSwitch: { kind: "model" | "effort"; value: string; phase: "pending" | "needs-attention" } | null;
+  /** Mid-session Claude control switch (S1 model/effort, S2 permission) — the
+   *  non-settled state of the ONE in-flight switch (kept as one field, mirroring
+   *  the backend's single-switch guard). `pending` dims the switch's chip (model
+   *  chip for model/effort, access chip for permission) while its receipt is
+   *  awaited; `needs-attention` raises the "check the CLI" banner (model/effort:
+   *  no receipt + unrecognized screen; permission: stepping aborted home — RED
+   *  LINE). Cleared on settle (the chip follows its own SSOT — statusline for
+   *  model/effort, hook payload for permission), on dismiss, or when a new run
+   *  moots it. A `failed` switch does not live here — it surfaces as a one-line
+   *  composer notice via `status`. */
+  controlSwitch:
+    | { kind: "model" | "effort" | "permission"; value: string; phase: "pending" | "needs-attention" }
+    | null;
+  /** The permission modes this session can actually reach via Shift+Tab (D4 — no
+   *  dead steps). Seeded from the spawn mode (bypassPermissions only appears here
+   *  if the session launched into it), grown as modes are OBSERVED — a hook
+   *  payload reconciling `permission_mode`, or a mode line the stepping engine
+   *  read (incl. pass-throughs; `auto` is account-gated, so it only appears once
+   *  seen). The access-chip menu offers default/acceptEdits/plan always, plus any
+   *  gated mode present here. */
+  observedPermissionModes: ClaudePermissionMode[];
   /** The broker hold expired — the request now waits in the CLI. The drawer
    *  keeps showing it (expired variant); cleared by a decision (incl.
    *  answered-natively) or a fresh detected ask. */
@@ -450,9 +464,11 @@ export interface PromptNavState {
 
 export interface ComposerMenuState {
   /** `add` = the attachment menu; `session-model` = the live session's model +
-   *  effort switch menu (S1 — the interactive model chip, Claude only). One
-   *  composer popover at a time; both anchor above their chip. */
-  type: "add" | "session-model";
+   *  effort switch menu (S1 — the interactive model chip, Claude only);
+   *  `session-access` = the live session's permission-mode switch menu (S2 — the
+   *  interactive access chip, Claude only). One composer popover at a time; each
+   *  anchors above its chip. */
+  type: "add" | "session-model" | "session-access";
   anchor: PopoverAnchor;
 }
 
@@ -620,7 +636,12 @@ export function createTaskView(task: Task, status: string, live = true): TaskVie
     cliState: null,
     resumeChoice: null,
     slashAttention: null,
-    modelSwitch: null,
+    controlSwitch: null,
+    // Seed the reachable-modes set with the spawn/initial mode (createTaskView
+    // runs before any live reconciliation, so task.permissionMode is the launch
+    // value here). This is how bypassPermissions becomes menu-eligible ONLY for a
+    // session spawned into it (D4).
+    observedPermissionModes: task.permissionMode ? [task.permissionMode] : [],
     approvalExpired: false,
     status,
     unread: false,

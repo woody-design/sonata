@@ -304,24 +304,32 @@ export type RemoteControlInjectResponse =
   | { ok: true }
   | { ok: false; reason: "no-process" | "panel-open" | "busy" };
 
-/** Which axis a mid-session Claude switch drives — `/model <id>` or
- *  `/effort <level>` (mid-session switch program S1). */
-export type ClaudeControlSwitchKind = "model" | "effort";
+/** Which axis a mid-session Claude switch drives — `/model <id>` /
+ *  `/effort <level>` typed-command injection (S1), or `permission` via the
+ *  Shift+Tab stepping engine (S2). */
+export type ClaudeControlSwitchKind = "model" | "effort" | "permission";
 
 export interface ClaudeControlSwitchRequest {
   taskId: TaskId;
   kind: ClaudeControlSwitchKind;
-  /** The `/model` alias (e.g. `sonnet`) or `/effort` level (e.g. `high`) to
-   *  inject. Sourced from Sonata's curated launch lists, never free text. */
+  /** model/effort: the `/model` alias (e.g. `sonnet`) or `/effort` level (e.g.
+   *  `high`) to inject. permission: the TARGET `ClaudePermissionMode` id (e.g.
+   *  `plan`). Sourced from Sonata's curated lists / the session's reachable
+   *  modes, never free text. */
   value: string;
+  /** permission only: the mode the session is in NOW (the renderer's SSOT,
+   *  `task.permissionMode`). The stepping engine uses it as the origin to return
+   *  HOME to if the target can't be reached (a Shift+Tab abort is a state change,
+   *  so it must not strand the session). Ignored for model/effort. */
+  from?: string;
 }
 
-/** Result of KICKING OFF a mid-session Claude model/effort switch — the receipt
- *  itself arrives later on the `model-switch:state` event stream, never here.
- *  `wrong-provider` guards the codex hazard (inline `/model` args burn a turn);
- *  `not-idle` = a turn is live (switching is idle-only, no queueing); `busy` = a
- *  Sonata write (or a prior switch) is still in flight; `panel-open` = an
- *  approval screen would swallow the command. */
+/** Result of KICKING OFF a mid-session Claude control switch — the receipt(s)
+ *  themselves arrive later on the `control-switch:state` event stream, never
+ *  here. `wrong-provider` guards the codex hazard (inline `/model` args burn a
+ *  turn; codex has no Shift+Tab cycle); `not-idle` = a turn is live (switching
+ *  is idle-only, no queueing); `busy` = a Sonata write (or a prior switch) is
+ *  still in flight; `panel-open` = an approval screen would swallow the input. */
 export type ClaudeControlSwitchResponse =
   | { ok: true }
   | {
@@ -747,9 +755,10 @@ export interface SonataRuntimeBridge {
   injectRemoteControl(
     request: RemoteControlInjectRequest,
   ): Promise<RemoteControlInjectResponse>;
-  /** Kick off a mid-session Claude `/model` or `/effort` switch. Resolves once
-   *  the command is on its way; the receipt (settled / failed / needs-attention)
-   *  arrives asynchronously on the `model-switch:state` event. */
+  /** Kick off a mid-session Claude `/model` / `/effort` / `permission` switch.
+   *  Resolves once the drive is on its way; the receipt(s) (settled / failed /
+   *  needs-attention) arrive asynchronously on the `control-switch:state`
+   *  event. */
   switchClaudeControl(
     request: ClaudeControlSwitchRequest,
   ): Promise<ClaudeControlSwitchResponse>;
