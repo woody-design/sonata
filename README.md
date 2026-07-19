@@ -132,3 +132,10 @@ research → spikes → product-thinking contracts → app
 
 Spikes prove material behavior; app code encodes the resulting contract — not
 incidental spike UI or temporary probe assumptions.
+
+## License & trademark
+
+Sonata's source code is licensed under the [Apache License 2.0](LICENSE).
+"Sonata", the Sonata name, and the Sonata logo are trademarks of Woody Li and
+are not licensed under Apache-2.0; the license grants no permission to use them.
+Forks and redistributions must use a different name and logo.
