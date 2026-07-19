@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#
+# Sonata pre-push hook — thin wrapper that delegates to the standing leak
+# fence. Lives in a tracked hooks dir so it survives a fresh clone; activated
+# by pointing core.hooksPath here (see dev/CLAUDE.md).
+#
+# git passes the hook the remote name ($1) and URL ($2) as args, and the
+# pushed refs on stdin — both are forwarded to the fence untouched.
+#
+set -euo pipefail
+exec "$(cd "$(dirname "$0")/.." && pwd)/leak-fence.sh" "$@"

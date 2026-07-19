@@ -1,0 +1,27 @@
+# Sonata gitleaks configuration — consumed by the standing pre-push leak fence
+# (app/scripts/leak-fence.sh) and any manual `gitleaks git` run.
+#
+# Extends gitleaks' full default ruleset (real secret detection stays intact).
+# The single allowlist below neutralizes one adjudicated false-positive class:
+# canonical UUIDs captured in test fixtures.
+#
+# Basis (WS2 slice S2 audit, 2026-07-19): a full-history gitleaks scan produced
+# 410 findings, ALL rule `generic-api-key`, ALL under app/tests/fixtures/, and
+# ALL canonical 8-4-4-4-12 UUIDs (turn / session / message identifiers captured
+# in runtime-event fixtures and their derived goldens). A UUID carries no
+# credential value; `generic-api-key` is gitleaks' known high-entropy
+# false-positive rule. Without this allowlist the standing fence would block
+# even a clean, already-audited push. Real credentials (sk-, ghp_, AKIA, xox,
+# Bearer, …) are NOT UUID-shaped and remain fully detected.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Canonical UUIDs are session/turn/message identifiers in captured fixtures, not secrets (WS2 S2: 410/410 gitleaks findings were bare UUIDs with no credential prefix)."
+# Match against the flagged secret text; a full UUID anywhere in the match is
+# specific enough that no real credential is masked.
+regexTarget = "match"
+regexes = [
+  '''[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}''',
+]
