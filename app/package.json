@@ -2,7 +2,8 @@
   "name": "sonata-app",
   "version": "0.1.0",
   "private": true,
-  "description": "Formal TypeScript Electron walking skeleton for Sonata.",
+  "description": "Sonata — a desktop workspace for CLI coding agents.",
+  "author": "Woody Li",
   "main": "dist/main/main.js",
   "scripts": {
     "clean": "node scripts/clean.mjs",

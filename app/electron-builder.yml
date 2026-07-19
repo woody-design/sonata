@@ -1,9 +1,16 @@
 # electron-builder — Sonata packaging.
 #
-# M1 (WS1 S1): produce a Developer-ID-signed, hardened-runtime, NOT-notarized,
-# arm64 `Sonata.app`. The M1 gate artifact is the signed `.app` from the `dir`
-# target. Notarization, entitlements authoring, and the DMG/ZIP/latest-mac.yml
-# distribution pipeline are deferred to S3 (M2) and are deliberately absent here.
+# M1 (WS1 S1): produce a Developer-ID-signed, hardened-runtime, arm64
+# `Sonata.app`. `npm run package` builds the fast `dir` target below and stays
+# NOT-notarized — that is the daily-driver path (a locally built app carries no
+# quarantine xattr, so Gatekeeper never gates it).
+#
+# M2 (WS1 S3): `app/scripts/release.sh` reuses THIS config but overrides the mac
+# target on the CLI (`--mac dmg zip --arm64`) to emit the Gatekeeper-clean
+# distribution artifacts (notarized+stapled DMG, ZIP, latest-mac.yml), then
+# notarizes and staples via `xcrun notarytool`/`stapler`. The build itself is
+# not forked — release.sh adds targets + notarization on top of the same config,
+# so the packaged app is behaviourally identical to the `npm run package` output.
 #
 # `npm run build` must run first (this config packages the compiled `dist/`).
 
@@ -49,20 +56,40 @@ asarUnpack:
 mac:
   category: public.app-category.developer-tools
   icon: build-resources/icon.icns
+  # `npm run package` builds this fast `dir` target (no DMG/ZIP compression) —
+  # the daily-driver path. The release path (release.sh) overrides this on the
+  # CLI with `--mac dmg zip --arm64` to emit distribution artifacts; the config
+  # stays `dir` so the common `npm run package` invocation is never slowed down.
   target:
     - target: dir
       arch: arm64
-  # Hardened runtime is required by the M1 objective (and by M2 notarization).
-  # No custom entitlements file is provided, so electron-builder applies its
-  # built-in default entitlements (allow-jit + allow-unsigned-executable-memory
-  # + allow-dyld-environment-variables + disable-library-validation), which is
-  # what lets the hardened-runtime app launch. S3 authors explicit plists.
+  # Hardened runtime is required for launch and for M2 notarization. S3 promoted
+  # the entitlements from electron-builder's built-in default to explicit,
+  # committed plists (below) so the set is inspectable and version-controlled.
+  # The two files reproduce, verbatim, the three keys electron-builder 26 signed
+  # by default in S1 (allow-jit + allow-unsigned-executable-memory +
+  # disable-library-validation) — verified against the S1 signed build — so the
+  # packaged app behaves identically. See each plist's header for per-key intent.
   hardenedRuntime: true
+  entitlements: build-resources/entitlements.mac.plist
+  entitlementsInherit: build-resources/entitlements.mac.inherit.plist
   # Pin the exact Developer ID so a rebuild always re-signs with the same cert
   # (TCC grants survive). Never ad-hoc/adhoc sign. electron-builder 26 wants the
   # common name WITHOUT the "Developer ID Application:" type prefix and selects
   # the Developer ID cert automatically.
   identity: "Yuhui Li (NW3373QK97)"
-  # Do NOT run Gatekeeper assessment (spctl) at build time — this build is
-  # intentionally signed-but-not-notarized, so assessment would fail.
+  # Do NOT run Gatekeeper assessment (spctl) at build time — the app itself is
+  # signed but not notarized until release.sh submits the DMG; assessment would
+  # fail here. release.sh runs spctl explicitly after stapling instead.
   gatekeeperAssess: false
+
+# A publish provider must be configured for electron-builder to emit
+# `latest-mac.yml` (the electron-updater manifest, D10) alongside the DMG/ZIP on
+# the release path. This block NEVER publishes on its own: `npm run package`
+# (dir target) ignores it, and release.sh always passes `--publish never`.
+# Actual uploading is WS4's job. Owner/repo name the intended GitHub Releases
+# home so the generated manifest's URLs are correct from day one.
+publish:
+  provider: github
+  owner: woody-design
+  repo: sonata
