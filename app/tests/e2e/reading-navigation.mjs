@@ -266,6 +266,21 @@ async function assertStickyPromptHeader(page) {
   await page.locator(".sticky-prompt-header", { hasText: "First prompt" }).waitFor({
     state: "visible",
   });
+  // The pill floats over live scrolling content (its rail is height:0, z-index:4),
+  // so its hover background must stay opaque. --surface-selected is a translucent
+  // overlay token; the fix layers it over the opaque --surface-raised base rather
+  // than replacing it. Prove the layered gradient survives in the resolved hover
+  // style (a bare-token regression would compute background-image: none).
+  await page.locator(".sticky-prompt-header").hover();
+  const hoverBackgroundImage = await page.evaluate(() => {
+    const header = document.querySelector(".sticky-prompt-header");
+    return header instanceof HTMLElement ? getComputedStyle(header).backgroundImage : "";
+  });
+  if (!hoverBackgroundImage.includes("gradient")) {
+    throw new Error(
+      `sticky header hover must stay opaque (overlay layered over raised base): expected a gradient layer, got background-image ${hoverBackgroundImage}`,
+    );
+  }
   await page.locator(".sticky-prompt-header").click();
   await page.waitForFunction(() => {
     const header = document.querySelector(".sticky-prompt-header");
@@ -281,6 +296,7 @@ async function assertStickyPromptHeader(page) {
   return {
     visibleAfterScroll: true,
     scrollTop,
+    hoverBackgroundImage,
     hiddenAfterClick: true,
   };
 }

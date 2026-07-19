@@ -2970,7 +2970,11 @@ h2 {
 .sticky-prompt-header:hover {
   border-color: var(--border-strong);
   color: rgb(var(--reading-ink));
-  background: var(--surface-selected);
+  /* The pill floats over live scrolling content, so its hover background must stay
+     opaque; --surface-selected is a translucent overlay token — layer it over the
+     opaque --surface-raised base rather than replacing it (which would bleed content
+     through). */
+  background: linear-gradient(var(--surface-selected), var(--surface-selected)), var(--surface-raised);
 }
 
 .sticky-prompt-header:focus-visible {
