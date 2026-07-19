@@ -55,6 +55,7 @@ import {
   PreviewSessionsStore,
   ReadingSettingsStore,
   ResumeSettingsStore,
+  SonataSettingsStore,
   TerminalWindowSettingsStore,
   WindowStateStore,
   claudeSettingsPath,
@@ -63,6 +64,7 @@ import {
   previewSessionsPath,
   readingSettingsPath,
   resumeSettingsPath,
+  sonataSettingsPath,
   terminalWindowSettingsPath,
   windowStatePath,
 } from "./settings-store";
@@ -846,6 +848,7 @@ app.whenReady().then(() => {
     resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath()),
     claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath()),
     codexSettingsStore: new CodexSettingsStore(codexSettingsPath()),
+    sonataSettingsStore: new SonataSettingsStore(sonataSettingsPath()),
     sendEvent: (event) => {
       recordRuntimeEvent(event);
       localApiServer?.broadcastEvent(event);

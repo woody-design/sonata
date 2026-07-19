@@ -10,6 +10,7 @@ export * from "./reading-settings";
 export * from "./resume-settings";
 export * from "./sessions";
 export * from "./slash";
+export * from "./sonata-settings";
 export * from "./terminal-window-settings";
 export * from "./transcript";
 export * from "./usage";

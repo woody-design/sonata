@@ -8,6 +8,33 @@ export type ApprovalId = string;
 export type RuntimeProvider = "codex" | "claude";
 export type TaskTitleOrigin = "automatic" | "user";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+/** The `ReasoningEffort` union as a runtime tuple + membership guard, so the
+ *  settings-store normalize layer can validate a persisted effort by union
+ *  membership WITHOUT importing reading-core's per-model gating (layer fence):
+ *  the shared layer knows only "is this one of the six tiers", the UI clamps
+ *  which of them a given model can accept. `satisfies` keeps the tuple coupled
+ *  to the union — a stray value here is a compile error. */
+export const REASONING_EFFORTS = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+] as const satisfies readonly ReasoningEffort[];
+// Compile-time exhaustiveness. `satisfies` above rejects a STRAY tuple member;
+// this rejects a MISSING one. A future union tier absent from the tuple would
+// make isReasoningEffort silently reject a legitimately-persisted value (data
+// loss via the normalize fallback), so the omission must fail to compile: when
+// the tuple covers the union this Exclude is `never`; otherwise it is the
+// missing member, which violates the `extends never` constraint.
+type _AssertExhaustive<T extends never> = T;
+type _ReasoningEffortsCoverUnion = _AssertExhaustive<
+  Exclude<ReasoningEffort, (typeof REASONING_EFFORTS)[number]>
+>;
+export function isReasoningEffort(value: unknown): value is ReasoningEffort {
+  return (REASONING_EFFORTS as readonly string[]).includes(value as string);
+}
 export type LaunchSpeedMode = "default" | "fast";
 export type CodexSandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 export type CodexApprovalMode = "untrusted" | "on-request" | "on-failure" | "never";

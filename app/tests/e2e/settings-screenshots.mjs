@@ -73,9 +73,15 @@ try {
 
   // Dark-mode ON state: the neutral system inverts ink in dark, so the ON
   // track is bright — the one state where thumb/track contrast can silently
-  // die. Worth a standing frame.
-  await page.locator(".settings-switch").click();
-  await page.locator(".settings-switch[aria-checked='true']").waitFor();
+  // die. Worth a standing frame. Scope to the Remote control switch — two
+  // switches live in the overlay now (Remote control + Permissions' Project
+  // folder trust), so a bare `.settings-switch` would be strict-mode ambiguous.
+  await page
+    .locator('.settings-group[aria-label="Remote control"] .settings-switch')
+    .click();
+  await page
+    .locator('.settings-group[aria-label="Remote control"] .settings-switch[aria-checked="true"]')
+    .waitFor();
   await page.screenshot({ path: path.join(outDir, "05-overlay-dark-on.png") });
 
   console.log(JSON.stringify({ outDir, success: true }, null, 2));

@@ -21,6 +21,7 @@ const {
   ResumeSettingsStore,
   ClaudeSettingsStore,
   CodexSettingsStore,
+  SonataSettingsStore,
 } = require("../../dist/main/settings-store");
 const { projectRecordRoot } = require("../../dist/main/sonata-paths");
 const { freshTaskManifestV1 } = require("../../dist/shared/schemas/task-manifest");
@@ -46,6 +47,7 @@ function controllerHarness() {
     resumeSettingsStore: new ResumeSettingsStore(path.join(settingsRoot, "resume.json")),
     claudeSettingsStore: new ClaudeSettingsStore(path.join(settingsRoot, "claude.json")),
     codexSettingsStore: new CodexSettingsStore(path.join(settingsRoot, "codex.json")),
+    sonataSettingsStore: new SonataSettingsStore(path.join(settingsRoot, "sonata.json")),
   });
   controllers.push(controller);
   return {

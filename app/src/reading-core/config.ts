@@ -126,6 +126,25 @@ export function reasoningOptionsForModel(
   });
 }
 
+/**
+ * Clamp a reasoning effort to what the given model can actually accept. The one
+ * enforcement rule shared by the New Chat model-switch unwind (renderer/main.ts
+ * setDraftModel), the Settings default-model menu, and default-seeding at boot /
+ * new-chat reset: a now-gated tier (codex Max/Ultra on a model that lost them)
+ * falls back to Extra High — the nearest universally supported level, preserving
+ * the user's intent. A supported effort passes through unchanged.
+ */
+export function reasoningEffortForModel(
+  provider: RuntimeProvider,
+  model: string | null,
+  effort: ReasoningEffort,
+): ReasoningEffort {
+  const supported = reasoningOptionsForModel(provider, model).some(
+    (option) => option.value === effort,
+  );
+  return supported ? effort : "xhigh";
+}
+
 export function modelValueLabel(provider: RuntimeProvider, value: string | null): string | null {
   if (!value) {
     return null;

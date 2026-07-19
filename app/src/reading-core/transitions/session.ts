@@ -7,8 +7,9 @@
  * before extraction; the shell keeps the IPC calls, the DOM park/restore of
  * the composer textarea, and the render calls.
  */
-import type { SessionIndexResponse, SessionSummary } from "../../shared/types";
+import type { RuntimeProvider, SessionIndexResponse, SessionSummary } from "../../shared/types";
 import type { RendererState, TaskViewState } from "../state";
+import { reasoningEffortForModel, speedOptionsForModel } from "../config";
 import { folderName } from "../selectors/formatters";
 
 function isActiveView(state: RendererState, view: TaskViewState): boolean {
@@ -113,6 +114,39 @@ export function resetTaskDraftForNewChat(state: RendererState, folder?: string |
   state.taskDraft.remoteControl = state.remoteControlDefault;
   state.taskDraft.permissionMode = null;
   state.taskDraft.codexPermissionMode = null;
+  // Default model/effort are copy-at-entry (unlike permission mode's live-follow
+  // null slot): re-seed provider + both providers' model/effort from the
+  // launch-default mirrors, so each New Chat starts from the persisted defaults.
+  // Effort clamps through the model's gating (a hand-edited JSON pairing a
+  // gated tier with a model that can't accept it never survives into the draft).
+  seedTaskDraftFromLaunchDefaults(state);
+}
+
+/** Copy the persisted launch defaults (provider + per-provider model/effort)
+ *  into the New Chat draft. Shared by boot hydration and every new-chat reset —
+ *  the single seeding point for copy-at-entry. */
+export function seedTaskDraftFromLaunchDefaults(state: RendererState): void {
+  state.taskDraft.provider = state.defaultProvider;
+  for (const provider of ["claude", "codex"] as const satisfies readonly RuntimeProvider[]) {
+    const model = state.defaultModel[provider];
+    state.taskDraft.model[provider] = model;
+    state.taskDraft.reasoningEffort[provider] = reasoningEffortForModel(
+      provider,
+      model,
+      state.defaultReasoningEffort[provider],
+    );
+    // Same unwind as setDraftModel (renderer/main.ts): a Fast carried over from
+    // a prior draft must not survive onto a seeded model that can't accept it
+    // (Claude Fast is Opus-only). Speed itself has no Settings default (out of
+    // scope) — this only keeps the seeded pair launch-valid.
+    const speedMode = state.taskDraft.speedMode[provider];
+    const speedSupported = speedOptionsForModel(provider, model).some(
+      (option) => option.value === speedMode,
+    );
+    if (!speedSupported) {
+      state.taskDraft.speedMode[provider] = "default";
+    }
+  }
 }
 
 /** A known project chosen from the project menu — choosing closes it. */

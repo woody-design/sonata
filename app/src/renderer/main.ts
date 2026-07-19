@@ -13,15 +13,18 @@ import {
   normalizeCodexSettings,
   normalizeReadingSettings,
   normalizeResumeSettings,
+  normalizeSonataSettings,
   isCliActionRequest,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
   type CodexPermissionMode,
   type CodexSettings,
   type ReadingSettings,
+  type ReasoningEffort,
   type ResolvedReadingMode,
   type ResumePolicyId,
   type ResumeSettings,
+  type SonataSettings,
 } from "../shared/types";
 import type {
   ClaudeControlSwitchKind,
@@ -36,7 +39,11 @@ import {
   providerLabel,
 } from "../reading-core/selectors/formatters";
 import { filteredSlashItems } from "../reading-core/selectors/composer";
-import { reasoningOptionsForModel, speedOptionsForModel } from "../reading-core/config";
+import {
+  reasoningEffortForModel,
+  reasoningOptionsForModel,
+  speedOptionsForModel,
+} from "../reading-core/config";
 import {
   dormantArmed,
   hasActiveRun,
@@ -579,6 +586,9 @@ initActions({
     overlay.policyMenuOpen = false;
     overlay.approvalMenuOpen = false;
     overlay.codexPermissionMenuOpen = false;
+    overlay.providerMenuOpen = false;
+    overlay.claudeModelMenuOpen = false;
+    overlay.codexModelMenuOpen = false;
     render();
   },
   toggleSettingsApprovalMenu: (overlay) => {
@@ -593,11 +603,35 @@ initActions({
     overlay.policyMenuOpen = !overlay.policyMenuOpen;
     render();
   },
+  // The Default-model group menus flip their own open state, exactly like the
+  // picker toggles above (outside-click / Esc closes all via
+  // closeSettingsPopupMenus).
+  toggleSettingsProviderMenu: (overlay) => {
+    overlay.providerMenuOpen = !overlay.providerMenuOpen;
+    render();
+  },
+  toggleSettingsClaudeModelMenu: (overlay) => {
+    overlay.claudeModelMenuOpen = !overlay.claudeModelMenuOpen;
+    render();
+  },
+  toggleSettingsCodexModelMenu: (overlay) => {
+    overlay.codexModelMenuOpen = !overlay.codexModelMenuOpen;
+    render();
+  },
   persistDefaultPermissionMode: (mode) => {
     void persistDefaultPermissionMode(mode);
   },
   persistCodexDefaultPermissionMode: (mode) => {
     void persistCodexDefaultPermissionMode(mode);
+  },
+  persistDefaultProvider: (provider) => {
+    void persistDefaultProvider(provider);
+  },
+  persistDefaultModel: (provider, model) => {
+    persistDefaultModel(provider, model);
+  },
+  persistDefaultReasoningEffort: (provider, effort) => {
+    persistDefaultReasoningEffort(provider, effort);
   },
   persistCodexAutoTrustProjectFolders: (value) => {
     void persistCodexAutoTrustProjectFolders(value);
@@ -1145,6 +1179,11 @@ async function hydrateClaudeDefaults(): Promise<void> {
     state.remoteControlDefault = settings.defaultRemoteControl;
     state.taskDraft.remoteControl = settings.defaultRemoteControl;
     state.claudeDefaultPermissionMode = settings.defaultPermissionMode;
+    // Mirror the Claude launch defaults; the New Chat draft is seeded ONCE from
+    // all three mirrors after every hydration settles (see the boot block), so
+    // an empty-task CLI action never launches from a half-seeded draft.
+    state.defaultModel.claude = settings.defaultModel;
+    state.defaultReasoningEffort.claude = settings.defaultReasoningEffort;
     render();
   } catch {
     // Best-effort: the New Chat default just stays off.
@@ -1160,9 +1199,26 @@ async function hydrateCodexDefaults(): Promise<void> {
   try {
     const settings = normalizeCodexSettings(await window.sonataRuntime.readCodexSettings());
     state.codexDefaultPermissionMode = settings.defaultPermissionMode;
+    // Mirror the Codex launch defaults; the draft is seeded once post-settle
+    // (see hydrateClaudeDefaults' note and the boot block).
+    state.defaultModel.codex = settings.defaultModel;
+    state.defaultReasoningEffort.codex = settings.defaultReasoningEffort;
     render();
   } catch {
     // Best-effort: the chip just shows Codex's own "Ask for approval" default.
+  }
+}
+
+/** Mirror the app-level default provider (Settings → Default model) into
+ *  renderer state at boot. The New Chat draft's provider is seeded from this
+ *  mirror once all three launch-default hydrations settle (see the boot block),
+ *  so no render here — nothing visible changes until that collective seed. */
+async function hydrateSonataDefaults(): Promise<void> {
+  try {
+    const settings = normalizeSonataSettings(await window.sonataRuntime.readSonataSettings());
+    state.defaultProvider = settings.defaultProvider;
+  } catch {
+    // Best-effort: the draft just starts on the hardcoded default provider.
   }
 }
 
@@ -1444,10 +1500,11 @@ function closeSettingsOverlay(): void {
 
 async function refreshSettingsOverlay(): Promise<void> {
   try {
-    const [resumeResponse, claudeResponse, codexResponse] = await Promise.all([
+    const [resumeResponse, claudeResponse, codexResponse, sonataResponse] = await Promise.all([
       window.sonataRuntime.readResumeSettings(),
       window.sonataRuntime.readClaudeSettings(),
       window.sonataRuntime.readCodexSettings(),
+      window.sonataRuntime.readSonataSettings(),
     ]);
     if (!state.settingsOverlay) {
       return;
@@ -1461,6 +1518,9 @@ async function refreshSettingsOverlay(): Promise<void> {
     };
     state.settingsOverlay.codex = {
       settings: normalizeCodexSettings(codexResponse),
+    };
+    state.settingsOverlay.sonata = {
+      settings: normalizeSonataSettings(sonataResponse),
     };
   } catch (error) {
     state.status = errorMessage(error);
@@ -1523,6 +1583,148 @@ async function persistCodexDefaultPermissionMode(mode: CodexPermissionMode): Pro
     state.status = errorMessage(error);
   }
   render();
+}
+
+// ── Default model settings (copy-at-entry) ─────────────────────────────────
+// These persist flows update the launch-default MIRRORS (state.defaultProvider
+// / defaultModel / defaultReasoningEffort), which seed the NEXT new chat — they
+// deliberately do NOT touch the currently-open taskDraft (copy-at-entry: a
+// Settings change never retro-applies to a draft already in the composer). This
+// is the conscious asymmetry with the permission-mode defaults, which the draft
+// follows live through its null slot.
+
+async function persistDefaultProvider(provider: RuntimeProvider): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.sonata) {
+    return;
+  }
+  overlay.providerMenuOpen = false;
+  if (overlay.sonata.settings.defaultProvider === provider) {
+    render();
+    return;
+  }
+  const next: SonataSettings = { ...overlay.sonata.settings, defaultProvider: provider };
+  overlay.sonata.settings = next;
+  state.defaultProvider = provider;
+  render();
+  try {
+    const persisted = normalizeSonataSettings(await window.sonataRuntime.writeSonataSettings(next));
+    if (state.settingsOverlay?.sonata) {
+      state.settingsOverlay.sonata.settings = persisted;
+    }
+    state.defaultProvider = persisted.defaultProvider;
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
+}
+
+/** The combined Claude model+effort popover's instant-apply write. A patch
+ *  carries the ONE axis the user just picked; a model change clamps a now-gated
+ *  effort through `reasoningEffortForModel` (a gated Max/Ultra never survives a
+ *  model switch). The menu stays open across picks (no menu-boolean toggle
+ *  here). */
+async function persistClaudeDefaultModelEffort(patch: {
+  model?: string;
+  effort?: ReasoningEffort;
+}): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.claude) {
+    return;
+  }
+  const current = overlay.claude.settings;
+  const model = patch.model ?? current.defaultModel;
+  const effort = reasoningEffortForModel(
+    "claude",
+    model,
+    patch.effort ?? current.defaultReasoningEffort,
+  );
+  if (current.defaultModel === model && current.defaultReasoningEffort === effort) {
+    render();
+    return;
+  }
+  const next: ClaudeSettings = {
+    ...current,
+    defaultModel: model,
+    defaultReasoningEffort: effort,
+  };
+  overlay.claude.settings = next;
+  state.defaultModel.claude = model;
+  state.defaultReasoningEffort.claude = effort;
+  render();
+  try {
+    const persisted = normalizeClaudeSettings(await window.sonataRuntime.writeClaudeSettings(next));
+    if (state.settingsOverlay?.claude) {
+      state.settingsOverlay.claude.settings = persisted;
+    }
+    state.defaultModel.claude = persisted.defaultModel;
+    state.defaultReasoningEffort.claude = persisted.defaultReasoningEffort;
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
+}
+
+/** The Codex twin of persistClaudeDefaultModelEffort — the second store's write
+ *  path (Codex settings carry different neighbours, so the flow is separate,
+ *  matching the permission-mode default's claude/codex split). */
+async function persistCodexDefaultModelEffort(patch: {
+  model?: string;
+  effort?: ReasoningEffort;
+}): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.codex) {
+    return;
+  }
+  const current = overlay.codex.settings;
+  const model = patch.model ?? current.defaultModel;
+  const effort = reasoningEffortForModel(
+    "codex",
+    model,
+    patch.effort ?? current.defaultReasoningEffort,
+  );
+  if (current.defaultModel === model && current.defaultReasoningEffort === effort) {
+    render();
+    return;
+  }
+  const next: CodexSettings = {
+    ...current,
+    defaultModel: model,
+    defaultReasoningEffort: effort,
+  };
+  overlay.codex.settings = next;
+  state.defaultModel.codex = model;
+  state.defaultReasoningEffort.codex = effort;
+  render();
+  try {
+    const persisted = normalizeCodexSettings(await window.sonataRuntime.writeCodexSettings(next));
+    if (state.settingsOverlay?.codex) {
+      state.settingsOverlay.codex.settings = persisted;
+    }
+    state.defaultModel.codex = persisted.defaultModel;
+    state.defaultReasoningEffort.codex = persisted.defaultReasoningEffort;
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
+}
+
+/** Route a provider-neutral default model pick to the right store flow. */
+function persistDefaultModel(provider: RuntimeProvider, model: string): void {
+  if (provider === "claude") {
+    void persistClaudeDefaultModelEffort({ model });
+  } else {
+    void persistCodexDefaultModelEffort({ model });
+  }
+}
+
+/** Route a provider-neutral default effort pick to the right store flow. */
+function persistDefaultReasoningEffort(provider: RuntimeProvider, effort: ReasoningEffort): void {
+  if (provider === "claude") {
+    void persistClaudeDefaultModelEffort({ effort });
+  } else {
+    void persistCodexDefaultModelEffort({ effort });
+  }
 }
 
 async function persistCodexAutoTrustProjectFolders(value: boolean): Promise<void> {
@@ -1918,18 +2120,26 @@ window.sonataRuntime.onCliAction((request) => {
 });
 
 void hydrateReadingSettings();
-// Load the RC default BEFORE the session index makes dormant sessions clickable:
-// a dormant view arms from `state.remoteControlDefault` at creation, so the
-// default must be in place first (otherwise a fast click arms from a stale off).
-void hydrateClaudeDefaults().finally(() => {
+// The launch-default projection: Claude (RC + permission + model/effort), Codex
+// (permission + model/effort), and the app-level default provider all feed the
+// New Chat draft (copy-at-entry). Gate `launchSettingsHydrated`, the ONE draft
+// seed, and the first index refresh on ALL THREE settling — the flag's contract
+// is that an empty-task CLI action never races an in-flight settings projection,
+// which only holds if every launch mirror is in before it flips. This also keeps
+// the Claude ordering constraint (the RC default must be in place before the
+// index makes dormant sessions clickable): allSettled resolves no earlier than
+// Claude's own read, and the index refresh runs strictly after it. allSettled
+// never rejects (each hydrate swallows its own error), so the seed always runs.
+void Promise.allSettled([
+  hydrateClaudeDefaults(),
+  hydrateCodexDefaults(),
+  hydrateSonataDefaults(),
+]).then(() => {
+  sessionTransitions.seedTaskDraftFromLaunchDefaults(state);
   state.launchSettingsHydrated = true;
   render();
   void refreshSessionIndex();
 });
-// The Codex permission default only feeds the New Chat access chip label (no
-// dormant-arming ordering constraint like Claude's RC default), so it hydrates
-// independently and never gates the session index.
-void hydrateCodexDefaults();
 
 render();
 

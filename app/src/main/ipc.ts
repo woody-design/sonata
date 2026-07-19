@@ -314,6 +314,10 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.codexSettingsWrite, (_event, request) =>
     runtimeController.writeCodexSettings(request),
   );
+  ipcMain.handle(IPC_CHANNELS.sonataSettingsRead, () => runtimeController.readSonataSettings());
+  ipcMain.handle(IPC_CHANNELS.sonataSettingsWrite, (_event, request) =>
+    runtimeController.writeSonataSettings(request),
+  );
   ipcMain.handle(IPC_CHANNELS.readingSettingsRead, () => readingSettingsStore.read());
   ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) => {
     const persisted = readingSettingsStore.write(request);

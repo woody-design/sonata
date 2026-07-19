@@ -94,9 +94,11 @@ import type {
   ResumeSettingsStore,
   ClaudeSettingsStore,
   CodexSettingsStore,
+  SonataSettingsStore,
 } from "./settings-store";
 import type { ClaudeSettings } from "../shared/types/claude-settings";
 import type { CodexSettings } from "../shared/types/codex-settings";
+import type { SonataSettings } from "../shared/types/sonata-settings";
 import type { HookPayload, CliStateSnapshot } from "../shared/types/cli-signal";
 import type { OptionPrompt, OptionPromptSelection } from "../shared/types/option-prompt";
 import {
@@ -162,6 +164,7 @@ interface RuntimeControllerOptions {
   resumeSettingsStore: ResumeSettingsStore;
   claudeSettingsStore: ClaudeSettingsStore;
   codexSettingsStore: CodexSettingsStore;
+  sonataSettingsStore: SonataSettingsStore;
 }
 
 interface ActiveTaskRuntime {
@@ -198,6 +201,7 @@ export class RuntimeController {
   private readonly resumeSettingsStore: ResumeSettingsStore;
   private readonly claudeSettingsStore: ClaudeSettingsStore;
   private readonly codexSettingsStore: CodexSettingsStore;
+  private readonly sonataSettingsStore: SonataSettingsStore;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
   /** Provider-neutral now (S2): the same sink layout (`runtimeDir/hooks`) serves
    *  Claude AND Codex, so ONE watcher observes both — routed to the task by the
@@ -246,6 +250,7 @@ export class RuntimeController {
     this.resumeSettingsStore = options.resumeSettingsStore;
     this.claudeSettingsStore = options.claudeSettingsStore;
     this.codexSettingsStore = options.codexSettingsStore;
+    this.sonataSettingsStore = options.sonataSettingsStore;
     this.claudeUsageWatcher = new ClaudeStatuslineUsageWatcher({
       onPayload: (payload, _filePath, mtimeMs) =>
         this.handleClaudeStatuslinePayload(payload, mtimeMs),
@@ -695,6 +700,14 @@ export class RuntimeController {
 
   writeCodexSettings(settings: unknown): CodexSettings {
     return this.codexSettingsStore.write(settings);
+  }
+
+  readSonataSettings(): SonataSettings {
+    return this.sonataSettingsStore.read();
+  }
+
+  writeSonataSettings(settings: unknown): SonataSettings {
+    return this.sonataSettingsStore.write(settings);
   }
 
   /**

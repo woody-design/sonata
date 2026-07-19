@@ -15,6 +15,7 @@ const homeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-settings-overlay-
 const resumeSettingsPath = path.join(settingsRoot, "resume-settings.json");
 const claudeSettingsPath = path.join(settingsRoot, "claude-settings.json");
 const codexSettingsPath = path.join(settingsRoot, "codex-settings.json");
+const sonataSettingsPath = path.join(settingsRoot, "sonata-settings.json");
 const claudeConfigPath = path.join(homeRoot, ".claude.json");
 let electronApp = null;
 
@@ -71,6 +72,79 @@ try {
 
   // Bridge row: hermetic ~/.claude.json absent -> Claude's warning is On.
   await page.locator(".settings-value", { hasText: "On" }).waitFor({ state: "visible" });
+
+  // Default model group (FIRST group): default provider + the two combined
+  // model/effort popovers. No sonata-settings.json in the fixture -> the
+  // provider defaults to Claude; choosing Codex persists sonata-settings.json.
+  const defaultModelGroup = page.locator('section[aria-label="Default model"]');
+  const providerRow = defaultModelGroup.locator(".settings-row", { hasText: "Default provider" });
+  const providerPopup = providerRow.locator(".settings-popup");
+  await providerPopup.filter({ hasText: "Claude" }).waitFor({ state: "visible" });
+  await providerPopup.click();
+  await providerRow.locator(".settings-popup-option", { hasText: "Codex" }).click();
+  await waitUntil(() => readPersistedSonataSettings()?.defaultProvider === "codex", 8000);
+  await providerPopup.filter({ hasText: "Codex" }).waitFor({ state: "visible" });
+  // Copy-at-entry: the setting change does NOT retro-apply to the already-open
+  // New Chat draft — its provider chip stays on the boot value (Claude).
+  assert.equal(
+    await page.locator("#provider-chip").textContent(),
+    "Claude",
+    "a Default provider change never retro-applies to an open draft (copy-at-entry)",
+  );
+
+  // Claude model & effort: one combined popover, two label-only sections. The
+  // Settings menu excludes Native Default (concrete value only); each pick
+  // persists instantly and the menu stays open across picks.
+  const claudeModelRow = defaultModelGroup.locator(".settings-row", {
+    hasText: "Claude model & effort",
+  });
+  const claudeModelPopup = claudeModelRow.locator(".settings-popup");
+  await claudeModelPopup.filter({ hasText: "Opus 4.8 · High" }).waitFor({ state: "visible" });
+  await claudeModelPopup.click();
+  const claudeMenu = claudeModelRow.locator(".settings-popup-menu");
+  await claudeMenu.waitFor({ state: "visible" });
+  const claudeMenuLabels = await claudeMenu.locator(".settings-popup-option-label").allTextContents();
+  assert.equal(
+    claudeMenuLabels.includes("Native Default"),
+    false,
+    "the Settings model/effort menu excludes Native Default (per-session only)",
+  );
+  assert.ok(claudeMenuLabels.includes("Opus 4.8"), "the model section lists concrete models");
+  await claudeMenu.locator(".settings-popup-option", { hasText: "Sonnet 5" }).click();
+  await waitUntil(() => readPersistedClaudeSettings()?.defaultModel === "sonnet", 8000);
+  // The menu stays open across picks (two-axis adjustment).
+  await claudeMenu.waitFor({ state: "visible" });
+  await claudeMenu.locator(".settings-popup-option", { hasText: "Medium" }).click();
+  await waitUntil(() => readPersistedClaudeSettings()?.defaultReasoningEffort === "medium", 8000);
+  await claudeModelPopup.filter({ hasText: "Sonnet 5 · Medium" }).waitFor({ state: "visible" });
+  // The Claude menu stays open across picks; close it (outside-click) before the
+  // Codex row, since its tall dropdown overlaps the rows below.
+  await page.locator(".settings-title").click();
+  await claudeMenu.waitFor({ state: "hidden" });
+
+  // Codex model & effort: the settings menu clamps a now-gated effort on a model
+  // switch (Sol offers Ultra; Luna does not) — Ultra must never survive the
+  // switch to Luna (it lands on Extra High), the same rule as the launch menu.
+  const codexModelRow = defaultModelGroup.locator(".settings-row", {
+    hasText: "Codex model & effort",
+  });
+  const codexModelPopup = codexModelRow.locator(".settings-popup");
+  await codexModelPopup.filter({ hasText: "5.6 Sol · High" }).waitFor({ state: "visible" });
+  await codexModelPopup.click();
+  const codexMenu = codexModelRow.locator(".settings-popup-menu");
+  await codexMenu.waitFor({ state: "visible" });
+  await codexMenu.locator(".settings-popup-option", { hasText: "Ultra" }).click();
+  await waitUntil(() => readPersistedCodexSettings()?.defaultReasoningEffort === "ultra", 8000);
+  await codexMenu.locator(".settings-popup-option", { hasText: "5.6 Luna" }).click();
+  await waitUntil(() => {
+    const persisted = readPersistedCodexSettings();
+    return persisted?.defaultModel === "gpt-5.6-luna" && persisted?.defaultReasoningEffort === "xhigh";
+  }, 8000);
+  await codexModelPopup.filter({ hasText: "5.6 Luna · Extra High" }).waitFor({ state: "visible" });
+  // Outside-click close: a mousedown inside the dialog but outside any popup
+  // wrap (the header title) closes the open menu without closing the overlay.
+  await page.locator(".settings-title").click();
+  await codexMenu.waitFor({ state: "hidden" });
 
   // Permissions group, Claude sessions row: the default permission mode for
   // new Claude sessions. Defaults to "Manual" (the `default` mode's label since
@@ -297,6 +371,22 @@ function readPersistedResumeSettings() {
 function readPersistedClaudeSettings() {
   try {
     return JSON.parse(fs.readFileSync(claudeSettingsPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function readPersistedCodexSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(codexSettingsPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function readPersistedSonataSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(sonataSettingsPath, "utf8"));
   } catch {
     return null;
   }

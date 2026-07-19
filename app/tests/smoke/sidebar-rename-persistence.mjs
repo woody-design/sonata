@@ -17,6 +17,7 @@ const {
   ResumeSettingsStore,
   ClaudeSettingsStore,
   CodexSettingsStore,
+  SonataSettingsStore,
 } = require("../../dist/main/settings-store");
 const { projectRecordRoot } = require("../../dist/main/sonata-paths");
 const { freshTaskManifestV1 } = require("../../dist/shared/schemas/task-manifest");
@@ -30,6 +31,7 @@ const controller = new RuntimeController({
   resumeSettingsStore: new ResumeSettingsStore(path.join(tempRoot, "settings", "resume.json")),
   claudeSettingsStore: new ClaudeSettingsStore(path.join(tempRoot, "settings", "claude.json")),
   codexSettingsStore: new CodexSettingsStore(path.join(tempRoot, "settings", "codex.json")),
+  sonataSettingsStore: new SonataSettingsStore(path.join(tempRoot, "settings", "sonata.json")),
 });
 
 function makeTask(id, title, providerCwd = path.join(tempRoot, "workspace")) {

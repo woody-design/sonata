@@ -16,6 +16,7 @@ import type { TerminalWindowSettings } from "./terminal-window-settings";
 import type { ResumePolicyId, ResumeSettings } from "./resume-settings";
 import type { ClaudeSettings } from "./claude-settings";
 import type { CodexSettings } from "./codex-settings";
+import type { SonataSettings } from "./sonata-settings";
 import type {
   ReadSessionIndexRequest,
   ReadSessionSnapshotRequest,
@@ -111,6 +112,8 @@ export const IPC_CHANNELS = {
   claudeSettingsWrite: "claude-settings:write",
   codexSettingsRead: "codex-settings:read",
   codexSettingsWrite: "codex-settings:write",
+  sonataSettingsRead: "sonata-settings:read",
+  sonataSettingsWrite: "sonata-settings:write",
   readingSettingsWrite: "reading-settings:write",
   readingSettingsReadSync: "reading-settings:read-sync",
   instanceLabelReadSync: "instance-label:read-sync",
@@ -871,6 +874,8 @@ export interface SonataRuntimeBridge {
   writeClaudeSettings(settings: ClaudeSettings): Promise<ClaudeSettings>;
   readCodexSettings(): Promise<CodexSettings>;
   writeCodexSettings(settings: CodexSettings): Promise<CodexSettings>;
+  readSonataSettings(): Promise<SonataSettings>;
+  writeSonataSettings(settings: SonataSettings): Promise<SonataSettings>;
   onReadingSystemModeChanged(callback: (mode: ResolvedReadingMode) => void): () => void;
   /** Full reading-settings push so satellites that follow the reading appearance
    *  (Preview) re-stamp theme/mode/textStep when the user changes it (R6). */

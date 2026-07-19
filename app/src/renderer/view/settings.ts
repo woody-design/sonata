@@ -20,6 +20,8 @@ import {
   RESUME_POLICY_IDS,
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
+  type ReasoningEffort,
+  type RuntimeProvider,
 } from "../../shared/types";
 import {
   codexPermissionModeDescription,
@@ -27,10 +29,17 @@ import {
   compactTokenCount,
   permissionModeDescription,
   permissionModeLabel,
+  providerLabel,
   resumePolicyDescription,
   resumePolicyLabel,
   settingsDateLabel,
 } from "../../reading-core/selectors/formatters";
+import {
+  MODEL_OPTIONS,
+  modelValueLabel,
+  reasoningOptionsForModel,
+  reasoningValueLabel,
+} from "../../reading-core/config";
 import type {
   RendererState,
   SettingsOverlayState,
@@ -76,7 +85,12 @@ export function renderSettingsOverlay(): void {
       event.target instanceof Element && !event.target.closest(".settings-popup-wrap");
     if (
       outsidePopup &&
-      (overlay.policyMenuOpen || overlay.approvalMenuOpen || overlay.codexPermissionMenuOpen)
+      (overlay.policyMenuOpen ||
+        overlay.approvalMenuOpen ||
+        overlay.codexPermissionMenuOpen ||
+        overlay.providerMenuOpen ||
+        overlay.claudeModelMenuOpen ||
+        overlay.codexModelMenuOpen)
     ) {
       actions.closeSettingsPopupMenus(overlay);
     }
@@ -84,6 +98,7 @@ export function renderSettingsOverlay(): void {
 
   dialog.append(
     renderSettingsHeader(),
+    renderDefaultModelSettingsGroup(overlay),
     renderPermissionsSettingsGroup(overlay),
     renderRemoteControlSettingsGroup(overlay),
     renderSessionsSettingsGroup(overlay),
@@ -331,6 +346,173 @@ function renderSwitch(spec: {
   button.append(thumb);
   button.addEventListener("click", spec.onToggle);
   return button;
+}
+
+// ── Default model group ───────────────────────────────────────────────────
+
+/** One-line agent distinction for the Default provider picker's options. */
+function providerOptionDescription(provider: RuntimeProvider): string {
+  return provider === "claude" ? "Anthropic's Claude Code." : "OpenAI's Codex.";
+}
+
+/** The combined model + effort popover (one per provider). Two label-only
+ *  sections inside the `.settings-popup-menu` anatomy — Model and Reasoning —
+ *  each an instant-apply radio group (Settings contract: no Save). Native
+ *  Default is intentionally excluded from BOTH sections (Woody: the Settings
+ *  default is always a concrete value; per-session Native Default lives in the
+ *  New Chat model chip). Picking a model re-filters the Reasoning section via
+ *  `reasoningOptionsForModel` and clamps a now-gated effort (main.ts); the menu
+ *  stays open across picks and closes on outside click / toggle. */
+function renderModelEffortPicker(spec: {
+  provider: RuntimeProvider;
+  settings: { defaultModel: string; defaultReasoningEffort: ReasoningEffort } | null;
+  open: boolean;
+  onToggle: () => void;
+  onPickModel: (model: string) => void;
+  onPickEffort: (effort: ReasoningEffort) => void;
+}): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "settings-popup-wrap";
+
+  const button = document.createElement("button");
+  button.className = "settings-popup";
+  button.type = "button";
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", String(spec.open));
+  button.disabled = spec.settings === null;
+  const label = document.createElement("span");
+  label.textContent = spec.settings
+    ? `${modelValueLabel(spec.provider, spec.settings.defaultModel) ?? spec.settings.defaultModel} · ${
+        reasoningValueLabel(spec.provider, spec.settings.defaultReasoningEffort) ??
+        spec.settings.defaultReasoningEffort
+      }`
+    : "Loading…";
+  button.append(label, lucideIcon(ChevronDown, 14));
+  button.addEventListener("click", spec.onToggle);
+  wrap.append(button);
+
+  if (spec.open && spec.settings) {
+    const settings = spec.settings;
+    const menu = document.createElement("div");
+    menu.className = "settings-popup-menu";
+    menu.setAttribute("role", "menu");
+
+    const modelOptions = MODEL_OPTIONS[spec.provider].filter(
+      (option): option is { label: string; value: string } => option.value !== null,
+    );
+    menu.append(menuSectionHeading("Model"));
+    for (const option of modelOptions) {
+      menu.append(
+        menuRadioOption(option.label, option.value === settings.defaultModel, () =>
+          spec.onPickModel(option.value),
+        ),
+      );
+    }
+
+    const effortOptions = reasoningOptionsForModel(spec.provider, settings.defaultModel).filter(
+      (option): option is { label: string; value: ReasoningEffort } => option.value !== null,
+    );
+    menu.append(menuSectionHeading("Reasoning"));
+    for (const option of effortOptions) {
+      menu.append(
+        menuRadioOption(option.label, option.value === settings.defaultReasoningEffort, () =>
+          spec.onPickEffort(option.value),
+        ),
+      );
+    }
+
+    wrap.append(menu);
+    flipPickerMenuIfClipped(menu);
+  }
+
+  return wrap;
+}
+
+/** A section title inside a two-section `.settings-popup-menu`. */
+function menuSectionHeading(text: string): HTMLElement {
+  const heading = document.createElement("p");
+  heading.className = "settings-popup-menu-heading";
+  heading.textContent = text;
+  return heading;
+}
+
+/** A label-only radio option (check glyph + label) for the model/effort menu —
+ *  the description-bearing `renderPicker` option's leaner sibling. */
+function menuRadioOption(label: string, selected: boolean, onPick: () => void): HTMLElement {
+  const item = document.createElement("button");
+  item.className = "settings-popup-option";
+  item.classList.toggle("selected", selected);
+  item.type = "button";
+  item.setAttribute("role", "menuitemradio");
+  item.setAttribute("aria-checked", String(selected));
+
+  const check = document.createElement("span");
+  check.className = "settings-popup-option-check";
+  if (selected) {
+    check.append(lucideIcon(Check, 13));
+  }
+
+  const text = document.createElement("span");
+  text.className = "settings-popup-option-label";
+  text.textContent = label;
+
+  item.append(check, text);
+  item.addEventListener("click", onPick);
+  return item;
+}
+
+/** The FIRST group (above Permissions): what a new chat starts as by default —
+ *  provider, then each provider's model + reasoning. Provider is not
+ *  provider-scoped, so it cannot live in Permissions' row structure. */
+function renderDefaultModelSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
+  const providerRow = renderSettingsRow({
+    title: "Default provider",
+    description: "The agent new sessions start on.",
+    control: renderPicker({
+      options: (["claude", "codex"] as const).map((provider) => ({
+        id: provider,
+        label: providerLabel(provider),
+        description: providerOptionDescription(provider),
+      })),
+      selectedId: overlay.sonata?.settings.defaultProvider ?? null,
+      open: overlay.providerMenuOpen,
+      onToggle: () => actions.toggleSettingsProviderMenu(overlay),
+      onPick: (provider) => actions.persistDefaultProvider(provider),
+    }),
+  });
+
+  const claudeRow = renderSettingsRow({
+    title: "Claude model & effort",
+    description:
+      "What new Claude sessions start on. To let Claude choose, pick “Native Default” from the model chip.",
+    control: renderModelEffortPicker({
+      provider: "claude",
+      settings: overlay.claude?.settings ?? null,
+      open: overlay.claudeModelMenuOpen,
+      onToggle: () => actions.toggleSettingsClaudeModelMenu(overlay),
+      onPickModel: (model) => actions.persistDefaultModel("claude", model),
+      onPickEffort: (effort) => actions.persistDefaultReasoningEffort("claude", effort),
+    }),
+  });
+
+  const codexRow = renderSettingsRow({
+    title: "Codex model & effort",
+    description:
+      "What new Codex sessions start on. To let Codex choose, pick “Native Default” from the model chip.",
+    control: renderModelEffortPicker({
+      provider: "codex",
+      settings: overlay.codex?.settings ?? null,
+      open: overlay.codexModelMenuOpen,
+      onToggle: () => actions.toggleSettingsCodexModelMenu(overlay),
+      onPickModel: (model) => actions.persistDefaultModel("codex", model),
+      onPickEffort: (effort) => actions.persistDefaultReasoningEffort("codex", effort),
+    }),
+  });
+
+  return renderSettingsGroup({
+    label: "Default model",
+    rows: [providerRow, claudeRow, codexRow],
+  });
 }
 
 // ── Groups ────────────────────────────────────────────────────────────────

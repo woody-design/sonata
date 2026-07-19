@@ -43,6 +43,7 @@ const {
   ResumeSettingsStore,
   ClaudeSettingsStore,
   CodexSettingsStore,
+  SonataSettingsStore,
 } = require("../../dist/main/settings-store");
 
 const failures = [];
@@ -61,6 +62,7 @@ const controller = new RuntimeController({
   resumeSettingsStore: new ResumeSettingsStore(path.join(tempRoot, "resume-settings.json")),
   claudeSettingsStore: new ClaudeSettingsStore(path.join(tempRoot, "claude-settings.json")),
   codexSettingsStore,
+  sonataSettingsStore: new SonataSettingsStore(path.join(tempRoot, "sonata-settings.json")),
 });
 
 function includesSequence(values, sequence) {

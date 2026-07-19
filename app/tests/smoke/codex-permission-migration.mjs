@@ -148,6 +148,7 @@ const {
   ResumeSettingsStore,
   ClaudeSettingsStore,
   CodexSettingsStore,
+  SonataSettingsStore,
 } = require("../../dist/main/settings-store");
 
 // Write a LEGACY manifest (old (sandbox, approval) pair, NO codexPermissionMode)
@@ -209,6 +210,7 @@ const controller = new RuntimeController({
   resumeSettingsStore: new ResumeSettingsStore(path.join(tempRoot, "resume-settings.json")),
   claudeSettingsStore: new ClaudeSettingsStore(path.join(tempRoot, "claude-settings.json")),
   codexSettingsStore: new CodexSettingsStore(path.join(tempRoot, "codex-settings.json")),
+  sonataSettingsStore: new SonataSettingsStore(path.join(tempRoot, "sonata-settings.json")),
 });
 
 const readPersistedTask = (taskId) =>

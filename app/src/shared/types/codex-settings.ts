@@ -1,4 +1,5 @@
-import type { CodexPermissionMode } from "./domain";
+import type { CodexPermissionMode, ReasoningEffort } from "./domain";
+import { isReasoningEffort } from "./domain";
 
 /**
  * Sonata-owned launch policy for Codex sessions (the Sonata mirror of
@@ -30,6 +31,16 @@ export interface CodexSettings {
    * that policy lives in the controller, not this setting.
    */
   autoTrustProjectFolders: boolean;
+  /** The model new Codex sessions start on (copy-at-entry, the Codex twin of
+   *  `ClaudeSettings.defaultModel`). A CONCRETE alias, never null. Validated by
+   *  string presence only; the settings menu clamps which effort a model can
+   *  accept. */
+  defaultModel: string;
+  /** The reasoning effort new Codex sessions start on. Validated by
+   *  `ReasoningEffort` union membership only; per-model gating (Sol/Terra offer
+   *  Ultra, Luna does not, etc.) is clamped at the UI and at draft seeding via
+   *  `reasoningOptionsForModel`, not here (layer fence). */
+  defaultReasoningEffort: ReasoningEffort;
 }
 
 export const DEFAULT_CODEX_SETTINGS: CodexSettings = {
@@ -37,6 +48,10 @@ export const DEFAULT_CODEX_SETTINGS: CodexSettings = {
   defaultPermissionMode: "ask-for-approval",
   // Preserve codex's directory-trust prompt for user-chosen folders by default.
   autoTrustProjectFolders: false,
+  // Today's hardcoded launch defaults (state.ts createInitialState) — zero
+  // behavior drift for an install that never touches the new setting.
+  defaultModel: "gpt-5.6-sol",
+  defaultReasoningEffort: "high",
 };
 
 /** True for one of the three offered Codex permission modes. */
@@ -68,6 +83,14 @@ export function normalizeCodexSettings(value: unknown): CodexSettings {
       typeof value.autoTrustProjectFolders === "boolean"
         ? value.autoTrustProjectFolders
         : DEFAULT_CODEX_SETTINGS.autoTrustProjectFolders,
+    // A non-empty string is a concrete model alias; anything else falls back.
+    defaultModel:
+      typeof value.defaultModel === "string" && value.defaultModel
+        ? value.defaultModel
+        : DEFAULT_CODEX_SETTINGS.defaultModel,
+    defaultReasoningEffort: isReasoningEffort(value.defaultReasoningEffort)
+      ? value.defaultReasoningEffort
+      : DEFAULT_CODEX_SETTINGS.defaultReasoningEffort,
   };
 }
 

@@ -2745,6 +2745,22 @@ h2 {
   bottom: calc(100% + 6px);
 }
 
+/* Section title inside a two-section model/effort menu (Model / Reasoning).
+   The second heading carries a hairline divider so the two axes read apart. */
+.settings-popup-menu-heading {
+  margin: 0;
+  padding: 5px 8px 3px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.settings-popup-menu-heading:not(:first-child) {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-hairline);
+}
+
 .settings-popup-option {
   display: flex;
   align-items: flex-start;

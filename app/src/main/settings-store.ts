@@ -22,6 +22,10 @@ import {
   normalizeResumeSettings,
 } from "../shared/types/resume-settings";
 import {
+  type SonataSettings,
+  normalizeSonataSettings,
+} from "../shared/types/sonata-settings";
+import {
   type TerminalWindowSettings,
   normalizeTerminalWindowSettings,
 } from "../shared/types/terminal-window-settings";
@@ -116,6 +120,16 @@ export class CodexSettingsStore extends JsonSettingsStore<CodexSettings> {
 
 export function codexSettingsPath(): string {
   return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "codex-settings.json");
+}
+
+export class SonataSettingsStore extends JsonSettingsStore<SonataSettings> {
+  constructor(filePath: string) {
+    super(filePath, normalizeSonataSettings);
+  }
+}
+
+export function sonataSettingsPath(): string {
+  return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "sonata-settings.json");
 }
 
 export class WindowStateStore extends JsonSettingsStore<WindowStateDocument> {
