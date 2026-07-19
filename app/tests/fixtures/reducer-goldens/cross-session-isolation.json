@@ -85,19 +85,19 @@
               {
                 "runId": "run-1783114202775-3",
                 "rawText": {
-                  "~len": 18749,
-                  "~sha256": "8dfa1480d2251dd0",
+                  "~len": 18737,
+                  "~sha256": "870822a1621aaf24",
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3mChurned\u001b[11Gfor\u001b[15G14\u001b[18G\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
                 "text": {
-                  "~len": 3318,
-                  "~sha256": "18a4888cc3f82e58",
+                  "~len": 3311,
+                  "~sha256": "f7d2864311b0f683",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedgamma_only.",
                   "~tail": "dwiththerequestedcontent.Nootherfilesweretouched.\n✻ Churnedfor14"
                 },
                 "truncated": false,
-                "receivedChars": 18749
+                "receivedChars": 18737
               }
             ],
             "transcriptBlocks": [
@@ -621,19 +621,19 @@
               {
                 "runId": "run-1783114202775-3",
                 "rawText": {
-                  "~len": 18749,
-                  "~sha256": "8dfa1480d2251dd0",
+                  "~len": 18737,
+                  "~sha256": "870822a1621aaf24",
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3mChurned\u001b[11Gfor\u001b[15G14\u001b[18G\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
                 "text": {
-                  "~len": 3318,
-                  "~sha256": "18a4888cc3f82e58",
+                  "~len": 3311,
+                  "~sha256": "f7d2864311b0f683",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedgamma_only.",
                   "~tail": "dwiththerequestedcontent.Nootherfilesweretouched.\n✻ Churnedfor14"
                 },
                 "truncated": false,
-                "receivedChars": 18749
+                "receivedChars": 18737
               }
             ],
             "transcriptBlocks": [
