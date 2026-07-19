@@ -41,15 +41,32 @@ EMAIL_RE='[A-Za-z0-9._%+-]+@gmail\.com'
 # detection patterns, so it must not scan itself for markers (it would always
 # self-match). These files stay in the gitleaks pass (real-secret detection is
 # unaffected) and are small tracked infra reviewed on every change.
-INFRA_EXCLUDES=(
-  ":(exclude)app/scripts/leak-fence.sh"
-  ":(exclude)app/scripts/git-hooks/pre-push"
-  ":(exclude).gitleaks.toml"
+INFRA_PATHS=(
+  "app/scripts/leak-fence.sh"
+  "app/scripts/git-hooks/pre-push"
+  ".gitleaks.toml"
 )
 
-# Build the reusable "-e MARKER" argument list once.
+# True when $1 is a fence-infra path to skip in the marker scan.
+is_infra_path() {
+  local p
+  for p in "${INFRA_PATHS[@]}"; do [ "$1" = "$p" ] && return 0; done
+  return 1
+}
+
+# Build the reusable "-e MARKER" argument list (fixed-string, for messages).
 MARKER_GREP=()
 for m in "${MARKERS[@]}"; do MARKER_GREP+=(-e "$m"); done
+
+# Build one combined ERE (markers + email) for the binary-safe blob scan, so
+# each blob is scanned with a single grep. Marker literals are ERE-escaped so a
+# metacharacter (e.g. the '.' in the email literal) cannot over-match.
+SCAN_ERE=""
+for m in "${MARKERS[@]}"; do
+  esc=$(printf '%s' "$m" | sed 's/[][\.^$*+?(){}|]/\\&/g')
+  SCAN_ERE="${SCAN_ERE:+$SCAN_ERE|}$esc"
+done
+SCAN_ERE="$SCAN_ERE|$EMAIL_RE"
 
 fail=0
 
@@ -79,24 +96,42 @@ for range in "${ranges[@]}"; do
   commits=$(git rev-list $range 2>/dev/null)
   [ -z "$commits" ] && continue
 
-  # ---- (1) Marker scan over OUTGOING ADDED CONTENT ----
-  # Diff-based: only lines this push newly introduces (the correct incremental
-  # semantic; content already on the remote is not re-flagged). Fence infra is
-  # excluded (see INFRA_EXCLUDES). `+++ b/...` file headers are dropped so a
-  # path never masquerades as content.
+  # ---- (1) Marker scan over OUTGOING NEW BLOBS (binary-safe) ----
+  # Enumerate the blobs this push newly introduces — objects reachable in the
+  # range but not already on the remote (`git rev-list --objects <range>`), which
+  # keeps the incremental semantic AND is merge-safe (it walks the object graph,
+  # not diffs, so no `-m` concern). Each new blob's FULL content is scanned with
+  # `grep -a`, so a marker embedded in a BINARY blob (sqlite / tar / image EXIF /
+  # captured corpus) is caught — the earlier `git log -p` approach printed
+  # "Binary files differ" and missed it entirely (N1, WS2 S3 review). Fence infra
+  # is excluded by path (it legitimately contains the marker literals); gitleaks
+  # still scans it for real secrets.
+  #
+  # rev-list --objects prints "<sha> <path>" for blobs/subtrees and a bare
+  # "<sha>" for commits/root-trees; we keep only path-bearing, non-infra entries
+  # and confirm blob type before scanning.
+  pairs="$(mktemp -t sonata-leak-fence-blobs)"
   # shellcheck disable=SC2086
-  added=$(git log $range -p --no-color --no-textconv -- . "${INFRA_EXCLUDES[@]}" 2>/dev/null \
-            | grep '^+' | grep -v '^+++' || true)
+  git rev-list --objects $range 2>/dev/null \
+    | awk 'NF>=2 { sha=$1; path=substr($0, index($0,$2)); print sha"\t"path }' \
+    > "$pairs"
 
-  if [ -n "$added" ]; then
-    marker_hits=$(printf '%s\n' "$added" | grep -aF "${MARKER_GREP[@]}" 2>/dev/null | head -20 || true)
-    email_hits=$(printf '%s\n' "$added" | grep -aE "$EMAIL_RE" 2>/dev/null | head -20 || true)
-    if [ -n "$marker_hits" ] || [ -n "$email_hits" ]; then
-      emit_block "personal marker in outgoing changes (range: $range)"
-      [ -n "$marker_hits" ] && printf '%s\n' "$marker_hits" | sed 's/^/      /' >&2
-      [ -n "$email_hits" ]  && printf '%s\n' "$email_hits"  | sed 's/^/      /' >&2
-      fail=1
+  hit_paths=""
+  while IFS="$(printf '\t')" read -r sha path; do
+    [ -n "$path" ] || continue
+    is_infra_path "$path" && continue
+    [ "$(git cat-file -t "$sha" 2>/dev/null)" = blob ] || continue
+    if git cat-file blob "$sha" 2>/dev/null \
+         | grep -aqE -e "$SCAN_ERE" 2>/dev/null; then
+      hit_paths="${hit_paths}${path}"$'\n'
     fi
+  done < "$pairs"
+  rm -f "$pairs"
+
+  if [ -n "$hit_paths" ]; then
+    emit_block "personal marker in outgoing new blob content (range: $range)"
+    printf '%s' "$hit_paths" | sed '/^$/d;s/^/      /' >&2
+    fail=1
   fi
 
   # ---- (2) Marker scan over OUTGOING COMMIT MESSAGES ----
