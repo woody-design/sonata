@@ -13,9 +13,6 @@ __pycache__/
 # Local scratch space (screenshots, one-off references)
 Temp/
 
-# Design-system verification screenshot matrix (S6 acceptance material — uncommitted)
-design/verify-2026-07-15/
-
 # Per-workspace runtime artifacts (statusline/hook sinks, usage) — never source.
 # .duet/ kept: pre-rename dirs may linger on disk in either worktree.
 .sonata/
@@ -27,14 +24,11 @@ design/verify-2026-07-15/
 !.env.example
 *.log
 
-# Provider/runtime diagnostic captures should be opt-in artifacts, not default source.
-spikes/**/control-workspace/**
-!spikes/**/control-workspace/
-!spikes/**/control-workspace/README.md
-spikes/**/sample-output/last-run.*
-spikes/**/sample-output/latest-*-summary.json
-spikes/**/sample-output/*.raw.jsonl
-spikes/**/sample-output/*.raw.txt
-spikes/**/hardening-output/last-run.*
-spikes/**/hardening-output/*.raw.jsonl
-spikes/**/hardening-output/latest-summary.json
+# Process layer stays private (D6/D7) — human↔AI collaboration mechanics never
+# reach the public code repo. `git add -A` must be unable to publish any of it.
+#   private/    — living private docs (D7); its own git repo with a private remote
+#   /CLAUDE.md  — untracked session guardrails (repo-root only; app/ may have none)
+#   .claude/    — Claude Code discovery dir (skills, settings) — untracked
+private/
+/CLAUDE.md
+.claude/
