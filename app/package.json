@@ -13,6 +13,7 @@
     "build": "npm run clean && npm run typecheck && npm run build:main && npm run build:preload && npm run build:renderer",
     "start": "npm run build && electron dist/main/main.js",
     "dev": "npm run start",
+    "package": "npm run build && electron-builder --config electron-builder.yml",
     "e2e:gui-walking-skeleton": "npm run build && node tests/e2e/gui-walking-skeleton.mjs",
     "e2e:sidebar-sessions": "npm run build && node tests/e2e/sidebar-sessions.mjs",
     "e2e:sidebar-screenshots": "npm run build && node tests/e2e/sidebar-screenshots.mjs",
@@ -165,7 +166,11 @@
     "smoke:approval-resurface-window": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-resurface-window.mjs",
     "smoke:approval-gate-keyed": "npm run build:main && node tests/smoke/approval-gate-keyed.mjs",
     "smoke:run-attribution": "npm run build:main && node tests/smoke/run-attribution.mjs",
-    "smoke:stop-hook-completion": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/stop-hook-completion.mjs"
+    "smoke:stop-hook-completion": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/stop-hook-completion.mjs",
+    "smoke:login-shell-path": "npm run build:main && node tests/smoke/login-shell-path.mjs",
+    "smoke:packaged-runtime-paths": "npm run build:main && node tests/smoke/packaged-runtime-paths.mjs",
+    "smoke:packaged-app": "node tests/smoke/packaged-app-assert.mjs",
+    "smoke:packaged-settings": "node tests/smoke/packaged-settings-paths.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
@@ -186,6 +191,7 @@
     "@electron/rebuild": "^4.0.4",
     "@types/node": "^24.0.0",
     "electron": "^42.1.0",
+    "electron-builder": "^26.15.3",
     "playwright-core": "^1.60.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"

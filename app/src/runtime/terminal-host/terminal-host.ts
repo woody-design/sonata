@@ -43,6 +43,7 @@ import {
   type CodexHookPaths,
 } from "../providers/codex";
 import { shellQuotePath } from "../shell-quote";
+import { loginShellPath, mergePath } from "./login-shell-path";
 import { TerminalScrollback } from "./terminal-scrollback";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
@@ -5433,8 +5434,14 @@ function ptyEnvironment(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
       delete env[key];
     }
   }
+  // Finder/Dock-launched apps inherit launchd's minimal PATH, not the user's
+  // interactive PATH — so a packaged Sonata can't find node/claude/codex/git.
+  // Merge the login-shell PATH (darwin-only, cached once, ~2s timeout fallback,
+  // `SONATA_DISABLE_LOGIN_SHELL_PATH=1` opt-out). See login-shell-path.ts.
+  const mergedPath = mergePath(loginShellPath(), env.PATH);
   return {
     ...env,
+    ...(mergedPath !== undefined ? { PATH: mergedPath } : {}),
     TERM: "xterm-256color",
     COLORTERM: "truecolor",
     ...(extraEnv ?? {}),

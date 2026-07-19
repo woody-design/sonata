@@ -4,6 +4,8 @@
 node_modules/
 dist/
 build/
+# electron-builder packaged output (app/electron-builder.yml → directories.output)
+release/
 coverage/
 __pycache__/
 *.pyc

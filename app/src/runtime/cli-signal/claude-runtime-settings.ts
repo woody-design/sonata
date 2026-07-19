@@ -7,6 +7,7 @@ import {
   writeJsonIfChanged,
 } from "../usage/claude-statusline";
 import { approvalsDirectory } from "./approval-protocol";
+import { asarUnpackedPath } from "../asar-unpacked";
 import type { HookEventName } from "../../shared/types/cli-signal";
 
 /**
@@ -131,17 +132,20 @@ export function ensureClaudeRuntimeSettings(
   fs.mkdirSync(hooksDirectory, { recursive: true });
   fs.mkdirSync(approvalsDirectory, { recursive: true });
 
-  const sinkCommand = `node ${shellQuote(path.join(__dirname, "hook-sink.js"))} ${shellQuote(
-    hooksDirectory,
-  )}`;
+  // asarUnpackedPath: in a packaged app __dirname names the packed app.asar path,
+  // but this command is run by the provider CLI's EXTERNAL node, which can only
+  // read the unpacked-to-disk copy. No-op in dev / source-tree.
+  const sinkCommand = `node ${shellQuote(
+    asarUnpackedPath(path.join(__dirname, "hook-sink.js")),
+  )} ${shellQuote(hooksDirectory)}`;
   // Broker on by default; native-approval mode (opt-out) routes PermissionRequest
   // back to the scrape/keys fallback.
   const brokerCommand =
     options.approvalBroker === false
       ? null
-      : `node ${shellQuote(path.join(__dirname, "approval-broker.js"))} ${shellQuote(
-          approvalsDirectory,
-        )} ${APPROVAL_BROKER_TIMEOUT_MS}`;
+      : `node ${shellQuote(
+          asarUnpackedPath(path.join(__dirname, "approval-broker.js")),
+        )} ${shellQuote(approvalsDirectory)} ${APPROVAL_BROKER_TIMEOUT_MS}`;
 
   const settings: ClaudeRuntimeSettings = {
     statusLine: { type: "command", command: claudeStatuslineCommand(usageDirectory) },

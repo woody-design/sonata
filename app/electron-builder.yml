@@ -1,0 +1,68 @@
+# electron-builder — Sonata packaging.
+#
+# M1 (WS1 S1): produce a Developer-ID-signed, hardened-runtime, NOT-notarized,
+# arm64 `Sonata.app`. The M1 gate artifact is the signed `.app` from the `dir`
+# target. Notarization, entitlements authoring, and the DMG/ZIP/latest-mac.yml
+# distribution pipeline are deferred to S3 (M2) and are deliberately absent here.
+#
+# `npm run build` must run first (this config packages the compiled `dist/`).
+
+appId: app.sonatacode.sonata
+productName: Sonata
+
+directories:
+  # `build/` is .gitignored (collides with electron-builder's default resources
+  # dir name), so resources live in `build-resources/` (holds icon.icns; S3 adds
+  # entitlements plists here). `dist/` is the tsc/vite output, so packaged
+  # artifacts go to `release/` to avoid clobbering it.
+  buildResources: build-resources
+  output: release
+
+files:
+  - dist/**/*
+  - package.json
+  # Production dependencies (node-pty) are collected automatically by
+  # electron-builder; dev dependencies are excluded.
+
+asar: true
+
+# Tahoe (macOS 26) Liquid-Glass icon. Runs after packing, before signing, so the
+# signature seals the added Assets.car. It compiles build-resources/Sonata.icon
+# (Icon Composer package) via actool and wires CFBundleIconName, while `mac.icon`
+# below keeps our hand-built legacy icon.icns for CFBundleIconFile (pre-Tahoe).
+# Needs full Xcode 26+. Escape hatch: SONATA_SKIP_TAHOE_ICON=1 → icns-only.
+afterPack: build-resources/after-pack.js
+
+asarUnpack:
+  # The provider CLIs spawn SYSTEM `node` to run these sink scripts, and external
+  # `node` cannot read inside app.asar — so they must live on real disk. Their
+  # command paths are built via `path.join(__dirname, ...)`; with the scripts
+  # unpacked, __dirname resolves to app.asar.unpacked/... (verified against a
+  # packaged run). Both sink chains are self-contained within these two dirs.
+  - dist/runtime/cli-signal/**
+  - dist/runtime/usage/**
+  # node-pty ships a plain `spawn-helper` executable (not a `.node`), which
+  # electron-builder does NOT auto-detect for unpacking. Unpack the whole module
+  # so both `pty.node` and `spawn-helper` (with its exec bit) run from disk.
+  - node_modules/node-pty/**
+
+mac:
+  category: public.app-category.developer-tools
+  icon: build-resources/icon.icns
+  target:
+    - target: dir
+      arch: arm64
+  # Hardened runtime is required by the M1 objective (and by M2 notarization).
+  # No custom entitlements file is provided, so electron-builder applies its
+  # built-in default entitlements (allow-jit + allow-unsigned-executable-memory
+  # + allow-dyld-environment-variables + disable-library-validation), which is
+  # what lets the hardened-runtime app launch. S3 authors explicit plists.
+  hardenedRuntime: true
+  # Pin the exact Developer ID so a rebuild always re-signs with the same cert
+  # (TCC grants survive). Never ad-hoc/adhoc sign. electron-builder 26 wants the
+  # common name WITHOUT the "Developer ID Application:" type prefix and selects
+  # the Developer ID cert automatically.
+  identity: "Yuhui Li (NW3373QK97)"
+  # Do NOT run Gatekeeper assessment (spctl) at build time — this build is
+  # intentionally signed-but-not-notarized, so assessment would fail.
+  gatekeeperAssess: false

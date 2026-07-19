@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { asarUnpackedPath } from "../asar-unpacked";
 
 interface ClaudeStatuslineSettings {
   statusLine: {
@@ -20,7 +21,10 @@ export function claudeUsageDirectory(runtimeDir: string): string {
 export function claudeStatuslineCommand(usageDirectory: string): string {
   return [
     "node",
-    shellQuote(path.join(__dirname, "claude-statusline-sink.js")),
+    // asarUnpackedPath: the CLI runs this statusLine command with external node,
+    // which cannot read inside app.asar — point it at the unpacked-to-disk copy.
+    // No-op in dev / source-tree.
+    shellQuote(asarUnpackedPath(path.join(__dirname, "claude-statusline-sink.js"))),
     shellQuote(usageDirectory),
   ].join(" ");
 }
