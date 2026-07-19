@@ -115,22 +115,43 @@ function fakeShellOutput(pathValue) {
   results.noMarkers = null;
 }
 
-// 7) mergePath — login entries win precedence, inherited-but-absent are kept,
-//    duplicates collapse, and a null login PATH leaves the current PATH intact.
+// 7) mergePath — FALLBACK semantics: inherited PATH entries keep their order and
+//    win; login-shell entries not already present are APPENDED; duplicates
+//    collapse; a null login PATH leaves the current PATH intact.
 {
   assert.equal(
     mergePath("/opt/homebrew/bin:/usr/bin", "/usr/bin:/bin:/usr/sbin:/sbin"),
-    "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
-    "login PATH prepended; inherited-only entries appended; no dupes",
+    "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin",
+    "inherited PATH kept in order; login-only entry (/opt/homebrew/bin) appended; no dupes",
   );
   assert.equal(mergePath(null, "/usr/bin:/bin"), "/usr/bin:/bin", "null login PATH → current unchanged");
   assert.equal(mergePath(null, undefined), undefined, "null login + no current → undefined");
   assert.equal(
     mergePath("/a:/b:/a:", "/b:/c"),
-    "/a:/b:/c",
-    "internal dupes and empty segments dropped",
+    "/b:/c:/a",
+    "inherited (/b:/c) first; login-only (/a) appended; internal dupes/empty dropped",
   );
   results.merge = "ok";
+}
+
+// 7b) Regression guard (the field-found bug): a caller that DELIBERATELY
+//     prepends a dir (e2e fake CLI, direnv/nvm shim) must keep it FIRST — the
+//     login-shell PATH must never demote it below the real toolchain.
+{
+  const withFakeFirst = mergePath(
+    "/opt/homebrew/bin:/usr/bin:/bin", // login shell (has the real codex/claude)
+    "/tmp/fake-cli:/usr/bin:/bin", // caller prepended the fake
+  );
+  assert.equal(
+    withFakeFirst,
+    "/tmp/fake-cli:/usr/bin:/bin:/opt/homebrew/bin",
+    "caller-prepended fake dir stays first; login toolchain only fills the gap",
+  );
+  assert.ok(
+    withFakeFirst.indexOf("/tmp/fake-cli") < withFakeFirst.indexOf("/opt/homebrew/bin"),
+    "fake CLI resolves before the real /opt/homebrew toolchain",
+  );
+  results.regressionGuard = withFakeFirst;
 }
 
 // 8) loginShellPath() caches the result across calls (including the null the

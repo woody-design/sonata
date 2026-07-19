@@ -75,12 +75,14 @@ try {
   await page.locator("#send-prompt").waitFor({ state: "visible" });
 
   // The terminal is its own satellite window now (default-on). Exercise the
-  // header toggle via its label, which tracks the window's real open state.
-  await page.locator('#toggle-terminal-window[aria-pressed="true"]', { hasText: "CLI" }).waitFor({ state: "visible" });
+  // header toggle via aria-pressed, which tracks the window's real open state.
+  // (The button is icon-only since the 2026-07-16 visual pass — no text to
+  // filter on; its label lives in aria-label="Toggle CLI".)
+  await page.locator('#toggle-terminal-window[aria-pressed="true"]').waitFor({ state: "visible" });
   await page.locator("#toggle-terminal-window").click();
-  await page.locator('#toggle-terminal-window[aria-pressed="false"]', { hasText: "CLI" }).waitFor({ state: "visible" });
+  await page.locator('#toggle-terminal-window[aria-pressed="false"]').waitFor({ state: "visible" });
   await page.locator("#toggle-terminal-window").click();
-  await page.locator('#toggle-terminal-window[aria-pressed="true"]', { hasText: "CLI" }).waitFor({ state: "visible" });
+  await page.locator('#toggle-terminal-window[aria-pressed="true"]').waitFor({ state: "visible" });
 
   // Process detail lives on disk, not in a window (the Inspector satellite that
   // once showed the four lenses retired in S5). The runtime report is the

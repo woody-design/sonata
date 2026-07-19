@@ -99,11 +99,23 @@ function defaultExec(shell: string, args: string[], timeoutMs: number): string {
 }
 
 /**
- * Merge a resolved login-shell PATH ahead of the current PATH, de-duplicating
- * while preserving first-seen order. Login-shell entries win precedence (they
- * are the user's real toolchain locations); inherited entries that are not
- * already present are appended so nothing launchd provided is lost. Returns the
- * current PATH unchanged when there is nothing to merge.
+ * Merge a resolved login-shell PATH into the current PATH with FALLBACK
+ * semantics: the inherited (current) PATH entries keep their exact order and
+ * win; login-shell entries that are not already present are APPENDED at the end.
+ * De-duplicated, first-seen order. Returns the current PATH unchanged when there
+ * is nothing to merge.
+ *
+ * Why inherited-first, not login-first: the login-shell PATH is a SAFETY NET for
+ * the Finder/Dock-launch case, not an authority over the caller's environment.
+ * - Finder launch (the actual mine): the inherited PATH is launchd's minimal
+ *   `/usr/bin:/bin:/usr/sbin:/sbin` — no toolchain dirs, so appended login-shell
+ *   entries resolve node/claude/codex/git identically whether prepended or
+ *   appended (there is nothing to conflict with).
+ * - Terminal/dev/e2e launch: callers deliberately shape PATH — e2e suites
+ *   PREPEND a temp dir to inject a fake CLI; direnv/nvm/nix prepend shims. A
+ *   login-first merge would demote those below `/opt/homebrew/bin` et al and
+ *   silently drive the real toolchain. Inherited-first preserves the caller's
+ *   intent; the login entries only fill gaps.
  */
 export function mergePath(
   loginPath: string | null,
@@ -116,8 +128,8 @@ export function mergePath(
   const seen = new Set<string>();
   const merged: string[] = [];
   const parts = [
-    ...loginPath.split(":"),
     ...(currentPath ? currentPath.split(":") : []),
+    ...loginPath.split(":"),
   ];
   for (const part of parts) {
     if (!part || seen.has(part)) {
