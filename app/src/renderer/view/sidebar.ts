@@ -197,7 +197,7 @@ export function renderSidebar(options: SidebarRenderOptions = {}): void {
     ...options,
     resetScroll: options.resetScroll ?? prefsChanged,
   });
-  lastRenderedPrefs = { ...state.sidebar.prefs };
+  lastRenderedPrefs = { ...state.sidebar.prefs, tags: [...state.sidebar.prefs.tags] };
 }
 
 function renderSidebarRenameNotice(): void {
@@ -216,7 +216,13 @@ function renderSidebarSections(): void {
     return;
   }
 
-  const model = sidebarDisclosureModel(index, state.sidebar.prefs, state.sidebar.disclosure);
+  const model = sidebarDisclosureModel(
+    index,
+    state.sidebar.prefs,
+    state.sidebar.disclosure,
+    Date.now(),
+    state.tagDefinitions,
+  );
   const focusedProject = index.projects.find(
     (project) => project.path === state.sidebar.prefs.project,
   );
@@ -290,6 +296,9 @@ function renderSidebarListHeader(title: string): HTMLElement {
     }
     sidebarTransitions.openFilterMenu(state, anchorRectOf(event.currentTarget as HTMLElement));
     renderSidebarMenu();
+    void actions.refreshTagDefinitions().catch(() => {
+      // Keep the boot cache; opening the filter menu is a best-effort revalidation.
+    });
   });
 
   header.append(label, filterButton);
@@ -710,6 +719,8 @@ function sidebarPrefsEqual(left: SidebarPrefs, right: SidebarPrefs): boolean {
     left.status === right.status &&
     left.project === right.project &&
     left.activity === right.activity &&
+    left.tags.length === right.tags.length &&
+    left.tags.every((id, index) => id === right.tags[index]) &&
     left.groupBy === right.groupBy &&
     left.sortBy === right.sortBy
   );
@@ -1792,7 +1803,7 @@ function renderSidebarFilterMenu(
     filterMenuRow(
       menu,
       "status",
-      "Status",
+      "Show",
       statusLabels[state.sidebar.prefs.status],
       state.sidebar.prefs.status !== SIDEBAR_PREFS_DEFAULTS.status,
       () =>
@@ -1844,6 +1855,16 @@ function renderSidebarFilterMenu(
           ),
         ),
     ),
+    filterMenuRow(
+      menu,
+      "tags",
+      "Tags",
+      state.sidebar.prefs.tags.length === 0
+        ? "All"
+        : `${state.sidebar.prefs.tags.length} selected`,
+      state.sidebar.prefs.tags.length > 0,
+      () => renderTagFilterGroups(),
+    ),
     filterMenuSeparator(),
     filterMenuRow(
       menu,
@@ -1886,10 +1907,65 @@ function renderSidebarFilterMenu(
       status: SIDEBAR_PREFS_DEFAULTS.status,
       project: SIDEBAR_PREFS_DEFAULTS.project,
       activity: SIDEBAR_PREFS_DEFAULTS.activity,
+      tags: [...SIDEBAR_PREFS_DEFAULTS.tags],
     });
   }, "default", "menu:filter:clear");
   clear.disabled = !sidebarFiltersNonDefault(state.sidebar.prefs);
   panel.append(clear);
+}
+
+function renderTagFilterGroups(): HTMLElement[] {
+  return TAG_GROUPS.map((group) => {
+    const section = document.createElement("div");
+    section.className = "sidebar-tag-filter-group";
+    section.setAttribute("role", "group");
+    const headingId = `sidebar-tag-filter-heading-${group}`;
+    section.setAttribute("aria-labelledby", headingId);
+
+    const heading = document.createElement("div");
+    heading.id = headingId;
+    heading.className = "sidebar-tag-filter-heading";
+    heading.textContent = TAG_GROUP_LABELS[group];
+    section.append(heading);
+
+    for (const definition of state.tagDefinitions) {
+      if (definition.group === group) {
+        section.append(filterTagMenuOption(definition));
+      }
+    }
+    return section;
+  });
+}
+
+function filterTagMenuOption(definition: TagDefinition): HTMLElement {
+  const selected = state.sidebar.prefs.tags.includes(definition.id);
+  const option = document.createElement("button");
+  option.type = "button";
+  option.className = "sidebar-menu-item sidebar-filter-option sidebar-tag-filter-option";
+  option.dataset.tagId = definition.id;
+  option.setAttribute("role", "menuitemcheckbox");
+  option.setAttribute("aria-checked", String(selected));
+  setSidebarFocusKey(option, `menu:filter:tags:${definition.id}`);
+
+  const label = document.createElement("span");
+  label.className = "sidebar-filter-label";
+  label.textContent = definition.label;
+  option.append(tagDot(definition.color), label);
+  if (selected) {
+    const check = document.createElement("span");
+    check.className = "sidebar-filter-check";
+    check.textContent = "✓";
+    check.setAttribute("aria-hidden", "true");
+    option.append(check);
+  }
+  option.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const next = selected
+      ? state.sidebar.prefs.tags.filter((id) => id !== definition.id)
+      : [...state.sidebar.prefs.tags, definition.id];
+    actions.setSidebarPrefs({ tags: next });
+  });
+  return option;
 }
 
 function filterMenuRow(

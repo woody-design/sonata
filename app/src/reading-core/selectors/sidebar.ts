@@ -12,6 +12,8 @@ import type {
   ProjectGroup,
   SessionIndexResponse,
   SessionSummary,
+  TagDefinition,
+  TagGroup,
 } from "../../shared/types";
 import {
   SIDEBAR_DISCLOSURE_INCREMENT,
@@ -29,19 +31,49 @@ export function sidebarPrefsNonDefault(prefs: SidebarPrefs): boolean {
     prefs.status !== SIDEBAR_PREFS_DEFAULTS.status ||
     prefs.project !== SIDEBAR_PREFS_DEFAULTS.project ||
     prefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity ||
+    prefs.tags.length > 0 ||
     prefs.groupBy !== SIDEBAR_PREFS_DEFAULTS.groupBy ||
     prefs.sortBy !== SIDEBAR_PREFS_DEFAULTS.sortBy
   );
 }
 
-/** The filter subset only (status/project/activity) — group/sort are view
+/** The filter subset only (status/project/activity/tags) — group/sort are view
  *  shape, not filters, so "Clear filters" ignores them. */
 export function sidebarFiltersNonDefault(prefs: SidebarPrefs): boolean {
   return (
     prefs.status !== SIDEBAR_PREFS_DEFAULTS.status ||
     prefs.project !== SIDEBAR_PREFS_DEFAULTS.project ||
-    prefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity
+    prefs.activity !== SIDEBAR_PREFS_DEFAULTS.activity ||
+    prefs.tags.length > 0
   );
+}
+
+/** Normalize the local preference payload without inventing tag ids. When the
+ * definitions cache is available, stale ids are also removed. */
+export function normalizeSidebarTagIds(
+  value: unknown,
+  definitions?: readonly TagDefinition[],
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const validIds = definitions
+    ? new Set(definitions.map((definition) => definition.id))
+    : null;
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const candidate of value) {
+    if (
+      typeof candidate !== "string" ||
+      seen.has(candidate) ||
+      (validIds !== null && !validIds.has(candidate))
+    ) {
+      continue;
+    }
+    seen.add(candidate);
+    normalized.push(candidate);
+  }
+  return normalized;
 }
 
 interface SidebarEntryBase {
@@ -131,7 +163,19 @@ export function applySidebarPrefs(
   entries: SidebarEntry[],
   prefs: SidebarPrefs,
   now = Date.now(),
+  tagDefinitions: readonly TagDefinition[] = [],
 ): SidebarEntry[] {
+  const selectedIds = new Set(prefs.tags);
+  const selectedByGroup = new Map<TagGroup, Set<string>>();
+  for (const definition of tagDefinitions) {
+    if (!selectedIds.has(definition.id)) {
+      continue;
+    }
+    const group = selectedByGroup.get(definition.group) ?? new Set<string>();
+    group.add(definition.id);
+    selectedByGroup.set(definition.group, group);
+  }
+
   const filtered = entries.filter((entry) => {
     const archived = entry.session.archived || entry.projectArchived;
     if (prefs.status === "active" && archived) {
@@ -147,6 +191,21 @@ export function applySidebarPrefs(
       const ageMs = now - Date.parse(entry.session.lastActivityAt);
       if (!(ageMs <= ACTIVITY_WINDOW_MS[prefs.activity])) {
         return false;
+      }
+    }
+    if (selectedByGroup.size > 0) {
+      const sessionTags = new Set(entry.session.task.tags ?? []);
+      for (const groupIds of selectedByGroup.values()) {
+        let groupMatches = false;
+        for (const id of groupIds) {
+          if (sessionTags.has(id)) {
+            groupMatches = true;
+            break;
+          }
+        }
+        if (!groupMatches) {
+          return false;
+        }
       }
     }
     return true;
@@ -258,8 +317,9 @@ export function sidebarDisclosureModel(
   prefs: SidebarPrefs,
   disclosure: SidebarDisclosureState,
   now = Date.now(),
+  tagDefinitions: readonly TagDefinition[] = [],
 ): SidebarDisclosureModel {
-  const entries = applySidebarPrefs(sidebarEntries(index), prefs, now);
+  const entries = applySidebarPrefs(sidebarEntries(index), prefs, now, tagDefinitions);
 
   if (prefs.project !== null) {
     const project = index.projects.find((candidate) => candidate.path === prefs.project);

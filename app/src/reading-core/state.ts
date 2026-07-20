@@ -264,6 +264,8 @@ export interface SidebarPrefs {
   /** providerCwd of the focused project, or null for all. */
   project: string | null;
   activity: "1d" | "3d" | "7d" | "30d" | "all";
+  /** Tag definition ids. Empty means no tag filtering. */
+  tags: string[];
   groupBy: "project" | "date" | "none";
   sortBy: "recency" | "created" | "alphabetical";
 }
@@ -272,6 +274,7 @@ export const SIDEBAR_PREFS_DEFAULTS: SidebarPrefs = {
   status: "active",
   project: null,
   activity: "all",
+  tags: [],
   groupBy: "project",
   sortBy: "recency",
 };
@@ -312,7 +315,7 @@ export type SidebarMenuState =
   | { kind: "project"; path: string; name: string; archived: boolean; anchor: AnchorRect }
   | { kind: "filter"; anchor: AnchorRect; openSection: FilterMenuSection | null };
 
-export type FilterMenuSection = "status" | "project" | "activity" | "group" | "sort";
+export type FilterMenuSection = "status" | "project" | "activity" | "tags" | "group" | "sort";
 
 export interface SidebarTagInputState {
   group: TagGroup;
@@ -633,7 +636,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
       renameEditor: null,
       renameRequestVersion: 0,
       renameNotice: null,
-      prefs: { ...SIDEBAR_PREFS_DEFAULTS },
+      prefs: { ...SIDEBAR_PREFS_DEFAULTS, tags: [...SIDEBAR_PREFS_DEFAULTS.tags] },
       collapsedProjects: new Set(),
       disclosure: {
         visibleProjectLimit: SIDEBAR_INITIAL_VISIBLE_COUNT,

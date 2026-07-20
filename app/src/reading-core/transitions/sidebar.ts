@@ -190,7 +190,19 @@ export function patchSidebarPrefs(
   patch: Partial<SidebarPrefs>,
 ): boolean {
   const keys = Object.keys(patch) as Array<keyof SidebarPrefs>;
-  if (keys.every((key) => patch[key] === state.sidebar.prefs[key])) {
+  if (
+    keys.every((key) => {
+      if (key !== "tags") {
+        return patch[key] === state.sidebar.prefs[key];
+      }
+      const next = patch.tags;
+      const current = state.sidebar.prefs.tags;
+      return (
+        next === undefined ||
+        (next.length === current.length && next.every((id, index) => id === current[index]))
+      );
+    })
+  ) {
     return false;
   }
   state.sidebar.prefs = { ...state.sidebar.prefs, ...patch };

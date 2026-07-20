@@ -42,6 +42,7 @@ import {
   providerLabel,
 } from "../reading-core/selectors/formatters";
 import { filteredSlashItems } from "../reading-core/selectors/composer";
+import { normalizeSidebarTagIds } from "../reading-core/selectors/sidebar";
 import {
   reasoningEffortForModel,
   reasoningOptionsForModel,
@@ -202,6 +203,7 @@ function loadSidebarPrefs(): SidebarPrefs {
       activity: ["1d", "3d", "7d", "30d", "all"].includes(raw.activity as string)
         ? (raw.activity as SidebarPrefs["activity"])
         : SIDEBAR_PREFS_DEFAULTS.activity,
+      tags: normalizeSidebarTagIds(raw.tags),
       groupBy: ["project", "date", "none"].includes(raw.groupBy as string)
         ? (raw.groupBy as SidebarPrefs["groupBy"])
         : SIDEBAR_PREFS_DEFAULTS.groupBy,
@@ -210,18 +212,22 @@ function loadSidebarPrefs(): SidebarPrefs {
         : SIDEBAR_PREFS_DEFAULTS.sortBy,
     };
   } catch {
-    return { ...SIDEBAR_PREFS_DEFAULTS };
+    return { ...SIDEBAR_PREFS_DEFAULTS, tags: [...SIDEBAR_PREFS_DEFAULTS.tags] };
   }
 }
 
 function setSidebarPrefs(patch: Partial<SidebarPrefs>): void {
   sidebarTransitions.patchSidebarPrefs(state, patch);
+  saveSidebarPrefs();
+  renderSidebar();
+}
+
+function saveSidebarPrefs(): void {
   try {
     localStorage.setItem(SIDEBAR_PREFS_KEY, JSON.stringify(state.sidebar.prefs));
   } catch {
     // View preference only.
   }
-  renderSidebar();
 }
 
 
@@ -1188,13 +1194,31 @@ async function hydrateReadingSettings(): Promise<void> {
 
 async function refreshTagDefinitions(): Promise<void> {
   const definitions = await window.sonataRuntime.listTags();
-  if (tagDefinitionsEqual(state.tagDefinitions, definitions)) {
+  const definitionsChanged = !tagDefinitionsEqual(state.tagDefinitions, definitions);
+  if (definitionsChanged) {
+    state.tagDefinitions = definitions;
+  }
+  const tagsChanged = normalizePersistedSidebarTags(definitions);
+  if (tagsChanged || (definitionsChanged && state.sidebar.prefs.tags.length > 0)) {
+    renderSidebar();
     return;
   }
-  state.tagDefinitions = definitions;
-  if (state.sidebar.menu?.kind === "session" && state.sidebar.menu.tagsOpen) {
+  if (
+    definitionsChanged &&
+    (state.sidebar.menu?.kind === "filter" ||
+      (state.sidebar.menu?.kind === "session" && state.sidebar.menu.tagsOpen))
+  ) {
     renderSidebarMenu();
   }
+}
+
+function normalizePersistedSidebarTags(definitions: readonly TagDefinition[]): boolean {
+  const normalized = normalizeSidebarTagIds(state.sidebar.prefs.tags, definitions);
+  if (!sidebarTransitions.patchSidebarPrefs(state, { tags: normalized })) {
+    return false;
+  }
+  saveSidebarPrefs();
+  return true;
 }
 
 function tagDefinitionsEqual(
@@ -1228,6 +1252,9 @@ async function deleteTagDefinition(id: string): Promise<void> {
   await window.sonataRuntime.deleteTag({ id });
   state.tagDefinitions = state.tagDefinitions.filter((definition) => definition.id !== id);
   removeLocalTaskTag(id);
+  if (normalizePersistedSidebarTags(state.tagDefinitions)) {
+    renderSidebar();
+  }
 }
 
 async function persistSessionTags(taskId: string, tagIds: readonly string[]): Promise<void> {

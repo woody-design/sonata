@@ -424,7 +424,7 @@ async function assertPreferenceResetAndNoOp(page, fixture) {
   await closeFilterMenu(page);
   assertEqual(await projectSessionCount(page, "Mango"), 15, "already-selected sort is a no-op");
 
-  await chooseSidebarPreference(page, "Status", "All", "menu:filter:status:all");
+  await chooseSidebarPreference(page, "Show", "All", "menu:filter:status:all");
   await closeFilterMenu(page);
   assertEqual(await projectSessionCount(page, "Mango"), 5, "actual status filter change resets depth");
   await page.locator("#sidebar-filter").click();
@@ -635,7 +635,7 @@ async function chooseSidebarPreference(page, section, option, expectedFocusKey) 
   const menu = page.locator("#sidebar-menu-root .sidebar-filter-menu");
   await menu.waitFor({ state: "visible" });
   const sectionKeys = {
-    Status: "status",
+    Show: "status",
     Project: "project",
     "Last activity": "activity",
     "Group by": "group",
