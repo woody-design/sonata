@@ -17,9 +17,20 @@ import {
   ListFilter,
   LoaderCircle,
   Plus,
+  X,
   type IconNode,
 } from "lucide";
-import type { SessionSummary } from "../../shared/types";
+import type { SessionSummary, TagColor, TagDefinition, TagGroup } from "../../shared/types";
+import { TAG_GROUPS } from "../../shared/types";
+import { replaceTagSelection } from "../../shared/session-tags";
+import {
+  buildPointerGracePolygon,
+  calculateCascadePlacement,
+  pointerGraceProtects,
+  type CascadePoint,
+  type CascadeSide,
+  type PointerGraceRegion,
+} from "../../reading-core/cascade-menu";
 import { formatRelativeAge } from "../../reading-core/selectors/formatters";
 import { turnActivity } from "../../reading-core/selectors/runs";
 import {
@@ -58,6 +69,32 @@ let state: RendererState;
 
 export function initSidebarView(stateRef: RendererState): void {
   state = stateRef;
+  elements.sidebarMenuRoot.addEventListener("pointermove", (event) => {
+    if (event.pointerType !== "mouse") {
+      return;
+    }
+    cascadeController.previousPoint = cascadeController.currentPoint;
+    cascadeController.currentPoint = { x: event.clientX, y: event.clientY };
+    if (
+      cascadeController.grace &&
+      !pointerGraceProtects(
+        cascadeController.grace,
+        cascadeController.previousPoint,
+        cascadeController.currentPoint,
+        performance.now(),
+      )
+    ) {
+      cascadeController.grace = null;
+    }
+  });
+  window.addEventListener("resize", closeDetachedTagCascade);
+  sidebarScroller().addEventListener("scroll", closeDetachedTagCascade, { passive: true });
+}
+
+function closeDetachedTagCascade(): void {
+  if (state.sidebar.menu?.kind === "session" && state.sidebar.menu.tagsOpen) {
+    closeSidebarMenu();
+  }
 }
 
 interface SidebarRenderOptions {
@@ -75,12 +112,70 @@ interface SidebarRenderSnapshot {
   focusOffsetTop: number | null;
   scrollTop: number;
   menuFocusOffsetTop: number | null;
-  menuScrollTop: number | null;
+  menuFocusPanelId: string | null;
+  menuScrollTops: Record<string, number>;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+  selectionDirection: "forward" | "backward" | "none" | null;
 }
 
 const OUTER_SHOW_LESS_FOCUS_KEY = "disclosure:outer:less";
 const OUTER_SHOW_MORE_FOCUS_KEY = "disclosure:outer:more";
 let lastRenderedPrefs: SidebarPrefs | null = null;
+
+const TAG_GROUP_LABELS: Record<TagGroup, string> = {
+  status: "Status",
+  type: "Type",
+  priority: "Priority",
+};
+const TAG_GROUP_COLORS: Record<TagGroup, TagColor> = {
+  status: "blue",
+  type: "purple",
+  priority: "orange",
+};
+const CASCADE_HOVER_OPEN_MS = 100;
+const CASCADE_GRACE_MS = 300;
+const CASCADE_CLOSE_MS = 150;
+
+const cascadeController = {
+  timers: new Set<number>(),
+  layoutFrame: null as number | null,
+  previousPoint: null as CascadePoint | null,
+  currentPoint: null as CascadePoint | null,
+  grace: null as PointerGraceRegion | null,
+  sides: new Map<string, CascadeSide>(),
+};
+
+function resetCascadeController(): void {
+  for (const timer of cascadeController.timers) {
+    window.clearTimeout(timer);
+  }
+  cascadeController.timers.clear();
+  if (cascadeController.layoutFrame !== null) {
+    window.cancelAnimationFrame(cascadeController.layoutFrame);
+  }
+  cascadeController.layoutFrame = null;
+  cascadeController.previousPoint = null;
+  cascadeController.currentPoint = null;
+  cascadeController.grace = null;
+  cascadeController.sides.clear();
+}
+
+function scheduleCascadeAction(delay: number, action: () => void): number {
+  const timer = window.setTimeout(() => {
+    cascadeController.timers.delete(timer);
+    action();
+  }, delay);
+  cascadeController.timers.add(timer);
+  return timer;
+}
+
+function cancelCascadeTimers(): void {
+  for (const timer of cascadeController.timers) {
+    window.clearTimeout(timer);
+  }
+  cascadeController.timers.clear();
+}
 
 export function renderSidebar(options: SidebarRenderOptions = {}): void {
   renderSidebarRenameNotice();
@@ -486,10 +581,20 @@ function sidebarScroller(): HTMLElement {
 function captureSidebarRenderSnapshot(): SidebarRenderSnapshot {
   const scroller = sidebarScroller();
   const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  const menu = elements.sidebarMenuRoot.querySelector<HTMLElement>(".sidebar-menu");
+  const activePanel = active?.closest<HTMLElement>("[data-sidebar-menu-panel-id]") ?? null;
+  const activeInput = active instanceof HTMLInputElement ? active : null;
   const ownsFocus =
     active !== null &&
     (elements.sidebarList.contains(active) || elements.sidebarMenuRoot.contains(active));
+  const menuScrollTops: Record<string, number> = {};
+  for (const panel of Array.from(
+    elements.sidebarMenuRoot.querySelectorAll<HTMLElement>("[data-sidebar-menu-panel-id]"),
+  )) {
+    const panelId = panel.dataset.sidebarMenuPanelId;
+    if (panelId) {
+      menuScrollTops[panelId] = panel.scrollTop;
+    }
+  }
   return {
     focusKey: ownsFocus ? (active.dataset.sidebarFocusKey ?? null) : null,
     fallbackFocusKeys: ownsFocus ? sidebarFallbackFocusKeys(active) : [],
@@ -499,10 +604,14 @@ function captureSidebarRenderSnapshot(): SidebarRenderSnapshot {
         : null,
     scrollTop: scroller.scrollTop,
     menuFocusOffsetTop:
-      ownsFocus && menu?.contains(active)
-        ? active.getBoundingClientRect().top - menu.getBoundingClientRect().top
+      ownsFocus && activePanel?.contains(active)
+        ? active.getBoundingClientRect().top - activePanel.getBoundingClientRect().top
         : null,
-    menuScrollTop: menu?.scrollTop ?? null,
+    menuFocusPanelId: activePanel?.dataset.sidebarMenuPanelId ?? null,
+    menuScrollTops,
+    selectionStart: ownsFocus ? (activeInput?.selectionStart ?? null) : null,
+    selectionEnd: ownsFocus ? (activeInput?.selectionEnd ?? null) : null,
+    selectionDirection: ownsFocus ? (activeInput?.selectionDirection ?? null) : null,
   };
 }
 
@@ -512,9 +621,13 @@ function restoreSidebarRenderSnapshot(
 ): void {
   const scroller = sidebarScroller();
   scroller.scrollTop = options.resetScroll ? 0 : snapshot.scrollTop;
-  const menu = elements.sidebarMenuRoot.querySelector<HTMLElement>(".sidebar-menu");
-  if (menu && snapshot.menuScrollTop !== null) {
-    menu.scrollTop = snapshot.menuScrollTop;
+  for (const [panelId, scrollTop] of Object.entries(snapshot.menuScrollTops)) {
+    const panel = elements.sidebarMenuRoot.querySelector<HTMLElement>(
+      `[data-sidebar-menu-panel-id="${CSS.escape(panelId)}"]`,
+    );
+    if (panel) {
+      panel.scrollTop = scrollTop;
+    }
   }
   const desiredKey = options.preferredFocusKey ?? snapshot.focusKey;
   if (!desiredKey) {
@@ -536,7 +649,35 @@ function restoreSidebarRenderSnapshot(
     return;
   }
 
+  const revealHiddenMenuTrigger =
+    target.classList.contains("sidebar-row-hover-action") &&
+    getComputedStyle(target).visibility === "hidden";
+  if (revealHiddenMenuTrigger) {
+    // The ellipsis is paint-hidden off hover. Chromium refuses focus on a
+    // visibility:hidden button, so reveal it for the focus handoff; once focus
+    // lands, the row's existing :focus-within rule keeps it visible.
+    target.style.visibility = "visible";
+  }
   target.focus({ preventScroll: true });
+  if (revealHiddenMenuTrigger) {
+    target.style.removeProperty("visibility");
+  }
+  if (
+    target instanceof HTMLInputElement &&
+    snapshot.selectionStart !== null &&
+    snapshot.selectionEnd !== null
+  ) {
+    target.setSelectionRange(
+      snapshot.selectionStart,
+      snapshot.selectionEnd,
+      snapshot.selectionDirection ?? "none",
+    );
+  }
+  const menu = snapshot.menuFocusPanelId
+    ? elements.sidebarMenuRoot.querySelector<HTMLElement>(
+        `[data-sidebar-menu-panel-id="${CSS.escape(snapshot.menuFocusPanelId)}"]`,
+      )
+    : null;
   if (
     !options.preferredFocusKey &&
     !usingFallback &&
@@ -883,6 +1024,7 @@ function openSidebarMenuForProject(
 }
 
 export function closeSidebarMenu(options: SidebarRenderOptions = {}): void {
+  resetCascadeController();
   if (sidebarTransitions.closeSidebarMenu(state)) {
     renderSidebarMenu(options);
   }
@@ -895,6 +1037,7 @@ function renderSidebarMenu(options: SidebarRenderOptions = {}): void {
 }
 
 function renderSidebarMenuContents(): void {
+  resetCascadeController();
   elements.sidebarMenuRoot.replaceChildren();
   const menu = state.sidebar.menu;
   if (!menu) {
@@ -904,6 +1047,7 @@ function renderSidebarMenuContents(): void {
   const panel = document.createElement("div");
   panel.className = "sidebar-menu";
   panel.setAttribute("role", "menu");
+  panel.dataset.sidebarMenuPanelId = "root";
   panel.dataset.sidebarMenuTriggerFocusKey =
     menu.kind === "filter"
       ? "filter"
@@ -921,6 +1065,7 @@ function renderSidebarMenuContents(): void {
   }
 
   if (menu.kind === "session") {
+    const tags = sessionTagSubmenuTrigger(menu);
     panel.append(
       sidebarMenuItem("Rename", () => {
         actions.startSessionRename(menu.taskId, menu.renameSurface, menu.title);
@@ -928,6 +1073,7 @@ function renderSidebarMenuContents(): void {
       sidebarMenuItem("Reveal in Finder", () => {
         actions.revealSession(menu.taskId);
       }, "default", `menu:session:${menu.taskId}:reveal`),
+      tags,
       menu.archived
         ? sidebarMenuItem("Unarchive", () => {
             actions.unarchiveSession(menu.taskId);
@@ -939,6 +1085,19 @@ function renderSidebarMenuContents(): void {
         actions.deleteSessionFromSidebar(menu.taskId, menu.title);
       }, "danger", `menu:session:${menu.taskId}:delete`),
     );
+    elements.sidebarMenuRoot.append(panel);
+    const childPanels = renderSessionTagCascade(menu, tags);
+    elements.sidebarMenuRoot.append(...childPanels);
+    installMenuPanelKeyboard(panel, {
+      level: "root",
+      onEscape: () => closeSidebarMenu(
+        panel.dataset.sidebarMenuTriggerFocusKey
+          ? { preferredFocusKey: panel.dataset.sidebarMenuTriggerFocusKey }
+          : {},
+      ),
+    });
+    installCascadePanelIntent(panel, () => sidebarTransitions.closeSessionTags(state));
+    layoutSessionTagCascade(menu, tags, childPanels);
   } else {
     panel.append(
       sidebarMenuItem("New task here", () => {
@@ -954,16 +1113,650 @@ function renderSidebarMenuContents(): void {
         actions.archiveProject(menu.path, !menu.archived);
       }, menu.archived ? "default" : "danger", `menu:project:${menu.path}:archive`),
     );
+    elements.sidebarMenuRoot.append(panel);
+    installMenuPanelKeyboard(panel, {
+      level: "root",
+      onEscape: () => closeSidebarMenu(
+        panel.dataset.sidebarMenuTriggerFocusKey
+          ? { preferredFocusKey: panel.dataset.sidebarMenuTriggerFocusKey }
+          : {},
+      ),
+    });
   }
 
   if (isSessionLifecycleActive(state)) {
-    panel.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+    elements.sidebarMenuRoot.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
       button.disabled = true;
     });
   }
 
-  positionSidebarMenu(panel, menu.anchor);
-  elements.sidebarMenuRoot.append(panel);
+  if (menu.kind !== "session") {
+    positionSidebarMenu(panel, menu.anchor);
+  }
+}
+
+function sessionTagSubmenuTrigger(
+  menu: Extract<SidebarMenuState, { kind: "session" }>,
+): HTMLButtonElement {
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.id = `sidebar-tags-trigger-${menu.taskId}`;
+  trigger.className = "sidebar-menu-item sidebar-tag-submenu-trigger";
+  trigger.setAttribute("role", "menuitem");
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", String(menu.tagsOpen));
+  if (menu.tagsOpen) {
+    trigger.setAttribute("aria-controls", "sidebar-tags-groups");
+  }
+  trigger.dataset.menuText = "Tags";
+  setSidebarFocusKey(trigger, `menu:session:${menu.taskId}:tags`);
+  const label = document.createElement("span");
+  label.className = "sidebar-tag-row-label";
+  label.textContent = "Tags";
+  const chevron = document.createElement("span");
+  chevron.className = "sidebar-tag-chevron";
+  chevron.textContent = "›";
+  chevron.setAttribute("aria-hidden", "true");
+  trigger.append(label, chevron);
+  wireCascadeTrigger({
+    trigger,
+    childPanelId: "sidebar-tags-groups",
+    open: () => {
+      const changed = sidebarTransitions.openSessionTags(state);
+      void actions.refreshTagDefinitions().catch(() => {
+        // Keep the last renderer cache; the next open retries the read.
+      });
+      return changed;
+    },
+    childFocusKey: `menu:session:${menu.taskId}:tag-group:status`,
+  });
+  return trigger;
+}
+
+function renderSessionTagCascade(
+  menu: Extract<SidebarMenuState, { kind: "session" }>,
+  tagsTrigger: HTMLElement,
+): HTMLElement[] {
+  if (!menu.tagsOpen) {
+    return [];
+  }
+  const panels: HTMLElement[] = [];
+  const groupsPanel = createCascadePanel("sidebar-tags-groups", tagsTrigger.id);
+  for (const group of TAG_GROUPS) {
+    groupsPanel.append(renderTagGroupTrigger(menu, group));
+  }
+  installMenuPanelKeyboard(groupsPanel, {
+    level: "groups",
+    onEscape: () => {
+      if (sidebarTransitions.closeSessionTags(state)) {
+        renderSidebarMenu({ preferredFocusKey: `menu:session:${menu.taskId}:tags` });
+      }
+    },
+  });
+  installCascadePanelIntent(groupsPanel, () => sidebarTransitions.closeSessionTagGroup(state));
+  panels.push(groupsPanel);
+
+  if (menu.group) {
+    const groupTrigger = groupsPanel.querySelector<HTMLElement>(
+      `[data-tag-group="${menu.group}"]`,
+    );
+    if (groupTrigger) {
+      const optionsPanel = renderTagOptionsPanel(menu, menu.group, groupTrigger.id);
+      panels.push(optionsPanel);
+    }
+  }
+  return panels;
+}
+
+function renderTagGroupTrigger(
+  menu: Extract<SidebarMenuState, { kind: "session" }>,
+  group: TagGroup,
+): HTMLButtonElement {
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.id = `sidebar-tag-group-${menu.taskId}-${group}`;
+  trigger.className = "sidebar-menu-item sidebar-tag-submenu-trigger";
+  trigger.dataset.tagGroup = group;
+  trigger.dataset.menuText = TAG_GROUP_LABELS[group];
+  trigger.setAttribute("role", "menuitem");
+  trigger.setAttribute("aria-haspopup", "menu");
+  trigger.setAttribute("aria-expanded", String(menu.group === group));
+  if (menu.group === group) {
+    trigger.setAttribute("aria-controls", `sidebar-tag-options-${group}`);
+  }
+  setSidebarFocusKey(trigger, `menu:session:${menu.taskId}:tag-group:${group}`);
+
+  const dot = tagDot(TAG_GROUP_COLORS[group]);
+  const label = document.createElement("span");
+  label.className = "sidebar-tag-row-label";
+  label.textContent = TAG_GROUP_LABELS[group];
+  const applied = sessionTask(menu.taskId)?.tags ?? [];
+  const groupDefinitions = state.tagDefinitions.filter((definition) => definition.group === group);
+  const groupIds = new Set(groupDefinitions.map((definition) => definition.id));
+  const count = applied.filter((id) => groupIds.has(id)).length;
+  const badge = document.createElement("span");
+  badge.className = "sidebar-tag-count";
+  badge.textContent = String(count);
+  badge.setAttribute("aria-label", `${count} applied`);
+  const chevron = document.createElement("span");
+  chevron.className = "sidebar-tag-chevron";
+  chevron.textContent = "›";
+  chevron.setAttribute("aria-hidden", "true");
+  trigger.append(dot, label, badge, chevron);
+
+  wireCascadeTrigger({
+    trigger,
+    childPanelId: `sidebar-tag-options-${group}`,
+    open: () => sidebarTransitions.openSessionTagGroup(state, group),
+    childFocusKey: firstTagOptionFocusKey(menu.taskId, group),
+  });
+  return trigger;
+}
+
+function renderTagOptionsPanel(
+  menu: Extract<SidebarMenuState, { kind: "session" }>,
+  group: TagGroup,
+  labelledBy: string,
+): HTMLElement {
+  const panel = createCascadePanel(`sidebar-tag-options-${group}`, labelledBy, false);
+  const menuBody = document.createElement("div");
+  menuBody.className = "sidebar-tag-option-menu";
+  menuBody.setAttribute("role", "menu");
+  menuBody.setAttribute("aria-labelledby", labelledBy);
+  const definitions = state.tagDefinitions.filter((definition) => definition.group === group);
+  const selected = new Set(sessionTask(menu.taskId)?.tags ?? []);
+  for (const definition of definitions) {
+    menuBody.append(renderTagOption(menu, definition, selected.has(definition.id)));
+  }
+  menuBody.append(filterMenuSeparator());
+  if (menu.input?.group === group) {
+    panel.append(renderTagInput(menu, group));
+  } else {
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "sidebar-menu-item sidebar-tag-add";
+    add.setAttribute("role", "menuitem");
+    add.setAttribute("aria-label", "Add tag");
+    add.dataset.menuText = "Add tag";
+    setSidebarFocusKey(add, `menu:session:${menu.taskId}:tag-add:${group}`);
+    add.textContent = "+ Add tag";
+    add.addEventListener("click", (event) => {
+      event.stopPropagation();
+      cancelCascadeTimers();
+      if (sidebarTransitions.enterSessionTagInput(state, group)) {
+        renderSidebarMenu({ preferredFocusKey: tagInputFocusKey(menu.taskId, group) });
+      }
+    });
+    menuBody.append(add);
+  }
+  panel.prepend(menuBody);
+  installMenuPanelKeyboard(menuBody, {
+    level: "options",
+    onEscape: () => {
+      if (sidebarTransitions.closeSessionTagGroup(state)) {
+        renderSidebarMenu({
+          preferredFocusKey: `menu:session:${menu.taskId}:tag-group:${group}`,
+        });
+      }
+    },
+  });
+  installCascadePanelIntent(panel, () => sidebarTransitions.closeSessionTagGroup(state));
+  return panel;
+}
+
+function renderTagOption(
+  menu: Extract<SidebarMenuState, { kind: "session" }>,
+  definition: TagDefinition,
+  selected: boolean,
+): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "sidebar-tag-option-wrap";
+  const option = document.createElement("button");
+  option.type = "button";
+  option.className = "sidebar-menu-item sidebar-tag-option";
+  option.dataset.menuText = definition.label;
+  option.dataset.tagId = definition.id;
+  option.setAttribute("role", "menuitemcheckbox");
+  option.setAttribute("aria-checked", String(selected));
+  setSidebarFocusKey(option, tagOptionFocusKey(menu.taskId, definition.id));
+  const label = document.createElement("span");
+  label.className = "sidebar-tag-row-label";
+  label.textContent = definition.label;
+  option.append(tagDot(definition.color), label);
+  if (selected) {
+    const check = document.createElement("span");
+    check.className = "sidebar-tag-check";
+    check.dataset.tagColor = definition.color;
+    check.textContent = "✓";
+    check.setAttribute("aria-hidden", "true");
+    option.append(check);
+  }
+  option.addEventListener("click", (event) => {
+    event.stopPropagation();
+    cancelCascadeTimers();
+    const next = replaceTagSelection(
+      sessionTask(menu.taskId)?.tags ?? [],
+      definition.id,
+      state.tagDefinitions,
+    );
+    void actions.setSessionTags(menu.taskId, next).catch((error) => {
+      state.status = error instanceof Error ? error.message : String(error);
+    });
+    renderSidebarMenu({ preferredFocusKey: tagOptionFocusKey(menu.taskId, definition.id) });
+  });
+  wrap.append(option);
+
+  if (!definition.builtin) {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "sidebar-tag-delete";
+    remove.setAttribute("role", "menuitem");
+    remove.setAttribute("aria-label", `Delete ${definition.label}`);
+    remove.dataset.menuText = `Delete ${definition.label}`;
+    setSidebarFocusKey(remove, `menu:session:${menu.taskId}:tag-delete:${definition.id}`);
+    remove.append(lucideIcon(X, 13));
+    remove.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      cancelCascadeTimers();
+      const fallback = deletionFallbackFocusKey(menu.taskId, definition);
+      try {
+        await actions.deleteTag(definition.id);
+        renderSidebarMenu({ preferredFocusKey: fallback, allowFallback: true });
+      } catch (error) {
+        state.status = error instanceof Error ? error.message : String(error);
+      }
+    });
+    wrap.append(remove);
+  }
+  return wrap;
+}
+
+function renderTagInput(
+  menu: Extract<SidebarMenuState, { kind: "session" }>,
+  group: TagGroup,
+): HTMLElement {
+  const editor = document.createElement("div");
+  editor.className = "sidebar-tag-editor";
+  editor.setAttribute("role", "group");
+  editor.setAttribute("aria-label", `Add ${TAG_GROUP_LABELS[group]} tag`);
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "sidebar-tag-input";
+  input.placeholder = "Tag name";
+  input.value = menu.input?.draft ?? "";
+  input.setAttribute("aria-label", `New ${TAG_GROUP_LABELS[group]} tag name`);
+  input.setAttribute("aria-invalid", String(Boolean(menu.input?.error)));
+  setSidebarFocusKey(input, tagInputFocusKey(menu.taskId, group));
+  input.addEventListener("input", () => {
+    sidebarTransitions.updateSessionTagInput(state, { draft: input.value, error: null });
+  });
+  input.addEventListener("compositionstart", () => {
+    sidebarTransitions.updateSessionTagInput(state, { composing: true });
+  });
+  input.addEventListener("compositionend", () => {
+    sidebarTransitions.updateSessionTagInput(state, { composing: false, draft: input.value });
+  });
+  input.addEventListener("keydown", async (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (sidebarTransitions.cancelSessionTagInput(state)) {
+        renderSidebarMenu({
+          preferredFocusKey: `menu:session:${menu.taskId}:tag-add:${group}`,
+        });
+      }
+      return;
+    }
+    if (event.key === "Tab") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSidebarMenuForTab(event.shiftKey);
+      return;
+    }
+    if (
+      event.key !== "Enter" ||
+      event.isComposing ||
+      event.keyCode === 229 ||
+      state.sidebar.menu?.kind !== "session" ||
+      state.sidebar.menu.input?.composing
+    ) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const draft = input.value.trim();
+    sidebarTransitions.updateSessionTagInput(state, { draft: input.value, error: null });
+    if (!draft) {
+      return;
+    }
+    try {
+      const definition = await actions.createTag(draft, group);
+      const next = replaceTagSelection(
+        sessionTask(menu.taskId)?.tags ?? [],
+        definition.id,
+        state.tagDefinitions,
+      );
+      await actions.setSessionTags(menu.taskId, next);
+      sidebarTransitions.cancelSessionTagInput(state);
+      renderSidebarMenu({ preferredFocusKey: tagOptionFocusKey(menu.taskId, definition.id) });
+    } catch (error) {
+      sidebarTransitions.updateSessionTagInput(state, {
+        draft: input.value,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      renderSidebarMenu({ preferredFocusKey: tagInputFocusKey(menu.taskId, group) });
+    }
+  });
+  editor.append(input);
+  if (menu.input?.error) {
+    const error = document.createElement("p");
+    error.className = "sidebar-tag-input-error";
+    error.setAttribute("role", "alert");
+    error.textContent = menu.input.error;
+    editor.append(error);
+  }
+  return editor;
+}
+
+const cascadeOpeners = new WeakMap<HTMLElement, (focusChild: boolean) => void>();
+
+function createCascadePanel(id: string, labelledBy: string, menuRole = true): HTMLElement {
+  const panel = document.createElement("div");
+  panel.id = id;
+  panel.className = "sidebar-menu sidebar-cascade-panel";
+  if (menuRole) {
+    panel.setAttribute("role", "menu");
+    panel.setAttribute("aria-labelledby", labelledBy);
+  }
+  panel.dataset.sidebarCascadePanel = "true";
+  panel.dataset.sidebarMenuPanelId = id;
+  return panel;
+}
+
+function wireCascadeTrigger(options: {
+  trigger: HTMLElement;
+  childPanelId: string;
+  open: () => boolean;
+  childFocusKey: string;
+}): void {
+  const activate = (focusChild: boolean): void => {
+    cancelCascadeTimers();
+    cascadeController.grace = null;
+    if (options.open()) {
+      renderSidebarMenu(focusChild ? { preferredFocusKey: options.childFocusKey } : {});
+    } else if (focusChild) {
+      sidebarFocusTarget(options.childFocusKey)?.focus({ preventScroll: true });
+    }
+  };
+  cascadeOpeners.set(options.trigger, activate);
+  options.trigger.addEventListener("click", (event) => {
+    event.stopPropagation();
+    activate(event.detail === 0);
+  });
+  options.trigger.addEventListener("pointerenter", (event) => {
+    if (
+      event.pointerType !== "mouse" ||
+      (state.sidebar.menu?.kind === "session" && state.sidebar.menu.input)
+    ) {
+      return;
+    }
+    const point = { x: event.clientX, y: event.clientY };
+    if (
+      pointerGraceProtects(
+        cascadeController.grace,
+        cascadeController.previousPoint,
+        point,
+        performance.now(),
+      )
+    ) {
+      return;
+    }
+    cancelCascadeTimers();
+    scheduleCascadeAction(CASCADE_HOVER_OPEN_MS, () => activate(false));
+  });
+  options.trigger.addEventListener("pointerleave", (event) => {
+    if (event.pointerType !== "mouse") {
+      return;
+    }
+    const child = document.getElementById(options.childPanelId);
+    const side = cascadeController.sides.get(options.childPanelId);
+    if (!child || !side) {
+      return;
+    }
+    const rect = child.getBoundingClientRect();
+    cascadeController.grace = {
+      polygon: buildPointerGracePolygon(
+        { x: event.clientX, y: event.clientY },
+        anchorRectOf(child),
+        side,
+      ),
+      side,
+      expiresAt: performance.now() + CASCADE_GRACE_MS,
+    };
+  });
+}
+
+function installCascadePanelIntent(panel: HTMLElement, closeDescendants: () => boolean): void {
+  panel.addEventListener("pointerenter", (event) => {
+    if (event.pointerType === "mouse") {
+      cancelCascadeTimers();
+      cascadeController.grace = null;
+    }
+  });
+  panel.addEventListener("pointerleave", (event) => {
+    if (
+      event.pointerType !== "mouse" ||
+      (state.sidebar.menu?.kind === "session" && state.sidebar.menu.input)
+    ) {
+      return;
+    }
+    scheduleCascadeAction(CASCADE_CLOSE_MS, () => {
+      if (
+        elements.sidebarMenuRoot.querySelector<HTMLElement>("[data-sidebar-cascade-panel]:hover") ||
+        elements.sidebarMenuRoot.querySelector<HTMLElement>("[data-sidebar-menu-panel-id=\"root\"]:hover")
+      ) {
+        return;
+      }
+      if (closeDescendants()) {
+        renderSidebarMenu();
+      }
+    });
+  });
+}
+
+function installMenuPanelKeyboard(
+  panel: HTMLElement,
+  options: { level: "root" | "groups" | "options"; onEscape: () => void },
+): void {
+  const initialItems = menuPanelItems(panel);
+  initialItems.forEach((item, index) => {
+    item.tabIndex = index === 0 ? 0 : -1;
+  });
+  let typeahead = "";
+  let typeaheadTimer: number | null = null;
+  panel.addEventListener("focusin", (event) => {
+    if (!(event.target instanceof HTMLElement) || event.target instanceof HTMLInputElement) {
+      return;
+    }
+    for (const item of menuPanelItems(panel)) {
+      item.tabIndex = item === event.target ? 0 : -1;
+    }
+  });
+  panel.addEventListener("keydown", (event) => {
+    if (event.target instanceof HTMLInputElement) {
+      return;
+    }
+    const items = menuPanelItems(panel);
+    if (items.length === 0) {
+      return;
+    }
+    const active = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[role^=menuitem]") : null;
+    const index = Math.max(0, items.indexOf(active ?? items[0]!));
+    let target: HTMLElement | null = null;
+    if (event.key === "ArrowDown") {
+      target = items[(index + 1) % items.length] ?? null;
+    } else if (event.key === "ArrowUp") {
+      target = items[(index - 1 + items.length) % items.length] ?? null;
+    } else if (event.key === "Home") {
+      target = items[0] ?? null;
+    } else if (event.key === "End") {
+      target = items.at(-1) ?? null;
+    } else if (event.key === "ArrowRight" && active) {
+      const opener = cascadeOpeners.get(active);
+      if (opener) {
+        event.preventDefault();
+        event.stopPropagation();
+        opener(true);
+      }
+      return;
+    } else if (event.key === "ArrowLeft" && options.level !== "root") {
+      event.preventDefault();
+      event.stopPropagation();
+      options.onEscape();
+      return;
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      options.onEscape();
+      return;
+    } else if (event.key === "Tab") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSidebarMenuForTab(event.shiftKey);
+      return;
+    } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      typeahead += event.key.toLocaleLowerCase();
+      if (typeaheadTimer !== null) {
+        window.clearTimeout(typeaheadTimer);
+      }
+      typeaheadTimer = window.setTimeout(() => {
+        typeahead = "";
+        typeaheadTimer = null;
+      }, 700);
+      target =
+        [...items.slice(index + 1), ...items.slice(0, index + 1)].find((item) =>
+          (item.dataset.menuText ?? "").toLocaleLowerCase().startsWith(typeahead),
+        ) ?? null;
+    }
+    if (target) {
+      event.preventDefault();
+      event.stopPropagation();
+      target.focus({ preventScroll: true });
+    }
+  });
+}
+
+function menuPanelItems(panel: HTMLElement): HTMLElement[] {
+  return Array.from(
+    panel.querySelectorAll<HTMLElement>("[role=menuitem], [role=menuitemcheckbox]"),
+  ).filter((item) => !item.hasAttribute("disabled"));
+}
+
+function layoutSessionTagCascade(
+  menu: Extract<SidebarMenuState, { kind: "session" }>,
+  tagsTrigger: HTMLElement,
+  panels: readonly HTMLElement[],
+): void {
+  positionSidebarMenu(
+    elements.sidebarMenuRoot.querySelector<HTMLElement>("[data-sidebar-menu-panel-id=\"root\"]")!,
+    menu.anchor,
+  );
+  cascadeController.layoutFrame = window.requestAnimationFrame(() => {
+    cascadeController.layoutFrame = null;
+    const groups = panels.find((panel) => panel.id === "sidebar-tags-groups");
+    if (!groups) {
+      return;
+    }
+    positionCascadePanel(groups, tagsTrigger);
+    if (menu.group) {
+      const options = panels.find((panel) => panel.id === `sidebar-tag-options-${menu.group}`);
+      const groupTrigger = groups.querySelector<HTMLElement>(`[data-tag-group="${menu.group}"]`);
+      if (options && groupTrigger) {
+        positionCascadePanel(options, groupTrigger);
+      }
+    }
+  });
+}
+
+function positionCascadePanel(panel: HTMLElement, anchor: HTMLElement): void {
+  panel.style.maxHeight = "";
+  const rect = panel.getBoundingClientRect();
+  const placement = calculateCascadePlacement(
+    anchorRectOf(anchor),
+    { width: rect.width, height: rect.height },
+    { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
+  );
+  panel.style.left = `${Math.round(placement.left)}px`;
+  panel.style.top = `${Math.round(placement.top)}px`;
+  panel.style.maxHeight = `${Math.floor(placement.availableHeight)}px`;
+  panel.dataset.cascadeSide = placement.side;
+  const chevron = anchor.querySelector<HTMLElement>(".sidebar-tag-chevron");
+  if (chevron) {
+    chevron.textContent = placement.side === "left" ? "‹" : "›";
+  }
+  cascadeController.sides.set(panel.id, placement.side);
+}
+
+function closeSidebarMenuForTab(reverse: boolean): void {
+  const triggerKey = elements.sidebarMenuRoot
+    .querySelector<HTMLElement>("[data-sidebar-menu-panel-id=\"root\"]")
+    ?.dataset.sidebarMenuTriggerFocusKey;
+  const trigger = triggerKey ? sidebarFocusTarget(triggerKey) : null;
+  const outside = Array.from(
+    document.querySelectorAll<HTMLElement>(
+      "button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex=\"-1\"])",
+    ),
+  ).filter((element) => !elements.sidebarMenuRoot.contains(element) && element.offsetParent !== null);
+  const triggerIndex = trigger ? outside.indexOf(trigger) : -1;
+  const destination =
+    triggerIndex >= 0
+      ? outside[triggerIndex + (reverse ? -1 : 1)] ?? trigger
+      : trigger ?? outside[reverse ? outside.length - 1 : 0] ?? null;
+  closeSidebarMenu();
+  destination?.focus({ preventScroll: true });
+}
+
+function sessionTask(taskId: string): SessionSummary["task"] | null {
+  const index = state.sessionIndex;
+  if (!index) {
+    return taskViewForId(state, taskId)?.task ?? null;
+  }
+  return (
+    index.chats.find((session) => session.task.id === taskId)?.task ??
+    index.projects.flatMap((project) => project.sessions).find((session) => session.task.id === taskId)?.task ??
+    taskViewForId(state, taskId)?.task ??
+    null
+  );
+}
+
+function tagDot(color: TagColor): HTMLElement {
+  const dot = document.createElement("span");
+  dot.className = "tag-dot";
+  dot.dataset.tagColor = color;
+  dot.setAttribute("aria-hidden", "true");
+  return dot;
+}
+
+function firstTagOptionFocusKey(taskId: string, group: TagGroup): string {
+  const first = state.tagDefinitions.find((definition) => definition.group === group);
+  return first ? tagOptionFocusKey(taskId, first.id) : `menu:session:${taskId}:tag-add:${group}`;
+}
+
+function tagOptionFocusKey(taskId: string, tagId: string): string {
+  return `menu:session:${taskId}:tag-option:${tagId}`;
+}
+
+function tagInputFocusKey(taskId: string, group: TagGroup): string {
+  return `menu:session:${taskId}:tag-input:${group}`;
+}
+
+function deletionFallbackFocusKey(taskId: string, definition: TagDefinition): string {
+  const group = state.tagDefinitions.filter((candidate) => candidate.group === definition.group);
+  const index = group.findIndex((candidate) => candidate.id === definition.id);
+  const sibling = group[index + 1] ?? group[index - 1];
+  return sibling
+    ? tagOptionFocusKey(taskId, sibling.id)
+    : `menu:session:${taskId}:tag-add:${definition.group}`;
 }
 
 function renderSidebarFilterMenu(

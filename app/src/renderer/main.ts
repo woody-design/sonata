@@ -25,7 +25,10 @@ import {
   type ResumePolicyId,
   type ResumeSettings,
   type SonataSettings,
+  type TagDefinition,
+  type TagGroup,
 } from "../shared/types";
+import { withTaskTags } from "../shared/session-tags";
 import type {
   ClaudeControlSwitchKind,
   RuntimeProvider,
@@ -552,6 +555,10 @@ initActions({
   archiveProject: (path, archived) => {
     runAfterRename(() => archiveProjectFromSidebar(path, archived));
   },
+  refreshTagDefinitions: () => refreshTagDefinitions(),
+  setSessionTags: (taskId, tagIds) => persistSessionTags(taskId, tagIds),
+  createTag: (label, group) => createTagDefinition(label, group),
+  deleteTag: (id) => deleteTagDefinition(id),
   // Slash picker (view/slash-picker.ts): dispatch flow + hover grammar
   // (verbatim from its pre-D3 inline home).
   executeSlashEntry: (entry) => {
@@ -1175,6 +1182,74 @@ async function hydrateReadingSettings(): Promise<void> {
   } catch (error) {
     state.status = errorMessage(error);
     render();
+  }
+}
+
+async function refreshTagDefinitions(): Promise<void> {
+  const definitions = await window.sonataRuntime.listTags();
+  state.tagDefinitions = definitions;
+  if (state.sidebar.menu?.kind === "session" && state.sidebar.menu.tagsOpen) {
+    renderSidebar();
+  }
+}
+
+async function createTagDefinition(label: string, group: TagGroup): Promise<TagDefinition> {
+  const definition = await window.sonataRuntime.createTag({ label, group });
+  state.tagDefinitions = [...state.tagDefinitions, definition];
+  return definition;
+}
+
+async function deleteTagDefinition(id: string): Promise<void> {
+  await window.sonataRuntime.deleteTag({ id });
+  state.tagDefinitions = state.tagDefinitions.filter((definition) => definition.id !== id);
+  removeLocalTaskTag(id);
+}
+
+async function persistSessionTags(taskId: string, tagIds: readonly string[]): Promise<void> {
+  updateLocalTaskTags(taskId, tagIds);
+  try {
+    await window.sonataRuntime.setSessionTags({ taskId, tagIds: [...tagIds] });
+  } catch (error) {
+    await refreshSessionIndex();
+    throw error;
+  }
+}
+
+function updateLocalTaskTags(taskId: string, tagIds: readonly string[]): void {
+  for (const view of state.taskViews) {
+    if (view.task?.id === taskId) {
+      view.task = withTaskTags(view.task, tagIds);
+    }
+  }
+  if (!state.sessionIndex) {
+    return;
+  }
+  for (const session of [
+    ...state.sessionIndex.chats,
+    ...state.sessionIndex.projects.flatMap((project) => project.sessions),
+  ]) {
+    if (session.task.id === taskId) {
+      session.task = withTaskTags(session.task, tagIds);
+    }
+  }
+}
+
+function removeLocalTaskTag(id: string): void {
+  for (const view of state.taskViews) {
+    if (view.task?.tags?.includes(id)) {
+      updateLocalTaskTags(view.task.id, view.task.tags.filter((tagId) => tagId !== id));
+    }
+  }
+  if (!state.sessionIndex) {
+    return;
+  }
+  for (const session of [
+    ...state.sessionIndex.chats,
+    ...state.sessionIndex.projects.flatMap((project) => project.sessions),
+  ]) {
+    if (session.task.tags?.includes(id)) {
+      updateLocalTaskTags(session.task.id, session.task.tags.filter((tagId) => tagId !== id));
+    }
   }
 }
 
@@ -2128,6 +2203,9 @@ window.sonataRuntime.onCliAction((request) => {
 });
 
 void hydrateReadingSettings();
+void refreshTagDefinitions().catch(() => {
+  // Best-effort boot cache. Opening Tags retries the authoritative read.
+});
 // The launch-default projection: Claude (RC + permission + model/effort), Codex
 // (permission + model/effort), and the app-level default provider all feed the
 // New Chat draft (copy-at-entry). Gate `launchSettingsHydrated`, the ONE draft

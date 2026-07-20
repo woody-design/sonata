@@ -30,6 +30,7 @@ import type {
   Task,
   UsageSnapshot,
 } from "../shared/types";
+import type { TagDefinition, TagGroup } from "../shared/types/tags";
 import type {
   ApprovalDetectedEvent,
   ControlSwitchAttentionReason,
@@ -304,11 +305,21 @@ export type SidebarMenuState =
       archived: boolean;
       renameSurface: "header" | "sidebar";
       anchor: AnchorRect;
+      tagsOpen: boolean;
+      group: TagGroup | null;
+      input: SidebarTagInputState | null;
     }
   | { kind: "project"; path: string; name: string; archived: boolean; anchor: AnchorRect }
   | { kind: "filter"; anchor: AnchorRect; openSection: FilterMenuSection | null };
 
 export type FilterMenuSection = "status" | "project" | "activity" | "group" | "sort";
+
+export interface SidebarTagInputState {
+  group: TagGroup;
+  draft: string;
+  error: string | null;
+  composing: boolean;
+}
 
 interface RenameEditorBase {
   original: string;
@@ -368,6 +379,10 @@ export interface RendererState {
    *  shell's refreshSessionIndex (IPC) writes it; the 150 ms refresh debounce
    *  (T2) stays shell-side. */
   sessionIndex: SessionIndexResponse | null;
+  /** Renderer cache of the main-process tag dictionary. The session menu can
+   * rebuild synchronously from this snapshot while create/delete/list IPC
+   * completions replace it with the latest authoritative definitions. */
+  tagDefinitions: TagDefinition[];
   sidebar: SidebarState;
   taskDraft: TaskLaunchDraft;
   /** The user explicitly chose (or cleared) the New Chat folder this session. */
@@ -612,6 +627,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     taskViews: [],
     activeTaskId: null,
     sessionIndex: null,
+    tagDefinitions: [],
     sidebar: {
       menu: null,
       renameEditor: null,

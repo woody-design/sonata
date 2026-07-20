@@ -68,6 +68,24 @@
   --p-red: 222 17 53;           /* Uber Base red #DE1135 — needs-you signal */
   --p-red-icon: #de1135;        /* red high-saturation step — icons/dots */
   --p-red-surface: #fcecef;     /* red @ ~8% over white */
+  /* Session-tag chroma primitives. Unlike the scarce app accent, these hues
+     carry user-authored classification semantics only inside tag primitives. */
+  --p-tag-gray: 120 119 116;    /* #787774 */
+  --p-tag-steel: 100 116 139;   /* #64748B */
+  --p-tag-sky: 62 141 196;      /* #3E8DC4 */
+  --p-tag-blue: 46 98 203;      /* #2E62CB */
+  --p-tag-cyan: 14 124 158;     /* #0E7C9E */
+  --p-tag-teal: 15 138 122;     /* #0F8A7A */
+  --p-tag-green: 60 138 78;     /* #3C8A4E */
+  --p-tag-olive: 117 128 59;    /* #75803B */
+  --p-tag-yellow: 188 143 34;   /* #BC8F22 */
+  --p-tag-amber: 199 126 31;    /* #C77E1F */
+  --p-tag-orange: 217 84 30;    /* #D9541E */
+  --p-tag-red: 196 62 54;       /* #C43E36 */
+  --p-tag-brown: 159 107 83;    /* #9F6B53 */
+  --p-tag-purple: 138 99 210;   /* #8A63D2 */
+  --p-tag-pink: 213 88 143;     /* #D5588F */
+  --p-tag-magenta: 173 26 114;  /* #AD1A72 */
 
   /* ── roles · text (ink alpha ladder) ────────────────────────── */
   --text-primary: rgb(var(--p-ink));
@@ -126,6 +144,40 @@
   --attention-surface: var(--p-red-surface);
   --attention-border: rgb(var(--p-red) / 0.36);
 
+  /* ── roles · tags (muted chip text/surface pairs) ───────────── */
+  --tag-gray-fg: rgb(var(--p-tag-gray));
+  --tag-gray-surface: rgb(var(--p-tag-gray) / 0.12);
+  --tag-steel-fg: rgb(var(--p-tag-steel));
+  --tag-steel-surface: rgb(var(--p-tag-steel) / 0.12);
+  --tag-sky-fg: rgb(var(--p-tag-sky));
+  --tag-sky-surface: rgb(var(--p-tag-sky) / 0.12);
+  --tag-blue-fg: rgb(var(--p-tag-blue));
+  --tag-blue-surface: rgb(var(--p-tag-blue) / 0.12);
+  --tag-cyan-fg: rgb(var(--p-tag-cyan));
+  --tag-cyan-surface: rgb(var(--p-tag-cyan) / 0.12);
+  --tag-teal-fg: rgb(var(--p-tag-teal));
+  --tag-teal-surface: rgb(var(--p-tag-teal) / 0.12);
+  --tag-green-fg: rgb(var(--p-tag-green));
+  --tag-green-surface: rgb(var(--p-tag-green) / 0.12);
+  --tag-olive-fg: rgb(var(--p-tag-olive));
+  --tag-olive-surface: rgb(var(--p-tag-olive) / 0.12);
+  --tag-yellow-fg: rgb(var(--p-tag-yellow));
+  --tag-yellow-surface: rgb(var(--p-tag-yellow) / 0.12);
+  --tag-amber-fg: rgb(var(--p-tag-amber));
+  --tag-amber-surface: rgb(var(--p-tag-amber) / 0.12);
+  --tag-orange-fg: rgb(var(--p-tag-orange));
+  --tag-orange-surface: rgb(var(--p-tag-orange) / 0.12);
+  --tag-red-fg: rgb(var(--p-tag-red));
+  --tag-red-surface: rgb(var(--p-tag-red) / 0.12);
+  --tag-brown-fg: rgb(var(--p-tag-brown));
+  --tag-brown-surface: rgb(var(--p-tag-brown) / 0.12);
+  --tag-purple-fg: rgb(var(--p-tag-purple));
+  --tag-purple-surface: rgb(var(--p-tag-purple) / 0.12);
+  --tag-pink-fg: rgb(var(--p-tag-pink));
+  --tag-pink-surface: rgb(var(--p-tag-pink) / 0.12);
+  --tag-magenta-fg: rgb(var(--p-tag-magenta));
+  --tag-magenta-surface: rgb(var(--p-tag-magenta) / 0.12);
+
   /* ── shadow ─────────────────────────────────────────────────── */
   --shadow-raised: 0 1px 2px rgb(var(--p-ink) / 0.06), 0 4px 16px rgb(var(--p-ink) / 0.06);
   --shadow-overlay: 0 12px 40px rgb(var(--p-ink) / 0.18);
@@ -177,6 +229,39 @@
   --p-red: 241 85 108;          /* #F1556C — self-raised dark step */
   --p-red-icon: #f1556c;
   --p-red-surface: #33191f;
+  --p-tag-gray: 167 165 160;    /* #A7A5A0 */
+  --p-tag-steel: 148 163 184;   /* #94A3B8 */
+  --p-tag-sky: 104 176 223;     /* #68B0DF */
+  --p-tag-blue: 111 147 232;    /* #6F93E8 */
+  --p-tag-cyan: 82 180 204;     /* #52B4CC */
+  --p-tag-teal: 77 185 168;     /* #4DB9A8 */
+  --p-tag-green: 112 184 126;   /* #70B87E */
+  --p-tag-olive: 168 179 99;    /* #A8B363 */
+  --p-tag-yellow: 216 185 93;   /* #D8B95D */
+  --p-tag-amber: 224 162 88;    /* #E0A258 */
+  --p-tag-orange: 236 127 85;   /* #EC7F55 */
+  --p-tag-red: 229 115 108;     /* #E5736C */
+  --p-tag-brown: 201 149 125;   /* #C9957D */
+  --p-tag-purple: 172 142 230;  /* #AC8EE6 */
+  --p-tag-pink: 229 132 174;    /* #E584AE */
+  --p-tag-magenta: 212 92 159;  /* #D45C9F */
+
+  --tag-gray-surface: rgb(var(--p-tag-gray) / 0.18);
+  --tag-steel-surface: rgb(var(--p-tag-steel) / 0.18);
+  --tag-sky-surface: rgb(var(--p-tag-sky) / 0.18);
+  --tag-blue-surface: rgb(var(--p-tag-blue) / 0.18);
+  --tag-cyan-surface: rgb(var(--p-tag-cyan) / 0.18);
+  --tag-teal-surface: rgb(var(--p-tag-teal) / 0.18);
+  --tag-green-surface: rgb(var(--p-tag-green) / 0.18);
+  --tag-olive-surface: rgb(var(--p-tag-olive) / 0.18);
+  --tag-yellow-surface: rgb(var(--p-tag-yellow) / 0.18);
+  --tag-amber-surface: rgb(var(--p-tag-amber) / 0.18);
+  --tag-orange-surface: rgb(var(--p-tag-orange) / 0.18);
+  --tag-red-surface: rgb(var(--p-tag-red) / 0.18);
+  --tag-brown-surface: rgb(var(--p-tag-brown) / 0.18);
+  --tag-purple-surface: rgb(var(--p-tag-purple) / 0.18);
+  --tag-pink-surface: rgb(var(--p-tag-pink) / 0.18);
+  --tag-magenta-surface: rgb(var(--p-tag-magenta) / 0.18);
 
   --text-on-emphasis: #191919;
   --control-primary-text: #191919;
@@ -1454,6 +1539,165 @@ body.sidebar-resizing {
 
 .sidebar-menu-item:hover {
   background: var(--surface-hover);
+}
+
+/* Shared tag primitives. S2 consumes dots; S3/S4 can compose the same dot and
+   muted chip without inventing a second color mapping. */
+[data-tag-color="gray"] { --tag-fg: var(--tag-gray-fg); --tag-surface: var(--tag-gray-surface); }
+[data-tag-color="steel"] { --tag-fg: var(--tag-steel-fg); --tag-surface: var(--tag-steel-surface); }
+[data-tag-color="sky"] { --tag-fg: var(--tag-sky-fg); --tag-surface: var(--tag-sky-surface); }
+[data-tag-color="blue"] { --tag-fg: var(--tag-blue-fg); --tag-surface: var(--tag-blue-surface); }
+[data-tag-color="cyan"] { --tag-fg: var(--tag-cyan-fg); --tag-surface: var(--tag-cyan-surface); }
+[data-tag-color="teal"] { --tag-fg: var(--tag-teal-fg); --tag-surface: var(--tag-teal-surface); }
+[data-tag-color="green"] { --tag-fg: var(--tag-green-fg); --tag-surface: var(--tag-green-surface); }
+[data-tag-color="olive"] { --tag-fg: var(--tag-olive-fg); --tag-surface: var(--tag-olive-surface); }
+[data-tag-color="yellow"] { --tag-fg: var(--tag-yellow-fg); --tag-surface: var(--tag-yellow-surface); }
+[data-tag-color="amber"] { --tag-fg: var(--tag-amber-fg); --tag-surface: var(--tag-amber-surface); }
+[data-tag-color="orange"] { --tag-fg: var(--tag-orange-fg); --tag-surface: var(--tag-orange-surface); }
+[data-tag-color="red"] { --tag-fg: var(--tag-red-fg); --tag-surface: var(--tag-red-surface); }
+[data-tag-color="brown"] { --tag-fg: var(--tag-brown-fg); --tag-surface: var(--tag-brown-surface); }
+[data-tag-color="purple"] { --tag-fg: var(--tag-purple-fg); --tag-surface: var(--tag-purple-surface); }
+[data-tag-color="pink"] { --tag-fg: var(--tag-pink-fg); --tag-surface: var(--tag-pink-surface); }
+[data-tag-color="magenta"] { --tag-fg: var(--tag-magenta-fg); --tag-surface: var(--tag-magenta-surface); }
+
+.tag-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--tag-fg);
+}
+
+.tag-chip {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--tag-surface);
+  color: var(--tag-fg);
+  font: 500 var(--type-ui-xs) var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-cascade-panel {
+  position: fixed;
+  min-width: 190px;
+}
+
+.sidebar-tag-submenu-trigger {
+  width: 100%;
+  gap: var(--space-8);
+}
+
+.sidebar-tag-submenu-trigger[aria-expanded="true"] {
+  background: var(--surface-hover);
+}
+
+.sidebar-tag-row-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-tag-chevron {
+  margin-left: auto;
+  color: var(--text-tertiary);
+}
+
+.sidebar-tag-count {
+  min-width: 20px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  font: 500 var(--type-ui-xs) var(--font-ui);
+  text-align: center;
+}
+
+.sidebar-tag-option-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-tag-option-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-tag-option {
+  flex: 1;
+  min-width: 0;
+  gap: var(--space-8);
+  padding-right: 30px;
+}
+
+.sidebar-tag-check {
+  margin-left: auto;
+  color: var(--tag-fg);
+  font-weight: 600;
+}
+
+.sidebar-tag-delete {
+  position: absolute;
+  right: var(--space-4);
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.sidebar-tag-option-wrap:hover .sidebar-tag-delete,
+.sidebar-tag-option-wrap:focus-within .sidebar-tag-delete,
+.sidebar-tag-delete:focus-visible {
+  opacity: 1;
+}
+
+.sidebar-tag-delete:hover {
+  background: var(--surface-hover);
+  color: var(--attention-text);
+}
+
+.sidebar-tag-add {
+  color: var(--text-secondary);
+}
+
+.sidebar-tag-editor {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.sidebar-tag-input {
+  width: 100%;
+  height: 28px;
+  padding: 0 var(--space-8);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font: 400 var(--type-ui-md) var(--font-ui);
+}
+
+.sidebar-tag-input-error {
+  margin: 0 var(--space-4);
+  color: var(--attention-text);
+  font: 500 var(--type-ui-xs) var(--font-ui);
 }
 
 .sidebar-menu-item.danger {

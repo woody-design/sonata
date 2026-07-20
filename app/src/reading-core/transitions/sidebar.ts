@@ -14,7 +14,9 @@ import type {
   RendererState,
   SidebarDisclosureGroupKey,
   SidebarPrefs,
+  SidebarTagInputState,
 } from "../state";
+import type { TagGroup } from "../../shared/types/tags";
 import {
   SIDEBAR_DISCLOSURE_INCREMENT,
   SIDEBAR_INITIAL_VISIBLE_COUNT,
@@ -35,7 +37,94 @@ export function openSessionMenu(
     archived,
     renameSurface,
     anchor,
+    tagsOpen: false,
+    group: null,
+    input: null,
   };
+}
+
+export function openSessionTags(state: RendererState): boolean {
+  if (state.sidebar.menu?.kind !== "session") {
+    return false;
+  }
+  state.sidebar.menu = {
+    ...state.sidebar.menu,
+    tagsOpen: true,
+    input: null,
+  };
+  return true;
+}
+
+export function closeSessionTags(state: RendererState): boolean {
+  if (state.sidebar.menu?.kind !== "session" || !state.sidebar.menu.tagsOpen) {
+    return false;
+  }
+  state.sidebar.menu = {
+    ...state.sidebar.menu,
+    tagsOpen: false,
+    group: null,
+    input: null,
+  };
+  return true;
+}
+
+export function openSessionTagGroup(state: RendererState, group: TagGroup): boolean {
+  if (state.sidebar.menu?.kind !== "session" || !state.sidebar.menu.tagsOpen) {
+    return false;
+  }
+  state.sidebar.menu = {
+    ...state.sidebar.menu,
+    group,
+    input: null,
+  };
+  return true;
+}
+
+export function closeSessionTagGroup(state: RendererState): boolean {
+  if (state.sidebar.menu?.kind !== "session" || state.sidebar.menu.group === null) {
+    return false;
+  }
+  state.sidebar.menu = {
+    ...state.sidebar.menu,
+    group: null,
+    input: null,
+  };
+  return true;
+}
+
+export function enterSessionTagInput(state: RendererState, group: TagGroup): boolean {
+  if (
+    state.sidebar.menu?.kind !== "session" ||
+    !state.sidebar.menu.tagsOpen ||
+    state.sidebar.menu.group !== group
+  ) {
+    return false;
+  }
+  state.sidebar.menu = {
+    ...state.sidebar.menu,
+    input: { group, draft: "", error: null, composing: false },
+  };
+  return true;
+}
+
+export function updateSessionTagInput(
+  state: RendererState,
+  patch: Partial<Pick<SidebarTagInputState, "draft" | "error" | "composing">>,
+): boolean {
+  const menu = state.sidebar.menu;
+  if (menu?.kind !== "session" || !menu.input) {
+    return false;
+  }
+  menu.input = { ...menu.input, ...patch };
+  return true;
+}
+
+export function cancelSessionTagInput(state: RendererState): boolean {
+  if (state.sidebar.menu?.kind !== "session" || !state.sidebar.menu.input) {
+    return false;
+  }
+  state.sidebar.menu = { ...state.sidebar.menu, input: null };
+  return true;
 }
 
 export function openProjectMenu(

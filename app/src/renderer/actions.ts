@@ -25,6 +25,8 @@ import type {
   ResumePolicyId,
   RuntimeProvider,
   SlashCommandEntry,
+  TagDefinition,
+  TagGroup,
 } from "../shared/types";
 import type { RenameCommitTrigger } from "../reading-core/transitions/rename";
 import type { RenameFlowResult } from "../reading-core/rename-flow";
@@ -136,6 +138,10 @@ export interface Actions {
   unarchiveSession(taskId: string): void;
   deleteSessionFromSidebar(taskId: string, title: string): void;
   archiveProject(path: string, archived: boolean): void;
+  refreshTagDefinitions(): Promise<void>;
+  setSessionTags(taskId: string, tagIds: readonly string[]): Promise<void>;
+  createTag(label: string, group: TagGroup): Promise<TagDefinition>;
+  deleteTag(id: string): Promise<void>;
   // — Slash picker (view/slash-picker.ts): the Enter/click dispatch flow
   //   (complete-or-execute semantics live in the shell) and the mousemove
   //   hover grammar (selection follow + composer-popover repaint). —

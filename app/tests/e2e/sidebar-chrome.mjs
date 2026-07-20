@@ -361,7 +361,10 @@ async function collectChromeSnapshot(page, liveTaskId) {
     (element) => getComputedStyle(element).backgroundColor,
   );
   await firstMenuItem.focus();
-  await page.keyboard.press("Tab");
+  // APG cascade menus close on Tab as of Session Tags S2. Focus the item
+  // directly, then use its Arrow navigation for this visual-ring assertion;
+  // Tab behavior has its own fence.
+  await page.keyboard.press("ArrowDown");
   const keyboardFocusedMenuItem = page.locator("#sidebar-menu-root .sidebar-menu-item:focus");
   const menuFocus = await keyboardFocusedMenuItem.evaluate((element) => {
     const style = getComputedStyle(element);
