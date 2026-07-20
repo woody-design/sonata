@@ -1338,7 +1338,6 @@ function renderTagOption(
   if (selected) {
     const check = document.createElement("span");
     check.className = "sidebar-tag-check";
-    check.dataset.tagColor = definition.color;
     check.textContent = "✓";
     check.setAttribute("aria-hidden", "true");
     option.append(check);

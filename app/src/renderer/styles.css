@@ -1748,7 +1748,7 @@ body.sidebar-resizing {
 
 .sidebar-tag-check {
   margin-left: auto;
-  color: var(--tag-fg);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
