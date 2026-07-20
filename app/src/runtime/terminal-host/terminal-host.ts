@@ -55,6 +55,25 @@ export const CSI_U_ENTER = "\x1b[13u";
 // recovery rung; the bound is a fallback, never the success criterion.
 const ATTACHMENT_EFFECT_POLL_MS = 25;
 const ATTACHMENT_EFFECT_TIMEOUT_MS = 1_500;
+const CODEX_SKILL_MENTION_RE = /^\$[A-Za-z0-9][\w.-]*$/;
+
+export function attachmentChipEffectSatisfied(
+  beforePasteCount: number,
+  currentCount: number,
+  expectedAttachments: number,
+  promptText: string,
+): boolean {
+  const renderedDelta = Math.max(0, currentCount - beforePasteCount);
+  const promptMarkerCount = promptText.match(IMAGE_MARKER_RE)?.length ?? 0;
+  // A long paste can collapse to [Pasted text #N +K lines], so its literal
+  // image markers never render and this compensated threshold cannot succeed.
+  // The 1500ms fallback is the required failure direction: slower, never early.
+  return renderedDelta >= expectedAttachments + promptMarkerCount;
+}
+
+function needsCodexSkillMentionEnter(provider: RuntimeProvider, text: string): boolean {
+  return provider === "codex" && CODEX_SKILL_MENTION_RE.test(text);
+}
 
 // Remote Control stream detection (pure; unit-tested in
 // tests/smoke/remote-control-detect-units.mjs). See detectRemoteControlState.
@@ -3537,15 +3556,34 @@ export class TerminalHost extends EventEmitter {
               if (canceled || settled || !this.ptyProcess) {
                 return;
               }
-              const attached = Math.max(0, currentCount - beforePasteCount);
               const timedOut = Date.now() - pastedAt >= ATTACHMENT_EFFECT_TIMEOUT_MS;
-              if (attached >= attachments.length || timedOut) {
+              if (
+                attachmentChipEffectSatisfied(
+                  beforePasteCount,
+                  currentCount,
+                  attachments.length,
+                  trimmed,
+                ) ||
+                timedOut
+              ) {
                 this.ptyProcess.write(CSI_U_ENTER);
                 // An effect can still materialize after the bounded fallback.
                 // The next send must fence the composer even when this one
                 // appeared clean at Enter time (probe P2).
                 this.cliInputMaybeDirty = true;
-                finish();
+                if (needsCodexSkillMentionEnter(this.profile.provider, trimmed)) {
+                  // Codex's bare-$name popup consumes the first Enter to insert
+                  // the mention (probe s3b); the second remains owned by this
+                  // cancellable sequence so Stop cannot submit it afterwards.
+                  schedule(320, () => {
+                    if (this.ptyProcess) {
+                      this.ptyProcess.write(CSI_U_ENTER);
+                    }
+                    finish();
+                  });
+                } else {
+                  finish();
+                }
                 return;
               }
               schedule(ATTACHMENT_EFFECT_POLL_MS, checkEffect);
@@ -3784,8 +3822,7 @@ export class TerminalHost extends EventEmitter {
     // own and the extra Enter never fires.
     if (
       attachments.length === 0 &&
-      this.profile.provider === "codex" &&
-      /^\$[A-Za-z0-9][\w.-]*$/.test(trimmed)
+      needsCodexSkillMentionEnter(this.profile.provider, trimmed)
     ) {
       this.deferSonataWrite(
         440,
