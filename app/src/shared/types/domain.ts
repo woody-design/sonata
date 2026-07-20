@@ -92,6 +92,8 @@ export interface Task {
   status: TaskStatus;
   /** Session is hidden from the default sidebar list. Absent on old manifests. */
   archived?: boolean;
+  /** Applied tag definition ids. Absent on old manifests means no tags. */
+  tags?: string[];
   /**
    * True when Sonata generated the working directory itself — a project-less
    * "chat" — rather than the user choosing a folder. Set explicitly at creation

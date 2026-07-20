@@ -28,6 +28,8 @@ import type {
   SessionIndexResponse,
   SessionSnapshotResponse,
   SlashCommandsResponse,
+  TagDefinition,
+  TagGroup,
   Task,
   TaskId,
   UsageSnapshot,
@@ -80,6 +82,8 @@ import {
   StatusRegionTracker,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
+import { planTagRemovalFromManifests } from "./tag-manifests";
+import { withTaskTags } from "../shared/session-tags";
 import { ensureClaudeProjectTrust, updateClaudeConfig } from "./claude-config";
 import {
   projectRecordRoot,
@@ -90,6 +94,7 @@ import {
 } from "./sonata-paths";
 import { listSlashCommands as discoverSlashCommands } from "./skills-discovery";
 import type { ProjectsStore } from "./projects-store";
+import type { TagsStore } from "./tags-store";
 import type {
   ResumeSettingsStore,
   ClaudeSettingsStore,
@@ -161,6 +166,7 @@ const CLAUDE_PERMISSION_MODES = new Set<ClaudePermissionMode>([
 interface RuntimeControllerOptions {
   sendEvent: (event: RuntimeEvent) => void;
   projectsStore: ProjectsStore;
+  tagsStore: TagsStore;
   resumeSettingsStore: ResumeSettingsStore;
   claudeSettingsStore: ClaudeSettingsStore;
   codexSettingsStore: CodexSettingsStore;
@@ -198,6 +204,7 @@ interface ActiveTaskRuntime {
 export class RuntimeController {
   private readonly sendEvent: (event: RuntimeEvent) => void;
   private readonly projectsStore: ProjectsStore;
+  private readonly tagsStore: TagsStore;
   private readonly resumeSettingsStore: ResumeSettingsStore;
   private readonly claudeSettingsStore: ClaudeSettingsStore;
   private readonly codexSettingsStore: CodexSettingsStore;
@@ -247,6 +254,7 @@ export class RuntimeController {
   constructor(options: RuntimeControllerOptions) {
     this.sendEvent = options.sendEvent;
     this.projectsStore = options.projectsStore;
+    this.tagsStore = options.tagsStore;
     this.resumeSettingsStore = options.resumeSettingsStore;
     this.claudeSettingsStore = options.claudeSettingsStore;
     this.codexSettingsStore = options.codexSettingsStore;
@@ -855,6 +863,49 @@ export class RuntimeController {
     }
     const record = this.requirePersistedSession(taskId);
     this.persistTaskManifest({ ...record.manifest.task, archived }, record.storageRoot);
+  }
+
+  setSessionTags(taskId: TaskId, tagIds: string[]): void {
+    // Like archive, tag selection is metadata — updatedAt stays put.
+    const live = this.taskRuntimes.get(taskId);
+    if (live) {
+      live.task = withTaskTags(live.task, tagIds);
+      this.persistTaskManifest(live.task, live.storageRoot);
+      return;
+    }
+    const record = this.requirePersistedSession(taskId);
+    this.persistTaskManifest(withTaskTags(record.manifest.task, tagIds), record.storageRoot);
+  }
+
+  listTags(): TagDefinition[] {
+    return this.tagsStore.list();
+  }
+
+  createTag(label: string, group: TagGroup): TagDefinition {
+    return this.tagsStore.create(label, group);
+  }
+
+  deleteTag(id: string): void {
+    this.tagsStore.delete(id);
+    const liveTasks = new Map<TaskId, Task>();
+    for (const active of this.taskRuntimes.values()) {
+      liveTasks.set(active.task.id, active.task);
+    }
+    const mutations = planTagRemovalFromManifests(
+      this.taskManifestCandidates(),
+      liveTasks,
+      id,
+    );
+    for (const mutation of mutations) {
+      const live = this.taskRuntimes.get(mutation.task.id);
+      if (live) {
+        live.task = mutation.task;
+        this.persistTaskManifest(live.task, mutation.storageRoot, "session-updated", false);
+        continue;
+      }
+      this.persistTaskManifest(mutation.task, mutation.storageRoot, "session-updated", false);
+    }
+    this.emitSessionsUpdated("session-updated");
   }
 
   deleteSession(taskId: TaskId): void {

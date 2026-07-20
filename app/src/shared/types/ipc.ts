@@ -10,6 +10,7 @@ import type {
   Task,
   TaskId,
 } from "./domain";
+import type { TagDefinition, TagGroup } from "./tags";
 import type { RuntimeEvent } from "./events";
 import type { ReadingSettings, ResolvedReadingMode } from "./reading-settings";
 import type { TerminalWindowSettings } from "./terminal-window-settings";
@@ -38,8 +39,12 @@ export const IPC_CHANNELS = {
   sessionRead: "session:read",
   sessionRename: "session:rename",
   sessionArchive: "session:archive",
+  sessionSetTags: "session:setTags",
   sessionDelete: "session:delete",
   sessionReveal: "session:reveal",
+  tagsList: "tags:list",
+  tagsCreate: "tags:create",
+  tagsDelete: "tags:delete",
   projectRename: "project:rename",
   projectArchive: "project:archive",
   projectReveal: "project:reveal",
@@ -233,6 +238,23 @@ export interface ArchiveSessionRequest {
   taskId: TaskId;
   archived: boolean;
 }
+
+export interface SetSessionTagsRequest {
+  taskId: TaskId;
+  tagIds: string[];
+}
+
+export interface CreateTagRequest {
+  label: string;
+  group: TagGroup;
+}
+
+export interface DeleteTagRequest {
+  id: string;
+}
+
+export type ListTagsResponse = TagDefinition[];
+export type CreateTagResponse = TagDefinition;
 
 export interface DeleteSessionRequest {
   taskId: TaskId;
@@ -787,8 +809,12 @@ export interface SonataRuntimeBridge {
   readSession(request: ReadSessionSnapshotRequest): Promise<SessionSnapshotResponse>;
   renameSession(request: RenameSessionRequest): Promise<RenameSessionResponse>;
   archiveSession(request: ArchiveSessionRequest): Promise<void>;
+  setSessionTags(request: SetSessionTagsRequest): Promise<void>;
   deleteSession(request: DeleteSessionRequest): Promise<void>;
   revealSession(request: RevealSessionRequest): Promise<void>;
+  listTags(): Promise<ListTagsResponse>;
+  createTag(request: CreateTagRequest): Promise<CreateTagResponse>;
+  deleteTag(request: DeleteTagRequest): Promise<void>;
   renameProject(request: RenameProjectRequest): Promise<RenameProjectResponse>;
   archiveProject(request: ArchiveProjectRequest): Promise<void>;
   revealProject(request: RevealProjectRequest): Promise<void>;

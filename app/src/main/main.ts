@@ -71,6 +71,7 @@ import {
 import { WindowStateManager, type WindowDefaults } from "./window-state";
 import { LocalApiServer, localApiSocketPath } from "./local-api/local-api-server";
 import { ProjectsStore, projectsStorePath } from "./projects-store";
+import { TagsStore, tagsStorePath } from "./tags-store";
 
 // The `sonata-file://` scheme serves a task workspace's local images to the
 // Preview reader (design record §4/§6.1). It MUST be registered as privileged
@@ -845,6 +846,7 @@ app.whenReady().then(() => {
   }
   runtimeController = new RuntimeController({
     projectsStore: new ProjectsStore(projectsStorePath()),
+    tagsStore: new TagsStore(tagsStorePath()),
     resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath()),
     claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath()),
     codexSettingsStore: new CodexSettingsStore(codexSettingsPath()),

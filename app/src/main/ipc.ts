@@ -139,6 +139,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.sessionArchive, (_event, request) => {
     runtimeController.archiveSession(request.taskId, request.archived);
   });
+  ipcMain.handle(IPC_CHANNELS.sessionSetTags, (_event, request) => {
+    runtimeController.setSessionTags(request.taskId, request.tagIds);
+  });
   ipcMain.handle(IPC_CHANNELS.sessionDelete, (_event, request) => {
     runtimeController.deleteSession(request.taskId);
     // A deleted session has no dormant record to return to — forget its preview
@@ -148,6 +151,13 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.sessionReveal, (_event, request) => {
     const folder = runtimeController.sessionWorkingDirectory(request.taskId);
     return shell.openPath(folder);
+  });
+  ipcMain.handle(IPC_CHANNELS.tagsList, () => runtimeController.listTags());
+  ipcMain.handle(IPC_CHANNELS.tagsCreate, (_event, request) =>
+    runtimeController.createTag(request.label, request.group),
+  );
+  ipcMain.handle(IPC_CHANNELS.tagsDelete, (_event, request) => {
+    runtimeController.deleteTag(request.id);
   });
   ipcMain.handle(IPC_CHANNELS.projectRename, (_event, request) =>
     runtimeController.renameProject(request.path, request.displayName),

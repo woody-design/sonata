@@ -90,6 +90,7 @@
     "smoke:midsession-codex-permission": "npm run build:main && node tests/smoke/midsession-codex-permission.mjs",
     "smoke:midsession-codex-model": "npm run build:main && node tests/smoke/midsession-codex-model.mjs",
     "smoke:session-index": "npm run build:main && node tests/smoke/session-index.mjs",
+    "smoke:session-tags": "npm run build:main && node tests/smoke/tags-color-assignment.mjs && node tests/smoke/tag-single-select.mjs && node tests/smoke/tags-store-normalize.mjs && node tests/smoke/tag-delete-manifests.mjs",
     "smoke:sidebar-fixture": "node tests/smoke/sidebar-fixture.mjs",
     "smoke:sidebar-disclosure-core": "npm run build:main && node tests/smoke/sidebar-disclosure-core.mjs",
     "smoke:sidebar-rename-core": "npm run build:main && node tests/smoke/sidebar-rename-core.mjs && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/sidebar-rename-persistence.mjs",
