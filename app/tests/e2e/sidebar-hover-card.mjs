@@ -33,6 +33,7 @@ try {
   page.setDefaultTimeout(30_000);
   page.on("pageerror", (error) => pageErrors.push(error.stack ?? error.message));
   await page.setViewportSize({ width: 1100, height: 760 });
+  await page.bringToFront();
   const primaryRow = rowFor(page, primary.id);
   await primaryRow.waitFor({ state: "visible" });
 
@@ -45,13 +46,14 @@ try {
   // allow a wider delivery ceiling without weakening that dwell contract.
   await openCard(page).waitFor({ state: "visible", timeout: 10_000 });
   await assertContentAndPresentation(page);
+  await assertContentFittingWidth(page);
   await assertRerenderSurvival(page);
   await assertInstantRelocation(page);
   await assertNoTagsAndDismissals(page);
 
   assertDeepEqual(pageErrors, [], "renderer page errors");
   console.log(
-    "sidebar-hover-card: dwell/content + re-render survival + zero-cycle relocation + dismissal pass",
+    "sidebar-hover-card: dwell/content + content-fit bounds + re-render survival + zero-cycle relocation + dismissal pass",
   );
 } finally {
   try {
@@ -59,6 +61,36 @@ try {
   } finally {
     fixture.cleanup();
   }
+}
+
+async function assertContentFittingWidth(page) {
+  const card = openCard(page);
+  const longTaggedWidth = (await card.boundingBox())?.width;
+  await rowFor(page, untagged.id).hover();
+  assertEqual(await card.getAttribute("data-task-id"), untagged.id, "width probe relocates to short row");
+  const shortUntaggedWidth = (await card.boundingBox())?.width;
+  assertEqual(
+    Number.isFinite(longTaggedWidth) && Number.isFinite(shortUntaggedWidth),
+    true,
+    "content-fitting cards have measurable widths",
+  );
+  assertEqual(
+    longTaggedWidth >= 200 && longTaggedWidth <= 320,
+    true,
+    "long tagged card stays within 200–320px bounds",
+  );
+  assertEqual(
+    shortUntaggedWidth >= 200 && shortUntaggedWidth <= 320,
+    true,
+    "short untagged card stays within 200–320px bounds",
+  );
+  assertEqual(
+    shortUntaggedWidth < longTaggedWidth,
+    true,
+    "short untagged card is measurably narrower than long tagged card",
+  );
+  await rowFor(page, primary.id).hover();
+  assertEqual(await card.getAttribute("data-task-id"), primary.id, "width probe restores primary owner");
 }
 
 async function assertContentAndPresentation(page) {

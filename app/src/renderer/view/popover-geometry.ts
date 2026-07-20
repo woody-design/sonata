@@ -7,7 +7,6 @@
 import type { AnchorRect, PopoverAnchor } from "../../reading-core/state";
 import { calculateCascadePlacement } from "../../reading-core/cascade-menu";
 
-const SIDEBAR_HOVER_CARD_WIDTH = 320;
 const SIDEBAR_HOVER_CARD_GAP = 8;
 const SIDEBAR_HOVER_CARD_MARGIN = 8;
 
@@ -60,10 +59,18 @@ export function positionSidebarMenu(panel: HTMLElement, anchor: AnchorRect): voi
  *  then shift and size within the viewport. Call after the card is mounted. */
 export function positionSidebarHoverCard(panel: HTMLElement, anchor: AnchorRect): void {
   panel.style.position = "fixed";
-  panel.style.width = `${Math.min(
-    SIDEBAR_HOVER_CARD_WIDTH,
-    Math.max(0, window.innerWidth - SIDEBAR_HOVER_CARD_MARGIN * 2),
-  )}px`;
+  // Width policy belongs to the card CSS (fit-content within 200–320px).
+  // Clear a clamp from a previous narrow viewport before reading that CSS max,
+  // then override only when the current viewport is narrower than the bound.
+  panel.style.removeProperty("max-width");
+  const cssMaxWidth = Number.parseFloat(getComputedStyle(panel).maxWidth);
+  const viewportMaxWidth = Math.max(
+    0,
+    window.innerWidth - SIDEBAR_HOVER_CARD_MARGIN * 2,
+  );
+  if (Number.isFinite(cssMaxWidth) && viewportMaxWidth < cssMaxWidth) {
+    panel.style.maxWidth = `${viewportMaxWidth}px`;
+  }
   panel.style.maxHeight = `${Math.max(
     0,
     window.innerHeight - SIDEBAR_HOVER_CARD_MARGIN * 2,
