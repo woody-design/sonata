@@ -131,8 +131,62 @@ try {
   const finalDistance = distance(await scrollMetrics(page));
   assert(finalDistance <= 64, `scroll-to-bottom survives renders and reaches the bottom (distance ${finalDistance})`);
 
+  // ——— Part 2 — reader takeover clears the ride; growth must not yank them back
+  // The complement of Part 1: while the ride is live, a scroll the reader drives
+  // that emits no wheel/touch event (keyboard prompt-nav's scrollIntoView, a
+  // scrollbar-thumb drag) still aborts the animation. The intent must retire on
+  // that retreat — otherwise the next content growth re-aims a smooth
+  // scrollTo(bottom) and drags the reader off what they scrolled to. This fires
+  // the exact wiring F1 identified. Growth is applied by inflating an existing
+  // keyed turn card in place (survives reconcile), so it needs no live stream.
+  await page.evaluate(() => {
+    const runList = document.querySelector("#run-list");
+    runList.scrollTop = 220; // a scrolled-up reading position — control visible
+    runList.dispatchEvent(new Event("scroll"));
+  });
+  await control.waitFor({ state: "visible" });
+  await control.click(); // ride starts; ridePeak seeded at 220
+  await page.waitForFunction(
+    () => window.__scrollDuringRenderCalls?.some((call) => call.behavior === "smooth"),
+    undefined,
+    { timeout: 5_000 },
+  );
+
+  // The reader jumps UP the scroller without a wheel/touch event (the net effect
+  // of prompt-nav's scrollIntoView / a scrollbar drag): retreat far past the
+  // ride peak. syncReadingNavigation must read this as takeover and clear.
+  await page.evaluate(() => {
+    const runList = document.querySelector("#run-list");
+    runList.scrollTop = 0;
+    runList.dispatchEvent(new Event("scroll"));
+  });
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+
+  // Now grow the transcript at the bottom. A lingering intent (pre-fix) re-aims
+  // a smooth scroll to the new bottom; a cleared intent (post-fix) does nothing.
+  await page.evaluate(() => {
+    const cards = document.querySelectorAll("#run-list .turn-card");
+    const last = cards[cards.length - 1];
+    last.style.minHeight = `${last.getBoundingClientRect().height + 2400}px`;
+    document.querySelector("#run-list").dispatchEvent(new Event("scroll"));
+  });
+
+  // Give any (pre-fix) re-aim animation time to run, then assert the reader was
+  // NOT dragged to the bottom. Post-fix: intent cleared on the retreat, view
+  // stays up (distance ~ the full grown overflow). Pre-fix: re-aimed to the
+  // bottom (distance ≤64) → this assertion fails (RED).
+  await page.waitForTimeout(700);
+  const afterGrowth = await scrollMetrics(page);
+  const takeoverDistance = distance(afterGrowth);
+  assert(
+    takeoverDistance > 500,
+    `reader takeover retires the ride; growth does not yank them to the bottom (distance ${takeoverDistance}, scrollTop ${afterGrowth.scrollTop})`,
+  );
+
   console.log(
-    JSON.stringify({ success: true, beforeClick, finalDistance }, null, 2),
+    JSON.stringify({ success: true, beforeClick, finalDistance, takeoverDistance }, null, 2),
   );
 } catch (error) {
   console.error(error);

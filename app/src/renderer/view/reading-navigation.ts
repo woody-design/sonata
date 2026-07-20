@@ -2,21 +2,18 @@ import { ArrowDown } from "lucide";
 import { elements } from "../dom";
 import {
   isReadingNearBottom,
+  readingBottomIntentTakenOver,
   readingHasOverflow,
   stepReadingBottomIntent,
   type ReadingBottomIntentStore,
 } from "../../reading-core/reading-scroll";
-import { activeTaskView, type RendererState } from "../../reading-core/state";
 import { lucideIcon } from "./icons";
 
-let state: RendererState;
 /** The scroll-to-bottom intent, shared with the render finalize (created once at
- *  boot). This surface owns its whole lifecycle: activate on click, re-aim on
- *  growth, clear on arrival / a takeover gesture / a task switch. */
+ *  boot). This surface activates it on click and drives its live phase —
+ *  re-aim on growth, clear on arrival or reader takeover; the task-switch clear
+ *  lives in the transcript render, ahead of finalize (D-F2). */
 let bottomIntent: ReadingBottomIntentStore;
-/** Last active task the surface synced against — a change means the transcript
- *  was replaced under any running animation, so a lingering intent is stale. */
-let lastTaskId: string | null = null;
 let syncFrame: number | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let contentMutationObserver: MutationObserver | null = null;
@@ -27,11 +24,7 @@ function focusComposerAfterNavigation(): void {
   target.focus({ preventScroll: true });
 }
 
-export function initReadingNavigation(
-  stateRef: RendererState,
-  deps: { bottomIntent: ReadingBottomIntentStore },
-): void {
-  state = stateRef;
+export function initReadingNavigation(deps: { bottomIntent: ReadingBottomIntentStore }): void {
   bottomIntent = deps.bottomIntent;
   const runList = elements.runList;
   elements.scrollToBottom.replaceChildren(lucideIcon(ArrowDown, 20));
@@ -98,11 +91,11 @@ export function initReadingNavigation(
   syncObservedContentChildren();
   scheduleSync();
 
-  // A takeover gesture retires the intent: the reader is steering now, so the
-  // animation must not fight them or snap them back. Wheel and touch are the
-  // reliable cancel signals for a Chromium scroller — the smooth animation
-  // itself emits only `scroll` events (never wheel/touch), and after activation
-  // focus lives in the Composer, so the scroller never receives scroll keys.
+  // A takeover gesture retires the intent immediately: the reader is steering
+  // now, so the animation must not fight them or snap them back. Wheel and touch
+  // fire on their own events (the smooth animation itself emits only `scroll`);
+  // programmatic and drag scrolls that emit neither are caught by the
+  // displacement check in syncReadingNavigation.
   const cancelBottomIntent = (): void => {
     bottomIntent.clear();
   };
@@ -116,7 +109,7 @@ export function initReadingNavigation(
     if (reduceMotion) {
       bottomIntent.clear();
     } else {
-      bottomIntent.activate(runList.scrollHeight);
+      bottomIntent.activate(runList.scrollHeight, runList.scrollTop);
     }
     runList.scrollTo({
       top: runList.scrollHeight,
@@ -130,26 +123,26 @@ export function initReadingNavigation(
 export function syncReadingNavigation(): void {
   const runList = elements.runList;
 
-  // A task/view switch replaces the transcript under any running animation:
-  // retire a lingering intent so it cannot chase the new content's bottom.
-  const taskId = activeTaskView(state)?.task?.id ?? null;
-  if (taskId !== lastTaskId) {
-    lastTaskId = taskId;
-    bottomIntent.clear();
-  }
-
-  // Ride the intent to the live edge. This runs on every scroll tick and render
-  // settle, so arrival clears promptly and growth re-aims at the new bottom —
-  // but only past the aimed height, so an unchanged target never restarts the
-  // scroll (createReadingBottomIntentStore.reaim records each new aim).
+  // Drive the intent's live phase. This runs on every scroll tick and render
+  // settle. A retreat from the ride's furthest point is the reader taking over
+  // via a scroll that emits no wheel/touch event (keyboard prompt-nav's
+  // scrollIntoView, a scrollbar drag) — clear before it can re-aim and yank
+  // them back. Otherwise extend the ride, then arrival clears and growth
+  // re-aims at the new bottom (only past the aimed height, so an unchanged
+  // target never restarts the scroll).
   const intent = bottomIntent.current();
   if (intent) {
-    const step = stepReadingBottomIntent(runList, intent);
-    if (step.kind === "arrived") {
+    if (readingBottomIntentTakenOver(runList.scrollTop, intent)) {
       bottomIntent.clear();
-    } else if (step.kind === "reaim") {
-      bottomIntent.reaim(step.top);
-      runList.scrollTo({ top: step.top, behavior: "smooth" });
+    } else {
+      bottomIntent.advance(runList.scrollTop);
+      const step = stepReadingBottomIntent(runList, intent);
+      if (step.kind === "arrived") {
+        bottomIntent.clear();
+      } else if (step.kind === "reaim") {
+        bottomIntent.reaim(step.top);
+        runList.scrollTo({ top: step.top, behavior: "smooth" });
+      }
     }
   }
 

@@ -37,20 +37,25 @@ export function readingHasOverflow(
 // in-flight smooth scroll — CSSOM), and content growth leaving the animation
 // aimed short of the new bottom. `aimedHeight` is the scrollHeight the current
 // animation targets; growth re-aims ONLY past it, so a ~160 ms render cadence
-// never restarts the scroll on an unchanged target. Intent is a smooth-scroll
-// concept only — a reduced-motion (instant) jump has no animation to protect,
-// and tail-follow already keeps an instant jump pinned.
+// never restarts the scroll on an unchanged target. `ridePeak` is the furthest
+// scrollTop the ride has reached — the ride only ever advances toward the
+// bottom, so a retreat past it (see readingBottomIntentTakenOver) means the
+// reader steered. Intent is a smooth-scroll concept only — a reduced-motion
+// (instant) jump has no animation to protect, and tail-follow already keeps an
+// instant jump pinned.
 
 export interface ReadingBottomIntent {
   readonly aimedHeight: number;
+  readonly ridePeak: number;
 }
 
 /** The single live intent, created once at boot and shared by the render
- *  finalize (read) and the navigation surface (activate / re-aim / clear).
- *  Kept in reading-core so both sibling view families reach it through the
- *  composition root rather than importing each other (the view-fence rule). */
+ *  finalize (read) and the navigation surface (activate / advance / re-aim /
+ *  clear). Kept in reading-core so both sibling view families reach it through
+ *  the composition root rather than importing each other (the view-fence rule). */
 export interface ReadingBottomIntentStore {
-  activate(aimedHeight: number): void;
+  activate(aimedHeight: number, scrollTop: number): void;
+  advance(scrollTop: number): void;
   reaim(aimedHeight: number): void;
   clear(): void;
   current(): ReadingBottomIntent | null;
@@ -59,14 +64,20 @@ export interface ReadingBottomIntentStore {
 export function createReadingBottomIntentStore(): ReadingBottomIntentStore {
   let intent: ReadingBottomIntent | null = null;
   return {
-    activate(aimedHeight) {
-      intent = { aimedHeight };
+    activate(aimedHeight, scrollTop) {
+      intent = { aimedHeight, ridePeak: scrollTop };
+    },
+    advance(scrollTop) {
+      // Extend the ride's furthest point so a later retreat reads as takeover.
+      if (intent && scrollTop > intent.ridePeak) {
+        intent = { ...intent, ridePeak: scrollTop };
+      }
     },
     reaim(aimedHeight) {
-      // Re-aim only refreshes a live intent; a stale call after a clear must
-      // not resurrect the animation.
+      // Re-aim only refreshes a live intent's target; a stale call after a
+      // clear must not resurrect the animation. The ride peak is preserved.
       if (intent) {
-        intent = { aimedHeight };
+        intent = { ...intent, aimedHeight };
       }
     },
     clear() {
@@ -76,6 +87,24 @@ export function createReadingBottomIntentStore(): ReadingBottomIntentStore {
       return intent;
     },
   };
+}
+
+/** The reader has taken over when the view retreats from the ride's furthest
+ *  point by more than a margin. The smooth ride only ever advances toward the
+ *  bottom (and streaming growth appends there, never retreating scrollTop), so
+ *  a real retreat is always an external scroll — keyboard prompt-nav's
+ *  scrollIntoView, a scrollbar-thumb drag, a wheel not otherwise caught. This
+ *  is the direction-agnostic complement to the wheel/touch gesture clears:
+ *  those fire on their own events; this catches the programmatic and drag
+ *  scrolls that emit none. The margin absorbs sub-pixel jitter without swallowing
+ *  a genuine jump (prompt-nav aligns a whole card to the top; a deliberate drag
+ *  moves comparably). */
+export function readingBottomIntentTakenOver(
+  scrollTop: number,
+  intent: ReadingBottomIntent,
+  margin = READING_BOTTOM_THRESHOLD_PX,
+): boolean {
+  return scrollTop < intent.ridePeak - Math.max(0, margin);
 }
 
 /** The scrollTop a render's finalize should write, or null to leave scrollTop

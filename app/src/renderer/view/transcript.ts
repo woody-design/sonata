@@ -62,6 +62,12 @@ let composeEntryPanel: () => HTMLElement;
 /** The shared scroll-to-bottom intent (owned by the navigation surface). While
  *  it is live, finalize must leave scrollTop alone — see resolveReadingFinalizeScrollTop. */
 let bottomIntent: ReadingBottomIntentStore;
+/** The task this surface last rendered. A change means the transcript was
+ *  replaced under any running ride, so the intent is stale — cleared here, in
+ *  the synchronous render path AHEAD of finalize, so the new task's first
+ *  tail-follow pin is not suppressed (the navigation surface's own sync runs
+ *  after finalize and would clear a frame too late). */
+let lastRenderedTaskId: string | null = null;
 
 export function initTranscriptView(
   stateRef: RendererState,
@@ -202,6 +208,11 @@ export function renderRuns(): void {
   const rail = ensureStickyPromptRail(runList);
 
   const view = activeTaskView(state);
+  const taskId = view?.task?.id ?? null;
+  if (taskId !== lastRenderedTaskId) {
+    lastRenderedTaskId = taskId;
+    bottomIntent.clear();
+  }
   if (!view?.task) {
     setNonRailChildren(runList, rail, [composeEntryPanel()]);
     finalizeReadingSurfaceRender(nearBottom, previousScrollTop);

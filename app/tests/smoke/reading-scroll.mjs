@@ -7,6 +7,7 @@ const {
   readingDistanceFromBottom,
   readingHasOverflow,
   createReadingBottomIntentStore,
+  readingBottomIntentTakenOver,
   resolveReadingFinalizeScrollTop,
   stepReadingBottomIntent,
 } = await import("../../dist/reading-core/reading-scroll.js");
@@ -43,15 +44,50 @@ assert.equal(readingHasOverflow(atDistance(64)), true);
 {
   const store = createReadingBottomIntentStore();
   assert.equal(store.current(), null, "store starts with no intent");
-  store.activate(1000);
-  assert.deepEqual(store.current(), { aimedHeight: 1000 }, "activate records the aim");
+  store.activate(1000, 200);
+  assert.deepEqual(store.current(), { aimedHeight: 1000, ridePeak: 200 }, "activate records aim + start peak");
+  store.advance(650);
+  assert.deepEqual(store.current(), { aimedHeight: 1000, ridePeak: 650 }, "advance extends the ride peak");
+  store.advance(400);
+  assert.deepEqual(store.current(), { aimedHeight: 1000, ridePeak: 650 }, "advance never lowers the peak");
   store.reaim(1400);
-  assert.deepEqual(store.current(), { aimedHeight: 1400 }, "reaim updates a live aim");
+  assert.deepEqual(store.current(), { aimedHeight: 1400, ridePeak: 650 }, "reaim updates the aim, keeps the peak");
   store.clear();
   assert.equal(store.current(), null, "clear drops the intent");
   store.reaim(2000);
   assert.equal(store.current(), null, "reaim never resurrects a cleared intent");
+  store.advance(3000);
+  assert.equal(store.current(), null, "advance never resurrects a cleared intent");
 }
+
+// ——— Takeover detection ————————————————————————————————————————————————————
+// A retreat past the ride's furthest point (beyond the margin) is the reader
+// steering via a scroll that emits no wheel/touch event.
+assert.equal(
+  readingBottomIntentTakenOver(300, { aimedHeight: 5000, ridePeak: 1200 }),
+  true,
+  "a large retreat from the ride peak is takeover",
+);
+assert.equal(
+  readingBottomIntentTakenOver(1160, { aimedHeight: 5000, ridePeak: 1200 }),
+  false,
+  "a sub-margin dip (jitter) is not takeover",
+);
+assert.equal(
+  readingBottomIntentTakenOver(1400, { aimedHeight: 5000, ridePeak: 1200 }),
+  false,
+  "advancing past the peak is never takeover",
+);
+assert.equal(
+  readingBottomIntentTakenOver(1200 - 64, { aimedHeight: 5000, ridePeak: 1200 }),
+  false,
+  "exactly the margin boundary is not takeover",
+);
+assert.equal(
+  readingBottomIntentTakenOver(1200 - 64 - 0.5, { aimedHeight: 5000, ridePeak: 1200 }),
+  true,
+  "just past the margin boundary is takeover",
+);
 
 // ——— finalize scrollTop resolution ————————————————————————————————————————
 // A live intent suppresses every finalize write — the animation owns scrollTop.

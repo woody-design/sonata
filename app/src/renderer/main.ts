@@ -331,7 +331,7 @@ initComposerView(state);
 initSettingsView(state);
 initChromeView(state, { resolvedReadingMode: () => resolvedReadingMode() });
 initPromptNavView(state, { isComposerComposing: () => composerIsComposing });
-initReadingNavigation(state, { bottomIntent: readingBottomIntent });
+initReadingNavigation({ bottomIntent: readingBottomIntent });
 initActions({
   setViewMode: (mode) => setViewMode(mode),
   scrollToPromptTurn: (turnKey) => scrollToPromptTurn(turnKey),
