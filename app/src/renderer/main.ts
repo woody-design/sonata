@@ -176,6 +176,7 @@ import { initTranscriptView } from "./view/transcript";
 import { initTranscriptChips, transcriptChipTarget } from "./view/transcript-chips";
 import { initQuoteComment } from "./view/quote-comment";
 import { initReadingNavigation } from "./view/reading-navigation";
+import { createReadingBottomIntentStore } from "../reading-core/reading-scroll";
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "dark" : "light";
@@ -287,7 +288,14 @@ initScheduler(state, {
   closeUsagePopover: () => closeUsagePopover(),
 });
 initEntryView(state);
-initTranscriptView(state, { composeEntryPanel: renderTaskEntryPanel });
+// One scroll-to-bottom intent, shared by the render finalize (transcript) and
+// the navigation surface — two sibling view families that cannot import each
+// other, so the composition root hands both the same instance.
+const readingBottomIntent = createReadingBottomIntentStore();
+initTranscriptView(state, {
+  composeEntryPanel: renderTaskEntryPanel,
+  bottomIntent: readingBottomIntent,
+});
 initTranscriptChips(state, {
   resolvePaths: (taskId, candidates) =>
     window.sonataRuntime.resolveWorkspacePaths({ taskId, candidates }).then((r) => r.existing),
@@ -323,7 +331,7 @@ initComposerView(state);
 initSettingsView(state);
 initChromeView(state, { resolvedReadingMode: () => resolvedReadingMode() });
 initPromptNavView(state, { isComposerComposing: () => composerIsComposing });
-initReadingNavigation();
+initReadingNavigation(state, { bottomIntent: readingBottomIntent });
 initActions({
   setViewMode: (mode) => setViewMode(mode),
   scrollToPromptTurn: (turnKey) => scrollToPromptTurn(turnKey),

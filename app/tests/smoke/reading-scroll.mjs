@@ -6,6 +6,9 @@ const {
   isReadingNearBottom,
   readingDistanceFromBottom,
   readingHasOverflow,
+  createReadingBottomIntentStore,
+  resolveReadingFinalizeScrollTop,
+  stepReadingBottomIntent,
 } = await import("../../dist/reading-core/reading-scroll.js");
 
 const atDistance = (distance, { scrollHeight = 500, clientHeight = 200 } = {}) => ({
@@ -35,6 +38,122 @@ assert.equal(
   true,
 );
 assert.equal(readingHasOverflow(atDistance(64)), true);
+
+// ——— Bottom intent store ——————————————————————————————————————————————————
+{
+  const store = createReadingBottomIntentStore();
+  assert.equal(store.current(), null, "store starts with no intent");
+  store.activate(1000);
+  assert.deepEqual(store.current(), { aimedHeight: 1000 }, "activate records the aim");
+  store.reaim(1400);
+  assert.deepEqual(store.current(), { aimedHeight: 1400 }, "reaim updates a live aim");
+  store.clear();
+  assert.equal(store.current(), null, "clear drops the intent");
+  store.reaim(2000);
+  assert.equal(store.current(), null, "reaim never resurrects a cleared intent");
+}
+
+// ——— finalize scrollTop resolution ————————————————————————————————————————
+// A live intent suppresses every finalize write — the animation owns scrollTop.
+assert.equal(
+  resolveReadingFinalizeScrollTop({
+    nearBottom: false,
+    previousScrollTop: 40,
+    scrollTop: 300,
+    scrollHeight: 5000,
+    hasBottomIntent: true,
+  }),
+  null,
+  "intent suppresses the mid-animation pin-back",
+);
+assert.equal(
+  resolveReadingFinalizeScrollTop({
+    nearBottom: true,
+    previousScrollTop: 40,
+    scrollTop: 300,
+    scrollHeight: 5000,
+    hasBottomIntent: true,
+  }),
+  null,
+  "intent suppresses even a near-bottom pin",
+);
+// Without intent, tail-follow stands: pin to bottom near it, hold otherwise.
+assert.equal(
+  resolveReadingFinalizeScrollTop({
+    nearBottom: true,
+    previousScrollTop: 40,
+    scrollTop: 300,
+    scrollHeight: 5000,
+    hasBottomIntent: false,
+  }),
+  5000,
+  "near bottom pins to scrollHeight",
+);
+assert.equal(
+  resolveReadingFinalizeScrollTop({
+    nearBottom: false,
+    previousScrollTop: 40,
+    scrollTop: 300,
+    scrollHeight: 5000,
+    hasBottomIntent: false,
+  }),
+  40,
+  "away from bottom restores the prior position",
+);
+// A same-value write still aborts a smooth scroll, so no-ops are skipped.
+assert.equal(
+  resolveReadingFinalizeScrollTop({
+    nearBottom: false,
+    previousScrollTop: 300,
+    scrollTop: 300,
+    scrollHeight: 5000,
+    hasBottomIntent: false,
+  }),
+  null,
+  "no-op restore write is skipped",
+);
+assert.equal(
+  resolveReadingFinalizeScrollTop({
+    nearBottom: true,
+    previousScrollTop: 40,
+    scrollTop: 4800,
+    scrollHeight: 4800,
+    hasBottomIntent: false,
+  }),
+  null,
+  "no-op bottom pin is skipped",
+);
+
+// ——— Bottom intent stepping ———————————————————————————————————————————————
+const metricsAt = (scrollTop, scrollHeight, clientHeight = 800) => ({
+  scrollTop,
+  scrollHeight,
+  clientHeight,
+});
+// Near the bottom → arrival ends the intent (tail-follow takes over).
+assert.deepEqual(
+  stepReadingBottomIntent(metricsAt(4200, 5000), { aimedHeight: 5000 }),
+  { kind: "arrived" },
+  "reaching the threshold arrives",
+);
+// Content grew past the aim → re-aim at the new bottom.
+assert.deepEqual(
+  stepReadingBottomIntent(metricsAt(1000, 6000), { aimedHeight: 5000 }),
+  { kind: "reaim", top: 6000 },
+  "growth past the aim re-aims at the new height",
+);
+// Same target, still mid-flight → hold so the animation is never restarted.
+assert.deepEqual(
+  stepReadingBottomIntent(metricsAt(1000, 5000), { aimedHeight: 5000 }),
+  { kind: "hold" },
+  "an unchanged target holds",
+);
+// Arrival wins over growth when both could apply.
+assert.deepEqual(
+  stepReadingBottomIntent(metricsAt(5150, 6000), { aimedHeight: 5000 }),
+  { kind: "arrived" },
+  "arrival is checked before growth",
+);
 
 console.log(
   JSON.stringify({

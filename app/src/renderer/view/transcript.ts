@@ -43,7 +43,11 @@ import {
   type RendererState,
   type TaskViewState,
 } from "../../reading-core/state";
-import { isReadingNearBottom } from "../../reading-core/reading-scroll";
+import {
+  isReadingNearBottom,
+  resolveReadingFinalizeScrollTop,
+  type ReadingBottomIntentStore,
+} from "../../reading-core/reading-scroll";
 import { elements } from "../dom";
 import { actions } from "../actions";
 import { lucideIcon } from "./icons";
@@ -55,13 +59,20 @@ let state: RendererState;
  *  imports stay outside the fence — main.ts provides the composer at boot.
  *  An init-bound DEP, not an Action: composition is wiring, not behavior. */
 let composeEntryPanel: () => HTMLElement;
+/** The shared scroll-to-bottom intent (owned by the navigation surface). While
+ *  it is live, finalize must leave scrollTop alone — see resolveReadingFinalizeScrollTop. */
+let bottomIntent: ReadingBottomIntentStore;
 
 export function initTranscriptView(
   stateRef: RendererState,
-  deps: { composeEntryPanel: () => HTMLElement },
+  deps: {
+    composeEntryPanel: () => HTMLElement;
+    bottomIntent: ReadingBottomIntentStore;
+  },
 ): void {
   state = stateRef;
   composeEntryPanel = deps.composeEntryPanel;
+  bottomIntent = deps.bottomIntent;
 }
 
 // The turn-signature tracker is process-local (block render versions live in
@@ -224,7 +235,20 @@ export function renderRuns(): void {
 
 function finalizeReadingSurfaceRender(nearBottom: boolean, previousScrollTop: number): void {
   const runList = elements.runList;
-  runList.scrollTop = nearBottom ? runList.scrollHeight : previousScrollTop;
+  // The tail-follow pin, guarded on two fronts: a live scroll-to-bottom intent
+  // suppresses the write so this render cannot abort the smooth animation, and a
+  // no-op (same-value) write is skipped for the same reason. Re-aiming a growing
+  // target is the navigation surface's job (syncReadingNavigation).
+  const scrollTop = resolveReadingFinalizeScrollTop({
+    nearBottom,
+    previousScrollTop,
+    scrollTop: runList.scrollTop,
+    scrollHeight: runList.scrollHeight,
+    hasBottomIntent: bottomIntent.current() !== null,
+  });
+  if (scrollTop !== null) {
+    runList.scrollTop = scrollTop;
+  }
   actions.restorePromptNavAfterRender();
   actions.scheduleStickyPromptSync();
 }
