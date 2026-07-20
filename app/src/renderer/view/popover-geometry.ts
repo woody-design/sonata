@@ -5,6 +5,11 @@
 // move in D2/D3.
 
 import type { AnchorRect, PopoverAnchor } from "../../reading-core/state";
+import { calculateCascadePlacement } from "../../reading-core/cascade-menu";
+
+const SIDEBAR_HOVER_CARD_WIDTH = 320;
+const SIDEBAR_HOVER_CARD_GAP = 8;
+const SIDEBAR_HOVER_CARD_MARGIN = 8;
 
 export function positionPopoverElement(
   popover: HTMLElement,
@@ -49,6 +54,31 @@ export function positionSidebarMenu(panel: HTMLElement, anchor: AnchorRect): voi
         : `${Math.round(belowTop)}px`;
     }
   });
+}
+
+/** Side placement shared with the cascade policy: prefer right, flip left,
+ *  then shift and size within the viewport. Call after the card is mounted. */
+export function positionSidebarHoverCard(panel: HTMLElement, anchor: AnchorRect): void {
+  panel.style.position = "fixed";
+  panel.style.width = `${Math.min(
+    SIDEBAR_HOVER_CARD_WIDTH,
+    Math.max(0, window.innerWidth - SIDEBAR_HOVER_CARD_MARGIN * 2),
+  )}px`;
+  panel.style.maxHeight = `${Math.max(
+    0,
+    window.innerHeight - SIDEBAR_HOVER_CARD_MARGIN * 2,
+  )}px`;
+  const measured = panel.getBoundingClientRect();
+  const placement = calculateCascadePlacement(
+    anchor,
+    { width: measured.width, height: measured.height },
+    { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
+    SIDEBAR_HOVER_CARD_GAP,
+    SIDEBAR_HOVER_CARD_MARGIN,
+  );
+  panel.style.left = `${Math.round(placement.left)}px`;
+  panel.style.top = `${Math.round(placement.top)}px`;
+  panel.style.maxHeight = `${Math.floor(placement.availableHeight)}px`;
 }
 
 /**

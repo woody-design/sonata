@@ -12,9 +12,11 @@ import type {
   ProjectGroup,
   SessionIndexResponse,
   SessionSummary,
+  TagColor,
   TagDefinition,
   TagGroup,
 } from "../../shared/types";
+import { formatRelativeAge } from "./formatters";
 import {
   SIDEBAR_DISCLOSURE_INCREMENT,
   SIDEBAR_INITIAL_VISIBLE_COUNT,
@@ -86,6 +88,63 @@ export type SidebarEntry = SidebarEntryBase & (
   | { projectPath: string; projectName: string }
   | { projectPath: null; projectName: null }
 );
+
+export interface SidebarHoverCardTag {
+  id: string;
+  label: string;
+  color: TagColor;
+}
+
+export interface SidebarHoverCardModel {
+  taskId: string;
+  title: string;
+  lastActivityAt: string;
+  relativeActivity: string;
+  folderLabel: string;
+  tags: SidebarHoverCardTag[];
+}
+
+/** Task-id lookup keeps hover ownership independent from replaceable row DOM. */
+export function sidebarHoverCardModel(
+  index: SessionIndexResponse | null,
+  definitions: readonly TagDefinition[],
+  taskId: string,
+  nowMs = Date.now(),
+): SidebarHoverCardModel | null {
+  if (!index) {
+    return null;
+  }
+  let session: SessionSummary | undefined;
+  let folderLabel = "Tasks";
+  for (const project of index.projects) {
+    session = project.sessions.find((candidate) => candidate.task.id === taskId);
+    if (session) {
+      folderLabel = project.name;
+      break;
+    }
+  }
+  session ??= index.chats.find((candidate) => candidate.task.id === taskId);
+  if (!session) {
+    return null;
+  }
+  const definitionsById = new Map(
+    definitions.map((definition) => [definition.id, definition] as const),
+  );
+  const tags = (session.task.tags ?? []).flatMap((id) => {
+    const definition = definitionsById.get(id);
+    return definition
+      ? [{ id: definition.id, label: definition.label, color: definition.color }]
+      : [];
+  });
+  return {
+    taskId,
+    title: session.task.title,
+    lastActivityAt: session.lastActivityAt,
+    relativeActivity: formatRelativeAge(session.lastActivityAt, nowMs),
+    folderLabel,
+    tags,
+  };
+}
 
 export interface SidebarDisclosureMetrics {
   totalCount: number;

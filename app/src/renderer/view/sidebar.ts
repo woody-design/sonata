@@ -63,12 +63,14 @@ import {
   renderProtectedRenameEditor,
   sidebarRenameEditorIsProtected,
 } from "./rename-editor";
+import { initSidebarHoverCard } from "./sidebar-hover-card";
 
 /** The shell's state atom, bound once at boot for the sidebar's read paths. */
 let state: RendererState;
 
 export function initSidebarView(stateRef: RendererState): void {
   state = stateRef;
+  initSidebarHoverCard(stateRef);
   elements.sidebarMenuRoot.addEventListener("pointermove", (event) => {
     if (event.pointerType !== "mouse") {
       return;
