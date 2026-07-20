@@ -165,6 +165,7 @@ import {
   initSidebarView,
   openSidebarMenuForSession,
   renderSidebar,
+  renderSidebarMenu,
 } from "./view/sidebar";
 import {
   focusProtectedRenameEditor,
@@ -1187,10 +1188,34 @@ async function hydrateReadingSettings(): Promise<void> {
 
 async function refreshTagDefinitions(): Promise<void> {
   const definitions = await window.sonataRuntime.listTags();
+  if (tagDefinitionsEqual(state.tagDefinitions, definitions)) {
+    return;
+  }
   state.tagDefinitions = definitions;
   if (state.sidebar.menu?.kind === "session" && state.sidebar.menu.tagsOpen) {
-    renderSidebar();
+    renderSidebarMenu();
   }
+}
+
+function tagDefinitionsEqual(
+  left: readonly TagDefinition[],
+  right: readonly TagDefinition[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((definition, index) => {
+      const candidate = right[index];
+      return (
+        candidate !== undefined &&
+        definition.id === candidate.id &&
+        definition.label === candidate.label &&
+        definition.group === candidate.group &&
+        definition.color === candidate.color &&
+        definition.builtin === candidate.builtin &&
+        definition.createdAt === candidate.createdAt
+      );
+    })
+  );
 }
 
 async function createTagDefinition(label: string, group: TagGroup): Promise<TagDefinition> {

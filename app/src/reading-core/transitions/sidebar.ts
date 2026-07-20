@@ -47,6 +47,9 @@ export function openSessionTags(state: RendererState): boolean {
   if (state.sidebar.menu?.kind !== "session") {
     return false;
   }
+  if (state.sidebar.menu.tagsOpen && state.sidebar.menu.input === null) {
+    return false;
+  }
   state.sidebar.menu = {
     ...state.sidebar.menu,
     tagsOpen: true,
@@ -70,6 +73,9 @@ export function closeSessionTags(state: RendererState): boolean {
 
 export function openSessionTagGroup(state: RendererState, group: TagGroup): boolean {
   if (state.sidebar.menu?.kind !== "session" || !state.sidebar.menu.tagsOpen) {
+    return false;
+  }
+  if (state.sidebar.menu.group === group && state.sidebar.menu.input === null) {
     return false;
   }
   state.sidebar.menu = {

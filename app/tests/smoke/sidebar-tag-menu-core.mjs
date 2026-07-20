@@ -30,7 +30,13 @@ function freshState() {
     input: null,
   });
   assert.equal(transitions.openSessionTags(state), true);
+  const tagsOpenState = state.sidebar.menu;
+  assert.equal(transitions.openSessionTags(state), false, "re-entering an open Tags trigger is a no-op");
+  assert.equal(state.sidebar.menu, tagsOpenState, "no-op Tags hover preserves object identity");
   assert.equal(transitions.openSessionTagGroup(state, "type"), true);
+  const groupOpenState = state.sidebar.menu;
+  assert.equal(transitions.openSessionTagGroup(state, "type"), false, "re-entering the same group is a no-op");
+  assert.equal(state.sidebar.menu, groupOpenState, "no-op group hover preserves object identity");
   assert.equal(transitions.enterSessionTagInput(state, "type"), true);
   transitions.updateSessionTagInput(state, {
     draft: "Long lived draft",

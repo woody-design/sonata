@@ -139,7 +139,6 @@ const CASCADE_CLOSE_MS = 150;
 
 const cascadeController = {
   timers: new Set<number>(),
-  layoutFrame: null as number | null,
   previousPoint: null as CascadePoint | null,
   currentPoint: null as CascadePoint | null,
   grace: null as PointerGraceRegion | null,
@@ -151,10 +150,6 @@ function resetCascadeController(): void {
     window.clearTimeout(timer);
   }
   cascadeController.timers.clear();
-  if (cascadeController.layoutFrame !== null) {
-    window.cancelAnimationFrame(cascadeController.layoutFrame);
-  }
-  cascadeController.layoutFrame = null;
   cascadeController.previousPoint = null;
   cascadeController.currentPoint = null;
   cascadeController.grace = null;
@@ -1030,7 +1025,7 @@ export function closeSidebarMenu(options: SidebarRenderOptions = {}): void {
   }
 }
 
-function renderSidebarMenu(options: SidebarRenderOptions = {}): void {
+export function renderSidebarMenu(options: SidebarRenderOptions = {}): void {
   const snapshot = captureSidebarRenderSnapshot();
   renderSidebarMenuContents();
   restoreSidebarRenderSnapshot(snapshot, options);
@@ -1162,10 +1157,13 @@ function sessionTagSubmenuTrigger(
     trigger,
     childPanelId: "sidebar-tags-groups",
     open: () => {
+      const wasClosed = state.sidebar.menu?.kind === "session" && !state.sidebar.menu.tagsOpen;
       const changed = sidebarTransitions.openSessionTags(state);
-      void actions.refreshTagDefinitions().catch(() => {
-        // Keep the last renderer cache; the next open retries the read.
-      });
+      if (changed && wasClosed) {
+        void actions.refreshTagDefinitions().catch(() => {
+          // Keep the last renderer cache; the next closed→open retries the read.
+        });
+      }
       return changed;
     },
     childFocusKey: `menu:session:${menu.taskId}:tag-group:status`,
@@ -1311,6 +1309,7 @@ function renderTagOption(
 ): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "sidebar-tag-option-wrap";
+  wrap.setAttribute("role", "none");
   const option = document.createElement("button");
   option.type = "button";
   option.className = "sidebar-menu-item sidebar-tag-option";
@@ -1523,7 +1522,6 @@ function wireCascadeTrigger(options: {
     if (!child || !side) {
       return;
     }
-    const rect = child.getBoundingClientRect();
     cascadeController.grace = {
       polygon: buildPointerGracePolygon(
         { x: event.clientX, y: event.clientY },
@@ -1661,21 +1659,18 @@ function layoutSessionTagCascade(
     elements.sidebarMenuRoot.querySelector<HTMLElement>("[data-sidebar-menu-panel-id=\"root\"]")!,
     menu.anchor,
   );
-  cascadeController.layoutFrame = window.requestAnimationFrame(() => {
-    cascadeController.layoutFrame = null;
-    const groups = panels.find((panel) => panel.id === "sidebar-tags-groups");
-    if (!groups) {
-      return;
+  const groups = panels.find((panel) => panel.id === "sidebar-tags-groups");
+  if (!groups) {
+    return;
+  }
+  positionCascadePanel(groups, tagsTrigger);
+  if (menu.group) {
+    const options = panels.find((panel) => panel.id === `sidebar-tag-options-${menu.group}`);
+    const groupTrigger = groups.querySelector<HTMLElement>(`[data-tag-group="${menu.group}"]`);
+    if (options && groupTrigger) {
+      positionCascadePanel(options, groupTrigger);
     }
-    positionCascadePanel(groups, tagsTrigger);
-    if (menu.group) {
-      const options = panels.find((panel) => panel.id === `sidebar-tag-options-${menu.group}`);
-      const groupTrigger = groups.querySelector<HTMLElement>(`[data-tag-group="${menu.group}"]`);
-      if (options && groupTrigger) {
-        positionCascadePanel(options, groupTrigger);
-      }
-    }
-  });
+  }
 }
 
 function positionCascadePanel(panel: HTMLElement, anchor: HTMLElement): void {

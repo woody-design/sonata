@@ -38,20 +38,25 @@ try {
   const rootLabels = await root.getByRole("menuitem").allTextContents();
   assertBefore(rootLabels, "Tags", "Archive", "Tags appears above Archive");
 
-  const tags = root.getByRole("menuitem", { name: "Tags", exact: true });
-  await tags.click();
+  await clickAndAssertSameTaskCascadePositioning(page, `#sidebar-tags-trigger-${task.id}`);
   const groups = page.locator("#sidebar-tags-groups");
   await groups.waitFor({ state: "visible" });
   assertEqual(await page.locator("[data-sidebar-menu-panel-id]").count(), 2, "root + groups panels");
 
-  await groups.getByRole("menuitem", { name: /Type/ }).click();
+  await clickAndAssertSameTaskCascadePositioning(
+    page,
+    '#sidebar-tags-groups [data-tag-group="type"]',
+  );
   const options = page.locator("#sidebar-tag-options-type");
   await options.waitFor({ state: "visible" });
   const research = options.getByRole("menuitemcheckbox", { name: "Research", exact: true });
   await research.waitFor({ state: "visible" });
   assertEqual(await page.locator("[data-sidebar-menu-panel-id]").count(), 3, "two flyout levels open");
 
-  await research.click();
+  await clickAndAssertSameTaskCascadePositioning(
+    page,
+    '#sidebar-tag-options-type [data-tag-id="type.research"]',
+  );
   await options.waitFor({ state: "visible" });
   assertEqual(await research.getAttribute("aria-checked"), "true", "toggle checks Research");
   assertEqual(await page.locator("[data-sidebar-menu-panel-id]").count(), 3, "toggle keeps cascade open");
@@ -191,7 +196,7 @@ try {
   assertDeepEqual(manifest.task.tags, ["type.research"], "custom delete strips the applied tag");
   assertDeepEqual(pageErrors, [], "renderer page errors");
   console.log(
-    "sidebar-tags: cascade + input survival/IME + delete + APG keyboard/Escape pass",
+    "sidebar-tags: same-task positioning + input survival/IME + delete + APG keyboard/Escape pass",
   );
 } finally {
   try {
@@ -213,6 +218,41 @@ function isolatedElectronEnv(overrides) {
     SONATA_DISABLE_AUTO_UPDATE: "1",
     SONATA_DISABLE_NOTIFICATIONS: "1",
   };
+}
+
+async function clickAndAssertSameTaskCascadePositioning(page, selector) {
+  await page.evaluate((targetSelector) => {
+    const trigger = document.querySelector(targetSelector);
+    if (!(trigger instanceof HTMLElement)) {
+      throw new Error(`same-task positioning trigger missing: ${targetSelector}`);
+    }
+    trigger.click();
+    const panels = Array.from(
+      document.querySelectorAll("#sidebar-menu-root [data-sidebar-cascade-panel]"),
+    );
+    if (panels.length === 0) {
+      throw new Error(`same-task positioning produced no cascade panels: ${targetSelector}`);
+    }
+    for (const panel of panels) {
+      if (!(panel instanceof HTMLElement)) continue;
+      if (
+        panel.style.left === "" ||
+        panel.style.top === "" ||
+        panel.style.maxHeight === "" ||
+        !panel.dataset.cascadeSide
+      ) {
+        throw new Error(
+          `cascade panel ${panel.id} was unpositioned when click returned: ` +
+            JSON.stringify({
+              left: panel.style.left,
+              top: panel.style.top,
+              maxHeight: panel.style.maxHeight,
+              side: panel.dataset.cascadeSide ?? null,
+            }),
+        );
+      }
+    }
+  }, selector);
 }
 
 function assertBefore(values, first, second, message) {
