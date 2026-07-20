@@ -43,7 +43,11 @@ export function initSidebarHoverCard(stateRef: RendererState): void {
   elements.sidebarList.addEventListener("pointerout", handlePointerOut);
   document.addEventListener("pointerdown", dismissSidebarHoverCard, true);
   document.addEventListener("dragstart", dismissSidebarHoverCard, true);
-  document.addEventListener("scroll", dismissSidebarHoverCard, true);
+  (elements.sidebarList.parentElement ?? elements.sidebarList).addEventListener(
+    "scroll",
+    dismissSidebarHoverCard,
+    { passive: true },
+  );
   window.addEventListener("blur", dismissSidebarHoverCard);
   window.addEventListener("resize", repositionOpenSidebarHoverCard);
 

@@ -40,7 +40,10 @@ try {
   await primaryRow.hover();
   await page.waitForTimeout(450);
   assertEqual(await openCard(page).count(), 0, "card stays closed before the 500ms dwell");
-  await openCard(page).waitFor({ state: "visible", timeout: 3000 });
+  // The negative assertion above pins the 500ms lower bound. Electron can
+  // briefly throttle renderer timers while the new window settles in CI, so
+  // allow a wider delivery ceiling without weakening that dwell contract.
+  await openCard(page).waitFor({ state: "visible", timeout: 10_000 });
   await assertContentAndPresentation(page);
   await assertRerenderSurvival(page);
   await assertInstantRelocation(page);
@@ -280,8 +283,10 @@ async function assertNoTagsAndDismissals(page) {
 
   await rowFor(page, secondary.id).hover();
   assertEqual(await openCard(page).count(), 1, "warm window opens the next row immediately");
-  await page.evaluate(() => document.dispatchEvent(new Event("scroll")));
-  assertEqual(await openCard(page).count(), 0, "scroll dismisses");
+  await page.locator("#run-list").dispatchEvent("scroll");
+  assertEqual(await openCard(page).count(), 1, "reading-pane scroll does not dismiss");
+  await page.locator("#sidebar-sections").dispatchEvent("scroll");
+  assertEqual(await openCard(page).count(), 0, "sidebar scroll dismisses");
 
   await moveAway(page);
   await rowFor(page, secondary.id).hover();
