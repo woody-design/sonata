@@ -38,16 +38,73 @@ try {
 async function runProviderImageSmoke(provider) {
   const nonImage = await runNonImageCheck(provider);
   const delivery = await runImageDeliveryCheck(provider);
+  const multi = await runMultiImageConsecutiveCheck(provider);
   const spacey = await runSpaceyImageDeliveryCheck(provider);
   const reference = await runReferenceTextCheck(provider);
   return {
     provider,
-    verified: nonImage.verified && delivery.verified && spacey.verified && reference.verified,
+    verified:
+      nonImage.verified && delivery.verified && multi.verified && spacey.verified && reference.verified,
     nonImage,
     delivery,
+    multi,
     spacey,
     reference,
   };
+}
+
+async function runMultiImageConsecutiveCheck(provider) {
+  const controller = await startHost(provider, `${provider}-multi-image`);
+  try {
+    const attachments = Array.from({ length: 6 }, (_, index) => {
+      const imagePath = path.join(controller.workspace, `multi-${index + 1}.png`);
+      fs.writeFileSync(imagePath, redPngBytes());
+      return {
+        id: `attachment-${provider}-multi-${index + 1}`,
+        path: imagePath,
+        originalName: path.basename(imagePath),
+        mediaType: "image/png",
+        size: fs.statSync(imagePath).size,
+        provenance: "referenced",
+        kind: "image",
+      };
+    });
+    const firstPrompt = `Reply exactly SONATA_${provider.toUpperCase()}_SIX_IMAGE_RECEIPT.`;
+    const firstItem = controller.delivery.enqueue(firstPrompt, attachments);
+    const firstReceipt = await waitForReceipt(controller.deliveryEvents, firstItem.id, 180000);
+    const firstBlock = await waitForUserBlock(controller, firstPrompt, 180000);
+
+    if (provider === "codex") {
+      await waitUntil(
+        () => !controller.host.hasActiveRun() && controller.host.acceptsPromptInput(),
+        180000,
+        () => controller.cleanTail().slice(-3000),
+      );
+    }
+
+    const secondPrompt = `Reply exactly SONATA_${provider.toUpperCase()}_CLEAN_SECOND_SEND.`;
+    const secondItem = controller.delivery.enqueue(secondPrompt);
+    const secondReceipt = await waitForReceipt(controller.deliveryEvents, secondItem.id, 180000);
+    const secondBlock = await waitForUserBlock(controller, secondPrompt, 180000);
+    const secondHasFirstMarkerResidue = /\[Image\s+#\d+\]/i.test(secondBlock?.text ?? "");
+
+    return {
+      name: `${provider} six images attach; consecutive send has no marker residue`,
+      verified:
+        Boolean(firstReceipt) &&
+        firstBlock?.attachments.length === 6 &&
+        Boolean(secondReceipt) &&
+        Boolean(secondBlock) &&
+        secondBlock.attachments.length === 0 &&
+        !secondHasFirstMarkerResidue,
+      firstTranscriptAttachmentCount: firstBlock?.attachments.length ?? 0,
+      secondTranscriptAttachmentCount: secondBlock?.attachments.length ?? 0,
+      secondHasFirstMarkerResidue,
+      evidenceTail: redact(controller.cleanTail().slice(-1600)),
+    };
+  } finally {
+    controller.dispose();
+  }
 }
 
 async function runNonImageCheck(provider) {
@@ -273,11 +330,13 @@ async function startHost(provider, name) {
     cols: 140,
     ...(provider === "codex"
       ? {
+          // Exact-version probes run while a newer package may exist; the
+          // update picker owns the composer and is unrelated to attachment IO.
           args: codexArgs({
             cwd: workspace,
             permissionMode: "ask-for-approval",
             profile: CODEX_SMOKE_PROFILE,
-          }),
+          }).concat("-c", "check_for_update_on_startup=false"),
         }
       : { permissionMode: "default", model: "opus", reasoningEffort: "xhigh" }),
   });
@@ -326,6 +385,20 @@ async function waitForReceipt(events, itemId, timeoutMs) {
   return null;
 }
 
+async function waitForUserBlock(controller, prompt, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const block = controller.transcript
+      .blocks()
+      .find((candidate) => candidate.kind === "user-message" && candidate.text.includes(prompt));
+    if (block) {
+      return block;
+    }
+    await delay(250);
+  }
+  return null;
+}
+
 async function waitUntil(predicate, timeoutMs, context) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -338,7 +411,7 @@ async function waitUntil(predicate, timeoutMs, context) {
 }
 
 function imageMarkerCount(value) {
-  return value.match(/\[Image\s+#\d+\]/gi)?.length ?? 0;
+  return value.match(/\[Image\s*#\d+\]/gi)?.length ?? 0;
 }
 
 function redPngBytes() {

@@ -344,7 +344,12 @@ export function reduceRuntimeEvent(
   }
 
   if (event.type === "delivery:receipt") {
-    view.status = event.payload.receipt.backfilled ? "Receipt backfilled" : "Delivered";
+    view.status =
+      event.payload.item.status === "delivered-partial"
+        ? (event.payload.item.failureReason ?? "Some images were not attached")
+        : event.payload.receipt.backfilled
+          ? "Receipt backfilled"
+          : "Delivered";
     return [viewChangedDirective(state, view, taskId)];
   }
 

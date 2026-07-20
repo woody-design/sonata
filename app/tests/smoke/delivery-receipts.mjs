@@ -206,6 +206,85 @@ await check("attachment markers and image evidence complete delivery", async () 
   controller.dispose();
 });
 
+await check("partial image transcript receipts as delivered-partial with an honest count", async () => {
+  const events = [];
+  const host = fakeHost();
+  const controller = new DeliveryController({
+    taskId: "task-partial-attachment-receipt-smoke",
+    provider: "claude",
+    terminalHost: host,
+    eventSink: (event) => events.push(event),
+    hasLiveTranscriptSource: () => true,
+    receiptTimeoutMs: 50,
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
+  });
+  const attachments = Array.from({ length: 6 }, (_, index) => ({
+    id: `partial-${index + 1}`,
+    path: `/tmp/sonata-partial/image-${index + 1}.png`,
+    originalName: `image-${index + 1}.png`,
+    mediaType: "image/png",
+    size: 68,
+    provenance: "referenced",
+    kind: "image",
+  }));
+  const item = controller.enqueue("Partial attachment prompt", attachments);
+
+  controller.handleRuntimeEvent({
+    type: "transcript:blocks",
+    payload: {
+      taskId: "task-partial-attachment-receipt-smoke",
+      sourceId: "source-partial-1",
+      reset: false,
+      upserts: [
+        {
+          kind: "user-message",
+          id: "source-partial-1:user-1",
+          taskId: "task-partial-attachment-receipt-smoke",
+          sourceId: "source-partial-1",
+          provider: "claude",
+          turnKey: "turn-partial-1",
+          runId: "run-partial-1",
+          ts: new Date().toISOString(),
+          seq: 1,
+          // Six marker strings but only three payloads: marker text cannot
+          // promote a partial receipt to full delivery.
+          text: "[Image #1] [Image #2] [Image #3] [Image #4] [Image #5] [Image #6] Partial attachment prompt",
+          command: null,
+          attachments: attachments.slice(0, 3).map((attachment) => ({
+            kind: "image",
+            source: "local-path",
+            path: attachment.path,
+            mediaType: attachment.mediaType,
+          })),
+        },
+      ],
+    },
+    ts: new Date().toISOString(),
+  });
+
+  const receipt = events.find(
+    (event) => event.type === "delivery:receipt" && event.payload.itemId === item.id,
+  );
+  assert.ok(receipt, "expected partial delivery receipt event");
+  assert.equal(receipt.payload.item.status, "delivered-partial");
+  assert.equal(receipt.payload.item.failureReason, "3 of 6 images attached");
+  assert.equal(receipt.payload.receipt.expectedImages, 6);
+  assert.equal(receipt.payload.receipt.receivedImages, 3);
+  assert.equal(controller.state().attachmentNotice, "3 of 6 images attached");
+  assert.equal(controller.state().queue.length, 0, "partial receipt completes the queue item");
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.ok(
+    !events.some(
+      (event) =>
+        event.type === "delivery:state" &&
+        event.payload.queue.some((candidate) => candidate.id === item.id && candidate.status === "undelivered"),
+    ),
+    "partial receipt never falls through to timeout",
+  );
+  controller.dispose();
+});
+
 await check("file reference folds into prompt text VERBATIM (no shell-escaping)", async () => {
   const host = fakeHost();
   const controller = new DeliveryController({

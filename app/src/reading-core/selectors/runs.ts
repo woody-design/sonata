@@ -212,6 +212,9 @@ export function deliveryStatusLabel(deliveryState: DeliveryTaskState): string {
   if (deliveryState.approvalActive) {
     return `Waiting for ${providerName} approval`;
   }
+  if (deliveryState.attachmentNotice) {
+    return deliveryState.attachmentNotice;
+  }
   if (deliveryState.activeRun) {
     return `${providerName} is working`;
   }

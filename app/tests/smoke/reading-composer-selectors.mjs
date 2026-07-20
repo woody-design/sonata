@@ -131,6 +131,7 @@ const run = (status, extra = {}) => ({
   const shown = [
     // The fenced Invariant 5: partial attachment failure surfaced, not silent.
     "Attached 3 of 4 — the rest were unavailable.",
+    "3 of 6 images attached",
     "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable",
     "Unknown Claude command — press Enter again to send it anyway",
     "Something exploded: ENOENT",
@@ -614,6 +615,13 @@ const run = (status, extra = {}) => ({
     R.deliveryStatusLabel(delivery({ approvalActive: true })),
     "Waiting for Claude approval",
     "approval before activeRun",
+  );
+  assert.equal(
+    R.deliveryStatusLabel(
+      delivery({ activeRun: true, attachmentNotice: "3 of 6 images attached" }),
+    ),
+    "3 of 6 images attached",
+    "partial attachment notice remains visible while the provider works",
   );
   assert.equal(R.deliveryStatusLabel(delivery({ activeRun: true })), "Claude is working");
   assert.equal(R.deliveryStatusLabel(delivery()), "Ready", "bootLatched idle");

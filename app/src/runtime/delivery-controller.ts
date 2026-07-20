@@ -10,7 +10,7 @@ import type {
 } from "../shared/types/domain";
 import type { RuntimeEvent } from "../shared/types/events";
 import type { TranscriptBlock } from "../shared/types/transcript";
-import { IMAGE_MARKER_RE, normalizePromptForMatch } from "../shared/prompt-markers";
+import { normalizePromptForMatch } from "../shared/prompt-markers";
 import { quotePathForText } from "./shell-quote";
 import { cleanTerminal, type PromptSubmission, type TerminalHost } from "./terminal-host";
 
@@ -153,6 +153,7 @@ export class DeliveryController {
   // (the stale-rung-into-item-B class). The echo branch survives its own
   // completion precisely because that completion does NOT bump this.
   private deliverySeq = 0;
+  private attachmentNotice: string | null = null;
 
   constructor(options: DeliveryControllerOptions) {
     this.taskId = options.taskId;
@@ -183,6 +184,7 @@ export class DeliveryController {
     if (!fullText && imageAttachments.length === 0) {
       throw new Error("Cannot queue an empty prompt without attachments.");
     }
+    this.attachmentNotice = null;
 
     const item: DeliveryQueueItem = {
       id: `delivery-${Date.now()}-${++this.seq}`,
@@ -334,6 +336,7 @@ export class DeliveryController {
       // idleComposer gated on the starved task-ready flag and read
       // permanently false in the full app.
       bootLatched: this.bootLatched,
+      attachmentNotice: this.attachmentNotice,
       queue: this.items.map((item) => ({ ...item })),
     };
   }
@@ -586,7 +589,11 @@ export class DeliveryController {
       return;
     }
     const item = this.items.find((candidate) => candidate.id === this.inFlight?.itemId);
-    if (!item || item.status !== "delivering" || !matchesReceipt(item, block)) {
+    if (!item || item.status !== "delivering") {
+      return;
+    }
+    const match = receiptMatch(item, block);
+    if (!match) {
       return;
     }
 
@@ -597,8 +604,18 @@ export class DeliveryController {
       sourceId: block.sourceId,
       blockId: block.id,
       backfilled: false,
+      ...(match.expectedImages > 0
+        ? {
+            expectedImages: match.expectedImages,
+            receivedImages: match.receivedImages,
+          }
+        : {}),
     };
-    this.completeDelivery(item, receipt);
+    if (match.receivedImages < match.expectedImages) {
+      this.completePartialDelivery(item, receipt, match.receivedImages, match.expectedImages);
+    } else {
+      this.completeDelivery(item, receipt);
+    }
   }
 
   private backfillPtyReceipt(block: Extract<TranscriptBlock, { kind: "user-message" }>): void {
@@ -680,7 +697,11 @@ export class DeliveryController {
     this.pump();
   }
 
-  private completeDelivery(item: DeliveryQueueItem, receipt: DeliveryReceipt): void {
+  private completeDelivery(
+    item: DeliveryQueueItem,
+    receipt: DeliveryReceipt,
+    result: { status?: "delivered" | "delivered-partial"; notice?: string | null } = {},
+  ): void {
     this.clearReceiptTimer();
     // An echo completion does NOT disarm the heal net. `pty-composer-echo` fires
     // when the prompt paints into the composer — which happens whether the Enter
@@ -691,9 +712,9 @@ export class DeliveryController {
     if (receipt.source !== "pty-composer-echo") {
       this.clearEnterRetries();
     }
-    item.status = "delivered";
+    item.status = result.status ?? "delivered";
     item.receipt = receipt;
-    item.failureReason = null;
+    item.failureReason = result.notice ?? null;
     this.emitReceipt(item.id, item, receipt);
 
     const index = this.items.findIndex((candidate) => candidate.id === item.id);
@@ -703,6 +724,17 @@ export class DeliveryController {
     this.inFlight = null;
     this.emitState();
     this.pump();
+  }
+
+  private completePartialDelivery(
+    item: DeliveryQueueItem,
+    receipt: DeliveryReceipt,
+    receivedImages: number,
+    expectedImages: number,
+  ): void {
+    const notice = `${receivedImages} of ${expectedImages} images attached`;
+    this.attachmentNotice = notice;
+    this.completeDelivery(item, receipt, { status: "delivered-partial", notice });
   }
 
   private armReceiptTimer(itemId: DeliveryItemId): void {
@@ -884,6 +916,14 @@ function matchesReceipt(
   item: { text: string; attachments: DeliveryAttachment[] },
   block: Extract<TranscriptBlock, { kind: "user-message" }>,
 ): boolean {
+  const match = receiptMatch(item, block);
+  return Boolean(match && match.receivedImages >= match.expectedImages);
+}
+
+function receiptMatch(
+  item: { text: string; attachments: DeliveryAttachment[] },
+  block: Extract<TranscriptBlock, { kind: "user-message" }>,
+): { expectedImages: number; receivedImages: number } | null {
   const prompt = normalizePromptForMatch(item.text);
   const received = normalizePromptForMatch(block.text);
   const textMatches =
@@ -891,15 +931,14 @@ function matchesReceipt(
     prompt === received ||
     (block.command !== null && prompt.startsWith(block.command));
   if (!textMatches) {
-    return false;
+    return null;
   }
 
   const expectedImages = item.attachments.length;
-  if (expectedImages === 0) {
-    return true;
-  }
   const receivedImages = (block.attachments ?? []).filter((attachment) => attachment.kind === "image").length;
-  return receivedImages >= expectedImages || imageMarkerCount(block.text) >= expectedImages;
+  // Literal markers can outlive their image payloads after a raced submit.
+  // Only normalized attachment payloads count toward the provider receipt.
+  return { expectedImages, receivedImages };
 }
 
 function containsPromptEcho(rawText: string, text: string): boolean {
@@ -909,10 +948,6 @@ function containsPromptEcho(rawText: string, text: string): boolean {
 
 function normalizeText(value: string): string {
   return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
-}
-
-function imageMarkerCount(value: string): number {
-  return value.match(IMAGE_MARKER_RE)?.length ?? 0;
 }
 
 /**

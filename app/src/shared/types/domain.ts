@@ -159,7 +159,12 @@ export interface CompletionHint {
   [key: string]: unknown;
 }
 
-export type DeliveryItemStatus = "queued" | "delivering" | "delivered" | "undelivered";
+export type DeliveryItemStatus =
+  | "queued"
+  | "delivering"
+  | "delivered"
+  | "delivered-partial"
+  | "undelivered";
 export type DeliveryReceiptSource =
   | "provider-transcript"
   | "pty-composer-echo"
@@ -211,6 +216,10 @@ export interface DeliveryReceipt {
   sourceId: string | null;
   blockId: string | null;
   backfilled: boolean;
+  /** Present for transcript receipts of attachment-bearing prompts. Actual
+   *  provider payloads only; literal [Image #N] text is not counted. */
+  expectedImages?: number;
+  receivedImages?: number;
 }
 
 export interface DeliveryQueueItem {
@@ -236,6 +245,9 @@ export interface DeliveryTaskState {
    *  Display copy keys "Starting <provider>" on this — never on a continuous
    *  composer-ready scrape (retired, S6). */
   bootLatched: boolean;
+  /** Sticky until the next enqueue so a partial provider receipt remains visible
+   *  after the live queue item is removed. */
+  attachmentNotice?: string | null;
   queue: DeliveryQueueItem[];
 }
 

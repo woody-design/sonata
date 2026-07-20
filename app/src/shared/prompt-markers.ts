@@ -24,7 +24,10 @@
 // The CLI's image-attachment placeholder, e.g. "[Image #1]". Case-insensitive
 // and tolerant of the internal spacing. One definition, so a future decoration
 // change (or a new marker family) has a single landing site.
-export const IMAGE_MARKER_RE = /\[Image\s+#\d+\]/gi;
+// Claude paints the space with cursor positioning in some layouts; stripping
+// ANSI then yields `[Image#N]`. Accept both that rendered form and the provider
+// transcript's literal `[Image #N]`.
+export const IMAGE_MARKER_RE = /\[Image\s*#\d+\]/gi;
 
 /**
  * Remove CLI image markers; leave everything else — including the user's

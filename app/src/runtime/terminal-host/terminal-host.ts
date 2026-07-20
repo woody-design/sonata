@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 import * as pty from "node-pty";
-import { normalizePromptForMatch } from "../../shared/prompt-markers";
+import { IMAGE_MARKER_RE, normalizePromptForMatch } from "../../shared/prompt-markers";
 import type {
   ApprovalChoice,
   ApprovalDecision,
@@ -49,6 +49,12 @@ import { TerminalScrollback } from "./terminal-scrollback";
 export const BRACKETED_PASTE_START = "\x1b[200~";
 export const BRACKETED_PASTE_END = "\x1b[201~";
 export const CSI_U_ENTER = "\x1b[13u";
+// Claude 2.1.214 completed six separately-pasted image paths in 157–203ms in
+// the clean probe, but the affected field session exceeded 260ms. Poll the
+// rendered effect with a generous bound that still precedes the 2.5s Enter
+// recovery rung; the bound is a fallback, never the success criterion.
+const ATTACHMENT_EFFECT_POLL_MS = 25;
+const ATTACHMENT_EFFECT_TIMEOUT_MS = 1_500;
 
 // Remote Control stream detection (pure; unit-tested in
 // tests/smoke/remote-control-detect-units.mjs). See detectRemoteControlState.
@@ -3460,6 +3466,109 @@ export class TerminalHost extends EventEmitter {
     this.pendingDeferredWrites.add(handle);
   }
 
+  /**
+   * Paste attachment paths as separate frames, then submit only after the
+   * rendered composer proves their chip effects landed. Claude 2.1.214 batches
+   * path conversion asynchronously; write completion is not chip completion,
+   * and one frame containing multiple paths stays literal on both providers.
+   */
+  private deferAttachmentSubmission(
+    attachments: PromptAttachmentSubmission[],
+    trimmed: string,
+    owner: "prompt" | "control",
+  ): void {
+    this.beginSonataWrite();
+    let canceled = false;
+    let settled = false;
+    const timers = new Set<NodeJS.Timeout>();
+    const handle = { owner, cancel: () => {} };
+    const finish = (): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      for (const timer of timers) {
+        clearTimeout(timer);
+      }
+      timers.clear();
+      this.pendingDeferredWrites.delete(handle);
+      this.endSonataWrite();
+    };
+    const schedule = (ms: number, fn: () => void): void => {
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        if (!canceled) {
+          fn();
+        }
+      }, ms);
+      timers.add(timer);
+    };
+    handle.cancel = () => {
+      if (settled) {
+        return;
+      }
+      canceled = true;
+      finish();
+    };
+    this.pendingDeferredWrites.add(handle);
+
+    this.writeCliInputClearFlood("pre-submit");
+    schedule(ATTACHMENT_EFFECT_POLL_MS, () => {
+      void this.renderedImageMarkerCount().then((beforePasteCount) => {
+        if (canceled || settled || !this.ptyProcess) {
+          return;
+        }
+        for (const attachment of attachments) {
+          this.ptyProcess.write(
+            `${BRACKETED_PASTE_START}${shellQuotePath(attachment.path)}${BRACKETED_PASTE_END}`,
+          );
+        }
+        const pastedAt = Date.now();
+        schedule(120, () => {
+          if (!this.ptyProcess) {
+            finish();
+            return;
+          }
+          if (trimmed) {
+            this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
+          }
+          const checkEffect = (): void => {
+            void this.renderedImageMarkerCount().then((currentCount) => {
+              if (canceled || settled || !this.ptyProcess) {
+                return;
+              }
+              const attached = Math.max(0, currentCount - beforePasteCount);
+              const timedOut = Date.now() - pastedAt >= ATTACHMENT_EFFECT_TIMEOUT_MS;
+              if (attached >= attachments.length || timedOut) {
+                this.ptyProcess.write(CSI_U_ENTER);
+                // An effect can still materialize after the bounded fallback.
+                // The next send must fence the composer even when this one
+                // appeared clean at Enter time (probe P2).
+                this.cliInputMaybeDirty = true;
+                finish();
+                return;
+              }
+              schedule(ATTACHMENT_EFFECT_POLL_MS, checkEffect);
+            });
+          };
+          checkEffect();
+        });
+      });
+    });
+  }
+
+  private async renderedImageMarkerCount(): Promise<number> {
+    try {
+      const snapshot = await this.serializeScrollback();
+      const rendered = snapshot?.data ?? this.rawTail;
+      return cleanTerminal(rendered).match(IMAGE_MARKER_RE)?.length ?? 0;
+    } catch {
+      // Snapshot failure degrades to the bounded fallback; it must never strand
+      // the write lock or suppress the eventual Enter.
+      return cleanTerminal(this.rawTail).match(IMAGE_MARKER_RE)?.length ?? 0;
+    }
+  }
+
   /** Cancel every deferred automation write that has not fired. Returns how
    *  many PROMPT-owned writes were canceled (0 = the prompt's bytes were all
    *  out; canceled control writes — /stop, /rc Enter — don't count, review
@@ -3639,44 +3748,47 @@ export class TerminalHost extends EventEmitter {
     // belt was skipped behind an approval), kill it before ANY of this
     // submission's bytes land — otherwise the paste concatenates onto it
     // (probe C1/C8). No-op on a clean line.
-    this.writeCliInputClearFlood("pre-submit");
-    for (const attachment of attachments) {
-      this.ptyProcess.write(`${BRACKETED_PASTE_START}${shellQuotePath(attachment.path)}${BRACKETED_PASTE_END}`);
-    }
-    const textDelayMs = attachments.length > 0 ? 120 : 0;
-    const enterDelayMs = attachments.length > 0 ? 260 : 120;
     // Ratchet the flood high-water: prompt lines + one line per pasted
     // attachment path (each is its own composer line).
     this.cliDirtyLineHighWater = Math.max(
       this.cliDirtyLineHighWater,
       trimmed.split("\n").length + attachments.length,
     );
-    this.deferSonataWrite(
-      textDelayMs,
-      () => {
-        if (this.ptyProcess && trimmed) {
-          this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
-        }
-      },
-      submissionOwner,
-    );
-    this.deferSonataWrite(
-      enterDelayMs,
-      () => {
-        if (this.ptyProcess) {
-          this.ptyProcess.write(CSI_U_ENTER);
-        }
-      },
-      submissionOwner,
-    );
+    if (attachments.length > 0) {
+      this.deferAttachmentSubmission(attachments, trimmed, submissionOwner);
+    } else {
+      this.writeCliInputClearFlood("pre-submit");
+      this.deferSonataWrite(
+        0,
+        () => {
+          if (this.ptyProcess && trimmed) {
+            this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
+          }
+        },
+        submissionOwner,
+      );
+      this.deferSonataWrite(
+        120,
+        () => {
+          if (this.ptyProcess) {
+            this.ptyProcess.write(CSI_U_ENTER);
+          }
+        },
+        submissionOwner,
+      );
+    }
     // A bare Codex skill mention ("$name") opens the skill-mention popup,
     // whose "Press enter to insert" consumes the first Enter. The second
     // Enter submits the inserted mention. Both steps verified by probe
     // s3b.codexSkillDoubleEnter; with trailing text the popup closes on its
     // own and the extra Enter never fires.
-    if (this.profile.provider === "codex" && /^\$[A-Za-z0-9][\w.-]*$/.test(trimmed)) {
+    if (
+      attachments.length === 0 &&
+      this.profile.provider === "codex" &&
+      /^\$[A-Za-z0-9][\w.-]*$/.test(trimmed)
+    ) {
       this.deferSonataWrite(
-        enterDelayMs + 320,
+        440,
         () => {
           if (this.ptyProcess) {
             this.ptyProcess.write(CSI_U_ENTER);
