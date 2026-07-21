@@ -106,6 +106,18 @@ If you hit one of these — or something new — please open an issue.
 Knowing where it breaks for someone who isn't me is exactly what this
 stage needs.
 
+## Install
+
+Download the latest DMG from
+[Releases](https://github.com/woody-design/sonata/releases/latest),
+open it, and drag Sonata to Applications. The app is signed and
+notarized; macOS will run it without warnings.
+
+You'll need:
+
+- A Mac with Apple Silicon (arm64). Intel Macs are not supported.
+- Claude Code and/or Codex CLI installed and authenticated.
+
 ## Run it locally
 
 You'll need:
