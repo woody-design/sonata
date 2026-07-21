@@ -1,4 +1,4 @@
-# Sonata
+# Sonata - the human workspace for coding agents
 
 I'm a designer. I started agentic coding this February, and quickly
 understood the benefits of the CLI. So I spent several weeks learning
