@@ -14,7 +14,7 @@ import { _electron as electron } from "playwright-core";
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-window-fs-e2e-"));
 const stateFile = path.join(dataRoot, "config", "window-state.json");
-// Above the main window's 960x640 minimums so setBounds is honored verbatim.
+// Above the main window's minimums so setBounds is honored verbatim.
 const normalBounds = { x: 200, y: 140, width: 1100, height: 760 };
 // Pin SONATA_SETTINGS_DIR too (precedence over sonataConfigDir, exported by the
 // workshop launcher) so the app and this test agree on the state file path.

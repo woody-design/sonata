@@ -25,6 +25,8 @@ export interface RestoreDecision {
   fullScreen: boolean;
 }
 
+export type DefaultWindowBounds = Pick<Rectangle, "x" | "y" | "width" | "height">;
+
 /** Keep at least this many px of the window inside the work area so the title
  *  bar can never end up fully off-screen and ungrabbable. */
 const KEEP_VISIBLE_PX = 80;
@@ -61,11 +63,19 @@ export class WindowStateManager {
   }
 
   /** Compute how a window should open, given its saved state and defaults. */
-  restore(key: WindowStateKey, defaults: WindowDefaults): RestoreDecision {
+  restore(
+    key: WindowStateKey,
+    defaults: WindowDefaults,
+    firstLaunchBounds?: DefaultWindowBounds,
+  ): RestoreDecision {
     const validated = validateWindowState(this.states[key], defaults);
     if (!validated) {
-      // No usable saved geometry: default size, let the OS center it.
-      return { bounds: { width: defaults.width, height: defaults.height }, fullScreen: false };
+      // A coordinated first-launch placement may be supplied by the startup
+      // seam. Otherwise use the standalone default size and let the OS center.
+      return {
+        bounds: firstLaunchBounds ?? { width: defaults.width, height: defaults.height },
+        fullScreen: false,
+      };
     }
 
     const hasBounds =
@@ -79,6 +89,12 @@ export class WindowStateManager {
       : { width: defaults.width, height: defaults.height };
 
     return { bounds, fullScreen: validated.isFullScreen === true };
+  }
+
+  /** Whether this key has geometry/flags worth restoring. Used only to keep a
+   *  coordinated first-launch layout from moving an existing user's window. */
+  hasRestorableState(key: WindowStateKey, defaults: WindowDefaults): boolean {
+    return Boolean(validateWindowState(this.states[key], defaults));
   }
 
   /** Wire a window so its geometry is captured and (debounced) persisted. */

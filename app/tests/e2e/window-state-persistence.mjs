@@ -12,7 +12,7 @@ import { _electron as electron } from "playwright-core";
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-window-state-e2e-"));
 const windowStateFile = path.join(dataRoot, "config", "window-state.json");
 // Within each display's work area on any reasonable test machine, and above the
-// main window's 960x640 minimums so setBounds is honored verbatim.
+// main window's minimums so setBounds is honored verbatim.
 const targetBounds = { x: 160, y: 120, width: 1120, height: 780 };
 // Pin SONATA_SETTINGS_DIR too: it takes precedence over sonataConfigDir() in
 // windowStatePath(), and the workshop launcher exports it — without this the

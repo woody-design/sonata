@@ -7,6 +7,7 @@ import {
   Menu,
   nativeTheme,
   protocol,
+  screen,
   shell,
   type MenuItemConstructorOptions,
   type OpenDialogOptions,
@@ -43,6 +44,11 @@ import {
   type WorkspaceStatResult,
 } from "../shared/types";
 import { registerIpcHandlers } from "./ipc";
+import {
+  planInitialWindowPair,
+  type InitialWindowBounds,
+  type InitialWindowPair,
+} from "./initial-window-layout";
 import { NotificationController } from "./notification-controller";
 import { PreviewSessions } from "./preview-sessions";
 import { createRuntimeEventRecorder } from "./runtime-event-recorder";
@@ -118,9 +124,9 @@ let activeTerminalTask: TerminalActiveTaskState = {
 let windowState: WindowStateManager | null = null;
 
 const MAIN_WINDOW_DEFAULTS: WindowDefaults = {
-  width: 1280,
-  height: 860,
-  minWidth: 960,
+  width: 1200,
+  height: 820,
+  minWidth: 720,
   minHeight: 640,
 };
 const PREVIEW_WINDOW_DEFAULTS: WindowDefaults = {
@@ -130,14 +136,14 @@ const PREVIEW_WINDOW_DEFAULTS: WindowDefaults = {
   minHeight: 420,
 };
 const TERMINAL_WINDOW_DEFAULTS: WindowDefaults = {
-  width: 900,
-  height: 760,
-  minWidth: 480,
+  width: 680,
+  height: 820,
+  minWidth: 420,
   minHeight: 360,
 };
 
-function createMainWindow(): BrowserWindow {
-  const decision = windowState?.restore("main", MAIN_WINDOW_DEFAULTS);
+function createMainWindow(firstLaunchBounds?: InitialWindowBounds): BrowserWindow {
+  const decision = windowState?.restore("main", MAIN_WINDOW_DEFAULTS, firstLaunchBounds);
   const window = new BrowserWindow({
     ...(decision?.bounds ?? {
       width: MAIN_WINDOW_DEFAULTS.width,
@@ -236,8 +242,8 @@ function createPreviewWindow(): BrowserWindow {
   return window;
 }
 
-function createTerminalWindow(): BrowserWindow {
-  const decision = windowState?.restore("terminal", TERMINAL_WINDOW_DEFAULTS);
+function createTerminalWindow(firstLaunchBounds?: InitialWindowBounds): BrowserWindow {
+  const decision = windowState?.restore("terminal", TERMINAL_WINDOW_DEFAULTS, firstLaunchBounds);
   const window = new BrowserWindow({
     ...(decision?.bounds ?? {
       width: TERMINAL_WINDOW_DEFAULTS.width,
@@ -281,6 +287,16 @@ function createTerminalWindow(): BrowserWindow {
   });
 
   return window;
+}
+
+function planPrimaryDisplayWindowPair(): InitialWindowPair | undefined {
+  try {
+    return planInitialWindowPair(screen.getPrimaryDisplay().workArea);
+  } catch {
+    // Display metrics can transiently fail during login/display reconfiguration.
+    // The window factories still have safe standalone defaults in that case.
+    return undefined;
+  }
 }
 
 /**
@@ -895,12 +911,21 @@ app.whenReady().then(() => {
   }, readingSettingsStore);
   createApplicationMenu();
   windowState = new WindowStateManager(new WindowStateStore(windowStatePath()));
-  mainWindow = createMainWindow();
   // Default-on: the terminal opens beside the conversation unless the user
-  // closed it last session. `windowState` is ready above, so the restore path
-  // inside the factory works.
+  // closed it last session. Only a genuinely fresh pair receives coordinated
+  // bounds: existing users keep each window's last saved geometry exactly.
   terminalWindowSettingsStore = new TerminalWindowSettingsStore(terminalWindowSettingsPath());
-  if (terminalWindowSettingsStore.read().open) {
+  const terminalStartsOpen = terminalWindowSettingsStore.read().open;
+  let initialWindowPair: InitialWindowPair | undefined;
+  if (
+    terminalStartsOpen &&
+    !windowState.hasRestorableState("main", MAIN_WINDOW_DEFAULTS) &&
+    !windowState.hasRestorableState("terminal", TERMINAL_WINDOW_DEFAULTS)
+  ) {
+    initialWindowPair = planPrimaryDisplayWindowPair();
+  }
+  mainWindow = createMainWindow(initialWindowPair?.main);
+  if (terminalStartsOpen) {
     // Open the terminal only after the main window has loaded: the conversation
     // is the primary surface (it stays frontmost and is the first window any
     // harness sees), and the terminal slides in beside it a beat later. The
@@ -908,7 +933,7 @@ app.whenReady().then(() => {
     // tiny terminal page.
     mainWindow.webContents.once("did-finish-load", () => {
       if (!terminalWindow || terminalWindow.isDestroyed()) {
-        terminalWindow = createTerminalWindow();
+        terminalWindow = createTerminalWindow(initialWindowPair?.terminal);
       }
       mainWindow?.focus();
       // The main renderer's boot-time state read may have run before the window
