@@ -2,9 +2,9 @@
 
 ## Scope
 
-Probe target: the inferred CLI-side mechanics behind
-`private/reports/2026-07-20-multi-image-paste-partial-attach.md`, before any
-production edit.
+Probe target: the inferred CLI-side mechanics behind an observed
+partial-attach failure — six images pasted as one batch, but the submit fired
+while only part of the batch had attached — before any production edit.
 
 - Claude Code: exact `2.1.214` package binary
 - Codex CLI: exact `0.144.5` package binary
