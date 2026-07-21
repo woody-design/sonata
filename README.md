@@ -14,8 +14,7 @@ the starting point for building Sonata.
 
 Sonata is for a new generation of coders, builders, and design
 engineers — people whose workflow no longer centers on editing code,
-but on working with AI: reading, giving direction, taste, and
-judgment.
+but on working with AI: reading, giving direction, judgment & taste.
 
 It's a free, open-source macOS app that runs your real Claude Code and
 Codex CLIs — native behavior, native capabilities, your existing
@@ -32,30 +31,23 @@ it — and leave your feedback.
 
 ## What Sonata does
 
-**Read.** Agent sessions become something you can actually read. Sonata
+**Read.** Sonata
 normalizes Claude and Codex session data into clean turn cards —
 markdown, folded tool calls, plan blocks, run attribution — with tuned
-typography and light/dark reading themes. Live status (busy, idle,
-waiting on you) comes from the CLI's own structured hooks, not from
-scraping the screen.
+typography and light/dark reading themes.
 
 **Write.** The composer is built for expressing intent: type naturally,
 attach files and images, steer work that's already in flight. Slash
 commands are semantic — skills become chips, stateful controls like
 `/model` and `/permissions` open native popovers instead of text menus.
 
-**Manage.** Sessions are working material, not history. Name them, tag
-them, filter them, organize them by project. Open a dormant session and
-read it instantly — it only resumes when you send something new. Each
-task picks its provider (Claude or Codex) at creation.
+**Manage.** Name your session, tag
+them, filter them, organize them by project.
 
 **Preview.** Check outcomes without opening an editor. Markdown, HTML,
-images, file trees, and changed files open in floating preview windows —
-one click from the transcript to the thing the agent actually produced.
+images, file trees, and changed files open in floating preview windows.
 
-And when judgment is needed, you're in the loop at decision points, not
-watching a command stream: approvals, questions, and permission changes
-surface clearly in your workspace. The raw terminal stays one switch
+The raw terminal stays one switch
 away — same session, same process — and you can type into it anytime.
 
 ## What Sonata is not
@@ -180,11 +172,6 @@ in Sonata is the agent you'd get in the terminal.
 Same place it already goes: to Anthropic or OpenAI, through their own
 CLIs. Sonata adds no account, no server, and no middle layer; its own
 sessions and settings stay on your machine.
-
-**Is Codex fully equal to Claude in Sonata?**
-Both are supported; parity is not guaranteed. Some signals arrive
-differently from each CLI, and features land where the upstream data
-allows.
 
 ## License & trademark
 
