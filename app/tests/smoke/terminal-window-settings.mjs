@@ -29,6 +29,7 @@ function check(name, condition) {
 
 // A. Vocabulary round-trip.
 check("CLI defaults open", DEFAULT_TERMINAL_WINDOW_SETTINGS.open === true);
+check("CLI defaults to Dark", DEFAULT_TERMINAL_WINDOW_SETTINGS.mode === "dark");
 check("default scheme is default", DEFAULT_TERMINAL_WINDOW_SETTINGS.scheme === "default");
 for (const scheme of TERM_SCHEME_IDS) {
   const normalized = normalizeTerminalWindowSettings({ open: false, scheme, mode: "dark" });

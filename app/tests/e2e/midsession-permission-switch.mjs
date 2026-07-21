@@ -3,7 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt, sendPrompt, waitForEngagement } from "./helpers/session.mjs";
+import {
+  chooseDraftProvider,
+  sendFirstPrompt,
+  sendPrompt,
+  waitForEngagement,
+} from "./helpers/session.mjs";
 
 // Mid-session PERMISSION switch, end-to-end (S2). Drives a REAL Claude session
 // and switches its permission mode via the composer's now-interactive ACCESS
@@ -50,6 +55,7 @@ try {
   page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
+  await chooseDraftProvider(page, "claude");
   const projectsDir = path.join(workspaceRoot, "data", "projects");
 
   // Capture every control-switch:state event in the page so we can inspect the

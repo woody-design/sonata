@@ -10,15 +10,15 @@ import type { RuntimeProvider } from "./domain";
  *
  * `defaultProvider` is the agent new sessions start on (copy-at-entry: seeded
  * into the New Chat draft at boot and at each new-chat reset, never
- * retro-applied to an already-open draft). Default "claude" = today's hardcoded
- * launch provider, so existing installs see no drift.
+ * retro-applied to an already-open draft). New installs start on Codex; an
+ * explicit stored choice still wins through the normalizer.
  */
 export interface SonataSettings {
   defaultProvider: RuntimeProvider;
 }
 
 export const DEFAULT_SONATA_SETTINGS: SonataSettings = {
-  defaultProvider: "claude",
+  defaultProvider: "codex",
 };
 
 export function isRuntimeProvider(value: unknown): value is RuntimeProvider {

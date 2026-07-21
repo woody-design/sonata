@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { chooseDraftProvider } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdef-e2e-"));
 const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdef-settings-"));
@@ -19,6 +20,7 @@ try {
   let page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
   await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({ state: "visible" });
+  await chooseDraftProvider(page, "claude");
   const armedBeforeSetting = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
 
   await openSettings(page);
@@ -42,6 +44,7 @@ try {
   page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
   await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({ state: "visible" });
+  await chooseDraftProvider(page, "claude");
   await page.locator('#remote-control-toggle[aria-pressed="true"]').waitFor({ state: "visible", timeout: 10000 });
   const armedOnBoot = await page.locator('#remote-control-toggle[aria-pressed="true"]').count();
 

@@ -27,7 +27,7 @@ let app = null;
 
 async function launchAndGetTerminal() {
   const launched = await electron.launch({ args: ["dist/main/main.js"], env: launchEnv });
-  const main = await launched.firstWindow();
+  const main = await waitForWindowByUrl(launched, "index.html");
   main.setDefaultTimeout(120000);
   await main.locator(".task-entry-panel, #run-list").first().waitFor({ state: "visible" });
   const terminal = await waitForWindowByUrl(launched, "terminal.html");
@@ -45,9 +45,9 @@ try {
   await cli.locator("#terminal-theme-trigger").click();
   await cli.locator(".terminal-theme-popover").waitFor({ state: "visible" });
   await cli.locator('[data-scheme-choice="gruvbox"]').click();
-  await cli.locator('[data-mode-choice="dark"]').click();
+  await cli.locator('[data-mode-choice="light"]').click();
   await cli.locator('.terminal-size-btn[aria-label="Increase text size"]').click();
-  await cli.locator('html[data-term-scheme="gruvbox"][data-mode="dark"]').waitFor({
+  await cli.locator('html[data-term-scheme="gruvbox"][data-mode="light"]').waitFor({
     state: "attached",
   });
   results.pickedValueShown =
@@ -62,7 +62,7 @@ try {
       persisted = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
       if (
         persisted.scheme === "gruvbox" &&
-        persisted.mode === "dark" &&
+        persisted.mode === "light" &&
         persisted.fontSize === 14
       ) {
         break;
@@ -73,7 +73,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   results.diskHoldsPickedTriple =
-    persisted?.scheme === "gruvbox" && persisted?.mode === "dark" && persisted?.fontSize === 14;
+    persisted?.scheme === "gruvbox" && persisted?.mode === "light" && persisted?.fontSize === 14;
 
   await app.close();
   app = null;
@@ -84,7 +84,7 @@ try {
   const cli2 = second.terminal;
 
   await cli2
-    .locator('html[data-term-scheme="gruvbox"][data-mode="dark"]')
+    .locator('html[data-term-scheme="gruvbox"][data-mode="light"]')
     .waitFor({ state: "attached" });
   results.rebootRestoredRoot = true;
 
@@ -94,7 +94,7 @@ try {
     .locator('[data-scheme-choice="gruvbox"]')
     .evaluate((el) => el.classList.contains("selected") && el.getAttribute("aria-pressed") === "true");
   results.rebootPickerMode = await cli2
-    .locator('[data-mode-choice="dark"]')
+    .locator('[data-mode-choice="light"]')
     .evaluate((el) => el.classList.contains("selected"));
   results.rebootPickerSize =
     (await cli2.locator(".terminal-size-value").textContent()) === "14";

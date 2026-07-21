@@ -10,7 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt } from "./helpers/session.mjs";
+import { chooseDraftProvider, sendFirstPrompt } from "./helpers/session.mjs";
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-g1b-data-"));
 const workspacesDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-g1b-workspaces-"));
@@ -22,6 +22,7 @@ try {
   await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
+  await chooseDraftProvider(page, "claude");
 
   // Auto-approve any approval (a fresh folder triggers a workspace-trust prompt; the
   // Stop hook deliberately won't complete a run while one is pending). This is what the
@@ -38,7 +39,7 @@ try {
   });
 
   // Normal new-chat path: pick the folder through the project chip's menu,
-  // then send the first message (Claude is the default provider). The
+  // then send the first message through the explicitly selected Claude provider. The
   // composer send path is what actually starts a run.
   await page.locator("#project-chip").click();
   await page.locator("#entry-choose-folder").click();

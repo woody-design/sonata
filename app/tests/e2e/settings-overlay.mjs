@@ -75,20 +75,20 @@ try {
 
   // Default model group (FIRST group): default provider + the two combined
   // model/effort popovers. No sonata-settings.json in the fixture -> the
-  // provider defaults to Claude; choosing Codex persists sonata-settings.json.
+  // provider defaults to Codex; choosing Claude persists sonata-settings.json.
   const defaultModelGroup = page.locator('section[aria-label="Default model"]');
   const providerRow = defaultModelGroup.locator(".settings-row", { hasText: "Default provider" });
   const providerPopup = providerRow.locator(".settings-popup");
-  await providerPopup.filter({ hasText: "Claude" }).waitFor({ state: "visible" });
-  await providerPopup.click();
-  await providerRow.locator(".settings-popup-option", { hasText: "Codex" }).click();
-  await waitUntil(() => readPersistedSonataSettings()?.defaultProvider === "codex", 8000);
   await providerPopup.filter({ hasText: "Codex" }).waitFor({ state: "visible" });
+  await providerPopup.click();
+  await providerRow.locator(".settings-popup-option", { hasText: "Claude" }).click();
+  await waitUntil(() => readPersistedSonataSettings()?.defaultProvider === "claude", 8000);
+  await providerPopup.filter({ hasText: "Claude" }).waitFor({ state: "visible" });
   // Copy-at-entry: the setting change does NOT retro-apply to the already-open
-  // New Chat draft — its provider chip stays on the boot value (Claude).
+  // New Chat draft — its provider chip stays on the boot value (Codex).
   assert.equal(
     await page.locator("#provider-chip").textContent(),
-    "Claude",
+    "Codex",
     "a Default provider change never retro-applies to an open draft (copy-at-entry)",
   );
 
@@ -237,9 +237,11 @@ try {
   await page.keyboard.press("Escape");
   await page.locator(".settings-window").waitFor({ state: "hidden" });
 
-  // The New Chat access chip mirrors the new default LIVE (external review
-  // P2, 2026-07-04): an untouched draft follows Settings without a relaunch.
-  await page.locator("#permission-chip", { hasText: "Auto" }).waitFor({ state: "visible" });
+  // The current New Chat draft stayed on its boot provider (Codex), so its
+  // access chip mirrors the new CODEX permission default live. The saved
+  // provider change to Claude remains copy-at-entry and applies only to the
+  // next New Chat.
+  await page.locator("#permission-chip", { hasText: "Full Access" }).waitFor({ state: "visible" });
 
   // Bridge off -> the row attributes the bridge and offers Restore.
   fs.writeFileSync(claudeConfigPath, `${JSON.stringify({ resumeReturnDismissed: true })}\n`, "utf8");
@@ -348,7 +350,9 @@ async function launchApp() {
 async function setContentSize(width, height) {
   await electronApp.evaluate(
     ({ BrowserWindow }, size) => {
-      BrowserWindow.getAllWindows()[0]?.setContentSize(size.width, size.height);
+      BrowserWindow.getAllWindows()
+        .find((window) => window.getTitle() === "Sonata")
+        ?.setContentSize(size.width, size.height);
     },
     { width, height },
   );

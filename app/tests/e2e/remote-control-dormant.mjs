@@ -8,7 +8,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt, sendPrompt, activeSessionTaskId, selectSidebarSession } from "./helpers/session.mjs";
+import {
+  activeSessionTaskId,
+  chooseDraftProvider,
+  selectSidebarSession,
+  sendFirstPrompt,
+  sendPrompt,
+} from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdorm-e2e-"));
 const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdorm-settings-"));
@@ -22,6 +28,7 @@ try {
   // ── Launch 1: create a small session, then quit (leaving it dormant). ──
   let page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
+  await chooseDraftProvider(page, "claude");
   await sendFirstPrompt(page, "Reply with exactly: DORMANT_SEED");
   await page.locator(".turn-card", { hasText: "DORMANT_SEED" }).waitFor({ state: "visible" });
   await page.locator('.turn-card[data-run-status="completed"]').first().waitFor({ state: "visible" });

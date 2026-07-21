@@ -24,8 +24,13 @@ try {
   const sendEnabledWithText = !(await page.locator("#send-prompt").isDisabled());
   await page.locator("#prompt-input").fill("");
 
+  // Fresh-install launch default: Codex + 5.6 Sol + High.
+  await page.locator("#provider-chip", { hasText: "Codex" }).waitFor({ state: "visible" });
+  await page.locator("#model-chip", { hasText: "5.6 Sol High" }).waitFor({ state: "visible" });
+
   // The access chip is Claude-only and follows the Settings default triad:
   // fresh settings → "Manual"; a per-session pick relabels the chip.
+  await chooseDraftProvider(page, "claude");
   await page.locator("#permission-chip", { hasText: "Manual" }).waitFor({ state: "visible" });
   await page.locator("#permission-chip").click();
   await page.locator("#access-option-acceptEdits").click();
@@ -39,8 +44,8 @@ try {
   await page.locator("#project-chip", { hasText: path.basename(selectedFolder) }).waitFor({
     state: "visible",
   });
-  // New sessions default to Claude; this test exercises the Codex launch-settings
-  // path (speedMode→manifest→report end-to-end), so select Codex explicitly.
+  // This test exercises the Codex launch-settings path
+  // (speedMode→manifest→report end-to-end), so return to Codex explicitly.
   // (Claude also offers Fast on Opus now — its UI gating/unwind is covered by
   // model-settings-options.mjs, and its settings-file injection by the
   // provider-launch-settings smoke; neither needs a real spawn.)

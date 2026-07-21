@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { waitForWindowByUrl } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-reading-settings-workspace-"));
 const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-reading-settings-store-"));
@@ -69,12 +70,18 @@ try {
   });
   const defaults = await readReadingDom(page);
   assertEqual(defaults.theme, "default", "corrupt settings default theme");
-  assertEqual(defaults.modeSetting, "auto", "corrupt settings default mode setting");
+  assertEqual(defaults.modeSetting, "light", "corrupt settings default mode setting");
+  assertEqual(defaults.mode, "light", "corrupt settings default resolved mode");
   assertEqual(defaults.textBody, "16px", "corrupt settings default text size");
-  if (defaults.mode !== "light" && defaults.mode !== "dark") {
-    throw new Error(`Corrupt settings did not resolve auto to an explicit mode: ${defaults.mode}`);
-  }
-  assertEqual(defaults.firstFrame, `default/${defaults.mode}/16px`, "corrupt settings first frame");
+  assertEqual(defaults.firstFrame, "default/light/16px", "corrupt settings first frame");
+
+  // Auto remains available as an explicit user choice and still follows the OS.
+  await page.locator("#reading-settings").click();
+  await page.locator(".reading-settings-popover").waitFor({ state: "visible" });
+  await page.locator(".reading-segment", { hasText: "Auto" }).click();
+  await page.waitForFunction(
+    () => document.documentElement.dataset.readingModeSetting === "auto",
+  );
   await setNativeThemeSource("light");
   await waitForResolvedMode(page, "light");
   await setNativeThemeSource("dark");
@@ -118,7 +125,7 @@ async function launchApp() {
       SONATA_SETTINGS_DIR: settingsRoot,
     },
   });
-  const page = await electronApp.firstWindow();
+  const page = await waitForWindowByUrl(electronApp, "index.html");
   page.setDefaultTimeout(60000);
   return page;
 }

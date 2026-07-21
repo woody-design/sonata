@@ -11,7 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt } from "./helpers/session.mjs";
+import { chooseDraftProvider, sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rc-e2e-"));
 const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rc-settings-"));
@@ -24,6 +24,7 @@ const pageErrors = [];
 try {
   const page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
+  await chooseDraftProvider(page, "claude");
 
   // Create the session with a fast first turn; the helper answers workspace trust.
   await sendFirstPrompt(page, "Reply with exactly: RC_READY");

@@ -31,9 +31,8 @@ try {
   await sendFirstPrompt(page, prompt);
   await waitForEngagement(page);
 
-  // Approve every ask until the run completes: Claude (the default provider
-  // since f6dd283) requests approval PER tool call — two file writes are two
-  // asks — and a broker ask's card title is the tool summary, not a fixed
+  // Approve every ask until the run completes. A broker ask's card title is
+  // the tool summary, not a fixed
   // string, so drain by visibility (approveAnyVisibleApproval), not by title.
   // Completion beacon: the card's data-run-status attribute (the turn footer
   // and its ".turn-outcome" retired 2026-07-03).

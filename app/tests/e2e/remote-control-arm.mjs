@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt } from "./helpers/session.mjs";
+import { chooseDraftProvider, sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcarm-e2e-"));
 const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcarm-settings-"));
@@ -23,8 +23,9 @@ try {
   const page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
   await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({ state: "visible" });
+  await chooseDraftProvider(page, "claude");
 
-  // In New Chat (Claude default) the button is clickable and ARMS the flag.
+  // In a Claude New Chat the button is clickable and ARMS the flag.
   const rcButton = page.locator("#remote-control-toggle");
   const enabledInNewChat = !(await rcButton.isDisabled());
   await rcButton.click();

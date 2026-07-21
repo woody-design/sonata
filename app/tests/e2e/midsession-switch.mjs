@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
+import { chooseDraftProvider, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 // Mid-session model/effort switch, end-to-end (S1). Drives a REAL Claude session
 // and switches its model via the composer's now-interactive model chip:
@@ -40,6 +40,7 @@ try {
   page = await electronApp.firstWindow();
   page.setDefaultTimeout(240000);
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
+  await chooseDraftProvider(page, "claude");
 
   // A prompt that streams for a few seconds (no tool approval) so the running
   // turn is observable — long enough to assert the disabled chip.

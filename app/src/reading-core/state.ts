@@ -644,7 +644,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
       },
     },
     taskDraft: {
-      provider: "claude",
+      provider: "codex",
       cwd: null,
       menu: null,
       message: null,
@@ -682,7 +682,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     // The launch-default mirrors start at the same hardcoded values the
     // taskDraft above is seeded with; boot hydration overwrites them from the
     // persisted settings (and re-seeds the draft).
-    defaultProvider: "claude",
+    defaultProvider: "codex",
     defaultModel: {
       codex: "gpt-5.6-sol",
       claude: "opus",

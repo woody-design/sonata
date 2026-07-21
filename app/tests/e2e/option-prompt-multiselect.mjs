@@ -10,7 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt } from "./helpers/session.mjs";
+import { chooseDraftProvider, sendFirstPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-optms-e2e-"));
 const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-optms-settings-"));
@@ -28,6 +28,7 @@ try {
   await page.locator(".task-entry-panel", { hasText: "What should we work on" }).waitFor({
     state: "visible",
   });
+  await chooseDraftProvider(page, "claude");
   await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
 
   // One multiSelect + one single-select mirrors a real requirement-clarification mix.

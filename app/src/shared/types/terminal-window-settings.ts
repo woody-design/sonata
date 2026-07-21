@@ -1,5 +1,4 @@
 import {
-  DEFAULT_READING_SETTINGS,
   isReadingModeSetting,
   type ReadingModeSetting,
 } from "./reading-settings";
@@ -57,7 +56,9 @@ export interface TerminalWindowSettings {
 export const DEFAULT_TERMINAL_WINDOW_SETTINGS: TerminalWindowSettings = {
   open: true,
   scheme: "default",
-  mode: DEFAULT_READING_SETTINGS.mode,
+  // The CLI is a separate surface from Reading and starts dark on first use.
+  // A valid persisted Light/Dark/Auto choice continues to take precedence.
+  mode: "dark",
   fontSize: 13,
 };
 

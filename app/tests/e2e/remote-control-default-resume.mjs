@@ -6,7 +6,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt, activeSessionTaskId, selectSidebarSession } from "./helpers/session.mjs";
+import {
+  activeSessionTaskId,
+  chooseDraftProvider,
+  selectSidebarSession,
+  sendFirstPrompt,
+} from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdr-e2e-"));
 const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcdr-settings-"));
@@ -20,6 +25,7 @@ try {
   let page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
+  await chooseDraftProvider(page, "claude");
   await openSettings(page);
   await page.locator(".settings-group[aria-label='Remote control'] .settings-switch").click();
   await page.locator(".settings-group[aria-label='Remote control'] .settings-switch[aria-checked='true']").waitFor();

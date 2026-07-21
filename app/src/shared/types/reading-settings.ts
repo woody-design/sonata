@@ -18,7 +18,9 @@ export interface ReadingSettings {
 
 export const DEFAULT_READING_SETTINGS: ReadingSettings = {
   theme: "default",
-  mode: "auto",
+  // Give the primary reading surface a predictable bright first frame.
+  // Explicit stored choices, including Auto, still win during normalization.
+  mode: "light",
   textStep: 16,
 };
 

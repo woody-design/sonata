@@ -6,7 +6,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt, activeSessionTaskId, selectSidebarSession } from "./helpers/session.mjs";
+import {
+  activeSessionTaskId,
+  chooseDraftProvider,
+  selectSidebarSession,
+  sendFirstPrompt,
+} from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcretro-e2e-"));
 const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rcretro-settings-"));
@@ -19,6 +24,7 @@ try {
   // Launch 1: default OFF (initial). Create a session, then quit (dormant).
   let page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
+  await chooseDraftProvider(page, "claude");
   await sendFirstPrompt(page, "Reply with exactly: RETRO_SEED");
   await page.locator(".turn-card", { hasText: "RETRO_SEED" }).waitFor({ state: "visible" });
   await page.locator('.turn-card[data-run-status="completed"]').first().waitFor({ state: "visible" });
