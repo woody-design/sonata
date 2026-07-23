@@ -22,14 +22,6 @@ import {
 } from "lucide";
 import type { SessionSummary, TagColor, TagDefinition, TagGroup } from "../../shared/types";
 import { TAG_GROUPS } from "../../shared/types";
-import {
-  buildPointerGracePolygon,
-  calculateCascadePlacement,
-  pointerGraceProtects,
-  type CascadePoint,
-  type CascadeSide,
-  type PointerGraceRegion,
-} from "../../reading-core/cascade-menu";
 import { formatRelativeAge } from "../../reading-core/selectors/formatters";
 import { turnActivity } from "../../reading-core/selectors/runs";
 import {
@@ -59,6 +51,16 @@ import * as sidebarTransitions from "../../reading-core/transitions/sidebar";
 import { elements } from "../dom";
 import { lucideIcon } from "./icons";
 import { positionSidebarMenu } from "./popover-geometry";
+import {
+  cancelCascadeTimers,
+  createCascadePanel,
+  initCascadeEngine,
+  installCascadePanelIntent,
+  installMenuPanelKeyboard,
+  positionCascadePanel,
+  resetCascadeController,
+  wireCascadeTrigger,
+} from "./cascade-menu-engine";
 import { actions } from "../actions";
 import {
   renderProtectedRenameEditor,
@@ -72,23 +74,15 @@ let state: RendererState;
 export function initSidebarView(stateRef: RendererState): void {
   state = stateRef;
   initSidebarHoverCard(stateRef);
-  elements.sidebarMenuRoot.addEventListener("pointermove", (event) => {
-    if (event.pointerType !== "mouse") {
-      return;
-    }
-    cascadeController.previousPoint = cascadeController.currentPoint;
-    cascadeController.currentPoint = { x: event.clientX, y: event.clientY };
-    if (
-      cascadeController.grace &&
-      !pointerGraceProtects(
-        cascadeController.grace,
-        cascadeController.previousPoint,
-        cascadeController.currentPoint,
-        performance.now(),
-      )
-    ) {
-      cascadeController.grace = null;
-    }
+  initCascadeEngine({
+    menuRoot: elements.sidebarMenuRoot,
+    renderMenu: (options) => renderSidebarMenu(options),
+    focusTarget: (key) => sidebarFocusTarget(key),
+    closeMenuForTab: (reverse) => closeSidebarMenuForTab(reverse),
+    // Hover-driven open/close is suppressed while a tag-input owns the menu:
+    // pointer transitions must not steal the panel from the caret.
+    hoverSuppressed: () =>
+      state.sidebar.menu?.kind === "session" && state.sidebar.menu.input !== null,
   });
   window.addEventListener("resize", closeDetachedTagCascade);
   sidebarScroller().addEventListener("scroll", closeDetachedTagCascade, { passive: true });
@@ -136,45 +130,6 @@ const TAG_GROUP_COLORS: Record<TagGroup, TagColor> = {
   type: "purple",
   priority: "orange",
 };
-const CASCADE_HOVER_OPEN_MS = 100;
-const CASCADE_GRACE_MS = 300;
-const CASCADE_CLOSE_MS = 150;
-
-const cascadeController = {
-  timers: new Set<number>(),
-  previousPoint: null as CascadePoint | null,
-  currentPoint: null as CascadePoint | null,
-  grace: null as PointerGraceRegion | null,
-  sides: new Map<string, CascadeSide>(),
-};
-
-function resetCascadeController(): void {
-  for (const timer of cascadeController.timers) {
-    window.clearTimeout(timer);
-  }
-  cascadeController.timers.clear();
-  cascadeController.previousPoint = null;
-  cascadeController.currentPoint = null;
-  cascadeController.grace = null;
-  cascadeController.sides.clear();
-}
-
-function scheduleCascadeAction(delay: number, action: () => void): number {
-  const timer = window.setTimeout(() => {
-    cascadeController.timers.delete(timer);
-    action();
-  }, delay);
-  cascadeController.timers.add(timer);
-  return timer;
-}
-
-function cancelCascadeTimers(): void {
-  for (const timer of cascadeController.timers) {
-    window.clearTimeout(timer);
-  }
-  cascadeController.timers.clear();
-}
-
 export function renderSidebar(options: SidebarRenderOptions = {}): void {
   renderSidebarRenameNotice();
   const editor = state.sidebar.renameEditor;
@@ -1451,199 +1406,6 @@ function renderTagInput(
   return editor;
 }
 
-const cascadeOpeners = new WeakMap<HTMLElement, (focusChild: boolean) => void>();
-
-function createCascadePanel(id: string, labelledBy: string, menuRole = true): HTMLElement {
-  const panel = document.createElement("div");
-  panel.id = id;
-  panel.className = "sidebar-menu sidebar-cascade-panel";
-  if (menuRole) {
-    panel.setAttribute("role", "menu");
-    panel.setAttribute("aria-labelledby", labelledBy);
-  }
-  panel.dataset.sidebarCascadePanel = "true";
-  panel.dataset.sidebarMenuPanelId = id;
-  return panel;
-}
-
-function wireCascadeTrigger(options: {
-  trigger: HTMLElement;
-  childPanelId: string;
-  open: () => boolean;
-  childFocusKey: string;
-}): void {
-  const activate = (focusChild: boolean): void => {
-    cancelCascadeTimers();
-    cascadeController.grace = null;
-    if (options.open()) {
-      renderSidebarMenu(focusChild ? { preferredFocusKey: options.childFocusKey } : {});
-    } else if (focusChild) {
-      sidebarFocusTarget(options.childFocusKey)?.focus({ preventScroll: true });
-    }
-  };
-  cascadeOpeners.set(options.trigger, activate);
-  options.trigger.addEventListener("click", (event) => {
-    event.stopPropagation();
-    activate(event.detail === 0);
-  });
-  options.trigger.addEventListener("pointerenter", (event) => {
-    if (
-      event.pointerType !== "mouse" ||
-      (state.sidebar.menu?.kind === "session" && state.sidebar.menu.input)
-    ) {
-      return;
-    }
-    const point = { x: event.clientX, y: event.clientY };
-    if (
-      pointerGraceProtects(
-        cascadeController.grace,
-        cascadeController.previousPoint,
-        point,
-        performance.now(),
-      )
-    ) {
-      return;
-    }
-    cancelCascadeTimers();
-    scheduleCascadeAction(CASCADE_HOVER_OPEN_MS, () => activate(false));
-  });
-  options.trigger.addEventListener("pointerleave", (event) => {
-    if (event.pointerType !== "mouse") {
-      return;
-    }
-    const child = document.getElementById(options.childPanelId);
-    const side = cascadeController.sides.get(options.childPanelId);
-    if (!child || !side) {
-      return;
-    }
-    cascadeController.grace = {
-      polygon: buildPointerGracePolygon(
-        { x: event.clientX, y: event.clientY },
-        anchorRectOf(child),
-        side,
-      ),
-      side,
-      expiresAt: performance.now() + CASCADE_GRACE_MS,
-    };
-  });
-}
-
-function installCascadePanelIntent(panel: HTMLElement, closeDescendants: () => boolean): void {
-  panel.addEventListener("pointerenter", (event) => {
-    if (event.pointerType === "mouse") {
-      cancelCascadeTimers();
-      cascadeController.grace = null;
-    }
-  });
-  panel.addEventListener("pointerleave", (event) => {
-    if (
-      event.pointerType !== "mouse" ||
-      (state.sidebar.menu?.kind === "session" && state.sidebar.menu.input)
-    ) {
-      return;
-    }
-    scheduleCascadeAction(CASCADE_CLOSE_MS, () => {
-      if (
-        elements.sidebarMenuRoot.querySelector<HTMLElement>("[data-sidebar-cascade-panel]:hover") ||
-        elements.sidebarMenuRoot.querySelector<HTMLElement>("[data-sidebar-menu-panel-id=\"root\"]:hover")
-      ) {
-        return;
-      }
-      if (closeDescendants()) {
-        renderSidebarMenu();
-      }
-    });
-  });
-}
-
-function installMenuPanelKeyboard(
-  panel: HTMLElement,
-  options: { level: "root" | "groups" | "options"; onEscape: () => void },
-): void {
-  const initialItems = menuPanelItems(panel);
-  initialItems.forEach((item, index) => {
-    item.tabIndex = index === 0 ? 0 : -1;
-  });
-  let typeahead = "";
-  let typeaheadTimer: number | null = null;
-  panel.addEventListener("focusin", (event) => {
-    if (!(event.target instanceof HTMLElement) || event.target instanceof HTMLInputElement) {
-      return;
-    }
-    for (const item of menuPanelItems(panel)) {
-      item.tabIndex = item === event.target ? 0 : -1;
-    }
-  });
-  panel.addEventListener("keydown", (event) => {
-    if (event.target instanceof HTMLInputElement) {
-      return;
-    }
-    const items = menuPanelItems(panel);
-    if (items.length === 0) {
-      return;
-    }
-    const active = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[role^=menuitem]") : null;
-    const index = Math.max(0, items.indexOf(active ?? items[0]!));
-    let target: HTMLElement | null = null;
-    if (event.key === "ArrowDown") {
-      target = items[(index + 1) % items.length] ?? null;
-    } else if (event.key === "ArrowUp") {
-      target = items[(index - 1 + items.length) % items.length] ?? null;
-    } else if (event.key === "Home") {
-      target = items[0] ?? null;
-    } else if (event.key === "End") {
-      target = items.at(-1) ?? null;
-    } else if (event.key === "ArrowRight" && active) {
-      const opener = cascadeOpeners.get(active);
-      if (opener) {
-        event.preventDefault();
-        event.stopPropagation();
-        opener(true);
-      }
-      return;
-    } else if (event.key === "ArrowLeft" && options.level !== "root") {
-      event.preventDefault();
-      event.stopPropagation();
-      options.onEscape();
-      return;
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      options.onEscape();
-      return;
-    } else if (event.key === "Tab") {
-      event.preventDefault();
-      event.stopPropagation();
-      closeSidebarMenuForTab(event.shiftKey);
-      return;
-    } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      typeahead += event.key.toLocaleLowerCase();
-      if (typeaheadTimer !== null) {
-        window.clearTimeout(typeaheadTimer);
-      }
-      typeaheadTimer = window.setTimeout(() => {
-        typeahead = "";
-        typeaheadTimer = null;
-      }, 700);
-      target =
-        [...items.slice(index + 1), ...items.slice(0, index + 1)].find((item) =>
-          (item.dataset.menuText ?? "").toLocaleLowerCase().startsWith(typeahead),
-        ) ?? null;
-    }
-    if (target) {
-      event.preventDefault();
-      event.stopPropagation();
-      target.focus({ preventScroll: true });
-    }
-  });
-}
-
-function menuPanelItems(panel: HTMLElement): HTMLElement[] {
-  return Array.from(
-    panel.querySelectorAll<HTMLElement>("[role=menuitem], [role=menuitemcheckbox]"),
-  ).filter((item) => !item.hasAttribute("disabled"));
-}
-
 function layoutSessionTagCascade(
   menu: Extract<SidebarMenuState, { kind: "session" }>,
   tagsTrigger: HTMLElement,
@@ -1665,25 +1427,6 @@ function layoutSessionTagCascade(
       positionCascadePanel(options, groupTrigger);
     }
   }
-}
-
-function positionCascadePanel(panel: HTMLElement, anchor: HTMLElement): void {
-  panel.style.maxHeight = "";
-  const rect = panel.getBoundingClientRect();
-  const placement = calculateCascadePlacement(
-    anchorRectOf(anchor),
-    { width: rect.width, height: rect.height },
-    { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
-  );
-  panel.style.left = `${Math.round(placement.left)}px`;
-  panel.style.top = `${Math.round(placement.top)}px`;
-  panel.style.maxHeight = `${Math.floor(placement.availableHeight)}px`;
-  panel.dataset.cascadeSide = placement.side;
-  const chevron = anchor.querySelector<HTMLElement>(".sidebar-tag-chevron");
-  if (chevron) {
-    chevron.textContent = placement.side === "left" ? "‹" : "›";
-  }
-  cascadeController.sides.set(panel.id, placement.side);
 }
 
 function closeSidebarMenuForTab(reverse: boolean): void {

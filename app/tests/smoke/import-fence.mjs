@@ -40,6 +40,11 @@ const RULES = [
   //   • sidebar-hover-card — the host-view hover-card subcomponent mounted by
   //     sidebar.ts (rename-editor precedent: a subcomponent of one host view,
   //     not a peer family).
+  //   • cascade-menu-engine — the feature-agnostic multi-level popup-cascade
+  //     interaction engine (hover/grace/close timers + roving-tabindex keyboard
+  //     + panel placement) extracted from sidebar.ts (S6). A reusable engine
+  //     driven through an injected host-surface config, not a peer surface —
+  //     imports only reading-core, never a sibling view family.
   // The other view families stay forbidden.
   {
     layer: "renderer/view/",
@@ -49,6 +54,7 @@ const RULES = [
       "renderer/view/rename-editor",
       "renderer/view/settings-section",
       "renderer/view/sidebar-hover-card",
+      "renderer/view/cascade-menu-engine",
       "renderer/dom",
       "renderer/actions",
       "reading-core/",
