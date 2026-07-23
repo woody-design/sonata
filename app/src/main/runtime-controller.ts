@@ -414,39 +414,23 @@ export class RuntimeController {
     // so it relies wholly on the SessionStart handshake — and the liveness
     // banner surfaces an untrusted session where that handshake never fires.
     const pinnedSessionId = request.provider === "claude" ? randomUUID() : undefined;
-    const providerTranscript = this.createProviderTranscript(
-      taskId,
-      request.provider,
+    // The task goes `running` the moment we spawn its PTY. updatedAt is stamped
+    // here (just before startTask, folded into the shared assembly) rather than
+    // just after — a sub-millisecond shift on a brand-new record.
+    const runningTask: Task = {
+      ...task,
+      status: "running",
+      updatedAt: new Date().toISOString(),
+    };
+    const ptyStartedAt = new Date().toISOString();
+    const activeTask = this.assembleTaskRuntime({
+      task: runningTask,
+      storageRoot,
       providerCwd,
       runIndex,
-      {
-        expectedSessionId: pinnedSessionId ?? null,
-        allowMtimeFallback: false,
-      },
-    );
-    const terminalHost = new TerminalHost({
-      taskId,
-      provider: request.provider,
-      defaultWorkspace: providerCwd,
-      eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
-    });
-    const deliveryController = new DeliveryController({
-      taskId,
-      provider: request.provider,
-      terminalHost,
-      eventSink: (event) => this.sendEvent(event),
-      hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
-    });
-    const statusTracker = new StatusRegionTracker({
-      taskId,
-      provider: request.provider,
-      eventSink: (event) => this.sendEvent(event),
-    });
-    const cliState = new CliStateModel((snapshot) => this.emitCliState(taskId, snapshot));
-
-    const ptyStartedAt = new Date().toISOString();
-    const runtime = terminalHost.startTask(
-      this.buildStartOptions({
+      reportPath,
+      expectedSessionId: pinnedSessionId ?? null,
+      startOptions: this.buildStartOptions({
         provider: request.provider,
         taskId,
         cwd: providerCwd,
@@ -460,37 +444,12 @@ export class RuntimeController {
         rows: request.rows,
         cols: request.cols,
       }),
-    );
-
-    const runningTask: Task = {
-      ...task,
-      status: "running",
-      updatedAt: new Date().toISOString(),
-    };
-    const activeTask: ActiveTaskRuntime = {
-      task: runningTask,
-      storageRoot,
-      terminalHost,
-      runIndex,
-      reportPath,
-      runtime,
-      providerTranscript,
-      deliveryController,
-      statusTracker,
-      cliState,
-      pendingOptionPrompt: null,
-      lastOptionPromptResolution: null,
-      autoTitle: null,
-    };
-    this.taskRuntimes.set(activeTask.task.id, activeTask);
-    this.watchClaudeUsage(activeTask);
-    this.watchHooks(activeTask);
-    this.persistTaskManifest(activeTask.task, activeTask.storageRoot);
-    providerTranscript.startDiscovery(ptyStartedAt);
+    });
+    activeTask.providerTranscript.startDiscovery(ptyStartedAt);
 
     return {
       task: activeTask.task,
-      runtime,
+      runtime: activeTask.runtime,
     };
   }
 
@@ -551,44 +510,23 @@ export class RuntimeController {
     // createTask; the hook handshake is the safety net — Codex S2).
     const pinnedSessionId =
       !resumeRef && runningTask.provider === "claude" ? randomUUID() : undefined;
-    const providerTranscript = this.createProviderTranscript(
-      runningTask.id,
-      runningTask.provider,
-      providerCwd,
-      runIndex,
-      {
-        expectedSessionId: resumeRef ?? pinnedSessionId ?? null,
-        allowMtimeFallback: false,
-      },
-    );
-    const terminalHost = new TerminalHost({
-      taskId: runningTask.id,
-      provider: runningTask.provider,
-      defaultWorkspace: providerCwd,
-      eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
-    });
-    const deliveryController = new DeliveryController({
-      taskId: runningTask.id,
-      provider: runningTask.provider,
-      terminalHost,
-      eventSink: (event) => this.sendEvent(event),
-      hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
-    });
-    const statusTracker = new StatusRegionTracker({
-      taskId: runningTask.id,
-      provider: runningTask.provider,
-      eventSink: (event) => this.sendEvent(event),
-    });
-    const cliState = new CliStateModel((snapshot) => this.emitCliState(runningTask.id, snapshot));
-
     // Sonata owns the resume moment (slice C): the interstitial is suppressed
     // per-spawn for every Claude resume — the choice happened (or the
     // policy applied) BEFORE the spawn, in Sonata's own UI, from Sonata's own
     // numbers. Per-spawn env, never a ~/.claude.json write.
     const claudeResume = runningTask.provider === "claude" && Boolean(resumeRef);
     const ptyStartedAt = new Date().toISOString();
-    const runtime = terminalHost.startTask(
-      this.buildStartOptions({
+    const activeTask = this.assembleTaskRuntime({
+      task: runningTask,
+      storageRoot,
+      providerCwd,
+      runIndex,
+      reportPath,
+      // Resume confirms the resumed id by identity; a no-resume reopen confirms
+      // the freshly-pinned Claude id. Never an mtime fallback (same same-cwd
+      // race as createTask; the hook handshake is the safety net — Codex S2).
+      expectedSessionId: resumeRef ?? pinnedSessionId ?? null,
+      startOptions: this.buildStartOptions({
         provider: runningTask.provider,
         taskId: runningTask.id,
         cwd: providerCwd,
@@ -611,10 +549,87 @@ export class RuntimeController {
         rows: request.rows,
         cols: request.cols,
       }),
-    );
+    });
 
-    const activeTask = {
-      task: runningTask,
+    if (claudeResume && request.resumeMode === "summary") {
+      // The panel's option 1, made explicit and receipted: /compact runs
+      // first, ahead of anything the user queued, and shows up in the
+      // delivery queue as its own item.
+      activeTask.deliveryController.enqueue("/compact");
+    }
+
+    for (const source of persistedSources) {
+      // Both CLIs append to the same session file on resume — the
+      // re-attached chain tip must stay tailed for live updates.
+      activeTask.providerTranscript.attachExistingSource(source, { tail: Boolean(resumeRef) });
+    }
+    activeTask.providerTranscript.startDiscovery(ptyStartedAt);
+
+    this.emitReportUpdated(activeTask.runIndex);
+
+    return {
+      task: activeTask.task,
+      runtime: activeTask.runtime,
+      resumedProviderSession: Boolean(resumeRef),
+    };
+  }
+
+  /**
+   * The assembly choreography shared by createTask and openTask: build the
+   * provider transcript, terminal host, delivery controller, status tracker and
+   * CLI-state model on one running task, spawn the PTY, register + watch +
+   * persist the runtime. This is the ONE construction site for TerminalHost /
+   * DeliveryController — any future constructor-injection (settings, tags) is
+   * threaded here, not duplicated across the two entry points. The callers own
+   * only their own deltas (the pinned/resume session id, the start options they
+   * built) and the post-assembly work: startDiscovery is caller-driven so
+   * openTask can attach its resumed sources first.
+   */
+  private assembleTaskRuntime(params: {
+    task: Task;
+    storageRoot: string;
+    providerCwd: string;
+    runIndex: RunIndex;
+    reportPath: string;
+    expectedSessionId: string | null;
+    startOptions: StartTaskOptions;
+  }): ActiveTaskRuntime {
+    const { task, storageRoot, providerCwd, runIndex, reportPath, expectedSessionId, startOptions } =
+      params;
+    const providerTranscript = this.createProviderTranscript(
+      task.id,
+      task.provider,
+      providerCwd,
+      runIndex,
+      {
+        expectedSessionId,
+        allowMtimeFallback: false,
+      },
+    );
+    const terminalHost = new TerminalHost({
+      taskId: task.id,
+      provider: task.provider,
+      defaultWorkspace: providerCwd,
+      eventSink: (event) => this.handleRuntimeEvent(event, runIndex),
+    });
+    const deliveryController = new DeliveryController({
+      taskId: task.id,
+      provider: task.provider,
+      terminalHost,
+      eventSink: (event) => this.sendEvent(event),
+      hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
+    });
+    const statusTracker = new StatusRegionTracker({
+      taskId: task.id,
+      provider: task.provider,
+      eventSink: (event) => this.sendEvent(event),
+    });
+    const cliState = new CliStateModel((snapshot) => this.emitCliState(task.id, snapshot));
+
+    const runtime = terminalHost.startTask(startOptions);
+
+    const activeTask: ActiveTaskRuntime = {
+      task,
       storageRoot,
       terminalHost,
       runIndex,
@@ -628,32 +643,11 @@ export class RuntimeController {
       lastOptionPromptResolution: null,
       autoTitle: null,
     };
-    this.taskRuntimes.set(runningTask.id, activeTask);
+    this.taskRuntimes.set(activeTask.task.id, activeTask);
     this.watchClaudeUsage(activeTask);
     this.watchHooks(activeTask);
-    this.persistTaskManifest(runningTask, storageRoot);
-
-    if (claudeResume && request.resumeMode === "summary") {
-      // The panel's option 1, made explicit and receipted: /compact runs
-      // first, ahead of anything the user queued, and shows up in the
-      // delivery queue as its own item.
-      deliveryController.enqueue("/compact");
-    }
-
-    for (const source of persistedSources) {
-      // Both CLIs append to the same session file on resume — the
-      // re-attached chain tip must stay tailed for live updates.
-      providerTranscript.attachExistingSource(source, { tail: Boolean(resumeRef) });
-    }
-    providerTranscript.startDiscovery(ptyStartedAt);
-
-    this.emitReportUpdated(runIndex);
-
-    return {
-      task: runningTask,
-      runtime,
-      resumedProviderSession: Boolean(resumeRef),
-    };
+    this.persistTaskManifest(activeTask.task, activeTask.storageRoot);
+    return activeTask;
   }
 
   closeTask(taskId: TaskId): void {
