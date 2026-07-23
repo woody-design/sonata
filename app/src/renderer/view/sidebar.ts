@@ -58,6 +58,7 @@ import {
   installCascadePanelIntent,
   installMenuPanelKeyboard,
   positionCascadePanel,
+  rearmCascadeCloseIfPending,
   resetCascadeController,
   wireCascadeTrigger,
 } from "./cascade-menu-engine";
@@ -91,12 +92,18 @@ export function initSidebarView(stateRef: RendererState): void {
     hoverSuppressed: () =>
       state.sidebar.menu?.kind === "session" && state.sidebar.menu.input !== null,
   });
-  window.addEventListener("resize", closeDetachedTagCascade);
-  sidebarScroller().addEventListener("scroll", closeDetachedTagCascade, { passive: true });
+  window.addEventListener("resize", dismissAnchoredSidebarMenu);
+  sidebarScroller().addEventListener("scroll", dismissAnchoredSidebarMenu, { passive: true });
 }
 
-function closeDetachedTagCascade(): void {
-  if (state.sidebar.menu?.kind === "session" && state.sidebar.menu.tagsOpen) {
+/** A sidebar scroll or window resize dismisses ANY open sidebar menu (m5).
+ *  Every menu — session, project, filter — is anchored to a row or to the list
+ *  header, all of which ride the sidebar's own scroll; a scroll or resize leaves
+ *  the menu (and any detached cascade panel) floating at a stale position. The
+ *  pre-S6 handler only dismissed the session tag cascade, so a plain session /
+ *  project / filter menu was left stranded off its anchor. */
+function dismissAnchoredSidebarMenu(): void {
+  if (state.sidebar.menu) {
     closeSidebarMenu();
   }
 }
@@ -808,6 +815,14 @@ function renderSidebarMenuContents(): void {
     });
     installCascadePanelIntent(panel, () => sidebarTransitions.closeSessionTags(state));
     layoutSessionTagCascade(menu, tags, childPanels);
+    if (menu.tagsOpen) {
+      // This rebuild reset the cascade timers. If a mouse had left the cascade
+      // (a close was pending) and this rebuild was a background sessions-updated
+      // echo, re-establish that close so the echo can't strand the cascade open
+      // (m6). Collapse the whole cascade back to the root menu — the fire-time
+      // hover check keeps a mouse still inside from being closed.
+      rearmCascadeCloseIfPending(() => sidebarTransitions.closeSessionTags(state));
+    }
   } else {
     panel.append(
       sidebarMenuItem("New task here", () => {

@@ -48,6 +48,13 @@ const cascadeController = {
 
 const cascadeOpeners = new WeakMap<HTMLElement, (focusChild: boolean) => void>();
 
+// A mouse left a cascade panel and a close is pending (m6). Deliberately NOT
+// cleared by resetCascadeController, so it survives a background menu rebuild
+// (a sessions-updated echo) that would otherwise wipe the scheduled close and
+// strand the cascade open — rearmCascadeCloseIfPending re-establishes it. A
+// keyboard-opened cascade never sets this, so it is never spuriously closed.
+let closeArmed = false;
+
 let deps: CascadeEngineDeps;
 
 /** Bind the host surface and install the menu-root pointer tracking that keeps
@@ -123,6 +130,7 @@ export function wireCascadeTrigger(options: {
   const activate = (focusChild: boolean): void => {
     cancelCascadeTimers();
     cascadeController.grace = null;
+    closeArmed = false; // a fresh open supersedes any pending mouse-driven close
     if (options.open()) {
       deps.renderMenu(focusChild ? { preferredFocusKey: options.childFocusKey } : {});
     } else if (focusChild) {
@@ -181,23 +189,53 @@ export function installCascadePanelIntent(
     if (event.pointerType === "mouse") {
       cancelCascadeTimers();
       cascadeController.grace = null;
+      closeArmed = false; // mouse is back inside the cascade — cancel the pending close
     }
   });
   panel.addEventListener("pointerleave", (event) => {
     if (event.pointerType !== "mouse" || deps.hoverSuppressed()) {
       return;
     }
+    closeArmed = true;
     scheduleCascadeAction(CASCADE_CLOSE_MS, () => {
-      if (
-        deps.menuRoot.querySelector<HTMLElement>("[data-sidebar-cascade-panel]:hover") ||
-        deps.menuRoot.querySelector<HTMLElement>("[data-sidebar-menu-panel-id=\"root\"]:hover")
-      ) {
+      closeArmed = false;
+      if (pointerOverCascade()) {
         return;
       }
       if (closeDescendants()) {
         deps.renderMenu();
       }
     });
+  });
+}
+
+function pointerOverCascade(): boolean {
+  return Boolean(
+    deps.menuRoot.querySelector<HTMLElement>("[data-sidebar-cascade-panel]:hover") ||
+      deps.menuRoot.querySelector<HTMLElement>("[data-sidebar-menu-panel-id=\"root\"]:hover"),
+  );
+}
+
+/** After a background rebuild wiped the cascade timers (resetCascadeController
+ *  runs at the top of every menu rebuild, including a sessions-updated echo),
+ *  re-establish a pending mouse-driven close — otherwise the echo cancels the
+ *  scheduled close and strands the cascade open under a pointer that already
+ *  left (m6). Only re-arms when a close was actually pending; a keyboard-opened
+ *  cascade never armed one, and the fire-time hover check keeps a mouse that is
+ *  still inside from being closed. Caller passes the collapse for its deepest
+ *  open level. */
+export function rearmCascadeCloseIfPending(closeDescendants: () => boolean): void {
+  if (!closeArmed) {
+    return;
+  }
+  scheduleCascadeAction(CASCADE_CLOSE_MS, () => {
+    closeArmed = false;
+    if (pointerOverCascade()) {
+      return;
+    }
+    if (closeDescendants()) {
+      deps.renderMenu();
+    }
   });
 }
 
