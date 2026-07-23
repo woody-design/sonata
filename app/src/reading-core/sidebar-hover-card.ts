@@ -13,24 +13,19 @@ export type SidebarHoverCardEvent =
   | { type: "timer"; now: number }
   | { type: "dismiss" };
 
-export interface SidebarHoverCardTiming {
-  openDelayMs: number;
-  warmWindowMs: number;
-}
-
-const DEFAULT_TIMING: SidebarHoverCardTiming = {
-  openDelayMs: SIDEBAR_HOVER_CARD_OPEN_DELAY_MS,
-  warmWindowMs: SIDEBAR_HOVER_CARD_WARM_WINDOW_MS,
-};
-
 /**
  * Pure hover-card ownership policy. An already-open card moves directly from
  * task to task; there is deliberately no closed state between those owners.
+ *
+ * Timing is fixed by the two module constants — the delays are simulated in
+ * tests through the injected `now`, never through a per-call override, so there
+ * is no timing parameter (a prior injectable `timing` was dead: no caller ever
+ * passed it, and its open-delay was floored at the default, so it could not even
+ * lower the delay it advertised — m2).
  */
 export function reduceSidebarHoverCard(
   state: SidebarHoverCardState,
   event: SidebarHoverCardEvent,
-  timing: SidebarHoverCardTiming = DEFAULT_TIMING,
 ): SidebarHoverCardState {
   if (event.type === "dismiss") {
     return state.kind === "idle" ? state : { kind: "idle" };
@@ -51,7 +46,7 @@ export function reduceSidebarHoverCard(
     return {
       kind: "pending",
       taskId: event.taskId,
-      openAt: event.now + Math.max(SIDEBAR_HOVER_CARD_OPEN_DELAY_MS, timing.openDelayMs),
+      openAt: event.now + SIDEBAR_HOVER_CARD_OPEN_DELAY_MS,
     };
   }
 
@@ -59,7 +54,7 @@ export function reduceSidebarHoverCard(
     if (state.kind === "open") {
       return {
         kind: "warm",
-        until: event.now + Math.max(0, timing.warmWindowMs),
+        until: event.now + SIDEBAR_HOVER_CARD_WARM_WINDOW_MS,
       };
     }
     return state.kind === "pending" ? { kind: "idle" } : state;

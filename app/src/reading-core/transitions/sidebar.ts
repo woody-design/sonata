@@ -21,6 +21,7 @@ import {
   SIDEBAR_DISCLOSURE_INCREMENT,
   SIDEBAR_INITIAL_VISIBLE_COUNT,
 } from "../state";
+import { sidebarPrefsEqual } from "../selectors/sidebar";
 
 export function openSessionMenu(
   state: RendererState,
@@ -189,23 +190,11 @@ export function patchSidebarPrefs(
   state: RendererState,
   patch: Partial<SidebarPrefs>,
 ): boolean {
-  const keys = Object.keys(patch) as Array<keyof SidebarPrefs>;
-  if (
-    keys.every((key) => {
-      if (key !== "tags") {
-        return patch[key] === state.sidebar.prefs[key];
-      }
-      const next = patch.tags;
-      const current = state.sidebar.prefs.tags;
-      return (
-        next === undefined ||
-        (next.length === current.length && next.every((id, index) => id === current[index]))
-      );
-    })
-  ) {
+  const next = { ...state.sidebar.prefs, ...patch };
+  if (sidebarPrefsEqual(next, state.sidebar.prefs)) {
     return false;
   }
-  state.sidebar.prefs = { ...state.sidebar.prefs, ...patch };
+  state.sidebar.prefs = next;
   resetSidebarDisclosure(state);
   return true;
 }

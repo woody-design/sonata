@@ -22,6 +22,7 @@ import {
 } from "../../reading-core/selectors/formatters";
 import { optionPromptSelectionsFromDrafts } from "../../reading-core/selectors/composer";
 import { dormantArmed, stoppedRunRefillDraft } from "../../reading-core/selectors/runs";
+import { findSessionSummary } from "../../reading-core/selectors/sidebar";
 import {
   activeTaskView as activeTaskViewOf,
   createTaskView,
@@ -118,10 +119,7 @@ function renameTargetDisappeared(): boolean {
   if (editor.kind === "project") {
     return !index.projects.some((project) => project.path === editor.path);
   }
-  return ![
-    ...index.chats,
-    ...index.projects.flatMap((project) => project.sessions),
-  ].some((session) => session.task.id === editor.taskId);
+  return findSessionSummary(index, editor.taskId) === null;
 }
 
 export async function archiveSessionFromSidebar(taskId: string): Promise<void> {

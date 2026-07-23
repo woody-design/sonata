@@ -212,11 +212,21 @@ export function deliveryStatusLabel(deliveryState: DeliveryTaskState): string {
   if (deliveryState.approvalActive) {
     return `Waiting for ${providerName} approval`;
   }
-  if (deliveryState.attachmentNotice) {
-    return deliveryState.attachmentNotice;
-  }
   if (deliveryState.activeRun) {
     return `${providerName} is working`;
+  }
+  // The sticky partial-attachment notice ("3 of 6 images attached", S5) ranks
+  // BELOW live run status but ABOVE the idle "Ready" (S6 item 5). It is a
+  // now-sticky ACTIONABLE reminder — some images never arrived — so it must not
+  // be dropped at idle; but it must also not mask a real run: after a partial
+  // delivery, a text-only follow-up used to leave the notice masking
+  // "working"/"Ready" indefinitely (it outranked activeRun pre-S6). Placed here,
+  // an active run shows "working", and once idle the reminder resurfaces until
+  // the next full attachment delivery clears it (delivery-controller). Failure
+  // direction: prefer over-reminding to silently losing the fact that images
+  // 4-6 were dropped.
+  if (deliveryState.attachmentNotice) {
+    return deliveryState.attachmentNotice;
   }
   // bootLatched is the honest "still starting?" bit: one-shot, opened by the
   // delivery pump's structural poll. The old key (idleComposer — a continuous

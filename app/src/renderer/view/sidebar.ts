@@ -34,8 +34,10 @@ import {
 import { formatRelativeAge } from "../../reading-core/selectors/formatters";
 import { turnActivity } from "../../reading-core/selectors/runs";
 import {
+  findSessionSummary,
   sidebarDisclosureModel,
   sidebarFiltersNonDefault,
+  sidebarPrefsEqual,
   sidebarPrefsNonDefault,
   type SidebarDisclosureModel,
   type SidebarDisclosureProject,
@@ -714,18 +716,6 @@ function restoreSidebarRenderSnapshot(
   ) {
     target.scrollIntoView({ block: "nearest" });
   }
-}
-
-function sidebarPrefsEqual(left: SidebarPrefs, right: SidebarPrefs): boolean {
-  return (
-    left.status === right.status &&
-    left.project === right.project &&
-    left.activity === right.activity &&
-    left.tags.length === right.tags.length &&
-    left.tags.every((id, index) => id === right.tags[index]) &&
-    left.groupBy === right.groupBy &&
-    left.sortBy === right.sortBy
-  );
 }
 
 function sidebarFocusTarget(key: string): HTMLElement | null {
@@ -1725,15 +1715,10 @@ function closeSidebarMenuForTab(reverse: boolean): void {
 
 function sessionTask(taskId: string): SessionSummary["task"] | null {
   const index = state.sessionIndex;
-  if (!index) {
-    return taskViewForId(state, taskId)?.task ?? null;
-  }
-  return (
-    index.chats.find((session) => session.task.id === taskId)?.task ??
-    index.projects.flatMap((project) => project.sessions).find((session) => session.task.id === taskId)?.task ??
-    taskViewForId(state, taskId)?.task ??
-    null
-  );
+  const indexed = index ? findSessionSummary(index, taskId)?.session.task : null;
+  // A freshly created task can hold focus before the index refresh lands it —
+  // fall back to the live view. (findSessionSummary is index-only by design.)
+  return indexed ?? taskViewForId(state, taskId)?.task ?? null;
 }
 
 function tagDot(color: TagColor): HTMLElement {

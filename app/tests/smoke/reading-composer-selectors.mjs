@@ -620,8 +620,13 @@ const run = (status, extra = {}) => ({
     R.deliveryStatusLabel(
       delivery({ activeRun: true, attachmentNotice: "3 of 6 images attached" }),
     ),
+    "Claude is working",
+    "S6 item 5: live run status outranks the sticky notice — a text-only follow-up shows working, not the stale partial-attachment notice",
+  );
+  assert.equal(
+    R.deliveryStatusLabel(delivery({ attachmentNotice: "3 of 6 images attached" })),
     "3 of 6 images attached",
-    "partial attachment notice remains visible while the provider works",
+    "S6 item 5: once idle, the sticky reminder resurfaces above Ready until the next full delivery clears it",
   );
   assert.equal(R.deliveryStatusLabel(delivery({ activeRun: true })), "Claude is working");
   assert.equal(R.deliveryStatusLabel(delivery()), "Ready", "bootLatched idle");

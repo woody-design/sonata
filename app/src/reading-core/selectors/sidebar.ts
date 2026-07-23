@@ -50,6 +50,23 @@ export function sidebarFiltersNonDefault(prefs: SidebarPrefs): boolean {
   );
 }
 
+/** Full field-by-field prefs equality (tags compared element-wise, order
+ *  significant). The single source for "did the view shape change" — the render
+ *  path's reset-scroll gate (view/sidebar) and the patch transition's no-op
+ *  guard (transitions/sidebar) both read it, so a new prefs field can never be
+ *  half-covered by two drifting copies (m4). */
+export function sidebarPrefsEqual(left: SidebarPrefs, right: SidebarPrefs): boolean {
+  return (
+    left.status === right.status &&
+    left.project === right.project &&
+    left.activity === right.activity &&
+    left.tags.length === right.tags.length &&
+    left.tags.every((id, index) => id === right.tags[index]) &&
+    left.groupBy === right.groupBy &&
+    left.sortBy === right.sortBy
+  );
+}
+
 /** Normalize the local preference payload without inventing tag ids. When the
  * definitions cache is available, stale ids are also removed. */
 export function normalizeSidebarTagIds(
@@ -104,6 +121,37 @@ export interface SidebarHoverCardModel {
   tags: SidebarHoverCardTag[];
 }
 
+/** Where a task lives in the index: the session summary plus its containing
+ *  project (null for a top-level chat). */
+export interface SessionLocation {
+  session: SessionSummary;
+  project: ProjectGroup | null;
+}
+
+/** The one session-by-task-id finder over the index (m3 — replaces four
+ *  hand-rolled copies: the hover-card model, view/sidebar's `sessionTask`,
+ *  flows/tags' `updateLocalTaskTags`, and session-flows' `renameTargetDisappeared`).
+ *
+ *  A task id is unique across the whole index — a session lives in exactly one
+ *  project's list OR in `chats`, never both — so which half is scanned first is
+ *  cosmetic (it can only find the one session). Projects are scanned first so
+ *  the containing project comes back in the same pass (the hover-card names it).
+ *  Callers that also want a not-yet-indexed local view (view/sidebar,
+ *  flows/tags) layer that fallback on top; this finder is index-only. */
+export function findSessionSummary(
+  index: SessionIndexResponse,
+  taskId: string,
+): SessionLocation | null {
+  for (const project of index.projects) {
+    const session = project.sessions.find((candidate) => candidate.task.id === taskId);
+    if (session) {
+      return { session, project };
+    }
+  }
+  const chat = index.chats.find((candidate) => candidate.task.id === taskId);
+  return chat ? { session: chat, project: null } : null;
+}
+
 /** Task-id lookup keeps hover ownership independent from replaceable row DOM. */
 export function sidebarHoverCardModel(
   index: SessionIndexResponse | null,
@@ -114,19 +162,12 @@ export function sidebarHoverCardModel(
   if (!index) {
     return null;
   }
-  let session: SessionSummary | undefined;
-  let folderLabel = "Tasks";
-  for (const project of index.projects) {
-    session = project.sessions.find((candidate) => candidate.task.id === taskId);
-    if (session) {
-      folderLabel = project.name;
-      break;
-    }
-  }
-  session ??= index.chats.find((candidate) => candidate.task.id === taskId);
-  if (!session) {
+  const location = findSessionSummary(index, taskId);
+  if (!location) {
     return null;
   }
+  const session = location.session;
+  const folderLabel = location.project?.name ?? "Tasks";
   const definitionsById = new Map(
     definitions.map((definition) => [definition.id, definition] as const),
   );
