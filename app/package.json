@@ -15,6 +15,7 @@
     "start": "npm run build && electron dist/main/main.js",
     "dev": "npm run start",
     "package": "npm run build && electron-builder --config electron-builder.yml",
+    "smoke": "node scripts/run-smoke.mjs",
     "e2e:gui-walking-skeleton": "npm run build && node tests/e2e/gui-walking-skeleton.mjs",
     "e2e:sidebar-sessions": "npm run build && node tests/e2e/sidebar-sessions.mjs",
     "e2e:sidebar-screenshots": "npm run build && node tests/e2e/sidebar-screenshots.mjs",
@@ -103,7 +104,6 @@
     "smoke:sidebar-fixture": "node tests/smoke/sidebar-fixture.mjs",
     "smoke:sidebar-disclosure-core": "npm run build:main && node tests/smoke/sidebar-disclosure-core.mjs",
     "smoke:sidebar-rename-core": "npm run build:main && node tests/smoke/sidebar-rename-core.mjs && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/sidebar-rename-persistence.mjs",
-    "smoke:sidebar-integrated-evidence": "node tests/smoke/sidebar-integrated-evidence.mjs",
     "smoke:sonata-paths": "npm run build:main && node tests/smoke/sonata-paths.mjs",
     "smoke:task-ready-detection": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/task-ready-detection.mjs",
     "smoke:native-image-attachments": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/native-image-attachments.mjs",
@@ -184,7 +184,10 @@
     "smoke:login-shell-path": "npm run build:main && node tests/smoke/login-shell-path.mjs",
     "smoke:packaged-runtime-paths": "npm run build:main && node tests/smoke/packaged-runtime-paths.mjs",
     "smoke:packaged-app": "node tests/smoke/packaged-app-assert.mjs",
-    "smoke:packaged-settings": "node tests/smoke/packaged-settings-paths.mjs"
+    "smoke:packaged-settings": "node tests/smoke/packaged-settings-paths.mjs",
+    "smoke:delivery-control-switch-gate": "npm run build:main && node tests/smoke/delivery-control-switch-gate.mjs",
+    "smoke:stop-interrupt-hygiene": "npm run build:main && node tests/smoke/stop-interrupt-hygiene.mjs",
+    "smoke:tags-set-session-validate": "npm run build:main && node tests/smoke/tags-set-session-validate.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
