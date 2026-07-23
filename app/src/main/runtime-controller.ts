@@ -83,8 +83,7 @@ import {
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
 import { TaskMirror } from "./task-mirror";
-import { planTagRemovalFromManifests } from "./tag-manifests";
-import { retainKnownTagIds, withTaskTags } from "../shared/session-tags";
+import { SessionMetadataService } from "./session-metadata";
 import { ensureClaudeProjectTrust, updateClaudeConfig } from "./claude-config";
 import {
   projectRecordRoot,
@@ -251,6 +250,7 @@ export class RuntimeController {
     (task, storageRoot) => this.persistTaskManifest(task, storageRoot),
     (event) => this.sendEvent(event),
   );
+  private readonly sessionMetadata: SessionMetadataService;
   private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
   private readonly pendingClaudeUsage = new Map<string, UsageSnapshot>();
   private taskSeq = 0;
@@ -295,6 +295,28 @@ export class RuntimeController {
         );
       },
     });
+    // Constructed in the body (not a field initializer): the service takes
+    // `tagsStore` by value, which is assigned just above.
+    this.sessionMetadata = new SessionMetadataService(
+      {
+        liveSession: (taskId) => this.taskRuntimes.get(taskId) ?? null,
+        liveTasks: () => {
+          const tasks = new Map<TaskId, Task>();
+          for (const active of this.taskRuntimes.values()) {
+            tasks.set(active.task.id, active.task);
+          }
+          return tasks;
+        },
+        requirePersistedSession: (taskId) => this.requirePersistedSession(taskId),
+        manifestCandidates: () => this.taskManifestCandidates(),
+        persistManifest: (task, storageRoot, reason, emitUpdate) =>
+          this.persistTaskManifest(task, storageRoot, reason, emitUpdate),
+        emitSessionsUpdated: (reason) => this.emitSessionsUpdated(reason),
+        sendEvent: (event) => this.sendEvent(event),
+        retireLiveSession: (session) => this.retireTaskRuntime(session as ActiveTaskRuntime),
+      },
+      this.tagsStore,
+    );
   }
 
   createTask(request: CreateTaskRequest): CreateTaskResponse {
@@ -819,103 +841,29 @@ export class RuntimeController {
     });
   }
 
+  // Tags / rename / archive facade → SessionMetadataService (thin IPC delegation).
   renameSession(taskId: TaskId, title: string): RenameSessionResponse {
-    const trimmed = title.trim();
-    if (!trimmed) {
-      throw new Error("Session title must not be empty.");
-    }
-    // Renaming is metadata, not activity — leave updatedAt alone so the
-    // session keeps its place in the sidebar ordering.
-    const live = this.taskRuntimes.get(taskId);
-    if (live) {
-      // Persist the candidate before publishing it to the live runtime. A
-      // failed atomic write must leave both memory and the old manifest intact.
-      const candidate = { ...live.task, title: trimmed, titleOrigin: "user" as const };
-      this.persistTaskManifest(candidate, live.storageRoot, "session-renamed", false);
-      live.task = candidate;
-      live.autoTitle = null;
-      this.emitSessionsUpdated("session-renamed");
-      this.sendEvent({
-        type: "task:updated",
-        payload: { taskId, task: candidate, reason: "session-renamed" },
-        ts: new Date().toISOString(),
-      });
-      return { task: candidate };
-    }
-    const record = this.requirePersistedSession(taskId);
-    const candidate = {
-      ...record.manifest.task,
-      title: trimmed,
-      titleOrigin: "user" as const,
-    };
-    this.persistTaskManifest(candidate, record.storageRoot, "session-renamed");
-    return { task: candidate };
+    return this.sessionMetadata.renameSession(taskId, title);
   }
 
   archiveSession(taskId: TaskId, archived: boolean): void {
-    // Like rename, the archive flag is metadata — updatedAt stays put.
-    const live = this.taskRuntimes.get(taskId);
-    if (live) {
-      // Archiving a running session stops its PTY first; disposeTaskRuntime
-      // persists the manifest with the flag already applied.
-      live.task = { ...live.task, archived };
-      if (archived) {
-        this.retireTaskRuntime(live);
-      } else {
-        this.persistTaskManifest(live.task, live.storageRoot);
-      }
-      return;
-    }
-    const record = this.requirePersistedSession(taskId);
-    this.persistTaskManifest({ ...record.manifest.task, archived }, record.storageRoot);
+    this.sessionMetadata.archiveSession(taskId, archived);
   }
 
   setSessionTags(taskId: TaskId, tagIds: string[]): void {
-    // Validate ids against the live vocabulary before they touch a manifest: a
-    // stale renderer can send a just-deleted id (its delete-time manifest scrub
-    // has already run), which would persist as a permanent orphan. Unknown ids
-    // are silently dropped, not rejected — a stale renderer is not an error.
-    const validTagIds = retainKnownTagIds(tagIds, this.tagsStore.list());
-    // Like archive, tag selection is metadata — updatedAt stays put.
-    const live = this.taskRuntimes.get(taskId);
-    if (live) {
-      live.task = withTaskTags(live.task, validTagIds);
-      this.persistTaskManifest(live.task, live.storageRoot);
-      return;
-    }
-    const record = this.requirePersistedSession(taskId);
-    this.persistTaskManifest(withTaskTags(record.manifest.task, validTagIds), record.storageRoot);
+    this.sessionMetadata.setSessionTags(taskId, tagIds);
   }
 
   listTags(): TagDefinition[] {
-    return this.tagsStore.list();
+    return this.sessionMetadata.listTags();
   }
 
   createTag(label: string, group: TagGroup): TagDefinition {
-    return this.tagsStore.create(label, group);
+    return this.sessionMetadata.createTag(label, group);
   }
 
   deleteTag(id: string): void {
-    this.tagsStore.delete(id);
-    const liveTasks = new Map<TaskId, Task>();
-    for (const active of this.taskRuntimes.values()) {
-      liveTasks.set(active.task.id, active.task);
-    }
-    const mutations = planTagRemovalFromManifests(
-      this.taskManifestCandidates(),
-      liveTasks,
-      id,
-    );
-    for (const mutation of mutations) {
-      const live = this.taskRuntimes.get(mutation.task.id);
-      if (live) {
-        live.task = mutation.task;
-        this.persistTaskManifest(live.task, mutation.storageRoot, "session-updated", false);
-        continue;
-      }
-      this.persistTaskManifest(mutation.task, mutation.storageRoot, "session-updated", false);
-    }
-    this.emitSessionsUpdated("session-updated");
+    this.sessionMetadata.deleteTag(id);
   }
 
   deleteSession(taskId: TaskId): void {
