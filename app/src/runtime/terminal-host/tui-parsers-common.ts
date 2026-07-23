@@ -1,5 +1,3 @@
-import type { RuntimeProvider } from "../../shared/types/domain";
-
 // ── Pure TUI parsing primitives shared by the claude + codex parser modules ──
 // Moved verbatim from terminal-host.ts (consolidation S4). `cleanTerminal` and
 // the input-byte constants are the shared substrate every mid-session-switch
@@ -28,16 +26,3 @@ export function cleanTerminal(text: string): string {
     .replace(/\r/g, "\n")
     .replace(CONTROL_RE, "");
 }
-
-/** The compacted view the mid-session-switch parsers key on: ANSI/control
- *  stripped, then ALL whitespace removed. claude/codex word-position their TUI
- *  redraws with cursor moves instead of spaces, so a positioned line glues after
- *  stripping — matching the compacted form is whitespace- and position-
- *  insensitive, and a chunk split inside an escape reassembles first. */
-export function compactScan(rawScan: string): string {
-  return cleanTerminal(rawScan).replace(/\s+/g, "");
-}
-
-// A `RuntimeProvider` re-export keeps the parser modules' public type surface
-// self-contained for consumers importing through the runtime barrel.
-export type { RuntimeProvider };
