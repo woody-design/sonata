@@ -45,6 +45,10 @@ const RULES = [
   //     + panel placement) extracted from sidebar.ts (S6). A reusable engine
   //     driven through an injected host-surface config, not a peer surface —
   //     imports only reading-core, never a sibling view family.
+  //   • sidebar-focus-snapshot — the state-free focus/scroll/selection
+  //     capture-restore mechanics for the sidebar's list+menu rebuilds (S6),
+  //     a pure DOM leaf over the `elements` registry (imports only the DOM
+  //     shell). Its focus-by-key resolver feeds the cascade engine's dep.
   // The other view families stay forbidden.
   {
     layer: "renderer/view/",
@@ -55,6 +59,7 @@ const RULES = [
       "renderer/view/settings-section",
       "renderer/view/sidebar-hover-card",
       "renderer/view/cascade-menu-engine",
+      "renderer/view/sidebar-focus-snapshot",
       "renderer/dom",
       "renderer/actions",
       "reading-core/",
