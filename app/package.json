@@ -92,6 +92,7 @@
     "smoke:delivery-receipts": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-receipts.mjs",
     "smoke:delivery-enter-retry": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-enter-retry.mjs",
     "smoke:attachment-submit-sequencing": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/attachment-submit-sequencing.mjs",
+    "smoke:attachment-effect-contract": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/attachment-effect-contract.mjs",
     "smoke:usage-adapters": "npm run build:main && node tests/smoke/usage-adapters.mjs",
     "smoke:midsession-receipt": "npm run build:main && node tests/smoke/midsession-receipt.mjs",
     "smoke:midsession-codex-permission": "npm run build:main && node tests/smoke/midsession-codex-permission.mjs",

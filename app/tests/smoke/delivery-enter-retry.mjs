@@ -68,6 +68,9 @@ function makeController(host, options = {}) {
     eventSink: () => {},
     hasLiveTranscriptSource: () => true, // no PTY-echo receipt → inFlight awaits transcript
     pumpRetryIntervalMs: 20,
+    // These fixtures test ladder MECHANICS with deliberately tiny rungs and send
+    // no attachments, so the attachment-margin assert does not apply here.
+    attachmentWorstCaseMs: 0,
     ...options,
   });
 }

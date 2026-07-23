@@ -64,6 +64,22 @@ export const CSI_U_ENTER = "\x1b[13u";
 // recovery rung; the bound is a fallback, never the success criterion.
 const ATTACHMENT_EFFECT_POLL_MS = 25;
 const ATTACHMENT_EFFECT_TIMEOUT_MS = 1_500;
+// The settle gap between pasting the attachment paths and pasting the prompt
+// text / opening the effect poll. Named (not an inline literal) so the exported
+// worst-case bound below is derived from the real value, never a copy that can
+// silently drift.
+const ATTACHMENT_SUBMIT_SETTLE_MS = 120;
+/**
+ * Worst-case elapsed time from the start of an attachment submit sequence to
+ * the submit Enter: the pre-paste baseline poll, the settle gap, then the
+ * bounded effect fallback. This is a hard cross-file invariant — the
+ * DeliveryController's first Enter-retry rung MUST stay above it, so a heal
+ * nudge can never fire while this sequence is still legitimately mid-paste.
+ * DeliveryController asserts `ATTACHMENT_SUBMIT_WORST_CASE_MS < enterRetryDelaysMs[0]`
+ * at construction, so retuning either constant to violate the margin fails loud.
+ */
+export const ATTACHMENT_SUBMIT_WORST_CASE_MS =
+  ATTACHMENT_EFFECT_POLL_MS + ATTACHMENT_SUBMIT_SETTLE_MS + ATTACHMENT_EFFECT_TIMEOUT_MS;
 const CODEX_SKILL_MENTION_RE = /^\$[A-Za-z0-9][\w.-]*$/;
 
 export function attachmentChipEffectSatisfied(
@@ -327,7 +343,19 @@ export interface PromptSubmission {
   taskId: TaskId;
   runId: RunId | null;
   kind: RunKind;
+  /** When submitPrompt returned — the WRITE time. For a plain send this is also
+   *  the effect time (the Enter fires within the same 120ms deferred tick). */
   submittedAt: string;
+  /**
+   * Present ONLY for an attachment send, whose submit Enter fires asynchronously
+   * — 145ms to ~1.65s later — after the effect-verified paste sequence. Resolves
+   * to the ISO time the sequence actually pressed Enter (or resolved its bounded
+   * fallback). DeliveryController re-stamps the in-flight epoch and re-arms the
+   * receipt timeout + heal ladder from this time, so none of them run from the
+   * lying write-time epoch. Never resolves if the sequence is canceled (Stop),
+   * which the stop path handles separately.
+   */
+  effect?: Promise<string>;
 }
 
 export interface PromptAttachmentSubmission {
@@ -1079,6 +1107,7 @@ export class TerminalHost extends EventEmitter {
     attachments: PromptAttachmentSubmission[],
     trimmed: string,
     owner: "prompt" | "control",
+    onEffect?: (at: string) => void,
   ): void {
     this.beginSonataWrite();
     let canceled = false;
@@ -1127,7 +1156,7 @@ export class TerminalHost extends EventEmitter {
           );
         }
         const pastedAt = Date.now();
-        schedule(120, () => {
+        schedule(ATTACHMENT_SUBMIT_SETTLE_MS, () => {
           if (!this.ptyProcess) {
             finish();
             return;
@@ -1141,16 +1170,25 @@ export class TerminalHost extends EventEmitter {
                 return;
               }
               const timedOut = Date.now() - pastedAt >= ATTACHMENT_EFFECT_TIMEOUT_MS;
-              if (
+              // An inconclusive marker read (snapshot unavailable → null) is
+              // NOT a satisfied effect: never fall toward an early Enter. The
+              // bounded timeout is the floor that still fires it.
+              const effectSatisfied =
+                beforePasteCount !== null &&
+                currentCount !== null &&
                 attachmentChipEffectSatisfied(
                   beforePasteCount,
                   currentCount,
                   attachments.length,
                   trimmed,
-                ) ||
-                timedOut
-              ) {
+                );
+              if (effectSatisfied || timedOut) {
                 this.ptyProcess.write(CSI_U_ENTER);
+                // The sequence has pressed Enter — signal the effect epoch so
+                // delivery re-stamps its receipt/heal timing off the real
+                // submit, not submitPrompt's synchronous return. Fires once,
+                // whether Enter came from a satisfied effect or the fallback.
+                onEffect?.(new Date().toISOString());
                 // An effect can still materialize after the bounded fallback.
                 // The next send must fence the composer even when this one
                 // appeared clean at Enter time (probe P2).
@@ -1179,15 +1217,39 @@ export class TerminalHost extends EventEmitter {
     });
   }
 
-  private async renderedImageMarkerCount(): Promise<number> {
+  /**
+   * Count rendered image markers for attachment effect verification. Returns
+   * `null` when the count is inconclusive (a snapshot read that threw) so the
+   * caller keeps polling to the bounded timeout instead of acting on a
+   * rawTail-inflated number.
+   *
+   * Content-sensitivity limit (accepted this slice, not fixed): the markers are
+   * counted over the WHOLE rendered screen, so markers that are not this paste's
+   * chips — e.g. a claude mid-turn write-through echoing `[Image #N]` text —
+   * move the count too. The delta+timeout design tolerates this (a spuriously
+   * high count only ever satisfies EARLIER within the bound, never past it), but
+   * it cannot isolate the composer region; a screen-local counter is the real
+   * fix and is out of scope here.
+   */
+  private async renderedImageMarkerCount(): Promise<number | null> {
     try {
       const snapshot = await this.serializeScrollback();
+      // A null snapshot means no live terminal mirror — which, in a running
+      // session, only coincides with a null ptyProcess (both are torn down
+      // together in disposeProcess, and the caller guards on ptyProcess). So
+      // this rawTail read is self-consistent across the whole sequence in
+      // production and only exists for pre-mirror test hosts; it is NOT the
+      // dangerous baseline/current mix (that is the throw path — see below).
       const rendered = snapshot?.data ?? this.rawTail;
       return cleanTerminal(rendered).match(IMAGE_MARKER_RE)?.length ?? 0;
     } catch {
-      // Snapshot failure degrades to the bounded fallback; it must never strand
-      // the write lock or suppress the eventual Enter.
-      return cleanTerminal(this.rawTail).match(IMAGE_MARKER_RE)?.length ?? 0;
+      // Snapshot READ FAILED. Do NOT fall back to counting this.rawTail: the
+      // linear PTY stream repaints the same marker, so a rawTail count read
+      // against a snapshot baseline inflates the delta toward an EARLY Enter —
+      // the one direction effect verification promises is impossible. Treat the
+      // poll as inconclusive; the bounded ATTACHMENT_EFFECT_TIMEOUT_MS is the
+      // floor that still fires the Enter without stranding the write lock.
+      return null;
     }
   }
 
@@ -1387,8 +1449,16 @@ export class TerminalHost extends EventEmitter {
       this.cliDirtyLineHighWater,
       trimmed.split("\n").length + attachments.length,
     );
+    // Attachment sends press Enter asynchronously (after the effect-verified
+    // paste). Expose that moment as `effect` so delivery times its receipt/heal
+    // from the real Enter, not this synchronous write time.
+    let effect: Promise<string> | undefined;
     if (attachments.length > 0) {
-      this.deferAttachmentSubmission(attachments, trimmed, submissionOwner);
+      let resolveEffect!: (at: string) => void;
+      effect = new Promise<string>((resolve) => {
+        resolveEffect = resolve;
+      });
+      this.deferAttachmentSubmission(attachments, trimmed, submissionOwner, resolveEffect);
     } else {
       this.writeCliInputClearFlood("pre-submit");
       this.deferSonataWrite(
@@ -1453,6 +1523,7 @@ export class TerminalHost extends EventEmitter {
       runId: submissionRunId,
       kind,
       submittedAt,
+      ...(effect ? { effect } : {}),
     };
   }
 

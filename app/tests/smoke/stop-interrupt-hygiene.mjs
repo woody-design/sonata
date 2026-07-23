@@ -328,6 +328,8 @@ await check("handleStopRequested reports a write-canceled in-flight item undeliv
     hasLiveTranscriptSource: () => true,
     bootDeliveryGraceMs: 0,
     enterRetryDelaysMs: [80],
+    // Mechanics fixture: tiny ladder, no attachments → margin assert N/A.
+    attachmentWorstCaseMs: 0,
   });
   try {
     controller.enqueue("stopped before delivery finished");
@@ -423,6 +425,8 @@ await check("handleStopRequested without canceled writes only disarms the ladder
     hasLiveTranscriptSource: () => true,
     bootDeliveryGraceMs: 0,
     enterRetryDelaysMs: [80],
+    // Mechanics fixture: tiny ladder, no attachments → margin assert N/A.
+    attachmentWorstCaseMs: 0,
   });
   try {
     controller.enqueue("delivered before the stop");

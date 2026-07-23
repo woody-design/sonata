@@ -73,6 +73,58 @@ await check("attachment compensation is absent for claude and non-mention text",
   }
 });
 
+await check("inconclusive marker poll (snapshot read throws) never fires an EARLY Enter", async () => {
+  // A snapshot READ FAILURE must not fall back to counting this.rawTail: the
+  // linear PTY stream repaints the same marker, so a rawTail current count read
+  // against a snapshot baseline inflates the delta toward an early Enter — the
+  // one direction effect verification promises is impossible. On failure the
+  // poll is inconclusive and the bounded timeout is the only floor.
+  const writes = [];
+  const host = new TerminalHost({
+    taskId: "attachment-submit-inconclusive",
+    provider: "claude",
+    defaultWorkspace: process.cwd(),
+    eventSink: () => {},
+  });
+  host.ptyProcess = {
+    pid: 0,
+    write(data) {
+      writes.push(data);
+    },
+    kill() {},
+    resize() {},
+    onData() {},
+    onExit() {},
+  };
+  // A live-looking mirror whose snapshot read THROWS on every poll.
+  host.scrollback = {
+    snapshot() {
+      throw new Error("snapshot boom");
+    },
+    dispose() {},
+    resize() {},
+  };
+  try {
+    host.submitPrompt("why is this dark?", { attachments: [attachment] });
+    // Paint a chip into rawTail: under the rejected fallback this WOULD satisfy
+    // the effect (renderedDelta ≥ 1) and fire the Enter within ~170ms.
+    await delay(70);
+    host.rawTail = "[Image #1]";
+    await delay(430); // ~500ms total — well past any early-satisfaction path
+    assert.equal(
+      enterCount(writes),
+      0,
+      "no early Enter — an inconclusive (thrown) snapshot poll never satisfies the effect",
+    );
+    // The bounded ATTACHMENT_EFFECT_TIMEOUT_MS floor still fires the Enter
+    // (~1.5s after the paste), so an inconclusive poll delays but never strands.
+    await delay(1300); // ~1.8s total — past the bounded fallback
+    assert.equal(enterCount(writes), 1, "the bounded timeout is the floor that still submits");
+  } finally {
+    host.dispose();
+  }
+});
+
 await check("stop cancels the attachment skill compensation Enter", async () => {
   const { host, writes } = await startAttachmentSequence("codex", "$review");
   try {

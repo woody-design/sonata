@@ -12,7 +12,12 @@ import type { RuntimeEvent } from "../shared/types/events";
 import type { TranscriptBlock } from "../shared/types/transcript";
 import { normalizePromptForMatch } from "../shared/prompt-markers";
 import { quotePathForText } from "./shell-quote";
-import { cleanTerminal, type PromptSubmission, type TerminalHost } from "./terminal-host";
+import {
+  ATTACHMENT_SUBMIT_WORST_CASE_MS,
+  cleanTerminal,
+  type PromptSubmission,
+  type TerminalHost,
+} from "./terminal-host";
 
 const DEFAULT_RECEIPT_TIMEOUT_MS = 45_000;
 const BACKFILL_RECEIPT_WINDOW_MS = 15 * 60_000;
@@ -71,6 +76,10 @@ export interface DeliveryControllerOptions {
   /** Elapsed delays at which an unreceipted in-flight prompt re-sends its
    *  submit Enter; production uses [2500, 6000]. Tests pass [] to disable. */
   enterRetryDelaysMs?: number[];
+  /** Attachment submit worst-case for the startup margin assert; production
+   *  uses the real ATTACHMENT_SUBMIT_WORST_CASE_MS. A mechanics test that sends
+   *  no attachments passes 0 so its deliberately-tiny ladder is admissible. */
+  attachmentWorstCaseMs?: number;
 }
 
 interface InFlightDelivery {
@@ -165,6 +174,23 @@ export class DeliveryController {
     this.pumpRetryIntervalMs = options.pumpRetryIntervalMs ?? DEFAULT_PUMP_RETRY_INTERVAL_MS;
     this.bootDeliveryGraceMs = options.bootDeliveryGraceMs ?? DEFAULT_BOOT_DELIVERY_GRACE_MS;
     this.enterRetryDelaysMs = options.enterRetryDelaysMs ?? DEFAULT_ENTER_RETRY_DELAYS_MS;
+    // Encode the attachment-margin invariant as a hard startup gate: an
+    // attachment send's Enter can fire as late as ATTACHMENT_SUBMIT_WORST_CASE_MS
+    // after submit, so the FIRST heal rung must sit strictly above that — else a
+    // nudge could Enter while the paste sequence is still legitimately mid-flight
+    // (and, for an effect-re-stamped ladder, the rung is re-armed from the Enter,
+    // which must still fall after the worst case). Fail loud so a future retune of
+    // either constant can never silently break the ladder. Vacuous when the
+    // ladder is disabled (tests pass []).
+    const attachmentWorstCaseMs = options.attachmentWorstCaseMs ?? ATTACHMENT_SUBMIT_WORST_CASE_MS;
+    const firstEnterRetryRungMs = this.enterRetryDelaysMs[0];
+    if (firstEnterRetryRungMs !== undefined && attachmentWorstCaseMs >= firstEnterRetryRungMs) {
+      throw new Error(
+        `Attachment submit worst-case (${attachmentWorstCaseMs}ms) must stay below the ` +
+          `first Enter-retry rung (${firstEnterRetryRungMs}ms) — retune one so the heal ladder ` +
+          `never nudges while an attachment paste is still in flight.`,
+      );
+    }
   }
 
   enqueue(text: string, attachments: DeliveryAttachment[] = []): DeliveryQueueItem {
@@ -547,6 +573,23 @@ export class DeliveryController {
     };
     this.armReceiptTimer(item.id);
     this.armEnterRetries(item.id);
+    // An attachment send returned at WRITE time, but its submit Enter fires up
+    // to ATTACHMENT_SUBMIT_WORST_CASE_MS later. Re-stamp the in-flight epoch and
+    // re-arm the receipt timeout + heal ladder from the real Enter when the
+    // effect signal arrives, so none of them count from the lying write time.
+    // The write-time arm above is the floor if the effect never resolves (host
+    // torn down); the margin invariant guarantees the effect precedes rung 0, so
+    // no stale write-time rung ever fires before this re-arm clears it.
+    if (submission.effect) {
+      void submission.effect.then((effectAt) => {
+        if (this.inFlight?.itemId !== item.id) {
+          return;
+        }
+        this.inFlight.submittedAtMs = Date.parse(effectAt);
+        this.armReceiptTimer(item.id);
+        this.armEnterRetries(item.id);
+      });
+    }
     this.emitState();
   }
 
