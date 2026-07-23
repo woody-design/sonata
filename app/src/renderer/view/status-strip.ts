@@ -29,7 +29,6 @@ import {
   stripRunningAgents,
 } from "../../reading-core/selectors/turns";
 import { turnActivity } from "../../reading-core/selectors/runs";
-import { isReadingNearBottom } from "../../reading-core/reading-scroll";
 import {
   activeTaskView,
   type RendererState,
@@ -37,6 +36,7 @@ import {
 } from "../../reading-core/state";
 import { elements } from "../dom";
 import { actions } from "../actions";
+import { withReadingBottomPin } from "./reading-scroll-control";
 
 /** The shell's state atom, bound once at boot for the strip's read paths. */
 let state: RendererState;
@@ -45,19 +45,10 @@ export function initStatusStripView(stateRef: RendererState): void {
   state = stateRef;
 }
 
-/** The strip lives inside the reading scroll flow (its last child) — any
- *  mutation that can change its height must keep a bottom-pinned view pinned
- *  (the typing-indicator contract: the live edge stays in sight). Reads the
- *  pin BEFORE mutating, restores it after; a reader scrolled up is left
- *  exactly where they are. */
-function withReadingBottomPin(mutate: () => void): void {
-  const runList = elements.runList;
-  const nearBottom = isReadingNearBottom(runList);
-  mutate();
-  if (nearBottom) {
-    runList.scrollTop = runList.scrollHeight;
-  }
-}
+// The strip lives inside the reading scroll flow (its last child) — any
+// mutation that can change its height keeps a bottom-pinned view pinned via
+// withReadingBottomPin (view/reading-scroll-control, the single run-list
+// scroll-write choke point).
 
 export function renderStatusStrip(view = activeTaskView(state)): void {
   withReadingBottomPin(() => {

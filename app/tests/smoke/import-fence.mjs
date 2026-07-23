@@ -49,6 +49,10 @@ const RULES = [
   //     capture-restore mechanics for the sidebar's list+menu rebuilds (S6),
   //     a pure DOM leaf over the `elements` registry (imports only the DOM
   //     shell). Its focus-by-key resolver feeds the cascade engine's dep.
+  //   • reading-scroll-control — the single choke point for run-list
+  //     programmatic scroll writes + their bottom-intent policy (S6 A3),
+  //     shared by status-strip (bottom pin) and prompt-nav (jump-to-turn); a
+  //     DOM leaf over `elements` + the pure reading-scroll intent store.
   // The other view families stay forbidden.
   {
     layer: "renderer/view/",
@@ -60,6 +64,7 @@ const RULES = [
       "renderer/view/sidebar-hover-card",
       "renderer/view/cascade-menu-engine",
       "renderer/view/sidebar-focus-snapshot",
+      "renderer/view/reading-scroll-control",
       "renderer/dom",
       "renderer/actions",
       "reading-core/",

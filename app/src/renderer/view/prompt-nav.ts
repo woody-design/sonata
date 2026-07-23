@@ -20,6 +20,7 @@ import type {
   RendererState,
 } from "../../reading-core/state";
 import { elements } from "../dom";
+import { scrollReadingTurnIntoView } from "./reading-scroll-control";
 
 /** The shell's state atom + the G2 composition read, bound once at boot. */
 let state: RendererState;
@@ -178,7 +179,10 @@ function selectPromptNavTarget(
   };
   syncPromptNavDomSelection();
   if (options.scroll) {
-    target.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+    // Prompt-nav is a reader takeover of the tail — clear any live bottom ride
+    // before the jump so it can't re-aim and yank the reader (A1/A2). The
+    // choke-point helper owns that intent policy.
+    scrollReadingTurnIntoView(target, { block: "start", inline: "nearest", behavior: "auto" });
   }
   target.focus({ preventScroll: true });
   return true;
@@ -347,6 +351,9 @@ function stickyPromptCandidate(): { card: HTMLElement; prompt: HTMLElement } | n
 
 export function scrollToPromptTurn(turnKey: string): void {
   const target = findPromptNavTarget(turnKey);
-  target?.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+  if (target) {
+    // Sticky-header click jumps to a turn — same tail takeover as prompt-nav.
+    scrollReadingTurnIntoView(target, { block: "start", inline: "nearest", behavior: "auto" });
+  }
   scheduleStickyPromptSync();
 }

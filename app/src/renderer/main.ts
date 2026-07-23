@@ -195,6 +195,7 @@ import { initTranscriptView } from "./view/transcript";
 import { initTranscriptChips, transcriptChipTarget } from "./view/transcript-chips";
 import { initQuoteComment } from "./view/quote-comment";
 import { initReadingNavigation } from "./view/reading-navigation";
+import { initReadingScrollControl } from "./view/reading-scroll-control";
 import { createReadingBottomIntentStore } from "../reading-core/reading-scroll";
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -364,6 +365,7 @@ initSettingsView(state);
 initChromeView(state, { resolvedReadingMode: () => resolvedReadingMode() });
 initPromptNavView(state, { isComposerComposing: () => composerIsComposing });
 initReadingNavigation({ bottomIntent: readingBottomIntent });
+initReadingScrollControl({ bottomIntent: readingBottomIntent });
 initActions({
   setViewMode: (mode) => setViewMode(mode),
   scrollToPromptTurn: (turnKey) => scrollToPromptTurn(turnKey),
