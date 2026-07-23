@@ -52,6 +52,9 @@ const {
   CODEX_SMOKE_PROFILE,
   ensureSmokeTrustProfile,
   removeSmokeTrustProfile,
+  isCodexUpdatePrompt,
+  CODEX_UPDATE_PROMPT_SKIP_REASON,
+  SmokeSkip,
 } = await import("./codex-smoke-trust.mjs");
 
 const taskId = "task-codex-perm-smoke";
@@ -99,11 +102,16 @@ try {
   });
 
   await waitUntil(() => host.acceptsPromptInput() || ptyExited, 60000);
-  if (ptyExited) {
-    throw new Error(`codex PTY exited before readiness.\n${redactedTail()}`);
-  }
-  if (!host.acceptsPromptInput()) {
-    throw new Error(`codex composer never reached readiness.\n${redactedTail()}`);
+  if (ptyExited || !host.acceptsPromptInput()) {
+    const tail = redactedTail();
+    // ONLY codex's boot update gate skips; every other readiness failure FAILs.
+    if (isCodexUpdatePrompt(tail)) {
+      throw new SmokeSkip(CODEX_UPDATE_PROMPT_SKIP_REASON);
+    }
+    if (ptyExited) {
+      throw new Error(`codex PTY exited before readiness.\n${tail}`);
+    }
+    throw new Error(`codex composer never reached readiness.\n${tail}`);
   }
   await delay(1200); // one settle tick — the composer paints before the model line fills
 
@@ -165,14 +173,19 @@ try {
   );
   process.exitCode = 0;
 } catch (error) {
-  console.error(
-    JSON.stringify(
-      { error: error instanceof Error ? error.message : String(error), findings, tail: redactedTail() },
-      null,
-      2,
-    ),
-  );
-  process.exitCode = 1;
+  if (error instanceof SmokeSkip) {
+    console.log(`SKIP: ${error.message}`);
+    process.exitCode = 77;
+  } else {
+    console.error(
+      JSON.stringify(
+        { error: error instanceof Error ? error.message : String(error), findings, tail: redactedTail() },
+        null,
+        2,
+      ),
+    );
+    process.exitCode = 1;
+  }
 } finally {
   host.dispose();
   removeSmokeTrustProfile();

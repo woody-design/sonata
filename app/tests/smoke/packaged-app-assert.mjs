@@ -27,7 +27,13 @@ const appPath = process.env.SONATA_PACKAGED_APP
   ? path.resolve(process.env.SONATA_PACKAGED_APP)
   : defaultApp;
 
-assert.ok(fs.existsSync(appPath), `packaged app exists (run \`npm run package\` first): ${appPath}`);
+// Environmental SKIP (exit 77 — the aggregate runner's SKIP convention): this
+// smoke asserts against a packaged artifact it does NOT build. Absent one, it is
+// not applicable rather than failing — `npm run package` produces it.
+if (!fs.existsSync(appPath)) {
+  console.log(`SKIP: packaged app absent — run \`npm run package\` first (${appPath})`);
+  process.exit(77);
+}
 
 const unpacked = path.join(appPath, "Contents", "Resources", "app.asar.unpacked");
 assert.ok(fs.existsSync(unpacked), `app.asar.unpacked exists: ${unpacked}`);

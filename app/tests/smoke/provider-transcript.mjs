@@ -1644,7 +1644,7 @@ check("codex subagent: the REAL captured 0.144.4 SubagentStart/Stop drive the ro
   const here = path.dirname(new URL(import.meta.url).pathname);
   const captured = JSON.parse(
     fs.readFileSync(
-      path.resolve(here, "../../../spikes/codex-hooks-probe/probe-0144/verified-payloads-0.144.4.json"),
+      path.resolve(here, "../fixtures/codex-hooks/verified-payloads-0.144.4.json"),
       "utf8",
     ),
   );

@@ -1,0 +1,117 @@
+{
+  "SessionStart": {
+    "session_id": "019f62a5-0dcc-70d0-afa8-fff876f8e77d",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-12-019f62a5-0dcc-70d0-afa8-fff876f8e77d.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "SessionStart",
+    "model": "gpt-5.6-sol",
+    "permission_mode": "default",
+    "source": "startup"
+  },
+  "UserPromptSubmit": {
+    "session_id": "019f62a5-0dcc-70d0-afa8-fff876f8e77d",
+    "turn_id": "019f62a5-414e-7543-bd9d-6bb8f46476c5",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-12-019f62a5-0dcc-70d0-afa8-fff876f8e77d.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "UserPromptSubmit",
+    "model": "gpt-5.6-sol",
+    "permission_mode": "default",
+    "prompt": "Run the shell command: echo hi"
+  },
+  "PreToolUse": {
+    "session_id": "019f62a5-0dcc-70d0-afa8-fff876f8e77d",
+    "turn_id": "019f62a5-414e-7543-bd9d-6bb8f46476c5",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-12-019f62a5-0dcc-70d0-afa8-fff876f8e77d.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "PreToolUse",
+    "model": "gpt-5.6-sol",
+    "permission_mode": "default",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "echo hi"
+    },
+    "tool_use_id": "exec-9293d60d-342e-4743-b108-74bbe6a4231e"
+  },
+  "PostToolUse": {
+    "session_id": "019f62a5-0dcc-70d0-afa8-fff876f8e77d",
+    "turn_id": "019f62a5-414e-7543-bd9d-6bb8f46476c5",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-12-019f62a5-0dcc-70d0-afa8-fff876f8e77d.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "PostToolUse",
+    "model": "gpt-5.6-sol",
+    "permission_mode": "default",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "echo hi"
+    },
+    "tool_response": "hi\n",
+    "tool_use_id": "exec-9293d60d-342e-4743-b108-74bbe6a4231e"
+  },
+  "Stop": {
+    "session_id": "019f62a5-0dcc-70d0-afa8-fff876f8e77d",
+    "turn_id": "019f62a5-414e-7543-bd9d-6bb8f46476c5",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-12-019f62a5-0dcc-70d0-afa8-fff876f8e77d.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "Stop",
+    "model": "gpt-5.6-sol",
+    "permission_mode": "default",
+    "stop_hook_active": false,
+    "last_assistant_message": "hi"
+  },
+  "PreCompact": {
+    "session_id": "019f62a5-0dcc-70d0-afa8-fff876f8e77d",
+    "turn_id": "019f62a5-5a6a-7a13-836b-8f3a0fa0fc35",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-12-019f62a5-0dcc-70d0-afa8-fff876f8e77d.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "PreCompact",
+    "model": "gpt-5.6-sol",
+    "trigger": "manual"
+  },
+  "PostCompact": {
+    "session_id": "019f62a5-0dcc-70d0-afa8-fff876f8e77d",
+    "turn_id": "019f62a5-5a6a-7a13-836b-8f3a0fa0fc35",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-12-019f62a5-0dcc-70d0-afa8-fff876f8e77d.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "PostCompact",
+    "model": "gpt-5.6-sol",
+    "trigger": "manual"
+  },
+  "SubagentStart": {
+    "session_id": "019f62a5-0dcc-70d0-afa8-fff876f8e77d",
+    "turn_id": "019f62a5-87bc-7343-8c84-cf949d034e82",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-43-019f62a5-878d-7402-a4af-a00847ad15e8.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "SubagentStart",
+    "model": "gpt-5.6-sol",
+    "permission_mode": "default",
+    "agent_id": "019f62a5-878d-7402-a4af-a00847ad15e8",
+    "agent_type": "default"
+  },
+  "SubagentStop": {
+    "session_id": "019f62a5-0dcc-70d0-afa8-fff876f8e77d",
+    "turn_id": "019f62a5-87bc-7343-8c84-cf949d034e82",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-12-019f62a5-0dcc-70d0-afa8-fff876f8e77d.jsonl",
+    "agent_transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-00-43-019f62a5-878d-7402-a4af-a00847ad15e8.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "SubagentStop",
+    "model": "gpt-5.6-sol",
+    "permission_mode": "default",
+    "stop_hook_active": false,
+    "agent_id": "019f62a5-878d-7402-a4af-a00847ad15e8",
+    "agent_type": "default",
+    "last_assistant_message": "done"
+  },
+  "PermissionRequest": {
+    "session_id": "019f62a7-68f2-7d72-8762-594415b75491",
+    "turn_id": "019f62a7-893d-7bc0-8e4e-f99f820d77d8",
+    "transcript_path": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/home/sessions/2026/07/14/rollout-2026-07-14T18-02-46-019f62a7-68f2-7d72-8762-594415b75491.jsonl",
+    "cwd": "/Users/user/Work/Workspace/Product/duet-dev/spikes/codex-hooks-probe/probe-0144/ws",
+    "hook_event_name": "PermissionRequest",
+    "model": "gpt-5.6-sol",
+    "permission_mode": "default",
+    "tool_name": "apply_patch",
+    "tool_input": {
+      "command": "*** Begin Patch\n*** Add File: probe-write.txt\n+hi\n*** End Patch"
+    }
+  }
+}

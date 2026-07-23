@@ -9,6 +9,9 @@ const {
   CODEX_SMOKE_PROFILE,
   ensureSmokeTrustProfile,
   removeSmokeTrustProfile,
+  isCodexUpdatePrompt,
+  CODEX_UPDATE_PROMPT_SKIP_REASON,
+  SmokeSkip,
 } = await import("./codex-smoke-trust.mjs");
 
 const taskId = "task-codex-smoke";
@@ -75,11 +78,18 @@ try {
   });
 
   await waitUntil(() => host.acceptsPromptInput() || ptyExited, 60000);
-  if (ptyExited) {
-    throw new Error(`Codex PTY exited before prompt submission.\n${redactedTail(rawTail)}`);
-  }
-  if (!host.acceptsPromptInput()) {
-    throw new Error(`Codex composer never reached readiness.\n${redactedTail(rawTail)}`);
+  if (ptyExited || !host.acceptsPromptInput()) {
+    const tail = redactedTail(rawTail);
+    // ONLY codex's boot "Update available!" gate skips (env drift — the real app
+    // is blocked identically; S4 owns the product-side surfacing). Every OTHER
+    // readiness failure stays a hard FAIL.
+    if (isCodexUpdatePrompt(tail)) {
+      throw new SmokeSkip(CODEX_UPDATE_PROMPT_SKIP_REASON);
+    }
+    if (ptyExited) {
+      throw new Error(`Codex PTY exited before prompt submission.\n${tail}`);
+    }
+    throw new Error(`Codex composer never reached readiness.\n${tail}`);
   }
   // One paint-tick of settle: the composer can render before the boot
   // banner's model line fills, and input-retention at first paint is
@@ -112,6 +122,15 @@ try {
   );
 
   process.exitCode = success ? 0 : 1;
+} catch (error) {
+  // Environmental SKIP (exit 77) for codex's boot update gate only; any other
+  // throw propagates unchanged after cleanup (uncaught → exit 1, as before).
+  if (error instanceof SmokeSkip) {
+    console.log(`SKIP: ${error.message}`);
+    process.exitCode = 77;
+  } else {
+    throw error;
+  }
 } finally {
   host.dispose();
   removeSmokeTrustProfile();

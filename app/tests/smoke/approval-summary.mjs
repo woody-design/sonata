@@ -31,7 +31,7 @@ const capturedPayloads = JSON.parse(
   fs.readFileSync(
     path.resolve(
       here,
-      "../../../spikes/codex-hooks-probe/probe-0144/verified-payloads-0.144.4.json",
+      "../fixtures/codex-hooks/verified-payloads-0.144.4.json",
     ),
     "utf8",
   ),
