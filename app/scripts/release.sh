@@ -106,8 +106,13 @@ CONFIG="$APP_DIR/electron-builder.yml"
 for tool in node npm codesign xcrun stapler hdiutil jq openssl shasum awk; do
   command -v "$tool" >/dev/null 2>&1 || die 1 "Required tool not found on PATH: $tool"
 done
-xcrun --find actool >/dev/null 2>&1 \
-  || die 1 "actool not found — the Tahoe icon afterPack hook needs full Xcode (not just Command Line Tools). Set SONATA_SKIP_TAHOE_ICON=1 to build icns-only, or install Xcode."
+# The afterPack hook only invokes actool when SONATA_SKIP_TAHOE_ICON is unset
+# (see build-resources/after-pack.js). Honor the same escape hatch here, or the
+# preflight would kill an intentionally icns-only build before it starts.
+if [ "${SONATA_SKIP_TAHOE_ICON:-0}" != "1" ]; then
+  xcrun --find actool >/dev/null 2>&1 \
+    || die 1 "actool not found — the Tahoe icon afterPack hook needs full Xcode (not just Command Line Tools). Set SONATA_SKIP_TAHOE_ICON=1 to build icns-only, or install Xcode."
+fi
 
 VERSION="$(node -p "require('$APP_DIR/package.json').version")"
 [ -n "$VERSION" ] || die 1 "Could not read version from package.json."
@@ -118,7 +123,13 @@ YML="$RELEASE_DIR/latest-mac.yml"
 APP="$RELEASE_DIR/mac-arm64/Sonata.app"
 
 # --- preflight: signing identity ---------------------------------------------
-if ! security find-identity -v -p codesigning 2>/dev/null | grep -qF "$SIGN_IDENTITY"; then
+# Capture the identity list first, then match against the STRING with a here-string
+# — never `security … | grep -qF`: under `set -o pipefail`, grep -q closes the pipe
+# on the first match and `security` dies SIGPIPE(141), which becomes the pipeline
+# status and would flip a PRESENT identity into a false "not found". A here-string
+# has no upstream process to signal, so the match verdict is grep's alone.
+identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+if ! grep -qF "$SIGN_IDENTITY" <<<"$identities"; then
   die 1 "Signing identity not found in the keychain: '$SIGN_IDENTITY'. Set SONATA_SIGN_IDENTITY, or import the Developer ID Application cert."
 fi
 
@@ -195,7 +206,7 @@ step "Submitting the DMG to Apple's notary service (this can take several minute
 # a real Accepted into a false failure.
 submit_err="$(mktemp "${TMPDIR:-/tmp}/sonata-notary.XXXXXX")"
 set +e
-submit_out="$(xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait --output-format json 2>"$submit_err")"
+submit_out="$(xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait --timeout 30m --output-format json 2>"$submit_err")"
 submit_rc=$?
 set -e
 
