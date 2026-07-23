@@ -37,6 +37,7 @@ import {
 import { activeTaskView, type RendererState } from "../../reading-core/state";
 import { elements } from "../dom";
 import { actions } from "../actions";
+import { renderSettingSection, selectedBadge } from "./settings-section";
 
 /** The shell's state atom, bound once at boot for the panel's read paths. */
 let state: RendererState;
@@ -384,73 +385,6 @@ function positionDraftMenu(popover: HTMLElement, preferredWidth: number): void {
   popover.style.bottom = `${window.innerHeight - anchorTop + 8}px`;
   popover.style.width = `${width}px`;
   popover.style.maxHeight = `${Math.max(200, anchorTop - viewportPadding - 8)}px`;
-}
-
-/** One titled radio section of a settings popover (Reasoning / Model / …).
- *  Exported so the live session's model+effort menu (composer.ts, S1) renders
- *  the same component as the New Chat launch menu — one visual family, one
- *  selection grammar. */
-export function renderSettingSection<T extends string | null>(
-  label: string,
-  options: Array<{ label: string; value: T }>,
-  selected: T,
-  onSelect: (value: T) => void,
-  /** STAGED mode (S7 Part 1): `selected` is the STAGED pick (the one Save applies —
-   *  the "selected" badge), and `current` marks the session's live value with a muted
-   *  "Current" badge when it differs. Omit for immediate-apply menus (new-chat, the
-   *  access menus): only the `selected` badge renders, as before. */
-  extra?: { current?: T },
-): HTMLElement {
-  const section = document.createElement("div");
-  section.className = "task-setting-section";
-
-  const title = document.createElement("p");
-  title.className = "task-setting-heading";
-  title.textContent = label;
-  section.append(title);
-
-  const hasCurrent = extra !== undefined && "current" in extra;
-  for (const option of options) {
-    const button = document.createElement("button");
-    button.className = "task-setting-option";
-    const isSelected = option.value === selected;
-    const isCurrent = hasCurrent && option.value === extra?.current;
-    button.classList.toggle("selected", isSelected);
-    // The current-but-not-staged row reads as "where you are" without the strong
-    // staged highlight — a hairline outline distinguishes it (see .is-current CSS).
-    button.classList.toggle("is-current", isCurrent && !isSelected);
-    button.type = "button";
-    button.setAttribute("role", "menuitemradio");
-    button.ariaChecked = String(isSelected);
-    button.textContent = option.label;
-    if (isSelected) {
-      button.append(selectedBadge());
-    } else if (isCurrent) {
-      button.append(currentBadge());
-    }
-    button.addEventListener("click", () => {
-      onSelect(option.value);
-    });
-    section.append(button);
-  }
-
-  return section;
-}
-
-function selectedBadge(): HTMLElement {
-  const badge = document.createElement("span");
-  badge.className = "task-setting-badge";
-  badge.textContent = "selected";
-  return badge;
-}
-
-/** The session's live value in a STAGED menu (S7): muted, so the accent-marked
- *  staged pick reads as the pending change and this reads as the current state. */
-function currentBadge(): HTMLElement {
-  const badge = document.createElement("span");
-  badge.className = "task-setting-badge task-setting-badge-current";
-  badge.textContent = "Current";
-  return badge;
 }
 
 function renderTaskEntryMessage(): HTMLElement | null {

@@ -26,7 +26,7 @@ import {
   reasoningValueLabel,
 } from "../../reading-core/config";
 import { turnActivity } from "../../reading-core/selectors/runs";
-import { renderSettingSection } from "./entry";
+import { renderSettingSection } from "./settings-section";
 import {
   compactTokenCount,
   fileExtension,

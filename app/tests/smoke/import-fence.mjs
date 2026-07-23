@@ -28,16 +28,27 @@ const RULES = [
   // pure core, shared protocol types, and the late-binding actions INTERFACE
   // — never flows/render/scheduler/main, and never a sibling view family
   // (cross-view composition goes through main.ts via the actions seam).
-  // rename-editor is the exception: a cross-surface protected-widget (icons/
-  // popover-geometry class) mounted by BOTH header (via render.ts) and sidebar
-  // rows/projects; it owns no surface of its own, so it is an importable view
-  // utility, NOT a sibling family. The other view families stay forbidden.
+  // Three files are importable view LEAVES rather than sibling families —
+  // shared widgets/components that own no surface of their own:
+  //   • rename-editor    — a cross-surface protected widget (icons/popover-
+  //     geometry class) mounted by BOTH header (via render.ts) and sidebar
+  //     rows/projects.
+  //   • settings-section — the titled-radio settings-menu component + its
+  //     badges, rendered by BOTH the New Chat launch menus (entry) and the
+  //     live-session menus (composer); extracted from entry.ts (consolidation
+  //     S3) so composer no longer imports the entry family sideways.
+  //   • sidebar-hover-card — the host-view hover-card subcomponent mounted by
+  //     sidebar.ts (rename-editor precedent: a subcomponent of one host view,
+  //     not a peer family).
+  // The other view families stay forbidden.
   {
     layer: "renderer/view/",
     allowedPrefixes: [
       "renderer/view/icons",
       "renderer/view/popover-geometry",
       "renderer/view/rename-editor",
+      "renderer/view/settings-section",
+      "renderer/view/sidebar-hover-card",
       "renderer/dom",
       "renderer/actions",
       "reading-core/",
