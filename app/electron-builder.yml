@@ -41,11 +41,12 @@ asar: true
 afterPack: build-resources/after-pack.js
 
 asarUnpack:
-  # The provider CLIs spawn SYSTEM `node` to run these sink scripts, and external
-  # `node` cannot read inside app.asar — so they must live on real disk. Their
-  # command paths are built via `path.join(__dirname, ...)`; with the scripts
-  # unpacked, __dirname resolves to app.asar.unpacked/... (verified against a
-  # packaged run). Both sink chains are self-contained within these two dirs.
+  # The provider CLIs run these sink scripts via an external interpreter process
+  # (Sonata's own binary as node, ELECTRON_RUN_AS_NODE=1, or the fallback PATH
+  # node), and that process cannot read inside app.asar — so they must live on
+  # real disk. Their command paths are built via `path.join(__dirname, ...)`; with
+  # the scripts unpacked, __dirname resolves to app.asar.unpacked/... (verified
+  # against a packaged run). Both sink chains are self-contained within these two dirs.
   - dist/runtime/cli-signal/**
   - dist/runtime/usage/**
   # node-pty ships a plain `spawn-helper` executable (not a `.node`), which

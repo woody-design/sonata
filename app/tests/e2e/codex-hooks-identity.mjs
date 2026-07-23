@@ -84,7 +84,15 @@ try {
     alphaSpawn?.hasProfileFlag === true &&
     betaSpawn?.hasProfileFlag === true &&
     alphaSpawn.sonataRuntimeDir === runtimeDir(alpha.task.id) &&
-    betaSpawn.sonataRuntimeDir === runtimeDir(beta.task.id);
+    betaSpawn.sonataRuntimeDir === runtimeDir(beta.task.id) &&
+    // SONATA_NODE rides the same spawn env as SONATA_RUNTIME_DIR (S2 runtime
+    // binding): the injected shim commands run via `${SONATA_NODE:-node}`, so the
+    // value must be the running app binary (Sonata's process.execPath — the
+    // Electron binary the launched main process reports, NOT this test's node).
+    // Assert it is a non-empty absolute path, identical for both tasks.
+    typeof alphaSpawn.sonataNode === "string" &&
+    path.isAbsolute(alphaSpawn.sonataNode) &&
+    alphaSpawn.sonataNode === betaSpawn.sonataNode;
 
   // Sonata's injection artifacts on disk.
   const profileWritten = fs.existsSync(path.join(codexHome, "sonata.config.toml"));

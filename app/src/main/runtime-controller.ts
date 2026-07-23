@@ -2735,9 +2735,21 @@ export class RuntimeController {
     // launched inside a Codex session, and a Claude child must not inherit that
     // parent task's SONATA_RUNTIME_DIR. The forced binding follows caller overlays
     // (e.g. Claude's resume-panel suppression), so no call site can replace it.
+    //
+    // SONATA_NODE rides the exact SAME proven env channel (probe P1/caveat 2):
+    // every injected hook/broker/statusline command runs its shim via
+    // `ELECTRON_RUN_AS_NODE=1 "${SONATA_NODE:-node}"` (SONATA_INTERPRETER_PREFIX),
+    // binding the shims to Sonata's OWN bundled runtime instead of an undeclared
+    // host `node`. It is env-KEYED, never inlined into the command text, so an app
+    // path with spaces/quotes needs no shell-quoting guard — the value is carried
+    // out-of-band and the sole expansion site (in the prefix) is double-quoted.
+    // ELECTRON_RUN_AS_NODE deliberately stays INLINE in the command strings and is
+    // NOT set here: an env-level ELECTRON_RUN_AS_NODE would poison any Electron
+    // binary the CLI's own children spawn, silently turning them into node too.
     const extraEnv: Record<string, string> = {
       ...(args.extraEnv ?? {}),
       SONATA_RUNTIME_DIR: runtimeDir(args.taskId),
+      SONATA_NODE: process.execPath,
     };
     return {
       cwd: args.cwd,

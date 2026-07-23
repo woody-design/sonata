@@ -49,8 +49,9 @@ export function sonataLogsDir(): string {
 }
 
 /**
- * Stable executable-shim home (Codex control plane, S2). The Codex hook
- * profile registers `node <this dir>/codex-*-shim.js` command strings. These
+ * Stable executable-shim home (Codex control plane, S2). The Codex hook profile
+ * registers `ELECTRON_RUN_AS_NODE=1 "${SONATA_NODE:-node}" "<this dir>/codex-*-shim.js"`
+ * command strings (Sonata's own bundled runtime, not a host `node`). These
  * paths are task-invariant and homedir-stable (rooted at sonataDataRoot(), per
  * the one-root rule above) so the hook command hash stays constant — Sonata
  * refreshes the shim FILE bytes freely (the command string, not the script

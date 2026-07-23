@@ -2,8 +2,8 @@
 // Exported as a string so the test writes it to a temp PATH dir + chmods it.
 //
 // It stands in for the real Codex TUI just enough to exercise Sonata's S2 wiring:
-//   - records its argv + SONATA_RUNTIME_DIR to prove `-p sonata` and the per-task
-//     env binding reached the spawn;
+//   - records its argv + SONATA_RUNTIME_DIR + SONATA_NODE to prove `-p sonata`,
+//     the per-task env binding, and the interpreter binding all reached the spawn;
 //   - UNLESS a `SONATA_FAKE_SILENT` marker exists in its cwd, emits a SessionStart
 //     hook (a rollout file + the `hook-*.json` tmp+rename payload the sink shim
 //     would write) — the handshake that carries identity + proves liveness;
@@ -28,7 +28,7 @@ if (runtimeDir) {
     fs.mkdirSync(runtimeDir, { recursive: true });
     fs.writeFileSync(
       path.join(runtimeDir, "spawn-record.json"),
-      JSON.stringify({ argv, sonataRuntimeDir: runtimeDir, cwd, resumeArg, hasProfileFlag: argv.includes("-p") && argv[argv.indexOf("-p") + 1] === "sonata" }),
+      JSON.stringify({ argv, sonataRuntimeDir: runtimeDir, sonataNode: process.env.SONATA_NODE || null, cwd, resumeArg, hasProfileFlag: argv.includes("-p") && argv[argv.indexOf("-p") + 1] === "sonata" }),
     );
   } catch (_e) {}
 }

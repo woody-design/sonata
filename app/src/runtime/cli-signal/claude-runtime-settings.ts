@@ -8,6 +8,7 @@ import {
 } from "../usage/claude-statusline";
 import { approvalsDirectory } from "./approval-protocol";
 import { asarUnpackedPath } from "../asar-unpacked";
+import { SONATA_INTERPRETER_PREFIX } from "../interpreter";
 import type { HookEventName } from "../../shared/types/cli-signal";
 
 /**
@@ -132,10 +133,13 @@ export function ensureClaudeRuntimeSettings(
   fs.mkdirSync(hooksDirectory, { recursive: true });
   fs.mkdirSync(approvalsDirectory, { recursive: true });
 
+  // SONATA_INTERPRETER_PREFIX binds the shim to Sonata's own Electron-as-node
+  // (`ELECTRON_RUN_AS_NODE=1 "${SONATA_NODE:-node}"`) instead of an undeclared host
+  // `node` — see that constant for the full rationale.
   // asarUnpackedPath: in a packaged app __dirname names the packed app.asar path,
-  // but this command is run by the provider CLI's EXTERNAL node, which can only
-  // read the unpacked-to-disk copy. No-op in dev / source-tree.
-  const sinkCommand = `node ${shellQuote(
+  // but this command is run by the CLI's EXTERNAL interpreter process, which can
+  // only read the unpacked-to-disk copy. No-op in dev / source-tree.
+  const sinkCommand = `${SONATA_INTERPRETER_PREFIX} ${shellQuote(
     asarUnpackedPath(path.join(__dirname, "hook-sink.js")),
   )} ${shellQuote(hooksDirectory)}`;
   // Broker on by default; native-approval mode (opt-out) routes PermissionRequest
@@ -143,7 +147,7 @@ export function ensureClaudeRuntimeSettings(
   const brokerCommand =
     options.approvalBroker === false
       ? null
-      : `node ${shellQuote(
+      : `${SONATA_INTERPRETER_PREFIX} ${shellQuote(
           asarUnpackedPath(path.join(__dirname, "approval-broker.js")),
         )} ${shellQuote(approvalsDirectory)} ${APPROVAL_BROKER_TIMEOUT_MS}`;
 

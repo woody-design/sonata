@@ -12,6 +12,9 @@ const { ensureClaudeRuntimeSettings, claudeHooksDirectory, HookWatcher } = requi
   path.join(distRoot, "runtime/cli-signal"),
 );
 const { CliStateModel } = require(path.join(distRoot, "runtime/cli-signal/cli-state"));
+// The canonical interpreter prefix, required directly (not via the runtime barrel,
+// which would pull node-pty). Asserted below on every injected command.
+const { SONATA_INTERPRETER_PREFIX } = require(path.join(distRoot, "runtime/interpreter"));
 const hookSinkJs = path.join(distRoot, "runtime/cli-signal/hook-sink.js");
 
 const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-hooksink-"));
@@ -26,12 +29,25 @@ const settingsPath = ensureClaudeRuntimeSettings(cwd);
 const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
 assert.ok(settings.statusLine?.command, "statusLine coexists in the injected file");
 assert.ok(settings.statusLine.command.includes("claude-statusline-sink.js"), "statusLine → usage sink");
+// S2 runtime binding: every injected command runs its shim through Sonata's own
+// bundled runtime — `ELECTRON_RUN_AS_NODE=1 "${SONATA_NODE:-node}"` — never bare
+// host `node`. Assert the prefix on the statusLine command (one of the five) and
+// on each hook/broker command below.
+assert.ok(
+  settings.statusLine.command.startsWith(`${SONATA_INTERPRETER_PREFIX} `),
+  "statusLine command starts with the Sonata interpreter prefix",
+);
 for (const event of ["UserPromptSubmit", "PreToolUse", "Stop"]) {
   const groups = settings.hooks?.[event];
   assert.ok(Array.isArray(groups) && groups.length === 1, `${event} has exactly one sonata group`);
   const cmds = groups.flatMap((g) => g.hooks.map((h) => h.command));
   assert.equal(cmds.length, 1, `${event} injects exactly one sonata command (no user clobber)`);
   assert.ok(cmds[0].includes("hook-sink.js"), `${event} → sonata hook sink`);
+  assert.ok(
+    cmds[0].startsWith(`${SONATA_INTERPRETER_PREFIX} `),
+    `${event} command starts with the Sonata interpreter prefix`,
+  );
+  assert.ok(!cmds[0].startsWith("node "), `${event} no longer starts with bare host node`);
 }
 // PermissionRequest is owned by the approval broker (S2b), not the sink.
 {
@@ -40,6 +56,10 @@ for (const event of ["UserPromptSubmit", "PreToolUse", "Stop"]) {
   const cmds = groups.flatMap((g) => g.hooks.map((h) => h.command));
   assert.equal(cmds.length, 1, "PermissionRequest injects exactly one sonata command");
   assert.ok(cmds[0].includes("approval-broker.js"), "PermissionRequest → approval broker (S2b)");
+  assert.ok(
+    cmds[0].startsWith(`${SONATA_INTERPRETER_PREFIX} `),
+    "PermissionRequest broker command starts with the Sonata interpreter prefix",
+  );
 }
 
 // ── 2) Sink → watcher → CliState roundtrip ──────────────────────────────────

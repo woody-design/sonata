@@ -10,6 +10,7 @@ import {
   REPLY_PREFIX,
   approvalsDirectory,
 } from "../../cli-signal/approval-protocol";
+import { SONATA_INTERPRETER_PREFIX } from "../../interpreter";
 
 /**
  * The Codex injection edge (control-plane S2) — the mirror of
@@ -211,16 +212,20 @@ function readProfileIfExists(profilePath: string): string {
   }
 }
 
-/** The frozen command strings the user trusts once. `node "<abs path>"`:
- *  double-quoted so a homedir with spaces is shell-safe, and `node` bare (not
- *  an absolute interpreter path) so the string stays stable across app updates
- *  — the whole point of the stable-shim design. */
+/** The frozen command strings the user trusts once:
+ *  `ELECTRON_RUN_AS_NODE=1 "${SONATA_NODE:-node}" "<abs path>"`. The shim path is
+ *  double-quoted so a homedir with spaces is shell-safe; the interpreter is
+ *  Sonata's own Electron-as-node via the env-keyed `${SONATA_NODE:-node}` (never
+ *  an absolute interpreter path), so the command string stays stable across app
+ *  updates and machines — the whole point of the stable-shim design — while no
+ *  longer depending on an undeclared host `node`. See SONATA_INTERPRETER_PREFIX
+ *  for the full rationale (ships-our-own-runtime, version pinning, fallback). */
 function sinkCommand(binDir: string): string {
-  return `node "${guardShimPath(path.join(binDir, SINK_SHIM))}"`;
+  return `${SONATA_INTERPRETER_PREFIX} "${guardShimPath(path.join(binDir, SINK_SHIM))}"`;
 }
 
 function brokerCommand(binDir: string): string {
-  return `node "${guardShimPath(path.join(binDir, BROKER_SHIM))}"`;
+  return `${SONATA_INTERPRETER_PREFIX} "${guardShimPath(path.join(binDir, BROKER_SHIM))}"`;
 }
 
 /** The shim path is embedded inside a shell double-quoted argument. Reject the
@@ -253,8 +258,10 @@ function buildProfileToml(binDir: string, existingProfile: string, pretrustCwd: 
     "# the PermissionRequest broker). Adding an event rewrites this file, but that",
     "# is safe: Sonata spawns with --dangerously-bypass-hook-trust (D4), so a changed",
     "# hook-trust hash never re-prompts. Commands route through stable ~/.sonata/bin",
-    "# shims; per-task binding travels via the SONATA_RUNTIME_DIR environment",
-    "# variable, so these command strings stay identical across every task.",
+    "# shims run by Sonata's own bundled runtime (ELECTRON_RUN_AS_NODE=1 with",
+    "# ${SONATA_NODE:-node}), so no host Node install is required; per-task binding",
+    "# travels via the SONATA_RUNTIME_DIR environment variable, so these command",
+    "# strings stay identical across every task and machine.",
     "",
   ];
   const blocks: string[] = [];
@@ -409,7 +416,8 @@ function writeIfChanged(filePath: string, contents: string): void {
 
 // ── Frozen shim sources ──────────────────────────────────────────────────────
 // These are the exact bytes Sonata writes to the stable shim paths. They are
-// plain CommonJS Node scripts (run as `node <path>`), self-contained so the
+// plain CommonJS Node scripts (invoked via the SONATA_INTERPRETER_PREFIX shape,
+// `ELECTRON_RUN_AS_NODE=1 "${SONATA_NODE:-node}" "<path>"`), self-contained so the
 // TRUSTED TEXT is decoupled from any refactor of the Claude-side sink. Trust
 // binds to the profile's command STRING, not these bytes, so Sonata may refresh
 // the content freely (S3 rewrites the broker); the command string never changes.

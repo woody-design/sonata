@@ -279,6 +279,53 @@ is deterministic and **byte-stable** (`smoke:codex-runtime-settings` sha-pins it
 > command hash constant), but its trust-persistence motivation is moot. Research:
 > `spikes/codex-hook-trust-research/`.
 
+**Runtime binding: our hooks run on our OWN interpreter, not the host's.** Every
+hook / broker / statusline command Sonata injects is a short JS shim that needs a
+JS interpreter to run. Neither CLI ships one — both are self-contained native
+binaries with no Node dependency — so an early build that started each command
+with bare `node` had an undeclared host dependency: on a clean machine (no brew,
+no Node) every hook ran to exit 127, the SessionStart handshake never fired, and
+Codex transcript binding stayed blank. But Sonata already ships a JS interpreter:
+Electron. So every injected command is single-sourced through one prefix
+(`runtime/interpreter.ts: SONATA_INTERPRETER_PREFIX`) and takes the exact shape:
+
+```
+ELECTRON_RUN_AS_NODE=1 "${SONATA_NODE:-node}" "<script>" <args...>
+```
+
+`ELECTRON_RUN_AS_NODE=1` makes the Electron binary run as a plain Node process.
+`$SONATA_NODE` is the running app binary (`process.execPath`), injected into the
+CLI spawn env beside `SONATA_RUNTIME_DIR` (`runtime-controller.buildStartOptions`)
+— it rides the same probe-verified inheritance channel the shims already trust,
+and being env-keyed it never appears in the command TEXT, so an app path with
+spaces or quotes needs no shell-quoting (the sole expansion site is double-quoted).
+`ELECTRON_RUN_AS_NODE` stays **inline**, never in the spawn env — an env-level
+value would poison any Electron binary the CLI's own children spawn, silently
+turning them into node too. External Node dependency drops to zero; the shim
+interpreter is pinned to the app's embedded Node (v24.15.0 in the packaged build)
+instead of whatever the machine's PATH serves; and the command string becomes a
+cross-machine constant (no absolute interpreter path — better hash stability than
+the old shape). The `${SONATA_NODE:-node}` fallback covers the one case where the
+env var is absent — a user manually running `codex -p sonata` OUTSIDE Sonata (the
+profile persists in `~/.codex`) — degrading to exactly the old bare-`node` PATH
+behavior rather than a noisy empty-string exec.
+
+> **Architectural commitment — the Electron `RunAsNode` fuse is LOAD-BEARING.**
+> `ELECTRON_RUN_AS_NODE` only works while Electron's `RunAsNode` fuse is ON. Our
+> build has NO `@electron/fuses` step, so the fuse is at its default — ON — and it
+> **must stay on**. Flipping it off (a common item on Electron-security hardening
+> checklists) would silently kill EVERY hook, broker, and statusline command on
+> the next release, with no build error and no test failure in a suite that
+> doesn't run the packaged artifact — the failure surfaces only as blank
+> transcripts and dead statuslines in the field. If the fuse ever must be closed
+> for a security requirement, the escape hatch is to compile the shims to a
+> standalone helper binary (bun/Rust/Swift) and invoke that instead — rejected for
+> now because it adds a toolchain plus nested-binary signing/notarization to ship a
+> runtime we already ship. Precedent for keeping it on: VS Code ships
+> hardened-runtime + notarized with `run-as-node` in active use for its CLI. Probe
+> that validated the packaged, signed, hardened-runtime app runs scripts under
+> `ELECTRON_RUN_AS_NODE`: `spikes/hook-runtime-binding-probe` (2026-07-23).
+
 **Liveness is the honesty valve.** With trust bypassed, hooks fire on every
 spawn, so absence is the only failure signal — Sonata never guesses. The
 `SessionStart` handshake doubles as the liveness check: no handshake within a

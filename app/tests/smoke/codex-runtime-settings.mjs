@@ -114,12 +114,20 @@ check("commands route through the stable shim paths (task-invariant)", () => {
   const toml = fs.readFileSync(profilePath, "utf8");
   assert.ok(toml.includes(sinkShim), "sink command references the stable shim path");
   assert.ok(toml.includes(brokerShim), "broker command references the stable shim path");
-  // Frozen command shape: `node "<abs path>"`, no per-task argv.
-  assert.ok(toml.includes(`command = 'node "${sinkShim}"'`), "sink command is `node \"<shim>\"`");
+  // Frozen command shape (S2 runtime binding): the Sonata interpreter prefix binds
+  // the shim to Sonata's own Electron-as-node — `ELECTRON_RUN_AS_NODE=1
+  // "${SONATA_NODE:-node}" "<abs path>"` — no per-task argv, no host `node`.
+  const PREFIX = 'ELECTRON_RUN_AS_NODE=1 "${SONATA_NODE:-node}"';
   assert.ok(
-    toml.includes(`command = 'node "${brokerShim}"'`),
-    "broker command is `node \"<shim>\"`",
+    toml.includes(`command = '${PREFIX} "${sinkShim}"'`),
+    "sink command is the interpreter-prefix + \"<shim>\"",
   );
+  assert.ok(
+    toml.includes(`command = '${PREFIX} "${brokerShim}"'`),
+    "broker command is the interpreter-prefix + \"<shim>\"",
+  );
+  // The old bare-`node` shape must be GONE (undeclared host-node dependency).
+  assert.ok(!toml.includes(`command = 'node "`), "no bare-`node` command survives");
 });
 
 check("shims read SONATA_RUNTIME_DIR from the env (task binding via env, not argv)", () => {
