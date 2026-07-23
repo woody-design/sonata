@@ -449,6 +449,9 @@ function fakeHost() {
     isApprovalActive() {
       return this.approvalActive;
     },
+    hasPendingControlSwitch() {
+      return false;
+    },
     acceptsPromptInput() {
       return this.idleComposer;
     },

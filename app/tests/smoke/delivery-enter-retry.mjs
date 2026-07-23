@@ -19,6 +19,7 @@ function fakeHost(overrides = {}) {
   const state = {
     activeRun: false,
     approval: false,
+    pendingControlSwitch: false,
     accepts: false,
     humanTyping: false,
     submits: [],
@@ -29,6 +30,7 @@ function fakeHost(overrides = {}) {
     state,
     hasActiveRun: () => state.activeRun,
     isApprovalActive: () => state.approval,
+    hasPendingControlSwitch: () => state.pendingControlSwitch,
     acceptsPromptInput: () => state.accepts,
     isHumanActivelyTyping: () => state.humanTyping,
     submitPrompt: (text, opts) => {
@@ -49,7 +51,7 @@ function fakeHost(overrides = {}) {
     },
     // Mirrors TerminalHost.nudgePromptSubmit's guard shape; records the attempt.
     nudgePromptSubmit: () => {
-      if (state.approval) {
+      if (state.approval || state.pendingControlSwitch) {
         return false;
       }
       state.nudges += 1;

@@ -1515,6 +1515,16 @@ export class TerminalHost extends EventEmitter {
     return this.approvalActive;
   }
 
+  /** True whenever a mid-session control switch is in flight, in ANY phase —
+   *  including a PARKED consent dialog (`waiting-user`, which has no timeout by
+   *  design). The delivery pump gates on this: a queued item that pasted text +
+   *  Enter while a codex Full Access consent is parked would land on the dialog,
+   *  whose default row is "Yes, continue anyway" — a silent full-access grant.
+   *  Never auto-answer a consent is the program's hard red line. */
+  hasPendingControlSwitch(): boolean {
+    return this.pendingControlSwitch !== null;
+  }
+
   /**
    * Structural "the composer exists and is idle" check — the boot-latch
    * fence (contract §4 permanent fence list). Prompt detection requires the
@@ -3742,6 +3752,17 @@ export class TerminalHost extends EventEmitter {
     if (this.approvalActive) {
       throw new Error("Cannot submit a prompt while a native approval screen is active.");
     }
+    // RED LINE: a mid-session control switch may have a consent/interstitial
+    // dialog open (a PARKED codex Full Access confirm has no timeout — it waits
+    // for the user). Pasted prompt text + Enter would land on that dialog and
+    // auto-answer its default row ("Yes, continue anyway" → silent full-access
+    // grant). Delivery already gates on hasPendingControlSwitch upstream; this is
+    // the backstop that keeps EVERY submit path honest. Classified as a delivery
+    // guard error (re-queue + re-pump), not a hard failure — see
+    // isDeliveryGuardError in delivery-controller.
+    if (this.pendingControlSwitch) {
+      throw new Error("Cannot submit a prompt while a control switch is pending.");
+    }
 
     // A slash command is a single line with no attachments. A folded file/folder
     // reference makes the text multi-line (path on its own line), so the newline
@@ -3880,7 +3901,16 @@ export class TerminalHost extends EventEmitter {
    * mid-paste. Returns whether it wrote.
    */
   nudgePromptSubmit(): boolean {
-    if (!this.ptyProcess || this.approvalActive || this.sonataWriting) {
+    // A pending control switch may own a parked consent/interstitial dialog; an
+    // Enter re-send would auto-answer its default row (RED LINE — see
+    // hasPendingControlSwitch). The Enter-retry ladder refuses while any switch
+    // is in flight, mirroring the submitPrompt and canDeliver gates.
+    if (
+      !this.ptyProcess ||
+      this.approvalActive ||
+      this.sonataWriting ||
+      this.pendingControlSwitch
+    ) {
       return false;
     }
     this.beginSonataWrite();

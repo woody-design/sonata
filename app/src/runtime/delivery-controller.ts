@@ -445,7 +445,20 @@ export class DeliveryController {
       // visible in the co-present terminal and recoverable, while a detector
       // false-positive would be an invisible hold (the S1 wedge class).
       !this.terminalHost.isApprovalActive() &&
-      this.pendingApprovalKeys.size === 0
+      this.pendingApprovalKeys.size === 0 &&
+      // Control-switch guard (RED LINE): a mid-session switch can PARK a consent
+      // dialog (a codex Full Access confirm — `waiting-user`, no timeout by
+      // design) or hold an interstitial. A delivery here would paste text + Enter
+      // into that dialog, auto-answering its default row ("Yes, continue anyway")
+      // — a silent full-access grant the program forbids. Unlike the approval
+      // scrape this covers ANY phase of the switch, parked included. A blocked
+      // item re-pumps the instant the switch clears: the resolution ALWAYS emits
+      // a settled/needs-attention `control-switch:state` event (after
+      // clearPendingControlSwitch), which reaches handleRuntimeEvent → pump()
+      // with the pointer already null (mirrors the approval:decision re-pump);
+      // the 500ms schedulePumpRetry poll — armed on the blocked-path branch in
+      // pump() — is the backstop for any clear that fires no event.
+      !this.terminalHost.hasPendingControlSwitch()
     );
   }
 
@@ -951,11 +964,13 @@ function normalizeText(value: string): string {
 }
 
 /**
- * Guard errors are states, not failures: the screen is temporarily owned by
- * an approval. The item stays queued and delivers when the state clears —
- * never silently into it.
+ * Guard errors are states, not failures: the screen is temporarily owned by an
+ * approval panel or an in-flight control switch (a parked consent dialog). The
+ * item stays queued and delivers when the state clears — never silently into it.
+ * canDeliver already refuses both cases; these throws are the submitPrompt-level
+ * backstop, and re-queueing keeps their semantics correct if one ever fires.
  */
 function isDeliveryGuardError(error: unknown): boolean {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
-  return message.includes("native approval screen");
+  return message.includes("native approval screen") || message.includes("control switch is pending");
 }

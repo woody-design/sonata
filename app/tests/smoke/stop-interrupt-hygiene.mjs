@@ -301,6 +301,7 @@ await check("handleStopRequested reports a write-canceled in-flight item undeliv
   const host = {
     hasActiveRun: () => false,
     isApprovalActive: () => false,
+    hasPendingControlSwitch: () => false,
     acceptsPromptInput: () => true,
     isHumanActivelyTyping: () => false,
     nudges: 0,
@@ -349,6 +350,7 @@ await check("a UPS-corroborated in-flight item survives handleStopRequested inta
   const host = {
     hasActiveRun: () => false,
     isApprovalActive: () => false,
+    hasPendingControlSwitch: () => false,
     acceptsPromptInput: () => true,
     isHumanActivelyTyping: () => false,
     submitPrompt: (text) => ({
@@ -394,6 +396,7 @@ await check("handleStopRequested without canceled writes only disarms the ladder
   const host = {
     hasActiveRun: () => false,
     isApprovalActive: () => false,
+    hasPendingControlSwitch: () => false,
     acceptsPromptInput: () => true,
     isHumanActivelyTyping: () => false,
     nudges: 0,

@@ -24,6 +24,7 @@ function makeHost(overrides = {}) {
     state,
     hasActiveRun: () => state.activeRun,
     isApprovalActive: () => state.approval,
+    hasPendingControlSwitch: () => state.pendingControlSwitch ?? false,
     acceptsPromptInput: () => state.accepts,
     submitPrompt: (text, opts) => {
       state.submits.push({ text, opts });
