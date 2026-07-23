@@ -82,6 +82,7 @@ import {
   StatusRegionTracker,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
+import { TaskMirror } from "./task-mirror";
 import { planTagRemovalFromManifests } from "./tag-manifests";
 import { retainKnownTagIds, withTaskTags } from "../shared/session-tags";
 import { ensureClaudeProjectTrust, updateClaudeConfig } from "./claude-config";
@@ -246,6 +247,10 @@ export class RuntimeController {
    *  turn-end PROVES the card was resolved). Populated for codex only. */
   private readonly expiredBrokerApprovals = new Map<TaskId, Map<string, ApprovalKind>>();
   private readonly taskRuntimes = new Map<TaskId, ActiveTaskRuntime>();
+  private readonly taskMirror = new TaskMirror(
+    (task, storageRoot) => this.persistTaskManifest(task, storageRoot),
+    (event) => this.sendEvent(event),
+  );
   private readonly usageSnapshots = new Map<TaskId, UsageSnapshot>();
   private readonly pendingClaudeUsage = new Map<string, UsageSnapshot>();
   private taskSeq = 0;
@@ -2313,22 +2318,13 @@ export class RuntimeController {
    */
   private applyHookPermissionMode(active: ActiveTaskRuntime, payload: HookPayload): void {
     const mode = payload.permission_mode;
-    if (
-      typeof mode !== "string" ||
-      !CLAUDE_PERMISSION_MODES.has(mode as ClaudePermissionMode) ||
-      active.task.permissionMode === mode
-    ) {
+    if (typeof mode !== "string" || !CLAUDE_PERMISSION_MODES.has(mode as ClaudePermissionMode)) {
       return;
     }
-    // updatedAt stays put — a mode display refresh is metadata, not activity
-    // (same rule as rename/archive), so the sidebar ordering doesn't jump.
-    active.task = { ...active.task, permissionMode: mode as ClaudePermissionMode };
-    this.persistTaskManifest(active.task, active.storageRoot);
-    this.sendEvent({
-      type: "task:updated",
-      payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
-      ts: new Date().toISOString(),
-    });
+    // TaskMirror owns the metadata write: updatedAt stays put (a mode display
+    // refresh is not activity), persist, emit one task:updated only if the mode
+    // actually moved.
+    this.taskMirror.apply(active, { permissionMode: mode as ClaudePermissionMode });
   }
 
   /**
@@ -2343,16 +2339,12 @@ export class RuntimeController {
    * rule as applyHookPermissionMode) so the sidebar ordering doesn't jump.
    */
   private applyCodexPermissionSwitchReceipt(active: ActiveTaskRuntime, value: string): void {
-    if (!isCodexPermissionMode(value) || active.task.codexPermissionMode === value) {
+    if (!isCodexPermissionMode(value)) {
       return;
     }
-    active.task = { ...active.task, codexPermissionMode: value };
-    this.persistTaskManifest(active.task, active.storageRoot);
-    this.sendEvent({
-      type: "task:updated",
-      payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
-      ts: new Date().toISOString(),
-    });
+    // Receipt-corroborated (the picker read its own confirm), so this write is
+    // not optimistic. TaskMirror keeps updatedAt frozen and emits only on change.
+    this.taskMirror.apply(active, { codexPermissionMode: value });
   }
 
   /**
@@ -2377,16 +2369,9 @@ export class RuntimeController {
     const nextModel = model && model.trim().length > 0 ? model : active.task.model;
     const nextEffort =
       effort && REASONING_EFFORTS.has(effort) ? effort : active.task.reasoningEffort;
-    if (active.task.model === nextModel && active.task.reasoningEffort === nextEffort) {
-      return;
-    }
-    active.task = { ...active.task, model: nextModel, reasoningEffort: nextEffort };
-    this.persistTaskManifest(active.task, active.storageRoot);
-    this.sendEvent({
-      type: "task:updated",
-      payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
-      ts: new Date().toISOString(),
-    });
+    // Model + effort are always written together (the picker forces the pair);
+    // TaskMirror no-ops when neither moved and keeps updatedAt frozen.
+    this.taskMirror.apply(active, { model: nextModel, reasoningEffort: nextEffort });
   }
 
   /**
@@ -2447,24 +2432,13 @@ export class RuntimeController {
       context.approvalPolicy,
     );
     const nextMode = reconciledMode ?? active.task.codexPermissionMode;
-    if (
-      active.task.model === nextModel &&
-      active.task.reasoningEffort === nextEffort &&
-      active.task.codexPermissionMode === nextMode
-    ) {
-      return;
-    }
-    active.task = {
-      ...active.task,
+    // Same metadata-write discipline as the receipt reconcilers above: TaskMirror
+    // mirrors in place with a frozen updatedAt, persists, and emits ONE
+    // task:updated only when model, effort, or the permission mode actually moved.
+    this.taskMirror.apply(active, {
       model: nextModel,
       reasoningEffort: nextEffort,
       codexPermissionMode: nextMode,
-    };
-    this.persistTaskManifest(active.task, active.storageRoot);
-    this.sendEvent({
-      type: "task:updated",
-      payload: { taskId: active.task.id, task: active.task, reason: "runtime-status" },
-      ts: new Date().toISOString(),
     });
   }
 
