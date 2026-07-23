@@ -52,6 +52,7 @@ import {
   hasRemoteControlDisconnect,
   REMOTE_CONTROL_SCAN_LIMIT,
 } from "./tui-parsers-claude";
+import { isCodexUpdatePrompt } from "./tui-parsers-codex";
 import { ControlSwitchEngine } from "./control-switch-engine";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
@@ -132,6 +133,13 @@ const OPTION_PROMPT_KEY_DELAY_MS = 300;
  *  — and the pause-to-think over a half-typed line — that the idle-prompt
  *  heuristic alone cannot see. Dogfood-tuned. */
 const HUMAN_ACTIVE_WINDOW_MS = 3500;
+/** How long after a codex spawn to check for the boot "Update available!" gate
+ *  (consolidation S4). Past a normal boot (the delivery latch opens ~1s after
+ *  spawn), so a session that is STILL not composer-ready here AND whose tail
+ *  matches the gate signature is genuinely stuck behind it. One-shot; the
+ *  signature match is the real discriminator, so the window only needs to clear
+ *  a healthy boot. Codex-only — claude has no such gate. */
+const CODEX_BOOT_UPDATE_CHECK_MS = 4000;
 /**
  * Terminal traffic that is NOT the human composing a line — emulator-generated
  * query replies AND mouse activity. xterm.js relays all of these through the
@@ -418,6 +426,10 @@ export class TerminalHost extends EventEmitter {
   private cwd: string | null = null;
   private fileWatcher: fs.FSWatcher | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
+  // One-shot boot watchdog (codex only): fires the codex "Update available!"
+  // needs-attention banner if the composer is still not ready when it elapses AND
+  // the tail matches the gate signature. Armed in startTask, cleared on teardown.
+  private codexBootUpdateTimer: NodeJS.Timeout | null = null;
   private fileSnapshot = new Map<string, SnapshotEntry>();
   private pendingFileTimers = new Map<string, NodeJS.Timeout>();
   private approvalActive = false;
@@ -681,6 +693,21 @@ export class TerminalHost extends EventEmitter {
     this.remoteControlActive = false;
     this.remoteControlUrl = null;
     this.remoteControlScan = "";
+    // AtomicWriter reset (review F5). disposeProcess() above cancels the deferred
+    // writes and the stop-hygiene flags, but the write-lock DEPTH and the buffered
+    // human keystrokes are not stop-hygiene — a PTY death mid-sequence (endSonataWrite
+    // only flushes when a live pty brings the depth to 0) leaves `pendingHumanInput`
+    // holding stale bytes and `sonataWriteDepth` > 0, so the NEXT session's first
+    // automation sequence would flush those bytes into its first command. Reset the
+    // write-lock/human-input state to a clean slate for the new PTY. (humanSettleTimer
+    // is only cleared by disposeProcess on the non-crash path, so clear it here too.)
+    this.sonataWriteDepth = 0;
+    this.pendingHumanInput = "";
+    this.lastHumanInputAt = 0;
+    if (this.humanSettleTimer) {
+      clearTimeout(this.humanSettleTimer);
+      this.humanSettleTimer = null;
+    }
     this.controlSwitch.clear();
     this.startFileWatcher(cwd);
 
@@ -759,12 +786,41 @@ export class TerminalHost extends EventEmitter {
       this.setRemoteControlActive(true);
     }
 
+    // Boot watchdog: surface codex's "Update available!" gate as needs-attention
+    // if it blocks readiness (S4). Codex-only; one-shot; never writes a key.
+    if (this.profile.provider === "codex") {
+      this.codexBootUpdateTimer = setTimeout(() => {
+        this.codexBootUpdateTimer = null;
+        this.checkCodexBootUpdatePrompt();
+      }, CODEX_BOOT_UPDATE_CHECK_MS);
+      this.codexBootUpdateTimer.unref?.();
+    }
+
     return {
       pid: this.ptyProcess.pid,
       cwd,
       command,
       args,
     };
+  }
+
+  /**
+   * The boot watchdog elapsed. If the composer is STILL not ready AND the PTY tail
+   * matches codex's "Update available!" gate signature, surface a passive
+   * needs-attention banner so the user resolves it in the terminal. RED LINE: we
+   * NEVER write a key — running `brew upgrade` or pressing Enter blind is the
+   * user's call. The `acceptsPromptInput()` guard means a session that booted fine
+   * (composer up) never fires, even if stale update text lingers in the tail.
+   */
+  private checkCodexBootUpdatePrompt(): void {
+    if (
+      !this.ptyProcess ||
+      this.acceptsPromptInput() ||
+      !isCodexUpdatePrompt(cleanTerminal(this.rawTail))
+    ) {
+      return;
+    }
+    this.emitEvent("codex-update-prompt:detected", { taskId: this.taskId });
   }
 
   writeRaw(data: string): void {
@@ -1950,6 +2006,11 @@ export class TerminalHost extends EventEmitter {
     // A switch waiting on its receipt when the PTY dies never gets one — drop it
     // (no needs-attention: the session is gone, there is nothing to point at).
     this.controlSwitch.clear();
+    // The boot watchdog must never fire on a dead/replaced session.
+    if (this.codexBootUpdateTimer) {
+      clearTimeout(this.codexBootUpdateTimer);
+      this.codexBootUpdateTimer = null;
+    }
     if (!this.ptyProcess) {
       return;
     }
@@ -3030,25 +3091,8 @@ function tomlString(value: string): string {
 // follows the hook payload's `permission_mode` (runtime-controller). History:
 // git log -S detectClaudePermissionMode.
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function rawTailSince(snapshot: string, current: string): string {
-  if (current.startsWith(snapshot)) {
-    return current.slice(snapshot.length);
-  }
-  const maxOverlap = Math.min(snapshot.length, current.length);
-  for (let length = maxOverlap; length > 0; length -= 1) {
-    if (snapshot.slice(-length) === current.slice(0, length)) {
-      return current.slice(length);
-    }
-  }
-  return current;
 }
 
 function attachmentPromptTitle(count: number): string {

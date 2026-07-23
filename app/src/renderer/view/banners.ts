@@ -43,6 +43,25 @@ export function setCodexHooksMissing(taskId: string, missing: boolean): void {
   }
 }
 
+/**
+ * Codex boot "Update available!" gate state (S4). Renderer-LOCAL, same family as
+ * codexHooksMissing: the gate is shell chrome (a terminal-homed interaction owes
+ * Reading a passive banner), never a reading-core view field. Keyed by taskId so
+ * a background session's stuck boot is remembered and shown when it becomes
+ * active; fed by main.ts from the `codex-update-prompt:detected` runtime event
+ * and cleared on that task's `pty:exit` (a fresh session re-detects if still
+ * stuck).
+ */
+const codexUpdatePrompt = new Set<string>();
+
+export function setCodexUpdatePrompt(taskId: string, blocked: boolean): void {
+  if (blocked) {
+    codexUpdatePrompt.add(taskId);
+  } else {
+    codexUpdatePrompt.delete(taskId);
+  }
+}
+
 export function renderAttentionBanners(view = activeTaskView(state)): void {
   const root = elements.attentionBannerRoot;
   const banners: HTMLElement[] = [];
@@ -109,6 +128,23 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
           "Codex hooks aren't running — check the CLI",
           () => {
             codexHooksMissing.delete(taskId);
+            renderAttentionBanners();
+          },
+        ),
+      );
+    }
+    // Codex's boot "Update available!" gate is blocking composer readiness (S4).
+    // Sonata NEVER auto-answers it (running `brew upgrade` / pressing keys blind
+    // is the user's call) — a passive pointer to the Terminal, where the gate is
+    // visible and resolvable. Dismiss clears the renderer-local flag.
+    if (codexUpdatePrompt.has(view.task.id)) {
+      const taskId = view.task.id;
+      banners.push(
+        attentionBanner(
+          "codex-update-prompt",
+          "Codex needs an update to start — resolve it in the CLI",
+          () => {
+            codexUpdatePrompt.delete(taskId);
             renderAttentionBanners();
           },
         ),

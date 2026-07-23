@@ -118,6 +118,25 @@ export type CliHooksLivenessEvent = BaseRuntimeEvent<
   }
 >;
 
+/**
+ * Codex's boot "Update available!" TUI is up and blocking composer readiness
+ * (consolidation S4). When a newer codex release exists the CLI renders a
+ * full-screen update gate at boot — `1. Update now …` / `Press enter to
+ * continue` — and the composer never appears until the user resolves it in the
+ * terminal. Sonata cannot (and must NEVER) auto-answer it — running
+ * `brew upgrade` or pressing keys blind is the user's call — so on a boot
+ * readiness timeout whose PTY tail matches the gate signature the terminal-host
+ * emits this and the renderer raises a passive "resolve it in the CLI" banner.
+ * Display-only shell chrome (a renderer-local banner store, like
+ * cli-hooks:liveness), never a reading-core view field.
+ */
+export type CodexUpdatePromptEvent = BaseRuntimeEvent<
+  "codex-update-prompt:detected",
+  {
+    taskId: TaskId;
+  }
+>;
+
 export type WorkingStatusUpdatedEvent = BaseRuntimeEvent<
   "working-status:updated",
   {
@@ -615,6 +634,7 @@ export type ProductRuntimeEvent =
   | TranscriptBlocksEvent
   | UsageUpdatedEvent
   | CodexTurnContextObservedEvent
+  | CodexUpdatePromptEvent
   | SessionsUpdatedEvent;
 
 export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
@@ -629,6 +649,7 @@ export type RunIndexEvent = Exclude<
   | SessionsUpdatedEvent
   | CliStateChangedEvent
   | CliHooksLivenessEvent
+  | CodexUpdatePromptEvent
   | DeliveryStateEvent
   | DeliveryReceiptEvent
   | TaskUpdatedEvent

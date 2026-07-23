@@ -236,3 +236,50 @@ export function asClaudePermissionMode(value: string | undefined): ClaudePermiss
     ? (value as ClaudePermissionMode)
     : null;
 }
+
+/** The Shift+Tab permission cycle order, probe-measured (claude 2.1.214 — see
+ *  spikes/midsession-switch-probe §S0 and re-observed 2026-07-23 in the
+ *  midsession-permission-switch e2e's `observedModes`):
+ *  manual (default) → accept edits → plan → auto → manual. `auto` is
+ *  account-gated. */
+export const CLAUDE_PERMISSION_CYCLE: readonly ClaudePermissionMode[] = [
+  "default",
+  "acceptEdits",
+  "plan",
+  "auto",
+];
+
+/**
+ * The mode(s) a single Shift+Tab press from `from` may legitimately land on. For
+ * a cycle member it is the next cycle mode, PLUS the `plan → default` wrap that
+ * fires when the account-gated `auto` is absent. A landing outside this set means
+ * the cycle model no longer holds — a stale two-frames-old repaint, a
+ * double-press, or an unexpected screen — so the stepping engine treats it as a
+ * FAILED step (fail loud) rather than reading it as the step's receipt (review
+ * F3: the old engine accepted ANY post-press mode line, so a stale pre-press
+ * frame read as "landed on the same mode", double-pressed, and could strand the
+ * session on neither the target nor the origin).
+ *
+ * An OFF-cycle origin (`bypassPermissions` / `dontAsk`, set outside the Shift+Tab
+ * cycle) has no predictable successor, so any cycle member is accepted — the
+ * stale-repaint filter (landing === `from`) still rejects a redraw of `from`
+ * itself. This preserves the blind-seek the engine used before landing
+ * validation for that rare off-cycle case.
+ */
+export function expectedPermissionLandings(
+  from: ClaudePermissionMode,
+): ReadonlySet<ClaudePermissionMode> {
+  const idx = CLAUDE_PERMISSION_CYCLE.indexOf(from);
+  if (idx === -1) {
+    return new Set(CLAUDE_PERMISSION_CYCLE);
+  }
+  const next = CLAUDE_PERMISSION_CYCLE[(idx + 1) % CLAUDE_PERMISSION_CYCLE.length];
+  const landings = new Set<ClaudePermissionMode>();
+  if (next) {
+    landings.add(next);
+  }
+  if (from === "plan") {
+    landings.add("default");
+  }
+  return landings;
+}

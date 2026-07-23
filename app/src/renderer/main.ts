@@ -137,7 +137,12 @@ import {
   startStripClockTicker,
 } from "./scheduler";
 import { initApprovalsView, renderOptionPrompt } from "./view/approvals";
-import { initBannersView, renderAttentionBanners, setCodexHooksMissing } from "./view/banners";
+import {
+  initBannersView,
+  renderAttentionBanners,
+  setCodexHooksMissing,
+  setCodexUpdatePrompt,
+} from "./view/banners";
 import {
   applyTerminalWindowState,
   initChromeView,
@@ -1527,7 +1532,7 @@ async function applyControlConfirmAnswer(rowNumber: number): Promise<void> {
  *  User-facing, no CLI internals — the composer-notice register. */
 function controlSwitchRefusalCopy(
   kind: ClaudeControlSwitchKind,
-  reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider",
+  reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider" | "invalid",
 ): string {
   const axis =
     kind === "model" || kind === "codex-model"
@@ -1540,6 +1545,8 @@ function controlSwitchRefusalCopy(
       return `Finish the current turn before switching ${axis}.`;
     case "busy":
       return "Claude is mid-action — try again in a moment.";
+    case "invalid":
+      return `That ${axis} isn't available to switch to.`;
     case "panel-open":
       return "Claude is waiting on something in the CLI — answer that first.";
     case "no-process":
@@ -2223,6 +2230,18 @@ window.sonataRuntime.onRuntimeEvent((event) => {
     setCodexHooksMissing(event.payload.taskId, event.payload.status === "missing");
     renderAttentionBanners();
     return;
+  }
+  // Codex boot "Update available!" gate (S4) — same renderer-local banner family
+  // as hooks-liveness. Set on detection; cleared on the task's pty:exit (a fresh
+  // session re-detects if still stuck), which still flows to the reducer below.
+  if (event.type === "codex-update-prompt:detected") {
+    setCodexUpdatePrompt(event.payload.taskId, true);
+    renderAttentionBanners();
+    return;
+  }
+  if (event.type === "pty:exit") {
+    setCodexUpdatePrompt(event.payload.taskId, false);
+    renderAttentionBanners();
   }
   for (const directive of reduceRuntimeEvent(state, event)) {
     performDirective(directive);

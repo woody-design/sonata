@@ -16,6 +16,7 @@ import {
   claudeCacheMissCancelled,
   claudeCacheMissDialogOpen,
   CONTROL_SWITCH_SCAN_LIMIT,
+  expectedPermissionLandings,
   parseClaudeCacheMissCursor,
   parseClaudeControlReceipt,
   parseClaudePermissionModeLine,
@@ -183,6 +184,11 @@ type PendingControlSwitch =
       origin: ClaudePermissionMode;
       phase: "seeking" | "returning";
       landed: ClaudePermissionMode | null;
+      /** The mode we were on when we wrote the CURRENT Shift+Tab — the anchor for
+       *  validate-each-press (review F3): a landing equal to it is a stale pre-press
+       *  repaint (keep waiting), a landing that is not an expected cycle successor is
+       *  an unexpected screen (fail loud). Null before the first press. */
+      pressedFrom: ClaudePermissionMode | null;
       seekSteps: number;
       returnSteps: number;
       observed: Set<ClaudePermissionMode>;
@@ -392,6 +398,16 @@ export class ControlSwitchEngine {
   // hook payload (permission), not this scrape, remains the state authority.
   private pendingControlSwitch: PendingControlSwitch | null = null;
   private controlSwitchScan = "";
+  // The frame captured AT PARK TIME (review F2). A parked dialog is static until
+  // a key is pressed, so the relay's first nav read needs the parked cursor — but
+  // if we kept it in `controlSwitchScan` (a 4096-char rolling window), the stale
+  // dialog text would linger there and defeat the codex native-cancel detection,
+  // which is ABSENCE-based (`!consentDialogOpen`): a small post-Esc repaint never
+  // evicts the consent text, so the relay parked forever. So at park we snapshot
+  // the frame HERE and RESET `controlSwitchScan` — post-park frames then dominate
+  // the scan (native-cancel/receipt detection see fresh content), while the first
+  // nav read falls back to this snapshot for the retained cursor.
+  private parkedFrame = "";
 
   constructor(private readonly host: ControlSwitchHost) {}
 
@@ -493,9 +509,10 @@ export class ControlSwitchEngine {
     if (this.pendingControlSwitch || this.host.isSonataWriting()) {
       return { ok: false, reason: "busy" };
     }
-    // Nothing to do (defensive — Save is disabled when clean).
+    // Nothing to do (defensive — Save is disabled when clean). An empty pair is
+    // caller input the engine can't act on, not a busy CLI — report it honestly.
     if (!model && !effort) {
-      return { ok: false, reason: "busy" };
+      return { ok: false, reason: "invalid" };
     }
     if (model) {
       // Model first; queue effort as the continuation (if it also changed).
@@ -576,7 +593,7 @@ export class ControlSwitchEngine {
     if (!target) {
       // The renderer only offers reachable ClaudePermissionMode ids; a non-mode
       // value is a caller bug, not a screen state — refuse without touching the pty.
-      return { ok: false, reason: "busy" };
+      return { ok: false, reason: "invalid" };
     }
     const origin = asClaudePermissionMode(from) ?? "default";
     if (target === origin) {
@@ -593,6 +610,7 @@ export class ControlSwitchEngine {
       origin,
       phase: "seeking",
       landed: null,
+      pressedFrom: null,
       seekSteps: 0,
       returnSteps: 0,
       observed: new Set<ClaudePermissionMode>([origin]),
@@ -613,6 +631,11 @@ export class ControlSwitchEngine {
     if (!pending || pending.axis !== "permission" || !this.host.hasPty()) {
       return;
     }
+    // Anchor the landing validation for THIS press: the mode we are on now (the
+    // last confirmed landing, or the origin for the first press). A post-press
+    // frame that still shows this mode is a stale pre-press repaint; a frame
+    // showing a non-successor mode is an unexpected screen (review F3).
+    pending.pressedFrom = pending.landed ?? pending.origin;
     this.controlSwitchScan = "";
     this.host.beginSonataWrite();
     this.host.writePty(SHIFT_TAB);
@@ -622,6 +645,37 @@ export class ControlSwitchEngine {
     }, PERMISSION_STEP_RECEIPT_TIMEOUT_MS);
     timer.unref?.();
     pending.timer = timer;
+  }
+
+  /**
+   * Drive the Shift+Tab stepping engine off a fresh pty frame, validating each
+   * press's landing before accepting it as this step's receipt (review F3). The
+   * mode line is parsed most-recent-wins from the reset-per-step scan; then:
+   *   - no recognized mode yet → wait (the per-step timeout guards).
+   *   - landing === the mode we pressed FROM → a stale pre-press repaint → wait
+   *     (the fix for the double-press: the old engine read this as "landed on the
+   *     same mode" and pressed again).
+   *   - landing is not an expected cycle successor of `pressedFrom` → an
+   *     unexpected screen → fail loud (return-home / needs-attention), never
+   *     read it as the receipt and never blind-continue.
+   *   - otherwise it is the step's real landing → hand to onPermissionReceipt.
+   */
+  private onPermissionData(pending: Extract<PendingControlSwitch, { axis: "permission" }>): void {
+    const landed = parseClaudePermissionModeLine(this.controlSwitchScan);
+    if (!landed) {
+      return; // no recognized mode line yet — wait (per-step timeout guards)
+    }
+    const from = pending.pressedFrom;
+    if (from !== null) {
+      if (landed === from) {
+        return; // stale pre-press repaint of the mode we pressed FROM — keep waiting
+      }
+      if (!expectedPermissionLandings(from).has(landed)) {
+        this.handlePermissionStepFailure(pending); // unexpected landing — fail loud
+        return;
+      }
+    }
+    this.onPermissionReceipt(landed);
   }
 
   /**
@@ -672,17 +726,34 @@ export class ControlSwitchEngine {
 
   /**
    * A step earned no recognized mode line within its window — an unrecognized
-   * outcome (a redraw we don't parse, or an unexpected screen). Per the failure
-   * contract a timeout flips seeking to returning-home; a timeout WHILE returning
-   * keeps trying toward origin, bounded by the return cap. We only ever step with
-   * `\x1b[Z` (RED LINE) — never a blind Enter or other key to "clear" the screen.
+   * outcome (a redraw we don't parse, or an unexpected screen). The failure
+   * contract (shared with an unexpected-landing, review F3) lives in
+   * handlePermissionStepFailure.
    */
   private onPermissionStepTimeout(): void {
     const pending = this.pendingControlSwitch;
     if (!pending || pending.axis !== "permission") {
       return;
     }
-    pending.timer = null;
+    this.handlePermissionStepFailure(pending);
+  }
+
+  /**
+   * A step's outcome was unusable — either no recognized mode line in the window
+   * (timeout) or a landing that is not an expected cycle successor (review F3: an
+   * unexpected screen we must never read as this step's receipt, and never
+   * blind-continue past). Per the failure contract a SEEKING failure flips to
+   * returning-home; a RETURNING failure keeps stepping toward origin, bounded by
+   * the return cap, then needs-attention. We only ever step with `\x1b[Z` (RED
+   * LINE) — never a blind Enter or other key to "clear" the screen.
+   */
+  private handlePermissionStepFailure(
+    pending: Extract<PendingControlSwitch, { axis: "permission" }>,
+  ): void {
+    if (pending.timer) {
+      clearTimeout(pending.timer);
+      pending.timer = null;
+    }
     if (pending.phase === "seeking") {
       this.beginPermissionReturn(pending);
       return;
@@ -738,7 +809,7 @@ export class ControlSwitchEngine {
     if (!target) {
       // The renderer only offers the three CodexPermissionMode ids; a non-mode
       // value is a caller bug, not a screen state — refuse without touching the pty.
-      return { ok: false, reason: "busy" };
+      return { ok: false, reason: "invalid" };
     }
     const origin = asCodexPermissionMode(from);
     if (origin && target === origin) {
@@ -1031,10 +1102,10 @@ export class ControlSwitchEngine {
     if (kind === "codex-effort" && !asCodexReasoningTarget(value)) {
       // The renderer only offers the v1 reasoning ids; a non-target value is a
       // caller bug, not a screen state — refuse without touching the pty.
-      return { ok: false, reason: "busy" };
+      return { ok: false, reason: "invalid" };
     }
     if (kind === "codex-model" && value.trim().length === 0) {
-      return { ok: false, reason: "busy" };
+      return { ok: false, reason: "invalid" };
     }
     if (!this.host.hasPty()) {
       return { ok: false, reason: "no-process" };
@@ -1454,10 +1525,7 @@ export class ControlSwitchEngine {
     }
     this.controlSwitchScan = (this.controlSwitchScan + data).slice(-CONTROL_SWITCH_SCAN_LIMIT);
     if (pending.axis === "permission") {
-      const landed = parseClaudePermissionModeLine(this.controlSwitchScan);
-      if (landed) {
-        this.onPermissionReceipt(landed);
-      }
+      this.onPermissionData(pending);
       return;
     }
     if (pending.axis === "codex-permission") {
@@ -1550,6 +1618,7 @@ export class ControlSwitchEngine {
       rollbackEscs: 0,
       timer: null,
     };
+    this.snapshotParkedFrame();
     this.emitParkedState();
   }
 
@@ -1575,9 +1644,23 @@ export class ControlSwitchEngine {
       rollbackEscs: 0,
       timer: null,
     };
-    // Keep the scan: the consent dialog is static until we press a key, so the
-    // cursor must be read from the retained frame, not a (non-existent) new one.
+    this.snapshotParkedFrame();
     this.emitParkedState();
+  }
+
+  /**
+   * Snapshot the current frame for the relay's first nav cursor read, then RESET
+   * the rolling scan (review F2). The parked dialog is static until a key press,
+   * so the relay needs the parked cursor — but the codex native-cancel detection
+   * is ABSENCE-based (`!consentDialogOpen`), and a retained 4096-char window would
+   * keep the stale consent text alive so a user's native Esc could never register
+   * (the relay would park forever). Snapshotting HERE and clearing the scan lets
+   * post-park frames dominate the native-cancel + receipt detection while
+   * parseParkedCursor falls back to the snapshot for the first read.
+   */
+  private snapshotParkedFrame(): void {
+    this.parkedFrame = this.controlSwitchScan;
+    this.controlSwitchScan = "";
   }
 
   private emitParkedState(): void {
@@ -1619,15 +1702,20 @@ export class ControlSwitchEngine {
     this.driveParkedNav();
   }
 
-  /** The current cursor ROW (1-based) for whichever parked dialog is up, or null. */
+  /** The current cursor ROW (1-based) for whichever parked dialog is up, or null.
+   *  Reads the live post-park scan when it has content (every read after the first
+   *  arrow press), falling back to the frame snapshotted at park time for the
+   *  relay's FIRST nav read — the parked dialog is static, so no fresh frame exists
+   *  yet, and the reset scan is empty (review F2). */
   private parseParkedCursor(): number | null {
     const pending = this.pendingControlSwitch;
     if (!pending || pending.axis !== "parked-confirm") {
       return null;
     }
+    const scan = this.controlSwitchScan || this.parkedFrame;
     return pending.dialog === "codex-consent"
-      ? parseCodexConsentCursor(this.controlSwitchScan)
-      : parseClaudeCacheMissCursor(this.controlSwitchScan);
+      ? parseCodexConsentCursor(scan)
+      : parseClaudeCacheMissCursor(scan);
   }
 
   /** One navigation decision: validate the post-press cursor, then Enter on the
@@ -1970,6 +2058,7 @@ export class ControlSwitchEngine {
     }
     this.pendingControlSwitch = null;
     this.controlSwitchScan = "";
+    this.parkedFrame = "";
   }
 
   private emitControlSwitchState(

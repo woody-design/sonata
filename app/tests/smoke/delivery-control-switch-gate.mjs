@@ -183,6 +183,87 @@ await check("real pending switch: submitPrompt throws and nudgePromptSubmit refu
   }
 });
 
+// --- Part C: the LITERAL red-line surface — a parked codex Full Access consent
+// (S2 review OPTIONAL). Drive a REAL codex-permission switch through the picker to
+// the PARKED consent dialog (`waiting-user`, NO timeout by design — its default
+// row is "Yes, continue anyway"), then prove BOTH the delivery gate and the
+// submitPrompt backstop refuse there: a paste + Enter into it would silently grant
+// unrestricted access.
+
+const PICKER_FOOTER = "Press enter to confirm or esc to go back";
+const pickerFrame = (cursorRow) => {
+  const rows = ["1. Ask for approval (current)", "2. Approve for me", "3. Full Access"];
+  rows[cursorRow - 1] = `› ${rows[cursorRow - 1]}`;
+  return `Update Model Permissions ${rows.join(" ")} ${PICKER_FOOTER}`;
+};
+const CONSENT_FRAME =
+  "Enable full access? › 1. Yes, continue anyway 2. Yes, and don't ask again 3. Cancel";
+
+await check("real parked codex consent blocks delivery AND submitPrompt (the red-line surface)", async () => {
+  const writes = [];
+  const host = new TerminalHost({
+    taskId: "delivery-control-switch-gate-codex",
+    provider: "codex",
+    defaultWorkspace: process.cwd(),
+    eventSink: () => {},
+  });
+  try {
+    host.ptyProcess = fakePty(writes);
+    const response = host.injectClaudeControlSwitch(
+      "codex-permission",
+      "full-access",
+      "ask-for-approval",
+    );
+    assert.equal(response.ok, true, "the codex permission switch started");
+    await delay(160); // let the deferred `/permissions` Enter fire
+
+    // Drive the picker → Full Access → the consent dialog through the real pty path.
+    host.handlePtyData(pickerFrame(1));
+    host.handlePtyData(pickerFrame(2));
+    host.handlePtyData(pickerFrame(3));
+    host.handlePtyData(CONSENT_FRAME);
+    assert.equal(host.hasPendingControlSwitch(), true, "the switch is PARKED on the consent");
+
+    // The delivery gate: a queued item must NOT paste into the parked consent. Use
+    // a proxy that forces readiness so the ONLY possible blocker is the parked
+    // switch (isolating the gate under test from the boot latch).
+    const submits = [];
+    const proxy = {
+      hasActiveRun: () => false,
+      isApprovalActive: () => false,
+      hasPendingControlSwitch: () => host.hasPendingControlSwitch(),
+      acceptsPromptInput: () => true,
+      submitPrompt: (text, opts) => {
+        submits.push({ text, opts });
+        return {
+          taskId: "t",
+          runId: `r${submits.length}`,
+          kind: "prompt",
+          submittedAt: new Date(1700000000000).toISOString(),
+        };
+      },
+    };
+    const dc = makeController(proxy);
+    try {
+      dc.enqueue("this must not answer the parked Full Access consent");
+      await delay(80); // several retry intervals
+      assert.equal(submits.length, 0, "delivery stays blocked while the consent is parked");
+    } finally {
+      dc.dispose();
+    }
+
+    // The submitPrompt + nudge backstops refuse at the parked surface too.
+    assert.throws(
+      () => host.submitPrompt("must not submit over the parked consent"),
+      /control switch is pending/,
+      "submitPrompt refuses at the parked consent",
+    );
+    assert.equal(host.nudgePromptSubmit(), false, "the Enter-retry nudge refuses at the parked consent");
+  } finally {
+    host.dispose();
+  }
+});
+
 if (failures.length > 0) {
   process.exitCode = 1;
 }

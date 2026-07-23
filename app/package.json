@@ -186,6 +186,8 @@
     "smoke:packaged-app": "node tests/smoke/packaged-app-assert.mjs",
     "smoke:packaged-settings": "node tests/smoke/packaged-settings-paths.mjs",
     "smoke:delivery-control-switch-gate": "npm run build:main && node tests/smoke/delivery-control-switch-gate.mjs",
+    "smoke:control-switch-engine": "npm run build:main && node tests/smoke/control-switch-engine.mjs",
+    "smoke:codex-boot-update-prompt": "npm run build:main && node tests/smoke/codex-boot-update-prompt.mjs",
     "smoke:stop-interrupt-hygiene": "npm run build:main && node tests/smoke/stop-interrupt-hygiene.mjs",
     "smoke:tags-set-session-validate": "npm run build:main && node tests/smoke/tags-set-session-validate.mjs"
   },

@@ -396,12 +396,15 @@ export interface ClaudeControlSwitchRequest {
  *  cycle — AND a `codex-permission` kind on a claude session); `not-idle` = a
  *  turn is live (switching
  *  is idle-only, no queueing); `busy` = a Sonata write (or a prior switch) is
- *  still in flight; `panel-open` = an approval screen would swallow the input. */
+ *  still in flight; `panel-open` = an approval screen would swallow the input;
+ *  `invalid` = the caller passed a value the engine can't act on (a non-mode /
+ *  non-target id, or an empty staged pair) — a caller bug, not a CLI state (kept
+ *  distinct from `busy` so the notice names the real cause). */
 export type ClaudeControlSwitchResponse =
   | { ok: true }
   | {
       ok: false;
-      reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider";
+      reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider" | "invalid";
     };
 
 /** A STAGED claude model+effort Save (S7 Part 1). `model` / `effort` carry ONLY

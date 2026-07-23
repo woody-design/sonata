@@ -403,3 +403,33 @@ export function codexPickerNavStep<T extends string>(
   }
   return { down, expected };
 }
+
+// ── Codex boot "Update available!" gate (consolidation S4) ───────────────────
+//
+// When a newer codex release exists, the CLI renders a full-screen gate at boot
+// and BLOCKS composer readiness until the user resolves it in the terminal:
+//   Update available! … 1. Update now (runs `brew upgrade --cask codex`) …
+//   Press enter to continue    …    https://github.com/openai/codex/releases/latest
+// Sonata surfaces this as a passive needs-attention banner on a boot readiness
+// timeout — it must NEVER auto-answer it (running brew / pressing keys blind is
+// the user's call). The product-side detector for that boot-latch path; the
+// smoke suite keeps its own copy for the environmental-SKIP signal.
+const CODEX_UPDATE_PROMPT_STRONG_RE = /Update available!|(?<!\w)Update now(?!\w)/i;
+const CODEX_UPDATE_RELEASES_RE = /releases\/latest/i;
+const CODEX_UPDATE_WORD_RE = /(?<!\w)update(?!\w)/i;
+
+/** True iff `terminalText` (a CLEANED PTY tail — ANSI/control already stripped)
+ *  shows codex's boot update gate. Anchored on the gate's own strings so an
+ *  unrelated readiness failure that merely mentions "update" cannot masquerade as
+ *  it: `Update available!` / `Update now` stand alone (specific to the gate); the
+ *  weaker `releases/latest` URL fragment (which can appear in release-note prose)
+ *  only counts when it CO-OCCURS with an update cue (S3 review rider). */
+export function isCodexUpdatePrompt(terminalText: string): boolean {
+  if (!terminalText) {
+    return false;
+  }
+  if (CODEX_UPDATE_PROMPT_STRONG_RE.test(terminalText)) {
+    return true;
+  }
+  return CODEX_UPDATE_RELEASES_RE.test(terminalText) && CODEX_UPDATE_WORD_RE.test(terminalText);
+}

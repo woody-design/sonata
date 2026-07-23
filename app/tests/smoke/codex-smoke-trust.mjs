@@ -64,16 +64,19 @@ export const CODEX_UPDATE_PROMPT_SKIP_REASON =
 
 /** True iff `terminalText` (a cleaned PTY tail) shows codex's boot update gate.
  *  Anchored on the gate's own strings so an unrelated readiness failure that
- *  merely mentions "update" cannot masquerade as this environmental skip. */
+ *  merely mentions "update" cannot masquerade as this environmental skip. The
+ *  strong anchors (`Update available!` / `Update now`) stand alone; the weaker
+ *  `releases/latest` URL fragment (which can appear in release-note prose) only
+ *  counts when it CO-OCCURS with an update cue (S3 review rider — mirrors the
+ *  product-side isCodexUpdatePrompt in tui-parsers-codex). */
 export function isCodexUpdatePrompt(terminalText) {
   if (!terminalText) {
     return false;
   }
-  return (
-    /Update available!/i.test(terminalText) ||
-    /\bUpdate now\b/.test(terminalText) ||
-    /releases\/latest/i.test(terminalText)
-  );
+  if (/Update available!/i.test(terminalText) || /\bUpdate now\b/.test(terminalText)) {
+    return true;
+  }
+  return /releases\/latest/i.test(terminalText) && /\bupdate\b/i.test(terminalText);
 }
 
 /** Thrown to request an environmental SKIP from inside a smoke's try-block so
