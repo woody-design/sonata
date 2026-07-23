@@ -25,12 +25,8 @@ import {
   type ResumePolicyId,
   type ResumeSettings,
   type SonataSettings,
-  type TagDefinition,
-  type TagGroup,
 } from "../shared/types";
-import { withTaskTags } from "../shared/session-tags";
 import type {
-  ClaudeControlSwitchKind,
   RuntimeProvider,
   SlashCommandEntry,
   SlashCommandsResponse,
@@ -106,6 +102,19 @@ import {
   surfaceTerminalWindow,
   unarchiveSessionFromSidebar,
 } from "./flows/session-flows";
+import {
+  createTagDefinition,
+  deleteTagDefinition,
+  initTagFlows,
+  persistSessionTags,
+  refreshTagDefinitions,
+} from "./flows/tags";
+import {
+  applyClaudeControlSwitch,
+  applyControlConfirmAnswer,
+  applyStagedModelSwitch,
+  initControlSwitchFlows,
+} from "./flows/control-switch";
 import {
   commitActiveRename,
   completeRenameComposition,
@@ -296,6 +305,14 @@ initSessionFlows(state, {
   consumeSlashSubmitGuard: (text) => consumeSlashSubmitGuard(text),
 });
 initAttachmentFlows(state);
+initTagFlows(state, {
+  renderSidebar: () => renderSidebar(),
+  renderSidebarMenu: () => renderSidebarMenu(),
+  saveSidebarPrefs: () => saveSidebarPrefs(),
+});
+initControlSwitchFlows(state, {
+  currentSessionModelPair: (view, provider) => currentSessionModelPair(view, provider),
+});
 initScheduler(state, {
   renderTranscriptStream: () => renderTranscriptStream(),
   refreshSessionIndex: () => refreshSessionIndex(),
@@ -448,14 +465,12 @@ initActions({
   // open menu's staged pair and re-renders (Save enables when it differs from
   // current). Cancel / Esc / outside-click discard by closing the menu.
   stageSessionModel: (value) => {
-    if (state.composerMenu?.staged) {
-      state.composerMenu.staged.model = value;
+    if (popoverTransitions.stageSessionModel(state, value)) {
       render();
     }
   },
   stageSessionEffort: (value) => {
-    if (state.composerMenu?.staged) {
-      state.composerMenu.staged.effort = value;
+    if (popoverTransitions.stageSessionEffort(state, value)) {
       render();
     }
   },
@@ -1197,119 +1212,6 @@ async function hydrateReadingSettings(): Promise<void> {
   }
 }
 
-async function refreshTagDefinitions(): Promise<void> {
-  const definitions = await window.sonataRuntime.listTags();
-  const definitionsChanged = !tagDefinitionsEqual(state.tagDefinitions, definitions);
-  if (definitionsChanged) {
-    state.tagDefinitions = definitions;
-  }
-  const tagsChanged = normalizePersistedSidebarTags(definitions);
-  if (tagsChanged || (definitionsChanged && state.sidebar.prefs.tags.length > 0)) {
-    renderSidebar();
-    return;
-  }
-  if (
-    definitionsChanged &&
-    (state.sidebar.menu?.kind === "filter" ||
-      (state.sidebar.menu?.kind === "session" && state.sidebar.menu.tagsOpen))
-  ) {
-    renderSidebarMenu();
-  }
-}
-
-function normalizePersistedSidebarTags(definitions: readonly TagDefinition[]): boolean {
-  const normalized = normalizeSidebarTagIds(state.sidebar.prefs.tags, definitions);
-  if (!sidebarTransitions.patchSidebarPrefs(state, { tags: normalized })) {
-    return false;
-  }
-  saveSidebarPrefs();
-  return true;
-}
-
-function tagDefinitionsEqual(
-  left: readonly TagDefinition[],
-  right: readonly TagDefinition[],
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((definition, index) => {
-      const candidate = right[index];
-      return (
-        candidate !== undefined &&
-        definition.id === candidate.id &&
-        definition.label === candidate.label &&
-        definition.group === candidate.group &&
-        definition.color === candidate.color &&
-        definition.builtin === candidate.builtin &&
-        definition.createdAt === candidate.createdAt
-      );
-    })
-  );
-}
-
-async function createTagDefinition(label: string, group: TagGroup): Promise<TagDefinition> {
-  const definition = await window.sonataRuntime.createTag({ label, group });
-  state.tagDefinitions = [...state.tagDefinitions, definition];
-  return definition;
-}
-
-async function deleteTagDefinition(id: string): Promise<void> {
-  await window.sonataRuntime.deleteTag({ id });
-  state.tagDefinitions = state.tagDefinitions.filter((definition) => definition.id !== id);
-  removeLocalTaskTag(id);
-  if (normalizePersistedSidebarTags(state.tagDefinitions)) {
-    renderSidebar();
-  }
-}
-
-async function persistSessionTags(taskId: string, tagIds: readonly string[]): Promise<void> {
-  updateLocalTaskTags(taskId, tagIds);
-  try {
-    await window.sonataRuntime.setSessionTags({ taskId, tagIds: [...tagIds] });
-  } catch (error) {
-    await refreshSessionIndex();
-    throw error;
-  }
-}
-
-function updateLocalTaskTags(taskId: string, tagIds: readonly string[]): void {
-  for (const view of state.taskViews) {
-    if (view.task?.id === taskId) {
-      view.task = withTaskTags(view.task, tagIds);
-    }
-  }
-  if (!state.sessionIndex) {
-    return;
-  }
-  for (const session of [
-    ...state.sessionIndex.chats,
-    ...state.sessionIndex.projects.flatMap((project) => project.sessions),
-  ]) {
-    if (session.task.id === taskId) {
-      session.task = withTaskTags(session.task, tagIds);
-    }
-  }
-}
-
-function removeLocalTaskTag(id: string): void {
-  for (const view of state.taskViews) {
-    if (view.task?.tags?.includes(id)) {
-      updateLocalTaskTags(view.task.id, view.task.tags.filter((tagId) => tagId !== id));
-    }
-  }
-  if (!state.sessionIndex) {
-    return;
-  }
-  for (const session of [
-    ...state.sessionIndex.chats,
-    ...state.sessionIndex.projects.flatMap((project) => project.sessions),
-  ]) {
-    if (session.task.tags?.includes(id)) {
-      updateLocalTaskTags(session.task.id, session.task.tags.filter((tagId) => tagId !== id));
-    }
-  }
-}
-
 /** Seed the global "Auto-enable Remote Control" default (and the New Chat draft
  *  it arms) from Claude settings on boot — awaited before the session index makes
  *  dormant sessions clickable, so a dormant view never arms from a stale default. */
@@ -1418,142 +1320,6 @@ function toggleRemoteControlPopover(anchor: HTMLElement): void {
 function closeRemoteControlPopover(): void {
   popoverTransitions.closeRemoteControlPopover(state);
   renderRemoteControlPopover();
-}
-
-/** Drive a mid-session Claude control switch (S1 model/effort, S2 permission).
- *  Close the menu at once; the pending state and the receipt(s) (settled /
- *  failed / needs-attention) drive the chip through the control-switch:state
- *  event. `from` is the permission origin (the return-home anchor), ignored for
- *  model/effort. A refusal (a rare idle-gate race — the chip is disabled
- *  off-idle) surfaces as a one-line composer notice. */
-async function applyClaudeControlSwitch(
-  view: TaskViewState,
-  kind: ClaudeControlSwitchKind,
-  value: string,
-  from?: string,
-): Promise<void> {
-  const task = view.task;
-  if (!task) {
-    return;
-  }
-  state.composerMenu = null;
-  render();
-  try {
-    const result = await window.sonataRuntime.switchClaudeControl({
-      taskId: task.id,
-      kind,
-      value,
-      ...(from ? { from } : {}),
-    });
-    if (!result.ok) {
-      view.status = controlSwitchRefusalCopy(kind, result.reason);
-      render();
-    }
-  } catch (error) {
-    view.status = errorMessage(error);
-    render();
-  }
-}
-
-/** Apply a STAGED model+effort Save (S7 Part 1). Compares the staged pair to the
- *  session's current and dispatches the changed axes as ONE logical switch:
- *   - claude → `switchClaudeStaged` (sequential `/model`+`/effort`, the cache-miss
- *     confirm relayed via the drawer between them);
- *   - codex → the existing `codex-model` two-level picker with the pair (value =
- *     staged model, from = staged effort as the level-2 target — one picker run).
- *  Save is disabled when clean, so this normally has a real change; a defensive
- *  no-change still closes the menu. The receipt(s) drive the chip via
- *  control-switch:state. */
-async function applyStagedModelSwitch(view: TaskViewState): Promise<void> {
-  const task = view.task;
-  const staged = state.composerMenu?.staged;
-  if (!task || !staged) {
-    return;
-  }
-  const provider = task.provider;
-  const current = currentSessionModelPair(view, provider);
-  const modelChanged = staged.model !== current.model;
-  const effortChanged = staged.effort !== current.effort;
-  state.composerMenu = null;
-  render();
-  if (!modelChanged && !effortChanged) {
-    return; // nothing to apply (defensive — Save is disabled when clean)
-  }
-  try {
-    const result =
-      provider === "codex"
-        ? await window.sonataRuntime.switchClaudeControl({
-            taskId: task.id,
-            kind: "codex-model",
-            // value = the staged model (or current, if only effort changed) — the
-            // level-1 target; from = the staged effort — the level-2 target.
-            value: staged.model ?? current.model ?? "",
-            ...(staged.effort ? { from: staged.effort } : {}),
-          })
-        : await window.sonataRuntime.switchClaudeStaged({
-            taskId: task.id,
-            model: modelChanged ? staged.model : null,
-            effort: effortChanged ? staged.effort : null,
-          });
-    if (!result.ok) {
-      view.status = controlSwitchRefusalCopy(
-        provider === "codex" ? "codex-model" : "model",
-        result.reason,
-      );
-      render();
-    }
-  } catch (error) {
-    view.status = errorMessage(error);
-    render();
-  }
-}
-
-/** Relay the user's chosen row for a PARKED recognized-confirm dialog (S7 Part 2).
- *  The choreography navigates the dialog's cursor there + Enters it; the settle
- *  (or needs-attention) arrives on control-switch:state, which clears the drawer.
- *  Fire-and-forget; a double-answer is ignored backend-side (phase left waiting). */
-async function applyControlConfirmAnswer(rowNumber: number): Promise<void> {
-  const view = activeTaskView();
-  const task = view?.task;
-  if (!task) {
-    return;
-  }
-  try {
-    await window.sonataRuntime.answerControlConfirm({ taskId: task.id, rowNumber });
-  } catch (error) {
-    if (view) {
-      view.status = errorMessage(error);
-      render();
-    }
-  }
-}
-
-/** One-line reason a switch couldn't be kicked off (idle-gate races + PTY loss).
- *  User-facing, no CLI internals — the composer-notice register. */
-function controlSwitchRefusalCopy(
-  kind: ClaudeControlSwitchKind,
-  reason: "no-process" | "panel-open" | "busy" | "not-idle" | "wrong-provider" | "invalid",
-): string {
-  const axis =
-    kind === "model" || kind === "codex-model"
-      ? "model"
-      : kind === "effort" || kind === "codex-effort"
-        ? "reasoning"
-        : "access";
-  switch (reason) {
-    case "not-idle":
-      return `Finish the current turn before switching ${axis}.`;
-    case "busy":
-      return "Claude is mid-action — try again in a moment.";
-    case "invalid":
-      return `That ${axis} isn't available to switch to.`;
-    case "panel-open":
-      return "Claude is waiting on something in the CLI — answer that first.";
-    case "no-process":
-      return `This session isn't running — reopen it to switch ${axis}.`;
-    default:
-      return `Couldn't switch ${axis}.`;
-  }
 }
 
 /** Turn RC on. The main process injects `/rc` and emits remote-control:state

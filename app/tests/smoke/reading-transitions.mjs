@@ -82,6 +82,27 @@ function task(id, title = `Task ${id}`) {
   assert.equal(popovers.closeUsagePopover(state), false, "…and the no-op");
 }
 
+// 2b) Staged model+effort (S7 Part 1) — the row-click stage mutations report
+// whether an open staged menu was present so the shell renders only on change.
+{
+  const state = freshState();
+  assert.equal(
+    popovers.stageSessionModel(state, "opus"),
+    false,
+    "no staged menu open → no-op (nothing to render)",
+  );
+  state.composerMenu = {
+    type: "session-model",
+    anchor: ANCHOR,
+    staged: { model: null, effort: null },
+  };
+  assert.equal(popovers.stageSessionModel(state, "opus"), true, "stages the model");
+  assert.equal(state.composerMenu.staged.model, "opus");
+  assert.equal(popovers.stageSessionEffort(state, "high"), true, "stages the effort");
+  assert.equal(state.composerMenu.staged.effort, "high");
+  assert.equal(state.composerMenu.staged.model, "opus", "effort stage leaves the model");
+}
+
 // 3) Settings overlay — open is a no-op when already open (in-flight reads
 // survive); close drops the whole overlay state.
 {

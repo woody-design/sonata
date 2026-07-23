@@ -72,6 +72,27 @@ export function toggleComposerMenu(
   state.taskDraft.menu = null;
 }
 
+/** Stage a model pick in the open session-model menu (S7 Part 1). Returns
+ *  whether a staged pair was present to update — the shell renders on true.
+ *  Row clicks only STAGE (no CLI); Save applies the changed axes as one switch. */
+export function stageSessionModel(state: RendererState, value: string | null): boolean {
+  if (!state.composerMenu?.staged) {
+    return false;
+  }
+  state.composerMenu.staged.model = value;
+  return true;
+}
+
+/** Stage an effort pick in the open session-model menu (S7 Part 1). Returns
+ *  whether a staged pair was present to update — the shell renders on true. */
+export function stageSessionEffort(state: RendererState, value: string | null): boolean {
+  if (!state.composerMenu?.staged) {
+    return false;
+  }
+  state.composerMenu.staged.effort = value;
+  return true;
+}
+
 export function openUsagePopover(state: RendererState, pinned: boolean): void {
   const previousPinned = state.usagePopover?.pinned ?? false;
   state.composerMenu = null;
