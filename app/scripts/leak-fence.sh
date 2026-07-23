@@ -84,12 +84,16 @@ warn() { echo "  ! leak-fence: $1" >&2; }
 
 # mktemp wrapper — portable template form (GNU mktemp rejects BSD `-t NAME`, and
 # a silent mktemp failure would chain into scanning ZERO objects). Fail LOUD and
-# fail CLOSED: if we cannot create scratch state, we cannot scan, so we block.
+# fail CLOSED: on failure it emits the block message and RETURNS non-zero. It is
+# always called as `x="$(make_temp)" || exit 1` — because it runs inside command
+# substitution, an `exit` here would only kill that subshell and leave the parent
+# scanning an empty path (an ambiguous redirect that silently skips the scan), so
+# the CALLER must propagate the failure into a real block.
 make_temp() {
   local t
   t="$(mktemp "${TMPDIR:-/tmp}/sonata-leak-fence.XXXXXX")" || {
     emit_block "could not create a temp file (mktemp failed) — cannot scan safely"
-    exit 1
+    return 1
   }
   printf '%s' "$t"
 }
@@ -164,11 +168,12 @@ for range in "${ranges[@]}"; do
   # rev-list --objects prints "<sha> <path>" for blobs/subtrees, "<sha> <tagname>"
   # for annotated tag objects, and a bare "<sha>" for commits/root-trees; we keep
   # only path-bearing, non-infra entries and branch on the object TYPE below.
-  # ANNOTATED TAGS: their message AND tagger identity live in a `tag` object, not
-  # in any commit — `git log` peels tags, so the commit-message scan below never
-  # sees them. rev-list --objects DOES list the tag object (with the tag name as
-  # its "path"), so scanning `git cat-file tag` here closes that escape hatch.
-  pairs="$(make_temp)"
+  # ANNOTATED TAGS: their message lives in a `tag` object, not in any commit —
+  # `git log` peels tags, so the commit-message scan below never sees it.
+  # rev-list --objects DOES list the tag object (with the tag name as its
+  # "path"), so scanning the tag MESSAGE here closes that escape hatch (the
+  # tagger identity line is left unscanned — see the `tag)` case).
+  pairs="$(make_temp)" || exit 1
   # shellcheck disable=SC2086
   git rev-list --objects $range 2>/dev/null \
     | awk 'NF>=2 { sha=$1; path=substr($0, index($0,$2)); print sha"\t"path }' \
@@ -201,13 +206,28 @@ for range in "${ranges[@]}"; do
         fi
         ;;
       tag)
-        # Scan the whole tag object (tagger line + message) with the same ERE.
-        git cat-file tag "$sha" 2>/dev/null | grep -aqE -e "$SCAN_ERE"
-        st=("${PIPESTATUS[@]}"); grc=${st[1]}; cfrc=${st[0]}
-        if [ "$grc" -eq 0 ]; then
-          hit_paths="${hit_paths}${path} (annotated tag ${sha})"$'\n'
-        elif [ "$grc" -ne 1 ] || [ "$cfrc" -ne 0 ]; then
-          scan_errors="${scan_errors}${path} (tag ${sha}: cat-file=${cfrc} grep=${grc})"$'\n'
+        # Scan the tag MESSAGE only (everything after the first blank line),
+        # mirroring the commit treatment below: message scanned, identity NOT.
+        # The `tagger` line carries git's configured user.email, which O2
+        # sanctions as public (woodystudio.io@gmail.com already authors every
+        # commit on the remote, and the fence deliberately does not scan
+        # commit author/committer identity) — scanning it would false-block the
+        # D14 `git tag -a` release workflow on its own tagger line. Capture the
+        # object, then grep a here-string: no pipe, so no PIPESTATUS subtlety.
+        # The tag NAME line is left unscanned, consistent with branch names.
+        tag_obj="$(git cat-file tag "$sha" 2>/dev/null)"
+        tcrc=$?
+        if [ "$tcrc" -ne 0 ]; then
+          scan_errors="${scan_errors}${path} (tag ${sha}: unreadable, cat-file=${tcrc})"$'\n'
+        else
+          tag_msg="$(sed '1,/^$/d' <<<"$tag_obj")"
+          grep -aqE -e "$SCAN_ERE" <<<"$tag_msg"
+          grc=$?
+          if [ "$grc" -eq 0 ]; then
+            hit_paths="${hit_paths}${path} (annotated tag ${sha} message)"$'\n'
+          elif [ "$grc" -ne 1 ]; then
+            scan_errors="${scan_errors}${path} (tag ${sha}: grep=${grc})"$'\n'
+          fi
         fi
         ;;
       "")
@@ -247,7 +267,7 @@ for range in "${ranges[@]}"; do
   if command -v gitleaks >/dev/null 2>&1; then
     cfg_arg=()
     [ -f "$GITLEAKS_CFG" ] && cfg_arg=(--config "$GITLEAKS_CFG")
-    tmp="$(make_temp)"
+    tmp="$(make_temp)" || exit 1
     # `"${cfg_arg[@]+"${cfg_arg[@]}"}"` — expand safely even when the array is
     # empty: bash 3.2 (the macOS system bash this hook runs under) treats a bare
     # `"${cfg_arg[@]}"` on an EMPTY array as an unbound-variable error under
