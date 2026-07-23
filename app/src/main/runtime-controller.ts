@@ -1409,12 +1409,16 @@ export class RuntimeController {
 
   async stopRun(taskId: TaskId, options: { inspectDelayMs?: number; forceSlashStop?: boolean }): Promise<void> {
     const active = this.requireTaskRuntime(taskId);
-    const { canceledPendingPromptWrite } = await active.terminalHost.stopRun(options);
+    const { canceledPendingPromptWrite, promptReachedComposer } =
+      await active.terminalHost.stopRun(options);
     // Stop reaches the delivery layer too: disarm the Enter-retry ladder and,
     // when the stop aborted this send's undelivered bytes, report the item
-    // honestly instead of letting it ride the 45s receipt timeout.
+    // honestly instead of letting it ride the 45s receipt timeout —
+    // distinguishing "nothing reached the CLI" from "text/paths pasted, Enter
+    // not sent".
     active.deliveryController.handleStopRequested({
       promptWriteCanceled: canceledPendingPromptWrite,
+      promptReachedComposer,
     });
   }
 

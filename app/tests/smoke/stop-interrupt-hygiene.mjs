@@ -347,6 +347,55 @@ await check("handleStopRequested reports a write-canceled in-flight item undeliv
   }
 });
 
+await check("handleStopRequested is honest about how far the aborted sequence got", async () => {
+  const makeStopController = () =>
+    new DeliveryController({
+      taskId: "stop-honesty-smoke",
+      provider: "claude",
+      terminalHost: {
+        hasActiveRun: () => false,
+        isApprovalActive: () => false,
+        hasPendingControlSwitch: () => false,
+        acceptsPromptInput: () => true,
+        isHumanActivelyTyping: () => false,
+        nudgePromptSubmit: () => true,
+        submitPrompt: () => ({
+          taskId: "t",
+          runId: "r1",
+          kind: "prompt",
+          submittedAt: new Date().toISOString(),
+        }),
+      },
+      eventSink: () => {},
+      hasLiveTranscriptSource: () => true,
+      bootDeliveryGraceMs: 0,
+      enterRetryDelaysMs: [],
+    });
+
+  // Bytes already in the composer (an attachment paste landed, Enter pending):
+  const reached = makeStopController();
+  const reachedItem = reached.enqueue("attachment paste got in");
+  reached.handleStopRequested({ promptWriteCanceled: true, promptReachedComposer: true });
+  const reachedReason =
+    reached.state().queue.find((entry) => entry.id === reachedItem.id)?.failureReason ?? "";
+  assert.match(reachedReason, /composer/, "reports the prompt reached the composer");
+  assert.doesNotMatch(
+    reachedReason,
+    /before it reached the CLI/,
+    "does NOT claim nothing reached the CLI when the paste already landed",
+  );
+  reached.dispose();
+
+  // Nothing left the automation yet (both writes were still pending):
+  const untouched = makeStopController();
+  const untouchedItem = untouched.enqueue("nothing pasted yet");
+  untouched.handleStopRequested({ promptWriteCanceled: true, promptReachedComposer: false });
+  const untouchedReason =
+    untouched.state().queue.find((entry) => entry.id === untouchedItem.id)?.failureReason ?? "";
+  assert.match(untouchedReason, /before it reached the CLI/, "reports nothing reached the CLI");
+  untouched.dispose();
+});
+
 await check("a UPS-corroborated in-flight item survives handleStopRequested intact", async () => {
   const states = [];
   const host = {

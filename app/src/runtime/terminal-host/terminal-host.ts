@@ -565,6 +565,14 @@ export class TerminalHost extends EventEmitter {
     owner: "prompt" | "control";
     cancel: () => void;
   }>();
+  // Whether the CURRENT prompt submission's text/paths have actually been
+  // written into the composer (they are visible, awaiting the submit Enter).
+  // Reset when a prompt submission begins, set the moment its bytes land. stopRun
+  // reads it so a mid-sequence cancel can report honestly whether the prompt
+  // reached the CLI (paths/text pasted) or never left — an attachment send's
+  // Enter can lag ~1.65s behind its paste, so "canceled before it reached the
+  // CLI" was a lie for the whole in-between.
+  private promptTextReachedComposer = false;
   // The CLI's input line may hold text Sonata did not put there on purpose —
   // Esc-interrupt restores the interrupted prompt into the composer (probe
   // C1/X1). While set, the next injection prefixes a kill-line flood; the
@@ -1155,6 +1163,11 @@ export class TerminalHost extends EventEmitter {
             `${BRACKETED_PASTE_START}${shellQuotePath(attachment.path)}${BRACKETED_PASTE_END}`,
           );
         }
+        if (owner === "prompt") {
+          // The paths are in the composer now — a stop from here on can no longer
+          // honestly claim nothing reached the CLI.
+          this.promptTextReachedComposer = true;
+        }
         const pastedAt = Date.now();
         schedule(ATTACHMENT_SUBMIT_SETTLE_MS, () => {
           if (!this.ptyProcess) {
@@ -1431,6 +1444,8 @@ export class TerminalHost extends EventEmitter {
       options.createRun === false ? "control" : "prompt";
     if (submissionOwner === "prompt") {
       this.stopEscRetry = null;
+      // A fresh prompt sequence: nothing of ITS bytes is in the composer yet.
+      this.promptTextReachedComposer = false;
     }
     // Hold the write-lock across the whole sync+deferred sequence so a human
     // keystroke landing mid-paste buffers (and flushes after) rather than
@@ -1466,6 +1481,9 @@ export class TerminalHost extends EventEmitter {
         () => {
           if (this.ptyProcess && trimmed) {
             this.ptyProcess.write(`${BRACKETED_PASTE_START}${trimmed}${BRACKETED_PASTE_END}`);
+            if (submissionOwner === "prompt") {
+              this.promptTextReachedComposer = true;
+            }
           }
         },
         submissionOwner,
@@ -1838,7 +1856,7 @@ export class TerminalHost extends EventEmitter {
 
   async stopRun(
     options: { inspectDelayMs?: number; forceSlashStop?: boolean } = {},
-  ): Promise<{ canceledPendingPromptWrite: boolean }> {
+  ): Promise<{ canceledPendingPromptWrite: boolean; promptReachedComposer: boolean }> {
     const stoppedRunId = this.activeRun ? this.activeRun.id : null;
     const stoppedCommandApprovalRun = this.activeRun?.approvalKind === "command";
     // Abort our own undelivered bytes FIRST: submitPrompt defers its text and
@@ -1848,6 +1866,9 @@ export class TerminalHost extends EventEmitter {
     // `canceledPendingPromptWrite` to the DeliveryController so the aborted
     // item is reported honestly instead of waiting out the receipt timeout.
     const canceledPendingPromptWrite = this.cancelPendingDeferredWrites() > 0;
+    // Capture BEFORE any control write (the deferred /stop) can touch it: whether
+    // the aborted prompt had already pasted its text/paths into the composer.
+    const promptReachedComposer = this.promptTextReachedComposer;
     this.writeRaw(ESC);
     // Esc-interrupt restores the interrupted prompt into the CLI's own input
     // box when the turn had produced nothing yet (probe C1/X1, claude
@@ -1891,7 +1912,7 @@ export class TerminalHost extends EventEmitter {
       });
     }, inspectDelayMs);
     this.slashStopTimer.unref?.();
-    return { canceledPendingPromptWrite };
+    return { canceledPendingPromptWrite, promptReachedComposer };
   }
 
   /** Arm (or re-arm) the post-stop belt clear of the CLI input line. */

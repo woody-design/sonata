@@ -210,7 +210,11 @@ export class DeliveryController {
     if (!fullText && imageAttachments.length === 0) {
       throw new Error("Cannot queue an empty prompt without attachments.");
     }
-    this.attachmentNotice = null;
+    // The partial-delivery notice is NOT cleared here. The user's natural
+    // reaction to "3 of 6 images attached" is to enqueue the rest — clearing at
+    // enqueue destroyed the only evidence of what went wrong before the recovery
+    // send even ran. The notice stays sticky until an attachment send lands
+    // FULLY (completeDelivery), which is the actual recovery signal.
 
     const item: DeliveryQueueItem = {
       id: `delivery-${Date.now()}-${++this.seq}`,
@@ -503,14 +507,24 @@ export class DeliveryController {
         attachments: item.attachments.map((attachment) => ({ path: attachment.path })),
       });
     } catch (error) {
-      item.status = isDeliveryGuardError(error) ? "queued" : "undelivered";
+      const guard = isDeliveryGuardError(error);
+      item.status = guard ? "queued" : "undelivered";
       item.deliveringAt = null;
-      item.failureReason = isDeliveryGuardError(error)
+      item.failureReason = guard
         ? null
         : error instanceof Error
           ? error.message
           : String(error);
       this.inFlight = null;
+      if (guard) {
+        // Re-queued into a transient screen owner (an approval/control switch
+        // appeared in the TOCTOU gap after canDeliver passed). Arm the 500ms
+        // poll exactly like the blocked path in pump(): do NOT trust an
+        // event-driven wakeup — a switch/interstitial can clear with no
+        // pump-triggering event, which would wedge this item until an unrelated
+        // event happened to fire.
+        this.schedulePumpRetry();
+      }
       this.emitState();
       return;
     }
@@ -725,7 +739,7 @@ export class DeliveryController {
    *    CLI: report the in-flight item `undelivered` NOW instead of letting it
    *    wait out the 45s receipt timeout as a false pending send.
    */
-  handleStopRequested(info: { promptWriteCanceled: boolean }): void {
+  handleStopRequested(info: { promptWriteCanceled: boolean; promptReachedComposer?: boolean }): void {
     this.deliverySeq += 1;
     this.clearEnterRetries();
     if (!info.promptWriteCanceled || !this.inFlight) {
@@ -744,7 +758,13 @@ export class DeliveryController {
     if (item && item.status === "delivering") {
       item.status = "undelivered";
       item.deliveringAt = null;
-      item.failureReason = "Send canceled by Stop before it reached the CLI.";
+      // Honest about how far the aborted sequence got. An attachment send's
+      // Enter can lag ~1.65s behind its paste, so when the text/paths already
+      // reached the composer (Enter not yet sent) the old blanket "before it
+      // reached the CLI" was a lie.
+      item.failureReason = info.promptReachedComposer
+        ? "Send canceled by Stop after the prompt reached the CLI composer, but before it was submitted."
+        : "Send canceled by Stop before it reached the CLI.";
     }
     this.emitState();
     // Anything queued behind the canceled item must not stall until the next
@@ -771,6 +791,13 @@ export class DeliveryController {
     item.status = result.status ?? "delivered";
     item.receipt = receipt;
     item.failureReason = result.notice ?? null;
+    // Clear the sticky partial-delivery notice only when an attachment-bearing
+    // send lands FULLY — the recovery actually succeeded. A partial completion
+    // (delivered-partial) keeps its own just-set notice; an attachment-less send
+    // never touches it (so the evidence survives a text-only follow-up).
+    if (item.attachments.length > 0 && item.status !== "delivered-partial") {
+      this.attachmentNotice = null;
+    }
     this.emitReceipt(item.id, item, receipt);
 
     const index = this.items.findIndex((candidate) => candidate.id === item.id);
@@ -972,8 +999,12 @@ function matchesReceipt(
   item: { text: string; attachments: DeliveryAttachment[] },
   block: Extract<TranscriptBlock, { kind: "user-message" }>,
 ): boolean {
-  const match = receiptMatch(item, block);
-  return Boolean(match && match.receivedImages >= match.expectedImages);
+  // Only backfillPtyReceipt calls this, and PTY-echo backfills exist ONLY for
+  // attachment-LESS items (allowPtyEchoReceipt gates on
+  // item.attachments.length === 0). So expectedImages is always 0 and the old
+  // `receivedImages >= expectedImages` check was permanently 0 >= 0 — vestigial.
+  // Text match is the whole test.
+  return receiptMatch(item, block) !== null;
 }
 
 function receiptMatch(

@@ -285,6 +285,82 @@ await check("partial image transcript receipts as delivered-partial with an hone
   controller.dispose();
 });
 
+await check("partial-delivery notice is sticky: survives a follow-up enqueue, clears on a full attachment send", async () => {
+  const host = fakeHost();
+  const controller = new DeliveryController({
+    taskId: "task-sticky-notice-smoke",
+    provider: "claude",
+    terminalHost: host,
+    eventSink: () => {},
+    hasLiveTranscriptSource: () => true,
+    receiptTimeoutMs: 500,
+    bootDeliveryGraceMs: 0,
+    enterRetryDelaysMs: [],
+  });
+  const makeAttachments = (n, tag) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `${tag}-${i + 1}`,
+      path: `/tmp/sonata-sticky/${tag}-${i + 1}.png`,
+      originalName: `${tag}-${i + 1}.png`,
+      mediaType: "image/png",
+      size: 12,
+      provenance: "referenced",
+      kind: "image",
+    }));
+  const partialBlock = (id, source, run, markers, gotAttachments) => ({
+    type: "transcript:blocks",
+    payload: {
+      taskId: "task-sticky-notice-smoke",
+      sourceId: source,
+      reset: false,
+      upserts: [
+        {
+          kind: "user-message",
+          id: `${source}:${id}`,
+          taskId: "task-sticky-notice-smoke",
+          sourceId: source,
+          provider: "claude",
+          turnKey: `turn-${id}`,
+          runId: run,
+          ts: new Date().toISOString(),
+          seq: 1,
+          text: `${markers} sticky prompt`,
+          command: null,
+          attachments: gotAttachments.map((a) => ({
+            kind: "image",
+            source: "local-path",
+            path: a.path,
+            mediaType: a.mediaType,
+          })),
+        },
+      ],
+    },
+    ts: new Date().toISOString(),
+  });
+
+  // First send: 3 requested, 1 lands → a partial notice is set.
+  const first = makeAttachments(3, "a");
+  controller.enqueue("sticky prompt", first);
+  controller.handleRuntimeEvent(
+    partialBlock("u1", "src-a", "run-a", "[Image #1] [Image #2] [Image #3]", first.slice(0, 1)),
+  );
+  assert.equal(controller.state().attachmentNotice, "1 of 3 images attached", "partial sets the notice");
+
+  // The user's natural reaction — enqueue the rest — must NOT wipe the evidence.
+  const second = makeAttachments(2, "b");
+  controller.enqueue("sticky prompt", second);
+  assert.equal(
+    controller.state().attachmentNotice,
+    "1 of 3 images attached",
+    "the notice survives the recovery enqueue (was previously cleared here)",
+  );
+
+  // The recovery send lands FULLY → the notice clears.
+  controller.handleRuntimeEvent(partialBlock("u2", "src-b", "run-b", "[Image #1] [Image #2]", second));
+  assert.equal(controller.state().attachmentNotice, null, "a full attachment delivery clears the sticky notice");
+  controller.dispose();
+});
+
 await check("file reference folds into prompt text VERBATIM (no shell-escaping)", async () => {
   const host = fakeHost();
   const controller = new DeliveryController({
