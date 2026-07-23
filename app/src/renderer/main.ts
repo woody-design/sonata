@@ -103,11 +103,11 @@ import {
   unarchiveSessionFromSidebar,
 } from "./flows/session-flows";
 import {
-  createTagDefinition,
+  createSessionTag,
   deleteTagDefinition,
   initTagFlows,
-  persistSessionTags,
   refreshTagDefinitions,
+  toggleSessionTag,
 } from "./flows/tags";
 import {
   applyClaudeControlSwitch,
@@ -583,8 +583,8 @@ initActions({
     runAfterRename(() => archiveProjectFromSidebar(path, archived));
   },
   refreshTagDefinitions: () => refreshTagDefinitions(),
-  setSessionTags: (taskId, tagIds) => persistSessionTags(taskId, tagIds),
-  createTag: (label, group) => createTagDefinition(label, group),
+  toggleSessionTag: (taskId, tagId) => toggleSessionTag(taskId, tagId),
+  createSessionTag: (taskId, label, group) => createSessionTag(taskId, label, group),
   deleteTag: (id) => deleteTagDefinition(id),
   // Slash picker (view/slash-picker.ts): dispatch flow + hover grammar
   // (verbatim from its pre-D3 inline home).

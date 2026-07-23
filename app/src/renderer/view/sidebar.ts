@@ -22,7 +22,6 @@ import {
 } from "lucide";
 import type { SessionSummary, TagColor, TagDefinition, TagGroup } from "../../shared/types";
 import { TAG_GROUPS } from "../../shared/types";
-import { replaceTagSelection } from "../../shared/session-tags";
 import {
   buildPointerGracePolygon,
   calculateCascadePlacement,
@@ -1335,14 +1334,10 @@ function renderTagOption(
   option.addEventListener("click", (event) => {
     event.stopPropagation();
     cancelCascadeTimers();
-    const next = replaceTagSelection(
-      sessionTask(menu.taskId)?.tags ?? [],
-      definition.id,
-      state.tagDefinitions,
-    );
-    void actions.setSessionTags(menu.taskId, next).catch((error) => {
-      state.status = error instanceof Error ? error.message : String(error);
-    });
+    // One action: the selection grammar + optimistic persist (and its
+    // failure surfacing) live shell-side (flows/tags). The optimistic mirror
+    // is written synchronously, so this menu repaint already reflects the pick.
+    actions.toggleSessionTag(menu.taskId, definition.id);
     renderSidebarMenu({ preferredFocusKey: tagOptionFocusKey(menu.taskId, definition.id) });
   });
   wrap.append(option);
@@ -1359,12 +1354,12 @@ function renderTagOption(
     remove.addEventListener("click", async (event) => {
       event.stopPropagation();
       cancelCascadeTimers();
+      // Capture the surviving-sibling target BEFORE the delete reshapes the list.
+      // The flow owns the delete + its failure surfacing; on success we move
+      // focus to the sibling, on failure the tag stays and focus holds.
       const fallback = deletionFallbackFocusKey(menu.taskId, definition);
-      try {
-        await actions.deleteTag(definition.id);
+      if (await actions.deleteTag(definition.id)) {
         renderSidebarMenu({ preferredFocusKey: fallback, allowFallback: true });
-      } catch (error) {
-        state.status = error instanceof Error ? error.message : String(error);
       }
     });
     wrap.append(remove);
@@ -1430,20 +1425,17 @@ function renderTagInput(
     if (!draft) {
       return;
     }
-    try {
-      const definition = await actions.createTag(draft, group);
-      const next = replaceTagSelection(
-        sessionTask(menu.taskId)?.tags ?? [],
-        definition.id,
-        state.tagDefinitions,
-      );
-      await actions.setSessionTags(menu.taskId, next);
+    // One action: create → select → persist is sequenced shell-side (flows/tags).
+    // The view only reacts to the result — focus the new option on success, or
+    // surface the message on the input line on failure.
+    const result = await actions.createSessionTag(menu.taskId, draft, group);
+    if ("definition" in result) {
       sidebarTransitions.cancelSessionTagInput(state);
-      renderSidebarMenu({ preferredFocusKey: tagOptionFocusKey(menu.taskId, definition.id) });
-    } catch (error) {
+      renderSidebarMenu({ preferredFocusKey: tagOptionFocusKey(menu.taskId, result.definition.id) });
+    } else {
       sidebarTransitions.updateSessionTagInput(state, {
         draft: input.value,
-        error: error instanceof Error ? error.message : String(error),
+        error: result.error,
       });
       renderSidebarMenu({ preferredFocusKey: tagInputFocusKey(menu.taskId, group) });
     }

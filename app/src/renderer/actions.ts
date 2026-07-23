@@ -43,6 +43,13 @@ import type {
  *  terminal. Both ARE Sonata — the switch picks which lens is in front. */
 export type ViewMode = "read" | "terminal";
 
+/** Outcome of the create-and-apply tag flow (flows/tags): the new definition to
+ *  focus, or an error string the tag-input line surfaces. The sequencing +
+ *  persist-failure live shell-side; the view only reacts to the result. */
+export type CreateSessionTagResult =
+  | { definition: TagDefinition }
+  | { error: string };
+
 export interface Actions {
   // State reads deliberately absent (D-early ruling 1, normalized at
   // D-mid-0): views read through their init-bound state reference and the
@@ -139,9 +146,16 @@ export interface Actions {
   deleteSessionFromSidebar(taskId: string, title: string): void;
   archiveProject(path: string, archived: boolean): void;
   refreshTagDefinitions(): Promise<void>;
-  setSessionTags(taskId: string, tagIds: readonly string[]): Promise<void>;
-  createTag(label: string, group: TagGroup): Promise<TagDefinition>;
-  deleteTag(id: string): Promise<void>;
+  /** Toggle one tag on a session — the group-replace / accumulate selection
+   *  grammar and the optimistic persist (failure surfaces on the composer line)
+   *  live in the flow. Fire-and-forget; the view re-renders the menu after. */
+  toggleSessionTag(taskId: string, tagId: string): void;
+  /** Create a tag and apply it to the session in one step. Resolves with the new
+   *  definition to focus, or an error message for the tag-input line. */
+  createSessionTag(taskId: string, label: string, group: TagGroup): Promise<CreateSessionTagResult>;
+  /** Delete a tag definition (failure surfaces globally, with a repaint).
+   *  Resolves true when it went, so the caller can move focus to the sibling. */
+  deleteTag(id: string): Promise<boolean>;
   // — Slash picker (view/slash-picker.ts): the Enter/click dispatch flow
   //   (complete-or-execute semantics live in the shell) and the mousemove
   //   hover grammar (selection follow + composer-popover repaint). —
