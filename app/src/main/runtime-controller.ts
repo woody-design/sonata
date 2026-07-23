@@ -83,7 +83,7 @@ import {
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
 import { planTagRemovalFromManifests } from "./tag-manifests";
-import { withTaskTags } from "../shared/session-tags";
+import { retainKnownTagIds, withTaskTags } from "../shared/session-tags";
 import { ensureClaudeProjectTrust, updateClaudeConfig } from "./claude-config";
 import {
   projectRecordRoot,
@@ -866,15 +866,20 @@ export class RuntimeController {
   }
 
   setSessionTags(taskId: TaskId, tagIds: string[]): void {
+    // Validate ids against the live vocabulary before they touch a manifest: a
+    // stale renderer can send a just-deleted id (its delete-time manifest scrub
+    // has already run), which would persist as a permanent orphan. Unknown ids
+    // are silently dropped, not rejected — a stale renderer is not an error.
+    const validTagIds = retainKnownTagIds(tagIds, this.tagsStore.list());
     // Like archive, tag selection is metadata — updatedAt stays put.
     const live = this.taskRuntimes.get(taskId);
     if (live) {
-      live.task = withTaskTags(live.task, tagIds);
+      live.task = withTaskTags(live.task, validTagIds);
       this.persistTaskManifest(live.task, live.storageRoot);
       return;
     }
     const record = this.requirePersistedSession(taskId);
-    this.persistTaskManifest(withTaskTags(record.manifest.task, tagIds), record.storageRoot);
+    this.persistTaskManifest(withTaskTags(record.manifest.task, validTagIds), record.storageRoot);
   }
 
   listTags(): TagDefinition[] {

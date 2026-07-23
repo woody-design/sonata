@@ -41,6 +41,20 @@ export function replaceTagSelection(
   ];
 }
 
+/** Drop tag ids that are not in the live vocabulary before they are written into
+ *  a task manifest. A stale renderer can send a just-deleted tag id: the
+ *  delete-time manifest scrub (planTagRemovalFromManifests) has already run, so
+ *  persisting that id would strand a permanent orphan no later scrub reaches.
+ *  Tolerate-orphans posture, matching the selectors (replaceTagSelection ignores
+ *  an unknown id rather than throwing) — a stale renderer is not an error. */
+export function retainKnownTagIds(
+  tagIds: readonly string[],
+  definitions: readonly TagDefinition[],
+): string[] {
+  const known = new Set(definitions.map((definition) => definition.id));
+  return canonicalTagIds(tagIds).filter((id) => known.has(id));
+}
+
 export function withTaskTags(task: Task, tagIds: readonly string[]): Task {
   const tags = canonicalTagIds(tagIds);
   if (tags.length === 0) {

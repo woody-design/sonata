@@ -73,6 +73,18 @@ export function defaultTagsDocument(): TagsDocumentV1 {
 }
 
 export function normalizeTagsDocument(value: unknown): TagsDocumentV1 {
+  // Structural fallback ONLY: a value that is not a record, carries an unknown
+  // version, or whose `tags` is not an array is unreadable as a document — seed
+  // the builtin vocabulary. A readable document is DATA, not a preference, so its
+  // individual entries are salvaged, not discarded wholesale: drop the entries
+  // that fail to normalize and skip duplicates (first occurrence wins on a
+  // colliding id or group+label), preserving every valid entry. This keeps the
+  // custom-tag UUIDs that task manifests reference alive — one malformed row can
+  // no longer orphan the whole vocabulary. (Before 2026-07-23 any single bad or
+  // ambiguous entry reset the document to builtins, and the next write by
+  // tags-store persisted that wipe.) Builtins are NOT merged back into a readable
+  // document — they live in the persisted doc as ordinary entries (seeded once
+  // from defaultTagsDocument, undeletable), and that contract is unchanged here.
   if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.tags)) {
     return defaultTagsDocument();
   }
@@ -83,11 +95,11 @@ export function normalizeTagsDocument(value: unknown): TagsDocumentV1 {
   for (const candidate of value.tags) {
     const normalized = normalizeTagDefinition(candidate);
     if (!normalized) {
-      return defaultTagsDocument();
+      continue;
     }
     const labelKey = `${normalized.group}:${normalized.label.toLowerCase()}`;
     if (ids.has(normalized.id) || labels.has(labelKey)) {
-      return defaultTagsDocument();
+      continue;
     }
     ids.add(normalized.id);
     labels.add(labelKey);
