@@ -99,7 +99,7 @@ try {
     hasText: "Claude model & effort",
   });
   const claudeModelPopup = claudeModelRow.locator(".settings-popup");
-  await claudeModelPopup.filter({ hasText: "Opus 4.8 · High" }).waitFor({ state: "visible" });
+  await claudeModelPopup.filter({ hasText: "Opus 5 · High" }).waitFor({ state: "visible" });
   await claudeModelPopup.click();
   const claudeMenu = claudeModelRow.locator(".settings-popup-menu");
   await claudeMenu.waitFor({ state: "visible" });
@@ -109,7 +109,7 @@ try {
     false,
     "the Settings model/effort menu excludes Native Default (per-session only)",
   );
-  assert.ok(claudeMenuLabels.includes("Opus 4.8"), "the model section lists concrete models");
+  assert.ok(claudeMenuLabels.includes("Opus 5"), "the model section lists concrete models");
   await claudeMenu.locator(".settings-popup-option", { hasText: "Sonnet 5" }).click();
   await waitUntil(() => readPersistedClaudeSettings()?.defaultModel === "sonnet", 8000);
   // The menu stays open across picks (two-axis adjustment).

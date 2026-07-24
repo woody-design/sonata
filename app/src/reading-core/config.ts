@@ -26,7 +26,7 @@ export const MODEL_OPTIONS: Record<
   ],
   claude: [
     { label: "Fable 5", value: "fable" },
-    { label: "Opus 4.8", value: "opus" },
+    { label: "Opus 5", value: "opus" },
     { label: "Sonnet 5", value: "sonnet" },
     { label: "Haiku 4.5", value: "haiku" },
     { label: "Native Default", value: null },

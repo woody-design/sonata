@@ -48,7 +48,7 @@ try {
 
   // Launch 2: the explicit Settings choices override the fresh-install defaults.
   page = await launch();
-  await assertNewChatDefault(page, "Claude", "Opus 4.8 High");
+  await assertNewChatDefault(page, "Claude", "Opus 5 High");
   await assertFreshAppearance(page);
   await chooseDraftProvider(page, "codex");
   await page.locator("#model-chip", { hasText: "5.6 Luna Extra High" }).waitFor({

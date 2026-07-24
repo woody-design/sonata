@@ -228,7 +228,7 @@ const run = (status, extra = {}) => ({
     CFG.MODEL_OPTIONS.claude.map(({ label, value }) => ({ label, value })),
     [
       { label: "Fable 5", value: "fable" },
-      { label: "Opus 4.8", value: "opus" },
+      { label: "Opus 5", value: "opus" },
       { label: "Sonnet 5", value: "sonnet" },
       { label: "Haiku 4.5", value: "haiku" },
       { label: "Native Default", value: null },
@@ -321,17 +321,17 @@ const run = (status, extra = {}) => ({
   });
   assert.equal(
     C.draftModelSummaryLabel(draft()),
-    "Opus 4.8 High",
+    "Opus 5 High",
     "Claude standard-speed draft: no Fast suffix",
   );
   assert.equal(
     C.draftModelSummaryLabel(draft({ speedMode: { claude: "fast", codex: "default" } })),
-    "Opus 4.8 High Fast",
+    "Opus 5 High Fast",
     "Claude fast draft appends Fast",
   );
   assert.equal(
     C.draftModelSummaryLabel(draft({ speedMode: { claude: "default", codex: "fast" } })),
-    "Opus 4.8 High",
+    "Opus 5 High",
     "the inactive provider's fast selection does not leak onto the Claude chip",
   );
   assert.equal(
@@ -351,7 +351,7 @@ const run = (status, extra = {}) => ({
   );
   assert.equal(
     C.sessionModelSummaryLabel(view({ task: task({ model: "opus", reasoningEffort: "xhigh" }) })),
-    "Opus 4.8 Extra High",
+    "Opus 5 Extra High",
     "spawn settings via the A2 label tables",
   );
   assert.equal(
@@ -382,7 +382,7 @@ const run = (status, extra = {}) => ({
     C.sessionModelSummaryLabel(
       view({ task: task({ model: "opus" }), usageSnapshot: { reasoningEffort: "high" } }),
     ),
-    "Opus 4.8 High",
+    "Opus 5 High",
     "partial snapshot: live effort + fallback model",
   );
 }

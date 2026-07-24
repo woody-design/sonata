@@ -25,10 +25,10 @@ try {
     state: "visible",
   });
 
-  await page.locator("#model-chip", { hasText: "Opus 4.8 High" }).click();
+  await page.locator("#model-chip", { hasText: "Opus 5 High" }).click();
   assert.deepEqual(await settingOptionLabels(page, "Model"), [
     "Fable 5",
-    "Opus 4.8",
+    "Opus 5",
     "Sonnet 5",
     "Haiku 4.5",
     "Native Default",
@@ -46,7 +46,7 @@ try {
   // entirely (a lone "Standard" is no real choice). The chip must NOT carry
   // "Fast" after the switch — that is the passes-while-broken hole S1 warned of.
   await settingSection(page, "Speed").locator("button", { hasText: "Fast" }).click();
-  await page.locator("#model-chip", { hasText: "Opus 4.8 High Fast" }).waitFor({ state: "visible" });
+  await page.locator("#model-chip", { hasText: "Opus 5 High Fast" }).waitFor({ state: "visible" });
   await settingSection(page, "Model").locator("button", { hasText: "Sonnet 5" }).click();
   await page.locator("#model-chip", { hasText: "Sonnet 5 High" }).waitFor({ state: "visible" });
   assert.equal(
@@ -60,8 +60,8 @@ try {
     "non-Opus Claude hides the Speed section entirely",
   );
   // Switching back to Opus re-offers the section, now at the unwound Standard.
-  await settingSection(page, "Model").locator("button", { hasText: "Opus 4.8" }).click();
-  await page.locator("#model-chip", { hasText: "Opus 4.8 High" }).waitFor({ state: "visible" });
+  await settingSection(page, "Model").locator("button", { hasText: "Opus 5" }).click();
+  await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({ state: "visible" });
   const reofferedSpeed = await settingOptionLabels(page, "Speed");
   assert.deepEqual(reofferedSpeed, ["Standard", "Fast"], "Opus re-offers the Speed section");
   const selectedSpeed = await settingSection(page, "Speed")
@@ -138,7 +138,7 @@ try {
   console.log(
     JSON.stringify(
       {
-        claudeModels: ["Fable 5", "Opus 4.8", "Sonnet 5", "Haiku 4.5"],
+        claudeModels: ["Fable 5", "Opus 5", "Sonnet 5", "Haiku 4.5"],
         codexModels: [
           "5.6 Sol",
           "5.6 Terra",

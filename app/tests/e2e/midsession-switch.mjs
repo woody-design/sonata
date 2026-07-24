@@ -74,7 +74,7 @@ try {
   // S6, field revision 5; the disclosure lives in docs, not menu chrome).
   assert.deepEqual(
     await settingOptionLabels(page, "Model"),
-    ["Fable 5", "Opus 4.8", "Sonnet 5", "Haiku 4.5"],
+    ["Fable 5", "Opus 5", "Sonnet 5", "Haiku 4.5"],
     "the Model section is the curated list, WITHOUT Native Default (no mid-session meaning)",
   );
   assert.deepEqual(
@@ -115,7 +115,7 @@ try {
   // confirm PARKS in the drawer → answer NO. Nothing changes: the chip holds, no
   // needs-attention banner, and the session is left intact for the Yes demo below
   // (a cancel applies nothing, so the cache is still primed to raise the dialog).
-  const noTarget = ["Sonnet 5", "Opus 4.8", "Haiku 4.5"].find((l) => l !== currentModelLabel);
+  const noTarget = ["Sonnet 5", "Opus 5", "Haiku 4.5"].find((l) => l !== currentModelLabel);
   await settingSection(page, "Model").locator("button", { hasText: exact(noTarget) }).click();
   await menu.locator(".composer-staged-action.primary").click();
   const noDrawer = page.locator("#control-confirm-card:not(.hidden)");
@@ -144,7 +144,7 @@ try {
   // switch, the cache-miss confirm relayed through the drawer.
   await chip.click();
   await menu.waitFor({ state: "visible" });
-  const targetModel = ["Sonnet 5", "Opus 4.8", "Haiku 4.5"].find((l) => l !== currentModelLabel);
+  const targetModel = ["Sonnet 5", "Opus 5", "Haiku 4.5"].find((l) => l !== currentModelLabel);
   const targetEffort = ["Low", "Medium", "High", "Extra High", "Max"].find(
     (l) => l !== currentEffortLabel,
   );
@@ -326,7 +326,7 @@ try {
   fs.rmSync(workspaceRoot, { recursive: true, force: true });
 }
 
-/** Exact-match RegExp for Playwright hasText (so "Opus 4.8" doesn't also match a
+/** Exact-match RegExp for Playwright hasText (so "Opus 5" doesn't also match a
  *  longer superstring). */
 function exact(text) {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
