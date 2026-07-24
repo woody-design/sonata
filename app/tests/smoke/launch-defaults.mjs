@@ -21,11 +21,11 @@ const freshSonata = normalizeSonataSettings(null);
 const freshCodex = normalizeCodexSettings(null);
 const initialState = createInitialState({ ...DEFAULT_READING_SETTINGS });
 
-check("fresh app default provider is Codex", DEFAULT_SONATA_SETTINGS.defaultProvider === "codex");
-check("fresh Sonata settings normalize to Codex", freshSonata.defaultProvider === "codex");
+check("fresh app default provider is Claude", DEFAULT_SONATA_SETTINGS.defaultProvider === "claude");
+check("fresh Sonata settings normalize to Claude", freshSonata.defaultProvider === "claude");
 check("fresh main surface defaults to Light", DEFAULT_READING_SETTINGS.mode === "light");
-check("initial default-provider mirror is Codex", initialState.defaultProvider === "codex");
-check("initial New Chat draft is Codex", initialState.taskDraft.provider === "codex");
+check("initial default-provider mirror is Claude", initialState.defaultProvider === "claude");
+check("initial New Chat draft is Claude", initialState.taskDraft.provider === "claude");
 check("fresh Codex model is 5.6 Sol", DEFAULT_CODEX_SETTINGS.defaultModel === "gpt-5.6-sol");
 check("fresh Codex effort is High", DEFAULT_CODEX_SETTINGS.defaultReasoningEffort === "high");
 check(
@@ -38,8 +38,8 @@ check(
     initialState.taskDraft.reasoningEffort.codex === "high",
 );
 check(
-  "stored Claude choice still wins",
-  normalizeSonataSettings({ defaultProvider: "claude" }).defaultProvider === "claude",
+  "stored Codex choice still wins",
+  normalizeSonataSettings({ defaultProvider: "codex" }).defaultProvider === "codex",
 );
 check(
   "stored Codex model and effort still win",

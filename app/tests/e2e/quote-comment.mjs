@@ -40,7 +40,7 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { _electron as electron } from "playwright-core";
-import { sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
+import { chooseDraftProvider, sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
 // Inline mirrors of the reading-core serialization contract (plan
 // §Serialization) — deliberately NOT imported, so a regression in the pure
@@ -120,6 +120,7 @@ try {
   //    selectable transcript text (assistant answer + the user's own prompt).
   //    Content need not be asserted — the fence captures whatever string the
   //    selection yields and computes the expected paragraph from it. ──────────
+  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, [
     "Reply with exactly this text and nothing else: The morning sky is a calm shade of blue.",
   ]);

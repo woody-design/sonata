@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval, approveVisibleBanner } from "./helpers/approval.mjs";
-import { activeSessionTaskId, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
+import { activeSessionTaskId, chooseDraftProvider, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-run-chat-e2e-"));
 let electronApp = null;
@@ -27,6 +27,7 @@ try {
     "Do not modify any other files.",
   ].join("\n");
 
+  await chooseDraftProvider(page, "codex");
   await runPrompt(page, 1, prompt);
 
   const taskId = await activeSessionTaskId(page);

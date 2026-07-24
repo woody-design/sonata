@@ -15,6 +15,7 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import {
   activeSessionTaskId,
+  chooseDraftProvider,
   selectSidebarSession,
   sendFirstPrompt,
   waitForCompletedTurns,
@@ -37,6 +38,7 @@ try {
   let page = await app.firstWindow();
   page.setDefaultTimeout(180000);
 
+  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, [
     "Reply exactly SONATA_PREVIEW_TABS_READY.",
     "Do not create or modify any files.",

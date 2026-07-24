@@ -12,6 +12,7 @@ import { _electron as electron } from "playwright-core";
 import { approveIfVisible } from "./helpers/approval.mjs";
 import {
   activeSessionTaskId,
+  chooseDraftProvider,
   openNewChat,
   selectSidebarSession,
   sendFirstPrompt,
@@ -152,6 +153,7 @@ async function startFileSession(page, options) {
     "Do not modify any other files.",
   ].join("\n");
 
+  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, prompt);
   await approveIfVisible(page, "File edit approval requested", 180000);
   await approveIfVisible(page, "Command approval requested", 15000);

@@ -14,7 +14,7 @@ let app = null;
 try {
   // Launch 1: no settings files means the product defaults are authoritative.
   let page = await launch();
-  await assertNewChatDefault(page, "Codex", "5.6 Sol High");
+  await assertNewChatDefault(page, "Claude", "Opus 5 High");
   await assertFreshAppearance(page);
 
   await openSettings();
@@ -23,7 +23,7 @@ try {
     hasText: "Default provider",
   });
   const providerPopup = providerRow.locator(".settings-popup");
-  await providerPopup.filter({ hasText: "Codex" }).waitFor({ state: "visible" });
+  await providerPopup.filter({ hasText: "Claude" }).waitFor({ state: "visible" });
 
   const codexRow = defaultModelGroup.locator(".settings-row", {
     hasText: "Codex model & effort",
@@ -35,10 +35,10 @@ try {
   await page.locator(".settings-title").click();
 
   await providerPopup.click();
-  await providerRow.locator(".settings-popup-option", { hasText: "Claude" }).click();
+  await providerRow.locator(".settings-popup-option", { hasText: "Codex" }).click();
   await waitUntil(
     () =>
-      readJson(sonataSettingsPath)?.defaultProvider === "claude" &&
+      readJson(sonataSettingsPath)?.defaultProvider === "codex" &&
       readJson(codexSettingsPath)?.defaultModel === "gpt-5.6-luna" &&
       readJson(codexSettingsPath)?.defaultReasoningEffort === "xhigh",
   );
@@ -48,14 +48,14 @@ try {
 
   // Launch 2: the explicit Settings choices override the fresh-install defaults.
   page = await launch();
-  await assertNewChatDefault(page, "Claude", "Opus 5 High");
+  await assertNewChatDefault(page, "Codex", "5.6 Luna Extra High");
   await assertFreshAppearance(page);
-  await chooseDraftProvider(page, "codex");
-  await page.locator("#model-chip", { hasText: "5.6 Luna Extra High" }).waitFor({
+  await chooseDraftProvider(page, "claude");
+  await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({
     state: "visible",
   });
 
-  assert.deepEqual(readJson(sonataSettingsPath), { defaultProvider: "claude" });
+  assert.deepEqual(readJson(sonataSettingsPath), { defaultProvider: "codex" });
   assert.equal(readJson(codexSettingsPath)?.defaultModel, "gpt-5.6-luna");
   assert.equal(readJson(codexSettingsPath)?.defaultReasoningEffort, "xhigh");
 
@@ -63,14 +63,14 @@ try {
     JSON.stringify(
       {
         fresh: {
-          provider: "codex",
-          model: "gpt-5.6-sol",
+          provider: "claude",
+          model: "opus",
           effort: "high",
           mainMode: "light",
           cliMode: "dark",
         },
         persisted: {
-          provider: "claude",
+          provider: "codex",
           codexModel: "gpt-5.6-luna",
           codexEffort: "xhigh",
         },

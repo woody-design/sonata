@@ -24,9 +24,9 @@ try {
   const sendEnabledWithText = !(await page.locator("#send-prompt").isDisabled());
   await page.locator("#prompt-input").fill("");
 
-  // Fresh-install launch default: Codex + 5.6 Sol + High.
-  await page.locator("#provider-chip", { hasText: "Codex" }).waitFor({ state: "visible" });
-  await page.locator("#model-chip", { hasText: "5.6 Sol High" }).waitFor({ state: "visible" });
+  // Fresh-install launch default: Claude + Opus 5 + High.
+  await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
+  await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({ state: "visible" });
 
   // The access chip is Claude-only and follows the Settings default triad:
   // fresh settings → "Manual"; a per-session pick relabels the chip.

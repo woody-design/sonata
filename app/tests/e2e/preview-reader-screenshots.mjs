@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { _electron as electron } from "playwright-core";
-import { activeSessionTaskId, sendFirstPrompt, waitForCompletedTurns, waitForWindowByUrl } from "./helpers/session.mjs";
+import { activeSessionTaskId, chooseDraftProvider, sendFirstPrompt, waitForCompletedTurns, waitForWindowByUrl } from "./helpers/session.mjs";
 
 const PNG_1x1 = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
@@ -36,6 +36,7 @@ try {
   const page = await app.firstWindow();
   page.setDefaultTimeout(180000);
 
+  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, ["Reply exactly SONATA_PREVIEW_S2_SHOTS_READY.", "Do not create or modify any files."]);
   const taskId = await activeSessionTaskId(page);
   await waitForCompletedTurns(page, 1);

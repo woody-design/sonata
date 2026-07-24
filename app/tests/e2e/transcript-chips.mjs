@@ -23,6 +23,7 @@ import assert from "node:assert/strict";
 import { _electron as electron } from "playwright-core";
 import {
   activeSessionTaskId,
+  chooseDraftProvider,
   sendFirstPrompt,
   sendPrompt,
   waitForCompletedTurns,
@@ -45,6 +46,7 @@ try {
   page.setDefaultTimeout(180000);
 
   // ── Turn 1: birth the task ───────────────────────────────────────────────
+  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, [
     "Reply exactly SONATA_CHIPS_READY.",
     "Do not create or modify any files.",
