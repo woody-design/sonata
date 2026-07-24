@@ -44,13 +44,17 @@ err() { printf 'dmgbuild-wrapper: error: %s\n' "$*" >&2; }
 die() { err "$*"; exit 1; }
 
 # --- support files to shove off-window --------------------------------------
-# In-volume names dmgbuild gives them (core.py: .background<ext>, .VolumeIcon.icns,
-# .DS_Store; plus the two OS scratch dirs). `path` for a position entry is just
-# the in-volume item name (no copy happens); `name` defaults to its basename.
+# In-volume names dmgbuild gives them. Four are fixed (`.VolumeIcon.icns` at
+# core.py:568, `.DS_Store` at :786, plus the two OS scratch dirs). The
+# background is NOT fixed: dmgbuild copies it to `.background<ext>` where <ext>
+# is the extension of the settings `background` field (core.py:640-642) — a
+# `.tiff` normally, but a raw `.png` if the @2x sibling is ever missing. So the
+# background name is DERIVED from the settings JSON below, not hardcoded, or the
+# hide would silently miss a `.png` background and ship a leaky DMG. `path` for
+# a position entry is just the in-volume item name (no copy happens).
 FAR_X=5000
 FAR_Y=5000
 SUPPORT_FILES=(
-  '.background.tiff'
   '.VolumeIcon.icns'
   '.DS_Store'
   '.Trashes'
@@ -58,9 +62,12 @@ SUPPORT_FILES=(
 )
 
 # --- parse the electron-builder invocation ----------------------------------
-# We only need the settings-file path (from -s/--settings); everything else is
-# forwarded verbatim. electron-builder always passes `-s <file> <vol> <artifact>`,
-# but accept the =form too for resilience.
+# We only need the settings-file path; everything else is forwarded verbatim.
+# electron-builder's contract is fixed to the separate form `-s <file> <vol>
+# <artifact>` (dmg-builder/out/dmgUtil.js exec of the vendored binary), and this
+# wrapper's only caller is electron-builder — so we match exactly `-s <file>`
+# (and its long alias `--settings <file>`). No `--settings=<file>` form: it is
+# unreachable here, and a whole-token swap of it below would corrupt the arg.
 args=("$@")
 settings=""
 settings_idx=-1
@@ -71,16 +78,34 @@ for ((i = 0; i < ${#args[@]}; i++)); do
       [ "$settings_idx" -lt "${#args[@]}" ] || die "-s/--settings given without a value"
       settings="${args[settings_idx]}"
       ;;
-    --settings=*)
-      settings_idx=$i
-      settings="${args[i]#--settings=}"
-      ;;
   esac
 done
 
 [ -n "$settings" ] || die "no -s/--settings argument found in: $*"
 [ -f "$settings" ] || die "settings file does not exist: $settings"
 command -v jq >/dev/null 2>&1 || die "jq not found on PATH (required to augment the DMG settings)"
+
+# --- derive the background's in-volume name ---------------------------------
+# electron-builder sets the JSON `background` key ONLY when a background image is
+# present (the color/no-background case uses `background-color` and omits the
+# key), and its value is always a file path. dmgbuild copies that file to
+# `.background<ext>`. So: key present -> hide `.background.<ext>` (die if the
+# value has no parseable extension — that is the "present but unparseable" fault
+# the wrapper must surface, not swallow); key absent -> no background file to
+# hide, keep the historical `.background.tiff` (a harmless phantom Iloc at worst).
+bg_field="$(jq -r '.background // empty' "$settings")" || die "failed to read .background from settings ($settings)"
+if [ -n "$bg_field" ]; then
+  bg_base="${bg_field##*/}"        # basename
+  if [ "$bg_base" = "${bg_base%.*}" ]; then
+    die "settings .background has no file extension: '$bg_field' — cannot derive the in-volume background name"
+  fi
+  bg_ext="${bg_base##*.}"
+  [[ "$bg_ext" =~ ^[A-Za-z0-9]+$ ]] \
+    || die "settings .background extension is not a plain token: '$bg_field' — cannot derive the in-volume background name"
+  SUPPORT_FILES+=(".background.${bg_ext}")
+else
+  SUPPORT_FILES+=('.background.tiff')
+fi
 
 # --- augment the settings JSON with off-window position entries --------------
 # dmgbuild parses a settings file as appdmg JSON ONLY when it ends in `.json`
