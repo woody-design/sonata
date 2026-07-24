@@ -110,6 +110,11 @@
   --accent: rgb(var(--p-blue));
   --accent-subtle: rgb(var(--p-blue) / 0.10);
   --selection: rgb(var(--p-blue) / 0.28);           /* text selection */
+  /* Ink ON the accent fill: fixed white in BOTH modes (the accent stays a mid
+     blue in dark too). --text-on-emphasis would flip to #191919 in dark and sink
+     the label into the pill — same reasoning as the quote-comment glyph. The one
+     consumer today is the auto-update pill (S2), the app's rare ambient CTA. */
+  --text-on-accent: #ffffff;
   /* Focus/active edges are NEUTRAL — ink hue, same alpha the blue ring had.
      Blue stays reserved for links/file chips/quote-comment/selection, the
      active-tool icon (Woody ruling 2026-07-16), and the status-strip working
@@ -893,6 +898,56 @@ body.sidebar-resizing {
   font-size: 11px;
   font-weight: 600;
   text-transform: none;
+}
+
+/* Auto-update pill (S2). The slot pins the pill to the sidebar's bottom-right
+   (the session list flexes above it); display:none when empty so idle reserves
+   no space. */
+.sidebar-update-slot {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-8) var(--space-8) var(--space-12);
+}
+
+.sidebar-update-slot.hidden {
+  display: none;
+}
+
+/* The one ambient call-to-action in the app — a blue accent fill (Woody-approved
+   reference visual). It earns accent chroma the way the active-tool icon and the
+   status-strip working headline do: rare by construction (it lights only when a
+   release is staged) and transient, so it does not dilute blue's interactive
+   scarcity. */
+.sidebar-update-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 var(--space-16);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sidebar-update-button:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.sidebar-update-button:active:not(:disabled) {
+  filter: brightness(0.88);
+}
+
+/* Updating…: non-interactive, the app is about to quit. Faded accent so it reads
+   as "in progress, hands off" without introducing another color. */
+.sidebar-update-button.updating {
+  cursor: default;
+  opacity: 0.65;
 }
 
 .sidebar-list-header {

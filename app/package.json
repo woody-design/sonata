@@ -26,6 +26,7 @@
     "e2e:sidebar-tag-filter": "npm run build && node tests/e2e/sidebar-tag-filter.mjs",
     "e2e:sidebar-hover-card": "npm run build && node tests/e2e/sidebar-hover-card.mjs",
     "e2e:sidebar-integrated": "npm run build && node tests/e2e/sidebar-integrated.mjs",
+    "e2e:sidebar-update-button": "npm run build && node tests/e2e/sidebar-update-button.mjs",
     "e2e:cross-session-isolation": "npm run build && node tests/e2e/cross-session-isolation.mjs",
     "e2e:codex-hooks-identity": "npm run build && node tests/e2e/codex-hooks-identity.mjs",
     "e2e:codex-approvals": "npm run build && node tests/e2e/codex-approvals.mjs",

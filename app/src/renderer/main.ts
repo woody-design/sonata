@@ -182,6 +182,7 @@ import {
   renderSidebar,
   renderSidebarMenu,
 } from "./view/sidebar";
+import { initUpdateButton, revertArmedUpdateButton } from "./view/update-button";
 import {
   focusProtectedRenameEditor,
   initRenameEditorView,
@@ -353,7 +354,12 @@ initQuoteComment({
 initBannersView(state);
 initStatusStripView(state);
 initApprovalsView(state);
-initSidebarView(state);
+initSidebarView(state, { onAnchoredDismiss: () => revertArmedUpdateButton() });
+initUpdateButton({
+  onUpdaterState: (callback) => window.sonataRuntime.onUpdaterState(callback),
+  readUpdaterState: () => window.sonataRuntime.readUpdaterState(),
+  requestUpdaterRestart: () => window.sonataRuntime.requestUpdaterRestart(),
+});
 initRenameEditorView(state);
 initRenameFlows(state, {
   refreshProtectedRenameEditor: (editor) => refreshProtectedRenameEditor(editor),
@@ -1871,6 +1877,12 @@ document.addEventListener(
 
 document.addEventListener("click", (event) => {
   const target = event.target;
+  // Outside-click stands down the update pill's armed confirm (S2) — the same
+  // dismiss choke point that closes every popover below. A click on the pill
+  // itself is its own affordance (arm → confirm), so it is exempt.
+  if (target instanceof Element && !target.closest("#sidebar-update-button")) {
+    revertArmedUpdateButton();
+  }
   if (
     !(target instanceof Element) ||
     target.closest(".reading-settings-trigger") ||

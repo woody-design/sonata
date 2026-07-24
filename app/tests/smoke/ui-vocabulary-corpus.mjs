@@ -20,6 +20,7 @@ const paths = {
   runs: "src/reading-core/selectors/runs.ts",
   settings: "src/renderer/view/settings.ts",
   main: "src/main/main.ts",
+  updateButton: "src/renderer/view/update-button.ts",
   indexHtml: "src/renderer/index.html",
   cliHtml: "src/renderer/terminal.html",
   previewHtml: "src/renderer/preview.html",
@@ -42,6 +43,18 @@ assert.match(source.cli, />Tasks<\/span>/, "fresh breadcrumb project");
 assert.match(source.cli, />New task<\/span>/, "fresh breadcrumb task");
 assert.match(source.main, /title:\s*"Sonata CLI"/, "native CLI window title");
 assert.match(source.cliHtml, /<title>Sonata CLI<\/title>/, "CLI document title");
+
+// Auto-update pill vocabulary (S2). The four button states are the agreed,
+// Woody-approved wording; pin the three renderer labels verbatim so a future
+// edit that softens or drifts them fails here. ("Check for Updates…" is the
+// menu affordance, added by S3.)
+assert.match(source.updateButton, /const LABEL_RESTING = "Update";/, "update pill resting label");
+assert.match(
+  source.updateButton,
+  /const LABEL_ARMED = "Restart to Update";/,
+  "update pill armed label",
+);
+assert.match(source.updateButton, /const LABEL_UPDATING = "Updating…";/, "update pill updating label");
 
 const rendererFiles = filesUnder("src/renderer", ".ts").filter(
   (file) => ![paths.dom, paths.cli].includes(file),

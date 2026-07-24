@@ -79,8 +79,19 @@ import { initSidebarHoverCard } from "./sidebar-hover-card";
 /** The shell's state atom, bound once at boot for the sidebar's read paths. */
 let state: RendererState;
 
-export function initSidebarView(stateRef: RendererState): void {
+/** Composition-root deps for the sidebar. `onAnchoredDismiss` fans the single
+ *  scroll/resize dismiss choke point out to affordances that live in the sidebar
+ *  but outside its menu state — today the auto-update pill's armed confirm (S2),
+ *  which stands down on a sidebar scroll like every anchored menu does. */
+interface SidebarViewDeps {
+  onAnchoredDismiss?: () => void;
+}
+
+let deps: SidebarViewDeps = {};
+
+export function initSidebarView(stateRef: RendererState, dependencies: SidebarViewDeps = {}): void {
   state = stateRef;
+  deps = dependencies;
   initSidebarHoverCard(stateRef);
   initCascadeEngine({
     menuRoot: elements.sidebarMenuRoot,
@@ -103,6 +114,9 @@ export function initSidebarView(stateRef: RendererState): void {
  *  pre-S6 handler only dismissed the session tag cascade, so a plain session /
  *  project / filter menu was left stranded off its anchor. */
 function dismissAnchoredSidebarMenu(): void {
+  // One choke point: a sidebar scroll / resize also stands down the update
+  // pill's armed confirm (S2), so it reverts on the same gesture as any menu.
+  deps.onAnchoredDismiss?.();
   if (state.sidebar.menu) {
     closeSidebarMenu();
   }

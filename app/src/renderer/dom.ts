@@ -25,6 +25,7 @@ function queryElements() {
     sidebarToggle: getElement<HTMLButtonElement>("sidebar-toggle"),
     sidebarCollapse: getElement<HTMLButtonElement>("sidebar-collapse"),
     sidebarMenuRoot: getElement<HTMLDivElement>("sidebar-menu-root"),
+    sidebarUpdateSlot: getElement<HTMLDivElement>("sidebar-update-slot"),
     sidebarHoverCardRoot: getElement<HTMLDivElement>("sidebar-hover-card-root"),
     quoteCommentRoot: getElement<HTMLDivElement>("quote-comment-root"),
     settingsOverlayRoot: getElement<HTMLDivElement>("settings-overlay-root"),
@@ -101,6 +102,11 @@ export function initDom(): void {
       <nav id="sidebar-sections" class="sidebar-sections" aria-label="Session list">
         <div id="sidebar-list"></div>
       </nav>
+      <!-- Auto-update S2: the update pill's persistent slot, pinned to the
+           sidebar's bottom-right. Empty + display:none unless an update is
+           staged, so the layout reserves no space when there is nothing to do.
+           Sits outside #sidebar-sections so the list rebuild never clears it. -->
+      <div id="sidebar-update-slot" class="sidebar-update-slot hidden"></div>
     </aside>
     <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" title="Drag to resize · double-click to reset"></div>
     <div class="main-pane">
