@@ -98,9 +98,15 @@ SIGN_IDENTITY="${SONATA_SIGN_IDENTITY:-Developer ID Application: Yuhui Li (NW337
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_DIR="$APP_DIR/release"
 CONFIG="$APP_DIR/electron-builder.yml"
+# dmgbuild wrapper — shoves the DMG's support files off-window so they stay
+# invisible even under Finder's Cmd+Shift+. show-hidden (DMG polish S2). Wired
+# in via CUSTOM_DMGBUILD_PATH at the electron-builder invocation below; see the
+# wrapper header and private/reports/2026-07-24-dmg-s2-slice-record.md.
+DMGBUILD_WRAPPER="$APP_DIR/scripts/dmgbuild-wrapper.sh"
 
 [ -f "$CONFIG" ] || die 1 "electron-builder config not found: $CONFIG"
 [ -f "$APP_DIR/package.json" ] || die 1 "package.json not found in $APP_DIR"
+[ -x "$DMGBUILD_WRAPPER" ] || die 1 "dmgbuild wrapper not found or not executable: $DMGBUILD_WRAPPER"
 
 # --- preflight: tools --------------------------------------------------------
 for tool in node npm codesign xcrun stapler hdiutil jq openssl shasum awk; do
@@ -157,7 +163,13 @@ if [ "$DO_BUILD" = "1" ]; then
   ( cd "$APP_DIR" && npm run build ) || die 2 "npm run build failed."
 
   step "Packaging signed app + DMG + ZIP (this takes a few minutes) ..."
-  ( cd "$APP_DIR" && npx electron-builder --config "$CONFIG" --mac dmg zip --arm64 --publish never ) \
+  # CUSTOM_DMGBUILD_PATH routes DMG authoring through our wrapper (off-window
+  # support-file positions). Scoped to this subshell — the ZIP target does not
+  # invoke dmgbuild, and no other step should see the override. The wrapper
+  # fails loud if it cannot find the vendored dmgbuild, so a broken hide can
+  # never silently ship.
+  ( cd "$APP_DIR" && CUSTOM_DMGBUILD_PATH="$DMGBUILD_WRAPPER" \
+      npx electron-builder --config "$CONFIG" --mac dmg zip --arm64 --publish never ) \
     || die 2 "electron-builder packaging failed."
 fi
 
