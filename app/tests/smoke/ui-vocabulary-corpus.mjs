@@ -33,8 +33,8 @@ const source = Object.fromEntries(
 assert.match(source.dom, />New task<\/span>/, "sidebar creation label is New task");
 assert.match(
   source.dom,
-  /id="toggle-terminal-window"[^>]*aria-pressed="true"[^>]*data-tooltip="Toggle CLI"/,
-  "main toggle keeps toggle semantics and the Toggle CLI tooltip (icon button, 2026-07-16)",
+  /id="toggle-terminal-window"[^>]*aria-pressed="true"[^>]*data-tooltip="Toggle Terminal \(CLI\)"/,
+  "main toggle keeps toggle semantics and the Toggle Terminal (CLI) tooltip (copy 2026-07-24)",
 );
 assert.match(source.sidebar, /disclosureSessionGroup\("chats", "Tasks"/, "folderless group is Tasks");
 assert.match(source.cli, /<p class="eyebrow terminal-window-label">CLI<\/p>/, "CLI header label");
@@ -163,6 +163,10 @@ for (const classification of internalLegacyTaskLiterals) {
 // User-facing uses that truthfully describe provider-owned/background
 // terminals, an external terminal, or the real completion detector.
 const allowedTerminalCopy = [
+  // The CLI satellite toggle (2026-07-24 copy): "Terminal" for readers who
+  // don't know the acronym, "(CLI)" to anchor the term the providers use.
+  // aria-label + data-tooltip carry the same value; the extractor yields it once.
+  exact(paths.dom, "Toggle Terminal (CLI)", 1),
   exact(paths.builtins, "terminal-setup", 1),
   exact(paths.builtins, "List background terminals", 1),
   exact(paths.builtins, "Stop all background terminals", 1),

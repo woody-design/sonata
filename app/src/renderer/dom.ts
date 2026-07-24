@@ -132,7 +132,7 @@ export function initDom(): void {
           data-tooltip="Themes"
         ></button>
         <button id="remote-control-toggle" class="chrome-icon-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Remote control" data-tooltip="Remote control"></button>
-        <button id="toggle-terminal-window" class="chrome-icon-button" type="button" aria-pressed="true" aria-label="Toggle CLI" data-tooltip="Toggle CLI"></button>
+        <button id="toggle-terminal-window" class="chrome-icon-button" type="button" aria-pressed="true" aria-label="Toggle Terminal (CLI)" data-tooltip="Toggle Terminal (CLI)"></button>
         <button id="open-preview-window" class="chrome-icon-button" type="button" aria-label="Toggle Preview" data-tooltip="Toggle Preview"></button>
       </div>
     </header>

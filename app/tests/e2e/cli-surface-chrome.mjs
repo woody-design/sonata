@@ -173,9 +173,9 @@ try {
       toggleOn.pressed === "true" &&
       toggleOff.pressed === "false" &&
       toggleOnAgain.pressed === "true" &&
-      toggleOn.tooltip === "Toggle CLI" &&
-      toggleOff.tooltip === "Toggle CLI" &&
-      toggleOnAgain.tooltip === "Toggle CLI" &&
+      toggleOn.tooltip === "Toggle Terminal (CLI)" &&
+      toggleOff.tooltip === "Toggle Terminal (CLI)" &&
+      toggleOnAgain.tooltip === "Toggle Terminal (CLI)" &&
       toggleOn.backgroundColor !== toggleOff.backgroundColor,
     freshVocabulary:
       freshLabels.newTaskText === "New task" &&

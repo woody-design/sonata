@@ -27,8 +27,10 @@ try {
     "Do not modify any other files.",
   ].join("\n");
 
-  // The first message creates the session (deferred creation).
-  await sendFirstPrompt(page, prompt);
+  // The first message creates the session (deferred creation). Explicit codex
+  // pin: restores this test's pre-provider-flip coverage (S3 made the
+  // declaration mandatory).
+  await sendFirstPrompt(page, prompt, { provider: "codex" });
   await waitForEngagement(page);
 
   // Approve every ask until the run completes. A broker ask's card title is
@@ -76,7 +78,7 @@ try {
   // The terminal is its own satellite window now (default-on). Exercise the
   // header toggle via aria-pressed, which tracks the window's real open state.
   // (The button is icon-only since the 2026-07-16 visual pass — no text to
-  // filter on; its label lives in aria-label="Toggle CLI".)
+  // filter on; its label lives in aria-label="Toggle Terminal (CLI)".)
   await page.locator('#toggle-terminal-window[aria-pressed="true"]').waitFor({ state: "visible" });
   await page.locator("#toggle-terminal-window").click();
   await page.locator('#toggle-terminal-window[aria-pressed="false"]').waitFor({ state: "visible" });

@@ -51,7 +51,9 @@ export function initChromeView(
 
 // The CLI satellite window's icon toggle (lucide Terminal, appended at boot in
 // main.ts). aria-pressed carries the open/closed state and IS the styling hook
-// (.chrome-icon-button[aria-pressed="true"]); the tooltip copy stays "Toggle CLI".
+// (.chrome-icon-button[aria-pressed="true"]); the tooltip copy stays
+// "Toggle Terminal (CLI)" — "Terminal" for readers who don't know the acronym,
+// "(CLI)" to anchor the term the provider ecosystem uses.
 export function applyTerminalWindowState(state: TerminalWindowState): void {
   elements.toggleTerminalWindow.setAttribute("aria-pressed", state.open ? "true" : "false");
 }
