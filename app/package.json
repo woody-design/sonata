@@ -190,7 +190,10 @@
     "smoke:control-switch-engine": "npm run build:main && node tests/smoke/control-switch-engine.mjs",
     "smoke:codex-boot-update-prompt": "npm run build:main && node tests/smoke/codex-boot-update-prompt.mjs",
     "smoke:stop-interrupt-hygiene": "npm run build:main && node tests/smoke/stop-interrupt-hygiene.mjs",
-    "smoke:tags-set-session-validate": "npm run build:main && node tests/smoke/tags-set-session-validate.mjs"
+    "smoke:tags-set-session-validate": "npm run build:main && node tests/smoke/tags-set-session-validate.mjs",
+    "smoke:updater-state": "npm run build:main && node tests/smoke/updater-state.mjs",
+    "smoke:updater-gating": "npm run build:main && node tests/smoke/updater-gating.mjs",
+    "smoke:updater-ipc-contract": "npm run build:main && node tests/smoke/updater-ipc-contract.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
@@ -202,6 +205,7 @@
     "@xterm/headless": "^6.0.0",
     "@xterm/xterm": "^6.0.0",
     "dompurify": "^3.4.8",
+    "electron-updater": "^6.8.9",
     "idiomorph": "^0.7.4",
     "lucide": "^1.17.0",
     "marked": "^18.0.5",

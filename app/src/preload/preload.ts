@@ -11,6 +11,7 @@ import {
   type TaskId,
   type TerminalActiveTaskState,
   type TerminalWindowState,
+  type UpdaterState,
   normalizeReadingSettings,
 } from "../shared/types";
 
@@ -282,6 +283,15 @@ const sonataRuntime: SonataRuntimeBridge = {
     };
     ipcRenderer.on(IPC_CHANNELS.runtimeEvent, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.runtimeEvent, listener);
+  },
+  readUpdaterState: () => ipcRenderer.invoke(IPC_CHANNELS.updaterStateRead),
+  requestUpdaterRestart: () => ipcRenderer.invoke(IPC_CHANNELS.updaterRestart),
+  onUpdaterState: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: UpdaterState) => {
+      callback(state);
+    };
+    ipcRenderer.on(IPC_CHANNELS.updaterState, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.updaterState, listener);
   },
 };
 

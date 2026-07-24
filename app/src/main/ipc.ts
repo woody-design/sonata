@@ -71,6 +71,7 @@ function openExternalIfAllowed(rawUrl: string): boolean {
 }
 import type { ReadingSettingsStore } from "./settings-store";
 import type { RuntimeController } from "./runtime-controller";
+import type { UpdaterController } from "./updater/updater-controller";
 
 export interface WindowIpcController {
   openPreview(request: OpenPreviewRequest): Promise<void>;
@@ -103,6 +104,7 @@ export function registerIpcHandlers(
   runtimeController: RuntimeController,
   windowController: WindowIpcController,
   readingSettingsStore: ReadingSettingsStore,
+  updaterController: UpdaterController,
 ): void {
   ipcMain.on(IPC_CHANNELS.readingSettingsReadSync, (event) => {
     event.returnValue = readingSettingsStore.read();
@@ -328,6 +330,10 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.sonataSettingsWrite, (_event, request) =>
     runtimeController.writeSonataSettings(request),
   );
+  ipcMain.handle(IPC_CHANNELS.updaterStateRead, () => updaterController.readState());
+  ipcMain.handle(IPC_CHANNELS.updaterRestart, () => {
+    updaterController.requestRestart();
+  });
   ipcMain.handle(IPC_CHANNELS.readingSettingsRead, () => readingSettingsStore.read());
   ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) => {
     const persisted = readingSettingsStore.write(request);

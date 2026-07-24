@@ -32,6 +32,7 @@ import {
   type TerminalActiveTaskState,
   type TerminalWindowSettings,
   type TerminalWindowState,
+  type UpdaterState,
   type WorkspaceDirEntry,
   type WorkspaceOpenExternalRequest,
   type WorkspaceOpenExternalResponse,
@@ -53,6 +54,7 @@ import { NotificationController } from "./notification-controller";
 import { PreviewSessions } from "./preview-sessions";
 import { createRuntimeEventRecorder } from "./runtime-event-recorder";
 import { RuntimeController } from "./runtime-controller";
+import { UpdaterController } from "./updater/updater-controller";
 import { WorkspaceFiles } from "./workspace-files";
 import {
   ClaudeSettingsStore,
@@ -99,6 +101,7 @@ let previewWindow: BrowserWindow | null = null;
 let terminalWindow: BrowserWindow | null = null;
 let runtimeController: RuntimeController | null = null;
 let notificationController: NotificationController | null = null;
+let updaterController: UpdaterController | null = null;
 let readingSettingsStore: ReadingSettingsStore | null = null;
 let terminalWindowSettingsStore: TerminalWindowSettingsStore | null = null;
 let localApiServer: LocalApiServer | null = null;
@@ -492,6 +495,18 @@ function broadcastReadingSettings(settings: ReadingSettings): void {
   }
 }
 
+/** Push the renderer-facing updater state to every window on each meaningful
+ *  change (auto-update S1). main owns the window fan-out; the UpdaterController
+ *  owns the state and calls this — the same split the runtime `sendEvent` and
+ *  `sendTerminalWindowState` broadcasts use. */
+function broadcastUpdaterState(state: UpdaterState): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.updaterState, state);
+    }
+  }
+}
+
 /**
  * A clicked native notification raises the Reading window and asks its renderer
  * to select the task the notification was about — the whole point of the
@@ -879,6 +894,7 @@ app.whenReady().then(() => {
     },
   });
   startLocalApiIfEnabled(runtimeController);
+  updaterController = new UpdaterController({ broadcast: broadcastUpdaterState });
   if (!readingSettingsStore) {
     throw new Error("Reading settings store is not ready.");
   }
@@ -908,7 +924,7 @@ app.whenReady().then(() => {
     pickFolder,
     pickReferences,
     forgetPreviewSession,
-  }, readingSettingsStore);
+  }, readingSettingsStore, updaterController);
   createApplicationMenu();
   windowState = new WindowStateManager(new WindowStateStore(windowStatePath()));
   // Default-on: the terminal opens beside the conversation unless the user
@@ -942,6 +958,11 @@ app.whenReady().then(() => {
     });
   }
 
+  // Start the auto-updater last: the gate is evaluated once here, and the first
+  // silent check is 60s out — well after the windows exist to receive a staged
+  // broadcast. Inert unless packaged + in /Applications (guards inside).
+  updaterController.start();
+
   app.on("activate", () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       mainWindow = createMainWindow();
@@ -971,4 +992,7 @@ app.on("before-quit", () => {
   localApiServer?.stop();
   localApiServer = null;
   runtimeController?.dispose();
+  // Clear the updater's check timers so they never hold the process alive on
+  // quit (they are also unref'd as a belt-and-braces).
+  updaterController?.dispose();
 });

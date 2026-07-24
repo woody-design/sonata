@@ -14,6 +14,7 @@ export * from "./sonata-settings";
 export * from "./tags";
 export * from "./terminal-window-settings";
 export * from "./transcript";
+export * from "./updater";
 export * from "./usage";
 export * from "./window-state";
 export * from "./working-status";

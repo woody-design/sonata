@@ -27,6 +27,7 @@ import type {
 import type { OptionPromptSelection } from "./option-prompt";
 import type { ReadSlashCommandsRequest, SlashCommandsResponse } from "./slash";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
+import type { UpdaterState } from "./updater";
 import type { UsageSnapshot } from "./usage";
 import type { RuntimeReportSummaryV1, RuntimeReportV1 } from "../schemas/runtime-report";
 
@@ -130,6 +131,13 @@ export const IPC_CHANNELS = {
   settingsOpen: "settings:open",
   notificationActivateTask: "notification:activate-task",
   runtimeEvent: "runtime:event",
+  // Auto-update (S1). `updaterState` is main's push of the renderer-facing state
+  // (nothing-actionable vs staged) to every window on each meaningful change;
+  // `updaterStateRead` hydrates a late-created window; `updaterRestart` requests
+  // install-on-restart (acts only when an update is staged).
+  updaterState: "updater:state",
+  updaterStateRead: "updater:state:read",
+  updaterRestart: "updater:restart",
 } as const;
 
 export interface CreateTaskRequest {
@@ -914,6 +922,13 @@ export interface SonataRuntimeBridge {
   /** A clicked native notification asks the main window to select its task. */
   onNotificationActivateTask(callback: (taskId: TaskId) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;
+  // Auto-update (S1). The subscribe/read pair hydrates the sidebar button (S2):
+  // subscribe for live pushes, read once to catch a state set before the window
+  // (or its listener) existed. `requestUpdaterRestart` is a no-op unless an
+  // update is staged.
+  onUpdaterState(callback: (state: UpdaterState) => void): () => void;
+  readUpdaterState(): Promise<UpdaterState>;
+  requestUpdaterRestart(): Promise<void>;
 }
 
 export interface RuntimeReportUpdatePayload {
