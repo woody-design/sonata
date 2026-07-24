@@ -67,9 +67,7 @@ export function initUpdateButton(dependencies: UpdateButtonDeps): void {
 
   button = document.createElement("button");
   button.id = "sidebar-update-button";
-  // `.primary` = the design system's primary-action grammar (ink fill + disabled
-  // treatment); `.sidebar-update-button` = pill geometry + placement only.
-  button.className = "sidebar-update-button primary";
+  button.className = "sidebar-update-button";
   button.type = "button";
   button.addEventListener("click", onClick);
   elements.sidebarUpdateSlot.append(button);
