@@ -22,7 +22,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { chooseDraftProvider, sendFirstPrompt, sendPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
+import { sendFirstPrompt, sendPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-scroll-during-render-workspace-"));
 const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-scroll-during-render-store-"));
@@ -48,11 +48,10 @@ try {
   // A settled transcript tall enough that a view frozen near the top is
   // unambiguously far from the bottom. Grow it with follow-ups if one reply
   // is short, so the fence does not hinge on any single reply's length.
-  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, [
     "Output a numbered list from 1 to 60, each number on its own line.",
     "Plain text only. No commentary, no code fences, no tools. Do not modify files.",
-  ]);
+  ], { provider: "codex" });
   let completed = 1;
   await waitForCompletedTurns(page, completed);
   for (let attempt = 0; attempt < 3 && (await overflow(page)) < 320; attempt += 1) {

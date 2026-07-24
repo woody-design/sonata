@@ -40,7 +40,7 @@ try {
     "Q2 multiSelect FALSE, header 'Editor', question 'Which editor?',",
     "options: label 'Vim' description 'v'; label 'VSCode' description 'c'.",
   ].join(" ");
-  await sendFirstPrompt(page, trigger, { approveTrust: true, trustTimeout: 120000 });
+  await sendFirstPrompt(page, trigger, { provider: "claude", approveTrust: true, trustTimeout: 120000 });
 
   const card = page.locator("#option-prompt-card");
   await card.waitFor({ state: "visible", timeout: 180000 });

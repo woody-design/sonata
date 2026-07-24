@@ -12,6 +12,23 @@ import { approveVisibleBanner } from "./approval.mjs";
 
 /** Send the FIRST prompt of a window — creates the session.
  *
+ * A first prompt CREATES the session (deferred creation), so the provider it
+ * spawns is a load-bearing INPUT, not an incidental default. Tests must
+ * declare it: `options.provider` is REQUIRED — `"claude"`, `"codex"`, or the
+ * explicit escape hatch `"ambient"`. This makes every session hermetic — no
+ * test can silently inherit the product's default provider and break when
+ * that default moves (the lesson S2 paid for with 19 retrofitted pins).
+ *
+ * - `"claude"` / `"codex"`: the helper ensures the draft chip matches BEFORE
+ *   sending. The check is idempotent — it reads `#provider-chip` and only
+ *   performs the menu click when the chip differs, so declaring the provider
+ *   at every call site adds no menu interaction (and no flake) when the chip
+ *   is already correct.
+ * - `"ambient"`: no selection, no assertion — a deliberate, self-documenting
+ *   opt-in to the environment default. Reserved for tests whose PURPOSE is
+ *   the default path.
+ * - missing/invalid `provider` throws immediately.
+ *
  * Returns how the trust moment resolved: `"pre-trusted"` (the prompt
  * dispatched with no trust banner — S4's pre-write world for Claude),
  * `"trust-answered"` (the banner appeared and was approved — Codex, and any
@@ -19,7 +36,8 @@ import { approveVisibleBanner } from "./approval.mjs";
  * with trust pre-granted the banner never comes, and a fixed wait would add
  * its full timeout to every suite. */
 export async function sendFirstPrompt(page, lines, options = {}) {
-  const { approveTrust = true, trustTimeout = 60000 } = options;
+  const { provider, approveTrust = true, trustTimeout = 60000 } = options;
+  await ensureDraftProvider(page, provider);
   const cardsBefore = await page.locator(".turn-card").count();
   await page.locator("#prompt-input").fill(asText(lines));
   await page.locator("#send-prompt").click();
@@ -108,6 +126,33 @@ export async function openNewChat(page) {
 export async function chooseDraftProvider(page, provider) {
   await page.locator("#provider-chip").click();
   await page.locator(`#provider-option-${provider}`).click();
+}
+
+/** The `#provider-chip` label each declarable provider renders as. */
+const PROVIDER_CHIP_LABELS = { claude: "Claude", codex: "Codex" };
+
+/** Enforce `sendFirstPrompt`'s provider contract, then idempotently align the
+ *  draft chip. `"ambient"` opts out of selection on purpose; a missing/invalid
+ *  provider throws (the message names the escape hatch). The chip is only
+ *  clicked when it does not already show the requested provider, so passing an
+ *  already-matching provider is free. */
+async function ensureDraftProvider(page, provider) {
+  if (provider === "ambient") {
+    return;
+  }
+  const label = PROVIDER_CHIP_LABELS[provider];
+  if (!label) {
+    throw new Error(
+      `sendFirstPrompt requires options.provider to be "claude", "codex", or "ambient" ` +
+        `(received ${JSON.stringify(provider)}). The first prompt CREATES the session, so ` +
+        `the test must declare which provider it spawns instead of inheriting the product ` +
+        `default. Use "ambient" only when the test's PURPOSE is the environment default path.`,
+    );
+  }
+  const current = (await page.locator("#provider-chip").textContent()) ?? "";
+  if (!current.includes(label)) {
+    await chooseDraftProvider(page, provider);
+  }
 }
 
 /** Pick the New Chat working folder through the project chip's menu. The

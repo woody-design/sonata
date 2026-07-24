@@ -40,7 +40,7 @@ try {
   await page.keyboard.press("Escape");
 
   // First prompt creates the session — which must spawn WITH --remote-control.
-  await sendFirstPrompt(page, "Reply with exactly: RC_ARMED_READY");
+  await sendFirstPrompt(page, "Reply with exactly: RC_ARMED_READY", { provider: "claude" });
   await page.locator(".turn-card", { hasText: "RC_ARMED_READY" }).waitFor({ state: "visible" });
 
   // No /rc injection anywhere: RC must be on purely from the spawn flag.

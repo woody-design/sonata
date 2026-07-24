@@ -27,7 +27,7 @@ try {
   await chooseDraftProvider(page, "claude");
 
   // Create the session with a fast first turn; the helper answers workspace trust.
-  await sendFirstPrompt(page, "Reply with exactly: RC_READY");
+  await sendFirstPrompt(page, "Reply with exactly: RC_READY", { provider: "claude" });
   await page.locator(".turn-card", { hasText: "RC_READY" }).waitFor({ state: "visible" });
   await page.locator('.turn-card[data-run-status="completed"]').first().waitFor({ state: "visible" });
 

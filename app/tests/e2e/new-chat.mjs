@@ -105,7 +105,7 @@ try {
     .click();
 
   const firstPrompt = "Reply with exactly: NEW_CHAT_READY";
-  await sendFirstPrompt(page, firstPrompt);
+  await sendFirstPrompt(page, firstPrompt, { provider: "codex" });
   const taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 60000);
   const workspace = path.join(workspaceRoot, "data", "projects", taskDirectory);
   await page.locator(".task-entry-panel").waitFor({ state: "hidden" });

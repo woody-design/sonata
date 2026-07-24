@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval } from "./helpers/approval.mjs";
-import { activeSessionTaskId, chooseDraftProvider, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
+import { activeSessionTaskId, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-change-summary-e2e-"));
 let electronApp = null;
@@ -22,7 +22,6 @@ try {
   page = await electronApp.firstWindow();
   page.setDefaultTimeout(180000);
 
-  await chooseDraftProvider(page, "codex");
   await runPrompt(page, 1, [
     "Create exactly two files.",
     "First, create change_summary.md containing exactly: Change summary artifact ready.",
@@ -96,7 +95,7 @@ try {
 async function runPrompt(page, expectedCompletedRuns, lines) {
   // The first prompt creates the session (deferred creation) and answers the
   // workspace-trust approval that surfaces during the provider cold start.
-  await sendFirstPrompt(page, lines);
+  await sendFirstPrompt(page, lines, { provider: "codex" });
   await waitForEngagement(page);
   await waitForCompletedRuns(page, expectedCompletedRuns, 240000);
 }

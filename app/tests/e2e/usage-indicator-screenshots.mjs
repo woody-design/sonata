@@ -32,7 +32,7 @@ try {
   // Sessions are born from the first composer message; the indicator is
   // disabled until the session exists, so the degraded (no usage data yet)
   // state is captured between session creation and the first usage snapshot.
-  await sendFirstPrompt(page, "Reply exactly SONATA_USAGE_CODEX.");
+  await sendFirstPrompt(page, "Reply exactly SONATA_USAGE_CODEX.", { provider: "codex" });
   await stageComposerForScreenshot(page);
   await page.locator("#usage-indicator").click();
   await page.locator(".usage-popover", { hasText: "No usage data yet" }).waitFor({
@@ -89,7 +89,8 @@ try {
 async function runPrompt(page, prompt) {
   // The first prompt of a fresh chat creates the session (deferred creation)
   // and answers the workspace-trust approval during the provider cold start.
-  await sendFirstPrompt(page, prompt);
+  // Reached only from the Claude second-session flow above.
+  await sendFirstPrompt(page, prompt, { provider: "claude" });
   await page.locator(".turn-card", { hasText: prompt }).first().waitFor({
     state: "visible",
     timeout: 180000,

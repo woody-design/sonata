@@ -44,7 +44,7 @@ try {
     "Q3 header 'Animal' question 'Which animal?' options: label 'Ant' description 'an insect';",
     "label 'Bee' description 'a flying insect'; label 'Cat' description 'a mammal'.",
   ].join(" ");
-  await sendFirstPrompt(page, trigger, { approveTrust: true, trustTimeout: 120000 });
+  await sendFirstPrompt(page, trigger, { provider: "claude", approveTrust: true, trustTimeout: 120000 });
 
   // The drawer surfaces in the composer slot; the composer card hides.
   const card = page.locator("#option-prompt-card");

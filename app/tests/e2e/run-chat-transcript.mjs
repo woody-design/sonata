@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval, approveVisibleBanner } from "./helpers/approval.mjs";
-import { activeSessionTaskId, chooseDraftProvider, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
+import { activeSessionTaskId, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-run-chat-e2e-"));
 let electronApp = null;
@@ -27,7 +27,6 @@ try {
     "Do not modify any other files.",
   ].join("\n");
 
-  await chooseDraftProvider(page, "codex");
   await runPrompt(page, 1, prompt);
 
   const taskId = await activeSessionTaskId(page);
@@ -121,7 +120,7 @@ try {
 async function runPrompt(page, expectedCompletedRuns, prompt) {
   // The first prompt creates the session (deferred creation) and answers the
   // workspace-trust approval that surfaces during the provider cold start.
-  await sendFirstPrompt(page, prompt);
+  await sendFirstPrompt(page, prompt, { provider: "codex" });
   await waitForEngagement(page);
   await waitForCompletedRuns(page, expectedCompletedRuns, 240000);
 }

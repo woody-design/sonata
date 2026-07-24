@@ -51,7 +51,7 @@ try {
 
   // 1. S4 negative control — the pick gesture pre-granted trust, so the
   //    dispatch must win the race against a trust banner that never comes.
-  const trustOutcome = await sendFirstPrompt(page, prompt);
+  const trustOutcome = await sendFirstPrompt(page, prompt, { provider: "claude" });
   if (trustOutcome !== "pre-trusted") {
     throw new Error(`Expected a pre-trusted cold start (S4), got: ${trustOutcome}`);
   }

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.mjs";
-import { chooseDraftProvider, sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
+import { sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-queue-delivery-e2e-"));
 // Without an isolated settings dir, the global lastUsedFolder leaks in as the
@@ -51,8 +51,7 @@ try {
 
   // The first prompt creates the session (deferred creation) and answers the
   // workspace-trust approval that surfaces during the provider cold start.
-  await chooseDraftProvider(page, "codex");
-  await sendFirstPrompt(page, firstPrompt);
+  await sendFirstPrompt(page, firstPrompt, { provider: "codex" });
   taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 45000);
   recordDir = path.join(workspaceRoot, "data", "projects", taskDirectory);
   // Project-less sessions run in an unpredictable date-slug working directory,

@@ -18,7 +18,6 @@ import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import {
   activeSessionTaskId,
-  chooseDraftProvider,
   sendFirstPrompt,
   waitForCompletedTurns,
   waitForWindowByUrl,
@@ -46,11 +45,10 @@ try {
   const page = await app.firstWindow();
   page.setDefaultTimeout(180000);
 
-  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, [
     "Reply exactly SONATA_PREVIEW_READER_READY.",
     "Do not create or modify any files.",
-  ]);
+  ], { provider: "codex" });
   const taskId = await activeSessionTaskId(page);
   if (!taskId) {
     throw new Error("Sidebar session did not expose a task id.");

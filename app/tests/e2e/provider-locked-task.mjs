@@ -26,7 +26,7 @@ try {
   await page.locator("#permission-chip", { hasText: "Accept edits" }).waitFor({ state: "visible" });
 
   // The first composer message creates the provider-locked session.
-  await sendFirstPrompt(page, "Reply exactly SONATA_PROVIDER_LOCKED. Do not create or modify any files.");
+  await sendFirstPrompt(page, "Reply exactly SONATA_PROVIDER_LOCKED. Do not create or modify any files.", { provider: "claude" });
 
   const taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 45000);
   const workspace = path.join(workspaceRoot, "data", "projects", taskDirectory);

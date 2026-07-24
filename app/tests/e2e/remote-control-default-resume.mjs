@@ -32,7 +32,7 @@ try {
   await page.keyboard.press("Escape");
   await page.locator(".settings-window").waitFor({ state: "hidden" });
 
-  await sendFirstPrompt(page, "Reply with exactly: DORM_DEFAULT_SEED");
+  await sendFirstPrompt(page, "Reply with exactly: DORM_DEFAULT_SEED", { provider: "claude" });
   await page.locator(".turn-card", { hasText: "DORM_DEFAULT_SEED" }).waitFor({ state: "visible" });
   await page.locator('.turn-card[data-run-status="completed"]').first().waitFor({ state: "visible" });
   const taskId = await activeSessionTaskId(page);

@@ -9,7 +9,6 @@ import { fileURLToPath } from "node:url";
 import { _electron as electron } from "playwright-core";
 import {
   activeSessionTaskId,
-  chooseDraftProvider,
   sendFirstPrompt,
   sendPrompt,
   waitForCompletedTurns,
@@ -36,11 +35,10 @@ try {
   const page = await app.firstWindow();
   page.setDefaultTimeout(180000);
 
-  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, [
     "Reply exactly SONATA_CHIPS_SHOTS_READY.",
     "Do not create or modify any files.",
-  ]);
+  ], { provider: "codex" });
   const taskId = await activeSessionTaskId(page);
   await waitForCompletedTurns(page, 1);
 

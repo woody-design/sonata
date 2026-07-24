@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { _electron as electron } from "playwright-core";
-import { chooseDraftProvider, sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
+import { sendFirstPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-reading-navigation-workspace-"));
 const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-reading-navigation-store-"));
@@ -171,11 +171,10 @@ async function startFixtureTask(page) {
   // the fixture only needs the run list and composer in their task state, so
   // start the session with a no-op prompt and let the run settle before the
   // fixture replaces the run list contents.
-  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, [
     "Reply exactly SONATA_READING_NAV_READY.",
     "Do not create or modify any files.",
-  ]);
+  ], { provider: "codex" });
   await waitForCompletedTurns(page, 1);
   await page.locator("#send-prompt").waitFor({ state: "visible" });
 }

@@ -16,7 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { _electron as electron } from "playwright-core";
-import { chooseDraftProvider, sendFirstPrompt, sendPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
+import { sendFirstPrompt, sendPrompt, waitForCompletedTurns } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-transcript-selection-e2e-"));
 let electronApp = null;
@@ -30,10 +30,9 @@ try {
   page.setDefaultTimeout(180000);
 
   // Turn 1 — a completed, stable message with selectable assistant text.
-  await chooseDraftProvider(page, "codex");
   await sendFirstPrompt(page, [
     "Write exactly one short sentence about the color blue, and nothing else.",
-  ]);
+  ], { provider: "codex" });
   await waitForCompletedTurns(page, 1);
   // Completion can precede the debounced transcript-block render. This fence is
   // specifically about selecting ASSISTANT text, so wait for that semantic

@@ -29,7 +29,7 @@ try {
   let page = await launchApp();
   page.on("pageerror", (err) => pageErrors.push(String(err)));
   await chooseDraftProvider(page, "claude");
-  await sendFirstPrompt(page, "Reply with exactly: DORMANT_SEED");
+  await sendFirstPrompt(page, "Reply with exactly: DORMANT_SEED", { provider: "claude" });
   await page.locator(".turn-card", { hasText: "DORMANT_SEED" }).waitFor({ state: "visible" });
   await page.locator('.turn-card[data-run-status="completed"]').first().waitFor({ state: "visible" });
   const taskId = await activeSessionTaskId(page);

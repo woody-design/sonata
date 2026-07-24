@@ -50,7 +50,7 @@ try {
   // dialog must NOT appear — its scrape/answer cycle is exactly what wedged
   // this suite's baseline pre-S4 (fingerprint-keyed resurface × partial
   // repaint; s3-diags/trust-wedge-gui-diag).
-  const trustOutcome = await sendFirstPrompt(page, "Reply with exactly: READY");
+  const trustOutcome = await sendFirstPrompt(page, "Reply with exactly: READY", { provider: "claude" });
   checks.noTrustDialog = trustOutcome === "pre-trusted";
   await waitForCompletedTurns(page, 1);
   checks.sessionLive = true;

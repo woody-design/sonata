@@ -46,7 +46,7 @@ try {
   await page.locator("#project-chip", { hasText: path.basename(selectedFolder) }).waitFor({
     state: "visible",
   });
-  await sendFirstPrompt(page, "Reply with exactly: G1B_OK");
+  await sendFirstPrompt(page, "Reply with exactly: G1B_OK", { provider: "claude" });
 
   await page.locator('.turn-card[data-run-status="completed"]').waitFor({ state: "visible" });
 

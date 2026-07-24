@@ -69,7 +69,7 @@ try {
     });
   });
 
-  await sendFirstPrompt(page, "Count slowly from 1 to 12, one number per line, then say done.");
+  await sendFirstPrompt(page, "Count slowly from 1 to 12, one number per line, then say done.", { provider: "claude" });
   await waitForEngagement(page);
 
   // (d) DISABLED WHILE RUNNING — the access chip is interactive-shaped (Claude)

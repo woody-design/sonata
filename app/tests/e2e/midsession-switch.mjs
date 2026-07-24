@@ -44,7 +44,7 @@ try {
 
   // A prompt that streams for a few seconds (no tool approval) so the running
   // turn is observable — long enough to assert the disabled chip.
-  await sendFirstPrompt(page, "Count slowly from 1 to 12, one number per line, then say done.");
+  await sendFirstPrompt(page, "Count slowly from 1 to 12, one number per line, then say done.", { provider: "claude" });
   await waitForEngagement(page);
 
   // (1) DISABLED WHILE RUNNING — the chip is interactive-shaped (Claude) but

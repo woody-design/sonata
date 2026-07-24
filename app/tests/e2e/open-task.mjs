@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.mjs";
-import { activeSessionTaskId, chooseDraftProvider, selectSidebarSession, sendFirstPrompt, sendPrompt } from "./helpers/session.mjs";
+import { activeSessionTaskId, selectSidebarSession, sendFirstPrompt, sendPrompt } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-open-task-e2e-"));
 // Isolate the projects/settings store too — NOT just SONATA_DATA_DIR. Without
@@ -40,8 +40,7 @@ try {
   // assertions are structural: a non-empty title, the sidebar row addressed
   // by task id, and header/sidebar/manifest agreeing on the SAME title.
 
-  await chooseDraftProvider(page, "codex");
-  await sendFirstPrompt(page, originalPrompt);
+  await sendFirstPrompt(page, originalPrompt, { provider: "codex" });
   const taskDirectory = await waitForTaskDirectory(path.join(workspaceRoot, "data", "projects"), 45000);
   const recordDir = path.join(workspaceRoot, "data", "projects", taskDirectory);
   // Project-less sessions run in an unpredictable date-slug working directory,
