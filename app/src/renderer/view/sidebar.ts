@@ -248,9 +248,12 @@ function renderSidebarListHeader(title: string): HTMLElement {
   filterButton.setAttribute("aria-label", "Filter, group, and sort sessions");
   filterButton.setAttribute("aria-haspopup", "menu");
   setSidebarFocusKey(filterButton, "filter");
-  // Blue whenever anything departs from the default setup — the
-  // persistent "your view is shaped" signal.
+  // Two-tier state signal: ink-primary `active` when anything departs from the
+  // default setup (view is shaped), accent-blue `filtering` when the filter
+  // subset is hiding sessions (status/project/activity/tags). Hidden content
+  // warrants the scarce color — reshaped content does not (2026-07-24).
   filterButton.classList.toggle("active", sidebarPrefsNonDefault(state.sidebar.prefs));
+  filterButton.classList.toggle("filtering", sidebarFiltersNonDefault(state.sidebar.prefs));
   filterButton.append(lucideIcon(ListFilter, 14));
   filterButton.addEventListener("click", (event) => {
     event.stopPropagation();

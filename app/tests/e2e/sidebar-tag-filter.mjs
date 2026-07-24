@@ -74,6 +74,11 @@ try {
     true,
     "tag filters activate the filter button's non-default indicator",
   );
+  assertEqual(
+    await page.locator("#sidebar-filter").evaluate((element) => element.classList.contains("filtering")),
+    true,
+    "tag filters activate the filter button's accent hiding-sessions indicator",
+  );
   assertDeepEqual(
     await storedTagPrefs(page),
     ["status.todo", "type.research"],
@@ -108,6 +113,11 @@ try {
     await page.locator("#sidebar-filter").evaluate((element) => element.classList.contains("active")),
     false,
     "Clear filters removes the filter button's non-default indicator",
+  );
+  assertEqual(
+    await page.locator("#sidebar-filter").evaluate((element) => element.classList.contains("filtering")),
+    false,
+    "Clear filters removes the filter button's accent hiding-sessions indicator",
   );
   await reloadedMenu.waitFor({ state: "detached" });
   assertDeepEqual(pageErrors, [], "renderer page errors");

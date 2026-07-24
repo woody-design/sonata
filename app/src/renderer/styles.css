@@ -117,10 +117,13 @@
   --text-on-accent: #ffffff;
   /* Focus/active edges are NEUTRAL — ink hue, same alpha the blue ring had.
      Blue stays reserved for links/file chips/quote-comment/selection, the
-     active-tool icon (Woody ruling 2026-07-16), and the status-strip working
+     active-tool icon (Woody ruling 2026-07-16), the status-strip working
      headline + current sub-task (amended 2026-07-17): the strip is the one
      attention anchor for "what is the agent doing right now", transient by
-     nature, so it doesn't dilute blue's interactive scarcity. */
+     nature, so it doesn't dilute blue's interactive scarcity — and the
+     sidebar filter icon while filters HIDE sessions (amended 2026-07-24):
+     a persistent "the list is not everything" flag, same
+     something-active-is-shaping-what-you-see class as the roster above. */
   --focus-ring: rgb(var(--p-ink) / 0.55);
   --focus-halo: rgb(var(--p-ink) / 0.07);           /* outer wash around focused cards */
 
@@ -976,6 +979,15 @@ body.sidebar-resizing {
 
 .sidebar-filter-button.active:hover {
   color: var(--text-primary);
+}
+
+/* Filters are hiding sessions (status/project/activity/tags non-default) —
+   the scarce accent marks "the list you see is not everything". Group/sort
+   changes stay on the ink `active` tier above: they reshape, they don't hide.
+   (Woody ruling 2026-07-24 — see the blue-scarcity roster at --accent.) */
+.sidebar-filter-button.filtering,
+.sidebar-filter-button.filtering:hover {
+  color: var(--accent);
 }
 
 .sidebar-filter-menu {
