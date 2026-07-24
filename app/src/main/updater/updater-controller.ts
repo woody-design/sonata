@@ -1,7 +1,15 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { app } from "electron";
 import { autoUpdater } from "electron-updater";
 import type { Logger } from "electron-updater";
 import { updaterStateEquals, type UpdaterState } from "../../shared/types/updater";
+import {
+  decideInteractiveCheck,
+  resolveCheckOutcome,
+  type InteractiveCheckOutcome,
+  type InteractiveCheckResult,
+} from "./updater-interactive";
 import {
   INITIAL_RESTART_GUARD_STATE,
   INITIAL_UPDATER_STATE,
@@ -123,6 +131,44 @@ export class UpdaterController {
     // healthy handoff the process dies before it fires; on a macOS ShipIt silent
     // no-op (#7356/#8795) it does not, and recovery un-wedges the guard.
     this.applyRestartGuard({ type: "quit-returned" });
+  }
+
+  /** The user-initiated "Check for Updates…" affordance (auto-update S3). Runs
+   *  the manual check and returns exactly one outcome for the menu to render as a
+   *  native dialog. All decisions are pure (`decideInteractiveCheck` /
+   *  `resolveCheckOutcome`); this only performs the impure network round-trip when
+   *  the pure layer asks for it. Short-circuits — disabled, already staged, a
+   *  background check/download already in flight — never touch `autoUpdater`. */
+  async checkForUpdatesInteractive(): Promise<InteractiveCheckOutcome> {
+    const currentVersion = app.getVersion();
+    const plan = decideInteractiveCheck({
+      gateStatus: this.gateStatus,
+      phase: this.machine.phase,
+      stagedVersion: this.machine.stagedVersion,
+      currentVersion,
+    });
+    if (plan.action === "resolve") {
+      return plan.outcome;
+    }
+    return resolveCheckOutcome(await this.runInteractiveCheck(), currentVersion);
+  }
+
+  /** The impure half of the manual check: one `checkForUpdates()` round-trip,
+   *  normalized to {@link InteractiveCheckResult}. The scheduled background checks
+   *  drive the state machine via events; this is only for the dialog's answer, so
+   *  it reads the resolved result directly and never throws (a failed check is a
+   *  reported outcome, not an exception). */
+  private async runInteractiveCheck(): Promise<InteractiveCheckResult> {
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      if (result && result.isUpdateAvailable) {
+        return { kind: "update-available", version: result.updateInfo.version };
+      }
+      return { kind: "up-to-date" };
+    } catch (error) {
+      console.error("[updater] interactive check failed:", error);
+      return { kind: "failed" };
+    }
   }
 
   /** Stop every timer so none holds the process alive on quit. */
@@ -269,6 +315,26 @@ export class UpdaterController {
       allowUnpackaged: process.env.SONATA_UPDATE_ALLOW_UNPACKAGED === "1",
       feedOverride: Boolean(process.env.SONATA_UPDATE_FEED_URL),
       inApplicationsFolder,
+      internal: this.readInternalBuildFlag(),
     };
+  }
+
+  /** Read the packaged `package.json`'s `internalBuild` flag (Channel model).
+   *  `update-daily.sh` stamps `internalBuild: true` via electron-builder
+   *  `extraMetadata`, which lands in the app bundle's `package.json` at
+   *  `app.getAppPath()`. Read defensively: absent, unreadable, or non-`true` ⇒
+   *  NOT internal (the external release path), so a parse hiccup can never wedge
+   *  a real release into `disabled-internal`. Only the literal `true` marks an
+   *  internal build. */
+  private readInternalBuildFlag(): boolean {
+    try {
+      const packageJsonPath = path.join(app.getAppPath(), "package.json");
+      const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+        internalBuild?: unknown;
+      };
+      return parsed.internalBuild === true;
+    } catch {
+      return false;
+    }
   }
 }

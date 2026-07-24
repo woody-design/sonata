@@ -13,6 +13,7 @@ const base = {
   allowUnpackaged: false,
   feedOverride: false,
   inApplicationsFolder: true,
+  internal: false,
 };
 const gate = (overrides) => evaluateUpdaterGate({ ...base, ...overrides });
 
@@ -57,6 +58,24 @@ const rows = [
     { disableEnv: true, inApplicationsFolder: false },
     "disabled-env",
     "kill switch wins over the location gate",
+  ],
+  // Internal build (Channel model): update-daily.sh's daily driver. A build-time
+  // identity that outranks packaging + location but not the kill switch.
+  [{ internal: true }, "disabled-internal", "internal build (daily driver) on a packaged /Applications install"],
+  [
+    { internal: true, disableEnv: true },
+    "disabled-env",
+    "kill switch wins over the internal marker",
+  ],
+  [
+    { internal: true, isPackaged: false },
+    "disabled-internal",
+    "internal marker wins over the dev gate",
+  ],
+  [
+    { internal: true, inApplicationsFolder: false },
+    "disabled-internal",
+    "internal marker wins over the location gate",
   ],
 ];
 

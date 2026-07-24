@@ -11,6 +11,7 @@
  */
 export type UpdaterGateStatus =
   | "active"
+  | "disabled-internal"
   | "disabled-dev"
   | "disabled-env"
   | "disabled-location";
@@ -20,6 +21,13 @@ export interface UpdaterGateInput {
   readonly isPackaged: boolean;
   /** `SONATA_DISABLE_UPDATER=1` — the kill switch. */
   readonly disableEnv: boolean;
+  /** The packaged `package.json`'s `internalBuild` flag (Channel model): Woody's
+   *  daily driver is built by `update-daily.sh`, which stamps `internalBuild:true`
+   *  via electron-builder `extraMetadata`. Such a build updates through the next
+   *  `update-daily.sh` run, NOT the public GitHub channel, so the updater is
+   *  inert. Machine identity is declared at BUILD time, not inferred at runtime.
+   *  Absent/unreadable ⇒ not internal (the external release path). */
+  readonly internal: boolean;
   /** `SONATA_UPDATE_ALLOW_UNPACKAGED=1` — dev-harness bypass of the packaged
    *  requirement, mirroring electron-updater's `forceDevUpdateConfig` (S4). */
   readonly allowUnpackaged: boolean;
@@ -38,6 +46,14 @@ export function evaluateUpdaterGate(input: UpdaterGateInput): UpdaterGateStatus 
   // of packaging or location.
   if (input.disableEnv) {
     return "disabled-env";
+  }
+  // An internal build is a build-time identity — it updates through
+  // update-daily.sh, never the public channel. That identity outranks the
+  // runtime location/packaging checks (a locally-built daily driver still sits
+  // packaged in /Applications and would otherwise look `active`), but the
+  // explicit kill switch above still wins over everything.
+  if (input.internal) {
+    return "disabled-internal";
   }
   // Packaging is required; only the explicit unpackaged bypass relaxes it (the
   // feed override does NOT — an unpackaged app still needs the bypass to run).

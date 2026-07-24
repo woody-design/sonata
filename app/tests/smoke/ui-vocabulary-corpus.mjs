@@ -21,6 +21,7 @@ const paths = {
   settings: "src/renderer/view/settings.ts",
   main: "src/main/main.ts",
   updateButton: "src/renderer/view/update-button.ts",
+  updaterInteractive: "src/main/updater/updater-interactive.ts",
   indexHtml: "src/renderer/index.html",
   cliHtml: "src/renderer/terminal.html",
   previewHtml: "src/renderer/preview.html",
@@ -52,6 +53,55 @@ assert.match(source.cliHtml, /<title>Sonata CLI<\/title>/, "CLI document title")
 assert.match(source.updateButton, /"Update"/, "update pill resting label");
 assert.match(source.updateButton, /"Restart to Update"/, "update pill armed label");
 assert.match(source.updateButton, /"Updating…"/, "update pill updating label");
+
+// Auto-update menu + dialog vocabulary (S3). The manual affordance's label and
+// the eight result-dialog title/body strings are the agreed, Woody-approved
+// wording. Pin the LITERALS (same rationale as the S2 pills): a wording drift
+// fails the fence; a code refactor that keeps the copy stays green.
+assert.match(source.main, /"Check for Updates…"/, "manual update menu affordance label");
+// Dialog titles.
+assert.match(source.updaterInteractive, /"You're up to date"/, "up-to-date dialog title");
+assert.match(source.updaterInteractive, /"Update available"/, "found-downloading dialog title");
+assert.match(source.updaterInteractive, /"Update on its way"/, "already-downloading dialog title");
+assert.match(source.updaterInteractive, /"Update ready"/, "staged dialog title");
+assert.match(source.updaterInteractive, /"Couldn't check for updates"/, "check-failed dialog title");
+assert.match(source.updaterInteractive, /"Internal build"/, "disabled-internal dialog title");
+assert.match(source.updaterInteractive, /"Updates unavailable"/, "disabled-location/dev dialog title");
+assert.match(source.updaterInteractive, /"Updates disabled"/, "disabled-env dialog title");
+// Dialog bodies (distinctive substrings — some are interpolated or concatenated).
+assert.match(source.updaterInteractive, /is the latest version\./, "up-to-date dialog body");
+assert.match(source.updaterInteractive, /is downloading in the background\./, "downloading dialog body");
+assert.match(
+  source.updaterInteractive,
+  /The Update button will appear in the sidebar when it's ready\./,
+  "downloading dialog sidebar pointer",
+);
+assert.match(source.updaterInteractive, /is ready to install\./, "staged dialog body");
+assert.match(source.updaterInteractive, /"Sonata will retry automatically\."/, "check-failed dialog body");
+assert.match(source.updaterInteractive, /"Later"/, "staged dialog cancel button");
+assert.match(
+  source.updaterInteractive,
+  /"This build updates through update-daily\.sh, not the public channel\."/,
+  "disabled-internal dialog body",
+);
+assert.match(
+  source.updaterInteractive,
+  /"Move Sonata to the Applications folder to enable automatic updates\."/,
+  "disabled-location dialog body",
+);
+assert.match(
+  source.updaterInteractive,
+  /"Updates are disabled in development builds\."/,
+  "disabled-dev dialog body",
+);
+assert.match(
+  source.updaterInteractive,
+  /"Automatic updates are turned off for this session \(SONATA_DISABLE_UPDATER\)\."/,
+  "disabled-env dialog body",
+);
+// "Restart to Update" is shared with the pill; assert it also anchors the staged
+// dialog's default button so a drift here can't slip past the pill-only pin.
+assert.match(source.updaterInteractive, /"Restart to Update"/, "staged dialog restart button");
 
 const rendererFiles = filesUnder("src/renderer", ".ts").filter(
   (file) => ![paths.dom, paths.cli].includes(file),

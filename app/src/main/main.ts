@@ -55,6 +55,7 @@ import { PreviewSessions } from "./preview-sessions";
 import { createRuntimeEventRecorder } from "./runtime-event-recorder";
 import { RuntimeController } from "./runtime-controller";
 import { UpdaterController } from "./updater/updater-controller";
+import { buildUpdaterDialog } from "./updater/updater-interactive";
 import { WorkspaceFiles } from "./workspace-files";
 import {
   ClaudeSettingsStore,
@@ -508,6 +509,42 @@ function broadcastUpdaterState(state: UpdaterState): void {
 }
 
 /**
+ * The "Check for Updates…" menu affordance (auto-update S3). Runs the interactive
+ * check and shows exactly one native dialog for its outcome. The updater decision
+ * + copy are pure (updater-interactive.ts); this owns only the impure dialog and
+ * the restart handoff. `staged` offers "Restart to Update", which routes through
+ * the SAME `requestRestart` path as the sidebar pill — the restart-guard reducer
+ * governs it. The controller reads its gate status lazily, so this is safe to
+ * call any time after `updaterController.start()`.
+ */
+async function runInteractiveUpdaterCheck(): Promise<void> {
+  const controller = updaterController;
+  if (!controller) {
+    return;
+  }
+  const outcome = await controller.checkForUpdatesInteractive();
+  const spec = buildUpdaterDialog(outcome);
+  const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+  const options = {
+    type: "info" as const,
+    // On macOS `message` is the bold headline and `detail` the secondary line;
+    // `title` is the (mostly unused) window title. Map the spec's title → both.
+    title: spec.title,
+    message: spec.title,
+    detail: spec.body,
+    buttons: [...spec.buttons],
+    defaultId: spec.defaultId,
+    cancelId: spec.cancelId,
+  };
+  const { response } = owner
+    ? await dialog.showMessageBox(owner, options)
+    : await dialog.showMessageBox(options);
+  if (spec.restartButtonId !== null && response === spec.restartButtonId) {
+    controller.requestRestart();
+  }
+}
+
+/**
  * A clicked native notification raises the Reading window and asks its renderer
  * to select the task the notification was about — the whole point of the
  * notification in a multi-task host is landing you on the right session.
@@ -756,6 +793,17 @@ function createApplicationMenu(): void {
     accelerator: "CmdOrCtrl+,",
     click: () => openSettingsInMainWindow(),
   };
+  // Standard macOS courtesy, directly below About (auto-update S3). The only
+  // manual update affordance; silent checks handle the rest. Present only in the
+  // macOS app menu — the updater is macOS-only (ShipIt), so a non-mac entry would
+  // never resolve to an active gate.
+  const checkForUpdatesItem: MenuItemConstructorOptions = {
+    id: "check-for-updates",
+    label: "Check for Updates…",
+    click: () => {
+      void runInteractiveUpdaterCheck();
+    },
+  };
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
       ? [
@@ -763,6 +811,8 @@ function createApplicationMenu(): void {
             label: app.name,
             submenu: [
               { role: "about" },
+              { type: "separator" },
+              checkForUpdatesItem,
               { type: "separator" },
               settingsItem,
               { type: "separator" },
