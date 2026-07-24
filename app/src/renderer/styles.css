@@ -110,11 +110,6 @@
   --accent: rgb(var(--p-blue));
   --accent-subtle: rgb(var(--p-blue) / 0.10);
   --selection: rgb(var(--p-blue) / 0.28);           /* text selection */
-  /* Ink ON the accent fill: fixed white in BOTH modes (the accent stays a mid
-     blue in dark too). --text-on-emphasis would flip to #191919 in dark and sink
-     the label into the pill — same reasoning as the quote-comment glyph. The one
-     consumer today is the auto-update pill (S2), the app's rare ambient CTA. */
-  --text-on-accent: #ffffff;
   /* Focus/active edges are NEUTRAL — ink hue, same alpha the blue ring had.
      Blue stays reserved for links/file chips/quote-comment/selection, the
      active-tool icon (Woody ruling 2026-07-16), and the status-strip working
@@ -914,40 +909,26 @@ body.sidebar-resizing {
   display: none;
 }
 
-/* The one ambient call-to-action in the app — a blue accent fill (Woody-approved
-   reference visual). It earns accent chroma the way the active-tool icon and the
-   status-strip working headline do: rare by construction (it lights only when a
-   release is staged) and transient, so it does not dilute blue's interactive
-   scarcity. */
+/* The app's one ambient call-to-action. Per the Visual ruling (Woody 2026-07-24)
+   it wears the design system's OWN primary-action grammar — the button carries
+   `.primary`, so its fill/ink (--control-primary-* ink, inverted per mode) and
+   its disabled treatment come from the same tokens as Approve / Send answers /
+   the resume CTAs. This rule owns geometry only: the pill shape + placement (the
+   reference conveys pattern, not color). Resting and armed are the active
+   `.primary` fill (label-only difference); Updating… is `:disabled`, so the
+   system's standard disabled button look reads as "in progress, hands off"
+   without a new color. `.primary` has no hover state by system convention — the
+   solid ink fill IS the affordance. */
 .sidebar-update-button {
   display: inline-flex;
   align-items: center;
   min-height: 30px;
   padding: 0 var(--space-16);
-  border: none;
   border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: var(--text-on-accent);
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
-  cursor: pointer;
-}
-
-.sidebar-update-button:hover:not(:disabled) {
-  filter: brightness(0.94);
-}
-
-.sidebar-update-button:active:not(:disabled) {
-  filter: brightness(0.88);
-}
-
-/* Updating…: non-interactive, the app is about to quit. Faded accent so it reads
-   as "in progress, hands off" without introducing another color. */
-.sidebar-update-button.updating {
-  cursor: default;
-  opacity: 0.65;
 }
 
 .sidebar-list-header {
