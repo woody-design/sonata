@@ -194,7 +194,8 @@
     "smoke:tags-set-session-validate": "npm run build:main && node tests/smoke/tags-set-session-validate.mjs",
     "smoke:updater-state": "npm run build:main && node tests/smoke/updater-state.mjs",
     "smoke:updater-gating": "npm run build:main && node tests/smoke/updater-gating.mjs",
-    "smoke:updater-ipc-contract": "npm run build:main && node tests/smoke/updater-ipc-contract.mjs"
+    "smoke:updater-ipc-contract": "npm run build:main && node tests/smoke/updater-ipc-contract.mjs",
+    "smoke:updater-restart-recovery": "npm run build:main && node tests/smoke/updater-restart-recovery.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

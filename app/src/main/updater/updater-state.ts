@@ -87,3 +87,85 @@ export function projectUpdaterState(state: UpdaterMachineState): UpdaterState {
     ? { status: "idle" }
     : { status: "staged", version: state.stagedVersion };
 }
+
+/**
+ * The restart-to-install guard (auto-update S2). Like the phase machine above,
+ * the restart handoff is a state DECISION, so it lives here in the pure layer —
+ * the controller owns the electron-updater side effects and the timers, this
+ * owns WHAT they should be, so the whole transition table unit-tests in plain
+ * node (`smoke:updater-restart-recovery`).
+ *
+ * Two guarded values:
+ *   • `restarting` — a handoff is in flight; a second request (double-click, a
+ *     second window) is ignored while it is true.
+ *   • `autoInstallOnAppQuit` — the install-on-quit fallback. It is cleared BEFORE
+ *     `quitAndInstall` (ordering per electron-builder #6418) and RESTORED on
+ *     every path that does not actually quit, so a rare macOS ShipIt silent
+ *     no-op (#7356/#8795) can never leave the install-on-quit net dead — nor the
+ *     guard stuck `true`, which would swallow every later retry — for the rest
+ *     of the session. The `recovery-fired` transition is the S2-review fix: after
+ *     `quitAndInstall` returns WITHOUT throwing the controller arms a recovery
+ *     timer; if the app is still alive when it fires, ShipIt no-oped, and this
+ *     releases the guard so a retry is real.
+ */
+export interface RestartGuardState {
+  readonly restarting: boolean;
+  readonly autoInstallOnAppQuit: boolean;
+}
+
+export const INITIAL_RESTART_GUARD_STATE: RestartGuardState = {
+  restarting: false,
+  autoInstallOnAppQuit: true,
+};
+
+export type RestartGuardEvent =
+  | { type: "request"; hasStaged: boolean }
+  | { type: "quit-returned" } // quitAndInstall returned without throwing
+  | { type: "quit-threw" } // quitAndInstall threw (e.g. electron-builder #6418)
+  | { type: "recovery-fired" }; // the no-op recovery timer fired — app still alive
+
+/** The single side effect the controller performs AFTER applying `state`.
+ *  `quit-and-install`: the flag is already false in `state`; call quitAndInstall.
+ *  `arm-recovery`: schedule the ShipIt-no-op recovery timer. */
+export type RestartGuardDirective = "none" | "quit-and-install" | "arm-recovery";
+
+export interface RestartGuardResult {
+  readonly state: RestartGuardState;
+  readonly directive: RestartGuardDirective;
+}
+
+export function reduceRestartGuard(
+  state: RestartGuardState,
+  event: RestartGuardEvent,
+): RestartGuardResult {
+  switch (event.type) {
+    case "request":
+      // Only a staged update is installable, and only one handoff at a time.
+      if (!event.hasStaged || state.restarting) {
+        return { state, directive: "none" };
+      }
+      // Clear install-on-quit BEFORE quitAndInstall (electron-builder #6418).
+      return {
+        state: { restarting: true, autoInstallOnAppQuit: false },
+        directive: "quit-and-install",
+      };
+    case "quit-returned":
+      // The call returned without throwing. On a healthy handoff the process is
+      // already tearing down; on a silent no-op it is not — arm recovery either
+      // way (the timer is unref'd and simply discarded if a real quit wins).
+      return { state, directive: "arm-recovery" };
+    case "quit-threw":
+    case "recovery-fired":
+      // Neither path actually quit: release the guard and revive install-on-quit
+      // so a retry is possible and the fallback survives the session.
+      return {
+        state: { restarting: false, autoInstallOnAppQuit: true },
+        directive: "none",
+      };
+    default: {
+      const exhaustive: never = event;
+      void exhaustive;
+      return { state, directive: "none" };
+    }
+  }
+}

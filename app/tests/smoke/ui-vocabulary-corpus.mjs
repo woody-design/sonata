@@ -44,17 +44,14 @@ assert.match(source.cli, />New task<\/span>/, "fresh breadcrumb task");
 assert.match(source.main, /title:\s*"Sonata CLI"/, "native CLI window title");
 assert.match(source.cliHtml, /<title>Sonata CLI<\/title>/, "CLI document title");
 
-// Auto-update pill vocabulary (S2). The four button states are the agreed,
-// Woody-approved wording; pin the three renderer labels verbatim so a future
-// edit that softens or drifts them fails here. ("Check for Updates…" is the
-// menu affordance, added by S3.)
-assert.match(source.updateButton, /const LABEL_RESTING = "Update";/, "update pill resting label");
-assert.match(
-  source.updateButton,
-  /const LABEL_ARMED = "Restart to Update";/,
-  "update pill armed label",
-);
-assert.match(source.updateButton, /const LABEL_UPDATING = "Updating…";/, "update pill updating label");
+// Auto-update pill vocabulary (S2). The three button states are the agreed,
+// Woody-approved wording; pin the string LITERALS (not the const-declaration
+// syntax) so the fence tracks the wording — a harmless rename of the constants
+// leaves it green, a softened or drifted label fails it. ("Check for Updates…"
+// is the menu affordance, added by S3.)
+assert.match(source.updateButton, /"Update"/, "update pill resting label");
+assert.match(source.updateButton, /"Restart to Update"/, "update pill armed label");
+assert.match(source.updateButton, /"Updating…"/, "update pill updating label");
 
 const rendererFiles = filesUnder("src/renderer", ".ts").filter(
   (file) => ![paths.dom, paths.cli].includes(file),

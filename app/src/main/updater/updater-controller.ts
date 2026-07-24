@@ -3,9 +3,13 @@ import { autoUpdater } from "electron-updater";
 import type { Logger } from "electron-updater";
 import { updaterStateEquals, type UpdaterState } from "../../shared/types/updater";
 import {
+  INITIAL_RESTART_GUARD_STATE,
   INITIAL_UPDATER_STATE,
   projectUpdaterState,
+  reduceRestartGuard,
   reduceUpdaterEvent,
+  type RestartGuardEvent,
+  type RestartGuardState,
   type UpdaterEvent,
   type UpdaterMachineState,
 } from "./updater-state";
@@ -20,6 +24,12 @@ import {
  *  atom feed + CDN; do not poll aggressively — research Q2). */
 const FIRST_CHECK_DELAY_MS = 60_000;
 const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
+
+// After a non-throwing quitAndInstall, wait this long for the process to die. If
+// it does not, ShipIt silently no-oped (macOS #7356/#8795) and self-recovery
+// runs. Kept ≤ the renderer pill's 15s visual wedge (update-button.ts) so a
+// retry issued after the pill visually reverts finds the guard already released.
+const RESTART_RECOVERY_DELAY_MS = 12_000;
 
 export interface UpdaterControllerOptions {
   /** Push the renderer-facing state to every window. main owns the fan-out —
@@ -47,7 +57,8 @@ export class UpdaterController {
   private gateStatus: UpdaterGateStatus = "disabled-dev";
   private firstCheckTimer: NodeJS.Timeout | null = null;
   private intervalTimer: NodeJS.Timeout | null = null;
-  private restarting = false;
+  private restartGuard: RestartGuardState = INITIAL_RESTART_GUARD_STATE;
+  private recoveryTimer: NodeJS.Timeout | null = null;
 
   constructor(options: UpdaterControllerOptions) {
     this.broadcast = options.broadcast;
@@ -80,35 +91,41 @@ export class UpdaterController {
   }
 
   /** Restart into the staged update. Valid only when an update is staged; a
-   *  double-click (or a second window) is ignored while a restart is in flight. */
+   *  double-click (or a second window) is ignored while a restart is in flight.
+   *  All guard/flag DECISIONS come from the pure `reduceRestartGuard`; this owns
+   *  only the electron-updater side effects and the recovery timer. */
   requestRestart(): void {
     if (this.gateStatus !== "active") {
       return;
     }
-    if (this.machine.stagedVersion === null) {
+    const request = reduceRestartGuard(this.restartGuard, {
+      type: "request",
+      hasStaged: this.machine.stagedVersion !== null,
+    });
+    this.restartGuard = request.state;
+    if (request.directive !== "quit-and-install") {
+      // Not staged, or a handoff is already in flight — nothing to do.
       return;
     }
-    if (this.restarting) {
-      return;
-    }
-    this.restarting = true;
-    // Ordering is load-bearing: clear install-on-quit BEFORE quitAndInstall, or
-    // Squirrel throws RACCommandError "the command is disabled" (electron-builder
-    // #6418). quitAndInstall then closes all windows and installs on quit.
-    autoUpdater.autoInstallOnAppQuit = false;
+    // Apply the guard's cleared install-on-quit BEFORE quitAndInstall (ordering
+    // per electron-builder #6418), then hand off.
+    autoUpdater.autoInstallOnAppQuit = this.restartGuard.autoInstallOnAppQuit;
     try {
       autoUpdater.quitAndInstall();
     } catch (error) {
-      // A failed handoff (rare macOS ShipIt no-op) must not wedge the button in
-      // a permanent "Updating…" — release the guard so a retry is possible, and
-      // restore install-on-quit as the fallback path.
+      // Squirrel refused the handoff — release the guard and restore
+      // install-on-quit so a retry is possible and the fallback survives.
       console.error("[updater] quitAndInstall failed:", error);
-      autoUpdater.autoInstallOnAppQuit = true;
-      this.restarting = false;
+      this.applyRestartGuard({ type: "quit-threw" });
+      return;
     }
+    // quitAndInstall returned without throwing. Arm the recovery timer: on a
+    // healthy handoff the process dies before it fires; on a macOS ShipIt silent
+    // no-op (#7356/#8795) it does not, and recovery un-wedges the guard.
+    this.applyRestartGuard({ type: "quit-returned" });
   }
 
-  /** Stop the schedule so the timers never hold the process alive on quit. */
+  /** Stop every timer so none holds the process alive on quit. */
   dispose(): void {
     if (this.firstCheckTimer) {
       clearTimeout(this.firstCheckTimer);
@@ -117,6 +134,42 @@ export class UpdaterController {
     if (this.intervalTimer) {
       clearInterval(this.intervalTimer);
       this.intervalTimer = null;
+    }
+    this.clearRecoveryTimer();
+  }
+
+  /** Feed a restart-guard event through the pure reducer, apply the resulting
+   *  guard state to the live `autoInstallOnAppQuit` flag, and perform its
+   *  directive (arm the recovery timer). The single write path for the flag
+   *  after the initial clear, so main-side state can never drift from the guard. */
+  private applyRestartGuard(event: RestartGuardEvent): void {
+    const result = reduceRestartGuard(this.restartGuard, event);
+    this.restartGuard = result.state;
+    autoUpdater.autoInstallOnAppQuit = this.restartGuard.autoInstallOnAppQuit;
+    if (result.directive === "arm-recovery") {
+      this.armRestartRecovery();
+    }
+  }
+
+  /** Arm the ShipIt-no-op recovery timer. Unref'd so it never keeps the process
+   *  alive; if the real quit wins the race it is simply discarded. */
+  private armRestartRecovery(): void {
+    this.clearRecoveryTimer();
+    this.recoveryTimer = setTimeout(() => {
+      this.recoveryTimer = null;
+      console.warn(
+        "[updater] still running ~12s after quitAndInstall — macOS ShipIt no-op; " +
+          "restoring install-on-quit and releasing the restart guard.",
+      );
+      this.applyRestartGuard({ type: "recovery-fired" });
+    }, RESTART_RECOVERY_DELAY_MS);
+    this.recoveryTimer.unref();
+  }
+
+  private clearRecoveryTimer(): void {
+    if (this.recoveryTimer) {
+      clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = null;
     }
   }
 
