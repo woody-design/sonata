@@ -84,6 +84,30 @@ mac:
   # fail here. release.sh runs spctl explicitly after stapling instead.
   gatekeeperAssess: false
 
+# DMG Finder-window layout (distribution artifact; emitted by release.sh's
+# `--mac dmg` override — `npm run package`'s `dir` target ignores this block).
+# electron-builder auto-discovers build-resources/background.png (+ @2x, merged
+# into a retina .background.tiff via `tiffutil -cathidpicheck`). GEOMETRY
+# CONTRACT: with a background present, the window size is FORCED to the
+# background's 1x pixel size (640×360) and any `dmg.window` is ignored — so we
+# set none. Coordinates below are icon CENTERS (origin top-left, 1x points),
+# mirroring the upstream defaults (dmg-builder dmg.js:133-149). Rationale for
+# the exact numbers (symmetry about x=320, y=170 optical center matching the
+# background arrow): private/program/dmg-polish-plan-v1.md.
+dmg:
+  iconSize: 80
+  contents:
+    # App icon: `path` omitted → electron-builder substitutes the packaged
+    # appPath (dmgUtil.js:138 backward-compat), exactly as the upstream default.
+    - x: 160
+      y: 170
+      type: file
+      name: Sonata.app
+    - x: 480
+      y: 170
+      type: link
+      path: /Applications
+
 # A publish provider must be configured for electron-builder to emit
 # `latest-mac.yml` (the electron-updater manifest, D10) alongside the DMG/ZIP on
 # the release path. This block NEVER publishes on its own: `npm run package`
