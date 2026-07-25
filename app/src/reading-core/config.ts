@@ -10,6 +10,19 @@ export const USAGE_CONTEXT_HIGH_USED_PERCENT = 80;
 export const MAX_TRANSCRIPT_CHARS = 120_000;
 export const MAX_TRANSCRIPT_RAW_CHARS = 260_000;
 
+// Pre-latch carry for the live-transcript has-visible-text gate (PTY S1). Once a
+// run's cleaned transcript has ANY visible text, the gate latches and never
+// cleans again (per-run monotonic). BEFORE that first visible text, the gate
+// must still answer "is there visible text yet?" without re-cleaning the whole
+// (up to 260 KB) buffer on every chunk — a long noise-only prelude (spinner /
+// status repaints the cleaner filters out) would otherwise reintroduce the
+// per-chunk O(buffer) cost this slice removes. So the pre-latch emptiness probe
+// cleans only the freshly-arrived chunk plus this many bytes of preceding
+// context (enough to catch a line or escape sequence straddling the chunk
+// boundary). The whole new chunk is always inside the window, so the first
+// visible bytes are seen on the chunk that delivers them.
+export const LIVE_TRANSCRIPT_PRELATCH_WINDOW = 16_384;
+
 export const MODEL_OPTIONS: Record<
   RuntimeProvider,
   Array<{ label: string; value: string | null }>

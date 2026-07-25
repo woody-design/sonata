@@ -44,14 +44,100 @@ import type {
 import type { WorkingStatusState } from "../shared/types/working-status";
 import type { RuntimeReportV1 } from "../shared/schemas";
 import { cleanTerminalTranscript } from "../shared/terminal-transcript";
-import { MAX_TRANSCRIPT_CHARS, MAX_TRANSCRIPT_RAW_CHARS } from "./config";
+import {
+  LIVE_TRANSCRIPT_PRELATCH_WINDOW,
+  MAX_TRANSCRIPT_CHARS,
+  MAX_TRANSCRIPT_RAW_CHARS,
+} from "./config";
 
 export interface RunTranscript {
   runId: string;
+  /** The raw PTY byte stream, appended O(chunk) per `pty:data` and tail-sliced
+   *  to `MAX_TRANSCRIPT_RAW_CHARS`. The source of truth. */
   rawText: string;
+  /** The cleaned, human-readable transcript. LAZILY DERIVED from `rawText` (PTY
+   *  S1): a getter that runs `cleanTerminalTranscript` at most once per read and
+   *  memoizes until the next append invalidates it — so the full-buffer clean no
+   *  longer runs on every chunk, only when a consumer actually reads the text
+   *  (the ~6 Hz `fallbackText` degrade path in selectors/turns.ts). Enumerable,
+   *  so it serializes exactly as before for the reducer-corpus goldens. */
   text: string;
+  /** Sticky "content was dropped to fit a cap". The raw cap is applied eagerly
+   *  on append; the cleaned cap folds in when `text` materializes (same lazy
+   *  getter), so this too is derived, not stored. */
   truncated: boolean;
   receivedChars: number;
+}
+
+/** The hidden, non-enumerable state behind a RunTranscript's lazy `text` /
+ *  `truncated` getters. Kept off `Object.entries` on purpose: the reducer-corpus
+ *  goldens serialize a transcript by its enumerable fields, so these must not
+ *  appear there, and the corpus oracle's shallow `{...t}` copy must not carry
+ *  them (it falls back to the serialized `text`, reaching the same answer). */
+interface RunTranscriptInternals {
+  _provider: RuntimeProvider | undefined;
+  /** Memoized cleaned text; null = not yet computed for the current rawText. */
+  _cleanCache: string | null;
+  /** rawText changed since the last clean → recompute on next read. */
+  _cleanDirty: boolean;
+  /** Sticky truncated flag (both caps fold into it). */
+  _truncated: boolean;
+  /** The has-visible-text latch's memory: the gate's answer for the previous
+   *  chunk. undefined = no chunk yet. Monotonic within a run — once true it
+   *  stays true, so the gate stops cleaning after the first visible text. */
+  _prevVisible: boolean | undefined;
+}
+
+type RunTranscriptImpl = RunTranscript & RunTranscriptInternals;
+
+/** Materialize (and memoize) a transcript's cleaned text from its rawText,
+ *  folding the cleaned-length cap into the sticky `truncated` flag exactly as the
+ *  old per-chunk path did. The single cleaning site now. */
+function ensureCleanedTranscript(transcript: RunTranscriptImpl): string {
+  if (!transcript._cleanDirty && transcript._cleanCache !== null) {
+    return transcript._cleanCache;
+  }
+  const cleaned = cleanTerminalTranscript(transcript.rawText, transcript._provider);
+  transcript._truncated = transcript._truncated || cleaned.length > MAX_TRANSCRIPT_CHARS;
+  transcript._cleanCache = cleaned.slice(-MAX_TRANSCRIPT_CHARS);
+  transcript._cleanDirty = false;
+  return transcript._cleanCache;
+}
+
+/** Build a RunTranscript whose `text`/`truncated` are lazy getters over hidden,
+ *  non-enumerable state (see RunTranscriptInternals). `runId`, `rawText`, and
+ *  `receivedChars` stay plain writable data fields — appended in place, mutation
+ *  in-place doctrine preserved. */
+function createRunTranscript(
+  runId: string,
+  provider: RuntimeProvider | undefined,
+): RunTranscript {
+  const transcript = {
+    runId,
+    rawText: "",
+    receivedChars: 0,
+  } as RunTranscriptImpl;
+  Object.defineProperties(transcript, {
+    _provider: { value: provider, writable: true, enumerable: false },
+    _cleanCache: { value: null, writable: true, enumerable: false },
+    _cleanDirty: { value: false, writable: true, enumerable: false },
+    _truncated: { value: false, writable: true, enumerable: false },
+    _prevVisible: { value: undefined, writable: true, enumerable: false },
+    text: {
+      enumerable: true,
+      get(this: RunTranscriptImpl): string {
+        return ensureCleanedTranscript(this);
+      },
+    },
+    truncated: {
+      enumerable: true,
+      get(this: RunTranscriptImpl): boolean {
+        ensureCleanedTranscript(this);
+        return this._truncated;
+      },
+    },
+  });
+  return transcript;
 }
 
 export interface OptionPromptReceiptLine {
@@ -803,32 +889,56 @@ export function appendLiveTranscript(view: TaskViewState, data: string): boolean
     return false;
   }
 
-  const transcript = ensureRunTranscript(view, view.liveTranscriptRunId);
+  const transcript = ensureRunTranscript(view, view.liveTranscriptRunId) as RunTranscriptImpl;
+
+  // The has-visible-text latch. `_prevVisible` is the reducer's O(1) fast path;
+  // when it is absent — the corpus oracle rebuilds a shallow `{...t}` copy that
+  // drops the hidden fields — we fall back to the serialized `text` (already the
+  // previous chunk's cleaned result), so reducer and oracle reach the identical
+  // answer without either re-cleaning here.
+  const wasVisible =
+    transcript._prevVisible !== undefined
+      ? transcript._prevVisible
+      : transcript.text.trim().length > 0;
+
+  // Raw append + tail-slice to the raw cap: O(chunk). The source of truth.
   transcript.receivedChars += data.length;
   const nextRawText = `${transcript.rawText}${data}`;
-  transcript.truncated = transcript.truncated || nextRawText.length > MAX_TRANSCRIPT_RAW_CHARS;
+  transcript._truncated = transcript._truncated || nextRawText.length > MAX_TRANSCRIPT_RAW_CHARS;
   transcript.rawText = nextRawText.slice(-MAX_TRANSCRIPT_RAW_CHARS);
+  // The cleaned text is now stale — recompute lazily on next read (a consumer or
+  // the golden serializer), never here on the chunk path.
+  transcript._cleanCache = null;
+  transcript._cleanDirty = true;
 
-  const text = cleanTerminalTranscript(transcript.rawText, view.task?.provider);
-  transcript.truncated = transcript.truncated || text.length > MAX_TRANSCRIPT_CHARS;
-  transcript.text = text.slice(-MAX_TRANSCRIPT_CHARS);
-
-  if (!transcript.text.trim()) {
-    return false;
+  let nowVisible: boolean;
+  if (wasVisible) {
+    // Monotonic: once a run's transcript has shown text, it keeps showing text
+    // (verified per-run against the pinned corpus). No cleaning — this kills the
+    // per-chunk O(buffer) cost for the whole steady state of a busy run.
+    nowVisible = true;
+  } else {
+    // Pre-latch: still no visible text. Answer "any visible text yet?" by
+    // cleaning ONLY the freshly-arrived chunk plus a fixed carry, never the whole
+    // buffer — so a long noise-only prelude cannot reintroduce O(buffer)/chunk.
+    // The window always spans the entire new chunk, so the first visible bytes
+    // are caught on the chunk that delivers them.
+    const windowLength = data.length + LIVE_TRANSCRIPT_PRELATCH_WINDOW;
+    const probeSource =
+      transcript.rawText.length > windowLength
+        ? transcript.rawText.slice(-windowLength)
+        : transcript.rawText;
+    nowVisible = cleanTerminalTranscript(probeSource, view.task?.provider).trim().length > 0;
   }
-  return true;
+
+  transcript._prevVisible = nowVisible;
+  return nowVisible;
 }
 
 export function ensureRunTranscript(view: TaskViewState, runId: string): RunTranscript {
   let transcript = view.runTranscripts.find((item) => item.runId === runId);
   if (!transcript) {
-    transcript = {
-      runId,
-      rawText: "",
-      text: "",
-      truncated: false,
-      receivedChars: 0,
-    };
+    transcript = createRunTranscript(runId, view.task?.provider);
     view.runTranscripts = [...view.runTranscripts, transcript];
   }
   return transcript;
