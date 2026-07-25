@@ -114,6 +114,21 @@ const DEFAULT_APPROVAL_SETTLE_MS = 1200;
  *  freshly-painted-panel latency under ~150ms (research 2026-07-24, VS Code's
  *  agent-terminal ~100–150ms quiescence cadence). */
 const APPROVAL_SCAN_CADENCE_MS = 120;
+/** PTY output coalescing window (S3). node-pty `onData` chunks accumulate for
+ *  this long, then flush as ONE concatenated batch through `handlePtyData` —
+ *  upstream of every consumer (scrollback seq write, the `pty:data` broadcast
+ *  that main.ts fans out to the recorder, local API, notifier and every
+ *  BrowserWindow, each window's reducer pass, and the terminal xterm write). A
+ *  batch is the byte-order concatenation of the window's chunks, so it is
+ *  indistinguishable from a single large chunk node-pty can already deliver —
+ *  the equivalence that makes this transparent to all downstream semantics.
+ *  Under a firehose this collapses per-chunk cost from hundreds/sec to ≤~200/sec
+ *  while adding ≤5ms latency, well inside every timing consumer's tolerance
+ *  (liveness, the 1800ms completion debounce, S2's 120ms approval cadence, the
+ *  human-typing echo path). Matches VS Code's TerminalDataBufferer `throttleBy`
+ *  (research 2026-07-24): each IPC crossing costs far more than the byte copy
+ *  inside a batch. */
+const PTY_BATCH_COALESCE_MS = 5;
 /** How long after the stop Esc the belt-clear fires. The prompt-restore is
  *  effectively immediate — present at the earliest measured snapshot, +300ms
  *  (probe C10) — so 900ms is comfortably past it; the belt is cosmetic
@@ -521,6 +536,13 @@ export class TerminalHost extends EventEmitter {
    *  see scheduleApprovalScan). Cleared on PTY teardown alongside the settle
    *  timer so a scan cannot fire on a dead/replaced session. */
   private approvalScanTimer: NodeJS.Timeout | null = null;
+  /** Coalescing buffer for node-pty `onData` chunks (S3), in arrival order. The
+   *  ~5ms one-shot `ptyBatchTimer` joins and drains it through `handlePtyData`
+   *  once per batch. Flushed (never dropped) on every teardown path — symmetric
+   *  with `approvalScanTimer` — because these chunks arrived before teardown and
+   *  the pre-batching synchronous path handled exactly such chunks. */
+  private pendingPtyData: string[] = [];
+  private ptyBatchTimer: NodeJS.Timeout | null = null;
   private lastPtyDataAt = 0;
   /** Last chunk that carried PRINTABLE content (survives cleanTerminal). The
    *  idle claude TUI emits a 5-byte control-only chunk every ~200ms
@@ -781,8 +803,15 @@ export class TerminalHost extends EventEmitter {
     // (re)opened terminal window can restore recent scrollback (snapshot+tail).
     this.scrollback = new TerminalScrollback(cols, rows);
 
-    this.ptyProcess.onData((data) => this.handlePtyData(data));
+    this.ptyProcess.onData((data) => this.ingestPtyData(data));
     this.ptyProcess.onExit((exit) => {
+      // Flush any coalesced tail BEFORE exit handling (S3): the pending batch
+      // must broadcast as `pty:data` (with a live scrollback seq) ahead of
+      // `pty:exit`, or a produced tail byte would either be lost or arrive
+      // AFTER the exit event — reordering the stream. onExit is the crash path
+      // and does NOT route through disposeProcess, so this flush is its own;
+      // ptyProcess and the mirror are still live here (nulled below).
+      this.flushPtyData();
       // RC never outlives the process — clear it so the header button
       // doesn't keep showing "on" for a dead/crashed session.
       if (this.remoteControlActive) {
@@ -2106,6 +2135,16 @@ export class TerminalHost extends EventEmitter {
   }
 
   private disposeProcess(): void {
+    // Flush the coalesced tail FIRST (S3), while the mirror and ptyProcess are
+    // still live (both nulled below): these chunks arrived before teardown, and
+    // the pre-batching synchronous path handled exactly such chunks — dropping
+    // them here would lose already-produced output a live terminal window had
+    // shown. Covers dispose() and startTask() (both route through here). On the
+    // post-crash path ptyProcess is already null but onExit already flushed, so
+    // the buffer is empty and this is a no-op. Any detector timers this arms are
+    // cleared by the continuation below / the caller (startTask, dispose), just
+    // as the last pre-teardown chunk's did before batching.
+    this.flushPtyData();
     // Outside the ptyProcess guard: after a crash-exit already nulled the
     // process, a following dispose/startTask must still not leak timers.
     this.clearStopHygieneState();
@@ -2143,6 +2182,45 @@ export class TerminalHost extends EventEmitter {
       clearTimeout(this.humanSettleTimer);
       this.humanSettleTimer = null;
     }
+  }
+
+  /** node-pty `onData` entry (S3). Coalesce raw chunks for ~5ms so the single
+   *  downstream entry `handlePtyData` — and therefore the scrollback seq write,
+   *  the `pty:data` IPC broadcast (fanned to every window), each reducer pass,
+   *  and the terminal xterm write — runs once per batch under a firehose instead
+   *  of once per chunk. The first chunk arms the one-shot flush timer; every
+   *  chunk arriving before it fires is an O(1) push (the timer is never
+   *  rescheduled while pending, so continuous output cannot starve the flush).
+   *  Not unref'd — same lifecycle as approvalScanTimer; teardown flushes it. */
+  private ingestPtyData(data: string): void {
+    this.pendingPtyData.push(data);
+    if (this.ptyBatchTimer) {
+      return;
+    }
+    this.ptyBatchTimer = setTimeout(() => {
+      this.ptyBatchTimer = null;
+      this.flushPtyData();
+    }, PTY_BATCH_COALESCE_MS);
+  }
+
+  /** Drain the coalesced buffer through `handlePtyData` as one concatenated
+   *  batch (byte-order preserved ⇒ indistinguishable from one large node-pty
+   *  chunk). Called by the ~5ms timer, and synchronously — timer cleared first —
+   *  before pty:exit handling and on every teardown path, so no produced tail
+   *  byte is lost or reordered. Empty-buffer and no-live-mirror cases are safe
+   *  no-ops (handlePtyData's seq falls back to MAX_SAFE_INTEGER post-teardown,
+   *  as before). */
+  private flushPtyData(): void {
+    if (this.ptyBatchTimer) {
+      clearTimeout(this.ptyBatchTimer);
+      this.ptyBatchTimer = null;
+    }
+    if (this.pendingPtyData.length === 0) {
+      return;
+    }
+    const batch = this.pendingPtyData.join("");
+    this.pendingPtyData = [];
+    this.handlePtyData(batch);
   }
 
   private handlePtyData(data: string): void {
