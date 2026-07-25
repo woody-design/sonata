@@ -127,6 +127,45 @@ let activeTerminalTask: TerminalActiveTaskState = {
 };
 let windowState: WindowStateManager | null = null;
 
+// ── Runtime-event interest routing (OBS S5 / D5) ─────────────────────────────
+// `sendEvent` structured-clones each RuntimeEvent once PER window. The Terminal
+// and Preview renderers each consume a tiny, fixed slice of the stream and
+// deserialize-and-drop the rest; at a 200/s pty:data firehose that dead
+// serialization dominates (audit A/F2). Route by WINDOW IDENTITY so main never
+// serializes an event a window provably ignores.
+//
+// The interest sets are derived from the ONLY `onRuntimeEvent` consumer in each
+// window's renderer and MUST track it:
+//   - Terminal (renderer/terminal.ts) branches on exactly "pty:exit" and
+//     "pty:data" — nothing else. Its binding / cli-action data arrives on
+//     dedicated IPC channels, not this broadcast.
+//   - Preview (renderer/preview/main.ts `reconcile`) branches on exactly
+//     "file:changed". Its preview binding arrives on the dedicated
+//     `previewBinding` channel, not this broadcast.
+// The Reading (main) window — and ANY window whose identity we do not recognize
+// — receives the full stream: fail-open, so a future window is never silently
+// starved. The explicit `RuntimeEvent["type"]` element type makes each literal
+// a compile-checked event name (a rename upstream would fail the build here).
+const TERMINAL_WINDOW_EVENTS: ReadonlySet<RuntimeEvent["type"]> = new Set<RuntimeEvent["type"]>([
+  "pty:data",
+  "pty:exit",
+]);
+const PREVIEW_WINDOW_EVENTS: ReadonlySet<RuntimeEvent["type"]> = new Set<RuntimeEvent["type"]>([
+  "file:changed",
+]);
+
+/** Whether `window` consumes `event` — identity match against the tracked
+ *  window refs; unknown windows fail open (receive everything). */
+function windowAcceptsEvent(window: BrowserWindow, event: RuntimeEvent): boolean {
+  if (window === terminalWindow) {
+    return TERMINAL_WINDOW_EVENTS.has(event.type);
+  }
+  if (window === previewWindow) {
+    return PREVIEW_WINDOW_EVENTS.has(event.type);
+  }
+  return true; // main window + fail-open for any future/unknown window
+}
+
 const MAIN_WINDOW_DEFAULTS: WindowDefaults = {
   width: 1200,
   height: 820,
@@ -936,9 +975,10 @@ app.whenReady().then(() => {
       recordRuntimeEvent(event);
       localApiServer?.broadcastEvent(event);
       for (const window of BrowserWindow.getAllWindows()) {
-        if (!window.isDestroyed()) {
-          window.webContents.send(IPC_CHANNELS.runtimeEvent, event);
+        if (window.isDestroyed() || !windowAcceptsEvent(window, event)) {
+          continue;
         }
+        window.webContents.send(IPC_CHANNELS.runtimeEvent, event);
       }
       notificationController?.handleEvent(event);
     },

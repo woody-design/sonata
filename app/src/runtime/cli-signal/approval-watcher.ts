@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   ANSWERED_PREFIX,
-  APPROVAL_POLL_MS,
+  APPROVAL_WATCHER_POLL_MS,
   ASK_PREFIX,
   EXPIRED_PREFIX,
   REPLY_PREFIX,
@@ -10,7 +10,7 @@ import {
 } from "./approval-protocol";
 import type { HookPayload } from "../../shared/types/cli-signal";
 
-const DEFAULT_POLL_MS = APPROVAL_POLL_MS;
+const DEFAULT_POLL_MS = APPROVAL_WATCHER_POLL_MS;
 
 // Match the broker's control files by the SHARED prefixes (single-sourced with
 // the producers via approval-protocol — a prefix rename can never desync).

@@ -39,6 +39,14 @@ export function initScheduler(boundState: RendererState, boundDeps: SchedulerDep
 // position.)
 export function startStripClockTicker(): void {
   window.setInterval(() => {
+    // Idle fast-path (OBS S5 / F9): the strip carries live-clock nodes ONLY
+    // while visible — renderStatusStrip adds `hidden` and clears every clock
+    // node once the turn is idle (view/status-strip.ts). With zero live runs
+    // this DOMTokenList membership check is the whole tick: no querySelectorAll
+    // subtree walk, so the permanent 1 s timer costs ~nothing when nothing runs.
+    if (elements.statusStrip.classList.contains("hidden")) {
+      return;
+    }
     elements.statusStrip
       .querySelectorAll<HTMLElement>(
         ".strip-status-elapsed[data-started-at], .strip-agent-elapsed[data-started-at]",

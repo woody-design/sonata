@@ -158,7 +158,10 @@ retired — the layering matured past its scaffolding.
 ## Scheduling (T-numbers)
 
 All timing lives in `scheduler.ts` or verbatim inside its owning module —
-delays and coalescing are behavior, not cleanup targets. T1 1 s strip clocks ·
+delays and coalescing are behavior, not cleanup targets. T1 1 s strip clocks
+(the permanent timer stays armed, but each tick idle-guards on the strip's
+`hidden` class — a live-clock node exists only while the strip is visible, so
+zero live runs ⇒ one DOMTokenList check, no querySelectorAll; OBS S5) ·
 T2 150 ms session-index debounce · T3 160 ms transcript render debounce ·
 T4 sticky-header rAF (prompt-nav) · T5/T6 usage-popover hover 150/180 ms ·
 T7 1200 ms copy-reset (chrome) · T8 resizer rAF (main.ts wiring) · T9–T11
