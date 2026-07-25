@@ -52,7 +52,10 @@ export type RenderDirective =
 
 export type EffectDirective =
   /** report:updated — async IPC re-read of the runtime report; not a render
-   *  path (the re-read itself decides what changes, review A). */
+   *  path (the re-read itself decides what changes, review A). Emitted only when
+   *  the update touched runs/approvals/lifecycle; a file-change-only flush
+   *  (runsChanged=false) returns `none` — nothing the renderer reads changed
+   *  (OBS S3). */
   { kind: "report-refresh"; taskId: string };
 
 export type Directive = RenderDirective | EffectDirective;

@@ -405,7 +405,7 @@ export class RuntimeController {
     const runIndex = new RunIndex({
       taskId,
       reportPath,
-      notify: (summary) => this.broadcastReportUpdated(summary),
+      notify: (summary, runsChanged) => this.broadcastReportUpdated(summary, runsChanged),
     });
     // Pin a fresh Claude session to an id we choose, so the Task's binding is
     // known at birth — discovery confirms this exact id instead of guessing
@@ -506,7 +506,7 @@ export class RuntimeController {
       taskId: runningTask.id,
       reportPath,
       loadExisting: true,
-      notify: (summary) => this.broadcastReportUpdated(summary),
+      notify: (summary, runsChanged) => this.broadcastReportUpdated(summary, runsChanged),
     });
     // Resume: discovery must confirm the resumed id by identity and never
     // fall back to the freshest jsonl — that fallback is exactly how a
@@ -1781,7 +1781,7 @@ export class RuntimeController {
    * cadence, never per consumed event. Still called directly at open/reopen for
    * the initial "here's the current report" nudge.
    */
-  private broadcastReportUpdated(summary: RuntimeReportSummaryV1): void {
+  private broadcastReportUpdated(summary: RuntimeReportSummaryV1, runsChanged = true): void {
     const reportEvent: RuntimeReportUpdatedEvent = {
       type: "report:updated",
       payload: {
@@ -1791,6 +1791,10 @@ export class RuntimeController {
         latestRunId: summary.latestRun?.runId ?? null,
         rawTerminalPersisted: false,
         rawTerminalPointer: null,
+        // OBS S3: false only for a file:changed-only flush (nothing the renderer
+        // reads changed) so the renderer skips the full-report refetch. The
+        // direct open/reopen nudge defaults true — the initial load must refetch.
+        runsChanged,
       },
       ts: new Date().toISOString(),
     };

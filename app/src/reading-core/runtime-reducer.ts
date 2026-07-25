@@ -506,6 +506,18 @@ export function reduceRuntimeEvent(
   }
 
   if (event.type === "report:updated") {
+    // The full-report refetch (view.report = readReport(...)) exists solely to
+    // refresh `report.runs` — the ONLY report field any Reading surface reads
+    // (turn cards, run outcome/tone, the stopped-run refill draft, the strip's
+    // started-at). A `file:changed`-only flush mutates the changedFiles /
+    // artifactCandidates / unassignedChanges buckets that nothing renders, so
+    // refetching the whole report (megabytes, during a build-output storm) is
+    // pure waste. Narrow the refetch to updates that touched runs/approvals/
+    // lifecycle (OBS S3, D6 renderer half). `runsChanged` absent (legacy events,
+    // incl. the pinned corpus) is treated as true — the pre-S3 always-refetch.
+    if (event.payload.runsChanged === false) {
+      return [{ kind: "none" }];
+    }
     return [{ kind: "report-refresh", taskId }];
   }
 

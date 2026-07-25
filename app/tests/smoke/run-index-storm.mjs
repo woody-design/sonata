@@ -359,4 +359,64 @@ function tmpDir(tag) {
   console.log("  [f] delete flow (discard): pending tail not written, no resurrection: OK");
 }
 
+// ---------------------------------------------------------------------------
+// (g) OBS S3 — the flush relays runsChanged: false for a file:changed-only
+//     flush (the renderer skips the full-report refetch during a build storm),
+//     true for any run/approval/lifecycle mutation, and true for a flush that
+//     coalesced BOTH a run event and a file storm (the run did change).
+// ---------------------------------------------------------------------------
+{
+  const dir = tmpDir("runs-changed");
+  const reportPath = path.join(dir, "runtime-report.json");
+  const clock = makeClock();
+  const flushes = [];
+
+  const index = new RunIndex({
+    taskId: TASK,
+    reportPath,
+    notify: (_summary, runsChanged) => { flushes.push(runsChanged); },
+    trailingMs: 1000,
+    timers: clock.timers,
+  });
+
+  // run:started is critical -> immediate flush; it touched runs.
+  index.consume(runStarted());
+  assert.deepEqual(flushes, [true], "run:started flush relays runsChanged=true");
+
+  // A pure file:changed storm -> the trailing flush relays runsChanged=false.
+  for (let i = 0; i < 2000; i += 1) {
+    index.consume(fileChanged(i));
+  }
+  clock.advance(1000);
+  assert.deepEqual(
+    flushes,
+    [true, false],
+    "a file:changed-only flush relays runsChanged=false (the storm skip)",
+  );
+
+  // A flush coalescing a run event AND a file storm -> runsChanged=true (the run
+  // changed; the latch is a monotonic OR reset only at flush).
+  index.consume(fileChanged(9000)); // routine: arms the window
+  index.consume({ ...runStarted(), payload: { ...runStarted().payload, status: "completed" }, type: "run:updated" });
+  clock.advance(1000);
+  assert.deepEqual(
+    flushes,
+    [true, false, true],
+    "a flush mixing a run update with file noise relays runsChanged=true",
+  );
+
+  // The latch reset each flush: a fresh file-only window is false again.
+  index.consume(fileChanged(9500));
+  clock.advance(1000);
+  assert.deepEqual(
+    flushes,
+    [true, false, true, false],
+    "the latch resets per flush -> the next file-only window is false again",
+  );
+
+  index.dispose();
+  fs.rmSync(dir, { recursive: true, force: true });
+  console.log("  [g] runsChanged: file-only flush=false, run/mixed flush=true, latch resets per flush: OK");
+}
+
 console.log("run-index-storm smoke: OK");

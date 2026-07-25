@@ -514,6 +514,16 @@ export type RuntimeReportUpdatedEvent = BaseRuntimeEvent<
     latestRunId: RunId | null;
     rawTerminalPersisted: false;
     rawTerminalPointer: null;
+    /** Whether this update touched anything the renderer's report view reads
+     *  (OBS S3, D6 renderer half). The Reading window consumes ONLY
+     *  `report.runs`; a `file:changed`-only flush mutates the
+     *  `changedFiles`/`artifactCandidates`/`unassignedChanges` buckets that no
+     *  renderer surface renders. So `false` means "file-change noise only —
+     *  the renderer may skip the full-report refetch"; `true` means a
+     *  run/approval/lifecycle mutation the renderer must re-read. Additive and
+     *  optional: absent (legacy events, incl. the pinned reducer corpus) is
+     *  treated as `true` — the pre-S3 always-refetch behavior. */
+    runsChanged?: boolean;
   }
 >;
 

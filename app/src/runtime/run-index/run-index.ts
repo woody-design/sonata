@@ -125,8 +125,14 @@ export interface RunIndexOptions {
    * Fires ONLY from the flush closure, so write and broadcast share one
    * dirty-gated, time-bounded cadence — never per consumed event. Defaults to a
    * no-op (dormant/read-only RunIndexes that never notify anyone).
+   *
+   * `runsChanged` (OBS S3, D6 renderer half) tells the sink whether the flushed
+   * batch touched anything the renderer's report view reads (runs / approvals /
+   * lifecycle) or was a `file:changed`-only storm; the sink relays it on the
+   * `report:updated` event so the renderer can skip the full-report refetch for
+   * pure file-change noise.
    */
-  notify?: (summary: RuntimeReportSummaryV1) => void;
+  notify?: (summary: RuntimeReportSummaryV1, runsChanged: boolean) => void;
   /** Trailing-debounce window for routine mutations; defaults to {@link DEFAULT_REPORT_TRAILING_MS}. */
   trailingMs?: number;
   /** Projection timer seam — injected by the storm smoke to drive the clock by hand. */
@@ -181,9 +187,19 @@ export class RunIndex {
   private readonly taskId: TaskId;
   private readonly reportPath: string;
   private readonly caps: ReportListCaps;
-  private readonly notify: (summary: RuntimeReportSummaryV1) => void;
+  private readonly notify: (summary: RuntimeReportSummaryV1, runsChanged: boolean) => void;
   private readonly projection: Projection;
   private report: RuntimeReportV1;
+
+  /**
+   * Whether a run/approval/lifecycle mutation has landed since the last flush
+   * published (OBS S3). Set by every mutating branch EXCEPT `file:changed` (the
+   * build-output storm, whose `changedFiles`/`artifactCandidates` buckets no
+   * renderer surface reads); read + reset in the flush closure and relayed on
+   * `report:updated` as `runsChanged`. A flush that coalesces both a run event
+   * and a file storm still reports `true` — the run did change.
+   */
+  private runsMutatedSincePublish = false;
 
   /**
    * The storm-prone lists (`changedFiles`/`artifactCandidates` per run, and the
@@ -362,7 +378,12 @@ export class RunIndex {
         return this.markMutated(true);
       case "file:changed":
         this.appendChangedFile(event);
-        return this.markMutated(false);
+        // touchesRuns=false: a file change mutates only the changedFiles /
+        // artifactCandidates / unassignedChanges buckets — none of which any
+        // renderer surface reads — so its report:updated broadcast carries
+        // runsChanged=false and the renderer skips the full-report refetch
+        // (OBS S3). Persistence still happens; only the renderer pull is spared.
+        return this.markMutated(false, false);
       case "pty:exit":
         // The PTY died — a lifecycle barrier, but NOT a mutation: the branch
         // records nothing (O2: never markCritical a clean projection, which
@@ -399,8 +420,13 @@ export class RunIndex {
    * per-event task-status sync (run:started/run:updated) coupled to the mutation,
    * NOT to the flush cadence.
    */
-  private markMutated(critical: boolean): RuntimeReportSummaryV1 {
+  private markMutated(critical: boolean, touchesRuns: boolean = true): RuntimeReportSummaryV1 {
     this.report.generatedAt = new Date().toISOString();
+    // Every mutation except a pure file:changed touches something the renderer's
+    // report view reads (OBS S3); latch it so the next flush relays runsChanged.
+    if (touchesRuns) {
+      this.runsMutatedSincePublish = true;
+    }
     if (critical) {
       this.projection.markCritical();
     } else {
@@ -638,7 +664,12 @@ export class RunIndex {
       return;
     }
     this.writeReport();
-    this.notify(this.summary());
+    // Relay + reset the run-touch latch: the renderer refetches the full report
+    // only when this batch changed runs/approvals/lifecycle, never for a pure
+    // file:changed storm (OBS S3).
+    const runsChanged = this.runsMutatedSincePublish;
+    this.runsMutatedSincePublish = false;
+    this.notify(this.summary(), runsChanged);
   }
 
   private writeReport(): void {

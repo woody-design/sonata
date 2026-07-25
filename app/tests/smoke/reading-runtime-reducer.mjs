@@ -156,7 +156,13 @@ function expectedDirectives(state, event) {
     return [active ? { kind: "transcript-debounced", taskId } : { kind: "unread-only", taskId }];
   }
   if (event.type === "report:updated") {
-    return [{ kind: "report-refresh", taskId }];
+    // OBS S3: the refetch is narrowed to updates that touched runs/approvals/
+    // lifecycle. A file:changed-only flush carries runsChanged=false → no
+    // refetch (nothing the renderer reads changed). Absent (legacy events, incl.
+    // this pinned corpus, which predates the field) is treated as true.
+    return event.payload.runsChanged === false
+      ? [{ kind: "none" }]
+      : [{ kind: "report-refresh", taskId }];
   }
   if (VIEW_CHANGED_TYPES.has(event.type)) {
     return [active ? { kind: "full", taskId } : { kind: "unread-only", taskId }];
@@ -194,7 +200,11 @@ function checkInvariants(event, directives, context) {
     assert.deepEqual(kinds, ["session-index-debounced"], `sessions:updated row (${context})`);
   }
   if (event.type === "report:updated" && directives.length > 0) {
-    assert.deepEqual(kinds, ["report-refresh"], `report:updated is effect-only (${context})`);
+    // Effect-only either way: report-refresh (runs/approvals/lifecycle) or a
+    // deliberate none (file-change-only flush, runsChanged=false — OBS S3).
+    // Never a render-path paint.
+    const expected = event.payload.runsChanged === false ? ["none"] : ["report-refresh"];
+    assert.deepEqual(kinds, expected, `report:updated is effect-only (${context})`);
   }
   if (event.type === "pty:data" && directives.length > 0) {
     assert.equal(
@@ -1352,6 +1362,54 @@ function workingStatus(liveness) {
     const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
     assert.deepEqual(d, [{ kind: "none" }], "pty:exit with no switch → deliberate no-op (corpus oracle unchanged)");
     assert.equal(view.controlSwitch, null, "…and leaves controlSwitch null");
+  }
+}
+
+// 13) OBS S3 — report:updated refetch is narrowed to run-affecting flushes.
+//     The pinned corpus predates the runsChanged field, so this gate is not
+//     reachable by replay (all corpus report:updated events lack the field →
+//     treated as true → report-refresh, goldens unchanged); pin it directly.
+{
+  const reportUpdated = (extra = {}) =>
+    evt("report:updated", {
+      taskId: "task-A",
+      reportPath: "/workspace/fixture/runtime-report.json",
+      runCount: 1,
+      latestRunId: "run-1",
+      rawTerminalPersisted: false,
+      rawTerminalPointer: null,
+      ...extra,
+    });
+
+  // runsChanged=false (a file:changed-only flush): nothing the renderer reads
+  // changed → deliberate no-op, no full-report refetch (the storm fix).
+  {
+    const { state, view } = seedView();
+    const before = JSON.stringify(projectState(state));
+    const d = R.reduceRuntimeEvent(state, reportUpdated({ runsChanged: false }), NOW_MS);
+    assert.deepEqual(d, [{ kind: "none" }], "runsChanged=false → no refetch");
+    assert.equal(JSON.stringify(projectState(state)), before, "…and mutates nothing");
+    assert.equal(view.unread, false, "…a file-change flush is never unread");
+  }
+
+  // runsChanged=true (a run/approval/lifecycle flush): refetch, as before.
+  {
+    const { state } = seedView();
+    const d = R.reduceRuntimeEvent(state, reportUpdated({ runsChanged: true }), NOW_MS);
+    assert.deepEqual(d, [{ kind: "report-refresh", taskId: "task-A" }], "runsChanged=true → refetch");
+  }
+
+  // Absent (legacy events / the pinned corpus): backward-compatible — treated as
+  // true, so the pre-S3 always-refetch behavior is preserved and goldens do not
+  // drift.
+  {
+    const { state } = seedView();
+    const d = R.reduceRuntimeEvent(state, reportUpdated(), NOW_MS);
+    assert.deepEqual(
+      d,
+      [{ kind: "report-refresh", taskId: "task-A" }],
+      "absent runsChanged → refetch (legacy-compatible)",
+    );
   }
 }
 
