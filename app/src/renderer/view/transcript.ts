@@ -641,17 +641,43 @@ const markdownSanitizerConfig = {
 // assistant block inserts one new entry (its full intermediate markdown) every
 // ~160 ms T3 tick. Unbounded, a multi-minute stream accumulates thousands of
 // superseded near-duplicate strings (tens of MB for one turn, hundreds across a
-// session). Bound it with a count-capped LRU: a Map's iteration order IS
+// session). The bound is a count-capped LRU (a Map's iteration order IS
 // insertion order, so it doubles as the recency queue — a hit deletes+re-sets to
-// move the key to the newest slot, and an overflow evicts the oldest (first) key.
+// move the key to the newest slot, an overflow evicts the oldest/first key) with
+// TWO size gates on top of the count cap (audit F4):
+//   (1) a total-size budget in UTF-16 code units (Σ key.length + value.length),
+//       so worst case is bounded in BYTES, not just entry count. A count cap
+//       alone let the ceiling scale with reply size — 48 × largest reply — and
+//       streaming a giant reply converges to 48 copies of ~the tail-length reply
+//       (F4: L=1 MB ⇒ ~240 MB). 4M units ≈ 8 MB (2 bytes/unit) is the honest
+//       worst case now, independent of reply size.
+//   (2) a per-entry char cap: a single reply above ~256 K chars is never cached
+//       at all. Huge replies re-parse rarely once settled, and their streaming
+//       intermediates are precisely what filled hundreds of MB in the audit;
+//       caching one (256 K markdown + ~2.5× HTML ≈ 1.8 MB) would evict a dozen
+//       smaller entries for a near-zero hit rate.
 // Cap 48 = the working set a task switch re-renders at ~100% hit (it rebuilds
-// every visible turn card), with headroom for a long transcript, while bounding
-// worst case to single-digit MB: 48 entries × a large ~32 KB-markdown reply
-// (+ ~1.5× sanitized HTML ≈ 80K UTF-16 code units ≈ 160 KB/entry) ≈ 7.7 MB.
-// Typical entries (~1–2 KB markdown ≈ 6 KB/entry) sit near ~300 KB. Hit/miss
+// every visible turn card), with headroom for a long transcript. Typical entries
+// (~1–2 KB markdown ≈ 6 KB/entry) sit near ~300 KB, far under both gates. Hit/miss
 // only changes WHEN marked.parse re-runs — never the HTML that lands in the DOM.
 const MARKDOWN_HTML_CACHE_MAX = 48;
+const MARKDOWN_HTML_CACHE_MAX_UNITS = 4_000_000;
+const MARKDOWN_HTML_CACHE_MAX_ENTRY_CHARS = 256_000;
 const markdownHtmlCache = new Map<string, string>();
+let markdownHtmlCacheUnits = 0;
+
+function markdownCacheEntryUnits(key: string, value: string): number {
+  return key.length + value.length;
+}
+
+function markdownCacheDelete(key: string): void {
+  const value = markdownHtmlCache.get(key);
+  if (value === undefined) {
+    return;
+  }
+  markdownHtmlCacheUnits -= markdownCacheEntryUnits(key, value);
+  markdownHtmlCache.delete(key);
+}
 
 function markdownBody(markdown: string, blockId: string): HTMLElement {
   const body = document.createElement("div");
@@ -659,16 +685,29 @@ function markdownBody(markdown: string, blockId: string): HTMLElement {
   let html = markdownHtmlCache.get(markdown);
   if (html === undefined) {
     html = DOMPurify.sanitize(marked.parse(markdown, { async: false }), markdownSanitizerConfig);
-    if (markdownHtmlCache.size >= MARKDOWN_HTML_CACHE_MAX) {
-      const oldest = markdownHtmlCache.keys().next().value;
-      if (oldest !== undefined) {
-        markdownHtmlCache.delete(oldest);
+    // Gate (2): parse but do not retain a reply above the per-entry cap.
+    if (markdown.length <= MARKDOWN_HTML_CACHE_MAX_ENTRY_CHARS) {
+      markdownHtmlCache.set(markdown, html);
+      markdownHtmlCacheUnits += markdownCacheEntryUnits(markdown, html);
+      // Evict oldest (first) until within BOTH the count cap and the byte budget.
+      // The just-inserted entry is newest (last in iteration order), so it is
+      // never the eviction target — gate (2) keeps any single entry well under
+      // the total budget, so the loop always terminates with it retained.
+      while (
+        markdownHtmlCache.size > MARKDOWN_HTML_CACHE_MAX ||
+        markdownHtmlCacheUnits > MARKDOWN_HTML_CACHE_MAX_UNITS
+      ) {
+        const oldest = markdownHtmlCache.keys().next().value;
+        if (oldest === undefined || oldest === markdown) {
+          break;
+        }
+        markdownCacheDelete(oldest);
       }
     }
-    markdownHtmlCache.set(markdown, html);
   } else {
     // Hit: refresh recency — re-insert moves this key to the newest slot so it
-    // outlives colder entries under the cap.
+    // outlives colder entries under the cap. Same key + value ⇒ the unit total
+    // is unchanged, so only the ordering moves.
     markdownHtmlCache.delete(markdown);
     markdownHtmlCache.set(markdown, html);
   }

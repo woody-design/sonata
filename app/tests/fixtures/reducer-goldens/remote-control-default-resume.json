@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply with exactly: DORM_DEFAULT_SEED\r\u001b[2C\u001b[3",
                   "~tail": "3;153m✻\u001b[3GCooked for 2s\r\u001b[5B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2827,
                 "text": {
                   "~len": 416,
                   "~sha256": "ac1b61b5733e6dd6",
                   "~head": "Reply with exactly: DORM_DEFAULT_SEED\n❯ Reply with exactly: DORM",
                   "~tail": "\n(running stop hook)\nGalloping… · 2s · ↓2 tokens)\n✻Cooked for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 2827
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -157,10 +157,9 @@
       "directiveCounts": {
         "none": 24,
         "report-refresh": 6,
-        "unread-only": 26,
+        "unread-only": 58,
         "session-index-debounced": 5,
-        "sidebar": 2,
-        "transcript-debounced": 32
+        "sidebar": 2
       },
       "state": {
         "activeTaskId": null,
@@ -205,14 +204,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply with exactly: DORM_DEFAULT_SEED\r\u001b[2C\u001b[3",
                   "~tail": "3;153m✻\u001b[3GCooked for 2s\r\u001b[5B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2827,
                 "text": {
                   "~len": 416,
                   "~sha256": "ac1b61b5733e6dd6",
                   "~head": "Reply with exactly: DORM_DEFAULT_SEED\n❯ Reply with exactly: DORM",
                   "~tail": "\n(running stop hook)\nGalloping… · 2s · ↓2 tokens)\n✻Cooked for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 2827
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

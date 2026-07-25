@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+4\u001b[22Glines]\r\u001b[2",
                   "~tail": "3;153;153m✻\u001b[3GBrewed for 11s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 26520,
                 "text": {
                   "~len": 6666,
                   "~sha256": "aa8447ff922276b4",
                   "~head": "[Pastedtext#1+4lines]\npasteain to expand\n❯ Create a Markdown fil",
                   "~tail": "g stop hook · 11s · ↓533 tokens)\n✽Elucidating…41\n✻Brewed for 11s"
                 },
-                "truncated": false,
-                "receivedChars": 26520
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -251,9 +251,8 @@
         "none": 56,
         "report-refresh": 12,
         "session-index-debounced": 9,
-        "unread-only": 41,
-        "sidebar": 4,
-        "transcript-debounced": 139
+        "unread-only": 180,
+        "sidebar": 4
       },
       "state": {
         "activeTaskId": null,
@@ -298,14 +297,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+4\u001b[22Glines]\r\u001b[2",
                   "~tail": "3;153;153m✻\u001b[3GBrewed for 11s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 26520,
                 "text": {
                   "~len": 6666,
                   "~sha256": "aa8447ff922276b4",
                   "~head": "[Pastedtext#1+4lines]\npasteain to expand\n❯ Create a Markdown fil",
                   "~tail": "g stop hook · 11s · ↓533 tokens)\n✽Elucidating…41\n✻Brewed for 11s"
                 },
-                "truncated": false,
-                "receivedChars": 26520
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -545,14 +544,14 @@
                   "~head": "\u001b[?25l\u001b[H\u001b[K\r\u001b[1B \u001b[38;2;255;193;7m⚠\u001b[39m \u001b[38;2;255;193;7m1 MCP",
                   "~tail": "153;153;153m✻\u001b[3GBaked for 6s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 22390,
                 "text": {
                   "~len": 7254,
                   "~sha256": "e1752c80410b2bed",
                   "~head": "⚠ 1 MCP server needs authentication · run /mcp\n❯ Create a Markdo",
                   "~tail": "↓179 tokens) 1 # Open Task Original\nProcessing…692\n✻Baked for 6s"
                 },
-                "truncated": false,
-                "receivedChars": 22390
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -816,9 +815,8 @@
         "none": 39,
         "report-refresh": 14,
         "session-index-debounced": 5,
-        "unread-only": 41,
-        "sidebar": 6,
-        "transcript-debounced": 77
+        "unread-only": 118,
+        "sidebar": 6
       },
       "state": {
         "activeTaskId": null,
@@ -863,14 +861,14 @@
                   "~head": "\u001b[?25l\u001b[H\u001b[K\r\u001b[1B \u001b[38;2;255;193;7m⚠\u001b[39m \u001b[38;2;255;193;7m1 MCP",
                   "~tail": "153;153;153m✻\u001b[3GBaked for 6s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 22390,
                 "text": {
                   "~len": 7254,
                   "~sha256": "e1752c80410b2bed",
                   "~head": "⚠ 1 MCP server needs authentication · run /mcp\n❯ Create a Markdo",
                   "~tail": "↓179 tokens) 1 # Open Task Original\nProcessing…692\n✻Baked for 6s"
                 },
-                "truncated": false,
-                "receivedChars": 22390
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted text #1 +3 lines]\u001b[K\r\u001b[2C\u001b[3B\u001b[38;2;1",
                   "~tail": "3;153;153m✻\u001b[3GBrewed for 10s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 24913,
                 "text": {
                   "~len": 5935,
                   "~sha256": "ccf33e321702cccb",
                   "~head": "[Pasted text #1 +3 lines]\npasteain to expand\n❯ Create exactly tw",
                   "~tail": "Imagining…running stop hook · 10s · ↓355 tokens)\n✻Brewed for 10s"
                 },
-                "truncated": false,
-                "receivedChars": 24913
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -269,9 +269,8 @@
         "none": 61,
         "report-refresh": 18,
         "session-index-debounced": 11,
-        "unread-only": 53,
-        "sidebar": 6,
-        "transcript-debounced": 133
+        "unread-only": 186,
+        "sidebar": 6
       },
       "state": {
         "activeTaskId": null,
@@ -316,14 +315,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted text #1 +3 lines]\u001b[K\r\u001b[2C\u001b[3B\u001b[38;2;1",
                   "~tail": "3;153;153m✻\u001b[3GBrewed for 10s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 24913,
                 "text": {
                   "~len": 5935,
                   "~sha256": "ccf33e321702cccb",
                   "~head": "[Pasted text #1 +3 lines]\npasteain to expand\n❯ Create exactly tw",
                   "~tail": "Imagining…running stop hook · 10s · ↓355 tokens)\n✻Brewed for 10s"
                 },
-                "truncated": false,
-                "receivedChars": 24913
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
                   "~tail": "34;1H\u001b[31;3H\u001b[?25h\u001b]0;⠂ Create markdown and HTML artifact files\u0007"
                 },
+                "receivedChars": 25753,
                 "text": {
                   "~len": 6612,
                   "~sha256": "ffee178faac0ff01",
                   "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly two fi",
                   "~tail": " ready.\n10 </body>\n… +1 line\n⎿ Allowed by PermissionRequest hook"
                 },
-                "truncated": false,
-                "receivedChars": 25753
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -264,9 +264,8 @@
         "none": 54,
         "report-refresh": 21,
         "session-index-debounced": 11,
-        "unread-only": 57,
-        "sidebar": 8,
-        "transcript-debounced": 89
+        "unread-only": 146,
+        "sidebar": 8
       },
       "state": {
         "activeTaskId": null,
@@ -311,14 +310,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
                   "~tail": "34;1H\u001b[31;3H\u001b[?25h\u001b]0;⠂ Create markdown and HTML artifact files\u0007"
                 },
+                "receivedChars": 25753,
                 "text": {
                   "~len": 6612,
                   "~sha256": "ffee178faac0ff01",
                   "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly two fi",
                   "~tail": " ready.\n10 </body>\n… +1 line\n⎿ Allowed by PermissionRequest hook"
                 },
-                "truncated": false,
-                "receivedChars": 25753
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

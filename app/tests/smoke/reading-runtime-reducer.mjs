@@ -111,9 +111,13 @@ function expectedDirectives(state, event) {
         ? view.runTranscripts.filter((t) => t.runId === liveRunId).map((t) => ({ ...t }))
         : [],
     };
-    return S.appendLiveTranscript(probe, event.payload.data)
-      ? [{ kind: "transcript-debounced", taskId }]
-      : [{ kind: "none" }];
+    if (!S.appendLiveTranscript(probe, event.payload.data)) {
+      return [{ kind: "none" }];
+    }
+    // OBS S4/F5: a BACKGROUND view's live text must NOT schedule the active
+    // transcript render (the shell drops the directive's taskId). The append
+    // ran either way (state stays current); the directive differs by activity.
+    return [active ? { kind: "transcript-debounced", taskId } : { kind: "unread-only", taskId }];
   }
   if (event.type === "approval:expired") {
     if (view.pendingApproval?.approvalId !== event.payload.approvalId) {
@@ -207,10 +211,18 @@ function checkInvariants(event, directives, context) {
     assert.deepEqual(kinds, expected, `report:updated is effect-only (${context})`);
   }
   if (event.type === "pty:data" && directives.length > 0) {
+    // OBS S4/F5: active + visible append → schedule the T3 transcript render;
+    // background + visible append → unread-only (a background firehose must not
+    // drive the active view's recompute); no visible append → none.
     assert.equal(
       kinds.includes("transcript-debounced"),
-      context.ptyAppendVisible,
-      `pty:data schedules the transcript render iff the C1 boolean (${context})`,
+      context.active && context.ptyAppendVisible,
+      `pty:data schedules the active transcript render iff active AND the C1 boolean (${context})`,
+    );
+    assert.equal(
+      kinds.includes("unread-only"),
+      !context.active && context.ptyAppendVisible,
+      `background pty:data with visible text is unread-only, never a render (${context})`,
     );
   }
 }
@@ -306,7 +318,10 @@ function replay(events, { active }) {
     };
     const expected = expectedDirectives(state, event);
     if (event.type === "pty:data") {
-      context.ptyAppendVisible = expected.some((d) => d.kind === "transcript-debounced");
+      // The C1 boolean (did visible text append), independent of active: the
+      // oracle returns `none` only when nothing appended, else a paint/unread
+      // directive keyed on activity (OBS S4/F5).
+      context.ptyAppendVisible = !expected.some((d) => d.kind === "none");
     }
     const directives = R.reduceRuntimeEvent(state, event, NOW_MS);
     assert.deepEqual(
@@ -707,6 +722,50 @@ function optionPrompt() {
   assert.deepEqual(d, [{ kind: "none" }], "no live run → no transcript schedule");
   assert.equal(view.unread, true, "…but a bg chunk still marks unread (measured)");
   assert.equal(view.runTranscripts.length, 0, "…and no transcript was created");
+}
+
+// 6b) OBS S4/F5 — background pty:data with VISIBLE text must NOT drive the
+//     active view's transcript render. With a live run set, appendLiveTranscript
+//     returns true; the directive is then keyed on activity:
+//       active view     → transcript-debounced (drives the T3 render, unchanged)
+//       background view  → unread-only (append happened + unread set, no render)
+//     A background firehose otherwise re-rendered whatever was ACTIVE at ~6.25 Hz
+//     because the shell drops the directive's taskId (render.ts:315).
+{
+  // Active view + visible append → schedules the transcript render.
+  const { state, view } = seedView({ liveTranscriptRunId: "run-1" });
+  const d = R.reduceRuntimeEvent(
+    state,
+    evt("pty:data", { taskId: "task-A", data: "hello world\n", seq: 0 }),
+    NOW_MS,
+  );
+  assert.deepEqual(
+    d,
+    [{ kind: "transcript-debounced", taskId: "task-A" }],
+    "active pty:data with visible text → transcript-debounced",
+  );
+  assert.equal(view.runTranscripts.length, 1, "…and the live transcript was appended");
+  assert.equal(view.unread, false, "active view is never marked unread");
+}
+{
+  // Background view + visible append → unread-only, NEVER transcript-debounced.
+  const { state, view } = seedView({ active: false, liveTranscriptRunId: "run-1" });
+  const d = R.reduceRuntimeEvent(
+    state,
+    evt("pty:data", { taskId: "task-A", data: "hello world\n", seq: 0 }),
+    NOW_MS,
+  );
+  assert.deepEqual(
+    d,
+    [{ kind: "unread-only", taskId: "task-A" }],
+    "background pty:data with visible text → unread-only, not a render",
+  );
+  assert.ok(
+    !d.some((dir) => dir.kind === "transcript-debounced"),
+    "background pty:data must never schedule the active transcript render (F5)",
+  );
+  assert.equal(view.unread, true, "…and the background chunk marks unread");
+  assert.equal(view.runTranscripts.length, 1, "…while the append still kept state current");
 }
 
 // 7) Recommended — usage-in-place payload flags (chip change + open popover).

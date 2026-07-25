@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3;153m✻\u001b[3GWorked for 2s\r\u001b[2B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 3861,
                 "text": {
                   "~len": 1129,
                   "~sha256": "28000cffc6d4b84a",
                   "~head": "ctrl+g to edit in VS Code\n❯ ReplyexactlyDUET_REF_RECEIPT.Donotcr",
                   "~tail": "bbi(running stop hook)\n✻Ebbing… · 2s · ↓2 tokens)\n✻Worked for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 3861
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -219,9 +219,8 @@
         "none": 28,
         "report-refresh": 5,
         "session-index-debounced": 7,
-        "unread-only": 21,
-        "sidebar": 2,
-        "transcript-debounced": 29
+        "unread-only": 50,
+        "sidebar": 2
       },
       "state": {
         "activeTaskId": null,
@@ -266,14 +265,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3;153m✻\u001b[3GWorked for 2s\r\u001b[2B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 3861,
                 "text": {
                   "~len": 1129,
                   "~sha256": "28000cffc6d4b84a",
                   "~head": "ctrl+g to edit in VS Code\n❯ ReplyexactlyDUET_REF_RECEIPT.Donotcr",
                   "~tail": "bbi(running stop hook)\n✻Ebbing… · 2s · ↓2 tokens)\n✻Worked for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 3861
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BWrite\u001b[9Gexactly\u001b[17Gone\u001b[21Gshort\u001b[27Gsenten",
                   "~tail": "3;153m✻\u001b[3GCooked for 3s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2933,
                 "text": {
                   "~len": 347,
                   "~sha256": "0129d42e56d59b06",
                   "~head": "Writeexactlyoneshortsentenceaboutthecolorblue,andnothingelse.\n❯ ",
                   "~tail": "nning sp hook · 3s · ↓1 tokens)\nFiddle-faddling…3\n✻Cooked for 3s"
                 },
-                "truncated": false,
-                "receivedChars": 2933
+                "truncated": false
               },
               {
                 "runId": "run-1783114451289-2",
@@ -72,14 +72,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BWrite\u001b[9Ga\u001b[11Gshort\u001b[17Gparagraph\u001b[27Gof\u001b[30",
                   "~tail": "53;153;153mChurned\u001b[11Gfor 4s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 11748,
                 "text": {
                   "~len": 3656,
                   "~sha256": "5a0b9b37c3ad1a08",
                   "~head": "Writeashortparagraphoffourorfivesentencesaboutthecolorred.\n❯ Wri",
                   "~tail": "frared.\nWarmandinsistent,redrarelygoesunnoticed.\n✻ Churnedfor 4s"
                 },
-                "truncated": false,
-                "receivedChars": 11748
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -247,9 +247,8 @@
         "none": 43,
         "report-refresh": 10,
         "session-index-debounced": 9,
-        "unread-only": 44,
-        "sidebar": 4,
-        "transcript-debounced": 87
+        "unread-only": 131,
+        "sidebar": 4
       },
       "state": {
         "activeTaskId": null,
@@ -294,14 +293,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BWrite\u001b[9Gexactly\u001b[17Gone\u001b[21Gshort\u001b[27Gsenten",
                   "~tail": "3;153m✻\u001b[3GCooked for 3s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2933,
                 "text": {
                   "~len": 347,
                   "~sha256": "0129d42e56d59b06",
                   "~head": "Writeexactlyoneshortsentenceaboutthecolorblue,andnothingelse.\n❯ ",
                   "~tail": "nning sp hook · 3s · ↓1 tokens)\nFiddle-faddling…3\n✻Cooked for 3s"
                 },
-                "truncated": false,
-                "receivedChars": 2933
+                "truncated": false
               },
               {
                 "runId": "run-1783114451289-2",
@@ -311,14 +310,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BWrite\u001b[9Ga\u001b[11Gshort\u001b[17Gparagraph\u001b[27Gof\u001b[30",
                   "~tail": "53;153;153mChurned\u001b[11Gfor 4s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 11748,
                 "text": {
                   "~len": 3656,
                   "~sha256": "5a0b9b37c3ad1a08",
                   "~head": "Writeashortparagraphoffourorfivesentencesaboutthecolorred.\n❯ Wri",
                   "~tail": "frared.\nWarmandinsistent,redrarelygoesunnoticed.\n✻ Churnedfor 4s"
                 },
-                "truncated": false,
-                "receivedChars": 11748
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

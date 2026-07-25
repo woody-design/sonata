@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GRC_READY\r\u001b[2C\u001b",
                   "~tail": "3;153m✻\u001b[3GWorked for 1s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2070,
                 "text": {
                   "~len": 294,
                   "~sha256": "284354052e95327f",
                   "~head": "Replywithexactly:RC_READY\n❯ Reply with exactly: RC_READY\n✢Stewin",
                   "~tail": "unning stop hook)\nArchitecting… · 1s · ↓2 tokens)\n✻Worked for 1s"
                 },
-                "truncated": false,
-                "receivedChars": 2070
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -191,9 +191,8 @@
         "none": 28,
         "report-refresh": 6,
         "session-index-debounced": 7,
-        "unread-only": 30,
-        "sidebar": 2,
-        "transcript-debounced": 24
+        "unread-only": 54,
+        "sidebar": 2
       },
       "state": {
         "activeTaskId": null,
@@ -238,14 +237,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GRC_READY\r\u001b[2C\u001b",
                   "~tail": "3;153m✻\u001b[3GWorked for 1s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2070,
                 "text": {
                   "~len": 294,
                   "~sha256": "284354052e95327f",
                   "~head": "Replywithexactly:RC_READY\n❯ Reply with exactly: RC_READY\n✢Stewin",
                   "~tail": "unning stop hook)\nArchitecting… · 1s · ↓2 tokens)\n✻Worked for 1s"
                 },
-                "truncated": false,
-                "receivedChars": 2070
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

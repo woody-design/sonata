@@ -131,14 +131,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[24B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
                   "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
                 },
+                "receivedChars": 10179,
                 "text": {
                   "~len": 2957,
                   "~sha256": "843f726096f43576",
                   "~head": "◉ xhigh · /effort\n❯ YouareinsideaUItestharness.DoEXACTLYonething",
                   "~tail": "nter to slect · Tab/Arrow keys to navigate · Esc to cancel(B(B78"
                 },
-                "truncated": false,
-                "receivedChars": 10179
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -285,9 +285,8 @@
         "none": 27,
         "report-refresh": 6,
         "session-index-debounced": 6,
-        "unread-only": 23,
-        "sidebar": 3,
-        "transcript-debounced": 55
+        "unread-only": 78,
+        "sidebar": 3
       },
       "state": {
         "activeTaskId": null,
@@ -408,14 +407,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[24B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
                   "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
                 },
+                "receivedChars": 10179,
                 "text": {
                   "~len": 2957,
                   "~sha256": "843f726096f43576",
                   "~head": "◉ xhigh · /effort\n❯ YouareinsideaUItestharness.DoEXACTLYonething",
                   "~tail": "nter to slect · Tab/Arrow keys to navigate · Esc to cancel(B(B78"
                 },
-                "truncated": false,
-                "receivedChars": 10179
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

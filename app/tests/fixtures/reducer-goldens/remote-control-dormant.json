@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GDORMANT_SEED\r\u001b",
                   "~tail": "3;153m✻\u001b[3GBrewed for 2s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2439,
                 "text": {
                   "~len": 216,
                   "~sha256": "5bb713d7212fc9f0",
                   "~head": "Replywithexactly:DORMANT_SEED\n❯ Reply with exactly: DORMANT_SEED",
                   "~tail": "…(running stop hook)\n·Sautéing… · 2s · ↓2 tokens)\n✻Brewed for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 2439
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -174,9 +174,8 @@
         "none": 26,
         "report-refresh": 6,
         "session-index-debounced": 5,
-        "unread-only": 24,
-        "sidebar": 2,
-        "transcript-debounced": 30
+        "unread-only": 54,
+        "sidebar": 2
       },
       "state": {
         "activeTaskId": null,
@@ -221,14 +220,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GDORMANT_SEED\r\u001b",
                   "~tail": "3;153m✻\u001b[3GBrewed for 2s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2439,
                 "text": {
                   "~len": 216,
                   "~sha256": "5bb713d7212fc9f0",
                   "~head": "Replywithexactly:DORMANT_SEED\n❯ Reply with exactly: DORMANT_SEED",
                   "~tail": "…(running stop hook)\n·Sautéing… · 2s · ↓2 tokens)\n✻Brewed for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 2439
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -390,9 +389,9 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GDORMANT_RESUME",
                   "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
                 },
+                "receivedChars": 712,
                 "text": "Replywithexactly:DORMANT_RESUMED\n❯ Reply with exactly: DORMANT_RESUMED\n✻Accomplishing…\n← for agents\n✽(B78",
-                "truncated": false,
-                "receivedChars": 712
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -526,10 +525,9 @@
       "directiveCounts": {
         "none": 17,
         "report-refresh": 6,
-        "unread-only": 21,
+        "unread-only": 27,
         "session-index-debounced": 2,
-        "sidebar": 1,
-        "transcript-debounced": 6
+        "sidebar": 1
       },
       "state": {
         "activeTaskId": null,
@@ -573,9 +571,9 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GDORMANT_RESUME",
                   "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
                 },
+                "receivedChars": 712,
                 "text": "Replywithexactly:DORMANT_RESUMED\n❯ Reply with exactly: DORMANT_RESUMED\n✻Accomplishing…\n← for agents\n✽(B78",
-                "truncated": false,
-                "receivedChars": 712
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

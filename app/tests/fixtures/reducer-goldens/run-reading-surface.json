@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
                   "~tail": ";153;153m✻\u001b[3GSautéed for 11s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 31780,
                 "text": {
                   "~len": 7950,
                   "~sha256": "3bd4ac3575cd9e26",
                   "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly two fi",
                   "~tail": "stop hook · 11s · ↓397 tokens)\n✶Harmonizing…404\n✻Sautéed for 11s"
                 },
-                "truncated": false,
-                "receivedChars": 31780
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -280,9 +280,8 @@
         "none": 63,
         "report-refresh": 18,
         "session-index-debounced": 11,
-        "unread-only": 56,
-        "sidebar": 8,
-        "transcript-debounced": 152
+        "unread-only": 208,
+        "sidebar": 8
       },
       "state": {
         "activeTaskId": null,
@@ -327,14 +326,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
                   "~tail": ";153;153m✻\u001b[3GSautéed for 11s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 31780,
                 "text": {
                   "~len": 7950,
                   "~sha256": "3bd4ac3575cd9e26",
                   "~head": "[Pastedtext#1+3lines]\npasteain to expand\n❯ Create exactly two fi",
                   "~tail": "stop hook · 11s · ↓397 tokens)\n✶Harmonizing…404\n✻Sautéed for 11s"
                 },
-                "truncated": false,
-                "receivedChars": 31780
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

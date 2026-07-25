@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[92C\u001b[24B\u001b[",
                   "~tail": "119;87m✳\u001b[3G\u001b[38;2;235;159;127mForging…\u001b[39m\u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 14577,
                 "text": {
                   "~len": 4532,
                   "~sha256": "02290e965941f28b",
                   "~head": "◉ xhigh · /effort\n❯ Runexactlythisshellcommandandnoothercommands",
                   "~tail": "kens)\nImage in clipboard · ctrl+v to paste\n← foragents\n✳Forging…"
                 },
-                "truncated": false,
-                "receivedChars": 14577
+                "truncated": false
               },
               {
                 "runId": "run-1783114436710-2",
@@ -72,14 +72,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
                   "~tail": "de --resume 5ba9f89e-1451-455e-a6cb-3d0271e1d504\u001b[22m\r\n\u001b[2m\u001b[22m"
                 },
+                "receivedChars": 24147,
                 "text": {
                   "~len": 7469,
                   "~sha256": "648a728dff3d9159",
                   "~head": "[Pastedtext#1+3lines]\npasteain to expand\n│ ▝▜█████▛▘ │ Changed `",
                   "~tail": "ssion with:\nclaude --resume 5ba9f89e-1451-455e-a6cb-3d0271e1d504"
                 },
-                "truncated": false,
-                "receivedChars": 24147
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -329,9 +329,8 @@
         "none": 67,
         "report-refresh": 22,
         "session-index-debounced": 10,
-        "unread-only": 63,
-        "sidebar": 7,
-        "transcript-debounced": 168
+        "unread-only": 231,
+        "sidebar": 7
       },
       "state": {
         "activeTaskId": null,
@@ -376,14 +375,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[92C\u001b[24B\u001b[",
                   "~tail": "119;87m✳\u001b[3G\u001b[38;2;235;159;127mForging…\u001b[39m\u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 14577,
                 "text": {
                   "~len": 4532,
                   "~sha256": "02290e965941f28b",
                   "~head": "◉ xhigh · /effort\n❯ Runexactlythisshellcommandandnoothercommands",
                   "~tail": "kens)\nImage in clipboard · ctrl+v to paste\n← foragents\n✳Forging…"
                 },
-                "truncated": false,
-                "receivedChars": 14577
+                "truncated": false
               },
               {
                 "runId": "run-1783114436710-2",
@@ -393,14 +392,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+3\u001b[22Glines]\r\u001b[2",
                   "~tail": "de --resume 5ba9f89e-1451-455e-a6cb-3d0271e1d504\u001b[22m\r\n\u001b[2m\u001b[22m"
                 },
+                "receivedChars": 24147,
                 "text": {
                   "~len": 7469,
                   "~sha256": "648a728dff3d9159",
                   "~head": "[Pastedtext#1+3lines]\npasteain to expand\n│ ▝▜█████▛▘ │ Changed `",
                   "~tail": "ssion with:\nclaude --resume 5ba9f89e-1451-455e-a6cb-3d0271e1d504"
                 },
-                "truncated": false,
-                "receivedChars": 24147
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

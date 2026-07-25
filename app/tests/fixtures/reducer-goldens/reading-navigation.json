@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[84C\u001b[27B\u001b[",
                   "~tail": ";153m✻\u001b[3GSautéed for 2s\r\u001b[7B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 3253,
                 "text": {
                   "~len": 483,
                   "~sha256": "5084ae9396e32bb5",
                   "~head": "ctrl+g to edit in VS Code\n❯ Reply exactly DUET_READING_NAV_READY",
                   "~tail": "unning stop hook)\n✽Levitating… · 2s · ↓2 tokens)\n✻Sautéed for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 3253
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -174,9 +174,8 @@
         "none": 23,
         "report-refresh": 6,
         "session-index-debounced": 5,
-        "unread-only": 22,
-        "sidebar": 2,
-        "transcript-debounced": 28
+        "unread-only": 50,
+        "sidebar": 2
       },
       "state": {
         "activeTaskId": null,
@@ -221,14 +220,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[84C\u001b[27B\u001b[",
                   "~tail": ";153m✻\u001b[3GSautéed for 2s\r\u001b[7B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 3253,
                 "text": {
                   "~len": 483,
                   "~sha256": "5084ae9396e32bb5",
                   "~head": "ctrl+g to edit in VS Code\n❯ Reply exactly DUET_READING_NAV_READY",
                   "~tail": "unning stop hook)\n✽Levitating… · 2s · ↓2 tokens)\n✻Sautéed for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 3253
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

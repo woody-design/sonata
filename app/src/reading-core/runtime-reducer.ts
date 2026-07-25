@@ -97,15 +97,29 @@ export function reduceRuntimeEvent(
     if (!view) {
       return [];
     }
+    const active = isActiveView(state, view);
     // The raw terminal now renders in the satellite window (fed by the same
     // broadcast). The main window keeps only the Read transcript and unread cue.
-    if (!isActiveView(state, view)) {
+    if (!active) {
       view.unread = true;
     }
-    if (appendLiveTranscript(view, event.payload.data)) {
-      return [{ kind: "transcript-debounced", taskId: event.payload.taskId }];
+    // The append MUST happen for every view (active or background) so the
+    // transcript state stays current for the moment the user switches to it.
+    const appended = appendLiveTranscript(view, event.payload.data);
+    if (!appended) {
+      return [{ kind: "none" }];
     }
-    return [{ kind: "none" }];
+    // A BACKGROUND view's new live text gains the active surface nothing: the
+    // shell drops the directive's taskId and always re-renders the ACTIVE view
+    // (render.ts performDirective → scheduleTranscriptRender), so a background
+    // firehose would drive the active view's O(B) T3 recompute for content it
+    // isn't even showing (audit F5). The append already ran and unread is set —
+    // return unread-only, so a background stream never schedules a render. The
+    // active surface repaints on its own events or on activation.
+    if (!active) {
+      return [{ kind: "unread-only", taskId: event.payload.taskId }];
+    }
+    return [{ kind: "transcript-debounced", taskId: event.payload.taskId }];
   }
 
   if (event.type === "sessions:updated") {

@@ -7,9 +7,9 @@
         "report-refresh": 26,
         "session-index-debounced": 21,
         "full": 61,
-        "unread-only": 29,
+        "unread-only": 161,
         "sidebar": 8,
-        "transcript-debounced": 427,
+        "transcript-debounced": 295,
         "usage-in-place": 7,
         "strip-in-place": 80
       },
@@ -56,14 +56,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3;153;153m✻\u001b[3GCooked for 12s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 12869,
                 "text": {
                   "~len": 2015,
                   "~sha256": "60f41318c3eaca38",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedalpha_only.",
                   "~tail": "erspacing…running stop hook · 12s · ↓276 tokens)\n✻Cooked for 12s"
                 },
-                "truncated": false,
-                "receivedChars": 12869
+                "truncated": false
               },
               {
                 "runId": "run-1783114198767-2",
@@ -73,14 +73,14 @@
                   "~head": "\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;17",
                   "~tail": "   \r\u001b[10B\u001b[49m\u001b[K\r\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 1473,
                 "text": {
                   "~len": 470,
                   "~sha256": "1467b11573f7ccfe",
                   "~head": "/clear\n/cler Start a new session with empty context; previous se",
                   "~tail": "ouse a workflwdirectly.\n◉ xhigh · /ffort\n· ← for agents\n❯ /clear"
                 },
-                "truncated": false,
-                "receivedChars": 1473
+                "truncated": false
               },
               {
                 "runId": "run-1783114202775-3",
@@ -90,14 +90,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3mChurned\u001b[11Gfor\u001b[15G14\u001b[18G\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 18737,
                 "text": {
                   "~len": 3311,
                   "~sha256": "f7d2864311b0f683",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedgamma_only.",
                   "~tail": "dwiththerequestedcontent.Nootherfilesweretouched.\n✻ Churnedfor14"
                 },
-                "truncated": false,
-                "receivedChars": 18737
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -380,14 +380,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "153;153m✻\u001b[3GCrunched for 12s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 13249,
                 "text": {
                   "~len": 2060,
                   "~sha256": "8975e565df7ed68f",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedbeta_only.m",
                   "~tail": " hook · 12s · ↓489 tokens)\n✻Philosophising…508\n✻Crunched for 12s"
                 },
-                "truncated": false,
-                "receivedChars": 13249
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -545,9 +545,8 @@
         "none": 185,
         "report-refresh": 26,
         "session-index-debounced": 21,
-        "unread-only": 97,
-        "sidebar": 8,
-        "transcript-debounced": 420
+        "unread-only": 517,
+        "sidebar": 8
       },
       "state": {
         "activeTaskId": null,
@@ -592,14 +591,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3;153;153m✻\u001b[3GCooked for 12s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 12869,
                 "text": {
                   "~len": 2015,
                   "~sha256": "60f41318c3eaca38",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedalpha_only.",
                   "~tail": "erspacing…running stop hook · 12s · ↓276 tokens)\n✻Cooked for 12s"
                 },
-                "truncated": false,
-                "receivedChars": 12869
+                "truncated": false
               },
               {
                 "runId": "run-1783114198767-2",
@@ -609,14 +608,14 @@
                   "~head": "\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;17",
                   "~tail": "   \r\u001b[10B\u001b[49m\u001b[K\r\u001b[1B\u001b[K\r\u001b[5C\u001b[1B\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 1473,
                 "text": {
                   "~len": 470,
                   "~sha256": "1467b11573f7ccfe",
                   "~head": "/clear\n/cler Start a new session with empty context; previous se",
                   "~tail": "ouse a workflwdirectly.\n◉ xhigh · /ffort\n· ← for agents\n❯ /clear"
                 },
-                "truncated": false,
-                "receivedChars": 1473
+                "truncated": false
               },
               {
                 "runId": "run-1783114202775-3",
@@ -626,14 +625,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3mChurned\u001b[11Gfor\u001b[15G14\u001b[18G\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 18737,
                 "text": {
                   "~len": 3311,
                   "~sha256": "f7d2864311b0f683",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedgamma_only.",
                   "~tail": "dwiththerequestedcontent.Nootherfilesweretouched.\n✻ Churnedfor14"
                 },
-                "truncated": false,
-                "receivedChars": 18737
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -916,14 +915,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "153;153m✻\u001b[3GCrunched for 12s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 13249,
                 "text": {
                   "~len": 2060,
                   "~sha256": "8975e565df7ed68f",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedbeta_only.m",
                   "~tail": " hook · 12s · ↓489 tokens)\n✻Philosophising…508\n✻Crunched for 12s"
                 },
-                "truncated": false,
-                "receivedChars": 13249
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

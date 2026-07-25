@@ -219,6 +219,30 @@ export interface TurnSignatureTracker {
   turnSignature(turn: ReadingTurn): string;
 }
 
+/**
+ * A cheap content fingerprint for the turn signature: FNV-1a (32-bit) over the
+ * string, hex. Pure, dependency-free, NOT cryptographic (no crypto import in
+ * reading-core — plain data in, plain data out). Used to fingerprint
+ * `fallbackText`, which can be the run transcript's entire cleaned text (up to
+ * 120 K chars) — embedding it verbatim made every T3 fire build and compare a
+ * 120 KB string AND wrote it into `dataset.sig` on the DOM card (audit F7).
+ *
+ * The signature pairs this hash WITH the string length, so a change is missed
+ * only on a same-length FNV-1a collision (~1 in 2^32 per candidate). A miss
+ * costs one skipped repaint of a degraded fallback card, self-healing on the
+ * next change — an acceptable trade for a render-refresh trigger (32-bit chosen
+ * over 64-bit deliberately: the failure mode is cosmetic and transient).
+ */
+function fnv1aHex(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    // FNV prime 0x01000193, via shift-adds; >>> 0 keeps it an unsigned 32-bit int.
+    hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
+  }
+  return hash.toString(16);
+}
+
 export function createTurnSignatureTracker(): TurnSignatureTracker {
   // Block render-version: a transcript block object is REPLACED with a new
   // reference whenever its content is upserted (applyTranscriptUpserts does
@@ -255,7 +279,14 @@ export function createTurnSignatureTracker(): TurnSignatureTracker {
       // must flip the signature or the settled card goes stale.
       turn.run?.completionSource ?? "",
       String(turn.run?.stopEvents.length ?? ""),
-      turn.fallbackText ?? "",
+      // fallbackText fingerprint, NOT the text itself: length + FNV-1a hash. The
+      // full text was up to 120 K chars and landed in `dataset.sig` on the DOM
+      // (audit F7); the fingerprint changes whenever the text does (modulo a
+      // rare same-length hash collision — see fnv1aHex). NOTE: reading
+      // `turn.fallbackText` here still forces the lazy clean materialization
+      // (bounded by the 120 K cap) — unchanged by this slice, only what the
+      // signature EMBEDS changed.
+      turn.fallbackText === null ? "" : `${turn.fallbackText.length}:${fnv1aHex(turn.fallbackText)}`,
     ];
     for (const block of turn.blocks) {
       parts.push(`${block.id}:${blockRenderVersion(block)}`);

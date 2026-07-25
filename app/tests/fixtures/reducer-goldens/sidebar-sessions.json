@@ -8,10 +8,10 @@
         "session-index-debounced": 18,
         "full": 35,
         "sidebar": 8,
-        "transcript-debounced": 186,
+        "transcript-debounced": 93,
         "usage-in-place": 5,
         "strip-in-place": 22,
-        "unread-only": 38
+        "unread-only": 131
       },
       "state": {
         "activeTaskId": "task-1783114384118-1",
@@ -56,14 +56,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "53;153;153m✻\u001b[3GBrewed for 7s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 16012,
                 "text": {
                   "~len": 3447,
                   "~sha256": "959d52f105009d7e",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedreport.md.\n",
                   "~tail": "\nrunning stop hook · 7s · ↓167 tokens)\nDoodling…7\n✻Brewed for 7s"
                 },
-                "truncated": false,
-                "receivedChars": 16012
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -273,14 +273,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3;153;153m✻\u001b[3GSautéed for 7s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 16570,
                 "text": {
                   "~len": 3505,
                   "~sha256": "8c5ae44b37ac5549",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedreport.md.\n",
                   "~tail": ".\nFlummoxinrunning stop hook · 7s · ↓167 tokens)\n✻Sautéed for 7s"
                 },
-                "truncated": false,
-                "receivedChars": 16570
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -459,9 +459,8 @@
         "none": 106,
         "report-refresh": 25,
         "session-index-debounced": 18,
-        "unread-only": 76,
-        "sidebar": 8,
-        "transcript-debounced": 183
+        "unread-only": 259,
+        "sidebar": 8
       },
       "state": {
         "activeTaskId": null,
@@ -506,14 +505,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "53;153;153m✻\u001b[3GBrewed for 7s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 16012,
                 "text": {
                   "~len": 3447,
                   "~sha256": "959d52f105009d7e",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedreport.md.\n",
                   "~tail": "\nrunning stop hook · 7s · ↓167 tokens)\nDoodling…7\n✻Brewed for 7s"
                 },
-                "truncated": false,
-                "receivedChars": 16012
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -723,14 +722,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[84C\u001b[26B\u001b[38;2;153;153;153mctrl+g to edit in VS Code",
                   "~tail": "3;153;153m✻\u001b[3GSautéed for 7s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 16570,
                 "text": {
                   "~len": 3505,
                   "~sha256": "8c5ae44b37ac5549",
                   "~head": "ctrl+g to edit in VS Code\n❯ Createexactlyonefilenamedreport.md.\n",
                   "~tail": ".\nFlummoxinrunning stop hook · 7s · ↓167 tokens)\n✻Sautéed for 7s"
                 },
-                "truncated": false,
-                "receivedChars": 16570
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

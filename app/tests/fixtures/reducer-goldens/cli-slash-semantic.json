@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GREADY\r\u001b[2C\u001b[3B",
                   "~tail": "53m✻\u001b[3GCogitated for 2s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2064,
                 "text": {
                   "~len": 167,
                   "~sha256": "343346a4c32e0db0",
                   "~head": "Replywithexactly:READY\n❯ Reply with exactly: READY\n✽Choreographi",
                   "~tail": "s)\n⏺READY\nustrunning sp hook · 2s · ↓1 tokens)\n✻Cogitated for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 2064
+                "truncated": false
               },
               {
                 "runId": "run-1783114149683-2",
@@ -72,14 +72,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/config\r\u001b[2C\u001b[3B\u001b[39m\u001b[K\u001b[",
                   "~tail": "r/↓ to select · ↑ to tabs · Esc to clear\u001b[39m\u001b[34;1H\u001b[7;8H\u001b[?25h"
                 },
+                "receivedChars": 3099,
                 "text": {
                   "~len": 1007,
                   "~sha256": "7740eefc96c693dd",
                   "~head": "/config\n/config Open settings\n/update-config Use this skill to c",
                   "~tail": "ow\nType to filter · Enter/↓ to select · ↑ to tabs · Esc to clear"
                 },
-                "truncated": false,
-                "receivedChars": 3099
+                "truncated": false
               },
               {
                 "runId": "run-1783114158019-3",
@@ -89,9 +89,9 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B/zzz-not-a-command\r\u001b[2C\u001b[3B\u001b[K\u001b[34;1H\u001b[31;21H",
                   "~tail": "9m\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[27B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 368,
                 "text": "/zzz-not-a-command\nNo commands match \"/zzz-not-a-command\"\n⏺Unknown command: /zzz-not-a-command\n← for agents",
-                "truncated": false,
-                "receivedChars": 368
+                "truncated": false
               },
               {
                 "runId": "run-1783114160150-4",
@@ -101,9 +101,9 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+6\u001b[22Glines]\r\u001b[2",
                   "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
                 },
+                "receivedChars": 345,
                 "text": "[Pastedtext#1+6lines]\npasteain to expand(B78",
-                "truncated": false,
-                "receivedChars": 345
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -250,9 +250,8 @@
         "none": 40,
         "report-refresh": 16,
         "session-index-debounced": 12,
-        "unread-only": 58,
-        "sidebar": 7,
-        "transcript-debounced": 38
+        "unread-only": 96,
+        "sidebar": 7
       },
       "state": {
         "activeTaskId": null,
@@ -297,14 +296,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GREADY\r\u001b[2C\u001b[3B",
                   "~tail": "53m✻\u001b[3GCogitated for 2s\r\u001b[8B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 2064,
                 "text": {
                   "~len": 167,
                   "~sha256": "343346a4c32e0db0",
                   "~head": "Replywithexactly:READY\n❯ Reply with exactly: READY\n✽Choreographi",
                   "~tail": "s)\n⏺READY\nustrunning sp hook · 2s · ↓1 tokens)\n✻Cogitated for 2s"
                 },
-                "truncated": false,
-                "receivedChars": 2064
+                "truncated": false
               },
               {
                 "runId": "run-1783114149683-2",
@@ -314,14 +313,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/config\r\u001b[2C\u001b[3B\u001b[39m\u001b[K\u001b[",
                   "~tail": "r/↓ to select · ↑ to tabs · Esc to clear\u001b[39m\u001b[34;1H\u001b[7;8H\u001b[?25h"
                 },
+                "receivedChars": 3099,
                 "text": {
                   "~len": 1007,
                   "~sha256": "7740eefc96c693dd",
                   "~head": "/config\n/config Open settings\n/update-config Use this skill to c",
                   "~tail": "ow\nType to filter · Enter/↓ to select · ↑ to tabs · Esc to clear"
                 },
-                "truncated": false,
-                "receivedChars": 3099
+                "truncated": false
               },
               {
                 "runId": "run-1783114158019-3",
@@ -331,9 +330,9 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B/zzz-not-a-command\r\u001b[2C\u001b[3B\u001b[K\u001b[34;1H\u001b[31;21H",
                   "~tail": "9m\u001b[34;1H\u001b[31;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[27B\u001b[K\u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 368,
                 "text": "/zzz-not-a-command\nNo commands match \"/zzz-not-a-command\"\n⏺Unknown command: /zzz-not-a-command\n← for agents",
-                "truncated": false,
-                "receivedChars": 368
+                "truncated": false
               },
               {
                 "runId": "run-1783114160150-4",
@@ -343,9 +342,9 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B[Pasted\u001b[11Gtext\u001b[16G#1\u001b[19G+6\u001b[22Glines]\r\u001b[2",
                   "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
                 },
+                "receivedChars": 345,
                 "text": "[Pastedtext#1+6lines]\npasteain to expand(B78",
-                "truncated": false,
-                "receivedChars": 345
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

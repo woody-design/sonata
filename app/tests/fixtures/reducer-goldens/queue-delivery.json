@@ -55,14 +55,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[25B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
                   "~tail": ";153;153m✻\u001b[3GSautéed for 23s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 60089,
                 "text": {
                   "~len": 16952,
                   "~sha256": "8d86620ab4d7e2fc",
                   "~head": "◉ xhigh · /effort\n❯ Runexactlythisshellcommandandnoothercommands",
                   "~tail": " stop hook · 23s · ↓551 tokens)\n✢Reticulating…6\n✻Sautéed for 23s"
                 },
-                "truncated": false,
-                "receivedChars": 60089
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -285,9 +285,8 @@
         "none": 96,
         "report-refresh": 20,
         "session-index-debounced": 11,
-        "unread-only": 64,
-        "sidebar": 10,
-        "transcript-debounced": 301
+        "unread-only": 365,
+        "sidebar": 10
       },
       "state": {
         "activeTaskId": null,
@@ -332,14 +331,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[92C\u001b[25B\u001b[38;2;153;153;153m◉ xhigh · /effort\r\u001b[1B\u001b[3",
                   "~tail": ";153;153m✻\u001b[3GSautéed for 23s\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[34;1H\u001b[31;3H\u001b[?25h"
                 },
+                "receivedChars": 60089,
                 "text": {
                   "~len": 16952,
                   "~sha256": "8d86620ab4d7e2fc",
                   "~head": "◉ xhigh · /effort\n❯ Runexactlythisshellcommandandnoothercommands",
                   "~tail": " stop hook · 23s · ↓551 tokens)\n✢Reticulating…6\n✻Sautéed for 23s"
                 },
-                "truncated": false,
-                "receivedChars": 60089
+                "truncated": false
               }
             ],
             "transcriptBlocks": [

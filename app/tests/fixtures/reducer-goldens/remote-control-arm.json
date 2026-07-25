@@ -54,14 +54,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GRC_ARMED_READY",
                   "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
                 },
+                "receivedChars": 999,
                 "text": {
                   "~len": 234,
                   "~sha256": "f1e2a571279faee2",
                   "~head": "Replywithexactly:RC_ARMED_READY\n⚠1 MCP server needs authenticati",
                   "~tail": "eply with exactly: RC_ARMED_READY\n✽Skedaddling…\n← for agents(B78"
                 },
-                "truncated": false,
-                "receivedChars": 999
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
@@ -151,10 +151,9 @@
       "directiveCounts": {
         "none": 14,
         "report-refresh": 5,
-        "unread-only": 24,
+        "unread-only": 31,
         "session-index-debounced": 4,
-        "sidebar": 1,
-        "transcript-debounced": 7
+        "sidebar": 1
       },
       "state": {
         "activeTaskId": null,
@@ -199,14 +198,14 @@
                   "~head": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GRC_ARMED_READY",
                   "~tail": "[>4m\u001b[<u\u001b[?1004l\u001b[?2031l\u001b[?2004l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
                 },
+                "receivedChars": 999,
                 "text": {
                   "~len": 234,
                   "~sha256": "f1e2a571279faee2",
                   "~head": "Replywithexactly:RC_ARMED_READY\n⚠1 MCP server needs authenticati",
                   "~tail": "eply with exactly: RC_ARMED_READY\n✽Skedaddling…\n← for agents(B78"
                 },
-                "truncated": false,
-                "receivedChars": 999
+                "truncated": false
               }
             ],
             "transcriptBlocks": [
