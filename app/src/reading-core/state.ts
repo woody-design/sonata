@@ -923,6 +923,18 @@ export function appendLiveTranscript(view: TaskViewState, data: string): boolean
     // buffer — so a long noise-only prelude cannot reintroduce O(buffer)/chunk.
     // The window always spans the entire new chunk, so the first visible bytes
     // are caught on the chunk that delivers them.
+    //
+    // Provider is read from the live view, NOT the transcript's `_provider`
+    // snapshot the getter uses. This looks like the split R1 tried to close, but
+    // it is STRUCTURALLY FORCED by the two fences: `_provider` must be
+    // non-enumerable (an enumerable copy would change the reducer-corpus golden),
+    // so the differential oracle's shallow `{...t}` probe cannot carry it and
+    // would clean under `undefined` here — different noise rules, a real gate
+    // divergence on Claude buffers. The oracle reconstructs provider only at the
+    // view level, so the probe must too. The two sites stay consistent because
+    // `_provider` is bound to `view.task?.provider` at creation and a task's
+    // provider is immutable (fixed at spawn) — the strongest guarantee available
+    // without weakening a fence. (PTY S1 R1: evaluated, cannot be applied.)
     const windowLength = data.length + LIVE_TRANSCRIPT_PRELATCH_WINDOW;
     const probeSource =
       transcript.rawText.length > windowLength
