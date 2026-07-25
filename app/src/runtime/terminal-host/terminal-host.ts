@@ -45,6 +45,7 @@ import {
 import { shellQuotePath } from "../shell-quote";
 import { loginShellPath, mergePath } from "./login-shell-path";
 import { TerminalScrollback } from "./terminal-scrollback";
+import { TaskScreenModel } from "./task-screen-model";
 import { ARROW_DOWN, cleanTerminal, ESC, KILL_LINE } from "./tui-parsers-common";
 import {
   compactRemoteControlScan,
@@ -108,7 +109,7 @@ const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
 /** Trailing-edge throttle period for the approval scan. The panel is a
  *  human-timescale state (a box waiting for input is quiescent by
- *  definition), so coalescing the ≤64KB `approvalScanSource()` parse to at
+ *  definition), so coalescing the grid extract+parse to at
  *  most one pass per this window — instead of one per pty chunk — removes the
  *  O(buffer)-per-chunk hot-path cost under a CLI firehose while keeping
  *  freshly-painted-panel latency under ~150ms (research 2026-07-24, VS Code's
@@ -503,21 +504,30 @@ export class TerminalHost extends EventEmitter {
   /** decision → key bytes for the CURRENTLY surfaced panel (v2 grammar
    *  parses the panel's own numbered options; digits instant-select). */
   private activeApprovalOptionKeys: Partial<Record<ApprovalDecision, string>> | null = null;
-  /** Cumulative pty bytes since spawn — a stream coordinate that survives the
-   *  rawTail/activeRunRaw suffix trims, so a point in the stream stays
-   *  addressable after buffers are sliced. */
-  private ptyBytesTotal = 0;
-  /** Approval-scrape watermark (stream coordinate): panel bytes at or before
-   *  this point are ANSWERED history and can no longer become candidates.
-   *  Advanced ONLY on hook-broker decisions — the reply went down the CLI's
-   *  own stdout channel and cannot be swallowed, so the painted panel is
-   *  settled fact the moment the reply is written. (claude ≥2.1.186 paints
-   *  the FULL native panel while the broker holds; those bytes stay in the
-   *  linear run buffer forever and re-detected as a phantom "resurfaced"
-   *  ask >1.2s after the decision, wedging the run — 2026-07-03 diagnosis.)
-   *  Native-key decisions do NOT move it: keys can be swallowed, and the
-   *  resurface-after-settle honesty backstop exists exactly for them. */
-  private approvalScanFloor = 0;
+  /** Per-task headless screen model (S4b). Reconstructs the CURRENT screen from
+   *  the raw PTY stream so `detectApproval` reads the settled grid instead of the
+   *  raw byte tail. Created/reset alongside `scrollback` in `startTask`, resized
+   *  where the PTY resizes, disposed on teardown. */
+  private screenModel: TaskScreenModel | null = null;
+  /** Grid-era re-expression of the old byte-offset `approvalScanFloor` (S4b). A
+   *  hook-broker reply goes down the CLI's own stdout channel and cannot be
+   *  swallowed, so it DEFINITIVELY answers whatever panel is on screen at
+   *  decision time. Under the raw tail that answered panel's bytes lingered
+   *  forever (claude ≥2.1.186 paints the full native panel while the broker
+   *  holds) and re-detected as a phantom "resurfaced" ask >1.2s later, wedging
+   *  the run (2026-07-03) — the floor excised them by byte offset. Under the grid
+   *  the panel LEAVES the screen when the TUI repaints past it (S4a Q4: grid
+   *  parses ~5 chunks vs raw's 149–232), so the floor's job is mostly VACUOUS.
+   *  This watermark covers only the RESIDUAL window where the answered panel
+   *  still lingers on the grid before that repaint (and the non-repainting
+   *  synthetic CLIs in the smokes, where it lingers indefinitely): a candidate
+   *  whose grid fingerprint equals it is answered history and must not
+   *  (re)surface. Keying on fingerprint is reliable BECAUSE grid fingerprints
+   *  are stable (S4a: 46→2) — the very instability that forced the byte floor is
+   *  gone. Set only on broker decisions (native-key decisions can be swallowed →
+   *  the resurface honesty backstop must stay live for them); cleared when the
+   *  panel leaves the grid, on a new surface, and on run/task reset. */
+  private brokerAnsweredFingerprint: string | null = null;
   /** The CLI's own "session is up" declaration (SessionStart hook). Opens
    *  acceptsPromptInput structurally: claude ≥2.1.186 repaints transcript
    *  history on --resume (old ❯ prompt lines, "✻ Baked for Ns" summaries),
@@ -749,8 +759,7 @@ export class TerminalHost extends EventEmitter {
     this.brokerExpiryResurfaceAt = null;
     this.approvalSuppressedInSettleWindow = false;
     this.activeApprovalOptionKeys = null;
-    this.ptyBytesTotal = 0;
-    this.approvalScanFloor = 0;
+    this.brokerAnsweredFingerprint = null;
     this.hookSessionStarted = false;
     this.clearPersistReceiptTimers();
     this.clearNativeAnswerRecheckTimers();
@@ -802,6 +811,10 @@ export class TerminalHost extends EventEmitter {
     // Main-process mirror of the rendered buffer, sized to the PTY, so a
     // (re)opened terminal window can restore recent scrollback (snapshot+tail).
     this.scrollback = new TerminalScrollback(cols, rows);
+    // Headless screen model (S4b), same PTY size — the approval detector reads
+    // its reconstructed grid. Fed once per batch in handlePtyData, resized with
+    // the PTY, disposed in disposeProcess.
+    this.screenModel = new TaskScreenModel(cols, rows);
 
     this.ptyProcess.onData((data) => this.ingestPtyData(data));
     this.ptyProcess.onExit((exit) => {
@@ -1348,7 +1361,7 @@ export class TerminalHost extends EventEmitter {
     if (!this.approvalActive) {
       return;
     }
-    const candidate = detectApprovalCandidate(this.approvalScanSource(), this.profile);
+    const candidate = detectApprovalCandidate(this.approvalScanGrid(), this.profile);
     if (candidate && !candidate.promptAfterApproval) {
       return;
     }
@@ -1477,6 +1490,7 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalDecision = null;
     this.lastApprovalDecisionAt = null;
     this.approvalSuppressedInSettleWindow = false;
+    this.brokerAnsweredFingerprint = null;
     this.clearApprovalSettleTimer();
     // A run-starting send supersedes any armed stop-Esc retry: an Esc fired
     // now would kill the very turn this submission is starting. A control
@@ -1803,13 +1817,20 @@ export class TerminalHost extends EventEmitter {
         approvalKind: kind,
       });
     }
-    // Everything painted so far — including the full native panel claude
-    // ≥2.1.186 renders while the broker holds — is answered history now: the
-    // reply went down the hook's stdout and cannot be swallowed. Below the
-    // watermark it can never re-detect as a phantom "resurfaced" ask (which
-    // used to flip the run back to waiting-for-approval >1.2s after the
-    // decision and drop the Stop hook — the 2026-07-03 wedge).
-    this.approvalScanFloor = this.ptyBytesTotal;
+    // The panel on screen right now — the full native panel claude ≥2.1.186
+    // renders while the broker holds — is answered history: the reply went down
+    // the hook's stdout and cannot be swallowed. Capture its grid fingerprint as
+    // the answered-panel watermark (S4b): while that same panel lingers on the
+    // grid before the TUI repaints past it, any candidate matching it is
+    // suppressed (detectApproval + checkApprovalSettled), so it can never
+    // re-detect as a phantom "resurfaced" ask (which used to flip the run back to
+    // waiting-for-approval >1.2s after the decision and drop the Stop hook — the
+    // 2026-07-03 wedge). Replaces the old byte-offset approvalScanFloor: the grid
+    // has no history tail to slice, and the answered panel simply leaves the
+    // screen on repaint. If nothing parses right now (the panel already repainted
+    // away), there is nothing to suppress — null is correct.
+    this.brokerAnsweredFingerprint =
+      detectApprovalCandidate(this.approvalScanGrid(), this.profile)?.fingerprint ?? null;
     this.approvalActive = false;
     this.lastApprovalDecision = decision;
     this.lastApprovalDecisionAt = decisionAt;
@@ -2092,6 +2113,9 @@ export class TerminalHost extends EventEmitter {
     this.ptyProcess.resize(nextCols, nextRows);
     // Keep the mirror in lock-step with the PTY so the serialized layout matches.
     this.scrollback?.resize(nextCols, nextRows);
+    // The approval screen model must track the same geometry so panel rows wrap
+    // and land where the parser expects them.
+    this.screenModel?.resize(nextCols, nextRows);
   }
 
   /** Snapshot the terminal for replay into a (re)opening window, or null when
@@ -2166,6 +2190,8 @@ export class TerminalHost extends EventEmitter {
     this.ptyProcess = null;
     this.scrollback?.dispose();
     this.scrollback = null;
+    this.screenModel?.dispose();
+    this.screenModel = null;
     try {
       proc.write("\x04");
     } catch {
@@ -2234,7 +2260,6 @@ export class TerminalHost extends EventEmitter {
         `[completion] ${new Date().toISOString()} run=${this.activeRun.id} pty-data len=${data.length} printable=${JSON.stringify(cleanTerminal(data).trim().slice(0, 60))}`,
       );
     }
-    this.ptyBytesTotal += data.length;
     this.rawTail = `${this.rawTail}${data}`.slice(-this.scrollbackLimit);
     // The mirror assigns this chunk's ingest seq; tag it onto the broadcast below
     // so a mid-stream-hydrating terminal window can stitch the chunk onto its
@@ -2254,10 +2279,14 @@ export class TerminalHost extends EventEmitter {
       data,
       seq,
     });
+    // Feed the approval screen model this batch (S4b). One write per S3 batch;
+    // the grid is queried on the trailing scan cadence AFTER the write drains
+    // (see scheduleApprovalScan → screenModel.whenSettled).
+    this.screenModel?.write(data);
     this.detectRemoteControlState(data);
     this.controlSwitch.ingest(data);
     // Approval scanning is coalesced onto a trailing-edge throttle instead of
-    // running the ≤64KB `approvalScanSource()` parse on every chunk: under a
+    // running the grid extract+parse on every chunk: under a
     // CLI firehose that was hundreds of O(buffer) parses/sec. PRINTABLE-gated
     // like the completion debounce — the idle TUI's ~200ms control-only
     // heartbeat must not arm a scan. This does not delay panel detection: a
@@ -2274,8 +2303,10 @@ export class TerminalHost extends EventEmitter {
       // NOT coalesced: clearApprovalIfAnsweredNatively short-circuits unless
       // approvalActive AND the human typed within HUMAN_ACTIVE_WINDOW_MS — a
       // rare, human-timescale window with a quiescent panel on screen (no
-      // firehose), so its O(buffer) scan is never on the hot path.
-      this.clearApprovalIfAnsweredNatively();
+      // firehose), so its grid scan is never on the hot path. Deferred to the
+      // screen drain (S4b) so it reads THIS batch's repaint, not the pre-write
+      // grid — the batch may be the very keystroke echo that cleared the panel.
+      this.screenModel?.whenSettled(() => this.clearApprovalIfAnsweredNatively());
     }
     // Completion debounce keys on PRINTABLE chunks only: the idle TUI's
     // ~200ms control-only heartbeat would otherwise clear+re-arm the timer
@@ -2286,17 +2317,17 @@ export class TerminalHost extends EventEmitter {
     }
   }
 
-  /** The approval scrape's view of the stream: the run buffer (or idle tail)
-   *  minus everything at or before the broker-decision watermark. A panel the
-   *  broker already answered lies below the floor and cannot re-detect; a
-   *  genuinely NEW ask paints fresh bytes above it. */
-  private approvalScanSource(): string {
-    const base = this.activeRun ? this.activeRunRaw : this.rawTail;
-    const postFloorBytes = this.ptyBytesTotal - this.approvalScanFloor;
-    if (postFloorBytes >= base.length) {
-      return base;
-    }
-    return base.slice(base.length - postFloorBytes);
+  /** The approval scrape's view of the SCREEN (S4b): the settled viewport rows of
+   *  the reconstructed grid, joined with "\n" — the exact shape the parser wants
+   *  (S4a Q1: parses identically to a clean raw parse). The grid shows only the
+   *  CURRENT screen, so an answered panel the TUI has repainted past is simply
+   *  gone — there is no history tail to slice (the old byte-offset floor is
+   *  vacuous here; its residual broker-answered dedup lives in
+   *  `brokerAnsweredFingerprint`). The surfacing callers query this inside
+   *  `screenModel.whenSettled` so every pending write has drained first — the
+   *  grid is COMPLETE, never mid-parse. */
+  private approvalScanGrid(): string {
+    return this.screenModel?.viewportText() ?? "";
   }
 
   /** Throttle-with-trailing-edge scheduler for the approval scan. The FIRST
@@ -2319,7 +2350,18 @@ export class TerminalHost extends EventEmitter {
       if (!this.ptyProcess) {
         return;
       }
-      this.detectApproval();
+      // Query the grid only after pending writes drain (S4b): whenSettled runs
+      // detectApproval synchronously when nothing is in flight (the quiescent
+      // waiting-panel case — step-0 measured zero output while a panel waits) and
+      // otherwise defers to the last write's parse callback, so the scan always
+      // reads a COMPLETE grid, never a mid-parse frame. Re-check ptyProcess in
+      // case teardown raced the drain.
+      this.screenModel?.whenSettled(() => {
+        if (!this.ptyProcess) {
+          return;
+        }
+        this.detectApproval();
+      });
     }, APPROVAL_SCAN_CADENCE_MS);
   }
 
@@ -2341,10 +2383,26 @@ export class TerminalHost extends EventEmitter {
     if (this.profile.provider !== "claude") {
       return;
     }
-    const approvalSource = this.approvalScanSource();
-    const candidate = detectApprovalCandidate(approvalSource, this.profile);
+    const candidate = detectApprovalCandidate(this.approvalScanGrid(), this.profile);
     if (!candidate || candidate.promptAfterApproval) {
+      // No panel on the grid (or the composer rendered past it): whatever the
+      // broker answered has left the screen, so the answered-panel watermark is
+      // spent — a later identical-fingerprint ask must be free to surface.
+      this.brokerAnsweredFingerprint = null;
       return;
+    }
+    // Grid-era re-expression of the broker-decision floor (S4b): a panel whose
+    // grid fingerprint equals the last broker-answered one is that same answered
+    // panel still lingering on screen before the TUI repaints past it (or a
+    // non-repainting synthetic CLI that never clears it) — answered history, not
+    // a new ask. Suppress it; the watermark is cleared above once the panel
+    // finally leaves the grid. A genuinely-different panel (new fingerprint)
+    // falls through and clears the stale watermark.
+    if (this.brokerAnsweredFingerprint !== null) {
+      if (candidate.fingerprint === this.brokerAnsweredFingerprint) {
+        return;
+      }
+      this.brokerAnsweredFingerprint = null;
     }
 
     if (this.approvalActive && this.lastApprovalKind === candidate.kind) {
@@ -2419,6 +2477,8 @@ export class TerminalHost extends EventEmitter {
     this.taskReady = false;
     this.approvalActive = true;
     this.approvalSuppressedInSettleWindow = false;
+    // A legitimate surface supersedes any answered-panel watermark (S4b).
+    this.brokerAnsweredFingerprint = null;
     this.lastApprovalKind = candidate.kind;
     this.lastApprovalFingerprint = candidate.fingerprint;
     this.activeApprovalOptionKeys = candidate.optionKeys ?? null;
@@ -2471,36 +2531,52 @@ export class TerminalHost extends EventEmitter {
       return;
     }
 
-    // Floored scan (fix/dormant-resume completion, review 2026-07-03): the
-    // settle re-check is an approval scrape like the others, so it reads the
-    // stream through the broker-decision watermark. The native-key honesty
-    // backstop is preserved by construction — key decisions never advance the
-    // floor, so a genuinely-still-open panel stays above it and resurfaces;
-    // a broker-answered panel lies below it and cannot phantom-resurface
-    // (this was the third scan site; the fix had converted the other two).
-    const candidate = detectApprovalCandidate(this.approvalScanSource(), this.profile);
-    if (!candidate || candidate.promptAfterApproval) {
-      return;
-    }
-    if (Date.now() - this.lastPtyDataAt < DEFAULT_APPROVAL_SETTLE_MS - 50) {
-      // A candidate is on screen but bytes are still flowing — too fresh to
-      // judge. When a same-kind candidate was SUPPRESSED inside the settle
-      // window it has no other path back (a static panel emits no further
-      // bytes to re-trigger detection), so re-arm instead of dropping; the
-      // chain ends when the screen quiets (judged below) or the candidate
-      // leaves the tail. Every other path keeps today's one-shot semantics —
-      // an unconditional re-arm would widen the false-resurface window for
-      // answered panels whose text still lingers in the run tail.
-      if (this.approvalSuppressedInSettleWindow) {
-        this.scheduleApprovalSettleCheck(decisionAt);
+    // Read the settled grid (S4b): defer until pending writes drain so the
+    // re-check judges a COMPLETE screen. Synchronous in the common case — a
+    // settle check fires ~1.2s after a decision, when output has stopped
+    // (screenModel is non-null here: it shares the ptyProcess lifecycle, guarded
+    // above). Re-assert the settle-time guards inside, in case a write drain
+    // deferred the callback across a decision change or teardown.
+    this.screenModel?.whenSettled(() => {
+      if (
+        !this.ptyProcess ||
+        this.lastApprovalDecisionAt !== decisionAt ||
+        this.approvalActive
+      ) {
+        return;
       }
-      return;
-    }
+      const candidate = detectApprovalCandidate(this.approvalScanGrid(), this.profile);
+      if (!candidate || candidate.promptAfterApproval) {
+        return;
+      }
+      // A broker-answered panel still lingering on the grid is answered history
+      // — the grid-era floor (brokerAnsweredFingerprint). Under the raw tail the
+      // byte floor made this candidate null; on the grid the panel stays visible
+      // until the TUI repaints, so the fingerprint watermark carries the dedup.
+      // Key/native decisions never set the watermark, so a genuinely-still-open
+      // natively-answered panel still resurfaces here (the honesty backstop).
+      if (candidate.fingerprint !== null && candidate.fingerprint === this.brokerAnsweredFingerprint) {
+        return;
+      }
+      if (Date.now() - this.lastPtyDataAt < DEFAULT_APPROVAL_SETTLE_MS - 50) {
+        // A candidate is on screen but bytes are still flowing — too fresh to
+        // judge. When a same-kind candidate was SUPPRESSED inside the settle
+        // window it has no other path back (a static panel emits no further
+        // bytes to re-trigger detection), so re-arm instead of dropping; the
+        // chain ends when the screen quiets (judged below) or the candidate
+        // leaves the grid. Every other path keeps today's one-shot semantics —
+        // an unconditional re-arm would widen the false-resurface window.
+        if (this.approvalSuppressedInSettleWindow) {
+          this.scheduleApprovalSettleCheck(decisionAt);
+        }
+        return;
+      }
 
-    const decisionAgeMs = Date.now() - decisionAt;
-    this.surfaceApproval(candidate, {
-      resurfacedAfterDecision: true,
-      decisionAgeMs,
+      const decisionAgeMs = Date.now() - decisionAt;
+      this.surfaceApproval(candidate, {
+        resurfacedAfterDecision: true,
+        decisionAgeMs,
+      });
     });
   }
 
