@@ -106,6 +106,14 @@ const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
+/** Trailing-edge throttle period for the approval scan. The panel is a
+ *  human-timescale state (a box waiting for input is quiescent by
+ *  definition), so coalescing the ≤64KB `approvalScanSource()` parse to at
+ *  most one pass per this window — instead of one per pty chunk — removes the
+ *  O(buffer)-per-chunk hot-path cost under a CLI firehose while keeping
+ *  freshly-painted-panel latency under ~150ms (research 2026-07-24, VS Code's
+ *  agent-terminal ~100–150ms quiescence cadence). */
+const APPROVAL_SCAN_CADENCE_MS = 120;
 /** How long after the stop Esc the belt-clear fires. The prompt-restore is
  *  effectively immediate — present at the earliest measured snapshot, +300ms
  *  (probe C10) — so 900ms is comfortably past it; the belt is cosmetic
@@ -509,6 +517,10 @@ export class TerminalHost extends EventEmitter {
   private runSeq = 0;
   private completionTimer: NodeJS.Timeout | null = null;
   private approvalSettleTimer: NodeJS.Timeout | null = null;
+  /** The single in-flight coalesced approval scan (throttle-with-trailing-edge,
+   *  see scheduleApprovalScan). Cleared on PTY teardown alongside the settle
+   *  timer so a scan cannot fire on a dead/replaced session. */
+  private approvalScanTimer: NodeJS.Timeout | null = null;
   private lastPtyDataAt = 0;
   /** Last chunk that carried PRINTABLE content (survives cleanTerminal). The
    *  idle claude TUI emits a 5-byte control-only chunk every ~200ms
@@ -726,6 +738,7 @@ export class TerminalHost extends EventEmitter {
     this.taskReady = false;
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
+    this.clearApprovalScanTimer();
     this.remoteControlActive = false;
     this.remoteControlUrl = null;
     this.remoteControlScan = "";
@@ -2069,6 +2082,7 @@ export class TerminalHost extends EventEmitter {
     this.stopFileWatcher();
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
+    this.clearApprovalScanTimer();
     this.clearPersistReceiptTimers();
     this.clearNativeAnswerRecheckTimers();
   }
@@ -2124,6 +2138,7 @@ export class TerminalHost extends EventEmitter {
       // Ignore shutdown races.
     }
     this.clearApprovalSettleTimer();
+    this.clearApprovalScanTimer();
     if (this.humanSettleTimer) {
       clearTimeout(this.humanSettleTimer);
       this.humanSettleTimer = null;
@@ -2163,11 +2178,25 @@ export class TerminalHost extends EventEmitter {
     });
     this.detectRemoteControlState(data);
     this.controlSwitch.ingest(data);
-    this.detectApproval();
+    // Approval scanning is coalesced onto a trailing-edge throttle instead of
+    // running the ≤64KB `approvalScanSource()` parse on every chunk: under a
+    // CLI firehose that was hundreds of O(buffer) parses/sec. PRINTABLE-gated
+    // like the completion debounce — the idle TUI's ~200ms control-only
+    // heartbeat must not arm a scan. This does not delay panel detection: a
+    // panel's own text IS printable, so the chunk that paints it arms the scan,
+    // and the scan is TRAILING (reads the latest buffer when it fires), so it
+    // sees the panel complete even if later paint bytes are control-only.
+    if (printable) {
+      this.scheduleApprovalScan();
+    }
     if (this.isHumanActivelyTyping()) {
       // While the human is typing in the terminal they may be answering a native
       // approval directly — re-check each repaint so approvalActive clears
       // promptly (continuous reconciliation; the settle pass catches a late one).
+      // NOT coalesced: clearApprovalIfAnsweredNatively short-circuits unless
+      // approvalActive AND the human typed within HUMAN_ACTIVE_WINDOW_MS — a
+      // rare, human-timescale window with a quiescent panel on screen (no
+      // firehose), so its O(buffer) scan is never on the hot path.
       this.clearApprovalIfAnsweredNatively();
     }
     // Completion debounce keys on PRINTABLE chunks only: the idle TUI's
@@ -2190,6 +2219,38 @@ export class TerminalHost extends EventEmitter {
       return base;
     }
     return base.slice(base.length - postFloorBytes);
+  }
+
+  /** Throttle-with-trailing-edge scheduler for the approval scan. The FIRST
+   *  printable chunk arms a single timer; every chunk arriving before it fires
+   *  is a no-op (the timer is already set), so the scan runs at most once per
+   *  APPROVAL_SCAN_CADENCE_MS no matter how fast chunks arrive. It is NOT a
+   *  reset-on-every-chunk debounce — the timer is never rescheduled while
+   *  pending, so continuous printable output cannot starve it. When it fires it
+   *  reads the LATEST buffer (trailing edge), so a scan armed by chunk N that
+   *  fires after chunks N+1..N+k sees through N+k. */
+  private scheduleApprovalScan(): void {
+    if (this.approvalScanTimer) {
+      return;
+    }
+    this.approvalScanTimer = setTimeout(() => {
+      this.approvalScanTimer = null;
+      // A scan armed by a chunk whose PTY has since been torn down (dispose /
+      // startTask / crash-exit nulled ptyProcess) must be a safe no-op — mirror
+      // the settle- and completion-timer callback guards.
+      if (!this.ptyProcess) {
+        return;
+      }
+      this.detectApproval();
+    }, APPROVAL_SCAN_CADENCE_MS);
+  }
+
+  private clearApprovalScanTimer(): void {
+    if (!this.approvalScanTimer) {
+      return;
+    }
+    clearTimeout(this.approvalScanTimer);
+    this.approvalScanTimer = null;
   }
 
   private detectApproval(): void {
