@@ -4200,17 +4200,44 @@ function completionConfidenceForStatus(status: RunStatus): CompletionConfidence 
   return "low";
 }
 
-function shouldIgnorePath(relativePath: string): boolean {
+// Path SEGMENTS whose subtrees the watcher never reports — matched anywhere in
+// the path, exactly like `node_modules` (so `app/build/foo` and a nested
+// `src/out/index.ts` both match). The first group is the pre-existing set; the
+// second is the build/derived-output set added for OBS S0 to stop the
+// write-amplification storm at the source (a Gradle build dirties thousands of
+// files under `build/` + `.gradle/`; each otherwise became a `file:changed`
+// event and a full-report rewrite — incident F2). Deliberately conservative:
+// segment-anywhere matching means a legitimately-named source dir (e.g. `out/`,
+// `dist/`) is also ignored; that is the intended trade — this is noise control,
+// and the run-index caps + write-cadence bound (S0 F3 / S2) absorb whatever
+// still gets through. This filter is the single funnel for BOTH the fs.watch
+// path and the 750 ms poll fallback (all four call sites route through here).
+const IGNORED_PATH_SEGMENTS = new Set([
+  ".git",
+  ".sonata",
+  "node_modules",
+  "__pycache__",
+  "sample-output",
+  "build",
+  ".gradle",
+  "dist",
+  "out",
+  "target",
+  "coverage",
+  ".next",
+  "DerivedData",
+  ".venv",
+  "venv",
+  ".cache",
+]);
+
+export function shouldIgnorePath(relativePath: string): boolean {
   if (!relativePath) {
     return true;
   }
   const parts = relativePath.split(/[\\/]/);
   return (
-    parts.includes(".git") ||
-    parts.includes(".sonata") ||
-    parts.includes("node_modules") ||
-    parts.includes("__pycache__") ||
-    parts.includes("sample-output") ||
+    parts.some((segment) => IGNORED_PATH_SEGMENTS.has(segment)) ||
     relativePath.endsWith(".DS_Store") ||
     relativePath.endsWith(".pyc")
   );

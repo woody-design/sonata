@@ -35,6 +35,20 @@ export interface RuntimeReportV1 {
    *  bucket they were dropped, leaving session-setup approvals with no
    *  forensic trail (2c). */
   unassignedApprovals: RuntimeApprovalReport[];
+  /** Cumulative count of entries dropped by the bounded-list caps (OBS S0),
+   *  aggregated across every run's `changedFiles` / `artifactCandidates` and
+   *  the top-level `unassignedChanges`. Recorded so truncation of the
+   *  build-noise lists is visible, never silent (incident F3). Additive and
+   *  optional: reports written before S0 lack the key and readers must treat
+   *  absent as all-zero. */
+  droppedCounts?: RuntimeReportDroppedCounts;
+}
+
+/** Per-bucket cumulative drop tally for the bounded runtime-report lists. */
+export interface RuntimeReportDroppedCounts {
+  changedFiles: number;
+  unassignedChanges: number;
+  artifactCandidates: number;
 }
 
 export interface RuntimeLaunchReport {

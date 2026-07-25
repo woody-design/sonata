@@ -12,6 +12,7 @@ import {
   type RuntimeApprovalReport,
   type RuntimeArtifactCandidateReport,
   type RuntimeFileChangeReport,
+  type RuntimeReportDroppedCounts,
   type RuntimeReportSummaryV1,
   type RuntimeReportV1,
   type RuntimeRunReport,
@@ -35,6 +36,76 @@ const ARTIFACT_EXTENSIONS = new Set([
   ".docx",
   ".pptx",
 ]);
+
+/** Per-bucket caps for the bounded runtime-report lists (OBS S0). */
+export interface ReportListCaps {
+  changedFiles: number;
+  unassignedChanges: number;
+  artifactCandidates: number;
+}
+
+/**
+ * The build-noise lists grow one entry per changed path and dominated the 26 MB
+ * field reports (54k entries). Keep the most-recent tail per bucket — 500 file
+ * changes / 200 artifact candidates is generous forensic context without the
+ * unbounded storm cost (incident F3).
+ */
+export const DEFAULT_REPORT_LIST_CAPS: ReportListCaps = {
+  changedFiles: 500,
+  unassignedChanges: 500,
+  artifactCandidates: 200,
+};
+
+/**
+ * Cap the append-ordered noise lists to their most-recent entries, accumulating
+ * a per-bucket dropped count into `report.droppedCounts` so truncation is
+ * visible, never silent (incident F3). Pure and side-effect-free: returns a new
+ * report and mutates neither the input nor its lists. S0 applies it at load time
+ * (`readExistingReport`) to compact the existing bloated reports; S2 reuses it at
+ * flush time to bound growth at the source.
+ *
+ * Idempotent by construction: a list already within its cap drops nothing, so
+ * `capReportLists(capReportLists(r))` equals `capReportLists(r)` — the counts do
+ * not double, which also makes repeated flush-time caps of a growing report sum
+ * correctly (each call adds only the entries it actually removes).
+ */
+export function capReportLists(
+  report: RuntimeReportV1,
+  caps: ReportListCaps = DEFAULT_REPORT_LIST_CAPS,
+): RuntimeReportV1 {
+  const dropped: RuntimeReportDroppedCounts = {
+    changedFiles: report.droppedCounts?.changedFiles ?? 0,
+    unassignedChanges: report.droppedCounts?.unassignedChanges ?? 0,
+    artifactCandidates: report.droppedCounts?.artifactCandidates ?? 0,
+  };
+
+  const tail = <T>(list: T[], cap: number): T[] =>
+    list.length > cap ? list.slice(list.length - cap) : list;
+
+  const runs = report.runs.map((run) => {
+    const changedOverflow = Math.max(0, run.changedFiles.length - caps.changedFiles);
+    const artifactOverflow = Math.max(0, run.artifactCandidates.length - caps.artifactCandidates);
+    if (changedOverflow === 0 && artifactOverflow === 0) {
+      return run;
+    }
+    dropped.changedFiles += changedOverflow;
+    dropped.artifactCandidates += artifactOverflow;
+    return {
+      ...run,
+      changedFiles: tail(run.changedFiles, caps.changedFiles),
+      artifactCandidates: tail(run.artifactCandidates, caps.artifactCandidates),
+    };
+  });
+
+  dropped.unassignedChanges += Math.max(0, report.unassignedChanges.length - caps.unassignedChanges);
+
+  return {
+    ...report,
+    runs,
+    unassignedChanges: tail(report.unassignedChanges, caps.unassignedChanges),
+    droppedCounts: dropped,
+  };
+}
 
 export interface RunIndexOptions {
   taskId: TaskId;
@@ -433,14 +504,18 @@ function readExistingReport(reportPath: string, taskId: TaskId): RuntimeReportV1
     ) {
       return freshRuntimeReportV1(taskId);
     }
-    return {
+    // Compact on load: the existing 26 MB / 11 MB field reports carry tens of
+    // thousands of build-noise entries. Capping here means the next persist
+    // rewrites them bounded, so a resume no longer parses (or re-writes) a
+    // multi-MB file (OBS S0 / incident §7 last bullet).
+    return capReportLists({
       ...parsed,
       taskId,
       rawTerminalPointer: null,
       // Field added in 2c; reports written before it lack the key.
       unassignedApprovals: parsed.unassignedApprovals ?? [],
       runs: parsed.runs.map((run) => ({ ...run, taskId, rawTerminalPointer: null })),
-    };
+    });
   } catch {
     return freshRuntimeReportV1(taskId);
   }
