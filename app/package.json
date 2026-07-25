@@ -171,6 +171,7 @@
     "smoke:import-fence": "node tests/smoke/import-fence.mjs",
     "smoke:preview-sessions": "npm run build:main && node tests/smoke/preview-sessions.mjs",
     "smoke:projection": "npm run build:main && node tests/smoke/projection.mjs",
+    "smoke:perf-instrumentation": "npm run build:main && node tests/smoke/perf-instrumentation.mjs",
     "smoke:reading-core-formatters": "npm run build:main && node tests/smoke/reading-core-formatters.mjs",
     "smoke:quote-comment": "npm run build:main && node tests/smoke/quote-comment.mjs",
     "smoke:reading-scroll": "npm run build:main && node tests/smoke/reading-scroll.mjs",

@@ -53,6 +53,7 @@ import {
 import { NotificationController } from "./notification-controller";
 import { PreviewSessions } from "./preview-sessions";
 import { createRuntimeEventRecorder } from "./runtime-event-recorder";
+import { createPerfLog } from "./perf-log";
 import { RuntimeController } from "./runtime-controller";
 import { UpdaterController } from "./updater/updater-controller";
 import { buildUpdaterDialog } from "./updater/updater-interactive";
@@ -924,6 +925,12 @@ function startLocalApiIfEnabled(controller: RuntimeController): void {
 // stream as JSONL.
 const recordRuntimeEvent = createRuntimeEventRecorder(process.env.SONATA_RUNTIME_EVENT_LOG);
 
+// Dev-gated main-process perf instrumentation (OBS S9 / P6): default off; set
+// SONATA_PERF_LOG=1 (stderr) or =<dir> to stream event-loop-lag summaries and
+// per run-index flush duration/size (the AD-1/AD-2 tripwire evidence). Null when
+// off — that null is the AD-0 zero-cost-when-off guarantee (no sampler, no timer).
+const perfLog = createPerfLog();
+
 app.whenReady().then(() => {
   readingSettingsStore = new ReadingSettingsStore(readingSettingsPath());
   previewSessions = new PreviewSessions(new PreviewSessionsStore(previewSessionsPath()));
@@ -971,6 +978,7 @@ app.whenReady().then(() => {
     claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath()),
     codexSettingsStore: new CodexSettingsStore(codexSettingsPath()),
     sonataSettingsStore: new SonataSettingsStore(sonataSettingsPath()),
+    ...(perfLog ? { onFlushMetrics: (metric) => perfLog.recordFlush(metric) } : {}),
     sendEvent: (event) => {
       recordRuntimeEvent(event);
       localApiServer?.broadcastEvent(event);
@@ -1085,4 +1093,7 @@ app.on("before-quit", () => {
   // Clear the updater's check timers so they never hold the process alive on
   // quit (they are also unref'd as a belt-and-braces).
   updaterController?.dispose();
+  // Emit the final event-loop-lag summary and disarm the sampler (no-op when the
+  // perf log is off — perfLog is null).
+  perfLog?.stop();
 });

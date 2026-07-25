@@ -174,6 +174,12 @@ interface RuntimeControllerOptions {
   claudeSettingsStore: ClaudeSettingsStore;
   codexSettingsStore: CodexSettingsStore;
   sonataSettingsStore: SonataSettingsStore;
+  /**
+   * Dev-gated per-flush instrumentation sink (OBS S9 / P6), threaded into every
+   * live RunIndex so a build-storm's flush duration + serialized size land in the
+   * AD-2 tripwire evidence stream. Absent in normal use (the perf log is off).
+   */
+  onFlushMetrics?: (metric: { name: string; durationMs: number; bytes: number }) => void;
 }
 
 interface ActiveTaskRuntime {
@@ -212,6 +218,7 @@ export class RuntimeController {
   private readonly claudeSettingsStore: ClaudeSettingsStore;
   private readonly codexSettingsStore: CodexSettingsStore;
   private readonly sonataSettingsStore: SonataSettingsStore;
+  private readonly onFlushMetrics?: (metric: { name: string; durationMs: number; bytes: number }) => void;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
   /** Provider-neutral now (S2): the same sink layout (`runtimeDir/hooks`) serves
    *  Claude AND Codex, so ONE watcher observes both — routed to the task by the
@@ -267,6 +274,9 @@ export class RuntimeController {
     this.claudeSettingsStore = options.claudeSettingsStore;
     this.codexSettingsStore = options.codexSettingsStore;
     this.sonataSettingsStore = options.sonataSettingsStore;
+    if (options.onFlushMetrics) {
+      this.onFlushMetrics = options.onFlushMetrics;
+    }
     this.claudeUsageWatcher = new ClaudeStatuslineUsageWatcher({
       onPayload: (payload, _filePath, mtimeMs) =>
         this.handleClaudeStatuslinePayload(payload, mtimeMs),
@@ -408,6 +418,7 @@ export class RuntimeController {
       taskId,
       reportPath,
       notify: (summary, runsChanged) => this.broadcastReportUpdated(summary, runsChanged),
+      ...(this.onFlushMetrics ? { onFlushMetrics: this.onFlushMetrics } : {}),
     });
     // Pin a fresh Claude session to an id we choose, so the Task's binding is
     // known at birth — discovery confirms this exact id instead of guessing
@@ -509,6 +520,7 @@ export class RuntimeController {
       reportPath,
       loadExisting: true,
       notify: (summary, runsChanged) => this.broadcastReportUpdated(summary, runsChanged),
+      ...(this.onFlushMetrics ? { onFlushMetrics: this.onFlushMetrics } : {}),
     });
     // Resume: discovery must confirm the resumed id by identity and never
     // fall back to the freshest jsonl — that fallback is exactly how a
@@ -2032,9 +2044,10 @@ export class RuntimeController {
 
   /**
    * The PTY died (crash/quit). Retire the liveness window so the trust-ceremony
-   * banner never appears over — or is cleared off — a dead terminal. Distinct
-   * from teardown (dispose): the task runtime survives a PTY exit (reopenable),
-   * so this fires from the pty:exit path, not unwatchHooks.
+   * banner never appears over — or is cleared off — a dead terminal. On pty:exit
+   * the runtime OBJECT is retired (`retireTaskRuntime`, next microtask above); it
+   * is the task RECORD that survives and stays reopenable. This fires from the
+   * pty:exit path, not unwatchHooks.
    */
   private retireCodexHooksLiveness(taskId: TaskId): void {
     const entry = this.codexHookLiveness.get(taskId);

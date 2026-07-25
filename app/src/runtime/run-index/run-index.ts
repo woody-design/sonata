@@ -133,6 +133,16 @@ export interface RunIndexOptions {
    * pure file-change noise.
    */
   notify?: (summary: RuntimeReportSummaryV1, runsChanged: boolean) => void;
+  /**
+   * Dev-gated flush instrumentation (OBS S9 / P6). When present, each flush
+   * reports its wall duration + serialized size — the AD-2 SQLite tripwire
+   * evidence stream. Absent in normal use: `flushReport` gates all timing behind
+   * this one field, so the AD-0 zero-cost-when-off invariant holds. The seam
+   * lives on run-index (where the serialized bytes already exist), NOT on
+   * Projection — Projection is the shared constitution primitive, not a place for
+   * dev hooks.
+   */
+  onFlushMetrics?: (metric: { name: string; durationMs: number; bytes: number }) => void;
   /** Trailing-debounce window for routine mutations; defaults to {@link DEFAULT_REPORT_TRAILING_MS}. */
   trailingMs?: number;
   /** Projection timer seam — injected by the storm smoke to drive the clock by hand. */
@@ -191,6 +201,7 @@ export class RunIndex {
   private readonly reportPath: string;
   private readonly caps: ReportListCaps;
   private readonly notify: (summary: RuntimeReportSummaryV1, runsChanged: boolean) => void;
+  private readonly onFlushMetrics?: (metric: { name: string; durationMs: number; bytes: number }) => void;
   private readonly projection: Projection;
   private report: RuntimeReportV1;
 
@@ -230,6 +241,9 @@ export class RunIndex {
     this.reportPath = options.reportPath;
     this.caps = options.caps ?? DEFAULT_REPORT_LIST_CAPS;
     this.notify = options.notify ?? (() => {});
+    if (options.onFlushMetrics) {
+      this.onFlushMetrics = options.onFlushMetrics;
+    }
     this.report = options.loadExisting
       ? readExistingReport(options.reportPath, options.taskId)
       : freshRuntimeReportV1(options.taskId);
@@ -746,7 +760,18 @@ export class RunIndex {
     if (this.discarded) {
       return;
     }
-    this.writeReport();
+    // Dev-gated flush timing (OBS S9 / P6): gated behind onFlushMetrics so the
+    // off path costs one boolean and nothing else (AD-0). `writeReport` always
+    // returns the serialized length (an O(1) string read), so `bytes` is free.
+    const startedAt = this.onFlushMetrics ? performance.now() : 0;
+    const bytes = this.writeReport();
+    if (this.onFlushMetrics) {
+      this.onFlushMetrics({
+        name: `run-index:${this.taskId}`,
+        durationMs: performance.now() - startedAt,
+        bytes,
+      });
+    }
     // Relay + reset the run-touch latch: the renderer refetches the full report
     // only when this batch changed runs/approvals/lifecycle, never for a pure
     // file:changed storm (OBS S3).
@@ -755,12 +780,15 @@ export class RunIndex {
     this.notify(this.summary(), runsChanged);
   }
 
-  private writeReport(): void {
+  /** Materialize + atomic tmp/rename write. Returns the serialized length (≈ on-disk bytes) for OBS S9 flush metrics. */
+  private writeReport(): number {
     this.materialize();
     fs.mkdirSync(path.dirname(this.reportPath), { recursive: true });
     const tmpPath = `${this.reportPath}.tmp`;
-    fs.writeFileSync(tmpPath, `${JSON.stringify(this.report)}\n`);
+    const serialized = `${JSON.stringify(this.report)}\n`;
+    fs.writeFileSync(tmpPath, serialized);
     fs.renameSync(tmpPath, this.reportPath);
+    return serialized.length;
   }
 }
 

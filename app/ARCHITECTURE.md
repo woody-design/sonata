@@ -117,6 +117,12 @@ main process ──runtime event──▶ reduceRuntimeEvent(state, event, clock
         transcript-debounced · session-index-debounced · report-refresh · none
 ```
 
+Delivery *to* that boundary is **interest-routed** (OBS D5): the main process
+filters at the `sendEvent` seam by window kind, so the Terminal receives only
+`pty:*`, the Preview window only `file:changed`, and the Reading window (plus any
+unknown window, fail-open) everything else — no window pays the reducer cost of
+events it does not consume.
+
 The render-path choice IS the product's feel: a usage tick must never full-
 render (it would wipe a text selection), a tool-only cli-state change must not
 rebuild the sidebar (it would restart the spinner animation), the ~3 Hz
@@ -206,6 +212,16 @@ The recorder that feeds the corpus is env-gated main-process instrumentation
 test/dev capture semantics, synchronous by design (lossless beats latency;
 measured overhead is noise).
 
+A sibling env-gated main-process instrument, `SONATA_PERF_LOG` (`main/perf-log.ts`,
+OBS S9), streams the observation-cost tripwire evidence: a coarse 500 ms
+event-loop-lag histogram summarised every ~30 s and at quit (the AD-1
+"does the main loop stall under load" signal) and one line per run-index flush
+carrying wall duration + serialized size (the AD-2 "is a report big/slow enough
+to justify SQLite" signal). `=1` writes to stderr, `=<dir>` to a per-run file;
+default off — and off means `createPerfLog` returns `null`, so the sole cost is
+one boolean check (no sampler, no timer, no per-flush timing). The flush seam
+lives on run-index (where the bytes already exist), never on Projection.
+
 ## The signal layer (control plane)
 
 The event path above starts with "main process ──runtime event──▶". This is where
@@ -215,6 +231,38 @@ boundaries, identity, usage, approvals — without either CLI losing a feature
 (design record: `product-thinking/2026-07-06-codex-control-plane-plan-v0.md`).
 Sonata is an experience shell over the user's *real* CLI, so the rule is additive:
 observe the process, never replace or reconfigure it.
+
+**The observation-cost constitution (OBS program, ratified 2026-07-25).** The
+signal layer's founding rule — *observe, never replace* — governs correctness; a
+second ratified rule governs cost. Raw signals are absorbed once at the boundary
+into cheap derived state; every downstream consumption — disk persistence,
+cross-process delivery, rendering — is a **bounded, clocked, interest-scoped
+projection** of that state, never a reaction to an individual event. From it
+follows the standing rule that joins "observe, never replace": **observation must
+be near-free** — Sonata's marginal cost over the bare CLI approaches zero, so any
+recurring cost that scales with a workload's *byproducts* (build outputs,
+transcript length, task age, history size) rather than with user-visible work is
+a bug regardless of its measured size. The disease it cured: persistence and
+broadcast were per-event side effects, so a producer (a Gradle build, a spinner)
+set the write and IPC rate — one incident wrote 549.78 GB in under two hours.
+
+**The Projection primitive (`runtime/projection.ts`, OBS D1).** The
+constitution's "clocked" is one small class: it owns a dirty flag and a
+trailing-*fixed* debounce cadence (arm-once → fire → re-arm, so a steady mark
+stream flushes every ~window and never starves — a sliding deadline would push
+forever under continuous load), plus named critical-immediate triggers,
+`flushNow()`, and a flush-then-`seal()` teardown after which every late straggler
+mark is a no-op — the structural guard that stops a disposed record from
+re-creating its own just-deleted directory. Its timer/clock is injectable, so the
+cadence unit-tests deterministically (`smoke:projection`). Every bounded
+persistence path in the main process flows through it; the **run-index runtime
+report** (`runtime/run-index/`) is the first adopter — a build storm marks the
+report dirty at its own rate, but the write and the `report:updated` broadcast
+fire together at most once per window. That report is a **cache** (OBS D2), not a
+source of record: derived and rebuildable, bounded (per-bucket caps + an explicit
+`droppedCount` so truncation is never silent), compact JSON, best-effort
+durability (routine mutations trail ~1 s; critical lifecycle events flush
+immediately) — losing ≤1 s of tail on a crash is accepted.
 
 **The hook contract is an adopted industry standard, not a Sonata invention.**
 Codex GA'd a hooks system that clones Claude Code's field-for-field (envelope,
