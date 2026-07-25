@@ -26,8 +26,13 @@ import { join } from "node:path";
  *     summarised every ~30 s and once at quit (`stop()`). This is the AD-1
  *     "does the main loop stall under load, i.e. should persistence move to a
  *     utilityProcess" tripwire.
- *   - `[perf:flush]` — per run-index flush: wall duration + serialized size. This
- *     is the AD-2 "did bounded-JSON+debounce suffice, or is a report large/slow
+ *   - `[perf:flush]` — per run-index flush: wall duration + serialized size. The
+ *     duration times the WRITE path only (materialize + serialize + write +
+ *     rename); it deliberately EXCLUDES the trailing `report:updated` notify
+ *     broadcast (OBS S9 R1 / N2). That is the correct scope for this tripwire:
+ *     SQLite would replace serialize+write, not the IPC broadcast (a separate
+ *     D6/AD-3 concern), so folding notify in would pollute the signal. This is
+ *     the AD-2 "did bounded-JSON+debounce suffice, or is a report large/slow
  *     enough to justify SQLite" tripwire. Fed via `RunIndexOptions.onFlushMetrics`
  *     (the Projection primitive itself is deliberately left untouched — it is the
  *     shared constitution seam, not a place for dev hooks).
@@ -74,7 +79,11 @@ export function createPerfLog(value: string | undefined = process.env.SONATA_PER
     const elapsedMs = Number(now - last) / 1e6;
     last = now;
     // Lag = how much LATER than the nominal interval this tick fired ≈ the time
-    // the loop was blocked from servicing the timer.
+    // the loop was blocked from servicing the timer. CAVEAT (OBS S9 R1 / N1): the
+    // OS coalesces setInterval on battery / under App Nap, so a fired-late tick
+    // can read high WITHOUT the loop being blocked. Read the AD-1 tripwire numbers
+    // as loop-blocking only on AC power / a foreground app; treat battery-mode
+    // inflation as measurement noise, not a real stall.
     const lagMs = Math.max(0, elapsedMs - SAMPLE_MS);
     let bucket = LAG_BUCKETS_MS.findIndex((bound) => lagMs <= bound);
     if (bucket === -1) {
