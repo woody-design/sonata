@@ -147,6 +147,7 @@ import {
 } from "./scheduler";
 import { initApprovalsView, renderOptionPrompt } from "./view/approvals";
 import {
+  clearTaskBanners,
   initBannersView,
   renderAttentionBanners,
   setCodexHooksMissing,
@@ -193,7 +194,7 @@ import { initSettingsView } from "./view/settings";
 import { positionSlashPicker, renderSlashPicker } from "./view/slash-picker";
 import { initStatusStripView } from "./view/status-strip";
 import { initTranscriptView } from "./view/transcript";
-import { initTranscriptChips, transcriptChipTarget } from "./view/transcript-chips";
+import { clearTaskChipCache, initTranscriptChips, transcriptChipTarget } from "./view/transcript-chips";
 import { initQuoteComment } from "./view/quote-comment";
 import { initReadingNavigation } from "./view/reading-navigation";
 import { initReadingScrollControl } from "./view/reading-scroll-control";
@@ -305,6 +306,10 @@ initSessionFlows(state, {
   syncActiveTerminalTaskBinding: () => syncActiveTerminalTaskBinding(),
   clearUsagePopoverTimers: () => clearUsagePopoverTimers(),
   consumeSlashSubmitGuard: (text) => consumeSlashSubmitGuard(text),
+  clearTaskViewCaches: (taskId) => {
+    clearTaskChipCache(taskId);
+    clearTaskBanners(taskId);
+  },
 });
 initAttachmentFlows(state);
 initTagFlows(state, {

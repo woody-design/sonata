@@ -8,9 +8,10 @@ import { createRequire } from "node:module";
 // MEASURED behavior (A1 lesson).
 const require = createRequire(import.meta.url);
 const S = require("../../dist/reading-core/selectors/sidebar");
+const { turnActivity } = require("../../dist/reading-core/selectors/runs");
 // SidebarPrefs + defaults live in the state model since C3b (type-home
 // ruling: state-model types live in state.ts, no re-exports).
-const { SIDEBAR_PREFS_DEFAULTS } = require("../../dist/reading-core/state");
+const { SIDEBAR_PREFS_DEFAULTS, createTaskView } = require("../../dist/reading-core/state");
 
 const NOW = Date.parse("2026-07-03T12:00:00.000Z");
 const HOUR = 3_600_000;
@@ -236,4 +237,29 @@ const entryOf = (session, projectPath = null) => ({
   }
 }
 
-console.log("reading-sidebar-selectors: 8 fixture groups pass");
+// 8) Switch-away eviction leaves the sidebar row unchanged (OBS S8, item 3).
+// A dormant session's row consults its view ONLY through view-derived signals;
+// the spinner's is `turnActivity`. After eviction there is NO view, so the row
+// renders from the session index alone — and `turnActivity` must degrade to the
+// SAME "idle" it returns for the clean dormant view eviction is byte-equivalent
+// to. (The DOM `sessionStatusIndicator` also early-returns null for any dormant
+// `session.live===false` row before consulting the view at all; the outer
+// `e2e:sidebar-sessions` fence guards that path end-to-end.)
+{
+  const dormantTask = {
+    id: "task-x",
+    title: "Dormant",
+    createdAt: agoMs(DAY),
+    provider: "claude",
+    status: "ready",
+  };
+  const cleanDormantView = createTaskView(dormantTask, "Idle", false);
+  assert.equal(turnActivity(null), "idle", "no view (evicted / never-opened) → idle, no spinner");
+  assert.equal(
+    turnActivity(cleanDormantView),
+    "idle",
+    "clean dormant view → idle too: eviction (view → none) changes nothing on the row",
+  );
+}
+
+console.log("reading-sidebar-selectors: 9 fixture groups pass");

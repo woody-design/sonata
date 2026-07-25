@@ -88,6 +88,79 @@ export function removeTaskView(state: RendererState, taskId: string): boolean {
   return false;
 }
 
+/** Switch-away eviction (OBS S8, F1): drop a plain dormant task view when the
+ *  user leaves it, so browsing many sessions in one uptime stops accumulating
+ *  their transcripts + reports (each run holds up to ~760 KB, never pruned)
+ *  until app restart. The view re-hydrates transparently on return through the
+ *  existing `selectSession` path — `readSession` rebuilds task/live/status/
+ *  report/transcript from main-process truth, so a reopen is byte-equivalent to
+ *  a first open. That equivalence is the whole safety argument: every field
+ *  `selectSession` does NOT reconstruct is guarded below, so we only ever evict
+ *  a view that carries nothing a reopen wouldn't restore.
+ *
+ *  Retain (return false) if ANY of these holds — over-retention only costs a
+ *  little memory; under-retention silently loses user state, so the guards are
+ *  deliberately conservative:
+ *    - view missing, or it IS the active view (never evict what's on screen);
+ *    - LIVE — a PTY/runtime backs it (the F1-accepted retention: unread cues +
+ *      streaming state live here; `view.live` is the honest signal, synced from
+ *      the session index — `Task` itself carries no liveness field);
+ *    - an ATTENTION CUE the user hasn't consumed (`unread` / `completedUnseen`);
+ *    - a PARKED DRAFT the user typed (composer text or pending attachments) —
+ *      draft safety (ARCHITECTURE.md: drafts park on the view on ownership
+ *      change; the caller parks the live textarea via saveComposerDraft BEFORE
+ *      calling this, so the guard sees the freshest text);
+ *    - an INTERACTION the user perceives as in-progress: a parked resume choice
+ *      (its own contract is "switching away is the natural escape and returning
+ *      shows the panel again" — eviction must not destroy it), a pending
+ *      approval / option-prompt / receipt, an in-flight control switch, a slash
+ *      "in the Terminal" pointer, or a queued delivery.
+ *    - a per-dormant Remote Control desire (`armedOverride`) — a user setting
+ *      `selectSession` does not rebuild.
+ *
+ *  Not guarded (intentionally, byte-equivalent to first-open anyway): the big
+ *  `runTranscripts` blobs (releasing them is the point; dormant reading renders
+ *  from report + blocks), `usageSnapshot`, `highlightedRunId`, and grown
+ *  `observedPermissionModes` — a fresh `selectSession` open has none of these
+ *  either, so losing them on eviction reproduces exactly first-open state.
+ *
+ *  Returns true when the view was evicted (the caller then clears that task's
+ *  renderer-local caches). */
+export function evictDormantTaskView(state: RendererState, taskId: string): boolean {
+  const view = state.taskViews.find((item) => item.task?.id === taskId);
+  if (!view || !view.task) {
+    return false;
+  }
+  if (isActiveView(state, view)) {
+    return false;
+  }
+  if (view.live) {
+    return false;
+  }
+  if (view.unread || view.completedUnseen) {
+    return false;
+  }
+  if (view.composerDraft.trim() !== "" || view.pendingAttachments.length > 0) {
+    return false;
+  }
+  if (
+    view.resumeChoice !== null ||
+    view.pendingApproval !== null ||
+    view.pendingOptionPrompt !== null ||
+    view.optionPromptReceipt !== null ||
+    view.controlSwitch !== null ||
+    view.slashAttention !== null ||
+    view.deliveryState !== null
+  ) {
+    return false;
+  }
+  if (view.remoteControl.armedOverride !== null) {
+    return false;
+  }
+  state.taskViews = state.taskViews.filter((item) => item.task?.id !== taskId);
+  return true;
+}
+
 /** The read receipt: focusing a view consumes its unread and
  *  finished-while-away cues. */
 export function markViewSeen(view: TaskViewState): void {

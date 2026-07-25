@@ -62,6 +62,17 @@ export function setCodexUpdatePrompt(taskId: string, blocked: boolean): void {
   }
 }
 
+/** Forget a task's renderer-local banner flags (OBS S8, F10). Both Sets are
+ *  keyed by taskId; a task removed (archive/delete) or evicted on switch-away
+ *  without a self-clearing event (e.g. a hooks-missing task deleted before its
+ *  `pty:exit`) would otherwise leave its id behind for the whole uptime. On a
+ *  fresh spawn the liveness/update signals re-detect and re-populate, so
+ *  clearing is transparent. */
+export function clearTaskBanners(taskId: string): void {
+  codexHooksMissing.delete(taskId);
+  codexUpdatePrompt.delete(taskId);
+}
+
 export function renderAttentionBanners(view = activeTaskView(state)): void {
   const root = elements.attentionBannerRoot;
   const banners: HTMLElement[] = [];

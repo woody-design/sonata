@@ -305,6 +305,94 @@ function task(id, title = `Task ${id}`) {
   assert.equal(view.completedUnseen, false);
 }
 
+// 8b) evictDormantTaskView (OBS S8) — a plain dormant background view is
+// evictable; every liveness/cue/draft/intent guard retains it. Over-retention
+// is the safe failure mode: each guard is asserted to BLOCK eviction.
+{
+  // A freshly-browsed dormant view (createTaskView live=false + report/blocks,
+  // everything else at defaults) is exactly what selectSession materializes.
+  const dormant = () => {
+    const view = createTaskView(task("d1"), "Idle", false);
+    view.report = { runs: [] };
+    view.transcriptBlockOrder = ["b1"];
+    view.transcriptBlocks = new Map([["b1", { id: "b1" }]]);
+    return view;
+  };
+
+  // Base case: plain dormant, not active → evicted, and dropped from the atom.
+  {
+    const state = freshState();
+    upsertTaskView(state, dormant());
+    upsertTaskView(state, createTaskView(task("active"), "Ready")); // live
+    state.activeTaskId = "active";
+    assert.equal(session.evictDormantTaskView(state, "d1"), true, "plain dormant background view evicts");
+    assert.equal(state.taskViews.some((v) => v.task.id === "d1"), false, "…and leaves the atom");
+    assert.equal(state.taskViews.length, 1, "…only the other view remains");
+  }
+
+  // Missing view → false (no throw).
+  {
+    const state = freshState();
+    assert.equal(session.evictDormantTaskView(state, "nope"), false, "missing view → no-op false");
+  }
+
+  // The active view is never evicted (never drop what's on screen).
+  {
+    const state = freshState();
+    const view = dormant();
+    upsertTaskView(state, view);
+    state.activeTaskId = "d1";
+    assert.equal(session.evictDormantTaskView(state, "d1"), false, "active view retained");
+    assert.equal(state.taskViews.length, 1, "…still present");
+  }
+
+  // Each retention guard, one at a time, on an otherwise-evictable background view.
+  const retains = (label, mutate) => {
+    const state = freshState();
+    const view = dormant();
+    mutate(view);
+    upsertTaskView(state, view);
+    upsertTaskView(state, createTaskView(task("active"), "Ready"));
+    state.activeTaskId = "active";
+    assert.equal(session.evictDormantTaskView(state, "d1"), false, `retained: ${label}`);
+    assert.equal(state.taskViews.some((v) => v.task.id === "d1"), true, `…kept in atom: ${label}`);
+  };
+
+  retains("live PTY", (v) => { v.live = true; });
+  retains("unread cue", (v) => { v.unread = true; });
+  retains("completedUnseen cue", (v) => { v.completedUnseen = true; });
+  retains("parked composer draft", (v) => { v.composerDraft = "half a thought"; });
+  retains("whitespace-only draft is not a draft — but attachments are", (v) => {
+    v.composerDraft = "   ";
+    v.pendingAttachments = [{ id: "a1" }];
+  });
+  retains("parked resume choice", (v) => {
+    v.resumeChoice = { idleMs: null, totalTokens: null, bridgeDismissed: false, sendAfterResume: false };
+  });
+  retains("pending approval", (v) => { v.pendingApproval = { approvalId: "x", runId: "r" }; });
+  retains("pending option prompt", (v) => { v.pendingOptionPrompt = { toolUseId: "t" }; });
+  retains("frozen option-prompt receipt", (v) => { v.optionPromptReceipt = { questions: [] }; });
+  retains("in-flight control switch", (v) => {
+    v.controlSwitch = { kind: "model", value: "opus", phase: "pending" };
+  });
+  retains("slash 'in the terminal' pointer", (v) => {
+    v.slashAttention = { runId: "r", command: "/compact" };
+  });
+  retains("queued delivery", (v) => { v.deliveryState = { items: [] }; });
+  retains("per-dormant Remote Control desire", (v) => { v.remoteControl.armedOverride = true; });
+
+  // A whitespace-only draft with NO attachments is still evictable (trim()).
+  {
+    const state = freshState();
+    const view = dormant();
+    view.composerDraft = "   \n  ";
+    upsertTaskView(state, view);
+    upsertTaskView(state, createTaskView(task("active"), "Ready"));
+    state.activeTaskId = "active";
+    assert.equal(session.evictDormantTaskView(state, "d1"), true, "whitespace-only draft is not real text → evicts");
+  }
+}
+
 // 9) The launch-draft folder policy — the touched latch and its consumers.
 {
   const state = freshState();
@@ -442,4 +530,4 @@ function task(id, title = `Task ${id}`) {
   assert.ok(next && next !== token, "a fresh claim yields a distinct token");
 }
 
-console.log("reading-transitions: 10 fixture groups pass");
+console.log("reading-transitions: 11 fixture groups pass");

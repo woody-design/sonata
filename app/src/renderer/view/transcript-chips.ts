@@ -43,6 +43,15 @@ interface TaskChipCache {
 
 const chipCaches = new Map<string, TaskChipCache>();
 
+/** Drop a task's chip-resolution memory (OBS S8, F10). Called when its view is
+ *  removed (archive/delete) OR evicted on switch-away — the cache is keyed by
+ *  taskId and otherwise grows one entry per task ever opened for the whole
+ *  uptime. A reopened task re-resolves its chips from scratch (positive-only
+ *  cache, one batched IPC per candidate set), so clearing is transparent. */
+export function clearTaskChipCache(taskId: string): void {
+  chipCaches.delete(taskId);
+}
+
 /** The open target of a real chip (taskId + workspace-relative path). */
 export interface ChipTarget {
   taskId: string;

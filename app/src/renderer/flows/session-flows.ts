@@ -63,6 +63,11 @@ interface SessionFlowDeps {
   clearUsagePopoverTimers(): void;
   /** The slash-command submit guard (main.ts slash-assistance satellite). */
   consumeSlashSubmitGuard(text: string): boolean;
+  /** Drop a task's renderer-local, per-task-keyed caches (chip resolution +
+   *  banner flags) when its view is removed or evicted — the view families own
+   *  those Maps/Sets, so the clear arrives as an init-bound dep (flows never
+   *  import view families). OBS S8, F10. */
+  clearTaskViewCaches(taskId: string): void;
 }
 
 let state: RendererState;
@@ -246,6 +251,11 @@ function normalizeProjectPath(value: string): string {
 }
 
 function removeTaskViewLocally(taskId: string): void {
+  // The per-task chip + banner caches (view-family module state, keyed by
+  // taskId) are cleared for every removal — the view is gone, so its cache
+  // entries are pure leak (F10). Done unconditionally (not gated on the
+  // active-close return) since a background archive/delete drops a view too.
+  deps.clearTaskViewCaches(taskId);
   if (sessionTransitions.removeTaskView(state, taskId)) {
     // The closed view's draft dies with it; the composer hands over to the
     // New Chat slot.
@@ -345,6 +355,7 @@ export function activateTask(taskId: string, lifecycleOwnerToken?: string): void
     return;
   }
   const switching = state.activeTaskId !== taskId;
+  const previousTaskId = state.activeTaskId;
   if (switching) {
     saveComposerDraft();
     deps.exitPromptNav({ focusComposer: false });
@@ -354,6 +365,15 @@ export function activateTask(taskId: string, lifecycleOwnerToken?: string): void
   state.activeTaskId = taskId;
   if (switching) {
     restoreComposerDraft();
+    // Evict the view we just left if it is a plain dormant view (no live PTY,
+    // no attention cue, no parked draft/intent) — its transcript + report
+    // re-hydrate byte-equivalently through selectSession on return (F1). Runs
+    // AFTER saveComposerDraft parked the live textarea, so the eviction guard
+    // sees the freshest draft; the caller then drops that task's per-task
+    // caches, matching removeTaskViewLocally.
+    if (previousTaskId && sessionTransitions.evictDormantTaskView(state, previousTaskId)) {
+      deps.clearTaskViewCaches(previousTaskId);
+    }
   }
   sessionTransitions.markViewSeen(view);
   render();
