@@ -3699,16 +3699,21 @@ function sha256(value: string): string {
 /**
  * Stat-identity change classification (OBS S7 / D4). The watcher is a
  * notification stream, not a truth source: file identity is (type, size,
- * mtimeMs) — no content hash. Two honest semantics shifts vs the retired
- * sha256 comparison, both benign for the surviving consumers:
- *  - A rewrite with IDENTICAL bytes now classifies as MODIFIED (mtime moved)
- *    where content hashing suppressed it. The consumers absorb it: Preview
- *    re-reads the open file (cheap, idempotent); the run-end reconcile adds a
- *    path the tool channel usually already attributed. Noisier, never wrong.
- *  - Conversely, a same-mtime + same-size content change — a sub-granularity
- *    torn write landing within one mtime tick — now reads as UNCHANGED where
- *    hashing caught it. Vanishingly rare, and self-healing: any later write to
- *    the file moves mtime and re-surfaces it.
+ * mtimeMs) — no content hash.
+ *
+ * The swap is MONOTONIC toward fewer `modified` verdicts, so it adds ZERO new
+ * `file:changed` noise. The retired OR-chain already carried
+ * `before.mtimeMs !== after.mtimeMs`, so any mtime-moving rewrite (an
+ * identical-byte `touch` included) was ALREADY `modified` — the dropped sha256
+ * term could only ever ADD `modified` verdicts on top of that, never suppress
+ * one. Removing it therefore only ever turns a former `modified` into
+ * `unchanged`, never the reverse.
+ *
+ * The sole real semantic delta is that one now-lost case: a change where type,
+ * size AND mtimeMs are all identical but content differs — a sub-granularity
+ * torn write landing within a single mtime tick — now reads as UNCHANGED where
+ * the sha256 term caught it. Vanishingly rare, and self-healing: any later
+ * write moves mtime and re-surfaces the file.
  */
 function classifyChange(before: SnapshotEntry, after: SnapshotEntry): "added" | "modified" | "deleted" | "unchanged" {
   if (!before.exists && after.exists) {
