@@ -392,7 +392,6 @@ interface SnapshotEntry {
   type: "file" | "directory" | "other" | "missing" | "error";
   size?: number;
   mtimeMs?: number;
-  sha256?: string | null;
   error?: string;
 }
 
@@ -2785,7 +2784,10 @@ export class TerminalHost extends EventEmitter {
       type: after.type,
       size: after.exists ? (after.size ?? null) : null,
       mtimeMs: after.exists ? (after.mtimeMs ?? null) : null,
-      sha256: after.exists ? (after.sha256 ?? null) : null,
+      // OBS S7: the watcher no longer content-hashes. The payload keeps its
+      // `sha256` field (cross-process contract shape unchanged) but it is now
+      // always null — identity is (type, size, mtimeMs).
+      sha256: null,
     });
   }
 
@@ -2856,7 +2858,7 @@ export class TerminalHost extends EventEmitter {
         type: after.type,
         size: after.exists ? (after.size ?? null) : null,
         mtimeMs: after.exists ? (after.mtimeMs ?? null) : null,
-        sha256: after.exists ? (after.sha256 ?? null) : null,
+        sha256: null, // OBS S7: poll fallback compares stat identity only.
       });
     }
 
@@ -3200,8 +3202,8 @@ export class TerminalHost extends EventEmitter {
    * channel cannot name. `shouldIgnorePath` (inside `snapshotWorkspace`) keeps
    * build noise out on BOTH sides — the reconcile can never reintroduce the storm
    * the watcher used to. The run-index appends only the subset not already
-   * tool-attributed. Uses the EXISTING snapshot mechanics unchanged — S7's
-   * mtime+size swap flows through `classifyChange` transparently.
+   * tool-attributed. The diff is stat-identity (type/size/mtimeMs) via the shared
+   * `classifyChange` — hash-free since OBS S7 (D4).
    */
   private emitRunReconcile(runId: RunId): void {
     const cwd = this.cwd;
@@ -3225,7 +3227,7 @@ export class TerminalHost extends EventEmitter {
         changeKind,
         type: after.exists ? after.type : "missing",
         size: after.exists ? (after.size ?? null) : null,
-        sha256: after.exists ? (after.sha256 ?? null) : null,
+        sha256: null, // OBS S7: reconcile diffs stat identity — hash-free.
       });
       // Bound the event payload; the run-index caps again at append. A reconcile
       // this large means an ignored-dir escape, not normal work — the tail is
@@ -3677,7 +3679,6 @@ function snapshotFile(filePath: string): SnapshotEntry {
       type: "file",
       size: stat.size,
       mtimeMs: stat.mtimeMs,
-      sha256: hashSmallFile(filePath, stat.size),
     };
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
@@ -3691,21 +3692,24 @@ function snapshotFile(filePath: string): SnapshotEntry {
   }
 }
 
-function hashSmallFile(filePath: string, size: number): string | null {
-  if (size > 2 * 1024 * 1024) {
-    return null;
-  }
-  try {
-    return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
-  } catch {
-    return null;
-  }
-}
-
 function sha256(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+/**
+ * Stat-identity change classification (OBS S7 / D4). The watcher is a
+ * notification stream, not a truth source: file identity is (type, size,
+ * mtimeMs) — no content hash. Two honest semantics shifts vs the retired
+ * sha256 comparison, both benign for the surviving consumers:
+ *  - A rewrite with IDENTICAL bytes now classifies as MODIFIED (mtime moved)
+ *    where content hashing suppressed it. The consumers absorb it: Preview
+ *    re-reads the open file (cheap, idempotent); the run-end reconcile adds a
+ *    path the tool channel usually already attributed. Noisier, never wrong.
+ *  - Conversely, a same-mtime + same-size content change — a sub-granularity
+ *    torn write landing within one mtime tick — now reads as UNCHANGED where
+ *    hashing caught it. Vanishingly rare, and self-healing: any later write to
+ *    the file moves mtime and re-surfaces it.
+ */
 function classifyChange(before: SnapshotEntry, after: SnapshotEntry): "added" | "modified" | "deleted" | "unchanged" {
   if (!before.exists && after.exists) {
     return "added";
@@ -3719,7 +3723,6 @@ function classifyChange(before: SnapshotEntry, after: SnapshotEntry): "added" | 
   if (
     before.type !== after.type ||
     before.size !== after.size ||
-    before.sha256 !== after.sha256 ||
     before.mtimeMs !== after.mtimeMs
   ) {
     return "modified";
