@@ -636,6 +636,21 @@ const markdownSanitizerConfig = {
   FORBID_ATTR: ["data-chip-path", "data-chip-task", "data-chip-state", "data-chip-mention"],
 };
 
+// This memo is keyed by FULL markdown text, and streaming hammers it: the
+// signature-keyed reconcile re-renders ONLY the changed turn, so a growing
+// assistant block inserts one new entry (its full intermediate markdown) every
+// ~160 ms T3 tick. Unbounded, a multi-minute stream accumulates thousands of
+// superseded near-duplicate strings (tens of MB for one turn, hundreds across a
+// session). Bound it with a count-capped LRU: a Map's iteration order IS
+// insertion order, so it doubles as the recency queue — a hit deletes+re-sets to
+// move the key to the newest slot, and an overflow evicts the oldest (first) key.
+// Cap 48 = the working set a task switch re-renders at ~100% hit (it rebuilds
+// every visible turn card), with headroom for a long transcript, while bounding
+// worst case to single-digit MB: 48 entries × a large ~32 KB-markdown reply
+// (+ ~1.5× sanitized HTML ≈ 80K UTF-16 code units ≈ 160 KB/entry) ≈ 7.7 MB.
+// Typical entries (~1–2 KB markdown ≈ 6 KB/entry) sit near ~300 KB. Hit/miss
+// only changes WHEN marked.parse re-runs — never the HTML that lands in the DOM.
+const MARKDOWN_HTML_CACHE_MAX = 48;
 const markdownHtmlCache = new Map<string, string>();
 
 function markdownBody(markdown: string, blockId: string): HTMLElement {
@@ -644,6 +659,17 @@ function markdownBody(markdown: string, blockId: string): HTMLElement {
   let html = markdownHtmlCache.get(markdown);
   if (html === undefined) {
     html = DOMPurify.sanitize(marked.parse(markdown, { async: false }), markdownSanitizerConfig);
+    if (markdownHtmlCache.size >= MARKDOWN_HTML_CACHE_MAX) {
+      const oldest = markdownHtmlCache.keys().next().value;
+      if (oldest !== undefined) {
+        markdownHtmlCache.delete(oldest);
+      }
+    }
+    markdownHtmlCache.set(markdown, html);
+  } else {
+    // Hit: refresh recency — re-insert moves this key to the newest slot so it
+    // outlives colder entries under the cap.
+    markdownHtmlCache.delete(markdown);
     markdownHtmlCache.set(markdown, html);
   }
   body.innerHTML = html;

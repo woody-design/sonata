@@ -1735,11 +1735,6 @@ export class TerminalHost extends EventEmitter {
     });
   }
 
-
-  private cleanTail(chars: number): string {
-    return cleanTerminal(this.rawTail).slice(-chars);
-  }
-
   sendApprove(): void {
     this.sendApprovalDecision("approve");
   }
