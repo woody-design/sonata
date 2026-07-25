@@ -2,6 +2,7 @@ export * from "./cli-signal";
 export * from "./providers/codex";
 export * from "./interpreter";
 export * from "./delivery-controller";
+export * from "./projection";
 export * from "./provider-transcript";
 export * from "./run-index";
 export * from "./shell-quote";
