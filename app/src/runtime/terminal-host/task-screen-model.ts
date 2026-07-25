@@ -46,7 +46,9 @@ export class TaskScreenModel {
 
   /** Feed one PTY batch (the S3 coalesced batch — one write per batch). */
   write(data: string): void {
-    if (this.disposed) {
+    if (this.disposed || data.length === 0) {
+      // An empty write would still increment pendingWrites and rely on xterm
+      // invoking the callback — skip it so the drain counter cannot leak.
       return;
     }
     this.pendingWrites += 1;

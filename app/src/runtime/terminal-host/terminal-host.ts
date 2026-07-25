@@ -528,6 +528,27 @@ export class TerminalHost extends EventEmitter {
    *  the resurface honesty backstop must stay live for them); cleared when the
    *  panel leaves the grid, on a new surface, and on run/task reset. */
   private brokerAnsweredFingerprint: string | null = null;
+  /** True when this task runs with the PermissionRequest broker ON (the
+   *  production default; S2 standing condition). In that mode the broker owns
+   *  every approval end-to-end — ask → card → reply-file — and the grid scrape
+   *  must NOT proactively surface a NATIVE card (S4b R1). The raw scrape got this
+   *  for free: claude co-renders the "running PermissionRequest hook" spinner
+   *  while the broker holds, so every raw frame parsed as a `promptAfterApproval`
+   *  collision and was excluded. The grid converges PAST that spinner to a clean
+   *  waiting panel, so `detectApproval` would surface a native card DURING the
+   *  hold and answer it with PTY digit keys — double-answering the ask the broker
+   *  also replies to. Measured: the grid surfaces ~7ms BEFORE the broker ask even
+   *  reaches the controller, so an ask-time note cannot win the race; the mode is
+   *  the only race-free signal, and terminal-host already knows it at spawn. In
+   *  broker-ON the scrape is a BACKSTOP only — it surfaces solely when the broker
+   *  EXPIRES (brokerExpiryResurfaceAt armed; the broker gave up and the native
+   *  card is now the live surface), exactly the S4 "native card appears only
+   *  after a broker timeout" architecture. Broker-OFF (`approvalBroker: false`,
+   *  the co-visible Terminal / native-approval mode) leaves the scrape as the
+   *  genuine approval channel, so it always surfaces. Set in startTask from an
+   *  EXPLICIT approvalBroker:true (production, via buildStartOptions); defaults
+   *  OFF so a bare-host test with no running broker still surfaces its panel. */
+  private approvalBrokerOn = false;
   /** The CLI's own "session is up" declaration (SessionStart hook). Opens
    *  acceptsPromptInput structurally: claude ≥2.1.186 repaints transcript
    *  history on --resume (old ❯ prompt lines, "✻ Baked for Ns" summaries),
@@ -760,6 +781,13 @@ export class TerminalHost extends EventEmitter {
     this.approvalSuppressedInSettleWindow = false;
     this.activeApprovalOptionKeys = null;
     this.brokerAnsweredFingerprint = null;
+    // The broker-ON gate requires an EXPLICIT approvalBroker:true — production
+    // sets it in buildStartOptions (the broker is always constructed), while a
+    // bare-host test that omits it (no controller, no broker running) stays
+    // gate-OFF so its scraped panel still surfaces. `false` (native-approval
+    // mode) is also gate-OFF: the scrape is the channel there. Gates the grid
+    // scrape's native surfacing (S4b R1).
+    this.approvalBrokerOn = options.approvalBroker === true;
     this.hookSessionStarted = false;
     this.clearPersistReceiptTimers();
     this.clearNativeAnswerRecheckTimers();
@@ -1851,7 +1879,16 @@ export class TerminalHost extends EventEmitter {
    * candidate within the resurface window consumes it.
    */
   noteBrokerApprovalExpiry(): void {
+    // The broker gave up → the native card it painted is now the live surface the
+    // user must answer. Arm the resurface recognition — which also OPENS the
+    // broker-ON backstop gate (nativeApprovalSurfaceSuppressed) for this one
+    // detection — then re-arm a scan (S4b R1): the card was painted during the
+    // suppressed hold and may sit fully quiescent (step-0: a waiting panel emits
+    // nothing), so without an explicit scan there is no printable chunk to
+    // trigger detection. The scan reads the settled grid, finds the card, and
+    // surfaces it as a resurface.
     this.brokerExpiryResurfaceAt = Date.now();
+    this.scheduleApprovalScan();
   }
 
   sendDeny(): void {
@@ -2373,6 +2410,21 @@ export class TerminalHost extends EventEmitter {
     this.approvalScanTimer = null;
   }
 
+  /**
+   * True when the grid scrape must NOT surface a native approval card (S4b R1).
+   * In broker-ON mode the PermissionRequest broker owns every approval
+   * end-to-end, so a scraped native card would race and double-answer it (via
+   * PTY digit keys). The one exception is a broker EXPIRY: the broker gave up,
+   * so the native card the CLI now shows IS the live surface the user must
+   * answer — `noteBrokerApprovalExpiry` arms `brokerExpiryResurfaceAt` (and
+   * re-arms a scan) exactly then, opening the gate for that one detection. In
+   * broker-OFF mode (native-approval / co-visible Terminal) the scrape is the
+   * genuine approval channel, so nothing is suppressed.
+   */
+  private nativeApprovalSurfaceSuppressed(): boolean {
+    return this.approvalBrokerOn && this.brokerExpiryResurfaceAt === null;
+  }
+
   private detectApproval(): void {
     // The native-panel approval scrape is Claude-only (S4 funeral). Codex (and
     // any future hook-capable provider whose approvals arrive via the
@@ -2381,6 +2433,15 @@ export class TerminalHost extends EventEmitter {
     // appears AFTER a broker timeout, and it is answered in the Terminal, not
     // re-scraped into a phantom Sonata card (see handleApprovalExpired).
     if (this.profile.provider !== "claude") {
+      return;
+    }
+    // Broker-ON backstop gate (S4b R1): while the broker owns the approval
+    // channel the grid scrape must not proactively surface a native card — it
+    // would answer via PTY digit keys and double-answer the broker's reply. The
+    // scrape acts only when the broker EXPIRES (the sole moment the native card
+    // becomes the live surface); that path arms brokerExpiryResurfaceAt, which
+    // opens this gate. See nativeApprovalSurfaceSuppressed.
+    if (this.nativeApprovalSurfaceSuppressed()) {
       return;
     }
     const candidate = detectApprovalCandidate(this.approvalScanGrid(), this.profile);
@@ -2545,8 +2606,19 @@ export class TerminalHost extends EventEmitter {
       ) {
         return;
       }
+      // Same broker-ON backstop gate as detectApproval (S4b R1): in broker-ON the
+      // settle re-check must not resurface a native card either (the broker owns
+      // the answer; the answered panel's linger is covered by
+      // brokerAnsweredFingerprint). Only a broker expiry opens the gate.
+      if (this.nativeApprovalSurfaceSuppressed()) {
+        return;
+      }
       const candidate = detectApprovalCandidate(this.approvalScanGrid(), this.profile);
       if (!candidate || candidate.promptAfterApproval) {
+        // The answered panel has left the grid — spend the watermark, symmetric
+        // with detectApproval's clear (S4b R1 OPT-3), so its liveness does not
+        // depend solely on the scan cadence continuing to fire.
+        this.brokerAnsweredFingerprint = null;
         return;
       }
       // A broker-answered panel still lingering on the grid is answered history

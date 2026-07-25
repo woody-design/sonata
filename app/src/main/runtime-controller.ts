@@ -2762,7 +2762,15 @@ export class RuntimeController {
       reasoningEffort: args.reasoningEffort,
       speedMode: args.speedMode,
       ...(args.provider === "claude"
-        ? { permissionMode: args.permissionSettings.permissionMode ?? "default" }
+        ? {
+            permissionMode: args.permissionSettings.permissionMode ?? "default",
+            // The PermissionRequest broker is always constructed (approvalWatcher
+            // above), so Claude runs broker-ON. Declared EXPLICITLY (not left to
+            // the default) so terminal-host arms the S4b R1 broker-ON gate: the
+            // grid scrape must not surface a native card the broker owns.
+            // Settings injection is unchanged (it already read this as broker-on).
+            approvalBroker: true,
+          }
         : {
             codexPermissionMode:
               args.permissionSettings.codexPermissionMode ?? "ask-for-approval",
