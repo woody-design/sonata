@@ -2256,6 +2256,11 @@ export class RuntimeController {
       return;
     }
     const tool = typeof payload.tool_name === "string" ? payload.tool_name : "tool";
+    // No post-completion grace window is needed: hooks are consumed IN ORDER
+    // (hook-watcher.ts:100-104, serial + synchronous), so run N's PostToolUse is
+    // processed before its Stop reaches finishActiveRun(N) — `activeRun` is still
+    // run N here. (A hook racing past its own Stop would fall to unassigned; the
+    // turn-boundary reconcile is the backstop.)
     const runId = active.terminalHost.activeRunId();
     const entries = changes.map((change) => {
       const absolutePath = path.isAbsolute(change.path) ? change.path : path.resolve(cwd, change.path);
