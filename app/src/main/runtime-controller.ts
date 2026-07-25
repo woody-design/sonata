@@ -50,6 +50,7 @@ import {
   freshTaskManifestV1,
   TASK_MANIFEST_SCHEMA_ID,
   TASK_MANIFEST_SCHEMA_VERSION,
+  type RuntimeReportSummaryV1,
   type RuntimeReportV1,
   type TaskManifestV1,
 } from "../shared/schemas";
@@ -401,7 +402,11 @@ export class RuntimeController {
       updatedAt: now,
     };
 
-    const runIndex = new RunIndex({ taskId, reportPath });
+    const runIndex = new RunIndex({
+      taskId,
+      reportPath,
+      notify: (summary) => this.broadcastReportUpdated(summary),
+    });
     // Pin a fresh Claude session to an id we choose, so the Task's binding is
     // known at birth — discovery confirms this exact id instead of guessing
     // the newest jsonl in the cwd. NO mtime fallback for EITHER provider now
@@ -501,6 +506,7 @@ export class RuntimeController {
       taskId: runningTask.id,
       reportPath,
       loadExisting: true,
+      notify: (summary) => this.broadcastReportUpdated(summary),
     });
     // Resume: discovery must confirm the resumed id by identity and never
     // fall back to the freshest jsonl — that fallback is exactly how a
@@ -863,7 +869,9 @@ export class RuntimeController {
   deleteSession(taskId: TaskId): void {
     const live = this.taskRuntimes.get(taskId);
     if (live) {
-      this.retireTaskRuntime(live);
+      // Discard the report on teardown: the record dir is removed just below, so
+      // flushing it first would only re-write a file we are about to delete.
+      this.retireTaskRuntime(live, { discardReport: true });
     }
     const record = this.persistedSessionRecord(taskId);
     if (record) {
@@ -1112,9 +1120,9 @@ export class RuntimeController {
       active.deliveryController.handleRuntimeEvent(decisionEvent); // clear the delivery gate
       // Audit trail (same reason as surfaceBrokerApproval): reply-channel
       // decisions must reach the run-index themselves.
-      if (active.runIndex.consume(decisionEvent)) {
-        this.emitReportUpdated(active.runIndex);
-      }
+      // Critical event: consume flushes immediately (markCritical), and the
+      // flush's notify sink broadcasts report:updated — no explicit emit here.
+      active.runIndex.consume(decisionEvent);
       // Resync terminal-host state: the approval scrape may have flipped the
       // run to waiting-for-approval off the broker-held preview bytes; a
       // reply-channel decision must resume it or the run wedges (S5 diag).
@@ -1208,9 +1216,9 @@ export class RuntimeController {
       // The report is the approval audit trail: broker asks never flow
       // through the terminal-host eventSink, so consume into the run-index
       // here or the durable record silently loses hook-broker provenance.
-      if (active.runIndex.consume(event)) {
-        this.emitReportUpdated(active.runIndex);
-      }
+      // Critical event: consume flushes immediately (markCritical), and the
+      // flush's notify sink broadcasts report:updated — no explicit emit here.
+      active.runIndex.consume(event);
       this.surfaceBrokerApproval(active, ask.id);
       return;
     }
@@ -1270,9 +1278,9 @@ export class RuntimeController {
         ts: new Date().toISOString(),
       };
       active.deliveryController.handleRuntimeEvent(decisionEvent); // release the gate key
-      if (active.runIndex.consume(decisionEvent)) {
-        this.emitReportUpdated(active.runIndex);
-      }
+      // Critical event: consume flushes immediately (markCritical), and the
+      // flush's notify sink broadcasts report:updated — no explicit emit here.
+      active.runIndex.consume(decisionEvent);
       if (this.shownBrokerApproval.get(active.task.id) === id) {
         // Only the SHOWN ask concerns the renderer — clearing a card the
         // user never saw would flash a phantom "Approval denied".
@@ -1325,9 +1333,9 @@ export class RuntimeController {
       };
       active.deliveryController.handleRuntimeEvent(decisionEvent); // release the keyed gate
       this.sendEvent(decisionEvent); // reducer clears the expiry banner + status
-      if (active.runIndex.consume(decisionEvent)) {
-        this.emitReportUpdated(active.runIndex);
-      }
+      // Critical event: consume flushes immediately (markCritical), and the
+      // flush's notify sink broadcasts report:updated — no explicit emit here.
+      active.runIndex.consume(decisionEvent);
     }
   }
 
@@ -1667,7 +1675,10 @@ export class RuntimeController {
       return;
     }
 
-    this.emitReportUpdated(runIndex);
+    // report:updated now rides the projection flush (notify sink), gated by the
+    // same dirty+debounce as the write (D6). The per-event task-status sync stays
+    // coupled to the MUTATION, not the flush cadence (a truthy summary means the
+    // event mutated) — task status is not the report broadcast.
     if (event.type === "run:started" || event.type === "run:updated") {
       this.syncTaskStatusFromRunEvent(event);
     }
@@ -1760,7 +1771,17 @@ export class RuntimeController {
   }
 
   private emitReportUpdated(runIndex: RunIndex): void {
-    const summary = runIndex.summary();
+    this.broadcastReportUpdated(runIndex.summary());
+  }
+
+  /**
+   * Broadcast report:updated from a summary. Wired as each live RunIndex's
+   * `notify` sink (OBS S2, D6 main half) so the broadcast fires ONLY from the
+   * projection flush — write and notify share one dirty-gated, time-bounded
+   * cadence, never per consumed event. Still called directly at open/reopen for
+   * the initial "here's the current report" nudge.
+   */
+  private broadcastReportUpdated(summary: RuntimeReportSummaryV1): void {
     const reportEvent: RuntimeReportUpdatedEvent = {
       type: "report:updated",
       payload: {
@@ -1812,7 +1833,10 @@ export class RuntimeController {
     throw new TaskNotFoundError("No runtime task matches the requested taskId.");
   }
 
-  private disposeTaskRuntime(active: ActiveTaskRuntime): void {
+  private disposeTaskRuntime(
+    active: ActiveTaskRuntime,
+    options: { discardReport?: boolean } = {},
+  ): void {
     this.persistTaskManifest({
       ...active.task,
       status: "idle",
@@ -1824,7 +1848,14 @@ export class RuntimeController {
     active.terminalHost.dispose();
     // Stop the report writer LAST: after this, a straggler PTY-exit event can no
     // longer re-create the record dir we are about to (for a delete) remove.
-    active.runIndex.dispose();
+    // `discard` (delete path) seals WITHOUT a final write, so we never re-write
+    // the report file the caller is about to rmSync; every other teardown flushes
+    // the pending tail then seals.
+    if (options.discardReport) {
+      active.runIndex.discard();
+    } else {
+      active.runIndex.dispose();
+    }
     this.unwatchClaudeUsage(active);
     this.unwatchHooks(active);
     this.usageSnapshots.delete(active.task.id);
@@ -1848,12 +1879,15 @@ export class RuntimeController {
    * map cleared first that event cannot retire the runtime twice or resurrect
    * live state while close/archive/delete is already in progress.
    */
-  private retireTaskRuntime(active: ActiveTaskRuntime): void {
+  private retireTaskRuntime(
+    active: ActiveTaskRuntime,
+    options: { discardReport?: boolean } = {},
+  ): void {
     if (this.taskRuntimes.get(active.task.id) !== active) {
       return;
     }
     this.taskRuntimes.delete(active.task.id);
-    this.disposeTaskRuntime(active);
+    this.disposeTaskRuntime(active, options);
   }
 
   private publishUsageSnapshot(taskId: TaskId, snapshot: UsageSnapshot): void {

@@ -5,6 +5,7 @@ import type { RunId, TaskId } from "../../shared/types/domain";
 import type { ResolveRunIdInput } from "../provider-transcript";
 import type { RunIndexEvent, RuntimeEvent } from "../../shared/types/events";
 import { normalizePromptForMatch } from "../../shared/prompt-markers";
+import { Projection, type ProjectionTimers } from "../projection";
 import {
   freshRuntimeReportV1,
   RUNTIME_REPORT_SCHEMA_ID,
@@ -107,10 +108,31 @@ export function capReportLists(
   };
 }
 
+/**
+ * Trailing-debounce window for routine (non-critical) report mutations (OBS S2 /
+ * incident F1). A build-output storm marks the report dirty at its own rate; the
+ * actual write + broadcast fire at most once per this window. Critical lifecycle
+ * events (run/approval/task boundaries) bypass it and flush immediately.
+ */
+export const DEFAULT_REPORT_TRAILING_MS = 1000;
+
 export interface RunIndexOptions {
   taskId: TaskId;
   reportPath: string;
   loadExisting?: boolean;
+  /**
+   * Broadcast sink for the report:updated notification (OBS S2, D6 main half).
+   * Fires ONLY from the flush closure, so write and broadcast share one
+   * dirty-gated, time-bounded cadence — never per consumed event. Defaults to a
+   * no-op (dormant/read-only RunIndexes that never notify anyone).
+   */
+  notify?: (summary: RuntimeReportSummaryV1) => void;
+  /** Trailing-debounce window for routine mutations; defaults to {@link DEFAULT_REPORT_TRAILING_MS}. */
+  trailingMs?: number;
+  /** Projection timer seam — injected by the storm smoke to drive the clock by hand. */
+  timers?: ProjectionTimers;
+  /** Per-bucket caps for the bounded lists; defaults to {@link DEFAULT_REPORT_LIST_CAPS}. */
+  caps?: ReportListCaps;
 }
 
 /**
@@ -158,16 +180,51 @@ export function isRunIndexEvent(event: RuntimeEvent): event is RunIndexEvent {
 export class RunIndex {
   private readonly taskId: TaskId;
   private readonly reportPath: string;
+  private readonly caps: ReportListCaps;
+  private readonly notify: (summary: RuntimeReportSummaryV1) => void;
+  private readonly projection: Projection;
   private report: RuntimeReportV1;
-  private disposed = false;
+
+  /**
+   * The storm-prone lists (`changedFiles`/`artifactCandidates` per run, and the
+   * top-level `unassignedChanges`) live as insertion-ordered `Map<path, entry>`
+   * SSOTs, not as the report's arrays. An append is O(1) (`set` dedupes by path,
+   * keeping the first-seen position) and caps in place (evict-oldest + bump
+   * droppedCount) — killing the per-event `dedupeByPath` array rebuild that made
+   * a build storm O(n²) (incident F3). The report's arrays are a cache
+   * MATERIALIZED from these maps at read/flush time only.
+   */
+  private readonly changedFilesByRun = new Map<string, Map<string, RuntimeFileChangeReport>>();
+  private readonly artifactsByRun = new Map<string, Map<string, RuntimeArtifactCandidateReport>>();
+  private unassignedChangesMap = new Map<string, RuntimeFileChangeReport>();
+
+  /**
+   * Delete semantics (OBS S2). `discard()` seals WITHOUT the final write so a
+   * session teardown that is about to `rmSync` the record dir does not first
+   * re-write (resurrect) the report file. The flush closure honors this flag so
+   * even the seal-driven flush is inert.
+   */
+  private discarded = false;
 
   constructor(options: RunIndexOptions) {
     this.taskId = options.taskId;
     this.reportPath = options.reportPath;
+    this.caps = options.caps ?? DEFAULT_REPORT_LIST_CAPS;
+    this.notify = options.notify ?? (() => {});
     this.report = options.loadExisting
       ? readExistingReport(options.reportPath, options.taskId)
       : freshRuntimeReportV1(options.taskId);
-    this.persist();
+    this.hydrateMaps();
+    this.projection = new Projection({
+      name: `run-index:${options.taskId}`,
+      flush: () => this.flushReport(),
+      trailingMs: options.trailingMs ?? DEFAULT_REPORT_TRAILING_MS,
+      ...(options.timers ? { timers: options.timers } : {}),
+    });
+    // Materialize the report at birth (this is also S0's load-time compaction
+    // write for a bloated resumed report). Direct write, NOT through the
+    // projection: construction must not broadcast report:updated.
+    this.writeReport();
   }
 
   consume(event: RunIndexEvent): RuntimeReportSummaryV1 | null {
@@ -185,7 +242,7 @@ export class RunIndex {
           cols: event.payload.cols,
           startedAt: event.ts,
         };
-        break;
+        return this.markMutated(true);
       case "run:started":
         this.upsertRun(event.payload.id, {
           runId: event.payload.id,
@@ -207,7 +264,7 @@ export class RunIndex {
           artifactCandidates: [],
           rawTerminalPointer: null,
         });
-        break;
+        return this.markMutated(true);
       case "run:updated":
         {
           const patch: Partial<RuntimeRunReport> = {
@@ -242,7 +299,7 @@ export class RunIndex {
           }
           this.upsertRun(event.payload.id, patch);
         }
-        break;
+        return this.markMutated(false);
       case "approval:detected":
         {
           const approvalEvent: RuntimeApprovalReport = {
@@ -268,7 +325,7 @@ export class RunIndex {
           }
           this.recordApprovalEvent(event.payload.runId, approvalEvent);
         }
-        break;
+        return this.markMutated(true);
       case "approval:decision":
         this.recordApprovalEvent(event.payload.runId, {
           ts: event.ts,
@@ -277,7 +334,7 @@ export class RunIndex {
           encodedAs: event.payload.encodedAs,
           previousKind: event.payload.previousKind,
         });
-        break;
+        return this.markMutated(true);
       case "approval:persisted":
         this.recordApprovalEvent(event.payload.runId, {
           ts: event.ts,
@@ -285,7 +342,7 @@ export class RunIndex {
           file: event.payload.file,
           rulesAdded: event.payload.rulesAdded,
         });
-        break;
+        return this.markMutated(true);
       case "run:stop-requested":
         this.appendRunEvent(event.payload.runId, "stopEvents", {
           ts: event.ts,
@@ -293,7 +350,7 @@ export class RunIndex {
           phase: event.payload.phase,
           encodedAs: event.payload.encodedAs,
         });
-        break;
+        return this.markMutated(false);
       case "run:stopped":
         this.appendRunEvent(event.payload.runId, "stopEvents", {
           ts: event.ts,
@@ -302,11 +359,21 @@ export class RunIndex {
           slashStopSent: event.payload.slashStopSent,
           slashStopReason: event.payload.slashStopReason,
         });
-        break;
+        return this.markMutated(true);
       case "file:changed":
         this.appendChangedFile(event);
-        break;
+        return this.markMutated(false);
       case "pty:exit":
+        // The PTY died — a lifecycle barrier, but NOT a mutation: the branch
+        // records nothing (O2: never markCritical a clean projection, which
+        // would force-write an unchanged report). Flush any pending routine tail
+        // NOW so the on-disk report is current at exit. This runs synchronously
+        // BEFORE the deferred retire→dispose(seal) (retire is queueMicrotask'd),
+        // and flushNow clears dirty, so the subsequent seal finds nothing to
+        // flush — exactly one flush, no double-write, no lost tail. flushNow is a
+        // no-op when clean or already sealed (a straggler post-teardown pty:exit).
+        this.projection.flushNow();
+        return null;
       case "task:ready":
       case "working-status:updated":
       case "prompt:submitted":
@@ -316,17 +383,34 @@ export class RunIndex {
       // pending (the native decision updates run state later), so the index
       // records nothing here.
       case "approval:expired":
-        break;
+        // Pure no-ops: mutate nothing, mark nothing, bump no generatedAt, write
+        // nothing (incident F1 — these fall-throughs used to trigger a full
+        // synchronous rewrite on every spinner tick).
+        return null;
       default:
         assertNever(event);
     }
+  }
 
+  /**
+   * Stamp `generatedAt` for a real content mutation and drive the projection's
+   * cadence: critical lifecycle events flush immediately; routine mutations arm
+   * the trailing window. Returns the summary so the controller can keep its
+   * per-event task-status sync (run:started/run:updated) coupled to the mutation,
+   * NOT to the flush cadence.
+   */
+  private markMutated(critical: boolean): RuntimeReportSummaryV1 {
     this.report.generatedAt = new Date().toISOString();
-    this.persist();
+    if (critical) {
+      this.projection.markCritical();
+    } else {
+      this.projection.markDirty();
+    }
     return this.summary();
   }
 
   read(): RuntimeReportV1 {
+    this.materialize();
     return this.report;
   }
 
@@ -407,42 +491,161 @@ export class RunIndex {
     const run = this.upsertRun(event.payload.runId, {});
     const change = fileChangeFromEvent(event);
     if (!run) {
-      this.report.unassignedChanges = dedupeByPath([...this.report.unassignedChanges, change]);
+      this.capMapAppend(
+        this.unassignedChangesMap,
+        change.path,
+        change,
+        this.caps.unassignedChanges,
+        "unassignedChanges",
+      );
       return;
     }
 
-    run.changedFiles = dedupeByPath([...run.changedFiles, change]);
+    this.capMapAppend(
+      this.changedFilesFor(run.runId),
+      change.path,
+      change,
+      this.caps.changedFiles,
+      "changedFiles",
+    );
 
     if (isArtifactCandidate(change.path)) {
-      run.artifactCandidates = dedupeByPath([
-        ...run.artifactCandidates,
-        {
-          path: change.path,
-          changeKind: change.changeKind,
-          type: artifactType(change.path),
-        },
-      ]);
+      this.capMapAppend(
+        this.artifactsFor(run.runId),
+        change.path,
+        { path: change.path, changeKind: change.changeKind, type: artifactType(change.path) },
+        this.caps.artifactCandidates,
+        "artifactCandidates",
+      );
     }
+  }
+
+  private changedFilesFor(runId: string): Map<string, RuntimeFileChangeReport> {
+    let map = this.changedFilesByRun.get(runId);
+    if (!map) {
+      map = new Map();
+      this.changedFilesByRun.set(runId, map);
+    }
+    return map;
+  }
+
+  private artifactsFor(runId: string): Map<string, RuntimeArtifactCandidateReport> {
+    let map = this.artifactsByRun.get(runId);
+    if (!map) {
+      map = new Map();
+      this.artifactsByRun.set(runId, map);
+    }
+    return map;
   }
 
   /**
-   * Stop persisting. A disposed run must never write again — otherwise a late
-   * straggler event (e.g. the killed PTY's async `pty:exit`) would re-create the
-   * report file, and with it the task's record dir, AFTER the session was deleted.
-   * The on-event report is already up to date at dispose time; nothing after it
-   * matters.
+   * Append into a bounded, insertion-ordered, path-keyed map. `set` dedupes by
+   * path in place (first-seen position preserved, latest value wins — the exact
+   * semantics of the old `dedupeByPath`), so a re-changed file does not grow the
+   * list. When the map exceeds its cap, evict oldest-first and accumulate the
+   * drop into `droppedCounts` — once per actually-dropped entry, never a re-cap
+   * of a still-growing array (the S0 trim-in-place carry-over, satisfied here by
+   * construction: the live structure is never allowed past the cap).
    */
-  dispose(): void {
-    this.disposed = true;
+  private capMapAppend<T>(
+    map: Map<string, T>,
+    key: string,
+    value: T,
+    cap: number,
+    bucket: keyof RuntimeReportDroppedCounts,
+  ): void {
+    map.set(key, value);
+    while (map.size > cap) {
+      const oldest = map.keys().next().value as string;
+      map.delete(oldest);
+      this.bumpDropped(bucket);
+    }
   }
 
-  private persist(): void {
-    if (this.disposed) {
+  private bumpDropped(bucket: keyof RuntimeReportDroppedCounts): void {
+    if (!this.report.droppedCounts) {
+      this.report.droppedCounts = { changedFiles: 0, unassignedChanges: 0, artifactCandidates: 0 };
+    }
+    this.report.droppedCounts[bucket] += 1;
+  }
+
+  /** Seed the path-keyed maps from a loaded/fresh report's arrays (see maps' doc). */
+  private hydrateMaps(): void {
+    for (const run of this.report.runs) {
+      this.changedFilesByRun.set(
+        run.runId,
+        new Map(run.changedFiles.map((change) => [change.path, change])),
+      );
+      this.artifactsByRun.set(
+        run.runId,
+        new Map(run.artifactCandidates.map((artifactCandidate) => [artifactCandidate.path, artifactCandidate])),
+      );
+    }
+    this.unassignedChangesMap = new Map(
+      this.report.unassignedChanges.map((change) => [change.path, change]),
+    );
+  }
+
+  /** Project the path-keyed map SSOTs back into the report's arrays (the persisted shape). */
+  private materialize(): void {
+    for (const run of this.report.runs) {
+      const changed = this.changedFilesByRun.get(run.runId);
+      if (changed) {
+        run.changedFiles = [...changed.values()];
+      }
+      const artifacts = this.artifactsByRun.get(run.runId);
+      if (artifacts) {
+        run.artifactCandidates = [...artifacts.values()];
+      }
+    }
+    this.report.unassignedChanges = [...this.unassignedChangesMap.values()];
+  }
+
+  /**
+   * Normal teardown: flush any pending dirty tail, then seal permanently inert
+   * (OBS S2). Post-seal, every mark/flush is a no-op — a late straggler event
+   * (e.g. the killed PTY's async `pty:exit`) can no longer re-create the report
+   * file, and with it the task's record dir, after the session was deleted. The
+   * straggler guard the old `disposed` flag enforced by hand is now structural,
+   * owned by Projection.seal.
+   */
+  dispose(): void {
+    this.projection.seal();
+  }
+
+  /**
+   * Delete teardown: seal WITHOUT the final write. `deleteSession` disposes the
+   * RunIndex and then `rmSync`s the record dir; a flush-then-seal here would
+   * re-write the report file microseconds before it is removed (a pointless write
+   * of a doomed file — and, if the ordering ever changed, an outright
+   * resurrection). `discarded` makes the seal-driven flush inert, so the write
+   * never happens while sealing still reaches permanent inertness.
+   */
+  discard(): void {
+    this.discarded = true;
+    this.projection.seal();
+  }
+
+  /**
+   * The projection's flush closure: write + notify, one dirty-gated cadence
+   * (D6 main half). Materialize the maps into the report arrays, write compact
+   * JSON (no pretty-print — >2× smaller, incident F3), then broadcast. MUST NOT
+   * mark the projection (S1 review O1: unguarded flush→mark recursion). Inert
+   * under `discard()`.
+   */
+  private flushReport(): void {
+    if (this.discarded) {
       return;
     }
+    this.writeReport();
+    this.notify(this.summary());
+  }
+
+  private writeReport(): void {
+    this.materialize();
     fs.mkdirSync(path.dirname(this.reportPath), { recursive: true });
     const tmpPath = `${this.reportPath}.tmp`;
-    fs.writeFileSync(tmpPath, `${JSON.stringify(this.report, null, 2)}\n`);
+    fs.writeFileSync(tmpPath, `${JSON.stringify(this.report)}\n`);
     fs.renameSync(tmpPath, this.reportPath);
   }
 }
@@ -469,14 +672,6 @@ function isArtifactCandidate(filePath: string): boolean {
 function artifactType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase().replace(".", "");
   return ext || "unknown";
-}
-
-function dedupeByPath<T extends { path: string }>(items: T[]): T[] {
-  const byPath = new Map<string, T>();
-  for (const item of items) {
-    byPath.set(item.path, item);
-  }
-  return [...byPath.values()];
 }
 
 function removeUndefined<T extends object>(value: T): T {
