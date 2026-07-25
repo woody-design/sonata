@@ -505,6 +505,39 @@ export type FileChangedEvent = BaseRuntimeEvent<
   }
 >;
 
+/** One entry of a turn-boundary workspace-stat reconcile delta (OBS S6 / D3). */
+export interface RuntimeReconcileChange {
+  path: string;
+  absolutePath: string;
+  changeKind: ChangeKind;
+  type: "file" | "directory" | "other" | "missing" | "error";
+  size: number | null;
+  sha256: string | null;
+}
+
+/**
+ * A bounded workspace-stat delta computed ONCE at run end (OBS S6 / D3): the
+ * terminal-host diffs the current workspace against the snapshot it retained at
+ * run start and reports the paths that changed during the run. This is the net
+ * for Bash-mediated (and any hook-invisible) edits that the semantic-first
+ * PostToolUse channel cannot name. The run-index consumes it and appends only
+ * the subset NOT already tool-attributed for the run, tagging them
+ * `source: "reconcile"`.
+ *
+ * CONTROLLER-INTERNAL — like `codex-turn-context:observed`, the controller
+ * consumes this into the run-index and never forwards it to a renderer window
+ * (D5: main never serializes an event a window provably ignores; no renderer
+ * surface reads changedFiles).
+ */
+export type RunReconciledEvent = BaseRuntimeEvent<
+  "run:reconciled",
+  {
+    taskId: TaskId;
+    runId: RunId | null;
+    changes: RuntimeReconcileChange[];
+  }
+>;
+
 export type RuntimeReportUpdatedEvent = BaseRuntimeEvent<
   "report:updated",
   {
@@ -639,6 +672,7 @@ export type ProductRuntimeEvent =
   | FileWatchingEvent
   | FileWatchErrorEvent
   | FileChangedEvent
+  | RunReconciledEvent
   | RuntimeReportUpdatedEvent
   | TranscriptLocatedEvent
   | TranscriptBlocksEvent
@@ -651,6 +685,13 @@ export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
 
 export type RunIndexEvent = Exclude<
   ProductRuntimeEvent,
+  // `file:changed` LEFT the run-index (OBS S6 / D3): change attribution moved
+  // from the filesystem watcher (physical channel) to PostToolUse hooks +
+  // turn-boundary reconcile (semantic channel). The watcher still emits
+  // `file:changed` for Preview live-refresh (S5 interest routing), but it no
+  // longer crosses the consume boundary. `run:reconciled` is the reconcile
+  // half — it is NOT excluded (the run-index consumes it).
+  | FileChangedEvent
   | RuntimeReportUpdatedEvent
   | TranscriptLocatedEvent
   | TranscriptBlocksEvent

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { RunId, TaskId } from "../../shared/types/domain";
+import type { ChangeKind, RunId, TaskId } from "../../shared/types/domain";
 import type { ResolveRunIdInput } from "../provider-transcript";
 import type { RunIndexEvent, RuntimeEvent } from "../../shared/types/events";
 import { normalizePromptForMatch } from "../../shared/prompt-markers";
@@ -171,7 +171,10 @@ const RUN_INDEX_EVENT_TYPES = {
   "approval:persisted": true,
   "file:watching": true,
   "file:watch-error": true,
-  "file:changed": true,
+  // `file:changed` LEFT the allowlist (OBS S6 / D3): change attribution moved to
+  // the semantic channel. `run:reconciled` is its replacement — the bounded
+  // turn-boundary workspace-stat delta the terminal-host emits at run end.
+  "run:reconciled": true,
 } satisfies Record<RunIndexEvent["type"], true>;
 
 /**
@@ -376,13 +379,33 @@ export class RunIndex {
           slashStopReason: event.payload.slashStopReason,
         });
         return this.markMutated(true);
-      case "file:changed":
-        this.appendChangedFile(event);
-        // touchesRuns=false: a file change mutates only the changedFiles /
-        // artifactCandidates / unassignedChanges buckets — none of which any
-        // renderer surface reads — so its report:updated broadcast carries
-        // runsChanged=false and the renderer skips the full-report refetch
-        // (OBS S3). Persistence still happens; only the renderer pull is spared.
+      case "run:reconciled":
+        // The turn-boundary reconcile net (OBS S6 / D3): the terminal-host's
+        // bounded workspace-stat delta at run end. Append only the paths NOT
+        // already tool-attributed for this run (`overwrite:false` preserves a
+        // path's `source:"tool"` entry — reconcile fills only the gaps that the
+        // semantic channel couldn't name, i.e. Bash-mediated edits).
+        for (const change of event.payload.changes) {
+          this.appendChange(
+            event.payload.runId,
+            {
+              ts: event.ts,
+              path: change.path,
+              absolutePath: redactHome(change.absolutePath),
+              changeKind: change.changeKind,
+              eventType: "reconcile",
+              type: change.type,
+              size: change.size,
+              sha256: change.sha256,
+              source: "reconcile",
+            },
+            { overwrite: false },
+          );
+        }
+        // touchesRuns=false: like the retired file:changed cadence, this mutates
+        // only the changedFiles / artifactCandidates / unassignedChanges buckets —
+        // none of which any renderer surface reads — so its report:updated
+        // broadcast carries runsChanged=false and the renderer skips the refetch.
         return this.markMutated(false, false);
       case "pty:exit":
         // The PTY died — a lifecycle barrier, but NOT a mutation: the branch
@@ -433,6 +456,50 @@ export class RunIndex {
       this.projection.markDirty();
     }
     return this.summary();
+  }
+
+  /**
+   * Record file changes a PostToolUse hook named (OBS S6 / D3) — the
+   * semantic-first, primary `changedFiles` source. The controller extracts the
+   * paths from the hook payload (per-provider tool vocabulary) and normalizes
+   * them to the report's relative-path convention; this method only records.
+   * Entries carry `source: "tool"` + the tool name. Tool attribution WINS over a
+   * later reconcile of the same path (`overwrite: true` — a fresh tool touch is
+   * the freshest truth for that path).
+   *
+   * A direct method, not a `consume` branch: the producer is the controller's
+   * hook handler (which already holds the payload), so it needs no event round-
+   * trip, and the consume event-allowlist's type discipline stays untouched. Like
+   * a pure file:changed of old, it touches only the noise buckets → routine
+   * (debounced), touchesRuns=false (renderer skips the refetch).
+   */
+  recordToolChanges(
+    runId: RunId | null,
+    changes: Array<{ path: string; absolutePath: string; changeKind: ChangeKind; tool: string }>,
+  ): RuntimeReportSummaryV1 | null {
+    if (changes.length === 0) {
+      return null;
+    }
+    const ts = new Date().toISOString();
+    for (const change of changes) {
+      this.appendChange(
+        runId,
+        {
+          ts,
+          path: change.path,
+          absolutePath: redactHome(change.absolutePath),
+          changeKind: change.changeKind,
+          eventType: "tool",
+          type: change.changeKind === "deleted" ? "missing" : "file",
+          size: null,
+          sha256: null,
+          source: "tool",
+          tool: change.tool,
+        },
+        { overwrite: true },
+      );
+    }
+    return this.markMutated(false, false);
   }
 
   read(): RuntimeReportV1 {
@@ -513,10 +580,25 @@ export class RunIndex {
     run.approvalEvents = [...run.approvalEvents, value];
   }
 
-  private appendChangedFile(event: Extract<RunIndexEvent, { type: "file:changed" }>): void {
-    const run = this.upsertRun(event.payload.runId, {});
-    const change = fileChangeFromEvent(event);
+  /**
+   * Append one change entry to a run's `changedFiles` (or the unassigned bucket
+   * when the change has no owning run), deriving the artifact candidate from the
+   * SAME path — so `artifactCandidates` is always the union of the tool-attributed
+   * and reconcile paths (OBS S6). `overwrite` decides collision policy: a tool
+   * change overwrites (latest touch wins); a reconcile change yields to an
+   * existing entry (`overwrite:false`) so it never clobbers a path's
+   * `source:"tool"` provenance. Bounded by `capMapAppend` (the append-time caps).
+   */
+  private appendChange(
+    runId: RunId | null,
+    change: RuntimeFileChangeReport,
+    options: { overwrite: boolean },
+  ): void {
+    const run = this.upsertRun(runId, {});
     if (!run) {
+      if (!options.overwrite && this.unassignedChangesMap.has(change.path)) {
+        return;
+      }
       this.capMapAppend(
         this.unassignedChangesMap,
         change.path,
@@ -527,22 +609,23 @@ export class RunIndex {
       return;
     }
 
-    this.capMapAppend(
-      this.changedFilesFor(run.runId),
-      change.path,
-      change,
-      this.caps.changedFiles,
-      "changedFiles",
-    );
+    const changedMap = this.changedFilesFor(run.runId);
+    if (!options.overwrite && changedMap.has(change.path)) {
+      return;
+    }
+    this.capMapAppend(changedMap, change.path, change, this.caps.changedFiles, "changedFiles");
 
     if (isArtifactCandidate(change.path)) {
-      this.capMapAppend(
-        this.artifactsFor(run.runId),
-        change.path,
-        { path: change.path, changeKind: change.changeKind, type: artifactType(change.path) },
-        this.caps.artifactCandidates,
-        "artifactCandidates",
-      );
+      const artifactMap = this.artifactsFor(run.runId);
+      if (options.overwrite || !artifactMap.has(change.path)) {
+        this.capMapAppend(
+          artifactMap,
+          change.path,
+          { path: change.path, changeKind: change.changeKind, type: artifactType(change.path) },
+          this.caps.artifactCandidates,
+          "artifactCandidates",
+        );
+      }
     }
   }
 
@@ -679,21 +762,6 @@ export class RunIndex {
     fs.writeFileSync(tmpPath, `${JSON.stringify(this.report)}\n`);
     fs.renameSync(tmpPath, this.reportPath);
   }
-}
-
-function fileChangeFromEvent(
-  event: Extract<RunIndexEvent, { type: "file:changed" }>,
-): RuntimeFileChangeReport {
-  return {
-    ts: event.ts,
-    path: event.payload.path,
-    absolutePath: redactHome(event.payload.absolutePath),
-    changeKind: event.payload.changeKind,
-    eventType: event.payload.eventType,
-    type: event.payload.type,
-    size: event.payload.size,
-    sha256: event.payload.sha256,
-  };
 }
 
 function isArtifactCandidate(filePath: string): boolean {

@@ -133,6 +133,15 @@ export interface RuntimeFileChangeReport {
   type: "file" | "directory" | "other" | "missing" | "error";
   size: number | null;
   sha256: string | null;
+  /** Attribution channel (OBS S6 / D3). `"tool"` = a PostToolUse hook named the
+   *  path — the semantic-first, primary source; `"reconcile"` = a bounded
+   *  turn-boundary workspace-stat delta caught it (Bash-mediated / hook-invisible
+   *  edits). Additive and optional: absent on reports written before S6, where
+   *  entries were the retired filesystem-watcher's `file:changed` stream. */
+  source?: "tool" | "reconcile";
+  /** The tool that produced a `source: "tool"` change (e.g. `"Write"`,
+   *  `"apply_patch"`) — forensic provenance. Absent for reconcile/legacy entries. */
+  tool?: string;
 }
 
 export interface RuntimeArtifactCandidateReport {

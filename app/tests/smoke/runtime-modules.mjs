@@ -4,7 +4,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { RunIndex, TerminalHost } = require("../../dist/runtime");
+const { RunIndex, TerminalHost, isRunIndexEvent } = require("../../dist/runtime");
 
 const taskId = "task-runtime-smoke";
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-runtime-smoke-"));
@@ -26,11 +26,20 @@ const host = new TerminalHost({
     }
 
     eventTypes.push(event.type);
-    runIndex.consume(event);
+    // Mirror the controller's consume boundary (OBS S6): `file:changed` LEFT the
+    // run-index allowlist, so only real RunIndex events cross into consume — the
+    // watcher's file:changed stream is inspected here but never consumed.
+    if (isRunIndexEvent(event)) {
+      runIndex.consume(event);
+    }
 
     if (event.type === "run:started") {
       runId = event.payload.id;
     }
+    // The watcher still emits file:changed for Preview (S5); we assert it still
+    // fires and attributes to the active run. The report's changedFiles now come
+    // from the turn-boundary reconcile (this file is written by raw fs, not a
+    // tool hook), verified after completeActiveRun below.
     if (event.type === "file:changed" && event.payload.path === artifactName) {
       fileAttributedToRun = event.payload.runId === runId;
     }

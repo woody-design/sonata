@@ -28,6 +28,7 @@ import type {
 import type {
   ControlSwitchAttentionReason,
   RuntimeEvent,
+  RuntimeReconcileChange,
   RunUpdatedEvent,
 } from "../../shared/types/events";
 import type {
@@ -483,6 +484,14 @@ export class TerminalHost extends EventEmitter {
   // the tail matches the gate signature. Armed in startTask, cleared on teardown.
   private codexBootUpdateTimer: NodeJS.Timeout | null = null;
   private fileSnapshot = new Map<string, SnapshotEntry>();
+  /**
+   * The workspace stat state captured at the START of the active run (OBS S6 /
+   * D3). Retained (a cheap paths+stat Map copy of `fileSnapshot`, no extra walk)
+   * so that at run end the reconcile can diff current-vs-run-start and name the
+   * paths the run changed — the net for Bash-mediated edits the semantic
+   * PostToolUse channel can't see. Overwritten at each `beginRun`.
+   */
+  private runStartSnapshot: Map<string, SnapshotEntry> | null = null;
   private pendingFileTimers = new Map<string, NodeJS.Timeout>();
   private approvalActive = false;
   private lastApprovalKind: ApprovalKind | null = null;
@@ -2893,6 +2902,11 @@ export class TerminalHost extends EventEmitter {
     this.activeRun = run;
     this.recentAttributionRun = null;
     this.activeRunRaw = "";
+    // Retain the run-start workspace baseline for the turn-boundary reconcile
+    // (OBS S6). A shallow Map copy — paths+stat only, no walk (fileSnapshot's
+    // entries are replaced, never mutated, so the copy stays stable as the
+    // watcher advances the live snapshot during the run).
+    this.runStartSnapshot = new Map(this.fileSnapshot);
     this.debugCompletion(`begun "${trimmed.slice(0, 40)}"`);
     this.emitEvent("run:started", run);
     // Arm the completion path at birth: a run whose command was already
@@ -2951,6 +2965,12 @@ export class TerminalHost extends EventEmitter {
       endedAt: endedAt.toISOString(),
       elapsedMs: endedAt.getTime() - Date.parse(this.activeRun.startedAt),
     });
+
+    // Turn-boundary reconcile (OBS S6 / D3): emit the bounded workspace-stat
+    // delta for the finishing run BEFORE clearing it, so Bash-mediated changes
+    // the PostToolUse channel couldn't name still land on the run. Every run-end
+    // path funnels through here, so this is the single honest reconcile seam.
+    this.emitRunReconcile(finished.id);
 
     this.activeRun = null;
     this.activeRunRaw = "";
@@ -3170,6 +3190,54 @@ export class TerminalHost extends EventEmitter {
       source: "terminal-idle-composer-heuristic",
       confidence,
     });
+  }
+
+  /**
+   * The turn-boundary reconcile (OBS S6 / D3). ONE workspace stat walk per run
+   * end (never per event): diff the current workspace against the snapshot
+   * retained at run start and report the paths that changed during the run. This
+   * catches Bash-mediated (and any hook-invisible) edits the semantic PostToolUse
+   * channel cannot name. `shouldIgnorePath` (inside `snapshotWorkspace`) keeps
+   * build noise out on BOTH sides — the reconcile can never reintroduce the storm
+   * the watcher used to. The run-index appends only the subset not already
+   * tool-attributed. Uses the EXISTING snapshot mechanics unchanged — S7's
+   * mtime+size swap flows through `classifyChange` transparently.
+   */
+  private emitRunReconcile(runId: RunId): void {
+    const cwd = this.cwd;
+    const baseline = this.runStartSnapshot;
+    if (!cwd || !baseline) {
+      return;
+    }
+    const current = snapshotWorkspace(cwd);
+    const changes: RuntimeReconcileChange[] = [];
+    const paths = new Set([...baseline.keys(), ...current.keys()]);
+    for (const relativePath of paths) {
+      const before = baseline.get(relativePath) ?? { exists: false, type: "missing" as const };
+      const after = current.get(relativePath) ?? { exists: false, type: "missing" as const };
+      const changeKind = classifyChange(before, after);
+      if (changeKind === "unchanged") {
+        continue;
+      }
+      changes.push({
+        path: relativePath,
+        absolutePath: path.join(cwd, relativePath),
+        changeKind,
+        type: after.exists ? after.type : "missing",
+        size: after.exists ? (after.size ?? null) : null,
+        sha256: after.exists ? (after.sha256 ?? null) : null,
+      });
+      // Bound the event payload; the run-index caps again at append. A reconcile
+      // this large means an ignored-dir escape, not normal work — the tail is
+      // representative enough for the forensic record.
+      if (changes.length >= RECONCILE_CHANGE_CAP) {
+        break;
+      }
+    }
+    if (changes.length === 0) {
+      return;
+    }
+    this.emitEvent("run:reconciled", { taskId: this.taskId, runId, changes });
   }
 
   private attributionRunId(): RunId | null {
@@ -3555,6 +3623,14 @@ function ptyEnvironment(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
     ...(extraEnv ?? {}),
   };
 }
+
+/**
+ * Cap on the turn-boundary reconcile delta emitted per run end (OBS S6). Mirrors
+ * the run-index changedFiles cap (`DEFAULT_REPORT_LIST_CAPS.changedFiles`, kept a
+ * local literal to avoid coupling the host to run-index internals); the run-index
+ * bounds again at append, so this only bounds the event payload size.
+ */
+const RECONCILE_CHANGE_CAP = 500;
 
 function snapshotWorkspace(cwd: string): Map<string, SnapshotEntry> {
   const result = new Map<string, SnapshotEntry>();

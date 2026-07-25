@@ -60,6 +60,8 @@ import {
   RunIndex,
   isRunIndexEvent,
   resolveRunForTurn,
+  changedPathsFromToolUse,
+  parseApplyPatchOps,
   TerminalHost,
   type StartTaskOptions,
   ClaudeStatuslineUsageWatcher,
@@ -1502,6 +1504,17 @@ export class RuntimeController {
       this.maybeApplyProviderSessionName(event.payload.taskId, event.payload.snapshot.sessionName);
       return;
     }
+    if (event.type === "run:reconciled") {
+      // Controller-internal (OBS S6 / D3): the terminal-host's turn-boundary
+      // workspace delta feeds the run-index's changedFiles. Like
+      // codex-turn-context:observed, it names no renderer state (no surface reads
+      // changedFiles — S3), so it is consumed here and NEVER broadcast — honoring
+      // D5 (main never serializes an event a window provably ignores). Fenced by
+      // the source-RunIndex generation check above, so a straggler from a retired
+      // runtime is dropped, not recorded onto a replacement.
+      runIndex.consume(event);
+      return;
+    }
     if (event.type === "codex-turn-context:observed") {
       // Item E: the codex rollout's per-turn turn_context is the lazy SSOT for
       // model/effort/permission — reconcile the mirrors a NATIVE switch left
@@ -2115,6 +2128,14 @@ export class RuntimeController {
       active.terminalHost.noteToolActivityAfterStop();
     }
 
+    // Semantic change attribution (OBS S6 / D3): a PostToolUse from a file-
+    // mutating tool names the paths it changed — the primary `changedFiles`
+    // source, replacing the retired filesystem-watcher stream. Bash and other
+    // opaque tools name no path here; the turn-boundary reconcile is their net.
+    if (event === "PostToolUse") {
+      this.recordToolChangesFromHook(active, payload);
+    }
+
     // Plan §4's "capability-driven, not provider-name-driven" applies to the
     // DISPATCH/watch gates (now `isHookCapable`). The three edges below are a
     // different class: each encodes a SPECIFIC Claude-only capability — a
@@ -2214,6 +2235,34 @@ export class RuntimeController {
           : "API error";
       active.terminalHost.completeRunFromTurnEnd({ errorExcerpt: error });
     }
+  }
+
+  /**
+   * Feed the run-index the file changes a PostToolUse named (OBS S6 / D3). The
+   * per-provider tool→path extraction is pure (`changedPathsFromToolUse`); here we
+   * normalize each path to the report's relative-path convention against the SAME
+   * workspace cwd the terminal-host uses for its reconcile paths — so the two
+   * channels' relative keys collide and the run-index dedups reconcile against
+   * tool attribution correctly. Attributed to the run active at hook arrival.
+   */
+  private recordToolChangesFromHook(active: ActiveTaskRuntime, payload: HookPayload): void {
+    const changes = changedPathsFromToolUse(payload);
+    if (changes.length === 0) {
+      return;
+    }
+    const cwd =
+      active.terminalHost.workspace ?? (typeof payload.cwd === "string" && payload.cwd ? payload.cwd : null);
+    if (!cwd) {
+      return;
+    }
+    const tool = typeof payload.tool_name === "string" ? payload.tool_name : "tool";
+    const runId = active.terminalHost.activeRunId();
+    const entries = changes.map((change) => {
+      const absolutePath = path.isAbsolute(change.path) ? change.path : path.resolve(cwd, change.path);
+      const relativePath = path.relative(cwd, absolutePath) || path.basename(absolutePath);
+      return { path: relativePath, absolutePath, changeKind: change.changeKind, tool };
+    });
+    active.runIndex.recordToolChanges(runId, entries);
   }
 
   /**
@@ -3440,20 +3489,13 @@ export function approvalSummary(payload: HookPayload, provider: RuntimeProvider)
  * envelope falls back to a bare `Apply patch` — never throws.
  */
 function summarizeApplyPatch(envelope: string): string {
-  const ops: Array<{ verb: string; path: string }> = [];
-  for (const rawLine of envelope.split("\n")) {
-    // Match the raw line (only an optional trailing \r tolerated) so `^` truly
-    // anchors the header at column 0 — a space-prefixed context line can't match.
-    const match = /^\*\*\* (Add|Update|Delete) File: (.+?)\r?$/.exec(rawLine);
-    if (!match) continue;
-    const filePath = (match[2] ?? "").trim();
-    if (!filePath) continue;
-    const verb = match[1] === "Add" ? "Add" : match[1] === "Delete" ? "Delete" : "Edit";
-    ops.push({ verb, path: filePath });
-  }
+  // Same file-op grammar as the semantic change-attribution extractor (OBS S6):
+  // single-sourced in `parseApplyPatchOps` so the two consumers can never drift.
+  const ops = parseApplyPatchOps(envelope);
   const first = ops[0];
   if (!first) return "Apply patch";
-  const label = `${first.verb}  ${truncateMiddle(first.path, 72)}`;
+  const verb = first.verb === "Add" ? "Add" : first.verb === "Delete" ? "Delete" : "Edit";
+  const label = `${verb}  ${truncateMiddle(first.path, 72)}`;
   return ops.length === 1 ? label : `${label} (+${ops.length - 1} more)`;
 }
 

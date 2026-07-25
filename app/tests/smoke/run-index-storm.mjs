@@ -8,15 +8,23 @@ import { createRequire } from "node:module";
 // broadcast share ONE dirty-gated, time-bounded, size-bounded cadence, driven by
 // an INJECTED fake clock so persistence is deterministic — no wall-clock waits.
 //
+// OBS S6 — `file:changed` LEFT the run-index (change attribution moved to the
+// semantic PostToolUse channel + a turn-boundary reconcile). The storm driver is
+// now `run:reconciled`, the reconcile event the run-index DOES consume — the same
+// bounded/coalesced cadence, exercised through the new attribution path. Block (h)
+// asserts the compile-level removal at runtime: file:changed no longer reaches the
+// report.
+//
 // This is the incident's §7 unit plan, made real against the actual filesystem:
-//   (a) a 10k file:changed storm persists O(elapsed windows), not O(events);
+//   (a) a 10k reconcile-change storm persists O(elapsed windows), not O(events);
 //   (b) the on-disk report stays <= caps with correct droppedCounts;
 //   (c) 1000 no-op events on a clean report write ZERO times;
 //   (d) dispose() flushes the pending tail exactly once;
 //   (e) a post-dispose event writes nothing and re-creates no directory;
-//   (f) the delete flow (discard) never resurrects the report file.
+//   (f) the delete flow (discard) never resurrects the report file;
+//   (h) file:changed is NOT a RunIndex event — it never reaches the report.
 const require = createRequire(import.meta.url);
-const { RunIndex, DEFAULT_REPORT_LIST_CAPS } = require("../../dist/runtime");
+const { RunIndex, DEFAULT_REPORT_LIST_CAPS, isRunIndexEvent } = require("../../dist/runtime");
 
 // ---------------------------------------------------------------------------
 // Hand-driven clock — the same shape S1's projection smoke uses. setTimeout /
@@ -81,18 +89,27 @@ const runStarted = () => ({
   ts: "2026-07-25T00:00:00.000Z",
 });
 
-const fileChanged = (i) => ({
-  type: "file:changed",
+const stormPath = (i) => `app-inkai/generated/file-${i}.txt`;
+
+// The storm driver post-S6: a run:reconciled event carrying one changed path.
+// The run-index appends it to changedFiles the same way the retired file:changed
+// did — so the projection cadence, caps, and droppedCounts are exercised through
+// the live attribution path.
+const reconcileOne = (i) => ({
+  type: "run:reconciled",
   payload: {
     taskId: TASK,
     runId: RUN,
-    path: `app-inkai/build/generated/file-${i}.txt`,
-    absolutePath: `/home/u/app-inkai/build/generated/file-${i}.txt`,
-    changeKind: "modified",
-    eventType: "change",
-    type: "file",
-    size: i,
-    sha256: null,
+    changes: [
+      {
+        path: stormPath(i),
+        absolutePath: `/home/u/${stormPath(i)}`,
+        changeKind: "modified",
+        type: "file",
+        size: i,
+        sha256: null,
+      },
+    ],
   },
   ts: "2026-07-25T00:00:01.000Z",
 });
@@ -118,7 +135,7 @@ function tmpDir(tag) {
 }
 
 // ---------------------------------------------------------------------------
-// (a) + (b) 10k file:changed storm: O(windows) writes, report <= caps.
+// (a) + (b) 10k reconcile-change storm: O(windows) writes, report <= caps.
 // ---------------------------------------------------------------------------
 {
   const dir = tmpDir("storm");
@@ -138,19 +155,19 @@ function tmpDir(tag) {
   index.consume(runStarted());
   assert.equal(notifies, 1, "run:started flushed immediately (critical)");
 
-  // 10k file:changed in ~5 evenly-spaced windows: 200ms between marks, so each
+  // 10k reconcile changes in ~5 evenly-spaced windows: 200ms between marks, so each
   // 1000ms window covers ~5 marks... drive time explicitly to bound the windows.
   // We interleave: 2000 events, advance 1000ms, repeat 5x = 10k events, 5 windows.
   let events = 0;
   const notifiesBefore = notifies;
   for (let w = 0; w < 5; w += 1) {
     for (let i = 0; i < 2000; i += 1) {
-      index.consume(fileChanged(events));
+      index.consume(reconcileOne(events));
       events += 1;
     }
     clock.advance(1000); // the trailing window elapses once per batch
   }
-  assert.equal(events, 10_000, "fed 10k file:changed events");
+  assert.equal(events, 10_000, "fed 10k reconcile-change events");
 
   const stormNotifies = notifies - notifiesBefore;
   // O(windows): ~5 flushes for 10k events, NOT 10k. Generous upper bound well
@@ -178,14 +195,16 @@ function tmpDir(tag) {
   // The tail is the most-recent 500 (paths 9500..9999).
   assert.equal(
     run.changedFiles[run.changedFiles.length - 1].path,
-    fileChanged(9999).payload.path,
+    stormPath(9999),
     "newest change survives the cap",
   );
   assert.equal(
     run.changedFiles[0].path,
-    fileChanged(9500).payload.path,
+    stormPath(9500),
     "the tail starts at events-cap (oldest dropped)",
   );
+  // Every storm entry carries source:"reconcile" (the attribution channel).
+  assert.equal(run.changedFiles[0].source, "reconcile", "storm entries tagged source:'reconcile'");
 
   // Compact JSON on disk: no pretty-print indentation.
   const raw = fs.readFileSync(reportPath, "utf8");
@@ -253,7 +272,7 @@ function tmpDir(tag) {
   index.consume(runStarted()); // critical flush
   const baseline = notifies;
 
-  index.consume(fileChanged(1)); // routine: arms the trailing window, no flush yet
+  index.consume(reconcileOne(1)); // routine: arms the trailing window, no flush yet
   assert.equal(notifies, baseline, "routine mutation did not flush yet");
   assert.equal(clock.pending(), 1, "routine mutation armed the trailing window");
 
@@ -297,7 +316,7 @@ function tmpDir(tag) {
   assert.ok(!fs.existsSync(path.dirname(reportPath)), "record dir removed");
 
   // A late straggler event after dispose must be inert.
-  index.consume(fileChanged(1));
+  index.consume(reconcileOne(1));
   index.consume(ptyExit());
   clock.advance(5000);
 
@@ -332,7 +351,7 @@ function tmpDir(tag) {
   index.consume(runStarted());
 
   // Leave a PENDING dirty tail (routine mutation, window not yet elapsed).
-  index.consume(fileChanged(1));
+  index.consume(reconcileOne(1));
   assert.equal(clock.pending(), 1, "a dirty tail is pending before discard");
   const notifiesBeforeDiscard = notifies;
 
@@ -349,7 +368,7 @@ function tmpDir(tag) {
   fs.rmSync(reportPath, { force: true });
 
   // A straggler after discard is inert and must not resurrect the file.
-  index.consume(fileChanged(2));
+  index.consume(reconcileOne(2));
   index.consume(ptyExit());
   clock.advance(5000);
   assert.ok(!fs.existsSync(reportPath), "discard + straggler never resurrected the report file");
@@ -360,7 +379,7 @@ function tmpDir(tag) {
 }
 
 // ---------------------------------------------------------------------------
-// (g) OBS S3 — the flush relays runsChanged: false for a file:changed-only
+// (g) OBS S3 — the flush relays runsChanged: false for a reconcile-only
 //     flush (the renderer skips the full-report refetch during a build storm),
 //     true for any run/approval/lifecycle mutation, and true for a flush that
 //     coalesced BOTH a run event and a file storm (the run did change).
@@ -383,20 +402,20 @@ function tmpDir(tag) {
   index.consume(runStarted());
   assert.deepEqual(flushes, [true], "run:started flush relays runsChanged=true");
 
-  // A pure file:changed storm -> the trailing flush relays runsChanged=false.
+  // A pure reconcile storm (changedFiles only) -> the trailing flush relays runsChanged=false.
   for (let i = 0; i < 2000; i += 1) {
-    index.consume(fileChanged(i));
+    index.consume(reconcileOne(i));
   }
   clock.advance(1000);
   assert.deepEqual(
     flushes,
     [true, false],
-    "a file:changed-only flush relays runsChanged=false (the storm skip)",
+    "a reconcile-only flush relays runsChanged=false (the storm skip)",
   );
 
   // A flush coalescing a run event AND a file storm -> runsChanged=true (the run
   // changed; the latch is a monotonic OR reset only at flush).
-  index.consume(fileChanged(9000)); // routine: arms the window
+  index.consume(reconcileOne(9000)); // routine: arms the window
   index.consume({ ...runStarted(), payload: { ...runStarted().payload, status: "completed" }, type: "run:updated" });
   clock.advance(1000);
   assert.deepEqual(
@@ -406,7 +425,7 @@ function tmpDir(tag) {
   );
 
   // The latch reset each flush: a fresh file-only window is false again.
-  index.consume(fileChanged(9500));
+  index.consume(reconcileOne(9500));
   clock.advance(1000);
   assert.deepEqual(
     flushes,
@@ -417,6 +436,70 @@ function tmpDir(tag) {
   index.dispose();
   fs.rmSync(dir, { recursive: true, force: true });
   console.log("  [g] runsChanged: file-only flush=false, run/mixed flush=true, latch resets per flush: OK");
+}
+
+// ---------------------------------------------------------------------------
+// (h) OBS S6 — file:changed LEFT the run-index. The type-level removal from
+//     RUN_INDEX_EVENT_TYPES is compile-checked; here we assert it at RUNTIME:
+//     isRunIndexEvent rejects file:changed (so the controller's consume boundary
+//     skips it), and a direct consume of it throws (assertNever) rather than
+//     silently growing the report. The watcher's build-output storm can no
+//     longer reach the runtime report at all.
+// ---------------------------------------------------------------------------
+{
+  const dir = tmpDir("file-changed-gone");
+  const reportPath = path.join(dir, "runtime-report.json");
+  const clock = makeClock();
+  let notifies = 0;
+
+  const index = new RunIndex({
+    taskId: TASK,
+    reportPath,
+    notify: () => { notifies += 1; },
+    trailingMs: 1000,
+    timers: clock.timers,
+  });
+  index.consume(runStarted());
+  const notifiesBefore = notifies;
+
+  const fileChangedEvent = {
+    type: "file:changed",
+    payload: {
+      taskId: TASK,
+      runId: RUN,
+      path: "app-inkai/build/generated/noise.txt",
+      absolutePath: "/home/u/app-inkai/build/generated/noise.txt",
+      changeKind: "modified",
+      eventType: "change",
+      type: "file",
+      size: 1,
+      mtimeMs: 1,
+      sha256: null,
+    },
+    ts: "2026-07-25T00:00:04.000Z",
+  };
+
+  assert.equal(
+    isRunIndexEvent(fileChangedEvent),
+    false,
+    "file:changed is NOT a RunIndex event — the controller consume boundary skips it",
+  );
+  // A direct consume must NOT silently absorb it into the report; it hits the
+  // exhaustive assertNever default (the type-level allowlist made this provable).
+  assert.throws(
+    () => index.consume(fileChangedEvent),
+    /Unhandled RunIndex event/,
+    "consuming a file:changed throws (never grows changedFiles)",
+  );
+  clock.advance(5000);
+  // The failed consume mutated nothing; only the run:started critical flush ran.
+  const run = JSON.parse(fs.readFileSync(reportPath, "utf8")).runs.find((r) => r.runId === RUN);
+  assert.equal(run.changedFiles.length, 0, "a file:changed storm reaches the report ZERO entries");
+  assert.equal(notifies, notifiesBefore, "file:changed drove no flush/broadcast");
+
+  index.dispose();
+  fs.rmSync(dir, { recursive: true, force: true });
+  console.log("  [h] file:changed left the run-index: not a RunIndex event, never reaches the report: OK");
 }
 
 console.log("run-index-storm smoke: OK");

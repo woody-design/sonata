@@ -4,7 +4,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { DeliveryController, RunIndex, TerminalHost } = require("../../dist/runtime");
+const { DeliveryController, RunIndex, TerminalHost, isRunIndexEvent } = require("../../dist/runtime");
 
 const taskId = "task-submit-approval-guard-smoke";
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-submit-approval-guard-"));
@@ -52,7 +52,10 @@ const host = new TerminalHost({
       return;
     }
     events.push(event);
-    if (event.type !== "delivery:state" && event.type !== "delivery:receipt") {
+    // Mirror the controller's consume boundary (OBS S6): only real RunIndex
+    // events cross into consume (isRunIndexEvent already excludes delivery:* and,
+    // post-S6, file:changed — which the live watcher now emits into this sink).
+    if (isRunIndexEvent(event)) {
       runIndex.consume(event);
     }
   },

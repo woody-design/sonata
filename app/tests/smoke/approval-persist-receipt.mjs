@@ -13,7 +13,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { RunIndex, TerminalHost } = require("../../dist/runtime");
+const { RunIndex, TerminalHost, isRunIndexEvent } = require("../../dist/runtime");
 
 const taskId = "task-approval-persist-receipt-smoke";
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-approval-persist-receipt-smoke-"));
@@ -94,7 +94,11 @@ const host = new TerminalHost({
       return;
     }
     events.push(event);
-    runIndex.consume(event);
+    // Mirror the controller's consume boundary (OBS S6): file:changed LEFT the
+    // run-index allowlist, so only real RunIndex events cross into consume.
+    if (isRunIndexEvent(event)) {
+      runIndex.consume(event);
+    }
   },
   completionQuietMs: 600,
 });

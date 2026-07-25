@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 // 15-minute window. Identity must beat text, and text must keep covering
 // pre-bridge records.
 const require = createRequire(import.meta.url);
-const { RunIndex, resolveRunForTurn } = require("../../dist/runtime");
+const { RunIndex, resolveRunForTurn, changedPathsFromToolUse } = require("../../dist/runtime");
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-run-attribution-"));
 const runIndex = new RunIndex({ taskId: "t", reportPath: path.join(dir, "report.json") });
@@ -185,4 +185,138 @@ assert.equal(
 
 runIndex.dispose?.();
 fs.rmSync(dir, { recursive: true, force: true });
+
+// ---------------------------------------------------------------------------
+// OBS S6 — semantic change attribution. Change attribution moved from the
+// filesystem watcher to the agent's own tool calls: PostToolUse hooks name the
+// changed paths (source:"tool"), and a turn-boundary reconcile catches the rest
+// (source:"reconcile"). Both providers' tool vocabularies are verified against
+// the captured payload shapes — NOT assumed.
+// ---------------------------------------------------------------------------
+
+// (S6-1) The per-provider tool→path extraction. Claude carries structured
+// file_path/notebook_path; Codex file writes arrive as apply_patch whose paths
+// live in the patch envelope (verified 0.144.4). Bash/Read name no path.
+const kinds = (payload) => changedPathsFromToolUse(payload).map((c) => `${c.changeKind}:${c.path}`);
+
+assert.deepEqual(
+  kinds({ tool_name: "Write", tool_input: { file_path: "/ws/notes.md" } }),
+  ["added:/ws/notes.md"],
+  "Claude Write → file_path, added",
+);
+assert.deepEqual(
+  kinds({ tool_name: "Edit", tool_input: { file_path: "src/app.ts" } }),
+  ["modified:src/app.ts"],
+  "Claude Edit → file_path, modified",
+);
+assert.deepEqual(
+  kinds({ tool_name: "MultiEdit", tool_input: { file_path: "src/multi.ts" } }),
+  ["modified:src/multi.ts"],
+  "Claude MultiEdit → file_path, modified",
+);
+assert.deepEqual(
+  kinds({ tool_name: "NotebookEdit", tool_input: { notebook_path: "analysis.ipynb" } }),
+  ["modified:analysis.ipynb"],
+  "Claude NotebookEdit → notebook_path, modified",
+);
+assert.deepEqual(
+  kinds({
+    tool_name: "apply_patch",
+    tool_input: {
+      command:
+        "*** Begin Patch\n*** Add File: change_summary.md\n+ready\n*** Update File: src/lib.rs\n@@\n-old\n+new\n*** Delete File: stale.txt\n*** End Patch",
+    },
+  }),
+  ["added:change_summary.md", "modified:src/lib.rs", "deleted:stale.txt"],
+  "Codex apply_patch → all file-ops from the patch envelope, exact verbs",
+);
+assert.deepEqual(
+  kinds({ tool_name: "Bash", tool_input: { command: "echo hi > out.log" } }),
+  [],
+  "Bash names no extractable path (reconcile's job)",
+);
+assert.deepEqual(
+  kinds({ tool_name: "Read", tool_input: { file_path: "src/app.ts" } }),
+  [],
+  "Read is not a mutation → no changed path",
+);
+// A body context line that literally reads like a header (single-space prefix)
+// must NOT masquerade as a file-op — the `***` is anchored at column 0.
+assert.deepEqual(
+  kinds({
+    tool_name: "apply_patch",
+    tool_input: { command: "*** Begin Patch\n*** Update File: real.ts\n *** Add File: decoy.ts\n*** End Patch" },
+  }),
+  ["modified:real.ts"],
+  "a space-prefixed body line is not a header (no decoy op)",
+);
+
+// (S6-2) recordToolChanges attributes to the active run with source:"tool" and
+// derives artifactCandidates from the SAME paths (.md is an artifact, .txt is not).
+{
+  const d2 = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-s6-tool-"));
+  const idx = new RunIndex({ taskId: "t", reportPath: path.join(d2, "report.json") });
+  idx.consume(runStarted("run-A", "make files", "pid-A", T0));
+
+  idx.recordToolChanges("run-A", [
+    { path: "change_summary.md", absolutePath: "/ws/change_summary.md", changeKind: "added", tool: "apply_patch" },
+    { path: "change_notes.txt", absolutePath: "/ws/change_notes.txt", changeKind: "added", tool: "apply_patch" },
+  ]);
+
+  const runA = idx.read().runs.find((r) => r.runId === "run-A");
+  assert.deepEqual(
+    runA.changedFiles.map((c) => `${c.source}/${c.tool}:${c.path}`),
+    ["tool/apply_patch:change_summary.md", "tool/apply_patch:change_notes.txt"],
+    "tool changes recorded with source:'tool' + tool name on the active run",
+  );
+  assert.deepEqual(
+    runA.artifactCandidates.map((a) => a.path),
+    ["change_summary.md"],
+    "artifactCandidates derives from tool paths — .md yes, .txt no",
+  );
+
+  // (S6-3) Reconcile fills only the gaps: a Bash-created path lands source:
+  // "reconcile"; a path already tool-attributed KEEPS its source:"tool" entry.
+  idx.consume({
+    type: "run:reconciled",
+    payload: {
+      taskId: "t",
+      runId: "run-A",
+      changes: [
+        // A Bash-mediated edit the tool channel never named → new reconcile entry.
+        { path: "build.log", absolutePath: "/ws/build.log", changeKind: "added", type: "file", size: 12, sha256: null },
+        // Already tool-attributed → reconcile must NOT clobber source:"tool".
+        { path: "change_summary.md", absolutePath: "/ws/change_summary.md", changeKind: "modified", type: "file", size: 9, sha256: null },
+      ],
+    },
+    ts: "2026-07-03T10:05:00.000Z",
+  });
+
+  const runA2 = idx.read().runs.find((r) => r.runId === "run-A");
+  const bySource = Object.fromEntries(runA2.changedFiles.map((c) => [c.path, c.source]));
+  assert.equal(bySource["build.log"], "reconcile", "Bash-mediated path attributed via reconcile");
+  assert.equal(
+    bySource["change_summary.md"],
+    "tool",
+    "reconcile did NOT overwrite the tool attribution of an already-named path",
+  );
+  assert.equal(
+    runA2.changedFiles.length,
+    3,
+    "reconcile added exactly the one unattributed path (no duplicate of the tool path)",
+  );
+
+  // (S6-4) A tool change with no owning run falls to the unassigned bucket.
+  idx.recordToolChanges(null, [
+    { path: "orphan.md", absolutePath: "/ws/orphan.md", changeKind: "added", tool: "Write" },
+  ]);
+  assert.ok(
+    idx.read().unassignedChanges.some((c) => c.path === "orphan.md" && c.source === "tool"),
+    "a null-run tool change lands in unassignedChanges with source:'tool'",
+  );
+
+  idx.dispose?.();
+  fs.rmSync(d2, { recursive: true, force: true });
+}
+
 console.log("run-attribution smoke: OK");
