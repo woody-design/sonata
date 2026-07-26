@@ -5,6 +5,7 @@ import type { ChangeKind, RunId, TaskId } from "../../shared/types/domain";
 import type { ResolveRunIdInput } from "../provider-transcript";
 import type { RunIndexEvent, RuntimeEvent } from "../../shared/types/events";
 import { normalizePromptForMatch } from "../../shared/prompt-markers";
+import { shouldIgnorePath } from "../ignore-path";
 import { Projection, type ProjectionTimers } from "../projection";
 import {
   freshRuntimeReportV1,
@@ -106,6 +107,68 @@ export function capReportLists(
     unassignedChanges: tail(report.unassignedChanges, caps.unassignedChanges),
     droppedCounts: dropped,
   };
+}
+
+/**
+ * Retroactively apply today's ingest ignore-filter to an already-persisted
+ * report (OBS follow-up O1a). Pre-OBS builds recorded tens of thousands of
+ * build-output entries (paths under `build/`, `dist/`, `.gradle/`, …) that
+ * `shouldIgnorePath` rejects at ingest today; on every resume the flush train
+ * then kept re-serializing ~1 MB of that legacy noise per write. This drops any
+ * entry today's filter would reject, at rest — the SAME predicate the ingest
+ * gate uses, applied to all three lists that gate guards: `unassignedChanges`,
+ * each run's `changedFiles`, and each run's `artifactCandidates`. Filtering all
+ * three (not only the two the field evidence named) restores the ingest
+ * invariant fully — an ignored path never survives in any derived list, and no
+ * `artifactCandidate` is left orphaned from the `changedFiles` sibling it was
+ * derived from. No new heuristic: same filter, applied once at load BEFORE
+ * `capReportLists`, so the cap then keeps the most-recent tail of what actually
+ * remains and the first flush is already slim.
+ *
+ * Pure and side-effect-free (mirrors `capReportLists`): returns a new report,
+ * mutates neither the input nor its lists. Removed entries fold into the
+ * existing per-list `droppedCounts` rather than a distinct counter — a retro
+ * ignore-drop is the same family the caps already tally (noise removed from a
+ * bounded list, made visible, never silent — incident F3), and it is a one-time
+ * per-legacy-report migration number that does not earn a permanent schema
+ * field. Idempotent by construction: once the ignored entries are gone a second
+ * pass drops nothing, so the counts never double (and a report already clean is
+ * returned unchanged, adding no zero-filled `droppedCounts`).
+ */
+export function dropIgnoredPaths(
+  report: RuntimeReportV1,
+  isIgnored: (relativePath: string) => boolean = shouldIgnorePath,
+): RuntimeReportV1 {
+  const dropped: RuntimeReportDroppedCounts = {
+    changedFiles: report.droppedCounts?.changedFiles ?? 0,
+    unassignedChanges: report.droppedCounts?.unassignedChanges ?? 0,
+    artifactCandidates: report.droppedCounts?.artifactCandidates ?? 0,
+  };
+  let mutated = false;
+
+  const runs = report.runs.map((run) => {
+    const changedFiles = run.changedFiles.filter((change) => !isIgnored(change.path));
+    const artifactCandidates = run.artifactCandidates.filter((artifact) => !isIgnored(artifact.path));
+    const changedDrop = run.changedFiles.length - changedFiles.length;
+    const artifactDrop = run.artifactCandidates.length - artifactCandidates.length;
+    if (changedDrop === 0 && artifactDrop === 0) {
+      return run;
+    }
+    mutated = true;
+    dropped.changedFiles += changedDrop;
+    dropped.artifactCandidates += artifactDrop;
+    return { ...run, changedFiles, artifactCandidates };
+  });
+
+  const unassignedChanges = report.unassignedChanges.filter((change) => !isIgnored(change.path));
+  const unassignedDrop = report.unassignedChanges.length - unassignedChanges.length;
+  dropped.unassignedChanges += unassignedDrop;
+
+  if (!mutated && unassignedDrop === 0) {
+    return report;
+  }
+
+  return { ...report, runs, unassignedChanges, droppedCounts: dropped };
 }
 
 /**
@@ -827,17 +890,23 @@ function readExistingReport(reportPath: string, taskId: TaskId): RuntimeReportV1
       return freshRuntimeReportV1(taskId);
     }
     // Compact on load: the existing 26 MB / 11 MB field reports carry tens of
-    // thousands of build-noise entries. Capping here means the next persist
-    // rewrites them bounded, so a resume no longer parses (or re-writes) a
-    // multi-MB file (OBS S0 / incident §7 last bullet).
-    return capReportLists({
-      ...parsed,
-      taskId,
-      rawTerminalPointer: null,
-      // Field added in 2c; reports written before it lack the key.
-      unassignedApprovals: parsed.unassignedApprovals ?? [],
-      runs: parsed.runs.map((run) => ({ ...run, taskId, rawTerminalPointer: null })),
-    });
+    // thousands of build-noise entries. Two passes, in order: (1) drop entries
+    // today's ingest ignore-filter would reject — pre-OBS build-output paths the
+    // filter did not yet exist to stop at the source (OBS follow-up O1a); THEN
+    // (2) cap what remains to its most-recent tail. Filter-before-cap keeps more
+    // legitimate entries than the reverse. The next persist rewrites the report
+    // bounded, so a resume no longer parses (or re-writes) a multi-MB file
+    // (OBS S0 / incident §7 last bullet).
+    return capReportLists(
+      dropIgnoredPaths({
+        ...parsed,
+        taskId,
+        rawTerminalPointer: null,
+        // Field added in 2c; reports written before it lack the key.
+        unassignedApprovals: parsed.unassignedApprovals ?? [],
+        runs: parsed.runs.map((run) => ({ ...run, taskId, rawTerminalPointer: null })),
+      }),
+    );
   } catch {
     return freshRuntimeReportV1(taskId);
   }

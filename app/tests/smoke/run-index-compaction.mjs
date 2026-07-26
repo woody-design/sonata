@@ -4,15 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-// OBS S0 — the write-amplification stopgap. Covers the two S0 surfaces:
+// OBS S0 — the write-amplification stopgap. Covers the S0 surfaces plus the
+// O1a retroactive ignore-filter compaction:
 //   1. capReportLists  — the pure, idempotent, accumulating cap helper (F3),
 //      reused by S2 at append time.
 //   2. readExistingReport — compacts the bloated 26 MB field reports on load
 //      (incident §7 last bullet), verified through the RunIndex constructor.
 //   3. shouldIgnorePath — the extended build/derived-output ignore list (F2),
 //      the single funnel for both the fs.watch path and the poll fallback.
+//   4. dropIgnoredPaths — the load-time retroactive application of that same
+//      ignore filter to already-persisted entries (OBS follow-up O1a), pure +
+//      idempotent, folded into droppedCounts, and wired into readExistingReport.
 const require = createRequire(import.meta.url);
-const { RunIndex, capReportLists, DEFAULT_REPORT_LIST_CAPS, shouldIgnorePath } =
+const { RunIndex, capReportLists, dropIgnoredPaths, DEFAULT_REPORT_LIST_CAPS, shouldIgnorePath } =
   require("../../dist/runtime");
 
 const SCHEMA_ID = "sonata.runtime-report.v1";
@@ -75,6 +79,25 @@ const makeReport = (overrides = {}) => ({
 
 const buildChanges = (n) => Array.from({ length: n }, (_, i) => change(i));
 const buildArtifacts = (n) => Array.from({ length: n }, (_, i) => artifact(i));
+
+// Legitimate (non-ignored) fixtures — the base `change`/`artifact` builders sit
+// under `build/` and `out/`, which today's ignore filter (O1a) now rejects at
+// load. Tests that mean to exercise ONLY the cap (not the retro-filter) use
+// these so the entries survive the filter and reach `capReportLists`.
+const legitChange = (i) => ({
+  ...change(i),
+  path: `src/mod-${i}/index-${i}.ts`,
+  absolutePath: `~/proj/src/mod-${i}/index-${i}.ts`,
+});
+const legitArtifact = (i) => ({ ...artifact(i), path: `notes/report-${i}.md` });
+const buildLegitChanges = (n) => Array.from({ length: n }, (_, i) => legitChange(i));
+const buildLegitArtifacts = (n) => Array.from({ length: n }, (_, i) => legitArtifact(i));
+
+// An artifact-extension path UNDER an ignored dir (`dist/`) — the retro-filter
+// (O1a) must reject it. (The base `artifact` builder's `exp/poem/out-N.md` is
+// NOT ignored: `out-N.md` is a filename segment, not the `out` dir segment.)
+const ignoredArtifact = (i) => ({ ...artifact(i), path: `dist/asset-${i}.md` });
+const buildIgnoredArtifacts = (n) => Array.from({ length: n }, (_, i) => ignoredArtifact(i));
 
 // ---------------------------------------------------------------------------
 // 1) capReportLists — caps, records dropped counts, preserves the tail, pure.
@@ -178,7 +201,8 @@ const buildArtifacts = (n) => Array.from({ length: n }, (_, i) => artifact(i));
 
 // ---------------------------------------------------------------------------
 // 5) readExistingReport compacts a bloated on-disk report through the RunIndex
-//    constructor, and the next persist rewrites it bounded.
+//    constructor, and the next persist rewrites it bounded. Legitimate paths so
+//    only the CAP is exercised here (the retro ignore-filter is proved in 8).
 // ---------------------------------------------------------------------------
 
 {
@@ -186,8 +210,8 @@ const buildArtifacts = (n) => Array.from({ length: n }, (_, i) => artifact(i));
   const reportPath = path.join(dir, "runtime-report.json");
 
   const bloated = makeReport({
-    runs: [run("run-1", buildChanges(20000), buildArtifacts(1000))],
-    unassignedChanges: buildChanges(30000),
+    runs: [run("run-1", buildLegitChanges(20000), buildLegitArtifacts(1000))],
+    unassignedChanges: buildLegitChanges(30000),
   });
   fs.writeFileSync(reportPath, `${JSON.stringify(bloated)}\n`);
   const bloatedSize = fs.statSync(reportPath).size;
@@ -273,6 +297,123 @@ const buildArtifacts = (n) => Array.from({ length: n }, (_, i) => artifact(i));
     assert.equal(shouldIgnorePath(p), false, `kept: ${JSON.stringify(p)}`);
   }
   console.log("  [6] shouldIgnorePath ignore list (segment-anywhere, substring-safe): OK");
+}
+
+// ---------------------------------------------------------------------------
+// 7) dropIgnoredPaths — the retroactive ingest-filter compaction (OBS O1a).
+//    Today's shouldIgnorePath applied at REST, across ALL THREE gated lists
+//    (changedFiles, unassignedChanges, artifactCandidates); dropped entries fold
+//    into the existing per-list droppedCounts; pure, idempotent, and a clean
+//    report is returned untouched.
+// ---------------------------------------------------------------------------
+
+{
+  // Mixed fixture: build-output noise the ingest filter rejects today (change(i)
+  // is under `build/`, artifact(i) under `out/`) + legitimate paths it keeps.
+  const report = makeReport({
+    runs: [
+      run(
+        "run-1",
+        [change(0), change(1), change(2), legitChange(0), legitChange(1)], // 3 ignored + 2 kept
+        [ignoredArtifact(0), legitArtifact(0)], // ignored is under `dist/`; legit kept
+      ),
+    ],
+    unassignedChanges: [change(3), change(4), legitChange(2)], // 2 ignored + 1 kept
+  });
+  const before = JSON.stringify(report);
+
+  const filtered = dropIgnoredPaths(report);
+
+  assert.deepEqual(
+    filtered.runs[0].changedFiles.map((c) => c.path),
+    [legitChange(0).path, legitChange(1).path],
+    "run changedFiles keeps only the non-ignored paths",
+  );
+  assert.deepEqual(
+    filtered.runs[0].artifactCandidates.map((a) => a.path),
+    [legitArtifact(0).path],
+    "run artifactCandidates keeps only the non-ignored paths",
+  );
+  assert.deepEqual(
+    filtered.unassignedChanges.map((c) => c.path),
+    [legitChange(2).path],
+    "unassignedChanges keeps only the non-ignored paths",
+  );
+  assert.deepEqual(
+    filtered.droppedCounts,
+    { changedFiles: 3, unassignedChanges: 2, artifactCandidates: 1 },
+    "retro-filtered entries fold into the per-list droppedCounts",
+  );
+
+  // Fold-IN (not replace): pre-existing counts accumulate, they are never reset.
+  const seeded = {
+    ...report,
+    droppedCounts: { changedFiles: 10, unassignedChanges: 20, artifactCandidates: 5 },
+  };
+  assert.deepEqual(
+    dropIgnoredPaths(seeded).droppedCounts,
+    { changedFiles: 13, unassignedChanges: 22, artifactCandidates: 6 },
+    "retro-drops accumulate onto existing droppedCounts",
+  );
+
+  // Purity, idempotence, and clean-report pass-through.
+  assert.equal(JSON.stringify(report), before, "dropIgnoredPaths mutates nothing (pure)");
+  assert.equal(report.droppedCounts, undefined, "input gains no droppedCounts field");
+  assert.deepEqual(dropIgnoredPaths(filtered), filtered, "idempotent: a filtered report drops nothing further");
+  const clean = makeReport({
+    runs: [run("run-1", buildLegitChanges(3), buildLegitArtifacts(2))],
+    unassignedChanges: buildLegitChanges(2),
+  });
+  assert.equal(dropIgnoredPaths(clean), clean, "a report with no ignored paths is returned unchanged (same ref)");
+  console.log("  [7] dropIgnoredPaths retro-filter (all three lists, folded counts, pure/idempotent): OK");
+}
+
+// ---------------------------------------------------------------------------
+// 8) The retro-filter fires through the RunIndex load path (readExistingReport)
+//    end to end: a report a pre-OBS build wrote (every path under an ignored
+//    build-output dir) loads to empty lists with the drops recorded, and the
+//    persisted file shrinks. Also pins the path-shape contract — the entries'
+//    workspace-relative `path` is exactly what shouldIgnorePath consumes.
+// ---------------------------------------------------------------------------
+
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-retro-ignore-"));
+  const reportPath = path.join(dir, "runtime-report.json");
+
+  // Sanity: the fixtures ARE paths today's ingest filter rejects.
+  assert.equal(shouldIgnorePath(change(0).path), true, "fixture changedFiles path is ignorable");
+  assert.equal(shouldIgnorePath(ignoredArtifact(0).path), true, "fixture artifact path is ignorable");
+
+  const bloated = makeReport({
+    runs: [run("run-1", buildChanges(4000), buildIgnoredArtifacts(300))],
+    unassignedChanges: buildChanges(2000),
+  });
+  fs.writeFileSync(reportPath, `${JSON.stringify(bloated)}\n`);
+  const bloatedSize = fs.statSync(reportPath).size;
+
+  const index = new RunIndex({ taskId: "t", reportPath, loadExisting: true });
+  const loaded = index.read();
+
+  assert.equal(loaded.runs[0].changedFiles.length, 0, "all ignored changedFiles retro-filtered on load");
+  assert.equal(loaded.runs[0].artifactCandidates.length, 0, "all ignored artifactCandidates retro-filtered on load");
+  assert.equal(loaded.unassignedChanges.length, 0, "all ignored unassignedChanges retro-filtered on load");
+  assert.deepEqual(
+    loaded.droppedCounts,
+    { changedFiles: 4000, unassignedChanges: 2000, artifactCandidates: 300 },
+    "the retro-filter recorded every dropped entry",
+  );
+
+  const compactedSize = fs.statSync(reportPath).size;
+  assert.ok(compactedSize < bloatedSize / 10, `report shrank on load (${bloatedSize} -> ${compactedSize} bytes)`);
+
+  // Re-load is stable — nothing left to drop.
+  const reindex = new RunIndex({ taskId: "t", reportPath, loadExisting: true });
+  assert.deepEqual(reindex.read().droppedCounts, loaded.droppedCounts, "re-loading drops nothing further");
+
+  index.dispose?.();
+  reindex.dispose?.();
+  fs.rmSync(dir, { recursive: true, force: true });
+  console.log(`  [8] retro-filter through load path (${bloatedSize} -> ${compactedSize} bytes, all ignored dropped): OK`);
 }
 
 console.log("run-index-compaction smoke: OK");
