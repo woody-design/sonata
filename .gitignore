@@ -41,3 +41,9 @@ private/
 # the default flipped back to private: new spikes are ignored, and any spike worth
 # publishing is promoted deliberately, per-file, with `git add -f`.
 spikes/
+
+# electron-builder packaging residue: a trimmed copy of app/package.json (deps
+# only, no scripts) appears at the repo root on each release build. Derived,
+# read by nothing, regenerated per release — never commit it (ruled 2026-07-26,
+# OBS D6).
+/package.json
