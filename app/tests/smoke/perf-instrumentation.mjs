@@ -16,7 +16,10 @@ import { createRequire } from "node:module";
 //   (c) RunIndex WITH onFlushMetrics reports {name, durationMs, bytes} per flush,
 //       and bytes tracks the actual on-disk serialized size;
 //   (d) the perf-log file sink emits greppable [perf:flush] + [perf:event-loop]
-//       lines and stop() is idempotent.
+//       lines and stop() is idempotent;
+//   (e) the event-loop histogram is per-window truthful (OBS follow-up O3):
+//       counts/samples/maxLagMs reset after every summary, so no window's
+//       numbers accumulate into the next.
 const require = createRequire(import.meta.url);
 const { createPerfLog } = require("../../dist/main/perf-log");
 const { RunIndex } = require("../../dist/runtime");
@@ -175,6 +178,46 @@ const runUpdated = () => ({
 
   fs.rmSync(dir, { recursive: true, force: true });
   console.log("  [d] perf-log file sink: [perf:flush] + [perf:event-loop] lines, stop() idempotent: OK");
+}
+
+// ---------------------------------------------------------------------------
+// (e) per-window histogram truth (OBS follow-up O3). Drive several summary
+//     windows in ~1 s via the interval test seam, then prove no window's numbers
+//     bleed into the next. The interval summariser fires on a fixed SAMPLE COUNT
+//     (sinceSummary accrues the nominal sampleMs, not wall time), so each full
+//     window reports EXACTLY summaryMs/sampleMs samples — independent of real
+//     timer jitter. Under the pre-fix cumulative bug those per-line counts would
+//     climb (3, 6, 9, …) toward the session total; the reset pins every line to
+//     its own window, so the max across all lines stays at one window's worth.
+// ---------------------------------------------------------------------------
+{
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-perf-window-"));
+  const sampleMs = 50;
+  const summaryMs = 150; // one interval window == summaryMs/sampleMs == 3 samples
+  const perWindow = summaryMs / sampleMs;
+  const log = createPerfLog(dir, { sampleMs, summaryMs });
+  assert.ok(log, "short-interval flag yields a live perf log");
+
+  // ~24 samples at 50 ms => many full interval windows summarise before stop().
+  await delay(1200);
+  log.stop();
+
+  const files = fs.readdirSync(dir).filter((f) => f.startsWith("perf-") && f.endsWith(".log"));
+  assert.equal(files.length, 1, "the sink wrote exactly one per-run log file");
+  const contents = fs.readFileSync(path.join(dir, files[0]), "utf8");
+  const sampleCounts = [...contents.matchAll(/\[perf:event-loop\] samples=(\d+)/g)].map((m) => Number(m[1]));
+
+  assert.ok(sampleCounts.length >= 2, `several event-loop windows summarised: saw ${sampleCounts.length}`);
+  // The reset proof: each full window reports exactly its own `perWindow` samples,
+  // the final partial (stop) window fewer — so the max across every line is one
+  // window's worth, NOT the accumulating 3/6/9/… the cumulative bug produced.
+  assert.ok(
+    Math.max(...sampleCounts) <= perWindow,
+    `no window accumulates the previous one (each <= ${perWindow}); saw ${JSON.stringify(sampleCounts)}`,
+  );
+
+  fs.rmSync(dir, { recursive: true, force: true });
+  console.log("  [e] event-loop histogram resets per window (no cross-window accumulation): OK");
 }
 
 console.log("perf-instrumentation smoke: OK");

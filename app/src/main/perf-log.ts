@@ -13,6 +13,15 @@ import { join } from "node:path";
  * runs, no histogram exists. Everything below is constructed lazily, only when
  * the flag is set.
  *
+ * IDENTITY BOUNDARY (ratified 2026-07-26). This is a LOCAL, user-initiated
+ * diagnostic: a developer sets `SONATA_PERF_LOG` for a single run to read the
+ * AD-1/AD-2 tripwire numbers, then unsets it. It is NOT a standing switch, NEVER
+ * a settings-UI surface, and NEVER emits over the network or to telemetry — the
+ * lines go only to stderr or a local file the operator named. This is the
+ * recorded rejection of any future "auto-upload the perf log" proposal: the
+ * instrument earns its place by costing nothing when off and leaving the machine
+ * only by the operator's own hand.
+ *
  * `SONATA_PERF_LOG` shape (chosen to mirror the recorder's dir semantics, plus a
  * `1` convenience for interactive runs):
  *   - unset / "" / "0"  → disabled (returns null).
@@ -23,9 +32,12 @@ import { join } from "node:path";
  *
  * Two evidence streams, both one greppable `[perf:*]` line:
  *   - `[perf:event-loop]` — a coarse 500 ms drift sampler → p50/p95/max histogram,
- *     summarised every ~30 s and once at quit (`stop()`). This is the AD-1
- *     "does the main loop stall under load, i.e. should persistence move to a
- *     utilityProcess" tripwire.
+ *     summarised every ~30 s and once at quit (`stop()`). Each summary reports ITS
+ *     OWN window: the histogram (counts/samples/max) is reset after every line, so
+ *     a single lag spike colours one 30 s window instead of echoing into every
+ *     summary after it (OBS follow-up O3), and `stop()` emits the final partial
+ *     window. This is the AD-1 "does the main loop stall under load, i.e. should
+ *     persistence move to a utilityProcess" tripwire.
  *   - `[perf:flush]` — per run-index flush: wall duration + serialized size. The
  *     duration times the WRITE path only (materialize + serialize + write +
  *     rename); it deliberately EXCLUDES the trailing `report:updated` notify
@@ -48,7 +60,7 @@ export interface FlushMetric {
 export interface PerfLog {
   /** Record one run-index flush (duration + serialized size). */
   recordFlush(metric: FlushMetric): void;
-  /** Emit the final event-loop-lag summary and disarm the sampler. Idempotent. */
+  /** Emit the final (partial-window) event-loop-lag summary and disarm the sampler. Idempotent. */
   stop(): void;
 }
 
@@ -61,10 +73,19 @@ const LAG_BUCKETS_MS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
  * Build the live perf log when `SONATA_PERF_LOG` is set, else `null` — the null
  * IS the AD-0 zero-cost-when-off guarantee (no sampler, no timers, no state).
  */
-export function createPerfLog(value: string | undefined = process.env.SONATA_PERF_LOG): PerfLog | null {
+export function createPerfLog(
+  value: string | undefined = process.env.SONATA_PERF_LOG,
+  options: { sampleMs?: number; summaryMs?: number } = {},
+): PerfLog | null {
   if (!value || value === "0") {
     return null;
   }
+  // The intervals are constants in normal use; these two overrides exist ONLY as
+  // a test seam (mirrors the hand-driven clocks the run-index smokes inject) so a
+  // smoke can drive several summary windows in under a second and assert the
+  // per-window histogram reset. Absent overrides, the shipped 500 ms / 30 s hold.
+  const sampleMs = options.sampleMs ?? SAMPLE_MS;
+  const summaryMs = options.summaryMs ?? SUMMARY_MS;
   const write = makeSink(value);
 
   // --- event-loop-lag sampler: 40-odd lines, imports nothing app-level -------
@@ -84,7 +105,7 @@ export function createPerfLog(value: string | undefined = process.env.SONATA_PER
     // can read high WITHOUT the loop being blocked. Read the AD-1 tripwire numbers
     // as loop-blocking only on AC power / a foreground app; treat battery-mode
     // inflation as measurement noise, not a real stall.
-    const lagMs = Math.max(0, elapsedMs - SAMPLE_MS);
+    const lagMs = Math.max(0, elapsedMs - sampleMs);
     let bucket = LAG_BUCKETS_MS.findIndex((bound) => lagMs <= bound);
     if (bucket === -1) {
       bucket = LAG_BUCKETS_MS.length;
@@ -94,9 +115,9 @@ export function createPerfLog(value: string | undefined = process.env.SONATA_PER
     if (lagMs > maxLagMs) {
       maxLagMs = lagMs;
     }
-    sinceSummary += SAMPLE_MS;
-    if (sinceSummary >= SUMMARY_MS) {
-      summarize(SUMMARY_MS / 1000);
+    sinceSummary += sampleMs;
+    if (sinceSummary >= summaryMs) {
+      summarize(summaryMs / 1000);
       sinceSummary = 0;
     }
   };
@@ -110,9 +131,17 @@ export function createPerfLog(value: string | undefined = process.env.SONATA_PER
     write(
       `[perf:event-loop] samples=${samples} p50<=${p50}ms p95<=${p95}ms max=${maxLagMs.toFixed(1)}ms window~${windowSec}s`,
     );
+    // Per-window truth (OBS follow-up O3): clear the histogram after each line so
+    // the NEXT summary reports only its own window. Before this, counts/samples/
+    // maxLagMs were cumulative since process start while every line was labelled
+    // `window~30s`, so one 73 ms spike echoed into every later summary (misread in
+    // the field as "221 windows >50ms") and p50/p95 were session-cumulative mush.
+    counts.fill(0);
+    samples = 0;
+    maxLagMs = 0;
   };
 
-  const timer = setInterval(sample, SAMPLE_MS);
+  const timer = setInterval(sample, sampleMs);
   // Must never keep the process alive on its own (matches every other main-loop timer).
   timer.unref?.();
 
@@ -130,7 +159,7 @@ export function createPerfLog(value: string | undefined = process.env.SONATA_PER
       }
       stopped = true;
       clearInterval(timer);
-      summarize(Math.round((samples * SAMPLE_MS) / 1000) || 0);
+      summarize(Math.round((samples * sampleMs) / 1000) || 0);
     },
   };
 }
