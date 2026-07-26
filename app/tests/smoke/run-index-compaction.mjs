@@ -99,6 +99,22 @@ const buildLegitArtifacts = (n) => Array.from({ length: n }, (_, i) => legitArti
 const ignoredArtifact = (i) => ({ ...artifact(i), path: `dist/asset-${i}.md` });
 const buildIgnoredArtifacts = (n) => Array.from({ length: n }, (_, i) => ignoredArtifact(i));
 
+// A tool-attributed change (S6 semantic channel, source:"tool"). The ingest gate
+// never filtered this channel, so the retro-filter (R1) keeps such entries even
+// under an ignored dir. Legacy watcher noise, by contrast, carries NO `source`.
+const toolChange = (relPath) => ({
+  ts: "2026-07-25T00:00:00.000Z",
+  path: relPath,
+  absolutePath: `~/proj/${relPath}`,
+  changeKind: "modified",
+  eventType: "tool",
+  type: "file",
+  size: null,
+  sha256: null,
+  source: "tool",
+  tool: "Write",
+});
+
 // ---------------------------------------------------------------------------
 // 1) capReportLists — caps, records dropped counts, preserves the tail, pure.
 // ---------------------------------------------------------------------------
@@ -414,6 +430,65 @@ const buildIgnoredArtifacts = (n) => Array.from({ length: n }, (_, i) => ignored
   reindex.dispose?.();
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(`  [8] retro-filter through load path (${bloatedSize} -> ${compactedSize} bytes, all ignored dropped): OK`);
+}
+
+// ---------------------------------------------------------------------------
+// 9) Tool-provenance exemption (R1). The S6 semantic channel deliberately ingests
+//    tool edits under build-named dirs as real work — ingest never filters them —
+//    so the retro-filter must not either. Entries with source:"tool" under an
+//    ignored dir SURVIVE; non-tool (watcher/legacy) ignored entries still drop.
+//    artifactCandidates carry no `source`, so an ignored-path artifact survives
+//    iff a changedFiles entry for its path survived (was tool-attributed).
+// ---------------------------------------------------------------------------
+
+{
+  const report = makeReport({
+    runs: [
+      run(
+        "run-1",
+        [
+          toolChange("dist/manifest.json"), // ignored dir, source:tool  -> KEEP
+          change(0), //                        build/ path, no source     -> DROP
+          toolChange("src/app/main.ts"), //    legit, source:tool         -> KEEP
+          legitChange(0), //                   legit, no source           -> KEEP
+          toolChange("dist/report.html"), //   backs the tool artifact    -> KEEP
+        ],
+        [
+          { path: "dist/report.html", changeKind: "modified", type: "html" }, // backed by surviving tool change -> KEEP
+          ignoredArtifact(0), //               dist/asset-0.md, no backing survivor -> DROP
+          legitArtifact(0), //                 notes/report-0.md, not ignored       -> KEEP
+        ],
+      ),
+    ],
+    unassignedChanges: [
+      toolChange("out/bundle.js"), // ignored dir, source:tool -> KEEP
+      change(1), //                   build/ path, no source   -> DROP
+    ],
+  });
+
+  const filtered = dropIgnoredPaths(report);
+
+  assert.deepEqual(
+    filtered.runs[0].changedFiles.map((c) => c.path),
+    ["dist/manifest.json", "src/app/main.ts", legitChange(0).path, "dist/report.html"],
+    "tool-attributed entries under ignored dirs survive; non-tool ignored dropped",
+  );
+  assert.deepEqual(
+    filtered.runs[0].artifactCandidates.map((a) => a.path),
+    ["dist/report.html", legitArtifact(0).path],
+    "ignored artifact survives iff backed by a surviving (tool) changedFiles path",
+  );
+  assert.deepEqual(
+    filtered.unassignedChanges.map((c) => c.path),
+    ["out/bundle.js"],
+    "tool-attributed unassigned change under an ignored dir survives; legacy dropped",
+  );
+  assert.deepEqual(
+    filtered.droppedCounts,
+    { changedFiles: 1, unassignedChanges: 1, artifactCandidates: 1 },
+    "only the non-tool ignored entries are counted as dropped",
+  );
+  console.log("  [9] tool-provenance exemption: source:'tool' entries under ignored dirs survive the retro-filter: OK");
 }
 
 console.log("run-index-compaction smoke: OK");

@@ -116,14 +116,30 @@ export function capReportLists(
  * `shouldIgnorePath` rejects at ingest today; on every resume the flush train
  * then kept re-serializing ~1 MB of that legacy noise per write. This drops any
  * entry today's filter would reject, at rest — the SAME predicate the ingest
- * gate uses, applied to all three lists that gate guards: `unassignedChanges`,
- * each run's `changedFiles`, and each run's `artifactCandidates`. Filtering all
- * three (not only the two the field evidence named) restores the ingest
- * invariant fully — an ignored path never survives in any derived list, and no
- * `artifactCandidate` is left orphaned from the `changedFiles` sibling it was
- * derived from. No new heuristic: same filter, applied once at load BEFORE
- * `capReportLists`, so the cap then keeps the most-recent tail of what actually
- * remains and the first flush is already slim.
+ * gate uses, applied to the lists that gate guards: `unassignedChanges`, each
+ * run's `changedFiles`, and (indirectly) each run's `artifactCandidates`. No new
+ * heuristic: same filter, applied once at load BEFORE `capReportLists`, so the
+ * cap then keeps the most-recent tail of what actually remains and the first
+ * flush is already slim.
+ *
+ * TOOL-PROVENANCE EXEMPTION (R1). The ratified mechanism is "drop what today's
+ * INGEST would reject", and ingest is NOT uniform: the fs.watch/poll and
+ * turn-boundary reconcile channels ARE `shouldIgnorePath`-gated, but the S6
+ * semantic channel (`recordToolChanges`, fed by PostToolUse) is DELIBERATELY not
+ * — an agent editing `dist/manifest.json` via a tool IS user-visible work, and
+ * within a session the tool channel is the only thing that captures it. So a
+ * `source: "tool"` entry under an ignored dir would survive ingest today; a
+ * uniform retro-filter that erased it at rest would over-approximate the
+ * mechanism's own definition and leave a `source: "tool"` entry's lifecycle
+ * incoherent (captured live, erased on resume). We therefore keep any entry that
+ * is `source: "tool"` even under an ignored dir. This costs zero legacy cleanup:
+ * the field-evidence bloat is pre-S6 WATCHER noise whose entries carry no
+ * `source` at all (schema: `source` is absent on pre-S6 reports), so the guard
+ * exempts none of it. `artifactCandidates` carry no `source` field of their own,
+ * so their provenance is read indirectly — an ignored-path artifact survives iff
+ * a `changedFiles` entry for the same path survived (i.e. was tool-attributed),
+ * keeping artifacts a subset of the surviving changed paths exactly as the
+ * ingest-time `appendChange` does.
  *
  * Pure and side-effect-free (mirrors `capReportLists`): returns a new report,
  * mutates neither the input nor its lists. Removed entries fold into the
@@ -146,9 +162,23 @@ export function dropIgnoredPaths(
   };
   let mutated = false;
 
+  // A file change survives when its path is not ignored OR it is tool-attributed
+  // (`source: "tool"`) — the ingest gate never filtered the S6 semantic channel,
+  // so neither may the retro-filter (see the TOOL-PROVENANCE EXEMPTION above).
+  const keepChange = (change: RuntimeFileChangeReport): boolean =>
+    !isIgnored(change.path) || change.source === "tool";
+
   const runs = report.runs.map((run) => {
-    const changedFiles = run.changedFiles.filter((change) => !isIgnored(change.path));
-    const artifactCandidates = run.artifactCandidates.filter((artifact) => !isIgnored(artifact.path));
+    const changedFiles = run.changedFiles.filter(keepChange);
+    // Artifacts carry no `source`; read provenance indirectly — an ignored-path
+    // artifact survives iff its path survived in `changedFiles` (i.e. it was
+    // tool-attributed). This preserves the ingest invariant that artifacts are a
+    // subset of the surviving changed paths, so no tool-backed artifact is
+    // orphaned and no watcher-noise artifact is kept.
+    const survivingChanged = new Set(changedFiles.map((change) => change.path));
+    const artifactCandidates = run.artifactCandidates.filter(
+      (artifact) => !isIgnored(artifact.path) || survivingChanged.has(artifact.path),
+    );
     const changedDrop = run.changedFiles.length - changedFiles.length;
     const artifactDrop = run.artifactCandidates.length - artifactCandidates.length;
     if (changedDrop === 0 && artifactDrop === 0) {
@@ -160,7 +190,7 @@ export function dropIgnoredPaths(
     return { ...run, changedFiles, artifactCandidates };
   });
 
-  const unassignedChanges = report.unassignedChanges.filter((change) => !isIgnored(change.path));
+  const unassignedChanges = report.unassignedChanges.filter(keepChange);
   const unassignedDrop = report.unassignedChanges.length - unassignedChanges.length;
   dropped.unassignedChanges += unassignedDrop;
 
