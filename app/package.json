@@ -1,6 +1,6 @@
 {
   "name": "sonata-app",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "Sonata — a desktop workspace for CLI coding agents.",
   "author": "Woody Li",
