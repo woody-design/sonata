@@ -137,7 +137,7 @@ export function buildUpdaterDialog(outcome: InteractiveCheckOutcome): UpdaterDia
         title: "Update available",
         body:
           `Sonata ${outcome.version} is downloading in the background. ` +
-          "The Update button will appear in the sidebar when it's ready.",
+          "The Restart to Update button will appear in the sidebar when it's ready.",
         ...DISMISS_ONLY,
       };
     case "already-downloading":
@@ -145,13 +145,14 @@ export function buildUpdaterDialog(outcome: InteractiveCheckOutcome): UpdaterDia
         title: "Update on its way",
         body:
           "An update is downloading in the background. " +
-          "The Update button will appear in the sidebar when it's ready.",
+          "The Restart to Update button will appear in the sidebar when it's ready.",
         ...DISMISS_ONLY,
       };
     case "staged":
       // "Restart to Update" is the default (index 0); "Later" cancels. The
       // restart routes through requestRestart — the restart-guard reducer governs
-      // it exactly as the pill's second click does.
+      // it exactly as the pill's click does. Dialog and pill now share the label
+      // AND the one-click semantics (2026-07-27).
       return {
         title: "Update ready",
         body: `Sonata ${outcome.version} is ready to install.`,

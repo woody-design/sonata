@@ -903,14 +903,27 @@ body.sidebar-resizing {
   text-transform: none;
 }
 
-/* Auto-update pill (S2). The slot pins the pill to the sidebar's bottom-right
-   (the session list flexes above it); display:none when empty so idle reserves
-   no space. */
-.sidebar-update-slot {
+/* Sidebar footer: the always-present bottom row (the session list flexes above
+   it) — Settings on the left, the update pill's slot on the right, centered
+   against each other. Unlike the update slot it replaced — which was
+   display:none whenever no update was staged, i.e. nearly always — this row is
+   permanent chrome: the sidebar now ends in ~50px of footer at idle, the cost
+   of giving Settings a visible home. The slot's old padding envelope moved here
+   so the pill sits where it always did when it does appear. */
+.sidebar-footer {
   flex: 0 0 auto;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
   padding: var(--space-8) var(--space-8) var(--space-12);
+}
+
+/* The pill's slot: display:none when no update is staged, so idle reserves no
+   space for it while the footer itself stays visible. */
+.sidebar-update-slot {
+  display: flex;
+  align-items: center;
 }
 
 .sidebar-update-slot.hidden {
@@ -924,21 +937,23 @@ body.sidebar-resizing {
    color — that distinction is why the engineer's original hex was retired and
    this is fine). Label is white on the fill (--text-on-accent, mode-invariant).
    Hover uses the filled-accent precedent — the quote-comment trigger's
-   `transform: scale`, NOT a brightness filter; press settles it back. Updating…
-   fades via opacity, the sidebar's own disabled-item convention (0.55). This
-   rule owns color + geometry (pill shape + bottom-right placement); labels,
-   placement, and behavior are unchanged. */
+   `transform: scale`, NOT a brightness filter; press settles it back. The
+   disabled in-flight state fades via opacity, the sidebar's own disabled-item
+   convention (0.55). Scale (2026-07-27): 12px / 24px — chip scale, so the pill
+   reads as one quiet element of the footer row beside the 30px Settings icon
+   rather than a banner. This rule owns color + geometry; the labels and the
+   one-click behavior live in view/update-button.ts. */
 .sidebar-update-button {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
-  padding: 0 var(--space-16);
+  min-height: 24px;
+  padding: 0 10px;
   border: none;
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--text-on-accent);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   transition: transform 80ms ease;

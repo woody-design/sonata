@@ -25,6 +25,7 @@ function queryElements() {
     sidebarToggle: getElement<HTMLButtonElement>("sidebar-toggle"),
     sidebarCollapse: getElement<HTMLButtonElement>("sidebar-collapse"),
     sidebarMenuRoot: getElement<HTMLDivElement>("sidebar-menu-root"),
+    sidebarSettings: getElement<HTMLButtonElement>("sidebar-settings"),
     sidebarUpdateSlot: getElement<HTMLDivElement>("sidebar-update-slot"),
     sidebarHoverCardRoot: getElement<HTMLDivElement>("sidebar-hover-card-root"),
     quoteCommentRoot: getElement<HTMLDivElement>("quote-comment-root"),
@@ -102,11 +103,19 @@ export function initDom(): void {
       <nav id="sidebar-sections" class="sidebar-sections" aria-label="Session list">
         <div id="sidebar-list"></div>
       </nav>
-      <!-- Auto-update S2: the update pill's persistent slot, pinned to the
-           sidebar's bottom-right. Empty + display:none unless an update is
-           staged, so the layout reserves no space when there is nothing to do.
-           Sits outside #sidebar-sections so the list rebuild never clears it. -->
-      <div id="sidebar-update-slot" class="sidebar-update-slot hidden"></div>
+      <!-- Sidebar footer: the always-present bottom row. Settings on the left
+           (the app's only visible entry to the settings overlay — the app menu
+           and Cmd+, reach the same place), the update pill's slot on the right,
+           the two centered against each other. The row sits outside
+           #sidebar-sections so the session-list rebuild never clears it. -->
+      <div class="sidebar-footer">
+        <button id="sidebar-settings" class="chrome-icon-button" type="button" aria-label="Settings" data-tooltip="Settings"></button>
+        <!-- Auto-update S2: the update pill's persistent slot. Empty +
+             display:none unless an update is staged, so the footer reserves no
+             space for it when there is nothing to do (update-button.ts
+             render() owns the toggle). The footer itself stays visible. -->
+        <div id="sidebar-update-slot" class="sidebar-update-slot hidden"></div>
+      </div>
     </aside>
     <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" title="Drag to resize · double-click to reset"></div>
     <div class="main-pane">

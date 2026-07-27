@@ -45,14 +45,14 @@ assert.match(source.cli, />New task<\/span>/, "fresh breadcrumb task");
 assert.match(source.main, /title:\s*"Sonata CLI"/, "native CLI window title");
 assert.match(source.cliHtml, /<title>Sonata CLI<\/title>/, "CLI document title");
 
-// Auto-update pill vocabulary (S2). The three button states are the agreed,
+// Auto-update pill vocabulary (S2; re-pinned 2026-07-27 when the pill collapsed
+// to two one-click states). The two button states are the agreed,
 // Woody-approved wording; pin the string LITERALS (not the const-declaration
 // syntax) so the fence tracks the wording — a harmless rename of the constants
 // leaves it green, a softened or drifted label fails it. ("Check for Updates…"
 // is the menu affordance, added by S3.)
-assert.match(source.updateButton, /"Update"/, "update pill resting label");
-assert.match(source.updateButton, /"Restart to Update"/, "update pill armed label");
-assert.match(source.updateButton, /"Updating…"/, "update pill updating label");
+assert.match(source.updateButton, /"Restart to Update"/, "update pill resting label");
+assert.match(source.updateButton, /"Installing…"/, "update pill updating label");
 
 // Auto-update menu + dialog vocabulary (S3). The manual affordance's label and
 // the eight result-dialog title/body strings are the agreed, Woody-approved
@@ -71,9 +71,11 @@ assert.match(source.updaterInteractive, /"Updates disabled"/, "disabled-env dial
 // Dialog bodies (distinctive substrings — some are interpolated or concatenated).
 assert.match(source.updaterInteractive, /is the latest version\./, "up-to-date dialog body");
 assert.match(source.updaterInteractive, /is downloading in the background\./, "downloading dialog body");
+// Names the pill by its label, so the pointer stays true to what the user will
+// actually see (re-pinned 2026-07-27 with the pill's two-state collapse).
 assert.match(
   source.updaterInteractive,
-  /The Update button will appear in the sidebar when it's ready\./,
+  /The Restart to Update button will appear in the sidebar when it's ready\./,
   "downloading dialog sidebar pointer",
 );
 assert.match(source.updaterInteractive, /is ready to install\./, "staged dialog body");

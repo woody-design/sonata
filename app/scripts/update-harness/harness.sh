@@ -331,20 +331,20 @@ cmd_walkthrough() {
       in the background (S3 outcome). Dismiss it.
    2. Watch the app log for the download + stage:
          harness.sh logs        (look for update-downloaded / staged)
-   3. The bottom-right sidebar pill appears: "Update". Click it once.
-   4. It arms to "Restart to Update". Click again.
-   5. It shows "Updating…", the window closes, ShipIt swaps the bundle, and
+   3. The pill appears in the sidebar footer, right of Settings, reading
+      "Restart to Update". Click it ONCE — that single click restarts.
+   4. It shows "Installing…", the window closes, ShipIt swaps the bundle, and
       the app relaunches on v2.
-   6. Verify the swap:
+   5. Verify the swap:
          harness.sh version     → expect $V2
 
   PATH B — autoInstallOnAppQuit (normal quit, no clicking)
-   7. Reset to v1 and relaunch (fresh profile, feed still advertises v2):
+   6. Reset to v1 and relaunch (fresh profile, feed still advertises v2):
          harness.sh reset && harness.sh launch
-   8. Do NOT touch the pill. Wait for the silent background download to stage:
+   7. Do NOT touch the pill. Wait for the silent background download to stage:
          harness.sh logs        (update-downloaded)
-   9. Quit normally (Cmd+Q in the app, or:  harness.sh stop).
-  10. Relaunch and verify the install-on-quit swap took:
+   8. Quit normally (Cmd+Q in the app, or:  harness.sh stop).
+   9. Relaunch and verify the install-on-quit swap took:
          harness.sh launch
          harness.sh version     → expect $V2
 

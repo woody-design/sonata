@@ -1,15 +1,20 @@
 // Auto-update S2 acceptance fence: the sidebar update pill, driven end-to-end
 // through the REAL updater-state broadcast channel from the main side (the same
 // mechanism the sidebar-chrome e2e uses for runtime events — webContents.send on
-// the production channel, no test-only renderer hook). Exercises all four states
-// and the two revert gestures, and asserts the confirm click reaches the restart
-// IPC without ever letting a real quitAndInstall run.
+// the production channel, no test-only renderer hook). Exercises both pill
+// states, asserts the ONE click reaches the restart IPC without ever letting a
+// real quitAndInstall run, and holds the footer's always-visible contract (the
+// pill's slot hides at idle; the Settings entry beside it does not).
+//
+// Re-scoped 2026-07-27 with the pill's two-state collapse: the armed inline
+// confirm and its two revert gestures (timeout, outside click) are gone, so the
+// single click that used to only ARM now restarts.
 //
 // Injection choice: main-side `webContents.send(IPC_CHANNELS.updaterState, …)`
 // drives the exact channel `broadcastUpdaterState` uses, so the preload
 // subscription + renderer wiring are the production path. The restart IPC is
 // OBSERVED by swapping the main-side ipcMain handler for a recorder before the
-// confirm click — this proves the renderer→preload→ipcMain invocation on the
+// restart click — this proves the renderer→preload→ipcMain invocation on the
 // real channel while guaranteeing no ShipIt handoff (the dev gate would no-op it
 // anyway, but the swap makes that independent of the gate).
 
@@ -31,6 +36,10 @@ fs.mkdirSync(outputDir, { recursive: true });
 const UPDATER_STATE_CHANNEL = "updater:state";
 const UPDATER_RESTART_CHANNEL = "updater:restart";
 const STAGED_VERSION = "0.2.0";
+// The retired armed confirm reverted on a 6s timer (ARM_REVERT_MS). Step (c)
+// settles past that window before re-asserting, so a regression that brings
+// back a TIMER-driven dismiss fails here instead of passing a same-tick check.
+const RETIRED_ARM_REVERT_SETTLE_MS = 7_000;
 const viewport = { width: 1280, height: 800 };
 const screenshots = [];
 const pageErrors = [];
@@ -54,53 +63,63 @@ try {
 
   // (a) hidden at idle — the pill reserves no visible space when nothing is
   // staged. Hydration read on boot returns idle (dev gate), so it starts hidden.
+  // The footer around it stays put: its Settings entry is always reachable.
   assertEqual(await button.isVisible(), false, "pill hidden at idle");
   assertEqual(
     await slot.evaluate((element) => getComputedStyle(element).display),
     "none",
     "idle slot reserves no layout (display:none)",
   );
+  assertEqual(
+    await page.locator("#sidebar-settings").isVisible(),
+    true,
+    "footer settings entry visible at idle",
+  );
 
   // (b) appears on staged — a downloaded+staged broadcast lights the resting pill.
   await sendUpdaterState(electronApp, { status: "staged", version: STAGED_VERSION });
   await button.waitFor({ state: "visible" });
-  assertEqual(await button.textContent(), "Update", "resting label");
+  assertEqual(await button.textContent(), "Restart to Update", "resting label");
   assertEqual(
     await button.getAttribute("data-tooltip"),
     `Sonata ${STAGED_VERSION}`,
     "staged-version tooltip",
   );
-  await captureSidebar(page, "01-update");
+  await captureSidebar(page, "01-restart-to-update");
 
-  // (c) arm on click — the inline confirm.
-  await button.click();
-  await waitForLabel(page, "Restart to Update");
-  assertEqual(await button.textContent(), "Restart to Update", "armed label");
-  await captureSidebar(page, "02-armed");
-
-  // (d) auto-revert after the arm timeout (~6s) with no confirmation.
-  await waitForLabel(page, "Update", 12_000);
-  assertEqual(await button.textContent(), "Update", "armed reverts on timeout");
-
-  // (e) revert on outside interaction — arm, then click elsewhere in the sidebar.
-  await button.click();
-  await waitForLabel(page, "Restart to Update");
+  // (c) the resting pill survives unrelated interaction — with the armed
+  // confirm retired there is nothing left to stand down, so a click elsewhere
+  // in the sidebar must leave the label exactly where it is. Asserted twice:
+  // immediately (catches a dismiss re-added to a click handler) and again past
+  // the retired arm-revert window (catches a timer-driven one — the exact shape
+  // of the mechanism this slice deleted, which a same-tick check cannot see).
   await page.locator("#sidebar-new-chat").click();
-  await waitForLabel(page, "Update");
-  assertEqual(await button.textContent(), "Update", "armed reverts on outside click");
+  assertEqual(
+    await button.textContent(),
+    "Restart to Update",
+    "resting label survives an outside click",
+  );
+  await page.waitForTimeout(RETIRED_ARM_REVERT_SETTLE_MS);
+  assertEqual(
+    await button.textContent(),
+    "Restart to Update",
+    "resting label still stands after the retired arm-revert window",
+  );
 
-  // (f) + (g) confirm reaches the restart IPC; the pill goes to a disabled
-  // "Updating…". Swap the main-side handler for a recorder first, so the real
+  // (d) + (e) ONE click reaches the restart IPC; the pill goes to a disabled
+  // "Installing…". Swap the main-side handler for a recorder first, so the real
   // path is exercised up to ipcMain but no quitAndInstall can fire.
   await installRestartRecorder(electronApp);
   await button.click();
-  await waitForLabel(page, "Restart to Update");
-  await button.click();
-  await waitForLabel(page, "Updating…");
-  assertEqual(await button.textContent(), "Updating…", "updating label");
+  await waitForLabel(page, "Installing…");
+  assertEqual(await button.textContent(), "Installing…", "updating label");
   assertEqual(await button.isDisabled(), true, "updating pill is disabled");
-  assertEqual(await readRestartCount(electronApp), 1, "confirm invoked the restart IPC exactly once");
-  await captureSidebar(page, "03-updating");
+  assertEqual(
+    await readRestartCount(electronApp),
+    1,
+    "one click invoked the restart IPC exactly once",
+  );
+  await captureSidebar(page, "02-installing");
 
   assertDeepEqual(pageErrors, [], "renderer page errors");
   console.log(

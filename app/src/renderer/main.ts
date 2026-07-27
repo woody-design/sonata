@@ -4,6 +4,7 @@ import {
   Eye,
   PanelLeft,
   Plus,
+  Settings,
   Smartphone,
   SquareTerminal,
 } from "lucide";
@@ -183,7 +184,7 @@ import {
   renderSidebar,
   renderSidebarMenu,
 } from "./view/sidebar";
-import { initUpdateButton, revertArmedUpdateButton } from "./view/update-button";
+import { initUpdateButton } from "./view/update-button";
 import {
   focusProtectedRenameEditor,
   initRenameEditorView,
@@ -359,7 +360,7 @@ initQuoteComment({
 initBannersView(state);
 initStatusStripView(state);
 initApprovalsView(state);
-initSidebarView(state, { onAnchoredDismiss: () => revertArmedUpdateButton() });
+initSidebarView(state);
 initUpdateButton({
   onUpdaterState: (callback) => window.sonataRuntime.onUpdaterState(callback),
   readUpdaterState: () => window.sonataRuntime.readUpdaterState(),
@@ -764,6 +765,7 @@ elements.readingSettings.append(lucideIcon(CaseSensitive));
 elements.toggleTerminalWindow.append(lucideIcon(SquareTerminal));
 elements.openPreviewWindow.append(lucideIcon(Eye));
 elements.remoteControlToggle.append(lucideIcon(Smartphone));
+elements.sidebarSettings.append(lucideIcon(Settings));
 elements.sidebarNewChat.querySelector(".sidebar-new-chat-icon")?.append(lucideIcon(Plus));
 initTooltips();
 
@@ -879,6 +881,14 @@ elements.sidebarToggle.addEventListener("click", () => {
 
 elements.sidebarNewChat.addEventListener("click", () => {
   runAfterRename(() => startNewChat());
+});
+
+// The sidebar footer's Settings entry — the same overlay the app menu (Cmd+,)
+// opens, now visibly reachable. Routed through runAfterRename like every other
+// sidebar button: the overlay covers the whole window, so an open sidebar
+// rename editor must commit first rather than be stranded behind it.
+elements.sidebarSettings.addEventListener("click", () => {
+  runAfterRename(() => openSettingsOverlay(), { sidebarOnly: true });
 });
 
 elements.sessionMenuTrigger.addEventListener("click", (event) => {
@@ -1907,12 +1917,6 @@ document.addEventListener(
 
 document.addEventListener("click", (event) => {
   const target = event.target;
-  // Outside-click stands down the update pill's armed confirm (S2) — the same
-  // dismiss choke point that closes every popover below. A click on the pill
-  // itself is its own affordance (arm → confirm), so it is exempt.
-  if (target instanceof Element && !target.closest("#sidebar-update-button")) {
-    revertArmedUpdateButton();
-  }
   if (
     !(target instanceof Element) ||
     target.closest(".reading-settings-trigger") ||
