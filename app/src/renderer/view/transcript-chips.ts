@@ -291,7 +291,7 @@ function basenameOf(relativePath: string): string {
 // (resolvePaths), so this only has to be liberal-but-cheap and reject obvious
 // prose/code noise.
 const KNOWN_EXTENSION =
-  /\.(md|markdown|txt|text|csv|log|rst|json|ya?ml|toml|xml|ini|cfg|conf|lock|env|ts|tsx|js|jsx|mjs|cjs|html?|css|scss|py|go|rs|java|c|h|cpp|hpp|rb|sh|swift|kt|php|sql|png|jpe?g|gif|webp|avif|svg|pdf)$/i;
+  /\.(md|markdown|txt|text|csv|log|rst|json|ya?ml|toml|xml|ini|cfg|conf|lock|env|ts|tsx|js|jsx|mjs|cjs|html?|css|scss|py|go|rs|java|c|h|cpp|hpp|rb|sh|swift|kt|php|sql|png|jpe?g|gif|webp|avif|svg|pdf|mp4|mov|m4v|webm|mp3|m4a|wav|flac|aiff|heic)$/i;
 
 /**
  * Normalize an inline-code span's text to a path candidate, or null if it isn't

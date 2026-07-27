@@ -32,6 +32,15 @@ import type {
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg"]);
 const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown"]);
 const HTML_EXTENSIONS = new Set([".html", ".htm"]);
+/** Media the reader never renders — video / audio / HEIC photo. Routed to macOS
+ *  Quick Look BY EXTENSION (no content probe): the OS is the right viewer, and
+ *  deciding by extension keeps these formats structurally out of the reading
+ *  surface (Preview 分工 standing decision, plan v0 §3). */
+const MEDIA_EXTENSIONS = new Set([
+  ".mp4", ".mov", ".m4v", ".webm",
+  ".mp3", ".m4a", ".wav", ".flac", ".aiff",
+  ".heic",
+]);
 
 /** Text head-slice cutoff: a file larger than this is `too-large` and only its
  *  head is decoded (GitHub's graduated degradation, §4). */
@@ -44,6 +53,18 @@ const BINARY_PROBE_BYTES = 8000;
 const RESOLVE_PATHS_CAP = 64;
 
 export type ResolveWorkspaceRoot = (taskId: TaskId) => string | null;
+
+/**
+ * Where an openPreview target routes, decided at main's ONE seam BEFORE a
+ * Preview tab is opened (design record §6.1; plan v0). `preview` opens (or
+ * tombstones) a tab exactly as today; `browser` and `quicklook` hand the file
+ * to the OS and open NO tab. This never crosses IPC — it is produced and
+ * consumed inside the main process — so it lives here beside the classifier.
+ */
+export type PreviewRoute =
+  | { target: "preview" }
+  | { target: "browser"; absolutePath: string }
+  | { target: "quicklook"; absolutePath: string };
 
 export class WorkspaceFiles {
   private readonly resolveRoot: ResolveWorkspaceRoot;
@@ -216,6 +237,124 @@ export class WorkspaceFiles {
 
       const text = fs.readFileSync(absolute).toString("utf8");
       return { ...base, kind: textKind(ext), text };
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
+  /**
+   * Normalize an openPreview target to a GUARDED workspace-relative path, or
+   * null when it is not routable inside the workspace. A chip already passes a
+   * workspace-relative path (a no-op here); a transcript link passes a raw href
+   * that may be relative OR absolute — an absolute inside the root is relativized
+   * (reusing `toWorkspaceRelative`), and anything that escapes the root (an
+   * absolute path outside it, or a `../` climb) returns null: the principled
+   * sandbox boundary, a no-op at the seam. Existence is NOT checked — a
+   * nonexistent in-workspace path still resolves so the caller opens a tombstone
+   * tab (three-truths: the chip/link is a claim, the disk is the truth).
+   *
+   * A task with no root is the one asymmetry: an absolute path can't be
+   * relativized against a missing root (null → no-op), but a relative path
+   * passes through so the caller still opens a tombstone — today's behavior for a
+   * task whose workspace is gone.
+   */
+  resolveRelative(taskId: TaskId, rawPath: string): string | null {
+    const trimmed = rawPath.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const root = this.resolveRoot(taskId);
+    if (path.isAbsolute(trimmed)) {
+      if (!root) {
+        return null; // no root to relativize an absolute path against → no-op
+      }
+      const resolvedRoot = path.resolve(root);
+      const relative = toWorkspaceRelative(resolvedRoot, trimmed);
+      if (relative === null) {
+        return null; // absolute path outside the workspace → no-op
+      }
+      try {
+        this.resolveInside(resolvedRoot, relative);
+      } catch {
+        return null; // escapes through a symlink → no-op
+      }
+      return relative;
+    }
+    const relative = normalizeRelative(trimmed);
+    if (root) {
+      try {
+        this.resolveInside(path.resolve(root), relative);
+      } catch {
+        return null; // a `../` climb out of the workspace → no-op
+      }
+    }
+    return relative;
+  }
+
+  /**
+   * Classify an openPreview target for routing at main's seam (plan v0). A LIGHT
+   * classifier — stat + extension sets + a head-only NUL probe; it NEVER reads
+   * full contents (that is `readDoc`'s job once a tab is open). Resolution goes
+   * through the ONE audited guard. Mirrors `readDoc`'s ladder, collapsed to a
+   * routing decision:
+   *
+   *   - `.html` / `.htm`  → `browser`   (the system default browser; L0)
+   *   - media by extension (video/audio/HEIC) OR binary-probe-positive
+   *                       → `quicklook` (macOS Quick Look)
+   *   - markdown / image / non-binary text (incl. empty & too-large)
+   *                       → `preview`   (a Preview tab, as today)
+   *
+   * Anything that is not an existing file — a gone root, a guard violation, a
+   * missing path, or a directory — routes to `preview` so the caller opens
+   * today's tombstone tab (three-truths; do not regress it).
+   */
+  classifyRoute(taskId: TaskId, relativePath: string): PreviewRoute {
+    const root = this.resolveRoot(taskId);
+    if (!root) {
+      return { target: "preview" };
+    }
+    let absolute: string;
+    try {
+      absolute = this.resolveInside(root, relativePath);
+    } catch {
+      return { target: "preview" };
+    }
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(absolute);
+    } catch {
+      return { target: "preview" }; // nonexistent → tombstone
+    }
+    if (!stat.isFile()) {
+      return { target: "preview" }; // directory / special → tombstone
+    }
+
+    const ext = path.extname(absolute).toLowerCase();
+    if (HTML_EXTENSIONS.has(ext)) {
+      return { target: "browser", absolutePath: absolute };
+    }
+    if (MEDIA_EXTENSIONS.has(ext)) {
+      return { target: "quicklook", absolutePath: absolute };
+    }
+    if (IMAGE_EXTENSIONS.has(ext) || MARKDOWN_EXTENSIONS.has(ext)) {
+      return { target: "preview" };
+    }
+
+    // Text-ish: a head-only NUL probe (git's binary heuristic, mirroring
+    // readDoc) separates previewable text from a binary blob that belongs in
+    // Quick Look. An empty file has no bytes to probe → previewable (readDoc
+    // classifies it `empty`).
+    const probeLength = Math.min(BINARY_PROBE_BYTES, stat.size);
+    if (probeLength === 0) {
+      return { target: "preview" };
+    }
+    const fd = fs.openSync(absolute, "r");
+    try {
+      const probe = Buffer.alloc(probeLength);
+      fs.readSync(fd, probe, 0, probeLength, 0);
+      return probe.includes(0)
+        ? { target: "quicklook", absolutePath: absolute }
+        : { target: "preview" };
     } finally {
       fs.closeSync(fd);
     }

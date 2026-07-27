@@ -1781,6 +1781,31 @@ elements.runList.addEventListener("click", (event) => {
   const href = anchor.getAttribute("href") ?? "";
   if (/^https?:\/\//i.test(href)) {
     window.open(href);
+    return;
+  }
+  // An in-page anchor (`#…`) or another scheme (`mailto:`, etc.) is out of scope
+  // — leave it swallowed as before. A relative or absolute FILE path routes
+  // through the Preview seam for the active task: main normalizes an absolute
+  // path inside the workspace to relative and routes by kind (previewable tab /
+  // browser / Quick Look); an absolute path outside the workspace is a no-op.
+  if (!href || href.startsWith("#") || /^[a-z][a-z0-9+.-]*:/i.test(href)) {
+    return;
+  }
+  // marked percent-encodes non-ASCII / spaced destinations (`报告.md` →
+  // `%E6%8A%A5%E5%91%8A.md`), so decode before routing — otherwise a link to an
+  // EXISTING CJK/spaced file statSync-misses into a FALSE tombstone (a worse
+  // three-truths lie than the old silent swallow). Mirrors the Preview window's
+  // routeDocLink, which decodes url.pathname; a malformed `%` sequence throws
+  // URIError → fall back to the raw href.
+  let relativePath: string;
+  try {
+    relativePath = decodeURIComponent(href);
+  } catch {
+    relativePath = href;
+  }
+  const taskId = activeTaskView()?.task?.id;
+  if (taskId) {
+    void window.sonataRuntime.openPreview({ taskId, relativePath }).catch(() => {});
   }
 });
 

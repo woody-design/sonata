@@ -350,9 +350,42 @@ function planPrimaryDisplayWindowPair(): InitialWindowPair | undefined {
  * with the active-task relay — clicking a chip in task B implies B is active.
  */
 async function openPreview(request: OpenPreviewRequest): Promise<void> {
-  bindPreviewTask(request.taskId);
+  // A path target routes BEFORE any tab is opened (design record §6.1; plan v0).
+  // A bare open (the Eye button's taskId, or an empty path) skips straight to the
+  // window, exactly as before.
+  let relativePath: string | undefined;
   if (request.relativePath) {
-    previewSessions?.open(request.taskId, request.relativePath);
+    // Normalize the target — a chip's relative path, or a transcript link's raw
+    // href (relative OR absolute) — to a guarded workspace-relative path. An
+    // absolute path outside the workspace (or a `../` escape) is not routable: a
+    // principled no-op, the sandbox boundary.
+    const normalized = workspaceFiles?.resolveRelative(request.taskId, request.relativePath) ?? null;
+    if (normalized === null) {
+      return;
+    }
+    relativePath = normalized;
+
+    // Classify and hand non-previewable kinds to the OS — no tab, no Preview
+    // window. `.html` → the default browser; media/binary → macOS Quick Look
+    // anchored on the focused window. Everything previewable (and a nonexistent
+    // tombstone) falls through to a Preview tab as today.
+    const route = workspaceFiles?.classifyRoute(request.taskId, relativePath) ?? {
+      target: "preview" as const,
+    };
+    if (route.target === "browser") {
+      void shell.openPath(route.absolutePath);
+      return;
+    }
+    if (route.target === "quicklook") {
+      const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
+      owner?.previewFile(route.absolutePath);
+      return;
+    }
+  }
+
+  bindPreviewTask(request.taskId);
+  if (relativePath !== undefined) {
+    previewSessions?.open(request.taskId, relativePath);
   }
   if (!previewWindow || previewWindow.isDestroyed()) {
     previewWindow = createPreviewWindow();
