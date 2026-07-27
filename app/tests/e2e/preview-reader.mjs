@@ -9,6 +9,8 @@
 //   - a live file change preserves the reader's scroll mid-document (morph, not replace)
 //   - tail-follow sticks the reader to the bottom as content appends
 //   - tombstone → file recreated → content returns
+//   - a tab whose file mutates into a binary blob shows the honest "can't preview"
+//     fallback WITH a Reveal in Finder exit (preview-routing S2)
 //
 // Tabs are opened through the same `openPreview` bridge the Eye button and the
 // future chips use (chips are S4), driven from the main window.
@@ -264,6 +266,40 @@ try {
     timeout: 15000,
   });
   results.resurrectionReturns = true;
+
+  // ── Binary fallback: a tab whose file mutates into a binary blob ────────────
+  // New `.html`/binary/media opens route away from the reader (S1), so the binary
+  // presenter is reachable only via a stale tab or a file changing type under an
+  // OPEN tab. It must stay honest ("can't preview") AND offer a Reveal in Finder
+  // exit — the same design-system action button the too-large banner uses.
+  writeText(workspace, "mutant.txt", "plain text that will mutate into a binary blob\n");
+  await openTab(page, taskId, "mutant.txt");
+  await preview.locator('.preview-tab[data-active="true"]:has-text("mutant.txt")').waitFor({ state: "visible" });
+  await preview
+    .locator('.preview-doc[data-doc-kind="text"] .preview-doc-pre', { hasText: "mutate into a binary" })
+    .waitFor({ state: "visible" });
+  // Stub the OS reveal so the click records the route without opening Finder.
+  await app.evaluate(({ shell }) => {
+    globalThis.__revealedInFinder = [];
+    shell.showItemInFolder = (targetPath) => {
+      globalThis.__revealedInFinder.push(targetPath);
+    };
+  });
+  // Overwrite with NUL bytes: the live re-read reclassifies the open tab as binary.
+  fs.writeFileSync(path.join(workspace, "mutant.txt"), Buffer.from([0x00, 0x01, 0x02, 0x00, 0x03]));
+  const binaryState = preview.locator(".preview-typed-state", { hasText: "Binary file" });
+  await binaryState.waitFor({ state: "visible", timeout: 15000 });
+  results.binaryFallbackShown =
+    (await binaryState.locator(".preview-typed-detail", { hasText: "mutant.txt" }).count()) === 1;
+  const revealBtn = binaryState.locator("button.preview-banner-action", { hasText: "Reveal in Finder" });
+  results.binaryRevealButton = (await revealBtn.count()) === 1;
+  await revealBtn.click();
+  const mutantPath = path.join(workspace, "mutant.txt");
+  await app
+    .evaluate(() => new Promise((r) => setTimeout(() => r(globalThis.__revealedInFinder ?? []), 300)))
+    .then((revealed) => {
+      results.binaryRevealRoutes = revealed.includes(mutantPath);
+    });
 
   const success = Object.values(results).every(Boolean);
   console.log(JSON.stringify({ dataRoot, taskId, workspace, results, success }, null, 2));

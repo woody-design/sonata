@@ -43,10 +43,9 @@ type Presenter = (doc: PreviewDocument, ctx: ReaderContext) => HTMLElement;
 const PRESENTERS: Record<PreviewDocument["kind"], Presenter> = {
   markdown: presentMarkdown,
   text: presentCode,
-  html: presentHtml,
   image: presentImage,
   "too-large": presentTooLarge,
-  binary: (doc) => presentTyped(FileWarning, "Binary file", `${doc.name} · ${formatBytes(doc.size)} — can’t preview`),
+  binary: presentBinary,
   empty: (doc) => presentTyped(FileWarning, "Empty file", doc.name),
   absent: presentTombstone,
 };
@@ -174,20 +173,19 @@ function presentTooLarge(doc: PreviewDocument, ctx: ReaderContext): HTMLElement 
   return wrap;
 }
 
-function presentHtml(doc: PreviewDocument): HTMLElement {
-  const wrap = docWrap("html");
-  // Sandboxed, isolated srcdoc — the existing preview pattern. No same-origin,
-  // no scripts: an inert render of agent-written HTML. NOTE (documented in S1
-  // findings P2): the iframe fills the canvas and scrolls INTERNALLY, so the
-  // reader's per-path scroll (which tracks the outer #preview-content) does not
-  // capture or restore an HTML tab's position, and the morph/tail-follow dance
-  // is a no-op for HTML. The sandbox deliberately blocks reading the frame's
-  // scroll; weakening it isn't worth it. Left as-is per S2 scope.
-  const frame = document.createElement("iframe");
-  frame.className = "preview-html-frame";
-  frame.sandbox.value = "";
-  frame.srcdoc = doc.text ?? "";
-  wrap.append(frame);
+/** Binary blob (§4): a near-unreachable fallback now that `openPreview` routes
+ *  binary/media targets to Quick Look — reachable only via a stale persisted tab
+ *  or a file that changes type under an open tab. Honest "can't preview" copy,
+ *  plus a Reveal in Finder exit reusing the too-large banner's action button
+ *  (design-system `preview-banner-action`) so the dead end has a way out. */
+function presentBinary(doc: PreviewDocument, ctx: ReaderContext): HTMLElement {
+  const wrap = typedState(FileWarning, "Binary file", `${doc.name} · ${formatBytes(doc.size)} — can’t preview`);
+  const reveal = document.createElement("button");
+  reveal.type = "button";
+  reveal.className = "preview-banner-action";
+  reveal.textContent = "Reveal in Finder";
+  reveal.addEventListener("click", () => ctx.revealInFinder(doc.path));
+  wrap.append(reveal);
   return wrap;
 }
 

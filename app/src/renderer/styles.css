@@ -6320,19 +6320,6 @@ body.preview-panel-resizing {
   max-height: 100%;
   object-fit: contain;
 }
-.preview-doc[data-doc-kind="html"] {
-  height: 100%;
-}
-.preview-html-frame {
-  width: 100%;
-  height: 100%;
-  border: none;
-  /* DESIGN-SYSTEM EXCEPTION: neutral white canvas behind UNTRUSTED preview HTML
-     (documents author their own colours). A themed app surface would bleed
-     chrome into rendered content; browsers default this to white too. */
-  background: #fff;
-}
-
 .preview-typed-state,
 .preview-empty-state {
   display: flex;

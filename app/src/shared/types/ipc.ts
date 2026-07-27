@@ -577,11 +577,13 @@ export interface PreviewSetPanelRequest {
 
 /** Document classification runs in MAIN (the renderer never sniffs bytes). The
  *  ladder: absent → empty → binary (NUL in first 8000B) → too-large → by
- *  extension (markdown/html/image) → text. */
+ *  extension (markdown/image) → text. `.html`/`.htm` route to the browser before
+ *  a tab is ever opened (preview-routing S1), so no `html` kind reaches the
+ *  reader; an `.html` file read via `readDoc` (e.g. a stale persisted tab)
+ *  classifies as `text` — an honest source view. */
 export type PreviewDocumentKind =
   | "markdown"
   | "text"
-  | "html"
   | "image"
   | "binary"
   | "too-large"
@@ -594,7 +596,7 @@ export interface PreviewDocument {
   extension: string;
   size: number;
   kind: PreviewDocumentKind;
-  /** text/markdown/html payload (head-sliced when `truncated`). */
+  /** text/markdown payload (head-sliced when `truncated`). */
   text?: string;
   /** a too-large file was head-sliced to the preview cap. */
   truncated?: boolean;

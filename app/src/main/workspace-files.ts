@@ -525,9 +525,10 @@ function textKind(ext: string): PreviewDocumentKind {
   if (MARKDOWN_EXTENSIONS.has(ext)) {
     return "markdown";
   }
-  if (HTML_EXTENSIONS.has(ext)) {
-    return "html";
-  }
+  // `.html`/`.htm` are NOT a distinct kind: `openPreview` routes them to the
+  // browser before a tab opens (preview-routing S1/S2), so `readDoc` only ever
+  // sees one via a stale persisted tab — which reads honestly as `text` source.
+  // `HTML_EXTENSIONS` still drives that routing decision in `classifyRoute`.
   return "text";
 }
 
