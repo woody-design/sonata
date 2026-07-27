@@ -133,7 +133,6 @@ const run = (status, extra = {}) => ({
     "Attached 3 of 4 — the rest were unavailable.",
     "3 of 6 images attached",
     "Couldn't restore the agent's memory — continuing as a new session; the history above stays readable",
-    "Unknown Claude command — press Enter again to send it anyway",
     "Something exploded: ENOENT",
   ];
   for (const status of shown) {

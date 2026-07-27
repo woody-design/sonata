@@ -3,8 +3,9 @@
 // Locks the keystone: Problem 2 (the /architect hang) — a skill prepends into
 // the composer, composes with multiline args, submits, and DISPATCHES a real
 // turn. Plus the 2-way contract (two-window §1 machine #2 retired): panel and
-// unknown commands submit VERBATIM — no Reading floor, no popover, no modal
-// banner; the panel opens in the co-visible terminal window where the user
+// unknown commands submit VERBATIM on a SINGLE Enter — no Reading floor, no
+// popover, no modal banner, and since 2026-07-27 no typo confirm either
+// (decision 3); the panel opens in the co-visible terminal window where the user
 // operates it natively (verified here by closing /config with a real Esc in
 // that window, then dispatching a follow-up turn).
 //
@@ -120,15 +121,19 @@ try {
     return ((await banner.textContent()) ?? "").includes("/config");
   }, 10000);
 
-  // --- Unknown command → gentle confirm, then verbatim forward -------------
+  // --- Unknown command → verbatim forward on a SINGLE submit ---------------
+  // Decision 3 (2026-07-27): submit performs NO slash interpretation. The old
+  // double-Enter typo confirm is retired — prompts are typed into the PTY, so
+  // "/zzz-not-a-command" must reach the CLI exactly as a terminal user's own
+  // typing would, and the CLI reports the unknown locally.
   await input.fill("/zzz-not-a-command");
   await page.locator("#send-prompt").click();
-  await page.waitForTimeout(400);
-  // First Enter: the typo caution — the text stays composed, nothing sent.
-  checks.unknownFirstHolds = (await input.inputValue()) === "/zzz-not-a-command";
-  // Second Enter: forwards verbatim; the CLI reports it locally.
-  await page.locator("#send-prompt").click();
   checks.unknownForwarded = await waitFor(async () => (await input.inputValue()) === "", 15000);
+  // Nothing was held back and nothing cautioned: the composer's red action-
+  // feedback line stays silent (it is where the retired hint used to land).
+  checks.unknownNoGuardHint = !(
+    ((await page.locator("#runtime-status").textContent().catch(() => "")) ?? "").includes("Unknown")
+  );
   checks.unknownRunSettles = await composerIdle();
 
   // --- Skill: /architect is discovered, prepends, composes, submits, DISPATCHES
@@ -175,8 +180,8 @@ try {
     checks.panelClosedNatively &&
     checks.panelRunSettles &&
     checks.slashBannerShown &&
-    checks.unknownFirstHolds &&
     checks.unknownForwarded &&
+    checks.unknownNoGuardHint &&
     checks.unknownRunSettles &&
     checks.skillDiscovered &&
     checks.skillPrepended &&

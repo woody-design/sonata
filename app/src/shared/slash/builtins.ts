@@ -11,10 +11,10 @@ import type { SlashCommandEntry } from "../types/slash";
  * Claude Code 2.1.212, Codex CLI 0.144.5 (probed live via node-pty — see
  * spikes/slash-pool-2026-07/; the 0.144.5 tag-compare touches no slash code,
  * and the 2.1.212 delta is /subtask + the /fork rewrite, verified against the
- * live picker). Staleness degrades gracefully by design — an
- * unknown typed command still forwards to the PTY (after the unknown-command
- * caution), and a missing new command only means it is absent from the picker
- * until the snapshot is refreshed.
+ * live picker). Staleness degrades gracefully by design — submit never
+ * consults this registry at all (2026-07-27: verbatim, always), so a missing
+ * new command only means it is absent from the picker until the snapshot is
+ * refreshed. Typing it still forwards to the PTY untouched.
  *
  * Curation boundary: only first-party CLI builtins are snapshotted. The user's
  * personal skills and installed plugins (which also appear in the live picker)
@@ -27,9 +27,11 @@ import type { SlashCommandEntry } from "../types/slash";
  *
  * Every entry submits verbatim (S3, two-window contract): a command that
  * opens an interactive panel opens it in the co-visible terminal window,
- * where the user operates it natively. The registry's remaining jobs are the
- * picker (listed entries) and the unknown-command caution (known-but-unlisted
- * entries forward without the double-Enter confirm).
+ * where the user operates it natively. The registry's ONE remaining job is
+ * the picker — since the submit guard retired (2026-07-27) nothing else reads
+ * it, and `listed` is the only field that changes behavior. Known-but-unlisted
+ * entries are kept as an honest record of what the CLI accepts, not because
+ * anything consults them.
  *
  * Listing policy (v0 carried forward): the listed set predates S3; panels are
  * now safe to list (visible terminal) — widening the set is a follow-up, not
@@ -125,8 +127,9 @@ const CLAUDE_BUILTINS: BuiltinSpec[] = [
     listed: true,
   },
 
-  // Known but unlisted: typed invocations forward verbatim; panels open in
-  // the terminal window.
+  // Known but unlisted: kept out of the picker to hold the noise down. Typing
+  // one forwards verbatim like any other text; panels open in the terminal
+  // window.
   { name: "config", description: "Open settings" },
   { name: "theme", description: "Change the theme" },
   { name: "help", description: "Show help and available commands" },

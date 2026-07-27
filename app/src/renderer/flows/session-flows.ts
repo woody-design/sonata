@@ -3,10 +3,10 @@
 // session ops, activation and its composer-draft handover, and the
 // window-opening flows. Mid-flow render() calls are BEHAVIOR — loading
 // states paint at exact points — so call positions are preserved exactly.
-// The state atom and the flows' outward calls into view modules, the
-// scheduler, and the slash submit guard arrive init-bound from the
-// composition root (one mechanism for every upward edge — flows import
-// render/dom/reading-core, never view/scheduler/main).
+// The state atom and the flows' outward calls into view modules and the
+// scheduler arrive init-bound from the composition root (one mechanism for
+// every upward edge — flows import render/dom/reading-core, never
+// view/scheduler/main).
 
 import type {
   ApprovalDecision,
@@ -61,8 +61,6 @@ interface SessionFlowDeps {
   syncActiveTerminalTaskBinding(): void;
   /** T5/T6 teardown (scheduler) — activation clears hover timers. */
   clearUsagePopoverTimers(): void;
-  /** The slash-command submit guard (main.ts slash-assistance satellite). */
-  consumeSlashSubmitGuard(text: string): boolean;
   /** Drop a task's renderer-local, per-task-keyed caches (chip resolution +
    *  banner flags) when its view is removed or evicted — the view families own
    *  those Maps/Sets, so the clear arrives as an init-bound dep (flows never
@@ -492,9 +490,11 @@ export async function submitPrompt(): Promise<void> {
   const view = activeTaskView();
   const text = elements.promptInput.value.trim();
 
-  if (deps.consumeSlashSubmitGuard(text)) {
-    return;
-  }
+  // No slash interpretation here, by design (2026-07-27, decision 3): a "/…"
+  // draft is submitted verbatim like any other text. Delivery types the prompt
+  // into the provider's PTY, so the CLI must see exactly what the user typed —
+  // including an unknown command it will reject locally, and a pasted absolute
+  // path that merely looks like one.
   if (isSessionLifecycleActive(state)) {
     return;
   }

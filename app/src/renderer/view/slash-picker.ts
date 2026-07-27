@@ -24,7 +24,7 @@ export function renderSlashPicker(picker: SlashPickerState): HTMLElement {
   if (items.length === 0) {
     const empty = document.createElement("p");
     empty.className = "slash-picker-empty";
-    empty.textContent = "No matching commands";
+    empty.textContent = "No commands";
     root.append(empty);
     return root;
   }

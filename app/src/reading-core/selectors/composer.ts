@@ -186,10 +186,12 @@ export function sendPromptTitle(
 /** The composer line's editorial policy (2026-07-04 ruling): it speaks ONLY
  *  when the user's own action needs a response — a failure report ("Attached
  *  3 of 4 — …", "Couldn't restore …", free-form errors) or an actionable
- *  guard hint (unknown slash: "press Enter again"). Lifecycle narration
- *  ("Starting Claude", "Queued", "Selected proj", …) never renders: liveness
- *  already lives in the status strip, outcomes on the turn cards. Returns ""
- *  for suppressed messages. */
+ *  point-of-action hint. The hint arm has no live user: its one caller, the
+ *  slash submit guard, retired on 2026-07-27 when submit became verbatim and
+ *  stopped having anything to caution about. The policy is unchanged — a
+ *  future hint belongs here. Lifecycle narration ("Starting Claude", "Queued",
+ *  "Selected proj", …) never renders: liveness already lives in the status
+ *  strip, outcomes on the turn cards. Returns "" for suppressed messages. */
 export function composerNotice(status: string): string {
   const narration: RegExp[] = [
     /^(Idle|Ready|Running|Queued|Stopping|Stopped|Failed)$/,

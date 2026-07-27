@@ -33,11 +33,7 @@ import type {
   SlashCommandsResponse,
 } from "../shared/types";
 import { classifySlashIntent } from "../shared/slash/intent";
-import {
-  clamp,
-  errorMessage,
-  providerLabel,
-} from "../reading-core/selectors/formatters";
+import { clamp, errorMessage } from "../reading-core/selectors/formatters";
 import { filteredSlashItems } from "../reading-core/selectors/composer";
 import { normalizeSidebarTagIds } from "../reading-core/selectors/sidebar";
 import {
@@ -73,7 +69,6 @@ import * as renameTransitions from "../reading-core/transitions/rename";
 import { initActions } from "./actions";
 import { elements, initDom } from "./dom";
 import {
-  composerStatusHint,
   hasFileTransfer,
   initAttachmentFlows,
   intakeFiles,
@@ -306,7 +301,6 @@ initSessionFlows(state, {
   renderSidebar: () => renderSidebar(),
   syncActiveTerminalTaskBinding: () => syncActiveTerminalTaskBinding(),
   clearUsagePopoverTimers: () => clearUsagePopoverTimers(),
-  consumeSlashSubmitGuard: (text) => consumeSlashSubmitGuard(text),
   clearTaskViewCaches: (taskId) => {
     clearTaskChipCache(taskId);
     clearTaskBanners(taskId);
@@ -975,6 +969,22 @@ elements.composer.addEventListener("submit", (event) => {
 
 elements.promptInput.addEventListener("input", () => {
   renderComposerControls();
+  syncSlashPicker();
+});
+
+// Caret tracking for the token-at-cursor picker: moving INTO a "/" token must
+// open it and moving out must close it, and neither is an input event.
+// Chromium fires `selectionchange` on the document for textareas, so one
+// document listener covers arrow keys, clicks, Home/End and drag-selection
+// alike. It also fires on typing — the signature check makes that a no-op, so
+// a keystroke still repaints the popover exactly once.
+document.addEventListener("selectionchange", () => {
+  if (document.activeElement !== elements.promptInput) {
+    return;
+  }
+  if (slashSyncSignature() === lastSlashSyncSignature) {
+    return;
+  }
   syncSlashPicker();
 });
 
@@ -2123,18 +2133,48 @@ function activeTaskView(): TaskViewState | null {
 
 // --- Slash command picker -------------------------------------------------
 //
-// Input assistance over a pure passthrough pipe: the picker helps discover
-// and complete commands, but typed text always reaches the PTY verbatim.
-// The only submit-time interventions are safety guards backed by probe
-// evidence (spikes/slash-probes): bare "/" and unmatched prefixes dispatch
-// the CLI's first popup item when blind-injected, so they never leave sonata
-// without confirmation; bare native-menu commands (/model, /permissions)
-// open the sonata menu instead of an invisible TUI panel.
+// Input assistance over a pure passthrough pipe. Two rules, and everything
+// here follows from them (2026-07-27, decisions 3–4):
+//
+// 1. VERBATIM, ALWAYS. Submit performs NO slash interpretation — no guard, no
+//    confirm, no hint. Prompts are delivered by typing into the provider's
+//    PTY, so what the composer submits must reach the CLI exactly as if the
+//    user had typed it in a terminal. An unknown "/foo" erroring locally in
+//    the CLI is the user's own choice, same as in a terminal. (The retired
+//    double-Enter guard bought a typo warning at the price of that parity —
+//    and misfired on every pasted absolute path.)
+// 2. THE PICKER IS TYPING ASSISTANCE. It tracks the "/" token AT THE CURSOR,
+//    so it also helps mid-prompt ("…rewrite this using /architect"). Both
+//    CLIs execute commands only at line start, so a mid-prompt token is plain
+//    text to them: selecting there INSERTS and never submits. Only when the
+//    token is the whole input do the Enter-execute semantics apply.
 
 const SLASH_COMMANDS_CACHE_TTL_MS = 10_000;
 const slashCommandsCache = new Map<string, { at: number; response: SlashCommandsResponse }>();
-let slashPickerDismissedValue: string | null = null;
-let pendingUnknownSlashText: string | null = null;
+/** Esc/outside-click dismissal is scoped to ONE token (its start offset + its
+ *  text), not the whole draft: editing that token, or moving the caret to a
+ *  different one, is a fresh ask and reopens the picker. */
+let slashPickerDismissedToken: SlashToken | null = null;
+/** The (caret, value) pair the last syncSlashPicker acted on. The caret
+ *  tracker fires on typing too, so this keeps the second sync of a keystroke
+ *  from repainting the popover; a real caret move always differs. */
+let lastSlashSyncSignature: string | null = null;
+
+/** The "/" token the caret sits in — two spans, deliberately different
+ *  (ratified 2026-07-27, Slack/VS Code completion semantics):
+ *
+ *  - `start`→`end` is the WHOLE whitespace-delimited run. Completion replaces
+ *    all of it, so finishing "/stat|usx" leaves a clean "/status " with no
+ *    tail residue; the whole-input test compares against it too, so a caret
+ *    parked mid-word does not silently downgrade execute to complete.
+ *  - `query` is only the part BEFORE the caret — typeahead filters by what
+ *    you have typed, not by what sits to the right of the caret. */
+interface SlashToken {
+  start: number;
+  end: number;
+  text: string;
+  query: string;
+}
 
 function composerSlashProvider(): RuntimeProvider {
   return activeTaskView()?.task?.provider ?? state.taskDraft.provider;
@@ -2177,19 +2217,56 @@ function refreshSlashCommands(): void {
     });
 }
 
+/**
+ * The "/" token the caret sits in, or null when the caret is not in one.
+ * Three conditions, all necessary:
+ *
+ * - the selection is COLLAPSED — a range selection has no single insertion
+ *   point to complete into;
+ * - the run of non-whitespace ending at the caret matches /^\/\S*$/;
+ * - that run begins at the input start or right after whitespace — "src/lib"
+ *   is a path, not a command token, and the CLIs read it as text too.
+ *
+ * The run is then extended PAST the caret to the next whitespace, giving the
+ * full token; see SlashToken for why the two spans differ.
+ */
+function slashTokenAtCursor(): SlashToken | null {
+  const input = elements.promptInput;
+  const caret = input.selectionStart;
+  if (caret === null || caret !== input.selectionEnd) {
+    return null;
+  }
+  const query = /(?:^|\s)(\/\S*)$/.exec(input.value.slice(0, caret))?.[1];
+  if (query === undefined) {
+    return null;
+  }
+  const tail = /^\S*/.exec(input.value.slice(caret))?.[0] ?? "";
+  return { start: caret - query.length, end: caret + tail.length, text: query + tail, query };
+}
+
+/** Whether the token IS the draft — the only case where Enter on a picker
+ *  entry may execute instead of insert (decision 4). Compares the whole run,
+ *  so a caret parked mid-word still counts; trimmed, so surrounding
+ *  whitespace does not turn a lone "/status" into a mid-prompt token. */
+function slashTokenIsWholeInput(token: SlashToken): boolean {
+  return elements.promptInput.value.trim() === token.text;
+}
+
+function sameSlashToken(a: SlashToken | null, b: SlashToken | null): boolean {
+  return a !== null && b !== null && a.start === b.start && a.text === b.text;
+}
+
 function syncSlashPicker(): void {
   if (composerIsComposing) {
     return;
   }
-  const value = elements.promptInput.value;
-  if (value !== slashPickerDismissedValue) {
-    slashPickerDismissedValue = null;
-  }
-  if (value !== pendingUnknownSlashText) {
-    pendingUnknownSlashText = null;
+  const token = slashTokenAtCursor();
+  lastSlashSyncSignature = slashSyncSignature();
+  if (!sameSlashToken(token, slashPickerDismissedToken)) {
+    slashPickerDismissedToken = null;
   }
   const shouldOpen =
-    /^\/\S*$/.test(value) && slashPickerDismissedValue === null && !elements.promptInput.disabled;
+    token !== null && slashPickerDismissedToken === null && !elements.promptInput.disabled;
   if (!shouldOpen) {
     if (composerTransitions.closeSlashPicker(state)) {
       renderComposerPopover();
@@ -2202,7 +2279,7 @@ function syncSlashPicker(): void {
   composerTransitions.openOrRefreshSlashPicker(
     state,
     composerSlashProvider(),
-    value.slice(1).toLowerCase(),
+    token.query.slice(1).toLowerCase(),
     () => cachedSlashCommands()?.entries ?? [],
   );
   refreshSlashCommands();
@@ -2213,19 +2290,27 @@ function syncSlashPicker(): void {
   renderComposerPopover();
 }
 
-function closeSlashPicker(dismissCurrentValue: boolean): void {
-  if (dismissCurrentValue) {
-    slashPickerDismissedValue = elements.promptInput.value;
+function slashSyncSignature(): string {
+  return `${elements.promptInput.selectionStart} ${elements.promptInput.value}`;
+}
+
+function closeSlashPicker(dismissCurrentToken: boolean): void {
+  if (dismissCurrentToken) {
+    slashPickerDismissedToken = slashTokenAtCursor();
   }
   if (composerTransitions.closeSlashPicker(state)) {
     renderComposerPopover();
   }
 }
 
-function moveSlashSelection(delta: number): void {
-  if (composerTransitions.moveSlashSelection(state, delta)) {
-    renderComposerPopover();
+/** Returns whether there was a selection to move — false on the empty state,
+ *  where the arrow key belongs to the caret instead. */
+function moveSlashSelection(delta: number): boolean {
+  if (!composerTransitions.moveSlashSelection(state, delta)) {
+    return false;
   }
+  renderComposerPopover();
+  return true;
 }
 
 function selectedSlashEntry(): SlashCommandEntry | null {
@@ -2236,20 +2321,44 @@ function selectedSlashEntry(): SlashCommandEntry | null {
   return filteredSlashItems(picker)[picker.selectedIndex] ?? null;
 }
 
-/** Fill the entry's canonical invocation into the composer without executing. */
+/** Write the entry's canonical invocation over the caret's token — the WHOLE
+ *  token run, and only it; the rest of the draft is untouched. With the token
+ *  spanning the whole input this is the old whole-value fill, as the
+ *  degenerate case. */
 function completeSlashEntry(entry: SlashCommandEntry): void {
-  elements.promptInput.value = `${entry.invocation} `;
-  elements.promptInput.focus({ preventScroll: true });
-  elements.promptInput.setSelectionRange(
-    elements.promptInput.value.length,
-    elements.promptInput.value.length,
-  );
+  const input = elements.promptInput;
+  const token = slashTokenAtCursor();
+  // No token (the picker outliving its trigger — defensive): insert at the
+  // caret rather than overwrite a draft the user is still holding.
+  const caret = input.selectionStart ?? input.value.length;
+  const start = token?.start ?? caret;
+  const end = token?.end ?? caret;
+  const tail = input.value.slice(end);
+  // Exactly one space separates the invocation from what follows: ours when
+  // the run ends the line (or butts against a newline), the existing one
+  // otherwise — replacing the whole run must not leave a double space behind.
+  const separator = /^[^\S\n]/.test(tail) ? "" : " ";
+  input.value = `${input.value.slice(0, start)}${entry.invocation}${separator}${tail}`;
+  const nextCaret = start + entry.invocation.length + 1;
+  input.focus({ preventScroll: true });
+  input.setSelectionRange(nextCaret, nextCaret);
+  lastSlashSyncSignature = slashSyncSignature();
   composerTransitions.closeSlashPicker(state);
   renderComposerPopover();
   renderComposerControls();
 }
 
+/** The picker's selection semantic, shared by Enter and by an option click. */
 function executeSlashEntry(entry: SlashCommandEntry): void {
+  const token = slashTokenAtCursor();
+  if (token === null || !slashTokenIsWholeInput(token)) {
+    // Mid-prompt: pure insertion assist. Submitting here would send a draft
+    // the user is still writing, and the CLI would read the token as text
+    // anyway (commands dispatch only at line start) — so there is nothing to
+    // execute, only text to complete (decision 4).
+    completeSlashEntry(entry);
+    return;
+  }
   if (classifySlashIntent(entry) === "skill") {
     // Skills complete instead of executing: a premature skill invocation
     // costs a full model turn, while a second Enter on an args-less skill
@@ -2276,14 +2385,22 @@ function handleSlashPickerKeydown(event: KeyboardEvent): boolean {
   if (!picker || composerIsComposing) {
     return false;
   }
+  // Arrows only belong to the picker while it HAS options. On the "No
+  // commands" empty state — reachable since the picker tracks a token
+  // anywhere in the draft, e.g. a pasted path inside a multi-line prompt —
+  // swallowing them would freeze vertical caret movement until Esc.
   if (event.key === "ArrowDown" || (event.key === "n" && event.ctrlKey)) {
+    if (!moveSlashSelection(1)) {
+      return false;
+    }
     event.preventDefault();
-    moveSlashSelection(1);
     return true;
   }
   if (event.key === "ArrowUp" || (event.key === "p" && event.ctrlKey)) {
+    if (!moveSlashSelection(-1)) {
+      return false;
+    }
     event.preventDefault();
-    moveSlashSelection(-1);
     return true;
   }
   if (event.key === "Escape") {
@@ -2307,46 +2424,11 @@ function handleSlashPickerKeydown(event: KeyboardEvent): boolean {
       executeSlashEntry(entry);
       return true;
     }
-    // No match: fall through to the normal submit path; the submit guard
-    // owns the unknown-command caution.
+    // Nothing matched the query (the empty state is showing): Enter is not the
+    // picker's to take. Fall through and submit the draft verbatim — a pasted
+    // path or an unknown command goes to the CLI exactly as typed (rule 1).
   }
   return false;
-}
-
-/**
- * Submit-time guard for "/" texts. Returns true when the submit should stop
- * here. Everything known submits verbatim (S3): a panel command opens its
- * panel in the co-visible terminal window. Two local niceties survive: the
- * bare-"/" hint, and a double-Enter confirm on unknown commands (most often a
- * typo; the CLI reports a real unknown locally without involving the model).
- */
-function consumeSlashSubmitGuard(text: string): boolean {
-  if (!text.startsWith("/")) {
-    pendingUnknownSlashText = null;
-    return false;
-  }
-  if (text === "/") {
-    composerStatusHint("Type a command name after “/” — Esc to dismiss");
-    return true;
-  }
-  const registry = cachedSlashCommands();
-  if (!registry || registry.provider !== composerSlashProvider()) {
-    // No registry yet: stay out of the way. The CLI reports unknown
-    // commands locally without involving the model.
-    refreshSlashCommands();
-    return false;
-  }
-  const token = text.slice(1).split(/\s+/, 1)[0]?.toLowerCase() ?? "";
-  const known = registry.entries.some((candidate) => candidate.name.toLowerCase() === token);
-  if (known || pendingUnknownSlashText === text) {
-    pendingUnknownSlashText = null;
-    return false;
-  }
-  pendingUnknownSlashText = text;
-  composerStatusHint(
-    `Unknown ${providerLabel(composerSlashProvider())} command — press Enter again to send it anyway`,
-  );
-  return true;
 }
 
 function toggleComposerMenu(type: ComposerMenuState["type"], anchor: HTMLElement): void {

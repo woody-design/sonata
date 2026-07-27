@@ -184,26 +184,6 @@ function setComposerOwnerStatus(owner: ComposerOwner, message: string): void {
   render();
 }
 
-/** Surface a composer status on the active view, or globally for a new chat.
- *  (The channel's editorial policy — composerNotice, action feedback only —
- *  lives in reading-core, pinned by the composer-selectors smoke.) */
-function setComposerStatus(view: TaskViewState | null, message: string): void {
-  if (view?.task) {
-    view.status = message;
-  } else {
-    state.status = message;
-  }
-  render();
-}
-
-/** Point-of-action guard hints (unknown slash, bare "/") ride the same
- *  composer line as failure reports in EVERY composer context — on a new
- *  chat too, not the entry panel's draft message half a screen away
- *  (external review P3, 2026-07-04). */
-export function composerStatusHint(text: string): void {
-  setComposerStatus(activeTaskView(), text);
-}
-
 /** Remove a held composer attachment. Renderer-only: nothing is on disk yet — a
  *  bitmap is copied only on send, a reference is never copied — so dropping the
  *  chip (and revoking any object URL) is the entire removal. Never touches a

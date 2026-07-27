@@ -55,7 +55,7 @@ for (const provider of ["claude", "codex"]) {
   assert.ok(builtins.some((entry) => entry.listed), `${provider} must list some builtins`);
   assert.ok(
     builtins.some((entry) => !entry.listed),
-    `${provider} must keep unlisted commands known for the submit guard`,
+    `${provider} must keep some builtins unlisted — the snapshot records what the CLI accepts, the picker shows only the curated subset`,
   );
 }
 

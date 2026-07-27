@@ -18,8 +18,12 @@ export interface SlashCommandEntry {
   argumentHint: string | null;
   scope: SlashScope;
   /**
-   * Shown in the picker. Unlisted entries still count as "known" for the
-   * submit guard, so typing them forwards without an unknown-command warning.
+   * Shown in the picker — its only consumer (filteredSlashItems). Since the
+   * submit guard retired (2026-07-27, verbatim submit) an unlisted entry has
+   * no other effect: typing it forwards verbatim exactly as a listed one
+   * does. `listed: false` is therefore purely picker-noise policy — the
+   * registry keeps the entry so a future surface can name it, and so the
+   * snapshot stays an honest record of what the CLI accepts.
    */
   listed: boolean;
 }
