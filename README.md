@@ -1,33 +1,24 @@
-# Sonata - Use terminal the way you use ChatGPT
+# Sonata - use terminal the way you use ChatGPT
 
-I'm a designer. I started agentic coding this February, and quickly
-understood the benefits of the CLI. So I spent several weeks learning
-it. Trust me, I really tried so hard to learn — I know how to use
-Ctrl+U to clear a line, along with all the other tricks. But in the
-end it still felt unintuitive for most people, and it was missing too
-much of what I needed: a real reading experience, a modern way to
-write prompts, pasting images, previews, session management. That was
-the starting point for building Sonata.
+Terminal is the best workspace for AI agents. It was just never
+designed for the human side of the work: reading long output, editing
+prompts, previewing results, managing sessions.
 
-> **The terminal is the best workspace for AI coding agents like
-> Claude Code and Codex. Sonata is the workspace designed for humans.**
+Sonata adds the experience layer. Your Claude Code & Codex agents run
+in the terminal — native, full capabilities, on your existing
+subscription. You read, write, and manage everything in a modern
+interface as familiar as ChatGPT.
 
-Sonata is for a new generation of coders, builders, and design
-engineers — people whose workflow no longer centers on editing code,
-but on working with AI: reading, giving direction, judgment & taste.
+Free and open source · macOS · No sign-up · No telemetry · No server
 
-It's a free, open-source macOS app that runs your real Claude Code and
-Codex CLIs — native behavior, native capabilities, your existing
-subscription — and pairs them with a workspace built for the human
-side of the work: reading what the agent did, directing what happens
-next, organizing long-running work, and checking the results.
+Sonata is built for a new generation of coders, builders, and design
+engineers — people whose work no longer centers on writing or editing
+code, but on communicating with AI: direction, judgment, and taste.
 
-If you want all the benefits of the CLI with a modern experience, try
-it — and leave your feedback.
+**[▶ Watch the 3-minute demo](https://youtu.be/Bvi27v0_OkI)**
 
 [![Watch the 3-minute demo](docs/assets/demo-cover.png)](https://youtu.be/Bvi27v0_OkI)
 
-**[▶ Watch the 3-minute demo](https://youtu.be/Bvi27v0_OkI)**
 
 ## What Sonata does
 
