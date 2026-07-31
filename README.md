@@ -21,6 +21,37 @@ code, but on give directions and share judgement & taste with AI.
 
 <br>
 
+## What it does
+
+- **Read.** Sessions render as a clean reading surface — tuned
+typography, background & themes. Navigate to any prompt in a
+long session.
+
+- **Write.** Type and edit naturally; attach files, folders, and
+images. Select text from a reply and comment on it.
+
+- **Preview.** Markdown, images, and changed files open in floating
+preview windows, with the folder structure right beside them.
+
+- **Manage.** Rename and tag your sessions. Filter by project, tag, status, or recent activity; grouping & sorting.
+
+- **Remote Control.** One click turns on Claude's Remote Control — pick
+up the session from your phone.
+
+<br>
+
+## What it is not
+
+- **Not a terminal skin.** The reading surface is built from
+  structured session data, not re-rendered terminal output.
+- **Not a new agent runtime.** It runs your real `claude` and
+  `codex`, natively.
+- **Not an IDE.** There is deliberately no code editor inside.
+- **Not another subscription.**
+- **Not a cloud layer.**
+
+<br>
+
 ## Why Sonata
 
 - **Why not the official Claude / Codex apps?**<br>
@@ -80,88 +111,27 @@ The rule behind all of it: observe, never replace.
 
 <br>
 
-## What Sonata does
-
-**Read.** Sonata
-normalizes Claude and Codex session data into clean turn cards —
-markdown, folded tool calls, plan blocks, run attribution — with tuned
-typography and light/dark reading themes.
-
-**Write.** The composer is built for expressing intent: type naturally,
-attach files and images, steer work that's already in flight. Slash
-commands are semantic — skills become chips, stateful controls like
-`/model` and `/permissions` open native popovers instead of text menus.
-
-**Manage.** Name your session, tag
-them, filter them, organize them by project.
-
-**Preview.** Check outcomes without opening an editor. Markdown, HTML,
-images, file trees, and changed files open in floating preview windows.
-
-The raw terminal stays one switch
-away — same session, same process — and you can type into it anytime.
-
-<br>
-
-## What Sonata is not
-
-- **Not a terminal skin.** The reading surface is built from structured
-  session data, not from re-rendered terminal output.
-- **Not an IDE.** There is deliberately no code editor inside.
-- **Not a new agent runtime.** It runs your real `claude` and `codex`,
-  unchanged.
-- **Not another subscription.** Sonata is free and uses the Claude /
-  Codex subscriptions you already have.
-- **Not a cloud layer.** No account, no server, no telemetry. Sonata's
-  own state lives on your machine.
-
-<br>
-
 ## Design choices
 
-- **Preserve the native agent.** Sonata runs the real CLIs and keeps
-  their behavior, configuration, and update pace. It is an experience
-  layer, not a fork.
-- **No Sonata system prompt.** Sonata doesn't inject its own
-  instructions into the agent. This is a product boundary, not a missing
-  feature: you should get exactly the agent you'd get in the terminal.
-- **Structured truth before screen scraping.** Signals come from hooks
-  and session transcripts — data the CLIs deliberately expose. Reading
-  the screen survives only as a narrow, labeled fallback.
-- **No built-in editor; preview outcomes instead.** When you want to
-  edit code or prose, your editor is better at it. What Sonata owns is
-  the fast loop of *seeing what was produced*.
-- **Separate windows by cognitive role.** The CLI and Preview live in
-  their own windows rather than being squeezed into sidebars. Main
-  window for direction and reading; CLI window for raw truth; Preview
-  for results. On a large screen they sit side by side.
-- **Local and inspectable.** Open source, no Sonata account, state on
-  disk. Your prompts still go to Anthropic or OpenAI through the native
-  CLIs — Sonata just refuses to add a new trust boundary in between.
+- **Preserve the native agent.**
 
-<br>
+- **No injected system prompt.**
 
-## Caveats
+- **Structured truth before screen scraping.** Signals come from
+  hooks and session transcripts.
 
-Sonata is early, and shaped so far by one person's
-daily use — mine. Real work runs through it every day, but the edges
-show:
+- **No built-in editor.** When you want to edit code, your editor is
+  better at it.
 
-- Claude Code and Codex hooks / transcripts occasionally don't deliver a
-  complete signal. That's why the CLI window is usually worth keeping
-  open: it's the fallback and the diagnostic surface.
-- Multiple windows across multiple macOS Spaces can get confusing. What
-  works well: dedicate one Space to Sonata, main window and CLI window
-  side by side.
-- Claude and Codex are both supported, but feature parity between them
-  is not promised.
-- The upstream CLIs move fast. Specific gaps close, new ones open;
-  expect occasional breakage right after a CLI update.
-- macOS only.
+- **Separate windows by cognitive role.** Main window for reading and
+  direction, CLI window for the raw truth, Preview for results. Each
+  window resizes independently — honestly, I just hate resizing an
+  app's side panels back and forth, especially with multiple
+  monitors. Separate windows does bring window-management challenges. I recommend giving Sonata its own macOS Space.
 
-If you hit one of these — or something new — please open an issue.
-Knowing where it breaks for someone who isn't me is exactly what this
-stage needs.
+- **Nothing written into your project.** Sonata itself never adds
+  anything to your working directory; all its bookkeeping lives in
+  `~/.sonata`. 
 
 <br>
 
@@ -170,12 +140,12 @@ stage needs.
 Download the latest DMG from
 [Releases](https://github.com/woody-design/sonata/releases/latest),
 open it, and drag Sonata to Applications. The app is signed and
-notarized; macOS will run it without warnings.
+Apple-notarized.
 
 You'll need:
 
-- A Mac with Apple Silicon (arm64). Intel Macs are not supported.
-- Claude Code and/or Codex CLI installed and authenticated.
+- A Mac with Apple Silicon (arm64). Intel Macs are not supported yet.
+- Claude Code and/or Codex CLI installed and signed in.
 
 <br>
 
@@ -185,7 +155,7 @@ You'll need:
 
 - macOS
 - Node.js 22.12 or newer
-- Claude Code and/or Codex CLI installed and authenticated
+- Claude Code and/or Codex CLI installed and signed in
 
 ```bash
 git clone https://github.com/woody-design/sonata.git
@@ -212,10 +182,49 @@ More smoke and e2e gates live in `app/package.json`.
 
 <br>
 
-## License & trademark
+## Why I Built This
 
-Sonata's source code is licensed under the
-[Apache License 2.0](LICENSE). "Sonata", the Sonata name, and the Sonata
-logo are trademarks of Woody Li and are not licensed under Apache-2.0;
-the license grants no permission to use them. Forks and redistributions
-must use a different name and logo.
+I'm a designer. I started agentic coding this February and quickly
+learned the benefits of the CLI. So I spent several weeks learning the
+terminal. Trust me, I really tried — I know how to use Ctrl+U to
+clear a line, along with all the other tricks for editing text and
+running commands. 
+
+But in the end it still felt unintuitive, because
+the terminal itself was never designed for AI coding. And it's not
+just the learning curve — several features were missing: a better
+reading experience, writing long prompts (draft by voice through Typeless, then edit like in a normal text field), pasting images, previewing results, organizing sessions. That was the starting point for building Sonata. 
+
+Now it's my daily driver — even Sonata itself is developed
+through Sonata.
+
+<br>
+
+## Caveats
+
+Sonata is in early beta, shaped so far by a few people's daily use.
+It's not perfect:
+
+- Claude Code and Codex hooks / transcripts occasionally don't
+  deliver a complete signal. That's why the CLI window is usually
+  worth keeping open: it's the fallback and the diagnostic surface.
+- Multiple windows across multiple macOS Spaces can get confusing.
+  My own setup: one Space dedicated to Sonata, main window and CLI
+  window side by side, Preview only when I need it.
+- Claude and Codex are both supported, but feature parity between
+  them is not promised.
+- The upstream CLIs move fast. Specific gaps close, new ones open;
+  expect occasional breakage right after a CLI update.
+- macOS only.
+
+If you hit one of these — or something new — please open an issue.
+
+<br>
+
+## License
+
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square)](LICENSE)
+
+[Apache 2.0](LICENSE) — Designed by [Woody](https://woodydesign.io/),
+[AC](https://www.anthropic.com/news/claude-fable-5-mythos-5) &
+[OC](https://openai.com/index/gpt-5-6/) in NYC
