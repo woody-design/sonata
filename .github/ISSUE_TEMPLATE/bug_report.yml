@@ -1,0 +1,66 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not include API keys, private prompts, session transcripts, or sensitive screenshots.
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: "e.g., macOS 15.6"
+    validations:
+      required: true
+  - type: input
+    id: sonata-version
+    attributes:
+      label: Sonata version
+      placeholder: "e.g., 0.4.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: agent-cli
+    attributes:
+      label: Which agent CLI were you using?
+      description: Sonata bugs often depend on the upstream CLI, so this helps a lot.
+      options:
+        - Claude Code
+        - Codex
+        - Both
+        - Not related to a CLI
+    validations:
+      required: true
+  - type: input
+    id: cli-version
+    attributes:
+      label: CLI version(s)
+      description: Run `claude --version` and/or `codex --version`. Write "n/a" if not related to a CLI.
+      placeholder: "e.g., claude 2.1.0, codex 0.52.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly. If the CLI window showed something different from the main window, mention both.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this?
+      placeholder: |
+        1. Open Sonata
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
