@@ -19,6 +19,17 @@ code, but on give directions and share judgement & taste with AI.
 
 [![Watch the 3-minute demo](docs/assets/demo-cover.png)](https://youtu.be/Bvi27v0_OkI)
 
+- [What it does](#what-it-does)
+- [What it is not](#what-it-is-not)
+- [Why Sonata](#why-sonata)
+- [How it works](#how-it-works)
+- [Design choices](#design-choices)
+- [Install](#install)
+- [Run it locally](#run-it-locally)
+- [Why I Built This](#why-i-built-this)
+- [Caveats](#caveats)
+- [Feedback](#feedback)
+
 <br>
 
 ## What it does
@@ -217,7 +228,15 @@ It's not perfect:
   expect occasional breakage right after a CLI update.
 - macOS only.
 
-If you hit one of these — or something new — please open an issue.
+If you hit one of these — or something new — please [open an issue](https://github.com/woody-design/sonata/issues/new/choose).
+
+<br>
+
+## Feedback
+
+- **Bug reports** — [open an issue](https://github.com/woody-design/sonata/issues/new/choose)
+- **Feature requests** — [start a discussion](https://github.com/woody-design/sonata/discussions/new?category=ideas) — upvote ideas you want to see
+- **Questions** — [ask in discussions](https://github.com/woody-design/sonata/discussions/new?category=q-a)
 
 <br>
 
