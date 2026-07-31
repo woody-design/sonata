@@ -1,11 +1,11 @@
-# Sonata - use terminal the way you use ChatGPT
+# Sonata - use Terminal the way you use ChatGPT
 
 Terminal is the best workspace for AI agents. It was just never
 designed for the human side of the work: reading long output, editing
 prompts, previewing results, managing sessions.
 
-Sonata adds the experience layer. Your Claude Code & Codex agents run
-in the terminal — native, full capabilities, on your existing
+Sonata adds the experience layer. Your Claude Code & Codex agents run natively
+in the terminal, with full capabilities on your existing
 subscription. You read, write, and manage everything in a modern
 interface as familiar as ChatGPT.
 
@@ -13,12 +13,40 @@ Free and open source · macOS · No sign-up · No telemetry · No server
 
 Sonata is built for a new generation of coders, builders, and design
 engineers — people whose work no longer centers on writing or editing
-code, but on communicating with AI: direction, judgment, and taste.
+code, but on collaborating with AI: give direction, judgment, and taste.
 
 **[▶ Watch the 3-minute demo](https://youtu.be/Bvi27v0_OkI)**
 
 [![Watch the 3-minute demo](docs/assets/demo-cover.png)](https://youtu.be/Bvi27v0_OkI)
 
+<br>
+
+## Why Sonata
+
+- **Why not the official Claude / Codex apps?**<br>
+The CLI is still the most complete form of both agents: often save tokens, closest to
+your local environment, first to get new features... Sonata keeps it untouch and builds the human experience around it.
+
+- **Why not Cursor or an IDE agent?**<br>
+Many IDE agents’ business model is a second subscription on top of the one you already pay Anthropic or OpenAI. Sonata is free and base your existing subscription. In addition, IDE agents keep the code editor at the center, which assumes you still primarily writing code. Sonata assumes you work primarily shift to intent, reading, and judgment. 
+
+- **Why not just use the terminal?**<br>
+If the raw terminal works for you, keep using it. Sonata even build in a real
+terminal(xterm.js) - same session in terminal window, you can use it anytime. However, the terminal is built around a command stream.
+Long reading, natural input, session organization, and result browsing are all things it does grudgingly. 
+
+- **Do I need another subscription?**<br>
+No. Sonata is free. It runs on the Claude / Codex subscription you
+already have.
+
+- **Does Sonata change what the agent does?**<br>
+No. No injected system prompt, no modified behavior. The agent in
+Sonata is the same agent you'd get in the terminal.
+
+- **Where does my data go?**<br>
+Where it already goes: to Anthropic or OpenAI, through their own
+CLIs. Sonata adds no account and no server in between. Its own data
+lives locally in `~/.sonata`, next to `~/.claude` and `~/.codex`. 
 
 ## What Sonata does
 
@@ -139,42 +167,6 @@ npm run e2e:gui-walking-skeleton   # representative end-to-end gate
 ```
 
 More smoke and e2e gates live in `app/package.json`.
-
-## Q&A
-
-**Why not just use the terminal?**
-If the terminal works for you, keep it — Sonata even keeps it one
-switch away. But the terminal is built around a command stream. Long
-reading, natural input, session organization, and result browsing are
-all things it does grudgingly. Sonata exists so that adapting to the
-terminal isn't the price of using CLI agents.
-
-**Why not the official Claude / Codex apps?**
-The CLI is still the most native, most complete form of both agents —
-closest to your local environment, first to get new capabilities, and
-often more token-efficient: through precise, composable commands the
-agent retrieves only the context the task needs. Sonata keeps that
-runtime and builds the human experience around it instead of trading it
-away.
-
-**Why not Cursor or an IDE agent?**
-IDE agents keep the code editor at the center, which assumes you still
-work primarily *through code*. Sonata assumes you work primarily through
-intent, reading, and judgment — and that you'd rather not adopt a second
-agent runtime and subscription on top of the one you already pay for.
-
-**Do I need another subscription?**
-No. Sonata is free and runs on the Claude / Codex subscriptions you
-already have.
-
-**Does Sonata change what the agent does?**
-No. No injected system prompt, no modified behavior. The agent you get
-in Sonata is the agent you'd get in the terminal.
-
-**Where does my data go?**
-Same place it already goes: to Anthropic or OpenAI, through their own
-CLIs. Sonata adds no account, no server, and no middle layer; its own
-sessions and settings stay on your machine.
 
 ## License & trademark
 
