@@ -13,7 +13,7 @@ Free and open source · macOS · No sign-up · No telemetry · No server
 
 Sonata is built for a new generation of coders, builders, and design
 engineers — people whose work no longer centers on writing or editing
-code, but on collaborating with AI: give direction, judgment, and taste.
+code, but on give directions and share judgement & taste with AI.
 
 **[▶ Watch the 3-minute demo](https://youtu.be/Bvi27v0_OkI)**
 
@@ -46,7 +46,39 @@ Sonata is the same agent you'd get in the terminal.
 - **Where does my data go?**<br>
 Where it already goes: to Anthropic or OpenAI, through their own
 CLIs. Sonata adds no account and no server in between. Its own data
-lives locally in `~/.sonata`, next to `~/.claude` and `~/.codex`. 
+lives locally in `~/.sonata`, next to `~/.claude` and `~/.codex`.
+
+<br>
+
+## How it works
+
+Sonata spawns your real `claude` or `codex` in a real terminal (a PTY,
+rendered by xterm.js, same as VS Code). The agent runs exactly as it
+would in Terminal.app. Everything else Sonata does is observation:
+
+- **Reading comes from transcripts.** Both CLIs write structured session
+transcripts to disk - the same files that power `--resume`. Sonata
+builds its reading view from those files, not by re-rendering the
+terminal screen. This is also why a reply appears when the agent
+finishes it instead of streaming token by token. If you want to watch
+the live stream, it's right in the terminal window.
+
+- **Status comes from hooks.** Both CLIs ship an official hooks system.
+Sonata registers its hooks additively (a `--settings` file for Claude,
+a separate profile for Codex) and never edits your own config. Hooks
+are how Sonata knows busy from idle, where a turn ends, and when the
+agent is asking for permission.
+
+- **Where the screen is still read.** Three narrow places. The working
+strip mirrors the CLI's own status line. When you switch model or
+permissions from Sonata's UI, Sonata types the CLI's own slash command
+into the terminal and reads the printed receipt to confirm it landed.
+And one fallback marks a failed Codex turn as done (Codex has no
+"turn failed" event).
+
+The rule behind all of it: observe, never replace.
+
+<br>
 
 ## What Sonata does
 
@@ -69,6 +101,8 @@ images, file trees, and changed files open in floating preview windows.
 The raw terminal stays one switch
 away — same session, same process — and you can type into it anytime.
 
+<br>
+
 ## What Sonata is not
 
 - **Not a terminal skin.** The reading surface is built from structured
@@ -80,6 +114,8 @@ away — same session, same process — and you can type into it anytime.
   Codex subscriptions you already have.
 - **Not a cloud layer.** No account, no server, no telemetry. Sonata's
   own state lives on your machine.
+
+<br>
 
 ## Design choices
 
@@ -103,6 +139,8 @@ away — same session, same process — and you can type into it anytime.
   disk. Your prompts still go to Anthropic or OpenAI through the native
   CLIs — Sonata just refuses to add a new trust boundary in between.
 
+<br>
+
 ## Caveats
 
 Sonata is early, and shaped so far by one person's
@@ -125,6 +163,8 @@ If you hit one of these — or something new — please open an issue.
 Knowing where it breaks for someone who isn't me is exactly what this
 stage needs.
 
+<br>
+
 ## Install
 
 Download the latest DMG from
@@ -136,6 +176,8 @@ You'll need:
 
 - A Mac with Apple Silicon (arm64). Intel Macs are not supported.
 - Claude Code and/or Codex CLI installed and authenticated.
+
+<br>
 
 ## Run it locally
 
@@ -167,6 +209,8 @@ npm run e2e:gui-walking-skeleton   # representative end-to-end gate
 ```
 
 More smoke and e2e gates live in `app/package.json`.
+
+<br>
 
 ## License & trademark
 
