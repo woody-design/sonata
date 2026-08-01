@@ -1,19 +1,12 @@
-# Sonata - use Terminal the way you use ChatGPT
+# Sonata - Skip the terminal learning curve
 
-Terminal is the best workspace for AI agents. It was just never
-designed for the human side of the work: reading long output, editing
-prompts, previewing results, managing sessions.
+Terminal(CLI) is where Claude Code and Codex work best. It just isn’t an ideal interface for people — reading long outputs, refining prompts, previewing results, and managing sessions.
 
-Sonata adds the experience layer. Your Claude Code & Codex agents run natively
-in the terminal, with full capabilities on your existing
-subscription. You read, write, and manage everything in a modern
-interface as familiar as ChatGPT.
+Sonata adds the experience layer. Your Claude Code & Codex agents run natively in the terminal, with full capabilities on your existing subscription. You read, write, and manage everything in a modern interface as familiar as ChatGPT.
 
-Free and open source · macOS · No sign-up · No telemetry · No server
+Free and open source · macOS · No sign-up · No telemetry · No server · Works with your subscriptions on Claude Code & Codex
 
-Sonata is built for a new generation of coders, builders, and design
-engineers — people whose work no longer centers on writing or editing
-code, but on give directions and share judgement & taste with AI.
+Sonata is built for a new generation of coders, builders, and design engineers — people whose work no longer centers on writing or editing code, but on reading AI outputs, giving direction, managing tasks, and building 0-1 ideas.
 
 **[▶ Watch the 3-minute demo](https://youtu.be/Bvi27v0_OkI)**
 
@@ -155,8 +148,8 @@ Apple-notarized.
 
 You'll need:
 
-- A Mac with Apple Silicon (arm64). Intel Macs are not supported yet.
-- Claude Code and/or Codex CLI installed and signed in.
+- [Claude Code](https://code.claude.com/docs/en/quickstart) and/or [Codex](https://learn.chatgpt.com/docs/codex/cli) CLI installed and logged in.
+- Mac with Apple Silicon (arm64). Intel Macs are not supported yet.
 
 <br>
 
@@ -213,8 +206,7 @@ through Sonata.
 
 ## Caveats
 
-Sonata is in early beta, shaped so far by a few people's daily use.
-It's not perfect:
+Sonata is in early beta, shaped so far by a few people's daily use. It will have bugs:
 
 - Claude Code and Codex hooks / transcripts occasionally don't
   deliver a complete signal. That's why the CLI window is usually
