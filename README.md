@@ -1,12 +1,12 @@
 # Sonata - Skip the terminal learning curve, start building
 
-Terminal(CLI) is where Claude Code and Codex work best. It just isn’t an ideal interface for people — reading long outputs, refining prompts, previewing results, and managing sessions.
+Terminal(CLI) is where Claude Code and Codex work best. It just isn’t an ideal interface for people — reading long outputs, writing prompts, previewing results, and managing sessions.
 
 Sonata adds the experience layer. Your Claude Code & Codex agents run natively in the terminal, with full capabilities on your existing subscription. You read, write, and manage everything in a modern interface as familiar as ChatGPT.
 
 Free and open source · macOS · No sign-up · No telemetry · No server · Works with your subscriptions on Claude Code & Codex
 
-Sonata is built for a new generation of coders, builders, and design engineers — people whose work no longer centers on writing or editing code, but on reading AI outputs, giving direction, managing tasks, and building 0-1 ideas.
+Sonata is built for design engineers & new generation of developers — people whose work no longer centers on writing or editing code, but on reading AI outputs, giving direction, managing tasks, and building 0-1 ideas.
 
 **[▶ Watch the 3-minute demo](https://youtu.be/Bvi27v0_OkI)**
 
