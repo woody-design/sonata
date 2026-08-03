@@ -28,27 +28,46 @@ import { cleanTerminal } from "./tui-parsers-common";
 // U+2022 anchor): `•PermissionsupdatedtoApproveforme`.
 const CODEX_PICKER_HEADER_RE = /UpdateModelPermissions/;
 const CODEX_PICKER_FOOTER_RE = /Pressentertoconfirmoresctogoback/;
+// ── Full Access consent dialog — a GRID-fed pair (upstream sync SL-2) ────────
+//
 // Confirming the **Full Access** row does NOT print a receipt — it opens a
-// SECOND consent dialog ("Enable full access? … 1. Yes, continue anyway / 2.
-// Yes, and don't ask again / 3. Cancel"; measured, codex 0.144.5). This is a
-// RED LINE 2 interstitial (the codex trust-dialog silent-Yes lineage): granting
-// unrestricted filesystem + network access is a human consent Sonata must NEVER
-// auto-answer. S7 (revision 3) OVERTURNS S3's rollback-on-detect: instead of
-// Escing the dialog away (which flashed it shut before the user could act —
-// "一闪就没了"), the choreography PARKS on it and surfaces its three rows in the
-// Action Drawer, injecting ONLY the user's chosen answer (see the parked-confirm
-// relay). Rows (measured, codex 0.144.5): `1. Yes, continue anyway` / `2. Yes,
-// and don't ask again` / `3. Cancel`, cursor `›` (U+203A) + digit + label.
+// consent dialog. This is a RED LINE 2 interstitial (the codex trust-dialog
+// silent-Yes lineage): granting unrestricted filesystem + network access is a
+// human consent Sonata must NEVER auto-answer. S7 (revision 3) OVERTURNS S3's
+// rollback-on-detect: instead of Escing the dialog away (which flashed it shut
+// before the user could act — "一闪就没了"), the choreography PARKS on it and
+// surfaces its rows in the Action Drawer, injecting ONLY the user's chosen
+// answer (see the parked-confirm relay).
+//
+// MEASURED VERBATIM, codex 0.146.0 (spikes/upstream-sync-2026-08/codex,
+// `out-q1-consent.frames.log` @ consent-1st) — TWO rows; 0.146.0 deleted the old
+// `Yes, and don't ask again` row (F1), so Cancel moved 3 → 2:
+//   `Enable full access?`
+//   `› 1. Yes, continue anyway  Apply full access for this session`
+//   `  2. Cancel                Go back without enabling full access`
+//   `Press enter to confirm or esc to go back`   cursor `›` U+203A
+//
+// CHANNEL — these two read the reconstructed SCREEN (TaskScreenModel grid text),
+// never the linear pty tail (D-1). Codex 0.146 repaints the consent as a CELL
+// DIFF over the `/permissions` picker that occupied the same rows: a cell already
+// holding the right character is never retransmitted, so the STREAM reads
+// `Enablfullaccess?` (the `e` of "Enable" lived in the picker's frame) and
+// `1Yes,continueanyway` (no `›`, no `.`). Which characters are elided depends on
+// the prior frame + terminal width, so no regex widening can fix it — the grid
+// converges to the CURRENT screen and is the only honest substrate for this
+// SPATIAL query. Both parsers stay pure and compaction-based: `cleanTerminal` is
+// a near-noop on plain grid rows, and the whitespace-strip still buys tolerance
+// of the column padding the dialog lays its descriptions out with.
 const CODEX_FULL_ACCESS_CONSENT_RE = /Enablefullaccess\?/;
-// Consent cursor rows: `›` + digit + `.` + the row LABEL. The label anchor tells
-// the consent's cursor apart from the /permissions picker rows painted behind it
-// (both use `›\d.` — the modal's labels are `Yes,continueanyway` / `Yes,anddon't
-// askagain` / `Cancel`, never the picker's `Askforapproval`/…). `.` stands in for
-// the apostrophe in "don't". Most-recent-wins (greatest index).
-const CODEX_CONSENT_CURSOR_RES: ReadonlyArray<readonly [RegExp, 1 | 2 | 3]> = [
+// Consent cursor rows: `›` + digit + `.` + the row LABEL. The LABEL anchor is the
+// red line — never a bare row number: it is what tells this cursor apart from any
+// other `›\d.` row (the /permissions picker's `Askforapproval`/…, the composer
+// placeholder), so a screen the choreography does not actually recognize reads as
+// null (→ wait → timeout → needs-attention) instead of navigating blind.
+// Most-recent-wins (greatest index).
+const CODEX_CONSENT_CURSOR_RES: ReadonlyArray<readonly [RegExp, 1 | 2]> = [
   [/›\d\.Yes,continueanyway/, 1],
-  [/›\d\.Yes,anddon.taskagain/, 2],
-  [/›\d\.Cancel/, 3],
+  [/›\d\.Cancel/, 2],
 ];
 /** Label → mode, ordered as the picker renders (ask → approve → full). The
  *  order is a stable picker property used ONLY to pick an arrow direction; the
@@ -117,18 +136,24 @@ export function codexPermissionPickerFooterVisible(rawScan: string): boolean {
 
 /** The Full Access consent dialog is on screen (a RED LINE 2 interstitial — see
  *  CODEX_FULL_ACCESS_CONSENT_RE). S7 PARKS on it and relays its rows through the
- *  Action Drawer rather than auto-answering or Escing it away. */
-export function codexPermissionConsentDialogOpen(rawScan: string): boolean {
-  return CODEX_FULL_ACCESS_CONSENT_RE.test(codexPickerCompact(rawScan));
+ *  Action Drawer rather than auto-answering or Escing it away.
+ *
+ *  `screenText` MUST be the reconstructed grid (TaskScreenModel.viewportText()),
+ *  not the pty tail — on the linear stream this predicate is structurally false
+ *  while the dialog is on screen (the cell-diff repaint; see the constant's
+ *  comment). Because the grid holds only the CURRENT screen, its ABSENCE is
+ *  equally trustworthy: it is how the relay sees the user answer natively. */
+export function codexPermissionConsentDialogOpen(screenText: string): boolean {
+  return CODEX_FULL_ACCESS_CONSENT_RE.test(codexPickerCompact(screenText));
 }
 
-/** Which consent row the `›` cursor currently highlights (1 = Yes continue, 2 =
- *  Yes & don't ask again, 3 = Cancel), or null if none is recognized yet. The
- *  label anchor separates it from the /permissions picker rows behind it.
- *  Most-recent-wins. */
-export function parseCodexConsentCursor(rawScan: string): 1 | 2 | 3 | null {
-  const compact = codexPickerCompact(rawScan);
-  let best: 1 | 2 | 3 | null = null;
+/** Which consent row the `›` cursor currently highlights (1 = Yes, continue
+ *  anyway; 2 = Cancel), or null if none is recognized yet. Label-anchored, so an
+ *  unrecognized screen is null rather than a guess. Most-recent-wins.
+ *  Grid-fed, exactly like `codexPermissionConsentDialogOpen`. */
+export function parseCodexConsentCursor(screenText: string): 1 | 2 | null {
+  const compact = codexPickerCompact(screenText);
+  let best: 1 | 2 | null = null;
   let bestIndex = -1;
   for (const [re, row] of CODEX_CONSENT_CURSOR_RES) {
     const globalRe = new RegExp(re.source, "g");

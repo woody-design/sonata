@@ -196,19 +196,44 @@ const pickerFrame = (cursorRow) => {
   rows[cursorRow - 1] = `› ${rows[cursorRow - 1]}`;
   return `Update Model Permissions ${rows.join(" ")} ${PICKER_FOOTER}`;
 };
-const CONSENT_FRAME =
-  "Enable full access? › 1. Yes, continue anyway 2. Yes, and don't ask again 3. Cancel";
+// Two measured rows at codex 0.146.0 (`Yes, and don't ask again` deleted
+// upstream). The relay detects this dialog on the reconstructed SCREEN, not the
+// pty tail, so the frame below is fed to BOTH channels via the stub screen model.
+const CONSENT_FRAME = "Enable full access? › 1. Yes, continue anyway   2. Cancel";
+
+/** A stand-in for the per-task `TaskScreenModel` (the real one is an @xterm grid;
+ *  this test drives a FAKE pty, so `startTask` never built one). The engine's
+ *  spatial queries only need the frame just written to be readable back, which is
+ *  exactly what the real grid gives them for a whole-frame write. */
+function stubScreenModel() {
+  let screen = "";
+  return {
+    write: (data) => {
+      screen = data;
+    },
+    whenSettled: (fn) => fn(),
+    viewportText: () => screen,
+    resize: () => {},
+    dispose: () => {},
+  };
+}
 
 await check("real parked codex consent blocks delivery AND submitPrompt (the red-line surface)", async () => {
   const writes = [];
+  const switchEvents = [];
   const host = new TerminalHost({
     taskId: "delivery-control-switch-gate-codex",
     provider: "codex",
     defaultWorkspace: process.cwd(),
-    eventSink: () => {},
+    eventSink: (event) => {
+      if (event.type === "control-switch:state") {
+        switchEvents.push(event.payload);
+      }
+    },
   });
   try {
     host.ptyProcess = fakePty(writes);
+    host.screenModel = stubScreenModel();
     const response = host.injectClaudeControlSwitch(
       "codex-permission",
       "full-access",
@@ -222,6 +247,11 @@ await check("real parked codex consent blocks delivery AND submitPrompt (the red
     host.handlePtyData(pickerFrame(2));
     host.handlePtyData(pickerFrame(3));
     host.handlePtyData(CONSENT_FRAME);
+    assert.equal(
+      switchEvents.at(-1)?.phase,
+      "parked",
+      "the relay really PARKED on the consent (not merely pending) — the gate's premise",
+    );
     assert.equal(host.hasPendingControlSwitch(), true, "the switch is PARKED on the consent");
 
     // The delivery gate: a queued item must NOT paste into the parked consent. Use

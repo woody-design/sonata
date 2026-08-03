@@ -361,7 +361,7 @@ export type ControlSwitchStateEvent = BaseRuntimeEvent<
      *   - `claude-cachemiss` — the `Switch model? / Change effort level?` confirm a
      *     `/model` / `/effort` inject raises on a session with history (rows: Yes/No).
      *   - `codex-consent` — the `Enable full access?` consent the /permissions Full
-     *     Access row opens (rows: Yes continue / Yes & don't ask again / Cancel).
+     *     Access row opens (rows: Yes continue / Cancel — codex 0.146.0).
      *  The renderer composes the VERBATIM rows from (dialog, kind, value) + its own
      *  registered copy; send stays gated while parked. */
     dialog?: "claude-cachemiss" | "codex-consent";

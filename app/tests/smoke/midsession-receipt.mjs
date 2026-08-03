@@ -356,21 +356,15 @@ assert.equal(
   "ANSI-decorated cursor row still parses",
 );
 
-// — Full Access consent dialog (RED LINE 2): confirming Full Access opens a
-//   "Enable full access?" consent dialog, NOT a receipt. The choreography must
-//   recognize it and roll back — it is never auto-answered. (Measured verbatim,
-//   codex 0.144.5.) —
-const FULL_ACCESS_CONSENT =
-  "Enable full access? When Codex runs with full access, it can edit any file on your computer and run commands with network, without your approval.›1.Yes,continueanywayApplyfullaccessforthissession2.Yes,anddon'taskagainEnablefullaccessandrememberthischoice3.CancelGobackwithoutenablingfullaccessPressentertoconfirmoresctogoback";
+// — Full Access consent dialog (RED LINE 2): confirming Full Access opens an
+//   "Enable full access?" consent dialog, NOT a receipt. The choreography PARKS
+//   on it and relays its rows — it is never auto-answered. Detection reads the
+//   GRID; the fixtures live in the S7 section below (CONSENT_GRID), which also
+//   pins WHY the stream cannot serve this query. —
 assert.equal(
   codexPermissionConsentDialogOpen("Enable full access? When Codex runs with full access…"),
   true,
-  "the `Enable full access?` consent dialog is recognized (roll back, never auto-answer)",
-);
-assert.equal(
-  codexPermissionConsentDialogOpen(FULL_ACCESS_CONSENT),
-  true,
-  "…the full measured consent frame is recognized",
+  "the `Enable full access?` consent dialog is recognized (park, never auto-answer)",
 );
 assert.equal(
   codexPermissionConsentDialogOpen(PICKER_OPEN),
@@ -381,13 +375,6 @@ assert.equal(
   codexPermissionConsentDialogOpen(COMPOSER_AFTER_ESC),
   false,
   "the bare composer is not the consent dialog",
-);
-// The consent frame carries no `• Permissions updated to` receipt — the engine
-// must not mistake it for a settle.
-assert.equal(
-  parseCodexPermissionReceipt(FULL_ACCESS_CONSENT),
-  null,
-  "the consent dialog is not a confirm receipt",
 );
 
 // — Cross-vocabulary isolation: a claude mode line is not a codex cursor/receipt. —
@@ -665,33 +652,101 @@ assert.equal(claudeCacheMissCancelled("  ⎿  Kept model as Fable 5", "model"), 
 assert.equal(claudeCacheMissCancelled("  ⎿  Kept model as Fable 5", "effort"), false, "a model cancel is not an effort cancel");
 assert.equal(claudeCacheMissCancelled("  ⎿  Kept effort level as high", "effort"), true, "a `Kept effort level as` line is an effort cancel");
 
-// ── S7: codex Full Access consent cursor (park + drawer relay) ──────────────
-const CONSENT_DIALOG =
-  "Enable full access?\n" +
-  "When Codex runs with full access, it can edit any file on your computer and run commands with network, without your approval.\n" +
-  "› 1. Yes, continue anyway      Apply full access for this session\n" +
-  "  2. Yes, and don't ask again  Enable full access and remember this choice\n" +
-  "  3. Cancel                    Go back without enabling full access";
-assert.equal(codexPermissionConsentDialogOpen(CONSENT_DIALOG), true, "the consent dialog is recognized (S3 anchor)");
-assert.equal(parseCodexConsentCursor(CONSENT_DIALOG), 1, "consent cursor starts on row 1 (Yes, continue anyway)");
+// ── S7: codex Full Access consent (park + drawer relay), GRID-fed ───────────
+//
+// MEASURED VERBATIM from real codex 0.146.0 — spikes/upstream-sync-2026-08/codex,
+// `out-q1-consent.frames.log`, the rendered SCREEN @ consent-1st. The probe's
+// screen extraction is byte-identical to `TaskScreenModel.viewportText()`
+// (`buffer.getLine(viewportY + y).translateToString(true)` joined with "\n"), so
+// these ARE the rows the parsers see in production.
+//
+// TWO rows at 0.146.0 (F1: `Yes, and don't ask again` deleted upstream → Cancel
+// moved 3 → 2), cursor `›` U+203A.
+const CONSENT_GRID =
+  "  Enable full access?\n" +
+  "  When Codex runs with full access, it can edit any file on your computer and run commands with network, without your\n" +
+  "  approval. Exercise caution when enabling full access. This significantly increases the risk of data loss, leaks, or\n" +
+  "  unexpected behavior.\n" +
+  "\n" +
+  "› 1. Yes, continue anyway  Apply full access for this session\n" +
+  "  2. Cancel                Go back without enabling full access\n" +
+  "\n" +
+  "  Press enter to confirm or esc to go back";
+// Cursor on row 2 — the same measured frame with the `›` moved one row down (a
+// down-arrow only relocates the glyph; the rows themselves are static).
+const CONSENT_GRID_ROW2 =
+  "  Enable full access?\n" +
+  "  1. Yes, continue anyway  Apply full access for this session\n" +
+  "› 2. Cancel                Go back without enabling full access\n" +
+  "\n" +
+  "  Press enter to confirm or esc to go back";
+// The grid AFTER an Esc from the consent (measured @ after-esc-from-consent): the
+// idle composer. 0.146.0 does NOT return to the /permissions picker — the consent
+// REPLACED it. This is the relay's native-cancel signal, and it works ONLY on the
+// grid: the grid converges to the current screen, so the dialog is simply gone.
+const CONSENT_GRID_AFTER_ESC =
+  "• You have 1 usage limit reset available. Run /usage to use one.\n" +
+  "\n" +
+  "› Improve documentation in @filename\n" +
+  "\n" +
+  "  gpt-5.6-sol high · /tmp/ws";
+// WHY THE CHANNEL MOVED (the SL-2 red line). This is the RAW pty stream as the
+// production compaction sees it at the very same instant CONSENT_GRID is on
+// screen (measured, `capture-q1-consent-repaint.txt`): codex repaints the consent
+// as a CELL DIFF over the /permissions picker that held those rows, so every cell
+// already carrying the right character is NEVER transmitted — the `e` of "Enable"
+// (the picker's frame had `e ` in columns 8-9), the `› ` cursor and the `.` after
+// the digit. A stream-fed detector is therefore FALSE on a dialog that is plainly
+// displayed, and no widened needle can fix it (which characters vanish depends on
+// the prior frame and the terminal width).
+const CONSENT_RAW_STREAM_CELL_DIFF =
+  "Enablfullaccess?WhenCodexrunswithfullaccess,itcaneditanyfileonyourcomputerandruncommandswithnetwork," +
+  "withoutyourapproval.Exercisecautionwhenenablingfullaccess.Thissignificantlyincreasestheriskofdataloss," +
+  "leaks,orunexpectedbehavior.1Yes,continueanywayApplyfullacessforthiseson2.CancelGobackwithoutenablingfullaccess";
+
+assert.equal(codexPermissionConsentDialogOpen(CONSENT_GRID), true, "the measured 0.146.0 consent GRID is recognized");
 assert.equal(
-  parseCodexConsentCursor(
-    "  1. Yes, continue anyway\n  2. Yes, and don't ask again\n› 3. Cancel  Go back without enabling full access",
-  ),
-  3,
-  "consent cursor on row 3 (Cancel) after two down-arrows",
+  codexPermissionConsentDialogOpen(CONSENT_RAW_STREAM_CELL_DIFF),
+  false,
+  "…and the SAME dialog is invisible on the raw stream (cell-diff elision) — the measured reason the query reads the grid",
 );
-// Disambiguation: the /permissions picker rows are painted BEHIND the modal —
-// the consent cursor parser must read the CONSENT rows, never the picker's.
 assert.equal(
-  parseCodexConsentCursor(
-    "› 1. Ask for approval (current)  Codex can read and edit files\n" +
-      "Enable full access?\n" +
-      "  1. Yes, continue anyway\n  2. Yes, and don't ask again\n› 3. Cancel  Go back",
-  ),
-  3,
-  "the picker's `› 1. Ask for approval` behind the modal is not the consent cursor",
+  parseCodexConsentCursor(CONSENT_RAW_STREAM_CELL_DIFF),
+  null,
+  "…the stream loses the `›` cursor glyph and the row dot too, so the cursor is unreadable there",
 );
-assert.equal(parseCodexConsentCursor("› 1. Ask for approval (current)"), null, "a bare /permissions picker frame has no consent cursor");
+assert.equal(
+  codexPermissionConsentDialogOpen(CONSENT_GRID_AFTER_ESC),
+  false,
+  "the post-Esc grid is the idle COMPOSER — absence on the grid is the native-cancel signal",
+);
+assert.equal(parseCodexConsentCursor(CONSENT_GRID), 1, "consent cursor starts on row 1 (Yes, continue anyway)");
+assert.equal(parseCodexConsentCursor(CONSENT_GRID_ROW2), 2, "consent cursor on row 2 (Cancel) after one down-arrow");
+// LABEL-anchored, never row-number-blind: a `›\d.` row whose label is not a
+// consent label must not read as a consent cursor (the discipline that makes an
+// unrecognized screen fail SAFE — null → wait → needs-attention, never a guess).
+assert.equal(
+  parseCodexConsentCursor("› 1. Ask for approval (current)"),
+  null,
+  "a /permissions picker row is not a consent cursor (label anchor, not the digit)",
+);
+assert.equal(
+  parseCodexConsentCursor(CONSENT_GRID_AFTER_ESC),
+  null,
+  "the composer placeholder's `›` is not a consent cursor",
+);
+// Most-recent-wins: a stale row-1 frame cannot outvote the latest highlight.
+assert.equal(
+  parseCodexConsentCursor(`${CONSENT_GRID}\n${CONSENT_GRID_ROW2}`),
+  2,
+  "the most recent cursor frame wins",
+);
+// The consent frame carries no `• Permissions updated to` receipt — the engine
+// must not mistake it for a settle (receipts stay on the stream regardless).
+assert.equal(
+  parseCodexPermissionReceipt(CONSENT_GRID),
+  null,
+  "the consent dialog is not a confirm receipt",
+);
 
 console.log("midsession-receipt: OK");

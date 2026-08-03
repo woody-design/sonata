@@ -241,16 +241,15 @@ function controlConfirmContent(
       body:
         "Codex will be able to edit any file on your computer and run commands " +
         "with network access, without asking for approval. Exercise caution.",
+      // VERBATIM from the measured dialog (codex 0.146.0): two rows — the
+      // `Yes, and don't ask again` row was deleted upstream (F1), which moved
+      // Cancel to row 2. The host navigates by ROW NUMBER, so these must stay in
+      // lockstep with the CLI's own numbering.
       rows: [
         { rowNumber: 1, label: "Yes, continue anyway", desc: "Apply full access for this session" },
-        {
-          rowNumber: 2,
-          label: "Yes, and don't ask again",
-          desc: "Enable full access and remember this choice",
-        },
-        { rowNumber: 3, label: "Cancel", desc: "Go back without enabling full access" },
+        { rowNumber: 2, label: "Cancel", desc: "Go back without enabling full access" },
       ],
-      cancelRow: 3,
+      cancelRow: 2,
     };
   }
   const isEffort = kind === "effort";

@@ -19,7 +19,7 @@ import { sendPrompt, selectSidebarSession, waitForEngagement } from "./helpers/s
 //   (d) selecting "Full Access" opens codex's consent dialog, which Sonata NEVER
 //       auto-answers (RED LINE 2). S7 (revision 3) PARKS on it and surfaces its
 //       rows in the Action Drawer, relaying ONLY the user's chosen row:
-//         (d1) Cancel (row 3) → clean revert (chip stays, no banner, no grant);
+//         (d1) Cancel (row 2 at codex 0.146.0) → clean revert (chip stays, no banner, no grant);
 //         (d2) Grant (row 1) → the mode advances to Full Access (mirror written).
 //       NO chat turn is burned on either path.
 //
@@ -176,7 +176,9 @@ try {
   //     (RED LINE 2), but it no longer rolls back: it PARKS in the Action Drawer and
   //     Sonata relays ONLY the user's chosen row. Test BOTH paths, no turn burned.
   //
-  //   (d1) CANCEL (row 3) → clean revert: chip stays, no needs-attention, no grant.
+  //   (d1) CANCEL (row 2) → clean revert: chip stays, no needs-attention, no grant.
+  //        (Driven by LABEL below, so the upstream row renumber cannot silently
+  //        repoint it at a different answer.)
   await accessChip.click();
   await menu.waitFor({ state: "visible" });
   await settingSection(page, "Approvals").locator("button", { hasText: exact("Full Access") }).click();

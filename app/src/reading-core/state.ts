@@ -284,9 +284,9 @@ export interface TaskViewState {
         /** `parked` ONLY (S7): a RECOGNIZED confirm dialog is open in the Terminal
          *  and Sonata parked on it — the Action Drawer surfaces its rows and relays
          *  the user's choice. Which dialog (drives the drawer copy + row set):
-         *  `claude-cachemiss` (Yes/No) | `codex-consent` (Yes / Yes-remember /
-         *  Cancel). Send stays gated while parked (the `controlSwitch` pointer is
-         *  set), exactly like `pending`. */
+         *  `claude-cachemiss` (Yes/No) | `codex-consent` (Yes continue / Cancel —
+         *  codex 0.146.0). Send stays gated while parked (the `controlSwitch`
+         *  pointer is set), exactly like `pending`. */
         dialog?: "claude-cachemiss" | "codex-consent";
       }
     | null;

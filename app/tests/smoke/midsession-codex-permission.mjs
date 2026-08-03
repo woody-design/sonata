@@ -1,6 +1,6 @@
 // Mid-session CODEX permission switch — REAL-CLI choreography (S3).
 //
-// Drives a REAL codex 0.144.5 through the actual TerminalHost and exercises the
+// Drives a REAL codex 0.146.0 through the actual TerminalHost and exercises the
 // `/permissions` picker choreography end-to-end:
 //   1. open  — type bare `/permissions` (+ Enter) → the picker header renders;
 //   2. navigate — arrow the `›` cursor to the target ROW (matched by TEXT), one
@@ -12,17 +12,22 @@
 // relay (S7 revision 3 — the S3 rollback is OVERTURNED; the consent now PARKS):
 //   A. ask-for-approval → approve-for-me   (down ×1)  → settled + receipt
 //   B. approve-for-me   → ask-for-approval (up ×1)    → settled + receipt
-//   C. ask-for-approval → full-access, then CANCEL (drawer row 3)
+//   C. ask-for-approval → full-access, then CANCEL (drawer row 2)
 //      Confirming Full Access opens a "Enable full access?" CONSENT dialog, not
 //      a receipt (measured). RED LINE 2: Sonata NEVER auto-answers it — it PARKS
 //      (emits `parked`, dialog stays open) and relays ONLY the user's chosen row.
-//      Row 3 (Cancel) → codex returns to the /permissions picker → one Esc →
-//      composer → settled+cancelled (config byte-unchanged — nothing granted).
+//      The dialog has TWO rows at codex 0.146.0 (upstream deleted `Yes, and don't
+//      ask again`, moving Cancel 3 → 2). Row 2 (Cancel) returns to the
+//      /permissions picker → one Esc → composer → settled+cancelled (config
+//      byte-unchanged). Its `esc` exit is NOT symmetric with that (esc lands on
+//      the composer directly), which is why the Esc rides the Cancel confirm.
+//      Detection of the dialog reads the reconstructed SCREEN, not the pty tail:
+//      0.146.0 paints it as a cell diff over the picker rows, so the stream reads
+//      `Enablfull access?` and a stream-fed parser is blind to it (SL-2).
 //   E. approve-for-me → full-access, then GRANT (drawer row 1)
 //      Row 1 (Yes, continue anyway) → the `• Permissions updated to Full Access`
 //      receipt → settled. Row 1 grants for the session AND persists config
-//      (approvals_reviewer) — snapshot/restore covers it; row 2 ("don't ask
-//      again") is NEVER used in tests (it persists globally more strongly).
+//      (approvals_reviewer) — snapshot/restore covers it.
 //
 // Byte discipline (RED LINE 1): across ALL switches, NO chat turn may start — an
 // unrecognized codex slash line submits as a prompt and burns a turn, so a
@@ -117,8 +122,8 @@ try {
 
   findings.switchA = await drive("ask-for-approval", "approve-for-me");
   findings.switchB = await drive("approve-for-me", "ask-for-approval");
-  // C — Full Access consent, then CANCEL (row 3): parks, relays, returns clean.
-  findings.switchC = await driveConsent("ask-for-approval", 3);
+  // C — Full Access consent, then CANCEL (row 2): parks, relays, returns clean.
+  findings.switchC = await driveConsent("ask-for-approval", 2);
 
   // (F1 regression) RESIDUAL TEXT: a human types unsubmitted text straight into
   // the idle Terminal composer (no dirty flag), THEN a switch is driven. The
@@ -142,12 +147,12 @@ try {
   assert.equal(findings.switchB.receipt, "ask-for-approval", "B: receipt = ask-for-approval");
   assert.equal(findings.switchB.pickerClosed, true, "B: picker closed after confirm");
 
-  // C — Full Access consent PARKED, then CANCELLED via drawer row 3 (S7): NEVER
+  // C — Full Access consent PARKED, then CANCELLED via drawer row 2 (S7): NEVER
   // auto-answered; only the user's Cancel is injected → clean revert, no grant.
   assert.equal(findings.switchC.parkedDialog, "codex-consent", "C: the consent dialog PARKED (relayed, not rolled back)");
-  assert.equal(findings.switchC.phase, "settled", "C: Cancel (row 3) settles the parked confirm (user chose)");
+  assert.equal(findings.switchC.phase, "settled", "C: Cancel (row 2) settles the parked confirm (user chose)");
   assert.equal(findings.switchC.cancelled, true, "C: a Cancel is a cancelled-settle — nothing granted, NO needs-attention");
-  assert.equal(findings.switchC.pickerClosed, true, "C: Cancel → picker reopened → Esc → composer (measured)");
+  assert.equal(findings.switchC.pickerClosed, true, "C: Cancel → picker returned → Esc → composer (measured 0.146.0)");
   assert.equal(findings.switchC.receipt, null, "C: Cancel wrote no `Permissions updated` receipt — nothing changed");
 
   // (F1) The residual-text switch still settled AND burned no turn — the
@@ -239,7 +244,7 @@ async function drive(from, target, { residualText } = {}) {
 }
 
 /** Drive a Full Access switch to the PARKED consent dialog (S7), then relay the
- *  user's chosen row (1 = grant this session, 3 = cancel) and collect the settle. */
+ *  user's chosen row (1 = grant this session, 2 = cancel) and collect the settle. */
 async function driveConsent(from, row) {
   const before = switchEvents.length;
   rawTail = "";

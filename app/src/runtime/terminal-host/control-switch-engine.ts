@@ -114,11 +114,32 @@ const CODEX_MODEL_MAX_NAV_STEPS = 8;
 const PARKED_CONFIRM_NAV_TIMEOUT_MS = 2500;
 const PARKED_CONFIRM_SETTLE_TIMEOUT_MS = 4000;
 const PARKED_CONFIRM_CANCEL_VERIFY_MS = 900;
-/** Navigation bound: the parked dialogs have ≤3 rows, so any row is ≤2 presses
+/** Navigation bound: the parked dialogs have 2 rows, so any row is one press
  *  away; 6 absorbs a dropped/duplicated repaint. Exhausting it → Esc + attention. */
 const PARKED_CONFIRM_MAX_NAV_STEPS = 6;
-/** Rollback Esc bound: at most the consent-over-picker two-deep stack. */
+/** Esc bound across a parked relay's lifetime — spent by the failure rollback and
+ *  by the native-Cancel picker close. One Esc closes any ONE of these screens
+ *  (codex 0.146.0: the consent replaces the picker rather than stacking over it),
+ *  so the cap is the safety net for a screen whose modal never clears. */
 const PARKED_CONFIRM_MAX_ROLLBACK_ESCS = 3;
+/** How many rows each whitelisted dialog renders (MEASURED). The relay refuses a
+ *  row outside its dialog's range — the renderer only offers valid rows, so this
+ *  is the backstop, not the gate. codex-consent lost its `Yes, and don't ask
+ *  again` row at 0.146.0 (F1), which is what moved Cancel from row 3 to row 2. */
+const PARKED_DIALOG_ROW_COUNT: Record<"claude-cachemiss" | "codex-consent", number> = {
+  "claude-cachemiss": 2,
+  "codex-consent": 2,
+};
+/** The codex consent's Cancel row (`2. Cancel  Go back without enabling full
+ *  access`, measured 0.146.0). */
+const CODEX_CONSENT_CANCEL_ROW = 2;
+/** How long after the Cancel confirm to send the picker-closing Esc. MEASURED
+ *  (0.146.0): the two exits from the consent are NOT symmetric — `esc` lands on
+ *  the idle composer, but ENTER on the Cancel row goes BACK to the `/permissions`
+ *  picker, which then sits there swallowing whatever is typed next. So the relay
+ *  spaces one Esc behind the Enter, the same shape (and the same held write-lock)
+ *  as the `/permissions` + Enter pair that opens the picker. */
+const CODEX_CONSENT_CANCEL_ESC_DELAY_MS = 250;
 /** Rollback Esc bound: the picker is at most two levels deep, so two Escs return
  *  to the composer; a third is a safety cap against a screen whose footer never
  *  clears (then we conclude needs-attention regardless). */
@@ -158,6 +179,30 @@ export interface ControlSwitchHost {
   deferSonataWrite(ms: number, fn: () => void, owner?: "prompt" | "control"): void;
   /** Kill-line flood the composer before a typed slash command (RED LINE 1). */
   clearComposerBeforeTypedCommand(): void;
+  /**
+   * Read the reconstructed SCREEN — the settled viewport of the task's existing
+   * `TaskScreenModel` grid (D-1). The engine's SPATIAL queries (is this modal on
+   * screen? which row holds its cursor?) belong here, not on the linear pty tail:
+   * a TUI repaints a modal as a CELL DIFF over whatever occupied those rows, so
+   * characters that happen to be correct already are NEVER transmitted and the
+   * stream carries a garbled `Enablfullaccess?` while the dialog is plainly
+   * displayed (measured, codex 0.146.0). The grid converges to the current
+   * screen, so both PRESENCE and ABSENCE of a modal are trustworthy there.
+   * TEMPORAL queries — receipts, rejections, `Kept … as` lines: events that
+   * happened, not state that is — stay on the stream, which retains them after
+   * the screen has repainted past.
+   *
+   * Callback-shaped because the grid is only complete once the emulator's
+   * pending writes have drained (`whenSettled`): it runs SYNCHRONOUSLY in the
+   * quiescent case (a dialog awaiting input produces no output, so nothing is in
+   * flight) and otherwise on the last write's parse callback. `fn` may therefore
+   * run after the pending switch has moved on — every caller re-reads
+   * `pendingControlSwitch` and re-checks its axis/phase. `fn` may also never run
+   * at all (no screen model / a disposed one during teardown): that is FAIL-SAFE
+   * by construction — a missing read leaves the state machine where it was, and
+   * the per-phase timeout (or, while parked, the user) resolves it.
+   */
+  readScreen(fn: (screen: string) => void): void;
   /** Emit the `control-switch:state` event through the host's event sink. */
   emitControlSwitchEvent(payload: ControlSwitchStatePayload): void;
 }
@@ -323,9 +368,11 @@ type PendingControlSwitch =
       //     settle (+ run a queued `next` for the staged sequence, Part 1); No →
       //     the `Kept … as` line → cancelled (drop `next`).
       //   `codex-consent` — the `Enable full access?` consent the /permissions
-      //     Full Access row opens. Rows: 1/2 = grant → the `• Permissions updated
-      //     to Full Access` receipt → settle + mirror; 3 = Cancel → returns to the
-      //     /permissions picker → one Esc → composer → cancelled (measured).
+      //     Full Access row opens. Rows (0.146.0): 1 = Yes, continue anyway →
+      //     grant → the `• Permissions updated to Full Access` receipt → settle +
+      //     mirror; 2 = Cancel → back to the /permissions picker, which one Esc
+      //     then closes (measured — the consent's two exits differ: `esc` from
+      //     the consent lands on the composer, Enter on Cancel does not).
       // The dialog is reached by transforming the driving pending IN PLACE (the
       // value axis for claude, the codex-permission `confirming` phase for codex),
       // so the single-switch guard still holds one pointer. RED LINE: only the
@@ -339,10 +386,12 @@ type PendingControlSwitch =
       //                  validating each arrow press.
       //   confirming   — pressed Enter on the target row; waiting for the settle
       //                  signal (receipt for a grant/Yes, `Kept …` for a claude No).
-      //   cancel-picker— codex Cancel Enter'd; waiting for the /permissions picker
-      //                  to reappear, then Esc it.
-      //   cancel-exit  — Esc'd the reopened picker; verifying the composer returned,
-      //                  then settle-cancelled.
+      //   cancel-exit  — codex ONLY: the consent left the screen without our grant
+      //                  confirm — either we Enter'd its Cancel row (its closing
+      //                  Esc already queued) or the user answered natively.
+      //                  Bounded wait: a grant receipt still settles Yes (a native
+      //                  Yes closes the dialog a beat before it prints), otherwise
+      //                  the verify timer settles cancelled.
       //   closing      — an active-phase timeout fired the Esc rollback; verifying,
       //                  then needs-attention.
       axis: "parked-confirm";
@@ -363,13 +412,7 @@ type PendingControlSwitch =
       next: { kind: "effort"; value: string } | null;
       /** codex-consent ONLY: the mode the grant receipt confirms (full-access). */
       codexTarget: CodexPermissionMode | null;
-      phase:
-        | "waiting-user"
-        | "navigating"
-        | "confirming"
-        | "cancel-picker"
-        | "cancel-exit"
-        | "closing";
+      phase: "waiting-user" | "navigating" | "confirming" | "cancel-exit" | "closing";
       /** The CLI row (1-based) the user chose / we're driving the cursor toward. */
       targetRow: number | null;
       /** The cursor row we last acted from (to recognize a pre-move repaint). */
@@ -913,25 +956,40 @@ export class ControlSwitchEngine {
 
     // `confirming` — watch for the `• Permissions updated to <label>` receipt.
     if (pending.phase === "confirming") {
+      // The receipt (a TEMPORAL event) is read off the STREAM, and FIRST: on the
+      // ask/approve rows it is the only outcome, and a landed receipt must beat
+      // any dialog frame.
+      const landed = parseCodexPermissionReceipt(scan);
+      if (landed) {
+        this.clearCodexPickerTimer(pending);
+        // Confirm closed the picker (Enter dismisses it — measured). A receipt for
+        // any mode OTHER than our target should be impossible (we confirmed the
+        // target row), but if it happens the state is unexpected → needs-attention.
+        pending.pickerOpen = false;
+        this.finishCodexPicker(landed === pending.target ? "settled" : "needs-attention", pending);
+        return;
+      }
       // RED LINE 2: confirming Full Access opens a consent dialog instead of a
       // receipt. Never auto-answer it. S7 (revision 3) OVERTURNS S3's rollback:
       // instead of Escing the dialog away (it flashed shut before the user could
       // act), PARK on it and relay its rows through the drawer — the user's grant
-      // is injected only when THEY choose it.
-      if (codexPermissionConsentDialogOpen(scan)) {
-        this.parkCodexConsent(pending);
-        return;
-      }
-      const landed = parseCodexPermissionReceipt(scan);
-      if (!landed) {
-        return; // no receipt yet — wait (confirm timeout Escs)
-      }
-      this.clearCodexPickerTimer(pending);
-      // Confirm closed the picker (Enter dismisses it — measured). A receipt for
-      // any mode OTHER than our target should be impossible (we confirmed the
-      // target row), but if it happens the state is unexpected → needs-attention.
-      pending.pickerOpen = false;
-      this.finishCodexPicker(landed === pending.target ? "settled" : "needs-attention", pending);
+      // is injected only when THEY choose it. "Is the dialog on screen" is a
+      // SPATIAL query, so it reads the GRID (D-1): codex 0.146 paints the consent
+      // as a cell diff over the picker rows it replaces, which leaves the stream
+      // predicate FALSE on a dialog that is plainly displayed (measured) — the
+      // choreography then timed out and Esc'd a consent the user never saw.
+      this.host.readScreen((screen) => {
+        const current = this.pendingControlSwitch;
+        if (
+          !current ||
+          current.axis !== "codex-permission" ||
+          current.phase !== "confirming" ||
+          !codexPermissionConsentDialogOpen(screen)
+        ) {
+          return; // still no dialog (or the switch moved on) — the confirm timeout guards
+        }
+        this.parkCodexConsent(current);
+      });
     }
     // `closing` — the rollback Esc is in flight; ignore picker frames and let the
     // close-verify timer emit needs-attention.
@@ -1644,19 +1702,22 @@ export class ControlSwitchEngine {
       rollbackEscs: 0,
       timer: null,
     };
-    this.snapshotParkedFrame();
+    // No frame snapshot for codex-consent: its cursor is a GRID read (D-1), and
+    // the grid still holds the parked dialog when the drawer answer arrives. Only
+    // the rolling scan is reset, so the receipt watcher below cannot be fooled by
+    // pre-park text.
+    this.controlSwitchScan = "";
     this.emitParkedState();
   }
 
   /**
-   * Snapshot the current frame for the relay's first nav cursor read, then RESET
-   * the rolling scan (review F2). The parked dialog is static until a key press,
-   * so the relay needs the parked cursor — but the codex native-cancel detection
-   * is ABSENCE-based (`!consentDialogOpen`), and a retained 4096-char window would
-   * keep the stale consent text alive so a user's native Esc could never register
-   * (the relay would park forever). Snapshotting HERE and clearing the scan lets
-   * post-park frames dominate the native-cancel + receipt detection while
-   * parseParkedCursor falls back to the snapshot for the first read.
+   * Snapshot the current frame for the claude relay's first nav cursor read, then
+   * RESET the rolling scan (review F2). The parked dialog is static until a key
+   * press, so the relay needs the parked cursor, and the claude cache-miss cursor
+   * is still a STREAM read — but a retained 4096-char window would keep stale
+   * dialog text alive and defeat absence-based detection, so post-park frames must
+   * dominate the fresh scan while `driveParkedNav`'s claude branch falls back to
+   * this snapshot for the first read.
    */
   private snapshotParkedFrame(): void {
     this.parkedFrame = this.controlSwitchScan;
@@ -1687,7 +1748,7 @@ export class ControlSwitchEngine {
     if (!pending || pending.axis !== "parked-confirm" || pending.phase !== "waiting-user") {
       return;
     }
-    const rowCount = pending.dialog === "codex-consent" ? 3 : 2;
+    const rowCount = PARKED_DIALOG_ROW_COUNT[pending.dialog];
     if (!Number.isInteger(rowNumber) || rowNumber < 1 || rowNumber > rowCount) {
       return; // out of range — the renderer only offers valid rows; ignore
     }
@@ -1698,30 +1759,39 @@ export class ControlSwitchEngine {
     pending.awaitingCursor = null;
     this.armParkedTimeout(PARKED_CONFIRM_NAV_TIMEOUT_MS);
     // Drive from the CURRENT screen (the dialog is static — no new frame is coming
-    // until we press a key), reading the cursor out of the retained scan.
+    // until we press a key): the grid still holds it for codex, the park-time
+    // snapshot for claude.
     this.driveParkedNav();
   }
 
-  /** The current cursor ROW (1-based) for whichever parked dialog is up, or null.
-   *  Reads the live post-park scan when it has content (every read after the first
-   *  arrow press), falling back to the frame snapshotted at park time for the
-   *  relay's FIRST nav read — the parked dialog is static, so no fresh frame exists
-   *  yet, and the reset scan is empty (review F2). */
-  private parseParkedCursor(): number | null {
+  /**
+   * One navigation decision, sourced from whichever substrate the dialog's cursor
+   * actually lives on. codex-consent is a SPATIAL read of the GRID (D-1): its rows
+   * repaint as a cell diff over the picker they replace, so on the stream the
+   * cursor glyph and row digit are simply never transmitted (`1Yes,continueanyway`
+   * — measured 0.146.0) and the parser returns null on a dialog that is on screen.
+   * The grid also removes the need for a park-time snapshot: it still shows the
+   * static dialog when the drawer answer arrives. The claude cache-miss cursor
+   * stays on the stream (scan, falling back to the park snapshot for the first
+   * read — review F2), which is measured-reliable for it.
+   */
+  private driveParkedNav(): void {
     const pending = this.pendingControlSwitch;
     if (!pending || pending.axis !== "parked-confirm") {
-      return null;
+      return;
     }
-    const scan = this.controlSwitchScan || this.parkedFrame;
-    return pending.dialog === "codex-consent"
-      ? parseCodexConsentCursor(scan)
-      : parseClaudeCacheMissCursor(scan);
+    if (pending.dialog === "codex-consent") {
+      this.host.readScreen((screen) => this.applyParkedNav(parseCodexConsentCursor(screen)));
+      return;
+    }
+    this.applyParkedNav(parseClaudeCacheMissCursor(this.controlSwitchScan || this.parkedFrame));
   }
 
-  /** One navigation decision: validate the post-press cursor, then Enter on the
-   *  target row or press ONE arrow toward it. A pre-move repaint waits; an
-   *  unexpected jump rolls back (never keep guessing). */
-  private driveParkedNav(): void {
+  /** Act on the cursor row just read: validate the post-press position, then Enter
+   *  on the target row or press ONE arrow toward it. A pre-move repaint waits; an
+   *  unexpected jump rolls back (never keep guessing). Re-guards the pending state
+   *  because a grid read can land after the relay moved on. */
+  private applyParkedNav(cursor: number | null): void {
     const pending = this.pendingControlSwitch;
     if (
       !pending ||
@@ -1732,7 +1802,6 @@ export class ControlSwitchEngine {
     ) {
       return;
     }
-    const cursor = this.parseParkedCursor();
     if (cursor == null) {
       return; // cursor row not recognized yet — wait (the nav timeout guards)
     }
@@ -1764,24 +1833,44 @@ export class ControlSwitchEngine {
     this.armParkedTimeout(PARKED_CONFIRM_NAV_TIMEOUT_MS);
   }
 
-  /** Press Enter on the target row, then enter the settle-watch phase: a codex
-   *  Cancel (row 3) returns to the /permissions picker (Esc it out); everything
-   *  else waits for its receipt (grant / Yes) or `Kept …` (claude No). */
+  /** Press Enter on the target row, then enter the settle-watch phase. A codex
+   *  Cancel (row 2) is the one row whose outcome is known up front — it returns to
+   *  the `/permissions` picker (MEASURED 0.146.0; only `esc` reaches the composer)
+   *  — so its Enter is trailed by the one Esc that closes that picker, and the
+   *  relay goes straight to the bounded exit watch. Everything else waits for its
+   *  receipt (grant / Yes) or `Kept …` (claude No). */
   private pressParkedConfirm(
     pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
   ): void {
     if (!this.host.hasPty()) {
       return;
     }
+    const codexCancel =
+      pending.dialog === "codex-consent" && pending.targetRow === CODEX_CONSENT_CANCEL_ROW;
     this.controlSwitchScan = "";
     this.host.beginSonataWrite();
     this.host.writePty("\r");
-    this.host.endSonataWrite();
-    if (pending.dialog === "codex-consent" && pending.targetRow === 3) {
-      pending.phase = "cancel-picker";
-    } else {
-      pending.phase = "confirming";
+    if (codexCancel) {
+      // Deferred under the held write-lock so a human keystroke in the gap buffers
+      // rather than splitting the frame — and spaced, so codex processes the
+      // consent's Enter (which repaints the picker) before the Esc arrives.
+      this.host.deferSonataWrite(
+        CODEX_CONSENT_CANCEL_ESC_DELAY_MS,
+        () => {
+          if (this.host.hasPty()) {
+            this.host.writePty(ESC);
+          }
+        },
+        "control",
+      );
     }
+    this.host.endSonataWrite();
+    if (codexCancel) {
+      // false: the picker-closing Esc is the deferred one written just above.
+      this.beginParkedConsentExit(pending, false);
+      return;
+    }
+    pending.phase = "confirming";
     this.armParkedTimeout(PARKED_CONFIRM_SETTLE_TIMEOUT_MS);
   }
 
@@ -1817,71 +1906,105 @@ export class ControlSwitchEngine {
       return;
     }
 
-    // codex-consent
-    if (
-      pending.phase === "waiting-user" ||
-      pending.phase === "navigating" ||
-      pending.phase === "confirming"
-    ) {
+    // codex-consent. The grant receipt is a TEMPORAL event → stream, and it is
+    // checked in every phase that can still see it, INCLUDING `cancel-exit`: a
+    // native Yes closes the dialog a beat before `• Permissions updated to Full
+    // Access` prints, and reporting that as a cancel would be a lie.
+    if (pending.phase !== "closing") {
       if (parseCodexPermissionReceipt(scan) === pending.codexTarget) {
         this.settleParkedCodexYes(pending);
         return;
       }
     }
     if (pending.phase === "waiting-user") {
-      // A NATIVE cancel (the user Esc'd / chose Cancel in the Terminal): the consent
-      // closed and the /permissions picker is back — Esc it out and settle cancelled.
-      if (!codexPermissionConsentDialogOpen(scan) && codexPermissionPickerOpen(scan)) {
-        this.escParkedPickerThenCancel(pending);
-      }
+      // A NATIVE answer (the user Esc'd / chose a row in the co-visible Terminal).
+      // "Is the consent still up" is a SPATIAL query → the GRID (D-1), where the
+      // dialog's ABSENCE is truthful: the grid converges to the current screen,
+      // whereas the stream keeps the consent's bytes forever.
+      //
+      // The SAME read identifies WHAT the consent left behind, which decides
+      // whether anything is owed to the terminal. Esc → the idle composer, nothing
+      // to do. Enter on `2. Cancel` → the /permissions picker, still OPEN — and an
+      // abandoned codex picker swallows the next typed characters, so a queued
+      // prompt would paste into it and its Enter would confirm the highlighted row
+      // (the composer kill-line flood does not close a picker). Nothing else in
+      // the system closes it either: `clearPendingControlSwitch`'s Esc only covers
+      // the codex-permission / codex-model axes, and parking discarded the pending
+      // that carried `pickerOpen`. So the relay closes the picker IT opened, on a
+      // POSITIVE identification — the same thing the injected-Cancel path does.
+      // The grant path can never reach this Esc: a native Yes leaves the composer,
+      // never the picker.
+      this.host.readScreen((screen) => {
+        const current = this.pendingControlSwitch;
+        if (
+          !current ||
+          current.axis !== "parked-confirm" ||
+          current.dialog !== "codex-consent" ||
+          current.phase !== "waiting-user" ||
+          codexPermissionConsentDialogOpen(screen)
+        ) {
+          return; // still parked on the dialog — keep waiting for the user
+        }
+        this.beginParkedConsentExit(current, codexPermissionPickerOpen(screen));
+      });
       return;
     }
     if (pending.phase === "navigating") {
       this.driveParkedNav();
       return;
     }
-    if (pending.phase === "cancel-picker") {
-      // After our Cancel (row 3) Enter: the picker reappears (measured) — Esc it.
-      if (codexPermissionPickerOpen(scan)) {
-        this.escParkedPickerThenCancel(pending);
-      }
-      return;
-    }
-    if (pending.phase === "cancel-exit") {
-      if (!codexPermissionPickerFooterVisible(scan)) {
-        this.settleParkedCodexCancel(pending); // composer back
-      }
-      return;
-    }
+    // `cancel-exit` — nothing to drive: the receipt check above can still settle a
+    // native Yes, and the verify timer concludes cancelled.
     // `closing` — the fail Esc is in flight; the close-verify timer concludes.
   }
 
-  /** Esc the reopened /permissions picker (after a codex Cancel), then verify the
-   *  composer returned and settle cancelled. */
-  private escParkedPickerThenCancel(
+  /**
+   * The codex consent is leaving the screen without our grant confirm — either we
+   * just Enter'd its Cancel row or the user answered NATIVELY in the co-visible
+   * Terminal. Wait one bounded beat and let the evidence decide: a grant receipt
+   * still settles Yes (a native Yes closes the dialog a beat before it prints),
+   * otherwise the verify timer settles cancelled.
+   *
+   * `closeReturnedPicker` says whether the /permissions picker is behind the
+   * closing consent and must be Esc'd out (its Enter-on-Cancel exit, measured —
+   * see CODEX_CONSENT_CANCEL_ESC_DELAY_MS). The two callers know it differently
+   * and neither guesses: the INJECTED Cancel has already queued that Esc behind
+   * its Enter on measured certainty (so it passes false — a second Esc here would
+   * land on the composer), while the NATIVE path has just IDENTIFIED the screen on
+   * the grid. Escing an identified screen is what the red line asks for; Escing an
+   * unidentified one is what it forbids.
+   */
+  private beginParkedConsentExit(
     pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+    closeReturnedPicker: boolean,
   ): void {
     this.clearParkedTimer(pending);
     pending.phase = "cancel-exit";
-    if (this.host.hasPty()) {
+    if (
+      closeReturnedPicker &&
+      this.host.hasPty() &&
+      pending.rollbackEscs < PARKED_CONFIRM_MAX_ROLLBACK_ESCS
+    ) {
       this.controlSwitchScan = "";
       this.host.beginSonataWrite();
       this.host.writePty(ESC);
       this.host.endSonataWrite();
+      pending.rollbackEscs += 1;
     }
     const timer = setTimeout(() => this.onParkedCancelExitVerify(), PARKED_CONFIRM_CANCEL_VERIFY_MS);
     timer.unref?.();
     pending.timer = timer;
   }
 
+  /** The bounded exit beat elapsed with no grant receipt: the consent closed
+   *  without granting, so conclude cancelled — the user chose Cancel (or Esc'd)
+   *  and the Terminal is theirs to reconcile either way. */
   private onParkedCancelExitVerify(): void {
     const pending = this.pendingControlSwitch;
     if (!pending || pending.axis !== "parked-confirm") {
       return;
     }
     pending.timer = null;
-    // Whether or not the footer cleared, conclude cancelled — the user chose Cancel
-    // and the Terminal is theirs to reconcile either way.
     this.settleParkedCodexCancel(pending);
   }
 
@@ -1910,8 +2033,9 @@ export class ControlSwitchEngine {
     this.emitControlSwitchState("settled", { kind: originKind, value, cancelled: true });
   }
 
-  /** codex grant (row 1/2): the `• Permissions updated to Full Access` receipt
-   *  landed — settle; the controller writes task.codexPermissionMode off this. */
+  /** codex grant (row 1, or a native Yes): the `• Permissions updated to Full
+   *  Access` receipt landed — settle; the controller writes task.codexPermissionMode
+   *  off this. */
   private settleParkedCodexYes(
     pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
   ): void {
@@ -1920,9 +2044,9 @@ export class ControlSwitchEngine {
     this.emitControlSwitchState("settled", { kind: "codex-permission", value: target });
   }
 
-  /** codex Cancel (row 3, or native): the picker was Esc'd out — nothing granted,
-   *  NO needs-attention (the human chose Cancel). `cancelled` tells the controller
-   *  NOT to write the full-access mirror. */
+  /** codex Cancel (row 2, or a native Esc/Cancel): the consent closed with no grant
+   *  receipt — nothing changed, NO needs-attention (the human chose Cancel).
+   *  `cancelled` tells the controller NOT to write the full-access mirror. */
   private settleParkedCodexCancel(
     pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
   ): void {
@@ -1965,9 +2089,10 @@ export class ControlSwitchEngine {
 
   /** An ACTIVE phase (navigating / confirming / cancel) got stuck — the screen is
    *  unrecognized. RED LINE: Esc the dialog once (measured clean: claude Esc =
-   *  cancel → composer; codex consent Esc closes both dialogs → composer), verify,
-   *  then needs-attention. NEVER retry, NEVER guess a row. (waiting-user has no
-   *  timeout, so this only fires after the user has answered.) */
+   *  cancel → composer; codex consent Esc → composer, 0.146.0 — it replaced the
+   *  picker, so one Esc is the whole stack), verify, then needs-attention. NEVER
+   *  retry, NEVER guess a row. (waiting-user has no timeout, so this only fires
+   *  after the user has answered.) */
   private failParked(
     pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
   ): void {

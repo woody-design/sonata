@@ -702,6 +702,16 @@ export class TerminalHost extends EventEmitter {
       endSonataWrite: () => this.endSonataWrite(),
       deferSonataWrite: (ms, fn, owner) => this.deferSonataWrite(ms, fn, owner),
       clearComposerBeforeTypedCommand: () => this.clearComposerBeforeTypedCommand(),
+      // The engine's SPATIAL queries read the SAME per-task screen model the
+      // approval detector uses (D-1: one grid per task, never a third emulator).
+      // Deferred through `whenSettled` exactly like `scheduleApprovalScan`, so the
+      // read sees a COMPLETE grid rather than a mid-parse prefix — synchronous in
+      // the quiescent case, which is every parked dialog. No screen model means no
+      // pty: skip the callback rather than hand the engine an empty screen it
+      // could misread as "the dialog closed".
+      readScreen: (fn) => {
+        this.screenModel?.whenSettled(() => fn(this.approvalScanGrid()));
+      },
       emitControlSwitchEvent: (payload) => this.emitEvent("control-switch:state", payload),
     });
   }
