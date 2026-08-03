@@ -440,6 +440,15 @@ interface TerminalProviderProfile {
    *  evidence). NOT a busy/idle driver — that is cli-state (hooks) with the
    *  StatusRegionTracker's own display-only glyph constants behind it. */
   activityHints: string[];
+  /** The glyphs a COMPOSER PROMPT can paint with — the anchor `detectIdlePrompt`
+   *  scans for to locate the last prompt in the tail. NOT the picker/dialog
+   *  cursor vocabulary: those anchors live in the tui-parsers modules and pin
+   *  `›` + a digit + `.` + a row LABEL, so widening here can never loosen them.
+   *  A cross-provider superset by design (the ASCII `>` fallback plus both
+   *  CLIs' glyphs — the ORDERING rules, not the glyph identity, are what tell a
+   *  live panel from an idle composer), but per-provider so a glyph only ONE
+   *  CLI paints cannot manufacture a prompt in the other's stream. */
+  composerPromptGlyphs: string[];
   idlePromptModelHints: RegExp;
   buildArgs: (options: StartTaskOptions & { cwd: string }) => string[];
   approvalHints: {
@@ -3069,10 +3078,13 @@ export class TerminalHost extends EventEmitter {
     // end. The quiescence scrape is then only a backstop for the silent-tool-
     // stop gap (anthropics/claude-code#29881), so with hooks alive it may close
     // a PROMPT run ONLY on MEDIUM-confidence idle-footer evidence
-    // (`hasModelOrCwdHint` — the "? for shortcuts" needle a TRUE idle composer
-    // paints). LOW-confidence closure survives only for hook-less sessions
-    // (the honest backstop for a never-handshook CLI). Field evidence, claude
-    // 2.1.211: a big-session post-submit stall leaves a >=1.75s printable-quiet
+    // (`hasModelOrCwdHint` — on claude the "? for shortcuts" needle a TRUE idle
+    // composer paints; codex has NO such footer, its idle line is
+    // `<model> <effort> · <cwd>` and the model/effort tokens carry the same
+    // evidence — measured 0.146.0, upstream sync 2026-08-03). LOW-confidence
+    // closure survives only for hook-less sessions (the honest backstop for a
+    // never-handshook CLI). Field evidence, claude 2.1.211: a big-session
+    // post-submit stall leaves a >=1.75s printable-quiet
     // window while the model still works for minutes, and detectIdleComposer
     // reads the submit frame (activity glyph, then the composer ❯) as completed
     // at LOW confidence — closing a 2s-old live run. All 5 field misfires were
@@ -3417,6 +3429,12 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         "✻",
         "✽",
       ],
+      // `❯` is claude's own composer glyph; `>` and `›` are kept as the legacy
+      // superset (welcome-screen placeholder, older layouts). `»` is NOT here:
+      // it is codex's Ultra/Max composer glyph (upstream sync 2026-08-03) and
+      // claude never paints it, so admitting it would only let a `»` in model
+      // PROSE forge a prompt position in claude's stream.
+      composerPromptGlyphs: [">", "›", "❯"],
       // Verified against claude 2.1.209 idle layout (spikes/claude-idle-prompt-fable/):
       // the model/effort/cwd line renders ABOVE the composer, outside the
       // forward-700 promptTail window, so the model tokens never match there on
@@ -3463,7 +3481,28 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
     approvalSource: "native Codex PTY approval screen",
     supportsSlashStop: true,
     activityHints: ["working", "esc to interrupt"],
-    idlePromptModelHints: /gpt[-\w.]*|xhigh|high|medium|low|~/i,
+    // `»` (U+00BB) is the SAME composer prompt as `›` (U+203A), rendered at the
+    // Max/Ultra tiers. MEASURED byte-exact on codex 0.146.0
+    // (spikes/upstream-sync-2026-08/codex/out-q2b-model-walk.frames.log): after a
+    // switch to Ultra the composer paints `» Run /review on my current changes`
+    // and STAYS `»` at idle — it is a tier state, not a transient. Sonata reaches
+    // that state two ways: a native `/model` switch in the co-visible Terminal,
+    // and its OWN launch menus (`reasoningOptionsForModel` offers max/ultra for
+    // the models that allow them), which paint `»` from the very first frame.
+    // Without this glyph the last prompt found in an Ultra tail is a STALE `›`/`>`
+    // from the scrollback, which sits BEFORE the run's activity text — so
+    // `detectIdlePrompt.ready` goes permanently false and, hook-first path aside,
+    // the boot latch never opens (delivery) and the quiescence net never closes a
+    // no-Stop codex turn. Codex's PICKER cursor is unaffected — it stays `›` in
+    // the same capture — and the picker/consent anchors are not touched.
+    composerPromptGlyphs: [">", "›", "❯", "»"],
+    // The effort tokens are independent redundancy behind `gpt[-\w.]*` (an Ultra
+    // footer still carries the model slug), so they must span all SIX tiers codex
+    // can display, not the four v1 targets — same channel distinction the receipt
+    // parser records: this reads what codex IS, `asCodexReasoningTarget` fences
+    // what Sonata may ASK for. Measured idle footer at Ultra:
+    // `gpt-5.6-sol ultra · <cwd>` (same capture).
+    idlePromptModelHints: /gpt[-\w.]*|xhigh|high|medium|low|max|ultra|~/i,
     buildArgs: (options) => {
       // Spawn-prep the injected hook profile + stable shims (write-if-changed).
       // Byte-stable and task-invariant: the SessionStart handshake then carries
@@ -3805,10 +3844,11 @@ function detectIdlePrompt(rawText: string, profile: TerminalProviderProfile): {
 } {
   const recent = cleanTerminal(rawText).slice(-8000);
   const lowered = recent.toLowerCase();
-  const lastPrompt = recent.lastIndexOf(">");
-  const lastCodexPrompt = recent.lastIndexOf("›");
-  const lastClaudePrompt = recent.lastIndexOf("❯");
-  const lastAnyPrompt = Math.max(lastPrompt, lastCodexPrompt, lastClaudePrompt);
+  // The prompt glyphs are provider vocabulary (like activityHints below): codex
+  // renders the composer with `»` instead of `›` at the Max/Ultra tiers, and
+  // claude must not inherit that glyph. Case-sensitive on `recent`, as the
+  // per-glyph lastIndexOf calls this replaced always were.
+  const lastAnyPrompt = maxLastIndexOf(recent, profile.composerPromptGlyphs);
   const lastActivity = maxLastIndexOf(lowered, profile.activityHints);
   const approvalNeedles = [
     ...profile.approvalHints.fileRead,

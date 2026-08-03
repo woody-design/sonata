@@ -229,6 +229,138 @@ await check("codex composer after an answered trust dialog is ready again", asyn
   assert.equal(hint.ready, true, "composer painted after the dialog is the real idle prompt");
 });
 
+// ── codex Max/Ultra composer glyph `»` (U+00BB) — upstream sync 2026-08-03 ──
+//
+// Byte-derived from the S1 probe against a real codex 0.146.0
+// (spikes/upstream-sync-2026-08/codex/out-q2b-model-walk.frames.log, screens
+// AFTER-CONFIRM-t+1.2s and FULL SCROLLBACK). After a switch to Ultra the
+// composer paints `»` instead of `›` and STAYS `»` at idle — a tier state, not
+// a transient — while the idle footer reads `<model> <effort> · <cwd>` (codex
+// has no `? for shortcuts` line). Reverting terminal-host.ts's
+// `composerPromptGlyphs` to the `>`/`›`/`❯` triple fails these: the last prompt
+// found in an Ultra tail is then the STALE `>_` of the welcome box, which sits
+// BEFORE the run's activity text, so the ordering rule reads not-ready forever.
+// Every tail below therefore CARRIES that box — a production tail always has it
+// (or an earlier `›` composer paint) inside the 8000-char window, and without it
+// these cases would fail on a degenerate `lastPromptIndex === -1` instead of on
+// the ordering mechanism the fix actually restores.
+//
+// PROVENANCE. Verbatim from the capture: the welcome box, the `»` composer line,
+// the `• Model changed to …` receipt, the Ultra footer, the banner row. Adapted:
+// the absolute cwd is shortened (nothing reads this path) and the MCP activity
+// line is de-compacted from the capture's COMPACT view (the rendered boot frame
+// had already scrolled). Composed: the `• Working …`/`• ok` turn, and — in the
+// boot case only — an `ultra` model line and an `»` composer at BOOT, since the
+// probe session launched at `high` and switched later. No assertion depends on
+// any composed part being verbatim; they set up the ordering, and the glyph is
+// what is under test.
+const CODEX_ULTRA_FOOTER = "  gpt-5.6-sol ultra · /private/tmp/s1-probe/ws";
+// The welcome box keeps showing the LAUNCH model after a mid-session switch
+// (measured: box `high` while the footer already reads `ultra`).
+const CODEX_WELCOME_BOX = (modelLine) =>
+  "╭──────────────────────────────────────────────────────────╮\n" +
+  "│ >_ OpenAI Codex (v0.146.0)                               │\n" +
+  "│                                                          │\n" +
+  `│ model:     gpt-5.6-sol ${modelLine}   /model to change${" ".repeat(11 - modelLine.length)}│\n` +
+  "│ directory: /private/tmp/s1-probe/ws                      │\n" +
+  "╰──────────────────────────────────────────────────────────╯\n";
+// The ~2.1s post-switch animation, measured OCCUPYING the footer line (present
+// at t+0 and t+1.2s, gone by t+2.4s) — the model/effort tokens are simply not
+// on screen while it runs.
+const CODEX_ULTRA_BANNER = " ".repeat(56) + "U L T R A";
+
+await check("codex Ultra composer (`»`) after a worked turn is an idle prompt", async () => {
+  const ultraTail =
+    CODEX_WELCOME_BOX("high") +
+    "• Working (2s · esc to interrupt)\n" +
+    "• ok\n" +
+    "\n" +
+    "• Model changed to gpt-5.6-sol ultra for this conversation\n" +
+    "\n" +
+    "\n" +
+    "» Run /review on my current changes\n" +
+    "\n" +
+    `${CODEX_ULTRA_FOOTER}\n`;
+  const hint = detectIdlePromptForProvider(ultraTail, "codex");
+
+  assert.equal(hint.ready, true, "the `»` composer is the real idle prompt");
+  // No escapes and no CR in the fixture, so cleanTerminal is the identity here
+  // and the reported index addresses the same string.
+  assert.equal(
+    hint.lastPromptIndex,
+    ultraTail.indexOf("»"),
+    "readiness is anchored on the `»` composer, not a stale scrollback glyph",
+  );
+  assert.equal(
+    hint.hasModelOrCwdHint,
+    true,
+    "the Ultra idle footer's model/effort tokens are the medium-confidence evidence",
+  );
+  assert.equal(hint.confidence, "medium");
+});
+
+// The banner does NOT flip readiness — `ready` rides the glyph + ordering, both
+// of which survive it. It only costs the medium-confidence footer for its ~2.1s,
+// which at most defers a hook-owned prompt run's quiescence closure to the next
+// judge pass (checkCompletionHeuristic re-arms on exactly this demotion, and the
+// animation keeps the stream printable-fresh anyway). No settle constant needed.
+await check("codex ULTRA banner window holds readiness, costing only confidence", async () => {
+  const bannerTail =
+    CODEX_WELCOME_BOX("high") +
+    "• Working (2s · esc to interrupt)\n" +
+    "• ok\n" +
+    "\n" +
+    "• Model changed to gpt-5.6-sol ultra for this conversation\n" +
+    "\n" +
+    "\n" +
+    "» Run /review on my current changes\n" +
+    "\n" +
+    `${CODEX_ULTRA_BANNER}\n`;
+  const hint = detectIdlePromptForProvider(bannerTail, "codex");
+
+  assert.equal(hint.ready, true, "the banner never makes the composer un-ready");
+  assert.equal(
+    hint.hasModelOrCwdHint,
+    false,
+    "the banner owns the footer line, so the model/effort tokens are off screen",
+  );
+  assert.equal(hint.confidence, "low", "low for ~2.1s → closure waits one judge pass, no lie");
+});
+
+// The launch path, not just a native switch: `reasoningOptionsForModel` offers
+// max/ultra for the models that allow them, so a Sonata-launched codex task can
+// paint `»` from its FIRST composer frame — and this is the screen the boot latch
+// (acceptsPromptInput → detectIdlePrompt) reads before the first delivery. Both
+// launch-at-Ultra marks — the box's model line and the `»` at boot — are the
+// composed part here (see PROVENANCE above); the frame and the MCP activity line
+// come from the capture.
+await check("codex booting at Ultra is ready for the first delivery", async () => {
+  const bootTail =
+    CODEX_WELCOME_BOX("ultra") +
+    "  Tip: Try the Desktop app. Run 'codex app' or visit https://chatgpt.com/codex\n" +
+    "• Booting MCP server: codex_apps (0s • esc to interrupt)\n" +
+    "» Run /review on my current changes\n" +
+    `${CODEX_ULTRA_FOOTER}\n`;
+  const hint = detectIdlePromptForProvider(bootTail, "codex");
+
+  assert.equal(
+    hint.ready,
+    true,
+    "without `»` the last prompt is the banner's `>_`, which precedes the MCP activity line",
+  );
+});
+
+// The glyph is codex-only ON PURPOSE (composerPromptGlyphs is per-provider):
+// claude never paints `»`, so admitting it there would let a `»` in model PROSE
+// forge a prompt position after the activity text and close a live run.
+await check("claude does not inherit codex's `»` as a prompt glyph", async () => {
+  const claudeProseTail =
+    "✻ Baked for 2s\n" + "The French quotation marks « and » are typographic guillemets.\n";
+  const hint = detectIdlePromptForProvider(claudeProseTail, "claude");
+
+  assert.equal(hint.ready, false, "`»` in prose is not a claude composer prompt");
+});
+
 if (failures.length > 0) {
   process.exitCode = 1;
 }
