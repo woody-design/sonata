@@ -1,4 +1,4 @@
-# Sonata - Skip the terminal learning curve
+# Sonata - Skip the terminal learning curve, start building
 
 Terminal(CLI) is where Claude Code and Codex work best. It just isn’t an ideal interface for people — reading long outputs, refining prompts, previewing results, and managing sessions.
 
