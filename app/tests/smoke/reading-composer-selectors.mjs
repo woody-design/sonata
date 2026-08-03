@@ -639,6 +639,32 @@ const run = (status, extra = {}) => ({
     "Queued",
     "live queue activity outranks the approval row",
   );
+  // The Rewind panel (claude ≥2.1.216) is the one hold that outranks the queue
+  // rows: it is the REASON they are not moving, so "Queued" alone would be an
+  // unexplained stall — the invisible-hold failure S3 decision A warns about,
+  // and the price of exempting this panel from that decision (its Enter is a
+  // RESTORE, so the "visible and recoverable" premise fails). It stays BELOW
+  // "Delivering", where bytes are already in flight.
+  assert.equal(
+    R.deliveryStatusLabel(delivery({ rewindPanelOpen: true, queue: [item("queued")] })),
+    "Rewind panel open — press Esc in the CLI",
+    "the hold explains itself instead of reading Queued",
+  );
+  assert.equal(
+    R.deliveryStatusLabel(delivery({ rewindPanelOpen: true })),
+    "Rewind panel open — press Esc in the CLI",
+    "and it outranks the idle Ready — an empty queue could not deliver either",
+  );
+  assert.equal(
+    R.deliveryStatusLabel(delivery({ rewindPanelOpen: true, queue: [item("delivering")] })),
+    "Delivering to Claude",
+    "delivering still outranks it",
+  );
+  assert.equal(
+    R.deliveryStatusLabel(delivery({ rewindPanelOpen: undefined })),
+    "Ready",
+    "the field is optional — recorded fixtures predate it and must read as not-open",
+  );
 }
 
 // 10) Remote Control context family.

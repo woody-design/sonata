@@ -528,6 +528,9 @@ function fakeHost() {
     hasPendingControlSwitch() {
       return false;
     },
+    isRewindPanelOpen() {
+      return false;
+    },
     acceptsPromptInput() {
       return this.idleComposer;
     },

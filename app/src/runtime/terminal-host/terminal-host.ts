@@ -50,6 +50,7 @@ import { TerminalScrollback } from "./terminal-scrollback";
 import { TaskScreenModel } from "./task-screen-model";
 import { ARROW_DOWN, cleanTerminal, ESC, KILL_LINE } from "./tui-parsers-common";
 import {
+  claudeRewindPanelOpen,
   compactRemoteControlScan,
   findRemoteControlUrl,
   hasRemoteControlDisconnect,
@@ -142,8 +143,20 @@ const CLI_INPUT_CLEAR_DELAY_MS = 900;
  *  inside it proves the turn survived the Esc. The lower bound skips the
  *  in-flight hook race (a tool that had already started before the Esc
  *  reached the CLI); the upper bound keeps a forgotten stop from firing an
- *  Esc into next week's turn. */
-const STOP_ESC_RETRY_MIN_MS = 800;
+ *  Esc into next week's turn.
+ *
+ *  The lower bound has a SECOND job since claude 2.1.216: an Esc PAIR at an
+ *  idle composer opens the Rewind restore picker, and `stopRun`'s Esc plus this
+ *  retry Esc are the only pair Sonata can emit on a claude path. Measured live
+ *  at 2.1.220 (spikes/upstream-sync-2026-08/claude/q3c-esc-window captures):
+ *  the pair FIRES at inter-Esc gaps ≤700ms and does NOT at ≥800ms — the
+ *  threshold sits in (700, 800]. The comparison below is `elapsed < MIN`, so
+ *  an elapsed of exactly 800ms FIRES: the old 800 held the line with ~100ms of
+ *  margin against a threshold that is only bounded from above. 1200 buys a
+ *  ~500ms margin and costs nothing — the bound only has to clear the in-flight
+ *  hook race, and a tool that starts >1.2s after the Esc is just as good a
+ *  proof that the turn survived. */
+const STOP_ESC_RETRY_MIN_MS = 1200;
 const STOP_ESC_RETRY_WINDOW_MS = 45_000;
 /** Flood bounds. The floor blankets visually-WRAPPED long lines (kill
  *  granularity for wrapped lines is unprobed — review F2) and any small
@@ -705,6 +718,7 @@ export class TerminalHost extends EventEmitter {
         this.ptyProcess?.write(data);
       },
       isApprovalActive: () => this.approvalActive,
+      isRewindPanelOpen: () => this.isRewindPanelOpen(),
       hasActiveRun: () => this.activeRun !== null,
       isSonataWriting: () => this.sonataWriting,
       beginSonataWrite: () => this.beginSonataWrite(),
@@ -775,6 +789,12 @@ export class TerminalHost extends EventEmitter {
     if (!this.ptyProcess || this.activeRun || this.approvalActive) {
       return false;
     }
+    // A recognized Rewind panel owns the screen — see isRewindPanelOpen. Ranked
+    // ABOVE the hook short-circuit below: SessionStart says the composer came
+    // up, which is true and irrelevant once a modal is painted over it.
+    if (this.isRewindPanelOpen()) {
+      return false;
+    }
     // Hook-first: SessionStart is the CLI declaring its composer is up — no
     // scrape can outrank that. Required for resumed sessions on claude
     // ≥2.1.186, whose history repaint (old ❯ lines + "✻ Baked for Ns"
@@ -784,6 +804,66 @@ export class TerminalHost extends EventEmitter {
       return true;
     }
     return detectIdlePrompt(this.rawTail, this.profile).ready;
+  }
+
+  /**
+   * Claude's Rewind restore picker is on screen (claude ≥2.1.216; an Esc pair at
+   * an idle composer opens it — see STOP_ESC_RETRY_MIN_MS for Sonata's own
+   * exposure, and `claudeRewindPanelOpen` for the measured frames).
+   *
+   * A SCREEN OWNER, joining `approvalActive` and `controlSwitch.hasPending()` at
+   * the same four gates: readiness (above), `canDeliver`, `submitPrompt` and the
+   * Enter-retry ladder. It has to be its own gate rather than ride the
+   * idle-prompt ordering, because after the boot latch opens nothing re-reads
+   * that scrape — delivery is send-is-send from then on (S6).
+   *
+   * This is a deliberate, narrow exception to S3 decision A ("a slash-opened
+   * panel does not hold delivery — a paste into a panel the user opened is
+   * visible and recoverable, an invisible hold is the S1 wedge class"). Both of
+   * that decision's premises fail here and only here: the panel's Enter is a
+   * RESTORE, so a mis-delivery is NOT recoverable; and the hold is not invisible
+   * — it carries a delivery-state flag and its own composer status line
+   * ("Rewind panel open…"). It also self-clears with no event needed: the
+   * dismissal repaints the composer, and the blocked queue re-pumps on the
+   * 500ms poll.
+   *
+   * Reads the SCREEN GRID (D-1's standing rule: a state query belongs on the
+   * grid). The stream cannot answer this — see `claudeRewindPanelOpen` for the
+   * measured per-line-diff failure that forced the migration.
+   *
+   * SYNCHRONOUS `viewportText()`, not the `whenSettled` deferral the approval
+   * scan and the switch engine use, because every caller here is a synchronous
+   * predicate (`acceptsPromptInput`, `canDeliver`, `submitPrompt`,
+   * `nudgePromptSubmit`, the switch guards) and a callback cannot answer them.
+   * That is sound: per `TaskScreenModel`'s contract a naked read is
+   * stale-but-consistent — a complete byte-stream PREFIX, never torn. The two
+   * staleness edges are NOT symmetric, and the honest reading is:
+   *   - DISMISSAL (grid still shows the panel): reads open → holds → SAFE, and
+   *     it self-corrects on the delivery pump's 500ms re-poll.
+   *   - OPENING (grid has not yet parsed the panel's write): reads closed. This
+   *     is the unsafe edge, bounded by one write-drain: `@xterm` parses at least
+   *     by the next microtask, so every timer- and event-driven caller is past
+   *     it (the approval/switch events that re-pump are themselves emitted from
+   *     inside `whenSettled`, i.e. after the drain). It survives only for a
+   *     caller firing in the same turn as the panel's own pty batch — and the
+   *     one Esc pair Sonata itself could emit is now impossible by
+   *     STOP_ESC_RETRY_MIN_MS, so reaching it means the user pressed Esc Esc in
+   *     the CLI and hit Send in Sonata inside the same microtask.
+   * Rejected: holding whenever writes are pending. During any active turn writes
+   * are always pending, and claude delivery is write-through mid-turn, so that
+   * would wedge the normal path to defend a microtask.
+   *
+   * No screen model means no PTY — read closed rather than hold, matching every
+   * other gate here (`!this.ptyProcess` already refuses upstream).
+   *
+   * Codex has no such panel; the predicate is claude-only so a codex frame can
+   * never reach a claude-shaped needle.
+   */
+  isRewindPanelOpen(): boolean {
+    if (this.profile.provider !== "claude" || !this.screenModel) {
+      return false;
+    }
+    return claudeRewindPanelOpen(this.screenModel.viewportText());
   }
 
   /** The SessionStart hook arrived for this PTY's session (startup, resume,
@@ -1523,6 +1603,12 @@ export class TerminalHost extends EventEmitter {
     if (this.controlSwitch.hasPending()) {
       throw new Error("Cannot submit a prompt while a control switch is pending.");
     }
+    // Same red line, claude's own interstitial: the Rewind panel's Enter is a
+    // RESTORE of the conversation (and possibly the code) to the highlighted
+    // row. Delivery gates on isRewindPanelOpen upstream; this is the backstop.
+    if (this.isRewindPanelOpen()) {
+      throw new Error("Cannot submit a prompt while the rewind panel is open.");
+    }
 
     // A slash command is a single line with no attachments. A folded file/folder
     // reference makes the text multi-line (path on its own line), so the newline
@@ -1679,12 +1765,16 @@ export class TerminalHost extends EventEmitter {
     // A pending control switch may own a parked consent/interstitial dialog; an
     // Enter re-send would auto-answer its default row (RED LINE — see
     // hasPendingControlSwitch). The Enter-retry ladder refuses while any switch
-    // is in flight, mirroring the submitPrompt and canDeliver gates.
+    // is in flight, mirroring the submitPrompt and canDeliver gates. The same
+    // holds for a claude Rewind panel, where the bare Enter this writes IS the
+    // restore action — the sharpest form of the exposure, since there is not
+    // even pasted text to make it visible.
     if (
       !this.ptyProcess ||
       this.approvalActive ||
       this.sonataWriting ||
-      this.controlSwitch.hasPending()
+      this.controlSwitch.hasPending() ||
+      this.isRewindPanelOpen()
     ) {
       return false;
     }
@@ -2699,15 +2789,28 @@ export class TerminalHost extends EventEmitter {
         Boolean(options.stoppedCommandApprovalRun) ||
         this.hasBackgroundTerminalHint());
     const approvalGuardBlockedSlashStop = shouldSubmitSlashStop && this.approvalActive;
+    // Report what HAPPENED, not what was intended. `submitPrompt` has three
+    // screen-owner throws — approval (pre-empted by the guard above), a pending
+    // control switch, and the Rewind panel — and the catch swallows all of them,
+    // so a predicted flag made `run:stopped` claim a `/stop` that was never
+    // written. The control-switch case is reachable today (codex is the only
+    // provider with `supportsSlashStop`, and a codex switch can be pending here)
+    // and was already wrong before this slice; deriving the flag from the actual
+    // outcome fixes it and covers the rewind throw for free — that one cannot
+    // fire today, since the panel is claude's and claude has supportsSlashStop
+    // false, but the flag no longer depends on that staying true.
+    let slashStopSent = false;
+    let slashStopThrew = false;
     if (shouldSubmitSlashStop && !approvalGuardBlockedSlashStop && this.ptyProcess) {
       try {
         this.submitPrompt("/stop", { createRun: false });
+        slashStopSent = true;
       } catch {
         // A stopped run should not be reopened by cleanup failure.
+        slashStopThrew = true;
       }
     }
 
-    const slashStopSent = shouldSubmitSlashStop && !approvalGuardBlockedSlashStop;
     if (!shouldSubmitSlashStop && !approvalGuardBlockedSlashStop) {
       return;
     }
@@ -2718,9 +2821,11 @@ export class TerminalHost extends EventEmitter {
       slashStopSent,
       slashStopReason: approvalGuardBlockedSlashStop
         ? "slash stop was not sent because a native approval screen was still active"
-        : options.stoppedCommandApprovalRun
-          ? "stopped run had an active command approval"
-          : "background terminal hint detected or forceSlashStop requested",
+        : slashStopThrew
+          ? "slash stop was refused by a screen-owner guard (pending control switch or rewind panel)"
+          : options.stoppedCommandApprovalRun
+            ? "stopped run had an active command approval"
+            : "background terminal hint detected or forceSlashStop requested",
     });
   }
 

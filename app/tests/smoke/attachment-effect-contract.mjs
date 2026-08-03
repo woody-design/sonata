@@ -36,6 +36,7 @@ function fakeHost() {
     hasActiveRun: () => false,
     isApprovalActive: () => false,
     hasPendingControlSwitch: () => false,
+    isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
     isHumanActivelyTyping: () => false,
     nudgePromptSubmit: () => {

@@ -31,6 +31,7 @@ function fakeHost(overrides = {}) {
     hasActiveRun: () => state.activeRun,
     isApprovalActive: () => state.approval,
     hasPendingControlSwitch: () => state.pendingControlSwitch,
+    isRewindPanelOpen: () => state.rewindPanelOpen ?? false,
     acceptsPromptInput: () => state.accepts,
     isHumanActivelyTyping: () => state.humanTyping,
     submitPrompt: (text, opts) => {

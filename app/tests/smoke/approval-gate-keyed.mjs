@@ -22,6 +22,7 @@ function makeHost() {
     hasActiveRun: () => state.activeRun,
     isApprovalActive: () => state.approval,
     hasPendingControlSwitch: () => false,
+    isRewindPanelOpen: () => false,
     acceptsPromptInput: () => state.accepts,
     submitPrompt: (text, opts) => {
       state.submits.push({ text, opts });

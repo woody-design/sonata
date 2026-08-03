@@ -245,6 +245,10 @@ export interface DeliveryTaskState {
    *  Display copy keys "Starting <provider>" on this — never on a continuous
    *  composer-ready scrape (retired, S6). */
   bootLatched: boolean;
+  /** Claude's Rewind restore picker owns the screen, so delivery is held (its
+   *  Enter is a RESTORE). Optional: recorded event fixtures predate the field,
+   *  and a missing value must read as "not open". */
+  rewindPanelOpen?: boolean;
   /** Sticky until the next enqueue so a partial provider receipt remains visible
    *  after the live queue item is removed. */
   attachmentNotice?: string | null;

@@ -17,6 +17,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const {
   TerminalHost,
+  claudeRewindPanelOpen,
   detectIdleComposerForProvider,
   detectIdlePromptForProvider,
 } = require("../../dist/runtime");
@@ -359,6 +360,241 @@ await check("claude does not inherit codex's `»` as a prompt glyph", async () =
   const hint = detectIdlePromptForProvider(claudeProseTail, "claude");
 
   assert.equal(hint.ready, false, "`»` in prose is not a claude composer prompt");
+});
+
+// ── claude Rewind panel (2.1.216+) — upstream sync 2026-08-03 ───────────────
+//
+// An Esc PAIR at an idle composer opens a restore picker over the composer. Its
+// `Enter to continue` is a RESTORE of the conversation (and possibly the code),
+// so a prompt delivered into it would answer it — the codex trust-dialog
+// silent-Yes class, one worse, because a restore is not recoverable. Sonata's
+// own exposure is the stop/interrupt Esc retry (STOP_ESC_RETRY_MIN_MS, raised
+// 800 → 1200 in this slice); the user pressing Esc Esc in the co-visible CLI is
+// the other way in, and that one no constant can prevent.
+//
+// `claudeRewindPanelOpen` reads a RENDERED VIEWPORT, never a pty tail (D-1: a
+// state query belongs on the grid). The fixtures below are therefore screens.
+//
+// PROVENANCE.
+//   MEASURED — every line of the two panel screens is transcribed from the
+//   rendered `--- screen ---` blocks of the S2 captures: the with-history frame
+//   from spikes/upstream-sync-2026-08/claude/q4q3b-activity-esc.capture.txt
+//   (section "Q3b — Esc, 50ms, Esc (with history)") and the empty-history frame
+//   from q3a-esc-nohistory.capture.txt (section "B — Esc, 50ms, Esc"), including
+//   the two-space indents, the `…` ellipsis, the `·` separator and the
+//   `❯ (current)` row. The idle screen and its footer come from the same
+//   captures' baseline frames; the 120-column rules are the captured widths.
+//   ADAPTED — the region above each panel is shortened to the turn lines the
+//   ordering rules read; the captured screens also carry the welcome box, which
+//   no assertion depends on. The capture's own turn text (`❯ reply with the
+//   single word: ok` / `⏺ ok` / `✻ Cooked for 2s`) is kept verbatim.
+//   COMPOSED — the ARROWED panel screen (the probe never pressed ↓ inside the
+//   Rewind list) and the arrowed STREAM tail below it. Both are extrapolated
+//   from behaviour measured elsewhere in this capture family: q2a-model-picker's
+//   RAW stream shows claude's per-line diffing emit the footer exactly ONCE for
+//   a whole four-arrow session, each arrow emitting only a fresh `❯` + row
+//   fragment. The panel's row labels come from the measured with-history frame.
+const REWIND_RULE = "─".repeat(120);
+const CLAUDE_IDLE_FOOTER = "  ⏸ manual mode on · ? for shortcuts · ← for agents";
+const CLAUDE_TURN_TAIL =
+  "❯ reply with the single word: ok\n" + "\n" + "⏺ ok\n" + "\n" + "✻ Cooked for 2s\n";
+// The panel replaces the composer region; the turn transcript stays above it.
+const rewindScreenWithHistory = (cursorRow) =>
+  CLAUDE_TURN_TAIL +
+  `${REWIND_RULE}\n` +
+  "  Rewind\n" +
+  "\n" +
+  "  Restore the code and/or conversation to the point before…\n" +
+  "\n" +
+  `  ${cursorRow === "checkpoint" ? "❯ " : "  "}  reply with the single word: ok\n` +
+  "    No code changes\n" +
+  "\n" +
+  `  ${cursorRow === "current" ? "❯ " : "  "}(current)\n` +
+  "\n" +
+  "  Enter to continue · Esc to cancel\n";
+const REWIND_SCREEN_WITH_HISTORY = rewindScreenWithHistory("current");
+// B1. The state the deleted stream-liveness rule got WRONG — and the one where
+// Enter actually destroys something (on `(current)` a restore is a no-op).
+const REWIND_SCREEN_ARROWED = rewindScreenWithHistory("checkpoint");
+const REWIND_SCREEN_EMPTY_HISTORY =
+  CLAUDE_TURN_TAIL +
+  `${REWIND_RULE}\n` +
+  "  Rewind\n" +
+  "\n" +
+  "  Nothing to rewind to yet.\n" +
+  "\n" +
+  "  Esc to cancel\n";
+// Dismissal on the GRID is simply the panel's absence — one Esc repaints the
+// composer over it and the viewport converges. No liveness rule needed; this is
+// the whole reason the predicate moved off the stream.
+const CLAUDE_IDLE_SCREEN =
+  CLAUDE_TURN_TAIL +
+  `${REWIND_RULE}\n` +
+  "❯ \n" +
+  `${REWIND_RULE}\n` +
+  `${CLAUDE_IDLE_FOOTER}\n`;
+// The BYTE shape of the same arrowed panel: the footer was emitted once, when
+// the panel opened, and the ↓ emits only the two moved rows — so the stream ends
+// with a bare `❯` AFTER the last footer. The deleted rule ("the last `❯` must
+// precede the footer") read this as CLOSED while the panel was on screen.
+const REWIND_ARROWED_STREAM_TAIL =
+  `${REWIND_RULE}\n` +
+  "  Rewind\n  Restore the code and/or conversation to the point before…\n" +
+  "    reply with the single word: ok\n    No code changes\n" +
+  "  ❯ (current)\n" +
+  "  Enter to continue · Esc to cancel\n" +
+  // the ↓ repaint: two row fragments, no footer, no rule
+  "  ❯   reply with the single word: ok\n    (current)\n";
+
+for (const [variant, screen] of [
+  ["with history", REWIND_SCREEN_WITH_HISTORY],
+  ["with history, arrowed off (current)", REWIND_SCREEN_ARROWED],
+  ["empty history", REWIND_SCREEN_EMPTY_HISTORY],
+]) {
+  await check(`claude Rewind panel (${variant}) is recognized on the grid`, async () => {
+    assert.equal(claudeRewindPanelOpen(screen), true, "the panel is identified as on screen");
+  });
+}
+
+await check("claude Rewind recognition is cursor-position-INDEPENDENT (B1)", async () => {
+  // The whole point of the grid: an arrow move inside the list changes which row
+  // carries `❯` and nothing else. A predicate that reasons about where the cursor
+  // sits relative to the footer is defeated by exactly this event.
+  assert.equal(
+    claudeRewindPanelOpen(REWIND_SCREEN_ARROWED),
+    claudeRewindPanelOpen(REWIND_SCREEN_WITH_HISTORY),
+    "arrowing off (current) must not change the verdict",
+  );
+});
+
+await check("the dismissed panel leaves the viewport — no liveness rule needed", async () => {
+  assert.equal(claudeRewindPanelOpen(CLAUDE_IDLE_SCREEN), false, "the panel is simply gone");
+  const hint = detectIdlePromptForProvider(CLAUDE_IDLE_SCREEN, "claude");
+  assert.equal(hint.ready, true, "and the composer beneath it is a normal idle prompt");
+  assert.equal(hint.confidence, "medium");
+});
+
+// Forge resistance, the S2 lesson applied (and this panel's body is exactly the
+// sentence a session ABOUT this code would print). Both needles must be in the
+// SAME frame. COMPOSED negatives.
+await check("claude Rewind recognition needs body AND footer in one frame", async () => {
+  const bodyOnly =
+    "✻ Cooked for 2s\n" +
+    "Restore the code and/or conversation to the point before the last turn — that is what Esc Esc does.\n" +
+    `${REWIND_RULE}\n❯ \n${CLAUDE_IDLE_FOOTER}\n`;
+  assert.equal(claudeRewindPanelOpen(bodyOnly), false, "body without footer is prose");
+
+  const footerOnly = `${REWIND_RULE}\n  Rewind\n\n  Enter to continue · Esc to cancel\n`;
+  assert.equal(claudeRewindPanelOpen(footerOnly), false, "footer without body is not enough");
+
+  // The approval panel shares the `Esc to cancel` footer token with the EMPTY
+  // variant. On the grid this cannot collide: both are full-screen modals in the
+  // alternate buffer, so an approval frame never carries a rewind body. Pinned
+  // because on the STREAM a stale rewind body could pair with a live approval
+  // footer and mislabel the status line "press Esc" — which on an approval means
+  // DENY (review M2).
+  const approvalScreen =
+    "Do you want to make this edit to terminal-host.ts?\n" +
+    "❯ 1. Yes\n  2. No, and tell Claude what to do differently\n" +
+    "Esc to cancel · Tab to amend\n";
+  assert.equal(claudeRewindPanelOpen(approvalScreen), false, "shared footer token is not enough");
+  assert.equal(detectIdlePromptForProvider(approvalScreen, "claude").ready, false);
+});
+
+// The plain idle composer — the screen the panel replaces — must stay ready, or
+// the guard would cost every claude delivery.
+await check("the plain idle composer is unaffected by the Rewind guard", async () => {
+  assert.equal(claudeRewindPanelOpen(CLAUDE_IDLE_SCREEN), false);
+  assert.equal(detectIdlePromptForProvider(CLAUDE_IDLE_SCREEN, "claude").ready, true);
+});
+
+/** A stand-in for the per-task `TaskScreenModel` — these tests drive no PTY, so
+ *  `startTask` never built one. `isRewindPanelOpen` only needs `viewportText()`
+ *  (it reads synchronously by design; see its doc for the staleness argument). */
+function stubScreenModel(screen) {
+  return {
+    write: () => {},
+    whenSettled: (fn) => fn(),
+    viewportText: () => screen,
+    resize: () => {},
+    dispose: () => {},
+  };
+}
+
+// The host predicate — what the six gates actually call — must read the GRID.
+// Every case below sets `rawTail` to a tail that CONTRADICTS the screen, so a
+// predicate that regressed to the stream fails loudly instead of passing by
+// coincidence.
+await check("the host predicate reads the screen, not the pty tail (B1)", async () => {
+  const host = makeHost([], { provider: "claude" });
+  try {
+    host.ptyProcess = fakePty();
+    // The arrowed panel: on screen, while its byte tail ends with a bare `❯`
+    // after the footer — the exact shape that defeated the stream rule.
+    host.rawTail = REWIND_ARROWED_STREAM_TAIL;
+    host.screenModel = stubScreenModel(REWIND_SCREEN_ARROWED);
+    assert.equal(host.isRewindPanelOpen(), true, "an arrowed panel is still open");
+
+    // Converse: the panel's bytes are still in the tail, but the screen has
+    // repainted past it. The stream could not tell; the grid simply does not
+    // show it.
+    host.screenModel = stubScreenModel(CLAUDE_IDLE_SCREEN);
+    assert.equal(host.isRewindPanelOpen(), false, "a repainted-past panel is closed");
+
+    // No screen model (no PTY) reads closed rather than holding forever.
+    host.screenModel = null;
+    assert.equal(host.isRewindPanelOpen(), false, "no grid → no hold");
+  } finally {
+    host.dispose();
+  }
+});
+
+// The panel is claude's. A codex frame must never reach the claude needles.
+await check("the Rewind guard is claude-only, and outranks the SessionStart hook", async () => {
+  for (const [provider, expected] of [
+    ["claude", true],
+    ["codex", false],
+  ]) {
+    const host = makeHost([], { provider });
+    try {
+      host.ptyProcess = fakePty();
+      host.screenModel = stubScreenModel(REWIND_SCREEN_WITH_HISTORY);
+      assert.equal(host.isRewindPanelOpen(), expected, `${provider}: isRewindPanelOpen`);
+      // The readiness gate must outrank the SessionStart hook short-circuit: the
+      // hook says the composer came up, which stays true while a modal covers it.
+      host.noteHookSessionStart();
+      assert.equal(
+        host.acceptsPromptInput(),
+        !expected,
+        `${provider}: acceptsPromptInput under a hooked session`,
+      );
+    } finally {
+      host.dispose();
+    }
+  }
+});
+
+// The submitPrompt backstop (the TOCTOU leg of the same guard). It must throw a
+// DELIVERY-GUARD error — matched by isDeliveryGuardError on the "rewind panel is
+// open" phrase — so the item is re-queued rather than marked undelivered.
+await check("submitPrompt refuses to write into an open Rewind panel", async () => {
+  const host = makeHost([], { provider: "claude" });
+  try {
+    host.ptyProcess = fakePty();
+    host.screenModel = stubScreenModel(REWIND_SCREEN_ARROWED);
+    assert.throws(
+      () => host.submitPrompt("do the thing"),
+      /rewind panel is open/i,
+      "the phrase is load-bearing: isDeliveryGuardError matches on it",
+    );
+    assert.equal(host.nudgePromptSubmit(), false, "and the bare Enter retry refuses too");
+
+    // Same host, panel dismissed: the hold is a state, not a latch.
+    host.screenModel = stubScreenModel(CLAUDE_IDLE_SCREEN);
+    assert.ok(host.submitPrompt("do the thing"), "delivery resumes once the panel closes");
+  } finally {
+    host.dispose();
+  }
 });
 
 if (failures.length > 0) {

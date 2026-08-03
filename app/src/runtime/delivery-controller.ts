@@ -360,6 +360,11 @@ export class DeliveryController {
       deliverable: this.canDeliver(),
       activeRun: this.terminalHost.hasActiveRun(),
       approvalActive: this.terminalHost.isApprovalActive(),
+      // Why the queue is not moving when a Rewind panel owns the screen. Without
+      // this the status line would read "Queued" (or "Ready" on an empty queue)
+      // while nothing could ever go out — the invisible-hold failure S3 decision
+      // A warns about. Claude-only by construction (see isRewindPanelOpen).
+      rewindPanelOpen: this.terminalHost.isRewindPanelOpen(),
       // The honest "is the CLI still starting?" bit for display copy: false
       // only before the boot latch opens. The old idleComposer/acceptsInput
       // fields (continuous composer-ready scrapes) were retired in S6 —
@@ -476,6 +481,17 @@ export class DeliveryController {
       // false-positive would be an invisible hold (the S1 wedge class).
       !this.terminalHost.isApprovalActive() &&
       this.pendingApprovalKeys.size === 0 &&
+      // Rewind-panel guard (RED LINE, claude ≥2.1.216): an Esc pair at an idle
+      // composer opens a restore picker over the composer, and its `Enter to
+      // continue` RESTORES the conversation (and possibly the code) to the
+      // highlighted row. A delivery here would paste text and press Enter into
+      // it. This is the narrow exception to decision A above — the "visible and
+      // recoverable" premise fails for a restore, and the hold is itself
+      // surfaced (`rewindPanelOpen` → the composer status line) rather than
+      // silent. Self-clearing: the dismissal repaints the composer, and the
+      // blocked item re-pumps on the 500ms poll armed below. See
+      // TerminalHost.isRewindPanelOpen.
+      !this.terminalHost.isRewindPanelOpen() &&
       // Control-switch guard (RED LINE): a mid-session switch can PARK a consent
       // dialog (a codex Full Access confirm — `waiting-user`, no timeout by
       // design) or hold an interstitial. A delivery here would paste text + Enter
@@ -1039,12 +1055,17 @@ function normalizeText(value: string): string {
 
 /**
  * Guard errors are states, not failures: the screen is temporarily owned by an
- * approval panel or an in-flight control switch (a parked consent dialog). The
- * item stays queued and delivers when the state clears — never silently into it.
- * canDeliver already refuses both cases; these throws are the submitPrompt-level
- * backstop, and re-queueing keeps their semantics correct if one ever fires.
+ * approval panel, an in-flight control switch (a parked consent dialog) or a
+ * claude Rewind panel. The item stays queued and delivers when the state clears
+ * — never silently into it. canDeliver already refuses all three; these throws
+ * are the submitPrompt-level backstop, and re-queueing keeps their semantics
+ * correct if one ever fires.
  */
 function isDeliveryGuardError(error: unknown): boolean {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
-  return message.includes("native approval screen") || message.includes("control switch is pending");
+  return (
+    message.includes("native approval screen") ||
+    message.includes("control switch is pending") ||
+    message.includes("rewind panel is open")
+  );
 }

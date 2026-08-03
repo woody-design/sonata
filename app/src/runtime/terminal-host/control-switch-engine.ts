@@ -168,6 +168,14 @@ export interface ControlSwitchHost {
   writePty(data: string): void;
   /** A native approval screen owns the terminal — refuse to start a switch. */
   isApprovalActive(): boolean;
+  /** Claude's Rewind restore picker owns the screen — refuse to start a switch.
+   *  Every claude switch ends in a deferred `\r`, and on that panel a bare `\r`
+   *  IS `Enter to continue`, i.e. a RESTORE. Same class as isApprovalActive,
+   *  and it must be checked at the SAME entry points (a user can open the panel
+   *  in the CLI and then hit Save on the model chip). One of those entry points
+   *  also serves the codex axes; the host's implementation is claude-only, so
+   *  this reads permanently false there and the codex paths are unchanged. */
+  isRewindPanelOpen(): boolean;
   /** A run is in flight — refuse to start a switch (idle only). */
   hasActiveRun(): boolean;
   /** An automation write sequence is mid-flight (the AtomicWriter depth > 0). */
@@ -493,7 +501,7 @@ export class ControlSwitchEngine {
     if (!this.host.hasPty()) {
       return { ok: false, reason: "no-process" };
     }
-    if (this.host.isApprovalActive()) {
+    if (this.host.isApprovalActive() || this.host.isRewindPanelOpen()) {
       return { ok: false, reason: "panel-open" };
     }
     if (this.host.hasActiveRun()) {
@@ -543,7 +551,7 @@ export class ControlSwitchEngine {
     if (!this.host.hasPty()) {
       return { ok: false, reason: "no-process" };
     }
-    if (this.host.isApprovalActive()) {
+    if (this.host.isApprovalActive() || this.host.isRewindPanelOpen()) {
       return { ok: false, reason: "panel-open" };
     }
     if (this.host.hasActiveRun()) {

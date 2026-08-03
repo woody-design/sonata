@@ -153,6 +153,93 @@ export function claudeCacheMissCancelled(rawScan: string, kind: "model" | "effor
   ).test(compact);
 }
 
+// Claude REWIND panel (upstream sync 2026-08-03, claude 2.1.216+). An Esc PAIR
+// at an idle composer opens a restore picker over the composer — measured live
+// at 2.1.220 (spikes/upstream-sync-2026-08/claude/, probes q3a/q3b/q3c): the
+// pair fires at inter-Esc gaps ≤700ms and not at ≥800ms, and ONE Esc dismisses
+// it cleanly. Two frames, both captured verbatim:
+//
+//   with history (q4q3b-activity-esc.capture.txt, "Q3b — Esc, 50ms, Esc"):
+//     Rewind
+//     Restore the code and/or conversation to the point before…
+//       <the prompt text of the checkpoint>
+//       No code changes
+//     ❯ (current)
+//     Enter to continue · Esc to cancel
+//
+//   empty history (q3a-esc-nohistory.capture.txt, "B — Esc, 50ms, Esc"):
+//     Rewind
+//     Nothing to rewind to yet.
+//     Esc to cancel
+//
+// WHY THIS IS A RED LINE. The panel's `Enter to continue` is a RESTORE — it
+// rewrites the conversation (and, on a checkpoint with changes, the code) back
+// to the highlighted row. A delivered prompt pastes text and presses Enter, so
+// a panel nobody noticed would answer itself. That is the codex trust-dialog
+// silent-Yes lineage (terminal-host `bootDialogHints`), one class worse: the
+// trust dialog's default row is recoverable, a restore is not.
+//
+// READS THE SCREEN GRID, NOT THE STREAM — D-1's standing rule ("state query →
+// grid, event detection → stream"), applied on measured drift rather than by
+// decree. "Is a modal on screen?" is a state query, and the first cut of this
+// predicate proved why the rule exists. It scanned the pty tail and needed a
+// LIVENESS rule to tell a live panel from a dismissed one still sitting in the
+// tail: the last `❯` had to precede the panel's footer. Claude's renderer diffs
+// PER LINE, so that rule is defeated by an ARROW MOVE inside the list — measured
+// in this capture family (q2a-model-picker RAW stream: the footer is emitted
+// exactly ONCE for a whole four-arrow session, each arrow emitting only a fresh
+// `❯` + row fragment). Arrowing off `(current)` onto a real checkpoint therefore
+// puts a bare `❯` after the footer and the stream predicate read CLOSED — in
+// precisely the sub-state where Enter is destructive. The grid has no such
+// failure: it converges to the CURRENT screen whatever the paint order, a
+// dismissed panel simply leaves the viewport, and cursor position is irrelevant
+// because the panel is either displayed or it is not.
+//
+// Recognition is CO-OCCURRENCE, like the cache-miss dialog above and for the
+// same reason — a single substring is forgeable by assistant prose (S2's
+// lesson), and this panel's own body text is exactly the kind of sentence a
+// session discussing Sonata would print. Each variant needs its distinctive
+// BODY *and* its FOOTER. The title `Rewind` carries no independent weight (it
+// is a substring of "Nothing to rewind…"), so it is not required separately.
+// Compacted (whitespace removed) like every other claude parser here: on grid
+// rows that also makes the match indifferent to column wrapping, and it keeps
+// the needles identical to the stream-era ones. The `·` separator survives.
+const CLAUDE_REWIND_HISTORY_BODY_RE = /Restorethecodeand\/orconversationtothepointbefore/;
+const CLAUDE_REWIND_HISTORY_FOOTER_RE = /Entertocontinue·Esctocancel/;
+const CLAUDE_REWIND_EMPTY_BODY_RE = /Nothingtorewindtoyet\./;
+const CLAUDE_REWIND_EMPTY_FOOTER_RE = /Esctocancel/;
+
+/** The claude Rewind panel is on the SCREEN — pass a rendered viewport
+ *  (`TaskScreenModel.viewportText()`), never a pty tail. Requires a variant's
+ *  body AND its footer, both visible in the same frame.
+ *
+ *  Callers treat this as a screen owner: readiness, delivery, the mid-session
+ *  control switches and the Enter-retry ladder all hold while it is true.
+ *  Sonata NEVER dismisses it — one Esc would close it, but the user may have
+ *  opened it deliberately in the co-visible CLI, and answering a screen the user
+ *  may be using is the standing red line. Recognition + hold + surface only.
+ *
+ *  No liveness rule and no scan window: a viewport is already scoped to the
+ *  current screen, which is the whole reason this reads the grid (see above). */
+export function claudeRewindPanelOpen(screenText: string): boolean {
+  // `cleanTerminal` is a near-noop on plain grid rows (S4a Q1) but is kept so a
+  // caller handing over a still-escaped frame cannot silently miss.
+  const compact = cleanTerminal(screenText).replace(/\s+/g, "");
+  return (
+    (CLAUDE_REWIND_HISTORY_BODY_RE.test(compact) &&
+      CLAUDE_REWIND_HISTORY_FOOTER_RE.test(compact)) ||
+    // The empty variant is KEPT even though its Enter restores nothing (there is
+    // nothing behind "Nothing to rewind to yet."): it is still a modal over the
+    // composer, so a delivered prompt's text goes nowhere useful and its Enter is
+    // a guess. Its footer token `Esctocancel` is a prefix of the approval
+    // panel's `Esctocancel·Tabtoamend`, which mattered on the stream (a stale
+    // rewind body could pair with a live approval footer) and cannot matter on
+    // the grid: the two are full-screen modals in the alternate buffer and never
+    // share a viewport, so the body needle is never present on an approval frame.
+    (CLAUDE_REWIND_EMPTY_BODY_RE.test(compact) && CLAUDE_REWIND_EMPTY_FOOTER_RE.test(compact))
+  );
+}
+
 // Mid-session Claude PERMISSION switch (S2). Unlike model/effort (a typed
 // command with one printed receipt), permission has no arg form: Sonata drives
 // the native Shift+Tab (`\x1b[Z`) cycle one step at a time and reads the TUI's

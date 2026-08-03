@@ -55,6 +55,10 @@ function makeHost(provider, { deferReads = false } = {}) {
     hasPty: () => flags.pty,
     writePty: (data) => writes.push(data),
     isApprovalActive: () => flags.approval,
+    // Claude's Rewind panel is the second screen-owner refusal at the two switch
+    // entry points (upstream sync 2026-08-03): a claude switch ends in a deferred
+    // `\r`, which on that panel is `Enter to continue` — a RESTORE.
+    isRewindPanelOpen: () => flags.rewindPanel ?? false,
     hasActiveRun: () => flags.activeRun,
     isSonataWriting: () => flags.sonataWriting,
     beginSonataWrite: () => {},
@@ -127,6 +131,34 @@ await check("3a: a stale pre-press mode line is ignored (no double-press)", () =
     assert.equal(lastEvent(host.events).value, "plan");
   } finally {
     engine.clear();
+  }
+});
+
+// Screen-owner refusal at the switch ENTRY points (upstream sync 2026-08-03).
+// Both claude entry points end in a deferred `\r`; on the Rewind panel that IS
+// `Enter to continue`, a RESTORE. The panel is reachable independently of Sonata
+// — the user presses Esc Esc in the CLI — so hitting Save on the model chip with
+// it up must refuse, exactly as it does for a live approval screen.
+await check("a claude switch refuses to start while the Rewind panel is open", () => {
+  for (const start of [
+    (engine) => engine.injectClaudeControlSwitch("permission", "plan", "default"),
+    (engine) => engine.startClaudeStagedSwitch("opus", "high"),
+  ]) {
+    const host = makeHost("claude");
+    const engine = new ControlSwitchEngine(host);
+    try {
+      host.flags.rewindPanel = true;
+      const refused = start(engine);
+      assert.equal(refused.ok, false, "the switch must not start");
+      assert.equal(refused.reason, "panel-open", "same refusal class as a live approval screen");
+      assert.equal(host.writes.length, 0, "and nothing was written into the panel");
+
+      // Not a latch: dismissing the panel restores the entry point.
+      host.flags.rewindPanel = false;
+      assert.equal(start(engine).ok, true, "the switch starts once the panel closes");
+    } finally {
+      engine.clear();
+    }
   }
 });
 

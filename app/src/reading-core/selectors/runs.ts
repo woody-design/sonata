@@ -206,6 +206,17 @@ export function deliveryStatusLabel(deliveryState: DeliveryTaskState): string {
   if (deliveryState.queue.some((item) => item.status === "delivering")) {
     return `Delivering to ${providerName}`;
   }
+  // Ranked above "Queued" (and above the idle "Ready") because it is the REASON
+  // the queue is not moving: a recognized Rewind panel holds delivery, so
+  // "Queued" alone would be an unexplained stall — the invisible-hold failure S3
+  // decision A warns about, and the price of exempting this panel from it. Below
+  // "Delivering" only because that state means bytes are already in flight.
+  // Sonata never dismisses the panel; the copy names the key the user presses, and
+  // "CLI" is the product vocabulary for that surface (see the drawer's "Answer
+  // in CLI →") — the ui-vocabulary-corpus fence rejects "terminal" here.
+  if (deliveryState.rewindPanelOpen) {
+    return "Rewind panel open — press Esc in the CLI";
+  }
   if (deliveryState.queue.some((item) => item.status === "queued")) {
     return "Queued";
   }

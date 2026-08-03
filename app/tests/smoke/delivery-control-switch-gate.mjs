@@ -34,6 +34,7 @@ function makeHost(overrides = {}) {
     hasActiveRun: () => state.activeRun,
     isApprovalActive: () => state.approval,
     hasPendingControlSwitch: () => state.pendingControlSwitch,
+    isRewindPanelOpen: () => state.rewindPanelOpen ?? false,
     acceptsPromptInput: () => state.accepts,
     submitPrompt: (text, opts) => {
       state.submits.push({ text, opts });
@@ -126,6 +127,34 @@ await check("needs-attention control-switch:state event releases the gate", asyn
       ts: new Date().toISOString(),
     });
     assert.equal(host.state.submits.length, 1, "the gate reopens once the switch is no longer pending");
+  } finally {
+    dc.dispose();
+  }
+});
+
+// A.5 — the SAME gate shape for claude's Rewind panel (upstream sync
+// 2026-08-03, claude ≥2.1.216). An Esc pair at an idle composer opens a restore
+// picker whose `Enter to continue` REWRITES the conversation (and possibly the
+// code) back to the highlighted row, so a delivery into it is the same class of
+// red line as the parked consent: pasted text plus Enter answers a modal nobody
+// meant to answer. It is a deliberate, narrow exception to S3 decision A (a
+// user-opened panel does not hold delivery) — that decision rests on the paste
+// being recoverable, which a restore is not — and the exception is paid for by
+// surfacing the hold (`rewindPanelOpen` → the composer status line).
+await check("an open claude Rewind panel blocks delivery (its Enter is a RESTORE)", async () => {
+  const host = makeHost({ rewindPanelOpen: true });
+  const dc = makeController(host);
+  try {
+    dc.enqueue("this must not land on the rewind picker");
+    await delay(80); // several retry intervals — still open, still nothing
+    assert.equal(host.state.submits.length, 0, "stays queued while the panel is open");
+
+    // No event announces the dismissal (one Esc in the co-visible terminal just
+    // repaints the composer), so the 500ms poll backstop is the ONLY way out —
+    // exactly the wedge risk decision A warns about, and why it must be proven.
+    host.state.rewindPanelOpen = false;
+    await delay(120);
+    assert.equal(host.state.submits.length, 1, "poll re-pump delivers once the panel closes");
   } finally {
     dc.dispose();
   }
@@ -262,6 +291,7 @@ await check("real parked codex consent blocks delivery AND submitPrompt (the red
       hasActiveRun: () => false,
       isApprovalActive: () => false,
       hasPendingControlSwitch: () => host.hasPendingControlSwitch(),
+      isRewindPanelOpen: () => false,
       acceptsPromptInput: () => true,
       submitPrompt: (text, opts) => {
         submits.push({ text, opts });

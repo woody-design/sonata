@@ -15,9 +15,11 @@ import { createRequire } from "node:module";
 //   3. The next submission prefixes the same flood ahead of its paste and is
 //      the only consumer of the flag.
 //   4. The one-shot Esc resend fires ONLY on post-stop tool evidence inside
-//      [800ms, 45s], never at idle, never into a new run (a blind repeat
+//      [1200ms, 45s], never at idle, never into a new run (a blind repeat
 //      opens Claude's rewind menu / prefills Codex's edit-previous buffer),
-//      and carries the stopped run's id for the durable report.
+//      and carries the stopped run's id for the durable report. The lower bound
+//      was 800ms until the 2026-08-03 upstream sync measured claude 2.1.220's
+//      Esc-pair rewind window as (700, 800] — see the boundary case below.
 //   5. A lone human Esc in the Terminal during a run marks the line dirty.
 //   6. DeliveryController.handleStopRequested disarms the Enter-retry ladder
 //      and reports a write-canceled in-flight item undelivered immediately —
@@ -187,8 +189,25 @@ await check("Esc resend fires once on post-stop tool evidence, inside the window
     const escsAfterStop = () => writes.filter(isEsc).length;
     const baseline = escsAfterStop();
 
-    host.noteToolActivityAfterStop(); // too early (<800ms) — in-flight hook race
+    host.noteToolActivityAfterStop(); // too early (~0ms) — the in-flight hook race
     assert.equal(escsAfterStop(), baseline, "evidence inside the lower bound must not retry");
+
+    // The lower bound's SECOND job (upstream sync 2026-08-03): stopRun's Esc plus
+    // this retry Esc are the only pair a claude path can emit, and since claude
+    // 2.1.216 an Esc pair at an idle composer opens the Rewind restore picker.
+    // Measured live at 2.1.220 (spikes/upstream-sync-2026-08/claude/q3c-esc-window
+    // captures): the pair fires at gaps ≤700ms and not at ≥800ms. 800 is therefore
+    // INSIDE the interval the threshold lives in — and `elapsed < MIN` means the
+    // old MIN of 800 fired at exactly 800. Reverting STOP_ESC_RETRY_MIN_MS to 800
+    // fails here, which is the point of pinning the boundary rather than a
+    // comfortable value.
+    host.stopEscRetry.requestedAt = Date.now() - 800;
+    host.noteToolActivityAfterStop();
+    assert.equal(
+      escsAfterStop(),
+      baseline,
+      "an 800ms gap is inside the measured rewind-pair window — it must NOT retry",
+    );
 
     host.stopEscRetry.requestedAt = Date.now() - 2_000; // step past the lower bound
     host.noteToolActivityAfterStop();
@@ -296,12 +315,60 @@ await check("codex /stop inspection still runs when nothing new started", async 
   }
 });
 
+// `run:stopped.slashStopSent` must report what HAPPENED, not what was intended.
+// submitPrompt has three screen-owner throws and inspectSlashStop swallows them
+// all, so a flag PREDICTED from the guards claimed a `/stop` that was never
+// written — a durable-report lie (review M4). Driven here through the reachable
+// case: codex is the only provider with `supportsSlashStop`, and a codex control
+// switch can be pending at inspection time. (The rewind throw shares the fix but
+// cannot fire on this path — that panel is claude's and claude does not send
+// `/stop` at all; the flag no longer depends on that staying true.)
+await check("slashStopSent reports the OUTCOME when the /stop write is refused", async () => {
+  const writes = [];
+  const events = [];
+  const host = new TerminalHost({
+    taskId: "stop-interrupt-hygiene-smoke",
+    provider: "codex",
+    defaultWorkspace: process.cwd(),
+    eventSink: (event) => events.push(event),
+  });
+  try {
+    host.ptyProcess = fakePty(writes);
+    host.submitPrompt("codex turn to stop");
+    await delay(250);
+    await host.stopRun({ inspectDelayMs: 300, forceSlashStop: true });
+    // A switch parks between the stop and the inspection — submitPrompt will throw.
+    const started = host.injectClaudeControlSwitch("codex-model", "gpt-5.6-sol");
+    assert.equal(started.ok, true, "precondition: a codex switch is pending");
+    await delay(700);
+
+    // stopRun emits the immediate "Esc sent, inspection running" report; the one
+    // under test is the INSPECTION's, which lands last.
+    const stopped = events.filter((event) => event.type === "run:stopped");
+    assert.equal(stopped.length, 2, "the immediate report plus the inspection's");
+    assert.equal(
+      writes.filter((write) => write.includes("/stop")).length,
+      0,
+      "precondition: the pending switch really did block the /stop write",
+    );
+    assert.equal(
+      stopped.at(-1).payload.slashStopSent,
+      false,
+      "the report must not claim a /stop that was refused",
+    );
+    assert.match(stopped.at(-1).payload.slashStopReason, /screen-owner guard/);
+  } finally {
+    host.dispose();
+  }
+});
+
 await check("handleStopRequested reports a write-canceled in-flight item undelivered", async () => {
   const states = [];
   const host = {
     hasActiveRun: () => false,
     isApprovalActive: () => false,
     hasPendingControlSwitch: () => false,
+    isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
     isHumanActivelyTyping: () => false,
     nudges: 0,
@@ -356,6 +423,7 @@ await check("handleStopRequested is honest about how far the aborted sequence go
         hasActiveRun: () => false,
         isApprovalActive: () => false,
         hasPendingControlSwitch: () => false,
+        isRewindPanelOpen: () => false,
         acceptsPromptInput: () => true,
         isHumanActivelyTyping: () => false,
         nudgePromptSubmit: () => true,
@@ -402,6 +470,7 @@ await check("a UPS-corroborated in-flight item survives handleStopRequested inta
     hasActiveRun: () => false,
     isApprovalActive: () => false,
     hasPendingControlSwitch: () => false,
+    isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
     isHumanActivelyTyping: () => false,
     submitPrompt: (text) => ({
@@ -448,6 +517,7 @@ await check("handleStopRequested without canceled writes only disarms the ladder
     hasActiveRun: () => false,
     isApprovalActive: () => false,
     hasPendingControlSwitch: () => false,
+    isRewindPanelOpen: () => false,
     acceptsPromptInput: () => true,
     isHumanActivelyTyping: () => false,
     nudges: 0,
