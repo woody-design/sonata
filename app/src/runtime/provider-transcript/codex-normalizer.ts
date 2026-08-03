@@ -35,6 +35,72 @@ export interface CodexTurnContextObservation {
 }
 
 /**
+ * What a codex `compacted` record says about its own summary. Three-valued, and
+ * the third value is the load-bearing one — see assessCodexCompactionIntegrity.
+ */
+export type CodexCompactionIntegrity = "summary-present" | "summary-missing" | "unassessable";
+
+/**
+ * Read whether a codex `compacted` record still carries the summary the
+ * compaction was supposed to produce.
+ *
+ * MEASURED INVARIANT — 49 real `compacted` records (local rollouts, ten CLI
+ * versions 0.142.5 → 0.146.0-alpha.3.1, plus the captured 0.144.4 record in
+ * `spikes/compaction-records-2026-07/codex-compacted-record.json`). Without a
+ * single exception, `payload.replacement_history` is a list of `{type:"message"}`
+ * items followed by EXACTLY ONE `{type:"compaction", id, encrypted_content}`
+ * item — always last, always with a non-empty ciphertext, never a second one,
+ * and never any other item type. The summary TEXT is encrypted by design
+ * (Fernet), so its plaintext is unavailable; the item's TYPE is all Sonata can
+ * read, and it is enough.
+ *
+ * THE FAILURE — codex #36642 (open, suspected server-side, present in 0.145.0
+ * and unfixed in 0.146.0; version-pinning does not mitigate it). A failed
+ * auto-compaction writes the `compacted` record anyway, with a replacement
+ * history holding only the boot-preamble messages and NO summary item. The
+ * conversation silently resets — one reporter measured 7 of 8 compactions
+ * failing and the token count collapsing 225k → 28k — and nothing, anywhere,
+ * reports an error. That absence is the only signature there is.
+ *
+ * WHY THREE VALUES. This warns only on a shape it has recognized COMPLETELY:
+ * every item a plain `message`, none a summary. Everything else —
+ * `replacement_history` missing, not an array, or empty; a non-object item; an
+ * item of a type never measured (INCLUDING a future upstream rename of the
+ * summary item); a `compaction` item carrying no ciphertext — returns
+ * `unassessable`, and the caller then emits exactly the block it always has. A
+ * false alarm about lost history would cost more trust than the silence this
+ * exists to break.
+ */
+export function assessCodexCompactionIntegrity(
+  payload: Record<string, unknown>,
+): CodexCompactionIntegrity {
+  const history = payload.replacement_history;
+  if (!Array.isArray(history) || history.length === 0) {
+    return "unassessable";
+  }
+  let summary = false;
+  for (const item of history) {
+    if (typeof item !== "object" || item === null) {
+      return "unassessable";
+    }
+    const entry = item as Record<string, unknown>;
+    if (entry.type === "compaction") {
+      // A summary item with no ciphertext is a shape never measured — read it
+      // as neither a healthy summary nor the #36642 absence.
+      if (typeof entry.encrypted_content !== "string" || entry.encrypted_content.length === 0) {
+        return "unassessable";
+      }
+      summary = true;
+      continue;
+    }
+    if (entry.type !== "message") {
+      return "unassessable";
+    }
+  }
+  return summary ? "summary-present" : "summary-missing";
+}
+
+/**
  * Normalizes Codex rollout JSONL records into transcript blocks.
  *
  * Codex stores conversational text twice: as `response_item` protocol records
@@ -128,8 +194,12 @@ export class CodexRolloutNormalizer {
     // rollback/review/abort notes. Codex carries no `trigger` (manual/auto), and
     // its summary is ENCRYPTED (`payload.replacement_history[].encrypted_content`,
     // Fernet) — no plaintext for a disclosure v2, hence no summary seam here.
+    // W1/#36642: a compaction can FAIL and still write this record, leaving the
+    // model with none of the conversation and nobody with an error. The
+    // signature is readable here and nowhere else — see
+    // assessCodexCompactionIntegrity.
     if (record.type === "compacted") {
-      return [this.buildCompactionBlock(ts)];
+      return [this.buildCompactionBlock(ts, assessCodexCompactionIntegrity(payload))];
     }
     return [];
   }
@@ -472,8 +542,8 @@ export class CodexRolloutNormalizer {
     return [];
   }
 
-  private buildCompactionBlock(ts: string): CompactionBlock {
-    return {
+  private buildCompactionBlock(ts: string, integrity: CodexCompactionIntegrity): CompactionBlock {
+    const block: CompactionBlock = {
       kind: "compaction",
       id: this.nextBlockId("compaction"),
       taskId: this.taskId,
@@ -486,6 +556,11 @@ export class CodexRolloutNormalizer {
       // Codex's `compacted` record carries no manual/auto trigger.
       trigger: null,
     };
+    // The field rides ONLY the recognized failure signature. `summary-present`
+    // and `unassessable` both leave it absent, which is the same block the
+    // renderer has always drawn — degradation is by construction, not by a
+    // renderer branch that could be forgotten.
+    return integrity === "summary-missing" ? { ...block, integrity } : block;
   }
 
   private systemNote(text: string, ts: string): TranscriptBlock {

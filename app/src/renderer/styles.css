@@ -5056,6 +5056,45 @@ h2 {
   letter-spacing: 0.02em;
 }
 
+/* Degraded compaction boundary (SL-7, codex #36642): the record carried no
+   summary item, so the model may have continued without the conversation. The
+   rule row is UNTOUCHED — same hairlines, same one-line label, same geometry —
+   and the escalation is chroma on the label plus a second line beneath it. That
+   is the restraint `.approval.dangerous` uses (tint the words that carry the
+   signal, leave the chrome neutral), and it keeps attention red rare, which is
+   the only reason it still reads as a signal.
+
+   `flex-wrap` + `flex-basis: 100%` puts the note on its own line rather than
+   inside the label, so a two-line label never crowds the hairlines. */
+.compaction-marker.degraded {
+  flex-wrap: wrap;
+  row-gap: 7px;
+}
+
+/* The same marker inside a turn card (mid-turn auto-compaction — the majority
+   shape, see isDegradedCompactionBlock). Only the vertical rhythm differs: 36px
+   is the breath BETWEEN cards, and inside one it would read as a gap in the
+   reply rather than a mark on it. */
+.compaction-marker.in-card {
+  padding: 18px 0 16px;
+}
+
+.compaction-marker.degraded .compaction-marker-label {
+  color: var(--attention-text);
+  font-weight: 500;
+}
+
+/* `flex: 0 0 100%` with NO max-width: a capped hypothetical main size would fit
+   back onto the rule row and defeat the wrap. Line length is already governed by
+   the marker's own --measure-prose column. */
+.compaction-marker-note {
+  flex: 0 0 100%;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .turn-user {
   display: grid;
   justify-items: end;

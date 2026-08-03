@@ -10,6 +10,7 @@ const {
   CodexRolloutNormalizer,
   JsonlTailer,
   ProviderTranscript,
+  assessCodexCompactionIntegrity,
   claudeProjectSlug,
   locateSessionFile,
 } = require("../../dist/runtime/provider-transcript/index");
@@ -1165,6 +1166,9 @@ check("codex: event text, tool pairing, exit-code status, no duplication (0.144.
   assert.equal(compaction.turnKey, compactionTurnId, "compaction in its own boundary turn");
   assert.notEqual(compaction.turnKey, turnId, "not folded into the reply turn");
   assert.equal(compaction.trigger, null, "codex compacted carries no trigger");
+  // SL-7: this record has no `replacement_history` at all — an unassessable
+  // shape, which must degrade to the plain marker, never to a warning.
+  assert.equal(compaction.integrity, undefined, "no history to assess → no warning");
 });
 
 // The REAL captured 0.144.4 `compacted` record (spikes/compaction-records-
@@ -1218,6 +1222,237 @@ check("codex: the real 0.144.4 compacted record → a marker, no summary leak (P
   const serialized = JSON.stringify(compaction);
   assert.ok(!serialized.includes(fernet), "the encrypted summary never enters the block");
   assert.ok(!serialized.includes("replacement_history"), "no raw payload leaks into the block");
+  // SL-7: a summary item is present → healthy, no warning field.
+  assert.equal(compaction.integrity, undefined, "a summary item present → no warning");
+});
+
+// --- Codex compaction integrity (SL-7, W1 / codex #36642) --------------------
+//
+// PROVENANCE.
+//  · HEALTHY_REPLACEMENT_HISTORY — MEASURED STRUCTURE, SANITIZED CONTENT. Item
+//    types, roles, key sets, ordering, and the multi-part `content` arity are
+//    transcribed from a real 0.146.0-alpha.3.1 `compacted` record in a local
+//    rollout; every text body and identifier is replaced with neutral filler and
+//    the 18 252-char ciphertext with a short placeholder (real prompt text must
+//    never enter the repo — the pre-push leak fence scans blob content). Shape
+//    corroborated across 49 real `compacted` records spanning ten CLI versions
+//    (0.142.5 → 0.146.0-alpha.3.1): EVERY one ends with exactly one
+//    `{type:"compaction", encrypted_content}` item, always last, always
+//    non-empty, all other items `{type:"message"}`. Zero exceptions.
+//  · FAILING_REPLACEMENT_HISTORY — COMPOSED. The #36642 failure was never
+//    captured locally (it is server-triggered and unreproducible on demand), so
+//    this fixture is BUILT from the issue's description — the four boot-preamble
+//    messages that the healthy record above also carries (3 developer + 1 user
+//    `<environment_context>`), with the summary item simply absent. It asserts
+//    what the predicate keys on, and claims no more than that.
+//    Source: github.com/openai/codex issue #36642, open at 0.146.0.
+const HEALTHY_REPLACEMENT_HISTORY = [
+  {
+    type: "message",
+    role: "user",
+    id: "msg_019f0000",
+    content: [{ type: "input_text", text: "First prompt of the session." }],
+    internal_chat_message_metadata_passthrough: { turn_id: "019f0000-0000-7000-8000-000000000001" },
+  },
+  {
+    type: "message",
+    role: "developer",
+    id: "msg_019f0001",
+    content: [
+      { type: "input_text", text: "<app-context>\n# Codex desktop\n</app-context>" },
+      { type: "input_text", text: "<permissions instructions>…</permissions instructions>" },
+      { type: "input_text", text: "<collaboration_mode># Collaboration</collaboration_mode>" },
+    ],
+    internal_chat_message_metadata_passthrough: { turn_id: "019f0000-0000-7000-8000-000000000002" },
+  },
+  {
+    type: "message",
+    role: "developer",
+    id: "msg_019f0002",
+    content: [{ type: "input_text", text: "You are the primary agent." }],
+    internal_chat_message_metadata_passthrough: { turn_id: "019f0000-0000-7000-8000-000000000002" },
+  },
+  {
+    type: "message",
+    role: "developer",
+    id: "msg_019f0003",
+    content: [{ type: "input_text", text: "<multi_agent_mode>…</multi_agent_mode>" }],
+    internal_chat_message_metadata_passthrough: { turn_id: "019f0000-0000-7000-8000-000000000002" },
+  },
+  {
+    type: "message",
+    role: "user",
+    id: "msg_019f0004",
+    content: [
+      { type: "input_text", text: "<recommended_plugins>…</recommended_plugins>" },
+      { type: "input_text", text: "<environment_context>…</environment_context>" },
+    ],
+    internal_chat_message_metadata_passthrough: { turn_id: "019f0000-0000-7000-8000-000000000002" },
+  },
+  {
+    type: "compaction",
+    id: "cmp_0c05849a00000000000000000000000000000000000000000",
+    encrypted_content: "gAAAAABqSANITIZEDCIPHERTEXTPLACEHOLDER0000000000000",
+    internal_chat_message_metadata_passthrough: { turn_id: "019f0000-0000-7000-8000-000000000003" },
+  },
+];
+// The same record MINUS the leading conversation prompt and MINUS the summary —
+// i.e. only the boot preamble survived, which is exactly what #36642 describes.
+const FAILING_REPLACEMENT_HISTORY = HEALTHY_REPLACEMENT_HISTORY.slice(1, -1);
+
+function codexCompactedLine(payload) {
+  return JSON.stringify({
+    timestamp: "2026-07-26T15:33:15.000Z",
+    type: "compacted",
+    payload: { message: "", window_number: 1, ...payload },
+  });
+}
+
+function codexCompactionBlock(payload) {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const blocks = normalizer.consumeLine(codexCompactedLine(payload));
+  assert.equal(blocks.length, 1, "a compacted record always emits exactly one marker");
+  assert.equal(blocks[0].kind, "compaction");
+  return blocks[0];
+}
+
+check("codex compaction integrity: a MEASURED healthy history reads summary-present", () => {
+  assert.equal(
+    assessCodexCompactionIntegrity({ replacement_history: HEALTHY_REPLACEMENT_HISTORY }),
+    "summary-present",
+  );
+  const block = codexCompactionBlock({ replacement_history: HEALTHY_REPLACEMENT_HISTORY });
+  assert.equal(block.integrity, undefined, "a healthy record carries no warning field");
+  assert.ok(
+    !JSON.stringify(block).includes("gAAAAAB"),
+    "the ciphertext never enters the block (encrypted by design — no disclosure)",
+  );
+});
+
+check("codex compaction integrity: the COMPOSED #36642 signature reads summary-missing", () => {
+  assert.equal(
+    assessCodexCompactionIntegrity({ replacement_history: FAILING_REPLACEMENT_HISTORY }),
+    "summary-missing",
+  );
+  const block = codexCompactionBlock({ replacement_history: FAILING_REPLACEMENT_HISTORY });
+  assert.equal(block.integrity, "summary-missing", "the warning rides the block it already emits");
+  // The warning is ADDITIVE — the boundary marker is otherwise the block Reading
+  // has always drawn, so a degraded compaction never loses its separator.
+  assert.equal(block.kind, "compaction");
+  assert.equal(block.trigger, null);
+  assert.equal(block.provider, "codex");
+  // Preamble text is provider-internal scaffolding, never user content.
+  assert.ok(
+    !JSON.stringify(block).includes("environment_context"),
+    "no replacement-history content leaks into the block",
+  );
+});
+
+// Shape surprises: every one of these must degrade SILENTLY to the plain marker.
+// A false "your history is gone" costs more trust than the silence this breaks.
+check("codex compaction integrity: unrecognized shapes degrade to no warning", () => {
+  const unassessable = [
+    ["absent replacement_history", {}],
+    ["null replacement_history", { replacement_history: null }],
+    ["non-array replacement_history", { replacement_history: { 0: { type: "message" } } }],
+    ["string replacement_history", { replacement_history: "[]" }],
+    ["empty replacement_history", { replacement_history: [] }],
+    ["a non-object item", { replacement_history: [{ type: "message" }, "boot preamble"] }],
+    ["a null item", { replacement_history: [null] }],
+    // A future upstream RENAME of the summary item must not be read as its
+    // absence — the whole point of the third value.
+    ["an item type never measured", { replacement_history: [{ type: "context_summary" }] }],
+    [
+      "a mixed history carrying an unmeasured item",
+      { replacement_history: [...FAILING_REPLACEMENT_HISTORY, { type: "context_summary" }] },
+    ],
+    // A summary item with no ciphertext is neither a healthy summary nor the
+    // measured absence.
+    ["a summary item with an empty ciphertext", { replacement_history: [{ type: "compaction", encrypted_content: "" }] }],
+    ["a summary item with no ciphertext", { replacement_history: [{ type: "compaction" }] }],
+  ];
+  for (const [label, payload] of unassessable) {
+    assert.equal(
+      assessCodexCompactionIntegrity(payload),
+      "unassessable",
+      `${label} must be unassessable`,
+    );
+    assert.equal(
+      codexCompactionBlock(payload).integrity,
+      undefined,
+      `${label} must still emit the plain marker`,
+    );
+  }
+});
+
+// MEASURED RECORD ORDERING — the reason the warning needs an in-card placement.
+// Across 49 real `compacted` records in local rollouts (0.142.5 →
+// 0.146.0-alpha.3.1), only 9 are immediately preceded by a `task_started`; the
+// other 40 follow an `agent_message` with no new turn boundary — an
+// auto-compaction interrupting the turn in flight. Record sequence transcribed
+// from a real 0.146.0-alpha.3.1 rollout (…reasoning / agent_message /
+// function_call / function_call_output / token_count / COMPACTED / turn_context /
+// context_compacted / reasoning / agent_message…, one turn throughout). So the
+// block keys to the LIVE turn, which is what the Reading surface must render it
+// inside. The normalizer half of that is pinned here; the render half in
+// reading-turns 4e.
+check("codex: a MID-TURN compacted record keys into the live turn (measured ordering)", () => {
+  const normalizer = new CodexRolloutNormalizer({ taskId: "task-1", sourceId: "codex:s1" });
+  const turnId = "019f9fea-0000-7000-8000-00000000000a";
+  const blocks = [];
+  for (const line of [
+    JSON.stringify({
+      timestamp: "2026-07-26T15:00:00.000Z",
+      type: "event_msg",
+      payload: { type: "task_started", turn_id: turnId },
+    }),
+    JSON.stringify({
+      timestamp: "2026-07-26T15:00:01.000Z",
+      type: "event_msg",
+      payload: { type: "user_message", message: "keep going" },
+    }),
+    JSON.stringify({
+      timestamp: "2026-07-26T15:00:02.000Z",
+      type: "event_msg",
+      payload: { type: "agent_message", message: "working on it" },
+    }),
+    // No task_started here — this is the measured majority shape.
+    codexCompactedLine({ replacement_history: FAILING_REPLACEMENT_HISTORY }),
+    JSON.stringify({
+      timestamp: "2026-07-26T15:00:04.000Z",
+      type: "event_msg",
+      payload: { type: "agent_message", message: "done" },
+    }),
+  ]) {
+    blocks.push(...normalizer.consumeLine(line));
+  }
+  assert.deepEqual(
+    blocks.map((block) => block.kind),
+    ["user-message", "assistant-text", "compaction", "assistant-text"],
+  );
+  assert.equal(blocks[2].integrity, "summary-missing");
+  for (const block of blocks) {
+    assert.equal(block.turnKey, turnId, "every block — the marker included — is in the live turn");
+  }
+  assert.ok(
+    blocks[1].seq < blocks[2].seq && blocks[2].seq < blocks[3].seq,
+    "the marker holds its position between the reply halves it interrupted",
+  );
+});
+
+// The assessment is a pure READ over the payload — it is called from inside the
+// tailer's per-line path, where a mutation would corrupt the record the rest of
+// consumeLine still reads.
+check("codex compaction integrity: the assessment does not touch the payload", () => {
+  const payload = { message: "", replacement_history: FAILING_REPLACEMENT_HISTORY };
+  const before = JSON.stringify(payload);
+  assert.equal(assessCodexCompactionIntegrity(payload), "summary-missing");
+  assert.equal(JSON.stringify(payload), before, "the payload is untouched");
+  assert.equal(
+    assessCodexCompactionIntegrity(payload),
+    "summary-missing",
+    "and the read is repeatable",
+  );
 });
 
 // --- Codex usage → display wiring (S6) ---------------------------------------

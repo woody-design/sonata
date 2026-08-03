@@ -25,6 +25,8 @@ import {
   createTurnSignatureTracker,
   imageAttachmentLabel,
   isCompactionTurn,
+  isDegradedCompactionBlock,
+  isDegradedCompactionTurn,
   userPromptDisplay,
   type ReadingTurn,
 } from "../../reading-core/selectors/turns";
@@ -236,7 +238,9 @@ export function renderRuns(): void {
       // calm state-register separator between the turns it sits between (never a
       // husk card, never folded into a reply).
       render: () =>
-        isCompactionTurn(turn) ? renderCompactionMarker() : renderTurn(view, turn),
+        isCompactionTurn(turn)
+          ? renderCompactionMarker({ degraded: isDegradedCompactionTurn(turn) })
+          : renderTurn(view, turn),
       refresh: (node) => refreshTurnCardCheap(node, view, turn),
     })),
   );
@@ -365,6 +369,21 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
   return card;
 }
 
+// The degraded variant's copy (SL-7 / codex #36642). Every clause is something
+// Sonata MEASURED or knows structurally, and nothing more:
+//   · "summary missing" — the record's replacement history carried no summary
+//     item. That is the observation, stated as an observation.
+//   · "may have lost" — the summary is encrypted, so Sonata can see that none
+//     was written, never what the model actually still remembers. A signature is
+//     not an outcome; the copy must not promote it to one.
+//   · "the transcript above is unaffected" — true and load-bearing: only the
+//     model's working memory is in question, the rollout Reading renders from is
+//     whole. Same rule as the calm variant — never say the conversation was
+//     cleared/reset/lost.
+const COMPACTION_DEGRADED_LABEL = "Context compacted — summary missing";
+const COMPACTION_DEGRADED_NOTE =
+  "No summary was written, so the replies below may have lost the earlier context. The transcript above is unaffected.";
+
 // The context-compaction boundary (S7), design A: a full-width hairline with a
 // small centered muted label interrupting the line. A calm state-register — it
 // draws LESS eye than a reply. The copy states only what happened to the model's
@@ -373,11 +392,34 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
 // the two hairline halves are decorative geometry (aria-hidden). Static in v1
 // (summary disclosure is v2, likely Claude-only). All line/spacing treatment is
 // one CSS block (`.compaction-marker*`) so a variant tweak stays CSS-only.
-function renderCompactionMarker(): HTMLElement {
+//
+// `degraded` (SL-7) draws the SAME separator with the label escalated: the
+// geometry, placement, and hairlines are untouched, and chroma lands only on the
+// words that carry the signal — the design system's rule that attention red is
+// the one kept status chroma, and that its force comes from how rarely it
+// appears (`.approval.dangerous` escalates the same way). This is the only
+// surface the warning gets: a compaction boundary is where the user's eye
+// already is when history vanishes, and a second channel would say the same
+// thing further from the evidence.
+//
+// `inCard` is the SAME marker rendered inside a turn card, for the mid-turn
+// auto-compaction that has no boundary turn of its own (the majority shape —
+// see isDegradedCompactionBlock). Only the vertical rhythm changes: 36px of
+// breath is right between two cards, too much inside one.
+function renderCompactionMarker(options: {
+  degraded: boolean;
+  inCard?: boolean;
+}): HTMLElement {
+  const { degraded, inCard = false } = options;
   const marker = document.createElement("div");
-  marker.className = "compaction-marker";
+  marker.className = ["compaction-marker", degraded ? "degraded" : "", inCard ? "in-card" : ""]
+    .filter(Boolean)
+    .join(" ");
   marker.setAttribute("role", "separator");
-  marker.setAttribute("aria-label", "Context compacted");
+  marker.setAttribute(
+    "aria-label",
+    degraded ? `${COMPACTION_DEGRADED_LABEL}. ${COMPACTION_DEGRADED_NOTE}` : "Context compacted",
+  );
 
   const lineBefore = document.createElement("span");
   lineBefore.className = "compaction-marker-line";
@@ -385,13 +427,23 @@ function renderCompactionMarker(): HTMLElement {
 
   const label = document.createElement("span");
   label.className = "compaction-marker-label";
-  label.textContent = "Context compacted";
+  label.textContent = degraded ? COMPACTION_DEGRADED_LABEL : "Context compacted";
 
   const lineAfter = document.createElement("span");
   lineAfter.className = "compaction-marker-line";
   lineAfter.setAttribute("aria-hidden", "true");
 
   marker.append(lineBefore, label, lineAfter);
+  // The note is a SIBLING of the rule, not part of the label: the hairline row
+  // must stay the one-line separator it is in the calm variant (a two-line label
+  // between two hairlines reads as text crowding a rule). CSS wraps it onto its
+  // own centered line below.
+  if (degraded) {
+    const note = document.createElement("span");
+    note.className = "compaction-marker-note";
+    note.textContent = COMPACTION_DEGRADED_NOTE;
+    marker.append(note);
+  }
   return marker;
 }
 
@@ -557,10 +609,18 @@ function renderMessageTime(display: string, dateTime: string, label: string): HT
   return time;
 }
 
+// Reading renders the reply and the state, never the process. A DEGRADED
+// compaction marker is state of exactly the kind `system-note` already carries —
+// and it must reach the card, because the compaction that produces it usually
+// happens mid-turn, where there is no boundary turn to draw a separator between
+// (isDegradedCompactionBlock). A calm compaction marker is deliberately NOT an
+// answer block: in a mixed turn it still degrades to nothing, per S7.
 function isAnswerBlock(
   block: TranscriptBlock,
-): block is Extract<TranscriptBlock, { kind: "assistant-text" | "system-note" }> {
-  return block.kind === "assistant-text" || block.kind === "system-note";
+): block is Extract<TranscriptBlock, { kind: "assistant-text" | "system-note" | "compaction" }> {
+  return (
+    block.kind === "assistant-text" || block.kind === "system-note" || isDegradedCompactionBlock(block)
+  );
 }
 
 function turnCompletedWithoutAssistantOutput(turn: ReadingTurn): boolean {
@@ -577,6 +637,12 @@ function turnCompletedWithoutAssistantOutput(turn: ReadingTurn): boolean {
 function renderTranscriptBlock(block: TranscriptBlock): HTMLElement {
   if (block.kind === "assistant-text") {
     return markdownBody(block.markdown, block.id);
+  }
+  // The only compaction block that reaches here is a degraded one (isAnswerBlock),
+  // and it draws the same warning separator as the standalone placement — one
+  // form for one event, wherever the rollout put it.
+  if (isDegradedCompactionBlock(block)) {
+    return renderCompactionMarker({ degraded: true, inCard: true });
   }
   const note = document.createElement("div");
   note.className = "turn-system-note";

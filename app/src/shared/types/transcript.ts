@@ -186,6 +186,20 @@ export interface CompactionBlock extends TranscriptBlockBase {
   /** Claude carries manual/auto in `compactMetadata.trigger`; Codex's
    *  `compacted` record carries none → null. */
   trigger: CompactionTrigger | null;
+  /** Present ONLY when the source record matched a measured failure signature:
+   *  Codex's `compacted` record carried a replacement history with no summary
+   *  item at all (#36642 — a compaction that discards the conversation instead
+   *  of summarizing it; open and unfixed at 0.146.0, and no error is reported
+   *  anywhere). A SIGNATURE, not a verdict: the summary is encrypted, so Sonata
+   *  can see that none was written, never that the model actually lost the
+   *  thread — the Reading copy hedges accordingly.
+   *
+   *  Absent on Claude, on healthy records, and on ANY record shape the
+   *  assessment does not fully recognize (see assessCodexCompactionIntegrity) —
+   *  absence means "nothing to report", never "verified intact". Additive under
+   *  the frozen contract's B6 extensibility; the daemon's `BlockView` never
+   *  promoted this kind at all, so no external consumer is affected. */
+  integrity?: "summary-missing";
 }
 
 export type TranscriptBlock =

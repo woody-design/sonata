@@ -148,6 +148,41 @@ export function isCompactionTurn(turn: ReadingTurn): boolean {
   return turn.blocks.length > 0 && turn.blocks.every((block) => block.kind === "compaction");
 }
 
+/**
+ * A compaction marker carrying the measured "no summary was written" signature
+ * (codex #36642 — see `CompactionBlock.integrity`). Reading draws this one
+ * LOUDER than the calm boundary, and it draws it in BOTH placements a codex
+ * compaction actually occurs in:
+ *
+ *  · its own boundary turn → the warning variant of the standalone separator;
+ *  · MID-TURN, folded into the live turn → an answer block inside that turn's
+ *    card, at the seq position where the compaction happened.
+ *
+ * The second placement is not an edge case: across 49 real `compacted` records
+ * in local rollouts (0.142.5 → 0.146.0-alpha.3.1), 40 have NO `task_started`
+ * before them — an auto-compaction interrupts the turn in flight, so the block
+ * lands in the live turn and `isCompactionTurn` is (correctly) false there.
+ * Without the in-card path the warning would be invisible in exactly the case
+ * #36642 breaks. The CALM marker's behaviour in a mixed turn is unchanged: it
+ * still renders as nothing, which is the S7 design.
+ *
+ * The absence of the field never asserts health — a record Sonata could not
+ * assess reads the same as a healthy one, deliberately, so a false alarm about
+ * lost history is impossible.
+ */
+export function isDegradedCompactionBlock(
+  block: TranscriptBlock,
+): block is Extract<TranscriptBlock, { kind: "compaction" }> {
+  return block.kind === "compaction" && block.integrity === "summary-missing";
+}
+
+/** True when a compaction TURN's marker carries the signature — the standalone
+ *  separator's warning variant. `some`, not `every`: one degraded marker is the
+ *  whole story (in practice a compaction turn holds exactly one block). */
+export function isDegradedCompactionTurn(turn: ReadingTurn): boolean {
+  return turn.blocks.some(isDegradedCompactionBlock);
+}
+
 export interface UserPromptDisplay {
   /** The bubble text: the CLI's `[Image #N]` markers lifted out when — and only
    *  when — the block carries real image attachments. A user who literally typed

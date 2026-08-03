@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 // Fixture tables for the turn selectors (map step B1): turn grouping +
@@ -183,6 +184,162 @@ function view({ runs = [], blocks = [], runTranscripts = [] } = {}) {
   );
   // And an empty turn is never a compaction turn (guards the length>0 clause).
   assert.equal(T.isCompactionTurn({ blocks: [] }), false, "empty turn is not a compaction turn");
+}
+
+// 4d) Degraded compaction boundary (SL-7 / codex #36642): a marker whose source
+// record carried no summary item renders as the WARNING variant of the same
+// separator. The field is optional and absent on every record the normalizer
+// could not fully assess, so absence must read as "nothing to report" — the
+// calm marker — and never as a warning.
+{
+  const degraded = block("compaction", "compact-lost", null, {
+    provider: "codex",
+    trigger: null,
+    integrity: "summary-missing",
+    ts: "2026-07-03T10:01:00.000Z",
+  });
+  const healthy = block("compaction", "compact-ok", null, {
+    provider: "codex",
+    trigger: null,
+    ts: "2026-07-03T10:02:00.000Z",
+  });
+  const turns = T.buildReadingTurns(view({ blocks: [degraded, healthy] }));
+  const degradedTurn = turns.find((t) => t.key === "src-1:compact-lost");
+  const healthyTurn = turns.find((t) => t.key === "src-1:compact-ok");
+  // Both are still compaction turns: the warning ADDS to the separator, it does
+  // not replace it (a degraded boundary must never fall back to a husk card).
+  assert.equal(T.isCompactionTurn(degradedTurn), true);
+  assert.equal(T.isCompactionTurn(healthyTurn), true);
+  assert.equal(
+    T.isDegradedCompactionTurn(degradedTurn),
+    true,
+    "a marker carrying the measured signature drives the warning variant",
+  );
+  assert.equal(
+    T.isDegradedCompactionTurn(healthyTurn),
+    false,
+    "a marker with no integrity field draws the calm separator (absence ≠ warning)",
+  );
+  // Claude never carries the field; and a non-compaction block can never forge
+  // the warning, whatever it holds.
+  const claudeMarker = block("compaction", "compact-claude", null, { trigger: "auto" });
+  const forger = block("system-note", "tF", null, { text: "note", integrity: "summary-missing" });
+  assert.equal(T.isDegradedCompactionTurn({ blocks: [claudeMarker] }), false);
+  assert.equal(T.isDegradedCompactionTurn({ blocks: [forger] }), false);
+  assert.equal(T.isDegradedCompactionTurn({ blocks: [] }), false);
+}
+
+// 4e) MID-TURN auto-compaction — the placement that actually dominates. MEASURED:
+// of 49 real `compacted` records in local rollouts (0.142.5 → 0.146.0-alpha.3.1),
+// 40 have NO `task_started` before them, so the marker joins the LIVE turn and
+// isCompactionTurn is false there. The calm marker renders as nothing in that
+// turn (S7, unchanged) — but the warning must not, or the slice would be
+// invisible in exactly the case #36642 breaks. It reaches the card as an answer
+// block instead, in seq order, where the compaction interrupted the reply.
+{
+  const prompt = block("user-message", "t1", "run-1", {
+    text: "do the thing",
+    command: null,
+    attachments: [],
+    ts: "2026-07-03T10:00:00.000Z",
+  });
+  const before = block("assistant-text", "t1", "run-1", {
+    markdown: "working on it",
+    ts: "2026-07-03T10:00:01.000Z",
+  });
+  const midTurnMarker = block("compaction", "t1", null, {
+    provider: "codex",
+    trigger: null,
+    integrity: "summary-missing",
+    ts: "2026-07-03T10:00:02.000Z",
+  });
+  const after = block("assistant-text", "t1", "run-1", {
+    markdown: "done",
+    ts: "2026-07-03T10:00:03.000Z",
+  });
+  const turns = T.buildReadingTurns(view({ blocks: [prompt, before, midTurnMarker, after] }));
+  assert.equal(turns.length, 1, "a mid-turn compaction does not fork the turn");
+  assert.equal(
+    T.isCompactionTurn(turns[0]),
+    false,
+    "the mixed turn is NOT a compaction turn — its reply must still render",
+  );
+  assert.equal(
+    T.isDegradedCompactionBlock(midTurnMarker),
+    true,
+    "the block itself carries the signature, whatever turn it landed in",
+  );
+  assert.equal(
+    turns[0].blocks.indexOf(midTurnMarker),
+    2,
+    "and it keeps its seq position — the warning draws where the compaction happened",
+  );
+  // Negatives: the calm marker and every other kind stay out of the in-card path.
+  assert.equal(
+    T.isDegradedCompactionBlock(block("compaction", "t1", null, { trigger: null })),
+    false,
+    "a calm marker is not an in-card warning (S7 behaviour unchanged)",
+  );
+  assert.equal(
+    T.isDegradedCompactionBlock(block("system-note", "t1", null, {
+      text: "note",
+      integrity: "summary-missing",
+    })),
+    false,
+    "no other block kind can forge the warning",
+  );
+}
+
+// 4f) WIRING FENCE (verify the effect, not the artifact). The selectors above can
+// be perfect and the boundary still render calm if the view never reads them —
+// which is precisely the failure this slice exists to prevent. Pin the
+// load-bearing halves in the renderer source: BOTH placements feed a selector
+// into the marker factory, and the factory has a distinct warning surface.
+{
+  const transcriptView = readFileSync(
+    new URL("../../src/renderer/view/transcript.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    transcriptView,
+    /renderCompactionMarker\(\{ degraded: isDegradedCompactionTurn\(turn\) \}\)/,
+    "the standalone branch feeds the turn selector into the marker factory",
+  );
+  assert.match(
+    transcriptView,
+    /function isAnswerBlock\([\s\S]{0,400}?isDegradedCompactionBlock\(block\)/,
+    "isAnswerBlock admits the degraded marker, so it reaches the card mid-turn",
+  );
+  assert.match(
+    transcriptView,
+    /if \(isDegradedCompactionBlock\(block\)\) \{\s*\n\s*return renderCompactionMarker\(\{ degraded: true, inCard: true \}\);/,
+    "and renderTranscriptBlock draws it as the same warning separator",
+  );
+  assert.match(
+    transcriptView,
+    /degraded \? "degraded" : "", inCard \? "in-card" : ""/,
+    "the warning and in-card variants are distinct classes on the same separator",
+  );
+  // The copy is asserted here rather than left to the view alone: it is the
+  // whole user-facing payload of the slice, and every clause is hedged on
+  // purpose (a signature is not a verdict — see the constants' comment).
+  assert.match(
+    transcriptView,
+    /"Context compacted — summary missing"/,
+    "the degraded headline names the observation, not an outcome",
+  );
+  assert.match(
+    transcriptView,
+    /"No summary was written, so the replies below may have lost the earlier context\. The transcript above is unaffected\."/,
+    "the degraded note hedges the consequence and keeps the transcript claim true",
+  );
+  const styles = readFileSync(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
+  assert.match(
+    styles,
+    /\.compaction-marker\.degraded \.compaction-marker-label \{/,
+    "the warning variant has its own styling",
+  );
+  assert.match(styles, /\.compaction-marker\.in-card \{/, "the in-card variant has its own rhythm");
 }
 
 // 5) Signature tracker — block-ref versioning with a fresh tracker.
@@ -450,4 +607,6 @@ function view({ runs = [], blocks = [], runTranscripts = [] } = {}) {
   assert.equal(T.assistantReplyContent([note, tool]), null, "no assistant text → no reply action");
 }
 
+// The count tracks the numbered outline (1–12); lettered siblings (4b–4e) hang
+// off their parent number.
 console.log("reading-turns: 12 fixture groups pass");
