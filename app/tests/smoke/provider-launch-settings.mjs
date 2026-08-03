@@ -45,8 +45,8 @@ const claudeWithSettings = claudeArgs({
 // Claude native fast mode has NO claudeArgs flag — it rides in the injected
 // `--settings` file as `"fastMode": true` (probe: spikes/claude-fastmode-inject/,
 // the `↯` glyph flips on iff this key is present). Assert both directions: fast
-// writes the key; standard omits it entirely (not `false`) so a standard-speed
-// spawn's settings file stays byte-identical to the pre-feature shape.
+// writes the key; standard omits it entirely (not `false`) so repeat spawns of
+// the same shape stay byte-stable.
 const fastRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-launch-fast-"));
 const standardRuntimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-launch-standard-"));
 const fastSettings = JSON.parse(
@@ -100,10 +100,18 @@ const success =
   fastSettings.fastMode === true &&
   Boolean(fastSettings.statusLine) &&
   Boolean(fastSettings.hooks) &&
-  // Standard: no fastMode key at all (byte-identical to the pre-feature file).
+  // Standard: no fastMode key at all — omitted, never written as `false`, so
+  // repeat standard-speed spawns stay byte-stable.
   !("fastMode" in standardSettings) &&
   Boolean(standardSettings.statusLine) &&
-  Boolean(standardSettings.hooks);
+  Boolean(standardSettings.hooks) &&
+  // Emoji-autocomplete kill switch: UNCONDITIONAL, unlike fastMode. Claude
+  // 2.1.217+ opens the popup on a bracketed paste ending in a colon token and
+  // then swallows both submit encodings — the prompt is mutated and never sent
+  // (measured 2.1.220, spikes/upstream-sync-2026-08/claude Q6). Every spawn
+  // shape must carry it, so assert on BOTH settings files.
+  fastSettings.emojiCompletionEnabled === false &&
+  standardSettings.emojiCompletionEnabled === false;
 
 console.log(
   JSON.stringify(

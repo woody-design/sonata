@@ -76,11 +76,23 @@ interface ClaudeHookMatcherGroup {
 interface ClaudeRuntimeSettings {
   statusLine: { type: "command"; command: string };
   hooks: Record<string, ClaudeHookMatcherGroup[]>;
+  /** Emoji-autocomplete kill switch (Claude 2.1.217+ surface). ALWAYS written —
+   *  a standing suppression of an upstream composer affordance that is pure
+   *  interference in a Sonata-driven composer, not a per-launch option.
+   *  Measured (claude 2.1.220 — spikes/upstream-sync-2026-08/claude, Q6): the
+   *  popup is NOT keystroke-gated — a BRACKETED PASTE whose last token is a
+   *  colon token (`…:hea`) opens it too, which is exactly Sonata's delivery
+   *  path. While it is open BOTH submit encodings are swallowed — CSI-u Enter
+   *  (`\x1b[13u`, the paste-path submit) and raw `\r` — so the prompt is
+   *  mutated with an emoji and never sent, stalling delivery until the receipt
+   *  timeout. `false` suppresses the popup for typed AND pasted input
+   *  (verified live). This is a correctness fix, not polish. */
+  emojiCompletionEnabled: false;
   /** Native launch-time fast mode (Claude 2.1.205+). Written ONLY when the
-   *  task's speedMode is `fast` (Opus-gated in the launch UI) so the file stays
-   *  byte-identical to the pre-fast shape for every standard-speed spawn — no
-   *  `writeJsonIfChanged` churn. Fast mode UNIONs from `--settings` like the
-   *  hooks do; there is no CLI flag for it. */
+   *  task's speedMode is `fast` (Opus-gated in the launch UI) — a standard-speed
+   *  spawn carries no `fastMode` key at all, so same-shape spawns stay
+   *  byte-identical to each other and `writeJsonIfChanged` never churns. Fast
+   *  mode UNIONs from `--settings` like the hooks do; there is no CLI flag. */
   fastMode?: true;
 }
 
@@ -154,8 +166,11 @@ export function ensureClaudeRuntimeSettings(
   const settings: ClaudeRuntimeSettings = {
     statusLine: { type: "command", command: claudeStatuslineCommand(usageDirectory) },
     hooks: buildHooks(sinkCommand, brokerCommand),
-    // Only present when fast, so a standard-speed spawn writes the exact same
-    // JSON as before this feature existed (byte-stable via writeJsonIfChanged).
+    // Unconditional: the emoji popup swallows Sonata's submit on any prompt that
+    // ends in a colon token, whatever the task's options are.
+    emojiCompletionEnabled: false,
+    // Only present when fast: a standard-speed spawn omits the key entirely, so
+    // repeat spawns of the same shape are byte-stable via writeJsonIfChanged.
     ...(options.fastMode ? { fastMode: true as const } : {}),
   };
 
