@@ -26,7 +26,7 @@
 //        back (verified during bring-up).
 //   C. mismatch — a target row the picker doesn't offer rolls back with the
 //      LEVEL-APPROPRIATE Esc(es) + needs-attention (never a blind retry):
-//        C1 level-1 miss (a legacy model absent from the picker — D5): 1 Esc.
+//        C1 level-1 miss (a model absent from the picker — D5): 1 Esc.
 //        C2 level-2 miss (a test seam forces it after level 1 confirmed): Esc×2
 //           (level 2 → level 1 → composer).
 //   D. residual composer text (F1): a human types unsubmitted text, THEN a switch
@@ -73,6 +73,16 @@ const configBefore = fs.existsSync(configPath) ? fs.readFileSync(configPath, "ut
 
 const SPAWN_MODEL = "gpt-5.6-sol";
 const OTHER_MODEL = "gpt-5.6-luna"; // a non-current model the probe confirmed present
+// C1's rollback target — SYNTHETIC ON PURPOSE (upstream watch-item W5: the codex
+// model catalog is SERVER-mutable, so the picker's row set can change with no CLI
+// release). C1 proves seek-exhaustion → clean rollback, so its target must be one
+// no catalog can ever serve. It used to be the legacy `gpt-5.4`, chosen because
+// legacy models were reachable only via `codex -m`; the server began offering that
+// row again (measured 2026-08-03, codex 0.146.0) and the switch SETTLED — the case
+// went red on its premise, not on a defect. The slug keeps the lowercase `gpt-…`
+// shape the level-1 row parser reads, so this still exercises "target row ABSENT
+// from a well-parsed picker", not "malformed target string".
+const ABSENT_MODEL = "gpt-0.0-sonata-smoke-never-served";
 
 let rawTail = "";
 let ptyExited = false;
@@ -137,8 +147,8 @@ try {
   findings.switchB1 = await drive("codex-model", OTHER_MODEL, { from: "xhigh" });
   findings.switchB2 = await drive("codex-model", SPAWN_MODEL, { from: "xhigh" });
 
-  // C1 — level-1 mismatch: a legacy model the picker doesn't list (D5) → 1-Esc rollback.
-  findings.switchC1 = await drive("codex-model", "gpt-5.4", { from: "xhigh" });
+  // C1 — level-1 mismatch: a model the picker cannot list (D5) → 1-Esc rollback.
+  findings.switchC1 = await drive("codex-model", ABSENT_MODEL, { from: "xhigh" });
 
   // C2 — level-2 mismatch via the test seam (forces a miss AFTER level 1) → Esc×2.
   process.env.SONATA_TEST_CODEX_MODEL_MISMATCH = "l2";
@@ -177,7 +187,12 @@ try {
   assert.equal(findings.switchC1.pickerClosed, true, "C1: the rollback Esc returned to the composer");
   // S5 item C: an absent curated target is upstream model-list drift — the
   // needs-attention event carries reason "drift" so the banner says "switch in the
-  // CLI" instead of the generic "couldn't confirm".
+  // CLI" instead of the generic "couldn't confirm". This is also what keeps C1
+  // honest with a synthetic target: "drift" is set at exactly ONE site — the
+  // level-capture target miss, reached only from a COMPLETE picker frame (footer
+  // visible, cursor readable) whose captured row order lacks the target. A picker
+  // that never opened, or a rollback from an unexpected cursor jump, carries no
+  // reason at all. So this assertion still proves seek-exhaustion → clean rollback.
   assert.equal(findings.switchC1.reason, "drift", "C1: absent-model rollback is reasoned as drift");
   assert.equal(findings.switchC2.phase, "needs-attention", "C2: level-2 miss rolls back");
   assert.equal(findings.switchC2.pickerClosed, true, "C2: the Esc×2 rollback returned to the composer");

@@ -1,4 +1,5 @@
 import type { CodexPermissionMode, ReasoningEffort } from "../../shared/types/domain";
+import { isReasoningEffort } from "../../shared/types/domain";
 import { cleanTerminal } from "./tui-parsers-common";
 
 // ── Pure Codex TUI-stream parsers (consolidation S4) ─────────────────────────
@@ -230,7 +231,9 @@ export function parseCodexPermissionReceipt(rawScan: string): CodexPermissionMod
 //   Shared footer:   `Press enter to confirm or esc to go back`
 //   Confirm receipt: `• Model changed to gpt-5.6-sol xhigh`  (`•` U+2022 anchor,
 //                    the model slug then the reasoning token, both glued after
-//                    whitespace-strip).
+//                    whitespace-strip). A Max/Ultra confirm adds a suffix —
+//                    `• Model changed to gpt-5.6-sol ultra for this conversation`
+//                    (measured, codex 0.146.0) — which the unanchored tail ignores.
 //
 // The `›` (U+203A) cursor marks the highlighted row and ALSO leads the composer
 // placeholder + the slash-menu, so a cursor anchor needs `›` + DIGIT + `.` to
@@ -260,7 +263,29 @@ const CODEX_MODEL_L2_ROW_RE =
 // the first match wins), and the leading space disambiguates `high` from `xhigh`
 // without a trailing anchor (an end-boundary guard would instead REJECT a valid
 // receipt whenever the next redraw glues text onto the effort with no space).
-const CODEX_MODEL_RECEIPT_RE = /•\s*Model changed to (gpt-\S+) (xhigh|high|medium|low)/;
+//
+// The alternation spans ALL SIX efforts, not just the four v1 TARGETS. The receipt
+// REPORTS what codex applied; it is not the place that fences what Sonata may
+// target (that fence is `asCodexReasoningTarget`, applied when the choreography
+// picks a picker row — D6 still never enters `More reasoning…`). MEASURED on codex
+// 0.146.0: a Max/Ultra confirm prints `• Model changed to gpt-5.6-sol ultra for
+// this conversation`, which the four-token alternation read as NULL while a control
+// `• Model changed to gpt-5.6-sol medium` parsed fine — so the break was Ultra/Max
+// only, not format-wide. On a null the change HAS applied CLI-side while the confirm
+// phase keeps waiting: it times out and rolls back from pickerLevel 2 (up to two
+// Escs into a composer whose picker is already closed), and reports a verdict that
+// misdescribes what happened. Parsing the receipt reaches the SAME needs-attention
+// verdict immediately, on the TRUE landed pair, with no stray Escs. It does NOT
+// refresh the mirror: a landed≠target receipt finishes as needs-attention, which
+// carries no (model, effort) and so triggers no mirror write — that staleness still
+// waits on the turn_context reconcile either way.
+// This matters even though today's choreography only ever confirms a v1 row: the
+// picker's rows and shape are server-mutable without a CLI release (W5), so what a
+// confirm can land on is not ours to bound.
+// Alternation order: `xhigh` stays ahead of `high` per the file's longest-first
+// convention; `max`/`ultra` are prefix-free against every other token, so appending
+// them cannot shadow or be shadowed.
+const CODEX_MODEL_RECEIPT_RE = /•\s*Model changed to (gpt-\S+) (xhigh|high|medium|low|max|ultra)/;
 
 /** The five reasoning rows the level-2 picker can show. `more` is the
  *  `More reasoning…` submenu row (Max/Ultra) — recognized ONLY so the
@@ -385,7 +410,9 @@ export function parseCodexModelLevel2(rawScan: string): CodexPickerLevel<CodexRe
 
 /** The (model, effort) a `• Model changed to <model> <effort>` receipt confirms,
  *  or null if no receipt is on the scan yet (keep waiting until the timeout). The
- *  effort token is validated against the v1 set; an unrecognized token → null. */
+ *  effort token is validated against the full `ReasoningEffort` union — every tier
+ *  codex can REPORT, including Max/Ultra, which Sonata never targets but a confirm
+ *  can still land on (see CODEX_MODEL_RECEIPT_RE); an unrecognized token → null. */
 export function parseCodexModelReceipt(
   rawScan: string,
 ): { model: string; effort: ReasoningEffort } | null {
@@ -398,8 +425,13 @@ export function parseCodexModelReceipt(
   if (!match) {
     return null;
   }
-  const effort = asCodexReasoningTarget(match[2]);
-  if (!match[1] || !effort) {
+  // The alternation above already admits exactly the six union members, so this
+  // guard never rejects in practice — it CARRIES the ReasoningEffort type from the
+  // shared union (the same "is this one of the six tiers" check the settings
+  // normalize layer uses), so widening the regex to a non-tier token would fail
+  // here rather than smuggle a string into the mirror.
+  const effort = match[2];
+  if (!match[1] || !isReasoningEffort(effort)) {
     return null;
   }
   return { model: match[1], effort };

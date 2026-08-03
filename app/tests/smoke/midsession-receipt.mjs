@@ -556,12 +556,35 @@ assert.equal(
   null,
   "prose containing the words but no `•` bullet is not a receipt",
 );
-// An UNRECOGNIZED reasoning token (Max/Ultra live in the submenu, out of scope
-// v1) → null: the parser only confirms a v1 target.
-assert.equal(
+// — Max/Ultra receipts. Sonata never TARGETS Max/Ultra (D6 — the choreography
+//   refuses the `More reasoning…` row), but the receipt REPORTS whatever codex
+//   applied, and reading one as null would make the confirm phase time out and
+//   Esc-roll back a change that already landed.
+//   PROVENANCE (the method lesson — these labels are what future syncs trust):
+//   the Ultra line is MEASURED verbatim on codex 0.146.0 (spikes/upstream-sync-
+//   2026-08/codex/findings.md §Q2), and it is the form that carries the
+//   `for this conversation` suffix — the half a future end-anchor "tightening"
+//   would quietly break, so it is pinned as captured. The Max line is
+//   EXTRAPOLATED, NOT captured: no Max receipt was ever taken. It combines the
+//   tier set with the BARE receipt shape that IS measured (the medium control
+//   above, and the high/low/xhigh cases before it). Treat it as a tier-coverage
+//   case, not as evidence of what a Max confirm prints. —
+assert.deepEqual(
+  parseCodexModelReceipt("• Model changed to gpt-5.6-sol ultra for this conversation"),
+  { model: "gpt-5.6-sol", effort: "ultra" },
+  "the MEASURED Ultra receipt (with the `for this conversation` suffix) parses as ultra",
+);
+assert.deepEqual(
   parseCodexModelReceipt("• Model changed to gpt-5.6-sol max"),
+  { model: "gpt-5.6-sol", effort: "max" },
+  "…and the EXTRAPOLATED bare Max form (measured shape, uncaptured tier) parses as max",
+);
+// The suffix is not a licence for prose: an unrecognized token after the model is
+// still null (the parser confirms a TIER, never an arbitrary word).
+assert.equal(
+  parseCodexModelReceipt("• Model changed to gpt-5.6-sol turbo"),
   null,
-  "a `max` receipt is not a v1 target — the parser waits rather than mis-settling",
+  "an effort token outside the six tiers is not a receipt — the parser waits",
 );
 
 // — ANSI-decorated / whitespace-noisy redraw still parses (compacted internally). —
