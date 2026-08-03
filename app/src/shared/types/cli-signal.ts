@@ -43,9 +43,19 @@ import type { RuntimeProvider, TaskId } from "./domain";
  * consumes NEITHER into cli-state or run lifecycle: the Reading compaction marker
  * is TRANSCRIPT-derived (Claude's `system/compact_boundary`, Codex's `compacted`),
  * so it survives resume/replay where an ephemeral hook could not.
+ *
+ * `SessionEnd` (Codex 0.145.0+, #33895: fires on thread teardown, 3s timeout
+ * cap, `reason: "other"`) and `DirectoryAdded` (Claude 2.1.219+: fires after
+ * `/add-dir` with `how_added`) are KNOWN, NOT WIRED — neither appears in
+ * `SINK_EVENTS` / `INJECTED_HOOK_EVENTS`, so neither ever reaches the sink.
+ * They live in the union as capability documentation (the union is capability;
+ * the injection lists are policy — upstream-sync 2026-08-03). SessionEnd is
+ * the registered UNLOCK candidate for discriminating a graceful codex quit
+ * from a silent death (hypothesis UNVERIFIED — probe before wiring).
  */
 export type HookEventName =
   | "SessionStart"
+  | "SessionEnd"
   | "UserPromptSubmit"
   | "PreToolUse"
   | "PostToolUse"
@@ -56,7 +66,8 @@ export type HookEventName =
   | "SubagentStart"
   | "SubagentStop"
   | "PreCompact"
-  | "PostCompact";
+  | "PostCompact"
+  | "DirectoryAdded";
 
 /**
  * A hook payload (stdin JSON), keyed by the fields observed in Phase 0.
