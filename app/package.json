@@ -195,6 +195,7 @@
     "smoke:delivery-control-switch-gate": "npm run build:main && node tests/smoke/delivery-control-switch-gate.mjs",
     "smoke:control-switch-engine": "npm run build:main && node tests/smoke/control-switch-engine.mjs",
     "smoke:codex-boot-update-prompt": "npm run build:main && node tests/smoke/codex-boot-update-prompt.mjs",
+    "smoke:codex-resumable-exit": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-resumable-exit.mjs",
     "smoke:stop-interrupt-hygiene": "npm run build:main && node tests/smoke/stop-interrupt-hygiene.mjs",
     "smoke:tags-set-session-validate": "npm run build:main && node tests/smoke/tags-set-session-validate.mjs",
     "smoke:updater-state": "npm run build:main && node tests/smoke/updater-state.mjs",

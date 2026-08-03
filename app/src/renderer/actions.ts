@@ -85,6 +85,11 @@ export interface Actions {
   dismissSlashAttention(view: TaskViewState): void;
   /** Clear the mid-session control-switch pointer (needs-attention banner). */
   dismissControlSwitch(view: TaskViewState): void;
+  /** Resume a dormant task without sending the composer draft — the same flow
+   *  the CLI window's "Resume task" button relays (SL-6: the codex
+   *  resumable-exit banner offers it where the dead CLI cannot). Fire-and-forget;
+   *  the flow revalidates selection, liveness and lifecycle ownership itself. */
+  resumeTask(taskId: string): void;
   // — Live session chips (mid-session switch). The permission chips are
   //   immediate-apply single-axis switches (S2 Shift+Tab / S3 codex picker); the
   //   model+effort menu is a STAGED selector (S7 Part 1): row clicks stage a pair,

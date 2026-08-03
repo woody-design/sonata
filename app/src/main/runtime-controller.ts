@@ -83,6 +83,7 @@ import {
   optionPromptDismissSequence,
   readClaudeResumeStats,
   StatusRegionTracker,
+  classifyCodexSessionExit,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
 import { TaskMirror } from "./task-mirror";
@@ -1644,6 +1645,31 @@ export class RuntimeController {
       // banner never shows (or is cleared) over a dead terminal. No-op for
       // Claude (no entry) and for a codex task whose handshake already landed.
       this.retireCodexHooksLiveness(event.payload.taskId);
+
+      // A codex session that ended outside Sonata's own lifecycle, whose rollout
+      // survives, is RECOVERABLE (SL-6 / openai/codex #36005). Classify
+      // before the retire below, while the runtime still names its storage root.
+      // `resumableSessionId` is read through the SAME persisted-sources path
+      // `openTask` resumes from — the last source whose rollout file still
+      // exists — so the banner can never offer a resume the reopen would decline
+      // to make. Sonata surfaces the offer and stops there: respawning is the
+      // user's call (no auto-respawn).
+      const codexExit = classifyCodexSessionExit({
+        provider: eventRuntime.task.provider,
+        sonataInitiated: event.payload.sonataInitiated === true,
+        resumableSessionId:
+          this.readTranscriptSources(eventRuntime.storageRoot).at(-1)?.providerSessionId ?? null,
+        // The exit event carries the run that was in flight when the PTY died;
+        // null means the turn had already closed (the #36005 signature).
+        midTurn: event.payload.runId !== null,
+      });
+      if (codexExit.kind === "resumable") {
+        this.sendEvent({
+          type: "codex-session-exit:resumable",
+          payload: { taskId: event.payload.taskId, midTurn: codexExit.midTurn },
+          ts: new Date().toISOString(),
+        });
+      }
 
       // TerminalHost emits pty:exit from inside node-pty's onExit callback and
       // then finishes the active run. Retire on the next microtask so that

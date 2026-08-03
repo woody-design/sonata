@@ -143,10 +143,12 @@ import {
 } from "./scheduler";
 import { initApprovalsView, renderOptionPrompt } from "./view/approvals";
 import {
+  clearCodexResumableExit,
   clearTaskBanners,
   initBannersView,
   renderAttentionBanners,
   setCodexHooksMissing,
+  setCodexResumableExit,
   setCodexUpdatePrompt,
 } from "./view/banners";
 import {
@@ -451,6 +453,15 @@ initActions({
     // the composer must repaint too, or send would stay disabled until the next
     // unrelated render.
     render();
+  },
+  // The codex resumable-exit banner's action (SL-6). The SAME entry point the
+  // CLI window's "Resume task" button relays through (`onCliAction`), so there is
+  // exactly one dormant-resume path — and for codex that path already spawns
+  // `codex resume <session-id>` against the task's own rollout (openTask →
+  // buildStartOptions → codexArgs), which is what makes the banner's promise
+  // true. Fire-and-forget: the flow owns its own guards.
+  resumeTask: (taskId) => {
+    void resumeTaskWithoutPrompt(taskId);
   },
   // Live session PERMISSION chips (mid-session switch): immediate-apply single-axis
   // switches — claude via the Shift+Tab stepping engine (S2; `from` = the current
@@ -2065,6 +2076,20 @@ window.sonataRuntime.onRuntimeEvent((event) => {
   }
   if (event.type === "pty:exit") {
     setCodexUpdatePrompt(event.payload.taskId, false);
+    renderAttentionBanners();
+  }
+  // A codex session ended outside Sonata's lifecycle, conversation intact (SL-6) — same
+  // renderer-local banner family. Set on the classified exit; cleared when the
+  // task starts a session again (`task:started`, below), so a resume — from this
+  // banner, the CLI window's button, or simply sending a message — retires it.
+  // NOT cleared on `pty:exit`: that is the event that raises it.
+  if (event.type === "codex-session-exit:resumable") {
+    setCodexResumableExit(event.payload.taskId, event.payload.midTurn);
+    renderAttentionBanners();
+    return;
+  }
+  if (event.type === "task:started") {
+    clearCodexResumableExit(event.payload.taskId);
     renderAttentionBanners();
   }
   for (const directive of reduceRuntimeEvent(state, event)) {

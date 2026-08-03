@@ -496,6 +496,19 @@ export class TerminalHost extends EventEmitter {
   private readonly completionQuietMs: number;
   private readonly postCompletionAttributionMs: number;
   private ptyProcess: pty.IPty | null = null;
+  /**
+   * Teardown intent for the CURRENTLY live PTY (SL-6). `disposeProcess` flips it
+   * on before killing; the process's own `onExit` closure captures THIS token, so
+   * `pty:exit` can say whether the death was Sonata's doing or came from outside
+   * (a crash, or the user quitting the CLI in the co-visible Terminal).
+   *
+   * A per-PROCESS token, not a host field, because `startTask` disposes the old
+   * PTY and immediately spawns a new one: a host-level flag would either be reset
+   * before the old process's asynchronous `onExit` arrived (reporting a Sonata
+   * teardown as a crash) or survive into the new process (reporting a crash as a
+   * teardown). Each closure reading its own token cannot be misattributed.
+   */
+  private processTeardown: { sonataInitiated: boolean } | null = null;
   private scrollback: TerminalScrollback | null = null;
   private rawTail = "";
   private cwd: string | null = null;
@@ -944,6 +957,11 @@ export class TerminalHost extends EventEmitter {
       cwd,
       env: ptyEnvironment(options.extraEnv),
     });
+    // Fresh teardown token for THIS process (see the field's note). Assigned
+    // after the spawn, so the `disposeProcess()` at the top of startTask stamped
+    // the OUTGOING process's token, not this one's.
+    const teardown = { sonataInitiated: false };
+    this.processTeardown = teardown;
     // Main-process mirror of the rendered buffer, sized to the PTY, so a
     // (re)opened terminal window can restore recent scrollback (snapshot+tail).
     this.scrollback = new TerminalScrollback(cols, rows);
@@ -979,6 +997,12 @@ export class TerminalHost extends EventEmitter {
         exitCode: exit.exitCode,
         signal: exit.signal ?? null,
         elapsedMs: this.startedAt ? Date.now() - this.startedAt : null,
+        // Whether SONATA killed this process (SL-6). Read off the token this
+        // closure captured at spawn — never the host field, which by now may
+        // belong to a replacement PTY. The exit CODE is not a substitute: codex's
+        // silent-exit class (#36005) leaves no stderr and no crash report, so a
+        // crash is indistinguishable from a clean quit by status alone.
+        sonataInitiated: teardown.sonataInitiated,
       });
       this.finishActiveRun("pty-exited", "PTY exited", {
         completionSource: "pty-exit",
@@ -2338,6 +2362,14 @@ export class TerminalHost extends EventEmitter {
     }
     const proc = this.ptyProcess;
     this.ptyProcess = null;
+    // Stamp the outgoing process's teardown token BEFORE the kill, so its own
+    // (asynchronous) onExit reports a Sonata-initiated death (SL-6). Stamped
+    // here rather than at every call site: dispose(), a task close, and
+    // startTask's pre-spawn dispose all funnel through this one method, and each
+    // of them is Sonata's own decision to end the process.
+    if (this.processTeardown) {
+      this.processTeardown.sonataInitiated = true;
+    }
     this.scrollback?.dispose();
     this.scrollback = null;
     this.screenModel?.dispose();

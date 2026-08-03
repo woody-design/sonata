@@ -7,6 +7,16 @@
 // option-prompt's "Answer in terminal" — stays inside its card (the card is
 // the stronger attention surface) and shares the family's action style.
 //
+// ONE DECLARED EXCEPTION (SL-6, upstream sync 2026-08-03): the codex
+// resumable-exit banner carries a RESUME action instead of the "Open CLI →"
+// pointer. The family's contract rests on a premise that fails for exactly this
+// member — "the interaction is homed in the Terminal" — because there IS no
+// Terminal any more: the CLI process is dead, and pointing at a dead surface
+// tells the user nothing. The exception is deliberately narrow: it is still one
+// click, still a user action (Sonata never respawns on its own), and it routes
+// through the same seam the CLI window's own "Resume task" button uses rather
+// than opening a second lifecycle path.
+//
 // (map §3.1 renderer/view/banners.ts, D3 — moved verbatim from main.ts.
 // State reads via the init-bound atom reference; the dismiss handlers' bare
 // assignments are grammar and route through the actions seam — C3 ruling.)
@@ -62,7 +72,39 @@ export function setCodexUpdatePrompt(taskId: string, blocked: boolean): void {
   }
 }
 
-/** Forget a task's renderer-local banner flags (OBS S8, F10). Both Sets are
+/**
+ * A codex session died without Sonata killing it and its conversation can be
+ * resumed (SL-6 — the openai/codex #36005 silent-exit class). Renderer-LOCAL,
+ * same family as the two above. The value is the honest detail the copy needs:
+ * `true` when the exit cut a turn short (the answer in flight is lost).
+ *
+ * Set from the `codex-session-exit:resumable` runtime event and cleared when the
+ * task starts a session again (`task:started`) or when the user dismisses. NOT
+ * cleared on `pty:exit` like its update-prompt sibling — `pty:exit` is the very
+ * event that produces this state.
+ *
+ * It must also SURVIVE a switch-away, where its siblings need not: they re-detect
+ * on the next spawn, while this one never can — the session it names is dead, so
+ * no future event re-raises it. It does survive, because `clearTaskBanners` fires
+ * on a switch-away only for a view `evictDormantTaskView` actually drops, and a
+ * task that reached this state was necessarily LIVE in this renderer session,
+ * whose delivery pump emits `delivery:state` on every runtime event — so that
+ * function's `deliveryState !== null` cue holds the view. Incidental rather than
+ * designed; noted so a change to that cue is read as touching this banner too.
+ * (The removal path — archive/delete — clears it, which is right: the task is
+ * gone and there is nothing left to resume.)
+ */
+const codexResumableExit = new Map<string, { midTurn: boolean }>();
+
+export function setCodexResumableExit(taskId: string, midTurn: boolean): void {
+  codexResumableExit.set(taskId, { midTurn });
+}
+
+export function clearCodexResumableExit(taskId: string): void {
+  codexResumableExit.delete(taskId);
+}
+
+/** Forget a task's renderer-local banner flags (OBS S8, F10). The stores are
  *  keyed by taskId; a task removed (archive/delete) or evicted on switch-away
  *  without a self-clearing event (e.g. a hooks-missing task deleted before its
  *  `pty:exit`) would otherwise leave its id behind for the whole uptime. On a
@@ -71,6 +113,7 @@ export function setCodexUpdatePrompt(taskId: string, blocked: boolean): void {
 export function clearTaskBanners(taskId: string): void {
   codexHooksMissing.delete(taskId);
   codexUpdatePrompt.delete(taskId);
+  codexResumableExit.delete(taskId);
 }
 
 export function renderAttentionBanners(view = activeTaskView(state)): void {
@@ -161,22 +204,80 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
         ),
       );
     }
+    // Codex vanished on its own and the conversation survived in its rollout
+    // (SL-6 — the #36005 silent-exit class: no stderr, no crash report, the task
+    // simply turns dormant wearing the same face as a session the user closed).
+    // The banner exists to make that death VISIBLE and to say the thing the user
+    // most needs to hear: nothing was lost. Its action is the family's one
+    // declared exception (see the header) — a resume, because there is no live
+    // CLI left to point at.
+    //
+    // The headline says "ended", NOT "ended unexpectedly". Sonata cannot yet tell
+    // a silent death from a deliberate quit — `/quit` in Sonata's composer,
+    // `/quit` or Ctrl-D in the co-visible CLI, and "No, quit" on a reopened task's
+    // trust dialog all leave the same fingerprint, and the exit code discriminates
+    // nothing (a killed codex and a graceful one both report 0). "Unexpectedly"
+    // would be a plain falsehood on those paths, so the copy states what Sonata
+    // knows — the session ended, the conversation survived — and not why.
+    // `midTurn` stays: "ended mid-turn" is true however the process died, and it
+    // is the one thing the user cannot see for themselves (the conversation is
+    // saved either way; the answer in flight is not).
+    const resumableExit = codexResumableExit.get(view.task.id);
+    if (resumableExit) {
+      const taskId = view.task.id;
+      banners.push(
+        attentionBanner(
+          "codex-resumable-exit",
+          resumableExit.midTurn
+            ? "Codex ended mid-turn — your conversation is saved"
+            : "Codex ended — your conversation is saved",
+          () => {
+            codexResumableExit.delete(taskId);
+            renderAttentionBanners();
+          },
+          {
+            label: "Resume task →",
+            onAct: () => {
+              // Fire-and-forget through the seam, exactly as the CLI window's
+              // "Resume task" button does: the flow revalidates selection and
+              // liveness itself, and the resumed session's `task:started` clears
+              // this banner.
+              actions.resumeTask(taskId);
+            },
+          },
+        ),
+      );
+    }
   }
   root.replaceChildren(...banners);
 }
 
-function attentionBanner(kind: string, copy: string, onDismiss: () => void): HTMLElement {
+/** The family's shared shape. `action` replaces the default "Open CLI →"
+ *  pointer for the one member whose CLI is gone (SL-6). */
+function attentionBanner(
+  kind: string,
+  copy: string,
+  onDismiss: () => void,
+  action?: { label: string; onAct: () => void },
+): HTMLElement {
   const banner = document.createElement("div");
   banner.className = "attention-banner";
   banner.dataset.kind = kind;
   const text = document.createElement("span");
   text.className = "attention-banner-copy";
   text.textContent = copy;
-  const open = document.createElement("button");
-  open.type = "button";
-  open.className = "attention-open-terminal";
-  open.textContent = "Open CLI →";
-  open.addEventListener("click", () => {
+  // One button slot, one style: the default is the family's CLI pointer, and the
+  // SL-6 exception swaps what it says and does. The class stays put — the
+  // affordance looks the same wherever it appears.
+  const primary = document.createElement("button");
+  primary.type = "button";
+  primary.className = "attention-open-terminal";
+  primary.textContent = action ? action.label : "Open CLI →";
+  primary.addEventListener("click", () => {
+    if (action) {
+      action.onAct();
+      return;
+    }
     actions.setViewMode("terminal");
   });
   const dismiss = document.createElement("button");
@@ -185,6 +286,6 @@ function attentionBanner(kind: string, copy: string, onDismiss: () => void): HTM
   dismiss.setAttribute("aria-label", "Dismiss");
   dismiss.textContent = "✕";
   dismiss.addEventListener("click", onDismiss);
-  banner.append(text, open, dismiss);
+  banner.append(text, primary, dismiss);
   return banner;
 }

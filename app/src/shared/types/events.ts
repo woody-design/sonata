@@ -60,6 +60,39 @@ export type PtyExitEvent = BaseRuntimeEvent<
     exitCode: number | null;
     signal: number | null;
     elapsedMs: number | null;
+    /**
+     * Sonata killed this process itself (SL-6) — a task close, an app teardown,
+     * or a respawn's pre-spawn dispose, all of which stamp the PTY's teardown
+     * token in `TerminalHost.disposeProcess`. False means the death came from
+     * OUTSIDE Sonata: a crash, or the user quitting the CLI in the co-visible
+     * Terminal. Optional so recorded fixtures (and any pre-SL-6 event on disk)
+     * read as "not stamped" rather than as a false teardown claim.
+     */
+    sonataInitiated?: boolean;
+  }
+>;
+
+/**
+ * A codex session ended without Sonata killing it, and the conversation can be
+ * brought back with `codex resume` (SL-6). Raised for the silent-exit class
+ * openai/codex #36005 opened at 0.146.0 — the TUI dies with no stderr and no
+ * crash report as the final agent message finishes rendering — and for any other
+ * outside-Sonata codex death whose rollout survives; Sonata cannot tell them
+ * apart, and does not need to (see `classifyCodexSessionExit`).
+ *
+ * The renderer raises an attention banner offering a resume; Sonata NEVER
+ * respawns on its own, because resuming spawns a process and that is the user's
+ * call. Display-only shell chrome (a renderer-local banner store, like
+ * cli-hooks:liveness and codex-update-prompt:detected), never a reading-core
+ * view field.
+ */
+export type CodexSessionResumableExitEvent = BaseRuntimeEvent<
+  "codex-session-exit:resumable",
+  {
+    taskId: TaskId;
+    /** The exit cut a turn short — the answer in flight is lost, while the
+     *  conversation before it is not. Drives the banner's copy. */
+    midTurn: boolean;
   }
 >;
 
@@ -679,6 +712,7 @@ export type ProductRuntimeEvent =
   | UsageUpdatedEvent
   | CodexTurnContextObservedEvent
   | CodexUpdatePromptEvent
+  | CodexSessionResumableExitEvent
   | SessionsUpdatedEvent;
 
 export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
@@ -701,6 +735,7 @@ export type RunIndexEvent = Exclude<
   | CliStateChangedEvent
   | CliHooksLivenessEvent
   | CodexUpdatePromptEvent
+  | CodexSessionResumableExitEvent
   | DeliveryStateEvent
   | DeliveryReceiptEvent
   | TaskUpdatedEvent
