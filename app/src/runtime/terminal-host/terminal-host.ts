@@ -45,6 +45,7 @@ import {
   type CodexHookPaths,
 } from "../providers/codex";
 import { shellQuotePath } from "../shell-quote";
+import { normalizeTerminalDimensions, type TerminalDimensions } from "../terminal-dimensions";
 import { loginShellPath, mergePath } from "./login-shell-path";
 import { TerminalScrollback } from "./terminal-scrollback";
 import { TaskScreenModel } from "./task-screen-model";
@@ -104,8 +105,6 @@ function needsCodexSkillMentionEnter(provider: RuntimeProvider, text: string): b
   return provider === "codex" && CODEX_SKILL_MENTION_RE.test(text);
 }
 
-const DEFAULT_ROWS = 36;
-const DEFAULT_COLS = 120;
 const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
@@ -376,6 +375,11 @@ export interface StartedPty {
   cwd: string;
   command: string;
   args: string[];
+  /** The geometry this PTY and the host's two headless terminals were actually
+   *  built at — the boot fan-out's single clamped value, handed back so a mirror
+   *  the host does NOT own (the controller's `StatusRegionTracker`) can be sized
+   *  from the same source rather than from its own reading of the request. */
+  dimensions: TerminalDimensions;
 }
 
 export interface PromptSubmission {
@@ -947,13 +951,16 @@ export class TerminalHost extends EventEmitter {
           ...options,
           cwd,
         });
-    const cols = Number(options.cols) || DEFAULT_COLS;
-    const rows = Number(options.rows) || DEFAULT_ROWS;
+    // FAN-OUT #1 (boot). The single clamp for this task's geometry: the PTY,
+    // both grids, the rendered mirror and the `task:started` payload all read
+    // from this one value, so none of them can be sized differently from the
+    // terminal the CLI is wrapping its text to.
+    const dimensions = normalizeTerminalDimensions(options.cols, options.rows);
 
     this.ptyProcess = pty.spawn(command, args, {
       name: "xterm-256color",
-      cols,
-      rows,
+      cols: dimensions.cols,
+      rows: dimensions.rows,
       cwd,
       env: ptyEnvironment(options.extraEnv),
     });
@@ -964,11 +971,11 @@ export class TerminalHost extends EventEmitter {
     this.processTeardown = teardown;
     // Main-process mirror of the rendered buffer, sized to the PTY, so a
     // (re)opened terminal window can restore recent scrollback (snapshot+tail).
-    this.scrollback = new TerminalScrollback(cols, rows);
+    this.scrollback = new TerminalScrollback(dimensions);
     // Headless screen model (S4b), same PTY size — the approval detector reads
     // its reconstructed grid. Fed once per batch in handlePtyData, resized with
     // the PTY, disposed in disposeProcess.
-    this.screenModel = new TaskScreenModel(cols, rows);
+    this.screenModel = new TaskScreenModel(dimensions);
 
     this.ptyProcess.onData((data) => this.ingestPtyData(data));
     this.ptyProcess.onExit((exit) => {
@@ -1024,8 +1031,16 @@ export class TerminalHost extends EventEmitter {
       command,
       args,
       cwd: redactPath(cwd),
-      rows,
-      cols,
+      // The clamped pair, never the caller's raw request: this event is the
+      // public record of what the PTY was actually built at, and a consumer
+      // reading it must see the geometry the CLI is wrapping its text to.
+      // NOTE (SL-9 review M1): the `StatusRegionTracker`'s own `task:started`
+      // handler does NOT receive this in production — startTask emits
+      // synchronously, before the controller has registered the runtime the
+      // event router looks up. The tracker is sized from `StartedPty.dimensions`
+      // instead; this payload's clamped-ness is for every OTHER reader.
+      rows: dimensions.rows,
+      cols: dimensions.cols,
       persistence: "raw-terminal-memory-only",
     });
 
@@ -1052,6 +1067,7 @@ export class TerminalHost extends EventEmitter {
       cwd,
       command,
       args,
+      dimensions,
     };
   }
 
@@ -2278,18 +2294,29 @@ export class TerminalHost extends EventEmitter {
     });
   }
 
-  resize(cols: number, rows: number): void {
+  /**
+   * FAN-OUT #2 (live resize). Takes ALREADY-CLAMPED dimensions — the caller
+   * (`RuntimeController.resizeTerminal`) normalizes once and hands the same
+   * value to the `StatusRegionTracker` it owns, so all four mirrors of one
+   * task's geometry move together or not at all.
+   *
+   * EVERY leg here throws on some un-clamped input — node-pty rejects
+   * non-positive / NaN / Infinity dimensions, @xterm rejects NaN, Infinity and
+   * any non-integer — and the PTY goes first. That is exactly why the clamp is
+   * upstream: a throw part-way through would leave the PTY resized and the
+   * grids stale, wrapping the CLI's text at a column the parsers no longer know
+   * about.
+   */
+  resize(dimensions: TerminalDimensions): void {
     if (!this.ptyProcess) {
       return;
     }
-    const nextCols = Number(cols) || DEFAULT_COLS;
-    const nextRows = Number(rows) || DEFAULT_ROWS;
-    this.ptyProcess.resize(nextCols, nextRows);
+    this.ptyProcess.resize(dimensions.cols, dimensions.rows);
     // Keep the mirror in lock-step with the PTY so the serialized layout matches.
-    this.scrollback?.resize(nextCols, nextRows);
+    this.scrollback?.resize(dimensions);
     // The approval screen model must track the same geometry so panel rows wrap
     // and land where the parser expects them.
-    this.screenModel?.resize(nextCols, nextRows);
+    this.screenModel?.resize(dimensions);
   }
 
   /** Snapshot the terminal for replay into a (re)opening window, or null when

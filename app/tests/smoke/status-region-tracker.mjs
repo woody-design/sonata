@@ -3,6 +3,9 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { StatusRegionTracker } = require("../../dist/runtime/working-status/index");
+// Geometry reaches every mirror through the single clamp (SL-9); the grid takes
+// the clamped pair, not loose numbers.
+const { normalizeTerminalDimensions } = require("../../dist/runtime/terminal-dimensions");
 
 const failures = [];
 
@@ -20,6 +23,10 @@ function createHarness(provider, options = {}) {
         emitted.push(event.payload);
       }
     },
+    // Boot geometry is a required input (SL-9): in production it is the host's
+    // own `StartedPty.dimensions`, because `task:started` fires before the
+    // runtime is registered and never reaches this grid.
+    dimensions: normalizeTerminalDimensions(120, 36),
     ...options,
   });
   const feed = (data) => tracker.handleRuntimeEvent({ type: "pty:data", payload: { taskId: "task-1", data }, ts: "t" });
@@ -159,7 +166,7 @@ await check("tracker: resize and task restart survive", async () => {
   h.runStarted();
   h.feed("✻ Pondering… (2s)\r\n");
   await delay(450);
-  h.tracker.resize(80, 24);
+  h.tracker.resize(normalizeTerminalDimensions(80, 24));
   h.tracker.handleRuntimeEvent({
     type: "task:started",
     payload: { taskId: "task-1", cols: 100, rows: 30 },

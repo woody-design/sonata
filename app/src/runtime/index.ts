@@ -7,6 +7,7 @@ export * from "./projection";
 export * from "./provider-transcript";
 export * from "./run-index";
 export * from "./shell-quote";
+export * from "./terminal-dimensions";
 export * from "./terminal-host";
 export * from "./usage";
 export * from "./working-status";

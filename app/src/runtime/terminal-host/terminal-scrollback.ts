@@ -2,6 +2,7 @@ import { Terminal } from "@xterm/headless";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import type { TerminalReplaySnapshot } from "../../shared/types/ipc";
+import type { TerminalDimensions } from "../terminal-dimensions";
 
 /**
  * How much rendered scrollback the main-process mirror retains and replays. The
@@ -31,10 +32,10 @@ export class TerminalScrollback {
    *  so the serialized data and the returned seq name the same boundary. */
   private ingested = 0;
 
-  constructor(cols: number, rows: number) {
+  constructor({ cols, rows }: TerminalDimensions) {
     this.terminal = new Terminal({
-      cols: normalizeDim(cols, 80),
-      rows: normalizeDim(rows, 24),
+      cols,
+      rows,
       scrollback: SCROLLBACK_LINES,
       allowProposedApi: true,
     });
@@ -58,12 +59,13 @@ export class TerminalScrollback {
   }
 
   /** Keep the mirror's geometry in lock-step with the PTY so wrapping — and the
-   *  serialized layout — matches what the user sees. */
-  resize(cols: number, rows: number): void {
-    const nextCols = normalizeDim(cols, this.terminal.cols);
-    const nextRows = normalizeDim(rows, this.terminal.rows);
-    if (nextCols !== this.terminal.cols || nextRows !== this.terminal.rows) {
-      this.terminal.resize(nextCols, nextRows);
+   *  serialized layout — matches what the user sees. No clamp of its own
+   *  (SL-9): its old floor-and-fall-back-to-current rule was a THIRD wording of
+   *  the same intent, and a mirror that quietly keeps its previous width while
+   *  the PTY takes the new one serializes a layout the user never saw. */
+  resize({ cols, rows }: TerminalDimensions): void {
+    if (cols !== this.terminal.cols || rows !== this.terminal.rows) {
+      this.terminal.resize(cols, rows);
     }
   }
 
@@ -98,9 +100,4 @@ export class TerminalScrollback {
   dispose(): void {
     this.terminal.dispose();
   }
-}
-
-function normalizeDim(value: number, fallback: number): number {
-  const next = Math.floor(Number(value));
-  return Number.isFinite(next) && next > 0 ? next : fallback;
 }

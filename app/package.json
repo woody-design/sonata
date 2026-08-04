@@ -113,6 +113,7 @@
     "smoke:codex-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-terminalhost.mjs",
     "smoke:claude-terminalhost": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/claude-terminalhost.mjs",
     "smoke:terminal-scrollback": "npm run build:main && node tests/smoke/terminal-scrollback.mjs",
+    "smoke:terminal-grid-substrate": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-grid-substrate.mjs",
     "smoke:terminal-hydration-stitch": "npm run build:main && node tests/smoke/terminal-hydration-stitch.mjs",
     "smoke:terminal-hydration-counter": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/terminal-hydration-counter.mjs",
     "rebuild:electron": "electron-rebuild -f -w node-pty",

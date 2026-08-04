@@ -84,6 +84,7 @@ import {
   readClaudeResumeStats,
   StatusRegionTracker,
   classifyCodexSessionExit,
+  normalizeTerminalDimensions,
 } from "../runtime";
 import { buildSessionIndex } from "./session-index";
 import { TaskMirror } from "./task-mirror";
@@ -640,14 +641,22 @@ export class RuntimeController {
       eventSink: (event) => this.sendEvent(event),
       hasLiveTranscriptSource: () => providerTranscript.hasLiveSource(),
     });
+    const cliState = new CliStateModel((snapshot) => this.emitCliState(task.id, snapshot));
+
+    const runtime = terminalHost.startTask(startOptions);
+
+    // Constructed AFTER the spawn, on purpose: the status grid is the one mirror
+    // of this task's geometry the host does not own, and it takes the host's own
+    // clamped boot value rather than re-reading the request. It cannot learn the
+    // geometry from `task:started` — startTask emits that synchronously, before
+    // this runtime is registered in `taskRuntimes`, which is what the event
+    // router resolves (see handleRuntimeEvent's note). SL-9 review M1.
     const statusTracker = new StatusRegionTracker({
       taskId: task.id,
       provider: task.provider,
       eventSink: (event) => this.sendEvent(event),
+      dimensions: runtime.dimensions,
     });
-    const cliState = new CliStateModel((snapshot) => this.emitCliState(task.id, snapshot));
-
-    const runtime = terminalHost.startTask(startOptions);
 
     const activeTask: ActiveTaskRuntime = {
       task,
@@ -1445,10 +1454,16 @@ export class RuntimeController {
     });
   }
 
+  /** The fan-out point for a live resize: clamp ONCE (the numbers arrive from
+   *  the renderer over IPC), then hand the identical value to every mirror of
+   *  this task's geometry — the host's PTY + its two headless terminals, and
+   *  the status grid the controller owns. See `runtime/terminal-dimensions.ts`
+   *  for why the clamp cannot live inside the mirrors. */
   resizeTerminal(taskId: TaskId, cols: number, rows: number): void {
     const active = this.requireTaskRuntime(taskId);
-    active.terminalHost.resize(cols, rows);
-    active.statusTracker.resize(cols, rows);
+    const dimensions = normalizeTerminalDimensions(cols, rows);
+    active.terminalHost.resize(dimensions);
+    active.statusTracker.resize(dimensions);
   }
 
   /** Snapshot a task's terminal for replay into a (re)opening terminal window.

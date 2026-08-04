@@ -1,9 +1,13 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-// Require the specific module (not the terminal-host index) so this stays a
+// Require the specific modules (not the terminal-host index) so this stays a
 // pure-JS smoke test — no node-pty, runnable under plain node.
 const { TerminalScrollback } = require("../../dist/runtime/terminal-host/terminal-scrollback");
+// Geometry reaches every mirror through the single clamp (SL-9); the mirror
+// takes the clamped pair, not loose numbers.
+const { normalizeTerminalDimensions } = require("../../dist/runtime/terminal-dimensions");
+const dims = (cols, rows) => normalizeTerminalDimensions(cols, rows);
 
 const failures = [];
 const check = (name, cond, detail) => {
@@ -13,7 +17,7 @@ const check = (name, cond, detail) => {
 const results = {};
 
 // 1) A fresh mirror sized to a typical PTY.
-const mirror = new TerminalScrollback(120, 36);
+const mirror = new TerminalScrollback(dims(120, 36));
 
 // 2) Representative CLI output: a colored header, plain lines, CJK, a cursor-
 //    positioned redraw (as claude/codex draw), and a final unique marker.
@@ -36,7 +40,7 @@ check("cjk", snap.data.includes("你好世界终端"), "CJK glyphs missing");
 check("flush", snap.data.includes("LAST_LINE_MARKER_XYZ"), "last write not flushed into snapshot");
 
 // 3) Resize is reflected (mirror tracks the PTY geometry).
-mirror.resize(100, 40);
+mirror.resize(dims(100, 40));
 const resized = await mirror.snapshot();
 results.resizedDims = { cols: resized.cols, rows: resized.rows };
 check("resize", resized.cols === 100 && resized.rows === 40, `got ${resized.cols}x${resized.rows}`);
@@ -64,7 +68,7 @@ mirror.dispose();
 //    write() hands out contiguous ingest indices, and snapshot.seq names the
 //    FIRST chunk not yet in the snapshot — so a hydrating renderer writes a
 //    buffered live chunk iff its seq >= snapshot.seq (no loss, no duplication).
-const seqMirror = new TerminalScrollback(80, 24);
+const seqMirror = new TerminalScrollback(dims(80, 24));
 const idxA = seqMirror.write("alpha\r\n"); // 0
 const idxB = seqMirror.write("bravo\r\n"); // 1
 const idxC = seqMirror.write("charlie\r\n"); // 2
@@ -87,7 +91,7 @@ seqMirror.dispose();
 //    boundary is a timing accident. If a future @xterm/headless upgrade defers
 //    write callbacks past later-queued chunks, "gap" leaks into the body and this
 //    fails, which is exactly the regression we want to catch.
-const gapMirror = new TerminalScrollback(80, 24);
+const gapMirror = new TerminalScrollback(dims(80, 24));
 gapMirror.write("one\r\n"); // 0
 gapMirror.write("two\r\n"); // 1
 const gapSnapPromise = gapMirror.snapshot(); // marker enqueued, seq frozen at 2

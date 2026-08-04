@@ -1,7 +1,31 @@
 import { Terminal } from "@xterm/headless";
+import type { TerminalDimensions } from "../terminal-dimensions";
 
-const DEFAULT_COLS = 120;
-const DEFAULT_ROWS = 36;
+/**
+ * MEASURED, not assumed (SL-9). The standing rule (D-1 refinement 4) says a
+ * grid consumer that needs scrollback is a channel-misuse smell, and the clean
+ * way to make that rule PHYSICAL would be `scrollback: 0` — misuse then gets no
+ * data instead of quietly working. The A/B probe says no: `scrollback: 0` is a
+ * behaviour change, not a fence.
+ *
+ * `dev/spikes/upstream-sync-2026-08/scrollback-ab/` runs two emulators built to
+ * these exact conventions, differing only in `scrollback`, over 81 viewport
+ * comparisons. Reading the VIEWPORT, 0 and 80 are byte-identical on every
+ * measured codex 0.146.0 stream (boot, consent, model walk, a worked turn) and
+ * on an alt-screen wrapper. They diverge in exactly one place: xterm's resize
+ * REFLOW re-wraps lines out of, and pulls them back from, the scrollback ring,
+ * so a 0-row ring lands a different top row after a narrow and different
+ * content after a row-grow. The skew is a WINDOW — the TUI's own repaint after
+ * SIGWINCH converges both — but inside that window the 80-row emulator is the
+ * one that tracks the user's real terminal (renderer xterm, 10k scrollback),
+ * and the window is exactly when a resized dialog is being re-read.
+ *
+ * So the ring stays. It is not scrollback the consumers READ — no code reads a
+ * buffer line above `viewportY` (machine-checked in
+ * `tests/smoke/terminal-grid-substrate.mjs`, which also pins this constant to
+ * the reasoning above) — it is reflow fidelity. The standing rule stays prose,
+ * with a machine behind it.
+ */
 const SCROLLBACK_ROWS = 80;
 
 /**
@@ -40,8 +64,8 @@ export class TaskScreenModel {
   private drainWaiters: Array<() => void> = [];
   private disposed = false;
 
-  constructor(cols: number, rows: number) {
-    this.term = createTerminal(cols || DEFAULT_COLS, rows || DEFAULT_ROWS);
+  constructor(dimensions: TerminalDimensions) {
+    this.term = createTerminal(dimensions);
   }
 
   /** Feed one PTY batch (the S3 coalesced batch — one write per batch). */
@@ -104,11 +128,17 @@ export class TaskScreenModel {
     return rows.join("\n");
   }
 
-  resize(cols: number, rows: number): void {
+  /**
+   * Follow the PTY's geometry. NO clamp of its own (SL-9): the dimensions
+   * arrive already through `normalizeTerminalDimensions`, and a second,
+   * differently-worded clamp here is precisely how this grid would drift out of
+   * step with the PTY that the CLI is wrapping its text to.
+   */
+  resize(dimensions: TerminalDimensions): void {
     if (this.disposed) {
       return;
     }
-    this.term.resize(Math.max(2, cols), Math.max(2, rows));
+    this.term.resize(dimensions.cols, dimensions.rows);
   }
 
   dispose(): void {
@@ -121,7 +151,7 @@ export class TaskScreenModel {
   }
 }
 
-function createTerminal(cols: number, rows: number): Terminal {
+function createTerminal({ cols, rows }: TerminalDimensions): Terminal {
   return new Terminal({
     cols,
     rows,

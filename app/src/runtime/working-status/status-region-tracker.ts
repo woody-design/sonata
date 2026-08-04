@@ -2,13 +2,17 @@ import { Terminal } from "@xterm/headless";
 import type { RuntimeProvider, TaskId } from "../../shared/types/domain";
 import type { RuntimeEvent } from "../../shared/types/events";
 import type { NativeStatusRegion, WorkingLiveness } from "../../shared/types/working-status";
+import { normalizeTerminalDimensions, type TerminalDimensions } from "../terminal-dimensions";
 
 const SAMPLE_THROTTLE_MS = 300;
 const LIVENESS_CHECK_MS = 5_000;
 const DEFAULT_QUIET_AFTER_MS = 20_000;
 const DEFAULT_SILENT_AFTER_MS = 60_000;
-const DEFAULT_COLS = 120;
-const DEFAULT_ROWS = 36;
+/** Kept at 80 for the measured reason recorded on `TaskScreenModel`'s copy of
+ *  this constant (SL-9 A/B probe: viewport-identical at 0 vs 80 on every real
+ *  stream, divergent only across an xterm resize REFLOW). The two grids are
+ *  deliberately built to the same conventions — changing one alone would make
+ *  the status scrape and the approval scrape disagree about the same screen. */
 const SCROLLBACK_ROWS = 80;
 // Safety cap only — the mirror follows whatever the CLI paints (a todo
 // sub-block is routinely 4-6 rows); the old cap of 2 was an artifact of the
@@ -24,6 +28,18 @@ export interface StatusRegionTrackerOptions {
   taskId: TaskId;
   provider: RuntimeProvider;
   eventSink: (event: RuntimeEvent) => void;
+  /**
+   * The geometry this grid boots at — REQUIRED, and required for a measured
+   * reason (SL-9 review M1). The tracker used to size itself from the
+   * `task:started` event, but that event never reaches it: `startTask` emits
+   * synchronously, before the controller has registered the runtime its event
+   * router looks up. So the boot leg was silently dead and the grid sat at the
+   * default forever — invisible today only because nothing sends a non-default
+   * size yet. Taking the host's own `StartedPty.dimensions` here makes the
+   * source of this grid's geometry the same value the PTY was built at, and
+   * makes "forget to size it" un-writable rather than merely unlikely.
+   */
+  dimensions: TerminalDimensions;
   /** Test injection points; production uses the 20s/60s defaults. */
   quietAfterMs?: number;
   silentAfterMs?: number;
@@ -72,7 +88,7 @@ export class StatusRegionTracker {
     this.quietAfterMs = options.quietAfterMs ?? DEFAULT_QUIET_AFTER_MS;
     this.silentAfterMs = options.silentAfterMs ?? DEFAULT_SILENT_AFTER_MS;
     this.livenessCheckMs = options.livenessCheckMs ?? LIVENESS_CHECK_MS;
-    this.term = createTerminal(DEFAULT_COLS, DEFAULT_ROWS);
+    this.term = createTerminal(options.dimensions);
   }
 
   handleRuntimeEvent(event: RuntimeEvent): void {
@@ -81,7 +97,16 @@ export class StatusRegionTracker {
     }
     switch (event.type) {
       case "task:started":
-        this.reset(event.payload.cols, event.payload.rows);
+        // UNREACHABLE IN PRODUCTION TODAY (SL-9 review M1): startTask emits this
+        // synchronously, before the controller registers the runtime its event
+        // router resolves — so boot geometry arrives through the constructor
+        // instead. Kept, not deleted: the branch is CORRECT if the wiring is
+        // ever fixed, and a re-spawn on an already-registered runtime would
+        // route here. The payload's numbers crossed an event boundary and lost
+        // the brand, so they are re-normalized — provably IDENTITY, not a
+        // competing clamp: the emitter put this same function's output on the
+        // event, and the function is idempotent.
+        this.reset(normalizeTerminalDimensions(event.payload.cols, event.payload.rows));
         return;
       case "pty:data":
         this.lastDataAt = Date.now();
@@ -122,11 +147,13 @@ export class StatusRegionTracker {
     }
   }
 
-  resize(cols: number, rows: number): void {
+  /** Follow the PTY's geometry — no clamp of its own; see `TaskScreenModel.resize`
+   *  and `terminal-dimensions.ts` for why the clamp lives at the fan-out only. */
+  resize(dimensions: TerminalDimensions): void {
     if (this.disposed) {
       return;
     }
-    this.term.resize(Math.max(2, cols), Math.max(2, rows));
+    this.term.resize(dimensions.cols, dimensions.rows);
   }
 
   dispose(): void {
@@ -136,10 +163,10 @@ export class StatusRegionTracker {
     this.term.dispose();
   }
 
-  private reset(cols: number, rows: number): void {
+  private reset(dimensions: TerminalDimensions): void {
     this.clearSampleTimer();
     this.term.dispose();
-    this.term = createTerminal(cols || DEFAULT_COLS, rows || DEFAULT_ROWS);
+    this.term = createTerminal(dimensions);
     this.stopRunTracking();
   }
 
@@ -315,7 +342,7 @@ export class StatusRegionTracker {
   }
 }
 
-function createTerminal(cols: number, rows: number): Terminal {
+function createTerminal({ cols, rows }: TerminalDimensions): Terminal {
   return new Terminal({
     cols,
     rows,
