@@ -402,6 +402,30 @@ survivor for both providers is the composer-quiescence `task:ready` fallback:
 codex has no `StopFailure` event, so an API-failed turn would otherwise sit busy
 forever. This is the honest asymmetry with Claude, not an oversight.
 
+**Two observation channels, typed by semantics (upstream-sync 2026-08-03).**
+What scraping remains reads one of two substrates, and the choice is a rule,
+not a habit. **State queries** — "is this dialog on screen", "which row holds
+the cursor" — read the reconstructed screen: `terminal-host/task-screen-model.ts`
+is an `@xterm/headless` grid fed the same PTY bytes, and the approval detector,
+the codex full-access consent predicates, and the Claude Rewind-panel predicate
+all read its settled viewport. **Event detection** — "did this receipt line
+appear" — reads the linear stream tail. The forcing incident: codex 0.146
+repaints its consent dialog as a *cell diff* over the rows the `/permissions`
+picker had occupied, so cells already holding the right character are never
+retransmitted and the byte stream read `Enablfullaccess?` while the dialog was
+plainly on screen — the linear stream is a transport delta, not the picture, and
+a modal predicate fed from it is structurally unreliable (Claude's Ink renderer
+per-line-diffs the same way: an arrow move emits one cursor row and nothing
+else, the footer paints once per session). The rule is machine-enforced, not
+prose: `smoke:terminal-grid-substrate` walks the source and rejects any read of
+buffer rows above the viewport — a grid consumer that wants scrollback is
+running a temporal query on a spatial substrate, i.e. using the wrong channel —
+and all terminal geometry is minted at one clamp site
+(`runtime/terminal-dimensions.ts`, a branded type every mirror demands, so
+bypassing the clamp is a compile error; every fan-out leg was measured to throw
+on some un-clamped input, which makes the single clamp the never-throw
+mechanism itself, not a nicety on top of tolerant mirrors).
+
 ## The Preview window (satellite)
 
 The reading surface for *files* (the Reading window reads the conversation; the
