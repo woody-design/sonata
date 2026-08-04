@@ -1,0 +1,80 @@
+{
+  "_note": [
+    "Q2 shape (b) + Q3 — Sonata's PRODUCTION spawn shape (codexArgs, permissionMode",
+    "'ask-for-approval', model + model_reasoning_effort pinned), walking every reachable /model",
+    "level and finishing with ONE real switch so the receipt can be read verbatim.",
+    "",
+    "`-p sonata --dangerously-bypass-hook-trust` is omitted on purpose: the hook layer does not",
+    "shape the picker, and a hookless spawn keeps the frames free of sink-shim output.",
+    "",
+    "WALK PLAN, derived from the MEASURED q2a capture (this account's catalog has no auto modes,",
+    "so the picker opens at the two-level shape):",
+    "  L1 `Select Model and Effort` — 7 gpt-* rows, cursor on row 1 `gpt-5.6-sol (current)`.",
+    "     Enter keeps the current model and descends.",
+    "  L2 `Select Reasoning Level for gpt-5.6-sol` — cursor should sit on the (current) row (the",
+    "     spawn pins high). Two `down` presses aim at `More reasoning…` (the last row).",
+    "  L3 `Advanced Reasoning` — Max / Ultra. One `down` aims at Ultra; Enter confirms.",
+    "  Then: does a FOURTH apply-scope level appear (`Apply reasoning change` / `Choose where to",
+    "     apply {}`), or does the `• Model changed to …` receipt land immediately? That is the",
+    "     open X1 question this run exists to settle.",
+    "",
+    "D6's 'never enter More reasoning…' rule is deliberately lifted HERE and only here — F2's Ultra",
+    "glyph cannot be measured from the other side of it. Every snap is captured before each Enter,",
+    "so a wrong arrow count still yields a readable frame (and a harmless effort change).",
+    "",
+    "Run: SCRATCH=<abs scratch dir> node driver.mjs steps-q2b-model-walk.json out-q2b-model-walk"
+  ],
+  "cmd": "codex",
+  "args": [
+    "--no-alt-screen",
+    "-m",
+    "gpt-5.6-sol",
+    "-c",
+    "model_reasoning_effort=\"high\"",
+    "-C",
+    "${SCRATCH}/ws",
+    "-s",
+    "workspace-write",
+    "-a",
+    "on-request",
+    "-c",
+    "approvals_reviewer=\"user\""
+  ],
+  "cwd": "${SCRATCH}/ws",
+  "codexHome": "${SCRATCH}/codex-home",
+  "steps": [
+    { "waitFor": "/model to change", "timeoutMs": 40000, "settleMs": 3000 },
+    { "snap": "idle-composer-BEFORE" },
+    { "codepoints": "^\\s*[\\u203a\\u00bb]|shortcuts" },
+
+    { "mark": true, "type": "/model" },
+    { "key": "enter", "settleMs": 2500, "snap": "LEVEL-1-models" },
+    {
+      "waitFor": "SelectModelandEffort",
+      "on": "compact",
+      "timeoutMs": 8000,
+      "abortOnTimeout": true
+    },
+
+    { "mark": true, "key": "enter", "settleMs": 2200, "snap": "LEVEL-2-reasoning" },
+    {
+      "waitFor": "SelectReasoningLevelfor",
+      "on": "compact",
+      "timeoutMs": 8000,
+      "abortOnTimeout": true
+    },
+    { "mark": true, "key": "down", "settleMs": 700, "snap": "L2-after-down-1" },
+    { "mark": true, "key": "down", "settleMs": 700, "snap": "L2-after-down-2-expect-More-reasoning" },
+
+    { "mark": true, "key": "enter", "settleMs": 2200, "snap": "LEVEL-3-advanced-reasoning" },
+    { "codepoints": "Max|Ultra|Advanced|\\u203a" },
+    { "mark": true, "key": "down", "settleMs": 700, "snap": "L3-after-down-expect-Ultra" },
+
+    { "mark": true, "key": "enter", "settleMs": 1200, "snap": "AFTER-CONFIRM-t+1.2s" },
+    { "sample": { "ms": 9000, "everyMs": 60, "label": "post-confirm" } },
+    { "snap": "settled-after-switch" },
+    { "codepoints": "^\\s*[\\u203a\\u00bb]|shortcuts|Model changed" },
+    { "settleMs": 6000, "snap": "idle-6s-later-glyph-persists" },
+    { "codepoints": "^\\s*[\\u203a\\u00bb]|shortcuts" }
+  ]
+}

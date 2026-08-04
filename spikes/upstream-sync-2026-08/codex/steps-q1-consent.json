@@ -1,0 +1,63 @@
+{
+  "_note": [
+    "Q1 (F1) — the Full Access consent dialog, plus Q5's directory-trust dialog on the way in.",
+    "Spawn shape: Sonata's production codexArgs for permissionMode 'ask-for-approval' MINUS the",
+    "`-p sonata --dangerously-bypass-hook-trust` hook layer (the picker's shape does not depend on",
+    "hooks, and a hookless spawn keeps the capture free of sink-shim noise).",
+    "",
+    "RED LINES honoured here:",
+    "  - `/permissions` is typed BARE. A codex slash line WITH ARGS submits as a chat prompt.",
+    "  - Enter is NEVER pressed on consent row 1. Every Enter after the dialog opens is Esc instead.",
+    "  - The second Enter (step that re-opens the consent) is guarded by abortOnTimeout on the",
+    "    picker header, so it can never fire onto the consent dialog itself.",
+    "",
+    "Run: SCRATCH=<abs scratch dir> node driver.mjs steps-q1-consent.json out-q1-consent"
+  ],
+  "cmd": "codex",
+  "args": [
+    "--no-alt-screen",
+    "-m",
+    "gpt-5.6-sol",
+    "-c",
+    "model_reasoning_effort=\"high\"",
+    "-C",
+    "${SCRATCH}/ws",
+    "-s",
+    "workspace-write",
+    "-a",
+    "on-request",
+    "-c",
+    "approvals_reviewer=\"user\""
+  ],
+  "cwd": "${SCRATCH}/ws",
+  "codexHome": "${SCRATCH}/codex-home",
+  "steps": [
+    { "waitFor": "/model to change", "timeoutMs": 40000, "settleMs": 3000 },
+    { "snap": "idle-composer" },
+    { "codepoints": "^\\s*[\\u203a\\u00bb]" },
+
+    { "mark": true, "type": "/permissions" },
+    { "key": "enter", "settleMs": 1800, "snap": "permissions-picker" },
+    {
+      "waitFor": "UpdateModelPermissions",
+      "on": "compact",
+      "timeoutMs": 8000,
+      "abortOnTimeout": true
+    },
+    { "key": "down,down", "settleMs": 900, "snap": "cursor-on-full-access" },
+
+    { "mark": true, "key": "enter", "settleMs": 2000, "snap": "consent-1st" },
+    { "codepoints": "Yes|Cancel|full access|\\u203a" },
+    { "key": "esc", "settleMs": 1500, "snap": "after-esc-from-consent" },
+
+    {
+      "waitFor": "UpdateModelPermissions",
+      "on": "compact",
+      "timeoutMs": 8000,
+      "abortOnTimeout": true
+    },
+    { "mark": true, "key": "enter", "settleMs": 2000, "snap": "consent-2nd-SHOULD-FIRE-AGAIN" },
+    { "key": "esc", "settleMs": 1000 },
+    { "key": "esc", "settleMs": 1200, "snap": "picker-closed" }
+  ]
+}

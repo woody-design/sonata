@@ -1,0 +1,45 @@
+{
+  "_note": [
+    "Q4 (W2) — status-indicator timing across ONE trivial turn.",
+    "",
+    "The prompt is deliberately one word of output ('ok') because it consumes real usage. The",
+    "sample verb re-renders the viewport every 60ms and logs only CHANGED frames, so the log is a",
+    "timestamped frame diff: when the working indicator appears, whether it goes",
+    "present -> absent -> present within the turn (#33105), and whether it clears BEFORE or AFTER",
+    "the answer text commits.",
+    "",
+    "What to grep the capture for afterwards — Sonata's codex `activityHints` in",
+    "app/src/runtime/terminal-host/terminal-host.ts are exactly ['working', 'esc to interrupt'],",
+    "matched case-insensitively against the cleaned tail. Both must appear verbatim in some frame.",
+    "",
+    "Run: SCRATCH=<abs scratch dir> node driver.mjs steps-q4-status-timing.json out-q4-status-timing"
+  ],
+  "cmd": "codex",
+  "args": [
+    "--no-alt-screen",
+    "-m",
+    "gpt-5.6-sol",
+    "-c",
+    "model_reasoning_effort=\"low\"",
+    "-C",
+    "${SCRATCH}/ws",
+    "-s",
+    "workspace-write",
+    "-a",
+    "on-request",
+    "-c",
+    "approvals_reviewer=\"user\""
+  ],
+  "cwd": "${SCRATCH}/ws",
+  "codexHome": "${SCRATCH}/codex-home",
+  "steps": [
+    { "waitFor": "/model to change", "timeoutMs": 40000, "settleMs": 3500 },
+    { "snap": "idle-before-submit" },
+
+    { "mark": true, "type": "reply with the single word: ok" },
+    { "settleMs": 400 },
+    { "key": "enter" },
+    { "sample": { "ms": 45000, "everyMs": 60, "label": "turn" } },
+    { "settleMs": 2000, "snap": "settled-after-turn" }
+  ]
+}

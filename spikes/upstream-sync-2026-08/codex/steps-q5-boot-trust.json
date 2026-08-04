@@ -1,0 +1,17 @@
+{
+  "_note": "Q5 — plain `codex` (spawn shape a) in a scratch cwd under an ISOLATED CODEX_HOME. Establishes that CODEX_HOME takes effect and captures the first screen. Run: SCRATCH=<abs scratch dir> node driver.mjs steps-q5-boot-trust.json out-q5a-probe",
+  "cmd": "codex",
+  "args": [],
+  "cwd": "${SCRATCH}/ws",
+  "codexHome": "${SCRATCH}/codex-home",
+  "steps": [
+    { "settleMs": 4000, "snap": "boot-t+4s" },
+    {
+      "waitFor": "trust|Yes, continue|sign in|Sign in|log in|Welcome",
+      "timeoutMs": 30000,
+      "settleMs": 1500,
+      "snap": "first-screen"
+    },
+    { "codepoints": "Yes|trust|continue" }
+  ]
+}

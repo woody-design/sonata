@@ -1,0 +1,23 @@
+{
+  "_note": [
+    "Q2 follow-up — is the receipt-parse failure specific to the Ultra effort token, or did the",
+    "receipt FORMAT change for every effort? Switches to a v1-set effort (Medium) and reads the",
+    "receipt with the same production parser. Picker navigation only; no turn is burned."
+  ],
+  "cmd": "codex",
+  "args": ["--no-alt-screen", "-m", "gpt-5.6-sol", "-c", "model_reasoning_effort=\"high\"",
+           "-C", "${SCRATCH}/ws", "-s", "workspace-write", "-a", "on-request",
+           "-c", "approvals_reviewer=\"user\""],
+  "cwd": "${SCRATCH}/ws",
+  "codexHome": "${SCRATCH}/codex-home",
+  "steps": [
+    { "waitFor": "/model to change", "timeoutMs": 40000, "settleMs": 3000 },
+    { "mark": true, "type": "/model" },
+    { "key": "enter", "settleMs": 2500 },
+    { "waitFor": "SelectModelandEffort", "on": "compact", "timeoutMs": 8000, "abortOnTimeout": true },
+    { "key": "enter", "settleMs": 2200 },
+    { "waitFor": "SelectReasoningLevelfor", "on": "compact", "timeoutMs": 8000, "abortOnTimeout": true },
+    { "mark": true, "key": "up", "settleMs": 800, "snap": "L2-cursor-on-Medium" },
+    { "mark": true, "key": "enter", "settleMs": 2500, "snap": "receipt-medium" }
+  ]
+}

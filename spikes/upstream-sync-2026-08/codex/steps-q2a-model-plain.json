@@ -1,0 +1,34 @@
+{
+  "_note": [
+    "Q2 / X1 shape (a) — BARE `codex` (no model pin, no config overrides) under the isolated home.",
+    "Purpose: does the picker open at 'Select Model' (four-level shape, auto-mode rows from the",
+    "remote catalog) or at 'Select Model and Effort' (the two-level shape Sonata's parsers assume)?",
+    "",
+    "SAFE BY CONSTRUCTION: this script only OPENS the picker and Escs out. No Enter is pressed on",
+    "any row, so nothing is committed and no turn is burned. The deliberate deeper walk lives in",
+    "steps-q2b-model-walk.json, which must be run AFTER reading this capture.",
+    "",
+    "Run: SCRATCH=<abs scratch dir> node driver.mjs steps-q2a-model-plain.json out-q2a-model-plain"
+  ],
+  "cmd": "codex",
+  "args": ["--no-alt-screen"],
+  "cwd": "${SCRATCH}/ws",
+  "codexHome": "${SCRATCH}/codex-home",
+  "steps": [
+    {
+      "waitFor": "Do you trust|Yes, continue",
+      "timeoutMs": 30000,
+      "settleMs": 1000,
+      "snap": "q5-trust-dialog"
+    },
+    { "codepoints": "trust|Yes|continue|sandbox|quit|\\u203a|\\u00bb" },
+    { "key": "enter", "settleMs": 2500 },
+    { "waitFor": "shortcuts|/model to change|Write|Ask", "timeoutMs": 40000, "settleMs": 3000 },
+    { "snap": "idle-composer" },
+    { "codepoints": "shortcuts|Ask Codex|\\u203a|\\u00bb" },
+    { "mark": true, "type": "/model" },
+    { "key": "enter", "settleMs": 2500, "snap": "model-L1" },
+    { "codepoints": "\\u203a|\\u00bb|\\(current\\)|\\(default\\)" },
+    { "key": "esc", "settleMs": 1500, "snap": "after-esc" }
+  ]
+}
