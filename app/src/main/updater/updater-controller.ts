@@ -26,12 +26,10 @@ import {
   type UpdaterGateInput,
   type UpdaterGateStatus,
 } from "./updater-gate";
-
-/** First silent check ~60s after ready — late enough not to compete with boot,
- *  soon enough to catch a stale launch. Then every 12h (checks ride the public
- *  atom feed + CDN; do not poll aggressively — research Q2). */
-const FIRST_CHECK_DELAY_MS = 60_000;
-const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
+// First silent check ~60s after ready, then every 12h. Shared with the CLI
+// updater (which runs its own timer — its schedule is not packaged-gated) so
+// the two never drift apart. See update-cadence.ts for the reasoning.
+import { CHECK_INTERVAL_MS, FIRST_CHECK_DELAY_MS } from "../update-cadence";
 
 // After a non-throwing quitAndInstall, wait this long for the process to die. If
 // it does not, ShipIt silently no-oped (macOS #7356/#8795) and self-recovery

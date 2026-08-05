@@ -203,7 +203,14 @@
     "smoke:updater-gating": "npm run build:main && node tests/smoke/updater-gating.mjs",
     "smoke:updater-ipc-contract": "npm run build:main && node tests/smoke/updater-ipc-contract.mjs",
     "smoke:updater-restart-recovery": "npm run build:main && node tests/smoke/updater-restart-recovery.mjs",
-    "smoke:updater-menu-check": "npm run build:main && node tests/smoke/updater-menu-check.mjs"
+    "smoke:updater-menu-check": "npm run build:main && node tests/smoke/updater-menu-check.mjs",
+    "smoke:cli-updater-policy": "npm run build:main && node tests/smoke/cli-updater-policy.mjs",
+    "smoke:cli-updater-state": "npm run build:main && node tests/smoke/cli-updater-state.mjs",
+    "smoke:cli-updater-check": "npm run build:main && node tests/smoke/cli-updater-check.mjs",
+    "smoke:cli-updater-executor": "npm run build:main && node tests/smoke/cli-updater-executor.mjs",
+    "smoke:cli-updater-reconcile": "npm run build:main && node tests/smoke/cli-updater-reconcile.mjs",
+    "smoke:cli-updater-cycle": "npm run build:main && node tests/smoke/cli-updater-cycle.mjs",
+    "smoke:cli-updater-detached-spawn": "npm run build:main && node tests/smoke/cli-updater-detached-spawn.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

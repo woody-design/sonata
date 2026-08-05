@@ -164,3 +164,19 @@ export class PreviewSessionsStore extends JsonSettingsStore<PreviewSessionsDocum
 export function previewSessionsPath(): string {
   return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "preview-sessions.json");
 }
+
+/**
+ * The CLI updater's facts file (Codex auto-update plan v1). Only the PATH lives
+ * here — its schema, normalize and store subclass live beside their sole
+ * consumer in `cli-updater/state.ts` (main-private state, never crossing to the
+ * renderer, so it earns no `shared/types` module; keeping the normalize there
+ * also avoids an import cycle back into this file).
+ *
+ * Same location as every other small JSON store: it is derived, low-value state
+ * rather than a preference, but window-state.json and preview-sessions.json set
+ * the precedent, and the shared `SONATA_SETTINGS_DIR` override is what lets a
+ * test point the whole family at a scratch dir.
+ */
+export function cliUpdaterStatePath(): string {
+  return path.join(process.env.SONATA_SETTINGS_DIR || sonataConfigDir(), "cli-updater-state.json");
+}
