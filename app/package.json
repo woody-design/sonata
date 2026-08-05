@@ -213,7 +213,9 @@
     "smoke:cli-updater-detached-spawn": "npm run build:main && node tests/smoke/cli-updater-detached-spawn.mjs",
     "smoke:codex-keep-up-to-date-store": "npm run build:main && node tests/smoke/codex-keep-up-to-date-store.mjs",
     "smoke:codex-update-prompt-args": "npm run build:main && node tests/smoke/codex-update-prompt-args.mjs",
-    "smoke:cli-updater-spawn-gate": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/cli-updater-spawn-gate.mjs"
+    "smoke:cli-updater-spawn-gate": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/cli-updater-spawn-gate.mjs",
+    "smoke:cli-updater-log-pruning": "npm run build:main && node tests/smoke/cli-updater-log-pruning.mjs",
+    "smoke:cli-updater-codex-absent": "npm run build:main && node tests/smoke/cli-updater-codex-absent.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

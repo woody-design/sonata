@@ -28,6 +28,89 @@ import type { CliUpdaterAttemptFact, CliUpdaterFactsStore } from "./state";
 /** Codex's own subcommand — it owns install-method detection, we do not. */
 const CODEX_UPDATE_ARGS = ["update"];
 
+/**
+ * How many `codex update` logs to keep (O2).
+ *
+ * Every attempt writes its own file, so without a ceiling this directory grows
+ * for the life of the install. Twenty is sized off the actual attempt rate the
+ * policy permits: the retry gate holds churn to one attempt per version, leaving
+ * the 12h ticks plus one per launch — call it ~2–3/day worst case, so twenty
+ * keeps roughly a week. That is the window in which someone reports "Codex
+ * stopped updating last Tuesday" and the log still answers, while the directory
+ * stays bounded no matter how long the app runs.
+ */
+export const KEEP_UPDATE_LOGS = 20;
+
+const UPDATE_LOG_PREFIX = "codex-update-";
+const UPDATE_LOG_SUFFIX = ".log";
+/** The stamp shape {@link updateLogName} emits: an ISO instant with `:` and `.`
+ *  swapped for `-`. */
+const UPDATE_LOG_STAMP = String.raw`\d{4}-\d{2}-\d{2}T[\d-]+Z`;
+
+/**
+ * The writer and the matcher, built from ONE set of parts.
+ *
+ * Deriving the pattern rather than restating it is not tidiness: pruning is a
+ * DELETE loop in a directory Sonata does not exclusively own, so a matcher that
+ * could drift from the writer is a matcher that could one day delete the wrong
+ * file. `sonataLogsDir()` has no other writer today; this does not assume that
+ * stays true, and matches the FULL name, never a bare prefix.
+ *
+ * The stamp also makes the name **lexicographically ordered by time**, so
+ * pruning sorts by name and never calls `stat`: no mtime races, no extra
+ * syscalls, and a copied or touched file cannot reorder itself.
+ */
+const UPDATE_LOG_RE = new RegExp(
+  `^${escapeRegExp(UPDATE_LOG_PREFIX)}${UPDATE_LOG_STAMP}${escapeRegExp(UPDATE_LOG_SUFFIX)}$`,
+);
+
+function updateLogName(startedAtIso: string): string {
+  return `${UPDATE_LOG_PREFIX}${startedAtIso.replace(/[:.]/g, "-")}${UPDATE_LOG_SUFFIX}`;
+}
+
+function isUpdateLogName(name: string): boolean {
+  return UPDATE_LOG_RE.test(name);
+}
+
+function escapeRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Keep the newest {@link KEEP_UPDATE_LOGS} update logs, delete the rest.
+ *
+ * Never throws: it is called after the child is already running and its record
+ * already persisted, so nothing it can do may reach the spawn path. A failed
+ * prune is a directory that stays large — the log line says so — and never a
+ * failed update.
+ */
+export function pruneUpdateLogs(
+  logsDir: string,
+  keep: number = KEEP_UPDATE_LOGS,
+  log: (message: string) => void = () => undefined,
+): void {
+  // A non-finite ceiling would reach `slice()` as NaN, which slices from 0 —
+  // i.e. "delete every log, including the one the running child holds". Fall
+  // back to the default rather than let a nonsense number mean total deletion;
+  // an explicit 0 or negative still clamps to 0, because that IS an intent.
+  const ceiling = Number.isFinite(keep) ? Math.max(Math.trunc(keep), 0) : KEEP_UPDATE_LOGS;
+  try {
+    const logs = fs
+      .readdirSync(logsDir)
+      .filter(isUpdateLogName)
+      // Newest first; see updateLogName for why the name is a valid clock.
+      .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+    for (const name of logs.slice(ceiling)) {
+      // The newest file is always kept, so the log the child currently holds
+      // open is never a candidate. (Even if it somehow were, POSIX keeps an
+      // unlinked inode writable for its holder — the child would not fault.)
+      fs.rmSync(path.join(logsDir, name), { force: true });
+    }
+  } catch (error) {
+    log(`could not prune update logs in ${logsDir}: ${describe(error)}`);
+  }
+}
+
 /** A spawned `codex update`, reduced to the three things the executor needs.
  *  Narrow on purpose: a test fakes this in five lines, with no `ChildProcess`
  *  stand-in and no mocking of `node:child_process`. */
@@ -52,6 +135,8 @@ export interface ExecuteOptions {
   readonly logsDir?: string;
   readonly spawnUpdate?: (input: SpawnInput) => UpdateChild;
   readonly log?: (message: string) => void;
+  /** Test seam for the log-retention ceiling; defaults to {@link KEEP_UPDATE_LOGS}. */
+  readonly keepLogs?: number;
 }
 
 export interface SpawnInput {
@@ -93,7 +178,7 @@ export function executeUpdate(options: ExecuteOptions): CliUpdaterAttemptFact | 
   const log = options.log ?? (() => undefined);
 
   const startedAt = now().toISOString();
-  const logFile = path.join(logsDir, `codex-update-${fileStamp(startedAt)}.log`);
+  const logFile = path.join(logsDir, updateLogName(startedAt));
 
   let logFd: number;
   try {
@@ -150,6 +235,10 @@ export function executeUpdate(options: ExecuteOptions): CliUpdaterAttemptFact | 
   child.onExit((code) => {
     patchExitCode(options.store, attempt, code, log);
   });
+
+  // Last, deliberately: the child is running and its record is on disk, so
+  // there is no longer any path by which housekeeping can cost us an update.
+  pruneUpdateLogs(logsDir, options.keepLogs ?? KEEP_UPDATE_LOGS, log);
 
   return attempt;
 }
@@ -215,11 +304,6 @@ function defaultSpawnUpdate(input: SpawnInput): UpdateChild {
     },
     unref: () => child.unref(),
   };
-}
-
-/** ISO 8601 with the characters a filesystem would rather not see. */
-function fileStamp(iso: string): string {
-  return iso.replace(/[:.]/g, "-");
 }
 
 function describe(error: unknown): string {

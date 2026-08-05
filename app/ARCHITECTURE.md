@@ -5,10 +5,11 @@ This document describes the renderer architecture that emerged from the
 `product-thinking/2026-07-03-renderer-decomposition-map-v1.md`, execution
 history: `…-execution-log.md`). It covers the Reading window — the main
 surface. The satellite renderers (terminal, preview) are separate
-vite entries with their own, smaller files. Two subsystems beyond the reading
+vite entries with their own, smaller files. Three subsystems beyond the reading
 renderer have their own sections below: **the signal layer** (the main-process
-control plane that produces the runtime events the reducer consumes) and **the
-Preview window**.
+control plane that produces the runtime events the reducer consumes), **the CLI
+updater** (the main-process subsystem that keeps the Codex CLI current), and
+**the Preview window**.
 
 ## The one-paragraph version
 
@@ -425,6 +426,99 @@ and all terminal geometry is minted at one clamp site
 bypassing the clamp is a compile error; every fan-out leg was measured to throw
 on some un-clamped input, which makes the single clamp the never-throw
 mechanism itself, not a nicety on top of tolerant mirrors).
+
+## The CLI updater (keeping Codex current)
+
+The signal layer's rule is *observe, never replace*. This subsystem is the one
+deliberate exception, and it is scoped to a single job: **Claude Code
+self-updates, Codex does not.** Codex ships only a boot notifier, and inside
+Sonata's pty that prompt is one nobody resolves — it competes with the session
+the user actually opened — so installs go stale indefinitely. Sonata takes the
+job over (`main/cli-updater/`). Claude Code gets nothing here, by explicit
+decision: it already does this for itself.
+
+**The invariant: ownership is DERIVED, never stored.** "Ownership" is the
+question *who speaks to the user about updates at spawn time* — Sonata's
+suppress flag, or Codex's own prompt. It is recomputed from the facts on every
+spawn and lives in no field. There is deliberately no `mode` / `ownedBy` flag,
+because a stored one is a second source of truth that can desynchronize from
+reality; making it a property of the representation means the invariant cannot
+be violated by forgetting to maintain it. The dividend is that **handback and
+reclaim have no code at all**: the user updating Codex by hand makes the pending
+condition false, a newer release makes a recorded failure no longer match the
+current version, a healed retry advances it — each of those stops the handback
+condition from holding, by itself.
+
+**The facts file is the only persisted state** — one small JSON document
+(`cli-updater/state.ts`, alongside its nine `JsonSettingsStore` siblings):
+
+```
+lastCheck   { at, ok, installed, latest }
+lastAttempt { forVersion, startedAt, pid, exitCode, logFile }
+```
+
+That single `lastAttempt` row is simultaneously three things. It is the
+**three-state outcome**: a null `exitCode` with a live pid is RUNNING, a null
+one with a dead pid is UNKNOWN (the app died mid-update — *not* a failure), a
+non-zero code is a hard failure, and `0` means the command ran, not that it
+worked (`codex update` exits 0 with a success banner even when Homebrew declines
+the upgrade, so the exit code is a failure signal only; the truth is the next
+check's version comparison). It is the **cross-restart lock**: a relaunch that
+finds a live pid adopts it, holds the spawn mutex, and releases the instant that
+pid stops answering — with a `startedAt` sanity window so a recycled pid cannot
+hold the mutex forever. And it is the **failure's scope**: a hard failure counts
+only against the `forVersion` it names.
+
+**One cycle, three triggers, all decisions pure.** `runCycle(reason)` is the
+single orchestration point — reconcile → check → policy → maybe execute →
+persist — re-entrant-guarded so concurrent callers join the in-flight cycle
+rather than starting a second. The triggers (60s post-launch, every 12h, the
+last Codex session ending) carry **zero logic**; they only say "now may be a
+good time". Every condition is evaluated inside the cycle by `policy.ts`, which
+is pure to the point of taking pid-liveness and the clock as arguments, so the
+entire ownership truth table unit-tests over fact literals
+(`smoke:cli-updater-policy`). The check itself reads `codex --version`
+through the *same* login-shell PATH resolution the pty spawn uses — a
+mismatch there would report one Codex's version while the user's sessions ran
+another — and npm's dist-tags over a plain bounded fetch.
+
+**Updates require zero live Codex sessions.** Codex re-execs itself through arg0
+symlinks to `current_exe()` (its `apply_patch` path is the hot one), so swapping
+the binary underneath a live session either dangles those symlinks or silently
+mixes versions. The gate is absolute, and a spawn that arrives while an update
+is genuinely running waits on a **bounded** mutex and then proceeds anyway: an
+unbounded await would let one wedged package manager block every session the
+user tries to start, and a visible retryable boot failure is a better failure
+than a New Chat button that does nothing. The update itself is spawned
+**detached and unref'd** so it outlives app quit — killing npm or Homebrew
+mid-write can corrupt a global install — which is what makes orphan adoption
+above a real requirement rather than a theoretical one. Its output goes to a
+per-attempt file under the logs dir, kept to a bounded window (keep-last-20,
+pruned after the child is already running so housekeeping can never cost an
+update): a diagnostic that grows for the life of the install is the same
+byproduct-scaled cost the observation constitution rules out.
+
+**Retries are gated by trigger kind, not by a clock.** Homebrew's cask index
+lags npm, so an attempt routinely exits 0 without the version moving and the
+update stays pending. The scheduled ticks retry freely (their frequency is
+Sonata's own, ~2/day plus one per launch); the session-close trigger, whose
+frequency is the *user's*, executes only when nothing has been attempted for the
+current version yet. The existing `forVersion` vs `latest` comparison already
+carries "we have tried this one", so this needs no wall-clock constant and no
+new persisted field — a deliberate refusal, since time-horizon mechanisms were
+rejected wholesale for this subsystem.
+
+**The fallback is the status quo ante, not a new surface.** When ownership is
+handed back — which happens only while a pending update has demonstrably
+hard-failed *at the current version* — Sonata simply stops passing
+`-c check_for_update_on_startup=false`, and Codex's own boot prompt returns,
+backed by the existing `codex-update-prompt` watchdog banner. Staleness alone
+never hands back, and neither does UNKNOWN: an app that died mid-update tells us
+nothing about whether Codex can be updated. There is no toast, no changelog, no
+version display; success is silent, and the one user-facing control is
+`keepCodexUpToDate` in Codex settings (default on — the status quo it replaces
+is a prompt already going unanswered). Everything else about this subsystem is
+invisible when it works, which is the point.
 
 ## The Preview window (satellite)
 
