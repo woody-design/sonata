@@ -2993,16 +2993,6 @@ h2 {
   font-weight: 600;
 }
 
-/* A group-level description under the heading (e.g. the Claude Code
-   passthrough territory line). Tucks up under the heading against the group
-   gap. */
-.settings-group-desc {
-  margin: -3px 0 1px;
-  color: var(--text-tertiary);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
 .settings-box {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);

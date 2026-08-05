@@ -138,14 +138,13 @@ function renderSettingsHeader(): HTMLElement {
 interface SettingsGroupSpec {
   /** Both the section aria-label and the visible heading. */
   label: string;
-  /** Optional group-level description under the heading (e.g. the Claude Code
-   *  passthrough territory line). */
-  description?: string;
   rows: HTMLElement[];
 }
 
 /** A titled section with a bordered box of rows. Groups are the IA's concept
- *  units; rows are the individual settings within a concept. */
+ *  units; rows are the individual settings within a concept. Group headings
+ *  carry no subtitle — a group that needs explaining is mis-cut (Woody,
+ *  2026-08-05). */
 function renderSettingsGroup(spec: SettingsGroupSpec): HTMLElement {
   const group = document.createElement("section");
   group.className = "settings-group";
@@ -155,13 +154,6 @@ function renderSettingsGroup(spec: SettingsGroupSpec): HTMLElement {
   heading.className = "settings-group-heading";
   heading.textContent = spec.label;
   group.append(heading);
-
-  if (spec.description) {
-    const description = document.createElement("p");
-    description.className = "settings-group-desc";
-    description.textContent = spec.description;
-    group.append(description);
-  }
 
   const box = document.createElement("div");
   box.className = "settings-box";
@@ -676,24 +668,16 @@ function renderClaudeCodeSettingsGroup(overlay: SettingsOverlayState): HTMLEleme
     control: trailing,
   });
 
-  // The territory declaration: provider passthrough is an IA axis, worn
-  // visibly but quietly — Sonata renders Claude's state, never owns it. It rides
-  // as the group's description line.
   return renderSettingsGroup({
     label: "Claude Code",
-    description: "Claude Code's own state. Sonata never changes it without you.",
     rows: [row],
   });
 }
 
 /**
  * The Codex sibling of the Claude Code group — same shape, deliberately opposite
- * territory, and placed immediately after it so the contrast does the
- * explaining. Claude Code's group says Sonata never changes its state; this one
- * says Sonata maintains it. The asymmetry is not an inconsistency, it is the
- * reason the setting exists — Claude Code self-updates and Codex does not — so
- * the group description states it outright and pre-empts "why is there no
- * Claude Code equivalent?".
+ * territory (Sonata never changes Claude Code's state; it maintains Codex's,
+ * because Codex has no updater of its own), placed immediately after it.
  *
  * A real switch, not a picker: the choice is binary, and the on-fill is neutral
  * ink because keeping a CLI current is maintenance, not an alert.
@@ -703,7 +687,7 @@ function renderCodexSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
   const row = renderSettingsRow({
     title: "Keep Codex up to date",
     description:
-      "Updates the Codex CLI in the background while no Codex session is running, and hides its start-up update prompt.",
+      "Updates the Codex CLI in the background while no Codex session is running.",
     control: renderSwitch({
       label: "Keep Codex up to date",
       on,
@@ -714,7 +698,6 @@ function renderCodexSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
 
   return renderSettingsGroup({
     label: "Codex",
-    description: "Codex has no updater of its own. Sonata can keep it current.",
     rows: [row],
   });
 }
