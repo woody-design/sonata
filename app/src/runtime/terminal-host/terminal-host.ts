@@ -351,6 +351,14 @@ export interface StartTaskOptions {
    *  Sonata-home and the trust policy); the codex edge owns the `$CODEX_HOME`
    *  profile-file location and the ledger mechanism. */
   codexHookPaths?: CodexHookPaths;
+  /**
+   * Codex only: suppress codex's own boot "Update available!" prompt for THIS
+   * spawn, because Sonata has taken over keeping the CLI current. Resolved per
+   * spawn by main (`RuntimeController.buildStartOptions` → the CLI updater's
+   * `spawnDecision()`); this edge only emits the flag it is told to. The host
+   * stays settings-blind — main resolves, options carry.
+   */
+  codexSuppressUpdatePrompt?: boolean;
   resumeLast?: boolean;
   /** Provider session id to resume natively (claude --resume / codex resume). */
   resumeRef?: string;
@@ -3489,6 +3497,9 @@ export function codexArgs(options: {
   /** Layer the Sonata hook profile via `-p <profile>` (CONFIG_PROFILE_V2). Unset
    *  → no profile flag (bare TerminalHost in a test still works). */
   profile?: string | undefined;
+  /** Emit `-c check_for_update_on_startup=false`. Sonata sets this only when it
+   *  owns keeping Codex current; unset → codex's own boot prompt is untouched. */
+  suppressUpdatePrompt?: boolean | undefined;
 }): string[] {
   const base = options.resumeRef
     ? ["resume", options.resumeRef]
@@ -3501,6 +3512,19 @@ export function codexArgs(options: {
   }
   if (options.speedMode === "fast") {
     configOverrides.push("-c", `service_tier=${tomlString("priority")}`);
+  }
+  if (options.suppressUpdatePrompt) {
+    // Sonata owns keeping Codex current, so codex's own boot prompt would be a
+    // second voice asking about the same thing. This key is the FIRST check in
+    // both `get_upgrade_version_for_popup()` and `get_upgrade_version()`
+    // (codex-rs/tui/src/updates.rs), so `false` short-circuits the popup path
+    // structurally rather than racing it (G2).
+    //
+    // Bare `false` — a TOML boolean, NOT `tomlString`: the key is `Option<bool>`
+    // and a quoted "false" would fail to deserialize. Per-spawn only; Sonata
+    // never writes this into the user's own ~/.codex/config.toml (that would
+    // silently change their terminal too — an explicitly rejected alternative).
+    configOverrides.push("-c", "check_for_update_on_startup=false");
   }
   const permission = CODEX_PERMISSION_MODE_FLAGS[options.permissionMode];
   return [
@@ -3702,6 +3726,7 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         resumeLast: Boolean(options.resumeLast),
         resumeRef: options.resumeRef,
         profile,
+        suppressUpdatePrompt: options.codexSuppressUpdatePrompt,
       });
     },
     // Codex approvals flow through the hook PermissionRequest broker (D5); the

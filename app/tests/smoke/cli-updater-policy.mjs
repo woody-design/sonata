@@ -22,6 +22,7 @@ const {
   parseCodexVersionOutput,
   classifyAttempt,
   updatePending,
+  alreadyAttemptedLatest,
   sonataOwnsPrompt,
   shouldExecute,
   ATTEMPT_LIVENESS_WINDOW_MS,
@@ -149,9 +150,18 @@ const ALIVE = { pidAlive: true, nowMs: NOW };
 const DEAD = { pidAlive: false, nowMs: NOW };
 
 /**
- * Each row: the whole world, and the two answers it must produce.
- *   owns    — does Sonata suppress codex's native boot prompt?
- *   execute — does this cycle launch `codex update`?
+ * Each row: the whole world, and the three answers it must produce.
+ *   owns          — does Sonata suppress codex's native boot prompt?
+ *   tick          — does a FREQUENCY-BOUNDED cycle (60s / 12h / manual) launch
+ *                   `codex update`?
+ *   ptyExit       — does a CHURN-DRIVEN cycle (the last codex session closing)
+ *                   launch it?
+ *
+ * Splitting the last two is the O1 gate: a tick fires at most ~2/day whatever
+ * the user does, so it may retry freely; a pty-exit fires as often as the user
+ * opens and closes sessions, so it may only launch when nothing has been tried
+ * for the current latest yet. Every row is checked against both, so the gate's
+ * blast radius is visible rather than asserted in one corner.
  */
 const TABLE = [
   {
@@ -161,7 +171,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "pending, idle: own the prompt and update",
@@ -170,7 +181,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: true,
+    tick: true,
+    ptyExit: true,
   },
   {
     name: "pending but a codex session is live: never swap the binary (G1)",
@@ -179,7 +191,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 1,
     owns: true,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "an update is already running: the mutex holds",
@@ -188,7 +201,8 @@ const TABLE = [
     probe: ALIVE,
     ptys: 0,
     owns: true,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "HANDBACK: hard failure against the pending latest",
@@ -201,7 +215,11 @@ const TABLE = [
     ptys: 0,
     owns: false,
     // Retrying while handed back is exactly how ownership is re-earned.
-    execute: true,
+    tick: true,
+    // O1: an attempt already exists for this latest, so session churn
+    //     must not launch another one — only the scheduled ticks retry.
+
+    ptyExit: false,
   },
   {
     name: "RECLAIM by new version: the failure is scoped to an older latest",
@@ -213,7 +231,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: true,
+    tick: true,
+    ptyExit: true,
   },
   {
     name: "RECLAIM by manual update: the user updated, so nothing is pending",
@@ -225,7 +244,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "RECLAIM by a healed retry: the version advanced past the failure",
@@ -237,7 +257,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "UNKNOWN never hands back: a died-mid-update app proves nothing",
@@ -249,7 +270,11 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: true,
+    tick: true,
+    // O1: an attempt already exists for this latest, so session churn
+    //     must not launch another one — only the scheduled ticks retry.
+
+    ptyExit: false,
   },
   {
     name: "staleness never hands back: pending for a week, no failure (D6)",
@@ -266,7 +291,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: true,
+    tick: true,
+    ptyExit: true,
   },
   {
     name: "exit 0 but still stale (brew-cask lag, G3): retry, do not hand back",
@@ -278,7 +304,11 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: true,
+    tick: true,
+    // O1: an attempt already exists for this latest, so session churn
+    //     must not launch another one — only the scheduled ticks retry.
+
+    ptyExit: false,
   },
   {
     name: "setting off: Sonata is not in this conversation at all",
@@ -287,7 +317,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: false,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "setting off with a pending update and a live pty",
@@ -296,7 +327,8 @@ const TABLE = [
     probe: ALIVE,
     ptys: 2,
     owns: false,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "check failed (registry unreachable): no facts, no action",
@@ -305,7 +337,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "codex not installed: clean no-op",
@@ -314,7 +347,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "never checked",
@@ -323,7 +357,8 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
   {
     name: "a hard failure with no check yet cannot hand back",
@@ -332,23 +367,91 @@ const TABLE = [
     probe: DEAD,
     ptys: 0,
     owns: true,
-    execute: false,
+    tick: false,
+    ptyExit: false,
   },
 ];
 
 {
   const table = {};
+  // The three frequency-bounded triggers must be indistinguishable from each
+  // other: only pty-exit is a different KIND of trigger.
+  const TICK_REASONS = ["first-check", "interval", "manual"];
   for (const row of TABLE) {
     const attemptState = classifyAttempt(row.facts.lastAttempt, row.probe);
     const input = { setting: row.setting, facts: row.facts, attemptState };
     const owns = sonataOwnsPrompt(input);
-    const execute = shouldExecute({ ...input, livePtyCount: row.ptys });
     assert.equal(owns, row.owns, `owns — ${row.name}`);
-    assert.equal(execute, row.execute, `execute — ${row.name}`);
-    table[row.name] = { attemptState, owns, execute };
+
+    for (const reason of TICK_REASONS) {
+      assert.equal(
+        shouldExecute({ ...input, livePtyCount: row.ptys, reason }),
+        row.tick,
+        `execute(${reason}) — ${row.name}`,
+      );
+    }
+    const ptyExit = shouldExecute({ ...input, livePtyCount: row.ptys, reason: "pty-exit" });
+    assert.equal(ptyExit, row.ptyExit, `execute(pty-exit) — ${row.name}`);
+
+    table[row.name] = { attemptState, owns, tick: row.tick, ptyExit };
   }
   results.ownershipRows = TABLE.length;
+  results.o1GatedRows = TABLE.filter((row) => row.tick !== row.ptyExit).map((row) => row.name);
   results.table = table;
+}
+
+// The O1 gate, stated directly rather than only through the table.
+{
+  const latest = check("0.146.0", "0.147.0");
+  const base = { setting: true, attemptState: "completed", livePtyCount: 0 };
+
+  // No attempt at all → every trigger may launch.
+  const untried = { lastCheck: latest, lastAttempt: null };
+  assert.equal(alreadyAttemptedLatest(untried), false, "no attempt → not yet tried");
+  assert.equal(shouldExecute({ ...base, facts: untried, reason: "pty-exit" }), true, "churn may open the first attempt");
+
+  // An attempt for THIS latest, exited 0 but the version never moved (brew-cask
+  // lag — the routine case). This is exactly what O1 exists for: the user can
+  // close ten sessions in an afternoon and must not launch ten brew runs.
+  const tried = {
+    lastCheck: latest,
+    lastAttempt: attempt({ forVersion: "0.147.0", exitCode: 0 }),
+  };
+  assert.equal(alreadyAttemptedLatest(tried), true, "attempt matches the current latest");
+  assert.equal(shouldExecute({ ...base, facts: tried, reason: "pty-exit" }), false, "churn does not retry");
+  assert.equal(shouldExecute({ ...base, facts: tried, reason: "interval" }), true, "the 12h tick does");
+  assert.equal(shouldExecute({ ...base, facts: tried, reason: "first-check" }), true, "and so does launch");
+
+  // A newer release lands: the attempt no longer matches, so churn gets a fresh
+  // chance — the same emergent reclaim the ownership predicate uses.
+  const superseded = {
+    lastCheck: check("0.146.0", "0.148.0"),
+    lastAttempt: attempt({ forVersion: "0.147.0", exitCode: 0 }),
+  };
+  assert.equal(alreadyAttemptedLatest(superseded), false, "an older forVersion is not this latest");
+  assert.equal(
+    shouldExecute({ ...base, facts: superseded, reason: "pty-exit" }),
+    true,
+    "a new version reopens the churn trigger",
+  );
+
+  // The gate never OVERRIDES the other conditions — it only ever subtracts.
+  assert.equal(
+    shouldExecute({ ...base, facts: untried, reason: "pty-exit", livePtyCount: 1 }),
+    false,
+    "a live codex session still blocks, whatever the trigger",
+  );
+  assert.equal(
+    shouldExecute({ ...base, facts: untried, reason: "pty-exit", setting: false }),
+    false,
+    "the setting still blocks, whatever the trigger",
+  );
+  assert.equal(
+    shouldExecute({ ...base, facts: untried, reason: "pty-exit", attemptState: "running" }),
+    false,
+    "the mutex still blocks, whatever the trigger",
+  );
+  results.o1Gate = "churn tries once per version; ticks retry";
 }
 
 // updatePending on its own, since both predicates lean on it.

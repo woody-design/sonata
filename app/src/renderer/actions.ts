@@ -194,6 +194,7 @@ export interface Actions {
   persistDefaultModel(provider: RuntimeProvider, model: string): void;
   persistDefaultReasoningEffort(provider: RuntimeProvider, effort: ReasoningEffort): void;
   persistCodexAutoTrustProjectFolders(value: boolean): void;
+  persistCodexKeepUpToDate(value: boolean): void;
   persistResumePolicy(policy: ResumePolicyId): void;
   setDefaultRemoteControl(value: boolean): void;
   restoreResumeBridge(): void;

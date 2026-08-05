@@ -56,6 +56,7 @@ import { createRuntimeEventRecorder } from "./runtime-event-recorder";
 import { createPerfLog } from "./perf-log";
 import { RuntimeController } from "./runtime-controller";
 import { UpdaterController } from "./updater/updater-controller";
+import { CliUpdater } from "./cli-updater/cli-updater";
 import { buildUpdaterDialog } from "./updater/updater-interactive";
 import { WorkspaceFiles } from "./workspace-files";
 import {
@@ -104,6 +105,7 @@ let terminalWindow: BrowserWindow | null = null;
 let runtimeController: RuntimeController | null = null;
 let notificationController: NotificationController | null = null;
 let updaterController: UpdaterController | null = null;
+let cliUpdater: CliUpdater | null = null;
 let readingSettingsStore: ReadingSettingsStore | null = null;
 let terminalWindowSettingsStore: TerminalWindowSettingsStore | null = null;
 let localApiServer: LocalApiServer | null = null;
@@ -942,9 +944,11 @@ function startLocalApiIfEnabled(controller: RuntimeController): void {
       readSessionIndex: (options) => controller.readSessionIndex(options),
       readSessionSnapshot: (taskId: TaskId) => controller.readSessionSnapshot(taskId),
       submitPrompt: (taskId: TaskId, text: string) => controller.submitPrompt(taskId, text),
-      openTask: (taskId: TaskId) => {
-        controller.openTask({ taskId, resume: true });
-      },
+      // Validates synchronously (so the server's typed-error → wire-code
+      // translation and its command dedup keep working) and boots in the
+      // background. The split lives in the controller, next to the lookup logic
+      // it depends on — see `resumeTaskInBackground`.
+      openTask: (taskId: TaskId) => controller.resumeTaskInBackground(taskId),
     },
   });
   localApiServer.start().catch((error) => {
@@ -1004,13 +1008,27 @@ app.whenReady().then(() => {
       },
     });
   }
+  // ONE store instance, shared: the controller reads the launch policy from it
+  // and the CLI updater reads `keepCodexUpToDate` from it, and a toggle must be
+  // visible to both without a restart.
+  const codexSettingsStore = new CodexSettingsStore(codexSettingsPath());
+  // Built BEFORE the controller so the controller can hold it directly. The
+  // dependency is mutual (the controller asks the updater who owns the prompt;
+  // the updater asks the controller how many Codex sessions are live), and the
+  // lazy hop lives on THIS side because it is the one that reads honestly:
+  // before the controller exists there are, in fact, zero live sessions.
+  cliUpdater = new CliUpdater({
+    livePtyCount: () => runtimeController?.liveCodexPtyCount() ?? 0,
+    isEnabled: () => codexSettingsStore.read().keepCodexUpToDate,
+  });
   runtimeController = new RuntimeController({
     projectsStore: new ProjectsStore(projectsStorePath()),
     tagsStore: new TagsStore(tagsStorePath()),
     resumeSettingsStore: new ResumeSettingsStore(resumeSettingsPath()),
     claudeSettingsStore: new ClaudeSettingsStore(claudeSettingsPath()),
-    codexSettingsStore: new CodexSettingsStore(codexSettingsPath()),
+    codexSettingsStore,
     sonataSettingsStore: new SonataSettingsStore(sonataSettingsPath()),
+    cliUpdater,
     ...(perfLog ? { onFlushMetrics: (metric) => perfLog.recordFlush(metric) } : {}),
     sendEvent: (event) => {
       recordRuntimeEvent(event);
@@ -1093,6 +1111,11 @@ app.whenReady().then(() => {
   // silent check is 60s out — well after the windows exist to receive a staged
   // broadcast. Inert unless packaged + in /Applications (guards inside).
   updaterController.start();
+  // Same cadence, its own timers, NO packaging gate: a dev build spawns the same
+  // real `codex` a packaged one does, so it has to keep it fresh too. `start()`
+  // also reconciles whatever the last run left behind (an update that outlived
+  // the app is adopted, or classified as an unknown outcome).
+  cliUpdater.start();
 
   app.on("activate", () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -1126,6 +1149,11 @@ app.on("before-quit", () => {
   // Clear the updater's check timers so they never hold the process alive on
   // quit (they are also unref'd as a belt-and-braces).
   updaterController?.dispose();
+  // Same for the CLI updater. Note this does NOT stop an in-flight `codex
+  // update`: that child is detached and unref'd on purpose, because killing a
+  // package manager mid-write can corrupt a global install. It finishes without
+  // us, and the next launch reconciles what it left behind.
+  cliUpdater?.dispose();
   // Emit the final event-loop-lag summary and disarm the sampler (no-op when the
   // perf log is off — perfLog is null).
   perfLog?.stop();

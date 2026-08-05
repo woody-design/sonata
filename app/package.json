@@ -210,7 +210,10 @@
     "smoke:cli-updater-executor": "npm run build:main && node tests/smoke/cli-updater-executor.mjs",
     "smoke:cli-updater-reconcile": "npm run build:main && node tests/smoke/cli-updater-reconcile.mjs",
     "smoke:cli-updater-cycle": "npm run build:main && node tests/smoke/cli-updater-cycle.mjs",
-    "smoke:cli-updater-detached-spawn": "npm run build:main && node tests/smoke/cli-updater-detached-spawn.mjs"
+    "smoke:cli-updater-detached-spawn": "npm run build:main && node tests/smoke/cli-updater-detached-spawn.mjs",
+    "smoke:codex-keep-up-to-date-store": "npm run build:main && node tests/smoke/codex-keep-up-to-date-store.mjs",
+    "smoke:codex-update-prompt-args": "npm run build:main && node tests/smoke/codex-update-prompt-args.mjs",
+    "smoke:cli-updater-spawn-gate": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/cli-updater-spawn-gate.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

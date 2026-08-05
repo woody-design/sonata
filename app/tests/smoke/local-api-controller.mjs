@@ -27,6 +27,9 @@ const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-local-api-ctrl-")
 process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 
 const { RuntimeController } = require("../../dist/main/runtime-controller");
+// A bare controller has no Codex auto-updater: it never suppresses codex's own
+// boot prompt, never waits on an update, never schedules a cycle.
+const { INERT_CODEX_SPAWN_GATE } = require("../../dist/main/cli-updater/cli-updater");
 const { ProjectsStore } = require("../../dist/main/projects-store");
 const {
   ResumeSettingsStore,
@@ -79,6 +82,7 @@ const controller = new RuntimeController({
   claudeSettingsStore: new ClaudeSettingsStore(path.join(tempRoot, "claude-settings.json")),
   codexSettingsStore: new CodexSettingsStore(path.join(tempRoot, "codex-settings.json")),
   sonataSettingsStore: new SonataSettingsStore(path.join(tempRoot, "sonata-settings.json")),
+  cliUpdater: INERT_CODEX_SPAWN_GATE,
 });
 
 function caught(fn) {
@@ -135,6 +139,59 @@ try {
       traversalError instanceof TaskNotFoundError,
     "a traversal-shaped nonexistent id is taskNotFound, not taskNotLive",
   );
+
+  // 5. openTask's LOOKUP FAILURES MUST STAY SYNCHRONOUS (regression, S2).
+  //
+  //    `openTask` became async when the Codex update mutex landed on the spawn
+  //    path. The Local API's whole error contract is built on synchronous
+  //    throws: `withTask` translates the typed classes to wire codes, and
+  //    `executeCommand` caches only what `run()` RETURNS — so an async
+  //    rejection is invisible to both. The consequence is nastier than a wrong
+  //    code: a bad taskId answers `{accepted: true}` AND caches it, replaying
+  //    `{accepted: true, deduped: true}` forever for a session that never
+  //    opened. `resumeTaskInBackground` is the split that keeps validation on
+  //    the caller's stack; these assertions are what make that non-negotiable.
+  const ghostResume = caught(() => controller.resumeTaskInBackground("ghost-1"));
+  assert(ghostResume !== null, "an unknown taskId throws SYNCHRONOUSLY, not as a rejected promise");
+  assert(
+    ghostResume instanceof Promise === false,
+    "…and the throw is a throw, not a returned promise",
+  );
+  // With other tasks on disk, an unmatched id resolves onto the newest record
+  // and fails the id-equality guard — a plain Error, which the server maps to
+  // `internal`. Pinned as the behaviour that actually exists (it is unchanged
+  // from before the async split); the -32001 path is case 6.
+  assert(
+    ghostResume instanceof Error && ghostResume.message.includes("does not match"),
+    `unmatched id throws the manifest-mismatch Error (got: ${ghostResume?.message})`,
+  );
+  const traversalResume = caught(() => controller.resumeTaskInBackground("../ghost-xyz"));
+  assert(traversalResume instanceof Error, "a traversal-shaped id throws synchronously too");
+
+  // 6. …and with NO persisted task at all, the same call is the typed
+  //    TaskNotFoundError the Local API maps to -32001.
+  const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-local-api-empty-"));
+  const emptyController = new RuntimeController({
+    sendEvent: () => {},
+    projectsStore: new ProjectsStore(path.join(emptyRoot, "projects.json")),
+    resumeSettingsStore: new ResumeSettingsStore(path.join(emptyRoot, "resume.json")),
+    claudeSettingsStore: new ClaudeSettingsStore(path.join(emptyRoot, "claude.json")),
+    codexSettingsStore: new CodexSettingsStore(path.join(emptyRoot, "codex.json")),
+    sonataSettingsStore: new SonataSettingsStore(path.join(emptyRoot, "sonata.json")),
+    cliUpdater: INERT_CODEX_SPAWN_GATE,
+  });
+  try {
+    process.env.SONATA_DATA_DIR = path.join(emptyRoot, "sonata-data");
+    const noTasks = caught(() => emptyController.resumeTaskInBackground("ghost-1"));
+    assert(
+      noTasks instanceof TaskNotFoundError,
+      `with nothing persisted, resume throws TaskNotFoundError (-32001) (got: ${noTasks?.name})`,
+    );
+  } finally {
+    emptyController.dispose();
+    process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
+    fs.rmSync(emptyRoot, { recursive: true, force: true, maxRetries: 5 });
+  }
 } finally {
   controller.dispose();
   fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 5 });

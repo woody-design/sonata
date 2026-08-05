@@ -36,6 +36,9 @@ const workspace = path.join(tempRoot, "workspace");
 fs.mkdirSync(workspace, { recursive: true });
 
 const { RuntimeController } = require("../../dist/main/runtime-controller");
+// A bare controller has no Codex auto-updater: it never suppresses codex's own
+// boot prompt, never waits on an update, never schedules a cycle.
+const { INERT_CODEX_SPAWN_GATE } = require("../../dist/main/cli-updater/cli-updater");
 const {
   ProjectsStore,
 } = require("../../dist/main/projects-store");
@@ -63,6 +66,7 @@ const controller = new RuntimeController({
   claudeSettingsStore: new ClaudeSettingsStore(path.join(tempRoot, "claude-settings.json")),
   codexSettingsStore,
   sonataSettingsStore: new SonataSettingsStore(path.join(tempRoot, "sonata-settings.json")),
+  cliUpdater: INERT_CODEX_SPAWN_GATE,
 });
 
 function includesSequence(values, sequence) {
@@ -77,7 +81,7 @@ let ultraArgs = [];
 try {
   // 1. No explicit mode → inherits the stored default ("full-access"), which
   //    fans out to the danger-full-access flag row.
-  const inherited = controller.createTask({ provider: "codex", cwd: workspace });
+  const inherited = await controller.createTask({ provider: "codex", cwd: workspace });
   inheritedArgs = inherited.runtime.args;
   assert(
     inherited.task.codexPermissionMode === "full-access",
@@ -95,7 +99,7 @@ try {
   );
 
   // 2. Explicit mode overrides the stored default.
-  const override = controller.createTask({
+  const override = await controller.createTask({
     provider: "codex",
     cwd: workspace,
     codexPermissionMode: "approve-for-me",
@@ -117,7 +121,7 @@ try {
   );
 
   // 3. The GPT-5.6 model and Ultra effort survive controller normalization.
-  const ultra = controller.createTask({
+  const ultra = await controller.createTask({
     provider: "codex",
     cwd: workspace,
     model: "gpt-5.6-sol",

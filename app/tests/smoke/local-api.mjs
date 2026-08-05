@@ -77,7 +77,16 @@ const server = new LocalApiServer({
       }
       submitted.push({ taskId, text });
     },
-    openTask: (taskId) => opened.push(taskId),
+    openTask: (taskId) => {
+      // The facade contract is a SYNCHRONOUS throw for a lookup failure — see
+      // RuntimeController.resumeTaskInBackground, which validates on the
+      // caller's stack precisely so this stays true after `openTask` itself
+      // became async. Mirrors submitPrompt's shape with the real typed class.
+      if (taskId === "ghost-1") {
+        throw new TaskNotFoundError("No persisted Sonata Task was found.");
+      }
+      opened.push(taskId);
+    },
   },
   log: () => {},
 });
@@ -217,6 +226,31 @@ assert.equal(submitted.length, 1);
 const open = await request("openTask", { taskId: "task-1", commandId: "cmd-3" });
 assert.equal(open.result.accepted, true);
 assert.deepEqual(opened, ["task-1"]);
+
+// A FAILED openTask must be answered as a failure AND CACHE NOTHING (S2
+// regression). `executeCommand` caches what `run()` returns, so a facade that
+// swallowed the error into a background promise would answer `{accepted: true}`
+// and then replay `{accepted: true, deduped: true}` forever — telling a
+// companion, on every retry, that a session it never opened is fine.
+const openGhost = await request("openTask", { taskId: "ghost-1", commandId: "cmd-open-ghost" });
+assert.equal(openGhost.error.code, -32001, "a lookup failure is a wire error, not an acceptance");
+assert.equal(openGhost.result, undefined, "and carries no result");
+assert.deepEqual(opened, ["task-1"], "the failed open never reached the facade's success path");
+
+// THE cache assertion: the same commandId retried must re-execute and fail
+// again — never replay a fabricated acceptance.
+const openGhostRetry = await request("openTask", {
+  taskId: "ghost-1",
+  commandId: "cmd-open-ghost",
+});
+assert.equal(openGhostRetry.error.code, -32001, "the retry fails again");
+assert.equal(openGhostRetry.result, undefined, "no cached {accepted:true} is replayed");
+assert.deepEqual(opened, ["task-1"], "and still nothing opened");
+
+// The dedup cache itself is unharmed — a SUCCESSFUL openTask still replays.
+const openAgain = await request("openTask", { taskId: "task-1", commandId: "cmd-3" });
+assert.equal(openAgain.result.deduped, true, "a successful command still dedupes");
+assert.deepEqual(opened, ["task-1"], "and does not re-execute");
 
 // unknown method → -32601
 const unknown = await request("definitelyNot", {});

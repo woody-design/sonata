@@ -117,11 +117,18 @@ export type AttemptState =
  *
  * This is a pid-REUSE guard, not a timeout policy: pids wrap, and a week-old
  * record naming pid 4242 must not let some unrelated process hold the update
- * mutex forever. Thirty minutes is far beyond any real `codex update` (measured
- * ~3s on this machine, brew index refresh included) yet short enough that a
- * stale record self-clears within one check interval. Past the window the
+ * mutex forever. Thirty minutes is ~600× the measured runtime of a real `codex
+ * update` (~3s on this machine, brew index refresh included) yet short enough
+ * that a stale record self-clears within one check interval. Past the window the
  * attempt reads UNKNOWN — which blocks nothing, so the cost of being wrong in
- * either direction is one extra idempotent, brew-locked retry.
+ * either direction is one extra `codex update` run.
+ *
+ * That extra run is cheap but NOT free, and the honest bound is worth stating:
+ * `codex update` is idempotent, and the brew path additionally serializes on
+ * brew's own lock — but the npm / pnpm / install.sh paths have NO cross-process
+ * lock, so two overlapping runs there are genuinely concurrent. What actually
+ * keeps the count down is {@link shouldExecute}'s per-reason gate below, not a
+ * lock.
  */
 export const ATTEMPT_LIVENESS_WINDOW_MS = 30 * 60 * 1000;
 
@@ -165,8 +172,28 @@ function isWithinLivenessWindow(startedAt: string, nowMs: number): boolean {
 
 // ── The three predicates ────────────────────────────────────────────────────
 
+/**
+ * Why a cycle ran. Lives here rather than with the scheduler because exactly one
+ * DECISION turns on it (see {@link shouldExecute}) — and every decision in this
+ * design lives in the pure module.
+ */
+export type CliUpdaterCycleReason = "first-check" | "interval" | "pty-exit" | "manual";
+
+/**
+ * Whether a trigger's FREQUENCY is bounded by a clock Sonata controls.
+ *
+ * The 60s post-launch tick and the 12h interval fire on Sonata's own schedule:
+ * at most ~2/day plus one per launch, no matter what the user does. `pty-exit`
+ * is different in kind — it fires on session churn, which the user can drive
+ * arbitrarily often. That distinction, not the trigger's name, is what the
+ * execute gate below actually cares about.
+ */
+function isFrequencyBounded(reason: CliUpdaterCycleReason): boolean {
+  return reason !== "pty-exit";
+}
+
 export interface OwnershipInput {
-  /** The `keepCodexUpToDate` setting (S2 wires the real accessor). */
+  /** The `keepCodexUpToDate` setting. */
   readonly setting: boolean;
   readonly facts: CliUpdaterState;
   readonly attemptState: AttemptState;
@@ -177,6 +204,8 @@ export interface ExecutionInput extends OwnershipInput {
    *  arg0 symlinks to `current_exe()`, so swapping the binary under a live
    *  session either dangles those symlinks or silently mixes versions (G1). */
   readonly livePtyCount: number;
+  /** What triggered this cycle. Gates retries — see {@link shouldExecute}. */
+  readonly reason: CliUpdaterCycleReason;
 }
 
 /** A newer version is known to exist. Requires a comparable pair — an
@@ -211,26 +240,45 @@ export function sonataOwnsPrompt(input: OwnershipInput): boolean {
  * Whether to launch `codex update` right now.
  *
  * Note what is NOT here: HARD-FAIL is not excluded. While ownership has been
- * handed back, Sonata keeps retrying silently on every cycle — that is precisely
- * how it re-earns ownership, and it costs nothing the user can see. Only a
- * RUNNING attempt blocks, because that is the mutex.
+ * handed back, Sonata keeps retrying silently on the scheduled cycles — that is
+ * precisely how it re-earns ownership, and it costs nothing the user can see.
+ * Only a RUNNING attempt blocks outright, because that is the mutex.
+ *
+ * The retry gate (O1) is what keeps "retry on every cycle" from turning into
+ * "retry on every session close". Under brew-cask lag an attempt routinely exits
+ * 0 without moving the version, so `updatePending` stays true indefinitely — and
+ * a user who opens and closes ten Codex sessions in an afternoon would otherwise
+ * launch ten package-manager runs. So: a frequency-bounded trigger retries
+ * unconditionally (≈2/day + 1/launch, a rate nothing can inflate), while a
+ * churn-driven `pty-exit` executes only when no attempt has been made for the
+ * CURRENT latest at all — regardless of how that attempt turned out.
+ *
+ * Deliberately no wall-clock cooldown and no new persisted field: the existing
+ * `forVersion` vs `latest` comparison already carries "we have tried this one",
+ * and a time horizon is a rejected mechanism class in this design (D6).
  */
 export function shouldExecute(input: ExecutionInput): boolean {
   return (
     input.setting &&
     updatePending(input.facts) &&
     input.livePtyCount === 0 &&
-    input.attemptState !== "running"
+    input.attemptState !== "running" &&
+    (isFrequencyBounded(input.reason) || !alreadyAttemptedLatest(input.facts))
   );
 }
 
-/** The handback condition's version scope (F3). */
-function hardFailedForLatest(input: OwnershipInput): boolean {
-  const { facts, attemptState } = input;
+/** An attempt has been launched for the current `latest`, whatever its outcome
+ *  (running, unknown, failed, or completed-but-stale). */
+export function alreadyAttemptedLatest(facts: CliUpdaterState): boolean {
   return (
-    attemptState === "hard-failed" &&
     facts.lastAttempt !== null &&
     facts.lastCheck !== null &&
     facts.lastAttempt.forVersion === facts.lastCheck.latest
   );
+}
+
+/** The handback condition's version scope (F3): the failure has to be against
+ *  the version we are currently trying to reach, not some older one. */
+function hardFailedForLatest(input: OwnershipInput): boolean {
+  return input.attemptState === "hard-failed" && alreadyAttemptedLatest(input.facts);
 }

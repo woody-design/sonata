@@ -103,6 +103,7 @@ export function renderSettingsOverlay(): void {
     renderRemoteControlSettingsGroup(overlay),
     renderSessionsSettingsGroup(overlay),
     renderClaudeCodeSettingsGroup(overlay),
+    renderCodexSettingsGroup(overlay),
   );
   scrim.append(dialog);
   elements.settingsOverlayRoot.append(scrim);
@@ -681,6 +682,39 @@ function renderClaudeCodeSettingsGroup(overlay: SettingsOverlayState): HTMLEleme
   return renderSettingsGroup({
     label: "Claude Code",
     description: "Claude Code's own state. Sonata never changes it without you.",
+    rows: [row],
+  });
+}
+
+/**
+ * The Codex sibling of the Claude Code group — same shape, deliberately opposite
+ * territory, and placed immediately after it so the contrast does the
+ * explaining. Claude Code's group says Sonata never changes its state; this one
+ * says Sonata maintains it. The asymmetry is not an inconsistency, it is the
+ * reason the setting exists — Claude Code self-updates and Codex does not — so
+ * the group description states it outright and pre-empts "why is there no
+ * Claude Code equivalent?".
+ *
+ * A real switch, not a picker: the choice is binary, and the on-fill is neutral
+ * ink because keeping a CLI current is maintenance, not an alert.
+ */
+function renderCodexSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
+  const on = overlay.codex?.settings.keepCodexUpToDate ?? false;
+  const row = renderSettingsRow({
+    title: "Keep Codex up to date",
+    description:
+      "Updates the Codex CLI in the background while no Codex session is running, and hides its start-up update prompt.",
+    control: renderSwitch({
+      label: "Keep Codex up to date",
+      on,
+      disabled: !overlay.codex,
+      onToggle: () => actions.persistCodexKeepUpToDate(!on),
+    }),
+  });
+
+  return renderSettingsGroup({
+    label: "Codex",
+    description: "Codex has no updater of its own. Sonata can keep it current.",
     rows: [row],
   });
 }

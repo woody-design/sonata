@@ -78,8 +78,11 @@ export interface SpawnInput {
  * against: the alternative (write a pid-less row first, patch the pid after)
  * classifies as UNKNOWN, and UNKNOWN blocks nothing — so both designs end at the
  * same next-cycle retry, and one of them costs a nullable pid through the whole
- * schema. `codex update` is idempotent and brew-locked; a duplicate run is a
- * no-op.
+ * schema. The duplicate run this can cause is tolerable because `codex update`
+ * is idempotent; note it is NOT universally serialized — only the brew path
+ * takes brew's lock, while npm / pnpm / install.sh have no cross-process lock at
+ * all. What bounds the number of runs is policy's per-reason retry gate, not a
+ * lock.
  *
  * Returns the persisted record, or null when the spawn produced no child.
  */

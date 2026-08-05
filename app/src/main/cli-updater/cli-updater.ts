@@ -7,6 +7,7 @@ import {
   sonataOwnsPrompt,
   updatePending,
   type AttemptState,
+  type CliUpdaterCycleReason,
 } from "./policy";
 import {
   CliUpdaterStateStore,
@@ -41,8 +42,9 @@ import {
  * node with no mocking of `node:child_process` or `fetch`.
  */
 
-/** Why a cycle ran. Logged, and nothing else — triggers carry no logic. */
-export type CliUpdaterCycleReason = "first-check" | "interval" | "pty-exit" | "manual";
+/** Why a cycle ran. Defined in policy.ts (one decision turns on it), re-exported
+ *  here because the schedulers and triggers are what name it. */
+export type { CliUpdaterCycleReason };
 
 /** What the spawn path needs from this controller, and all it needs. */
 export interface SpawnDecision {
@@ -52,6 +54,30 @@ export interface SpawnDecision {
 }
 
 export type IdleOutcome = "idle" | "timeout";
+
+/**
+ * The slice of this controller the codex spawn path depends on. RuntimeController
+ * holds THIS, not the concrete class — so the spawn path can state exactly what
+ * it needs (ask who owns the prompt, wait out a running update, report that the
+ * last session ended) and a test can satisfy it in three lines.
+ */
+export interface CodexSpawnGate {
+  spawnDecision(): SpawnDecision;
+  whenIdle(timeoutMs?: number): Promise<IdleOutcome>;
+  runCycle(reason: CliUpdaterCycleReason): Promise<void>;
+}
+
+/**
+ * A gate that does nothing: never suppresses codex's prompt, never waits, never
+ * schedules. The honest degradation for a RuntimeController built without a CLI
+ * updater — it reproduces exactly the pre-auto-update behaviour rather than
+ * pretending the feature is on.
+ */
+export const INERT_CODEX_SPAWN_GATE: CodexSpawnGate = {
+  spawnDecision: () => ({ suppressNativePrompt: false }),
+  whenIdle: async () => "idle",
+  runCycle: async () => undefined,
+};
 
 /**
  * How long a codex spawn will wait for a running update before going ahead
@@ -247,6 +273,13 @@ export class CliUpdater {
    * `"idle"` the moment no update is running (immediately, in the overwhelmingly
    * common case) and `"timeout"` when the bound expires with one still running.
    * The caller proceeds either way; the outcome is returned so it can say so.
+   *
+   * Sits on the codex spawn path, so — symmetrically with `spawnDecision` — it
+   * DEGRADES OPEN: every failure mode (bound expired, controller disposed, a
+   * store or probe that threw) resolves and lets the spawn proceed. A session
+   * the user asked for must never be lost to the updater's bookkeeping; the
+   * worst case of proceeding is a visible, retryable boot failure, and the worst
+   * case of not proceeding is a New Chat button that silently does nothing.
    */
   async whenIdle(timeoutMs: number = WHEN_IDLE_TIMEOUT_MS): Promise<IdleOutcome> {
     // Wall-clock, deliberately not the injected `now`: this bound exists to cap
@@ -254,14 +287,19 @@ export class CliUpdater {
     // elapsed time whatever clock the classifier has been given. (`now` is
     // injected for the pid-reuse window, which is about the record's age.)
     const deadline = Date.now() + timeoutMs;
-    while (this.attemptState() === "running") {
-      if (this.disposed) {
-        return "idle";
+    try {
+      while (this.attemptState() === "running") {
+        if (this.disposed) {
+          return "idle";
+        }
+        if (Date.now() >= deadline) {
+          return "timeout";
+        }
+        await delay(this.pollIntervalMs);
       }
-      if (Date.now() >= deadline) {
-        return "timeout";
-      }
-      await delay(this.pollIntervalMs);
+    } catch (error) {
+      this.log(`idle wait failed, proceeding with the spawn: ${describe(error)}`);
+      return "idle";
     }
     return "idle";
   }
@@ -299,7 +337,7 @@ export class CliUpdater {
           `pending=${pending} attempt=${attemptState} ptys=${livePtyCount} enabled=${setting}`,
       );
 
-      if (!shouldExecute({ setting, facts, attemptState, livePtyCount })) {
+      if (!shouldExecute({ setting, facts, attemptState, livePtyCount, reason })) {
         return;
       }
       // `updatePending` is part of `shouldExecute`, so a comparable `latest` is

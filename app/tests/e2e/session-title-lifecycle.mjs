@@ -16,6 +16,9 @@ process.env.PATH = `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`;
 process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 const require = createRequire(import.meta.url);
 const { RuntimeController } = require("../../dist/main/runtime-controller");
+// A bare controller has no Codex auto-updater: it never suppresses codex's own
+// boot prompt, never waits on an update, never schedules a cycle.
+const { INERT_CODEX_SPAWN_GATE } = require("../../dist/main/cli-updater/cli-updater");
 const { ProjectsStore } = require("../../dist/main/projects-store");
 const {
   ResumeSettingsStore,
@@ -48,6 +51,7 @@ function controllerHarness() {
     claudeSettingsStore: new ClaudeSettingsStore(path.join(settingsRoot, "claude.json")),
     codexSettingsStore: new CodexSettingsStore(path.join(settingsRoot, "codex.json")),
     sonataSettingsStore: new SonataSettingsStore(path.join(settingsRoot, "sonata.json")),
+    cliUpdater: INERT_CODEX_SPAWN_GATE,
   });
   controllers.push(controller);
   return {
@@ -103,8 +107,8 @@ function readTask(storageRoot) {
   return JSON.parse(fs.readFileSync(path.join(storageRoot, "task.json"), "utf8")).task;
 }
 
-function reopen(harness, taskId) {
-  const response = harness.controller.openTask({ taskId, resume: false });
+async function reopen(harness, taskId) {
+  const response = await harness.controller.openTask({ taskId, resume: false });
   const view = harness.attachRenderer(response.task);
   const active = harness.controller.taskRuntimes.get(taskId);
   assert.ok(active?.runIndex, "openTask installed a complete runtime and RunIndex");
@@ -170,7 +174,7 @@ try {
   assert.deepEqual([renamed.title, renamed.titleOrigin], ["0714-New task", "user"]);
 
   const afterRestart = controllerHarness();
-  const manualOpen = reopen(afterRestart, automatic.id);
+  const manualOpen = await reopen(afterRestart, automatic.id);
   assert.deepEqual(
     [manualOpen.response.task.title, manualOpen.response.task.titleOrigin],
     ["0714-New task", "user"],
@@ -205,7 +209,7 @@ try {
     "manual rename may remove the complete creation prefix",
   );
   const afterPrefixRemovalRestart = controllerHarness();
-  const prefixRemovalOpen = reopen(afterPrefixRemovalRestart, prefixRemoved.id);
+  const prefixRemovalOpen = await reopen(afterPrefixRemovalRestart, prefixRemoved.id);
   routeProviderName(
     afterPrefixRemovalRestart,
     prefixRemovalOpen.active,
@@ -246,7 +250,7 @@ try {
   const providerAutomatic = task("automatic-after-restart", "0714-First prompt", "automatic");
   const automaticRoot = writeTask(providerAutomatic);
   const providerRestart = controllerHarness();
-  const providerOpen = reopen(providerRestart, providerAutomatic.id);
+  const providerOpen = await reopen(providerRestart, providerAutomatic.id);
   const activityBeforeProvider = readTask(automaticRoot).updatedAt;
   routeProviderName(
     providerRestart,
@@ -268,7 +272,7 @@ try {
   const providerFirst = task("provider-before-run", "0714-New task", "automatic");
   const providerFirstRoot = writeTask(providerFirst);
   const providerFirstHarness = controllerHarness();
-  const providerFirstOpen = reopen(providerFirstHarness, providerFirst.id);
+  const providerFirstOpen = await reopen(providerFirstHarness, providerFirst.id);
   routeProviderName(providerFirstHarness, providerFirstOpen.active, providerFirst.id, "Native first");
   routeRunStart(providerFirstHarness, providerFirstOpen.active, providerFirst.id, "Later prompt");
   assert.equal(readTask(providerFirstRoot).title, "0714-Native first");
@@ -277,7 +281,7 @@ try {
   const promptFirst = task("prompt-provider-second-prompt", "0714-New task", "automatic");
   const promptFirstRoot = writeTask(promptFirst);
   const promptFirstHarness = controllerHarness();
-  const promptFirstOpen = reopen(promptFirstHarness, promptFirst.id);
+  const promptFirstOpen = await reopen(promptFirstHarness, promptFirst.id);
   routeRunStart(promptFirstHarness, promptFirstOpen.active, promptFirst.id, "First prompt");
   routeProviderName(promptFirstHarness, promptFirstOpen.active, promptFirst.id, "Native title");
   routeRunStart(promptFirstHarness, promptFirstOpen.active, promptFirst.id, "Second prompt");
@@ -301,7 +305,7 @@ try {
   const malformed = task("malformed-automatic", "Quarterly plan", "automatic");
   const malformedRoot = writeTask(malformed);
   const malformedHarness = controllerHarness();
-  const malformedOpen = reopen(malformedHarness, malformed.id);
+  const malformedOpen = await reopen(malformedHarness, malformed.id);
   routeProviderName(malformedHarness, malformedOpen.active, malformed.id, "Provider overwrite");
   assert.equal(readTask(malformedRoot).title, "Quarterly plan", "malformed automatic state fails closed");
   assert.equal(malformedOpen.view.task.title, "Quarterly plan");

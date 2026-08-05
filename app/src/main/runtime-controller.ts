@@ -106,6 +106,7 @@ import type {
   CodexSettingsStore,
   SonataSettingsStore,
 } from "./settings-store";
+import type { CodexSpawnGate } from "./cli-updater/cli-updater";
 import type { ClaudeSettings } from "../shared/types/claude-settings";
 import type { CodexSettings } from "../shared/types/codex-settings";
 import type { SonataSettings } from "../shared/types/sonata-settings";
@@ -177,6 +178,14 @@ interface RuntimeControllerOptions {
   codexSettingsStore: CodexSettingsStore;
   sonataSettingsStore: SonataSettingsStore;
   /**
+   * The Codex auto-update gate. REQUIRED, not optional-with-a-default: this
+   * feature's failure mode is silent (the suppress flag simply never appears, no
+   * spawn ever waits, no cycle ever fires), so an option main could forget to
+   * pass would be invisible. A controller that genuinely has no updater passes
+   * `INERT_CODEX_SPAWN_GATE` and says so.
+   */
+  cliUpdater: CodexSpawnGate;
+  /**
    * Dev-gated per-flush instrumentation sink (OBS S9 / P6), threaded into every
    * live RunIndex so a build-storm's flush duration + serialized size land in the
    * AD-2 tripwire evidence stream. Absent in normal use (the perf log is off).
@@ -220,6 +229,11 @@ export class RuntimeController {
   private readonly claudeSettingsStore: ClaudeSettingsStore;
   private readonly codexSettingsStore: CodexSettingsStore;
   private readonly sonataSettingsStore: SonataSettingsStore;
+  private readonly cliUpdater: CodexSpawnGate;
+  /** Set by `dispose()`. Stops the last-codex-session-ended trigger from firing
+   *  during teardown, when every runtime is retired in a loop and "the count
+   *  reached zero" means the app is closing, not that the user finished. */
+  private disposed = false;
   private readonly onFlushMetrics?: (metric: { name: string; durationMs: number; bytes: number }) => void;
   private readonly claudeUsageWatcher: ClaudeStatuslineUsageWatcher;
   /** Provider-neutral now (S2): the same sink layout (`runtimeDir/hooks`) serves
@@ -276,6 +290,7 @@ export class RuntimeController {
     this.claudeSettingsStore = options.claudeSettingsStore;
     this.codexSettingsStore = options.codexSettingsStore;
     this.sonataSettingsStore = options.sonataSettingsStore;
+    this.cliUpdater = options.cliUpdater;
     if (options.onFlushMetrics) {
       this.onFlushMetrics = options.onFlushMetrics;
     }
@@ -334,8 +349,13 @@ export class RuntimeController {
     );
   }
 
-  createTask(request: CreateTaskRequest): CreateTaskResponse {
+  async createTask(request: CreateTaskRequest): Promise<CreateTaskResponse> {
     assertSupportedProvider(request.provider);
+    // The ONE await, taken before a single byte of state is touched, so the
+    // whole assembly below stays atomic w.r.t. the event loop exactly as it was
+    // when this method was synchronous. See `awaitCodexUpdateIdle`.
+    await this.awaitCodexUpdateIdle(request.provider);
+    this.assertNotDisposed();
 
     const creationInstant = new Date();
     const now = creationInstant.toISOString();
@@ -473,19 +493,24 @@ export class RuntimeController {
     };
   }
 
-  openTask(request: OpenTaskRequest): CreateTaskResponse {
-    const storageRoot = this.resolveOpenTaskStorageRoot(request);
-    const manifest = this.readTaskManifest(storageRoot);
-    if (request.taskId && manifest.task.id !== request.taskId) {
-      throw new Error("Task manifest does not match the requested taskId.");
+  async openTask(request: OpenTaskRequest): Promise<CreateTaskResponse> {
+    const { storageRoot, manifest } = this.resolveOpenTaskTarget(request);
+    // Already live: nothing spawns, so nothing waits. Checked BEFORE the idle
+    // gate so re-opening a running session is never delayed by an update.
+    const alreadyLive = this.liveTaskResponse(manifest.task.id);
+    if (alreadyLive) {
+      return alreadyLive;
     }
-    const existing = this.taskRuntimes.get(manifest.task.id);
-    if (existing) {
-      this.emitReportUpdated(existing.runIndex);
-      return {
-        task: existing.task,
-        runtime: existing.runtime,
-      };
+
+    await this.awaitCodexUpdateIdle(manifest.task.provider);
+    // The gate is this method's only await, and it can suspend for seconds, so
+    // the world may have moved underneath us. Two things can have changed:
+    this.assertNotDisposed();
+    // …and a concurrent open of the SAME task may have won the race. Re-check,
+    // or we would assemble a second runtime over a live one.
+    const wonByAnother = this.liveTaskResponse(manifest.task.id);
+    if (wonByAnother) {
+      return wonByAnother;
     }
 
     // Native resume by default: the chain tip is the latest persisted
@@ -594,6 +619,143 @@ export class RuntimeController {
       runtime: activeTask.runtime,
       resumedProviderSession: Boolean(resumeRef),
     };
+  }
+
+  /**
+   * Resolve which persisted task an open request names — the whole of
+   * `openTask`'s validation, and SYNCHRONOUS by construction (three disk
+   * lookups, no mutation, no await).
+   *
+   * Extracted so the Local API can run exactly this and nothing else before
+   * dispatching a background resume: its typed-error contract
+   * (TaskNotFoundError → -32001, TaskNotLiveError → -32002) is built on
+   * synchronous throws, and re-deriving the same checks at the call site would
+   * be the kind of duplicate that drifts. See {@link resumeTaskInBackground}.
+   */
+  private resolveOpenTaskTarget(request: OpenTaskRequest): {
+    storageRoot: string;
+    manifest: TaskManifestV1;
+  } {
+    const storageRoot = this.resolveOpenTaskStorageRoot(request);
+    const manifest = this.readTaskManifest(storageRoot);
+    if (request.taskId && manifest.task.id !== request.taskId) {
+      throw new Error("Task manifest does not match the requested taskId.");
+    }
+    return { storageRoot, manifest };
+  }
+
+  /**
+   * The Local API's resume: acknowledge the command, boot in the background.
+   *
+   * The split is the point. A bad taskId is a BAD REQUEST and must be answered
+   * as one — synchronously, so the server's `withTask` translation runs and its
+   * command cache stores nothing (a cached `{accepted: true}` would replay as
+   * `deduped: true` forever for a session that never opened). Whether the PTY
+   * then boots is NOT part of that answer: the API acknowledges commands, it
+   * does not wait for a spawn — and since the Codex update mutex landed on the
+   * spawn path, waiting could mean holding the socket for up to 15 seconds.
+   *
+   * So: validate on this stack, spawn off it. The validation runs twice for a
+   * good id (here and inside `openTask`) — three disk lookups on a
+   * user-initiated command, paid to keep one source of truth for what "this
+   * task exists" means.
+   */
+  resumeTaskInBackground(taskId: TaskId): void {
+    const request: OpenTaskRequest = { taskId, resume: true };
+    // Throws on this stack — TaskNotFoundError and friends reach the caller
+    // exactly as they did when openTask itself was synchronous.
+    this.resolveOpenTaskTarget(request);
+    void this.openTask(request).catch((error) => {
+      // Past validation, so this is a spawn-time failure the companion has
+      // already been told "accepted" for; there is nobody left to answer.
+      console.error(
+        `[local-api] background resume of ${taskId} failed:`,
+        error instanceof Error ? error.message : error,
+      );
+    });
+  }
+
+  /** A spawn that resumes after the update mutex must not land in a controller
+   *  that was torn down while it waited — on macOS `window-all-closed` disposes
+   *  the controller while the process lives on, and `noteRuntimeRetired` is
+   *  fenced by the same flag, so the runtime would never be retired. */
+  private assertNotDisposed(): void {
+    if (this.disposed) {
+      throw new Error("RuntimeController was disposed while the spawn was waiting.");
+    }
+  }
+
+  /** The already-live answer for a task, or null. Shared by openTask's two
+   *  identical checks (before and after the idle gate's await). */
+  private liveTaskResponse(taskId: TaskId): CreateTaskResponse | null {
+    const existing = this.taskRuntimes.get(taskId);
+    if (!existing) {
+      return null;
+    }
+    this.emitReportUpdated(existing.runIndex);
+    return { task: existing.task, runtime: existing.runtime };
+  }
+
+  /**
+   * Hold a Codex spawn while `codex update` is actually running (D5).
+   *
+   * Codex re-execs itself through arg0 symlinks to `current_exe()`, so booting a
+   * session while a package manager is swapping that binary either dangles the
+   * symlinks or silently mixes versions (G1). The update only ever STARTS when
+   * zero Codex sessions are live, so this races only in one narrow window — the
+   * user closing the last session and immediately opening another — but that is
+   * a window a real person hits, and it is the one case where the damage is
+   * invisible rather than loud.
+   *
+   * Bounded, and it degrades open: `whenIdle` resolves either way, so the worst
+   * case is a spawn that proceeds during an update (a visible, retryable boot
+   * failure) rather than a New Chat that silently never happens. Claude spawns
+   * never wait — Claude self-updates and Sonata does nothing there.
+   */
+  private async awaitCodexUpdateIdle(provider: RuntimeProvider): Promise<void> {
+    if (provider !== "codex") {
+      return;
+    }
+    const outcome = await this.cliUpdater.whenIdle();
+    if (outcome === "timeout") {
+      console.warn(
+        "[cli-updater] a codex update is still running; spawning anyway (bounded wait elapsed).",
+      );
+    }
+  }
+
+  /** Live Codex sessions right now. The CLI updater's zero-live-PTY gate reads
+   *  this (G1); `taskRuntimes` is the authoritative map, and provider lives on
+   *  the task, so there is nothing separate to keep in sync. */
+  liveCodexPtyCount(): number {
+    let count = 0;
+    for (const active of this.taskRuntimes.values()) {
+      if (active.task.provider === "codex") {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * The third update trigger: the last Codex session just ended.
+   *
+   * Hooked to runtime RETIREMENT rather than to the `pty:exit` event, because
+   * the condition the design names is "the count reached zero" — and the count
+   * can reach zero through closeTask, deleteSession or archiveProject just as
+   * truly as through a pty dying. `retireTaskRuntime` is the single removal
+   * site, so hooking it covers every path with one call and can never observe a
+   * stale count (the map entry is already gone by the time this runs).
+   *
+   * Carries no logic of its own: it only says "now may be a good time". Every
+   * condition — including whether zero PTYs is still true when the update
+   * actually launches — is re-evaluated inside the cycle.
+   */
+  private noteRuntimeRetired(provider: RuntimeProvider): void {
+    if (this.disposed || provider !== "codex" || this.liveCodexPtyCount() > 0) {
+      return;
+    }
+    void this.cliUpdater.runCycle("pty-exit");
   }
 
   /**
@@ -1501,6 +1663,9 @@ export class RuntimeController {
   }
 
   dispose(): void {
+    // Set FIRST: retiring every runtime below drives the codex count to zero,
+    // which must not be read as "the user finished their last session".
+    this.disposed = true;
     for (const active of [...this.taskRuntimes.values()]) {
       this.retireTaskRuntime(active);
     }
@@ -1958,6 +2123,8 @@ export class RuntimeController {
     }
     this.taskRuntimes.delete(active.task.id);
     this.disposeTaskRuntime(active, options);
+    // After the delete, so the live count this reads is already correct.
+    this.noteRuntimeRetired(active.task.provider);
   }
 
   private publishUsageSnapshot(taskId: TaskId, snapshot: UsageSnapshot): void {
@@ -2928,7 +3095,15 @@ export class RuntimeController {
       // supplies `pretrustCwd` (the trust-ledger policy) — the mechanism that folds
       // it in lives in the codex edge.
       ...(args.provider === "codex"
-        ? { codexHookPaths: { binDir: sonataBinDir(), pretrustCwd: args.pretrustCwd ?? null } }
+        ? {
+            codexHookPaths: { binDir: sonataBinDir(), pretrustCwd: args.pretrustCwd ?? null },
+            // Who speaks to the user about updates, asked PER SPAWN and never
+            // cached: ownership is derived from live facts, so a hard failure
+            // recorded seconds ago must hand the prompt back to codex on the
+            // very next session rather than at the next check. Codex-only by
+            // construction — Claude self-updates, so there is nothing to suppress.
+            codexSuppressUpdatePrompt: this.cliUpdater.spawnDecision().suppressNativePrompt,
+          }
         : {}),
       ...(args.resumeRef ? { resumeRef: args.resumeRef } : {}),
       // --session-id pins a fresh session only; --resume already owns the id.

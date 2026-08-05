@@ -104,10 +104,64 @@ function harness({ check = PENDING, livePtys = 0, enabled = true, store = fakeSt
   results.ptyGate = "evaluated inside the cycle";
 }
 
+// 3b) O1 through the facade: session churn opens ONE attempt per version, the
+//     scheduled ticks keep retrying. Without this, brew-cask lag (exit 0, the
+//     version never moves — G3) plus a user who opens and closes sessions all
+//     afternoon would mean a package-manager run per close.
+{
+  const { cli, calls, store } = harness();
+  await cli.runCycle("pty-exit");
+  assert.deepEqual(calls.executes, ["0.147.0"], "the first close launches the attempt");
+  assert.equal(store.current().lastAttempt.forVersion, "0.147.0", "recorded against this latest");
+
+  // Simulate the brew-lag outcome: exit 0, version unchanged, still pending.
+  store.set({
+    ...store.current(),
+    lastAttempt: { ...store.current().lastAttempt, exitCode: 0 },
+  });
+  for (let close = 0; close < 5; close += 1) {
+    await cli.runCycle("pty-exit");
+  }
+  assert.deepEqual(calls.executes, ["0.147.0"], "five more closes launch nothing");
+  assert.equal(calls.checks, 6, "…though every cycle still refreshed the facts");
+
+  // The scheduled ticks are a different kind of trigger and DO retry.
+  await cli.runCycle("interval");
+  assert.deepEqual(calls.executes, ["0.147.0", "0.147.0"], "the 12h tick retries");
+  results.o1ChurnGate = `${calls.executes.length} runs across 6 closes + 1 tick`;
+}
+
+// 3c) …and a NEW release reopens the churn trigger, with no reclaim code — the
+//     recorded forVersion simply stops matching latest.
+{
+  const store = fakeStore({
+    lastCheck: PENDING,
+    lastAttempt: {
+      forVersion: "0.147.0",
+      startedAt: new Date().toISOString(),
+      pid: 4242,
+      exitCode: 0,
+      logFile: "/tmp/codex-update.log",
+    },
+  });
+  const NEWER = { at: AT, ok: true, installed: "0.146.0", latest: "0.148.0" };
+  let check = PENDING;
+  const { cli, calls } = harness({ store, check: () => check });
+
+  await cli.runCycle("pty-exit");
+  assert.deepEqual(calls.executes, [], "already tried 0.147.0; churn stays quiet");
+  check = NEWER;
+  await cli.runCycle("pty-exit");
+  assert.deepEqual(calls.executes, ["0.148.0"], "0.148.0 ships → churn may try again");
+  results.o1NewVersion = "reopened by the version, not by a timer";
+}
+
 // 4) Trigger-agnostic: identical facts, identical outcome, whatever the reason.
+//    (Scoped to the frequency-bounded triggers — pty-exit is a different KIND
+//    of trigger by design, which is exactly what 3b/3c pin.)
 {
   const outcomes = [];
-  for (const reason of ["first-check", "interval", "pty-exit", "manual"]) {
+  for (const reason of ["first-check", "interval", "manual"]) {
     const { cli, calls, store } = harness();
     await cli.runCycle(reason);
     outcomes.push({ reason, checks: calls.checks, executes: calls.executes, lastCheck: store.current().lastCheck });

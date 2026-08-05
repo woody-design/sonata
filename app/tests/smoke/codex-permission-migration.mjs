@@ -143,6 +143,9 @@ process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 
 const { projectRecordRoot } = require("../../dist/main/sonata-paths");
 const { RuntimeController } = require("../../dist/main/runtime-controller");
+// A bare controller has no Codex auto-updater: it never suppresses codex's own
+// boot prompt, never waits on an update, never schedules a cycle.
+const { INERT_CODEX_SPAWN_GATE } = require("../../dist/main/cli-updater/cli-updater");
 const { ProjectsStore } = require("../../dist/main/projects-store");
 const {
   ResumeSettingsStore,
@@ -211,6 +214,7 @@ const controller = new RuntimeController({
   claudeSettingsStore: new ClaudeSettingsStore(path.join(tempRoot, "claude-settings.json")),
   codexSettingsStore: new CodexSettingsStore(path.join(tempRoot, "codex-settings.json")),
   sonataSettingsStore: new SonataSettingsStore(path.join(tempRoot, "sonata-settings.json")),
+  cliUpdater: INERT_CODEX_SPAWN_GATE,
 });
 
 const readPersistedTask = (taskId) =>

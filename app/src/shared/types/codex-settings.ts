@@ -41,6 +41,20 @@ export interface CodexSettings {
    *  Ultra, Luna does not, etc.) is clamped at the UI and at draft seeding via
    *  `reasoningOptionsForModel`, not here (layer fence). */
   defaultReasoningEffort: ReasoningEffort;
+  /**
+   * Let Sonata keep the Codex CLI current. Default TRUE, and the only setting
+   * here that defaults on — because the status quo it replaces is a failure,
+   * not a neutral: Codex has no background self-updater, only a boot prompt,
+   * and inside Sonata's pty that prompt is one nobody resolves, so installs go
+   * stale indefinitely. (Claude Code has no twin setting: it self-updates.)
+   *
+   * When on, Sonata runs `codex update` in the background while no Codex
+   * session is live, and suppresses Codex's boot prompt for the spawn it owns.
+   * When off, Sonata does nothing at all — no background check, no suppression
+   * — and Codex's own prompt comes back. The ownership that follows from this
+   * flag is DERIVED per spawn, never stored (see main/cli-updater/policy.ts).
+   */
+  keepCodexUpToDate: boolean;
 }
 
 export const DEFAULT_CODEX_SETTINGS: CodexSettings = {
@@ -52,6 +66,9 @@ export const DEFAULT_CODEX_SETTINGS: CodexSettings = {
   // behavior drift for an install that never touches the new setting.
   defaultModel: "gpt-5.6-sol",
   defaultReasoningEffort: "high",
+  // On: a stale Codex is the failure mode, and the boot prompt Sonata replaces
+  // was already going unanswered.
+  keepCodexUpToDate: true,
 };
 
 /** True for one of the three offered Codex permission modes. */
@@ -91,6 +108,14 @@ export function normalizeCodexSettings(value: unknown): CodexSettings {
     defaultReasoningEffort: isReasoningEffort(value.defaultReasoningEffort)
       ? value.defaultReasoningEffort
       : DEFAULT_CODEX_SETTINGS.defaultReasoningEffort,
+    // Absent (a pre-toggle file) or non-boolean → the default, which here is ON.
+    // Note this is the one key whose fallback ENABLES behaviour: an existing
+    // install picks the feature up on upgrade, which is the intent (their Codex
+    // is exactly the one most likely to be stale).
+    keepCodexUpToDate:
+      typeof value.keepCodexUpToDate === "boolean"
+        ? value.keepCodexUpToDate
+        : DEFAULT_CODEX_SETTINGS.keepCodexUpToDate,
   };
 }
 

@@ -12,6 +12,9 @@ const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-rename-persistenc
 process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 const require = createRequire(import.meta.url);
 const { RuntimeController } = require("../../dist/main/runtime-controller");
+// A bare controller has no Codex auto-updater: it never suppresses codex's own
+// boot prompt, never waits on an update, never schedules a cycle.
+const { INERT_CODEX_SPAWN_GATE } = require("../../dist/main/cli-updater/cli-updater");
 const { ProjectsStore } = require("../../dist/main/projects-store");
 const {
   ResumeSettingsStore,
@@ -32,6 +35,7 @@ const controller = new RuntimeController({
   claudeSettingsStore: new ClaudeSettingsStore(path.join(tempRoot, "settings", "claude.json")),
   codexSettingsStore: new CodexSettingsStore(path.join(tempRoot, "settings", "codex.json")),
   sonataSettingsStore: new SonataSettingsStore(path.join(tempRoot, "settings", "sonata.json")),
+  cliUpdater: INERT_CODEX_SPAWN_GATE,
 });
 
 function makeTask(id, title, providerCwd = path.join(tempRoot, "workspace")) {

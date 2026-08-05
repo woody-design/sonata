@@ -697,6 +697,9 @@ initActions({
   persistCodexAutoTrustProjectFolders: (value) => {
     void persistCodexAutoTrustProjectFolders(value);
   },
+  persistCodexKeepUpToDate: (value) => {
+    void persistCodexKeepUpToDate(value);
+  },
   persistResumePolicy: (policy) => {
     void persistResumePolicy(policy);
   },
@@ -1698,6 +1701,32 @@ async function persistCodexAutoTrustProjectFolders(value: boolean): Promise<void
     // No renderer-mirror sync here (unlike the permission-mode default): the
     // trust flag drives codex spawn args in the main process, not any New Chat
     // access chip, so there is no draft-following atom to keep live.
+  } catch (error) {
+    state.status = errorMessage(error);
+  }
+  render();
+}
+
+async function persistCodexKeepUpToDate(value: boolean): Promise<void> {
+  const overlay = state.settingsOverlay;
+  if (!overlay?.codex) {
+    return;
+  }
+  if (overlay.codex.settings.keepCodexUpToDate === value) {
+    return;
+  }
+  const next: CodexSettings = { ...overlay.codex.settings, keepCodexUpToDate: value };
+  overlay.codex.settings = next;
+  render();
+  try {
+    const persisted = normalizeCodexSettings(await window.sonataRuntime.writeCodexSettings(next));
+    if (state.settingsOverlay?.codex) {
+      state.settingsOverlay.codex.settings = persisted;
+    }
+    // No renderer-mirror sync (same reasoning as the trust flag): this drives a
+    // background job and a codex spawn flag in the main process, and no draft
+    // atom follows it. The main side re-reads the store on every evaluation, so
+    // the toggle takes effect on the next cycle and the next spawn — no restart.
   } catch (error) {
     state.status = errorMessage(error);
   }
