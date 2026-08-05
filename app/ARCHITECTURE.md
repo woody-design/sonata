@@ -517,6 +517,72 @@ version display; success is silent, and the one user-facing control is
 is a prompt already going unanswered). Everything else about this subsystem is
 invisible when it works, which is the point.
 
+## CLI readiness (before a session exists)
+
+The subsystem above keeps an installed Codex current. This one answers the
+question that comes *before* that: **is there a CLI to run at all, and is it
+signed in?** Sonata neither ships nor manages the CLIs, so today a missing or
+signed-out one produces an infinite silent hang — the boot latch never opens and
+the composer says "Starting Claude…" forever. `main/cli-readiness/` replaces that
+with an observation the UI can be honest about.
+
+**Two axes, three states, and the third one is the design.** Install is
+`present | absent | unknown`; auth is `signedIn | signedOut | unknown`
+(`shared/types/cli-readiness.ts` — the only shape that crosses IPC). **`unknown`
+is PERMISSIVE and must never be folded into the actionable states.** The pty
+spawn is the final truth; a silent false negative (we say nothing, the spawn
+works) costs far less than a false alarm (we claim the CLI is missing while the
+user's own terminal runs it fine). So every failure mode of the probe — timeout,
+unrecognized output, a subcommand a future CLI dropped, a config file it cannot
+load — lands on `unknown`, and exactly two facts are actionable: `absent` and
+`signedOut`. The one distinction the CLI updater's checker deliberately flattens
+is the one this module must keep: ENOENT (`absent`, Sonata has something to
+offer) is not "we could not tell".
+
+**Structured commands only — never TUI scraping** (the rule the signal layer's
+scars wrote). Four commands, two per provider: a `--version` whose *exit status*
+alone decides the install axis (the string is never parsed — only `absent` is
+actionable, so "something answered `--version`" is exactly the claim `present`
+makes), and one auth query whose output is read by a provider-specific pure
+function. `claude auth status --json` is JSON-parsed for `loggedIn`, **never read
+from the exit code**: MEASURED, a signed-out answer is a well-formed document
+delivered on exit 1, so the code alone would classify the CLI's clearest possible
+answer as a failure. `codex login status` prints a sentence on *stderr*, matched
+line-anchored and negative-first — a bare "contains 'logged in'" test would read
+"could not determine whether you are logged in" as healthy, which is the
+expensive direction of the mistake. Every MEASURED shape is registered in the
+upstream coupling inventory.
+
+**Probes run through the SAME login-shell PATH resolution as the pty spawn**
+(`cli-readiness/cli-env.ts`). This is load-bearing rather than tidy: a
+Finder-launched `.app` inherits launchd's minimal PATH, so a naive
+`execFile("claude", …)` reports `absent` on machines whose sessions run that CLI
+daily — the Anthropic Desktop #42350 detect/run mismatch, reproduced. The cache
+that makes it cheap also gets an explicit bust (`resetLoginShellPathCache`),
+because an installer that edits the user's shell profile makes the captured PATH
+stale at exactly the moment a post-install re-probe reads it.
+
+**Event-driven, zero timers, zero persistence.** Readiness does not drift on its
+own — it changes when a person changes it — so a clock would spend two
+subprocesses per tick re-learning the same fact. Three triggers, all landing on
+one `probe(reason)` that also owns every condition: the main window's
+`did-finish-load` (after first paint, because the login-shell capture is
+synchronous), a main-window **focus while some fact is actionable** (once nothing
+is, focus costs *nothing*), and a programmatic `reprobe({bustPathCache})` for the
+install/login flows. The facts live in the controller and nowhere else — nothing
+on disk to invalidate, migrate, or contradict, and a cached fact read at next
+launch would be a claim about a machine nobody has looked at yet. The renderer
+pulls once (`cli-readiness:read`) and subscribes (`cli-readiness:changed`), and
+the push fires **only on a deep-compare change**, so a re-probe that learns
+nothing is silent. The IPC has no write side, by policy: Sonata never installs or
+signs in on the user's behalf — those run visibly in the terminal window, and
+their effect arrives back here as a changed fact.
+
+The `codex --version` overlap with the CLI updater is known and **deliberately
+not merged**: that subsystem's semantic is version policy, this one's is
+readiness. Merging is a phase-2 question, and `cli-env.ts` is the generalized
+form its `codex-env.ts` would collapse into.
+
 ## The Preview window (satellite)
 
 The reading surface for *files* (the Reading window reads the conversation; the

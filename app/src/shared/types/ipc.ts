@@ -27,6 +27,7 @@ import type {
 import type { OptionPromptSelection } from "./option-prompt";
 import type { ReadSlashCommandsRequest, SlashCommandsResponse } from "./slash";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
+import type { CliReadinessFacts } from "./cli-readiness";
 import type { UpdaterState } from "./updater";
 import type { UsageSnapshot } from "./usage";
 import type { RuntimeReportSummaryV1, RuntimeReportV1 } from "../schemas/runtime-report";
@@ -138,6 +139,12 @@ export const IPC_CHANNELS = {
   updaterState: "updater:state",
   updaterStateRead: "updater:state:read",
   updaterRestart: "updater:restart",
+  // CLI readiness (S1, L6). `cliReadinessRead` is the pull — a window hydrates
+  // from it whenever it is created, including before the first probe has landed;
+  // `cliReadinessChanged` is main's push, emitted ONLY when the facts actually
+  // differ (deep compare), so a re-probe that learns nothing is silent.
+  cliReadinessRead: "cli-readiness:read",
+  cliReadinessChanged: "cli-readiness:changed",
 } as const;
 
 export interface CreateTaskRequest {
@@ -931,6 +938,13 @@ export interface SonataRuntimeBridge {
   onUpdaterState(callback: (state: UpdaterState) => void): () => void;
   readUpdaterState(): Promise<UpdaterState>;
   requestUpdaterRestart(): Promise<void>;
+  // CLI readiness (S1, L6). Read once on boot to hydrate (the first probe may
+  // land before the window exists, or after it), then subscribe for changes. No
+  // write side: Sonata never installs or signs in on the user's behalf — those
+  // actions run visibly in the terminal window (D1), and their effect arrives
+  // here as a changed fact.
+  readCliReadiness(): Promise<CliReadinessFacts>;
+  onCliReadinessChanged(callback: (facts: CliReadinessFacts) => void): () => void;
 }
 
 export interface RuntimeReportUpdatePayload {

@@ -17,6 +17,7 @@ import {
   IPC_CHANNELS,
   normalizeTerminalWindowSettings,
   type CliActionRequest,
+  type CliReadinessFacts,
   type FolderPickResponse,
   type OpenPreviewRequest,
   type PreviewActivateRequest,
@@ -57,6 +58,7 @@ import { createPerfLog } from "./perf-log";
 import { RuntimeController } from "./runtime-controller";
 import { UpdaterController } from "./updater/updater-controller";
 import { CliUpdater } from "./cli-updater/cli-updater";
+import { CliReadiness } from "./cli-readiness/cli-readiness";
 import { buildUpdaterDialog } from "./updater/updater-interactive";
 import { WorkspaceFiles } from "./workspace-files";
 import {
@@ -106,6 +108,7 @@ let runtimeController: RuntimeController | null = null;
 let notificationController: NotificationController | null = null;
 let updaterController: UpdaterController | null = null;
 let cliUpdater: CliUpdater | null = null;
+let cliReadiness: CliReadiness | null = null;
 let readingSettingsStore: ReadingSettingsStore | null = null;
 let terminalWindowSettingsStore: TerminalWindowSettingsStore | null = null;
 let localApiServer: LocalApiServer | null = null;
@@ -228,6 +231,28 @@ function createMainWindow(firstLaunchBounds?: InitialWindowBounds): BrowserWindo
 
   window.loadFile(path.join(__dirname, "../renderer/index.html"));
   windowState?.track(window, "main");
+
+  // The two window-scoped CLI readiness triggers (D4 — event-driven, no timers).
+  //
+  // The launch probe rides `did-finish-load` rather than firing at app init, and
+  // the reason is the login-shell PATH capture the probe depends on: it is a
+  // SYNCHRONOUS shell subprocess (MEASURED 0.02–0.03s on this machine, bounded at
+  // 2s for a hostile rc file), and paying it before the renderer has painted
+  // would put a stale shell profile on the launch critical path. After first
+  // paint it is free — and often already paid by the first pty spawn.
+  //
+  // Focus is the re-probe trigger, and it self-gates: the controller declines
+  // unless some fact is actionable, so a healthy machine spends nothing when the
+  // window comes forward. Both hooks live here rather than at the single launch
+  // site so a main window re-created after a close (the `activate` path) carries
+  // them too.
+  window.webContents.once("did-finish-load", () => {
+    void cliReadiness?.probe("launch");
+  });
+  window.on("focus", () => {
+    cliReadiness?.noteMainWindowFocus();
+  });
+
   window.on("closed", () => {
     if (mainWindow === window) {
       mainWindow = null;
@@ -579,6 +604,19 @@ function broadcastUpdaterState(state: UpdaterState): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
       window.webContents.send(IPC_CHANNELS.updaterState, state);
+    }
+  }
+}
+
+/** Push the CLI readiness facts to every window when they CHANGE (CLI readiness
+ *  S1, L6). Same split as the updater broadcast: main owns the window fan-out,
+ *  the controller owns the facts and the change gate. Every window rather than
+ *  just the main one — the terminal window hosts the install/login runs a later
+ *  slice launches, so it is a legitimate future consumer of the same truth. */
+function broadcastCliReadiness(facts: CliReadinessFacts): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.cliReadinessChanged, facts);
     }
   }
 }
@@ -1044,6 +1082,11 @@ app.whenReady().then(() => {
   });
   startLocalApiIfEnabled(runtimeController);
   updaterController = new UpdaterController({ broadcast: broadcastUpdaterState });
+  // Built here so the IPC pull channel can answer from the first moment a window
+  // exists; nothing probes yet — the launch trigger is the main window's
+  // did-finish-load (see createMainWindow), and until it lands the facts read
+  // all-`unknown`, which is the permissive state.
+  cliReadiness = new CliReadiness({ broadcast: broadcastCliReadiness });
   if (!readingSettingsStore) {
     throw new Error("Reading settings store is not ready.");
   }
@@ -1073,7 +1116,7 @@ app.whenReady().then(() => {
     pickFolder,
     pickReferences,
     forgetPreviewSession,
-  }, readingSettingsStore, updaterController);
+  }, readingSettingsStore, updaterController, cliReadiness);
   createApplicationMenu();
   windowState = new WindowStateManager(new WindowStateStore(windowStatePath()));
   // Default-on: the terminal opens beside the conversation unless the user
@@ -1154,6 +1197,9 @@ app.on("before-quit", () => {
   // package manager mid-write can corrupt a global install. It finishes without
   // us, and the next launch reconciles what it left behind.
   cliUpdater?.dispose();
+  // No timers to clear here — the readiness probe has none. This only stops an
+  // in-flight probe from broadcasting into a window set that is being torn down.
+  cliReadiness?.dispose();
   // Emit the final event-loop-lag summary and disarm the sampler (no-op when the
   // perf log is off — perfLog is null).
   perfLog?.stop();

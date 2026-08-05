@@ -3,6 +3,7 @@ import {
   DEFAULT_READING_SETTINGS,
   IPC_CHANNELS,
   type CliActionRequest,
+  type CliReadinessFacts,
   type SonataRuntimeBridge,
   type PreviewBinding,
   type ReadingSettings,
@@ -292,6 +293,14 @@ const sonataRuntime: SonataRuntimeBridge = {
     };
     ipcRenderer.on(IPC_CHANNELS.updaterState, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.updaterState, listener);
+  },
+  readCliReadiness: () => ipcRenderer.invoke(IPC_CHANNELS.cliReadinessRead),
+  onCliReadinessChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, facts: CliReadinessFacts) => {
+      callback(facts);
+    };
+    ipcRenderer.on(IPC_CHANNELS.cliReadinessChanged, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.cliReadinessChanged, listener);
   },
 };
 

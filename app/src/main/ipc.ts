@@ -71,6 +71,7 @@ function openExternalIfAllowed(rawUrl: string): boolean {
 }
 import type { ReadingSettingsStore } from "./settings-store";
 import type { RuntimeController } from "./runtime-controller";
+import type { CliReadiness } from "./cli-readiness/cli-readiness";
 import type { UpdaterController } from "./updater/updater-controller";
 
 export interface WindowIpcController {
@@ -105,6 +106,7 @@ export function registerIpcHandlers(
   windowController: WindowIpcController,
   readingSettingsStore: ReadingSettingsStore,
   updaterController: UpdaterController,
+  cliReadiness: CliReadiness,
 ): void {
   ipcMain.on(IPC_CHANNELS.readingSettingsReadSync, (event) => {
     event.returnValue = readingSettingsStore.read();
@@ -334,6 +336,10 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.updaterRestart, () => {
     updaterController.requestRestart();
   });
+  // Read-only by design: a renderer can learn what Sonata observed, never ask it
+  // to install or sign in on the user's behalf (D1). The probe's triggers are all
+  // main-side events.
+  ipcMain.handle(IPC_CHANNELS.cliReadinessRead, () => cliReadiness.read());
   ipcMain.handle(IPC_CHANNELS.readingSettingsRead, () => readingSettingsStore.read());
   ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) => {
     const persisted = readingSettingsStore.write(request);

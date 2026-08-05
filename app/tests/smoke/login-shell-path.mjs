@@ -14,7 +14,7 @@ const {
   resolveLoginShellPath,
   mergePath,
   loginShellPath,
-  __resetLoginShellPathCache,
+  resetLoginShellPathCache,
 } = require(path.join(distRoot, "runtime/terminal-host/login-shell-path"));
 
 const results = {};
@@ -157,7 +157,7 @@ function fakeShellOutput(pathValue) {
 // 8) loginShellPath() caches the result across calls (including the null the
 //    real environment may produce here — this test runs under plain node).
 {
-  __resetLoginShellPathCache();
+  resetLoginShellPathCache();
   const first = loginShellPath();
   const second = loginShellPath();
   assert.equal(first, second, "cached value is stable across calls");

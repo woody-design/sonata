@@ -156,7 +156,15 @@ export function loginShellPath(): string | null {
   return cached.value;
 }
 
-/** Test-only: clear the process cache so a suite can exercise resolution again. */
-export function __resetLoginShellPathCache(): void {
+/**
+ * Discard the cache so the next {@link loginShellPath} call re-captures.
+ *
+ * Two callers. A test suite that needs to exercise resolution more than once —
+ * and the CLI-readiness re-probe after an install (CLI readiness L7), for which
+ * this is a correctness requirement rather than a convenience: an installer that
+ * also edits the user's shell profile makes the captured PATH stale at exactly
+ * the moment the re-probe reads it.
+ */
+export function resetLoginShellPathCache(): void {
   cached = undefined;
 }
