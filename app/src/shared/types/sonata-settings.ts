@@ -50,6 +50,11 @@ export function normalizeSonataSettings(value: unknown): SonataSettings {
  * before. The normalized shape has no `defaultProvider` key, so the next write
  * drops it from disk — read-side migration, one direction, and no version stamp
  * needed: the KEY NAMES already say which generation wrote the file.
+ *
+ * Precedence is by VALIDITY, not by presence: the first key holding a real
+ * provider wins. A hand-corrupted `lastUsedProvider` therefore falls back to a
+ * still-valid `defaultProvider` rather than to absent — last known good beats
+ * silently moving an install's preselection to the seed.
  */
 function storedProvider(value: Record<string, unknown>): RuntimeProvider | null {
   if (isRuntimeProvider(value.lastUsedProvider)) {

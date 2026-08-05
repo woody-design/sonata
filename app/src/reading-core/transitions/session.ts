@@ -204,10 +204,15 @@ export function resetTaskDraftForNewChat(state: RendererState, folder?: string |
  * 1. `lastUsedProvider` — the provider the last session actually started on. A
  *    person who works in Codex opens on Codex without ever having said so.
  * 2. Otherwise the ONE provider that could serve a session, if the readiness
- *    facts single one out. This is the fresh-install courtesy: on a machine with
- *    only Codex installed, the first draft should not open on a Claude that
- *    isn't there. Permissive by construction (`unknown` counts as usable), so it
- *    fires only on a fact Sonata actually observed.
+ *    facts single one out — on a machine with only Codex installed, a new chat
+ *    should not open on a Claude that isn't there. Permissive by construction
+ *    (`unknown` counts as usable), so it fires only on a fact Sonata actually
+ *    observed. Note WHEN it can fire: the boot seed beats the probe (four fast
+ *    IPC reads vs a login-shell capture plus subprocesses), so a cold launch's
+ *    first draft has no facts and lands on term 3 — this term governs the new
+ *    chats after that. Blocking the draft on a subprocess to close that gap
+ *    would be the wrong trade, and re-seeding an open draft when facts arrive is
+ *    what D6 forbids.
  * 3. Otherwise Claude — both usable, both broken, or nothing probed yet.
  *
  * Terms 2 and 3 are computed FRESH at every seeding moment and never written to

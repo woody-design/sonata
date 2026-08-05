@@ -442,6 +442,22 @@ async function createTask(
 
   try {
     const launchSettings = taskLaunchSettings(provider);
+    // Keep the last-used mirror live, and record it AT INITIATION — before the
+    // await, not on its result. Two reasons, and the second is the load-bearing
+    // one:
+    //
+    //  • A New Chat later in this same run seeds from this mirror, which would
+    //    otherwise wear the boot value until the next relaunch (the lesson the
+    //    permission-default mirrors already paid for — review P2, 2026-07-04).
+    //  • It matches WHEN main records it. `noteProviderUsed` runs early in
+    //    createTask, before the pty is assembled, because `lastUsedProvider`
+    //    means "the provider the user last CHOSE to start" — a spawn that then
+    //    fails should still preselect it, with the readiness card explaining why
+    //    (the noteFolderUsed twin behaves identically). Mirroring on SUCCESS
+    //    instead would let the two authorities disagree exactly when assembly
+    //    throws: disk new, mirror old, so this run seeds the old provider and the
+    //    next launch seeds the new one. Same instant, same value, no divergence.
+    state.lastUsedProvider = provider;
     const response = await window.sonataRuntime.createTask({
       provider,
       ...(options.cwd ? { cwd: options.cwd } : {}),
@@ -461,13 +477,6 @@ async function createTask(
         : {}),
       ...(provider === "claude" && state.taskDraft.remoteControl ? { remoteControl: true } : {}),
     });
-    // Keep the last-used mirror live. The session HAS started, so main just
-    // recorded this provider (S3/L3) — and a New Chat later in this same run
-    // seeds from the mirror, which would otherwise wear the boot value until the
-    // next relaunch. Same lesson as the permission-default mirrors (review P2,
-    // 2026-07-04): a mirror that only hydrates at boot goes stale the moment the
-    // store it mirrors is written.
-    state.lastUsedProvider = provider;
     const view = createTaskView(response.task, `${providerName} PTY ${response.runtime.pid}`);
     if (provider === "claude" && state.taskDraft.remoteControl) {
       // Spawned with --remote-control: reflect "on" immediately; the scraped URL

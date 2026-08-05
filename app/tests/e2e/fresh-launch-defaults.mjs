@@ -14,10 +14,12 @@ let app = null;
 try {
   // Launch 1: no settings files means the product defaults are authoritative.
   // The provider half of "fresh" is now a SEED, not a stored default (S3/L3):
-  // with no last-used record, the draft opens on the one usable CLI if the
-  // machine has exactly one, and on Claude otherwise. This runs on a developer
-  // machine with both CLIs installed, so the expected answer is Claude — a
-  // single-CLI machine would legitimately seed that CLI instead.
+  // with no last-used record the draft falls to Claude, and it does so
+  // MACHINE-INDEPENDENTLY on a cold launch — the boot seed runs on four fast IPC
+  // reads while the readiness probe is still paying its login-shell capture, so
+  // the facts are still `unknown` and the sole-usable-CLI tiebreak cannot fire
+  // yet (it governs the new chats after the probe lands). Claude here is the
+  // fallback term, not an observation.
   let page = await launch();
   await assertNewChatDefault(page, "Claude", "Opus 5 High");
   await assertFreshAppearance(page);

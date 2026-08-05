@@ -25,10 +25,12 @@ try {
   await page.locator("#prompt-input").fill("");
 
   // Fresh-install launch seeds: Claude + Opus 5 + High. Provider is a SEED here,
-  // not a stored default (S3/L3) — with no last-used record it lands on Claude
-  // because this machine has both CLIs usable (a single-CLI machine would
-  // legitimately seed that one). The switch to Codex below is what this run
-  // records, and the two assertions further down read it back.
+  // not a stored default (S3/L3) — with no last-used record it lands on the
+  // Claude fallback, and on a cold launch it does so regardless of which CLIs
+  // this machine has: the boot seed beats the readiness probe, so the
+  // sole-usable-CLI tiebreak has no facts to fire on yet. The switch to Codex
+  // below is what this run records, and the two assertions further down read it
+  // back.
   await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
   await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({ state: "visible" });
 

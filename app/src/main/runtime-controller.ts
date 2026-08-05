@@ -417,15 +417,23 @@ export class RuntimeController {
       this.projectsStore.noteFolderUsed(providerCwd);
     }
     // Last-used provider (CLI readiness D5/L3): what the next New Chat draft
-    // preselects is the provider a session actually STARTED on — the folder's
-    // twin above, recorded at the same moment, for the same reason. This method
-    // is the whole write surface: opening, switching or abandoning a draft never
-    // reaches it, and neither does `openTask` (reopening an old chat is not a
-    // provider CHOICE — its provider is a property of the record, exactly why
+    // preselects is the provider a session was STARTED on — the folder's twin
+    // above, recorded at the same moment, for the same reason. This method is the
+    // whole write surface: opening, switching or abandoning a draft never reaches
+    // it, and neither does `openTask` (reopening an old chat is not a provider
+    // CHOICE — its provider is a property of the record, exactly why
     // noteFolderUsed sits here and not there). The draft's runtime fallback (the
     // sole usable CLI, else Claude) is computed in the renderer and deliberately
     // never stored: a machine with only Codex installed must not inherit a
     // persisted "claude" it never chose.
+    //
+    // It records the CHOICE, so it deliberately runs BEFORE the pty is assembled
+    // — do not "fix" the ordering. A spawn that fails on the chosen provider
+    // should still preselect it next time, where the readiness card can explain
+    // why; demoting the record on failure would send the user back to a provider
+    // they did not ask for. The renderer mirrors it at the same instant, on
+    // initiation rather than on success (`flows/session-flows.ts`), so the two
+    // authorities cannot disagree when assembly throws.
     this.sonataSettingsStore.noteProviderUsed(request.provider);
 
     const task: Task = {

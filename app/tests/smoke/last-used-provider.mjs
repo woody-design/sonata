@@ -95,13 +95,25 @@ const results = {};
     ["lastUsedProvider"],
     "the migrated shape carries no legacy key",
   );
-  // A half-migrated file (both keys) — the new one wins, and a garbage new one
-  // does NOT fall back to the legacy value: `lastUsedProvider` present at all
-  // means this file has been written since the migration.
+  // A half-migrated file (both keys). Precedence is by VALIDITY, not by presence:
+  // the first key that holds a real provider wins. So a live key that survived
+  // the migration wins outright, and a live key someone corrupted by hand falls
+  // back to the still-valid retired one — last known good beats dropping to the
+  // seed, which would silently move an install's preselection.
   assert.deepEqual(
     normalizeSonataSettings({ lastUsedProvider: "claude", defaultProvider: "codex" }),
     { lastUsedProvider: "claude" },
-    "the live key wins over the retired one",
+    "a valid live key wins over the retired one",
+  );
+  assert.deepEqual(
+    normalizeSonataSettings({ lastUsedProvider: "gemini", defaultProvider: "codex" }),
+    { lastUsedProvider: "codex" },
+    "a corrupt live key falls back to the retired value, not to absent",
+  );
+  assert.deepEqual(
+    normalizeSonataSettings({ lastUsedProvider: null, defaultProvider: "codex" }),
+    { lastUsedProvider: "codex" },
+    "…and so does an explicit null (the shape a hand-cleared record leaves)",
   );
   // Idempotent: normalizing a normalized value is a fixed point (the read path
   // runs on every read, and the write path normalizes again before writing).

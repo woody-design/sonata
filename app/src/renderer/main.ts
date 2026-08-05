@@ -2348,8 +2348,16 @@ function syncSlashPicker(): void {
   renderComposerPopover();
 }
 
+/** The (caret, value) pair as one comparable string. The separator is NUL
+ *  because it is the one character that cannot appear in typed text — without a
+ *  separator, caret 5 + "1ello" and caret 51 + "ello" share a signature and
+ *  syncSlashPicker skips a repaint it owed. Written as the ESCAPE `\u0000`,
+ *  never as a literal byte: a literal NUL makes ripgrep classify this whole file
+ *  as binary and silently skip it while WALKING a directory (an explicitly named
+ *  file still matches), which is how a dangling reference survives a removal
+ *  sweep — CLI readiness S3 review, P1. */
 function slashSyncSignature(): string {
-  return `${elements.promptInput.selectionStart} ${elements.promptInput.value}`;
+  return `${elements.promptInput.selectionStart}\u0000${elements.promptInput.value}`;
 }
 
 function closeSlashPicker(dismissCurrentToken: boolean): void {

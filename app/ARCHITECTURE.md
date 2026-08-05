@@ -586,13 +586,24 @@ writes at that moment (`SonataSettingsStore.noteProviderUsed`, from `createTask`
 — the `noteFolderUsed` twin, in the same method, for the same reason). Nothing
 else writes it: not opening or switching a draft, and not reopening an old chat,
 whose provider is a property of the record rather than a choice. So
-`sonata-settings.json` is the one settings file with **no write side across
-IPC** — a renderer path would be a second authority over a fact main already owns
-the instant it becomes true.
+`sonata-settings.json` is the one settings file with a **read side and no write
+side across IPC** (the stores with no IPC surface at all — `local-api-settings`,
+`window-state`, `projects`, … — are a different category) — a renderer path
+would be a second authority over a fact main already owns the instant it becomes
+true.
 
-With no record yet, the seed reads the readiness facts for a courtesy tiebreak:
-if exactly ONE provider could serve a session, open on it (a machine with only
-Codex installed should not open on a Claude that isn't there); otherwise Claude.
+With no record yet, the seed reads whatever readiness facts have LANDED for a
+tiebreak: if exactly one provider could serve a session, open on it; otherwise
+Claude. **On a cold launch that is normally nothing.** The boot seed waits on four
+synchronous IPC reads and fires in single-digit milliseconds, while the probe
+starts at `did-finish-load` and pays the login-shell capture plus four
+subprocesses first — so the FIRST draft of a fresh install seeds Claude, and the
+tiebreak governs the new chats after that. This is a deliberate ordering, not an
+oversight: blocking the draft on a subprocess would trade a non-blocking boot for
+a guess, and re-seeding the draft when facts arrive is what D6 forbids. The
+honest state is visible instead — S2's card names the fact, and the composer's
+provider switcher is one click away.
+
 Both fallbacks are recomputed at every seeding moment and **never written** — a
 persisted guess is a sticky wrong answer, and only a real session start earns the
 record. An arriving fact therefore changes what the NEXT new chat seeds from and
