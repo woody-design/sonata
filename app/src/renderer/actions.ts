@@ -183,12 +183,10 @@ export interface Actions {
   toggleSettingsApprovalMenu(overlay: SettingsOverlayState): void;
   toggleSettingsCodexPermissionMenu(overlay: SettingsOverlayState): void;
   toggleSettingsPolicyMenu(overlay: SettingsOverlayState): void;
-  toggleSettingsProviderMenu(overlay: SettingsOverlayState): void;
   toggleSettingsClaudeModelMenu(overlay: SettingsOverlayState): void;
   toggleSettingsCodexModelMenu(overlay: SettingsOverlayState): void;
   persistDefaultPermissionMode(mode: ClaudeDefaultPermissionMode): void;
   persistCodexDefaultPermissionMode(mode: CodexPermissionMode): void;
-  persistDefaultProvider(provider: RuntimeProvider): void;
   /** Instant-apply from the combined default model+effort popover; a model pick
    *  clamps a now-gated effort (main.ts). */
   persistDefaultModel(provider: RuntimeProvider, model: string): void;

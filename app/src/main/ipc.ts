@@ -328,10 +328,9 @@ export function registerIpcHandlers(
   ipcMain.handle(IPC_CHANNELS.codexSettingsWrite, (_event, request) =>
     runtimeController.writeCodexSettings(request),
   );
+  // Read-only, unlike its three siblings above: this file records the provider a
+  // session last started on (S3/L3), and `createTask` writes it.
   ipcMain.handle(IPC_CHANNELS.sonataSettingsRead, () => runtimeController.readSonataSettings());
-  ipcMain.handle(IPC_CHANNELS.sonataSettingsWrite, (_event, request) =>
-    runtimeController.writeSonataSettings(request),
-  );
   ipcMain.handle(IPC_CHANNELS.updaterStateRead, () => updaterController.readState());
   ipcMain.handle(IPC_CHANNELS.updaterRestart, () => {
     updaterController.requestRestart();

@@ -29,7 +29,6 @@ import {
   compactTokenCount,
   permissionModeDescription,
   permissionModeLabel,
-  providerLabel,
   resumePolicyDescription,
   resumePolicyLabel,
   settingsDateLabel,
@@ -88,7 +87,6 @@ export function renderSettingsOverlay(): void {
       (overlay.policyMenuOpen ||
         overlay.approvalMenuOpen ||
         overlay.codexPermissionMenuOpen ||
-        overlay.providerMenuOpen ||
         overlay.claudeModelMenuOpen ||
         overlay.codexModelMenuOpen)
     ) {
@@ -343,11 +341,6 @@ function renderSwitch(spec: {
 
 // ── Default model group ───────────────────────────────────────────────────
 
-/** One-line agent distinction for the Default provider picker's options. */
-function providerOptionDescription(provider: RuntimeProvider): string {
-  return provider === "claude" ? "Anthropic's Claude Code." : "OpenAI's Codex.";
-}
-
 /** The combined model + effort popover (one per provider). Two label-only
  *  sections inside the `.settings-popup-menu` anatomy — Model and Reasoning —
  *  each an instant-apply radio group (Settings contract: no Save). Native
@@ -454,26 +447,11 @@ function menuRadioOption(label: string, selected: boolean, onPick: () => void): 
   return item;
 }
 
-/** The FIRST group (above Permissions): what a new chat starts as by default —
- *  provider, then each provider's model + reasoning. Provider is not
- *  provider-scoped, so it cannot live in Permissions' row structure. */
+/** The FIRST group (above Permissions): what a new chat starts on — each
+ *  provider's model + reasoning. WHICH provider is not a setting: a new chat
+ *  opens on the one the last session started on (S3/L3, last-used semantics), so
+ *  there is nothing to pick here. */
 function renderDefaultModelSettingsGroup(overlay: SettingsOverlayState): HTMLElement {
-  const providerRow = renderSettingsRow({
-    title: "Default provider",
-    description: "The agent new sessions start on.",
-    control: renderPicker({
-      options: (["claude", "codex"] as const).map((provider) => ({
-        id: provider,
-        label: providerLabel(provider),
-        description: providerOptionDescription(provider),
-      })),
-      selectedId: overlay.sonata?.settings.defaultProvider ?? null,
-      open: overlay.providerMenuOpen,
-      onToggle: () => actions.toggleSettingsProviderMenu(overlay),
-      onPick: (provider) => actions.persistDefaultProvider(provider),
-    }),
-  });
-
   const claudeRow = renderSettingsRow({
     title: "Claude model & effort",
     description:
@@ -504,7 +482,7 @@ function renderDefaultModelSettingsGroup(overlay: SettingsOverlayState): HTMLEle
 
   return renderSettingsGroup({
     label: "Default model",
-    rows: [providerRow, claudeRow, codexRow],
+    rows: [claudeRow, codexRow],
   });
 }
 

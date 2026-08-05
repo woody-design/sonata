@@ -578,6 +578,26 @@ nothing is silent. The IPC has no write side, by policy: Sonata never installs o
 signs in on the user's behalf — those run visibly in the terminal window, and
 their effect arrives back here as a changed fact.
 
+**What a new chat opens on: last-used, not a default.** The first consumer of
+those facts is not UI at all — it is the New Chat draft's provider. There is no
+"default provider" setting (removed with the picker): the draft preselects the
+provider the **last session actually started on**, a record the main process
+writes at that moment (`SonataSettingsStore.noteProviderUsed`, from `createTask`
+— the `noteFolderUsed` twin, in the same method, for the same reason). Nothing
+else writes it: not opening or switching a draft, and not reopening an old chat,
+whose provider is a property of the record rather than a choice. So
+`sonata-settings.json` is the one settings file with **no write side across
+IPC** — a renderer path would be a second authority over a fact main already owns
+the instant it becomes true.
+
+With no record yet, the seed reads the readiness facts for a courtesy tiebreak:
+if exactly ONE provider could serve a session, open on it (a machine with only
+Codex installed should not open on a Claude that isn't there); otherwise Claude.
+Both fallbacks are recomputed at every seeding moment and **never written** — a
+persisted guess is a sticky wrong answer, and only a real session start earns the
+record. An arriving fact therefore changes what the NEXT new chat seeds from and
+never switches an open draft underneath the user.
+
 The `codex --version` overlap with the CLI updater is known and **deliberately
 not merged**: that subsystem's semantic is version policy, this one's is
 readiness. Merging is a phase-2 question, and `cli-env.ts` is the generalized

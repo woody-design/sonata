@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { sonataConfigDir } from "./sonata-paths";
+import type { RuntimeProvider } from "../shared/types/domain";
 import {
   type ClaudeSettings,
   normalizeClaudeSettings,
@@ -125,6 +126,21 @@ export function codexSettingsPath(): string {
 export class SonataSettingsStore extends JsonSettingsStore<SonataSettings> {
   constructor(filePath: string) {
     super(filePath, normalizeSonataSettings);
+  }
+
+  /**
+   * Record the provider a session just started on (CLI readiness L3) — the
+   * `ProjectsStore.noteFolderUsed` twin, and its only caller is the same one:
+   * `RuntimeController.createTask`. Read-modify-write so a future app-level
+   * setting in this file survives, and a no-op when the answer is unchanged, so
+   * a run of sessions on one provider does not rewrite the file per spawn.
+   */
+  noteProviderUsed(provider: RuntimeProvider): void {
+    const current = this.read();
+    if (current.lastUsedProvider === provider) {
+      return;
+    }
+    this.write({ ...current, lastUsedProvider: provider });
   }
 }
 

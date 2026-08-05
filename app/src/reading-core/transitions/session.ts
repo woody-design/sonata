@@ -9,6 +9,7 @@
  */
 import type { RuntimeProvider, SessionIndexResponse, SessionSummary } from "../../shared/types";
 import type { RendererState, TaskViewState } from "../state";
+import { soleHealthyCliProvider } from "../../shared/types/cli-readiness";
 import { reasoningEffortForModel, speedOptionsForModel } from "../config";
 import { folderName } from "../selectors/formatters";
 
@@ -188,18 +189,41 @@ export function resetTaskDraftForNewChat(state: RendererState, folder?: string |
   state.taskDraft.permissionMode = null;
   state.taskDraft.codexPermissionMode = null;
   // Default model/effort are copy-at-entry (unlike permission mode's live-follow
-  // null slot): re-seed provider + both providers' model/effort from the
-  // launch-default mirrors, so each New Chat starts from the persisted defaults.
+  // null slot): re-seed both providers' model/effort from the launch-default
+  // mirrors, and the provider from the last-used rule, so each New Chat starts
+  // from what the previous one taught rather than from this draft's leftovers.
   // Effort clamps through the model's gating (a hand-edited JSON pairing a
   // gated tier with a model that can't accept it never survives into the draft).
   seedTaskDraftFromLaunchDefaults(state);
 }
 
-/** Copy the persisted launch defaults (provider + per-provider model/effort)
- *  into the New Chat draft. Shared by boot hydration and every new-chat reset —
- *  the single seeding point for copy-at-entry. */
+/**
+ * The New Chat draft's provider — LAST-USED semantics, not a stored preference
+ * (CLI readiness D5/L3). Three terms, in order:
+ *
+ * 1. `lastUsedProvider` — the provider the last session actually started on. A
+ *    person who works in Codex opens on Codex without ever having said so.
+ * 2. Otherwise the ONE provider that could serve a session, if the readiness
+ *    facts single one out. This is the fresh-install courtesy: on a machine with
+ *    only Codex installed, the first draft should not open on a Claude that
+ *    isn't there. Permissive by construction (`unknown` counts as usable), so it
+ *    fires only on a fact Sonata actually observed.
+ * 3. Otherwise Claude — both usable, both broken, or nothing probed yet.
+ *
+ * Terms 2 and 3 are computed FRESH at every seeding moment and never written to
+ * disk. That is the whole point of the rule: a seeded guess that persisted would
+ * become a sticky wrong answer ("seeded claude on a codex-only machine"), and
+ * only a real session start earns the record (main's `createTask`).
+ */
+function draftProviderSeed(state: RendererState): RuntimeProvider {
+  return state.lastUsedProvider ?? soleHealthyCliProvider(state.cliReadiness) ?? "claude";
+}
+
+/** Copy the launch seeds (provider + per-provider model/effort) into the New Chat
+ *  draft. Shared by boot hydration and every new-chat reset — the single seeding
+ *  point for copy-at-entry. */
 export function seedTaskDraftFromLaunchDefaults(state: RendererState): void {
-  state.taskDraft.provider = state.defaultProvider;
+  state.taskDraft.provider = draftProviderSeed(state);
   for (const provider of ["claude", "codex"] as const satisfies readonly RuntimeProvider[]) {
     const model = state.defaultModel[provider];
     state.taskDraft.model[provider] = model;

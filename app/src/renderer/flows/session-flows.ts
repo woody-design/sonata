@@ -461,6 +461,13 @@ async function createTask(
         : {}),
       ...(provider === "claude" && state.taskDraft.remoteControl ? { remoteControl: true } : {}),
     });
+    // Keep the last-used mirror live. The session HAS started, so main just
+    // recorded this provider (S3/L3) — and a New Chat later in this same run
+    // seeds from the mirror, which would otherwise wear the boot value until the
+    // next relaunch. Same lesson as the permission-default mirrors (review P2,
+    // 2026-07-04): a mirror that only hydrates at boot goes stale the moment the
+    // store it mirrors is written.
+    state.lastUsedProvider = provider;
     const view = createTaskView(response.task, `${providerName} PTY ${response.runtime.pid}`);
     if (provider === "claude" && state.taskDraft.remoteControl) {
       // Spawned with --remote-control: reflect "on" immediately; the scraped URL

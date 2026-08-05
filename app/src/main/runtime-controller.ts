@@ -416,6 +416,17 @@ export class RuntimeController {
     if (request.cwd) {
       this.projectsStore.noteFolderUsed(providerCwd);
     }
+    // Last-used provider (CLI readiness D5/L3): what the next New Chat draft
+    // preselects is the provider a session actually STARTED on — the folder's
+    // twin above, recorded at the same moment, for the same reason. This method
+    // is the whole write surface: opening, switching or abandoning a draft never
+    // reaches it, and neither does `openTask` (reopening an old chat is not a
+    // provider CHOICE — its provider is a property of the record, exactly why
+    // noteFolderUsed sits here and not there). The draft's runtime fallback (the
+    // sole usable CLI, else Claude) is computed in the renderer and deliberately
+    // never stored: a machine with only Codex installed must not inherit a
+    // persisted "claude" it never chose.
+    this.sonataSettingsStore.noteProviderUsed(request.provider);
 
     const task: Task = {
       id: taskId,
@@ -927,12 +938,13 @@ export class RuntimeController {
     return this.codexSettingsStore.write(settings);
   }
 
+  /** Read-only across IPC, unlike every settings store above it: this file holds
+   *  a record of what happened (`lastUsedProvider`), not a preference anyone
+   *  edits, and `createTask` is its only writer (S3/L3). A renderer write path
+   *  would be a second authority over a fact the main process already owns at
+   *  the moment it becomes true. */
   readSonataSettings(): SonataSettings {
     return this.sonataSettingsStore.read();
-  }
-
-  writeSonataSettings(settings: unknown): SonataSettings {
-    return this.sonataSettingsStore.write(settings);
   }
 
   /**

@@ -119,8 +119,10 @@ export const IPC_CHANNELS = {
   claudeSettingsWrite: "claude-settings:write",
   codexSettingsRead: "codex-settings:read",
   codexSettingsWrite: "codex-settings:write",
+  // Read-only, unlike the settings pairs above: `sonata-settings.json` holds the
+  // last-used-provider RECORD, written only by a real session start in main
+  // (S3/L3), never by a window.
   sonataSettingsRead: "sonata-settings:read",
-  sonataSettingsWrite: "sonata-settings:write",
   readingSettingsWrite: "reading-settings:write",
   readingSettingsReadSync: "reading-settings:read-sync",
   instanceLabelReadSync: "instance-label:read-sync",
@@ -920,8 +922,9 @@ export interface SonataRuntimeBridge {
   writeClaudeSettings(settings: ClaudeSettings): Promise<ClaudeSettings>;
   readCodexSettings(): Promise<CodexSettings>;
   writeCodexSettings(settings: CodexSettings): Promise<CodexSettings>;
+  /** The app-level record (last-used provider). No write side — a session start
+   *  in main is what records it (S3/L3). */
   readSonataSettings(): Promise<SonataSettings>;
-  writeSonataSettings(settings: SonataSettings): Promise<SonataSettings>;
   onReadingSystemModeChanged(callback: (mode: ResolvedReadingMode) => void): () => void;
   /** Full reading-settings push so satellites that follow the reading appearance
    *  (Preview) re-stamp theme/mode/textStep when the user changes it (R6). */

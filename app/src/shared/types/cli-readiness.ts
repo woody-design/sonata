@@ -122,6 +122,24 @@ export function hasUnhealthyCliReadiness(facts: CliReadinessFacts): boolean {
   return CLI_READINESS_PROVIDERS.some((provider) => isCliProviderUnhealthy(facts[provider]));
 }
 
+/**
+ * The one provider that could serve a session, when it is the ONLY one — the
+ * tiebreak for a New Chat draft on a machine with no last-used provider yet
+ * (S3, L3).
+ *
+ * "Could serve" is the NEGATION of {@link isCliProviderUnhealthy}, so `unknown`
+ * counts in: the permissive rule means a provider we could not read is a
+ * provider we must not rule out. Null whenever the facts single nobody out —
+ * both usable, both broken, or nothing probed yet — and the caller then applies
+ * its own fallback rather than reading a preference into an absence of one.
+ */
+export function soleHealthyCliProvider(facts: CliReadinessFacts): RuntimeProvider | null {
+  const [only, ...rest] = CLI_READINESS_PROVIDERS.filter(
+    (provider) => !isCliProviderUnhealthy(facts[provider]),
+  );
+  return only !== undefined && rest.length === 0 ? only : null;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

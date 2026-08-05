@@ -12,6 +12,7 @@
 import type {
   AttachmentKind,
   CliActivity,
+  CliReadinessFacts,
   ClaudeDefaultPermissionMode,
   ClaudePermissionMode,
   ClaudeSettings,
@@ -26,7 +27,6 @@ import type {
   RuntimeProvider,
   SessionIndexResponse,
   SlashCommandEntry,
-  SonataSettings,
   Task,
   UsageSnapshot,
 } from "../shared/types";
@@ -43,6 +43,7 @@ import type {
 } from "../shared/types/transcript";
 import type { WorkingStatusState } from "../shared/types/working-status";
 import type { RuntimeReportV1 } from "../shared/schemas";
+import { UNKNOWN_CLI_READINESS_FACTS } from "../shared/types/cli-readiness";
 import { cleanTerminalTranscript } from "../shared/terminal-transcript";
 import {
   LIVE_TRANSCRIPT_PRELATCH_WINDOW,
@@ -505,14 +506,25 @@ export interface RendererState {
    *  New Chat access chip shows this until the user picks a per-session mode
    *  (taskDraft.codexPermissionMode) while the draft provider is Codex. */
   codexDefaultPermissionMode: CodexPermissionMode;
-  /** The Settings "Default model" launch defaults (provider + per-provider
-   *  model/effort), mirrored at boot. Unlike the permission-mode mirrors above
-   *  (which the draft FOLLOWS live via its null slots), these seed the draft by
-   *  COPY at boot and at each new-chat reset (resetTaskDraftForNewChat) — a
-   *  conscious copy-at-entry asymmetry (model's null slot is already "Native
-   *  Default", so it cannot double as "follow the default"). A Settings change
-   *  updates these mirrors for the NEXT new chat, never an already-open draft. */
-  defaultProvider: RuntimeProvider;
+  /** The provider the last session actually STARTED on (`sonata-settings.json`),
+   *  mirrored at boot; null until a session has ever started on this machine.
+   *  Not a Settings value — nothing in the UI writes it (S3/L3), so it moves
+   *  only between launches. It is the FIRST term of the draft-provider seed;
+   *  `cliReadiness` below breaks the tie when it is null. */
+  lastUsedProvider: RuntimeProvider | null;
+  /** What Sonata has observed about the user's own CLIs (S1). Hydrated by a pull
+   *  at boot and kept fresh by main's push. S3's only consumer is the
+   *  draft-provider seed on a machine with no `lastUsedProvider` yet — a fact
+   *  change therefore repaints nothing and never touches an OPEN draft (D6); it
+   *  changes what the NEXT New Chat seeds from. */
+  cliReadiness: CliReadinessFacts;
+  /** The Settings "Default model" launch defaults (per-provider model/effort),
+   *  mirrored at boot. Unlike the permission-mode mirrors above (which the draft
+   *  FOLLOWS live via its null slots), these seed the draft by COPY at boot and
+   *  at each new-chat reset (resetTaskDraftForNewChat) — a conscious
+   *  copy-at-entry asymmetry (model's null slot is already "Native Default", so
+   *  it cannot double as "follow the default"). A Settings change updates these
+   *  mirrors for the NEXT new chat, never an already-open draft. */
   defaultModel: Record<RuntimeProvider, string>;
   defaultReasoningEffort: Record<RuntimeProvider, ReasoningEffort>;
   /** True after the boot-time launch defaults have either loaded or failed
@@ -582,18 +594,15 @@ export interface SettingsOverlayState {
   claude: { settings: ClaudeSettings } | null;
   /** Sonata-owned Codex launch policy; null while the read is in flight. */
   codex: { settings: CodexSettings } | null;
-  /** App-level Sonata settings (the Default provider); null while loading. */
-  sonata: { settings: SonataSettings } | null;
   /** The resume-policy popup menu is showing. */
   policyMenuOpen: boolean;
   /** The default-permission-mode popup menu is showing. */
   approvalMenuOpen: boolean;
   /** The default-Codex-permission-mode popup menu is showing. */
   codexPermissionMenuOpen: boolean;
-  /** The Default-model group menus (Default provider picker; the two combined
-   *  model + effort popovers). Each flips independently like the pickers above;
-   *  outside-click / Esc closes all via closeSettingsPopupMenus. */
-  providerMenuOpen: boolean;
+  /** The Default-model group menus (the two combined model + effort popovers).
+   *  Each flips independently like the pickers above; outside-click / Esc closes
+   *  all via closeSettingsPopupMenus. */
   claudeModelMenuOpen: boolean;
   codexModelMenuOpen: boolean;
   /** The bridge restore write is in flight. */
@@ -765,10 +774,13 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     remoteControlDefault: false,
     claudeDefaultPermissionMode: "default",
     codexDefaultPermissionMode: "ask-for-approval",
-    // The launch-default mirrors start at the same hardcoded values the
-    // taskDraft above is seeded with; boot hydration overwrites them from the
-    // persisted settings (and re-seeds the draft).
-    defaultProvider: "claude",
+    // The launch mirrors start at the same hardcoded values the taskDraft above
+    // is seeded with; boot hydration overwrites them from the persisted settings
+    // (and re-seeds the draft). `lastUsedProvider` starts ABSENT rather than at
+    // the draft's "claude": a window that has not read the record yet has not
+    // learned a provider, and the seed's own fallback covers the gap.
+    lastUsedProvider: null,
+    cliReadiness: UNKNOWN_CLI_READINESS_FACTS,
     defaultModel: {
       codex: "gpt-5.6-sol",
       claude: "opus",

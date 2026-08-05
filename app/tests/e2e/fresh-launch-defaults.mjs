@@ -13,18 +13,18 @@ let app = null;
 
 try {
   // Launch 1: no settings files means the product defaults are authoritative.
+  // The provider half of "fresh" is now a SEED, not a stored default (S3/L3):
+  // with no last-used record, the draft opens on the one usable CLI if the
+  // machine has exactly one, and on Claude otherwise. This runs on a developer
+  // machine with both CLIs installed, so the expected answer is Claude — a
+  // single-CLI machine would legitimately seed that CLI instead.
   let page = await launch();
   await assertNewChatDefault(page, "Claude", "Opus 5 High");
   await assertFreshAppearance(page);
+  assert.equal(readJson(sonataSettingsPath), null, "a fresh launch records no provider");
 
   await openSettings();
   const defaultModelGroup = page.locator('section[aria-label="Default model"]');
-  const providerRow = defaultModelGroup.locator(".settings-row", {
-    hasText: "Default provider",
-  });
-  const providerPopup = providerRow.locator(".settings-popup");
-  await providerPopup.filter({ hasText: "Claude" }).waitFor({ state: "visible" });
-
   const codexRow = defaultModelGroup.locator(".settings-row", {
     hasText: "Codex model & effort",
   });
@@ -34,11 +34,8 @@ try {
   await codexMenu.locator(".settings-popup-option", { hasText: "Extra High" }).click();
   await page.locator(".settings-title").click();
 
-  await providerPopup.click();
-  await providerRow.locator(".settings-popup-option", { hasText: "Codex" }).click();
   await waitUntil(
     () =>
-      readJson(sonataSettingsPath)?.defaultProvider === "codex" &&
       readJson(codexSettingsPath)?.defaultModel === "gpt-5.6-luna" &&
       readJson(codexSettingsPath)?.defaultReasoningEffort === "xhigh",
   );
@@ -46,7 +43,19 @@ try {
   await app.close();
   app = null;
 
-  // Launch 2: the explicit Settings choices override the fresh-install defaults.
+  // The last-used record, written exactly as a Codex session start writes it
+  // (main-side, `SonataSettingsStore.noteProviderUsed` — driven against the real
+  // RuntimeController in tests/smoke/last-used-provider.mjs). Pre-writing it here
+  // keeps this test about what a RELAUNCH does with the record, without spawning
+  // a real CLI for it.
+  fs.writeFileSync(
+    sonataSettingsPath,
+    `${JSON.stringify({ lastUsedProvider: "codex" }, null, 2)}\n`,
+    "utf8",
+  );
+
+  // Launch 2: the record and the explicit Settings choices override the
+  // fresh-install seeds.
   page = await launch();
   await assertNewChatDefault(page, "Codex", "5.6 Luna Extra High");
   await assertFreshAppearance(page);
@@ -55,7 +64,8 @@ try {
     state: "visible",
   });
 
-  assert.deepEqual(readJson(sonataSettingsPath), { defaultProvider: "codex" });
+  // Switching the draft is not a session start, so the record is untouched.
+  assert.deepEqual(readJson(sonataSettingsPath), { lastUsedProvider: "codex" });
   assert.equal(readJson(codexSettingsPath)?.defaultModel, "gpt-5.6-luna");
   assert.equal(readJson(codexSettingsPath)?.defaultReasoningEffort, "xhigh");
 
@@ -70,7 +80,7 @@ try {
           cliMode: "dark",
         },
         persisted: {
-          provider: "codex",
+          lastUsedProvider: "codex",
           codexModel: "gpt-5.6-luna",
           codexEffort: "xhigh",
         },

@@ -12,6 +12,12 @@ import { chooseDraftProvider } from "./helpers/session.mjs";
 // The codex fixture pairs gpt-5.4 with the gated `ultra` tier (a hand-editable
 // but invalid combination): copy-at-entry seeding must clamp it through
 // reasoningOptionsForModel, so the chip reads "Extra High", never "Ultra".
+//
+// The sonata fixture is deliberately the RETIRED `defaultProvider` key — an
+// install upgraded past S3 — so this test doubles as the L4 migration's app-level
+// proof: the normalizer reads it as the initial `lastUsedProvider`, and the draft
+// preselects exactly what it preselected before the upgrade. The unit-level table
+// lives in tests/smoke/last-used-provider.mjs.
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-default-model-seed-workspace-"));
 const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-default-model-seed-store-"));
@@ -62,7 +68,8 @@ try {
     state: "visible",
   });
 
-  // Provider seeded from sonata-settings.json → the draft opens on Codex.
+  // Provider migrated from the legacy sonata-settings.json key → the draft opens
+  // on Codex, unchanged by the upgrade.
   await page.locator("#provider-chip", { hasText: "Codex" }).waitFor({ state: "visible" });
 
   // Codex model chip: gpt-5.4 → "5.4"; the gated `ultra` clamps to Extra High.

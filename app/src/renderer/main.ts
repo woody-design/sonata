@@ -16,6 +16,7 @@ import {
   normalizeResumeSettings,
   normalizeSonataSettings,
   isCliActionRequest,
+  isCliReadinessFacts,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
   type CodexPermissionMode,
@@ -25,7 +26,6 @@ import {
   type ResolvedReadingMode,
   type ResumePolicyId,
   type ResumeSettings,
-  type SonataSettings,
 } from "../shared/types";
 import type {
   RuntimeProvider,
@@ -647,7 +647,6 @@ initActions({
     overlay.policyMenuOpen = false;
     overlay.approvalMenuOpen = false;
     overlay.codexPermissionMenuOpen = false;
-    overlay.providerMenuOpen = false;
     overlay.claudeModelMenuOpen = false;
     overlay.codexModelMenuOpen = false;
     render();
@@ -667,10 +666,6 @@ initActions({
   // The Default-model group menus flip their own open state, exactly like the
   // picker toggles above (outside-click / Esc closes all via
   // closeSettingsPopupMenus).
-  toggleSettingsProviderMenu: (overlay) => {
-    overlay.providerMenuOpen = !overlay.providerMenuOpen;
-    render();
-  },
   toggleSettingsClaudeModelMenu: (overlay) => {
     overlay.claudeModelMenuOpen = !overlay.claudeModelMenuOpen;
     render();
@@ -684,9 +679,6 @@ initActions({
   },
   persistCodexDefaultPermissionMode: (mode) => {
     void persistCodexDefaultPermissionMode(mode);
-  },
-  persistDefaultProvider: (provider) => {
-    void persistDefaultProvider(provider);
   },
   persistDefaultModel: (provider, model) => {
     persistDefaultModel(provider, model);
@@ -1298,16 +1290,40 @@ async function hydrateCodexDefaults(): Promise<void> {
   }
 }
 
-/** Mirror the app-level default provider (Settings → Default model) into
- *  renderer state at boot. The New Chat draft's provider is seeded from this
- *  mirror once all three launch-default hydrations settle (see the boot block),
- *  so no render here — nothing visible changes until that collective seed. */
-async function hydrateSonataDefaults(): Promise<void> {
+/** Mirror the last-used provider — the record a real session START writes in
+ *  main (S3/L3), not a setting anyone picks here. The New Chat draft's provider
+ *  is seeded from this mirror (and from the readiness facts below) once every
+ *  launch hydration settles (see the boot block), so no render here — nothing
+ *  visible changes until that collective seed. */
+async function hydrateLastUsedProvider(): Promise<void> {
   try {
     const settings = normalizeSonataSettings(await window.sonataRuntime.readSonataSettings());
-    state.defaultProvider = settings.defaultProvider;
+    state.lastUsedProvider = settings.lastUsedProvider;
   } catch {
-    // Best-effort: the draft just starts on the hardcoded default provider.
+    // Best-effort: the draft falls back to the runtime seed (the sole usable
+    // CLI, else Claude), exactly as on a machine that has never started one.
+  }
+}
+
+/** True once main has pushed readiness facts (see the subscription below). */
+let cliReadinessPushed = false;
+
+/** Mirror the CLI readiness facts (S1) for the draft-provider seed's tiebreak.
+ *  The pull half: the first probe can land before this window exists or after
+ *  it, so a window hydrates once and then follows the push. Revalidated at this
+ *  boundary even though main built the payload — `isCliReadinessFacts` exists
+ *  precisely so a garbled message can never reach a consumer as a fact. */
+async function hydrateCliReadiness(): Promise<void> {
+  try {
+    const facts = await window.sonataRuntime.readCliReadiness();
+    // A push that raced this read wins: it is strictly newer, and the pull can
+    // resolve with the snapshot from before it.
+    if (!cliReadinessPushed && isCliReadinessFacts(facts)) {
+      state.cliReadiness = facts;
+    }
+  } catch {
+    // Best-effort: the facts stay unknown, which is the permissive state — the
+    // seed then falls through to Claude instead of acting on a non-observation.
   }
 }
 
@@ -1455,11 +1471,10 @@ function closeSettingsOverlay(): void {
 
 async function refreshSettingsOverlay(): Promise<void> {
   try {
-    const [resumeResponse, claudeResponse, codexResponse, sonataResponse] = await Promise.all([
+    const [resumeResponse, claudeResponse, codexResponse] = await Promise.all([
       window.sonataRuntime.readResumeSettings(),
       window.sonataRuntime.readClaudeSettings(),
       window.sonataRuntime.readCodexSettings(),
-      window.sonataRuntime.readSonataSettings(),
     ]);
     if (!state.settingsOverlay) {
       return;
@@ -1473,9 +1488,6 @@ async function refreshSettingsOverlay(): Promise<void> {
     };
     state.settingsOverlay.codex = {
       settings: normalizeCodexSettings(codexResponse),
-    };
-    state.settingsOverlay.sonata = {
-      settings: normalizeSonataSettings(sonataResponse),
     };
   } catch (error) {
     state.status = errorMessage(error);
@@ -1541,38 +1553,12 @@ async function persistCodexDefaultPermissionMode(mode: CodexPermissionMode): Pro
 }
 
 // ── Default model settings (copy-at-entry) ─────────────────────────────────
-// These persist flows update the launch-default MIRRORS (state.defaultProvider
-// / defaultModel / defaultReasoningEffort), which seed the NEXT new chat — they
-// deliberately do NOT touch the currently-open taskDraft (copy-at-entry: a
-// Settings change never retro-applies to a draft already in the composer). This
-// is the conscious asymmetry with the permission-mode defaults, which the draft
-// follows live through its null slot.
-
-async function persistDefaultProvider(provider: RuntimeProvider): Promise<void> {
-  const overlay = state.settingsOverlay;
-  if (!overlay?.sonata) {
-    return;
-  }
-  overlay.providerMenuOpen = false;
-  if (overlay.sonata.settings.defaultProvider === provider) {
-    render();
-    return;
-  }
-  const next: SonataSettings = { ...overlay.sonata.settings, defaultProvider: provider };
-  overlay.sonata.settings = next;
-  state.defaultProvider = provider;
-  render();
-  try {
-    const persisted = normalizeSonataSettings(await window.sonataRuntime.writeSonataSettings(next));
-    if (state.settingsOverlay?.sonata) {
-      state.settingsOverlay.sonata.settings = persisted;
-    }
-    state.defaultProvider = persisted.defaultProvider;
-  } catch (error) {
-    state.status = errorMessage(error);
-  }
-  render();
-}
+// These persist flows update the launch-default MIRRORS (state.defaultModel /
+// defaultReasoningEffort), which seed the NEXT new chat — they deliberately do
+// NOT touch the currently-open taskDraft (copy-at-entry: a Settings change never
+// retro-applies to a draft already in the composer). This is the conscious
+// asymmetry with the permission-mode defaults, which the draft follows live
+// through its null slot.
 
 /** The combined Claude model+effort popover's instant-apply write. A patch
  *  carries the ONE axis the user just picked; a model change clamps a now-gated
@@ -2072,6 +2058,17 @@ window.sonataRuntime.onSettingsOpen(() => {
   openSettingsOverlay();
 });
 
+// The push half of the readiness mirror (S1's L6 pair). Deliberately no render:
+// S3's single consumer is the NEXT New Chat's provider seed, and re-seeding the
+// open draft on a fact change is exactly what D6 forbids. (S2 mounts the status
+// card on this field and will repaint here.)
+window.sonataRuntime.onCliReadinessChanged((facts) => {
+  if (isCliReadinessFacts(facts)) {
+    cliReadinessPushed = true;
+    state.cliReadiness = facts;
+  }
+});
+
 function applySystemReadingMode(mode: ResolvedReadingMode): void {
   currentSystemReadingMode = mode;
   if (state.readingSettings.mode !== "auto") {
@@ -2155,20 +2152,27 @@ void hydrateReadingSettings();
 void refreshTagDefinitions().catch(() => {
   // Best-effort boot cache. Opening Tags retries the authoritative read.
 });
-// The launch-default projection: Claude (RC + permission + model/effort), Codex
-// (permission + model/effort), and the app-level default provider all feed the
-// New Chat draft (copy-at-entry). Gate `launchSettingsHydrated`, the ONE draft
-// seed, and the first index refresh on ALL THREE settling — the flag's contract
-// is that an empty-task CLI action never races an in-flight settings projection,
-// which only holds if every launch mirror is in before it flips. This also keeps
-// the Claude ordering constraint (the RC default must be in place before the
-// index makes dormant sessions clickable): allSettled resolves no earlier than
-// Claude's own read, and the index refresh runs strictly after it. allSettled
-// never rejects (each hydrate swallows its own error), so the seed always runs.
+// The launch projection: Claude (RC + permission + model/effort), Codex
+// (permission + model/effort), the last-used provider, and the CLI readiness
+// facts all feed the New Chat draft (copy-at-entry). Gate
+// `launchSettingsHydrated`, the ONE draft seed, and the first index refresh on
+// ALL FOUR settling — the flag's contract is that an empty-task CLI action never
+// races an in-flight projection, which only holds if every input the seed reads
+// is in before it flips. This also keeps the Claude ordering constraint (the RC
+// default must be in place before the index makes dormant sessions clickable):
+// allSettled resolves no earlier than Claude's own read, and the index refresh
+// runs strictly after it. allSettled never rejects (each hydrate swallows its own
+// error), so the seed always runs.
+//
+// The readiness read does NOT wait for a probe — it returns whatever main knows
+// now, `unknown` included. So the first draft on a fresh install can still open
+// on Claude before the facts land; the next New Chat gets the tiebreak, and an
+// open draft is never switched underneath the user (D6).
 void Promise.allSettled([
   hydrateClaudeDefaults(),
   hydrateCodexDefaults(),
-  hydrateSonataDefaults(),
+  hydrateLastUsedProvider(),
+  hydrateCliReadiness(),
 ]).then(() => {
   sessionTransitions.seedTaskDraftFromLaunchDefaults(state);
   state.launchSettingsHydrated = true;

@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { chooseDraftProvider } from "./helpers/session.mjs";
 
 // The Settings page (centered overlay): menu entrance, moment-born
 // provenance display + retirement on page revision, threshold row description,
@@ -73,23 +74,26 @@ try {
   // Bridge row: hermetic ~/.claude.json absent -> Claude's warning is On.
   await page.locator(".settings-value", { hasText: "On" }).waitFor({ state: "visible" });
 
-  // Default model group (FIRST group): default provider + the two combined
-  // model/effort popovers. No sonata-settings.json in the fixture -> the
-  // provider defaults to Codex; choosing Claude persists sonata-settings.json.
+  // Default model group (FIRST group): the two combined model/effort popovers,
+  // and NOTHING that picks a provider — a new chat opens on the one the last
+  // session started on (S3/L3), so the group holds exactly two rows.
   const defaultModelGroup = page.locator('section[aria-label="Default model"]');
-  const providerRow = defaultModelGroup.locator(".settings-row", { hasText: "Default provider" });
-  const providerPopup = providerRow.locator(".settings-popup");
-  await providerPopup.filter({ hasText: "Codex" }).waitFor({ state: "visible" });
-  await providerPopup.click();
-  await providerRow.locator(".settings-popup-option", { hasText: "Claude" }).click();
-  await waitUntil(() => readPersistedSonataSettings()?.defaultProvider === "claude", 8000);
-  await providerPopup.filter({ hasText: "Claude" }).waitFor({ state: "visible" });
-  // Copy-at-entry: the setting change does NOT retro-apply to the already-open
-  // New Chat draft — its provider chip stays on the boot value (Codex).
   assert.equal(
-    await page.locator("#provider-chip").textContent(),
-    "Codex",
-    "a Default provider change never retro-applies to an open draft (copy-at-entry)",
+    await defaultModelGroup.locator(".settings-row").count(),
+    2,
+    "the Default model group holds Claude and Codex model/effort — no provider picker",
+  );
+  assert.equal(
+    await defaultModelGroup.locator(".settings-row", { hasText: "Default provider" }).count(),
+    0,
+    "the Default provider row is gone, with no replacement row in its place",
+  );
+  // Nothing on this page writes sonata-settings.json anymore; the file appears
+  // only when a session actually starts (main-side, S3/L3).
+  assert.equal(
+    readPersistedSonataSettings(),
+    null,
+    "opening Settings records no provider",
   );
 
   // Claude model & effort: one combined popover, two label-only sections. The
@@ -237,11 +241,19 @@ try {
   await page.keyboard.press("Escape");
   await page.locator(".settings-window").waitFor({ state: "hidden" });
 
-  // The current New Chat draft stayed on its boot provider (Codex), so its
-  // access chip mirrors the new CODEX permission default live. The saved
-  // provider change to Claude remains copy-at-entry and applies only to the
-  // next New Chat.
+  // The Codex permission default is mirrored LIVE onto an untouched draft's
+  // access chip (unlike model/effort, which are copy-at-entry). The chip is
+  // provider-scoped, so declare the draft's provider rather than inheriting the
+  // seed — which is now last-used semantics and reads the machine's own CLIs.
+  await chooseDraftProvider(page, "codex");
   await page.locator("#permission-chip", { hasText: "Full Access" }).waitFor({ state: "visible" });
+  // Choosing a provider in the composer is a DRAFT choice, not a record: only a
+  // real session start writes sonata-settings.json (S3/L3).
+  assert.equal(
+    readPersistedSonataSettings(),
+    null,
+    "switching the draft's provider records nothing",
+  );
 
   // Bridge off -> the row attributes the bridge and offers Restore.
   fs.writeFileSync(claudeConfigPath, `${JSON.stringify({ resumeReturnDismissed: true })}\n`, "utf8");

@@ -1,6 +1,6 @@
 // New Chat e2e: deferred session creation (the first message creates the
-// session), folder + launch settings preselection, and last-used-folder
-// memory across app restarts.
+// session), folder + launch settings preselection, and last-used memory —
+// FOLDER and PROVIDER, both within one run and across an app restart.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -24,7 +24,11 @@ try {
   const sendEnabledWithText = !(await page.locator("#send-prompt").isDisabled());
   await page.locator("#prompt-input").fill("");
 
-  // Fresh-install launch default: Claude + Opus 5 + High.
+  // Fresh-install launch seeds: Claude + Opus 5 + High. Provider is a SEED here,
+  // not a stored default (S3/L3) — with no last-used record it lands on Claude
+  // because this machine has both CLIs usable (a single-CLI machine would
+  // legitimately seed that one). The switch to Codex below is what this run
+  // records, and the two assertions further down read it back.
   await page.locator("#provider-chip", { hasText: "Claude" }).waitFor({ state: "visible" });
   await page.locator("#model-chip", { hasText: "Opus 5 High" }).waitFor({ state: "visible" });
 
@@ -126,6 +130,11 @@ try {
   await page.locator("#sidebar-new-chat").click();
   await assertNewChatVisible(page);
   const resurrectedDraft = await page.locator("#prompt-input").inputValue();
+  // Last-used PROVIDER, within one run (S3/L3): this New Chat opens on Codex —
+  // the provider the session above actually started on — not on the Claude the
+  // fresh launch seeded. Main recorded it at the spawn; the renderer mirror
+  // followed, or this draft would wear the boot value until a relaunch.
+  await page.locator("#provider-chip", { hasText: "Codex" }).waitFor({ state: "visible" });
 
   const manifestPath = path.join(workspace, "task.json");
   const createdManifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
@@ -136,6 +145,11 @@ try {
   const selectedFolderManifestExists = fs.existsSync(path.join(selectedFolder, ".sonata", "task.json"));
   const projectsFile = JSON.parse(
     fs.readFileSync(path.join(settingsDir, "projects.json"), "utf8"),
+  );
+  // The provider record's file twin: written by the session start, and carrying
+  // nothing else (the retired `defaultProvider` key included).
+  const sonataSettingsFile = JSON.parse(
+    fs.readFileSync(path.join(settingsDir, "sonata-settings.json"), "utf8"),
   );
 
   await electronApp.close();
@@ -150,6 +164,9 @@ try {
   await page.locator("#project-chip", { hasText: path.basename(selectedFolder) }).waitFor({
     state: "visible",
   });
+  // Last-used PROVIDER across the restart: the record outlives the process, so
+  // the fresh draft opens on Codex instead of re-seeding Claude.
+  await page.locator("#provider-chip", { hasText: "Codex" }).waitFor({ state: "visible" });
   await page
     .locator(".task-entry-panel h2", {
       hasText: `What should we work on in ${path.basename(selectedFolder)}?`,
@@ -185,7 +202,8 @@ try {
     createdReport?.runtime?.reasoningEffort === "high" &&
     createdReport?.runtime?.speedMode === "fast" &&
     !selectedFolderManifestExists &&
-    projectsFile.lastUsedFolder === selectedFolder;
+    projectsFile.lastUsedFolder === selectedFolder &&
+    JSON.stringify(sonataSettingsFile) === JSON.stringify({ lastUsedProvider: "codex" });
 
   console.log(
     JSON.stringify(
@@ -207,6 +225,7 @@ try {
         dormantPlaceholder,
         selectedFolderManifestExists,
         lastUsedFolder: projectsFile.lastUsedFolder,
+        sonataSettingsFile,
         success,
       },
       null,

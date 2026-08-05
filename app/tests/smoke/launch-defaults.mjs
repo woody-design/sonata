@@ -21,10 +21,15 @@ const freshSonata = normalizeSonataSettings(null);
 const freshCodex = normalizeCodexSettings(null);
 const initialState = createInitialState({ ...DEFAULT_READING_SETTINGS });
 
-check("fresh app default provider is Claude", DEFAULT_SONATA_SETTINGS.defaultProvider === "claude");
-check("fresh Sonata settings normalize to Claude", freshSonata.defaultProvider === "claude");
+// Provider is a last-used RECORD, not a fresh-install default (S3/L3): a machine
+// that has never started a session knows no provider, and the draft's own seed
+// supplies Claude. The record's absent state must therefore stay ABSENT — a
+// fresh install that pre-declared "claude" is exactly the sticky wrong answer
+// the rule exists to avoid. Migration + the seed table: last-used-provider.mjs.
+check("a fresh install records no provider", DEFAULT_SONATA_SETTINGS.lastUsedProvider === null);
+check("fresh Sonata settings normalize to no record", freshSonata.lastUsedProvider === null);
 check("fresh main surface defaults to Light", DEFAULT_READING_SETTINGS.mode === "light");
-check("initial default-provider mirror is Claude", initialState.defaultProvider === "claude");
+check("initial last-used mirror is absent", initialState.lastUsedProvider === null);
 check("initial New Chat draft is Claude", initialState.taskDraft.provider === "claude");
 check("fresh Codex model is 5.6 Sol", DEFAULT_CODEX_SETTINGS.defaultModel === "gpt-5.6-sol");
 check("fresh Codex effort is High", DEFAULT_CODEX_SETTINGS.defaultReasoningEffort === "high");
@@ -38,8 +43,8 @@ check(
     initialState.taskDraft.reasoningEffort.codex === "high",
 );
 check(
-  "stored Codex choice still wins",
-  normalizeSonataSettings({ defaultProvider: "codex" }).defaultProvider === "codex",
+  "a stored Codex record still wins",
+  normalizeSonataSettings({ lastUsedProvider: "codex" }).lastUsedProvider === "codex",
 );
 check(
   "stored Codex model and effort still win",
