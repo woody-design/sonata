@@ -301,7 +301,10 @@ function makeController(gate, seq) {
     await updater.runCycle("interval");
     assert.deepEqual(executed, ["0.147.0", "0.147.0"], "a claude session never blocks the update");
 
-    controller.closeTask(claude.task.id);
+    // No explicit closeTask here: the claude task's instant-exit fake CLI can
+    // already have retired its runtime by now (a race this test lost under
+    // full-suite load — TaskNotFoundError), and the finally-dispose below is
+    // the teardown that actually owns cleanup.
     results.mutualWiring = {
       runs: executed.length,
       gate: "live codex blocks; claude does not; churn declined by O1",
