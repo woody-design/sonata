@@ -1,9 +1,7 @@
 # Sonata App Architecture — the Reading Window
 
 This document describes the renderer architecture that emerged from the
-2026-07 decomposition program (design record:
-`product-thinking/2026-07-03-renderer-decomposition-map-v1.md`, execution
-history: `…-execution-log.md`). It covers the Reading window — the main
+2026-07 decomposition program. It covers the Reading window — the main
 surface. The satellite renderers (terminal, preview) are separate
 vite entries with their own, smaller files. Three subsystems beyond the reading
 renderer have their own sections below: **the signal layer** (the main-process
@@ -228,8 +226,7 @@ lives on run-index (where the bytes already exist), never on Projection.
 The event path above starts with "main process ──runtime event──▶". This is where
 those events are *born*: the main-process subsystem that turns two live CLIs
 (Claude, Codex) into one stream of structured signals — busy/idle, turn
-boundaries, identity, usage, approvals — without either CLI losing a feature
-(design record: `product-thinking/2026-07-06-codex-control-plane-plan-v0.md`).
+boundaries, identity, usage, approvals — without either CLI losing a feature.
 Sonata is an experience shell over the user's *real* CLI, so the rule is additive:
 observe the process, never replace or reconfigure it.
 
@@ -524,9 +521,7 @@ invisible when it works, which is the point.
 
 The reading surface for *files* (the Reading window reads the conversation; the
 Terminal carries raw process). It rebuilt the old Preview + Inspector satellites
-on a **three-truths** model (design record:
-`product-thinking/2026-07-04-preview-window-redesign-map-v1.md`), each truth with
-one honest owner:
+on a **three-truths** model, each truth with one honest owner:
 
 - **Disk truth** — what exists and what its bytes are. Observed, never stored,
   through `main/workspace-files.ts` (`WorkspaceFiles`: the single audited
