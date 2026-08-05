@@ -150,8 +150,29 @@ function harness(initial) {
   await settle();
   assert.equal(state.probes, beforeUnknownFocus, "unknown → focus is free");
 
+  // A DECLINED focus must not take the join slot. Regression fence (review F1):
+  // publishing the chain into `inFlight` BEFORE evaluating the gate meant a
+  // same-turn ordinary caller joined a probe that then declined — and resolved
+  // with nothing having run. The declining trigger silently ate someone else's
+  // probe, and S2/S4 lean on exactly the invariant that breaks.
+  state.next = HEALTHY;
+  await readiness.probe("reprobe");
+  for (const [label, run] of [
+    ["reprobe", () => readiness.reprobe()],
+    ["launch", () => readiness.probe("launch")],
+  ]) {
+    const before = state.probes;
+    readiness.noteMainWindowFocus(); // declines — facts are healthy
+    await run(); // …and must still execute, in the SAME turn
+    assert.equal(
+      state.probes,
+      before + 1,
+      `a declined focus does not swallow a same-turn ${label}`,
+    );
+  }
+
   readiness.dispose();
-  results.focusGate = "probes only while actionable";
+  results.focusGate = "probes only while actionable; a decline takes no join slot";
 }
 
 // 4) `reprobe` is the L7 entry point: it busts the login-shell PATH cache only

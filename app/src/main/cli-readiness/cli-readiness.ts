@@ -87,18 +87,30 @@ export class CliReadiness {
    * compare → maybe broadcast. Never rejects.
    *
    * Concurrency has two shapes on purpose. An ordinary caller arriving mid-probe
-   * JOINS the in-flight one, so `await probe(...)` always means "a probe has
-   * completed" and a focus storm costs one probe. A caller that asked for
-   * `bustPathCache` must NOT join: it is asking about a machine that changed
-   * since the in-flight probe resolved its PATH, and handing it that probe's
-   * answer is precisely the stale `absent` L7 exists to prevent — so it queues
-   * behind it instead.
+   * JOINS the in-flight one, so `await probe(...)` means "a probe has completed"
+   * and a focus storm costs one probe. A caller that asked for `bustPathCache`
+   * must NOT join: it is asking about a machine that changed since the in-flight
+   * probe resolved its PATH, and handing it that probe's answer is precisely the
+   * stale `absent` L7 exists to prevent — so it queues behind it instead.
+   *
+   * The focus gate runs FIRST, before this call can take the join slot, and that
+   * ordering is load-bearing rather than incidental: a declined probe that had
+   * already published itself into `inFlight` would be joined by the next ordinary
+   * caller, which would then resolve having executed nothing. The declining
+   * trigger would silently eat someone else's probe.
    */
   probe(
     reason: CliReadinessProbeReason,
     options: CliReadinessProbeOptions = {},
   ): Promise<void> {
     if (this.disposed) {
+      return Promise.resolve();
+    }
+    // The focus gate (D4). While something is actionable, coming back to the
+    // window is the natural moment to re-check — the user probably just went and
+    // fixed it. Once nothing is actionable, focus must cost NOTHING: no
+    // subprocess, no log line, and (see above) no join slot.
+    if (reason === "focus" && !hasUnhealthyCliReadiness(this.facts)) {
       return Promise.resolve();
     }
     const bustPathCache = options.bustPathCache === true;
@@ -131,7 +143,7 @@ export class CliReadiness {
   /**
    * The main window was focused (D4). Fire-and-forget — a window activation must
    * never wait on a subprocess. Whether it probes at all is decided inside
-   * {@link probe}, against the facts as they stand when the probe starts.
+   * {@link probe}, against the facts as they stand at the moment of the focus.
    */
   noteMainWindowFocus(): void {
     void this.probe("focus");
@@ -143,17 +155,16 @@ export class CliReadiness {
     this.disposed = true;
   }
 
+  /**
+   * Carries NO gate of its own. The focus decision lives at {@link probe}'s front
+   * door, and re-checking it here would be dead code rather than defence in
+   * depth: a `focus` reason only reaches this method when `inFlight` was null at
+   * call time (a focus trigger never queues — only a bust caller does), and
+   * nothing can write `facts` between that check and this microtask, because
+   * nothing was running.
+   */
   private async runProbe(reason: CliReadinessProbeReason, bustPathCache: boolean): Promise<void> {
     if (this.disposed) {
-      return;
-    }
-    // The focus gate (D4), evaluated here rather than at the trigger so it reads
-    // the facts as of the moment the probe would run. While something is
-    // actionable, coming back to the window is the natural moment to re-check —
-    // the user probably just went and fixed it. Once nothing is actionable,
-    // focus must cost NOTHING: a healthy machine cannot be allowed to spend two
-    // subprocesses every time the window comes forward.
-    if (reason === "focus" && !hasUnhealthyCliReadiness(this.facts)) {
       return;
     }
     try {

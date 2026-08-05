@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 
 const { IPC_CHANNELS } = await import("../../dist/shared/types/ipc.js");
 const {
+  CLI_READINESS_PROVIDERS,
   UNKNOWN_CLI_PROVIDER_READINESS,
   UNKNOWN_CLI_READINESS_FACTS,
   cliReadinessFactsEqual,
@@ -28,7 +29,19 @@ const fact = (install, auth) => ({ install, auth });
 assert.equal(IPC_CHANNELS.cliReadinessRead, "cli-readiness:read");
 assert.equal(IPC_CHANNELS.cliReadinessChanged, "cli-readiness:changed");
 
-// 2) The pre-probe constant is the permissive nothing-known payload.
+// 2) The provider list every helper iterates is DERIVED from the mapped-type
+//    constant, not spelled out three times. Pinned here because that derivation
+//    is what makes the type's exhaustiveness claim true of the helpers too: the
+//    keys must be exactly the fact set's keys, or a future provider would be
+//    validated and compared by nobody (review F4).
+assert.deepEqual(
+  [...CLI_READINESS_PROVIDERS].sort(),
+  Object.keys(UNKNOWN_CLI_READINESS_FACTS).sort(),
+  "the iterated list is the fact set's own key set",
+);
+assert.deepEqual([...CLI_READINESS_PROVIDERS].sort(), ["claude", "codex"]);
+
+// 3) The pre-probe constant is the permissive nothing-known payload.
 assert.deepEqual(UNKNOWN_CLI_PROVIDER_READINESS, { install: "unknown", auth: "unknown" });
 assert.deepEqual(UNKNOWN_CLI_READINESS_FACTS, {
   claude: { install: "unknown", auth: "unknown" },
@@ -41,7 +54,7 @@ assert.equal(
   "knowing nothing is never actionable",
 );
 
-// 3) Payload validation — every state passes, nothing else does.
+// 4) Payload validation — every state passes, nothing else does.
 for (const install of ["present", "absent", "unknown"]) {
   for (const auth of ["signedIn", "signedOut", "unknown"]) {
     assert.equal(isCliProviderReadiness(fact(install, auth)), true, `${install}/${auth}`);
@@ -72,7 +85,7 @@ assert.equal(
 );
 assert.equal(isCliReadinessFacts(null), false);
 
-// 4) Equality — the change event's gate. Identical facts must be silent.
+// 5) Equality — the change event's gate. Identical facts must be silent.
 assert.equal(
   cliReadinessFactsEqual(
     facts(fact("present", "signedIn"), fact("absent", "unknown")),
@@ -102,7 +115,7 @@ assert.equal(
   "equality is structural, not by reference",
 );
 
-// 5) The actionable predicate — the whole permissive rule, one table.
+// 6) The actionable predicate — the whole permissive rule, one table.
 //    Actionable ⟺ install absent OR auth signedOut. Nothing else, and above all
 //    NOT `unknown` on either axis (D3): the spawn path is the final truth, so a
 //    fact we could not read must never produce a card.

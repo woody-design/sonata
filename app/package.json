@@ -221,7 +221,8 @@
     "smoke:cli-readiness-controller": "npm run build:main && node tests/smoke/cli-readiness-controller.mjs",
     "smoke:cli-readiness-absent": "npm run build:main && node tests/smoke/cli-readiness-absent.mjs",
     "smoke:cli-readiness-stub-unknown": "npm run build:main && node tests/smoke/cli-readiness-stub-unknown.mjs",
-    "smoke:cli-readiness-signed-out": "npm run build:main && node tests/smoke/cli-readiness-signed-out.mjs"
+    "smoke:cli-readiness-signed-out": "npm run build:main && node tests/smoke/cli-readiness-signed-out.mjs",
+    "smoke:cli-readiness-login-shell-path": "npm run build:main && node tests/smoke/cli-readiness-login-shell-path.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

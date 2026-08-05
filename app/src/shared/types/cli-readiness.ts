@@ -33,7 +33,9 @@ export interface CliProviderReadiness {
 }
 
 /** Mapped over `RuntimeProvider` on purpose: a third provider becomes a compile
- *  error at every construction site rather than a silently missing fact. */
+ *  error at every construction site rather than a silently missing fact — and the
+ *  helpers below iterate a list DERIVED from that mapping, so they pick a new
+ *  provider up without an edit (see {@link CLI_READINESS_PROVIDERS}). */
 export type CliReadinessFacts = {
   readonly [Provider in RuntimeProvider]: CliProviderReadiness;
 };
@@ -52,15 +54,29 @@ export const UNKNOWN_CLI_READINESS_FACTS: CliReadinessFacts = {
   codex: UNKNOWN_CLI_PROVIDER_READINESS,
 };
 
+/**
+ * The providers a fact set covers — exhaustive by CONSTRUCTION, not by
+ * discipline. Derived from the mapped-type constant above, so the single place a
+ * third `RuntimeProvider` fails to compile is that one object literal, and every
+ * helper below then covers the new provider with no edit at all. (Spelling
+ * `["claude", "codex"] as const satisfies readonly RuntimeProvider[]` inline —
+ * the house idiom elsewhere — checks membership but NOT exhaustiveness, so three
+ * copies of it would each need finding and updating by hand.)
+ *
+ * The cast is sound for exactly the reason the derivation works: the object's
+ * type has one key per provider and nothing else.
+ */
+export const CLI_READINESS_PROVIDERS = Object.keys(
+  UNKNOWN_CLI_READINESS_FACTS,
+) as readonly RuntimeProvider[];
+
 /** Boundary validation for the IPC payload — the contract fence pins the shape,
  *  and a garbled push can never reach a consumer as a valid fact. */
 export function isCliReadinessFacts(value: unknown): value is CliReadinessFacts {
-  if (!isRecord(value) || Object.keys(value).length !== 2) {
+  if (!isRecord(value) || Object.keys(value).length !== CLI_READINESS_PROVIDERS.length) {
     return false;
   }
-  return (["claude", "codex"] as const satisfies readonly RuntimeProvider[]).every((provider) =>
-    isCliProviderReadiness(value[provider]),
-  );
+  return CLI_READINESS_PROVIDERS.every((provider) => isCliProviderReadiness(value[provider]));
 }
 
 export function isCliProviderReadiness(value: unknown): value is CliProviderReadiness {
@@ -77,7 +93,7 @@ export function isCliProviderReadiness(value: unknown): value is CliProviderRead
  *  a re-probe that learns the same thing must be silent, or every trigger would
  *  become a renderer repaint. */
 export function cliReadinessFactsEqual(a: CliReadinessFacts, b: CliReadinessFacts): boolean {
-  return (["claude", "codex"] as const satisfies readonly RuntimeProvider[]).every(
+  return CLI_READINESS_PROVIDERS.every(
     (provider) =>
       a[provider].install === b[provider].install && a[provider].auth === b[provider].auth,
   );
@@ -103,9 +119,7 @@ export function isCliProviderUnhealthy(fact: CliProviderReadiness): boolean {
  *  something is broken a window focus is worth a fresh look, and once nothing
  *  is, focus must cost nothing at all. */
 export function hasUnhealthyCliReadiness(facts: CliReadinessFacts): boolean {
-  return (["claude", "codex"] as const satisfies readonly RuntimeProvider[]).some((provider) =>
-    isCliProviderUnhealthy(facts[provider]),
-  );
+  return CLI_READINESS_PROVIDERS.some((provider) => isCliProviderUnhealthy(facts[provider]));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
