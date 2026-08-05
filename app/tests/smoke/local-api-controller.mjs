@@ -158,12 +158,12 @@ try {
     "…and the throw is a throw, not a returned promise",
   );
   // With other tasks on disk, an unmatched id resolves onto the newest record
-  // and fails the id-equality guard — a plain Error, which the server maps to
-  // `internal`. Pinned as the behaviour that actually exists (it is unchanged
-  // from before the async split); the -32001 path is case 6.
+  // and fails the id-equality guard. To the caller that IS "task not found" —
+  // the typed class maps it to -32001 on the wire (Woody ruled 2026-08-05;
+  // the previous plain-Error → `internal` was a misclassification).
   assert(
-    ghostResume instanceof Error && ghostResume.message.includes("does not match"),
-    `unmatched id throws the manifest-mismatch Error (got: ${ghostResume?.message})`,
+    ghostResume instanceof TaskNotFoundError,
+    `unmatched id throws TaskNotFoundError (-32001) (got: ${ghostResume?.name}: ${ghostResume?.message})`,
   );
   const traversalResume = caught(() => controller.resumeTaskInBackground("../ghost-xyz"));
   assert(traversalResume instanceof Error, "a traversal-shaped id throws synchronously too");

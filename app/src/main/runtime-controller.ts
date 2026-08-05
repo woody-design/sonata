@@ -639,7 +639,11 @@ export class RuntimeController {
     const storageRoot = this.resolveOpenTaskStorageRoot(request);
     const manifest = this.readTaskManifest(storageRoot);
     if (request.taskId && manifest.task.id !== request.taskId) {
-      throw new Error("Task manifest does not match the requested taskId.");
+      // The requested taskId has no record of its own (the resolver fell
+      // through to the latest task) — to the caller that IS "task not found",
+      // and the typed class is what maps it to -32001 on the Local API
+      // (Woody, 2026-08-05: -32603 here was a misclassification).
+      throw new TaskNotFoundError("No persisted Sonata Task matches the requested taskId.");
     }
     return { storageRoot, manifest };
   }
