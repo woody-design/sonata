@@ -18,9 +18,8 @@ import { createSidebarFixture } from "./helpers/sidebar-fixture.mjs";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "../../..");
 const appRoot = path.join(repoRoot, "app");
-// Output defaults to a throwaway directory; the committed evidence tree
-// (product-thinking/sidebar-refactor-evidence/) is historical and must not
-// churn on verification runs — publishing there is an explicit argv[2] act.
+// Output defaults to a throwaway directory; publishing anywhere durable is
+// an explicit argv[2] act — verification runs must not churn a kept tree.
 const outputDir = path.resolve(
   process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), "sonata-sidebar-chrome-out-")),
 );

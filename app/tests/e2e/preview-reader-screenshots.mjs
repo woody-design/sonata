@@ -17,7 +17,7 @@ const PNG_1x1 = Buffer.from(
 
 const evidenceDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "../../../product-thinking/preview-slice-2-evidence",
+  "../../../Temp/e2e-evidence/preview-slice-2",
 );
 fs.mkdirSync(evidenceDir, { recursive: true });
 

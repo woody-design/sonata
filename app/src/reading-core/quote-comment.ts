@@ -1,6 +1,5 @@
-// Quote & Comment — the pure serialization core (plan
-// `product-thinking/2026-07-14-quote-comment-plan-v0.md` §Serialization
-// contract). Selecting transcript text and attaching a comment produces one
+// Quote & Comment — the pure serialization core (2026-07-14 plan,
+// serialization contract). Selecting transcript text and attaching a comment produces one
 // plain paragraph appended to the composer draft; from that moment it is
 // ordinary text the user edits or deletes. There is no persistence, no anchor,
 // no sync-back — the composer text IS the wire text (D1). Everything here is

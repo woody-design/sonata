@@ -16,7 +16,7 @@ import {
 
 const evidenceDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "../../../product-thinking/preview-slice-4-evidence",
+  "../../../Temp/e2e-evidence/preview-slice-4",
 );
 fs.mkdirSync(evidenceDir, { recursive: true });
 

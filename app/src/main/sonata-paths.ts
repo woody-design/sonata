@@ -9,8 +9,7 @@ import path from "node:path";
  * HERE and nowhere else. Never hardcode "~/.sonata" elsewhere: a rename stays a
  * one-constant change ONLY while this remains the lone place the root is named.
  * (Proven by the 2026-07-17 Duet→Sonata rename: no startup-relocation code —
- * the old ~/.duet home moves in a one-shot external migration at cutover; see
- * product-thinking/2026-07-17-sonata-cutover-runbook.md.)
+ * the old ~/.duet home moved in a one-shot external migration at cutover.)
  *
  * Resolution (highest precedence first):
  *   1. SONATA_DATA_DIR — explicit override. The workshop launcher sets it to keep

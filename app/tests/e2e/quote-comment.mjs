@@ -1,6 +1,5 @@
-// Quote & Comment — durable e2e fence (plan
-// `product-thinking/2026-07-14-quote-comment-plan-v0.md` §Interaction contract
-// + §Serialization contract). Promoted from the S1 throwaway probe.
+// Quote & Comment — durable e2e fence (2026-07-14 plan, interaction +
+// serialization contracts). Promoted from the S1 throwaway probe.
 //
 // Pins the whole selection→comment→composer flow in ONE app launch with exactly
 // ONE real CLI turn (cost + determinism): the turn produces selectable

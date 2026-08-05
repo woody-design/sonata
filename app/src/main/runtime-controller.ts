@@ -2568,8 +2568,7 @@ export class RuntimeController {
    *
    * Contract §2 note: the clause once read "mid-session switching lives in the
    * Terminal; Reading only DISPLAYS the mode." Amended 2026-07-18 (Mid-session
-   * Switch Program, Woody approved — product-thinking/2026-07-18-midsession-
-   * switch-v0.md): Reading may now also DRIVE the switch, by stepping the native
+   * Switch Program, Woody approved): Reading may now also DRIVE the switch, by stepping the native
    * Shift+Tab cycle (S2) and reading the TUI mode line as a *choreography receipt*.
    * That does NOT move the SSOT — this reconcile stays authoritative; the mode
    * line is receipt-only and never writes task.permissionMode. Terminal-native

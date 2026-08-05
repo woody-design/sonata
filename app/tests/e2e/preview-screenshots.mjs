@@ -12,7 +12,7 @@ import { activeSessionTaskId, sendFirstPrompt, waitForCompletedTurns, waitForWin
 
 const evidenceDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "../../../product-thinking/preview-slice-1-evidence",
+  "../../../Temp/e2e-evidence/preview-slice-1",
 );
 fs.mkdirSync(evidenceDir, { recursive: true });
 

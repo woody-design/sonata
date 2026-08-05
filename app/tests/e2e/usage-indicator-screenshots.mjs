@@ -6,7 +6,7 @@ import { chooseDraftProvider, openNewChat, sendFirstPrompt } from "./helpers/ses
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-usage-shots-"));
 const settingsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-usage-settings-"));
-const screenshotRoot = path.resolve("..", "product-thinking", "usage-indicator-slice-1-evidence");
+const screenshotRoot = path.resolve("..", "Temp", "e2e-evidence", "usage-indicator-slice-1");
 fs.mkdirSync(screenshotRoot, { recursive: true });
 
 let electronApp = null;

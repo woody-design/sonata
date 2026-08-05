@@ -12,8 +12,7 @@ import type { SlashCommandEntry } from "../types/slash";
  * The old 5-way split (control/panel/unknown) compensated for a HIDDEN
  * terminal — a blindly-injected panel was an invisible dialog that swallowed
  * the next paste (probe s1). The satellite terminal window killed that
- * premise: visible = answerable. See
- * product-thinking/2026-07-02-s3-slash-passthrough-findings.md.
+ * premise: visible = answerable.
  *
  * Pure and UI-free so it is unit-testable in isolation (`smoke:slash-intent`)
  * and shared by both submit entry points (pick + typed).

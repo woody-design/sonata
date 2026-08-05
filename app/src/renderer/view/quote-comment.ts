@@ -1,5 +1,4 @@
-// Quote & Comment — the view family (plan
-// `product-thinking/2026-07-14-quote-comment-plan-v0.md` §Interaction contract).
+// Quote & Comment — the view family (2026-07-14 plan, interaction contract).
 // Select transcript text → a floating comment trigger appears above the
 // selection → mousedown opens an inline input bar → confirm appends a serialized
 // paragraph to the composer. After that it is plain composer text (D1): no
