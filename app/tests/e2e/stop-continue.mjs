@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
-import { approveAnyVisibleApproval, approveIfVisible } from "./helpers/approval.mjs";
+import { approveAnyVisibleApproval } from "./helpers/approval.mjs";
 import { sendFirstPrompt, waitForEngagement } from "./helpers/session.mjs";
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-stop-e2e-"));
@@ -58,10 +58,32 @@ try {
     end: path.join(workspace, "stop_end.flag"),
     recovery: path.join(workspace, "stop_recovery.md"),
   };
-  const commandApprovalSeen = await approveIfVisible(page, "Command approval requested", 180000);
-  await waitForEngagement(page);
-
-  await waitUntil(() => fs.existsSync(paths.start), 180000, "long command start file");
+  // Race the approval against the turn instead of spending a fixed budget on it.
+  //
+  // MEASURED 2026-08-06 (codex-cli 0.146.1): this prompt raises NO command
+  // approval any more — the sandbox approves its own workspace write, and the
+  // run's `approvalEvents` is empty. The old shape here was a BLOCKING
+  // `approveIfVisible(…, 180000)`, which therefore burned its whole budget while
+  // the turn it was supposed to interrupt ran (elapsedMs 128887) and finished by
+  // its own Stop hook — after which `waitForEngagement` waited out another 240s
+  // on an idle session. The fence had stopped testing stop: it never reached the
+  // stop click at all. Reproduced identically 4× (three builds, one of them a
+  // clean checkout of the previous commit), so it was the fixture's premise that
+  // moved, not the product.
+  //
+  // The repair keeps the approval handling for every provider/version that DOES
+  // ask — each poll drains whatever banner is up, exactly as the recovery step
+  // below does — while making PROGRESS the thing being waited on. When no
+  // approval ever comes, the command starting is itself the evidence that none
+  // was needed. `commandTurnApprovalSeen` reports which of the two happened.
+  let commandTurnApprovalSeen = false;
+  await waitUntil(async () => {
+    commandTurnApprovalSeen = (await approveAnyVisibleApproval(page)) || commandTurnApprovalSeen;
+    return fs.existsSync(paths.start);
+  }, 180000, "long command start file");
+  // The turn is now provably live (its command is running), so the engagement
+  // surface must be up — kept as a UI assertion, no longer as the gate.
+  await waitForEngagement(page, 30000);
   await waitUntil(() => fs.existsSync(paths.pid), 15000, "long command pid file");
   const commandPid = readPid(paths.pid);
   const commandAliveBeforeStop = pidAlive(commandPid);
@@ -160,7 +182,7 @@ try {
         workspaceRoot,
         taskDirectory,
         reportPath,
-        commandApprovalSeen,
+        commandTurnApprovalSeen,
         recoveryApprovalSeen,
         commandPid,
         commandAliveBeforeStop,
