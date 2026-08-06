@@ -492,9 +492,11 @@ function delay(ms) {
   };
 }
 
-// ── dispose() stops broadcasting and does NOT kill a live run: killing an
-//    installer mid-write can corrupt a global install, and Sonata quitting is not
-//    worth that risk to someone's machine.
+// ── dispose() stops broadcasting and calls no kill of its own. Note the LIMIT of
+//    that claim (review O1): the pty is not detached, so a real quit takes the
+//    installer with it anyway (MEASURED — a node-pty child dies with its parent).
+//    What this pins is only that dispose adds no kill on top; the survivable case
+//    it serves is macOS's close-all-windows, which does not end the process.
 {
   let killed = false;
   const disposed = harness({
@@ -515,8 +517,77 @@ function delay(ms) {
   disposed.controller.dispose();
   await disposed.controller.start({ kind: "install", provider: "codex" });
   assert.equal(disposed.states.length, before, "a disposed controller is inert");
-  assert.equal(killed, false, "dispose leaves a running installer alone");
-  results.dispose = "inert; the live installer is left running";
+  assert.equal(killed, false, "dispose adds no kill of its own");
+  results.dispose = "inert; adds no kill (a real quit still ends the pty — see O1)";
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// G. The CLI window's visibility precedence — a SOURCE fence (review S1).
+//
+// "A setup run exists" and "the setup run's grid is on screen" are different
+// questions, and they diverge permanently the moment a run finishes: `phase:
+// "failed"` is durable by design (the failed card's copy points at that grid), so
+// `setupTerminal` stays truthy for the rest of the app session. Two call sites had
+// drifted to the cheaper question, which cost a live session's xterm its refit on
+// every window resize and printed "Setup › Install Codex" over its grid.
+//
+// The bug class is a CALL SITE asking the wrong question, so the fence is
+// structural: every site that decides what the window SHOWS must consult the one
+// predicate. A pure-logic test would not have caught either of these.
+// ════════════════════════════════════════════════════════════════════════════
+{
+  const source = fs.readFileSync(
+    path.join(import.meta.dirname, "../../src/renderer/terminal.ts"),
+    "utf8",
+  );
+
+  /** The body of a named function/handler, by brace matching from its opener. */
+  const blockAfter = (opener) => {
+    const start = source.indexOf(opener);
+    assert.notEqual(start, -1, `expected to find ${JSON.stringify(opener)} in terminal.ts`);
+    let depth = 0;
+    let i = source.indexOf("{", start);
+    const from = i;
+    for (; i < source.length; i += 1) {
+      if (source[i] === "{") depth += 1;
+      else if (source[i] === "}") {
+        depth -= 1;
+        if (depth === 0) return source.slice(from, i + 1);
+      }
+    }
+    throw new Error(`unbalanced braces after ${opener}`);
+  };
+
+  const sites = {
+    showActiveTerminal: blockAfter("function showActiveTerminal()"),
+    activeEntry: blockAfter("function activeEntry()"),
+    renderBreadcrumb: blockAfter("function renderBreadcrumb()"),
+    resizeListener: blockAfter('window.addEventListener("resize"'),
+  };
+  for (const [name, body] of Object.entries(sites)) {
+    assert.ok(
+      body.includes("setupRunOwnsWindow()"),
+      `${name} must decide through setupRunOwnsWindow() — not through "does a setup run exist"`,
+    );
+  }
+  // The resize arm specifically: it must not branch on bare existence, which is the
+  // exact regression (a hidden grid refit while the visible one goes stale).
+  assert.ok(
+    !/if \(setupTerminal\)\s*\{\s*fitSetupTerminal/.test(sites.resizeListener),
+    "the resize arm must not fit the setup grid on mere existence",
+  );
+  // And the predicate itself is the ONE place bare existence is a legitimate
+  // question, so it stays the single home of the rule.
+  const predicate = blockAfter("function setupRunOwnsWindow()");
+  assert.ok(predicate.includes("!setupTerminal"), "the predicate owns the existence check");
+  assert.ok(
+    predicate.includes('setupRun?.phase === "running"') && predicate.includes("liveTaskTerminal()"),
+    "the predicate is running-wins-else-yield-to-a-live-session",
+  );
+  results.windowPrecedence = {
+    sitesGated: Object.keys(sites),
+    predicate: "running wins; a finished run yields to a live session, else shows",
+  };
 }
 
 fs.rmSync(tempRoot, { recursive: true, force: true });

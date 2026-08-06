@@ -989,11 +989,12 @@ elements.composer.addEventListener("submit", (event) => {
     return;
   }
   // The New Chat readiness card is showing (S2): the draft's provider has no CLI
-  // to spawn, or one that is not signed in. Sending would create a task whose pty
-  // dies or hangs on a first-run screen and whose prompt then queues in silence —
-  // the exact failure this program exists to replace. The class is the same gate
-  // shape the drawer uses above, and it also covers plain Enter, which reaches
-  // here through requestSubmit() rather than through the disabled send button.
+  // to spawn, or one that is not signed in. Defense in depth — the AUTHORITATIVE
+  // gate is at the top of `submitPrompt()` itself, because this handler covers only
+  // the button and plain Enter, and the slash picker's execute path calls
+  // submitPrompt directly (review B1). Kept anyway: it stops the form event before
+  // any of submitPrompt's work, and it mirrors the drawer guard above so the two
+  // composer-slot occupants read the same way.
   if (elements.composer.classList.contains("cli-readiness-active")) {
     return;
   }

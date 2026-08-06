@@ -67,9 +67,10 @@ export function createCliReadinessFixture(root) {
         // The login-shell merge would append the developer's real PATH and with it
         // their real CLIs — the one thing this fixture must be able to exclude.
         SONATA_DISABLE_LOGIN_SHELL_PATH: "1",
-        // A predictable login shell for the install command's `$SHELL -lc`. The
-        // production code picks `$SHELL`; this fixes which one, it does not change
-        // how it is used.
+        // A predictable shell for the install command's `$SHELL -c` (NOT `-lc` —
+        // see setup-run.ts: a login shell's path_helper would replace the merged
+        // PATH, which is also what would let the real installer escape this
+        // fixture). Production picks `$SHELL`; this only fixes WHICH one.
         SHELL: "/bin/bash",
         PATH: `${binDir}:/usr/bin:/bin:/usr/sbin:/sbin`,
         // Consumed by the COMPOSED installer scripts below (they run in the pty,

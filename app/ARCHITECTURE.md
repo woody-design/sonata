@@ -661,9 +661,17 @@ shell profile. A non-zero exit **or** a still-`absent` re-probe is the failure
 state; a script that prints "Success!" and installs nothing is therefore caught,
 and one that prints nothing while working is not doubted. A `start` run has no
 failure shape at all: Sonata cannot tell "closed without signing in" from a normal
-exit, so it says nothing and lets the re-probed facts speak. And the run is left
-alive when Sonata quits — killing an installer mid-write can corrupt a global
-install, the same reasoning the CLI updater's detached child rests on.
+exit, so it says nothing and lets the re-probed facts speak.
+
+**Quitting mid-install interrupts the installer, and that is accepted.** The pty is
+not detached and Sonata holds its master, so the child stops when the app's process
+does (MEASURED). The CLI updater's detach-and-unref executor is the real fix and is
+deliberately heavier than this surface warrants: both vendor installers are
+re-runnable, and a half-written install simply reads `absent` to the next launch's
+probe — which is the card that offers to install it again. The recovery is retry,
+the same path a failed install already takes. (`dispose()` still kills nothing, and
+that matters for the case that IS survivable: on macOS, closing every window does
+not end the process.)
 
 One MEASURED trap is worth naming, because it is invisible and it undoes the work
 `cli-env.ts` exists for: the install command runs through `$SHELL -c` and **must

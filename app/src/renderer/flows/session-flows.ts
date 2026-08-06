@@ -20,6 +20,7 @@ import {
   formatTokenCount,
   providerLabel,
 } from "../../reading-core/selectors/formatters";
+import { cliReadinessBlocksSend } from "../../reading-core/selectors/cli-readiness-card";
 import { optionPromptSelectionsFromDrafts } from "../../reading-core/selectors/composer";
 import { dormantArmed, stoppedRunRefillDraft } from "../../reading-core/selectors/runs";
 import { findSessionSummary } from "../../reading-core/selectors/sidebar";
@@ -506,6 +507,24 @@ export async function submitPrompt(): Promise<void> {
   const view = activeTaskView();
   const text = elements.promptInput.value.trim();
 
+  // THE readiness gate (CLI readiness S2). It belongs here, at the choke point,
+  // because "send" has three doors and only two of them are guarded upstream: the
+  // form's submit handler (which covers the button and plain Enter) and
+  // `#sendPrompt.disabled`. The third is `executeSlashEntry`, which calls this
+  // function DIRECTLY — reachable by Enter on a slash-picker entry or a click on
+  // it, and reachable precisely because the card leaves the textarea enabled so a
+  // prompt can be drafted while an installer runs. The builtin command list is a
+  // hardcoded snapshot that needs no installed CLI, so a listed passthrough
+  // without an argument hint (`/status`, `/model`, `/init`, …) would create a
+  // session on a provider that cannot boot and queue the prompt in silence — the
+  // exact failure this program exists to remove.
+  //
+  // Inert for an open session by construction: the card is New-Chat-only, so
+  // `cliReadinessBlocksSend` is false the moment a task exists. Silent, like the
+  // drawer guard — the card is directly above the composer and already says why.
+  if (cliReadinessBlocksSend(state)) {
+    return;
+  }
   // No slash interpretation here, by design (2026-07-27, decision 3): a "/…"
   // draft is submitted verbatim like any other text. Delivery types the prompt
   // into the provider's PTY, so the CLI must see exactly what the user typed —

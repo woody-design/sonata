@@ -71,6 +71,28 @@ try {
     "and the draft is not consumed — nothing was sent",
   );
   observed.sendBlocked = "button disabled + Enter inert + no session";
+
+  // …and the THIRD door, which the first implementation left open (review B1). The
+  // slash picker's execute path calls submitPrompt DIRECTLY — no form event, no
+  // send button — and it is reachable here precisely because the card leaves the
+  // textarea enabled. The builtin list is a hardcoded snapshot needing no installed
+  // CLI, so `/status` (a listed passthrough with no argument hint) classifies
+  // "execute" and would have created a session on a provider that cannot boot.
+  await main.locator("#prompt-input").fill("/status");
+  await main.locator(".slash-picker").waitFor({ state: "visible" });
+  await main.locator("#prompt-input").press("Enter");
+  await main.waitForTimeout(1500);
+  assert.equal(
+    await main.locator(".sidebar-session").count(),
+    0,
+    "executing a slash command while the card is up creates no session",
+  );
+  assert.equal(
+    await main.locator(".cli-readiness-card").count(),
+    1,
+    "and the card is still the honest state of the surface",
+  );
+  observed.slashExecuteBlocked = "/status + Enter on the picker → no session";
   await main.locator("#prompt-input").fill("");
 
   // ── B. Install, visibly, and the card yields when it works ───────────────
@@ -118,7 +140,23 @@ try {
   );
   observed.curlArgv = fixture.curlInvocations();
 
+  // THE ESCAPE HATCH (review O2). A wedged installer — one sitting on an
+  // unanswered sudo prompt — shows "Installing…" with no card-side way out, and the
+  // answer is that the run is a real pty whose keystrokes are forwarded: Ctrl-C in
+  // the CLI window reaches the installer, kills it, and settles the card to the
+  // failed state with Try again. This install is HELD open, so it stands in for the
+  // wedged one exactly.
+  await cli.locator(".task-terminal[data-setup-run]").click();
+  await cli.keyboard.press("Control+C");
+  await main
+    .locator('.cli-readiness-card[data-kind="install-failed"]')
+    .waitFor({ state: "visible" });
+  assert.deepEqual(await main.locator(".cli-readiness-action").allTextContents(), ["Try again"]);
+  observed.ctrlCEscapesAWedgedInstall = "Ctrl-C in the CLI window → failed + Try again";
+
+  // Try again, and let it through this time.
   fs.writeFileSync(holdFile, "go", "utf8");
+  await main.locator("#cli-readiness-retry").click();
   // The card goes on its own: the pty exits, main re-probes with the PATH bust,
   // the facts turn green, the run clears, and the push repaints.
   await card.waitFor({ state: "detached" });

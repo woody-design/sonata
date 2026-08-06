@@ -42,6 +42,12 @@ import { cliCommandEnv } from "./cli-env";
  * bringing the window forward and nothing else: two installers writing the same
  * global prefix is a corruption hazard, and the card that could issue the second
  * request is already showing "Installing…" rather than a button.
+ *
+ * ## What a quit does (and does not do)
+ *
+ * The pty is not detached, so quitting Sonata mid-install interrupts the installer.
+ * Accepted, not defended against — see {@link CliSetupRunController.dispose} for the
+ * measurement and the reasoning.
  */
 
 /**
@@ -238,11 +244,23 @@ export class CliSetupRunController {
   }
 
   /**
-   * Stop broadcasting; deliberately does NOT kill a live run.
+   * Stop broadcasting. This method kills nothing — but be precise about what that
+   * buys, because the obvious stronger claim is FALSE.
    *
-   * Same reasoning the CLI updater's detached spawn rests on: killing a package
-   * manager mid-write can leave a corrupt global install. Sonata quitting is not a
-   * reason to risk the user's machine, and the run is the user's, not the app's.
+   * The pty is spawned NOT detached and Sonata holds its master, so **quitting
+   * Sonata mid-install takes the installer with it** (MEASURED 2026-08-05: a
+   * node-pty child stops dead when its parent process exits). Only the survivable
+   * case survives: on macOS, closing every window does not end the process, and
+   * this method's job is to stop broadcasting into a torn-down window set while the
+   * run continues.
+   *
+   * That interruption is ACCEPTED rather than defended against (orchestrator
+   * ruling, review O1). The `cli-updater` executor's detach-and-unref machinery is
+   * the real fix and is deliberately heavier than this slice warrants: both vendor
+   * installers are re-runnable, and a half-written install reads `absent` to the
+   * next launch's probe — which is exactly the card that offers to install it again.
+   * The recovery path is retry, and it is the same path a failed install already
+   * takes.
    */
   dispose(): void {
     this.disposed = true;

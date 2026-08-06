@@ -1313,10 +1313,10 @@ app.on("before-quit", () => {
   // No timers to clear here — the readiness probe has none. This only stops an
   // in-flight probe from broadcasting into a window set that is being torn down.
   cliReadiness?.dispose();
-  // Stops broadcasting a setup run; deliberately does NOT kill one. Same reason
-  // the CLI updater's child is detached: killing an installer mid-write can leave
-  // a corrupt global install, and Sonata quitting is not worth that risk to the
-  // user's machine.
+  // Stops broadcasting a setup run. It does not kill one — but note the limit of
+  // that (review O1): the pty is not detached, so a real QUIT interrupts the
+  // installer anyway. Accepted; the recovery is retry, and the controller's dispose
+  // doc carries the measurement and the reasoning.
   cliSetupRun?.dispose();
   // Emit the final event-loop-lag summary and disarm the sampler (no-op when the
   // perf log is off — perfLog is null).

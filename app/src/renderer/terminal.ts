@@ -506,8 +506,14 @@ function retireTerminalGeneration(taskId: string, generation: number): void {
  *  which, rather than a blank grid. A CLI setup run's grid can outrank all of
  *  that; {@link setupRunOwnsWindow} holds that precedence. */
 function showActiveTerminal(): void {
-  const taskEntry = activeTaskId && activeLive ? terminals.get(activeTaskId) ?? null : null;
-  if (setupTerminal && setupRunOwnsWindow(taskEntry)) {
+  const taskEntry = liveTaskTerminal();
+  // The breadcrumb labels whatever this function decides to show, so it is decided
+  // HERE rather than by the callers — which also removes an ordering trap: it now
+  // depends on the live task's grid, and `applyActiveTask` used to render it before
+  // creating that grid, so a dormant→live switch would have printed a one-frame
+  // "Setup › …" and never corrected it.
+  renderBreadcrumb();
+  if (setupTerminal && setupRunOwnsWindow()) {
     for (const entry of terminals.values()) {
       entry.element.classList.add("hidden");
     }
@@ -619,7 +625,6 @@ function applyActiveTask(next: TerminalActiveTaskState): void {
   activeTaskId = next.taskId;
   activeLive = next.live;
   activeBinding = next;
-  renderBreadcrumb();
   // Dispose terminals whose task has closed.
   for (const id of [...terminals.keys()]) {
     if (!next.openTaskIds.includes(id)) {
@@ -675,9 +680,19 @@ interface SetupTerminal {
 let setupRun: CliSetupRun | null = null;
 let setupTerminal: SetupTerminal | null = null;
 
+/** The live task's terminal, or null — the only thing that can outrank a finished
+ *  setup run. */
+function liveTaskTerminal(): TaskTerminal | null {
+  return activeTaskId && activeLive ? terminals.get(activeTaskId) ?? null : null;
+}
+
 /**
- * Whether the setup run's grid is the one on screen. The precedence, in one place
- * so `showActiveTerminal` and `activeEntry` cannot drift apart:
+ * Whether the setup run's grid is the one ON SCREEN — the single home of this
+ * precedence, and deliberately zero-argument so that EVERY site asking the question
+ * asks the same one. (Review S1: two sites had drifted into asking the cheaper
+ * question, "does a setup run exist", which is not the same thing the moment a run
+ * finishes: `phase: "failed"` is durable by design, so "exists" stays true for the
+ * rest of the app session.)
  *
  *   - a RUNNING run wins outright — the user just asked for it, Sonata brought this
  *     window forward for it, and it may be waiting on a keystroke;
@@ -686,31 +701,40 @@ let setupTerminal: SetupTerminal | null = null;
  *   - …but it beats the empty placeholder, because the failed card in Reading says
  *     "check the output in the terminal window", and this grid IS that output.
  */
-function setupRunOwnsWindow(liveTaskEntry: TaskTerminal | null): boolean {
+function setupRunOwnsWindow(): boolean {
   if (!setupTerminal) {
     return false;
   }
-  return setupRun?.phase === "running" || !liveTaskEntry;
+  return setupRun?.phase === "running" || !liveTaskTerminal();
 }
 
 /** The breadcrumb names WHAT IS ON SCREEN. A setup run is not a task, so showing
  *  the selected task's project and title over an installer's output would be a
- *  small lie in the one place the window explains itself. */
+ *  small lie in the one place the window explains itself — and so would the reverse,
+ *  which is what keying on the run's mere EXISTENCE produced: "Setup › Install
+ *  Codex" printed over a live session's grid after a failed install (review S1).
+ *  Same predicate as the grid it labels. */
 function renderBreadcrumb(): void {
-  const project = setupRun ? "Setup" : activeBinding?.projectName ?? "Tasks";
-  const title = setupRun
-    ? `${setupRun.kind === "install" ? "Install" : "Start"} ${
-        setupRun.provider === "claude" ? "Claude Code" : "Codex"
+  const run = setupRunOwnsWindow() ? setupRun : null;
+  const project = run ? "Setup" : activeBinding?.projectName ?? "Tasks";
+  const title = run
+    ? `${run.kind === "install" ? "Install" : "Start"} ${
+        run.provider === "claude" ? "Claude Code" : "Codex"
       }`
     : activeBinding?.sessionTitle ?? "New task";
-  projectName.textContent = project;
-  projectName.title = project;
-  sessionTitle.textContent = title;
-  sessionTitle.title = title;
+  // Same-value writes skipped: this now runs from showActiveTerminal, which is
+  // called on every binding change and every pty batch that rebuilds a grid.
+  if (projectName.textContent !== project) {
+    projectName.textContent = project;
+    projectName.title = project;
+  }
+  if (sessionTitle.textContent !== title) {
+    sessionTitle.textContent = title;
+    sessionTitle.title = title;
+  }
 }
 
 function applySetupRun(next: CliSetupRun | null): void {
-  const previous = setupRun;
   setupRun = next;
   // The grid lives as long as the RUN does — including after a failed install,
   // which is load-bearing rather than lenient: the card's copy for that state is
@@ -724,9 +748,7 @@ function applySetupRun(next: CliSetupRun | null): void {
     setupTerminal = createSetupTerminal(next.id);
     void hydrateSetupTerminal(setupTerminal);
   }
-  if (previous?.id !== next?.id || previous?.phase !== next?.phase) {
-    renderBreadcrumb();
-  }
+  // showActiveTerminal decides visibility AND relabels the breadcrumb.
   showActiveTerminal();
 }
 
@@ -873,12 +895,10 @@ const TERMINAL_SEARCH_DECORATIONS = {
  *  buffer would open a find box over output nobody can see. This one guard is
  *  what disables Cmd+F, the box's controls, and its focus restore together. */
 function activeEntry(): TaskTerminal | null {
-  const entry = activeTaskId ? terminals.get(activeTaskId) ?? null : null;
-  const visible = activeLive ? entry : null;
-  if (setupTerminal && setupRunOwnsWindow(visible)) {
+  if (setupRunOwnsWindow()) {
     return null;
   }
-  return entry;
+  return activeTaskId ? terminals.get(activeTaskId) ?? null : null;
 }
 
 function updateSearchCount(result?: { resultIndex: number; resultCount: number }): void {
@@ -1240,7 +1260,11 @@ window.sonataRuntime.onCliSetupRunData((chunk) => {
 });
 
 window.addEventListener("resize", () => {
-  if (setupTerminal) {
+  // Refit whichever grid is VISIBLE, not merely whichever exists (review S1): a
+  // failed run's state is durable, so keying on existence would have refit the
+  // hidden setup grid and left a live session's xterm un-refit for the rest of the
+  // app session — a resized window with a stale cols/rows and a mis-sized pty.
+  if (setupTerminal && setupRunOwnsWindow()) {
     fitSetupTerminal(setupTerminal);
     return;
   }
