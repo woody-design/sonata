@@ -12,15 +12,27 @@
 //   B. the same conversation, resumed after the CLI is signed out, gets the banner
 //      when the observation window elapses (L5) — and the composer's boot promise
 //      yields to an honest state in the same paint;
-//   C. the banner's action is S2's seam verbatim: the CLI window comes forward
-//      running the CLI itself, the button withdraws while it runs, and finishing
-//      the login retires the banner with nobody clearing anything;
-//   D. with the binary GONE the pty dies before any prompt, and the banner arrives
-//      immediately wearing the install action instead (trigger 1);
+//   C. a LIVE signed-out session is offered the family's pointer and NEVER a second
+//      CLI (review round 1 — a second copy hides the task's own login screen, and
+//      finishing the login there would turn the facts green while leaving this pty
+//      parked: the eternal pin rebuilt by its own cure), and that pointer opens the
+//      window on the task's own login screen without starting anything;
+//   D. with the binary GONE the pty dies before any prompt, so there IS nothing to
+//      point at — the banner arrives immediately wearing the install action, which is
+//      the only door left (trigger 1) — and a dismissal hides it without letting the
+//      composer lie, while the next attempt speaks again;
+//  D2. that button reaches S2's install seam verbatim (proven by the argv the fake
+//      curl saw), and the banner then retires on the re-probed FACTS — the other of
+//      the two heal paths;
 //   E. the CLI window's own "Start CLI" — which bypasses Reading's composer
 //      entirely and can spawn a session on a broken provider (S2's out-of-scope
 //      O3) — produces a session that carries the banner like any other, with no
-//      special-casing anywhere.
+//      special-casing anywhere, and it does so from STALE-GOOD facts, so the
+//      diagnosis's own re-probe is what learns the truth;
+//   G. and the heal that actually works: the login finished in the task's OWN pty
+//      retires the banner AND the honest copy on the session's own progress, and
+//      delivers the prompt that waited through the whole outage. Last, because that
+//      delivery opens a run the stub never closes.
 //
 // Deterministic by construction, on S2's fixture: the app's PATH is a fixture bin
 // dir plus the system dirs, and the CLI in it is a stub that answers the probe's
@@ -95,11 +107,6 @@ try {
   await banner.waitFor({ state: "visible", timeout: WINDOW_WAIT_MS });
   assert.equal(await bannerCopy.textContent(), SIGNED_OUT_COPY, "the D8 sentence, verbatim");
   assert.equal(
-    await bannerAction.textContent(),
-    "Start Claude Code CLI",
-    "…and the D8 action, verbatim",
-  );
-  assert.equal(
     await placeholder(),
     YIELDED_PLACEHOLDER,
     "the composer stops promising a boot that is not coming",
@@ -127,47 +134,60 @@ try {
     taskId,
   };
 
-  // ── C. The action is S2's seam, and the heal is the facts' ───────────────
+  // ── C. The pointer, and the heal through the task's OWN pty ──────────────
+  //
+  // The banner offers NO Start button here, and that is the review-round-1 fix. This
+  // session's own CLI is alive and parked on the login screen the copy points at, so
+  // a second copy would hide it — and finishing the login in that second copy would
+  // turn the machine facts green, retire this banner on them, and leave THIS pty
+  // parked forever with its prompt queued: the eternal pin, rebuilt by its own cure.
+  // The family's ordinary pointer is what is offered instead.
+  assert.equal(
+    await bannerAction.textContent(),
+    "Open CLI →",
+    "a live signed-out session gets the POINTER, never an offer to start a second CLI",
+  );
+  assert.equal(
+    await main.locator('.attention-banner[data-kind="cli-session-start"] button').count(),
+    2,
+    "…and only the pointer and the dismiss — no third button",
+  );
+
   await bannerAction.click();
   const cli = await waitForWindow(app, (page) => page.url().endsWith("/terminal.html"));
   cli.setDefaultTimeout(30_000);
-  await cli.locator(".task-terminal[data-setup-run]").waitFor({ state: "visible" });
+  // The pointer opens the window on the TASK's own grid — the login screen itself —
+  // and starts nothing: no setup run exists.
   await waitUntil(
     async () =>
-      ((await cli.locator(".task-terminal[data-setup-run] .xterm-rows").textContent()) ?? "").includes(
+      ((await cli.locator(".task-terminal .xterm-rows").first().textContent()) ?? "").includes(
         "Welcome to Claude Code",
       ),
-    "the CLI's own first-run screen in the CLI window",
+    "the task's own first-run screen in the CLI window",
   );
-  // The sentence still holds while that CLI is up, but the recovery withdraws —
-  // starting a second copy of a CLI awaiting input is a mess rather than a fix — and
-  // degrades to the family's own pointer at the window where the CLI now is.
-  await waitUntil(
-    async () => (await bannerAction.textContent()) === "Open CLI →",
-    "the recovery action to degrade to the family pointer",
+  assert.equal(
+    await cli.locator(".task-terminal[data-setup-run]").count(),
+    0,
+    "the pointer starts no second CLI",
   );
-  assert.equal(await bannerCopy.textContent(), SIGNED_OUT_COPY, "and the copy is not rewritten");
-  observed.actionRunsTheCli = "CLI window hosts the real CLI; the recovery becomes Open CLI →";
-
-  // Finish the login the only way Sonata allows — inside the CLI. The control file
-  // is what "signed in" means to the next probe; Ctrl-C is the user closing the CLI,
-  // and that pty's exit is what triggers the probe.
-  fixture.setSignedIn("claude", true);
-  await cli.locator(".task-terminal[data-setup-run]").click();
-  await cli.keyboard.press("Control+C");
-  await banner.waitFor({ state: "detached" });
-  assert.notEqual(
-    await placeholder(),
-    YIELDED_PLACEHOLDER,
-    "and the composer's copy comes back with it",
-  );
-  observed.healRetiresIt = "facts turned green → banner and copy retire themselves";
+  observed.pointerNotASecondCli = "Open CLI → shows the task's own login screen, starts nothing";
+  // Leave it dormant for the blocks below; the REAL heal through this pty is block G,
+  // last, because a delivered prompt opens a run the fixture's stub never closes and
+  // an open run outranks every placeholder assertion after it.
 
   // ── D. Binary gone → the pre-latch exit trigger, install action ──────────
+  //
+  // Spawned through the CLI window's "Resume task" rather than the composer, for the
+  // determinism reason this file already pays elsewhere: `view.live` lags a pty
+  // Sonata just retired, and a composer send in that gap takes the LIVE branch and
+  // reports TaskNotLiveError instead of resuming. Waiting for that button to read
+  // "Resume task" IS waiting for the renderer to agree the session is dormant. (The
+  // delivered prompt from block C also leaves a run open until its pty dies, which
+  // would put the send button in stop-mode.)
   fixture.removeCli("claude");
   await closeActiveTask(main);
-  await main.locator("#prompt-input").fill("and now?");
-  await main.locator("#send-prompt").click();
+  await waitForCliAction(cli, "Resume task");
+  await cli.locator("#terminal-empty-action", { hasText: "Resume task" }).click();
 
   // No window to wait out: a missing binary fails inside the pty, so the diagnosis
   // is immediate.
@@ -176,9 +196,14 @@ try {
   assert.equal(
     await bannerAction.textContent(),
     "Install Claude Code CLI",
-    "…and the install action",
+    "…and the install action — a dead pty has nothing to point at",
   );
-  assert.equal(await placeholder(), YIELDED_PLACEHOLDER, "the composer yields here too");
+  // Waited rather than asserted flat: the composer repaints off the same events, and
+  // the run block C's delivered prompt opened closes on that pty's death.
+  await waitUntil(
+    async () => (await placeholder()) === YIELDED_PLACEHOLDER,
+    "the composer to yield here too",
+  );
   observed.absentBanner = {
     copy: await bannerCopy.textContent(),
     action: await bannerAction.textContent(),
@@ -213,13 +238,50 @@ try {
   assert.equal(await bannerCopy.textContent(), ABSENT_COPY, "the next attempt speaks again");
   observed.dismissIsSpentByTheNextAttempt = "re-raised on the same task";
 
+  // ── D2. The recovery button IS S2's seam, and the machine heal works ──────
+  // The one recovery the banner still offers as a BUTTON (nothing is running, and
+  // there is no login screen to point at). It must reach S2's install seam verbatim —
+  // proven by what the fake `curl` was actually called with, not by reading a
+  // constant back — and the banner must then retire on the re-probed FACTS, which is
+  // the other of the two heal paths (block C healed on the session's own progress).
+  fixture.setInstallScript(fixture.successInstallScript("claude", { signedIn: true }));
+  await bannerAction.click();
+  await waitUntil(
+    async () =>
+      ((await cli.locator(".task-terminal[data-setup-run] .xterm-rows").textContent()) ?? "").includes(
+        "Downloading claude installer",
+      ),
+    "the installer's output in the CLI window",
+  );
+  assert.deepEqual(
+    fixture.curlInvocations(),
+    ["-fsSL https://claude.ai/install.sh"],
+    "the vendor's official command (D7) is what ran",
+  );
+  await banner.waitFor({ state: "detached" });
+  assert.notEqual(
+    await placeholder(),
+    YIELDED_PLACEHOLDER,
+    "and the composer's copy comes back once the machine is fixed",
+  );
+  observed.installSeamAndFactsHeal = {
+    curl: fixture.curlInvocations(),
+    healed: "banner + copy retired on the re-probed facts",
+  };
+
   // ── E. The CLI window's Start CLI, on a broken provider (S2's O3) ────────
-  // Reading's own composer is closed here — the New Chat card blocks it — but the
-  // CLI window's Start CLI does not go through the composer at all, so it CAN spawn
-  // a session on a CLI that is not installed. It should need no special handling:
-  // that session's pty dies pre-prompt like any other, and the same trigger speaks.
+  // "Start CLI" does not go through Reading's composer at all, so none of the New
+  // Chat card's guards apply to it and it CAN spawn a session on a CLI that is not
+  // installed. It should need no special handling: that session's pty dies pre-prompt
+  // like any other, and the same trigger speaks.
+  //
+  // Note what the machine facts say right now: still HEALTHY, because D2's install
+  // fixed them and nothing has looked since (a focus re-probe is gated on something
+  // being broken — D4). So this block is also the case where a spawn goes out over
+  // stale-good facts, and the diagnosis's own re-probe is what learns the truth.
+  fixture.removeCli("claude");
   await main.locator("#sidebar-new-chat").click();
-  await main.locator(".cli-readiness-card").waitFor({ state: "visible" });
+  await main.locator(".task-entry-panel").waitFor({ state: "visible" });
   const sessionsBefore = await main.locator(".sidebar-session").count();
   await waitForCliAction(cli, "Start CLI");
   await cli.locator("#terminal-empty-action", { hasText: "Start CLI" }).click();
@@ -235,6 +297,46 @@ try {
   );
   assert.equal(await placeholder(), YIELDED_PLACEHOLDER, "…and its composer is honest too");
   observed.startCliCovered = "Start CLI's session is diagnosed by the same trigger — no special case";
+
+  // ── G. The heal that actually works: this task's OWN pty ─────────────────
+  // Last on purpose (see block C): the delivered prompt below opens a run the stub
+  // never closes, and an active run outranks the composer copy every later block
+  // asserts. Everything here is the product's own machinery once the CLI paints its
+  // composer — `acceptsPromptInput()` turns true, the delivery pump latches, the
+  // queued message goes out — and the banner and the honest copy retire on the
+  // SESSION's own progress, with no probe involved.
+  fixture.installCli("claude", { signedIn: false });
+  await selectSession(main, taskId);
+  await waitForCliAction(cli, "Resume task");
+  await cli.locator("#terminal-empty-action", { hasText: "Resume task" }).click();
+  await banner.waitFor({ state: "visible", timeout: WINDOW_WAIT_MS });
+  assert.equal(await bannerCopy.textContent(), SIGNED_OUT_COPY, "parked on its login screen again");
+  assert.equal(
+    await bannerAction.textContent(),
+    "Open CLI →",
+    "…and still only the pointer, never a second CLI",
+  );
+
+  // A message sent into the parked session: the queue holds it (this is the promise
+  // the send-gate asymmetry rests on).
+  await main.locator("#prompt-input").fill("held until the login finishes");
+  await main.locator("#send-prompt").click();
+
+  fixture.setSignedIn("claude", true);
+  fixture.completeCliLogin();
+  await banner.waitFor({ state: "detached" });
+  await waitUntil(
+    async () => (await placeholder()) !== YIELDED_PLACEHOLDER,
+    "the composer's copy to come back with it",
+  );
+  await waitUntil(
+    async () =>
+      ((await cli.locator(".task-terminal .xterm-rows").first().textContent()) ?? "").includes(
+        "held until the login finishes",
+      ),
+    "the prompt queued during the outage to be delivered",
+  );
+  observed.healViaOwnPty = "own login finished → banner + copy retire, queued prompt delivered";
 
   console.log(JSON.stringify({ ...observed, success: true }, null, 2));
 } catch (error) {
@@ -275,6 +377,16 @@ async function closeActiveTask(page) {
   assert.ok(taskId, "an active session to close");
   await page.waitForTimeout(1_000);
   return taskId;
+}
+
+/** Click a session's sidebar row (blocks that ran a New Chat in between). */
+async function selectSession(page, taskId) {
+  const row = page.locator(`.sidebar-session[data-task-id="${taskId}"]`);
+  await row.waitFor({ state: "visible" });
+  if (!(await row.evaluate((node) => node.classList.contains("active")))) {
+    await row.locator(".sidebar-session-button").click();
+    await page.locator(`.sidebar-session[data-task-id="${taskId}"].active`).waitFor();
+  }
 }
 
 async function waitForCliAction(page, text) {

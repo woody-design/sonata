@@ -33,6 +33,7 @@ const require = createRequire(import.meta.url);
 const { createInitialState, createTaskView } = require("../../dist/reading-core/state");
 const {
   cliReadinessBanner,
+  cliSessionStartStalled,
 } = require("../../dist/reading-core/selectors/cli-readiness-banner");
 const {
   cliReadinessCard,
@@ -170,12 +171,15 @@ function sessionState({
   for (const provider of ["claude", "codex"]) {
     for (const reason of ["absent", "signedOut"]) {
       const brokenFact = reason === "absent" ? ABSENT : SIGNED_OUT;
+      // A DEAD pty for every row here, so each reason shows its recovery button. The
+      // live signed-out row — where the recovery is deliberately withheld — is section
+      // 2b's subject.
       const { state, view } = sessionState({
         provider,
         claude: provider === "claude" ? brokenFact : HEALTHY,
         codex: provider === "codex" ? brokenFact : HEALTHY,
         blocked: reason,
-        live: reason === "signedOut",
+        live: false,
       });
       const banner = cliReadinessBanner(state, view);
       assert.ok(banner, `${provider}/${reason} raises a banner`);
@@ -224,13 +228,83 @@ function sessionState({
   results.copy = seen;
 }
 
+// ── 2b. A LIVE signed-out session is never offered a second CLI ─────────────
+// The review-round-1 rule, and the one with real consequences. A live signed-out
+// diagnosis comes from the boot observation window, i.e. "this task's own CLI is up
+// and parked on its first-run screen". Offering to START one would spawn an
+// independent pty whose grid hides the task's own, and finishing THAT login is the
+// worst outcome available: the machine facts go green, the banner retires on them,
+// and this session's pty stays parked forever with its prompt held — the eternal pin,
+// rebuilt by its own cure. The action is withheld so the banner degrades to the
+// family's pointer, at the window where the login already is.
+{
+  for (const provider of ["claude", "codex"]) {
+    const brokenFact = SIGNED_OUT;
+    const live = sessionState({
+      provider,
+      claude: provider === "claude" ? brokenFact : HEALTHY,
+      codex: provider === "codex" ? brokenFact : HEALTHY,
+      blocked: "signedOut",
+      live: true,
+    });
+    const liveBanner = cliReadinessBanner(live.state, live.view);
+    assert.ok(liveBanner, `${provider}: the banner still speaks`);
+    assert.equal(
+      liveBanner.action,
+      null,
+      `${provider}: a live signed-out session is offered NO second CLI`,
+    );
+    assert.equal(
+      liveBanner.copy,
+      provider === "claude"
+        ? "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window."
+        : "Codex CLI isn't signed in. Finish its setup in the terminal window.",
+      `${provider}: and the copy is not rewritten — the withdrawal is the whole change`,
+    );
+
+    // Dead, same fact: now a fresh spawn is the ONLY door, so the button is right.
+    const dead = sessionState({
+      provider,
+      claude: provider === "claude" ? brokenFact : HEALTHY,
+      codex: provider === "codex" ? brokenFact : HEALTHY,
+      blocked: "signedOut",
+      live: false,
+    });
+    assert.equal(
+      cliReadinessBanner(dead.state, dead.view).action.kind,
+      "start",
+      `${provider}: a DEAD pty keeps the Start button — nothing to point at`,
+    );
+  }
+
+  // `absent` is unaffected by liveness: there is no login screen to point at, and
+  // installing disturbs nothing that is running.
+  for (const live of [true, false]) {
+    const { state, view } = sessionState({
+      provider: "claude",
+      claude: ABSENT,
+      blocked: "absent",
+      live,
+    });
+    assert.equal(
+      cliReadinessBanner(state, view).action.kind,
+      "install",
+      `absent keeps its install action (live=${live})`,
+    );
+  }
+  results.liveSignedOut = "live → pointer; dead → Start; absent → Install either way";
+}
+
 // ── 3. The action yields to a live setup run ────────────────────────────────
+// DEAD ptys throughout, deliberately: with a live one the recovery is already
+// withheld by 2b's rule, and every assertion here would pass for the wrong reason.
 {
   const running = (provider, kind) => ({ id: 1, kind, provider, phase: "running" });
   const signedOut = sessionState({
     provider: "claude",
     claude: SIGNED_OUT,
     blocked: "signedOut",
+    live: false,
     run: running("claude", "start"),
   });
   const banner = cliReadinessBanner(signedOut.state, signedOut.view);
@@ -252,6 +326,7 @@ function sessionState({
     provider: "claude",
     claude: SIGNED_OUT,
     blocked: "signedOut",
+    live: false,
     run: running("codex", "install"),
   });
   assert.ok(
@@ -375,6 +450,77 @@ function sessionState({
     "New Chat's placeholder is untouched",
   );
   results.pinYield = { pinnedPlaceholder, yieldedPlaceholder, pinnedTitle, yieldedTitle };
+}
+
+// ── 5b. WHICH predicate the composer reads (review round 1) ────────────────
+// The composer used to read the BANNER's model, and that is how the pin came back:
+// the banner is a statement about the MACHINE and retires when the machine is fixed,
+// while a session can still be parked on a screen it will never leave. Two disjuncts,
+// and dropping either one is a lie in a different direction.
+{
+  // (a) Machine broken, session dormant — the banner's own case.
+  const dormantBroken = sessionState({
+    provider: "claude",
+    claude: ABSENT,
+    blocked: "absent",
+    live: false,
+  });
+  assert.equal(
+    cliSessionStartStalled(dormantBroken.state, dormantBroken.view),
+    true,
+    "a broken machine keeps the composer honest",
+  );
+
+  // (b) THE HOLE: the machine was fixed elsewhere — a second copy of the CLI, or the
+  //     user's own terminal — and this session's pty is STILL the parked one. The
+  //     banner rightly retires; the composer must not.
+  const parkedButHealed = sessionState({
+    provider: "claude",
+    claude: HEALTHY,
+    blocked: "signedOut",
+    live: true,
+  });
+  assert.equal(
+    cliReadinessBanner(parkedButHealed.state, parkedButHealed.view),
+    null,
+    "the banner retires on the healed machine (correctly)",
+  );
+  assert.equal(
+    cliSessionStartStalled(parkedButHealed.state, parkedButHealed.view),
+    true,
+    "…but the composer must NOT go back to promising a boot for a pty still parked",
+  );
+  assert.equal(
+    composerPlaceholder(parkedButHealed.view, false, false, true),
+    "Claude can't start yet",
+    "…which is what the user reads",
+  );
+
+  // (c) The other direction, which a register-only predicate would get wrong: an
+  //     install fixed a DORMANT session's provider. Nothing is parked, a resume now
+  //     works, so the honest copy must step aside.
+  const dormantHealed = sessionState({
+    provider: "claude",
+    claude: HEALTHY,
+    blocked: "absent",
+    live: false,
+  });
+  assert.equal(
+    cliSessionStartStalled(dormantHealed.state, dormantHealed.view),
+    false,
+    "a healed machine + a dormant session → the composer steps aside",
+  );
+  assert.equal(
+    composerPlaceholder(dormantHealed.view, false, false, false),
+    "Message Claude — resumes this session",
+    "…and the ordinary resume invitation returns",
+  );
+
+  // (d) No diagnosis at all — a slow boot is nobody's business.
+  const noDiagnosis = sessionState({ provider: "claude", claude: HEALTHY, live: true });
+  assert.equal(cliSessionStartStalled(noDiagnosis.state, noDiagnosis.view), false);
+  assert.equal(cliSessionStartStalled(noDiagnosis.state, null), false, "and New Chat is not it");
+  results.stalledPredicate = "register AND (machine broken OR this pty still live)";
 }
 
 // ── 6. The shared classification ───────────────────────────────────────────

@@ -2,7 +2,7 @@
 //
 // The card is a statement about the user's CLIs, so an app-level test has to be
 // able to say "this machine has no Claude Code" and "this one has it but is not
-// signed in" — and then CHANGE that mid-run, the way a real install does. Three
+// signed in" — and then CHANGE that mid-run, the way a real install does. Four
 // pieces do all of it:
 //
 //   1. a bin dir that is the app's ENTIRE PATH beyond the system dirs, so what is
@@ -13,7 +13,10 @@
 //      in without being replaced;
 //   3. a fake `curl` that prints whatever script the test currently wants and logs
 //      the argv it was called with — which is what lets a test prove the SHIPPED
-//      install command (D7) is the one that ran, rather than trusting a constant.
+//      install command (D7) is the one that ran, rather than trusting a constant;
+//   4. a signal a LIVE stub watches (`completeCliLogin`), so a test can make an
+//      already-parked session finish its first-run flow and reach a prompt — which
+//      the control files above cannot do, since only the probe reads them (S4).
 //
 // Provenance: the CLI stubs' output shapes are MEASURED (claude 2.1.222 /
 // codex-cli 0.146.0, recorded in the S1 slice record and pinned by
@@ -44,6 +47,9 @@ export function createCliReadinessFixture(root) {
   writeFakeCurl(binDir, curlScript, curlLog);
 
   const authFile = (provider) => path.join(controlDir, `${provider}-auth`);
+  // The "the user finished the setup on screen" signal (S4). Watched by a LIVE stub,
+  // unlike the auth control files, which only the probe reads.
+  const loginDoneFile = path.join(controlDir, "login-done");
 
   return {
     binDir,
@@ -83,7 +89,7 @@ export function createCliReadinessFixture(root) {
     /** Put a provider's CLI on this machine, signed in or not. */
     installCli(provider, { signedIn = true } = {}) {
       writeAuthState(authFile(provider), signedIn);
-      writeCliStub(binDir, provider, authFile(provider));
+      writeCliStub(binDir, provider, authFile(provider), loginDoneFile);
     },
 
     /** Remove it again (an uninstalled machine). */
@@ -95,6 +101,27 @@ export function createCliReadinessFixture(root) {
      *  login looks like to the probe. */
     setSignedIn(provider, signedIn) {
       writeAuthState(authFile(provider), signedIn);
+    },
+
+    /**
+     * What finishing a login looks like to a RUNNING CLI (S4): the already-spawned
+     * process leaves its first-run screen and paints its composer prompt.
+     *
+     * The probe half (`setSignedIn`) is not enough on its own. A signed-out session's
+     * PTY is alive and parked, and the only thing that can un-park it is that process
+     * itself — so a test that needs the REAL heal (the CLI's own prompt appears, the
+     * delivery pump latches, the queued message goes out) has to reach the live
+     * process, not the control file the probe reads. The stub polls for this signal
+     * and then prints the provider's own composer glyph + idle footer.
+     *
+     * One signal for all live stubs, which is what a test wants: it is answering
+     * "the user finished the setup that was on screen". Carried only by the stub this
+     * fixture writes — a stub written by the fake INSTALLER (`cliStubScriptWriter`)
+     * has no need of it, since a machine that just installed a CLI reaches its login
+     * screen fresh.
+     */
+    completeCliLogin() {
+      fs.writeFileSync(loginDoneFile, "done", "utf8");
     },
 
     /** What `curl` will print next, i.e. what the install command will run. */
@@ -156,11 +183,12 @@ function writeAuthState(file, signedIn) {
  * answers `auth status --json` with a `loggedIn` boolean on stdout; codex answers
  * `login status` on STDERR with one of two line-anchored phrases.
  *
- * Anything else it is asked to do, it just sits there — which is what a `start`
- * run needs: a process that stays alive on a first-run screen until the user
- * finishes with it.
+ * Anything else it is asked to do, it prints a first-run screen and sits there —
+ * which is what a `start` run needs: a process that stays alive on a first-run
+ * screen until the user finishes with it. `completeCliLogin` is that "finishes with
+ * it": the stub then paints this provider's own composer prompt and keeps running.
  */
-function writeCliStub(binDir, provider, authFile) {
+function writeCliStub(binDir, provider, authFile, loginDoneFile) {
   const answer =
     provider === "claude"
       ? `  if [ "$state" = "in" ]; then echo '{"loggedIn":true,"authMethod":"claude.ai"}'; exit 0; fi\n` +
@@ -178,12 +206,23 @@ if [ "$1" = "--version" ]; then ${version}; exit 0; fi
 if [ "$1" = ${statusArgs}
 ${answer}fi
 # Any other invocation is the CLI itself being run: print a first-run screen and
-# stay alive, exactly as a real CLI waiting on its login flow would.
+# stay alive, exactly as a real CLI waiting on its login flow would — until the test
+# says the user finished with it, at which point paint the composer prompt and keep
+# running, as the real CLI does after its first-run flow. The prompt glyph + idle
+# footer are what \`detectIdlePrompt\` accepts for this provider, so this is the ONLY
+# way a test can make a parked session genuinely reach a prompt.
 echo "Welcome to ${provider === "claude" ? "Claude Code" : "Codex"}"
 echo "Choose a login method:"
 echo "  1. Subscription"
 echo "  2. API key"
-while :; do sleep 0.2; done
+prompted=no
+while :; do
+  if [ "$prompted" = "no" ] && [ -f ${shellQuote(loginDoneFile)} ]; then
+    prompted=yes
+    echo "${provider === "claude" ? "❯ sonnet high ~  ? for shortcuts" : "› gpt-5.6-sol high ~"}"
+  fi
+  sleep 0.2
+done
 `,
     { mode: 0o755 },
   );

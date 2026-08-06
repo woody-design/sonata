@@ -683,8 +683,9 @@ async function showTerminalWindowForSetupRun(): Promise<void> {
   });
 }
 
-/** The readiness card's buttons — Reading window only. The card is the only
- *  surface that offers a setup run, and it lives there. */
+/** The readiness surfaces' buttons — Reading window only. Two surfaces offer a
+ *  setup run now (the New Chat card, and S4's existing-chat banner), and both live
+ *  in the Reading window; no other window may start one. */
 async function startCliSetupRun(request: CliSetupRunRequest, senderId: number): Promise<void> {
   if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.id !== senderId) {
     throw new Error("Only the Reading window may start a CLI setup run.");

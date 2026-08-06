@@ -53,17 +53,37 @@ export interface CliReadinessBannerModel {
   readonly reason: CliSessionStartBlockReason;
   readonly copy: string;
   /**
-   * The CLI's own recovery, through S2's actions verbatim (install / start).
+   * The CLI's own recovery, through S2's actions verbatim (install / start) — or
+   * null, which means the family's ordinary "Open CLI →" pointer instead.
    *
-   * Null while the CLI window is ALREADY running a setup command for this provider:
-   * offering to start a second copy of a CLI that is on screen waiting for input is
-   * a mess, not a fix. The New Chat card answers that state by showing no button at
-   * all; the banner instead falls back to the family's own "Open CLI →" pointer,
-   * which is what a null action means to `attentionBanner`. That is the better
-   * degradation here rather than a coincidence of the factory: the sentence says
-   * "finish its setup in the terminal window", so pointing at that window is the
-   * one thing left worth offering — and the family's baseline behaviour is exactly
-   * that pointer.
+   * Null in two cases, and both are the same rule: **never offer to start a second
+   * copy of a CLI that is already on screen waiting for input.**
+   *
+   * 1. A setup command for this provider is already RUNNING in the CLI window.
+   * 2. `signedOut` on a session whose own PTY is still LIVE. This is the important
+   *    one, and it is where the first implementation was wrong. A live signed-out
+   *    diagnosis comes from the boot observation window, which means precisely that
+   *    this task's own CLI is up and parked on its first-run screen — so the login
+   *    the copy asks for is already open, in the very window the copy points at.
+   *    Offering "Start Claude Code CLI" there spawns an INDEPENDENT pty whose grid
+   *    hides the task's own, and finishing the login in that copy is the worst
+   *    outcome available: the machine facts go green, this banner retires on them,
+   *    and the task's own PTY stays parked forever — so the composer falls back to
+   *    "…is starting, your message will send when it's ready" over a session that
+   *    never will, with the prompt still held in the queue. The eternal pin, rebuilt
+   *    by its own cure.
+   *
+   * The pointer is the right degradation rather than a coincidence of the factory:
+   * the sentence says "finish its setup in the terminal window", the login screen IS
+   * in that window, and finishing it there genuinely heals (the CLI paints its
+   * composer, `acceptsPromptInput()` turns true, the delivery pump latches and the
+   * queued prompt goes out).
+   *
+   * A DEAD pty keeps the Start button: there is nothing to point at, so a fresh
+   * spawn is the only door. `view.live` is the discriminator; it lags a PTY that
+   * died on its own (the session-index refresh clears it — see the S4 record's
+   * out-of-scope 2), and the lag's direction is benign: at worst a pointer where a
+   * button was due, for as long as it takes the next attempt to say so again.
    */
   readonly action: CliReadinessBannerAction | null;
 }
@@ -82,9 +102,12 @@ export interface CliReadinessBannerModel {
  * honest: with the CLI absent the pty is gone, so the session is dormant and the
  * send is a RESUME the user may well want to retry — blocking it would take away
  * the retry; with the CLI signed out the pty is alive and the delivery queue holds
- * the prompt until the boot latch opens, which is precisely what finishing the
- * login in the CLI window does. Nothing is lost either way, so the banner states
- * the fact and leaves the composer alone.
+ * the prompt until the boot latch opens, which is what finishing the login **in
+ * this task's own PTY** does. (It is NOT what finishing a login in a second,
+ * independent copy of the CLI does — that leaves this session's pty parked and its
+ * prompt held, which is exactly why the action degrades to a pointer in that state;
+ * see `action` above.) Nothing is lost either way, so the banner states the fact and
+ * leaves the composer alone.
  */
 export function cliReadinessBanner(
   state: RendererState,
@@ -106,12 +129,13 @@ export function cliReadinessBanner(
     provider,
     reason,
     copy: reason === "absent" ? cliNotInstalledCopy(provider) : cliSignedOutCopy(provider),
-    action: bannerAction(state, provider, reason),
+    action: bannerAction(state, view, provider, reason),
   };
 }
 
 function bannerAction(
   state: RendererState,
+  view: TaskViewState,
   provider: RuntimeProvider,
   reason: CliSessionStartBlockReason,
 ): CliReadinessBannerAction | null {
@@ -119,7 +143,61 @@ function bannerAction(
   if (run && run.phase === "running" && run.provider === provider) {
     return null;
   }
+  // The signed-out login this task is already sitting on. See `action`'s note: a
+  // second copy would hide it and, once satisfied, strand this session for good.
+  if (reason === "signedOut" && view.live) {
+    return null;
+  }
   return reason === "absent"
     ? { kind: "install", provider, label: installActionLabel(provider) }
     : { kind: "start", provider, label: startActionLabel(provider) };
+}
+
+/**
+ * Is THIS SESSION still stuck before its first prompt (S4, review round 1)?
+ *
+ * The composer's honest state reads this, and NOT `cliReadinessBanner` as it first
+ * did. The two are different questions and conflating them is what let the pin come
+ * back:
+ *
+ * - the BANNER is a statement about the MACHINE, so it is gated on live facts and
+ *   retires the moment the machine is fixed;
+ * - the COMPOSER is a statement about THIS SESSION, and a session can still be
+ *   parked on a screen it will never leave after the machine came good — a login
+ *   finished elsewhere (a second copy of the CLI, or the user's own terminal) turns
+ *   the facts green without moving this pty an inch.
+ *
+ * So: the diagnosis stands, AND at least one of the two things that can keep this
+ * session from getting going is still true —
+ *
+ * - **the machine is still broken** (the banner's own condition), so any attempt
+ *   fails; or
+ * - **this session's PTY is still alive**, which after a diagnosis means it is the
+ *   parked one. This is the disjunct that closes the hole: a login finished
+ *   elsewhere turns the facts green without moving this pty an inch, and the
+ *   composer must not go back to promising a boot for it.
+ *
+ * Both directions matter, and dropping either one is a lie. Without the second, a
+ * healed machine restores the pin over a session that is still parked. Without the
+ * first, an install that fixes a DORMANT session's provider would leave "can't start
+ * yet" over a conversation that now resumes perfectly well.
+ *
+ * The register's own lifecycle carries the rest: it is cleared when this task
+ * reaches a prompt (its boot latch opening) and when it starts a fresh session. "A
+ * session that got to a prompt is not a session that failed to start" is one rule
+ * serving both surfaces, and it is what retires a diagnosis that was true-but-wrong
+ * about THIS session — the env-API-key case, where `auth status` reports signed out
+ * while the CLI runs fine on `ANTHROPIC_API_KEY`: the session latches, the register
+ * clears, and both this and the banner go quiet with nobody re-probing. (That is
+ * why neither term re-checks `bootLatched`: a latched session has no register.)
+ */
+export function cliSessionStartStalled(
+  state: RendererState,
+  view: TaskViewState | null,
+): boolean {
+  const task = view?.task;
+  if (!task || !state.cliSessionStartBlocked[task.id]) {
+    return false;
+  }
+  return isCliProviderUnhealthy(state.cliReadiness[task.provider]) || view?.live === true;
 }

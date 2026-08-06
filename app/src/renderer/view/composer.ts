@@ -47,7 +47,7 @@ import {
   sessionPermissionMenuModes,
 } from "../../reading-core/selectors/composer";
 import { cliReadinessBlocksSend } from "../../reading-core/selectors/cli-readiness-card";
-import { cliReadinessBanner } from "../../reading-core/selectors/cli-readiness-banner";
+import { cliSessionStartStalled } from "../../reading-core/selectors/cli-readiness-banner";
 import { hasActiveRun } from "../../reading-core/selectors/runs";
 import {
   activeTaskView,
@@ -252,9 +252,15 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   // The S4 diagnosis for THIS session (existing chats; the card above is New Chat's
   // half). It changes only what the composer SAYS, never whether it works — see the
   // banner selector for why an existing chat's send stays open where New Chat's does
-  // not. Read through the same selector the banner paints from, so the copy and the
-  // banner can never disagree about whether the CLI can start.
-  const sessionStartBlocked = cliReadinessBanner(state, view) !== null;
+  // not.
+  //
+  // Deliberately NOT the banner's own predicate (review round 1): the banner speaks
+  // about the MACHINE and retires when the machine is fixed, while this speaks about
+  // THIS SESSION, which can still be parked on a screen it will never leave after a
+  // login was finished somewhere else. `cliSessionStartStalled` is the session-scoped
+  // question, and the register it reads is cleared the moment this task reaches a
+  // prompt.
+  const sessionStartBlocked = cliSessionStartStalled(state, view);
   elements.sendPrompt.disabled =
     state.busy ||
     lifecycleBusy ||

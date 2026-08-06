@@ -699,7 +699,9 @@ once, in the card's selector, and the banner imports it).
   `execvp` inside the pty, so the process is gone in milliseconds;
 - the PTY is alive but `acceptsPromptInput()` is still false when the **boot
   observation window** elapses (10s, against a MEASURED 1–3s boot) — the shape of
-  a CLI parked on its own first-run screen.
+  a CLI parked on its own first-run screen. Unless a run is in flight, in which case
+  the same `false` means the opposite (a turn owns the screen) and the session has
+  plainly started.
 
 Neither observation is allowed to name a cause. Each one re-probes and reports what
 the PROBE says, so a session that failed for any other reason — a crash, a bad
@@ -717,15 +719,40 @@ DURABLE record that a prompt was once reached. Its imprecision runs the harmless
 way — a healthy session nobody sent to, then quit, costs one probe that finds
 nothing and says nothing.
 
-**The banner heals itself, and a dismissal does not lie.** Presence is
-`diagnosis AND live facts AND this provider` (`selectors/cli-readiness-banner.ts`),
-so finishing the CLI's setup turns the facts green and the banner retires with no
-clearing path anywhere. The diagnosis lives in the state atom rather than in the
-banner module — unusually for this family — because the **composer reads it too**:
-while it stands, the placeholder and the send title stop predicting a boot. That is
-also why the dismissal is a *separate*, banner-local flag: folding the two together
-would mean closing the notice sent the composer back to promising a boot over a CLI
-that cannot start.
+**Never offer to start a second copy of a CLI that is already waiting for input.**
+The recovery is the vendor's install command, or the CLI itself — except in two
+states, where the banner degrades to the family's ordinary "Open CLI →" pointer: a
+setup command for that provider is already running, or the diagnosis is `signedOut`
+on a session whose own PTY is still LIVE. The second is the one with teeth, and it is
+worth spelling out because the first implementation got it wrong: a live signed-out
+diagnosis comes from the observation window, which means *this task's own CLI is up
+and parked on its first-run screen* — the very login the copy asks for, in the very
+window the copy points at. A "Start" button there spawns an INDEPENDENT pty whose
+grid hides the task's own, and finishing the login in that copy is the worst outcome
+available: the machine facts go green, the banner retires on them, and this session's
+PTY stays parked forever with its prompt held — the eternal pin, rebuilt by its own
+cure. Finishing it in the task's own PTY instead genuinely heals (the CLI paints its
+composer, `acceptsPromptInput()` turns true, the pump latches, the queued prompt goes
+out). A DEAD pty keeps the button: there is nothing to point at, so a fresh spawn is
+the only door.
+
+**Two surfaces, two questions, two predicates.** The BANNER speaks about the
+MACHINE — `diagnosis AND live facts AND this provider`
+(`selectors/cli-readiness-banner.ts`) — so it retires the moment the machine is
+fixed. The COMPOSER speaks about THIS SESSION, and keys on `cliSessionStartStalled`:
+the diagnosis stands AND (the machine is still broken OR this session's PTY is still
+live). Conflating them is how the pin came back, because a login finished anywhere
+else turns the facts green without moving a parked PTY an inch — and dropping the
+machine term instead would leave "can't start yet" over a dormant conversation whose
+provider an install just fixed. The register both read is cleared when the task
+reaches a prompt (its boot latch opening) or starts a fresh session: *a session that
+got to a prompt is not a session that failed to start*, which is also what retires a
+diagnosis that was true-but-wrong about a session — the `ANTHROPIC_API_KEY` case,
+where `auth status` reports signed out while the CLI works fine. The diagnosis lives
+in the state atom rather than in the banner module, unusually for this family,
+precisely because two surfaces read it; the DISMISSAL is a third, banner-local flag,
+for the same honesty reason: closing a notice must not send the composer back to
+promising a boot.
 
 **Send is NOT closed here, and the asymmetry with the card is deliberate.** A New
 Chat send CREATES a session, so sending onto a dead provider manufactures a
@@ -733,7 +760,7 @@ conversation that can never boot. An existing chat's send goes into a conversati
 that already exists, and both failure shapes leave it honest: with the CLI absent
 the pty is gone, so the send is a resume the user may well want to retry; with it
 signed out the pty is alive and the delivery queue holds the prompt until the boot
-latch opens — which is exactly what finishing the login does.
+latch opens — which is what finishing the login **in that session's own PTY** does.
 
 ## The Preview window (satellite)
 

@@ -13,7 +13,9 @@
 //      observation window elapses (L5);
 //   5. a session that boots normally is never diagnosed, however long it then sits;
 //   6. the window belongs to its spawn: closing the session retires it, so it can
-//      never fire over a dead runtime.
+//      never fire over a dead runtime;
+//   7. a session mid-TURN is never diagnosed — `acceptsPromptInput()` is false there
+//      for the opposite reason, and a run in flight is proof the session started.
 //
 // Every one of these fails SILENTLY if it is wired wrong — a banner that simply
 // never appears — so the fence drives the actual controller against real ptys
@@ -23,7 +25,7 @@
 // The observation window is the PRODUCTION 10s constant, deliberately not an
 // injected test seam: the value is a judgement about a real CLI's boot (1–3s
 // MEASURED), and a seam would leave the shipped number the one thing nothing runs.
-// Three of the six blocks therefore wait it out; the whole file lands well inside
+// Four of the seven blocks therefore wait it out; the whole file lands well inside
 // the runner's per-test budget.
 //
 // Expected stderr noise: the fake CLIs of blocks 1–3 exit instantly, so a
@@ -343,6 +345,48 @@ const HEALTHY_FACTS = {
     assert.equal(blocked().length, 0, "the closed session's window never fires");
     assert.equal(readiness.calls.reprobe, 0, "and never probes");
     results.windowRetired = "cleared with the runtime";
+  } finally {
+    controller.dispose();
+  }
+}
+
+// ── 7. A session mid-TURN is never diagnosed (review round 1, O1) ───────────
+// `acceptsPromptInput()` is false while a run owns the screen — for the opposite
+// reason to a parked login — so the window would read a working session as one that
+// never reached a prompt. This is not a corner: a session that boots in 1–3s and is
+// still answering at the 10s mark is the ordinary case, so without this every busy
+// session paid for a probe. And on a machine where the fact is true-but-wrong — a
+// Claude Code running on `ANTHROPIC_API_KEY`, where `auth status` reports signed out —
+// it would have accused a session that was working perfectly.
+{
+  installFakeClaude("ready");
+  const readiness = fakeReadiness({ revealed: SIGNED_OUT_FACTS });
+  const { controller, events, blocked, bootLatched } = makeController(readiness, "active-run");
+  try {
+    const task = await controller.createTask({ provider: "claude", cwd: workspace });
+    // A real delivery is what starts a real run, and the SEND is what drives it: the
+    // enqueue pumps, the pump latches once the fixture's prompt is on screen, the
+    // bytes go out, and the host begins the turn. (The latch flips inside the pump,
+    // so waiting for it before sending would wait forever — the same fact D-2's
+    // correction turns on.) The fixture never paints a SECOND prompt, so the run
+    // stays open, which is precisely the state this block is about.
+    controller.submitPrompt(task.task.id, "hello");
+    await waitFor(
+      () => events.some((event) => event.type === "run:started"),
+      10_000,
+      "the run to start",
+    );
+    assert.equal(bootLatched(), true, "the session demonstrably reached a prompt");
+    assert.equal(
+      controller.taskRuntimes.get(task.task.id).terminalHost.acceptsPromptInput(),
+      false,
+      "…and the composer is NOT accepting input, because the run owns the screen",
+    );
+
+    await delay(WINDOW_WAIT_MS);
+    assert.equal(blocked().length, 0, "a session mid-turn is never diagnosed");
+    assert.equal(readiness.calls.reprobe, 0, "…and costs no probe either");
+    results.activeRun = "a run in flight is proof the session started";
   } finally {
     controller.dispose();
   }

@@ -2424,6 +2424,20 @@ export class RuntimeController {
       if (active.terminalHost.acceptsPromptInput()) {
         return;
       }
+      // A turn is running, so this CLI plainly started — `acceptsPromptInput()` is
+      // false for the opposite reason (it refuses while a run owns the screen), and
+      // reading that as "never reached a prompt" would be exactly backwards.
+      //
+      // It also guards a true-but-wrong accusation the probe can genuinely produce
+      // (review round 1, O1): a Claude Code running on `ANTHROPIC_API_KEY` works
+      // perfectly while `claude auth status --json` reports `loggedIn: false`. The
+      // fact is not a lie, but "isn't signed in — finish its setup" is the wrong
+      // thing to say over a session answering questions. The renderer has a second
+      // net for the same class (a latched session clears the register), and this is
+      // the cheaper, earlier one: nothing is emitted at all.
+      if (active.terminalHost.activeRunId() !== null) {
+        return;
+      }
       void this.diagnoseSessionStart(taskId, active.task.provider);
     }, CLI_BOOT_OBSERVATION_WINDOW_MS);
     timer.unref?.();
