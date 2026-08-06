@@ -158,9 +158,24 @@ try {
     checks.grewWhileAwayReturnsToNewBottom,
     `a session left at the live edge returns to the NEW live edge (${JSON.stringify({ beforeGrowth, afterGrowth })})`,
   );
-  // And the growth that landed while A was in the background must not anchor on
+  // And the growth that landed while A was in the background must not ANCHOR on
   // the way in — switching into a session shows it, it never moves inside it.
-  checks.backgroundGrowthDoesNotAnchor = distance(afterGrowth) <= 64;
+  // Distinct from the check above, which only says "at the bottom": this reads
+  // the arriving segment's own geometry, so an anchor would be caught even if it
+  // happened to land near the bottom. An anchored segment sits at the reading
+  // line (+40px); a seeded one is scrolled far past, above the viewport.
+  const arrivedSegmentTop = await page.evaluate(() => {
+    const list = document.querySelector("#run-list");
+    const segments = list.querySelectorAll(".turn-answer > [data-block-key]");
+    const node = segments[segments.length - 1];
+    return node.getBoundingClientRect().top - list.getBoundingClientRect().top;
+  });
+  results.arrivedSegmentTop = arrivedSegmentTop;
+  checks.backgroundGrowthDoesNotAnchor = arrivedSegmentTop < 0;
+  assert(
+    checks.backgroundGrowthDoesNotAnchor,
+    `background growth is seeded, never anchored (segment top ${arrivedSegmentTop})`,
+  );
 
   // ——— 4. Two sessions parked at two different offsets keep them apart. This
   // is the shape the old inheritance got wrong: whatever the reader was doing

@@ -5,10 +5,11 @@
 // child — both skipped by the reconcile and setNonRailChildren paths), the
 // scroll contract (nearBottom <=64px and previousScrollTop captured BEFORE
 // reconcile; finalize then asks reading-core for ONE of restore-a-switch /
-// anchor-a-new-segment / tail-follow — planReadingFinalizeScroll — and runs
-// restorePromptNavAfterRender then scheduleStickyPromptSync, in that order),
-// the turn-card e2e beacons (data-key/sig/turnKey/runId/runStatus,
-// .turn-outcome-note, data-block-key), and the
+// anchor-a-new-segment / leave-a-held-view / tail-follow —
+// planReadingFinalizeScroll — and runs restorePromptNavAfterRender then
+// scheduleStickyPromptSync, in that order), the turn-card e2e beacons
+// (data-key/sig/turnKey/runId/runStatus, .turn-outcome-note, data-block-key),
+// and the
 // markdown render memo. Shell behavior (mode switch, prompt-nav, T4, the
 // entry panel) arrives through the actions seam; state is read through the
 // module-bound atom reference (initTranscriptView, bound by main.ts at boot
@@ -51,7 +52,6 @@ import {
   isReadingNearBottom,
   planReadingAnchorTarget,
   planReadingFinalizeScroll,
-  readingReaderIsAttending,
   type ReadingFinalizeScroll,
   type ReadingBottomIntentStore,
   type ReadingScrollMemoryStore,
@@ -59,7 +59,11 @@ import {
 import { elements } from "../dom";
 import { actions } from "../actions";
 import { lucideIcon } from "./icons";
-import { scrollReadingBlockToTop } from "./reading-scroll-control";
+import {
+  readingScrollHoldTop,
+  releaseReadingScrollHold,
+  scrollReadingBlockToTop,
+} from "./reading-scroll-control";
 
 /** The shell's state atom, bound once at boot for the surface's read paths. */
 let state: RendererState;
@@ -82,27 +86,22 @@ let lastRenderedTaskId: string | null = null;
  *  incoming session's snapshot. */
 let scrollMemory: ReadingScrollMemoryStore;
 
-/** Reply-top anchoring bookkeeping (S3 D4) for the DISPLAYED session only — it
- *  is re-seeded from scratch whenever the rendered task changes, which is
- *  exactly the rule that entering a session must never anchor inside it. A
- *  session's blocks that landed while it was in the background are therefore
- *  "seen" the moment it is displayed again, and only what arrives in front of
- *  the reader can move their view. */
-interface ReadingAnchorState {
-  /** Every answer segment present at the last render. */
-  seen: ReadonlySet<string>;
-  /** The newest segment whose top edge has not reached the reading line yet.
-   *  It survives across renders because a segment that appeared with no room
-   *  below it (the ordinary case — a reply is born at the bottom of the
-   *  scroller) only becomes reachable as the reply grows. A newer segment
-   *  supersedes it; landing retires it. */
-  pendingKey: string | null;
-  /** Where the last programmatic anchor left the view — the reference the
-   *  attending test compares against. Cleared by any other scroll write, since
-   *  the view is then no longer where we put it. */
-  lastAnchorTop: number | null;
-}
-let anchorState: ReadingAnchorState = { seen: new Set(), pendingKey: null, lastAnchorTop: null };
+/** Reply-top anchoring bookkeeping (S3 D4) for the DISPLAYED session only: the
+ *  answer segments present at the last render. Re-seeded from scratch whenever
+ *  the rendered task changes, which is exactly the rule that entering a session
+ *  must never anchor inside it — a session's blocks that landed while it was in
+ *  the background are "seen" the moment it is displayed again, and only what
+ *  arrives in front of the reader can move their view.
+ *
+ *  There is deliberately NO carried-forward anchor intent beside it: a segment
+ *  is whole when it arrives (see the corpus measurement in reading-core), so an
+ *  anchor is this render's business or nobody's. An intent that outlived its
+ *  render could only ever be completed by somebody else's content — the next
+ *  turn's prompt bubble arriving below it — and would pull the reader backwards
+ *  into a reply they had already left (review 1, blocking 1). The position a
+ *  landed anchor establishes lives in reading-scroll-control's hold, next to
+ *  the writes that invalidate it. */
+let seenAnswerSegments: ReadonlySet<string> = new Set();
 
 export function initTranscriptView(
   stateRef: RendererState,
@@ -253,8 +252,8 @@ export function renderRuns(): void {
   }
   if (!view?.task) {
     setNonRailChildren(runList, rail, [composeEntryPanel()]);
-    syncReadingAnchorState(taskSwitch, []);
-    finalizeReadingSurfaceRender({ nearBottom, previousScrollTop, taskSwitch, taskId });
+    const anchorKey = syncReadingAnchorState(taskSwitch, []);
+    finalizeReadingSurfaceRender({ nearBottom, previousScrollTop, taskSwitch, taskId, anchorKey });
     return;
   }
 
@@ -282,8 +281,18 @@ export function renderRuns(): void {
     })),
   );
 
-  syncReadingAnchorState(taskSwitch, answerSegmentKeys(turns));
-  finalizeReadingSurfaceRender({ nearBottom, previousScrollTop, taskSwitch, taskId });
+  const anchorKey = syncReadingAnchorState(taskSwitch, answerSegmentKeys(turns));
+  finalizeReadingSurfaceRender({ nearBottom, previousScrollTop, taskSwitch, taskId, anchorKey });
+}
+
+/** The answer blocks a turn renders into its body — ONE definition, used both
+ *  by the card builder and by the segment-key collector below, so the DOM's key
+ *  set and the anchor's candidate list can never be two independently
+ *  maintained predicates that merely happen to agree (review 1, minor 3). A
+ *  compaction-boundary turn draws a separator instead of a card, so it
+ *  contributes no addressable segments at all. */
+function answerBlocksForTurn(turn: ReadingTurn): TranscriptBlock[] {
+  return isCompactionTurn(turn) ? [] : turn.blocks.filter(isAnswerBlock);
 }
 
 /** The reply segments a new arrival can anchor, in document order. Only
@@ -299,7 +308,7 @@ export function renderRuns(): void {
 function answerSegmentKeys(turns: ReadingTurn[]): string[] {
   const keys: string[] = [];
   for (const turn of turns) {
-    for (const block of turn.blocks) {
+    for (const block of answerBlocksForTurn(turn)) {
       if (block.kind === "assistant-text") {
         keys.push(block.id);
       }
@@ -308,19 +317,16 @@ function answerSegmentKeys(turns: ReadingTurn[]): string[] {
   return keys;
 }
 
-function syncReadingAnchorState(taskSwitch: boolean, segmentKeys: string[]): void {
+/** Fold this render's segments into the seen set and report the ONE segment (if
+ *  any) that appeared in it. The answer is good for this render only. */
+function syncReadingAnchorState(taskSwitch: boolean, segmentKeys: string[]): string | null {
   if (taskSwitch) {
-    anchorState = { seen: new Set(segmentKeys), pendingKey: null, lastAnchorTop: null };
-    return;
+    seenAnswerSegments = new Set(segmentKeys);
+    return null;
   }
-  const plan = planReadingAnchorTarget(segmentKeys, anchorState.seen);
-  anchorState = {
-    ...anchorState,
-    seen: plan.seen,
-    // A newer segment supersedes an older one still on its way up; when nothing
-    // new arrived, the one in flight keeps its claim.
-    pendingKey: plan.anchorKey ?? anchorState.pendingKey,
-  };
+  const plan = planReadingAnchorTarget(segmentKeys, seenAnswerSegments);
+  seenAnswerSegments = plan.seen;
+  return plan.anchorKey;
 }
 
 function finalizeReadingSurfaceRender(input: {
@@ -328,32 +334,21 @@ function finalizeReadingSurfaceRender(input: {
   previousScrollTop: number;
   taskSwitch: boolean;
   taskId: string | null;
+  anchorKey: string | null;
 }): void {
   const runList = elements.runList;
-  // Is the reader still following the live edge? Asked once per render, from the
-  // position they were in BEFORE this render touched anything.
-  if (
-    !readingReaderIsAttending({
-      scrollTop: input.previousScrollTop,
-      nearBottom: input.nearBottom,
-      lastAnchorTop: anchorState.lastAnchorTop,
-    })
-  ) {
-    // They are reading somewhere of their own choosing. A segment that arrived
-    // while they were there has missed its moment and is retired rather than
-    // held: auto-motion must always be caused by an arrival in front of the
-    // reader, never by the reader's own next scroll back to the edge.
-    anchorState.pendingKey = null;
-  }
-  // One decision, four claimants — the precedence (and the reason for each) is
-  // stated once in reading-core: planReadingFinalizeScroll.
+  // One decision point — the precedence, and the reason for each claimant, is
+  // stated once in reading-core: planReadingFinalizeScroll. The reader's own
+  // position (attending / held) is judged there too, from the metrics captured
+  // BEFORE this render touched anything.
   applyReadingFinalizeScroll(
     planReadingFinalizeScroll({
       taskSwitch: input.taskSwitch,
       // Consumed only on the render that switches in, so a session's remembered
       // place answers exactly the return it was taken for.
       switchSnapshot: input.taskSwitch ? scrollMemory.take(input.taskId) : null,
-      pendingAnchorKey: anchorState.pendingKey,
+      anchorKey: input.anchorKey,
+      holdTop: readingScrollHoldTop(),
       hasBottomIntent: bottomIntent.current() !== null,
       nearBottom: input.nearBottom,
       previousScrollTop: input.previousScrollTop,
@@ -372,24 +367,18 @@ function applyReadingFinalizeScroll(action: ReadingFinalizeScroll): void {
   }
   if (action.kind === "top") {
     elements.runList.scrollTop = action.top;
-    // A restore or a tail-follow pin is not an anchor: the view is no longer
-    // where the last new reply was placed, so it is no longer evidence that the
-    // reader is following one. (Near-bottom positions keep attending on their
-    // own merit — see readingReaderIsAttending.)
-    anchorState.lastAnchorTop = null;
+    // A switch restore or a tail-follow pin is not a reading position: the view
+    // is no longer where a landed anchor put it, so nothing is held any more.
+    releaseReadingScrollHold();
     return;
   }
   // Re-resolve by selector, never from a held node: the streaming reconcile
-  // destroys and rebuilds a live turn's card every ~160 ms.
+  // destroys and rebuilds a live turn's card every ~160 ms. A segment that
+  // vanished between the plan and the write simply does not anchor — there is
+  // no intent to retire, because the anchor was only ever for this render.
   const target = answerSegmentNode(action.blockKey);
-  if (!target) {
-    anchorState.pendingKey = null;
-    return;
-  }
-  const anchor = scrollReadingBlockToTop(target);
-  anchorState.lastAnchorTop = anchor.top;
-  if (anchor.satisfied) {
-    anchorState.pendingKey = null;
+  if (target) {
+    scrollReadingBlockToTop(target);
   }
 }
 
@@ -440,7 +429,7 @@ function renderTurn(view: TaskViewState, turn: ReadingTurn): HTMLElement {
     card.append(renderTurnUser(turn));
   }
 
-  const answerBlocks = turn.blocks.filter(isAnswerBlock);
+  const answerBlocks = answerBlocksForTurn(turn);
   const noAssistantOutput = turnCompletedWithoutAssistantOutput(turn);
   const liveRun = Boolean(turn.run && isActiveRunStatus(turn.run.status));
   // Machine-readable run state on the card itself: the e2e suite's completion

@@ -13,15 +13,18 @@
 //   3. a reader who scrolled somewhere of their own choosing is NEVER moved,
 //      however much arrives while they are there (position is the whole
 //      evidence — no wheel listeners, no scrolled-away flag);
-//   4. a segment born at the live edge with no room below it is CLAMPED, not
-//      achieved — and the same anchor keeps pulling as the content below grows
-//      until the segment's top edge finally reaches the reading line. This is
-//      the ordinary shape of a real reply (it is born at the bottom of the
-//      scroller), so without it the feature would only ever work for replies
-//      that arrive complete;
+//   4. a segment born at the live edge with no room below it is CLAMPED and its
+//      anchor DIES with that render — segments are minted whole, so an anchor
+//      that outlived its render could only ever be completed by somebody else's
+//      content and would drag the reader backwards into an old reply (review 1,
+//      blocking 1);
 //   5. the anchor target is the REPLY's top edge, never the turn's: a long
 //      prompt must not push the reply it belongs to out of sight (Woody's
-//      explicit ruling).
+//      explicit ruling);
+//   6. a LANDED anchor outranks both live-edge pins even when it lands inside
+//      the 0..64px near-bottom band, where the render's tail-follow and the
+//      status strip's mutation pin would otherwise both claim it and slide the
+//      segment's first lines under the mask fade (review 1, blocking 2).
 //
 // Driven end-to-end against the built app with a fake `codex` on PATH
 // (helpers/fake-codex-source.mjs): it writes a rollout + SessionStart
@@ -37,10 +40,10 @@
 //     written by the fake codex itself;
 //   · the reply bodies and the long prompt: COMPOSED — sized only for height;
 //     no provider output is being imitated;
-//   · growing the transcript BELOW a clamped segment by inflating its settled
-//     turn card in place: ADAPTED from tests/e2e/reading-scroll-during-render.mjs,
-//     which grows a keyed card the same way to stand in for stream growth
-//     without a live provider.
+//   · shrinking the reading viewport by growing the composer, to place a landed
+//     anchor at a chosen distance from the bottom: ADAPTED from
+//     tests/e2e/reading-scroll-to-bottom.mjs, which grows the composer the same
+//     way to shrink the flex viewport.
 //
 //   npm run e2e:reading-reply-anchor
 
@@ -62,6 +65,16 @@ fs.chmodSync(path.join(fakeBinDir, "codex"), 0o755);
  *  and the sticky prompt pill (READING_ANCHOR_TOP_INSET_PX). */
 const READING_LINE = 40;
 const TOLERANCE = 2;
+/** Lines per reply for the band construction — any length works; the band is
+ *  reached by sizing the VIEWPORT to the measured reply, not the reverse. */
+const BAND_REPLY_LINES = 8;
+/** Where in the 0..64px near-bottom band the landed anchor should sit. 50px is
+ *  deep enough that a regression (either pin winning) moves the segment's top
+ *  from +40 to -10 — visibly under the scroll-edge fade. */
+const BAND_TARGET = 50;
+/** The follow-up prompt's height must carry a would-be backwards jump clear of
+ *  the 64px near-bottom band — otherwise the status strip's pin hides it. */
+const FOLLOW_UP_PROMPT_LINES = 24;
 
 let app = null;
 const checks = {};
@@ -180,11 +193,13 @@ try {
     `a reader parked in history stays there (${JSON.stringify(afterScrolledAway)})`,
   );
 
-  // ——— 4. A segment born at the live edge is clamped, and the SAME anchor
-  // keeps pulling until it lands. This is the ordinary shape of a real reply:
-  // it appears at the bottom of the scroller with nothing beneath it yet.
+  // ——— 4. A segment born at the live edge is CLAMPED, and its anchor dies with
+  // the render that made it. Segments are minted whole (MEASURED: 0 of 38
+  // assistant-text ids in the recorded corpus were ever re-emitted), so an
+  // anchor carried into a later render could only ever be completed by somebody
+  // else's content. Here the somebody else is the reader's own next prompt.
   await scrollToBottom(page);
-  appendReply(rolloutPath, 5, 1);
+  appendReply(rolloutPath, 5, 4);
   await waitForSegments(page, 5);
   await settle(page);
   const born = await segmentGeometry(page, 5);
@@ -196,22 +211,106 @@ try {
     `a segment with no room below it clamps to the bottom (${JSON.stringify(born)})`,
   );
 
-  // Content grows below it (the stream continuing), and renders keep coming.
-  await page.evaluate(() => {
-    const card = document.querySelector("#run-list .turn-card");
-    card.style.minHeight = `${card.getBoundingClientRect().height + 1400}px`;
-  });
+  // The user sends a follow-up: a prompt bubble lands BELOW that clamped
+  // segment, and renders keep coming. A surviving anchor would now find itself
+  // "satisfied" and drag the view backwards to the top of the previous reply,
+  // taking the just-sent prompt off-screen with it.
+  //
+  // The prompt is deliberately TALL. MEASURED while writing this fence: with a
+  // short follow-up the backwards jump lands inside the near-bottom band, where
+  // the status strip's own pin (blocking 2) immediately drags it back to the
+  // bottom — the two defects cancelled and the fence read GREEN against the
+  // broken build. A jump has to clear 64px to be observable at all.
+  const beforeFollowUp = await metrics(page);
+  appendPrompt(rolloutPath, FOLLOW_UP_PROMPT_LINES);
+  await page.waitForFunction(
+    (expected) => document.querySelectorAll("#run-list .turn-user-text").length >= expected,
+    2,
+  );
   const readingSettings = page.locator("#reading-settings");
   await readingSettings.click();
   await readingSettings.click();
   await settle(page);
-  const converged = await segmentGeometry(page, 5);
-  results.converged = converged;
-  checks.clampedAnchorConvergesAsContentGrows =
-    Math.abs(converged.topInViewport - READING_LINE) <= TOLERANCE;
+  const afterFollowUp = await metrics(page);
+  const deadAnchorSegment = await segmentGeometry(page, 5);
+  results.beforeFollowUp = beforeFollowUp;
+  results.afterFollowUp = afterFollowUp;
+  results.deadAnchorSegment = deadAnchorSegment;
+  checks.clampedAnchorDoesNotFireOnLaterContent = deadAnchorSegment.topInViewport < 0;
   assert(
-    checks.clampedAnchorConvergesAsContentGrows,
-    `the clamped anchor lands once there is room (${JSON.stringify(converged)})`,
+    checks.clampedAnchorDoesNotFireOnLaterContent,
+    `later content never completes a dead anchor (${JSON.stringify(deadAnchorSegment)})`,
+  );
+  checks.followUpKeepsFollowingTheLiveEdge = distance(afterFollowUp) <= 64;
+  assert(
+    checks.followUpKeepsFollowingTheLiveEdge,
+    `a clamped anchor leaves the live edge to tail-follow (${JSON.stringify(afterFollowUp)})`,
+  );
+
+  // ——— 6. THE BAND. A landed anchor can sit 0..64px from the bottom, which is
+  // ALSO nearBottom — so both live-edge pins (the render's tail-follow and the
+  // status strip's mutation pin) would claim it and slide the segment's first
+  // lines up under the mask fade. The band is reached by measurement, not by
+  // guessing reply lengths: measure how much content one reply puts below its
+  // own top, then shrink the viewport (growing the composer, the same lever
+  // reading-scroll-to-bottom.mjs uses) so the next identical reply lands
+  // BAND_TARGET px from the bottom.
+  await scrollToBottom(page);
+  appendReply(rolloutPath, 7, BAND_REPLY_LINES);
+  await waitForSegments(page, 6);
+  await settle(page);
+  const probe = await page.evaluate(() => {
+    const list = document.querySelector("#run-list");
+    const segments = list.querySelectorAll(".turn-answer > [data-block-key]");
+    const node = segments[segments.length - 1];
+    const listRect = list.getBoundingClientRect();
+    const blockTop = node.getBoundingClientRect().top - listRect.top + list.scrollTop;
+    return { belowTop: list.scrollHeight - blockTop, clientHeight: list.clientHeight };
+  });
+  // d = belowTop - (clientHeight - inset) ⇒ pick clientHeight for the target d.
+  const desiredClientHeight = probe.belowTop + READING_LINE - BAND_TARGET;
+  const shrinkBy = probe.clientHeight - desiredClientHeight;
+  results.bandSetup = { ...probe, desiredClientHeight, shrinkBy };
+  assert(shrinkBy > 0, `the band needs a smaller viewport (${JSON.stringify(results.bandSetup)})`);
+  await page.evaluate((grow) => {
+    const composer = document.querySelector("#composer");
+    composer.style.minHeight = `${composer.getBoundingClientRect().height + grow}px`;
+  }, shrinkBy);
+  await settle(page);
+  await scrollToBottom(page);
+
+  appendReply(rolloutPath, 8, BAND_REPLY_LINES);
+  await waitForSegments(page, 7);
+  await settle(page);
+  const landedInBand = await segmentGeometry(page, 7);
+  results.landedInBand = landedInBand;
+  checks.anchorLandedInsideTheNearBottomBand =
+    landedInBand.distanceFromBottom > 0 && landedInBand.distanceFromBottom <= 64;
+  assert(
+    checks.anchorLandedInsideTheNearBottomBand,
+    `the anchor landed inside the near-bottom band (${JSON.stringify(landedInBand)})`,
+  );
+
+  // Now provoke both pins: full renders (tail-follow) and status-strip
+  // mutations (the height-changing pin) — the strip renders inside every one of
+  // these. A held reading position must survive all of them.
+  await readingSettings.click();
+  await readingSettings.click();
+  await settle(page);
+  const heldInBand = await segmentGeometry(page, 7);
+  results.heldInBand = heldInBand;
+  checks.landedAnchorOutranksTheLiveEdgePins =
+    Math.abs(heldInBand.topInViewport - READING_LINE) <= TOLERANCE;
+  assert(
+    checks.landedAnchorOutranksTheLiveEdgePins,
+    `a landed anchor in the band is not dragged to the live edge (${JSON.stringify(heldInBand)})`,
+  );
+  // ...and the reader can still leave: the hold is a position, not a latch.
+  await scrollTo(page, 0);
+  checks.holdReleasesWhenTheReaderScrolls = (await metrics(page)).scrollTop === 0;
+  assert(
+    checks.holdReleasesWhenTheReaderScrolls,
+    "a held view still yields to the reader's own scroll",
   );
 
   results.success = true;
@@ -322,6 +421,10 @@ async function settle(page) {
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
+}
+
+function distance(m) {
+  return Math.max(0, m.scrollHeight - m.scrollTop - m.clientHeight);
 }
 
 function recordDir(taskId) {

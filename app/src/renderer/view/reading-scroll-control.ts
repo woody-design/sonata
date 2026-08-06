@@ -1,5 +1,5 @@
 // Run-list programmatic scroll writes, in ONE place (S6 A3). Every module that
-// moves the reading scroller by code — status-strip's bottom pin, prompt-nav's
+// moves the reading scroller by code — the status strip's mutation, prompt-nav's
 // jump-to-turn, the transcript's reply-top anchor (S3 D4) — routes through
 // here, so the bottom-intent interaction is a structural invariant rather than
 // a grep-enforced convention: a future scroll writer that reaches for
@@ -16,6 +16,7 @@ import { elements } from "../dom";
 import {
   isReadingNearBottom,
   planReadingBlockAnchor,
+  planReadingMutationScroll,
   type ReadingBlockAnchor,
   type ReadingBottomIntentStore,
 } from "../../reading-core/reading-scroll";
@@ -25,6 +26,30 @@ let bottomIntent: ReadingBottomIntentStore;
 /** Bound once by main.ts at boot with the shared bottom-intent instance. */
 export function initReadingScrollControl(deps: { bottomIntent: ReadingBottomIntentStore }): void {
   bottomIntent = deps.bottomIntent;
+}
+
+// ——— The reading hold ——————————————————————————————————————————————————————
+// Where a LANDED reply anchor left the view (S3 D4). This module owns it
+// because this module owns the run list's scroll writes: the fact and the
+// writes that invalidate it cannot drift apart if they live together.
+//
+// It is a POSITION, never a flag. Every consumer compares it against the live
+// scrollTop (readingViewIsHeld), so a hold nobody cleared — the reader wheeled
+// away, a smooth ride carried them off, a resize moved everything — simply
+// stops matching and stops applying. The explicit releases below are for the
+// writes that would otherwise land ON the held position and lie about it.
+let holdTop: number | null = null;
+
+/** The position a landed anchor owns, for the two planners that must respect
+ *  it (render finalize, height-changing mutation). */
+export function readingScrollHoldTop(): number | null {
+  return holdTop;
+}
+
+/** Another writer is taking the view: whatever was held is not the reader's
+ *  reading position any more. */
+export function releaseReadingScrollHold(): void {
+  holdTop = null;
 }
 
 /** Jump a run-list turn into view programmatically (prompt-nav entry/move,
@@ -38,6 +63,7 @@ export function scrollReadingTurnIntoView(
   options: ScrollIntoViewOptions,
 ): void {
   bottomIntent.clear();
+  releaseReadingScrollHold();
   target.scrollIntoView(options);
 }
 
@@ -56,7 +82,12 @@ export function scrollReadingTurnIntoView(
  *  Clearing the intent first is the same takeover contract this module's other
  *  jump keeps. In practice there is nothing to clear — planReadingFinalizeScroll
  *  never asks for an anchor while a ride is live — but the primitive must be
- *  safe on its own terms, not only under its current caller. */
+ *  safe on its own terms, not only under its current caller.
+ *
+ *  A LANDED anchor becomes the reading hold; a clamped one releases it. The
+ *  distinction is the whole difference between "the reader is parked on a reply"
+ *  and "the reader is at the live edge with a short reply in view", and only the
+ *  first is a position worth defending from the live-edge pins. */
 export function scrollReadingBlockToTop(target: HTMLElement): ReadingBlockAnchor {
   const runList = elements.runList;
   const blockTop =
@@ -68,20 +99,38 @@ export function scrollReadingBlockToTop(target: HTMLElement): ReadingBlockAnchor
   });
   bottomIntent.clear();
   runList.scrollTop = anchor.top;
+  holdTop = anchor.satisfied ? anchor.top : null;
   return anchor;
 }
 
-/** Run `mutate` (which changes the run-list content/height), keeping a
- *  bottom-pinned view pinned to the live edge afterwards — the typing-indicator
- *  contract: the live edge stays in sight. Reads the pin BEFORE mutating,
- *  restores it after; a reader scrolled up is left exactly where they are. (A
- *  live smooth ride is heading to the bottom already; a near-bottom re-pin here
- *  only lands it instantly, which syncReadingNavigation then reads as arrival.) */
-export function withReadingBottomPin(mutate: () => void): void {
+/** Run `mutate` (which changes the run-list content/height — the status strip
+ *  re-laying out at ~3Hz), then put the view back where the reader's own
+ *  relationship to the content says it belongs: a held reading position wins,
+ *  else a bottom-pinned view stays pinned to the live edge (the
+ *  typing-indicator contract), else a reader scrolled up is left exactly where
+ *  they are. The relationship is read BEFORE mutating and the decision is the
+ *  surface's one precedence rule (planReadingMutationScroll), not a local one —
+ *  this used to pin to the bottom unconditionally, which silently overrode a
+ *  landed anchor whenever it happened to land within 64px of the bottom.
+ *
+ *  (A live smooth ride is heading to the bottom already; a near-bottom re-pin
+ *  here only lands it instantly, which syncReadingNavigation then reads as
+ *  arrival. A ride also never matches the hold, since it has moved the view.) */
+export function withReadingScrollPreserved(mutate: () => void): void {
   const runList = elements.runList;
-  const nearBottom = isReadingNearBottom(runList);
+  const plan = planReadingMutationScroll({
+    scrollTop: runList.scrollTop,
+    holdTop,
+    nearBottom: isReadingNearBottom(runList),
+  });
   mutate();
-  if (nearBottom) {
+  if (plan.kind === "bottom") {
     runList.scrollTop = runList.scrollHeight;
+    return;
+  }
+  // Restore only if the mutation actually moved the view (a shrinking strip can
+  // clamp scrollTop down). A same-value write would abort a smooth scroll.
+  if (plan.kind === "hold" && runList.scrollTop !== plan.top) {
+    runList.scrollTop = plan.top;
   }
 }

@@ -36,7 +36,7 @@ import {
 } from "../../reading-core/state";
 import { elements } from "../dom";
 import { actions } from "../actions";
-import { withReadingBottomPin } from "./reading-scroll-control";
+import { withReadingScrollPreserved } from "./reading-scroll-control";
 
 /** The shell's state atom, bound once at boot for the strip's read paths. */
 let state: RendererState;
@@ -46,12 +46,14 @@ export function initStatusStripView(stateRef: RendererState): void {
 }
 
 // The strip lives inside the reading scroll flow (its last child) — any
-// mutation that can change its height keeps a bottom-pinned view pinned via
-// withReadingBottomPin (view/reading-scroll-control, the single run-list
-// scroll-write choke point).
+// mutation that can change its height hands the view back to the surface's one
+// scroll precedence via withReadingScrollPreserved (view/reading-scroll-control,
+// the single run-list scroll-write choke point): a held reading position is
+// kept, a bottom-pinned view stays at the live edge, a reader scrolled up is
+// left alone.
 
 export function renderStatusStrip(view = activeTaskView(state)): void {
-  withReadingBottomPin(() => {
+  withReadingScrollPreserved(() => {
     const strip = elements.statusStrip;
     const runningAgents = view?.task ? stripRunningAgents(view) : [];
     // One derivation (S1b): the strip is visible whenever the turn is not idle,
@@ -84,8 +86,9 @@ export function updateStatusStripStatusInPlace(view: TaskViewState): void {
     return;
   }
   // Sub-line counts change with the mirror (todo blocks grow/shrink) — a
-  // pinned view must follow the live edge.
-  withReadingBottomPin(() => {
+  // pinned view must follow the live edge, and an anchored one must not be
+  // dragged off the reply it is parked on.
+  withReadingScrollPreserved(() => {
     renderStripStatus(view, turnActivity(view) === "working");
   });
 }
