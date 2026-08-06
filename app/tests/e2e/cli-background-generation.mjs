@@ -12,6 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { fakeCliProbeArms } from "./helpers/fake-cli.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-background-generation-"));
 const fakeBin = path.join(root, "bin");
@@ -235,7 +236,15 @@ function installFakeCodex() {
   const executable = path.join(fakeBin, "codex");
   fs.writeFileSync(
     executable,
+    // The probe arms first (F1 fix B). This fake keys its lifecycle on the cwd's
+    // basename, so a readiness probe — which runs from main's own cwd — never landed
+    // in a task branch and fell straight through to the final `setInterval`: one
+    // immortal node process per launch, MEASURED as leftover `codex --version`
+    // processes after this file's runs. The counts were never corrupted; the process
+    // just never died.
     `#!/usr/bin/env node
+${fakeCliProbeArms("codex")}
+
 const fs = require("node:fs");
 const path = require("node:path");
 const label = path.basename(process.cwd());
