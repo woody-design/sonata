@@ -288,7 +288,7 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
       banners.push(
         attentionBanner(
           "codex-trust-dialog",
-          "Codex is asking whether to trust this folder — answer in the CLI window.",
+          "Codex is asking whether to trust this folder — answer in the CLI window",
           () => {
             codexTrustDialog.delete(taskId);
             renderAttentionBanners();
