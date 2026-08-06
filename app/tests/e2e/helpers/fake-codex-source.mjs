@@ -2,17 +2,27 @@
 // Exported as a string so the test writes it to a temp PATH dir + chmods it.
 //
 // It stands in for the real Codex TUI just enough to exercise Sonata's S2 wiring:
+//   - answers the CLI readiness probe and exits, through the shared arms in
+//     `fake-cli.mjs` (see that file's header: without them this script HANGS on
+//     `codex --version` and every launch of the seven e2e that use it leaves an
+//     immortal node process behind — MEASURED 2026-08-06). Only the arms are
+//     shared; the body below is too bespoke to generate;
 //   - records its argv + SONATA_RUNTIME_DIR + SONATA_NODE to prove `-p sonata`,
 //     the per-task env binding, and the interpreter binding all reached the spawn;
 //   - UNLESS a `SONATA_FAKE_SILENT` marker exists in its cwd, emits a SessionStart
 //     hook (a rollout file + the `hook-*.json` tmp+rename payload the sink shim
 //     would write) — the handshake that carries identity + proves liveness;
 //   - stays alive so the PTY does not exit (which would end the run).
+import { fakeCliProbeArms } from "./fake-cli.mjs";
+
 export const FAKE_CODEX_SOURCE = `#!/usr/bin/env node
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
 
+${fakeCliProbeArms("codex")}
+
+// Anything else is the CLI itself being run: this is the session.
 const argv = process.argv.slice(2);
 const cIndex = argv.indexOf("-C");
 const cwd = cIndex >= 0 && argv[cIndex + 1] ? argv[cIndex + 1] : process.cwd();

@@ -21,6 +21,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { activeSessionTaskId } from "./helpers/session.mjs";
+import { installFakeCli } from "./helpers/fake-cli.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-composer-focus-"));
 const dataRoot = path.join(root, "data-root");
@@ -34,7 +35,14 @@ fs.writeFileSync(
   path.join(settingsDir, "claude-settings.json"),
   `${JSON.stringify({ defaultPermissionMode: "default", defaultRemoteControl: false }, null, 2)}\n`,
 );
-installFakeClaude();
+installFakeCli(fakeBin, "claude", {
+  readyOutput: "Fake Claude ready\n❯ opus xhigh ~\n",
+  records: ["spawn-count", "stdin"],
+  // The echo earns DeliveryController a pty-composer-echo receipt, which clears
+  // inFlight — otherwise every send here waits out the 45s receipt timeout and the
+  // next one cannot deliver.
+  echoStdin: true,
+});
 
 let app;
 try {
@@ -188,37 +196,6 @@ try {
 } finally {
   await app?.close();
   fs.rmSync(root, { recursive: true, force: true });
-}
-
-function installFakeClaude() {
-  const filePath = path.join(fakeBin, "claude");
-  fs.writeFileSync(
-    filePath,
-    `#!/usr/bin/env node
-const fs = require("node:fs");
-const path = require("node:path");
-const runtimeDir = process.env.SONATA_RUNTIME_DIR;
-fs.mkdirSync(runtimeDir, { recursive: true });
-const countPath = path.join(runtimeDir, "spawn-count");
-let count = 0;
-try { count = Number(fs.readFileSync(countPath, "utf8")) || 0; } catch {}
-count += 1;
-fs.writeFileSync(countPath, String(count));
-if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch {} }
-process.stdin.resume();
-process.stdin.on("data", (chunk) => {
-  fs.appendFileSync(path.join(runtimeDir, "stdin.bin"), chunk);
-  // Echo the prompt back so Sonata's DeliveryController earns a pty-composer-echo
-  // receipt and clears inFlight — otherwise each send waits out the 45s receipt
-  // timeout and the next one can't deliver.
-  process.stdout.write(chunk);
-});
-process.stdout.write("Fake Claude ready\\n❯ opus xhigh ~\\n");
-setInterval(() => {}, 1 << 30);
-`,
-    { mode: 0o755 },
-  );
-  fs.chmodSync(filePath, 0o755);
 }
 
 async function chooseProject(page) {

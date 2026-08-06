@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
+import { fakeCliProbeArms } from "./helpers/fake-cli.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-liveness-"));
 const fakeBin = path.join(root, "bin");
@@ -17,7 +18,18 @@ fs.mkdirSync(fakeBin, { recursive: true });
 fs.mkdirSync(workspace, { recursive: true });
 
 const fakeCodexPath = path.join(fakeBin, "codex");
+// The probe arms are load-bearing here, not hygiene (F1 fix B). This fake counts
+// EVERY exec into one absolute file and branches its lifecycle on that count, so the
+// readiness probe's two launch invocations used to consume generations 1 and 2 —
+// and the second one, left hanging until the probe's 5s timeout SIGTERMed it, ran
+// this script's own teardown handler and FORGED the `retiring`/`retired` marker
+// files the assertions below wait on. MEASURED: `spawnCount` read 2 before the first
+// session had retired and 5 at the end, and the file failed two different ways on
+// two consecutive runs. With the probe answered and exited, every count here is a
+// real session spawn again.
 const fakeCodexSource = `#!/usr/bin/env node
+${fakeCliProbeArms("codex")}
+
 const fs = require("node:fs");
 const countPath = ${JSON.stringify(spawnCountPath)};
 const retiringPath = ${JSON.stringify(retiringGenerationPath)};

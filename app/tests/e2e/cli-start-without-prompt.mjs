@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { activeSessionTaskId, chooseDraftProvider } from "./helpers/session.mjs";
+import { installFakeCli } from "./helpers/fake-cli.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-start-"));
 const dataRoot = path.join(root, "data-root");
@@ -30,8 +31,9 @@ fs.writeFileSync(
   `${JSON.stringify({ defaultApprovalMode: "never" }, null, 2)}\n`,
 );
 fs.writeFileSync(imagePath, redPngBytes());
-installFakeProvider("claude");
-installFakeProvider("codex");
+for (const provider of ["claude", "codex"]) {
+  installFakeCli(fakeBin, provider, { records: ["spawn-record", "stdin"] });
+}
 
 let app;
 try {
@@ -226,30 +228,6 @@ try {
     // The directory may not exist if launch failed before its first task.
   }
   fs.rmSync(root, { recursive: true, force: true });
-}
-
-function installFakeProvider(provider) {
-  const filePath = path.join(fakeBin, provider);
-  fs.writeFileSync(
-    filePath,
-    `#!/usr/bin/env node
-const fs = require("node:fs");
-const path = require("node:path");
-const provider = path.basename(process.argv[1]);
-const argv = process.argv.slice(2);
-const settingsIndex = argv.indexOf("--settings");
-const runtimeDir = process.env.SONATA_RUNTIME_DIR || (settingsIndex >= 0 ? path.dirname(argv[settingsIndex + 1]) : null);
-fs.mkdirSync(runtimeDir, { recursive: true });
-fs.writeFileSync(path.join(runtimeDir, "spawn-record.json"), JSON.stringify({ provider, argv, sonataRuntimeDir: process.env.SONATA_RUNTIME_DIR || null }));
-if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch {} }
-process.stdin.resume();
-process.stdin.on("data", (chunk) => fs.appendFileSync(path.join(runtimeDir, "stdin.bin"), chunk));
-process.stdout.write(provider === "claude" ? "Fake Claude ready\\n❯ sonnet high ~\\n" : "Fake Codex ready\\n› gpt-5.6-luna high ~\\n");
-setInterval(() => {}, 1 << 30);
-`,
-    { mode: 0o755 },
-  );
-  fs.chmodSync(filePath, 0o755);
 }
 
 function datedPlaceholder(task) {

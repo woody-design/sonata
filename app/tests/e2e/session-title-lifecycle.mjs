@@ -7,11 +7,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { installFakeCli } from "./helpers/fake-cli.mjs";
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-session-title-lifecycle-"));
 const fakeBin = path.join(tempRoot, "bin");
 fs.mkdirSync(fakeBin, { recursive: true });
-installFakeClaude();
+installFakeCli(fakeBin, "claude", { readyOutput: "Fake Claude ready\n❯ \n" });
 process.env.PATH = `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`;
 process.env.SONATA_DATA_DIR = path.join(tempRoot, "sonata-data");
 const require = createRequire(import.meta.url);
@@ -390,17 +391,3 @@ try {
   fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 5 });
 }
 
-function installFakeClaude() {
-  const filePath = path.join(fakeBin, "claude");
-  fs.writeFileSync(
-    filePath,
-    `#!/usr/bin/env node
-if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch {} }
-process.stdin.resume();
-process.stdout.write("Fake Claude ready\\n❯ \\n");
-setInterval(() => {}, 1 << 30);
-`,
-    { mode: 0o755 },
-  );
-  fs.chmodSync(filePath, 0o755);
-}

@@ -13,7 +13,7 @@
 //   4. and so does a New Chat after a RESTART (the record outlives the process).
 //
 // Deterministic by construction: fake `claude`/`codex` binaries on PATH (the
-// cli-start-without-prompt harness) and "Start CLI", so a session is born from a
+// shared `helpers/fake-cli.mjs`) and "Start CLI", so a session is born from a
 // real PTY with no model, no network, and no reply to wait for.
 
 import assert from "node:assert/strict";
@@ -22,6 +22,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { chooseDraftProvider } from "./helpers/session.mjs";
+import { installFakeCli } from "./helpers/fake-cli.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-last-used-provider-e2e-"));
 const dataRoot = path.join(root, "data-root");
@@ -32,8 +33,9 @@ const sonataSettingsPath = path.join(settingsDir, "sonata-settings.json");
 for (const dir of [settingsDir, homeDir, fakeBin]) {
   fs.mkdirSync(dir, { recursive: true });
 }
-installFakeProvider("claude");
-installFakeProvider("codex");
+for (const provider of ["claude", "codex"]) {
+  installFakeCli(fakeBin, provider, { records: ["spawn-record"] });
+}
 
 // The fixture is an UPGRADED install: the retired `defaultProvider` key, exactly
 // as it sits on a machine that ran Sonata before S3. Claude here, so the switch
@@ -124,62 +126,6 @@ async function launch() {
   page.setDefaultTimeout(30_000);
   await page.locator(".task-entry-panel").waitFor({ state: "visible" });
   return page;
-}
-
-/** A deterministic fake CLI: answers the readiness probe's structured commands and
- *  exits; otherwise records its argv, prints a ready prompt line so the boot latch
- *  opens, and then just stays alive (the session behaviour is lifted verbatim from
- *  cli-start-without-prompt.mjs — the same reason applies here).
- *
- *  The probe arm is not decoration. Since S1, EVERY launch runs `<provider>
- *  --version` (and then the auth command) against whatever is on PATH — which here
- *  is this script. Without an early exit it fell through to the session behaviour
- *  and hung forever on those calls, so each launch left two node processes that
- *  outlived their temp dir and, on an interrupted run, the app itself (S2 found and
- *  killed ten of them). Answering is also the honest shape: the machine this
- *  fixture describes has both CLIs installed and signed in.
- *
- *  Output shapes MEASURED in S1 (claude 2.1.222 / codex-cli 0.146.0) and reused
- *  verbatim from tests/e2e/helpers/cli-readiness-fixture.mjs: claude puts a
- *  `loggedIn` JSON document on stdout, codex puts a line-anchored phrase on
- *  STDERR. The resulting facts (both present + signedIn) leave every readiness
- *  surface silent, which is what this test's New Chat assertions require. */
-function installFakeProvider(provider) {
-  const filePath = path.join(fakeBin, provider);
-  fs.writeFileSync(
-    filePath,
-    `#!/usr/bin/env node
-const fs = require("node:fs");
-const path = require("node:path");
-const provider = path.basename(process.argv[1]);
-const argv = process.argv.slice(2);
-if (argv[0] === "--version") {
-  process.stdout.write(provider === "claude" ? "2.1.222 (Claude Code)\\n" : "codex-cli 0.146.0\\n");
-  process.exit(0);
-}
-if ((provider === "claude" && argv[0] === "auth" && argv[1] === "status") ||
-    (provider === "codex" && argv[0] === "login" && argv[1] === "status")) {
-  if (provider === "claude") {
-    process.stdout.write('{"loggedIn":true,"authMethod":"claude.ai"}\\n');
-  } else {
-    process.stderr.write("Logged in using ChatGPT\\n");
-  }
-  process.exit(0);
-}
-const settingsIndex = argv.indexOf("--settings");
-const runtimeDir = process.env.SONATA_RUNTIME_DIR || (settingsIndex >= 0 ? path.dirname(argv[settingsIndex + 1]) : null);
-if (runtimeDir) {
-  fs.mkdirSync(runtimeDir, { recursive: true });
-  fs.writeFileSync(path.join(runtimeDir, "spawn-record.json"), JSON.stringify({ provider, argv }));
-}
-if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch {} }
-process.stdin.resume();
-process.stdout.write(provider === "claude" ? "Fake Claude ready\\n❯ sonnet high ~\\n" : "Fake Codex ready\\n› gpt-5.6-luna high ~\\n");
-setInterval(() => {}, 1 << 30);
-`,
-    { mode: 0o755 },
-  );
-  fs.chmodSync(filePath, 0o755);
 }
 
 async function waitForWindow(electronApp, predicate) {

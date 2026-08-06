@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { _electron as electron } from "playwright-core";
 import { activeSessionTaskId } from "./helpers/session.mjs";
+import { installFakeCli } from "./helpers/fake-cli.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-cli-lifecycle-races-"));
 const dataRoot = path.join(root, "data-root");
@@ -23,7 +24,10 @@ fs.writeFileSync(
   `${JSON.stringify({ defaultPermissionMode: "default", defaultRemoteControl: false }, null, 2)}\n`,
 );
 fs.writeFileSync(imagePath, redPngBytes());
-installFakeClaude();
+installFakeCli(fakeBin, "claude", {
+  readyOutput: "Fake Claude ready\n❯ opus xhigh ~\n",
+  records: ["spawned", "stdin"],
+});
 
 let app;
 try {
@@ -160,27 +164,6 @@ try {
 } finally {
   await app?.close();
   fs.rmSync(root, { recursive: true, force: true });
-}
-
-function installFakeClaude() {
-  const filePath = path.join(fakeBin, "claude");
-  fs.writeFileSync(
-    filePath,
-    `#!/usr/bin/env node
-const fs = require("node:fs");
-const path = require("node:path");
-const runtimeDir = process.env.SONATA_RUNTIME_DIR;
-fs.mkdirSync(runtimeDir, { recursive: true });
-fs.writeFileSync(path.join(runtimeDir, "spawned"), "1");
-if (process.stdin.isTTY) { try { process.stdin.setRawMode(true); } catch {} }
-process.stdin.resume();
-process.stdin.on("data", (chunk) => fs.appendFileSync(path.join(runtimeDir, "stdin.bin"), chunk));
-process.stdout.write("Fake Claude ready\\n❯ opus xhigh ~\\n");
-setInterval(() => {}, 1 << 30);
-`,
-    { mode: 0o755 },
-  );
-  fs.chmodSync(filePath, 0o755);
 }
 
 async function chooseProject(page) {
