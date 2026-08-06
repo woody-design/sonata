@@ -13,6 +13,7 @@ import type {
   AttachmentKind,
   CliActivity,
   CliReadinessFacts,
+  CliSessionStartBlockReason,
   CliSetupRun,
   ClaudeDefaultPermissionMode,
   ClaudePermissionMode,
@@ -526,6 +527,29 @@ export interface RendererState {
    *  wrong, this says what is being done about it. Null is the normal state —
    *  nothing running, nothing failed. */
   cliSetupRun: CliSetupRun | null;
+  /**
+   * Tasks whose session start was DIAGNOSED as blocked, and what the probe said
+   * (S4). Keyed by taskId, because the diagnosis is about one conversation's
+   * attempt to start — the machine fact it names lives in `cliReadiness` above.
+   *
+   * A top-level atom rather than a per-task view field (the reducer's territory,
+   * pinned by the crown fence) AND rather than a private store inside
+   * `view/banners.ts` where its three siblings live. The reason is that this one
+   * has TWO readers: the banner, and the composer's own copy — which must stop
+   * promising a boot that is not coming. A fact two families read cannot live
+   * inside one of them, or the other has to reach in, and the paint ORDER would
+   * start to matter (banners render after the composer).
+   *
+   * Cleared when the task starts a session again — a fresh spawn supersedes the old
+   * verdict and re-raises it if still true. NOT cleared when the facts heal (the
+   * surfaces gate on `cliReadiness` themselves, so a machine that came good goes
+   * quiet without anyone having to notice) and NOT cleared by the banner's dismiss:
+   * dismissing means "I have read this", not "this is no longer true", and the
+   * composer must not go back to promising a boot because a notice was closed. The
+   * dismissal is banner-local chrome, held in `view/banners.ts` beside its three
+   * siblings' stores.
+   */
+  cliSessionStartBlocked: Record<string, CliSessionStartBlockReason>;
   /** The Settings "Default model" launch defaults (per-provider model/effort),
    *  mirrored at boot. Unlike the permission-mode mirrors above (which the draft
    *  FOLLOWS live via its null slots), these seed the draft by COPY at boot and
@@ -790,6 +814,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     lastUsedProvider: null,
     cliReadiness: UNKNOWN_CLI_READINESS_FACTS,
     cliSetupRun: null,
+    cliSessionStartBlocked: {},
     defaultModel: {
       codex: "gpt-5.6-sol",
       claude: "opus",
@@ -876,6 +901,25 @@ export function activeTaskView(state: RendererState): TaskViewState | null {
 
 export function isSessionLifecycleActive(state: RendererState): boolean {
   return state.sessionLifecycle.phase !== "idle";
+}
+
+/**
+ * Record / forget a task's session-start diagnosis (S4). Two one-line operations
+ * that exist as functions because there are three writers — main's event, the
+ * banner's dismiss, and the removed-task sweep — and a register three places
+ * mutate by hand is a register that eventually holds an id nobody remembers
+ * writing.
+ */
+export function noteCliSessionStartBlocked(
+  state: RendererState,
+  taskId: string,
+  reason: CliSessionStartBlockReason,
+): void {
+  state.cliSessionStartBlocked[taskId] = reason;
+}
+
+export function clearCliSessionStartBlocked(state: RendererState, taskId: string): void {
+  delete state.cliSessionStartBlocked[taskId];
 }
 
 export function applyTranscriptUpserts(

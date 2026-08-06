@@ -522,9 +522,11 @@ invisible when it works, which is the point.
 The subsystem above keeps an installed Codex current. This one answers the
 question that comes *before* that: **is there a CLI to run at all, and is it
 signed in?** Sonata neither ships nor manages the CLIs, so today a missing or
-signed-out one produces an infinite silent hang — the boot latch never opens and
-the composer says "Starting Claude…" forever. `main/cli-readiness/` replaces that
-with an observation the UI can be honest about.
+signed-out one produced an infinite silent hang — the boot latch never opened and
+the composer said "Starting Claude…" forever. `main/cli-readiness/` replaces that
+with an observation the UI can be honest about, at two mount points: before a
+session exists (the New Chat card) and inside one that could not start (the
+attention banner — see "The same fact inside an existing conversation" below).
 
 **Two axes, three states, and the third one is the design.** Install is
 `present | absent | unknown`; auth is `signedIn | signedOut | unknown`
@@ -679,6 +681,59 @@ not** use `-lc`. A login shell on macOS sources `/etc/profile` → `path_helper`
 which REPLACES `PATH` — discarding the merged login-shell PATH and re-creating the
 #42350 detect/run mismatch inside the install itself. `-c` loses nothing, since
 the env handed to the pty already carries that PATH.
+
+### The same fact inside an existing conversation
+
+The card only guards the moment *before* a session exists. A conversation already
+in the sidebar can meet the identical wall — the CLI was uninstalled, or the user
+signed out — and there the failure is the original wound in its purest form: the
+composer pins "Claude is starting…" and the prompt waits for a boot that is never
+coming. So the fact gets a **second mount point**, in the task-keyed attention
+banner family, with the *same* sentences and the *same* actions (the copy lives
+once, in the card's selector, and the banner imports it).
+
+**An observation triggers it; a probe decides it.** Two observations, both in
+`RuntimeController`, because both are lifecycle facts nothing else can see:
+
+- the PTY died **before the boot latch ever opened** — a missing binary fails
+  `execvp` inside the pty, so the process is gone in milliseconds;
+- the PTY is alive but `acceptsPromptInput()` is still false when the **boot
+  observation window** elapses (10s, against a MEASURED 1–3s boot) — the shape of
+  a CLI parked on its own first-run screen.
+
+Neither observation is allowed to name a cause. Each one re-probes and reports what
+the PROBE says, so a session that failed for any other reason — a crash, a bad
+flag, a boot dialog Sonata does not recognize — produces **no event, no banner, and
+exactly today's behaviour**. There is deliberately no generic error UI for a
+failure Sonata cannot name; `unknown` stays permissive here too.
+
+Two details of that pair are easy to get backwards. The window reads
+`acceptsPromptInput()` and *not* the delivery boot latch, because the latch flips
+inside the delivery pump and therefore stays shut on a session nobody has sent
+anything to — keying on it would diagnose every "Start CLI" that opens a session
+without a prompt. The pre-latch-exit trigger has the opposite constraint: the
+process is gone, so there is nothing left to scrape, and the latch is the one
+DURABLE record that a prompt was once reached. Its imprecision runs the harmless
+way — a healthy session nobody sent to, then quit, costs one probe that finds
+nothing and says nothing.
+
+**The banner heals itself, and a dismissal does not lie.** Presence is
+`diagnosis AND live facts AND this provider` (`selectors/cli-readiness-banner.ts`),
+so finishing the CLI's setup turns the facts green and the banner retires with no
+clearing path anywhere. The diagnosis lives in the state atom rather than in the
+banner module — unusually for this family — because the **composer reads it too**:
+while it stands, the placeholder and the send title stop predicting a boot. That is
+also why the dismissal is a *separate*, banner-local flag: folding the two together
+would mean closing the notice sent the composer back to promising a boot over a CLI
+that cannot start.
+
+**Send is NOT closed here, and the asymmetry with the card is deliberate.** A New
+Chat send CREATES a session, so sending onto a dead provider manufactures a
+conversation that can never boot. An existing chat's send goes into a conversation
+that already exists, and both failure shapes leave it honest: with the CLI absent
+the pty is gone, so the send is a resume the user may well want to retry; with it
+signed out the pty is alive and the delivery queue holds the prompt until the boot
+latch opens — which is exactly what finishing the login does.
 
 ## The Preview window (satellite)
 

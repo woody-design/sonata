@@ -51,8 +51,10 @@ import {
 import {
   SIDEBAR_PREFS_DEFAULTS,
   activeTaskView as activeTaskViewOf,
+  clearCliSessionStartBlocked,
   createInitialState,
   isSessionLifecycleActive,
+  noteCliSessionStartBlocked,
   optionPromptDraftAnswered,
   type ComposerMenuState,
   type PopoverAnchor,
@@ -148,6 +150,7 @@ import {
   clearCodexResumableExit,
   clearTaskBanners,
   initBannersView,
+  noteCliSessionStartDiagnosis,
   renderAttentionBanners,
   setCodexHooksMissing,
   setCodexResumableExit,
@@ -2176,9 +2179,35 @@ window.sonataRuntime.onRuntimeEvent((event) => {
     renderAttentionBanners();
     return;
   }
+  // This task's session start was diagnosed as blocked (S4). Same renderer-side
+  // family as the three above, but the register is a state atom (the composer reads
+  // it too — see the field's note), so this repaints EVERYTHING: the banner appears
+  // and, in the same frame, the composer stops promising a boot that is not coming.
+  if (event.type === "cli-session-start:blocked") {
+    noteCliSessionStartBlocked(state, event.payload.taskId, event.payload.reason);
+    // A fresh diagnosis is a fresh statement: any earlier dismissal of this task's
+    // banner is spent, or one closed notice would silence the surface for good.
+    noteCliSessionStartDiagnosis(event.payload.taskId);
+    render();
+    return;
+  }
   if (event.type === "task:started") {
     clearCodexResumableExit(event.payload.taskId);
-    renderAttentionBanners();
+    // A fresh spawn supersedes the previous S4 verdict: this attempt has not failed
+    // yet, and if it fails the same way, its own pre-latch exit or observation
+    // window raises the banner again. Clearing here is also what retires a banner
+    // after a recovery the probe cannot see (the user fixed things in their own
+    // terminal) — the moment a session actually starts, the diagnosis is history.
+    const hadDiagnosis = Boolean(state.cliSessionStartBlocked[event.payload.taskId]);
+    clearCliSessionStartBlocked(state, event.payload.taskId);
+    // The diagnosis drives the composer's copy as well as the banner, so retiring
+    // one needs the full paint. With none to retire this stays the banner-only
+    // repaint it has always been.
+    if (hadDiagnosis) {
+      render();
+    } else {
+      renderAttentionBanners();
+    }
   }
   for (const directive of reduceRuntimeEvent(state, event)) {
     performDirective(directive);

@@ -107,6 +107,8 @@ import type {
   SonataSettingsStore,
 } from "./settings-store";
 import type { CodexSpawnGate } from "./cli-updater/cli-updater";
+import type { CliReadinessSource } from "./cli-readiness/session-start-diagnosis";
+import { cliSessionStartBlockReason } from "../shared/types/cli-readiness";
 import type { ClaudeSettings } from "../shared/types/claude-settings";
 import type { CodexSettings } from "../shared/types/codex-settings";
 import type { SonataSettings } from "../shared/types/sonata-settings";
@@ -151,6 +153,19 @@ const RESUME_PANEL_SUPPRESS_ENV: Record<string, string> = {
 // Terminal (no Sonata submission) is never probed — the spawn-anchored
 // window that would have caught it false-alarmed every >12s pre-prompt pause.
 const CODEX_HOOKS_LIVENESS_WINDOW_MS = 12_000;
+/**
+ * How long a spawn may go without reaching a prompt before Sonata asks the probe
+ * why (S4 / L5). 10s against a MEASURED normal boot of 1–3s: wide enough that a
+ * cold binary on a slow disk is never accused, short enough that the user is
+ * still looking at the session they just started.
+ *
+ * The window costs nothing when it is wrong. Its callback runs one probe, and a
+ * probe that finds a healthy machine emits nothing and changes nothing — so
+ * over-arming (every spawn arms) is the cheap direction, and the alternative
+ * (arming only when we already suspect something) would need the very fact the
+ * probe is there to establish.
+ */
+const CLI_BOOT_OBSERVATION_WINDOW_MS = 10_000;
 const SUPPORTED_PROVIDERS = new Set<RuntimeProvider>(["codex", "claude"]);
 const REASONING_EFFORTS = new Set<ReasoningEffort>([
   "low",
@@ -185,6 +200,14 @@ interface RuntimeControllerOptions {
    * `INERT_CODEX_SPAWN_GATE` and says so.
    */
   cliUpdater: CodexSpawnGate;
+  /**
+   * The readiness facts, for diagnosing a session start that never reached a
+   * prompt (S4). REQUIRED for the same reason `cliUpdater` is: the whole feature
+   * is a banner that appears, so a controller built without a source would simply
+   * never diagnose anything and nothing would say so. A controller that genuinely
+   * has none passes `INERT_CLI_READINESS_SOURCE` and thereby declares it.
+   */
+  cliReadiness: CliReadinessSource;
   /**
    * Dev-gated per-flush instrumentation sink (OBS S9 / P6), threaded into every
    * live RunIndex so a build-storm's flush duration + serialized size land in the
@@ -230,6 +253,21 @@ export class RuntimeController {
   private readonly codexSettingsStore: CodexSettingsStore;
   private readonly sonataSettingsStore: SonataSettingsStore;
   private readonly cliUpdater: CodexSpawnGate;
+  private readonly cliReadiness: CliReadinessSource;
+  /**
+   * The boot observation window (S4 / L5), one one-shot timer per live spawn.
+   *
+   * NOT a poll and not a heartbeat: it is armed once when a PTY is created and
+   * fires once, ~10s later, to ask a single question — has this CLI shown a prompt?
+   * A session that boots normally (1–3s) answered yes long before, so the callback
+   * finds nothing to do; a session parked on a first-run/login screen has not, and
+   * that is the shape worth a fresh probe. Cleared when the runtime is disposed, so
+   * it can never fire over a dead session.
+   *
+   * Deliberately provider-NEUTRAL, unlike the codex boot-update watchdog next
+   * door: "the CLI never showed a prompt" is not a codex fact.
+   */
+  private readonly bootObservationTimers = new Map<TaskId, NodeJS.Timeout>();
   /** Set by `dispose()`. Stops the last-codex-session-ended trigger from firing
    *  during teardown, when every runtime is retired in a loop and "the count
    *  reached zero" means the app is closing, not that the user finished. */
@@ -291,6 +329,7 @@ export class RuntimeController {
     this.codexSettingsStore = options.codexSettingsStore;
     this.sonataSettingsStore = options.sonataSettingsStore;
     this.cliUpdater = options.cliUpdater;
+    this.cliReadiness = options.cliReadiness;
     if (options.onFlushMetrics) {
       this.onFlushMetrics = options.onFlushMetrics;
     }
@@ -861,6 +900,11 @@ export class RuntimeController {
     this.taskRuntimes.set(activeTask.task.id, activeTask);
     this.watchClaudeUsage(activeTask);
     this.watchHooks(activeTask);
+    // The boot observation window (S4 / L5). Armed HERE because this is the one
+    // place a PTY comes into existence — createTask and openTask both land on it,
+    // and so does the CLI window's own "Start CLI" (which is an openTask like any
+    // other), so no caller has to remember to arm.
+    this.armBootObservation(activeTask);
     this.persistTaskManifest(activeTask.task, activeTask.storageRoot);
     return activeTask;
   }
@@ -1850,6 +1894,42 @@ export class RuntimeController {
       // Claude (no entry) and for a codex task whose handshake already landed.
       this.retireCodexHooksLiveness(event.payload.taskId);
 
+      // S4 trigger 1: the PTY died before the session ever reached a prompt. A
+      // missing binary is the archetype — `execvp` fails inside the pty, so the
+      // process is gone in milliseconds and nothing was ever painted.
+      //
+      // Read the boot latch, not the exit code: an exit status is not a diagnosis (a
+      // missing `claude` exits 1, MEASURED, and so does half of everything else),
+      // whereas "no prompt was ever reached" is the precise shape of a start that
+      // did not happen. The latch, and not `acceptsPromptInput()` as the observation
+      // window uses, because the process is GONE — the host has nothing left to
+      // scrape, and the latch is the one DURABLE record that a prompt was once
+      // reached. Its known imprecision is the harmless direction: the latch also
+      // stays shut on a healthy session nobody sent anything to, so quitting such a
+      // session costs one probe that finds nothing and says nothing.
+      //
+      // `sonataInitiated` exits are excluded because Sonata killed the process
+      // itself — a close, a respawn, an app quit — which says nothing about whether
+      // the CLI could have booted. HONEST NOTE: no current path actually reaches
+      // this branch with the flag set, because every Sonata-initiated teardown
+      // removes the runtime from `taskRuntimes` BEFORE node-pty's asynchronous
+      // onExit fires, so `eventRuntime` is already null by then (verified: removing
+      // this condition changes no test outcome). It is kept as the correct predicate
+      // rather than as a tested one — the retire ordering is a separate mechanism
+      // that could reasonably change, and the failure it would then cause is a
+      // banner on every session the user closes. SL-6's `classifyCodexSessionExit`
+      // reads the same field two lines below for the same reason.
+      //
+      // There is deliberately NO elapsed bound: a signed-out CLI the user leaves on
+      // its login screen for ten minutes and then quits is exactly as diagnosable as
+      // one that dies instantly.
+      if (
+        event.payload.sonataInitiated !== true &&
+        !eventRuntime.deliveryController.state().bootLatched
+      ) {
+        void this.diagnoseSessionStart(eventRuntime.task.id, eventRuntime.task.provider);
+      }
+
       // A codex session that ended outside Sonata's own lifecycle, whose rollout
       // survives, is RECOVERABLE (SL-6 / openai/codex #36005). Classify
       // before the retire below, while the runtime still names its storage root.
@@ -2105,6 +2185,10 @@ export class RuntimeController {
     active.deliveryController.dispose();
     active.statusTracker.dispose();
     active.terminalHost.dispose();
+    // The boot observation window belongs to THIS spawn (S4 / L5). Clearing it here
+    // — the single teardown for a runtime — is what keeps it from firing over a
+    // retired session, and pairs with re-arming on the next spawn.
+    this.clearBootObservation(active.task.id);
     // Stop the report writer LAST: after this, a straggler PTY-exit event can no
     // longer re-create the record dir we are about to (for a delete) remove.
     // `discard` (delete path) seals WITHOUT a final write, so we never re-write
@@ -2304,6 +2388,93 @@ export class RuntimeController {
     this.sendEvent({
       type: "cli-hooks:liveness",
       payload: { taskId, status },
+      ts: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Arm the boot observation window for a fresh spawn (S4 trigger 2 / L5).
+   *
+   * One-shot, unref'd, and cleared on dispose — the same shape as the codex
+   * boot-update watchdog, for the same reason: this is a question asked once about
+   * one moment, not a condition to be monitored. Re-arming per spawn is what makes
+   * a reopened session get a fresh window instead of inheriting a spent one.
+   */
+  private armBootObservation(active: ActiveTaskRuntime): void {
+    const taskId = active.task.id;
+    this.clearBootObservation(taskId);
+    const timer = setTimeout(() => {
+      this.bootObservationTimers.delete(taskId);
+      // Re-resolve through the map rather than closing over `active`: by now the
+      // runtime may have been retired and REPLACED by a reopen, and diagnosing the
+      // replacement's boot on the old spawn's clock would be a different claim
+      // than the one this timer was armed to make.
+      const current = this.taskRuntimes.get(taskId);
+      if (this.disposed || current !== active) {
+        return;
+      }
+      // "No idle prompt yet" (L5), asked of the terminal host directly rather than
+      // of the delivery boot latch — and the difference is load-bearing. The latch
+      // is a DELIVERY fact: it flips inside the pump, so it stays shut on a session
+      // nobody has sent anything to, however healthily that session booted. Keying
+      // the window on it would have diagnosed every "Start CLI" that opens a session
+      // without a prompt. `acceptsPromptInput()` is the question L5 actually asks —
+      // has this CLI shown a composer — and it answers `true` on the hook
+      // handshake or the idle-prompt scrape, neither of which needs a send.
+      if (active.terminalHost.acceptsPromptInput()) {
+        return;
+      }
+      void this.diagnoseSessionStart(taskId, active.task.provider);
+    }, CLI_BOOT_OBSERVATION_WINDOW_MS);
+    timer.unref?.();
+    this.bootObservationTimers.set(taskId, timer);
+  }
+
+  private clearBootObservation(taskId: TaskId): void {
+    const timer = this.bootObservationTimers.get(taskId);
+    if (timer) {
+      clearTimeout(timer);
+      this.bootObservationTimers.delete(taskId);
+    }
+  }
+
+  /**
+   * A session start did not happen. Ask the machine why, and say so only if the
+   * answer is one Sonata can act on (S4; plan D3/D10).
+   *
+   * The re-probe is the point. The observation ("no prompt appeared", "the pty
+   * died early") is a symptom shared by every possible cause — a crash, an
+   * unrecognized boot dialog, a flag a CLI upgrade dropped — so it is never
+   * allowed to name one. Only two probe readings speak: `absent` and `signedOut`.
+   * Healthy or `unknown` produces NOTHING: no event, no banner, no generic error
+   * UI, and therefore exactly today's behaviour (D3's permissive rule — the spawn
+   * path is the final truth, and a false alarm costs more than a silent miss).
+   *
+   * Fire-and-forget by design. Nothing waits on a diagnosis: the caller is an
+   * event handler on the runtime's own hot path, and a probe that takes 5s to time
+   * out must not hold it. Which is also why the probe is wrapped: a `void`-ed
+   * promise that rejects becomes an unhandled rejection in the MAIN process, and
+   * guarding the seam is not the same as doubting the implementation (the real
+   * `CliReadiness` swallows its own probe failures and is contracted never to
+   * reject). Bailing rather than continuing is the honest reading — a source that
+   * could not look does not get to accuse.
+   */
+  private async diagnoseSessionStart(taskId: TaskId, provider: RuntimeProvider): Promise<void> {
+    try {
+      await this.cliReadiness.reprobe();
+    } catch {
+      return;
+    }
+    if (this.disposed) {
+      return;
+    }
+    const reason = cliSessionStartBlockReason(this.cliReadiness.read()[provider]);
+    if (!reason) {
+      return;
+    }
+    this.sendEvent({
+      type: "cli-session-start:blocked",
+      payload: { taskId, provider, reason },
       ts: new Date().toISOString(),
     });
   }

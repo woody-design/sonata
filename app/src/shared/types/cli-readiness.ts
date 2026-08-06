@@ -105,14 +105,47 @@ export function cliReadinessFactsEqual(a: CliReadinessFacts, b: CliReadinessFact
  * and `signedOut`. `unknown` on either axis does not, which is the permissive
  * rule and not an omission.
  *
- * The two are an OR, not a priority order — which of the two to SAY is the
- * card's decision (absent before signedOut), not this predicate's. Note the
- * probe cannot produce `absent` + `signedOut` together: it only asks about auth
- * over a binary it has confirmed, so a provider it could not find always reads
- * `absent`/`unknown`.
+ * The two are an OR, not a priority order — which of the two to SAY lives in
+ * {@link cliSessionStartBlockReason} below, which both actionable surfaces (the
+ * New Chat card and the S4 banner) read so the order cannot drift between them.
+ * Note the probe cannot produce `absent` + `signedOut` together: it only asks
+ * about auth over a binary it has confirmed, so a provider it could not find
+ * always reads `absent`/`unknown`.
  */
 export function isCliProviderUnhealthy(fact: CliProviderReadiness): boolean {
   return fact.install === "absent" || fact.auth === "signedOut";
+}
+
+/**
+ * WHY a session start could not happen — the diagnosis S4 attaches to a task
+ * whose CLI never reached a prompt (plan D10, "Design spec → 旧 chat 续聊诊断").
+ *
+ * The same two actionable readings {@link isCliProviderUnhealthy} admits, now as
+ * a choice rather than a predicate: a banner has to say ONE sentence. There is no
+ * third member and deliberately no `unknown` arm — an undiagnosed failure keeps
+ * today's behaviour and shows nothing at all, so "we don't know" is the ABSENCE
+ * of this value, never one of its cases.
+ */
+export type CliSessionStartBlockReason = "absent" | "signedOut";
+
+/**
+ * Which of the two facts to SAY about a provider, or null when there is nothing
+ * honest to say.
+ *
+ * `absent` outranks `signedOut` — the same priority the readiness card applies —
+ * because a missing binary is the precondition for the other question: there is
+ * no point sending someone to a login screen that does not exist. In practice the
+ * probe cannot even report both (it only asks about auth over a binary it found),
+ * so the order is a statement of intent for a future fact set rather than a
+ * tiebreak the probe exercises today.
+ */
+export function cliSessionStartBlockReason(
+  fact: CliProviderReadiness,
+): CliSessionStartBlockReason | null {
+  if (fact.install === "absent") {
+    return "absent";
+  }
+  return fact.auth === "signedOut" ? "signedOut" : null;
 }
 
 /** Whether ANY provider is actionable — the focus re-probe's gate (D4): while

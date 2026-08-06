@@ -1156,6 +1156,19 @@ app.whenReady().then(() => {
     livePtyCount: () => runtimeController?.liveCodexPtyCount() ?? 0,
     isEnabled: () => codexSettingsStore.read().keepCodexUpToDate,
   });
+  // Built here, ahead of the controller, so the controller can hold it DIRECTLY:
+  // the readiness controller depends on nothing (its only collaborator is the
+  // window broadcast below), so unlike the CLI updater there is no mutual
+  // dependency to break with a lazy hop. Nothing probes yet — the launch trigger
+  // is the main window's did-finish-load (see createMainWindow), and until it
+  // lands the facts read all-`unknown`, the permissive state. The IPC pull channel
+  // can therefore answer from the first moment a window exists.
+  cliReadiness = new CliReadiness({ broadcast: broadcastCliReadiness });
+  // Reads the facts back through the SAME controller that owns them rather than
+  // keeping a copy — both the S2 install verdict (L7) and the S4 session-start
+  // diagnosis mean "what does the probe say NOW", and a second copy of the facts
+  // is a second thing that could be stale.
+  const readiness = cliReadiness;
   runtimeController = new RuntimeController({
     projectsStore: new ProjectsStore(projectsStorePath()),
     tagsStore: new TagsStore(tagsStorePath()),
@@ -1164,6 +1177,10 @@ app.whenReady().then(() => {
     codexSettingsStore,
     sonataSettingsStore: new SonataSettingsStore(sonataSettingsPath()),
     cliUpdater,
+    // The S4 diagnosis port: re-probe, then read. Passed as the narrow
+    // `CliReadinessSource` surface — the controller never schedules, gates, or
+    // broadcasts facts.
+    cliReadiness: readiness,
     ...(perfLog ? { onFlushMetrics: (metric) => perfLog.recordFlush(metric) } : {}),
     sendEvent: (event) => {
       recordRuntimeEvent(event);
@@ -1179,16 +1196,7 @@ app.whenReady().then(() => {
   });
   startLocalApiIfEnabled(runtimeController);
   updaterController = new UpdaterController({ broadcast: broadcastUpdaterState });
-  // Built here so the IPC pull channel can answer from the first moment a window
-  // exists; nothing probes yet — the launch trigger is the main window's
-  // did-finish-load (see createMainWindow), and until it lands the facts read
-  // all-`unknown`, which is the permissive state.
-  cliReadiness = new CliReadiness({ broadcast: broadcastCliReadiness });
-  // The recovery half (S2). Reads the facts back through the SAME controller that
-  // owns them rather than keeping its own copy — the L7 verdict is "what does the
-  // probe say now", and a second copy of the facts is a second thing that could
-  // be stale.
-  const readiness = cliReadiness;
+  // The recovery half (S2), reading the same facts through the same controller.
   cliSetupRun = new CliSetupRunController({
     broadcastState: broadcastCliSetupRun,
     broadcastData: broadcastCliSetupRunData,

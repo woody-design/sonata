@@ -155,11 +155,30 @@ export function sessionPermissionMenuModes(view: TaskViewState): ClaudePermissio
   return [...PERMISSION_MENU_BASE, ...gated];
 }
 
+/**
+ * The boot-narration yield (CLI readiness S4).
+ *
+ * Two strings below promise a boot: the send title's "sends as soon as it accepts
+ * input" and the placeholder's "will send when it's ready". Both are true of a CLI
+ * that is merely slow, and both become the eternal pin this program exists to
+ * remove once the CLI is parked on a first-run screen nobody in Reading can see —
+ * because `bootLatched` never opens and neither string ever changes.
+ *
+ * `sessionStartBlocked` is the S4 diagnosis for this task: the probe has confirmed
+ * the CLI cannot start. When it is set these two functions must stop predicting a
+ * boot. The send title yields by SUBTRACTION — skipping the optimistic arm drops
+ * it onto the truthful "Queued — delivers when X is ready", which is exactly what
+ * happens (the queue holds, and finishing the CLI's setup releases it). The
+ * placeholder gets the one new sentence, because the arm it would otherwise fall
+ * through to ("Continue, correct, or redirect this Task") reads oblivious directly
+ * beneath a banner saying the CLI is not there.
+ */
 export function sendPromptTitle(
   view: TaskViewState | null,
   activeRun: boolean,
   pendingApproval: boolean,
   promptHasText: boolean,
+  sessionStartBlocked = false,
 ): string {
   if (!view?.task) {
     return "";
@@ -174,7 +193,7 @@ export function sendPromptTitle(
   if (pendingApproval) {
     return `Queued — delivers after ${providerName} approval is resolved.`;
   }
-  if (view.live && !view.deliveryState?.bootLatched) {
+  if (view.live && !view.deliveryState?.bootLatched && !sessionStartBlocked) {
     return `${providerName} is starting — your message sends as soon as it accepts input.`;
   }
   if (view.deliveryState && !view.deliveryState.deliverable) {
@@ -227,6 +246,7 @@ export function composerPlaceholder(
   view: TaskViewState | null,
   activeRun: boolean,
   pendingApproval: boolean,
+  sessionStartBlocked = false,
 ): string {
   // New chat: the first message births the session; the placeholder invites
   // intent (ruled 2026-07-04) instead of narrating the mechanism.
@@ -241,6 +261,17 @@ export function composerPlaceholder(
   }
   if (activeRun) {
     return `${providerName} is working — Enter queues your message`;
+  }
+  // Ranked ABOVE the dormant arm on purpose: the two shapes of S4 failure land on
+  // opposite sides of `live` (a missing binary leaves the pty dead and the session
+  // dormant; a signed-out CLI leaves it alive and latch-less), and the diagnosis is
+  // the truer thing to say in BOTH. The sentence states the fact and stops —
+  // the banner directly above carries the reason and the button, so repeating
+  // either here would be the second voice the house does not want. It does not
+  // forbid typing: the composer stays live, because in both shapes the message is
+  // either queued for a login about to finish or a retry the user may want.
+  if (sessionStartBlocked) {
+    return `${providerName} can't start yet`;
   }
   if (!view.live) {
     return `Message ${providerName} — resumes this session`;

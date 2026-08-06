@@ -1,4 +1,5 @@
 import {
+  cliSessionStartBlockReason,
   isCliProviderUnhealthy,
   type CliProviderReadiness,
 } from "../../shared/types/cli-readiness";
@@ -63,6 +64,14 @@ export interface CliReadinessCardModel {
   readonly actions: readonly CliReadinessCardAction[];
 }
 
+// ——— The D8/L1 vocabulary ————————————————————————————————————————————————
+//
+// Woody-ruled copy, reproduced verbatim, and this file is its one home. The S4
+// banner (selectors/cli-readiness-banner.ts) says the same two things about the
+// same two facts at a second mount point (D10 — one fact, two mounts), and it
+// IMPORTS these rather than respelling them: a copy pass here moves both surfaces,
+// and the two can never drift into saying different things about one machine.
+
 /**
  * The CLI's own name, as the user knows it from its docs and its prompt. Two
  * vocabularies on purpose, and the difference is not cosmetic: the CLI NAME
@@ -70,7 +79,7 @@ export interface CliReadinessCardModel {
  * PRODUCT name ("Claude Code") is what is being installed — "Installing Claude
  * Code CLI CLI" is what a single vocabulary would eventually produce.
  */
-function cliName(provider: RuntimeProvider): string {
+export function cliName(provider: RuntimeProvider): string {
   return provider === "claude" ? "Claude Code CLI" : "Codex CLI";
 }
 
@@ -78,11 +87,37 @@ function productName(provider: RuntimeProvider): string {
   return provider === "claude" ? "Claude Code" : "Codex";
 }
 
+/** The single-absent statement (L1). */
+export function cliNotInstalledCopy(provider: RuntimeProvider): string {
+  return `${cliName(provider)} not installed.`;
+}
+
+/**
+ * The signed-out statement (D8). Claude calls it "first-run setup" (theme, then
+ * login); Codex just "setup" — each is that CLI's own vocabulary for its own
+ * screen, so the two sentences are not a template with a hole in it.
+ */
+export function cliSignedOutCopy(provider: RuntimeProvider): string {
+  return provider === "claude"
+    ? "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window."
+    : "Codex CLI isn't signed in. Finish its setup in the terminal window.";
+}
+
+/** The two recovery-button labels. Exported for the same reason the sentences are:
+ *  the S4 banner offers the same two actions and must name them identically. */
+export function installActionLabel(provider: RuntimeProvider): string {
+  return `Install ${cliName(provider)}`;
+}
+
+export function startActionLabel(provider: RuntimeProvider): string {
+  return `Start ${cliName(provider)}`;
+}
+
 function installAction(provider: RuntimeProvider): CliReadinessCardAction {
   return {
     kind: "install",
     provider,
-    label: `Install ${cliName(provider)}`,
+    label: installActionLabel(provider),
     domId: `cli-readiness-install-${provider}`,
   };
 }
@@ -100,30 +135,24 @@ function startAction(provider: RuntimeProvider): CliReadinessCardAction {
   return {
     kind: "start",
     provider,
-    label: `Start ${cliName(provider)}`,
+    label: startActionLabel(provider),
     domId: "cli-readiness-start",
   };
 }
 
 /**
- * The signed-out statement (D8). `actionable` is false while that provider's CLI
- * is ALREADY running in the CLI window: the sentence still holds — finish the
- * setup over there — but offering to start a second copy of a CLI that is on
- * screen waiting for input would be an invitation to make a mess. The copy is not
- * re-written for that case; a button is simply absent, which is the subtraction
- * the house prefers over a second sentence.
+ * The signed-out card. `actionable` is false while that provider's CLI is ALREADY
+ * running in the CLI window: the sentence still holds — finish the setup over
+ * there — but offering to start a second copy of a CLI that is on screen waiting
+ * for input would be an invitation to make a mess. The copy is not re-written for
+ * that case; a button is simply absent, which is the subtraction the house prefers
+ * over a second sentence.
  */
 function signedOutCard(provider: RuntimeProvider, actionable: boolean): CliReadinessCardModel {
-  // Claude calls it "first-run setup" (theme, then login); Codex just "setup".
-  // Verbatim per D8 — each is that CLI's own vocabulary for its own screen.
-  const copy =
-    provider === "claude"
-      ? "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window."
-      : "Codex CLI isn't signed in. Finish its setup in the terminal window.";
   return {
     kind: "signed-out",
     provider,
-    copy,
+    copy: cliSignedOutCopy(provider),
     actions: actionable ? [startAction(provider)] : [],
   };
 }
@@ -162,12 +191,12 @@ export function cliReadinessCard(state: RendererState): CliReadinessCardModel | 
     }
   }
 
-  if (fact.install === "absent") {
-    // absent > signedOut (D9's priority), and the probe cannot even produce both:
-    // it only asks about auth over a binary it found.
-    return absentCard(state, provider);
-  }
-  return signedOutCard(provider, true);
+  // Which of the two to say lives in `cliSessionStartBlockReason` (shared), so the
+  // card and the S4 banner cannot order the two facts differently. Non-null here
+  // by construction — `isCliProviderUnhealthy` above already admitted this fact.
+  return cliSessionStartBlockReason(fact) === "absent"
+    ? absentCard(state, provider)
+    : signedOutCard(provider, true);
 }
 
 /** The composer's send path is closed exactly while a card is showing — every
@@ -231,7 +260,7 @@ function absentCard(state: RendererState, provider: RuntimeProvider): CliReadine
   return {
     kind: "absent",
     provider,
-    copy: `${cliName(provider)} not installed.`,
+    copy: cliNotInstalledCopy(provider),
     actions: [installAction(provider)],
   };
 }

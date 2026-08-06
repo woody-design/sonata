@@ -44,6 +44,9 @@ const workspace = path.join(tempRoot, "workspace");
 fs.mkdirSync(workspace, { recursive: true });
 
 const { RuntimeController } = require("../../dist/main/runtime-controller");
+// The readiness diagnosis (S4) is not this fence's subject; the inert source keeps
+// it observing nothing, which is what the pre-S4 behaviour was.
+const { INERT_CLI_READINESS_SOURCE } = require("../../dist/main/cli-readiness/session-start-diagnosis");
 const { ProjectsStore } = require("../../dist/main/projects-store");
 const { TagsStore } = require("../../dist/main/tags-store");
 const {
@@ -105,6 +108,7 @@ function makeController(gate, seq) {
     codexSettingsStore: new CodexSettingsStore(path.join(root, "codex.json")),
     sonataSettingsStore: new SonataSettingsStore(path.join(root, "sonata.json")),
     cliUpdater: gate,
+    cliReadiness: INERT_CLI_READINESS_SOURCE,
   });
 }
 

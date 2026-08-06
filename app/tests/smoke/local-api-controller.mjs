@@ -30,6 +30,7 @@ const { RuntimeController } = require("../../dist/main/runtime-controller");
 // A bare controller has no Codex auto-updater: it never suppresses codex's own
 // boot prompt, never waits on an update, never schedules a cycle.
 const { INERT_CODEX_SPAWN_GATE } = require("../../dist/main/cli-updater/cli-updater");
+const { INERT_CLI_READINESS_SOURCE } = require("../../dist/main/cli-readiness/session-start-diagnosis");
 const { ProjectsStore } = require("../../dist/main/projects-store");
 const {
   ResumeSettingsStore,
@@ -83,6 +84,7 @@ const controller = new RuntimeController({
   codexSettingsStore: new CodexSettingsStore(path.join(tempRoot, "codex-settings.json")),
   sonataSettingsStore: new SonataSettingsStore(path.join(tempRoot, "sonata-settings.json")),
   cliUpdater: INERT_CODEX_SPAWN_GATE,
+  cliReadiness: INERT_CLI_READINESS_SOURCE,
 });
 
 function caught(fn) {
@@ -179,6 +181,7 @@ try {
     codexSettingsStore: new CodexSettingsStore(path.join(emptyRoot, "codex.json")),
     sonataSettingsStore: new SonataSettingsStore(path.join(emptyRoot, "sonata.json")),
     cliUpdater: INERT_CODEX_SPAWN_GATE,
+    cliReadiness: INERT_CLI_READINESS_SOURCE,
   });
   try {
     process.env.SONATA_DATA_DIR = path.join(emptyRoot, "sonata-data");

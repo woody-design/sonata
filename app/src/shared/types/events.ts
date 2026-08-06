@@ -1,5 +1,6 @@
 import type { NativeStatusRegion, WorkingLiveness } from "./working-status";
 import type { CliActivity } from "./cli-signal";
+import type { CliSessionStartBlockReason } from "./cli-readiness";
 import type {
   ApprovalChoice,
   ApprovalDecision,
@@ -167,6 +168,43 @@ export type CodexUpdatePromptEvent = BaseRuntimeEvent<
   "codex-update-prompt:detected",
   {
     taskId: TaskId;
+  }
+>;
+
+/**
+ * A session start could not happen, and the readiness probe says WHY (CLI
+ * readiness S4; plan D10, L5). Raised for exactly two diagnosable shapes, both
+ * observed by the runtime controller and then confirmed by a fresh probe:
+ *
+ *  - the PTY died before the delivery boot latch ever opened — a missing binary
+ *    fails `execvp` inside the pty, so the process is gone in milliseconds;
+ *  - the PTY is alive but no prompt appeared within the boot observation window
+ *    (L5, 10s against a normal 1–3s boot) — the shape of a CLI parked on its own
+ *    first-run/login screen, which nobody in Reading can see.
+ *
+ * The observation is only the TRIGGER. What makes this event honest is that main
+ * re-probes the machine before emitting and reports the probe's reading, so a
+ * session that failed for any OTHER reason (a crash, a bad flag, a boot dialog
+ * Sonata does not recognize) produces NO event at all and keeps today's
+ * behaviour — Sonata does not invent a generic error UI for a failure it cannot
+ * name.
+ *
+ * Display-only shell chrome, like `cli-hooks:liveness` and
+ * `codex-update-prompt:detected`: the renderer raises a task-keyed attention
+ * banner offering the CLI's own recovery (install / start), and nothing here ever
+ * touches credentials or a login flow (D1).
+ */
+export type CliSessionStartBlockedEvent = BaseRuntimeEvent<
+  "cli-session-start:blocked",
+  {
+    taskId: TaskId;
+    /** The task's provider — carried so a consumer reading the event stream can
+     *  make sense of it without resolving the task, and so the renderer never has
+     *  to infer which CLI the diagnosis is about. */
+    provider: RuntimeProvider;
+    /** What the re-probe found. Never `unknown`: an unreadable machine emits no
+     *  event (see above). */
+    reason: CliSessionStartBlockReason;
   }
 >;
 
@@ -713,6 +751,7 @@ export type ProductRuntimeEvent =
   | CodexTurnContextObservedEvent
   | CodexUpdatePromptEvent
   | CodexSessionResumableExitEvent
+  | CliSessionStartBlockedEvent
   | SessionsUpdatedEvent;
 
 export type RuntimeEvent = TerminalDataEvent | ProductRuntimeEvent;
@@ -736,6 +775,7 @@ export type RunIndexEvent = Exclude<
   | CliHooksLivenessEvent
   | CodexUpdatePromptEvent
   | CodexSessionResumableExitEvent
+  | CliSessionStartBlockedEvent
   | DeliveryStateEvent
   | DeliveryReceiptEvent
   | TaskUpdatedEvent

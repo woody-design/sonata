@@ -15,6 +15,7 @@ const { RuntimeController } = require("../../dist/main/runtime-controller");
 // A bare controller has no Codex auto-updater: it never suppresses codex's own
 // boot prompt, never waits on an update, never schedules a cycle.
 const { INERT_CODEX_SPAWN_GATE } = require("../../dist/main/cli-updater/cli-updater");
+const { INERT_CLI_READINESS_SOURCE } = require("../../dist/main/cli-readiness/session-start-diagnosis");
 const { ProjectsStore } = require("../../dist/main/projects-store");
 const {
   ResumeSettingsStore,
@@ -36,6 +37,7 @@ const controller = new RuntimeController({
   codexSettingsStore: new CodexSettingsStore(path.join(tempRoot, "settings", "codex.json")),
   sonataSettingsStore: new SonataSettingsStore(path.join(tempRoot, "settings", "sonata.json")),
   cliUpdater: INERT_CODEX_SPAWN_GATE,
+  cliReadiness: INERT_CLI_READINESS_SOURCE,
 });
 
 function makeTask(id, title, providerCwd = path.join(tempRoot, "workspace")) {

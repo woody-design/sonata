@@ -47,6 +47,7 @@ import {
   sessionPermissionMenuModes,
 } from "../../reading-core/selectors/composer";
 import { cliReadinessBlocksSend } from "../../reading-core/selectors/cli-readiness-card";
+import { cliReadinessBanner } from "../../reading-core/selectors/cli-readiness-banner";
 import { hasActiveRun } from "../../reading-core/selectors/runs";
 import {
   activeTaskView,
@@ -248,20 +249,37 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   // re-probe turns the machine green. The hard block on submission lives at the
   // composer's submit handler (main.ts), so Enter cannot route around this.
   const readinessBlocked = cliReadinessBlocksSend(state);
+  // The S4 diagnosis for THIS session (existing chats; the card above is New Chat's
+  // half). It changes only what the composer SAYS, never whether it works — see the
+  // banner selector for why an existing chat's send stays open where New Chat's does
+  // not. Read through the same selector the banner paints from, so the copy and the
+  // banner can never disagree about whether the CLI can start.
+  const sessionStartBlocked = cliReadinessBanner(state, view) !== null;
   elements.sendPrompt.disabled =
     state.busy ||
     lifecycleBusy ||
     switchUnresolved ||
     readinessBlocked ||
     (!activeRun && !promptHasText && !hasAttachments);
-  elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText || hasAttachments);
+  elements.sendPrompt.title = sendPromptTitle(
+    view,
+    activeRun,
+    pendingApproval,
+    promptHasText || hasAttachments,
+    sessionStartBlocked,
+  );
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";
   elements.sendPrompt.classList.toggle("stop-mode", activeRun);
   // D1 (two grains of freeze): only the draft-moving phases disable typing.
   // Every other active phase keeps the composer usable — mutual exclusion is
   // enforced by the claim guards, not by blurring a focused textarea.
   elements.promptInput.disabled = lifecycleFreezesComposerText(state) || (state.busy && !newChat);
-  elements.promptInput.placeholder = composerPlaceholder(view, activeRun, pendingApproval);
+  elements.promptInput.placeholder = composerPlaceholder(
+    view,
+    activeRun,
+    pendingApproval,
+    sessionStartBlocked,
+  );
   elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
 }
 

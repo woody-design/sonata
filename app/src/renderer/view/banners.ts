@@ -17,14 +17,28 @@
 // through the same seam the CLI window's own "Resume task" button uses rather
 // than opening a second lifecycle path.
 //
+// A SECOND DECLARED EXCEPTION (CLI readiness S4, 2026-08-05): the
+// cli-session-start banner replaces the "Open CLI →" pointer with a RECOVERY —
+// and for the mirror image of the reason above. Here the CLI is not dead, it is
+// not THERE (absent) or not usable yet (signed out), so the pointer would point
+// at an empty grid. The recovery instead opens that window ON a running command
+// — the CLI's own installer, or the CLI itself landing on its own first-run
+// screen — which is the only thing Sonata is allowed to do about either fact
+// (D1: no credential handling, ever), and it reuses S2's seam verbatim, so this
+// adds no lifecycle path of its own. Narrower than it looks: once that command
+// IS running, the recovery withdraws and the member falls back to the family's
+// ordinary pointer, which by then is the truest thing left to offer.
+//
 // (map §3.1 renderer/view/banners.ts, D3 — moved verbatim from main.ts.
 // State reads via the init-bound atom reference; the dismiss handlers' bare
 // assignments are grammar and route through the actions seam — C3 ruling.)
 
 import {
   activeTaskView,
+  clearCliSessionStartBlocked,
   type RendererState,
 } from "../../reading-core/state";
+import { cliReadinessBanner } from "../../reading-core/selectors/cli-readiness-banner";
 import { elements } from "../dom";
 import { actions } from "../actions";
 
@@ -104,6 +118,27 @@ export function clearCodexResumableExit(taskId: string): void {
   codexResumableExit.delete(taskId);
 }
 
+/**
+ * Tasks whose S4 session-start banner the user has closed. Renderer-LOCAL, the same
+ * species as the three stores above — and deliberately NOT the same thing as the
+ * diagnosis itself, which lives in the state atom because the composer reads it.
+ *
+ * That split is the whole point. The diagnosis is a fact about the machine; the
+ * dismissal is a fact about this banner. Folding them together would mean closing
+ * the notice sent the composer back to "your message will send when it's ready" over
+ * a CLI that cannot start — the exact promise this slice removes. So a dismissal
+ * hides the banner and changes nothing else.
+ *
+ * Cleared by a FRESH diagnosis (a new failed attempt is a new statement, and a
+ * once-closed banner must not be silenced forever) and by the removed-task sweep.
+ */
+const cliSessionStartDismissed = new Set<string>();
+
+/** A new diagnosis landed for this task — any earlier dismissal is spent. */
+export function noteCliSessionStartDiagnosis(taskId: string): void {
+  cliSessionStartDismissed.delete(taskId);
+}
+
 /** Forget a task's renderer-local banner flags (OBS S8, F10). The stores are
  *  keyed by taskId; a task removed (archive/delete) or evicted on switch-away
  *  without a self-clearing event (e.g. a hooks-missing task deleted before its
@@ -114,6 +149,12 @@ export function clearTaskBanners(taskId: string): void {
   codexHooksMissing.delete(taskId);
   codexUpdatePrompt.delete(taskId);
   codexResumableExit.delete(taskId);
+  cliSessionStartDismissed.delete(taskId);
+  // The S4 diagnosis lives in the state atom rather than a store up here (see the
+  // field's own note: the composer reads it too), but it is task-keyed banner state
+  // like the others and belongs to the same sweep — one function, so a removed task
+  // cannot leave any of the five behind.
+  clearCliSessionStartBlocked(state, taskId);
 }
 
 export function renderAttentionBanners(view = activeTaskView(state)): void {
@@ -245,6 +286,59 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
               actions.resumeTask(taskId);
             },
           },
+        ),
+      );
+    }
+    // This session tried to start and could not, and the readiness probe named the
+    // reason (S4 — plan D10: the same fact as the New Chat card, at the second
+    // mount point). The whole model — whether to speak at all, which sentence,
+    // which action — is the pure selector's; see its header for the three
+    // conditions. Notably it needs no clearing path: it goes quiet by itself once
+    // the machine is fixed, and again when a session actually starts.
+    //
+    // Dismissal is applied HERE rather than inside the selector, because the
+    // selector answers "can this CLI start" and the COMPOSER asks it the same
+    // question — an answer that changed because a notice was closed would send the
+    // composer back to promising a boot (see `cliSessionStartDismissed`).
+    const sessionStart = cliSessionStartDismissed.has(view.task.id)
+      ? null
+      : cliReadinessBanner(state, view);
+    if (sessionStart) {
+      const taskId = view.task.id;
+      banners.push(
+        attentionBanner(
+          "cli-session-start",
+          sessionStart.copy,
+          () => {
+            // Banner-local, like its three siblings' dismiss handlers: the composer's
+            // copy is unchanged by this, so only the banners repaint.
+            cliSessionStartDismissed.add(taskId);
+            renderAttentionBanners();
+          },
+          // No action ⇒ the family's own "Open CLI →" pointer, which is the right
+          // thing to say once the CLI is already running over there (see the
+          // selector's note on `action`).
+          sessionStart.action
+            ? {
+                label: sessionStart.action.label,
+                onAct: () => {
+                  // S2's seam, verbatim and fire-and-forget: main owns the pty,
+                  // brings the CLI window forward, and pushes every phase back.
+                  // Nothing optimistic happens here — including no dismissal: the
+                  // banner yields when the FACTS turn green, which is the only
+                  // authority on whether the recovery worked.
+                  const action = sessionStart.action;
+                  if (!action) {
+                    return;
+                  }
+                  if (action.kind === "install") {
+                    actions.installCli(action.provider);
+                    return;
+                  }
+                  actions.startCliLogin(action.provider);
+                },
+              }
+            : undefined,
         ),
       );
     }
