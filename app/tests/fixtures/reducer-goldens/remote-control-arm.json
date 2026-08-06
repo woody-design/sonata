@@ -115,6 +115,7 @@
               "bootLatched": true,
               "queue": []
             },
+            "stopRequestedRunKey": null,
             "pendingAttachments": [],
             "usageSnapshot": {
               "provider": "claude",
@@ -259,6 +260,7 @@
               "bootLatched": true,
               "queue": []
             },
+            "stopRequestedRunKey": null,
             "pendingAttachments": [],
             "usageSnapshot": {
               "provider": "claude",

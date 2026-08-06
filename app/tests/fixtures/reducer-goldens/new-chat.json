@@ -127,6 +127,7 @@
               "bootLatched": true,
               "queue": []
             },
+            "stopRequestedRunKey": null,
             "pendingAttachments": [],
             "usageSnapshot": {
               "provider": "codex",
@@ -298,6 +299,7 @@
               "bootLatched": true,
               "queue": []
             },
+            "stopRequestedRunKey": null,
             "pendingAttachments": [],
             "usageSnapshot": {
               "provider": "codex",

@@ -191,6 +191,7 @@
                 }
               ]
             },
+            "stopRequestedRunKey": null,
             "pendingAttachments": [],
             "usageSnapshot": {
               "provider": "claude",
@@ -432,6 +433,7 @@
                 }
               ]
             },
+            "stopRequestedRunKey": null,
             "pendingAttachments": [],
             "usageSnapshot": {
               "provider": "claude",

@@ -225,6 +225,14 @@ export interface TaskViewState {
   transcriptBlockOrder: string[];
   transcriptSources: TranscriptSourceRef[];
   deliveryState: DeliveryTaskState | null;
+  /** Single-flight stop (S2, D2): the `activeRunKey` a stop has already been
+   *  requested for. A second request naming the same run is dropped — a bare
+   *  Esc written twice into a CLI can open Claude's rewind menu, and the host's
+   *  own Esc-retry is evidence-gated for exactly that reason, so only the human
+   *  path was unguarded. Bound to the run's identity, never to a timer: it
+   *  expires by the run settling (key → null) or the next run beginning (key
+   *  changes), which is also why it is never explicitly cleared. */
+  stopRequestedRunKey: string | null;
   pendingAttachments: ComposerAttachment[];
   usageSnapshot: UsageSnapshot | null;
   workingStatus: WorkingStatusState | null;
@@ -855,6 +863,7 @@ export function createTaskView(task: Task, status: string, live = true): TaskVie
     // user toggles it. createTask sets active optimistically for a live armed spawn.
     remoteControl: { active: false, url: null, armedOverride: null },
     deliveryState: null,
+    stopRequestedRunKey: null,
     pendingAttachments: [],
     usageSnapshot: null,
     workingStatus: null,

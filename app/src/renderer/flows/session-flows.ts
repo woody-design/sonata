@@ -22,7 +22,7 @@ import {
 } from "../../reading-core/selectors/formatters";
 import { cliReadinessBlocksSend } from "../../reading-core/selectors/cli-readiness-card";
 import { optionPromptSelectionsFromDrafts } from "../../reading-core/selectors/composer";
-import { dormantArmed, stoppedRunRefillDraft } from "../../reading-core/selectors/runs";
+import { activeRunKey, dormantArmed, stoppedRunRefillDraft } from "../../reading-core/selectors/runs";
 import { findSessionSummary } from "../../reading-core/selectors/sidebar";
 import {
   activeTaskView as activeTaskViewOf,
@@ -974,6 +974,29 @@ export async function stopRun(): Promise<void> {
   }
   const taskId = view.task.id;
 
+  // Single-flight per run (S2, D2). Both human stop paths — the ■ button and
+  // the Esc twin in the composer — arrive here, so this ONE guard is the whole
+  // fix: a second request naming the run already being stopped is dropped.
+  // What it prevents: `stopRun` writes a BARE Esc to the PTY, and a second one
+  // landing at an idle composer opens claude's rewind menu (the restore picker
+  // whose Enter rewinds the conversation) — which is why the host's automatic
+  // Esc-retry is evidence-gated and only the human path was open. The window is
+  // real: the report round-trip keeps the button in stop-mode for a beat after
+  // the first click, so a double-click is two live stop-mode presses.
+  //
+  // The latch expires with the run, not on a clock: `activeRunKey` returns null
+  // once the run settles and a different key once the next one begins, so both
+  // release it, and nothing has to remember to clear it. A stop with no active
+  // run to name (unreachable from either UI path — both require one) is left
+  // unlatched and unchanged.
+  const stopTargetRunKey = activeRunKey(view);
+  if (stopTargetRunKey !== null) {
+    if (view.stopRequestedRunKey === stopTargetRunKey) {
+      return;
+    }
+    view.stopRequestedRunKey = stopTargetRunKey;
+  }
+
   // Captured BEFORE the stop settles the run: the refill source is the run
   // being stopped (stop S2 — stopping usually means "I said it wrong").
   const refillDraft = stoppedRunRefillDraft(view, elements.promptInput.value);
@@ -1003,6 +1026,12 @@ export async function stopRun(): Promise<void> {
       }
     }
   } catch (error) {
+    // The request never landed, so nothing was stopped and the latch would only
+    // stand between the user and a retry — release it (still ours to release:
+    // a later stop for the SAME run would have overwritten nothing else).
+    if (view.stopRequestedRunKey === stopTargetRunKey) {
+      view.stopRequestedRunKey = null;
+    }
     view.status = errorMessage(error);
   } finally {
     render();
