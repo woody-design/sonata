@@ -4,6 +4,8 @@ import {
   IPC_CHANNELS,
   type CliActionRequest,
   type CliReadinessFacts,
+  type CliSetupRun,
+  type CliSetupRunData,
   type SonataRuntimeBridge,
   type PreviewBinding,
   type ReadingSettings,
@@ -301,6 +303,24 @@ const sonataRuntime: SonataRuntimeBridge = {
     ipcRenderer.on(IPC_CHANNELS.cliReadinessChanged, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.cliReadinessChanged, listener);
   },
+  startCliSetupRun: (request) => ipcRenderer.invoke(IPC_CHANNELS.cliSetupRunStart, request),
+  readCliSetupRun: () => ipcRenderer.invoke(IPC_CHANNELS.cliSetupRunRead),
+  onCliSetupRunChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, run: CliSetupRun | null) => {
+      callback(run);
+    };
+    ipcRenderer.on(IPC_CHANNELS.cliSetupRunChanged, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.cliSetupRunChanged, listener);
+  },
+  onCliSetupRunData: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, chunk: CliSetupRunData) => {
+      callback(chunk);
+    };
+    ipcRenderer.on(IPC_CHANNELS.cliSetupRunData, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.cliSetupRunData, listener);
+  },
+  writeCliSetupRunInput: (request) => ipcRenderer.invoke(IPC_CHANNELS.cliSetupRunInput, request),
+  resizeCliSetupRun: (request) => ipcRenderer.invoke(IPC_CHANNELS.cliSetupRunResize, request),
 };
 
 contextBridge.exposeInMainWorld("sonataRuntime", sonataRuntime);

@@ -614,6 +614,64 @@ not merged**: that subsystem's semantic is version policy, this one's is
 readiness. Merging is a phase-2 question, and `cli-env.ts` is the generalized
 form its `codex-env.ts` would collapse into.
 
+### The readiness card, and how recovery happens
+
+The probe is the READ half. The card and the setup run are the other two:
+*say the fact*, then *hand the fix to the CLI itself*.
+
+**The card is decided as data, not drawn as a state machine.**
+`reading-core/selectors/cli-readiness-card.ts` maps (draft provider × facts × live
+setup run) to a card model or null, and the view only paints it — so the whole
+presence matrix is fenced row by row, including the rows that must show
+*nothing*, which no screenshot can check. Three rules carry it: `unknown` shows
+nothing (the permissive rule again); a **healthy provider shows nothing whatever a
+run did**, so a failed install for a CLI that is nonetheless present cannot put a
+"didn't finish" card over a working machine; and the card is about the DRAFT's
+provider, never a suggestion to change it.
+
+**It occupies the New Chat composer slot and nothing else moves.** Not a banner
+(that family is task-keyed, mid-task attention; this is pre-task readiness), and
+not a gate: the sidebar, history, and settings stay reachable throughout. It sits
+*above* the composer card rather than replacing it, which is forced rather than
+chosen — the draft's provider switcher lives on that card, and the card's whole
+posture is "here is the fact about the CLI you picked; switch if you like". What
+it does take away is SEND: `#composer` carries `.cli-readiness-active`, checked in
+the submit handler exactly as `.drawer-active` is, because a prompt sent into a
+provider that cannot boot is the silent queue this program exists to remove — and
+the button alone would not cover Enter, which reaches submit through
+`requestSubmit()`. Typing stays enabled: writing the prompt while an installer
+runs is reasonable, and send re-arms itself when the re-probe turns green.
+
+**A setup run is one visible command, and it is a sibling of terminal-host rather
+than a change to it** (`main/cli-readiness/setup-run.ts`). Two kinds — the
+vendor's official install command, or the provider's CLI itself so it lands on its
+own first-run/login screens — hosted in a real pty whose grid the CLI window
+shows and whose keystrokes it forwards, so a sudo prompt or a login menu is
+answerable. `TerminalHost` was the wrong home for it on three counts, two of them
+hard: it parses provider TUIs (an installer is not one, and a **login screen is
+the one surface Sonata is forbidden to read**), and it belongs to a Task (every
+install attempt would leave a phantom session in the sidebar). So the run is
+app-global, task-free, and unpersisted; the CLI window gains a second grid that
+outranks the task grid while it lives.
+
+**Success is decided by re-probing, never by reading the command's output.** After
+an install pty exits, `reprobe({ bustPathCache: true })` runs — the bust is a
+correctness requirement, not a nicety, because both installers edit the user's
+shell profile. A non-zero exit **or** a still-`absent` re-probe is the failure
+state; a script that prints "Success!" and installs nothing is therefore caught,
+and one that prints nothing while working is not doubted. A `start` run has no
+failure shape at all: Sonata cannot tell "closed without signing in" from a normal
+exit, so it says nothing and lets the re-probed facts speak. And the run is left
+alive when Sonata quits — killing an installer mid-write can corrupt a global
+install, the same reasoning the CLI updater's detached child rests on.
+
+One MEASURED trap is worth naming, because it is invisible and it undoes the work
+`cli-env.ts` exists for: the install command runs through `$SHELL -c` and **must
+not** use `-lc`. A login shell on macOS sources `/etc/profile` → `path_helper`,
+which REPLACES `PATH` — discarding the merged login-shell PATH and re-creating the
+#42350 detect/run mismatch inside the install itself. `-c` loses nothing, since
+the env handed to the pty already carries that PATH.
+
 ## The Preview window (satellite)
 
 The reading surface for *files* (the Reading window reads the conversation; the

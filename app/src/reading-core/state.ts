@@ -13,6 +13,7 @@ import type {
   AttachmentKind,
   CliActivity,
   CliReadinessFacts,
+  CliSetupRun,
   ClaudeDefaultPermissionMode,
   ClaudePermissionMode,
   ClaudeSettings,
@@ -518,6 +519,13 @@ export interface RendererState {
    *  change therefore repaints nothing and never touches an OPEN draft (D6); it
    *  changes what the NEXT New Chat seeds from. */
   cliReadiness: CliReadinessFacts;
+  /** The one Sonata-initiated CLI setup command in flight, or its last failure
+   *  (S2). Owned by main (it owns the pty); this is a mirror, hydrated by a pull
+   *  at boot and kept fresh by main's push. Its only consumer is the readiness
+   *  card, which reads it beside `cliReadiness` above: the facts say what is
+   *  wrong, this says what is being done about it. Null is the normal state —
+   *  nothing running, nothing failed. */
+  cliSetupRun: CliSetupRun | null;
   /** The Settings "Default model" launch defaults (per-provider model/effort),
    *  mirrored at boot. Unlike the permission-mode mirrors above (which the draft
    *  FOLLOWS live via its null slots), these seed the draft by COPY at boot and
@@ -781,6 +789,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     // learned a provider, and the seed's own fallback covers the gap.
     lastUsedProvider: null,
     cliReadiness: UNKNOWN_CLI_READINESS_FACTS,
+    cliSetupRun: null,
     defaultModel: {
       codex: "gpt-5.6-sol",
       claude: "opus",

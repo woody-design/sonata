@@ -46,6 +46,7 @@ import {
   sessionModelSummaryLabel,
   sessionPermissionMenuModes,
 } from "../../reading-core/selectors/composer";
+import { cliReadinessBlocksSend } from "../../reading-core/selectors/cli-readiness-card";
 import { hasActiveRun } from "../../reading-core/selectors/runs";
 import {
   activeTaskView,
@@ -240,10 +241,18 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   // treatments. Cleared by the switch settling, a new run, or the user dismissing
   // the banner.
   const switchUnresolved = Boolean(view?.controlSwitch);
+  // The New Chat readiness card is showing (S2): the draft's provider cannot serve
+  // a session, so the send affordance must not look armed. The textarea stays
+  // ENABLED on purpose — writing the prompt you are about to send while an
+  // installer runs is reasonable, and the send re-arms by itself the moment the
+  // re-probe turns the machine green. The hard block on submission lives at the
+  // composer's submit handler (main.ts), so Enter cannot route around this.
+  const readinessBlocked = cliReadinessBlocksSend(state);
   elements.sendPrompt.disabled =
     state.busy ||
     lifecycleBusy ||
     switchUnresolved ||
+    readinessBlocked ||
     (!activeRun && !promptHasText && !hasAttachments);
   elements.sendPrompt.title = sendPromptTitle(view, activeRun, pendingApproval, promptHasText || hasAttachments);
   elements.sendPrompt.textContent = activeRun ? "■" : "↑";

@@ -180,6 +180,35 @@ const allowedTerminalCopy = [
     "Turned off by Sonata's earlier bridge. Restoring affects terminals outside Sonata.",
     1,
   ),
+  // CLI readiness S2 — the New Chat readiness card (plan D8/L1, copy ruled by
+  // Woody and reproduced verbatim). Each of these points the user at the window
+  // where the CLI's own installer or login screen is running, because that is the
+  // one place Sonata is allowed to hand the job over (D1). Note the tension this
+  // fence exists to surface: the window's own chrome calls itself "CLI" (eyebrow,
+  // title, tooltip) while this copy calls it "the terminal window" — deliberate as
+  // of D8, and flagged for the copy pass rather than silently reconciled here.
+  exact(
+    "src/reading-core/selectors/cli-readiness-card.ts",
+    "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window.",
+    1,
+  ),
+  exact(
+    "src/reading-core/selectors/cli-readiness-card.ts",
+    "Codex CLI isn't signed in. Finish its setup in the terminal window.",
+    1,
+  ),
+  exact(
+    "src/reading-core/selectors/cli-readiness-card.ts",
+    "Installation didn't finish — check the output in the terminal window.",
+    1,
+  ),
+  // The installing copy is interpolated ("Installing Claude Code — …"), so the
+  // extractor yields its template tail.
+  exact(
+    "src/reading-core/selectors/cli-readiness-card.ts",
+    " — follow along in the terminal window.",
+    1,
+  ),
 ];
 
 // Exact non-copy values in otherwise copy-bearing files. Adding an internal

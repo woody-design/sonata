@@ -3880,6 +3880,74 @@ h2 {
   color: var(--text-primary);
 }
 
+/* — New Chat readiness card (CLI readiness S2, D8/D9) — the preselected
+   provider's CLI is missing or not signed in, so the composer cannot start a
+   session yet. Same voice as the attention banners above (hairline ring, raised
+   surface, one sentence, a pill action) because it is the same KIND of statement:
+   a fact plus a pointer. Two deliberate differences from that family, both
+   forced by content: the copy WRAPS (a banner's one-line ellipsis would truncate
+   "…Finish its first-run setup in the terminal window."), and there is no dismiss
+   — nothing here is a notice to acknowledge, it is a state of the machine that
+   ends when the machine changes. Zero chroma: a missing CLI is a fact to state,
+   not an alarm (chroma stays reserved for needs-you).
+
+   The slot collapses to nothing when empty, so the composer sits exactly where it
+   always did on a healthy machine. */
+.cli-readiness-card-root:not(:empty) {
+  padding: 0 0 var(--space-8);
+}
+
+.cli-readiness-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-8) var(--space-6) var(--space-12);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.cli-readiness-copy {
+  /* Grows to fill, wraps rather than truncates, and gives up its row to the
+     buttons below ~220px so the two-install variant never crushes its labels. */
+  flex: 1 1 220px;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-secondary);
+  font: 400 var(--type-ui-sm) var(--font-ui);
+}
+
+.cli-readiness-actions {
+  display: flex;
+  flex: none;
+  gap: var(--space-6);
+}
+
+/* Same pill as the banner family's action, and deliberately NOT a primary (ink)
+   button: this is an offer to hand the job to the CLI, not the app's own call to
+   action, and an ink-filled button here would out-shout the composer's send. */
+.cli-readiness-action {
+  flex: none;
+  padding: 4px var(--space-8);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-primary);
+  font: 600 var(--type-ui-sm) var(--font-ui);
+  cursor: pointer;
+}
+
+.cli-readiness-action:hover {
+  border-color: var(--border-strong);
+}
+
+.cli-readiness-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .hidden {
   display: none;
 }
@@ -4863,6 +4931,11 @@ h2 {
   color: var(--text-primary);
 }
 
+/* This window's GRID class. Worn by a task's session terminal and — deliberately
+   — by a CLI setup run's terminal too (readiness S2): two grids in one window
+   that could drift in padding or surface colour is a bug waiting for the next
+   theme change, so they share one rule and differ only in their data attribute
+   (data-task-id vs data-setup-run). */
 .task-terminal {
   width: 100%;
   height: 100%;

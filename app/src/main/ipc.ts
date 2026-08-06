@@ -2,8 +2,15 @@ import { clipboard, ipcMain, shell } from "electron";
 import {
   IPC_CHANNELS,
   isCliActionRequest,
+  isCliSetupRunInputRequest,
+  isCliSetupRunRequest,
+  isCliSetupRunResizeRequest,
   isTerminalActiveTaskState,
   type CliActionRequest,
+  type CliSetupRunInputRequest,
+  type CliSetupRunRequest,
+  type CliSetupRunResizeRequest,
+  type CliSetupRunSnapshot,
   type ClipboardReadTextResponse,
   type FolderPickResponse,
   type OpenPreviewRequest,
@@ -94,6 +101,15 @@ export interface WindowIpcController {
   setActiveTerminalTask(state: TerminalActiveTaskState, senderId: number): void;
   readActiveTerminalTask(): TerminalActiveTaskState;
   requestCliAction(request: CliActionRequest, senderId: number): void;
+  // CLI setup runs (S2). Window-scoped like the two above, and for the same
+  // reason: each carries a SENDER right. Starting a run is the readiness card's
+  // privilege (Reading window); typing into one is the CLI window's, because it
+  // is the surface hosting the pty. The read is open — it is a snapshot of
+  // something both windows legitimately display.
+  startCliSetupRun(request: CliSetupRunRequest, senderId: number): Promise<void>;
+  readCliSetupRun(): CliSetupRunSnapshot;
+  writeCliSetupRunInput(request: CliSetupRunInputRequest, senderId: number): void;
+  resizeCliSetupRun(request: CliSetupRunResizeRequest, senderId: number): void;
   openWorkspaceExternal(request: WorkspaceOpenExternalRequest): Promise<WorkspaceOpenExternalResponse>;
   openWorkspaceFolder(request: WorkspaceOpenFolderRequest): Promise<void>;
   pickFolder(): Promise<FolderPickResponse>;
@@ -339,6 +355,28 @@ export function registerIpcHandlers(
   // to install or sign in on the user's behalf (D1). The probe's triggers are all
   // main-side events.
   ipcMain.handle(IPC_CHANNELS.cliReadinessRead, () => cliReadiness.read());
+  // The recovery half (S2). A renderer names a KIND and a PROVIDER — never a
+  // command line: the install commands are D7's, they live in main, and a window
+  // that could choose the string would be a window that could run anything.
+  ipcMain.handle(IPC_CHANNELS.cliSetupRunStart, async (event, request: unknown) => {
+    if (!isCliSetupRunRequest(request)) {
+      throw new Error("Invalid CLI setup run.");
+    }
+    await windowController.startCliSetupRun(request, event.sender.id);
+  });
+  ipcMain.handle(IPC_CHANNELS.cliSetupRunRead, () => windowController.readCliSetupRun());
+  ipcMain.handle(IPC_CHANNELS.cliSetupRunInput, (event, request: unknown) => {
+    if (!isCliSetupRunInputRequest(request)) {
+      throw new Error("Invalid CLI setup run input.");
+    }
+    windowController.writeCliSetupRunInput(request, event.sender.id);
+  });
+  ipcMain.handle(IPC_CHANNELS.cliSetupRunResize, (event, request: unknown) => {
+    if (!isCliSetupRunResizeRequest(request)) {
+      throw new Error("Invalid CLI setup run resize.");
+    }
+    windowController.resizeCliSetupRun(request, event.sender.id);
+  });
   ipcMain.handle(IPC_CHANNELS.readingSettingsRead, () => readingSettingsStore.read());
   ipcMain.handle(IPC_CHANNELS.readingSettingsWrite, (_event, request) => {
     const persisted = readingSettingsStore.write(request);

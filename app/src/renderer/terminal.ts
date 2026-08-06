@@ -10,7 +10,12 @@ import { Terminal, type ITheme } from "@xterm/xterm";
 import {
   DEFAULT_TERMINAL_WINDOW_SETTINGS,
   TERM_FONT_SIZES,
+  isCliSetupRunSnapshot,
+  isCliSetupRunState,
   isTermFontSize,
+  type CliSetupRun,
+  type CliSetupRunData,
+  type CliSetupRunSnapshot,
   type ReadingModeSetting,
   type ResolvedReadingMode,
   type TermSchemeId,
@@ -498,22 +503,41 @@ function retireTerminalGeneration(taskId: string, generation: number): void {
  *  re-render-on-reopen regression bites there). Open the active one lazily. When
  *  there is no terminal for the active task — either nothing is selected, or the
  *  selected session is dormant (no PTY to mirror) — show a placeholder that says
- *  which, rather than a blank grid. */
+ *  which, rather than a blank grid. A CLI setup run's grid can outrank all of
+ *  that; {@link setupRunOwnsWindow} holds that precedence. */
 function showActiveTerminal(): void {
+  const taskEntry = activeTaskId && activeLive ? terminals.get(activeTaskId) ?? null : null;
+  if (setupTerminal && setupRunOwnsWindow(taskEntry)) {
+    for (const entry of terminals.values()) {
+      entry.element.classList.add("hidden");
+    }
+    emptyState.classList.add("hidden");
+    // The find box operates on a task terminal's decorations, and that terminal is
+    // now hidden — leaving the box open would strand a search over a buffer nobody
+    // can see. Idempotent, so calling it on every paint is free.
+    closeSearch();
+    setupTerminal.element.classList.remove("hidden");
+    if (!setupTerminal.opened) {
+      openSetupTerminal(setupTerminal);
+    } else {
+      fitSetupTerminal(setupTerminal);
+    }
+    return;
+  }
+  setupTerminal?.element.classList.add("hidden");
   for (const [id, entry] of terminals) {
     entry.element.classList.toggle("hidden", id !== activeTaskId || !activeLive);
   }
-  const entry = activeTaskId && activeLive ? terminals.get(activeTaskId) ?? null : null;
-  if (!entry) {
+  if (!taskEntry) {
     renderEmptySurface();
     emptyState.classList.remove("hidden");
     return;
   }
   emptyState.classList.add("hidden");
-  if (!entry.opened) {
-    openTaskTerminal(entry);
+  if (!taskEntry.opened) {
+    openTaskTerminal(taskEntry);
   } else {
-    fitAndResize(entry);
+    fitAndResize(taskEntry);
   }
 }
 
@@ -595,10 +619,7 @@ function applyActiveTask(next: TerminalActiveTaskState): void {
   activeTaskId = next.taskId;
   activeLive = next.live;
   activeBinding = next;
-  projectName.textContent = next.projectName;
-  projectName.title = next.projectName;
-  sessionTitle.textContent = next.sessionTitle;
-  sessionTitle.title = next.sessionTitle;
+  renderBreadcrumb();
   // Dispose terminals whose task has closed.
   for (const id of [...terminals.keys()]) {
     if (!next.openTaskIds.includes(id)) {
@@ -621,6 +642,223 @@ function applyActiveTask(next: TerminalActiveTaskState): void {
   showActiveTerminal();
 }
 
+// --- CLI setup runs (CLI readiness S2) ---------------------------------------
+//
+// A second kind of grid in this window: not a task's session but ONE command
+// Sonata was asked to run visibly — a provider's official installer, or the
+// provider's own CLI landing on its first-run/login screens. It has no task, no
+// generation, and no scrollback replay from a headless mirror; the main process
+// keeps its raw output in a buffer and hands it over on request, which is the only
+// way "follow along in the terminal window" can be true for a window that this
+// very run may have just created.
+//
+// Keystrokes are forwarded exactly as they are for a task, and that is the whole
+// reason the run is a pty: a sudo prompt, an installer's y/n, a login menu, a
+// theme picker. Sonata reads none of it (D1/D2) — it renders bytes and forwards
+// keys.
+
+interface SetupTerminal {
+  runId: number;
+  terminal: Terminal;
+  fit: FitAddon;
+  element: HTMLDivElement;
+  opened: boolean;
+  /** True until the buffered output has been replayed; live chunks queue in
+   *  `buffer` until then so none is written twice or lost. */
+  hydrating: boolean;
+  buffer: CliSetupRunData[];
+  /** The seq already covered by the replayed buffer. */
+  hydratedSeq: number;
+  disposers: Array<() => void>;
+}
+
+let setupRun: CliSetupRun | null = null;
+let setupTerminal: SetupTerminal | null = null;
+
+/**
+ * Whether the setup run's grid is the one on screen. The precedence, in one place
+ * so `showActiveTerminal` and `activeEntry` cannot drift apart:
+ *
+ *   - a RUNNING run wins outright — the user just asked for it, Sonata brought this
+ *     window forward for it, and it may be waiting on a keystroke;
+ *   - a FINISHED run loses to a LIVE SESSION: a real conversation is the user's
+ *     actual work, and an install that is over is not;
+ *   - …but it beats the empty placeholder, because the failed card in Reading says
+ *     "check the output in the terminal window", and this grid IS that output.
+ */
+function setupRunOwnsWindow(liveTaskEntry: TaskTerminal | null): boolean {
+  if (!setupTerminal) {
+    return false;
+  }
+  return setupRun?.phase === "running" || !liveTaskEntry;
+}
+
+/** The breadcrumb names WHAT IS ON SCREEN. A setup run is not a task, so showing
+ *  the selected task's project and title over an installer's output would be a
+ *  small lie in the one place the window explains itself. */
+function renderBreadcrumb(): void {
+  const project = setupRun ? "Setup" : activeBinding?.projectName ?? "Tasks";
+  const title = setupRun
+    ? `${setupRun.kind === "install" ? "Install" : "Start"} ${
+        setupRun.provider === "claude" ? "Claude Code" : "Codex"
+      }`
+    : activeBinding?.sessionTitle ?? "New task";
+  projectName.textContent = project;
+  projectName.title = project;
+  sessionTitle.textContent = title;
+  sessionTitle.title = title;
+}
+
+function applySetupRun(next: CliSetupRun | null): void {
+  const previous = setupRun;
+  setupRun = next;
+  // The grid lives as long as the RUN does — including after a failed install,
+  // which is load-bearing rather than lenient: the card's copy for that state is
+  // "check the output in the terminal window", and disposing here would delete the
+  // very output it points at. It goes when the run goes (a success clears it) or
+  // when a new run replaces it (a Try again starts with a clean grid).
+  if (!next || (setupTerminal && setupTerminal.runId !== next.id)) {
+    disposeSetupTerminal();
+  }
+  if (next && !setupTerminal) {
+    setupTerminal = createSetupTerminal(next.id);
+    void hydrateSetupTerminal(setupTerminal);
+  }
+  if (previous?.id !== next?.id || previous?.phase !== next?.phase) {
+    renderBreadcrumb();
+  }
+  showActiveTerminal();
+}
+
+function createSetupTerminal(runId: number): SetupTerminal {
+  const term = new Terminal({
+    allowProposedApi: true,
+    convertEol: true,
+    cursorBlink: false,
+    fontFamily: terminalFontFamily || '"Maple Mono NF CN", "PingFang SC", Menlo, monospace',
+    fontSize: settings.fontSize,
+    lineHeight: 1.2,
+    letterSpacing: 0,
+    cursorInactiveStyle: "outline",
+    scrollback: 10000,
+    linkHandler: { activate: (_event, text) => openExternalTerminalLink(text) },
+    theme: terminalTheme(),
+  });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  term.loadAddon(new Unicode11Addon());
+  term.unicode.activeVersion = "11";
+  term.loadAddon(new WebLinksAddon((_event, uri) => openExternalTerminalLink(uri)));
+
+  // `task-terminal` is this window's GRID class (geometry + the xterm background
+  // pinning in styles.css), deliberately shared rather than copied: two grids in
+  // one window that could drift in theme or padding is a bug waiting for a theme
+  // change. `data-setup-run` is what distinguishes it.
+  const element = document.createElement("div");
+  element.className = "task-terminal hidden";
+  element.dataset.setupRun = String(runId);
+  termMount.append(element);
+
+  const forward = (data: string): void => {
+    if (!data || setupRun?.id !== runId || setupRun.phase !== "running") {
+      return;
+    }
+    void window.sonataRuntime.writeCliSetupRunInput({ id: runId, data }).catch(() => {
+      // The run ended between the keystroke and its delivery; harmless.
+    });
+  };
+  const dataListener = term.onData(forward);
+  const binaryListener = term.onBinary(forward);
+  return {
+    runId,
+    terminal: term,
+    fit,
+    element,
+    opened: false,
+    hydrating: true,
+    buffer: [],
+    hydratedSeq: 0,
+    disposers: [() => dataListener.dispose(), () => binaryListener.dispose()],
+  };
+}
+
+function openSetupTerminal(entry: SetupTerminal): void {
+  void terminalFontsReady.then(() => {
+    if (setupTerminal !== entry || entry.opened) {
+      return;
+    }
+    entry.terminal.open(entry.element);
+    entry.opened = true;
+    if (TERMINAL_LIGATURES) {
+      entry.terminal.registerCharacterJoiner(ligatureJoiner);
+    }
+    fitSetupTerminal(entry);
+  });
+}
+
+function fitSetupTerminal(entry: SetupTerminal): void {
+  if (!entry.opened) {
+    return;
+  }
+  try {
+    entry.fit.fit();
+  } catch {
+    // Measurable only after layout is ready; the next fit reconciles.
+  }
+  void window.sonataRuntime
+    .resizeCliSetupRun({
+      id: entry.runId,
+      cols: entry.terminal.cols,
+      rows: entry.terminal.rows,
+    })
+    .catch(() => {
+      // Main drops a resize for a run that just ended; harmless.
+    });
+}
+
+/** Replay what the run has already printed, then splice the live chunks that
+ *  raced the read. The seq comparison is what makes the splice exact — the
+ *  snapshot names the last chunk it contains, so nothing is written twice and
+ *  nothing between the read and its resolution is dropped. */
+async function hydrateSetupTerminal(entry: SetupTerminal): Promise<void> {
+  let snapshot: CliSetupRunSnapshot | null = null;
+  try {
+    snapshot = await window.sonataRuntime.readCliSetupRun();
+  } catch {
+    snapshot = null;
+  }
+  if (setupTerminal !== entry) {
+    return;
+  }
+  if (snapshot && isCliSetupRunSnapshot(snapshot) && snapshot.run?.id === entry.runId) {
+    if (snapshot.output) {
+      entry.terminal.write(snapshot.output);
+    }
+    entry.hydratedSeq = snapshot.outputSeq;
+  }
+  const queued = entry.buffer;
+  entry.buffer = [];
+  entry.hydrating = false;
+  for (const chunk of queued) {
+    if (chunk.seq > entry.hydratedSeq) {
+      entry.terminal.write(chunk.data);
+    }
+  }
+}
+
+function disposeSetupTerminal(): void {
+  const entry = setupTerminal;
+  if (!entry) {
+    return;
+  }
+  setupTerminal = null;
+  for (const dispose of entry.disposers) {
+    dispose();
+  }
+  entry.terminal.dispose();
+  entry.element.remove();
+}
+
 // --- Find (Cmd+F) ------------------------------------------------------------
 const TERMINAL_SEARCH_DECORATIONS = {
   matchBackground: "rgba(205, 171, 109, 0.30)",
@@ -630,8 +868,17 @@ const TERMINAL_SEARCH_DECORATIONS = {
   activeMatchColorOverviewRuler: "rgba(121, 183, 165, 0.90)",
 };
 
+/** The task terminal the find box operates on — null while a setup run owns the
+ *  window, since the task grid is hidden behind it and decorating an invisible
+ *  buffer would open a find box over output nobody can see. This one guard is
+ *  what disables Cmd+F, the box's controls, and its focus restore together. */
 function activeEntry(): TaskTerminal | null {
-  return activeTaskId ? terminals.get(activeTaskId) ?? null : null;
+  const entry = activeTaskId ? terminals.get(activeTaskId) ?? null : null;
+  const visible = activeLive ? entry : null;
+  if (setupTerminal && setupRunOwnsWindow(visible)) {
+    return null;
+  }
+  return entry;
 }
 
 function updateSearchCount(result?: { resultIndex: number; resultCount: number }): void {
@@ -755,6 +1002,15 @@ function applyAppearance(): void {
     if (entry.terminal.options.fontSize !== settings.fontSize) {
       entry.terminal.options.fontSize = settings.fontSize;
       fitAndResize(entry);
+    }
+  }
+  // The setup run's grid follows the same appearance: it is the same window, and
+  // a run that ignored the Aa picker would be the one terminal here that does.
+  if (setupTerminal) {
+    setupTerminal.terminal.options.theme = theme;
+    if (setupTerminal.terminal.options.fontSize !== settings.fontSize) {
+      setupTerminal.terminal.options.fontSize = settings.fontSize;
+      fitSetupTerminal(setupTerminal);
     }
   }
 }
@@ -958,7 +1214,36 @@ window.sonataRuntime.onReadingSystemModeChanged(() => {
     applyAppearance();
   }
 });
+// The setup run's state and output (S2). State first in the file order that
+// matters at runtime: a `data` chunk for a run this window has not seen yet is
+// dropped, and the state push is what creates the grid that accepts it. Main
+// publishes `running` before it spawns, so the grid always exists first.
+window.sonataRuntime.onCliSetupRunChanged((run) => {
+  if (isCliSetupRunState(run)) {
+    applySetupRun(run);
+  }
+});
+
+window.sonataRuntime.onCliSetupRunData((chunk) => {
+  const entry = setupTerminal;
+  if (!entry || entry.runId !== chunk.id) {
+    return;
+  }
+  if (entry.hydrating) {
+    entry.buffer.push(chunk);
+    return;
+  }
+  if (chunk.seq <= entry.hydratedSeq) {
+    return;
+  }
+  entry.terminal.write(chunk.data);
+});
+
 window.addEventListener("resize", () => {
+  if (setupTerminal) {
+    fitSetupTerminal(setupTerminal);
+    return;
+  }
   if (!activeTaskId) {
     return;
   }
@@ -979,5 +1264,17 @@ void (async () => {
     applyActiveTask(await window.sonataRuntime.readActiveTerminalTask());
   } catch {
     // No active task read yet; the onActiveTerminalTask broadcast populates it.
+  }
+  // A setup run may already be going: this window is usually CREATED by one (the
+  // request opens it), and it can also be closed and reopened mid-install. Reading
+  // the state here is what makes both cases show output instead of a blank grid —
+  // `applySetupRun` creates the grid and hydrates it from the same snapshot.
+  try {
+    const snapshot = await window.sonataRuntime.readCliSetupRun();
+    if (isCliSetupRunSnapshot(snapshot) && snapshot.run) {
+      applySetupRun(snapshot.run);
+    }
+  } catch {
+    // No run, or main is not ready; the changed broadcast covers the rest.
   }
 })();

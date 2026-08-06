@@ -79,6 +79,13 @@ export interface Actions {
   setDraftPermissionMode(mode: ClaudePermissionMode): void;
   /** Per-session Codex permission mode (the Codex twin; closes the access menu). */
   setDraftCodexPermissionMode(mode: CodexPermissionMode): void;
+  // — New Chat readiness card (view/cli-readiness-card.ts). Both run a command
+  //   VISIBLY in the CLI window and hand the rest to the CLI itself (D7/D1):
+  //   `installCli` runs that vendor's official installer, `startCliLogin` runs
+  //   the CLI so it lands on its own first-run/login screens. Fire-and-forget —
+  //   main owns the run and pushes every phase back. —
+  installCli(provider: RuntimeProvider): void;
+  startCliLogin(provider: RuntimeProvider): void;
   // — Attention banners (view/banners.ts) dismiss mutations: bare
   //   assignments are grammar (C3 ruling) — implemented shell-side, each the
   //   verbatim body of the dismiss handler it replaced. —

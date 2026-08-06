@@ -224,7 +224,11 @@
     "smoke:cli-readiness-absent": "npm run build:main && node tests/smoke/cli-readiness-absent.mjs",
     "smoke:cli-readiness-stub-unknown": "npm run build:main && node tests/smoke/cli-readiness-stub-unknown.mjs",
     "smoke:cli-readiness-signed-out": "npm run build:main && node tests/smoke/cli-readiness-signed-out.mjs",
-    "smoke:cli-readiness-login-shell-path": "npm run build:main && node tests/smoke/cli-readiness-login-shell-path.mjs"
+    "smoke:cli-readiness-login-shell-path": "npm run build:main && node tests/smoke/cli-readiness-login-shell-path.mjs",
+    "smoke:cli-readiness-card": "npm run build:main && node tests/smoke/cli-readiness-card.mjs",
+    "smoke:cli-setup-run": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/cli-setup-run.mjs",
+    "e2e:cli-readiness-card": "npm run build && node tests/e2e/cli-readiness-card.mjs",
+    "e2e:cli-readiness-screenshots": "npm run build && node tests/e2e/cli-readiness-screenshots.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

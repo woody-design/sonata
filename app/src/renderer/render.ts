@@ -28,6 +28,7 @@ import {
   renderResumeChoice,
 } from "./view/approvals";
 import { renderAttentionBanners } from "./view/banners";
+import { renderCliReadinessCard } from "./view/cli-readiness-card";
 import { composerNotice } from "../reading-core/selectors/composer";
 import {
   renderReadingPopover,
@@ -188,6 +189,12 @@ export function render(): void {
   renderRemoteControlPopover();
   renderTaskSettingsPopover();
   renderSettingsOverlay();
+  // Before the composer controls: it sets `.cli-readiness-active`, which is both
+  // the send gate and the style hook, and renderComposerControls reads the same
+  // condition for the send button's disabled state. Ordering them this way keeps
+  // one paint from ever showing an armed send above a card that says the CLI is
+  // missing.
+  renderCliReadinessCard();
   renderAttachmentStrip(view);
   renderComposerControls(view);
   renderComposerPopover(view);

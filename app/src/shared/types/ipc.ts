@@ -28,6 +28,14 @@ import type { OptionPromptSelection } from "./option-prompt";
 import type { ReadSlashCommandsRequest, SlashCommandsResponse } from "./slash";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
 import type { CliReadinessFacts } from "./cli-readiness";
+import type {
+  CliSetupRun,
+  CliSetupRunData,
+  CliSetupRunInputRequest,
+  CliSetupRunRequest,
+  CliSetupRunResizeRequest,
+  CliSetupRunSnapshot,
+} from "./cli-setup-run";
 import type { UpdaterState } from "./updater";
 import type { UsageSnapshot } from "./usage";
 import type { RuntimeReportSummaryV1, RuntimeReportV1 } from "../schemas/runtime-report";
@@ -147,6 +155,18 @@ export const IPC_CHANNELS = {
   // differ (deep compare), so a re-probe that learns nothing is silent.
   cliReadinessRead: "cli-readiness:read",
   cliReadinessChanged: "cli-readiness:changed",
+  // CLI setup runs (S2, D7/L7) — the readiness subsystem's recovery half. Split
+  // by DIRECTION and by SENDER, because the two windows have different rights:
+  // only the Reading window may START a run (the card lives there), and only the
+  // CLI window may type into one (it hosts the pty's xterm). `…Read` is the pull
+  // that also carries the output buffer, so a window created BY the run — or
+  // reopened during it — can replay instead of showing an empty grid.
+  cliSetupRunStart: "cli-setup-run:start",
+  cliSetupRunRead: "cli-setup-run:read",
+  cliSetupRunChanged: "cli-setup-run:changed",
+  cliSetupRunData: "cli-setup-run:data",
+  cliSetupRunInput: "cli-setup-run:input",
+  cliSetupRunResize: "cli-setup-run:resize",
 } as const;
 
 export interface CreateTaskRequest {
@@ -942,12 +962,24 @@ export interface SonataRuntimeBridge {
   readUpdaterState(): Promise<UpdaterState>;
   requestUpdaterRestart(): Promise<void>;
   // CLI readiness (S1, L6). Read once on boot to hydrate (the first probe may
-  // land before the window exists, or after it), then subscribe for changes. No
-  // write side: Sonata never installs or signs in on the user's behalf — those
-  // actions run visibly in the terminal window (D1), and their effect arrives
-  // here as a changed fact.
+  // land before the window exists, or after it), then subscribe for changes. The
+  // facts themselves have no write side — they are observations, and the only way
+  // to change them is to change the machine, which is what a setup run below
+  // does. Sonata still never installs or signs in ON the user's behalf: it starts
+  // a command the user watches and can answer (D1).
   readCliReadiness(): Promise<CliReadinessFacts>;
   onCliReadinessChanged(callback: (facts: CliReadinessFacts) => void): () => void;
+  // CLI setup runs (S2). The Reading window's half: ask for a run (the readiness
+  // card's buttons), hydrate, and follow.
+  startCliSetupRun(request: CliSetupRunRequest): Promise<void>;
+  readCliSetupRun(): Promise<CliSetupRunSnapshot>;
+  onCliSetupRunChanged(callback: (run: CliSetupRun | null) => void): () => void;
+  // The CLI window's half: render the output and forward what the user types into
+  // it — a sudo prompt, an installer confirm, a login screen. `id` scopes every
+  // message to one pty so a keystroke cannot land in its successor.
+  onCliSetupRunData(callback: (chunk: CliSetupRunData) => void): () => void;
+  writeCliSetupRunInput(request: CliSetupRunInputRequest): Promise<void>;
+  resizeCliSetupRun(request: CliSetupRunResizeRequest): Promise<void>;
 }
 
 export interface RuntimeReportUpdatePayload {

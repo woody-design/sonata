@@ -1,5 +1,6 @@
 export * from "./claude-settings";
 export * from "./cli-readiness";
+export * from "./cli-setup-run";
 export * from "./cli-signal";
 export * from "./codex-settings";
 export * from "./domain";

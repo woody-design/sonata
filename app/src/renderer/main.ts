@@ -17,6 +17,8 @@ import {
   normalizeSonataSettings,
   isCliActionRequest,
   isCliReadinessFacts,
+  isCliSetupRunSnapshot,
+  isCliSetupRunState,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
   type CodexPermissionMode,
@@ -151,6 +153,7 @@ import {
   setCodexResumableExit,
   setCodexUpdatePrompt,
 } from "./view/banners";
+import { initCliReadinessCardView } from "./view/cli-readiness-card";
 import {
   applyTerminalWindowState,
   initChromeView,
@@ -354,6 +357,7 @@ initQuoteComment({
   },
 });
 initBannersView(state);
+initCliReadinessCardView(state);
 initStatusStripView(state);
 initApprovalsView(state);
 initSidebarView(state);
@@ -388,6 +392,20 @@ initActions({
     state.taskDraft.message = null;
     state.taskDraft.menu = null;
     render();
+  },
+  // The readiness card's two actions. No local state change and no optimistic
+  // repaint: main publishes the run's `running` phase before it opens the CLI
+  // window, and that push repaints the card — so the only authority on "is a run
+  // in flight" is the process that owns the pty. A rejected invoke (the guard, or
+  // no main window) leaves the card exactly as it was, which is honest: nothing
+  // started.
+  installCli: (provider) => {
+    void window.sonataRuntime
+      .startCliSetupRun({ kind: "install", provider })
+      .catch(() => {});
+  },
+  startCliLogin: (provider) => {
+    void window.sonataRuntime.startCliSetupRun({ kind: "start", provider }).catch(() => {});
   },
   chooseDraftFolder: (path) => {
     sessionTransitions.chooseDraftFolder(state, path);
@@ -970,6 +988,15 @@ elements.composer.addEventListener("submit", (event) => {
   if (elements.composer.classList.contains("drawer-active")) {
     return;
   }
+  // The New Chat readiness card is showing (S2): the draft's provider has no CLI
+  // to spawn, or one that is not signed in. Sending would create a task whose pty
+  // dies or hangs on a first-run screen and whose prompt then queues in silence —
+  // the exact failure this program exists to replace. The class is the same gate
+  // shape the drawer uses above, and it also covers plain Enter, which reaches
+  // here through requestSubmit() rather than through the disabled send button.
+  if (elements.composer.classList.contains("cli-readiness-active")) {
+    return;
+  }
   void submitPrompt();
 });
 
@@ -1324,6 +1351,25 @@ async function hydrateCliReadiness(): Promise<void> {
   } catch {
     // Best-effort: the facts stay unknown, which is the permissive state — the
     // seed then falls through to Claude instead of acting on a non-observation.
+  }
+}
+
+/** True once main has pushed a setup-run state (same race latch as the facts). */
+let cliSetupRunPushed = false;
+
+/** Mirror the CLI setup run (S2). A run can outlive this window — the app was
+ *  quit and relaunched while an installer kept going (main deliberately does not
+ *  kill it) — so a fresh window must be able to learn that one is still in flight
+ *  rather than offer an Install button for a machine that is mid-install. */
+async function hydrateCliSetupRun(): Promise<void> {
+  try {
+    const snapshot = await window.sonataRuntime.readCliSetupRun();
+    if (!cliSetupRunPushed && isCliSetupRunSnapshot(snapshot)) {
+      state.cliSetupRun = snapshot.run;
+    }
+  } catch {
+    // Best-effort: null is the normal state, and it only costs the "Installing…"
+    // narration on a run this window did not start.
   }
 }
 
@@ -2058,14 +2104,29 @@ window.sonataRuntime.onSettingsOpen(() => {
   openSettingsOverlay();
 });
 
-// The push half of the readiness mirror (S1's L6 pair). Deliberately no render:
-// S3's single consumer is the NEXT New Chat's provider seed, and re-seeding the
-// open draft on a fact change is exactly what D6 forbids. (S2 mounts the status
-// card on this field and will repaint here.)
+// The push half of the readiness mirror (S1's L6 pair).
+//
+// It repaints (S2) and it must NOT re-seed (D6 — S3's rule stands). Those two are
+// compatible because they are different questions: the seed decides what the NEXT
+// New Chat opens on and runs only from `seedTaskDraftFromLaunchDefaults`, while
+// this render only re-reads state that already changed. So a machine that heals
+// while a draft is open drops the card and restores the composer — on the draft's
+// own provider, never on one Sonata picked for the user.
 window.sonataRuntime.onCliReadinessChanged((facts) => {
   if (isCliReadinessFacts(facts)) {
     cliReadinessPushed = true;
     state.cliReadiness = facts;
+    render();
+  }
+});
+
+// The setup run's push (S2): every phase change — a run starting, an install
+// failing, a run clearing because the facts went green — repaints the card.
+window.sonataRuntime.onCliSetupRunChanged((run) => {
+  if (isCliSetupRunState(run)) {
+    cliSetupRunPushed = true;
+    state.cliSetupRun = run;
+    render();
   }
 });
 
@@ -2154,9 +2215,12 @@ void refreshTagDefinitions().catch(() => {
 });
 // The launch projection: Claude (RC + permission + model/effort), Codex
 // (permission + model/effort), the last-used provider, and the CLI readiness
-// facts all feed the New Chat draft (copy-at-entry). Gate
-// `launchSettingsHydrated`, the ONE draft seed, and the first index refresh on
-// ALL FOUR settling — the flag's contract is that an empty-task CLI action never
+// facts all feed the New Chat draft (copy-at-entry). The fifth read — the CLI
+// setup run (S2) — feeds the readiness CARD rather than the draft, and rides here
+// so the first paint cannot show an Install button for a machine an installer this
+// window did not start is already working on. Gate `launchSettingsHydrated`, the
+// ONE draft seed, and the first index refresh on
+// ALL FIVE settling — the flag's contract is that an empty-task CLI action never
 // races an in-flight projection, which only holds if every input the seed reads
 // is in before it flips. This also keeps the Claude ordering constraint (the RC
 // default must be in place before the index makes dormant sessions clickable):
@@ -2173,6 +2237,7 @@ void Promise.allSettled([
   hydrateCodexDefaults(),
   hydrateLastUsedProvider(),
   hydrateCliReadiness(),
+  hydrateCliSetupRun(),
 ]).then(() => {
   sessionTransitions.seedTaskDraftFromLaunchDefaults(state);
   state.launchSettingsHydrated = true;

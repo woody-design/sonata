@@ -18,6 +18,12 @@ import {
   normalizeTerminalWindowSettings,
   type CliActionRequest,
   type CliReadinessFacts,
+  type CliSetupRun,
+  type CliSetupRunData,
+  type CliSetupRunInputRequest,
+  type CliSetupRunRequest,
+  type CliSetupRunResizeRequest,
+  type CliSetupRunSnapshot,
   type FolderPickResponse,
   type OpenPreviewRequest,
   type PreviewActivateRequest,
@@ -59,6 +65,7 @@ import { RuntimeController } from "./runtime-controller";
 import { UpdaterController } from "./updater/updater-controller";
 import { CliUpdater } from "./cli-updater/cli-updater";
 import { CliReadiness } from "./cli-readiness/cli-readiness";
+import { CliSetupRunController } from "./cli-readiness/setup-run";
 import { buildUpdaterDialog } from "./updater/updater-interactive";
 import { WorkspaceFiles } from "./workspace-files";
 import {
@@ -109,6 +116,7 @@ let notificationController: NotificationController | null = null;
 let updaterController: UpdaterController | null = null;
 let cliUpdater: CliUpdater | null = null;
 let cliReadiness: CliReadiness | null = null;
+let cliSetupRun: CliSetupRunController | null = null;
 let readingSettingsStore: ReadingSettingsStore | null = null;
 let terminalWindowSettingsStore: TerminalWindowSettingsStore | null = null;
 let localApiServer: LocalApiServer | null = null;
@@ -611,13 +619,102 @@ function broadcastUpdaterState(state: UpdaterState): void {
 /** Push the CLI readiness facts to every window when they CHANGE (CLI readiness
  *  S1, L6). Same split as the updater broadcast: main owns the window fan-out,
  *  the controller owns the facts and the change gate. Every window rather than
- *  just the main one — the terminal window hosts the install/login runs a later
- *  slice launches, so it is a legitimate future consumer of the same truth. */
+ *  just the main one: cheap for an event that fires only on a real transition,
+ *  and the alternative — routing by window identity — is an optimization for a
+ *  firehose this is not. (S2 update: the CLI window turned out to consume the
+ *  setup-run channels rather than the facts, so today the Reading window is the
+ *  only reader of THIS event. Left fanned out; nothing is paid for it.) */
 function broadcastCliReadiness(facts: CliReadinessFacts): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
       window.webContents.send(IPC_CHANNELS.cliReadinessChanged, facts);
     }
+  }
+}
+
+/** Push the CLI setup run's state (S2). Same fan-out split as the facts above,
+ *  and both windows are real consumers: the Reading window's card renders the
+ *  phase, the CLI window mounts and retires the run's terminal on it. */
+function broadcastCliSetupRun(run: CliSetupRun | null): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.cliSetupRunChanged, run);
+    }
+  }
+}
+
+/** Push one chunk of a setup run's output. Sent to every window like its state,
+ *  rather than routed to the CLI window alone: routing by window identity is the
+ *  optimization `sendEvent` exists for and it buys nothing here — a setup run is
+ *  one short-lived command, not a 200/s session firehose. */
+function broadcastCliSetupRunData(chunk: CliSetupRunData): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.cliSetupRunData, chunk);
+    }
+  }
+}
+
+/**
+ * Bring the CLI window up and wait until it can receive the run's output.
+ *
+ * The wait is the point. A setup run is usually requested with the CLI window
+ * closed (someone whose CLI is missing has had no reason to open it), so without
+ * it the first seconds of an installer would be broadcast to a window that does
+ * not exist yet — and "follow along in the terminal window" would open onto a
+ * blank grid. `did-finish-load` is the readiness signal; an already-loaded window
+ * resolves immediately.
+ */
+async function showTerminalWindowForSetupRun(): Promise<void> {
+  await setTerminalWindowOpen(true);
+  const window = terminalWindow;
+  if (!window || window.isDestroyed()) {
+    return;
+  }
+  if (!window.webContents.isLoading()) {
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    window.webContents.once("did-finish-load", () => resolve());
+    // A window that never finishes loading must not wedge the run: the command is
+    // still the right thing to do, and the output buffer replays into the window
+    // whenever it does arrive.
+    setTimeout(resolve, 5_000);
+  });
+}
+
+/** The readiness card's buttons — Reading window only. The card is the only
+ *  surface that offers a setup run, and it lives there. */
+async function startCliSetupRun(request: CliSetupRunRequest, senderId: number): Promise<void> {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.id !== senderId) {
+    throw new Error("Only the Reading window may start a CLI setup run.");
+  }
+  await cliSetupRun?.start(request);
+}
+
+function readCliSetupRun(): CliSetupRunSnapshot {
+  return cliSetupRun?.read() ?? { run: null, output: "", outputSeq: 0 };
+}
+
+/** Keystrokes and geometry — CLI window only, because it is the surface that
+ *  hosts the pty's grid. The same guard shape as `requestCliAction`. */
+function writeCliSetupRunInput(request: CliSetupRunInputRequest, senderId: number): void {
+  requireTerminalWindowSender(senderId, "write into a CLI setup run");
+  cliSetupRun?.write(request.id, request.data);
+}
+
+function resizeCliSetupRun(request: CliSetupRunResizeRequest, senderId: number): void {
+  requireTerminalWindowSender(senderId, "resize a CLI setup run");
+  cliSetupRun?.resize(request.id, request.cols, request.rows);
+}
+
+function requireTerminalWindowSender(senderId: number, action: string): void {
+  if (
+    !terminalWindow ||
+    terminalWindow.isDestroyed() ||
+    terminalWindow.webContents.id !== senderId
+  ) {
+    throw new Error(`Only the CLI window may ${action}.`);
   }
 }
 
@@ -1087,6 +1184,18 @@ app.whenReady().then(() => {
   // did-finish-load (see createMainWindow), and until it lands the facts read
   // all-`unknown`, which is the permissive state.
   cliReadiness = new CliReadiness({ broadcast: broadcastCliReadiness });
+  // The recovery half (S2). Reads the facts back through the SAME controller that
+  // owns them rather than keeping its own copy — the L7 verdict is "what does the
+  // probe say now", and a second copy of the facts is a second thing that could
+  // be stale.
+  const readiness = cliReadiness;
+  cliSetupRun = new CliSetupRunController({
+    broadcastState: broadcastCliSetupRun,
+    broadcastData: broadcastCliSetupRunData,
+    showTerminalWindow: showTerminalWindowForSetupRun,
+    reprobe: (options) => readiness.reprobe(options),
+    isAbsent: (provider) => readiness.read()[provider].install === "absent",
+  });
   if (!readingSettingsStore) {
     throw new Error("Reading settings store is not ready.");
   }
@@ -1111,6 +1220,10 @@ app.whenReady().then(() => {
     setActiveTerminalTask,
     readActiveTerminalTask,
     requestCliAction,
+    startCliSetupRun,
+    readCliSetupRun,
+    writeCliSetupRunInput,
+    resizeCliSetupRun,
     openWorkspaceExternal,
     openWorkspaceFolder,
     pickFolder,
@@ -1200,6 +1313,11 @@ app.on("before-quit", () => {
   // No timers to clear here — the readiness probe has none. This only stops an
   // in-flight probe from broadcasting into a window set that is being torn down.
   cliReadiness?.dispose();
+  // Stops broadcasting a setup run; deliberately does NOT kill one. Same reason
+  // the CLI updater's child is detached: killing an installer mid-write can leave
+  // a corrupt global install, and Sonata quitting is not worth that risk to the
+  // user's machine.
+  cliSetupRun?.dispose();
   // Emit the final event-loop-lag summary and disarm the sampler (no-op when the
   // perf log is off — perfLog is null).
   perfLog?.stop();

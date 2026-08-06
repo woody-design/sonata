@@ -45,6 +45,7 @@ function queryElements() {
     optionPromptCard: getElement<HTMLDivElement>("option-prompt-card"),
     controlConfirmCard: getElement<HTMLDivElement>("control-confirm-card"),
     attentionBannerRoot: getElement<HTMLDivElement>("attention-banner-root"),
+    cliReadinessCardRoot: getElement<HTMLDivElement>("cli-readiness-card-root"),
     statusStrip: getElement<HTMLElement>("status-strip"),
     statusStripStatus: getElement<HTMLDivElement>("status-strip-status"),
     statusStripAgents: getElement<HTMLDivElement>("status-strip-agents"),
@@ -240,6 +241,15 @@ export function initDom(): void {
                dialog's verbatim rows as answer buttons. Its home turf: the CLI asks,
                the user answers here, the choice is relayed into the parked dialog. -->
           <div id="control-confirm-card" class="action-drawer question-drawer hidden"></div>
+
+          <!-- New Chat readiness card (CLI readiness S2, D9): the preselected
+               provider's CLI is missing or not signed in, so the composer cannot
+               start a session yet. Its own slot ABOVE the composer card, never in
+               place of it: the card's copy states the fact, while the card below
+               keeps the provider / model / access chips reachable so the user can
+               switch to a working CLI (D6). Empty and shrunk to nothing whenever
+               there is nothing wrong. -->
+          <div id="cli-readiness-card-root" class="cli-readiness-card-root"></div>
 
           <!-- The white card: the message and its controls. The context row
                below is a SEPARATE tinted layer (ref parity, 2026-07-04):
