@@ -3,13 +3,18 @@ import assert from "node:assert/strict";
 const {
   READING_BOTTOM_THRESHOLD_PX,
   READING_OVERFLOW_TOLERANCE_PX,
+  READING_ANCHOR_TOP_INSET_PX,
+  READING_ANCHOR_HOLD_TOLERANCE_PX,
   isReadingNearBottom,
   readingDistanceFromBottom,
   readingHasOverflow,
   createReadingBottomIntentStore,
   createReadingScrollMemoryStore,
   readingBottomIntentTakenOver,
+  readingReaderIsAttending,
   planTaskSwitchScroll,
+  planReadingAnchorTarget,
+  planReadingBlockAnchor,
   planReadingFinalizeScroll,
   resolveReadingFinalizeScrollTop,
   stepReadingBottomIntent,
@@ -249,11 +254,126 @@ assert.equal(
   "a transcript shorter than the viewport clamps to the top, never negative",
 );
 
+// ——— Attending (S3 D4) ————————————————————————————————————————————————————
+assert.equal(READING_ANCHOR_HOLD_TOLERANCE_PX, 4);
+assert.equal(READING_ANCHOR_TOP_INSET_PX, 40);
+assert.equal(
+  readingReaderIsAttending({ scrollTop: 1200, nearBottom: false, lastAnchorTop: 1200 }),
+  true,
+  "sitting exactly where the last anchor put it is attending",
+);
+assert.equal(
+  readingReaderIsAttending({ scrollTop: 1203.5, nearBottom: false, lastAnchorTop: 1200 }),
+  true,
+  "sub-pixel drift is not a reader",
+);
+assert.equal(
+  readingReaderIsAttending({ scrollTop: 1160, nearBottom: false, lastAnchorTop: 1200 }),
+  false,
+  "a scroll away from the anchor ends attending — one wheel notch is enough",
+);
+assert.equal(
+  readingReaderIsAttending({ scrollTop: 40, nearBottom: true, lastAnchorTop: 1200 }),
+  true,
+  "near the bottom is attending regardless of the anchor reference",
+);
+assert.equal(
+  readingReaderIsAttending({ scrollTop: 900, nearBottom: false, lastAnchorTop: null }),
+  false,
+  "before any anchor, only the bottom counts as attending",
+);
+
+// ——— Which segment anchors ————————————————————————————————————————————————
+{
+  // The first reply into an empty session: nothing seen, so the one segment
+  // there is anchors. (Entering a session with content never reaches here — the
+  // view seeds the seen set on a task switch; fenced by the reading-session-
+  // scroll-memory e2e.)
+  assert.deepEqual(
+    planReadingAnchorTarget(["a"], new Set()),
+    { anchorKey: "a", seen: new Set(["a"]) },
+    "the first segment of an empty session anchors",
+  );
+  assert.equal(planReadingAnchorTarget([], new Set()).anchorKey, null, "nothing to anchor");
+
+  const seeded = { seen: new Set(["a", "b"]) };
+  // The ordinary append.
+  const appended = planReadingAnchorTarget(["a", "b", "c"], seeded.seen);
+  assert.equal(appended.anchorKey, "c", "the segment after the last seen one anchors");
+  assert.deepEqual([...appended.seen], ["a", "b", "c"]);
+
+  // Nothing new.
+  assert.equal(
+    planReadingAnchorTarget(["a", "b", "c"], appended.seen).anchorKey,
+    null,
+    "growth inside a seen segment never re-anchors",
+  );
+
+  // A multi-segment turn re-anchors per segment, one render at a time.
+  assert.equal(
+    planReadingAnchorTarget(["a", "b", "c", "d"], appended.seen).anchorKey,
+    "d",
+    "each further segment of the same turn anchors in its own turn",
+  );
+
+  // Two at once: the FIRST new one is the read/unread boundary, and the second
+  // is marked seen behind it rather than anchoring in a cascade.
+  const burst = planReadingAnchorTarget(["a", "b", "c", "d", "e"], appended.seen);
+  assert.equal(burst.anchorKey, "d", "a burst anchors at the boundary, not at its end");
+  assert.deepEqual([...burst.seen], ["a", "b", "c", "d", "e"]);
+
+  // A wholesale replacement (a re-located provider source replays the history
+  // under fresh ids) re-seeds instead of anchoring the reader to the top of
+  // their own history.
+  const replaced = planReadingAnchorTarget(["x", "y", "z"], appended.seen);
+  assert.equal(replaced.anchorKey, null, "a transcript that turned over entirely re-seeds");
+  assert.deepEqual([...replaced.seen], ["x", "y", "z"]);
+
+  // The seen set is exactly what is present — a removed segment cannot linger.
+  assert.deepEqual([...planReadingAnchorTarget(["a"], appended.seen).seen], ["a"]);
+  assert.deepEqual(
+    [...planReadingAnchorTarget([], appended.seen).seen],
+    [],
+    "an emptied transcript leaves nothing seen",
+  );
+}
+
+// ——— Where an anchored segment lands ——————————————————————————————————————
+assert.deepEqual(
+  planReadingBlockAnchor({ blockTop: 2000, scrollHeight: 9000, clientHeight: 800 }),
+  { top: 1960, satisfied: true },
+  "the segment's top edge lands at the reading line, one inset below the top edge",
+);
+assert.deepEqual(
+  planReadingBlockAnchor({ blockTop: 10, scrollHeight: 9000, clientHeight: 800 }),
+  { top: 0, satisfied: true },
+  "the first segment of a transcript cannot scroll above the top",
+);
+// The ordinary birth of a reply: it appears at the bottom of a scroller with no
+// room below it yet, so the anchor is CLAMPED, not achieved. `satisfied: false`
+// is what keeps the same anchor alive until the reply grows enough to carry its
+// own top edge up to the reading line.
+assert.deepEqual(
+  planReadingBlockAnchor({ blockTop: 8900, scrollHeight: 9000, clientHeight: 800 }),
+  { top: 8200, satisfied: false },
+  "a segment born at the live edge clamps to the bottom and stays unsatisfied",
+);
+assert.deepEqual(
+  planReadingBlockAnchor({ blockTop: 8240, scrollHeight: 9000, clientHeight: 800 }),
+  { top: 8200, satisfied: true },
+  "the exact boundary counts as landed",
+);
+
 // ——— The finalize decision: precedence ————————————————————————————————————
 {
+  // `pendingAnchorKey` reaches the planner already gated on attending — the
+  // caller retires it when readingReaderIsAttending says the reader moved (the
+  // predicate is fenced above, and the composed behavior in
+  // tests/e2e/reading-reply-anchor.mjs).
   const base = {
     taskSwitch: false,
     switchSnapshot: null,
+    pendingAnchorKey: null,
     hasBottomIntent: false,
     nearBottom: false,
     previousScrollTop: 300,
@@ -269,6 +389,7 @@ assert.equal(
       ...base,
       taskSwitch: true,
       switchSnapshot: { scrollTop: 1500, nearBottom: false },
+      pendingAnchorKey: "new",
       hasBottomIntent: true,
       nearBottom: true,
     }),
@@ -290,11 +411,42 @@ assert.equal(
     "a restore that changes nothing is not written (a write aborts a smooth scroll)",
   );
 
-  // 2. A live ride owns scrollTop.
+  // 2. An explicit ride beats an automatic anchor.
   assert.deepEqual(
-    planReadingFinalizeScroll({ ...base, nearBottom: true, hasBottomIntent: true }),
+    planReadingFinalizeScroll({
+      ...base,
+      pendingAnchorKey: "new",
+      nearBottom: true,
+      hasBottomIntent: true,
+    }),
     { kind: "none" },
-    "a live scroll-to-bottom ride is never interrupted",
+    "a live scroll-to-bottom ride is never interrupted by an anchor",
+  );
+
+  // 3. A segment awaiting its anchor gets it — from the live edge, or from
+  //    wherever the previous anchor left the reader.
+  assert.deepEqual(
+    planReadingFinalizeScroll({ ...base, pendingAnchorKey: "new", nearBottom: true }),
+    { kind: "anchor", blockKey: "new" },
+    "a new segment anchors from the live edge",
+  );
+  assert.deepEqual(
+    planReadingFinalizeScroll({
+      ...base,
+      pendingAnchorKey: "new",
+      previousScrollTop: 1960,
+      scrollTop: 1960,
+    }),
+    { kind: "anchor", blockKey: "new" },
+    "a new segment anchors from where the last anchor left the reader",
+  );
+  // The anchor beats tail-follow inside the same render: a segment can arrive
+  // while the view is still pinned to the bottom (that is the ordinary case),
+  // and pinning first would leave the anchor fighting the pin every batch.
+  assert.deepEqual(
+    planReadingFinalizeScroll({ ...base, pendingAnchorKey: "new", nearBottom: true }).kind,
+    "anchor",
+    "a new segment outranks the near-bottom pin",
   );
 
   // 4. Tail-follow otherwise, unchanged.
@@ -308,10 +460,13 @@ assert.equal(
     { kind: "top", top: 300 },
     "no anchor pending: a scrolled-away view still holds its place",
   );
+  // The anchored steady state: the reader sits at the reading line, no longer
+  // near the bottom, so tail-follow has nothing to pin — it retires exactly
+  // when the anchor lands, with no separate switch to throw.
   assert.deepEqual(
     planReadingFinalizeScroll({ ...base, previousScrollTop: 1960, scrollTop: 1960 }),
     { kind: "none" },
-    "a held position is not rewritten",
+    "an anchored view is left alone while the reply grows below it",
   );
 }
 
@@ -320,5 +475,7 @@ console.log(
     success: true,
     threshold: READING_BOTTOM_THRESHOLD_PX,
     overflowTolerance: READING_OVERFLOW_TOLERANCE_PX,
+    anchorInset: READING_ANCHOR_TOP_INSET_PX,
+    anchorHoldTolerance: READING_ANCHOR_HOLD_TOLERANCE_PX,
   }),
 );

@@ -204,28 +204,165 @@ export function planTaskSwitchScroll(
   return Math.min(Math.max(0, snapshot.scrollTop), maxScrollTop);
 }
 
+// ——— Reply-top anchoring (S3 D4) ——————————————————————————————————————————
+// The monitoring model pins the view to the live edge and lets the reader chase
+// a moving tail. The reading model puts each new answer segment's TOP edge at
+// the top of the viewport and then holds still, so the reader reads from the
+// beginning of what arrived, at their own pace.
+
+/** How far below the scroller's top edge an anchored segment's first line
+ *  lands. Two fixed obstructions sit at the very top of the run list and would
+ *  otherwise swallow that line: the 24px scroll-edge mask fade (`.run-list`),
+ *  and the sticky prompt pill (`.sticky-prompt-header`, min-height 34px,
+ *  border-box) — which appears precisely in the state an anchor creates, since
+ *  the anchored reply's own prompt has just been scrolled off the top. The
+ *  inset clears the pill with a small breath, so the pill reads as a header
+ *  ABOVE the reply rather than a lid over it. */
+export const READING_ANCHOR_TOP_INSET_PX = 40;
+
+/** How far the view may sit from where the last programmatic anchor put it and
+ *  still count as "the reader has not moved". Sub-pixel: scrollTop is
+ *  fractional while the height metrics are rounded, and scroll anchoring can
+ *  adjust by a hair. Any deliberate scroll is an order of magnitude larger (one
+ *  wheel notch ≈ 40–120px), so this stays strict — a reader who nudged the view
+ *  up to re-read a line has moved, and must not be pulled back. */
+export const READING_ANCHOR_HOLD_TOLERANCE_PX = 4;
+
+/** Is the reader still attending to the live edge of the conversation?
+ *  Position IS the evidence — no wheel listeners, no scrolled-away flags:
+ *  either the view sits where our last anchor left it, or it is near the
+ *  bottom (which covers the state before any anchor has fired, an explicit
+ *  scroll-to-bottom ride's destination, and the status strip's bottom pin).
+ *  Anything else means the reader is reading somewhere of their own choosing,
+ *  and nothing may move their view. */
+export function readingReaderIsAttending(input: {
+  readonly scrollTop: number;
+  readonly nearBottom: boolean;
+  readonly lastAnchorTop: number | null;
+  readonly tolerance?: number;
+}): boolean {
+  if (input.nearBottom) {
+    return true;
+  }
+  if (input.lastAnchorTop === null) {
+    return false;
+  }
+  const tolerance = Math.max(0, input.tolerance ?? READING_ANCHOR_HOLD_TOLERANCE_PX);
+  return Math.abs(input.scrollTop - input.lastAnchorTop) <= tolerance;
+}
+
+export interface ReadingAnchorTargetPlan {
+  /** The segment to anchor, or null when nothing new was appended. */
+  readonly anchorKey: string | null;
+  /** The seen set to carry into the next render — always exactly the segments
+   *  present now, so it stays bounded and a removed segment cannot linger. */
+  readonly seen: ReadonlySet<string>;
+}
+
+/** Which answer segment (if any) a render should anchor, given the segments
+ *  present in document order and the ones the previous render saw.
+ *
+ * Anchor the segment that follows the last SEEN one; with nothing seen yet,
+ * that is simply the first segment there is; and when segments WERE seen but
+ * none of them survives, the transcript was replaced rather than appended — so
+ * re-seed and anchor nothing. Those three clauses cover every case the surface
+ * produces:
+ *   · the first reply into an empty session — seen is empty, so its one segment
+ *     anchors, which is right: it is new content arriving in front of a reader;
+ *   · the ordinary append — the segment after the last seen one anchors, and
+ *     each further segment of a multi-segment turn anchors on its own render;
+ *   · several segments in one batch — the FIRST new one, because that is the
+ *     boundary between what the reader has read and what they have not; the
+ *     rest are marked seen behind it rather than anchoring in a cascade;
+ *   · a wholesale replacement (a re-located provider source replays the history
+ *     under fresh ids) — nothing seen survives, so it re-seeds instead of
+ *     throwing the reader at the top of their own history.
+ *
+ * Entering a session is NOT one of these cases and never reaches here: the
+ * caller seeds the seen set from the incoming transcript on a task switch, so
+ * the render that shows you a session cannot also move you inside it. */
+export function planReadingAnchorTarget(
+  blockKeys: readonly string[],
+  seen: ReadonlySet<string>,
+): ReadingAnchorTargetPlan {
+  const nextSeen = new Set(blockKeys);
+  if (seen.size === 0) {
+    return { anchorKey: blockKeys[0] ?? null, seen: nextSeen };
+  }
+  let lastSeenIndex = -1;
+  for (let index = blockKeys.length - 1; index >= 0; index -= 1) {
+    if (seen.has(blockKeys[index]!)) {
+      lastSeenIndex = index;
+      break;
+    }
+  }
+  if (lastSeenIndex === -1) {
+    return { anchorKey: null, seen: nextSeen };
+  }
+  return { anchorKey: blockKeys[lastSeenIndex + 1] ?? null, seen: nextSeen };
+}
+
+export interface ReadingBlockAnchor {
+  readonly top: number;
+  /** False when the scroller ran out of range before the segment's top edge
+   *  reached the inset line — the anchor is not achieved yet, only clamped to
+   *  the bottom. It is the SAME anchor until it lands (see the streaming note
+   *  on the caller): the reply grows, room appears below it, and the segment
+   *  rises until its top edge is where it was always aimed. */
+  readonly satisfied: boolean;
+}
+
+/** The scrollTop that puts a segment's top edge at the viewport's reading line.
+ *  `blockTop` is the segment's offset in the scroller's content coordinates. */
+export function planReadingBlockAnchor(input: {
+  readonly blockTop: number;
+  readonly scrollHeight: number;
+  readonly clientHeight: number;
+  readonly inset?: number;
+}): ReadingBlockAnchor {
+  const inset = Math.max(0, input.inset ?? READING_ANCHOR_TOP_INSET_PX);
+  const maxScrollTop = Math.max(0, input.scrollHeight - input.clientHeight);
+  const desired = input.blockTop - inset;
+  return {
+    top: Math.min(Math.max(0, desired), maxScrollTop),
+    satisfied: desired <= maxScrollTop,
+  };
+}
+
 // ——— The finalize decision ————————————————————————————————————————————————
 
 export type ReadingFinalizeScroll =
   /** Leave scrollTop alone. */
   | { readonly kind: "none" }
   /** Write this absolute scrollTop. */
-  | { readonly kind: "top"; readonly top: number };
+  | { readonly kind: "top"; readonly top: number }
+  /** Measure this segment and align its top edge (planReadingBlockAnchor). */
+  | { readonly kind: "anchor"; readonly blockKey: string };
 
 /** What a render's finalize should do to the run list's scroll position — ONE
- *  decision point, so the precedence between its claimants is stated once and
- *  fenced once:
+ *  decision point, so the precedence between the four claimants is stated once
+ *  and fenced once:
  *
  *  1. A TASK SWITCH owns the position outright. The incoming session's
  *     remembered place is the whole point of the render, and the outgoing DOM's
  *     nearBottom/previousScrollTop (which this branch replaces) described a
  *     transcript that no longer exists.
- *  2. A LIVE RIDE owns scrollTop until it arrives or the reader takes over —
- *     any write here would abort the smooth animation (CSSOM).
- *  3. Otherwise the tail-follow rule stands (resolveReadingFinalizeScrollTop). */
+ *  2. An EXPLICIT RIDE beats an automatic anchor. The reader pressed
+ *     scroll-to-bottom; an anchor firing mid-ride would abort their animation
+ *     (any programmatic write does) and take them somewhere they did not ask to
+ *     go. The ride arrives, and being at the bottom is itself attending — so
+ *     the NEXT segment anchors, no bookkeeping required.
+ *  3. A SEGMENT AWAITING ITS ANCHOR (the caller has already retired it if the
+ *     reader is not attending — readingReaderIsAttending).
+ *  4. Otherwise the tail-follow rule stands (resolveReadingFinalizeScrollTop) —
+ *     which for anchored reading is a no-op by construction: once a segment's
+ *     top is at the reading line the view is no longer near the bottom, so
+ *     there is nothing to pin. Tail-follow retires exactly when the anchor
+ *     lands, and covers the surface until it does. */
 export function planReadingFinalizeScroll(input: {
   readonly taskSwitch: boolean;
   readonly switchSnapshot: ReadingScrollSnapshot | null;
+  readonly pendingAnchorKey: string | null;
   readonly hasBottomIntent: boolean;
   readonly nearBottom: boolean;
   readonly previousScrollTop: number;
@@ -239,6 +376,9 @@ export function planReadingFinalizeScroll(input: {
   }
   if (input.hasBottomIntent) {
     return { kind: "none" };
+  }
+  if (input.pendingAnchorKey !== null) {
+    return { kind: "anchor", blockKey: input.pendingAnchorKey };
   }
   const top = resolveReadingFinalizeScrollTop(input);
   return top === null ? { kind: "none" } : { kind: "top", top };
