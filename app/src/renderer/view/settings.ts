@@ -60,6 +60,18 @@ export function renderSettingsOverlay(): void {
   const keepFocus =
     overlay !== null &&
     (active === document.body || elements.settingsOverlayRoot.contains(active));
+  // Capture before the rebuild, restore after it — the same shape the sidebar uses
+  // (view/sidebar-focus-snapshot.ts), because the reason is the same: this render
+  // replaces the whole dialog, and the scrollport's offset is browser state that
+  // dies with the node holding it.
+  //
+  // Instant-apply makes that a user-visible bug rather than a nicety. Every picker
+  // click IS a re-render, so opening a menu used to snap the dialog back to the top,
+  // taking the row the user just clicked out of view — and with the anchor gone from
+  // the visible rect, the menu's own upward flip has nothing useful to flip against
+  // and lands outside the dialog (MEASURED at 960×640: clipped by 161.8px before S3,
+  // 104.0px after, `scrollTop: 0` in both).
+  const dialogScrollTop = settingsDialogScrollTop();
   elements.settingsOverlayRoot.replaceChildren();
   if (!overlay) {
     return;
@@ -108,6 +120,20 @@ export function renderSettingsOverlay(): void {
   if (keepFocus) {
     dialog.focus();
   }
+  // After the focus handoff, which can scroll what it focuses. The assignment is
+  // clamped by the browser, so a re-render that shortened the content (a menu
+  // closing) lands at the new bottom rather than out of range. `flipPickerMenuIfClipped`
+  // measures in a post-mount rAF, i.e. strictly after this — which is what lets the
+  // flip see the anchor where the user actually left it.
+  dialog.scrollTop = dialogScrollTop;
+}
+
+/** The mounted dialog's scroll offset, or 0 when the overlay is not on screen —
+ *  a fresh open must start at the top, and only a re-render inherits a position. */
+function settingsDialogScrollTop(): number {
+  return (
+    elements.settingsOverlayRoot.querySelector<HTMLElement>(".settings-window")?.scrollTop ?? 0
+  );
 }
 
 function renderSettingsHeader(): HTMLElement {
