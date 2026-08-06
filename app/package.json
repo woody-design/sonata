@@ -234,7 +234,8 @@
     "smoke:cli-session-start-triggers": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/cli-session-start-triggers.mjs",
     "e2e:cli-readiness-card": "npm run build && node tests/e2e/cli-readiness-card.mjs",
     "e2e:cli-readiness-screenshots": "npm run build && node tests/e2e/cli-readiness-screenshots.mjs",
-    "e2e:cli-session-start-banner": "npm run build && node tests/e2e/cli-session-start-banner.mjs"
+    "e2e:cli-session-start-banner": "npm run build && node tests/e2e/cli-session-start-banner.mjs",
+    "e2e:codex-trust-dialog-screenshots": "npm run build && node tests/e2e/codex-trust-dialog-screenshots.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
