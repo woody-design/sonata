@@ -126,9 +126,24 @@ async function launch() {
   return page;
 }
 
-/** A deterministic fake CLI: records its argv, prints a ready prompt line so the
- *  boot latch opens, and then just stays alive (lifted verbatim from
- *  cli-start-without-prompt.mjs — the same reason applies here). */
+/** A deterministic fake CLI: answers the readiness probe's structured commands and
+ *  exits; otherwise records its argv, prints a ready prompt line so the boot latch
+ *  opens, and then just stays alive (the session behaviour is lifted verbatim from
+ *  cli-start-without-prompt.mjs — the same reason applies here).
+ *
+ *  The probe arm is not decoration. Since S1, EVERY launch runs `<provider>
+ *  --version` (and then the auth command) against whatever is on PATH — which here
+ *  is this script. Without an early exit it fell through to the session behaviour
+ *  and hung forever on those calls, so each launch left two node processes that
+ *  outlived their temp dir and, on an interrupted run, the app itself (S2 found and
+ *  killed ten of them). Answering is also the honest shape: the machine this
+ *  fixture describes has both CLIs installed and signed in.
+ *
+ *  Output shapes MEASURED in S1 (claude 2.1.222 / codex-cli 0.146.0) and reused
+ *  verbatim from tests/e2e/helpers/cli-readiness-fixture.mjs: claude puts a
+ *  `loggedIn` JSON document on stdout, codex puts a line-anchored phrase on
+ *  STDERR. The resulting facts (both present + signedIn) leave every readiness
+ *  surface silent, which is what this test's New Chat assertions require. */
 function installFakeProvider(provider) {
   const filePath = path.join(fakeBin, provider);
   fs.writeFileSync(
@@ -138,6 +153,19 @@ const fs = require("node:fs");
 const path = require("node:path");
 const provider = path.basename(process.argv[1]);
 const argv = process.argv.slice(2);
+if (argv[0] === "--version") {
+  process.stdout.write(provider === "claude" ? "2.1.222 (Claude Code)\\n" : "codex-cli 0.146.0\\n");
+  process.exit(0);
+}
+if ((provider === "claude" && argv[0] === "auth" && argv[1] === "status") ||
+    (provider === "codex" && argv[0] === "login" && argv[1] === "status")) {
+  if (provider === "claude") {
+    process.stdout.write('{"loggedIn":true,"authMethod":"claude.ai"}\\n');
+  } else {
+    process.stderr.write("Logged in using ChatGPT\\n");
+  }
+  process.exit(0);
+}
 const settingsIndex = argv.indexOf("--settings");
 const runtimeDir = process.env.SONATA_RUNTIME_DIR || (settingsIndex >= 0 ? path.dirname(argv[settingsIndex + 1]) : null);
 if (runtimeDir) {
