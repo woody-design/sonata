@@ -1166,10 +1166,20 @@ window.sonataRuntime.onRuntimeEvent((event) => {
   }
   let entry = terminals.get(event.payload.taskId);
   if (!entry) {
-    // close→immediate reopen can coalesce Reading's idle/running refresh into
-    // live→live, so no binding edge arrives after the accepted old exit. Newer
-    // PTY data is itself sufficient proof that the still-selected task owns a
-    // live replacement runtime; rebuild and restore forwarding immediately.
+    // A NET, not the ordinary route (corrected with F1 fix A). This existed because
+    // a close→immediate reopen used to coalesce Reading's idle/running refresh into
+    // live→live: nothing cleared `view.live` on `pty:exit`, so no dormant edge was
+    // ever announced and no live edge followed to rebuild the grid. The reducer
+    // clears the mirror now, so both edges arrive and `applyActiveTask` recreates
+    // the entry itself — usually before any replacement byte exists.
+    //
+    // What remains is the hop this window still cannot cover: THIS handler disposes
+    // the entry on `pty:exit` locally, and Reading's dormant edge is one IPC message
+    // behind, so newer data landing inside that hop still finds a live binding with
+    // no entry. Newer PTY data is itself sufficient proof that the still-selected
+    // task owns a live replacement runtime; rebuild and restore forwarding
+    // immediately. (`tests/e2e/cli-background-generation.mjs` no longer reaches this
+    // branch and says so at the site.)
     if (
       event.payload.taskId !== activeTaskId ||
       activeBinding?.taskId !== event.payload.taskId ||

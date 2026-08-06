@@ -25,6 +25,7 @@ const require = createRequire(import.meta.url);
 const R = require("../../dist/reading-core/runtime-reducer");
 const S = require("../../dist/reading-core/state");
 const C = require("../../dist/reading-core/selectors/composer");
+const RUNS = require("../../dist/reading-core/selectors/runs");
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CORPUS_DIR = resolve(HERE, "../fixtures/runtime-events");
@@ -168,11 +169,22 @@ function expectedDirectives(state, event) {
       ? [{ kind: "none" }]
       : [{ kind: "report-refresh", taskId }];
   }
+  if (event.type === "pty:exit") {
+    // Two mutations with two different paint rules (F1 fix A). A pending control
+    // switch is content-adjacent and keeps the markViewChanged family's shape,
+    // including the background unread cue. Clearing `live` paints the ACTIVE view
+    // only: nothing on screen reads a background view's liveness, and marking one
+    // unread because its session ended would invent an attention cue.
+    if (view.controlSwitch) {
+      return [active ? { kind: "full", taskId } : { kind: "unread-only", taskId }];
+    }
+    return view.live && active ? [{ kind: "full", taskId }] : [{ kind: "none" }];
+  }
   if (VIEW_CHANGED_TYPES.has(event.type)) {
     return [active ? { kind: "full", taskId } : { kind: "unread-only", taskId }];
   }
   // No renderer handler (task:started, task:ready, prompt:submitted,
-  // file:watching, file:changed, pty:exit, run:stop-requested, …).
+  // file:watching, file:changed, run:stop-requested, …).
   return [{ kind: "none" }];
 }
 
@@ -1397,8 +1409,7 @@ function workingStatus(liveness) {
   }
 
   // pty:exit (S1 review fix B): a crash mid-switch drops the pointer so the chip
-  // can't stay stuck in "Switching…" — but ONLY when something was pending, so
-  // the corpus oracle's pty:exit → none stays correct.
+  // can't stay stuck in "Switching…".
   const ptyExit = () =>
     evt("pty:exit", {
       taskId: "task-A",
@@ -1419,8 +1430,90 @@ function workingStatus(liveness) {
   {
     const { state, view } = seedView();
     const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
-    assert.deepEqual(d, [{ kind: "none" }], "pty:exit with no switch → deliberate no-op (corpus oracle unchanged)");
+    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pty:exit on the active view → full render");
     assert.equal(view.controlSwitch, null, "…and leaves controlSwitch null");
+  }
+}
+
+// 12b) F1 fix A — `pty:exit` clears `view.live`, and the composer stops offering a
+//      send into a pty that is gone.
+//
+//      The mirror used to wait for the debounced session-index refresh (~150ms),
+//      and a send inside that gap took `submitPrompt`'s LIVE branch: a raw
+//      `TaskNotLiveError` in the composer notice instead of a resume (S4
+//      out-of-scope 2). The selectors below are the renderer-visible consequence,
+//      asserted through their real implementations rather than restated.
+{
+  const ptyExit = () =>
+    evt("pty:exit", {
+      taskId: "task-A",
+      generation: 1,
+      runId: null,
+      exitCode: 0,
+      signal: null,
+      elapsedMs: 1234,
+    });
+
+  // The live, latched session a user is looking at: the placeholder promises a
+  // conversation, and the composer's own copy is what turns honest.
+  {
+    const { state, view } = seedView({
+      deliveryState: { taskId: "task-A", bootLatched: true, deliverable: true, queued: [] },
+      report: { runs: [{ id: "run-1" }] },
+    });
+    assert.equal(view.live, true, "…the view starts live");
+    assert.equal(
+      C.composerPlaceholder(view, false, false),
+      "Continue, correct, or redirect this Task",
+      "before: the composer talks to a live session",
+    );
+    R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.equal(view.live, false, "pty:exit clears the liveness mirror");
+    assert.equal(
+      C.composerPlaceholder(view, false, false),
+      "Message Claude — resumes this session",
+      "after: the composer offers the RESUME that submitPrompt will now take",
+    );
+  }
+
+  // Idempotent, and silent when there is nothing to change: a straggler exit on an
+  // already-dormant view must not force a paint.
+  {
+    const { state, view } = seedView({ live: false });
+    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.deepEqual(d, [{ kind: "none" }], "an already-dormant view repaints nothing");
+    assert.equal(view.live, false, "…and stays dormant");
+  }
+
+  // A BACKGROUND session ending is not an attention cue. `viewChangedDirective`
+  // would have marked it unread — the user closing a session they were not looking
+  // at must not put a badge on its row.
+  {
+    const { state, view } = seedView({ active: false });
+    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.deepEqual(d, [{ kind: "none" }], "a background exit paints nothing");
+    assert.equal(view.live, false, "…but the mirror still follows");
+    assert.equal(view.unread, false, "…and no unread cue is invented");
+  }
+
+  // The user-closed path is the SAME path (a close is a pty exit too), so this is
+  // the regression fence for it: the dormant-resume affordances the CLI window and
+  // the composer offer are exactly what a close already produced, just sooner.
+  {
+    const { state, view } = seedView({
+      deliveryState: { taskId: "task-A", bootLatched: true, deliverable: true, queued: [] },
+    });
+    R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.deepEqual(
+      RUNS.remoteControlContext(view, "claude"),
+      { mode: "arm-dormant" },
+      "Remote Control arms the next spawn instead of injecting into a dead pty",
+    );
+    assert.equal(
+      C.sendPromptTitle(view, false, false, true),
+      "Send to Claude",
+      "the send button stops narrating a boot that already ended",
+    );
   }
 }
 

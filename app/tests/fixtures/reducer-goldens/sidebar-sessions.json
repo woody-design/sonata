@@ -3,10 +3,10 @@
     "active": {
       "events": 416,
       "directiveCounts": {
-        "none": 79,
+        "none": 78,
         "report-refresh": 25,
         "session-index-debounced": 18,
-        "full": 35,
+        "full": 36,
         "sidebar": 8,
         "transcript-debounced": 93,
         "usage-in-place": 5,
@@ -36,7 +36,7 @@
               "createdAt": "2026-07-03T21:33:04.118Z",
               "updatedAt": "2026-07-03T21:33:12.687Z"
             },
-            "live": true,
+            "live": false,
             "report": null,
             "composerDraft": "",
             "pendingApproval": null,
@@ -485,7 +485,7 @@
               "createdAt": "2026-07-03T21:33:04.118Z",
               "updatedAt": "2026-07-03T21:33:12.687Z"
             },
-            "live": true,
+            "live": false,
             "report": null,
             "composerDraft": "",
             "pendingApproval": null,

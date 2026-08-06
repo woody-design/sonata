@@ -3,7 +3,11 @@
 // that generation ends while another task remains selected:
 //   1) natural PTY exit (accepted pty:exit must reclaim the hidden xterm),
 //   2) close→immediate reopen (old exit is correctly fenced in main, so the
-//      first newer pty:data/replay generation must replace the hidden xterm).
+//      first newer pty:data/replay generation must replace the hidden xterm),
+//   3) close→reopen on the ACTIVE task, where the exit's own dormant binding edge
+//      and the reopen's live one rebuild the grid from main's scrollback mirror
+//      before the provider emits anything (F1 fix A — see the block's own note for
+//      what this used to assert instead).
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -120,11 +124,26 @@ try {
   const staleExitDidNotDisposeGenerationThree =
     (await readSummary(main, taskA.id))?.live === true;
 
-  // Opposite ordering: A is active, generation 3 exits and its entry is
-  // visibly reclaimed before generation 4 starts. The provider delays its
-  // first byte so close/open session-index refreshes coalesce and no binding
-  // edge recreates the entry. Newer no-entry data must use the tombstone to
-  // restore the active xterm and forwarding.
+  // Opposite ordering: A is active, generation 3 exits and its entry is visibly
+  // reclaimed before generation 4 starts. The provider delays its first byte, so
+  // whatever restores the xterm has to do it without any provider output to go on.
+  //
+  // WHAT THIS USED TO ASSERT, and why it changed (F1 fix A). A close→reopen used to
+  // coalesce Reading's index refreshes into live→live, so NO binding edge reached
+  // this window and the only way back was the data tombstone (`terminal.ts`'s
+  // no-entry branch). That coalescing was an artifact of the mirror lag: nothing
+  // cleared `view.live` on `pty:exit`, so Reading never said "dormant" out loud. The
+  // reducer clears it now, so the exit pushes a real dormant edge and the reopen
+  // pushes a real live one — and the xterm is rebuilt from Reading's AUTHORITATIVE
+  // binding, hydrated from main's scrollback mirror, before a single provider byte
+  // exists. That is strictly stronger than inferring liveness from a data byte, and
+  // it is what the three revision/entry checks below now pin.
+  //
+  // The tombstone branch is therefore no longer reached HERE. It is still reachable
+  // — the CLI window disposes its entry on `pty:exit` locally, one IPC hop before
+  // Reading's dormant edge lands, and newer data inside that hop still finds
+  // `activeBinding.live === true` with no entry — but nothing in this file
+  // constructs that hop, and pretending otherwise would be worse than saying so.
   await main.evaluate((taskId) => window.sonataRuntime.closeTask({ taskId }), taskA.id);
   await cli.waitForFunction(
     (taskId) => !document.querySelector(`.task-terminal[data-task-id="${taskId}"]`),
@@ -137,26 +156,30 @@ try {
   );
   await main.evaluate((taskId) => window.sonataRuntime.openTask({ taskId }), taskA.id);
   await waitFor(() => readSpawnCount("task-a") === 4, "A generation 4 spawn");
-  // Cross the 150ms session-index debounce while the provider's first byte is
-  // still fenced by the sentinel. If a close/open binding edge is delivered,
-  // either the revision or entry count exposes it before pty:data recovery.
+  // Cross the 150ms session-index debounce while the provider's first byte is still
+  // fenced by the sentinel, so everything read below happened with NO provider output
+  // in existence.
   await new Promise((resolve) => setTimeout(resolve, 400));
   const bindingRevisionBeforeData = Number(
     await cli.locator("#app").getAttribute("data-active-task-binding-revision"),
   );
   const firstByteNotEmittedBeforeRecovery = !fs.existsSync(generationFourFirstByte);
-  const bindingRevisionUnchangedBeforeData =
-    bindingRevisionBeforeData === bindingRevisionBeforeOpen;
-  const noBindingRecreatedBeforeData =
-    (await cli.locator(`.task-terminal[data-task-id="${taskA.id}"]`).count()) === 0 &&
+  // The reopen announced itself: Reading said dormant on the exit and live again on
+  // the index refresh, so a genuine binding edge crossed the window.
+  const bindingEdgeArrivedBeforeData = bindingRevisionBeforeData > bindingRevisionBeforeOpen;
+  // …and that edge is what rebuilt the grid — before any provider byte, so it can
+  // only have come from the binding plus main's scrollback mirror.
+  const entryRestoredByTheBindingEdge =
+    (await cli.locator(`.task-terminal[data-task-id="${taskA.id}"]`).count()) === 1 &&
     firstByteNotEmittedBeforeRecovery &&
-    bindingRevisionUnchangedBeforeData;
+    bindingEdgeArrivedBeforeData;
   const aFour = await waitForTerminalMarker(cli, taskA.id, "A_GENERATION_4_AFTER_EXIT");
   const bindingRevisionAfterRecovery = Number(
     await cli.locator("#app").getAttribute("data-active-task-binding-revision"),
   );
-  const dataRecoveredWithoutBindingEdge =
-    bindingRevisionAfterRecovery === bindingRevisionBeforeOpen;
+  // The surviving half of the original claim: provider DATA pushes no binding of its
+  // own. Reading's edge is the one authority; bytes never churn the binding.
+  const dataAddedNoBindingEdge = bindingRevisionAfterRecovery === bindingRevisionBeforeData;
   const exitThenDataRecoveredActiveXterm =
     aFour.generation > aThree.generation &&
     !aFour.text.includes("A_GENERATION_1_OLD") &&
@@ -173,10 +196,10 @@ try {
     staleExitDidNotDisposeGenerationThree,
     immediateReopenIsClean,
     exitArrivedBeforeGenerationFour,
-    noBindingRecreatedBeforeData,
+    entryRestoredByTheBindingEdge,
     firstByteNotEmittedBeforeRecovery,
-    bindingRevisionUnchangedBeforeData,
-    dataRecoveredWithoutBindingEdge,
+    bindingEdgeArrivedBeforeData,
+    dataAddedNoBindingEdge,
     exitThenDataRecoveredActiveXterm,
     oneEntryPerTask,
   };

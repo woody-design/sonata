@@ -152,6 +152,7 @@
     "e2e:cli-start-without-prompt": "npm run build && node tests/e2e/cli-start-without-prompt.mjs",
     "e2e:cli-lifecycle-races": "npm run build && node tests/e2e/cli-lifecycle-races.mjs",
     "e2e:cli-resume-without-prompt": "npm run build && node tests/e2e/cli-resume-without-prompt.mjs",
+    "e2e:cli-self-exit-resume": "npm run build && node tests/e2e/cli-self-exit-resume.mjs",
     "e2e:composer-focus-retention": "npm run build && node tests/e2e/composer-focus-retention.mjs",
     "e2e:cli-surface-chrome": "npm run build && node tests/e2e/cli-surface-chrome.mjs",
     "e2e:remote-control": "npm run build && node tests/e2e/remote-control.mjs",

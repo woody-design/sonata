@@ -80,10 +80,11 @@ export interface CliReadinessBannerModel {
    * queued prompt goes out).
    *
    * A DEAD pty keeps the "Log in" button: there is nothing to point at, so a fresh
-   * spawn is the only door. `view.live` is the discriminator; it lags a PTY that
-   * died on its own (the session-index refresh clears it — see the S4 record's
-   * out-of-scope 2), and the lag's direction is benign: at worst a pointer where a
-   * button was due, for as long as it takes the next attempt to say so again.
+   * spawn is the only door. `view.live` is the discriminator, and it is now exact in
+   * both directions — the reducer clears it on `pty:exit` (F1 fix A), so the button
+   * and the pointer swap the instant the pty's state actually changes. Until that
+   * fix it lagged a pty that died on its own by one session-index refresh, which
+   * showed up here as a pointer where a button was due.
    */
   readonly action: CliReadinessBannerAction | null;
 }

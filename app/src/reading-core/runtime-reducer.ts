@@ -536,19 +536,53 @@ export function reduceRuntimeEvent(
   }
 
   if (event.type === "pty:exit") {
-    // The session died. Any in-flight control switch is moot — drop its pointer so
-    // the chip doesn't stay stuck in "Switching…", the needs-attention banner
-    // doesn't linger, AND a PARKED recognized-confirm drawer (S7) tears down (it
-    // renders off `controlSwitch.phase === "parked"`) — all on a dead session (the
-    // backend timer + parked pointer are already cleared in onExit). Task status +
-    // run completion ride their own events; this only reconciles the switch pointer,
-    // and stays a no-op (no paint) when there was nothing pending — so the corpus
-    // oracle is unchanged.
-    if (!view.controlSwitch) {
-      return [{ kind: "none" }];
-    }
+    // The session died, and two things follow from that.
+    //
+    // (1) THIS VIEW IS NO LONGER LIVE. `view.live` mirrors the session index, and
+    // nothing here used to clear it: the mirror caught up ~150ms later, when the
+    // debounced index refresh ran off the `sessions:updated` that main's
+    // retire → `disposeTaskRuntime` → manifest persist emits. For that gap the
+    // renderer believed a dead pty was alive, and everything keyed on `live` was
+    // wrong in the same direction — most sharply `submitPrompt`, whose LIVE branch
+    // a send in that window took, surfacing a raw `TaskNotLiveError` in the
+    // composer notice instead of resuming the conversation (S4 out-of-scope 2).
+    //
+    // The event IS main's statement that the pty is gone, so the mirror follows it
+    // at the moment it is made. The later index refresh then AGREES rather than
+    // corrects — `liveChanged` is false, so it costs no second render; this is the
+    // same full paint that used to happen 150ms later, not a new one.
+    //
+    // Sound against a STALE exit, because main fences those before broadcast:
+    // `handleRuntimeEvent` drops any event whose source RunIndex is not the
+    // taskId's current runtime, so a straggler `onExit` from a pty a reopen has
+    // already replaced never reaches this reducer.
+    //
+    // (2) Any in-flight control switch is moot — drop its pointer so the chip
+    // doesn't stay stuck in "Switching…", the needs-attention banner doesn't
+    // linger, AND a PARKED recognized-confirm drawer (S7) tears down (it renders
+    // off `controlSwitch.phase === "parked"`) — all on a dead session (the backend
+    // timer + parked pointer are already cleared in onExit). Task status + run
+    // completion ride their own events.
+    //
+    // The paint rule follows what each mutation is actually read by. A switch
+    // pointer is CONTENT-adjacent, so it keeps `viewChangedDirective` (and with it
+    // the background view's unread cue) exactly as before. Liveness is not: no
+    // surface reads a BACKGROUND view's `view.live` (the sidebar's own live dot
+    // comes from the session index), and marking a view unread because the user
+    // closed it would invent an attention cue out of their own action. So the flip
+    // paints the active view and stays silent everywhere else — which also keeps
+    // `pty:exit` a no-op on the pinned corpus's dormant replays.
+    const hadControlSwitch = view.controlSwitch !== null;
     view.controlSwitch = null;
-    return [viewChangedDirective(state, view, taskId)];
+    const wasLive = view.live;
+    view.live = false;
+    if (hadControlSwitch) {
+      return [viewChangedDirective(state, view, taskId)];
+    }
+    if (wasLive && isActiveView(state, view)) {
+      return [{ kind: "full", taskId }];
+    }
+    return [{ kind: "none" }];
   }
 
   return [{ kind: "none" }];

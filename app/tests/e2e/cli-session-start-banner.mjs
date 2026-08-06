@@ -176,13 +176,14 @@ try {
 
   // ── D. Binary gone → the pre-latch exit trigger, install action ──────────
   //
-  // Spawned through the CLI window's "Resume task" rather than the composer, for the
-  // determinism reason this file already pays elsewhere: `view.live` lags a pty
-  // Sonata just retired, and a composer send in that gap takes the LIVE branch and
-  // reports TaskNotLiveError instead of resuming. Waiting for that button to read
-  // "Resume task" IS waiting for the renderer to agree the session is dormant. (The
-  // delivered prompt from block C also leaves a run open until its pty dies, which
-  // would put the send button in stop-mode.)
+  // Spawned through the CLI window's "Resume task" rather than the composer, for a
+  // reason that outlives the lag it was originally written for: the delivered prompt
+  // from block C leaves a run open until its pty dies, and an active run puts the
+  // send button in stop-mode. (It also USED to be the only deterministic door —
+  // `view.live` lagged a retired pty by one session-index refresh, so a composer
+  // send in that gap took the LIVE branch and reported TaskNotLiveError. F1 fix A
+  // clears the mirror on `pty:exit`, so that half of the reason is gone; waiting for
+  // this button is now merely equivalent to it, not required by it.)
   fixture.removeCli("claude");
   await closeActiveTask(main);
   await waitForCliAction(cli, "Resume task");
@@ -224,13 +225,13 @@ try {
   // conversation is a new statement, so the banner comes back — otherwise one close
   // would silence this surface for that task for the rest of the session.
   //
-  // Retried through the CLI window's own "Resume task" rather than the composer,
-  // for determinism: `view.live` lags a pty that died on its own (nothing in the
-  // reducer clears it — the session-index refresh does, asynchronously), so a
-  // composer send in that gap can take the LIVE path and report TaskNotLiveError
-  // instead of resuming. Waiting for that button to read "Resume task" IS waiting
-  // for the renderer to agree the session is dormant. (Filed as out-of-scope; it is
-  // a pre-existing lifecycle lag, not readiness.)
+  // Retried through the CLI window's own "Resume task" rather than the composer. The
+  // reason was the `view.live` lag after a self-inflicted pty death, which F1 fix A
+  // removed (the reducer now clears the mirror on `pty:exit`, and
+  // tests/e2e/cli-self-exit-resume.mjs fences the composer send that used to fail
+  // here). The route is kept because it exercises a real second door and because
+  // waiting for this button to read "Resume task" is still the clearest way to say
+  // "the renderer agrees this session is dormant".
   await waitForCliAction(cli, "Resume task");
   await cli.locator("#terminal-empty-action", { hasText: "Resume task" }).click();
   await banner.waitFor({ state: "visible", timeout: WINDOW_WAIT_MS });
@@ -275,12 +276,16 @@ try {
     "the setup grid to go with the finished run",
   );
   await banner.waitFor({ state: "detached" });
-  // Waited, not asserted flat: the composer's copy stands while EITHER the machine is
-  // broken or this pty is live, and `view.live` lags a pty that died on its own — so
-  // the honest copy can outlive the banner's detach by one index refresh.
-  await waitUntil(
-    async () => (await placeholder()) !== YIELDED_PLACEHOLDER,
-    "the composer's copy to come back once the machine is fixed",
+  // Asserted FLAT, and that is a claim about fix A. The composer's copy stands while
+  // EITHER the machine is broken or this pty is live; this session's pty died on the
+  // absent binary, and the reducer clears `view.live` on `pty:exit`, so both terms
+  // are false in the same paint that detaches the banner. Before that fix the mirror
+  // lagged by one session-index refresh and the honest copy could outlive the detach
+  // — i.e. this line would have needed a wait, and now it fences that it does not.
+  assert.notEqual(
+    await placeholder(),
+    YIELDED_PLACEHOLDER,
+    "the composer's copy comes back with the banner, not one index refresh later",
   );
   observed.installSeamAndFactsHeal = {
     curl: fixture.curlInvocations(),

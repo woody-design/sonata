@@ -3,9 +3,10 @@
     "active": {
       "events": 29,
       "directiveCounts": {
-        "none": 12,
+        "none": 11,
         "report-refresh": 10,
-        "session-index-debounced": 7
+        "session-index-debounced": 7,
+        "full": 1
       },
       "state": {
         "activeTaskId": "task-1783114445451-1",
@@ -29,7 +30,7 @@
               "createdAt": "2026-07-03T00:00:00.000Z",
               "updatedAt": "2026-07-03T00:00:00.000Z"
             },
-            "live": true,
+            "live": false,
             "report": null,
             "composerDraft": "",
             "pendingApproval": null,
@@ -82,7 +83,7 @@
               "createdAt": "2026-07-03T00:00:00.000Z",
               "updatedAt": "2026-07-03T00:00:00.000Z"
             },
-            "live": true,
+            "live": false,
             "report": null,
             "composerDraft": "",
             "pendingApproval": null,
@@ -135,7 +136,7 @@
               "createdAt": "2026-07-03T00:00:00.000Z",
               "updatedAt": "2026-07-03T00:00:00.000Z"
             },
-            "live": true,
+            "live": false,
             "report": null,
             "composerDraft": "",
             "pendingApproval": null,
@@ -201,7 +202,7 @@
               "createdAt": "2026-07-03T00:00:00.000Z",
               "updatedAt": "2026-07-03T00:00:00.000Z"
             },
-            "live": true,
+            "live": false,
             "report": null,
             "composerDraft": "",
             "pendingApproval": null,
@@ -254,7 +255,7 @@
               "createdAt": "2026-07-03T00:00:00.000Z",
               "updatedAt": "2026-07-03T00:00:00.000Z"
             },
-            "live": true,
+            "live": false,
             "report": null,
             "composerDraft": "",
             "pendingApproval": null,
@@ -307,7 +308,7 @@
               "createdAt": "2026-07-03T00:00:00.000Z",
               "updatedAt": "2026-07-03T00:00:00.000Z"
             },
-            "live": true,
+            "live": false,
             "report": null,
             "composerDraft": "",
             "pendingApproval": null,
