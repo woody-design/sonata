@@ -276,12 +276,13 @@ try {
     "the setup grid to go with the finished run",
   );
   await banner.waitFor({ state: "detached" });
-  // Asserted FLAT, and that is a claim about fix A. The composer's copy stands while
-  // EITHER the machine is broken or this pty is live; this session's pty died on the
-  // absent binary, and the reducer clears `view.live` on `pty:exit`, so both terms
-  // are false in the same paint that detaches the banner. Before that fix the mirror
-  // lagged by one session-index refresh and the honest copy could outlive the detach
-  // — i.e. this line would have needed a wait, and now it fences that it does not.
+  // Asserted FLAT, because both surfaces move in the SAME paint: the re-probed facts
+  // arrive as one `cliReadinessChanged` push, which stores them and calls `render()`
+  // — and that one pass repaints the banners and the composer together. So by the
+  // time the detach is observable, the copy has already changed; there is nothing
+  // left to wait for. (This is NOT a fence on the `view.live` lag F1 fix A removed:
+  // this task's pty died seconds earlier at block D's absent resume, with several
+  // waits since, so the index refresh had long cleared the mirror either way.)
   assert.notEqual(
     await placeholder(),
     YIELDED_PLACEHOLDER,

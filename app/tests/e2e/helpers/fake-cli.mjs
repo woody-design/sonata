@@ -16,18 +16,29 @@
 // stay-alive tail becomes an immortal process: it outlives its temp dir, and on an
 // interrupted run it outlives the app (S2 found and killed ten of them).
 //
-// MEASURED 2026-08-06, the six fixtures this helper replaced split two ways, and
-// the split is why consolidating them is worth a slice rather than six one-liners:
+// MEASURED 2026-08-06 by running each pre-migration script as the probe would
+// (`--version`, with no SONATA_RUNTIME_DIR — it is a per-spawn binding the probe's
+// environment does not have). The six fixtures this helper REPLACED split five/one:
 //
-//   - `session-title-lifecycle`'s and `fake-codex-source`'s scripts HUNG on
-//     `--version` — one immortal node process per launch, per provider.
-//   - the other four crashed instead (`fs.mkdirSync(undefined)`, because
-//     SONATA_RUNTIME_DIR is a per-spawn variable the probe's environment does not
-//     have). No leak — but a non-zero exit reads as `install: unknown`, so those
-//     fixtures were describing a machine whose CLIs cannot be read, which is not
-//     the machine any of them meant to describe. And they were one defensive
-//     `if (runtimeDir)` away from becoming leakers: adding exactly that guard is
-//     what turned S3's copy into one.
+//   - FIVE crashed on `fs.mkdirSync(undefined)` / `mkdirSync(null)` and exited 1
+//     (cli-lifecycle-races, cli-start-without-prompt, composer-focus-retention,
+//     cli-resume-without-prompt, cli-surface-chrome). No leak — but a non-zero exit
+//     reads as `install: unknown`, so each was describing a machine whose CLIs
+//     cannot be read, which is not the machine any of them meant to describe. And
+//     each was one defensive `if (runtimeDir)` away from becoming a leaker: adding
+//     exactly that guard is what turned S3's copy into one.
+//   - ONE hung (session-title-lifecycle, which touches no runtime dir). Its script
+//     WOULD be immortal under a probe, but no probe ever ran against it: that file
+//     drives a bare `RuntimeController` with `INERT_CLI_READINESS_SOURCE`. Arming it
+//     is still right — the harness is the only thing standing between that script
+//     and the leak — but it never actually leaked, and saying otherwise would be
+//     inventing evidence.
+//
+// The scripts whose bodies stay bespoke and take only the arms below are measured
+// separately, and two of them are where the real leak lived: `fake-codex-source`
+// and `cli-background-generation` both HUNG under a real app launch, and orphaned
+// `codex --version` processes from the latter were found by `pgrep` after this
+// round's own runs. `cli-runtime-liveness` hung too, and worse — see its own note.
 //
 // So the probe arms come FIRST, before anything else the script does, and they
 // EXIT. Both of them, not just `--version` (S4's D-16): the probe is sequential and

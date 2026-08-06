@@ -567,11 +567,20 @@ export function reduceRuntimeEvent(
     // The paint rule follows what each mutation is actually read by. A switch
     // pointer is CONTENT-adjacent, so it keeps `viewChangedDirective` (and with it
     // the background view's unread cue) exactly as before. Liveness is not: no
-    // surface reads a BACKGROUND view's `view.live` (the sidebar's own live dot
-    // comes from the session index), and marking a view unread because the user
-    // closed it would invent an attention cue out of their own action. So the flip
-    // paints the active view and stays silent everywhere else — which also keeps
-    // `pty:exit` a no-op on the pinned corpus's dormant replays.
+    // SURFACE reads a background view's `view.live` (the sidebar's own live dot comes
+    // from the session index), and marking a view unread because the user closed it
+    // would invent an attention cue out of their own action. So the flip paints the
+    // active view and stays silent everywhere else — which also keeps `pty:exit` a
+    // no-op on the pinned corpus's dormant replays.
+    //
+    // One background READER does exist, and it is inert here: `evictDormantTaskView`
+    // consults `view.live`, so a just-died background view now clears that guard at
+    // once instead of one index refresh later. It is still not evictable — a view
+    // that was ever live carries a non-null `deliveryState` (the delivery pump emits
+    // one on every runtime event), and that guard holds it. Same reasoning
+    // `view/banners.ts` already leans on to keep the codex resumable-exit banner
+    // alive across a switch-away; noted here so the next reader does not have to
+    // re-derive it.
     const hadControlSwitch = view.controlSwitch !== null;
     view.controlSwitch = null;
     const wasLive = view.live;

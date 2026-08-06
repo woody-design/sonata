@@ -280,13 +280,38 @@ try {
     return config.resumeReturnDismissed === undefined;
   }, 8000);
 
-  // F2 regression: at the minimum window height (640px) an opened picker menu
-  // must stay fully inside the dialog scrollport. The Sessions row sits near the
-  // bottom, so its (now description-bearing, ~160px) menu would clip on first
-  // open without the upward flip. Assert the menu's box is contained in the
-  // dialog's box; poll so the post-mount rAF flip has time to settle.
+  // F1 fix C — the MECHANISM the F2 block below rests on: the dialog keeps its scroll
+  // position across a re-render. Settings is instant-apply, so every picker click
+  // rebuilds the whole dialog, and `scrollTop` is browser state that dies with the
+  // node holding it — without a capture/restore the dialog snapped to the top and
+  // took the row the user had just clicked out of view.
+  //
+  // Asserted DIRECTLY, and that is the point: the F2 check below reads the
+  // consequence (a menu that fits) and reaches this bug only through a chain —
+  // anchor scrolls offscreen, so the upward flip has nothing useful to flip against,
+  // so the menu clips. Any future change that keeps the anchor visible some other way
+  // would leave scroll retention silently un-fenced.
   await setContentSize(960, 640);
+  const dialogScrollTop = () =>
+    page.locator(".settings-window").evaluate((node) => node.scrollTop);
+  await page.locator(".settings-window").evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  const scrolledTo = await dialogScrollTop();
+  assert.ok(scrolledTo > 0, "the dialog scrolls at 640px height (otherwise this proves nothing)");
   await page.locator('section[aria-label="Sessions"] .settings-popup').click();
+  assert.equal(
+    await dialogScrollTop(),
+    scrolledTo,
+    "opening a picker keeps the dialog where the user left it",
+  );
+
+  // F2 regression: at the minimum window height (640px) an opened picker menu must
+  // stay fully inside the dialog scrollport. The Sessions row sits near the bottom,
+  // so its (description-bearing, ~160px) menu would clip on first open without the
+  // upward flip — and the flip only has something useful to flip against because the
+  // scroll restore above kept the anchor inside the visible rect. Assert the menu's
+  // box is contained in the dialog's box; poll so the post-mount rAF flip settles.
   const sessionsMenu = page.locator('section[aria-label="Sessions"] .settings-popup-menu');
   await sessionsMenu.waitFor({ state: "visible" });
   const menuFitsDialog = async () => {
