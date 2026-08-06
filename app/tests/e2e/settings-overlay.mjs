@@ -197,32 +197,16 @@ try {
   }, 8000);
   await codexPopup.filter({ hasText: "Full Access" }).waitFor({ state: "visible" });
 
-  // Permissions group, Project folder trust row: a real switch (not a picker)
-  // bound to codex `autoTrustProjectFolders`. The stored legacy file omits the
-  // key, so it normalizes to the safe default (off — codex's dialog stays).
-  // The group now holds exactly three rows (Claude, Codex, Project folder trust).
+  // The Permissions group holds exactly the two provider rows. The "Project
+  // folder trust" switch was REMOVED with codex-trust S1 (D2): codex pre-trust
+  // is unconditional now, so a switch here would have shown OFF while the
+  // behavior was permanently ON. Pinned by count, so a re-added third row is a
+  // loud failure rather than a silent regrowth.
   assert.equal(
     await page.locator('section[aria-label="Permissions"] .settings-row').count(),
-    3,
-    "the Permissions group holds Claude, Codex, and Project folder trust rows",
+    2,
+    "the Permissions group holds exactly the Claude and Codex rows",
   );
-  const trustRow = page.locator('section[aria-label="Permissions"] .settings-row', {
-    hasText: "Project folder trust",
-  });
-  const trustSwitch = trustRow.locator(".settings-switch");
-  await trustSwitch.waitFor({ state: "visible" });
-  assert.equal(
-    await trustSwitch.getAttribute("aria-checked"),
-    "false",
-    "the trust switch defaults off (a legacy codex file omits the flag → prompt preserved)",
-  );
-  // Turning it on persists the boolean to the Sonata-owned codex-settings.json.
-  await trustSwitch.click();
-  await waitUntil(() => {
-    const persisted = JSON.parse(fs.readFileSync(codexSettingsPath, "utf8"));
-    return persisted.autoTrustProjectFolders === true;
-  }, 8000);
-  await trustRow.locator('.settings-switch[aria-checked="true"]').waitFor({ state: "visible" });
 
   // Revising on the page persists with settings provenance and retires
   // the attribution line (the page is now the last author).
@@ -260,13 +244,15 @@ try {
   await openSettingsFromMenu();
   await page.locator(".settings-window").waitFor({ state: "visible" });
 
-  // Round-trip: the trust switch turned on above survives the overlay
-  // close/reopen — the reopened overlay reads the persisted codex settings.
+  // Round-trip: the Codex permission picked above ("Full Access") survives the
+  // overlay close/reopen — the reopened overlay reads the persisted codex
+  // settings rather than re-seeding from the legacy file. (This assertion rode
+  // the "Project folder trust" switch until codex-trust S1 removed that row; the
+  // codex permission row is the surviving codex-settings-backed control.)
   await page
-    .locator('section[aria-label="Permissions"] .settings-row', {
-      hasText: "Project folder trust",
-    })
-    .locator('.settings-switch[aria-checked="true"]')
+    .locator('section[aria-label="Permissions"] .settings-row', { hasText: "Codex sessions" })
+    .locator(".settings-popup")
+    .filter({ hasText: "Full Access" })
     .waitFor({ state: "visible" });
 
   await page.locator(".settings-value", { hasText: "Off" }).waitFor({ state: "visible" });

@@ -707,9 +707,6 @@ initActions({
   persistDefaultReasoningEffort: (provider, effort) => {
     persistDefaultReasoningEffort(provider, effort);
   },
-  persistCodexAutoTrustProjectFolders: (value) => {
-    void persistCodexAutoTrustProjectFolders(value);
-  },
   persistCodexKeepUpToDate: (value) => {
     void persistCodexKeepUpToDate(value);
   },
@@ -1716,31 +1713,6 @@ function persistDefaultReasoningEffort(provider: RuntimeProvider, effort: Reason
   } else {
     void persistCodexDefaultModelEffort({ effort });
   }
-}
-
-async function persistCodexAutoTrustProjectFolders(value: boolean): Promise<void> {
-  const overlay = state.settingsOverlay;
-  if (!overlay?.codex) {
-    return;
-  }
-  if (overlay.codex.settings.autoTrustProjectFolders === value) {
-    return;
-  }
-  const next: CodexSettings = { ...overlay.codex.settings, autoTrustProjectFolders: value };
-  overlay.codex.settings = next;
-  render();
-  try {
-    const persisted = normalizeCodexSettings(await window.sonataRuntime.writeCodexSettings(next));
-    if (state.settingsOverlay?.codex) {
-      state.settingsOverlay.codex.settings = persisted;
-    }
-    // No renderer-mirror sync here (unlike the permission-mode default): the
-    // trust flag drives codex spawn args in the main process, not any New Chat
-    // access chip, so there is no draft-following atom to keep live.
-  } catch (error) {
-    state.status = errorMessage(error);
-  }
-  render();
 }
 
 async function persistCodexKeepUpToDate(value: boolean): Promise<void> {

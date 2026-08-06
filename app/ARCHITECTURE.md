@@ -328,6 +328,43 @@ is deterministic and **byte-stable** (`smoke:codex-runtime-settings` sha-pins it
 > command hash constant), but its trust-persistence motivation is moot. Research:
 > `spikes/codex-hook-trust-research/`.
 
+**Directory trust: the folder-pick gesture IS the answer (D1, 2026-08-06).** Codex
+asks "do you trust the contents of this directory?" in its own TUI for any cwd its
+config has never seen, and until it is answered the session does nothing — a
+pre-session dialog no hook fires on and no Sonata surface can honestly narrate.
+Sonata pre-answers it for **every** codex cwd by writing
+`[projects."<cwd>"] trust_level = "trusted"` into its own `-p sonata` profile
+(`codex-runtime-settings.ts: buildTrustLedger` is the mechanism;
+`runtime-controller.codexPretrustCwd` is the single home of the policy). The
+ledger is governed by regeneration: existing grants carry forward while their
+directory exists, dead dirs self-prune. The user's real `~/.codex/config.toml` is
+never written.
+
+*Why unconditional* — the dialog has no third answer (`Yes, continue` /
+`No, quit` exits the process), so the reachable states are {trusted, did-not-run};
+pre-trust pre-answers the only viable one, and choosing the folder in Sonata's own
+UI is that answer. Upstream decides the identical case the same way: codex's
+app-server auto-persists `Trusted` for programmatic callers that supply a cwd plus
+explicit permissions. This OVERTURNS the 2026-07-18 ruling, which kept the dialog
+for user-chosen folders behind an `autoTrustProjectFolders` opt-in — a switch that
+displayed OFF while the honest answer was always Yes; it was removed, not defaulted
+on (D2).
+
+*What it costs, eyes open* — at 0.146.1 trust gates **the repo's own `.codex/`
+config layer**: its hooks, exec policies, skills, agent roles and MCP servers.
+Sandbox and approval are NOT on that axis; Sonata pins those structurally with
+`-s`/`-a`. Measured end to end (S0-b, 2026-08-06, codex 0.146.1, Sonata's exact
+argv): pre-trusted, a scratch repo's own `.codex/config.toml` hooks fired
+(SessionStart/UserPromptSubmit/PreToolUse) and its `.codex/rules/*.rules` exec
+policy rejected a command; the same repo at `trust_level = "untrusted"` fired no
+hook and applied no policy. So a repo that ships `.codex/` gets its config layer
+inside Sonata exactly as it would in Terminal — which is the parity a GUI over a
+CLI owes its user. The part that is *wider* than Terminal is that
+`--dangerously-bypass-hook-trust` also waives the hash-review screen for those
+repo hooks; that is a property of the bypass flag, orthogonal to pre-trust, and
+narrowing it is a named follow-up (register F-1), not a reason to keep a dialog
+whose only answer is Yes.
+
 **Runtime binding: our hooks run on our OWN interpreter, not the host's.** Every
 hook / broker / statusline command Sonata injects is a short JS shim that needs a
 JS interpreter to run. Neither CLI ships one — both are self-contained native

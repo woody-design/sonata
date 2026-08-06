@@ -17,28 +17,19 @@ const settingsDir = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-new-chat-setti
 //
 //   Do you trust the contents of this directory? › 1. Yes, continue  2. No, quit
 //
-// Sonata handles that correctly and INVISIBLY: `bootDialogHints` (upstream sync
-// 2026-07-18) makes `detectIdlePrompt` refuse to read a dialog screen as a
-// composer, so the delivery boot latch never opens and the first prompt is never
-// Entered into the dialog. What the pre-write world used to do — surface the dialog
-// as a workspace-trust APPROVAL and let `sendFirstPrompt` answer it — went away
-// when codex's native-panel approval scrape was retired (approvals moved to the
-// hook broker, and a pre-session boot dialog fires no hook). So in a test, with no
-// human at the CLI window, the session sits on that dialog until the timeout.
+// A test has no human at the CLI window to answer it, and Sonata will never answer
+// it for one (the red line): `bootDialogHints` makes `detectIdlePrompt` refuse to
+// read a dialog screen as a composer, so the first prompt is never Entered into the
+// dialog and the session would sit there until the timeout.
 //
-// The product's own answer to this is the Codex "Project folder trust" setting
-// (`autoTrustProjectFolders`, default OFF — Woody's 2026-07-18 policy keeps codex's
-// prompt-injection defense for folders the USER opens, while folders Sonata creates
-// are always pre-trusted). This test opens a folder, so it opts in — exactly as a
-// user who wants that would — and the pre-trust rides Sonata's own `-p sonata`
-// profile trust ledger, whose entries self-prune once the directory is gone.
-//
-// This is the whole reason the test used to time out on a developer machine while
-// `codex exec` worked fine outside Sonata. See the S4 slice record.
-fs.writeFileSync(
-  path.join(settingsDir, "codex-settings.json"),
-  `${JSON.stringify({ autoTrustProjectFolders: true }, null, 2)}\n`,
-);
+// NOTHING IS SEEDED HERE ANY MORE (codex-trust S1/L3). The dialog never renders
+// because the PRODUCT pre-trusts the cwd unconditionally: picking a folder in
+// Sonata's own UI IS the trust gesture (D1), and the grant rides Sonata's `-p
+// sonata` profile trust ledger, whose entries self-prune once the directory is
+// gone. So this run exercises the real product path end to end — a ~240s timeout
+// here is the regression signal for that pre-trust, not a missing test fixture.
+// (Before S1 this file seeded `autoTrustProjectFolders: true` to opt in; the
+// setting is gone.) See the S4 slice record for the failure this replaced.
 
 let electronApp = null;
 

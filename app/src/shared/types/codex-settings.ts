@@ -22,15 +22,6 @@ export const CODEX_PERMISSION_MODE_OPTIONS = [
 
 export interface CodexSettings {
   defaultPermissionMode: CodexPermissionMode;
-  /**
-   * Pre-trust user-chosen project folders so `codex -p sonata` boots without its
-   * directory-trust dialog. Default false: the dialog is codex's prompt-injection
-   * defense, and Sonata leaves it in place for folders the user opens unless they
-   * opt in here. Sonata-created chat folders are ALWAYS pre-trusted regardless of
-   * this flag (the trust question is vacuous for an empty dir Sonata just made) —
-   * that policy lives in the controller, not this setting.
-   */
-  autoTrustProjectFolders: boolean;
   /** The model new Codex sessions start on (copy-at-entry, the Codex twin of
    *  `ClaudeSettings.defaultModel`). A CONCRETE alias, never null. Validated by
    *  string presence only; the settings menu clamps which effort a model can
@@ -60,8 +51,6 @@ export interface CodexSettings {
 export const DEFAULT_CODEX_SETTINGS: CodexSettings = {
   // Codex's own default (workspace-write, ask on escalation).
   defaultPermissionMode: "ask-for-approval",
-  // Preserve codex's directory-trust prompt for user-chosen folders by default.
-  autoTrustProjectFolders: false,
   // Today's hardcoded launch defaults (state.ts createInitialState) — zero
   // behavior drift for an install that never touches the new setting.
   defaultModel: "gpt-5.6-sol",
@@ -95,11 +84,6 @@ export function normalizeCodexSettings(value: unknown): CodexSettings {
   }
   return {
     defaultPermissionMode: normalizeCodexPermissionDefault(value),
-    // Absent (a pre-toggle file) or non-boolean → the safe default (prompt on).
-    autoTrustProjectFolders:
-      typeof value.autoTrustProjectFolders === "boolean"
-        ? value.autoTrustProjectFolders
-        : DEFAULT_CODEX_SETTINGS.autoTrustProjectFolders,
     // A non-empty string is a concrete model alias; anything else falls back.
     defaultModel:
       typeof value.defaultModel === "string" && value.defaultModel

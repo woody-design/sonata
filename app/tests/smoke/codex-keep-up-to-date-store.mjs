@@ -8,7 +8,7 @@
 // in the other direction would be invisible, so it is pinned here.
 //
 // Mirrors codex-approval-default-store.mjs, the store fence for the sibling
-// boolean (`autoTrustProjectFolders`, which defaults OFF).
+// key (`defaultPermissionMode`, whose legacy migration it pins).
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -36,7 +36,10 @@ const results = {};
 
 // 2) A pre-toggle file (the upgrade case) adopts the default rather than
 //    reading absence as "off". COMPOSED — a codex-settings.json exactly as an
-//    install from before this feature would have written it.
+//    install from before this feature would have written it, RETIRED KEY AND
+//    ALL: `autoTrustProjectFolders` was removed with codex-trust S1 (pre-trust
+//    is unconditional now), so a real legacy file still carries it and the
+//    normalizer must drop it silently rather than choke or carry it forward.
 {
   const preToggle = {
     defaultPermissionMode: "approve-for-me",
@@ -48,9 +51,12 @@ const results = {};
   assert.equal(normalized.keepCodexUpToDate, true, "an upgrading install opts IN");
   // …and nothing else about their file moves.
   assert.equal(normalized.defaultPermissionMode, "approve-for-me", "their permission default holds");
-  assert.equal(normalized.autoTrustProjectFolders, true, "their trust default holds");
   assert.equal(normalized.defaultModel, "gpt-5.6-sol", "their model default holds");
-  results.preToggleFile = "adopts the default, disturbs nothing else";
+  assert.ok(
+    !("autoTrustProjectFolders" in normalized),
+    "the retired trust flag is dropped, not carried forward",
+  );
+  results.preToggleFile = "adopts the default, drops the retired key, disturbs nothing else";
 }
 
 // 3) Both values round-trip through the real atomic write.

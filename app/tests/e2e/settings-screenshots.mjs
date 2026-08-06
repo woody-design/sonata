@@ -73,9 +73,9 @@ try {
 
   // Dark-mode ON state: the neutral system inverts ink in dark, so the ON
   // track is bright — the one state where thumb/track contrast can silently
-  // die. Worth a standing frame. Scope to the Remote control switch — two
-  // switches live in the overlay now (Remote control + Permissions' Project
-  // folder trust), so a bare `.settings-switch` would be strict-mode ambiguous.
+  // die. Worth a standing frame. Scope to the Remote control switch — more than
+  // one switch lives in the overlay (Remote control, Keep Codex up to date), so
+  // a bare `.settings-switch` would be strict-mode ambiguous.
   await page
     .locator('.settings-group[aria-label="Remote control"] .settings-switch')
     .click();
