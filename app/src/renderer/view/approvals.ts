@@ -52,16 +52,36 @@ export function initApprovalsView(stateRef: RendererState): void {
  *  approval (incl. its expired variant — the request still blocks the turn)
  *  or an asking question form. The answered receipt is a passive trace — it
  *  stays visible ABOVE the returned composer, never withholding it. */
-let drawerWasBlocking = false;
-
-function updateDrawerActive(): void {
-  const blocking =
-    !elements.approvalBanner.classList.contains("hidden") ||
-    (!elements.optionPromptCard.classList.contains("hidden") &&
-      elements.optionPromptCard.dataset.state === "asking") ||
+function drawerIsBlocking(): boolean {
+  const view = activeTaskView(state);
+  if (!view) {
+    return false;
+  }
+  const parkedControlConfirm = Boolean(
+    view.controlSwitch && view.controlSwitch.phase === "parked" && view.controlSwitch.dialog,
+  );
+  return (
+    // Each arm mirrors exactly what its own renderer shows the card for.
+    Boolean(view.pendingApproval) ||
+    Boolean(view.pendingOptionPrompt) ||
     // A PARKED recognized-confirm relay (S7) owns the slot the same way — the CLI
     // asked, the user must answer here (or the co-visible Terminal) to unblock.
-    !elements.controlConfirmCard.classList.contains("hidden");
+    parkedControlConfirm
+  );
+}
+
+/** The blocking value of the last completed update — the other half of an edge.
+ *  View-truth, like the resume checkbox binding above: it remembers what the
+ *  user was last shown, which is not something the core state models. */
+let drawerWasBlocking = false;
+
+/** Called by all three drawer renderers. Reading the answer from STATE (not from
+ *  the classList of cards that are mid-update) is what makes that safe: the three
+ *  calls inside one render pass now compute the same value, so the transition can
+ *  no longer be edge-detected against a half-painted screen — which is how the
+ *  caret used to be handed back while another drawer was still opening. */
+function updateDrawerActive(): void {
+  const blocking = drawerIsBlocking();
   elements.composer.classList.toggle("drawer-active", blocking);
   if (drawerWasBlocking && !blocking) {
     // The drawer resolved — it's the user's turn again; hand the caret back
@@ -177,6 +197,48 @@ export function renderApproval(): void {
 }
 
 // ── The question drawer (AskUserQuestion) — stepped 1/N + Review (S2) ────────
+//
+// NODE IDENTITY (S1, 2026-08-06). The free-text row is a field the user types
+// into, and such a field must keep ONE DOM node for its whole life: focus, caret
+// and — the reason a focus snapshot cannot stand in for this — the browser's IME
+// composition all live on the node, so a rebuild ends a half-typed Chinese word.
+// This card used to `replaceChildren` a freshly built form on EVERY render, which
+// is why a click into the field died a fraction of a second later.
+//
+// So the form is RECONCILED IN PLACE for the lifetime of one pending prompt
+// (model: view/rename-editor.ts). Persisted, and never detached while that prompt
+// stands: the form root, its heading/scroll/footer boxes, and — per question step
+// — the question block, its options container and the free-text row. Everything
+// else is rebuilt per render exactly as before (the heading's own children, the
+// footer's, the question head, the option buttons, the whole Review step): none
+// of it is typed into, and replacing a container's CHILDREN never detaches the
+// sibling the caret lives in.
+
+interface ProtectedFreeText {
+  row: HTMLElement;
+  input: HTMLTextAreaElement;
+}
+
+interface ProtectedQuestionStep {
+  index: number;
+  block: HTMLElement;
+  head: HTMLElement;
+  options: HTMLElement;
+  /** Single-select questions only (P9f: free text is not injectable on multi). */
+  freeText: ProtectedFreeText | null;
+}
+
+interface ProtectedOptionPromptForm {
+  /** The pending prompt this form belongs to — its identity key. */
+  toolUseId: string;
+  root: HTMLElement;
+  heading: HTMLElement;
+  scroll: HTMLElement;
+  footer: HTMLElement;
+  step: ProtectedQuestionStep | null;
+}
+
+let protectedOptionPromptForm: ProtectedOptionPromptForm | null = null;
 
 export function renderOptionPrompt(): void {
   const view = activeTaskView(state);
@@ -184,6 +246,7 @@ export function renderOptionPrompt(): void {
   const pending = view?.pendingOptionPrompt ?? null;
   const receipt = view?.optionPromptReceipt ?? null;
   if (!view || (!pending && !receipt)) {
+    protectedOptionPromptForm = null;
     card.classList.add("hidden");
     card.removeAttribute("data-state");
     card.replaceChildren();
@@ -193,12 +256,22 @@ export function renderOptionPrompt(): void {
   card.classList.remove("hidden");
   if (pending) {
     card.dataset.state = "asking";
-    card.replaceChildren(renderOptionPromptForm(view, pending));
+    reconcileOptionPromptForm(card, view, pending);
   } else if (receipt) {
+    // The prompt is answered: its form (and the field inside it) is over.
+    protectedOptionPromptForm = null;
     card.dataset.state = "answered";
     card.replaceChildren(renderOptionPromptReceiptCard(receipt));
   }
   updateDrawerActive();
+}
+
+/** The live view IFF it still owns the prompt a persisted node was built for.
+ *  The identity check is what keeps a late event from a superseded field (or a
+ *  switched-away task) writing into someone else's drafts. */
+function viewOwningOptionPrompt(toolUseId: string): TaskViewState | null {
+  const view = activeTaskView(state);
+  return view?.pendingOptionPrompt?.toolUseId === toolUseId ? view : null;
 }
 
 // ── Recognized-confirm relay drawer (S7 revision 3) ─────────────────────────
@@ -274,12 +347,18 @@ function claudeTargetLabel(kind: "model" | "effort", value: string): string {
   return options.find((option) => option.value === value)?.label ?? value;
 }
 
+/** The dialog this card currently has mounted, or null when it shows nothing.
+ *  Same species as the question drawer's form key: one parked dialog, one set of
+ *  row buttons, for as long as it stands. */
+let mountedControlConfirmKey: string | null = null;
+
 export function renderControlConfirm(): void {
   const view = activeTaskView(state);
   const card = elements.controlConfirmCard;
   const cs = view?.controlSwitch ?? null;
   const parked = cs && cs.phase === "parked" && cs.dialog ? cs : null;
   if (!view || !parked || !parked.dialog) {
+    mountedControlConfirmKey = null;
     card.classList.add("hidden");
     card.removeAttribute("data-state");
     card.replaceChildren();
@@ -289,8 +368,17 @@ export function renderControlConfirm(): void {
   card.classList.remove("hidden");
   card.dataset.state = "asking";
   const provider = view.task?.provider === "codex" ? "codex" : "claude";
-  const content = controlConfirmContent(provider, parked.kind, parked.value, parked.dialog);
-  card.replaceChildren(renderControlConfirmForm(content));
+  // The whole card is a pure function of these four — nothing in it changes
+  // between renders of the same parked dialog. So rebuild it only when the
+  // dialog itself changes: repainting identical rows under the user's pointer
+  // is the same defect class the question drawer had (a click that lands on a
+  // node about to be destroyed, and keyboard focus dropped from a row).
+  const key = `${provider}|${parked.dialog}|${parked.kind}|${parked.value}`;
+  if (key !== mountedControlConfirmKey || card.childElementCount === 0) {
+    const content = controlConfirmContent(provider, parked.kind, parked.value, parked.dialog);
+    card.replaceChildren(renderControlConfirmForm(content));
+    mountedControlConfirmKey = key;
+  }
   updateDrawerActive();
 }
 
@@ -353,10 +441,15 @@ function renderControlConfirmForm(content: ControlConfirmContent): HTMLElement {
   return root;
 }
 
-function renderOptionPromptForm(
+/** One render of the asking form: the persisted skeleton is reused (or built on
+ *  the first render of this prompt), and everything inside it is brought up to
+ *  date. Structure is identical to the form this replaced — it is the same tree,
+ *  written so the parts the user can be inside are never rebuilt. */
+function reconcileOptionPromptForm(
+  card: HTMLElement,
   view: TaskViewState,
   prompt: OptionPromptDetectedEvent["payload"],
-): HTMLElement {
+): void {
   const busy = view.optionPromptBusy;
   const interactive = !busy;
   const questionCount = prompt.questions.length;
@@ -365,17 +458,59 @@ function renderOptionPromptForm(
   // would land on Review, never an empty pane.
   const step = Math.max(0, Math.min(view.optionPromptStep, questionCount));
   const onReview = step === questionCount;
+  const currentAnswered =
+    !onReview && optionPromptDraftAnswered(prompt.questions[step]!, view.optionPromptDrafts[step]);
 
+  const form = mountOptionPromptForm(card, prompt.toolUseId);
+  fillOptionPromptHeading(form, view, prompt, step, { interactive, onReview, currentAnswered });
+  if (onReview) {
+    form.step = null;
+    form.scroll.replaceChildren(renderReviewStep(view, prompt, interactive));
+  } else {
+    reconcileQuestionStep(form, view, prompt, step, interactive);
+  }
+  fillOptionPromptFooter(form, view, prompt, step, { busy, interactive, onReview, currentAnswered });
+}
+
+/** The persisted skeleton for one pending prompt: root > [heading, scroll,
+ *  footer]. Reused as long as the prompt identity holds AND it is still the
+ *  card's own child, so an outside `replaceChildren` (a receipt, a task switch)
+ *  can never leave us syncing a detached tree. */
+function mountOptionPromptForm(card: HTMLElement, toolUseId: string): ProtectedOptionPromptForm {
+  const existing = protectedOptionPromptForm;
+  if (existing && existing.toolUseId === toolUseId && existing.root.parentElement === card) {
+    return existing;
+  }
   const root = document.createElement("div");
   root.className = "option-prompt-body";
-
-  // ── Header row: eyebrow · step indicator · chevrons · ✕ ──────────────────
   const heading = document.createElement("div");
   heading.className = "option-prompt-heading";
+  const scroll = document.createElement("div");
+  scroll.className = "option-prompt-scroll";
+  // Footer: review = Send; question steps = the one Next home (S5). Always
+  // present (every step has one of the two), so it is part of the skeleton.
+  const footer = document.createElement("div");
+  footer.className = "option-prompt-actions";
+  root.append(heading, scroll, footer);
+  const form: ProtectedOptionPromptForm = { toolUseId, root, heading, scroll, footer, step: null };
+  protectedOptionPromptForm = form;
+  card.replaceChildren(root);
+  return form;
+}
+
+/** Header row: eyebrow · step indicator · chevrons · ✕. */
+function fillOptionPromptHeading(
+  form: ProtectedOptionPromptForm,
+  view: TaskViewState,
+  prompt: OptionPromptDetectedEvent["payload"],
+  step: number,
+  flags: { interactive: boolean; onReview: boolean; currentAnswered: boolean },
+): void {
+  const { interactive, onReview, currentAnswered } = flags;
+  const questionCount = prompt.questions.length;
   const eyebrow = document.createElement("p");
   eyebrow.className = "eyebrow";
   eyebrow.textContent = `${providerLabel(view.task?.provider ?? "claude")} is asking`;
-  heading.append(eyebrow);
 
   const nav = document.createElement("div");
   nav.className = "drawer-nav";
@@ -398,8 +533,6 @@ function renderOptionPromptForm(
   next.className = "drawer-nav-button";
   next.textContent = "›";
   next.setAttribute("aria-label", "Next question");
-  const currentAnswered =
-    !onReview && optionPromptDraftAnswered(prompt.questions[step]!, view.optionPromptDrafts[step]);
   next.disabled = !interactive || onReview || !currentAnswered;
   next.addEventListener("click", () => actions.setOptionPromptStep(view, step + 1));
   const dismiss = document.createElement("button");
@@ -415,22 +548,18 @@ function renderOptionPromptForm(
   } else {
     nav.append(dismiss);
   }
-  heading.append(nav);
-  root.append(heading);
+  form.heading.replaceChildren(eyebrow, nav);
+}
 
-  const scroll = document.createElement("div");
-  scroll.className = "option-prompt-scroll";
-  if (onReview) {
-    scroll.append(renderReviewStep(view, prompt, interactive));
-  } else {
-    scroll.append(renderQuestionStep(view, prompt, step, interactive));
-  }
-  root.append(scroll);
-
-  // ── Footer: review = Send; question steps = the one Next home (S5) ──────
+function fillOptionPromptFooter(
+  form: ProtectedOptionPromptForm,
+  view: TaskViewState,
+  prompt: OptionPromptDetectedEvent["payload"],
+  step: number,
+  flags: { busy: boolean; interactive: boolean; onReview: boolean; currentAnswered: boolean },
+): void {
+  const { busy, interactive, onReview, currentAnswered } = flags;
   const question = onReview ? null : prompt.questions[step]!;
-  const footActions = document.createElement("div");
-  footActions.className = "option-prompt-actions";
   if (onReview) {
     const hint = document.createElement("span");
     hint.className = "option-prompt-hint";
@@ -444,168 +573,249 @@ function renderOptionPromptForm(
     send.addEventListener("click", () => {
       actions.answerOptionPrompt();
     });
-    footActions.append(hint, send);
-    root.append(footActions);
-  } else if (question) {
-    // ONE home for the explicit Next on every question step (S5): the footer,
-    // right-aligned — never inside the free-text field it used to crowd.
-    // Multi-select: always present, disabled until a toggle (toggling can't
-    // imply "done"). Single-select: hidden until the free-text draft has
-    // content (picks auto-advance). Advance = next unanswered, else Review.
-    const tag = document.createElement("span");
-    tag.className = "option-prompt-multi-tag";
-    tag.textContent = question.multiSelect ? "choose one or more" : "Or answer in the CLI";
-    const nextButton = document.createElement("button");
-    nextButton.type = "button";
-    nextButton.className = "primary option-prompt-step-next";
-    nextButton.textContent = "Next";
-    nextButton.disabled = !interactive || !currentAnswered;
-    nextButton.classList.toggle(
-      "hidden",
-      !question.multiSelect && !(view.optionPromptDrafts[step]?.text ?? "").trim(),
-    );
-    nextButton.addEventListener("click", () => actions.advanceOptionPromptStep(view, step));
-    footActions.append(tag, nextButton);
-    root.append(footActions);
+    form.footer.replaceChildren(hint, send);
+    return;
   }
-  return root;
+  if (!question) {
+    form.footer.replaceChildren();
+    return;
+  }
+  // ONE home for the explicit Next on every question step (S5): the footer,
+  // right-aligned — never inside the free-text field it used to crowd.
+  // Multi-select: always present, disabled until a toggle (toggling can't
+  // imply "done"). Single-select: hidden until the free-text draft has
+  // content (picks auto-advance). Advance = next unanswered, else Review.
+  const tag = document.createElement("span");
+  tag.className = "option-prompt-multi-tag";
+  tag.textContent = question.multiSelect ? "choose one or more" : "Or answer in the CLI";
+  const nextButton = document.createElement("button");
+  nextButton.type = "button";
+  nextButton.className = "primary option-prompt-step-next";
+  nextButton.textContent = "Next";
+  nextButton.disabled = !interactive || !currentAnswered;
+  nextButton.classList.toggle(
+    "hidden",
+    !question.multiSelect && !(view.optionPromptDrafts[step]?.text ?? "").trim(),
+  );
+  nextButton.addEventListener("click", () => actions.advanceOptionPromptStep(view, step));
+  form.footer.replaceChildren(tag, nextButton);
 }
 
-function renderQuestionStep(
+/** The question step, reconciled: its block/options/free-text row persist for as
+ *  long as the drawer stands on this step; the head copy and the option buttons
+ *  are rebuilt, the buttons landing BEFORE the free-text row so that row (and the
+ *  caret in it) is never detached. */
+function reconcileQuestionStep(
+  form: ProtectedOptionPromptForm,
   view: TaskViewState,
   prompt: OptionPromptDetectedEvent["payload"],
   qIndex: number,
   interactive: boolean,
-): HTMLElement {
+): void {
   const question = prompt.questions[qIndex]!;
   const draft = view.optionPromptDrafts[qIndex];
-  const block = document.createElement("div");
-  block.className = "option-prompt-question";
-  block.classList.toggle("multi", question.multiSelect);
+  let step = form.step;
+  if (!step || step.index !== qIndex) {
+    // A different question is a different field — the old one's life is over.
+    step = createQuestionStep(form.toolUseId, question, qIndex);
+    form.step = step;
+    form.scroll.replaceChildren(step.block);
+  }
 
-  const qHead = document.createElement("div");
-  qHead.className = "option-prompt-question-head";
   const badge = document.createElement("span");
   badge.className = "option-prompt-badge";
   badge.textContent = question.header;
   const qText = document.createElement("strong");
   qText.textContent = question.question;
-  qHead.append(badge, qText);
-  block.append(qHead);
+  step.head.replaceChildren(badge, qText);
 
-  const options = document.createElement("div");
-  options.className = "option-prompt-options";
-  question.options.forEach((option, oIndex) => {
-    const selected = (draft?.optionIndices ?? []).includes(oIndex);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "option-prompt-option";
-    button.classList.toggle("checkbox", question.multiSelect);
-    button.classList.toggle("selected", selected);
-    button.setAttribute("aria-pressed", String(selected));
-    button.disabled = !interactive;
-
-    const marker = document.createElement("span");
-    marker.className = "option-prompt-marker";
-    marker.textContent = question.multiSelect ? (selected ? "☑" : "☐") : String(oIndex + 1);
-    const text = document.createElement("span");
-    text.className = "option-prompt-option-text";
-    const label = document.createElement("span");
-    label.className = "option-prompt-option-label";
-    label.textContent = option.label;
-    text.append(label);
-    if (option.description) {
-      const desc = document.createElement("span");
-      desc.className = "option-prompt-option-desc";
-      desc.textContent = option.description;
-      text.append(desc);
+  const buttons = question.options.map((option, oIndex) =>
+    renderQuestionOption(form.toolUseId, question, qIndex, option, oIndex, {
+      selected: (draft?.optionIndices ?? []).includes(oIndex),
+      interactive,
+    }),
+  );
+  const rowNode = step.freeText?.row ?? null;
+  for (const child of Array.from(step.options.children)) {
+    if (child !== rowNode) {
+      child.remove();
     }
-    button.append(marker, text);
-    if (interactive) {
-      button.addEventListener("click", () => {
-        actions.selectOptionPromptChoice(view, qIndex, oIndex);
-      });
-    }
-    options.append(button);
-  });
-
-  // Free-text row — single-select questions only (P9f: not injectable on
-  // multi). The row IS the composer's cameo inside the drawer.
-  if (!question.multiSelect) {
-    const row = document.createElement("div");
-    row.className = "option-prompt-freetext";
-    row.classList.toggle("selected", Boolean((draft?.text ?? "").trim()));
-    const icon = document.createElement("span");
-    icon.className = "option-prompt-marker freetext-marker";
-    icon.textContent = "✎";
-    // A one-row textarea that grows with the text (CSS `field-sizing: content`
-    // — the standard auto-grow; no JS measuring, no caret jumps; capped by
-    // max-height then scrolls). The ANSWER stays one logical line: the TUI's
-    // editor is single-line (the S1 grammar rejects CR/LF), so Enter never
-    // inserts a newline here — long answers soft-wrap, pasted newlines are
-    // flattened to spaces.
-    const input = document.createElement("textarea");
-    input.rows = 1;
-    input.className = "option-prompt-freetext-input";
-    input.placeholder = "Type your own answer…";
-    input.value = draft?.text ?? "";
-    input.disabled = !interactive;
-    input.addEventListener("input", () => {
-      if (/[\r\n]/.test(input.value)) {
-        // Delta-aware caret restore: newline RUNS collapse to one space, so
-        // sanitize the head separately to know how much shrank before the caret.
-        const caret = input.selectionStart ?? input.value.length;
-        const head = input.value.slice(0, caret).replace(/[\r\n]+/g, " ");
-        input.value = input.value.replace(/[\r\n]+/g, " ");
-        const position = Math.min(head.length, input.value.length);
-        input.setSelectionRange(position, position);
-      }
-      actions.setOptionPromptText(view, qIndex, input.value);
-      // Local DOM refresh only — a full rebuild would drop focus/caret. The
-      // row highlight, the Next affordance, and any stale option selection
-      // update in place; everything else catches up on the next render.
-      const hasText = Boolean(input.value.trim());
-      row.classList.toggle("selected", hasText);
-      const footerNext = elements.optionPromptCard.querySelector<HTMLButtonElement>(
-        ".option-prompt-step-next",
-      );
-      if (footerNext) {
-        footerNext.classList.toggle("hidden", !hasText);
-        footerNext.disabled = !hasText;
-      }
-      if (hasText) {
-        options.querySelectorAll(".option-prompt-option.selected").forEach((optionButton) => {
-          optionButton.classList.remove("selected");
-          optionButton.setAttribute("aria-pressed", "false");
-        });
-      }
-      // The header next-chevron gates on draftAnswered; keep it honest across
-      // keystrokes too (typing clears a pick; deleting text can un-answer the
-      // question entirely — S2 review F7).
-      const nextChevron = elements.optionPromptCard.querySelector<HTMLButtonElement>(
-        '.drawer-nav-button[aria-label="Next question"]',
-      );
-      if (nextChevron) {
-        nextChevron.disabled = !optionPromptDraftAnswered(question, view.optionPromptDrafts[qIndex]);
-      }
-    });
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        // ALWAYS swallow Enter: newline insertion is meaningless here (the
-        // TUI editor is single-line) and an unhandled Enter once triggered
-        // the composer form's implicit submission (S2 review B2).
-        event.preventDefault();
-        if (!event.isComposing && !event.shiftKey && input.value.trim()) {
-          actions.advanceOptionPromptStep(view, qIndex);
-        }
-      }
-    });
-    row.append(icon, input);
-    options.append(row);
+  }
+  for (const button of buttons) {
+    step.options.insertBefore(button, rowNode);
   }
 
-  block.append(options);
-  return block;
+  if (step.freeText) {
+    syncFreeText(step.freeText, draft, interactive);
+  }
+}
+
+function createQuestionStep(
+  toolUseId: string,
+  question: OptionPromptDetectedEvent["payload"]["questions"][number],
+  qIndex: number,
+): ProtectedQuestionStep {
+  const block = document.createElement("div");
+  block.className = "option-prompt-question";
+  block.classList.toggle("multi", question.multiSelect);
+
+  const head = document.createElement("div");
+  head.className = "option-prompt-question-head";
+  const options = document.createElement("div");
+  options.className = "option-prompt-options";
+  block.append(head, options);
+
+  // Free-text row — single-select questions only (P9f: not injectable on
+  // multi). The row IS the composer's cameo inside the drawer, so it is the
+  // node this whole reconciler exists to keep alive.
+  const freeText = question.multiSelect ? null : createFreeTextRow(toolUseId, qIndex, options);
+  if (freeText) {
+    options.append(freeText.row);
+  }
+  return { index: qIndex, block, head, options, freeText };
+}
+
+function renderQuestionOption(
+  toolUseId: string,
+  question: OptionPromptDetectedEvent["payload"]["questions"][number],
+  qIndex: number,
+  option: OptionPromptDetectedEvent["payload"]["questions"][number]["options"][number],
+  oIndex: number,
+  flags: { selected: boolean; interactive: boolean },
+): HTMLButtonElement {
+  const { selected, interactive } = flags;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "option-prompt-option";
+  button.classList.toggle("checkbox", question.multiSelect);
+  button.classList.toggle("selected", selected);
+  button.setAttribute("aria-pressed", String(selected));
+  button.disabled = !interactive;
+
+  const marker = document.createElement("span");
+  marker.className = "option-prompt-marker";
+  marker.textContent = question.multiSelect ? (selected ? "☑" : "☐") : String(oIndex + 1);
+  const text = document.createElement("span");
+  text.className = "option-prompt-option-text";
+  const label = document.createElement("span");
+  label.className = "option-prompt-option-label";
+  label.textContent = option.label;
+  text.append(label);
+  if (option.description) {
+    const desc = document.createElement("span");
+    desc.className = "option-prompt-option-desc";
+    desc.textContent = option.description;
+    text.append(desc);
+  }
+  button.append(marker, text);
+  if (interactive) {
+    button.addEventListener("click", () => {
+      const owner = viewOwningOptionPrompt(toolUseId);
+      if (owner) {
+        actions.selectOptionPromptChoice(owner, qIndex, oIndex);
+      }
+    });
+  }
+  return button;
+}
+
+/** The persisted free-text field. Its listeners are bound ONCE, so they read the
+ *  live view through the identity check rather than closing over the render that
+ *  happened to create them. */
+function createFreeTextRow(
+  toolUseId: string,
+  qIndex: number,
+  options: HTMLElement,
+): ProtectedFreeText {
+  const row = document.createElement("div");
+  row.className = "option-prompt-freetext";
+  const icon = document.createElement("span");
+  icon.className = "option-prompt-marker freetext-marker";
+  icon.textContent = "✎";
+  // A one-row textarea that grows with the text (CSS `field-sizing: content`
+  // — the standard auto-grow; no JS measuring, no caret jumps; capped by
+  // max-height then scrolls). The ANSWER stays one logical line: the TUI's
+  // editor is single-line (the S1 grammar rejects CR/LF), so Enter never
+  // inserts a newline here — long answers soft-wrap, pasted newlines are
+  // flattened to spaces.
+  const input = document.createElement("textarea");
+  input.rows = 1;
+  input.className = "option-prompt-freetext-input";
+  input.placeholder = "Type your own answer…";
+  input.addEventListener("input", () => {
+    const owner = viewOwningOptionPrompt(toolUseId);
+    const question = owner?.pendingOptionPrompt?.questions[qIndex];
+    if (!owner || !question) {
+      return;
+    }
+    if (/[\r\n]/.test(input.value)) {
+      // Delta-aware caret restore: newline RUNS collapse to one space, so
+      // sanitize the head separately to know how much shrank before the caret.
+      const caret = input.selectionStart ?? input.value.length;
+      const head = input.value.slice(0, caret).replace(/[\r\n]+/g, " ");
+      input.value = input.value.replace(/[\r\n]+/g, " ");
+      const position = Math.min(head.length, input.value.length);
+      input.setSelectionRange(position, position);
+    }
+    actions.setOptionPromptText(owner, qIndex, input.value);
+    // Local DOM refresh only — a full rebuild would drop focus/caret. The
+    // row highlight, the Next affordance, and any stale option selection
+    // update in place; everything else catches up on the next render.
+    const hasText = Boolean(input.value.trim());
+    row.classList.toggle("selected", hasText);
+    const footerNext = elements.optionPromptCard.querySelector<HTMLButtonElement>(
+      ".option-prompt-step-next",
+    );
+    if (footerNext) {
+      footerNext.classList.toggle("hidden", !hasText);
+      footerNext.disabled = !hasText;
+    }
+    if (hasText) {
+      options.querySelectorAll(".option-prompt-option.selected").forEach((optionButton) => {
+        optionButton.classList.remove("selected");
+        optionButton.setAttribute("aria-pressed", "false");
+      });
+    }
+    // The header next-chevron gates on draftAnswered; keep it honest across
+    // keystrokes too (typing clears a pick; deleting text can un-answer the
+    // question entirely — S2 review F7).
+    const nextChevron = elements.optionPromptCard.querySelector<HTMLButtonElement>(
+      '.drawer-nav-button[aria-label="Next question"]',
+    );
+    if (nextChevron) {
+      nextChevron.disabled = !optionPromptDraftAnswered(question, owner.optionPromptDrafts[qIndex]);
+    }
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      // ALWAYS swallow Enter: newline insertion is meaningless here (the
+      // TUI editor is single-line) and an unhandled Enter once triggered
+      // the composer form's implicit submission (S2 review B2).
+      event.preventDefault();
+      const owner = viewOwningOptionPrompt(toolUseId);
+      if (owner && !event.isComposing && !event.shiftKey && input.value.trim()) {
+        actions.advanceOptionPromptStep(owner, qIndex);
+      }
+    }
+  });
+  row.append(icon, input);
+  return { row, input };
+}
+
+function syncFreeText(
+  nodes: ProtectedFreeText,
+  draft: OptionPromptDraft | undefined,
+  interactive: boolean,
+): void {
+  const text = draft?.text ?? "";
+  // State is authoritative, but never write through an actively owned input:
+  // assigning value there collapses the browser selection and can terminate an
+  // in-progress composition (the promise rename-editor makes for its own input).
+  if (document.activeElement !== nodes.input && nodes.input.value !== text) {
+    nodes.input.value = text;
+  }
+  nodes.input.disabled = !interactive;
+  nodes.row.classList.toggle("selected", Boolean(text.trim()));
 }
 
 function renderReviewStep(
