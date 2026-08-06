@@ -474,8 +474,10 @@ export function reduceRuntimeEvent(
   }
 
   // task:ready needs no renderer handler: the "Ready" copy keys on the
-  // delivery state's bootLatched (a delivery:state follows every runtime
-  // event), and cli-state consumes task:ready in the main process.
+  // delivery state's bootLatched — the latch opening IS a delivery-state change,
+  // so it arrives on its own `delivery:state` (the controller emits on change,
+  // not per runtime event) — and cli-state consumes task:ready in the main
+  // process.
 
   if (event.type === "task:updated") {
     view.task = event.payload.task;
@@ -577,7 +579,8 @@ export function reduceRuntimeEvent(
     // consults `view.live`, so a just-died background view now clears that guard at
     // once instead of one index refresh later. It is still not evictable — a view
     // that was ever live carries a non-null `deliveryState` (the delivery pump emits
-    // one on every runtime event), and that guard holds it. Same reasoning
+    // on every real state change, of which a live task has at least the boot latch,
+    // and the field is sticky once set), and that guard holds it. Same reasoning
     // `view/banners.ts` already leans on to keep the codex resumable-exit banner
     // alive across a switch-away; noted here so the next reader does not have to
     // re-derive it.

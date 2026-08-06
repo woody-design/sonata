@@ -128,9 +128,10 @@ export function setCodexTrustDialog(taskId: string, open: boolean): void {
  * no future event re-raises it. It does survive, because `clearTaskBanners` fires
  * on a switch-away only for a view `evictDormantTaskView` actually drops, and a
  * task that reached this state was necessarily LIVE in this renderer session,
- * whose delivery pump emits `delivery:state` on every runtime event — so that
- * function's `deliveryState !== null` cue holds the view. Incidental rather than
- * designed; noted so a change to that cue is read as touching this banner too.
+ * whose delivery pump emits `delivery:state` on every real change — of which a
+ * live task has at least the boot latch, and the field is sticky once set — so
+ * that function's `deliveryState !== null` cue holds the view. Incidental rather
+ * than designed; noted so a change to that cue is read as touching this banner too.
  * (The removal path — archive/delete — clears it, which is right: the task is
  * gone and there is nothing left to resume.)
  */

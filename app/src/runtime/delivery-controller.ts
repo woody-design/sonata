@@ -163,6 +163,10 @@ export class DeliveryController {
   // completion precisely because that completion does NOT bump this.
   private deliverySeq = 0;
   private attachmentNotice: string | null = null;
+  // Emit-on-change (S1): the serialized DeliveryTaskState of the last event this
+  // controller actually put on the wire, or null before the first one. See
+  // emitState() for why the contract lives here.
+  private lastEmittedState: string | null = null;
 
   constructor(options: DeliveryControllerOptions) {
     this.taskId = options.taskId;
@@ -971,8 +975,47 @@ export class DeliveryController {
     }
   }
 
+  /**
+   * Publishes the delivery state ONLY when it actually changed.
+   *
+   * pump() runs on every runtime event this controller is handed, and most of
+   * them move nothing — a report refresh, a task metadata update, a transcript
+   * relocation, a CLI-state tick all pumped an untouched queue and announced a
+   * change that had not happened. The renderer correctly reads `delivery:state`
+   * as a content change and full-renders on it, so those announcements were
+   * full renders — each one destroying, among other things, the question
+   * drawer's free-text field under the user's caret.
+   *
+   * MEASURED (2026-08-06, the recorded real-session fixtures under
+   * tests/fixtures/runtime-events): 332 of 591 `delivery:state` events — 56% —
+   * were byte-identical to the state already on the wire. The events that
+   * preceded them are the whole runtime stream, led by pty:data (55),
+   * report:updated (53), task:updated (40) and transcript:located (23), plus 89
+   * that followed another delivery:state directly.
+   *
+   * The fix belongs at the emitter, not at the reducer: an emitted event
+   * represents a real change, so a consumer never has to re-derive whether it
+   * lied. The fingerprint is the serialized payload itself rather than a
+   * hand-picked field list — every field of DeliveryTaskState is display truth,
+   * and a hand-written digest silently swallows the next field added to it.
+   * The payload is small (a few flags plus the queue, normally 0-1 items) and
+   * built here anyway, so serializing it costs nothing at this cadence.
+   *
+   * Consumers that hold state off this event (the renderer's `view.deliveryState`,
+   * `bootLatched`) are unaffected: the value is sticky once set, and every
+   * transition still emits. The one behavior this changes is that a status line
+   * written by another event (an action's error text) is no longer overwritten
+   * within 300ms by a re-announcement of an unchanged delivery state — which is
+   * what that channel was for.
+   */
   private emitState(): void {
-    this.emitEvent("delivery:state", this.state());
+    const next = this.state();
+    const fingerprint = JSON.stringify(next);
+    if (fingerprint === this.lastEmittedState) {
+      return;
+    }
+    this.lastEmittedState = fingerprint;
+    this.emitEvent("delivery:state", next);
   }
 
   private emitReceipt(
