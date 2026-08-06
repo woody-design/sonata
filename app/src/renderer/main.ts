@@ -1731,10 +1731,10 @@ async function persistCodexKeepUpToDate(value: boolean): Promise<void> {
     if (state.settingsOverlay?.codex) {
       state.settingsOverlay.codex.settings = persisted;
     }
-    // No renderer-mirror sync (same reasoning as the trust flag): this drives a
-    // background job and a codex spawn flag in the main process, and no draft
-    // atom follows it. The main side re-reads the store on every evaluation, so
-    // the toggle takes effect on the next cycle and the next spawn — no restart.
+    // No renderer-mirror sync: this drives a background job and a codex spawn
+    // flag in the main process, and no draft atom follows it. The main side
+    // re-reads the store on every evaluation, so the toggle takes effect on the
+    // next cycle and the next spawn — no restart.
   } catch (error) {
     state.status = errorMessage(error);
   }
