@@ -284,6 +284,13 @@ export async function selectSession(taskId: string): Promise<void> {
     const snapshot = await window.sonataRuntime.readSession({ taskId });
     const view = createTaskView(snapshot.task, snapshot.live ? "Ready" : "Idle", snapshot.live);
     view.report = snapshot.report;
+    // Seed the delivery state the same way as the transcript: from the snapshot.
+    // `delivery:state` events are deltas (S1 — they fire on real change), so a
+    // view for a session that booted before this view existed — reopened after
+    // the Reading window was closed, or started headless through the local API —
+    // would otherwise hold null forever and read as "Claude is starting" on a
+    // long-idle session. Null for a dormant session, which is the truth there.
+    view.deliveryState = snapshot.delivery;
     view.transcriptSources = snapshot.sources;
     for (const block of snapshot.blocks) {
       view.transcriptBlockOrder.push(block.id);

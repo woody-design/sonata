@@ -146,6 +146,7 @@
     "e2e:option-prompt-multiselect": "npm run build && node tests/e2e/option-prompt-multiselect.mjs",
     "e2e:question-drawer-focus-storm": "npm run build && node tests/e2e/question-drawer-focus-storm.mjs",
     "e2e:question-drawer-stepper": "npm run build && node tests/e2e/question-drawer-stepper.mjs",
+    "e2e:session-snapshot-delivery-seed": "npm run build && node tests/e2e/session-snapshot-delivery-seed.mjs",
     "e2e:cli-slash-semantic": "npm run build && node tests/e2e/cli-slash-semantic.mjs",
     "e2e:cli-slash-dispatch": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/e2e/cli-slash-dispatch.mjs",
     "e2e:cli-ipc-boundary": "npm run build && node tests/e2e/cli-ipc-boundary.mjs",

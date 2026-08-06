@@ -1,4 +1,4 @@
-import type { Task, TaskStatus } from "./domain";
+import type { DeliveryTaskState, Task, TaskStatus } from "./domain";
 import type { TranscriptBlock, TranscriptSourceRef } from "./transcript";
 import type { RuntimeReportV1 } from "../schemas/runtime-report";
 
@@ -62,4 +62,16 @@ export interface SessionSnapshotResponse {
   report: RuntimeReportV1 | null;
   sources: TranscriptSourceRef[];
   blocks: TranscriptBlock[];
+  /**
+   * The live delivery state as of this read — the SAME value a `delivery:state`
+   * event carries, straight off the controller, not a parallel projection.
+   *
+   * It is here because `delivery:state` events are deltas: they fire when the
+   * delivery state CHANGES (S1), so a view created after the last change would
+   * otherwise never learn the state at all and read as a still-booting session
+   * forever. A new listener pulls current state once, here, and follows the
+   * deltas after. Null for a dormant session — there is no controller, and
+   * "unknown" is the honest answer rather than a fabricated idle state.
+   */
+  delivery: DeliveryTaskState | null;
 }

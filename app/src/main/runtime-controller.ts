@@ -1038,6 +1038,10 @@ export class RuntimeController {
         report: live.runIndex.read(),
         sources: live.providerTranscript.sources(),
         blocks: live.providerTranscript.blocks(),
+        // The delivery state a renderer would otherwise only learn from the next
+        // CHANGE (see the field's own note): a session that booted before this
+        // view existed has already made all of its early transitions.
+        delivery: live.deliveryController.state(),
       };
     }
 
@@ -1070,6 +1074,8 @@ export class RuntimeController {
         report: runIndex.read(),
         sources: transcript.sources(),
         blocks: transcript.blocks(),
+        // Dormant: no controller exists, so there is no delivery state to report.
+        delivery: null,
       };
     } finally {
       transcript.dispose();
