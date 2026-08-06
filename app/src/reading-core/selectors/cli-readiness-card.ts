@@ -93,25 +93,41 @@ export function cliNotInstalledCopy(provider: RuntimeProvider): string {
 }
 
 /**
- * The signed-out statement (D8). Claude calls it "first-run setup" (theme, then
- * login); Codex just "setup" — each is that CLI's own vocabulary for its own
- * screen, so the two sentences are not a template with a hole in it.
+ * The logged-out statement (D8 v2, 2026-08-06).
+ *
+ * One sentence, and the second one is gone on purpose. v1 read "…isn't signed in.
+ * Finish its first-run setup in the terminal window." — a sentence that had to
+ * branch per provider (Claude shows a theme picker before its login, Codex does
+ * not) and that spent its second clause answering "where", which the INTERACTION
+ * now answers: clicking the button brings the CLI window to front, so telling the
+ * user to go there is telling them what they are about to watch happen.
+ *
+ * With the location clause gone the per-provider branch goes with it — the two
+ * sentences really are one template now, which is why this is shorter than the
+ * thing it replaces rather than the same length in different words.
  */
 export function cliSignedOutCopy(provider: RuntimeProvider): string {
-  return provider === "claude"
-    ? "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window."
-    : "Codex CLI isn't signed in. Finish its setup in the terminal window.";
+  return `${cliName(provider)} isn't logged in.`;
 }
 
-/** The two recovery-button labels. Exported for the same reason the sentences are:
- *  the S4 banner offers the same two actions and must name them identically. */
+/** The recovery-button labels. Exported for the same reason the sentences are: the
+ *  S4 banner offers the same actions and must name them identically. */
 export function installActionLabel(provider: RuntimeProvider): string {
   return `Install ${cliName(provider)}`;
 }
 
-export function startActionLabel(provider: RuntimeProvider): string {
-  return `Start ${cliName(provider)}`;
-}
+/**
+ * The login button (D8 v2). A constant, not a function of the provider: the card
+ * and the banner both already name the CLI in the sentence directly above, so
+ * repeating it on the button was saying it twice. No location word either — same
+ * reason the sentence dropped its second clause.
+ *
+ * Note the deliberate divergence from the internals: the action kind stays `start`
+ * and the seam member stays `startCliLogin`, because what Sonata DOES is start the
+ * CLI — the login is what the CLI then asks for. The label names the user's goal,
+ * the identifier names the mechanism; do not "fix" one to match the other.
+ */
+export const LOGIN_ACTION_LABEL = "Log in";
 
 function installAction(provider: RuntimeProvider): CliReadinessCardAction {
   return {
@@ -135,18 +151,18 @@ function startAction(provider: RuntimeProvider): CliReadinessCardAction {
   return {
     kind: "start",
     provider,
-    label: startActionLabel(provider),
-    domId: "cli-readiness-start",
+    label: LOGIN_ACTION_LABEL,
+    domId: "cli-readiness-login",
   };
 }
 
 /**
- * The signed-out card. `actionable` is false while that provider's CLI is ALREADY
- * running in the CLI window: the sentence still holds — finish the setup over
- * there — but offering to start a second copy of a CLI that is on screen waiting
- * for input would be an invitation to make a mess. The copy is not re-written for
- * that case; a button is simply absent, which is the subtraction the house prefers
- * over a second sentence.
+ * The logged-out card. `actionable` is false while that provider's CLI is ALREADY
+ * running in the CLI window: the sentence still holds — it is not logged in — but
+ * offering to start a second copy of a CLI that is on screen waiting for input
+ * would be an invitation to make a mess. The copy is not re-written for that case;
+ * a button is simply absent, which is the subtraction the house prefers over a
+ * second sentence.
  */
 function signedOutCard(provider: RuntimeProvider, actionable: boolean): CliReadinessCardModel {
   return {
@@ -214,7 +230,7 @@ function runCard(run: CliSetupRun): CliReadinessCardModel | null {
       return {
         kind: "installing",
         provider: run.provider,
-        copy: `Installing ${productName(run.provider)} — follow along in the terminal window.`,
+        copy: `Installing ${productName(run.provider)} — follow along in the CLI window.`,
         actions: [],
       };
     }
@@ -224,7 +240,7 @@ function runCard(run: CliSetupRun): CliReadinessCardModel | null {
       // Deliberately says nothing about WHY: Sonata does not read the installer's
       // output (L7), so any diagnosis here would be invented. It points at the
       // window where the real output is.
-      copy: "Installation didn't finish — check the output in the terminal window.",
+      copy: "Installation didn't finish — check the output in the CLI window.",
       actions: [retryAction(run.provider)],
     };
   }

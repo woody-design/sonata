@@ -50,8 +50,7 @@ import { createCliReadinessFixture } from "./helpers/cli-readiness-fixture.mjs";
  *  follows it and the paint that follows that. */
 const WINDOW_WAIT_MS = 15_000;
 
-const SIGNED_OUT_COPY =
-  "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window.";
+const SIGNED_OUT_COPY = "Claude Code CLI isn't logged in.";
 const ABSENT_COPY = "Claude Code CLI not installed.";
 const STARTING_PLACEHOLDER = "Claude is starting — your message will send when it's ready";
 const YIELDED_PLACEHOLDER = "Claude can't start yet";
@@ -136,7 +135,7 @@ try {
 
   // ── C. The pointer, and the heal through the task's OWN pty ──────────────
   //
-  // The banner offers NO Start button here, and that is the review-round-1 fix. This
+  // The banner offers NO "Log in" button here, and that is the review-round-1 fix. This
   // session's own CLI is alive and parked on the login screen the copy points at, so
   // a second copy would hide it — and finishing the login in that second copy would
   // turn the machine facts green, retire this banner on them, and leave THIS pty

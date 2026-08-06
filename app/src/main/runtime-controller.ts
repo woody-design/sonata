@@ -2431,8 +2431,8 @@ export class RuntimeController {
       // It also guards a true-but-wrong accusation the probe can genuinely produce
       // (review round 1, O1): a Claude Code running on `ANTHROPIC_API_KEY` works
       // perfectly while `claude auth status --json` reports `loggedIn: false`. The
-      // fact is not a lie, but "isn't signed in — finish its setup" is the wrong
-      // thing to say over a session answering questions. The renderer has a second
+      // fact is not a lie, but "isn't logged in" is the wrong thing to say over a
+      // session answering questions. The renderer has a second
       // net for the same class (a latched session clears the register), and this is
       // the cheaper, earlier one: nothing is emitted at all.
       if (active.terminalHost.activeRunId() !== null) {

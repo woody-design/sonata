@@ -577,8 +577,8 @@ launch would be a claim about a machine nobody has looked at yet. The renderer
 pulls once (`cli-readiness:read`) and subscribes (`cli-readiness:changed`), and
 the push fires **only on a deep-compare change**, so a re-probe that learns
 nothing is silent. The IPC has no write side, by policy: Sonata never installs or
-signs in on the user's behalf — those run visibly in the terminal window, and
-their effect arrives back here as a changed fact.
+logs in on the user's behalf — those run visibly in the CLI window, and their
+effect arrives back here as a changed fact.
 
 **What a new chat opens on: last-used, not a default.** The first consumer of
 those facts is not UI at all — it is the New Chat draft's provider. There is no
@@ -625,7 +625,11 @@ The probe is the READ half. The card and the setup run are the other two:
 `reading-core/selectors/cli-readiness-card.ts` maps (draft provider × facts × live
 setup run) to a card model or null, and the view only paints it — so the whole
 presence matrix is fenced row by row, including the rows that must show
-*nothing*, which no screenshot can check. Three rules carry it: `unknown` shows
+*nothing*, which no screenshot can check. That file is also the **one home of the
+copy**: the S4 banner imports its sentences and labels rather than respelling them
+(D10 — one fact, two mounts), so a copy ruling moves both surfaces at once and the
+two can never disagree about one machine. D8 v2 (2026-08-06) exercised exactly
+that: one edit there re-worded both. Three rules carry it: `unknown` shows
 nothing (the permissive rule again); a **healthy provider shows nothing whatever a
 run did**, so a failed install for a CLI that is nonetheless present cannot put a
 "didn't finish" card over a working machine; and the card is about the DRAFT's

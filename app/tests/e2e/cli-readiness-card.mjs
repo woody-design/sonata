@@ -107,7 +107,7 @@ try {
     .waitFor({ state: "visible" });
   assert.equal(
     await main.locator(".cli-readiness-copy").textContent(),
-    "Installing Claude Code — follow along in the terminal window.",
+    "Installing Claude Code — follow along in the CLI window.",
   );
   assert.equal(
     await main.locator(".cli-readiness-action").count(),
@@ -202,7 +202,7 @@ try {
     .waitFor({ state: "visible" });
   assert.equal(
     await main.locator(".cli-readiness-copy").textContent(),
-    "Installation didn't finish — check the output in the terminal window.",
+    "Installation didn't finish — check the output in the CLI window.",
   );
   assert.deepEqual(await main.locator(".cli-readiness-action").allTextContents(), ["Try again"]);
   assert.deepEqual(
@@ -212,7 +212,7 @@ try {
   );
   observed.installFailed = await main.locator(".cli-readiness-copy").textContent();
 
-  // The card says "check the output in the terminal window", so the output has to
+  // The card says "check the output in the CLI window", so the output has to
   // still BE there. (Found in self-review: retiring the grid when the run stopped
   // running deleted the very thing this copy points at.)
   const failedOutput =
@@ -256,10 +256,10 @@ try {
   assert.equal(await card2.getAttribute("data-kind"), "signed-out");
   assert.equal(
     await main2.locator(".cli-readiness-copy").textContent(),
-    "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window.",
+    "Claude Code CLI isn't logged in.",
   );
   assert.deepEqual(await main2.locator(".cli-readiness-action").allTextContents(), [
-    "Start Claude Code CLI",
+    "Log in",
   ]);
   // Installed, and not signed in: the two axes stayed independent all the way to
   // the card, so nobody is offered an install for a CLI they already have.
@@ -267,7 +267,7 @@ try {
 
   const cli2 = await waitForWindow(app, (page) => page.url().endsWith("/terminal.html"));
   cli2.setDefaultTimeout(30_000);
-  await main2.locator("#cli-readiness-start").click();
+  await main2.locator("#cli-readiness-login").click();
   // The CLI itself, in the CLI window, on its own first-run screen. Sonata renders
   // bytes and forwards keys; it parses none of this (D1/D2).
   await cli2.locator(".task-terminal[data-setup-run]").waitFor({ state: "visible" });
@@ -283,7 +283,7 @@ try {
   // copy of a CLI that is waiting for input would only make a mess.
   assert.equal(
     await main2.locator(".cli-readiness-copy").textContent(),
-    "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window.",
+    "Claude Code CLI isn't logged in.",
   );
   assert.equal(await main2.locator(".cli-readiness-action").count(), 0);
   observed.startRunHostsTheCli = "Welcome to Claude Code, no button while it runs";

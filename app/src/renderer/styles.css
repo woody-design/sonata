@@ -930,20 +930,30 @@ body.sidebar-resizing {
   display: none;
 }
 
-/* The app's one ambient call-to-action. Per the Visual ruling (Woody 2026-07-24)
-   the background is the design system's OWN accent — var(--accent), the scarce
-   "only blue", allocated by the owner to this single ambient CTA and expressed
-   through the token so both themes ride its light/dark values (never a literal
-   color — that distinction is why the engineer's original hex was retired and
-   this is fine). Label is white on the fill (--text-on-accent, mode-invariant).
+/* THE ACCENT CTA — one recipe, and now two consumers.
+   Per the Visual ruling (Woody 2026-07-24) the background is the design system's
+   OWN accent — var(--accent), the scarce "only blue", allocated by the owner and
+   expressed through the token so both themes ride its light/dark values (never a
+   literal color — that distinction is why the engineer's original hex was retired
+   and this is fine). Label is white on the fill (--text-on-accent, mode-invariant).
    Hover uses the filled-accent precedent — the quote-comment trigger's
    `transform: scale`, NOT a brightness filter; press settles it back. The
    disabled in-flight state fades via opacity, the sidebar's own disabled-item
    convention (0.55). Scale (2026-07-27): 12px / 24px — chip scale, so the pill
    reads as one quiet element of the footer row beside the 30px Settings icon
-   rather than a banner. This rule owns color + geometry; the labels and the
-   one-click behavior live in view/update-button.ts. */
-.sidebar-update-button {
+   rather than a banner. This rule owns color + geometry; labels and behavior live
+   in the view modules.
+
+   Consumer 2 — the New Chat readiness card's recovery buttons (Woody's S2 visual
+   gate, D8 v2, 2026-08-06): Install / Log in / Try again. Ruled to be the SAME
+   visual and typography as the sidebar pill, so they share the declaration block
+   outright rather than restating it — a second copy of this recipe is a second
+   thing that can drift from the ruling. The earlier scarcity note ("this single
+   ambient CTA") is superseded by the owner's own allocation: the card's buttons are
+   the app's other genuine call to action, and the dual-absent card's two side-by-side
+   fills were ruled acceptable as a symmetric primary choice. */
+.sidebar-update-button,
+.cli-readiness-action {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -959,15 +969,18 @@ body.sidebar-resizing {
   transition: transform 80ms ease;
 }
 
-.sidebar-update-button:hover:not(:disabled) {
+.sidebar-update-button:hover:not(:disabled),
+.cli-readiness-action:hover:not(:disabled) {
   transform: scale(1.02);
 }
 
-.sidebar-update-button:active:not(:disabled) {
+.sidebar-update-button:active:not(:disabled),
+.cli-readiness-action:active:not(:disabled) {
   transform: none;
 }
 
-.sidebar-update-button:disabled {
+.sidebar-update-button:disabled,
+.cli-readiness-action:disabled {
   opacity: 0.55;
 }
 
@@ -3880,16 +3893,20 @@ h2 {
   color: var(--text-primary);
 }
 
-/* — New Chat readiness card (CLI readiness S2, D8/D9) — the preselected
-   provider's CLI is missing or not signed in, so the composer cannot start a
-   session yet. Same voice as the attention banners above (hairline ring, raised
-   surface, one sentence, a pill action) because it is the same KIND of statement:
-   a fact plus a pointer. Two deliberate differences from that family, both
-   forced by content: the copy WRAPS (a banner's one-line ellipsis would truncate
-   "…Finish its first-run setup in the terminal window."), and there is no dismiss
-   — nothing here is a notice to acknowledge, it is a state of the machine that
-   ends when the machine changes. Zero chroma: a missing CLI is a fact to state,
-   not an alarm (chroma stays reserved for needs-you).
+/* — New Chat readiness card (CLI readiness S2, D8 v2 / D9) — the preselected
+   provider's CLI is missing or not logged in, so the composer cannot start a
+   session yet. The CARD keeps the attention banners' voice (hairline ring, raised
+   surface, one sentence) because it is the same kind of statement; its BUTTONS do
+   not, since Woody's visual gate ruled them the accent CTA (see THE ACCENT CTA
+   block) — a fact the user is meant to act on, not merely a pointer, so the action
+   carries the app's one blue.
+
+   Two deliberate differences from the banner family, both forced by content: the
+   copy WRAPS (a banner's one-line ellipsis would truncate the longer install
+   sentences), and there is no dismiss — nothing here is a notice to acknowledge, it
+   is a state of the machine that ends when the machine changes. Chroma stays off
+   the SENTENCE: a missing CLI is a fact to state, not an alarm (attention red
+   remains reserved for needs-you).
 
    The slot collapses to nothing when empty, so the composer sits exactly where it
    always did on a healthy machine. */
@@ -3903,7 +3920,16 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-8);
-  padding: var(--space-6) var(--space-8) var(--space-6) var(--space-12);
+  /* Vertical space is --space-12 by ruling (Woody, 2026-08-06: the card read too
+     short and tight). It lives in the CARD's padding rather than as a margin on the
+     buttons, because this is one centered flex row whose tallest child IS the button
+     — so "the card's vertical padding" and "12px above and below the button row" are
+     the same pixels, and a margin would additionally have to fight `flex-wrap`: at
+     narrow widths the buttons take their own line, where a vertical margin would
+     compound with the row gap instead of opening the card. Horizontal values are
+     unchanged from the reviewed pass; the right stays --space-8 because the pill's
+     own 10px inset already carries that edge. */
+  padding: var(--space-12) var(--space-8) var(--space-12) var(--space-12);
   border: 1px solid var(--border-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
@@ -3925,22 +3951,13 @@ h2 {
   gap: var(--space-6);
 }
 
-/* Same pill as the banner family's action, and deliberately NOT a primary (ink)
-   button: this is an offer to hand the job to the CLI, not the app's own call to
-   action, and an ink-filled button here would out-shout the composer's send. */
+/* Color, typography and geometry come from THE ACCENT CTA block above, shared with
+   the sidebar update pill (Woody's S2 visual gate: same visual, same typography).
+   What stays here is only what is specific to living in a flex row inside the card.
+   The v1 outlined-neutral pill and its "deliberately NOT a primary button" rationale
+   are retired by that ruling — these ARE the primary action of the surface. */
 .cli-readiness-action {
   flex: none;
-  padding: 4px var(--space-8);
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--text-primary);
-  font: 600 var(--type-ui-sm) var(--font-ui);
-  cursor: pointer;
-}
-
-.cli-readiness-action:hover {
-  border-color: var(--border-strong);
 }
 
 .cli-readiness-action:focus-visible {

@@ -189,22 +189,22 @@ const UNKNOWN = fact("unknown", "unknown");
   );
   assert.equal(
     claude.copy,
-    "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window.",
+    "Claude Code CLI isn't logged in.",
   );
   assert.deepEqual(
     claude.actions.map((action) => [action.kind, action.label, action.domId]),
-    [["start", "Start Claude Code CLI", "cli-readiness-start"]],
+    [["start", "Log in", "cli-readiness-login"]],
   );
   const codex = cliReadinessCard(
     newChatState({ provider: "codex", claude: HEALTHY, codex: SIGNED_OUT }),
   );
   assert.equal(
     codex.copy,
-    "Codex CLI isn't signed in. Finish its setup in the terminal window.",
+    "Codex CLI isn't logged in.",
   );
   assert.deepEqual(
     codex.actions.map((action) => action.label),
-    ["Start Codex CLI"],
+    ["Log in"],
   );
   results.signedOut = { claude: claude.copy, codex: codex.copy };
 }
@@ -231,14 +231,14 @@ const UNKNOWN = fact("unknown", "unknown");
   assert.equal(live.kind, "installing");
   assert.equal(
     live.copy,
-    "Installing Claude Code — follow along in the terminal window.",
+    "Installing Claude Code — follow along in the CLI window.",
   );
   assert.deepEqual(live.actions, [], "nothing to click while it runs");
   assert.equal(
     cliReadinessCard(
       newChatState({ provider: "codex", claude: ABSENT, codex: ABSENT, run: installing("codex") }),
     ).copy,
-    "Installing Codex — follow along in the terminal window.",
+    "Installing Codex — follow along in the CLI window.",
   );
 
   // A LIVE run is narrated whatever provider it belongs to: the user just asked
@@ -264,7 +264,7 @@ const UNKNOWN = fact("unknown", "unknown");
   assert.equal(failedOwn.kind, "install-failed");
   assert.equal(
     failedOwn.copy,
-    "Installation didn't finish — check the output in the terminal window.",
+    "Installation didn't finish — check the output in the CLI window.",
   );
   assert.deepEqual(
     failedOwn.actions.map((action) => [action.kind, action.label, action.domId]),

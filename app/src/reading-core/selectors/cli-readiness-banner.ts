@@ -5,10 +5,10 @@ import {
 import type { RuntimeProvider } from "../../shared/types/domain";
 import type { RendererState, TaskViewState } from "../state";
 import {
+  LOGIN_ACTION_LABEL,
   cliNotInstalledCopy,
   cliSignedOutCopy,
   installActionLabel,
-  startActionLabel,
 } from "./cli-readiness-card";
 
 /**
@@ -65,7 +65,7 @@ export interface CliReadinessBannerModel {
    *    diagnosis comes from the boot observation window, which means precisely that
    *    this task's own CLI is up and parked on its first-run screen — so the login
    *    the copy asks for is already open, in the very window the copy points at.
-   *    Offering "Start Claude Code CLI" there spawns an INDEPENDENT pty whose grid
+   *    Offering a "Log in" button there spawns an INDEPENDENT pty whose grid
    *    hides the task's own, and finishing the login in that copy is the worst
    *    outcome available: the machine facts go green, this banner retires on them,
    *    and the task's own PTY stays parked forever — so the composer falls back to
@@ -74,12 +74,12 @@ export interface CliReadinessBannerModel {
    *    by its own cure.
    *
    * The pointer is the right degradation rather than a coincidence of the factory:
-   * the sentence says "finish its setup in the terminal window", the login screen IS
-   * in that window, and finishing it there genuinely heals (the CLI paints its
+   * the copy says the CLI is not logged in, the login screen IS already up in the
+   * window the pointer opens, and finishing it there genuinely heals (the CLI paints its
    * composer, `acceptsPromptInput()` turns true, the delivery pump latches and the
    * queued prompt goes out).
    *
-   * A DEAD pty keeps the Start button: there is nothing to point at, so a fresh
+   * A DEAD pty keeps the "Log in" button: there is nothing to point at, so a fresh
    * spawn is the only door. `view.live` is the discriminator; it lags a PTY that
    * died on its own (the session-index refresh clears it — see the S4 record's
    * out-of-scope 2), and the lag's direction is benign: at worst a pointer where a
@@ -150,7 +150,7 @@ function bannerAction(
   }
   return reason === "absent"
     ? { kind: "install", provider, label: installActionLabel(provider) }
-    : { kind: "start", provider, label: startActionLabel(provider) };
+    : { kind: "start", provider, label: LOGIN_ACTION_LABEL };
 }
 
 /**

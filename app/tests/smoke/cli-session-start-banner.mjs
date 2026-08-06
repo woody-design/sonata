@@ -158,13 +158,12 @@ function sessionState({
       label: "Install Codex CLI",
     },
     "claude/signedOut": {
-      copy:
-        "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window.",
-      label: "Start Claude Code CLI",
+      copy: "Claude Code CLI isn't logged in.",
+      label: "Log in",
     },
     "codex/signedOut": {
-      copy: "Codex CLI isn't signed in. Finish its setup in the terminal window.",
-      label: "Start Codex CLI",
+      copy: "Codex CLI isn't logged in.",
+      label: "Log in",
     },
   };
   const seen = {};
@@ -256,9 +255,7 @@ function sessionState({
     );
     assert.equal(
       liveBanner.copy,
-      provider === "claude"
-        ? "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window."
-        : "Codex CLI isn't signed in. Finish its setup in the terminal window.",
+      provider === "claude" ? "Claude Code CLI isn't logged in." : "Codex CLI isn't logged in.",
       `${provider}: and the copy is not rewritten — the withdrawal is the whole change`,
     );
 
@@ -273,7 +270,7 @@ function sessionState({
     assert.equal(
       cliReadinessBanner(dead.state, dead.view).action.kind,
       "start",
-      `${provider}: a DEAD pty keeps the Start button — nothing to point at`,
+      `${provider}: a DEAD pty keeps the "Log in" button — nothing to point at`,
     );
   }
 
@@ -292,7 +289,7 @@ function sessionState({
       `absent keeps its install action (live=${live})`,
     );
   }
-  results.liveSignedOut = "live → pointer; dead → Start; absent → Install either way";
+  results.liveSignedOut = "live → pointer; dead → Log in; absent → Install either way";
 }
 
 // ── 3. The action yields to a live setup run ────────────────────────────────
@@ -316,7 +313,7 @@ function sessionState({
   );
   assert.equal(
     banner.copy,
-    "Claude Code CLI isn't signed in. Finish its first-run setup in the terminal window.",
+    "Claude Code CLI isn't logged in.",
     "and the copy is NOT rewritten for that state — the subtraction is the whole change",
   );
 
