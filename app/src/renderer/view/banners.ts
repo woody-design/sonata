@@ -87,6 +87,32 @@ export function setCodexUpdatePrompt(taskId: string, blocked: boolean): void {
 }
 
 /**
+ * Codex's boot directory-trust dialog is on screen (codex-trust S2).
+ * Renderer-LOCAL, same family as the two above and for the same reason (plan
+ * L1): after S1's unconditional pre-trust this is a RESIDUAL state — a ledger
+ * write that did not land, a damaged profile layer, a codex release that
+ * re-worded the gate — and a residual frequency does not earn a reading-core
+ * atom. Keyed by taskId so a background session's parked boot is remembered and
+ * shown when it becomes active.
+ *
+ * Fed by main.ts from `codex-trust-dialog:detected`, and retired three ways:
+ * `codex-trust-dialog:cleared` (the human answered — plan L2, and the
+ * improvement over the update banner, which has no such signal), that task's
+ * `pty:exit` (its update-prompt sibling's ONLY path, kept here for the session
+ * killed while the dialog is still up), and a dismissal. The removed-task sweep
+ * in `clearTaskBanners` covers it too, as it does every store in this file.
+ */
+const codexTrustDialog = new Set<string>();
+
+export function setCodexTrustDialog(taskId: string, open: boolean): void {
+  if (open) {
+    codexTrustDialog.add(taskId);
+  } else {
+    codexTrustDialog.delete(taskId);
+  }
+}
+
+/**
  * A codex session died without Sonata killing it and its conversation can be
  * resumed (SL-6 — the openai/codex #36005 silent-exit class). Renderer-LOCAL,
  * same family as the two above. The value is the honest detail the copy needs:
@@ -148,12 +174,13 @@ export function noteCliSessionStartDiagnosis(taskId: string): void {
 export function clearTaskBanners(taskId: string): void {
   codexHooksMissing.delete(taskId);
   codexUpdatePrompt.delete(taskId);
+  codexTrustDialog.delete(taskId);
   codexResumableExit.delete(taskId);
   cliSessionStartDismissed.delete(taskId);
   // The S4 diagnosis lives in the state atom rather than a store up here (see the
   // field's own note: the composer reads it too), but it is task-keyed banner state
   // like the others and belongs to the same sweep — one function, so a removed task
-  // cannot leave any of the five behind.
+  // cannot leave any of the six behind.
   clearCliSessionStartBlocked(state, taskId);
 }
 
@@ -245,6 +272,30 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
         ),
       );
     }
+    // Codex's boot directory-trust dialog is on screen and the composer never
+    // came up (codex-trust S2). The residual case: S1 pre-trusts every spawn's
+    // cwd unconditionally, so reaching this means the pre-trust did not take.
+    //
+    // RED LINE: Sonata NEVER answers this dialog — not from here, not from the
+    // watchdog that raised it (see `checkCodexBootTrustDialog`). One of its two
+    // answers is a consent decision about what this folder's own `.codex/` layer
+    // may load; the other quits the process. Both are the user's, and this banner
+    // does the only honest thing left: name what is happening and point at the
+    // window where it is visible. Dismiss clears the renderer-local flag; the
+    // banner also retires by itself the moment the dialog leaves the screen.
+    if (codexTrustDialog.has(view.task.id)) {
+      const taskId = view.task.id;
+      banners.push(
+        attentionBanner(
+          "codex-trust-dialog",
+          "Codex is asking whether to trust this folder — answer in the CLI window.",
+          () => {
+            codexTrustDialog.delete(taskId);
+            renderAttentionBanners();
+          },
+        ),
+      );
+    }
     // Codex vanished on its own and the conversation survived in its rollout
     // (SL-6 — the #36005 silent-exit class: no stderr, no crash report, the task
     // simply turns dormant wearing the same face as a session the user closed).
@@ -254,12 +305,19 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
     // CLI left to point at.
     //
     // The headline says "ended", NOT "ended unexpectedly". Sonata cannot yet tell
-    // a silent death from a deliberate quit — `/quit` in Sonata's composer,
-    // `/quit` or Ctrl-D in the co-visible CLI, and "No, quit" on a reopened task's
-    // trust dialog all leave the same fingerprint, and the exit code discriminates
-    // nothing (a killed codex and a graceful one both report 0). "Unexpectedly"
-    // would be a plain falsehood on those paths, so the copy states what Sonata
-    // knows — the session ended, the conversation survived — and not why.
+    // a silent death from a deliberate quit — `/quit` in Sonata's composer and
+    // `/quit` or Ctrl-D in the co-visible CLI leave the same fingerprint, and the
+    // exit code discriminates nothing (a killed codex and a graceful one both
+    // report 0). "Unexpectedly" would be a plain falsehood on those paths, so the
+    // copy states what Sonata knows — the session ended, the conversation
+    // survived — and not why.
+    //
+    // ("No, quit" on a reopened task's trust dialog headed that list until
+    // codex-trust S1 made pre-trust unconditional on every spawn. Codex now asks
+    // at all only in the residual case the trust banner above exists for, so it
+    // is no longer one of the indistinguishable everyday causes — and in that
+    // residual case the user has just been told a dialog is waiting, which is the
+    // one shape of this exit they CAN account for.)
     // `midTurn` stays: "ended mid-turn" is true however the process died, and it
     // is the one thing the user cannot see for themselves (the conversation is
     // saved either way; the answer in flight is not).

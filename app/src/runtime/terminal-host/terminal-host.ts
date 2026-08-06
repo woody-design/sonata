@@ -57,7 +57,7 @@ import {
   hasRemoteControlDisconnect,
   REMOTE_CONTROL_SCAN_LIMIT,
 } from "./tui-parsers-claude";
-import { isCodexUpdatePrompt } from "./tui-parsers-codex";
+import { isCodexTrustDialog, isCodexUpdatePrompt } from "./tui-parsers-codex";
 import { ControlSwitchEngine } from "./control-switch-engine";
 
 export const BRACKETED_PASTE_START = "\x1b[200~";
@@ -194,6 +194,15 @@ const HUMAN_ACTIVE_WINDOW_MS = 3500;
  *  signature match is the real discriminator, so the window only needs to clear
  *  a healthy boot. Codex-only — claude has no such gate. */
 const CODEX_BOOT_UPDATE_CHECK_MS = 4000;
+/** How long after a codex spawn to check for the boot directory-trust dialog
+ *  (codex-trust S2). Deliberately the SAME window as the update gate above and
+ *  for the same reason, not by coincidence: both are onboarding screens codex
+ *  paints in its first frames instead of the composer, so the window only has to
+ *  clear a HEALTHY boot (the delivery latch opens ~1s after spawn) — past that,
+ *  a session still not composer-ready is genuinely parked. Kept as its own
+ *  constant rather than shared, so a future measurement can move one gate's
+ *  window without silently moving the other's. One-shot; codex-only. */
+const CODEX_BOOT_TRUST_DIALOG_CHECK_MS = 4000;
 /**
  * Terminal traffic that is NOT the human composing a line — emulator-generated
  * query replies AND mouse activity. xterm.js relays all of these through the
@@ -530,6 +539,18 @@ export class TerminalHost extends EventEmitter {
   // needs-attention banner if the composer is still not ready when it elapses AND
   // the tail matches the gate signature. Armed in startTask, cleared on teardown.
   private codexBootUpdateTimer: NodeJS.Timeout | null = null;
+  // One-shot boot watchdog (codex only): fires the codex directory-trust
+  // needs-attention banner if the composer is still not ready when it elapses AND
+  // the SCREEN matches the dialog signature. Armed in startTask, cleared on
+  // teardown — the sibling of codexBootUpdateTimer above.
+  private codexTrustDialogTimer: NodeJS.Timeout | null = null;
+  /** The trust-dialog banner is currently raised for this session (codex-trust
+   *  S2, plan L2). Gates the clearing pass — it is what makes the pass free on
+   *  every session that never saw the dialog (the overwhelming majority, since
+   *  S1's pre-trust is unconditional), and what keeps `cleared` from ever being
+   *  emitted for a banner that was never raised. Reset on teardown, so the next
+   *  spawn re-detects from scratch rather than inheriting a stale verdict. */
+  private codexTrustDialogSurfaced = false;
   private fileSnapshot = new Map<string, SnapshotEntry>();
   /**
    * The workspace stat state captured at the START of the active run (OBS S6 /
@@ -1060,14 +1081,25 @@ export class TerminalHost extends EventEmitter {
       this.setRemoteControlActive(true);
     }
 
-    // Boot watchdog: surface codex's "Update available!" gate as needs-attention
-    // if it blocks readiness (S4). Codex-only; one-shot; never writes a key.
+    // Boot watchdogs: surface the two codex screens that can park a boot instead
+    // of the composer — the "Update available!" gate (S4) and the directory-trust
+    // dialog (codex-trust S2). Codex-only; one-shot; neither ever writes a key.
     if (this.profile.provider === "codex") {
       this.codexBootUpdateTimer = setTimeout(() => {
         this.codexBootUpdateTimer = null;
         this.checkCodexBootUpdatePrompt();
       }, CODEX_BOOT_UPDATE_CHECK_MS);
       this.codexBootUpdateTimer.unref?.();
+      this.codexTrustDialogTimer = setTimeout(() => {
+        this.codexTrustDialogTimer = null;
+        // Read the grid only once every pending write has drained, so the check
+        // sees the COMPLETE boot frame rather than a mid-parse one (the same
+        // discipline as the approval scan). No screen model means no PTY, and
+        // therefore no detection — the grid is the only substrate this signature
+        // has, so its absence reads "nothing on screen", never "hold".
+        this.screenModel?.whenSettled(() => this.checkCodexBootTrustDialog());
+      }, CODEX_BOOT_TRUST_DIALOG_CHECK_MS);
+      this.codexTrustDialogTimer.unref?.();
     }
 
     return {
@@ -1096,6 +1128,82 @@ export class TerminalHost extends EventEmitter {
       return;
     }
     this.emitEvent("codex-update-prompt:detected", { taskId: this.taskId });
+  }
+
+  /**
+   * The trust-dialog boot watchdog elapsed. If the composer is STILL not ready
+   * AND the reconstructed SCREEN matches codex's directory-trust dialog, surface
+   * a passive needs-attention banner so the user answers it in the CLI window.
+   *
+   * RED LINE: Sonata NEVER answers this dialog. Not a key, not an Enter, not
+   * ever. One of its two answers is a consent decision about what a folder's own
+   * `.codex/` layer may load; the other QUITS the process. This method emits an
+   * event and writes NOTHING to the pty — the same standing rule the claude
+   * Rewind panel carries (`tui-parsers-claude.ts:210-220`), and the direct lesson
+   * of 2026-07-17, when a delivery's Enter silently answered this very dialog.
+   * S1's unconditional pre-trust is not a counter-example: that is a decision
+   * taken before the CLI starts, from a folder-pick gesture the user actually
+   * made. Answering a screen already on the user's display is a different act.
+   *
+   * Reads the GRID, not the tail (D-1 — see `isCodexTrustDialog`). The
+   * `acceptsPromptInput()` guard means a session that booted fine never fires,
+   * and the grid's own convergence means an already-answered dialog is simply not
+   * on screen.
+   */
+  private checkCodexBootTrustDialog(): void {
+    if (
+      !this.ptyProcess ||
+      this.acceptsPromptInput() ||
+      !isCodexTrustDialog(this.approvalScanGrid())
+    ) {
+      return;
+    }
+    this.codexTrustDialogSurfaced = true;
+    this.emitEvent("codex-trust-dialog:detected", { taskId: this.taskId });
+  }
+
+  /**
+   * The raised trust-dialog banner has nothing left to point at (plan L2). Runs
+   * on the coalesced settled-grid scan while — and only while — the banner is up,
+   * so the banner retires the moment the human answers instead of waiting for
+   * `pty:exit` the way its update-gate template must.
+   *
+   * The retirement test is the exact NEGATION of what raised it: the banner
+   * asserts a conjunction (no composer AND the dialog on screen), so it stands
+   * down as soon as EITHER conjunct fails. Both disjuncts are real signals of
+   * "answered", and they are independent, which is the point:
+   *   - the dialog left the SCREEN — plan L2's mechanism, and the reason this
+   *     signature reads the grid at all (an answered dialog's bytes never leave
+   *     the tail, which is why the update banner cannot do this);
+   *   - the composer ACCEPTS INPUT — the readiness fence the codex
+   *     `bootDialogHints` guard holds shut for exactly as long as this dialog is
+   *     unanswered (`detectIdlePrompt`; pinned by tests/smoke/task-ready-
+   *     detection.mjs, whose measured post-trust screen reads ready with the
+   *     dialog text still in the scanned window).
+   * The second leg is not belt-and-braces — on the real spawn it is likely the
+   * one that fires. Sonata launches codex with `--no-alt-screen` (see codexArgs),
+   * so the answered dialog does NOT vanish with a buffer swap the way an
+   * alt-screen modal does: its rows stay inline and scroll up as the welcome box
+   * and composer paint beneath them, which can keep them inside a tall viewport
+   * for a while. How long is a paint detail Sonata has never measured, and the
+   * banner must not be hostage to it. Both legs are pinned independently in
+   * tests/smoke/codex-trust-dialog.mjs precisely so neither can quietly become
+   * the only one that works.
+   *
+   * One-shot per detection, by the `codexTrustDialogSurfaced` gate: no `cleared`
+   * without a `detected`, and no repeats. That gate is also why this costs
+   * nothing on the hot path — it is false for every session that never saw the
+   * dialog, which after S1's unconditional pre-trust is essentially all of them.
+   */
+  private checkCodexTrustDialogCleared(): void {
+    if (!this.codexTrustDialogSurfaced) {
+      return;
+    }
+    if (!this.acceptsPromptInput() && isCodexTrustDialog(this.approvalScanGrid())) {
+      return;
+    }
+    this.codexTrustDialogSurfaced = false;
+    this.emitEvent("codex-trust-dialog:cleared", { taskId: this.taskId });
   }
 
   writeRaw(data: string): void {
@@ -2384,11 +2492,20 @@ export class TerminalHost extends EventEmitter {
     // A switch waiting on its receipt when the PTY dies never gets one — drop it
     // (no needs-attention: the session is gone, there is nothing to point at).
     this.controlSwitch.clear();
-    // The boot watchdog must never fire on a dead/replaced session.
+    // The boot watchdogs must never fire on a dead/replaced session.
     if (this.codexBootUpdateTimer) {
       clearTimeout(this.codexBootUpdateTimer);
       this.codexBootUpdateTimer = null;
     }
+    if (this.codexTrustDialogTimer) {
+      clearTimeout(this.codexTrustDialogTimer);
+      this.codexTrustDialogTimer = null;
+    }
+    // No `cleared` event on the way out: the renderer retires this banner on the
+    // task's `pty:exit`, exactly as it does the update-gate one. Resetting the
+    // flag is what lets the next spawn detect the dialog again from scratch
+    // instead of inheriting the dead session's verdict.
+    this.codexTrustDialogSurfaced = false;
     if (!this.ptyProcess) {
       return;
     }
@@ -2578,6 +2695,13 @@ export class TerminalHost extends EventEmitter {
           return;
         }
         this.detectApproval();
+        // The second grid reader on this cadence (codex-trust S2, plan L2). It
+        // rides the approval scan rather than arming a timer of its own because
+        // it asks the same kind of question of the same settled screen — and the
+        // repaint that answers it (codex tearing the dialog down and drawing its
+        // welcome box + composer) is unmissably printable, which is exactly what
+        // arms this scan. Gated on a raised banner, so it is a no-op otherwise.
+        this.checkCodexTrustDialogCleared();
       });
     }, APPROVAL_SCAN_CADENCE_MS);
   }

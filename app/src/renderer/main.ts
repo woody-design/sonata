@@ -154,6 +154,7 @@ import {
   renderAttentionBanners,
   setCodexHooksMissing,
   setCodexResumableExit,
+  setCodexTrustDialog,
   setCodexUpdatePrompt,
 } from "./view/banners";
 import { initCliReadinessCardView } from "./view/cli-readiness-card";
@@ -2137,8 +2138,29 @@ window.sonataRuntime.onRuntimeEvent((event) => {
     renderAttentionBanners();
     return;
   }
+  // Codex's boot directory-trust dialog (codex-trust S2) — same renderer-local
+  // family again, and the one member with a genuine clearing signal of its own:
+  // the terminal-host watches the screen grid and says when the dialog is gone
+  // (plan L2), so the banner retires the moment the user answers rather than
+  // waiting for the session to end. RED LINE: neither this route nor the banner
+  // it raises ever answers the dialog — see `checkCodexBootTrustDialog`.
+  if (event.type === "codex-trust-dialog:detected") {
+    setCodexTrustDialog(event.payload.taskId, true);
+    renderAttentionBanners();
+    return;
+  }
+  if (event.type === "codex-trust-dialog:cleared") {
+    setCodexTrustDialog(event.payload.taskId, false);
+    renderAttentionBanners();
+    return;
+  }
   if (event.type === "pty:exit") {
     setCodexUpdatePrompt(event.payload.taskId, false);
+    // The belt to the grid-watch's braces: a session killed WHILE the dialog is
+    // still up emits no `cleared` (the host resets its flag silently on
+    // teardown), and a banner pointing into a dead CLI window is exactly the
+    // pointer-at-nothing the family's SL-6 exception was written about.
+    setCodexTrustDialog(event.payload.taskId, false);
     renderAttentionBanners();
   }
   // A codex session ended outside Sonata's lifecycle, conversation intact (SL-6) — same

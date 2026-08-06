@@ -172,6 +172,52 @@ export type CodexUpdatePromptEvent = BaseRuntimeEvent<
 >;
 
 /**
+ * Codex's boot directory-trust dialog is up and blocking composer readiness
+ * (codex-trust S2). The FALLBACK for a case S1 made rare: every codex spawn now
+ * pre-trusts its cwd unconditionally, so this dialog paints only when that
+ * failed to take — a ledger write that did not land, a damaged profile layer, or
+ * a codex release that re-worded the gate. Whatever the cause, the CLI parks on
+ * its onboarding screen, the composer never appears, and without this event
+ * Reading says nothing at all.
+ *
+ * Sonata cannot (and must NEVER) auto-answer it — its "Yes, continue" is a
+ * consent decision and its other answer QUITS the process, so on a boot
+ * watchdog whose SCREEN matches the dialog signature the terminal-host emits
+ * this and the renderer raises a passive "answer it in the CLI" banner.
+ * Display-only shell chrome (a renderer-local banner store, like
+ * cli-hooks:liveness and codex-update-prompt:detected), never a reading-core
+ * view field.
+ */
+export type CodexTrustDialogDetectedEvent = BaseRuntimeEvent<
+  "codex-trust-dialog:detected",
+  {
+    taskId: TaskId;
+  }
+>;
+
+/**
+ * The dialog above left the screen — the human answered it in the CLI, so the
+ * banner has nothing left to point at and retires (plan L2).
+ *
+ * This pair is deliberately one better than its `codex-update-prompt:detected`
+ * template, which can only be cleared by `pty:exit`. The difference is the
+ * CHANNEL: the trust signature reads the reconstructed screen grid, whose
+ * absence is as trustworthy as its presence, so "the dialog is gone" is an
+ * observable fact rather than an inference (D-1; see `isCodexTrustDialog`). The
+ * emitting test is the exact negation of what raised the banner — the dialog is
+ * off the screen, OR the composer is accepting input again — so the two states
+ * cannot disagree (see `checkCodexTrustDialogCleared`). Only ever emitted after a
+ * `detected` for the same task, and at most once per detection — a banner that
+ * was never raised is not "cleared".
+ */
+export type CodexTrustDialogClearedEvent = BaseRuntimeEvent<
+  "codex-trust-dialog:cleared",
+  {
+    taskId: TaskId;
+  }
+>;
+
+/**
  * A session start could not happen, and the readiness probe says WHY (CLI
  * readiness S4; plan D10, L5). Raised for exactly two diagnosable shapes, both
  * observed by the runtime controller and then confirmed by a fresh probe:
@@ -750,6 +796,8 @@ export type ProductRuntimeEvent =
   | UsageUpdatedEvent
   | CodexTurnContextObservedEvent
   | CodexUpdatePromptEvent
+  | CodexTrustDialogDetectedEvent
+  | CodexTrustDialogClearedEvent
   | CodexSessionResumableExitEvent
   | CliSessionStartBlockedEvent
   | SessionsUpdatedEvent;
@@ -774,6 +822,8 @@ export type RunIndexEvent = Exclude<
   | CliStateChangedEvent
   | CliHooksLivenessEvent
   | CodexUpdatePromptEvent
+  | CodexTrustDialogDetectedEvent
+  | CodexTrustDialogClearedEvent
   | CodexSessionResumableExitEvent
   | CliSessionStartBlockedEvent
   | DeliveryStateEvent

@@ -490,3 +490,102 @@ export function isCodexUpdatePrompt(terminalText: string): boolean {
   }
   return CODEX_UPDATE_RELEASES_RE.test(terminalText) && CODEX_UPDATE_WORD_RE.test(terminalText);
 }
+
+// ── Codex boot directory-trust dialog (codex-trust S2) ──────────────────────
+//
+// The FALLBACK layer. S1 made codex pre-trust UNCONDITIONAL (every spawn writes
+// the cwd into the `-p sonata` profile's trust ledger before the CLI starts), so
+// in the ordinary case this dialog never paints. What is left is the residual
+// set the plan names: the ledger write failed, the profile layer was damaged, or
+// codex re-worded the gate. In those cases the CLI parks on its onboarding trust
+// screen, the composer never appears, and Reading is silent about it — the exact
+// "the app knows why and won't say" shape this slice exists to end.
+//
+// RED LINE. Recognition + surface ONLY. Sonata NEVER answers this dialog — not a
+// keystroke, not an Enter, not ever. Its "Yes, continue" is a consent decision
+// about what a folder's own `.codex/` layer may load (S0 report §4), and its
+// other answer QUITS the process. This is the direct lineage of the 2026-07-17
+// incident, where a delivery's Enter silently answered it while the pasted
+// prompt was discarded, and of the same standing rule the claude Rewind panel
+// carries (`tui-parsers-claude.ts:210-220`). The pre-trust of S1 is a decision
+// taken BEFORE the CLI starts, from a gesture the user actually made; answering
+// a screen already on the user's display is a different act, and it stays
+// forbidden.
+//
+// CHANNEL — the GRID, never the pty tail (D-1: a state query belongs on the
+// reconstructed screen). "Is the trust dialog on screen right now?" is a state
+// query in both directions: the watchdog asks it to RAISE the banner, and the
+// clearing pass asks it to RETIRE the banner once the human answers. The tail
+// cannot answer the second half at all — the answered dialog's bytes sit in it
+// forever (the same reason `claudeRewindPanelOpen` and the Full Access consent
+// pair moved off the stream), which is precisely why the update banner it is
+// modelled on can only clear on `pty:exit`. On the grid the answered dialog
+// simply leaves the viewport.
+//
+// VOCABULARY — the strings are the codex `bootDialogHints` set (terminal-host
+// `codexProfile`, MEASURED on 0.144.x through the app's own cleanTerminal +
+// whitespace-strip) plus the widget's question line, re-verified VERBATIM
+// against `codex-rs/tui/src/onboarding/trust_directory.rs` @ `rust-v0.146.1`
+// (S0 report §6, dialog-wording row: byte-identical at 0.146.1).
+//
+// SIGNATURE — strong anchor + co-occurrence, three needles that must share ONE
+// frame:
+//   1. the question line `Do you trust the contents of this directory?` — the
+//      strong anchor, a sentence no other codex screen renders;
+//   2. AND a numbered `Yes, continue` row;
+//   3. AND a numbered `No, quit` row.
+// The pair of option rows is the forgery fence. A single needle is forgeable by
+// assistant prose (the S2 glyph lesson, and this dialog's question is exactly
+// the sentence a session ABOUT this code prints); the widget, by contrast,
+// renders both options unconditionally and always together — it has exactly two
+// and no third answer (S0 report / D1). So prose that merely mentions trust, or
+// quotes the question, or lists the words "yes, continue", reads FALSE.
+//
+// The `\d\.` prefix is this file's own cursor-anchor discipline (see
+// CODEX_PICKER_CURSOR_RES) minus the `›` glyph: the cursor marks only the
+// HIGHLIGHTED row, and arrowing onto "No, quit" moves it — recognition that
+// depended on where it sits would be defeated by exactly that keypress (the B1
+// lesson pinned in `claudeRewindPanelOpen`). The digit is the list grammar and
+// stays put.
+//
+// TOLERATES, does not DEPEND ON: 0.146.1 also renders a git-root note ("Note:
+// You're in a subdirectory of a Git project. Trusting will apply to the
+// repository root: …"), a caller-supplied error line, and a footer whose tail
+// varies (`Press <key> to continue` vs `… to continue and create a sandbox…`).
+// None of them is a needle, so their presence, absence or re-wording changes
+// nothing here.
+//
+// PREFIX OVERLAP, adjudicated: the Full Access consent dialog's row is
+// `› 1. Yes, continue anyway`, which contains `1.Yes,continue`. It cannot
+// collide — that dialog carries neither the trust question nor a `No, quit` row,
+// and the co-occurrence requires all three. Narrowing the row regex with a
+// negative lookahead would buy nothing and would couple this signature to the
+// OTHER dialog's wording.
+const CODEX_TRUST_QUESTION_RE = /Doyoutrustthecontentsofthisdirectory\?/;
+const CODEX_TRUST_YES_ROW_RE = /\d\.Yes,continue/;
+const CODEX_TRUST_QUIT_ROW_RE = /\d\.No,quit/;
+
+/** Codex's boot directory-trust dialog is on SCREEN — pass a rendered viewport
+ *  (`TaskScreenModel.viewportText()`), never a pty tail (see the block above).
+ *
+ *  Because the grid holds only the CURRENT screen, its ABSENCE is as trustworthy
+ *  as its presence: that is how the banner learns the human answered, with no
+ *  liveness rule and no scan window. Callers surface it and nothing else — the
+ *  RED LINE above admits no write of any kind into the codex pty. */
+export function isCodexTrustDialog(screenText: string): boolean {
+  if (!screenText) {
+    return false;
+  }
+  // Same compaction as every other parser here: `cleanTerminal` is a near-noop
+  // on plain grid rows but is kept so a caller handing over a still-escaped
+  // frame cannot silently miss, and the whitespace-strip makes the match
+  // indifferent to the dialog's column padding and to where the viewport wraps
+  // its rows — which is what lets ONE needle set read both the widget's laid-out
+  // grid and the collapsed cell-diff form the boot repaint produces.
+  const compact = codexPickerCompact(screenText);
+  return (
+    CODEX_TRUST_QUESTION_RE.test(compact) &&
+    CODEX_TRUST_YES_ROW_RE.test(compact) &&
+    CODEX_TRUST_QUIT_ROW_RE.test(compact)
+  );
+}
