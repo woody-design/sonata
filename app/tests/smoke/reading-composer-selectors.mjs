@@ -43,6 +43,7 @@ const view = (extra = {}) => ({
   usageSnapshot: null,
   pendingOptionPrompt: null,
   optionPromptReceipt: null,
+  pendingAttachments: [],
   remoteControl: { active: false, url: null, armedOverride: null },
   ...extra,
 });
@@ -182,13 +183,127 @@ const run = (status, extra = {}) => ({
   );
 }
 
-// 4) sendPromptTitle — the state table.
+// 3b) composerActionMode — THE send/stop predicate (S2, D1). One expression
+// decides both what the button LOOKS like and what a click DOES, so this table
+// is the whole contract: `stop ⟺ a run is under way AND nothing is staged`.
+// Every input combination is pinned, attachments included — an attachment with
+// no text is a sendable message, so it must flip the button out of stop-mode
+// exactly as typed text does.
 {
-  const t = (v, activeRun, pendingApproval, hasText) =>
-    C.sendPromptTitle(v, activeRun, pendingApproval, hasText);
+  const st = (draftAttachments = []) => ({ draftAttachments });
+  const image = { name: "shot.png", previewUrl: null, kind: "image" };
+  const runningView = (extra = {}) => view({ report: { runs: [run("active")] }, ...extra });
+  const idleView = (extra = {}) => view({ report: { runs: [run("completed")] }, ...extra });
+
+  // (activeRun, text, attachments) → mode. The session arm.
+  const TABLE = [
+    { running: true, text: "", attached: false, mode: "stop" },
+    { running: true, text: "   \n ", attached: false, mode: "stop" },
+    { running: true, text: "steer left", attached: false, mode: "send" },
+    { running: true, text: "", attached: true, mode: "send" },
+    { running: true, text: "steer left", attached: true, mode: "send" },
+    { running: false, text: "", attached: false, mode: "send" },
+    { running: false, text: "hello", attached: false, mode: "send" },
+    { running: false, text: "", attached: true, mode: "send" },
+    { running: false, text: "hello", attached: true, mode: "send" },
+  ];
+  for (const row of TABLE) {
+    const v = (row.running ? runningView : idleView)({
+      pendingAttachments: row.attached ? [image] : [],
+    });
+    assert.equal(
+      C.composerActionMode(st(), v, row.text),
+      row.mode,
+      `run=${row.running} text=${JSON.stringify(row.text)} attached=${row.attached} → ${row.mode}`,
+    );
+  }
+
+  // A run known only to delivery state (the report has not caught up) is still
+  // a run — the union is the whole reason this selector exists.
+  assert.equal(
+    C.composerActionMode(st(), view({ deliveryState: delivery({ activeRun: true }) }), ""),
+    "stop",
+    "delivery-only active run reads as stop-mode",
+  );
+  assert.equal(
+    C.composerActionMode(st(), view({ deliveryState: delivery({ activeRun: true }) }), "queue this"),
+    "send",
+    "…and text still wins over it",
+  );
+
+  // New chat (no view): nothing can be running, and the attachments live in the
+  // draft rather than in a view — send-mode always, whatever is staged.
+  assert.equal(C.composerActionMode(st(), null, ""), "send", "new chat, empty");
+  assert.equal(C.composerActionMode(st([image]), null, ""), "send", "new chat, draft attachment");
+
+  // The two halves, separately — the painter reads both directly.
+  assert.equal(C.composerActiveRun(null), false, "no view is not running");
+  assert.equal(C.composerActiveRun(runningView()), true, "report says running");
+  assert.equal(
+    C.composerActiveRun(view({ deliveryState: delivery({ activeRun: true }) })),
+    true,
+    "delivery says running",
+  );
+  assert.equal(C.composerHasContent(st(), null, "  "), false, "whitespace is not content");
+  assert.equal(C.composerHasContent(st([image]), null, ""), true, "new chat draft attachment counts");
+  assert.equal(
+    C.composerHasContent(st(), view({ pendingAttachments: [image] }), ""),
+    true,
+    "a session's own pending attachment counts",
+  );
+  assert.equal(
+    C.composerHasContent(st([image]), view(), ""),
+    false,
+    "a session never reads the new-chat draft's attachments",
+  );
+
+  // The stop target's IDENTITY (what makes the stop latch expire with the run).
+  assert.equal(R.activeRunKey(null), null, "nothing to stop");
+  assert.equal(R.activeRunKey(idleView()), null, "a settled run is not a target");
+  assert.equal(R.activeRunKey(runningView()), "run:run-1", "the active run names itself");
+  assert.equal(
+    R.activeRunKey(view({ deliveryState: delivery({ activeRun: true }) })),
+    "delivery",
+    "delivery-only evidence gets the sentinel",
+  );
+  assert.notEqual(
+    R.activeRunKey(view({ report: { runs: [run("active", { runId: "run-2" })] } })),
+    R.activeRunKey(runningView()),
+    "a different run is a different target (this is what releases the stop latch)",
+  );
+  assert.equal(
+    R.activeRunKey(view({ report: { runs: [run("active", { runId: "delivery" })] } })),
+    "run:delivery",
+    "the run: prefix keeps a runId from colliding with the sentinel",
+  );
+}
+
+// 4) sendPromptTitle — the state table. Argument 2 is the MODE, not the run
+// (S2): the title must describe the press the user is about to make.
+{
+  const t = (v, stopMode, pendingApproval, hasContent) =>
+    C.sendPromptTitle(v, stopMode, pendingApproval, hasContent);
   assert.equal(t(null, false, false, true), "", "no task → empty title");
-  assert.equal(t(view(), true, false, true), "Stop Claude", "active run → stop");
+  assert.equal(t(view(), true, false, false), "Stop Claude", "stop-mode → stop");
   assert.equal(t(view(), false, false, false), "Type a message before sending.", "no text");
+  // Mid-run with a staged message: send-mode falls through to the delivery
+  // ladder, which already distinguishes the providers' mid-turn semantics —
+  // Claude writes through (deliverable) and Codex holds (not deliverable).
+  assert.equal(
+    t(view({ deliveryState: delivery() }), false, false, true),
+    "Send to Claude",
+    "mid-run Claude write-through reads as a send",
+  );
+  assert.equal(
+    t(
+      view({ task: task({ provider: "codex" }), deliveryState: delivery({ deliverable: false }) }),
+      false,
+      false,
+      true,
+    ),
+    "Queued — delivers when Codex is ready.",
+    "mid-run Codex hold reads as a queue",
+  );
   assert.equal(
     t(view(), false, true, true),
     "Queued — delivers after Claude approval is resolved.",
@@ -809,4 +924,4 @@ const run = (status, extra = {}) => ({
   );
 }
 
-console.log("reading-composer-selectors: 12 fixture groups pass");
+console.log("reading-composer-selectors: 13 fixture groups pass");

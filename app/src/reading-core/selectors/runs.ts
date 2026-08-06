@@ -24,6 +24,30 @@ export function hasActiveRun(view: TaskViewState | null): boolean {
 }
 
 /**
+ * The IDENTITY of the run this view is acting on right now — what a stop would
+ * target — or null when nothing is running.
+ *
+ * Two evidences, because the run report and the delivery controller learn about
+ * a turn at slightly different moments: the latest report entry while its status
+ * is active, and the delivery controller's own `activeRun` bit. Their union is
+ * what the composer has always read for "is it working?" (it was written inline
+ * in the painter until S2); naming it here as an identity rather than a boolean
+ * is what lets the stop path be idempotent PER RUN (S2 D2) — a second stop
+ * request for the run already being stopped is a no-op, while one aimed at the
+ * next run is not. Bound to the run, so it needs no timer to expire.
+ *
+ * The `run:` prefix keeps a runId that happens to read like the sentinel from
+ * colliding with it. One sentinel is enough: a task has at most one live run.
+ */
+export function activeRunKey(view: TaskViewState | null): string | null {
+  const latestRun = view?.report?.runs.at(-1);
+  if (latestRun && isActiveRunStatus(latestRun.status)) {
+    return `run:${latestRun.runId}`;
+  }
+  return view?.deliveryState?.activeRun ? "delivery" : null;
+}
+
+/**
  * The draft to refill into the Sonata composer when the user stops the active
  * run (stop S2): stopping is usually "I said it wrong" — hand the words back
  * for editing instead of forcing a retype. The run report's prompt is the

@@ -18,7 +18,54 @@ import type {
   TaskViewState,
 } from "../state";
 import { providerLabel } from "./formatters";
+import { activeRunKey } from "./runs";
 import { modelValueLabel, reasoningValueLabel } from "../config";
+
+/** What the composer's one button does when pressed right now. */
+export type ComposerActionMode = "send" | "stop";
+
+/**
+ * THE composer mode predicate (S2, D1): `stop ⟺ a run is under way AND the
+ * composer is empty`; anything the user has staged flips it to send.
+ *
+ * One expression, two consumers — the painter (glyph, aria-label, title,
+ * enabled state) and the click handler (stop vs submit). That sharing IS the
+ * fix: before S2 the painter read the run union and the click handler read the
+ * report alone, so "shows ↑, acts stop" was reachable in the window where only
+ * delivery state knew a run was live. Asking one question of one state makes
+ * the divergence unrepresentable.
+ *
+ * Why the rule is text presence and not run presence: sending mid-turn has
+ * always worked here — Claude writes through to the CLI's native queue, Codex
+ * holds in Sonata's until the turn ends, and the placeholder says so. Only the
+ * button denied it. (Claude Desktop v1.21459.0's rule; industry-converged 2026.)
+ */
+export function composerActionMode(
+  state: RendererState,
+  view: TaskViewState | null,
+  promptText: string,
+): ComposerActionMode {
+  return composerActiveRun(view) && !composerHasContent(state, view, promptText) ? "stop" : "send";
+}
+
+/** Is a run under way for this view — by either evidence (see `activeRunKey`). */
+export function composerActiveRun(view: TaskViewState | null): boolean {
+  return activeRunKey(view) !== null;
+}
+
+/** Is anything staged to send: typed text, or attachments. Attachments come
+ *  from the new chat's draft when there is no view, from the view's own pending
+ *  list otherwise — the same source split the chip strip renders from. */
+export function composerHasContent(
+  state: RendererState,
+  view: TaskViewState | null,
+  promptText: string,
+): boolean {
+  if (promptText.trim().length > 0) {
+    return true;
+  }
+  return (view ? view.pendingAttachments.length : state.draftAttachments.length) > 0;
+}
 
 /**
  * Ownership protection has two grains (D1, 2026-07-14). This selector picks the
@@ -172,22 +219,29 @@ export function sessionPermissionMenuModes(view: TaskViewState): ClaudePermissio
  * placeholder gets the one new sentence, because the arm it would otherwise fall
  * through to ("Continue, correct, or redirect this Task") reads oblivious directly
  * beneath a banner saying the CLI is not there.
+ *
+ * The second argument is the MODE, not the run (S2): a title must say what THIS
+ * press will do. A run with a staged message is send-mode and falls through to
+ * the ladder below, which already tells the two providers' mid-turn semantics
+ * apart without being taught them — Claude writes through to the CLI's native
+ * queue (`deliverable` stays true → "Send to Claude"), Codex holds until the
+ * turn ends (`deliverable` false → "Queued — delivers when Codex is ready.").
  */
 export function sendPromptTitle(
   view: TaskViewState | null,
-  activeRun: boolean,
+  stopMode: boolean,
   pendingApproval: boolean,
-  promptHasText: boolean,
+  hasContent: boolean,
   sessionStartBlocked = false,
 ): string {
   if (!view?.task) {
     return "";
   }
   const providerName = providerLabel(view.task.provider);
-  if (activeRun) {
+  if (stopMode) {
     return `Stop ${providerName}`;
   }
-  if (!promptHasText) {
+  if (!hasContent) {
     return "Type a message before sending.";
   }
   if (pendingApproval) {

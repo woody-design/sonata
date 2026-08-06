@@ -36,7 +36,7 @@ import type {
 } from "../shared/types";
 import { classifySlashIntent } from "../shared/slash/intent";
 import { clamp, errorMessage } from "../reading-core/selectors/formatters";
-import { filteredSlashItems } from "../reading-core/selectors/composer";
+import { composerActionMode, filteredSlashItems } from "../reading-core/selectors/composer";
 import { normalizeSidebarTagIds } from "../reading-core/selectors/sidebar";
 import {
   reasoningEffortForModel,
@@ -1261,7 +1261,10 @@ elements.promptInput.addEventListener("keydown", (event) => {
 });
 
 elements.sendPrompt.addEventListener("click", () => {
-  if (hasActiveRun(activeTaskView())) {
+  // The SAME predicate the painter drew this button with (S2, D1) — asked of
+  // the same state, from the same textarea value. That is what makes "shows ↑,
+  // acts stop" unrepresentable rather than merely unlikely.
+  if (composerActionMode(state, activeTaskView(), elements.promptInput.value) === "stop") {
     void stopRun();
     return;
   }

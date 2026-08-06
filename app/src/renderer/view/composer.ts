@@ -39,6 +39,9 @@ import {
   usageLimitDisplayLabel,
 } from "../../reading-core/selectors/formatters";
 import {
+  composerActionMode,
+  composerActiveRun,
+  composerHasContent,
   composerPlaceholder,
   draftModelSummaryLabel,
   lifecycleFreezesComposerText,
@@ -48,7 +51,6 @@ import {
 } from "../../reading-core/selectors/composer";
 import { cliReadinessBlocksSend } from "../../reading-core/selectors/cli-readiness-card";
 import { cliSessionStartStalled } from "../../reading-core/selectors/cli-readiness-banner";
-import { hasActiveRun } from "../../reading-core/selectors/runs";
 import {
   activeTaskView,
   isSessionLifecycleActive,
@@ -162,13 +164,15 @@ export function renderAttachmentStrip(view = activeTaskView(state)): void {
 
 export function renderComposerControls(view = activeTaskView(state)): void {
   const lifecycleBusy = isSessionLifecycleActive(state);
-  const activeRun = hasActiveRun(view) || Boolean(view?.deliveryState?.activeRun);
+  const activeRun = composerActiveRun(view);
   const pendingApproval = Boolean(view?.pendingApproval);
-  const promptHasText = elements.promptInput.value.trim().length > 0;
   const newChat = !view;
-  const hasAttachments = newChat
-    ? state.draftAttachments.length > 0
-    : (view?.pendingAttachments.length ?? 0) > 0;
+  // The one predicate (S2): what the button IS, shared verbatim with what the
+  // click does (renderer/main.ts). Everything below — glyph, label, title,
+  // enabled — reads it, so the button cannot say send and act stop.
+  const promptText = elements.promptInput.value;
+  const stopMode = composerActionMode(state, view, promptText) === "stop";
+  const hasContent = composerHasContent(state, view, promptText);
   if (newChat) {
     // New chat: the chips ARE the launch controls (2026-07-04 redesign) —
     // access + provider + model open their draft menus; the project chip
@@ -261,21 +265,26 @@ export function renderComposerControls(view = activeTaskView(state)): void {
   // question, and the register it reads is cleared the moment this task reaches a
   // prompt.
   const sessionStartBlocked = cliSessionStartStalled(state, view);
+  // Send-mode needs something to send; stop-mode is always armed during a run
+  // — stopping is the one action that must stay reachable while the CLI works.
+  // The lifecycle guards above it are unchanged and cover both modes: none of
+  // them is about the composer's contents, they are moments where no keystroke
+  // of ours may reach the CLI at all.
   elements.sendPrompt.disabled =
     state.busy ||
     lifecycleBusy ||
     switchUnresolved ||
     readinessBlocked ||
-    (!activeRun && !promptHasText && !hasAttachments);
+    (!stopMode && !hasContent);
   elements.sendPrompt.title = sendPromptTitle(
     view,
-    activeRun,
+    stopMode,
     pendingApproval,
-    promptHasText || hasAttachments,
+    hasContent,
     sessionStartBlocked,
   );
-  elements.sendPrompt.textContent = activeRun ? "■" : "↑";
-  elements.sendPrompt.classList.toggle("stop-mode", activeRun);
+  elements.sendPrompt.textContent = stopMode ? "■" : "↑";
+  elements.sendPrompt.classList.toggle("stop-mode", stopMode);
   // D1 (two grains of freeze): only the draft-moving phases disable typing.
   // Every other active phase keeps the composer usable — mutual exclusion is
   // enforced by the claim guards, not by blurring a focused textarea.
@@ -286,7 +295,7 @@ export function renderComposerControls(view = activeTaskView(state)): void {
     pendingApproval,
     sessionStartBlocked,
   );
-  elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(activeRun));
+  elements.sendPrompt.setAttribute("aria-label", sendButtonLabel(stopMode));
 }
 
 export function renderUsageIndicator(view: TaskViewState | null): void {
@@ -1020,8 +1029,8 @@ function sessionPermissionLabel(task: Task | null): string | null {
   return task.codexPermissionMode ? codexPermissionModeLabel(task.codexPermissionMode) : null;
 }
 
-function sendButtonLabel(activeRun: boolean): string {
-  if (activeRun) {
+function sendButtonLabel(stopMode: boolean): string {
+  if (stopMode) {
     return "Stop";
   }
   // Both the task and no-task arms said "Send" — collapsed at the D5 sweep
