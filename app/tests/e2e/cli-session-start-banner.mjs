@@ -243,7 +243,16 @@ try {
   // proven by what the fake `curl` was actually called with, not by reading a
   // constant back — and the banner must then retire on the re-probed FACTS, which is
   // the other of the two heal paths (block C healed on the session's own progress).
-  fixture.setInstallScript(fixture.successInstallScript("claude", { signedIn: true }));
+  //
+  // The installer HOLDS until a marker file appears (the same pattern S2's e2e uses),
+  // so the running state can be OBSERVED rather than raced. Without the hold this
+  // block was a coin flip on one build: a script that finishes in milliseconds clears
+  // the run, `setupRunOwnsWindow()` goes false, and the grid this asserts on is
+  // already disposed — so the wait spun for its full timeout instead.
+  const holdFile = path.join(root, "release-install");
+  fixture.setInstallScript(
+    fixture.successInstallScript("claude", { holdFile, signedIn: true }),
+  );
   await bannerAction.click();
   await waitUntil(
     async () =>
@@ -257,11 +266,21 @@ try {
     ["-fsSL https://claude.ai/install.sh"],
     "the vendor's official command (D7) is what ran",
   );
+  fs.writeFileSync(holdFile, "go", "utf8");
+  // The grid goes with the run on SUCCESS (a success CLEARS — only a failure's output
+  // is kept). That is exactly why the hold above is not optional: an installer that
+  // finishes first leaves nothing for the assertions to look at.
+  await waitUntil(
+    async () => (await cli.locator(".task-terminal[data-setup-run]").count()) === 0,
+    "the setup grid to go with the finished run",
+  );
   await banner.waitFor({ state: "detached" });
-  assert.notEqual(
-    await placeholder(),
-    YIELDED_PLACEHOLDER,
-    "and the composer's copy comes back once the machine is fixed",
+  // Waited, not asserted flat: the composer's copy stands while EITHER the machine is
+  // broken or this pty is live, and `view.live` lags a pty that died on its own — so
+  // the honest copy can outlive the banner's detach by one index refresh.
+  await waitUntil(
+    async () => (await placeholder()) !== YIELDED_PLACEHOLDER,
+    "the composer's copy to come back once the machine is fixed",
   );
   observed.installSeamAndFactsHeal = {
     curl: fixture.curlInvocations(),
