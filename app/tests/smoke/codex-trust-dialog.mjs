@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 // Codex boot directory-trust dialog surfacing (codex-trust S2). When codex parks
 // on its onboarding trust screen instead of the composer, Sonata must name what
@@ -66,8 +69,21 @@ const { TaskScreenModel } = require("../../dist/runtime/terminal-host/task-scree
 const failures = [];
 
 // The task's real geometry class: wide enough that the widget's own lines do not
-// wrap, tall enough that the whole dialog is inside one viewport.
+// wrap, tall enough that the whole dialog is inside one viewport. (A viewport too
+// SHORT to hold the whole widget is a known, documented boundary of the grid
+// channel — see the KNOWN BOUNDARY note on `isCodexTrustDialog`.)
 const DIMENSIONS = normalizeTerminalDimensions(120, 30);
+
+// Declared with the constants, not down among the helpers: the source-shape
+// fence runs at top level, so a `const` below it would be in its TDZ.
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src");
+
+/** Read a product source file for the source-shape fence (the
+ *  terminal-grid-substrate.mjs pattern). Source, never dist: the fence is about
+ *  what is WRITTEN, and a compiler could legitimately reshape the emitted form. */
+function readProductSource(relative) {
+  return fs.readFileSync(path.join(SRC, relative), "utf8");
+}
 
 // MEASURED (see PROVENANCE). The dialog as it reached the byte stream: codex
 // paints the option cursor with the composer's own `›`, and the cell-diff
@@ -185,10 +201,100 @@ await check("forgery: prose carrying the hint vocabulary does NOT fire the signa
 
 // A verbatim reproduction of the whole widget is, by construction, textually
 // indistinguishable from the widget — no signature can separate them, and
-// claiming otherwise would be the lie. What makes it unreachable is STRUCTURAL,
-// and both guards are asserted below rather than asserted here: the watchdog is
-// one-shot 4s after spawn (nothing has answered a prompt yet, so no model prose
-// exists), and it fires only while `acceptsPromptInput()` is false.
+// claiming otherwise would be the lie. What makes it unreachable is STRUCTURAL:
+// two guards, which this file checks at two DIFFERENT strengths. Saying so
+// precisely matters, because the weaker of the two is the load-bearing half.
+//
+//   GUARD 1 — the watchdog is ONE-SHOT, `CODEX_BOOT_TRUST_DIALOG_CHECK_MS` after
+//   the spawn. This is what makes the verbatim quotation unreachable IN GENERAL:
+//   at t+4s of a boot no prompt has been answered, so no model prose exists yet
+//   to quote it. It is pinned in "arming" below at SOURCE-SHAPE strength only —
+//   the window value, the single `setTimeout` arming site, the handle nulled as
+//   the callback's first act, and the teardown clear. That is weaker than a
+//   behavioural assertion and is labelled as such there; see the section's own
+//   note for why a behavioural one was rejected.
+//
+//   GUARD 2 — it fires only while `acceptsPromptInput()` is false. BEHAVIOURALLY
+//   asserted, in "watchdog: a ready composer suppresses the banner even with the
+//   dialog on screen" below.
+//
+// Neither guard is asserted by the prose negatives above; those pin the
+// signature's own specificity, which is a separate claim.
+
+// ── 2b. ARMING: one-shot, at the spawn window ───────────────────────────────
+//
+// GUARD 1 of the forgery argument above. Pinned at SOURCE-SHAPE strength, and
+// this section does not pretend otherwise: it reads the product source and
+// asserts on its text. It proves the arming is WRITTEN one-shot; it does not
+// execute a timer.
+//
+// Why not behavioural. Driving the real thing means `startTask`, which spawns a
+// PTY — an Electron interpreter, a spawnable stand-in binary, and a >4s
+// wall-clock wait for one boolean. That is a slow, environment-coupled test for
+// a property with no runtime inputs, and the only alternative (an idempotence
+// guard inside `checkCodexBootTrustDialog` so a double call is observable) means
+// adding a branch to the product that can never be taken — defensive noise by
+// this codebase's own standard, and the same reason the signature refuses a
+// negative lookahead the co-occurrence already covers.
+//
+// What it therefore buys, honestly stated: it catches the regression that
+// actually threatens the forgery argument — someone making this check PERIODIC.
+// That is not hypothetical. The clearing pass 500 lines below deliberately rides
+// a repeating cadence (`scheduleApprovalScan`), the two live in the same file
+// and read the same grid, and unifying them is a natural-looking tidy-up. A
+// re-arming trust check fires during a live turn, where model prose exists and a
+// verbatim quotation is reachable. Nothing else in this suite would notice.
+//
+// Precedent for reading product source in a fence: tests/smoke/
+// terminal-grid-substrate.mjs (same reasoning — the property lives in an
+// internal with no public accessor, and adding one purely for a test would put
+// test scaffolding in the product).
+
+await check("arming: the trust watchdog is written one-shot, at the spawn window", () => {
+  const source = readProductSource("runtime/terminal-host/terminal-host.ts");
+
+  // The window. Pinned by VALUE so a silent widening cannot pass — the whole
+  // "no prose exists yet" argument is about this number being a boot window.
+  assert.match(
+    source,
+    /const CODEX_BOOT_TRUST_DIALOG_CHECK_MS = 4000;/,
+    "the trust watchdog's window is 4000ms",
+  );
+
+  // Exactly ONE arming site, and it is a setTimeout — never an interval.
+  const armings = source.match(/this\.codexTrustDialogTimer = setTimeout\(/g) ?? [];
+  assert.equal(armings.length, 1, "the timer is armed in exactly one place");
+  assert.equal(
+    /codexTrustDialogTimer\s*=\s*setInterval/.test(source),
+    false,
+    "and never from setInterval — a periodic trust check is the forgery regression",
+  );
+
+  // ONE-SHOT: the handle is nulled as the callback's FIRST act, so the callback
+  // has no live handle to re-arm and no second firing to schedule.
+  assert.match(
+    source,
+    /this\.codexTrustDialogTimer = setTimeout\(\(\) => \{\s*this\.codexTrustDialogTimer = null;/,
+    "the callback drops its own handle before doing anything else",
+  );
+
+  // Codex-only, and armed on the spawn path (not on a data/readiness path, which
+  // is what would make it re-triggerable within a session).
+  const spawnBlock = source.slice(
+    source.indexOf('if (this.profile.provider === "codex") {'),
+    source.indexOf("this.codexTrustDialogTimer.unref?.();"),
+  );
+  assert.ok(spawnBlock.length > 0, "the arming sits inside the codex provider branch");
+  assert.match(spawnBlock, /CODEX_BOOT_TRUST_DIALOG_CHECK_MS/, "…using the boot window constant");
+
+  // Teardown clears it, so a dead/replaced session can never fire the watchdog
+  // it armed — the other half of "once per spawn".
+  assert.match(
+    source,
+    /if \(this\.codexTrustDialogTimer\) \{\s*clearTimeout\(this\.codexTrustDialogTimer\);\s*this\.codexTrustDialogTimer = null;\s*\}/,
+    "disposeProcess clears the armed timer",
+  );
+});
 
 // ── 3. THE WATCHDOG: surface, never answer ──────────────────────────────────
 

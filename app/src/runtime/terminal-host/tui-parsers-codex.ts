@@ -555,6 +555,27 @@ export function isCodexUpdatePrompt(terminalText: string): boolean {
 // None of them is a needle, so their presence, absence or re-wording changes
 // nothing here.
 //
+// KNOWN BOUNDARY of the grid channel — seen, not missed. `viewportText()` is
+// VIEWPORT-ONLY: it reads `term.rows` lines from `viewportY` down and never
+// touches the scrollback ring (`task-screen-model.ts`; the substrate fence
+// machine-checks that nothing reads above `viewportY`). Codex is spawned with
+// `--no-alt-screen`, so this widget is ordinary inline output rather than a
+// full-screen modal pinned to the viewport, and it runs to ~13 rows with the
+// git-root note and an error line present. On a terminal the user has shrunk far
+// enough (`normalizeTerminalDimensions` floors rows at 2) the question line can
+// therefore sit ABOVE `viewportY` while the option rows are still on screen —
+// and the co-occurrence then reads FALSE.
+//
+// Accepted, on the failure DIRECTION. That case yields silence: no banner, which
+// is exactly today's pre-S2 behaviour, and the readiness guard still holds
+// delivery so nothing is written into the dialog. The alternative — matching on
+// fewer needles so a partial view still fires — trades this narrow silence for a
+// forgeable signature, and a banner that can lie is worse than one that can be
+// quiet. Reaching for scrollback is not the escape either: D-1 refinement 4 names
+// a grid consumer that wants scrollback as a channel-misuse smell. If this
+// silence is ever OBSERVED rather than merely derivable, the honest fix is a
+// second needle set scoped to what a short viewport does show, not a weaker one.
+//
 // PREFIX OVERLAP, adjudicated: the Full Access consent dialog's row is
 // `› 1. Yes, continue anyway`, which contains `1.Yes,continue`. It cannot
 // collide — that dialog carries neither the trust question nor a `No, quit` row,
