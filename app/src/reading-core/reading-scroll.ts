@@ -127,6 +127,123 @@ export function resolveReadingFinalizeScrollTop(input: {
   return target === input.scrollTop ? null : target;
 }
 
+// ——— Per-session scroll memory (S3 D3) ——————————————————————————————————————
+// Switching sessions replaces the whole transcript, so the outgoing DOM's
+// scroll position is gone the moment the reconcile runs. Reading — as opposed
+// to monitoring — means a session you return to opens where you left it. The
+// snapshot is taken at the switch-away moment (before teardown) and consumed on
+// the way back in.
+//
+// RENDERER-RUN LIFETIME ONLY, never persisted to disk: a reading position is a
+// property of one sitting with the app, not of the session. This is a design
+// ruling, not an omission.
+//
+// It deliberately does NOT live on TaskViewState: `evictDormantTaskView`
+// (transitions/session.ts) drops the view of a plain dormant session the moment
+// you switch away from it — exactly the session whose position we just promised
+// to remember — so a snapshot stored there would be destroyed by the very act
+// that created it.
+
+export interface ReadingScrollSnapshot {
+  readonly scrollTop: number;
+  readonly nearBottom: boolean;
+}
+
+/** The reading positions of the sessions visited this run, keyed by task id.
+ *  Created once at boot and shared by the switch flow (which remembers) and the
+ *  render finalize (which restores) — the two never import each other, so the
+ *  composition root hands both the same instance, exactly as it does for the
+ *  bottom intent. */
+export interface ReadingScrollMemoryStore {
+  remember(taskId: string, snapshot: ReadingScrollSnapshot): void;
+  /** One-shot: a snapshot answers exactly one return. A switch-in with nothing
+   *  remembered opens at the bottom, which is also the honest answer when a
+   *  switch-away path failed to record one — better than restoring a position
+   *  from an older visit. */
+  take(taskId: string | null): ReadingScrollSnapshot | null;
+  /** The session is gone (closed / archived / deleted): so is its position. */
+  forget(taskId: string): void;
+}
+
+export function createReadingScrollMemoryStore(): ReadingScrollMemoryStore {
+  const snapshots = new Map<string, ReadingScrollSnapshot>();
+  return {
+    remember(taskId, snapshot) {
+      snapshots.set(taskId, snapshot);
+    },
+    take(taskId) {
+      if (taskId === null) {
+        return null;
+      }
+      const snapshot = snapshots.get(taskId) ?? null;
+      snapshots.delete(taskId);
+      return snapshot;
+    },
+    forget(taskId) {
+      snapshots.delete(taskId);
+    },
+  };
+}
+
+/** Where a task switch should leave the incoming transcript. `nearBottom` wins
+ *  over the raw offset: a reader who left a session at its live edge wants the
+ *  NEW live edge, not the pixel where the old one used to be. A raw offset is
+ *  clamped into the incoming content's range (the transcript can be shorter
+ *  than it was — a re-hydrated dormant view, a compaction), while the bottom
+ *  case returns scrollHeight, the codebase's pin-to-bottom idiom (the DOM
+ *  clamps it). No snapshot ⇒ the bottom: a session opened for the first time
+ *  this run opens at its newest reply. */
+export function planTaskSwitchScroll(
+  snapshot: ReadingScrollSnapshot | null,
+  metrics: { readonly scrollHeight: number; readonly clientHeight: number },
+): number {
+  if (snapshot === null || snapshot.nearBottom) {
+    return metrics.scrollHeight;
+  }
+  const maxScrollTop = Math.max(0, metrics.scrollHeight - metrics.clientHeight);
+  return Math.min(Math.max(0, snapshot.scrollTop), maxScrollTop);
+}
+
+// ——— The finalize decision ————————————————————————————————————————————————
+
+export type ReadingFinalizeScroll =
+  /** Leave scrollTop alone. */
+  | { readonly kind: "none" }
+  /** Write this absolute scrollTop. */
+  | { readonly kind: "top"; readonly top: number };
+
+/** What a render's finalize should do to the run list's scroll position — ONE
+ *  decision point, so the precedence between its claimants is stated once and
+ *  fenced once:
+ *
+ *  1. A TASK SWITCH owns the position outright. The incoming session's
+ *     remembered place is the whole point of the render, and the outgoing DOM's
+ *     nearBottom/previousScrollTop (which this branch replaces) described a
+ *     transcript that no longer exists.
+ *  2. A LIVE RIDE owns scrollTop until it arrives or the reader takes over —
+ *     any write here would abort the smooth animation (CSSOM).
+ *  3. Otherwise the tail-follow rule stands (resolveReadingFinalizeScrollTop). */
+export function planReadingFinalizeScroll(input: {
+  readonly taskSwitch: boolean;
+  readonly switchSnapshot: ReadingScrollSnapshot | null;
+  readonly hasBottomIntent: boolean;
+  readonly nearBottom: boolean;
+  readonly previousScrollTop: number;
+  readonly scrollTop: number;
+  readonly scrollHeight: number;
+  readonly clientHeight: number;
+}): ReadingFinalizeScroll {
+  if (input.taskSwitch) {
+    const top = planTaskSwitchScroll(input.switchSnapshot, input);
+    return top === input.scrollTop ? { kind: "none" } : { kind: "top", top };
+  }
+  if (input.hasBottomIntent) {
+    return { kind: "none" };
+  }
+  const top = resolveReadingFinalizeScrollTop(input);
+  return top === null ? { kind: "none" } : { kind: "top", top };
+}
+
 /** What the bottom-intent animation should do after a layout/scroll settle:
  *  arrival ends it (near bottom → clear), fresh growth re-aims it at the new
  *  bottom, everything else holds so the animation keeps running untouched. */

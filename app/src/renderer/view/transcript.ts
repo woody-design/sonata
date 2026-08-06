@@ -3,10 +3,12 @@
 // list's streaming render path: the keyed reference-identity reconcile, the
 // two persistent nodes (sticky-prompt rail FIRST child, status strip LAST
 // child — both skipped by the reconcile and setNonRailChildren paths), the
-// scroll contract (nearBottom <=64px captured BEFORE reconcile,
-// previousScrollTop restored after, finalize = restorePromptNavAfterRender
-// then scheduleStickyPromptSync — in that order), the turn-card e2e beacons
-// (data-key/sig/turnKey/runId/runStatus, .turn-outcome-note), and the
+// scroll contract (nearBottom <=64px and previousScrollTop captured BEFORE
+// reconcile; finalize then asks reading-core for ONE of restore-a-switch /
+// tail-follow — planReadingFinalizeScroll — and runs
+// restorePromptNavAfterRender then scheduleStickyPromptSync, in that order),
+// the turn-card e2e beacons (data-key/sig/turnKey/runId/runStatus,
+// .turn-outcome-note), and the
 // markdown render memo. Shell behavior (mode switch, prompt-nav, T4, the
 // entry panel) arrives through the actions seam; state is read through the
 // module-bound atom reference (initTranscriptView, bound by main.ts at boot
@@ -47,8 +49,10 @@ import {
 } from "../../reading-core/state";
 import {
   isReadingNearBottom,
-  resolveReadingFinalizeScrollTop,
+  planReadingFinalizeScroll,
+  type ReadingFinalizeScroll,
   type ReadingBottomIntentStore,
+  type ReadingScrollMemoryStore,
 } from "../../reading-core/reading-scroll";
 import { elements } from "../dom";
 import { actions } from "../actions";
@@ -70,17 +74,23 @@ let bottomIntent: ReadingBottomIntentStore;
  *  tail-follow pin is not suppressed (the navigation surface's own sync runs
  *  after finalize and would clear a frame too late). */
 let lastRenderedTaskId: string | null = null;
+/** The per-session reading positions (owned by reading-core, written by the
+ *  switch flow). This surface is the reader: a task-switch render consumes the
+ *  incoming session's snapshot. */
+let scrollMemory: ReadingScrollMemoryStore;
 
 export function initTranscriptView(
   stateRef: RendererState,
   deps: {
     composeEntryPanel: () => HTMLElement;
     bottomIntent: ReadingBottomIntentStore;
+    scrollMemory: ReadingScrollMemoryStore;
   },
 ): void {
   state = stateRef;
   composeEntryPanel = deps.composeEntryPanel;
   bottomIntent = deps.bottomIntent;
+  scrollMemory = deps.scrollMemory;
 }
 
 // The turn-signature tracker is process-local (block render versions live in
@@ -211,13 +221,14 @@ export function renderRuns(): void {
 
   const view = activeTaskView(state);
   const taskId = view?.task?.id ?? null;
-  if (taskId !== lastRenderedTaskId) {
+  const taskSwitch = taskId !== lastRenderedTaskId;
+  if (taskSwitch) {
     lastRenderedTaskId = taskId;
     bottomIntent.clear();
   }
   if (!view?.task) {
     setNonRailChildren(runList, rail, [composeEntryPanel()]);
-    finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
+    finalizeReadingSurfaceRender({ nearBottom, previousScrollTop, taskSwitch, taskId });
     return;
   }
 
@@ -245,27 +256,40 @@ export function renderRuns(): void {
     })),
   );
 
-  finalizeReadingSurfaceRender(nearBottom, previousScrollTop);
+  finalizeReadingSurfaceRender({ nearBottom, previousScrollTop, taskSwitch, taskId });
 }
 
-function finalizeReadingSurfaceRender(nearBottom: boolean, previousScrollTop: number): void {
+function finalizeReadingSurfaceRender(input: {
+  nearBottom: boolean;
+  previousScrollTop: number;
+  taskSwitch: boolean;
+  taskId: string | null;
+}): void {
   const runList = elements.runList;
-  // The tail-follow pin, guarded on two fronts: a live scroll-to-bottom intent
-  // suppresses the write so this render cannot abort the smooth animation, and a
-  // no-op (same-value) write is skipped for the same reason. Re-aiming a growing
-  // target is the navigation surface's job (syncReadingNavigation).
-  const scrollTop = resolveReadingFinalizeScrollTop({
-    nearBottom,
-    previousScrollTop,
-    scrollTop: runList.scrollTop,
-    scrollHeight: runList.scrollHeight,
-    hasBottomIntent: bottomIntent.current() !== null,
-  });
-  if (scrollTop !== null) {
-    runList.scrollTop = scrollTop;
-  }
+  // One decision point — the precedence (and the reason for each claimant) is
+  // stated once in reading-core: planReadingFinalizeScroll.
+  applyReadingFinalizeScroll(
+    planReadingFinalizeScroll({
+      taskSwitch: input.taskSwitch,
+      // Consumed only on the render that switches in, so a session's remembered
+      // place answers exactly the return it was taken for.
+      switchSnapshot: input.taskSwitch ? scrollMemory.take(input.taskId) : null,
+      hasBottomIntent: bottomIntent.current() !== null,
+      nearBottom: input.nearBottom,
+      previousScrollTop: input.previousScrollTop,
+      scrollTop: runList.scrollTop,
+      scrollHeight: runList.scrollHeight,
+      clientHeight: runList.clientHeight,
+    }),
+  );
   actions.restorePromptNavAfterRender();
   actions.scheduleStickyPromptSync();
+}
+
+function applyReadingFinalizeScroll(action: ReadingFinalizeScroll): void {
+  if (action.kind === "top") {
+    elements.runList.scrollTop = action.top;
+  }
 }
 
 function renderStickyPromptRail(): HTMLElement {

@@ -203,7 +203,10 @@ import { clearTaskChipCache, initTranscriptChips, transcriptChipTarget } from ".
 import { initQuoteComment } from "./view/quote-comment";
 import { initReadingNavigation } from "./view/reading-navigation";
 import { initReadingScrollControl } from "./view/reading-scroll-control";
-import { createReadingBottomIntentStore } from "../reading-core/reading-scroll";
+import {
+  createReadingBottomIntentStore,
+  createReadingScrollMemoryStore,
+} from "../reading-core/reading-scroll";
 
 const readingModeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let currentSystemReadingMode: ResolvedReadingMode = readingModeQuery.matches ? "dark" : "light";
@@ -303,6 +306,11 @@ initRender(state, {
   scheduleSessionIndexRefresh: () => scheduleSessionIndexRefresh(),
   refreshReport: (taskId) => refreshReport(taskId),
 });
+// One per-session scroll memory (S3 D3), shared by the flow that photographs a
+// reading position on the way out and the transcript surface that restores it on
+// the way back in — the same composition-root handover the bottom intent gets
+// below, and for the same reason (the two families never import each other).
+const readingScrollMemory = createReadingScrollMemoryStore();
 initSessionFlows(state, {
   closeSidebarMenu: () => closeSidebarMenu(),
   exitPromptNav: (options) => exitPromptNav(options),
@@ -314,6 +322,7 @@ initSessionFlows(state, {
     clearTaskChipCache(taskId);
     clearTaskBanners(taskId);
   },
+  readingScrollMemory,
 });
 initAttachmentFlows(state);
 initTagFlows(state, {
@@ -338,6 +347,7 @@ const readingBottomIntent = createReadingBottomIntentStore();
 initTranscriptView(state, {
   composeEntryPanel: renderTaskEntryPanel,
   bottomIntent: readingBottomIntent,
+  scrollMemory: readingScrollMemory,
 });
 initTranscriptChips(state, {
   resolvePaths: (taskId, candidates) =>

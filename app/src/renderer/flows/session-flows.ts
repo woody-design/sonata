@@ -21,6 +21,10 @@ import {
   providerLabel,
 } from "../../reading-core/selectors/formatters";
 import { cliReadinessBlocksSend } from "../../reading-core/selectors/cli-readiness-card";
+import {
+  isReadingNearBottom,
+  type ReadingScrollMemoryStore,
+} from "../../reading-core/reading-scroll";
 import { optionPromptSelectionsFromDrafts } from "../../reading-core/selectors/composer";
 import { activeRunKey, dormantArmed, stoppedRunRefillDraft } from "../../reading-core/selectors/runs";
 import { findSessionSummary } from "../../reading-core/selectors/sidebar";
@@ -67,6 +71,11 @@ interface SessionFlowDeps {
    *  those Maps/Sets, so the clear arrives as an init-bound dep (flows never
    *  import view families). OBS S8, F10. */
   clearTaskViewCaches(taskId: string): void;
+  /** The per-session reading positions (S3 D3), created at boot and shared with
+   *  the transcript surface that restores them. Switching sessions is the only
+   *  moment the outgoing scroll position still exists, so the flow that
+   *  performs the switch is the only place it can be taken. */
+  readingScrollMemory: ReadingScrollMemoryStore;
 }
 
 let state: RendererState;
@@ -80,6 +89,24 @@ export function initSessionFlows(boundState: RendererState, boundDeps: SessionFl
 
 function activeTaskView(): TaskViewState | null {
   return activeTaskViewOf(state);
+}
+
+/** Photograph where the reader is in the session they are LEAVING, before the
+ *  render that replaces the transcript under them (S3 D3). Called from the two
+ *  paths that change the composer's/transcript's owner — activation of another
+ *  task, and New Chat — for the same reason and at the same moment as the
+ *  composer draft is parked beside it. `nearBottom` is recorded rather than
+ *  derived on return: whether the reader was at the live edge is a fact about
+ *  the transcript they were reading, and the one they come back to is longer. */
+function rememberReadingScroll(taskId: string | null): void {
+  if (taskId === null) {
+    return;
+  }
+  const runList = elements.runList;
+  deps.readingScrollMemory.remember(taskId, {
+    scrollTop: runList.scrollTop,
+    nearBottom: isReadingNearBottom(runList),
+  });
 }
 
 export async function refreshSessionIndex(): Promise<void> {
@@ -255,6 +282,9 @@ function removeTaskViewLocally(taskId: string): void {
   // entries are pure leak (F10). Done unconditionally (not gated on the
   // active-close return) since a background archive/delete drops a view too.
   deps.clearTaskViewCaches(taskId);
+  // The session is gone, so is its reading position — unlike the switch-away
+  // eviction beside it, which drops the VIEW while the position must survive.
+  deps.readingScrollMemory.forget(taskId);
   if (sessionTransitions.removeTaskView(state, taskId)) {
     // The closed view's draft dies with it; the composer hands over to the
     // New Chat slot.
@@ -314,6 +344,7 @@ export function startNewChat(folder?: string | null): void {
   deps.exitPromptNav({ focusComposer: false });
   if (state.activeTaskId !== null) {
     saveComposerDraft();
+    rememberReadingScroll(state.activeTaskId);
     state.activeTaskId = null;
     restoreComposerDraft();
   }
@@ -364,6 +395,7 @@ export function activateTask(taskId: string, lifecycleOwnerToken?: string): void
   const previousTaskId = state.activeTaskId;
   if (switching) {
     saveComposerDraft();
+    rememberReadingScroll(previousTaskId);
     deps.exitPromptNav({ focusComposer: false });
     state.usagePopover = null;
     deps.clearUsagePopoverTimers();

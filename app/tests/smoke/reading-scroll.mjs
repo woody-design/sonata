@@ -7,7 +7,10 @@ const {
   readingDistanceFromBottom,
   readingHasOverflow,
   createReadingBottomIntentStore,
+  createReadingScrollMemoryStore,
   readingBottomIntentTakenOver,
+  planTaskSwitchScroll,
+  planReadingFinalizeScroll,
   resolveReadingFinalizeScrollTop,
   stepReadingBottomIntent,
 } = await import("../../dist/reading-core/reading-scroll.js");
@@ -190,6 +193,127 @@ assert.deepEqual(
   { kind: "arrived" },
   "arrival is checked before growth",
 );
+
+// ——— Per-session scroll memory (S3 D3) ————————————————————————————————————
+{
+  const memory = createReadingScrollMemoryStore();
+  assert.equal(memory.take("a"), null, "an unvisited session has no remembered place");
+  memory.remember("a", { scrollTop: 820, nearBottom: false });
+  memory.remember("b", { scrollTop: 40, nearBottom: true });
+  assert.deepEqual(memory.take("a"), { scrollTop: 820, nearBottom: false });
+  assert.equal(memory.take("a"), null, "a snapshot answers exactly one return");
+  assert.deepEqual(memory.take("b"), { scrollTop: 40, nearBottom: true }, "sessions are independent");
+  memory.remember("c", { scrollTop: 10, nearBottom: false });
+  memory.forget("c");
+  assert.equal(memory.take("c"), null, "a closed session's place is dropped");
+  assert.equal(memory.take(null), null, "no task, nothing to restore");
+}
+
+// nearBottom wins over the raw offset: the reader left at the live edge, and
+// the live edge has moved on.
+assert.equal(
+  planTaskSwitchScroll(
+    { scrollTop: 400, nearBottom: true },
+    { scrollHeight: 9000, clientHeight: 800 },
+  ),
+  9000,
+  "a session left at the bottom returns to the NEW bottom",
+);
+assert.equal(
+  planTaskSwitchScroll(
+    { scrollTop: 400, nearBottom: false },
+    { scrollHeight: 9000, clientHeight: 800 },
+  ),
+  400,
+  "a session left mid-history returns to that offset",
+);
+assert.equal(
+  planTaskSwitchScroll(null, { scrollHeight: 9000, clientHeight: 800 }),
+  9000,
+  "no snapshot opens at the bottom",
+);
+assert.equal(
+  planTaskSwitchScroll(
+    { scrollTop: 8000, nearBottom: false },
+    { scrollHeight: 3000, clientHeight: 800 },
+  ),
+  2200,
+  "a remembered offset is clamped into the incoming transcript's range",
+);
+assert.equal(
+  planTaskSwitchScroll(
+    { scrollTop: 120, nearBottom: false },
+    { scrollHeight: 500, clientHeight: 800 },
+  ),
+  0,
+  "a transcript shorter than the viewport clamps to the top, never negative",
+);
+
+// ——— The finalize decision: precedence ————————————————————————————————————
+{
+  const base = {
+    taskSwitch: false,
+    switchSnapshot: null,
+    hasBottomIntent: false,
+    nearBottom: false,
+    previousScrollTop: 300,
+    scrollTop: 300,
+    scrollHeight: 9000,
+    clientHeight: 800,
+  };
+
+  // 1. A task switch owns the position — over a live ride, over a new segment,
+  //    and over the outgoing DOM's tail-follow inputs.
+  assert.deepEqual(
+    planReadingFinalizeScroll({
+      ...base,
+      taskSwitch: true,
+      switchSnapshot: { scrollTop: 1500, nearBottom: false },
+      hasBottomIntent: true,
+      nearBottom: true,
+    }),
+    { kind: "top", top: 1500 },
+    "a switch restores the incoming session's place, whatever else is in flight",
+  );
+  assert.deepEqual(
+    planReadingFinalizeScroll({ ...base, taskSwitch: true, switchSnapshot: null }),
+    { kind: "top", top: 9000 },
+    "a switch with nothing remembered opens at the bottom",
+  );
+  assert.deepEqual(
+    planReadingFinalizeScroll({
+      ...base,
+      taskSwitch: true,
+      switchSnapshot: { scrollTop: 300, nearBottom: false },
+    }),
+    { kind: "none" },
+    "a restore that changes nothing is not written (a write aborts a smooth scroll)",
+  );
+
+  // 2. A live ride owns scrollTop.
+  assert.deepEqual(
+    planReadingFinalizeScroll({ ...base, nearBottom: true, hasBottomIntent: true }),
+    { kind: "none" },
+    "a live scroll-to-bottom ride is never interrupted",
+  );
+
+  // 4. Tail-follow otherwise, unchanged.
+  assert.deepEqual(
+    planReadingFinalizeScroll({ ...base, nearBottom: true }),
+    { kind: "top", top: 9000 },
+    "no anchor pending: the near-bottom pin still stands",
+  );
+  assert.deepEqual(
+    planReadingFinalizeScroll({ ...base, previousScrollTop: 300, scrollTop: 400 }),
+    { kind: "top", top: 300 },
+    "no anchor pending: a scrolled-away view still holds its place",
+  );
+  assert.deepEqual(
+    planReadingFinalizeScroll({ ...base, previousScrollTop: 1960, scrollTop: 1960 }),
+    { kind: "none" },
+    "a held position is not rewritten",
+  );
+}
 
 console.log(
   JSON.stringify({

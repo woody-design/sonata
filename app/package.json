@@ -75,6 +75,7 @@
     "e2e:reading-navigation": "npm run build && node tests/e2e/reading-navigation.mjs",
     "e2e:reading-scroll-to-bottom": "npm run build && node tests/e2e/reading-scroll-to-bottom.mjs",
     "e2e:reading-scroll-during-render": "npm run build && node tests/e2e/reading-scroll-during-render.mjs",
+    "e2e:reading-session-scroll-memory": "npm run build && node tests/e2e/reading-session-scroll-memory.mjs",
     "e2e:open-task": "npm run build && node tests/e2e/open-task.mjs",
     "e2e:composer-newchat-attachment": "npm run build && node tests/e2e/composer-newchat-attachment.mjs",
     "e2e:composer-reference-attachment": "npm run build && node tests/e2e/composer-reference-attachment.mjs",
