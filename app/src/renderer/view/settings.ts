@@ -56,10 +56,6 @@ export function initSettingsView(stateRef: RendererState): void {
 
 export function renderSettingsOverlay(): void {
   const overlay = state.settingsOverlay;
-  const active = document.activeElement;
-  const keepFocus =
-    overlay !== null &&
-    (active === document.body || elements.settingsOverlayRoot.contains(active));
   // Capture before the rebuild, restore after it — the same shape the sidebar uses
   // (view/sidebar-focus-snapshot.ts), because the reason is the same: this render
   // replaces the whole dialog, and the scrollport's offset is browser state that
@@ -117,7 +113,14 @@ export function renderSettingsOverlay(): void {
   );
   scrim.append(dialog);
   elements.settingsOverlayRoot.append(scrim);
-  if (keepFocus) {
+  // The modal takes the caret when it opens, and takes it BACK when this rebuild
+  // is what orphaned it: replaceChildren above destroys whatever inside the dialog
+  // held focus, which drops the caret on <body>. It must never take it from a live
+  // element — the overlay re-renders on state the user is not looking at, and an
+  // unconditional grab is a theft. Reading document.activeElement AFTER the mount
+  // makes "orphaned" a fact about this paint rather than a guess made before it.
+  const active = document.activeElement;
+  if (!active || active === document.body) {
     dialog.focus();
   }
   // After the focus handoff, which can scroll what it focuses. The assignment is

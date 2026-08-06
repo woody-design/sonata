@@ -42,6 +42,12 @@ import { renderSettingSection, selectedBadge } from "./settings-section";
 /** The shell's state atom, bound once at boot for the panel's read paths. */
 let state: RendererState;
 
+/** Which draft menu the popover currently has mounted, so an OPEN is
+ *  distinguishable from a re-render of the same open menu. Only the project menu
+ *  reads it (its search field takes the caret on open — see renderProjectMenu);
+ *  cleared whenever the popover shows a different menu or nothing. */
+let mountedDraftMenuKind: string | null = null;
+
 export function initEntryView(stateRef: RendererState): void {
   state = stateRef;
 }
@@ -71,8 +77,11 @@ export function renderTaskSettingsPopover(): void {
   const view = activeTaskView(state);
   const menu = state.taskDraft.menu;
   if (view?.task || !menu) {
+    mountedDraftMenuKind = null;
     return;
   }
+  const opening = mountedDraftMenuKind !== menu.kind;
+  mountedDraftMenuKind = menu.kind;
   if (menu.kind === "launch") {
     elements.taskSettingsPopoverRoot.append(renderLaunchSettingsPopover(state.taskDraft.provider));
     return;
@@ -85,7 +94,7 @@ export function renderTaskSettingsPopover(): void {
     elements.taskSettingsPopoverRoot.append(renderAccessMenu());
     return;
   }
-  elements.taskSettingsPopoverRoot.append(renderProjectMenu());
+  elements.taskSettingsPopoverRoot.append(renderProjectMenu(opening));
 }
 
 function draftMenuShell(width: number, menuLabel: string): HTMLElement {
@@ -282,7 +291,7 @@ function renderCodexAccessMenu(): HTMLElement {
   return popover;
 }
 
-function renderProjectMenu(): HTMLElement {
+function renderProjectMenu(opening: boolean): HTMLElement {
   const popover = draftMenuShell(300, "Project");
 
   const projects = (state.sessionIndex?.projects ?? []).filter((project) => !project.archived);
@@ -361,7 +370,23 @@ function renderProjectMenu(): HTMLElement {
   }
   popover.append(footer);
   if (projects.length > 0) {
-    queueMicrotask(() => search.focus());
+    // The caret belongs in the search field when the menu OPENS — the click that
+    // opened it is that intent. On the re-renders that follow it must not be taken
+    // again: this popover is rebuilt wholesale by every render, so an
+    // unconditional grab yanked the caret out of whatever the user had moved it to
+    // (the composer, another field) on every background paint. Same rule as the
+    // rename editor's first-frame focus — never overwrite a newer focus intent —
+    // with `document.body` reading as "this rebuild is what orphaned the caret".
+    queueMicrotask(() => {
+      if (!search.isConnected) {
+        return; // a newer render already replaced this menu
+      }
+      const active = document.activeElement;
+      if (!opening && active && active !== document.body) {
+        return;
+      }
+      search.focus();
+    });
   }
   return popover;
 }
