@@ -25,26 +25,37 @@ export function hasActiveRun(view: TaskViewState | null): boolean {
 
 /**
  * The IDENTITY of the run this view is acting on right now — what a stop would
- * target — or null when nothing is running.
+ * target — or null when no run can be NAMED.
  *
- * Two evidences, because the run report and the delivery controller learn about
- * a turn at slightly different moments: the latest report entry while its status
- * is active, and the delivery controller's own `activeRun` bit. Their union is
- * what the composer has always read for "is it working?" (it was written inline
- * in the painter until S2); naming it here as an identity rather than a boolean
- * is what lets the stop path be idempotent PER RUN (S2 D2) — a second stop
- * request for the run already being stopped is a no-op, while one aimed at the
- * next run is not. Bound to the run, so it needs no timer to expire.
+ * Strictly an identity, deliberately not the union boolean the composer reads
+ * (`composerActiveRun`). The two questions differ: the button only needs to know
+ * THAT something is running, while the single-flight stop (S2 D2) needs to tell
+ * one run from the next. An earlier cut of this returned a `"delivery"` sentinel
+ * when only the delivery bit knew about the run — which gave ONE run TWO names
+ * across the propagation boundary (S2 review round 1). That is fatal for a latch
+ * keyed on it: the rename released the lock mid-run (a second bare Esc — the very
+ * hazard D2 exists to prevent), and the sentinel, not being run-unique, could
+ * also block a LATER run's honest stop. So this function now returns run ids or
+ * nothing at all.
  *
- * The `run:` prefix keeps a runId that happens to read like the sentinel from
- * colliding with it. One sentinel is enough: a task has at most one live run.
+ * Delivery is asked FIRST because it is the fresher evidence: `delivery:state` is
+ * emitted on change (S1) while `report:updated` rides a 1000ms trailing debounce,
+ * so at both ends of a turn the delivery bit moves up to a second earlier. Both
+ * sources name the same run from the same host read, so the answer is stable
+ * whichever one is currently ahead. Null (a run the delivery bit asserts but
+ * cannot name) is reachable only for payloads recorded before `activeRunId`
+ * existed — never in a live session, where the two are set together.
  */
 export function activeRunKey(view: TaskViewState | null): string | null {
+  const delivery = view?.deliveryState;
+  if (delivery?.activeRun && delivery.activeRunId) {
+    return delivery.activeRunId;
+  }
   const latestRun = view?.report?.runs.at(-1);
   if (latestRun && isActiveRunStatus(latestRun.status)) {
-    return `run:${latestRun.runId}`;
+    return latestRun.runId;
   }
-  return view?.deliveryState?.activeRun ? "delivery" : null;
+  return null;
 }
 
 /**

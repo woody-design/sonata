@@ -23,6 +23,7 @@ function makeHost(overrides = {}) {
   return {
     state,
     hasActiveRun: () => state.activeRun,
+    activeRunId: () => (state.activeRun ? "run-stub" : null),
     isApprovalActive: () => state.approval,
     hasPendingControlSwitch: () => state.pendingControlSwitch ?? false,
     isRewindPanelOpen: () => state.rewindPanelOpen ?? false,

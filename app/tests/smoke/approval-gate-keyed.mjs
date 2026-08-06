@@ -20,6 +20,7 @@ function makeHost() {
   return {
     state,
     hasActiveRun: () => state.activeRun,
+    activeRunId: () => (state.activeRun ? "run-stub" : null),
     isApprovalActive: () => state.approval,
     hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,

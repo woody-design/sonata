@@ -34,6 +34,7 @@ function fakeHost() {
     nudges: 0,
     submissions: [],
     hasActiveRun: () => false,
+    activeRunId: () => null,
     isApprovalActive: () => false,
     hasPendingControlSwitch: () => false,
     isRewindPanelOpen: () => false,

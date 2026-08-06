@@ -29,6 +29,7 @@ function fakeHost(overrides = {}) {
   return {
     state,
     hasActiveRun: () => state.activeRun,
+    activeRunId: () => (state.activeRun ? "run-stub" : null),
     isApprovalActive: () => state.approval,
     hasPendingControlSwitch: () => state.pendingControlSwitch,
     isRewindPanelOpen: () => state.rewindPanelOpen ?? false,

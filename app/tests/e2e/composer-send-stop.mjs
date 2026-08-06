@@ -124,13 +124,57 @@ try {
     button.click();
   });
   // The stop settles the run, which is also what returns the button to ↑.
-  await main.locator("#send-prompt:not(.stop-mode)").waitFor({ state: "attached" });
+  await settleAfterStop(main);
   // Past the 900ms post-stop input-clear flood (kill-line bytes, no Esc among
   // them) and well short of the 6s /stop inspection, so a second Esc — which
   // would have been written in the same tick as the first — has had every
   // chance to land before it is counted.
   await main.waitForTimeout(1500);
   const escAfter = bareEscapeCount(readStdin(taskId));
+  // Stopping hands the stopped run's words back for editing (stop S2), so the
+  // composer is deliberately NOT empty here — under D1 that is a send, and the
+  // button says so. Clear it, so "the button left stop-mode" can only mean the
+  // run settled rather than "there is now something staged".
+  await main.locator("#prompt-input").fill("");
+  const afterStop = await readButton(main);
+
+  // (c) A SECOND stop episode, on a second run — the scenario-B fence from review
+  // round 1. Run 1's latch is still sitting in the view (it is never cleared), so
+  // if a stale latch could match a later run, the stop below would be swallowed
+  // and NO Esc would reach the PTY at all. Single-flight is re-asserted here too,
+  // because a latch that is merely never released would also pass check (b).
+  //
+  // What this canNOT stage is the delivery-only window itself (the gap where only
+  // `delivery:state` knows the run). Measured while writing this: a new run's
+  // `report:updated` is not debounced in practice — it arrives in the same batch
+  // as the delivery event — and the residual gap is an async report REFETCH
+  // inside the renderer, which no harness signal exposes. The event count below
+  // is recorded as a diagnostic for the next reader, deliberately NOT asserted:
+  // event arrival is not the same fact as the view having updated, and a check
+  // that cannot mean what it claims is worse than no check. The invariant it
+  // would have covered — one run, one key, across that boundary — is fenced
+  // exactly (and deterministically) in tests/smoke/reading-composer-selectors.mjs.
+  await installEventRecorder(main);
+  await waitForReportQuiet(main, 1200);
+  fireHook(taskId, {
+    hook_event_name: "UserPromptSubmit",
+    session_id: SESSION_ID,
+    prompt: "a second turn to stop",
+    prompt_id: "prompt-send-stop-2",
+  });
+  await main.locator("#send-prompt.stop-mode").waitFor({ state: "attached" });
+  // Diagnostic only (see above): how much report traffic had reached the renderer
+  // before this stop. 0 would mean the click landed in the delivery-only window.
+  const reportEventsBeforeSecondStop = (await counts(main))["report:updated"] ?? 0;
+  const escBeforeWindow = bareEscapeCount(readStdin(taskId));
+  await main.evaluate(() => {
+    const button = document.getElementById("send-prompt");
+    button.click();
+    button.click();
+  });
+  await settleAfterStop(main);
+  await main.waitForTimeout(1500);
+  const escAfterWindow = bareEscapeCount(readStdin(taskId));
 
   const checks = {
     stopModeWhileRunning:
@@ -151,12 +195,30 @@ try {
     clearingFlipsBack: cleared.stopMode && cleared.glyph === "■" && cleared.ariaLabel === "Stop",
     sendModeClickDelivers: afterSend.stopMode && afterSend.glyph === "■",
     doubleStopWritesOneEsc: escAfter - escBefore === 1,
-    stopSettledTheRun: !(await readButton(main)).stopMode,
+    stopSettledTheRun: !afterStop.stopMode && afterStop.glyph === "↑",
+    // A stale latch from the first run does not swallow the second run's stop…
+    secondRunStopReachesThePty: escAfterWindow - escBeforeWindow >= 1,
+    // …and that second stop is still single-flight.
+    secondRunDoubleStopWritesOneEsc: escAfterWindow - escBeforeWindow === 1,
   };
   const success = Object.values(checks).every(Boolean);
   console.log(
     JSON.stringify(
-      { success, checks, running, typing, cleared, afterSend, escBefore, escAfter, taskId },
+      {
+        success,
+        checks,
+        running,
+        typing,
+        cleared,
+        afterSend,
+        afterStop,
+        escBefore,
+        escAfter,
+        reportEventsBeforeSecondStop,
+        escBeforeWindow,
+        escAfterWindow,
+        taskId,
+      },
       null,
       2,
     ),
@@ -165,6 +227,49 @@ try {
 } finally {
   await app?.close();
   fs.rmSync(root, { recursive: true, force: true });
+}
+
+/** Wait for the stop to settle the run and hand the button back to ↑ — but do
+ *  NOT hang the suite if it never does. A swallowed stop (the scenario-B failure
+ *  mode: the latch matched a run it should not have) leaves the button on ■
+ *  forever, and a fence should NAME what broke rather than time out in a
+ *  locator: the Esc-count checks below do exactly that. */
+async function settleAfterStop(page) {
+  await page
+    .locator("#send-prompt:not(.stop-mode)")
+    .waitFor({ state: "attached", timeout: 8000 })
+    .catch(() => {});
+}
+
+/** Count runtime events the way the renderer receives them — the same channel
+ *  the reducer reads, so a `report:updated` count of 0 means the view's run
+ *  report genuinely has not moved. */
+async function installEventRecorder(page) {
+  await page.evaluate(() => {
+    window.__sonataEventCounts = {};
+    window.sonataRuntime.onRuntimeEvent((event) => {
+      window.__sonataEventCounts[event.type] = (window.__sonataEventCounts[event.type] ?? 0) + 1;
+    });
+  });
+}
+
+function counts(page) {
+  return page.evaluate(() => ({ ...window.__sonataEventCounts }));
+}
+
+/** Wait until no `report:updated` has arrived for `quietMs` — longer than the
+ *  1000ms trailing debounce, so the previous run's settle cannot be mistaken for
+ *  the next run's propagation. */
+async function waitForReportQuiet(page, quietMs) {
+  let last = -1;
+  for (;;) {
+    const seen = (await counts(page))["report:updated"] ?? 0;
+    if (seen === last) {
+      return;
+    }
+    last = seen;
+    await page.waitForTimeout(quietMs);
+  }
 }
 
 /** Everything the one button is saying right now. */

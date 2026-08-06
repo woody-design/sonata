@@ -984,17 +984,25 @@ export async function stopRun(): Promise<void> {
   // real: the report round-trip keeps the button in stop-mode for a beat after
   // the first click, so a double-click is two live stop-mode presses.
   //
-  // The latch expires with the run, not on a clock: `activeRunKey` returns null
-  // once the run settles and a different key once the next one begins, so both
-  // release it, and nothing has to remember to clear it. A stop with no active
-  // run to name (unreachable from either UI path — both require one) is left
-  // unlatched and unchanged.
-  const stopTargetRunKey = activeRunKey(view);
-  if (stopTargetRunKey !== null) {
-    if (view.stopRequestedRunKey === stopTargetRunKey) {
+  // The latch expires with the run, not on a clock — and it does so BECAUSE the
+  // key is a run id: the next run has a different one, so the comparison below
+  // releases by itself and nothing has to remember to clear it. A stale entry is
+  // inert for the same reason (it can only ever match its own run again). Review
+  // round 1 found the earlier sentinel-bearing key broke exactly this: one run
+  // wore two names across the report/delivery propagation boundary, which BOTH
+  // released the latch mid-run and let a stale sentinel block a later run's
+  // honest stop. See `activeRunKey`.
+  //
+  // A run the view cannot NAME leaves this unlatched (`activeRunKey` null while
+  // the composer still shows ■ from the union bit). Only reachable for delivery
+  // payloads recorded before `activeRunId` existed — never in a live session,
+  // where the boolean and the id are set from one host read.
+  const stopTargetRunId = activeRunKey(view);
+  if (stopTargetRunId !== null) {
+    if (view.stopRequestedRunId === stopTargetRunId) {
       return;
     }
-    view.stopRequestedRunKey = stopTargetRunKey;
+    view.stopRequestedRunId = stopTargetRunId;
   }
 
   // Captured BEFORE the stop settles the run: the refill source is the run
@@ -1029,8 +1037,8 @@ export async function stopRun(): Promise<void> {
     // The request never landed, so nothing was stopped and the latch would only
     // stand between the user and a retry — release it (still ours to release:
     // a later stop for the SAME run would have overwritten nothing else).
-    if (view.stopRequestedRunKey === stopTargetRunKey) {
-      view.stopRequestedRunKey = null;
+    if (view.stopRequestedRunId === stopTargetRunId) {
+      view.stopRequestedRunId = null;
     }
     view.status = errorMessage(error);
   } finally {

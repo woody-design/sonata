@@ -363,6 +363,9 @@ export class DeliveryController {
       provider: this.provider,
       deliverable: this.canDeliver(),
       activeRun: this.terminalHost.hasActiveRun(),
+      // Same host, same breath as the boolean — the pair cannot disagree, which
+      // is what makes it usable as an identity downstream (S2 D2).
+      activeRunId: this.terminalHost.activeRunId(),
       approvalActive: this.terminalHost.isApprovalActive(),
       // Why the queue is not moving when a Rewind panel owns the screen. Without
       // this the status line would read "Queued" (or "Ready" on an empty queue)

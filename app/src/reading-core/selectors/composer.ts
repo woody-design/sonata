@@ -18,7 +18,7 @@ import type {
   TaskViewState,
 } from "../state";
 import { providerLabel } from "./formatters";
-import { activeRunKey } from "./runs";
+import { hasActiveRun } from "./runs";
 import { modelValueLabel, reasoningValueLabel } from "../config";
 
 /** What the composer's one button does when pressed right now. */
@@ -48,9 +48,18 @@ export function composerActionMode(
   return composerActiveRun(view) && !composerHasContent(state, view, promptText) ? "stop" : "send";
 }
 
-/** Is a run under way for this view — by either evidence (see `activeRunKey`). */
+/**
+ * Is a run under way for this view, by EITHER evidence — the run report's latest
+ * entry or the delivery controller's own bit. The union is what the composer has
+ * always read (it was written inline in the painter until S2).
+ *
+ * Deliberately NOT derived from `activeRunKey` (review round 1): that function
+ * answers a different question — WHICH run — and forcing one function to serve
+ * both is what produced a run with two names. A button only needs the boolean,
+ * and the boolean is total where the identity is not.
+ */
 export function composerActiveRun(view: TaskViewState | null): boolean {
-  return activeRunKey(view) !== null;
+  return hasActiveRun(view) || Boolean(view?.deliveryState?.activeRun);
 }
 
 /** Is anything staged to send: typed text, or attachments. Attachments come

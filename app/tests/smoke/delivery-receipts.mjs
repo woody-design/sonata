@@ -522,6 +522,9 @@ function fakeHost() {
     hasActiveRun() {
       return this.activeRun;
     },
+    activeRunId() {
+      return this.activeRun ? "run-stub" : null;
+    },
     isApprovalActive() {
       return this.approvalActive;
     },

@@ -240,6 +240,15 @@ export interface DeliveryTaskState {
   provider: RuntimeProvider;
   deliverable: boolean;
   activeRun: boolean;
+  /** WHICH run is active — read from the same host in the same breath as the
+   *  boolean above, so the two can never disagree. The boolean alone cannot tell
+   *  "still the run I asked to stop" from "the next one", and the renderer's
+   *  single-flight stop (S2 D2) needs exactly that distinction: delivery state is
+   *  emitted on change while the run report rides a 1000ms trailing debounce, so
+   *  for up to a second at each end of a turn this is the ONLY evidence naming
+   *  the live run. Optional: recorded event fixtures predate the field, and a
+   *  missing value must read as "a run, name unknown". */
+  activeRunId?: RunId | null;
   approvalActive: boolean;
   /** One-shot boot readiness: false only until the CLI first accepts input.
    *  Display copy keys "Starting <provider>" on this — never on a continuous

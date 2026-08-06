@@ -32,6 +32,7 @@ function makeHost(overrides = {}) {
   return {
     state,
     hasActiveRun: () => state.activeRun,
+    activeRunId: () => (state.activeRun ? "run-stub" : null),
     isApprovalActive: () => state.approval,
     hasPendingControlSwitch: () => state.pendingControlSwitch,
     isRewindPanelOpen: () => state.rewindPanelOpen ?? false,
@@ -289,6 +290,7 @@ await check("real parked codex consent blocks delivery AND submitPrompt (the red
     const submits = [];
     const proxy = {
       hasActiveRun: () => false,
+      activeRunId: () => null,
       isApprovalActive: () => false,
       hasPendingControlSwitch: () => host.hasPendingControlSwitch(),
       isRewindPanelOpen: () => false,

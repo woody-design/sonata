@@ -221,12 +221,12 @@ const run = (status, extra = {}) => ({
   // A run known only to delivery state (the report has not caught up) is still
   // a run — the union is the whole reason this selector exists.
   assert.equal(
-    C.composerActionMode(st(), view({ deliveryState: delivery({ activeRun: true }) }), ""),
+    C.composerActionMode(st(), view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-9" }) }), ""),
     "stop",
     "delivery-only active run reads as stop-mode",
   );
   assert.equal(
-    C.composerActionMode(st(), view({ deliveryState: delivery({ activeRun: true }) }), "queue this"),
+    C.composerActionMode(st(), view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-9" }) }), "queue this"),
     "send",
     "…and text still wins over it",
   );
@@ -240,7 +240,7 @@ const run = (status, extra = {}) => ({
   assert.equal(C.composerActiveRun(null), false, "no view is not running");
   assert.equal(C.composerActiveRun(runningView()), true, "report says running");
   assert.equal(
-    C.composerActiveRun(view({ deliveryState: delivery({ activeRun: true }) })),
+    C.composerActiveRun(view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-9" }) })),
     true,
     "delivery says running",
   );
@@ -257,24 +257,97 @@ const run = (status, extra = {}) => ({
     "a session never reads the new-chat draft's attachments",
   );
 
-  // The stop target's IDENTITY (what makes the stop latch expire with the run).
+  // --- The stop target's IDENTITY ------------------------------------------
+  //
+  // What the single-flight stop latches on (S2 D2). The invariant, and the whole
+  // point of review round 1: ONE RUN HAS ONE KEY, whichever evidence has arrived.
+  // The first cut returned a `"delivery"` sentinel before the report propagated
+  // and `run:<id>` after — one run, two names — which released the latch mid-run
+  // (a second bare Esc, the exact D2 hazard) and let a stale sentinel block a
+  // LATER run's honest stop. So: run ids or nothing.
   assert.equal(R.activeRunKey(null), null, "nothing to stop");
   assert.equal(R.activeRunKey(idleView()), null, "a settled run is not a target");
-  assert.equal(R.activeRunKey(runningView()), "run:run-1", "the active run names itself");
+  assert.equal(R.activeRunKey(runningView()), "run-1", "the active run names itself");
+
+  {
+    // The propagation boundary, in the three shapes one run passes through:
+    // delivery knows it first (emit-on-change), then the report catches up
+    // (1000ms trailing debounce), then delivery lets go first at the end.
+    const deliveryOnly = view({
+      report: { runs: [run("completed", { runId: "run-0" })] },
+      deliveryState: delivery({ activeRun: true, activeRunId: "run-1" }),
+    });
+    const bothKnow = view({
+      report: { runs: [run("active")] },
+      deliveryState: delivery({ activeRun: true, activeRunId: "run-1" }),
+    });
+    const reportOnly = view({
+      report: { runs: [run("active")] },
+      deliveryState: delivery({ activeRun: false, activeRunId: null }),
+    });
+    assert.equal(R.activeRunKey(deliveryOnly), "run-1", "delivery names the run before the report");
+    assert.equal(R.activeRunKey(bothKnow), "run-1", "…the same name once both know");
+    assert.equal(R.activeRunKey(reportOnly), "run-1", "…and still the same as delivery lets go");
+    // Stated as the invariant itself, not three coincidences.
+    assert.equal(
+      new Set([deliveryOnly, bothKnow, reportOnly].map(R.activeRunKey)).size,
+      1,
+      "one run keeps ONE key across the whole propagation boundary",
+    );
+    // The composer's boolean is the union and stays true throughout — a
+    // different question, deliberately not derived from the identity.
+    for (const v of [deliveryOnly, bothKnow, reportOnly]) {
+      assert.equal(C.composerActiveRun(v), true, "the button sees a run in every shape");
+    }
+  }
+
+  // Freshness order: delivery is emitted on change, the report is debounced, so
+  // a report still naming the PREVIOUS run must not outrank a live delivery id.
+  assert.equal(
+    R.activeRunKey(
+      view({
+        report: { runs: [run("active", { runId: "run-1" })] },
+        deliveryState: delivery({ activeRun: true, activeRunId: "run-2" }),
+      }),
+    ),
+    "run-2",
+    "the fresher evidence names the run",
+  );
+
+  // Scenario B (review round 1): a latch taken in run 1's delivery-only window
+  // must never match run 2 — the failure mode was a stop silently dropped, with
+  // no Esc and no feedback.
+  {
+    const stopRequestedRunId = R.activeRunKey(
+      view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-1" }) }),
+    );
+    const laterRun = view({ deliveryState: delivery({ activeRun: true, activeRunId: "run-2" }) });
+    assert.notEqual(
+      stopRequestedRunId,
+      R.activeRunKey(laterRun),
+      "a stale latch cannot block the next run's stop",
+    );
+  }
+
+  // A run delivery asserts but cannot NAME (only reachable for payloads recorded
+  // before activeRunId existed): fall back to the report, and to null — never to
+  // a token that is not run-unique.
   assert.equal(
     R.activeRunKey(view({ deliveryState: delivery({ activeRun: true }) })),
-    "delivery",
-    "delivery-only evidence gets the sentinel",
-  );
-  assert.notEqual(
-    R.activeRunKey(view({ report: { runs: [run("active", { runId: "run-2" })] } })),
-    R.activeRunKey(runningView()),
-    "a different run is a different target (this is what releases the stop latch)",
+    null,
+    "an unnameable run yields no key (the latch stands down rather than lie)",
   );
   assert.equal(
-    R.activeRunKey(view({ report: { runs: [run("active", { runId: "delivery" })] } })),
-    "run:delivery",
-    "the run: prefix keeps a runId from colliding with the sentinel",
+    R.activeRunKey(
+      view({ report: { runs: [run("active")] }, deliveryState: delivery({ activeRun: true }) }),
+    ),
+    "run-1",
+    "…unless the report can name it",
+  );
+  assert.equal(
+    C.composerActiveRun(view({ deliveryState: delivery({ activeRun: true }) })),
+    true,
+    "the button still shows stop for a run it cannot name",
   );
 }
 
