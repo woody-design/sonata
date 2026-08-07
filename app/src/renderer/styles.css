@@ -3249,6 +3249,83 @@ h2 {
   line-height: 1.4;
 }
 
+/* Quit / last-window confirmation (S4, D5). Same overlay family as the Settings
+   page above — fixed scrim, raised box, --radius-lg / --border-default /
+   --surface-raised / --shadow-overlay — in the vertical alert stack Woody
+   approved: mark, title, body, primary CTA over cancel. It sits ABOVE every
+   other surface in this window (Settings is z-index 40, the quote-comment root
+   90), because it is the last question the app asks. The dev instance badge
+   stays above it on purpose. Structure + tokens only; the visual pass is
+   Woody's. */
+.quit-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: var(--space-24);
+  background: rgb(40 36 29 / 42%);
+}
+
+[data-mode="dark"] .quit-confirm-overlay {
+  background: rgb(0 0 0 / 52%);
+}
+
+.quit-confirm-dialog {
+  width: min(320px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: var(--space-12);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-24);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-overlay);
+  outline: none;
+  text-align: center;
+}
+
+/* The mark is a monochrome stencil (view/icons.ts) taking `currentColor`, so it
+   inverts with the mode the way every other icon does. */
+.sonata-mark {
+  color: var(--text-primary);
+}
+
+.quit-confirm-title {
+  margin: 0;
+  color: var(--text-primary);
+  font: 600 var(--type-ui-lg) var(--font-ui);
+}
+
+.quit-confirm-body {
+  margin: 0;
+  color: var(--text-secondary);
+  font: 400 var(--type-ui-md) var(--font-ui);
+}
+
+/* Stacked, full width, primary on top — the vertical alert grammar. */
+.quit-confirm-actions {
+  width: 100%;
+  display: grid;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+}
+
+.quit-confirm-action {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  font: 500 var(--type-ui-md) var(--font-ui);
+}
+
+/* The caret opens on the primary CTA, so the UA's `outline: auto` ring (macOS
+   system accent — chroma) would be the loudest thing in the dialog. Neutral
+   ring instead, the same repair the header buttons got. */
+.quit-confirm-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .settings-restore {
   min-height: 28px;
   padding: 0 11px;

@@ -183,6 +183,10 @@ export interface Actions {
   scheduleUsagePopoverClose(): void;
   renderSlashPicker(picker: SlashPickerState): HTMLElement;
   positionSlashPicker(pickerElement: HTMLElement): void;
+  // — Quit confirmation (view/quit-dialog.ts): the ONE thing that dialog can
+  //   do — answer the question main asked (S4, D5). Dismissing the dialog and
+  //   replying are the same act, so there is no separate close. —
+  answerQuitConfirm(confirmed: boolean): void;
   // — Settings overlay (view/settings.ts): close transition, popup-menu
   //   grammar, and the instant-apply persist flows. —
   closeSettingsOverlay(): void;

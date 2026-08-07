@@ -30,6 +30,7 @@ function queryElements() {
     sidebarHoverCardRoot: getElement<HTMLDivElement>("sidebar-hover-card-root"),
     quoteCommentRoot: getElement<HTMLDivElement>("quote-comment-root"),
     settingsOverlayRoot: getElement<HTMLDivElement>("settings-overlay-root"),
+    quitConfirmRoot: getElement<HTMLDivElement>("quit-confirm-root"),
     sessionMenuTrigger: getElement<HTMLButtonElement>("session-menu-trigger"),
     approvalBanner: getElement<HTMLDivElement>("approval-banner"),
     approvalKindBadge: getElement<HTMLSpanElement>("approval-kind-badge"),
@@ -309,6 +310,9 @@ export function initDom(): void {
     <div id="sidebar-hover-card-root"></div>
     <div id="quote-comment-root"></div>
     <div id="settings-overlay-root"></div>
+    <!-- The quit confirmation stacks above every other surface in this window
+         (S4) — including the Settings overlay, whose scrim it must cover. -->
+    <div id="quit-confirm-root"></div>
   </section>
 `;
 

@@ -5,6 +5,7 @@ import {
   isCliSetupRunInputRequest,
   isCliSetupRunRequest,
   isCliSetupRunResizeRequest,
+  isQuitConfirmAnswer,
   isTerminalActiveTaskState,
   type CliActionRequest,
   type CliSetupRunInputRequest,
@@ -23,6 +24,7 @@ import {
   type PreviewReorderRequest,
   type PreviewSetPanelRequest,
   type PreviewSetScrollRequest,
+  type QuitConfirmAnswer,
   type ReadingSettings,
   type TaskId,
   type TerminalActiveTaskState,
@@ -115,6 +117,11 @@ export interface WindowIpcController {
   pickFolder(): Promise<FolderPickResponse>;
   pickReferences(): Promise<string[]>;
   forgetPreviewSession(taskId: TaskId): void;
+  /** The renderer's answer to the quit confirmation (S4). Not sender-scoped
+   *  like the CLI-window rights above: the guard only ever has ONE ask
+   *  outstanding and the answer must carry its `requestId`, so a reply from a
+   *  window that was not asked cannot match anything. */
+  answerQuitConfirm(answer: QuitConfirmAnswer): void;
 }
 
 export function registerIpcHandlers(
@@ -327,6 +334,12 @@ export function registerIpcHandlers(
     windowController.openWorkspaceFolder(request),
   );
   ipcMain.handle(IPC_CHANNELS.folderPick, () => windowController.pickFolder());
+  ipcMain.handle(IPC_CHANNELS.quitConfirmAnswer, (_event, answer: unknown) => {
+    if (!isQuitConfirmAnswer(answer)) {
+      throw new Error("Invalid quit confirmation answer.");
+    }
+    windowController.answerQuitConfirm(answer);
+  });
   ipcMain.handle(IPC_CHANNELS.resumePrepare, (_event, request) =>
     runtimeController.prepareResume(request.taskId),
   );

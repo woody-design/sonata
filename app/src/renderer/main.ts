@@ -19,6 +19,7 @@ import {
   isCliReadinessFacts,
   isCliSetupRunSnapshot,
   isCliSetupRunState,
+  isQuitConfirmRequest,
   type ClaudeDefaultPermissionMode,
   type ClaudeSettings,
   type CodexPermissionMode,
@@ -30,6 +31,7 @@ import {
   type ResumeSettings,
 } from "../shared/types";
 import type {
+  QuitConfirmRequest,
   RuntimeProvider,
   SlashCommandEntry,
   SlashCommandsResponse,
@@ -196,6 +198,7 @@ import {
   restoreRenameTabFocusIntent,
 } from "./view/rename-editor";
 import { initSettingsView } from "./view/settings";
+import { initQuitDialogView } from "./view/quit-dialog";
 import { positionSlashPicker, renderSlashPicker } from "./view/slash-picker";
 import { initStatusStripView } from "./view/status-strip";
 import { initTranscriptView } from "./view/transcript";
@@ -388,6 +391,7 @@ initRenameFlows(state, {
 });
 initComposerView(state);
 initSettingsView(state);
+initQuitDialogView(state);
 initChromeView(state, { resolvedReadingMode: () => resolvedReadingMode() });
 initPromptNavView(state, { isComposerComposing: () => composerIsComposing });
 initReadingNavigation({ bottomIntent: readingBottomIntent });
@@ -669,6 +673,10 @@ initActions({
   renderSlashPicker: (picker) => renderSlashPicker(picker),
   positionSlashPicker: (pickerElement) => {
     positionSlashPicker(pickerElement);
+  },
+  // Quit confirmation (view/quit-dialog.ts): its single act (S4).
+  answerQuitConfirm: (confirmed) => {
+    answerQuitConfirm(confirmed);
   },
   // Settings overlay (view/settings.ts): close transition, popup-menu
   // grammar (verbatim bodies), and the persist flows.
@@ -1530,6 +1538,32 @@ function closeSettingsOverlay(): void {
   render();
 }
 
+// --- Quit confirmation (S4, D5) ---------------------------------------------
+// Main asks; this window draws the question and hands back the answer. The
+// dialog is dismissed OPTIMISTICALLY on either answer: on "Close Sonata" the app
+// is on its way down and a dialog lingering over the last frame would read as a
+// hang, and on Cancel the answer is the dismissal.
+
+function openQuitConfirm(request: QuitConfirmRequest): void {
+  popoverTransitions.openQuitConfirm(state, request);
+  render();
+}
+
+function answerQuitConfirm(confirmed: boolean): void {
+  const request = state.quitConfirm;
+  if (!request) {
+    return;
+  }
+  popoverTransitions.closeQuitConfirm(state);
+  render();
+  void window.sonataRuntime
+    .answerQuitConfirm({ requestId: request.requestId, confirmed })
+    .catch(() => {
+      // Fire-and-forget: the guard's own ask is settled by this answer or by the
+      // window going away, so a failed relay leaves nothing half-open here.
+    });
+}
+
 async function refreshSettingsOverlay(): Promise<void> {
   try {
     const [resumeResponse, claudeResponse, codexResponse] = await Promise.all([
@@ -1988,6 +2022,12 @@ document.addEventListener(
 );
 
 document.addEventListener("click", (event) => {
+  // Everything behind the quit confirmation is inert while it is up (S4) — the
+  // scrim already swallows the pointer, and dismissing surfaces the user cannot
+  // reach would be a side effect of a question they have not answered yet.
+  if (state.quitConfirm) {
+    return;
+  }
   const target = event.target;
   if (
     !(target instanceof Element) ||
@@ -2033,6 +2073,14 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
+    return;
+  }
+  // The top rung (S4): the quit confirmation is modal, so Esc answers IT —
+  // never the Settings overlay underneath, never a menu behind that. Cancelling
+  // hands the surface back exactly as the user left it.
+  if (state.quitConfirm) {
+    event.preventDefault();
+    answerQuitConfirm(false);
     return;
   }
   if (state.settingsOverlay) {
@@ -2092,6 +2140,14 @@ window.sonataRuntime.onReadingSystemModeChanged((mode) => {
 
 window.sonataRuntime.onSettingsOpen(() => {
   openSettingsOverlay();
+});
+
+// ⌘Q, or closing the last window, asks here (S4, D5). Validated like every other
+// inbound payload: the words are drawn straight onto the surface.
+window.sonataRuntime.onQuitConfirmAsk((request) => {
+  if (isQuitConfirmRequest(request)) {
+    openQuitConfirm(request);
+  }
 });
 
 // The push half of the readiness mirror (S1's L6 pair).

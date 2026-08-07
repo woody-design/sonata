@@ -44,6 +44,7 @@ import {
 import { renderTaskSettingsPopover } from "./view/entry";
 import { renderSidebar, updateSidebarSpinnerLiveness } from "./view/sidebar";
 import { renderSettingsOverlay } from "./view/settings";
+import { renderQuitConfirmDialog } from "./view/quit-dialog";
 import {
   reconcileProtectedRenameEditor,
   renderProtectedRenameEditor,
@@ -189,6 +190,9 @@ export function render(): void {
   renderRemoteControlPopover();
   renderTaskSettingsPopover();
   renderSettingsOverlay();
+  // After Settings, and above it: the quit confirmation is the last question
+  // the app asks, and it must cover that overlay's scrim (S4).
+  renderQuitConfirmDialog();
   // Before the composer controls: it sets `.cli-readiness-active`, which is both
   // the send gate and the style hook, and renderComposerControls reads the same
   // condition for the send button's disabled state. Ordering them this way keeps

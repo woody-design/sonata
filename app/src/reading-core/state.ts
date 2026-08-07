@@ -23,6 +23,7 @@ import type {
   DeliveryAttachment,
   DeliveryTaskState,
   LaunchSpeedMode,
+  QuitConfirmRequest,
   ReadingSettings,
   ReasoningEffort,
   ResumeSettings,
@@ -578,6 +579,13 @@ export interface RendererState {
   promptNav: PromptNavState | null;
   /** The Settings page (centered overlay) is open; null when closed. */
   settingsOverlay: SettingsOverlayState | null;
+  /**
+   * The quit / last-window confirmation on screen (S4, D5); null when nothing
+   * is being asked. Main owns the question AND its words — this field IS the
+   * push it sent — so the renderer paints rather than composes, and the branded
+   * dialog cannot say something different from the native fallback.
+   */
+  quitConfirm: QuitConfirmRequest | null;
   /** One synchronous owner for every task lifecycle entered from the
    *  Composer or a satellite surface. Unlike `busy` (which also covers
    *  folder pickers and unrelated IPC), this state is specifically the
@@ -838,6 +846,7 @@ export function createInitialState(readingSettings: ReadingSettings): RendererSt
     launchSettingsHydrated: false,
     promptNav: null,
     settingsOverlay: null,
+    quitConfirm: null,
     sessionLifecycle: { phase: "idle" },
     busy: false,
     status: "Idle",

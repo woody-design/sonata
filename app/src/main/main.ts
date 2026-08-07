@@ -33,6 +33,7 @@ import {
   type PreviewReorderRequest,
   type PreviewSetPanelRequest,
   type PreviewSetScrollRequest,
+  type QuitConfirmAnswer,
   type ReadingSettings,
   type RuntimeEvent,
   type TaskId,
@@ -67,6 +68,14 @@ import { CliUpdater } from "./cli-updater/cli-updater";
 import { CliReadiness } from "./cli-readiness/cli-readiness";
 import { CliSetupRunController } from "./cli-readiness/setup-run";
 import { buildUpdaterDialog } from "./updater/updater-interactive";
+import {
+  buildQuitDialog,
+  decideQuitRequest,
+  decideWindowClose,
+  quitConfirmRequestFrom,
+  type QuitAskHost,
+  type QuitDialogSpec,
+} from "./quit-guard";
 import { WorkspaceFiles } from "./workspace-files";
 import {
   ClaudeSettingsStore,
@@ -239,6 +248,7 @@ function createMainWindow(firstLaunchBounds?: InitialWindowBounds): BrowserWindo
 
   window.loadFile(path.join(__dirname, "../renderer/index.html"));
   windowState?.track(window, "main");
+  guardWindowClose(window);
 
   // The two window-scoped CLI readiness triggers (D4 — event-driven, no timers).
   //
@@ -312,6 +322,7 @@ function createPreviewWindow(): BrowserWindow {
 
   window.loadFile(path.join(__dirname, "../renderer/preview.html"));
   windowState?.track(window, "preview");
+  guardWindowClose(window);
   window.on("closed", () => {
     if (previewWindow === window) {
       previewWindow = null;
@@ -353,6 +364,7 @@ function createTerminalWindow(firstLaunchBounds?: InitialWindowBounds): BrowserW
 
   window.loadFile(path.join(__dirname, "../renderer/terminal.html"));
   windowState?.track(window, "terminal");
+  guardWindowClose(window);
   window.on("closed", () => {
     if (terminalWindow === window) {
       terminalWindow = null;
@@ -996,8 +1008,222 @@ function openSettingsInMainWindow(): void {
   mainWindow.webContents.send(IPC_CHANNELS.settingsOpen);
 }
 
+// ── Quit / last-window confirmation (Focus/Flow S4, D5) ─────────────────────
+//
+// Every DECISION and every WORD is pure (`quit-guard.ts`, which also records why
+// the guard is armed at the gesture rather than at `before-quit` — measured).
+// This is the impure half: the ask on screen, and the two entrances to it.
+//
+// Note what does NOT change here: `before-quit` and `window-all-closed` keep
+// their teardown sequences exactly. The guard is an ASK PHASE in front of them —
+// once the user says yes, the app quits (or the window closes) down the same
+// path it always did.
+
+/** True while a confirmation is on screen, on EITHER surface. The pure guards
+ *  read it as `asking`: a second ⌘Q must not stack a second dialog. */
+let quitAskInFlight = false;
+/** The renderer ask awaiting its answer, or null. Its `requestId` is what makes
+ *  a late/stray answer unable to settle a question it did not belong to. */
+let pendingQuitAsk: { readonly requestId: number; readonly settle: (confirmed: boolean) => void } | null =
+  null;
+let nextQuitRequestId = 1;
+/** Windows whose close the user has already confirmed. Read back when the close
+ *  re-enters after the guard calls `close()` a second time — the window is going
+ *  away, so nothing is ever removed from this set. */
+const closeConfirmedWindows = new WeakSet<BrowserWindow>();
+
+function openWindows(): BrowserWindow[] {
+  return BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed());
+}
+
+/** The app's user-facing quit gesture: the Quit menu item, which owns ⌘Q. Zero
+ *  windows quits outright (D5's one exception — the runtimes are already
+ *  disposed, so there is nothing to protect). */
+async function requestUserQuit(): Promise<void> {
+  const decision = decideQuitRequest({
+    asking: quitAskInFlight,
+    openWindowCount: openWindows().length,
+    mainWindowCanAsk: Boolean(mainWindow && !mainWindow.isDestroyed()),
+  });
+  if (decision.action === "ignore") {
+    return;
+  }
+  if (decision.action === "quit") {
+    app.quit();
+    return;
+  }
+  if (await askQuitConfirmation(decision.host, BrowserWindow.getFocusedWindow())) {
+    app.quit();
+  }
+}
+
+/**
+ * Guard one window's close. Attached by all three window factories, because
+ * "last window" is a property of the SET, not of any particular window: whichever
+ * one is last, closing it runs `window-all-closed` → `runtimeController.dispose()`
+ * and every live CLI dies — the same loss ⌘Q causes, so it asks the same question.
+ *
+ * A confirmed close proceeds as a normal second `close()` rather than `destroy()`:
+ * the window's own teardown listeners (geometry capture, the CLI window's
+ * open-preference persist) are product behavior, and destroying would skip the
+ * `close` half of them silently.
+ */
+function guardWindowClose(window: BrowserWindow): void {
+  window.on("close", (event) => {
+    const decision = decideWindowClose({
+      quitting: isQuitting,
+      closeConfirmed: closeConfirmedWindows.has(window),
+      // During `close` the window is still in `getAllWindows()`, so "the only
+      // one left" is exactly a count of 1.
+      isLastWindow: openWindows().length <= 1,
+      isMainWindow: window === mainWindow,
+      asking: quitAskInFlight,
+    });
+    if (decision.action === "close") {
+      return;
+    }
+    event.preventDefault();
+    if (decision.action === "ignore") {
+      return;
+    }
+    void askQuitConfirmation(decision.host, window).then((confirmed) => {
+      if (!confirmed || window.isDestroyed()) {
+        return;
+      }
+      closeConfirmedWindows.add(window);
+      window.close();
+    });
+  });
+}
+
+/** Put the question on screen and resolve with the user's answer. */
+async function askQuitConfirmation(
+  host: QuitAskHost,
+  owner: BrowserWindow | null,
+): Promise<boolean> {
+  const spec = buildQuitDialog();
+  quitAskInFlight = true;
+  try {
+    return host === "renderer" && mainWindow && !mainWindow.isDestroyed()
+      ? await askQuitInMainWindow(mainWindow, spec)
+      : await askQuitNatively(spec, owner);
+  } finally {
+    quitAskInFlight = false;
+  }
+}
+
+/**
+ * The branded dialog (D5): the main window's renderer draws it from the words
+ * this push carries.
+ *
+ * Every way the question can DIE is settled as a cancel, because the failure
+ * this protects against is a wedge — an ask that never resolves leaves
+ * `quitAskInFlight` true forever and the app can never be quit again. Three
+ * ways: the user answers, the window closes underneath the dialog, or the
+ * renderer process goes away.
+ */
+function askQuitInMainWindow(window: BrowserWindow, spec: QuitDialogSpec): Promise<boolean> {
+  const requestId = nextQuitRequestId++;
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const settle = (confirmed: boolean): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (pendingQuitAsk?.requestId === requestId) {
+        pendingQuitAsk = null;
+      }
+      // MEASURED: reading `.webContents` off a destroyed BrowserWindow THROWS,
+      // and `settle` runs from the `closed` handler — where the window is
+      // already destroyed. The throw escaped into Electron's own window-teardown
+      // emit and left the quit sequence half-finished: the window closed,
+      // `will-quit` never fired, and the process sat there forever. A destroyed
+      // window has already dropped both listeners, so skipping is also correct.
+      if (!window.isDestroyed()) {
+        window.off("closed", cancel);
+        window.webContents.off("render-process-gone", cancel);
+      }
+      resolve(confirmed);
+    };
+    const cancel = (): void => settle(false);
+    pendingQuitAsk = { requestId, settle };
+    window.on("closed", cancel);
+    window.webContents.on("render-process-gone", cancel);
+
+    if (window.isMinimized()) {
+      window.restore();
+    }
+    window.show();
+    window.focus();
+    // A ⌘Q in the first moments after launch would otherwise send into a
+    // renderer with no listener yet — and a lost ask is the wedge above. The
+    // `settled` re-check is what keeps the deferred branch honest: an ask that
+    // died while the window was still loading must not paint a dialog nothing
+    // can answer (its `requestId` is already retired).
+    const push = (): void => {
+      if (settled || window.isDestroyed()) {
+        return;
+      }
+      window.webContents.send(
+        IPC_CHANNELS.quitConfirmAsk,
+        quitConfirmRequestFrom(spec, requestId),
+      );
+    };
+    if (window.webContents.isLoading()) {
+      window.webContents.once("did-finish-load", push);
+    } else {
+      push();
+    }
+  });
+}
+
+/** The fallback for a window with no Sonata dialog surface of its own (CLI /
+ *  Preview) — same spec, same words, native chrome. `question` rather than
+ *  `warning`: this is a confirmation, and the copy is deliberately calm. */
+async function askQuitNatively(
+  spec: QuitDialogSpec,
+  owner: BrowserWindow | null,
+): Promise<boolean> {
+  const options = {
+    type: "question" as const,
+    // macOS: `message` is the bold headline, `detail` the secondary line.
+    title: spec.title,
+    message: spec.title,
+    detail: spec.body,
+    buttons: [...spec.buttons],
+    defaultId: spec.defaultId,
+    cancelId: spec.cancelId,
+  };
+  const { response } =
+    owner && !owner.isDestroyed()
+      ? await dialog.showMessageBox(owner, options)
+      : await dialog.showMessageBox(options);
+  return response === spec.confirmButtonId;
+}
+
+/** The renderer's reply. An answer whose `requestId` does not match the ask in
+ *  flight is dropped: it belongs to a question already settled. */
+function answerQuitConfirm(answer: QuitConfirmAnswer): void {
+  if (pendingQuitAsk?.requestId !== answer.requestId) {
+    return;
+  }
+  pendingQuitAsk.settle(answer.confirmed);
+}
+
 function createApplicationMenu(): void {
   const isMac = process.platform === "darwin";
+  // Sonata's own Quit, in place of `{ role: "quit" }` — it owns ⌘Q, and every
+  // quit gesture the user can make goes through the S4 guard (D5). The label
+  // matches the role's exactly (`Quit <app.name>`), so nothing on screen moves.
+  const quitItem: MenuItemConstructorOptions = {
+    id: "quit",
+    label: `Quit ${app.name}`,
+    accelerator: "CmdOrCtrl+Q",
+    click: () => {
+      void requestUserQuit();
+    },
+  };
   const settingsItem: MenuItemConstructorOptions = {
     id: "settings",
     label: "Settings…",
@@ -1033,7 +1259,7 @@ function createApplicationMenu(): void {
               { role: "hideOthers" },
               { role: "unhide" },
               { type: "separator" },
-              { role: "quit" },
+              quitItem,
             ],
           } satisfies MenuItemConstructorOptions,
         ]
@@ -1042,7 +1268,7 @@ function createApplicationMenu(): void {
       label: "File",
       submenu: isMac
         ? [{ role: "close" }]
-        : [settingsItem, { type: "separator" }, { role: "quit" }],
+        : [settingsItem, { type: "separator" }, quitItem],
     },
     { role: "editMenu" },
     { role: "viewMenu" },
@@ -1238,6 +1464,7 @@ app.whenReady().then(() => {
     pickFolder,
     pickReferences,
     forgetPreviewSession,
+    answerQuitConfirm,
   }, readingSettingsStore, updaterController, cliReadiness);
   createApplicationMenu();
   windowState = new WindowStateManager(new WindowStateStore(windowStatePath()));

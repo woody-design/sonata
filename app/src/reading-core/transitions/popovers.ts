@@ -1,7 +1,8 @@
 /**
  * Named state transitions for the Reading window's popover surfaces (map
  * §3.1, step C3d): the reading ("Aa") popover, the Remote Control popover,
- * the composer "+" menu, the usage popover, and the Settings overlay.
+ * the composer "+" menu, the usage popover, the Settings overlay, and the
+ * quit confirmation (S4).
  *
  * Each transition performs exactly the mutations its shell handler performed
  * before extraction; the shell calls it and then invalidates (render calls
@@ -10,6 +11,7 @@
  * the anchor only on the opening branch, the transition takes a lazy
  * provider so the read keeps today's conditional evaluation.
  */
+import type { QuitConfirmRequest } from "../../shared/types";
 import type { ComposerMenuState, PopoverAnchor, RendererState } from "../state";
 
 export function toggleReadingPopover(
@@ -132,4 +134,21 @@ export function openSettingsOverlay(state: RendererState): boolean {
 
 export function closeSettingsOverlay(state: RendererState): void {
   state.settingsOverlay = null;
+}
+
+/**
+ * Show the quit confirmation (S4, D5).
+ *
+ * Unlike every transition above it, this one DISPLACES NOTHING. It is the last
+ * question the app asks, so it stacks above whatever is open — the Escape ladder
+ * (renderer/main.ts) puts it at the top and hands the surface back untouched on
+ * Cancel. Closing a popover here would mean a cancelled quit silently threw away
+ * a menu the user had open.
+ */
+export function openQuitConfirm(state: RendererState, request: QuitConfirmRequest): void {
+  state.quitConfirm = request;
+}
+
+export function closeQuitConfirm(state: RendererState): void {
+  state.quitConfirm = null;
 }

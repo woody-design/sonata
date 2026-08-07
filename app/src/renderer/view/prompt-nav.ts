@@ -114,7 +114,10 @@ function hasStackedUiOpen(): boolean {
     state.readingPopoverOpen ||
       state.composerMenu ||
       state.taskDraft.menu ||
-      state.settingsOverlay,
+      state.settingsOverlay ||
+      // The quit confirmation is modal (S4): ⌘↑ must not walk the transcript
+      // behind a question the user has not answered.
+      state.quitConfirm,
   );
 }
 

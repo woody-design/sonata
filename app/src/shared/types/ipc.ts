@@ -140,6 +140,14 @@ export const IPC_CHANNELS = {
   // system-mode channel above only covers the auto→light/dark flip.
   readingSettingsChanged: "reading-settings:changed",
   settingsOpen: "settings:open",
+  // Quit / last-window confirmation (Focus/Flow S4, D5). `quitConfirmAsk` is
+  // main's push of ONE pending question to the main window's renderer;
+  // `quitConfirmAnswer` is the renderer's reply, scoped by `requestId` so a late
+  // answer can never confirm a different ask. The words travel WITH the ask —
+  // main owns the copy for both this surface and the native fallback
+  // (main/quit-guard.ts), so the two cannot drift.
+  quitConfirmAsk: "quit-confirm:ask",
+  quitConfirmAnswer: "quit-confirm:answer",
   notificationActivateTask: "notification:activate-task",
   runtimeEvent: "runtime:event",
   // Auto-update (S1). `updaterState` is main's push of the renderer-facing state
@@ -808,6 +816,52 @@ function isCliEmptySurface(value: unknown): value is CliEmptySurface {
   );
 }
 
+/**
+ * The quit confirmation main pushes to the main window's renderer (S4, D5).
+ *
+ * It carries its own COPY. The renderer holds no quit wording of its own — it
+ * paints what main hands it — which is what makes the branded dialog and the
+ * native `dialog.showMessageBox` fallback provably the same question (both are
+ * projections of one `QuitDialogSpec`, main/quit-guard.ts).
+ */
+export interface QuitConfirmRequest {
+  /** Scopes the answer to the ask that produced it. */
+  readonly requestId: number;
+  readonly title: string;
+  readonly body: string;
+  /** Primary CTA — "go ahead and quit". */
+  readonly confirmLabel: string;
+  readonly cancelLabel: string;
+}
+
+/** The renderer's reply. `confirmed: false` is a real answer (Cancel / Esc), not
+ *  an absence — the guard releases its pending ask on either value. */
+export interface QuitConfirmAnswer {
+  readonly requestId: number;
+  readonly confirmed: boolean;
+}
+
+export function isQuitConfirmRequest(value: unknown): value is QuitConfirmRequest {
+  return (
+    isUnknownRecord(value) &&
+    hasOnlyKeys(value, ["requestId", "title", "body", "confirmLabel", "cancelLabel"]) &&
+    Number.isInteger(value.requestId) &&
+    isNonEmptyString(value.title) &&
+    typeof value.body === "string" &&
+    isNonEmptyString(value.confirmLabel) &&
+    isNonEmptyString(value.cancelLabel)
+  );
+}
+
+export function isQuitConfirmAnswer(value: unknown): value is QuitConfirmAnswer {
+  return (
+    isUnknownRecord(value) &&
+    hasOnlyKeys(value, ["requestId", "confirmed"]) &&
+    Number.isInteger(value.requestId) &&
+    typeof value.confirmed === "boolean"
+  );
+}
+
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -951,6 +1005,12 @@ export interface SonataRuntimeBridge {
   onReadingSettingsChanged(callback: (settings: ReadingSettings) => void): () => void;
   /** The app menu's "Settings…" (⌘,) asks the main window to open the page. */
   onSettingsOpen(callback: () => void): () => void;
+  /** ⌘Q, or closing the last window, asks the main window to draw the quit
+   *  confirmation (S4, D5). Exactly one ask is ever outstanding. */
+  onQuitConfirmAsk(callback: (request: QuitConfirmRequest) => void): () => void;
+  /** Answer that question. Fire-and-forget: the guard acts on the answer (quit,
+   *  proceed with the close, or stand down), the renderer does not wait. */
+  answerQuitConfirm(answer: QuitConfirmAnswer): Promise<void>;
   /** A clicked native notification asks the main window to select its task. */
   onNotificationActivateTask(callback: (taskId: TaskId) => void): () => void;
   onRuntimeEvent(callback: (event: RuntimeEvent) => void): () => void;

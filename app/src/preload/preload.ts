@@ -8,6 +8,8 @@ import {
   type CliSetupRunData,
   type SonataRuntimeBridge,
   type PreviewBinding,
+  type QuitConfirmAnswer,
+  type QuitConfirmRequest,
   type ReadingSettings,
   type ResolvedReadingMode,
   type RuntimeEvent,
@@ -244,6 +246,15 @@ const sonataRuntime: SonataRuntimeBridge = {
     ipcRenderer.on(IPC_CHANNELS.settingsOpen, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.settingsOpen, listener);
   },
+  onQuitConfirmAsk: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: QuitConfirmRequest) => {
+      callback(request);
+    };
+    ipcRenderer.on(IPC_CHANNELS.quitConfirmAsk, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.quitConfirmAsk, listener);
+  },
+  answerQuitConfirm: (answer: QuitConfirmAnswer) =>
+    ipcRenderer.invoke(IPC_CHANNELS.quitConfirmAnswer, answer),
   onNotificationActivateTask: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, taskId: TaskId) => {
       callback(taskId);
