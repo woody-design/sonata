@@ -1978,6 +1978,29 @@ export class RuntimeController {
         this.releaseOrphanedScrapeApproval(eventRuntime, terminalRunId);
         if (isPendingTurnEnd) {
           this.abortPendingBrokerApprovals(eventRuntime, terminalRunId);
+          // The option-prompt's turn-terminal release (S3 review), and the same
+          // shape as the three above. A form still open when the turn ends
+          // WITHOUT a Stop hook has no other clearer: Sonata's ■ (or an Esc
+          // typed in the terminal) CANCELS the AskUserQuestion tool, so no
+          // PostToolUse fires — and Esc is hook-invisible besides (P4, the
+          // option-prompt module header: it declines the form and emits neither
+          // PostToolUse nor Stop). The gate would then hold every later send
+          // forever, with its explanation gone: the reducer drops the card on
+          // the next run:started while main keeps the slot, so the hold goes
+          // invisible — the S1 wedge class exactly.
+          //
+          // P4 is also what makes this release honest rather than optimistic:
+          // by the time the stop's Esc has landed, the form is already declined
+          // and off the screen. There is nothing left for a delivery to
+          // mis-answer. `answers: null` is the shape every consumer already
+          // reads as "cleared, unanswered".
+          //
+          // PTY death is one of these signals, so it needs no separate release:
+          // a dead terminal can swallow nothing, and a queue still held there
+          // would be a hold with no remaining reason.
+          if (eventRuntime.pendingOptionPrompt) {
+            this.resolveOptionPrompt(eventRuntime, eventRuntime.pendingOptionPrompt.toolUseId, null);
+          }
         }
       }
     }
@@ -2059,15 +2082,6 @@ export class RuntimeController {
           this.retireTaskRuntime(eventRuntime);
         }
       });
-    }
-
-    if (event.type === "pty:exit" && eventRuntime?.pendingOptionPrompt) {
-      // The PTY died with a question still open — clear the card (no receipt),
-      // and with it the delivery gate the form was holding: a dead terminal can
-      // swallow nothing, so a queue still held here would be a hold with no
-      // remaining reason. The runtime is retired a microtask later, but the
-      // release does not depend on that ordering staying as it is.
-      this.resolveOptionPrompt(eventRuntime, eventRuntime.pendingOptionPrompt.toolUseId, null);
     }
 
     if (event.type === "run:started") {
@@ -3057,11 +3071,13 @@ export class RuntimeController {
    * Retire a pending AskUserQuestion — the ONE way this controller publishes an
    * `option-prompt:resolved`. Four paths reach it: the CLI's own PostToolUse,
    * a `Stop` with the form still open, the dismiss window's local clear, and
-   * PTY death. Each has to reach BOTH consumers — the renderer (which drops the
-   * card) and the task's delivery controller (which was holding the queue for
-   * as long as the form owned the composer, B4). Funneled so a fifth path
-   * cannot ship with only half the wiring, which is precisely how all four
-   * shipped with only half of it.
+   * any turn-terminal signal that is NOT a Stop hook (Sonata's ■, the
+   * quiescence run-closer, PTY death — the release beside the broker-approval
+   * ones in handleRuntimeEvent). Each has to reach BOTH consumers — the
+   * renderer (which drops the card) and the task's delivery controller (which
+   * was holding the queue for as long as the form owned the composer, B4).
+   * Funneled so a fifth path cannot ship with only half the wiring, which is
+   * precisely how all four shipped with only half of it.
    *
    * `answered` is true ONLY with a real answers object: a resolution without one
    * (Stop, dismiss, PTY death — or a decline reaching PostToolUse in some future

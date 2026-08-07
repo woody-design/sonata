@@ -21,17 +21,25 @@
 // the real HookWatcher, real delivery through the real DeliveryController, a
 // real PTY death — because the wiring is the whole claim.
 //
-// Three of the four resolution paths are exercised here, each with a queued
-// item that must actually flow:
+// The resolution paths exercised here, each (bar the last) with a queued item
+// that must actually flow:
 //   1. PostToolUse (answered) — the ordinary end of a question;
 //   2. Stop with the form still open (`answers: null`) — the turn ended without
 //      one, the CLI's own fallback;
+//   2b. a turn that ends with NO Stop hook at all — Sonata's ■ over an open
+//      form. The S3 review's blocking find: the tool is cancelled (no
+//      PostToolUse) and the stop's Esc is hook-invisible (P4), so nothing here
+//      could clear the gate and every later send wedged;
 //   3. PTY death (`answers: null`) — read with an EMPTY queue on purpose: the
 //      claim there is the gate reopening, and a released item would only
 //      re-fail against a dead terminal and add noise to the reading.
-// The fourth (the dismiss window's local clear) shares path 2's shape exactly —
-// same `resolveOptionPrompt` funnel, same null answers — and needs a 45s
-// timeout to reach, so it is covered at the controller-gate level instead.
+// The dismiss window's local clear shares path 2's shape exactly — same
+// `resolveOptionPrompt` funnel, same null answers — and needs a 45s timeout to
+// reach, so it is covered at the controller-gate level instead. The quiescence
+// run-closer (`run:updated` completed/terminal-idle-heuristic) enters the SAME
+// `isPendingTurnEnd` predicate at the SAME call site as 2b and 3; forcing it
+// would need the fake CLI to repaint an idle composer on a timer, which would
+// race every other phase here — declared rather than faked.
 //
 // Fixture provenance: the PreToolUse `tool_input` is ADAPTED from
 // option-prompt-parse.mjs (the measured claude 2.1.178 shape), trimmed to one
@@ -77,11 +85,13 @@ const { runtimeDir } = require("../../dist/main/sonata-paths");
 const bootText = "Open the session so the boot latch latches.";
 const heldByAnswered = "This send must wait for the PostToolUse answer.";
 const heldByStop = "This send must wait for the Stop that clears the form.";
+const heldByStopRun = "This send must wait for the stop that no hook reports.";
 // The fake exits when this appears — a PTY death with a question still open.
 const exitMarker = path.join(workspace, "die-now");
 
 const TOOL_ANSWERED = "toolu_01wireAnswered";
 const TOOL_STOPPED = "toolu_01wireStopped";
+const TOOL_STOPPED_BY_UI = "toolu_01wireStoppedByUi";
 const TOOL_PTY_EXIT = "toolu_01wirePtyExit";
 
 // ADAPTED from option-prompt-parse.mjs (measured claude 2.1.178 tool_input).
@@ -249,6 +259,46 @@ try {
     `receipts=${receiptCount()}`,
   );
   check("the Stop really resolved that form", await reaches(() => resolvedFor(TOOL_STOPPED), 5_000));
+
+  // --- 2b. the turn that ends with NO Stop hook (S3 review, the wedge) -------
+  // The user presses Sonata's ■ instead of answering. The AskUserQuestion tool
+  // is CANCELLED, so no PostToolUse fires; the stop's Esc declines the form and
+  // is hook-invisible (option-prompt.ts P4 — neither PostToolUse nor Stop). So
+  // none of the three resolutions above can happen, and before the review fix
+  // NOTHING cleared the gate: every later send sat "Queued" forever, with the
+  // card that explained the hold dropped by the reducer at the next run:started.
+  // A real run has to be open for ■ to have anything to stop, so begin one the
+  // honest way — the CLI's own UserPromptSubmit — which is also the shape the
+  // wedge really occurs in: the model asks mid-turn.
+  fireHook(taskId, { hook_event_name: "UserPromptSubmit", prompt: "A turn the user will stop." });
+  await waitFor(() => of("run:started").length >= 2, 15_000, "the hook beginning a fresh run");
+  askQuestion(taskId, TOOL_STOPPED_BY_UI);
+  await waitFor(() => of("option-prompt:detected").length >= 3, 15_000, "the third PreToolUse hook");
+  const gateClosedMidTurn = await reaches(() => deliverable() === false, 10_000);
+  check("the mid-turn form closes the gate", gateClosedMidTurn, `deliverable=${deliverable()}`);
+
+  controller.submitPrompt(taskId, heldByStopRun);
+  await delay(1600);
+  check("the mid-turn send is HELD by the open form", queued(heldByStopRun), JSON.stringify(lastDelivery()?.queue));
+
+  await controller.stopRun(taskId, {});
+  check(
+    "the stop resolved the form no hook would ever have resolved",
+    await reaches(() => resolvedFor(TOOL_STOPPED_BY_UI), 15_000),
+    JSON.stringify(of("option-prompt:resolved").map((event) => event.payload.toolUseId)),
+  );
+  const flowedOnStopRun = await reaches(() => receiptCount() >= 4, 20_000);
+  check(
+    "…and released the send it was holding (no Stop hook, no PostToolUse)",
+    flowedOnStopRun,
+    `receipts=${receiptCount()}`,
+  );
+  check(
+    "the release really came from the turn-terminal path",
+    of("run:stopped").length >= 1 ||
+      of("run:updated").some((event) => event.payload.status === "stopped"),
+    `run:stopped=${of("run:stopped").length}`,
+  );
 
   // --- 3. PTY death with a question still open -------------------------------
   // Queue deliberately EMPTY: the claim is that the gate reopens, and a released
