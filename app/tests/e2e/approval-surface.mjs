@@ -15,6 +15,11 @@
 //     title ("Run  python3 …"), the "Always approve" middle button (scope in its tooltip).
 //  3. Report provenance: approvalEvents carry source "hook-broker" with a
 //     matching approve decision (the reply channel, not key replay).
+//  4. Single-flight (ask-flows S2): the answering click freezes the drawer's own
+//     buttons, so a second click cannot dispatch a second decision. Read on the
+//     REAL card because that is where it must hold — the first click consumes
+//     the broker entry, and a second one falls through to main's native-key
+//     fallback, which replays keys at whatever owns the screen by then.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -94,12 +99,45 @@ try {
     Boolean(cardChecks.alwaysTitle?.includes("python3")) &&
     cardChecks.denyLabel === "Deny";
 
-  // 3. Approve once (reply channel) and drain any later asks until the turn
-  //    completes with the artifact.
-  await page.locator("#approve-approval").click();
+  // 3. Approve once (reply channel) — as a DOUBLE click, which is the gesture
+  //    the single-flight latch exists for. Driven in one page turn rather than
+  //    with two Playwright clicks (whose actionability wait would just block on
+  //    the disabled button and prove nothing): the click handler runs
+  //    synchronously up to its IPC await, so `disabled` is already true when the
+  //    first `click()` returns, and the second one lands on a disabled control —
+  //    which dispatches no click event at all. The counter is what proves that,
+  //    rather than merely reading the attribute.
+  const doubleClick = await page.evaluate(() => {
+    const button = document.getElementById("approve-approval");
+    let clicks = 0;
+    const count = () => {
+      clicks += 1;
+    };
+    button.addEventListener("click", count, true);
+    button.click();
+    const disabledAfterFirstClick = button.disabled;
+    const denyDisabled = document.getElementById("deny-approval").disabled;
+    const middleDisabled = document.getElementById("approve-session-approval").disabled;
+    button.click();
+    button.removeEventListener("click", count, true);
+    return { disabledAfterFirstClick, denyDisabled, middleDisabled, clicks };
+  });
+  const singleFlightOk =
+    doubleClick.disabledAfterFirstClick === true &&
+    doubleClick.denyDisabled === true &&
+    doubleClick.middleDisabled === true &&
+    doubleClick.clicks === 1;
+  // Drain any later asks until the turn completes with the artifact. The drain
+  // click is bounded and forgiving now: between the answering click and the
+  // card's retraction the buttons are legitimately frozen (the latch above), so
+  // the default actionability wait would sit on a control that is about to
+  // vanish. A missed drain costs nothing — the loop comes back around.
   await waitUntil(async () => {
     if (await banner.isVisible().catch(() => false)) {
-      await page.locator("#approve-approval").click();
+      await page
+        .locator("#approve-approval")
+        .click({ timeout: 5000 })
+        .catch(() => {});
       await page.waitForTimeout(400);
     }
     return page
@@ -163,6 +201,7 @@ try {
   const success =
     reports.length === 1 &&
     cardOk &&
+    singleFlightOk &&
     !trustCardEverDetected &&
     brokerDetected &&
     approveDecision &&
@@ -178,6 +217,8 @@ try {
         trustOutcome,
         cardChecks,
         cardOk,
+        doubleClick,
+        singleFlightOk,
         trustCardEverDetected,
         brokerDetected,
         approveDecision,

@@ -147,8 +147,13 @@ export function renderApproval(): void {
   elements.approvalActions.classList.toggle("hidden", expired);
   elements.approvalExpiredRow.classList.toggle("hidden", !expired);
 
-  elements.approveApproval.disabled = expired;
-  elements.denyApproval.disabled = expired;
+  // A decision already in flight freezes all three buttons the same way expiry
+  // does (ask-flows S2): the second click of a double-click reaches a main
+  // process whose broker entry is already consumed, and its native-key fallback
+  // writes blind into whatever owns the screen by then.
+  const frozen = expired || Boolean(view?.approvalDecisionBusy);
+  elements.approveApproval.disabled = frozen;
+  elements.denyApproval.disabled = frozen;
 
   // The middle button is a faithful projection of the panel's own option 2:
   // session-scoped ("Allow for this session") or persistent ("Don't ask
@@ -176,7 +181,7 @@ export function renderApproval(): void {
   elements.approvalSummary.textContent = showSummary ? summary : "";
   elements.approvalSummary.classList.toggle("hidden", !showSummary);
   elements.approveSessionApproval.classList.toggle("hidden", !middleChoice);
-  elements.approveSessionApproval.disabled = expired || !middleChoice;
+  elements.approveSessionApproval.disabled = frozen || !middleChoice;
   if (middleChoice) {
     elements.approveSessionApproval.textContent = middleChoice.label;
     elements.approveSessionApproval.title = middleChoice.description;

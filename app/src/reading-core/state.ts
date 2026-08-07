@@ -205,6 +205,14 @@ export interface TaskViewState {
    *  textarea (the attachments counterpart is pendingAttachments). */
   composerDraft: string;
   pendingApproval: ApprovalDetectedEvent["payload"] | null;
+  /** Decision-in-flight (ask-flows S2): a `decideApproval` IPC is out for THIS
+   *  view, so the drawer's three decision buttons are frozen (model:
+   *  optionPromptBusy). Set before the await and cleared in the flow's
+   *  `finally` — no event clears it, because unlike an option-prompt send this
+   *  round-trip always returns. Why it exists: main answers a consumed broker
+   *  entry by falling through to NATIVE KEYS, and two denies land two Escs
+   *  ≤700ms apart — the documented Rewind-panel opener. */
+  approvalDecisionBusy: boolean;
   /** A native AskUserQuestion awaiting an in-view answer (Slice 5). */
   pendingOptionPrompt: OptionPromptDetectedEvent["payload"] | null;
   /** In-progress answer draft per question (drawer S1): selected option
@@ -860,6 +868,7 @@ export function createTaskView(task: Task, status: string, live = true): TaskVie
     report: null,
     composerDraft: "",
     pendingApproval: null,
+    approvalDecisionBusy: false,
     pendingOptionPrompt: null,
     optionPromptDrafts: [],
     optionPromptStep: 0,

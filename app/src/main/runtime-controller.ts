@@ -1401,6 +1401,23 @@ export class RuntimeController {
       );
       return;
     }
+    // …and only while a scraped panel is actually ON SCREEN. The fallback has no
+    // addressing of its own — it replays keys at whatever owns the terminal — so
+    // its correctness rests entirely on that panel being there:
+    // `sendApprovalDecision("approve")` falls back to a legacy CSI-u Enter and
+    // `sendDeny()` writes a bare Esc, both unconditionally. A LIVE scraped card
+    // always reads `isApprovalActive() === true`, so this refusal drops only
+    // writes that would land on an unowned screen: the double-click whose broker
+    // entry the first click already consumed, and the stale card answered after
+    // the CLI repainted past it. The dropped case matters — two Escs ≤700ms
+    // apart is the documented Rewind-panel opener, and a deny also force-
+    // finishes a run that is in fact continuing.
+    if (!active.terminalHost.isApprovalActive()) {
+      console.warn(
+        `[approval] refusing native ${decision} for task ${taskId}: no live approval panel owns the screen (approvalId=${approvalId ?? "none"})`,
+      );
+      return;
+    }
     if (decision === "approve" || decision === "approve-for-session" || decision === "approve-always") {
       active.terminalHost.sendApprovalDecision(decision);
       return;

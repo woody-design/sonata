@@ -974,6 +974,23 @@ export async function decideApproval(decision: ApprovalDecision): Promise<void> 
     return;
   }
 
+  // Single-flight per view (ask-flows S2). One ask deserves exactly one answer:
+  // the FIRST decision consumes the broker entry, so a second one arrives at a
+  // main process that has nothing left to reply to and falls through to the
+  // native-key fallback — which writes blind. Two denies put two Escs on the
+  // wire ≤700ms apart, the documented Rewind-panel opener, over a run that is
+  // actually continuing.
+  //
+  // The flag is what renderApproval disables the three drawer buttons on; this
+  // guard is the same truth read from the dispatch side, for the paths a
+  // disabled attribute does not cover (a click already in flight when the first
+  // render lands, a programmatic call). The clear rides the view captured ABOVE
+  // — the drawer is de-modalized, so the user can switch tasks mid-flight and
+  // `activeTaskView()` would then resolve to someone else's view.
+  if (view.approvalDecisionBusy) {
+    return;
+  }
+  view.approvalDecisionBusy = true;
   state.busy = true;
   render();
   try {
@@ -985,6 +1002,7 @@ export async function decideApproval(decision: ApprovalDecision): Promise<void> 
   } catch (error) {
     view.status = errorMessage(error);
   } finally {
+    view.approvalDecisionBusy = false;
     state.busy = false;
     render();
   }

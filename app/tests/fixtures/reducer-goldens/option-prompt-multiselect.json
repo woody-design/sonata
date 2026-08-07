@@ -67,6 +67,7 @@
                 }
               ]
             },
+            "approvalDecisionBusy": false,
             "pendingOptionPrompt": {
               "taskId": "task-1783114269578-1",
               "toolUseId": "toolu_01D6Z94qyHi2MLUQpUk4BZbe",
@@ -344,6 +345,7 @@
                 }
               ]
             },
+            "approvalDecisionBusy": false,
             "pendingOptionPrompt": {
               "taskId": "task-1783114269578-1",
               "toolUseId": "toolu_01D6Z94qyHi2MLUQpUk4BZbe",

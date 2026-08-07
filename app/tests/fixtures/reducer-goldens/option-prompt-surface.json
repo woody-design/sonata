@@ -67,6 +67,7 @@
                 }
               ]
             },
+            "approvalDecisionBusy": false,
             "pendingOptionPrompt": null,
             "optionPromptDrafts": [
               {
@@ -339,6 +340,7 @@
                 }
               ]
             },
+            "approvalDecisionBusy": false,
             "pendingOptionPrompt": null,
             "optionPromptDrafts": [
               {
