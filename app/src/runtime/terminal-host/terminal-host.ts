@@ -2301,13 +2301,6 @@ export class TerminalHost extends EventEmitter {
     // the aborted prompt had already pasted its text/paths into the composer.
     const promptReachedComposer = this.promptTextReachedComposer;
     this.writeRaw(ESC);
-    // That Esc is a DENY when a native approval panel owns the screen — settle
-    // the approval state to match, with the id captured above (the emit below
-    // reads it BEFORE `finishActiveRun` nulls the pointer). Ordered ahead of the
-    // stop's own events on purpose: the decision belongs to the still-open run,
-    // and `run:stopped` must land LAST so the surface reads "Stopped" — the
-    // honest reason — rather than "Approval denied" (reading-core reducer).
-    this.settleApprovalAsEscDeny(stoppedRunId);
     // Esc-interrupt restores the interrupted prompt into the CLI's own input
     // box when the turn had produced nothing yet (probe C1/X1, claude
     // 2.1.212 + codex 0.144.5) — and a canceled text write can likewise
@@ -2321,6 +2314,23 @@ export class TerminalHost extends EventEmitter {
     // stop, the turn provably survived the Esc (swallowed key) — resend once.
     this.stopEscRetry = { requestedAt: Date.now(), retried: false, runId: stoppedRunId };
     this.taskReady = false;
+    // The Esc written above is a DENY when a native approval panel owns the
+    // screen — settle the approval state to match, with the id captured at the
+    // top (this still runs BEFORE `finishActiveRun` nulls the pointer, so the
+    // decision lands on the still-open run, and still BEFORE `run:stopped` so
+    // the surface ends on "Stopped" rather than "Approval denied").
+    //
+    // POSITIONED HERE, NOT NEXT TO THE Esc (review 1): the emit is synchronously
+    // RE-ENTRANT — eventSink → RuntimeController.handleRuntimeEvent →
+    // DeliveryController.pump → deliver → submitPrompt, all on this stack. A
+    // queued item released by this very decision therefore submits from inside
+    // stopRun, so every piece of stop state it reads must already be written:
+    //   - `cliInputMaybeDirty` (above) or its pre-submit kill-line flood is
+    //     skipped and the paste CONCATENATES onto an Esc-restored prompt;
+    //   - `stopEscRetry` (above) or that submit's own `stopEscRetry = null`
+    //     is clobbered by this method's re-arm, leaving a 45s Esc retry armed
+    //     behind a send that already went out.
+    this.settleApprovalAsEscDeny(stoppedRunId);
     this.emitEvent("run:stop-requested", {
       taskId: this.taskId,
       runId: stoppedRunId,
