@@ -22,6 +22,7 @@ const paths = {
   main: "src/main/main.ts",
   updateButton: "src/renderer/view/update-button.ts",
   updaterInteractive: "src/main/updater/updater-interactive.ts",
+  quitGuard: "src/main/quit-guard.ts",
   indexHtml: "src/renderer/index.html",
   cliHtml: "src/renderer/terminal.html",
   previewHtml: "src/renderer/preview.html",
@@ -104,6 +105,23 @@ assert.match(
 // "Restart to Update" is shared with the pill; assert it also anchors the staged
 // dialog's default button so a drift here can't slip past the pill-only pin.
 assert.match(source.updaterInteractive, /"Restart to Update"/, "staged dialog restart button");
+
+// Quit / last-window confirmation vocabulary (Focus/Flow S4, D5). These four
+// strings are the whole dialog, and they are Woody-approved verbatim — note the
+// body carries NO full stop, matching the rest of the family. Pinned on
+// main/quit-guard.ts because that file is the SINGLE author of this copy for
+// both surfaces: the renderer dialog paints the words main pushes it, and the
+// native `dialog.showMessageBox` fallback reads the same spec. So one pin here
+// covers both, and a renderer that started composing its own wording would
+// break the smoke:quit-guard projection assertions instead.
+assert.match(source.quitGuard, /title: "Quit Sonata\?"/, "quit dialog title");
+assert.match(
+  source.quitGuard,
+  /body: "All sessions will be terminated"/,
+  "quit dialog body (no full stop)",
+);
+assert.match(source.quitGuard, /"Close Sonata"/, "quit dialog primary CTA");
+assert.match(source.quitGuard, /buttons: \["Close Sonata", "Cancel"\]/, "quit dialog CTA pair + order");
 
 const rendererFiles = filesUnder("src/renderer", ".ts").filter(
   (file) => ![paths.dom, paths.cli].includes(file),
