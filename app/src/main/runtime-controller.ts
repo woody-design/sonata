@@ -1405,13 +1405,24 @@ export class RuntimeController {
     // addressing of its own — it replays keys at whatever owns the terminal — so
     // its correctness rests entirely on that panel being there:
     // `sendApprovalDecision("approve")` falls back to a legacy CSI-u Enter and
-    // `sendDeny()` writes a bare Esc, both unconditionally. A LIVE scraped card
-    // always reads `isApprovalActive() === true`, so this refusal drops only
-    // writes that would land on an unowned screen: the double-click whose broker
-    // entry the first click already consumed, and the stale card answered after
-    // the CLI repainted past it. The dropped case matters — two Escs ≤700ms
-    // apart is the documented Rewind-panel opener, and a deny also force-
-    // finishes a run that is in fact continuing.
+    // `sendDeny()` writes a bare Esc, both unconditionally.
+    //
+    // Read the guard off what actually clears the flag: a DECISION that consumed
+    // the panel — Sonata's own (sendPositiveApproval / sendDeny /
+    // noteHookApprovalDecision), a stop's Esc (settleApprovalAsEscDeny), or the
+    // human's own answer in the CLI as proved by a Stop hook
+    // (completeRunFromTurnEnd's stale clear) — plus the submit/spawn boundaries.
+    // So this refuses exactly the decision that arrives after the ask was
+    // ALREADY answered: the double-click whose first click consumed the broker
+    // entry, and the stale card. That class is worth refusing — two Escs ≤700ms
+    // apart is claude's documented Rewind-panel opener, and a deny also
+    // force-finishes a run that is in fact continuing.
+    //
+    // It is NOT a general write fence, and must not be read as one. A dead PTY
+    // and a panel the CLI repainted past for a non-human reason both leave the
+    // flag TRUE, so this never fires for them — `writeRaw`'s own no-pty throw
+    // stops the first, and the second is Phase-2 registry work. A LIVE scraped
+    // card always reads true, so nothing legitimate is refused.
     if (!active.terminalHost.isApprovalActive()) {
       console.warn(
         `[approval] refusing native ${decision} for task ${taskId}: no live approval panel owns the screen (approvalId=${approvalId ?? "none"})`,

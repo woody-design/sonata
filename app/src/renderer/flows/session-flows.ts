@@ -992,8 +992,13 @@ export async function decideApproval(decision: ApprovalDecision): Promise<void> 
   }
   view.approvalDecisionBusy = true;
   state.busy = true;
-  render();
+  // The pre-await render is INSIDE the try, and that placement is the flag's
+  // only self-heal: nothing else ever clears `approvalDecisionBusy` (unlike
+  // `optionPromptBusy`, which the reducer resets on run:started and on the next
+  // detected prompt). A throw out here would strand it true for the life of the
+  // view — buttons frozen, and the guard above dropping every later decision.
   try {
+    render();
     await window.sonataRuntime.decideApproval({
       taskId: view.task.id,
       decision,
