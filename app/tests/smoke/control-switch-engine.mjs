@@ -11,6 +11,10 @@ import { createRequire } from "node:module";
 //        SL-2): the dialog is detected from the GRID while the raw stream carries
 //        only the cell-diff wreckage; Cancel (row 2) exits to the composer with NO
 //        extra Esc; an unrecognized screen rolls back instead of guessing a row.
+//   B5 — the parked claude cache-miss cursor read falls back to the park snapshot
+//        on a PARSE MISS, not on a byte-empty scan (ask-flows Phase 0 S4): a
+//        chunk-split dialog paint leaves the cursor row only in the snapshot while
+//        cursor-less trailing bytes occupy the freshly reset scan.
 const require = createRequire(import.meta.url);
 const {
   ControlSwitchEngine,
@@ -503,6 +507,77 @@ await check("3b: an unrecognized screen rolls back instead of guessing a row", a
       relayWrites,
       ["\r", ESC],
       "the relay wrote exactly the user's chosen row, then ONE rollback Esc — no retry, no guess",
+    );
+  } finally {
+    engine.clear();
+  }
+});
+
+// ── B5: a chunk-split cache-miss paint still navigates (parse-miss fallback) ──
+//
+// Fixture provenance: ADAPTED. The dialog lines are the MEASURED claude 2.1.214
+// cache-miss frame (spikes/midsession-switch-probe/findings.md §"S7 cache-miss
+// probe" — the same text midsession-receipt.mjs pins at the parser level). The
+// ADAPTATION is the CHUNK SPLIT: the one measured frame is cut where a pty chunk
+// boundary can fall, so the recognizer completes (→ PARK, which snapshots the
+// frame and RESETS the scan) on a chunk that arrives AFTER the cursor row, and
+// the paint's cursor-less trailing bytes then land in the fresh scan. The trailing
+// chunk is the same measured No row wrapped in the cursor-hide/show escapes a
+// repaint emits — non-empty and cursor-less, which is the shape the old
+// `scan || parkedFrame` read got wrong (a non-empty scan shadowed the snapshot →
+// parse null → the static dialog never repaints → 2.5s nav timeout → failParked
+// Escs the dialog the user just answered, dropping the staged effort leg).
+const CACHE_MISS_CHUNK_HEAD =
+  "Switch model?\n" +
+  "Your next response will be slower and use more tokens\n" +
+  "This conversation is cached for the current model. Switching to Sonnet 5 means " +
+  "the full history gets re-read on your next message.\n" +
+  "❯ 1. Yes, switch to Sonnet 5\n";
+const CACHE_MISS_CHUNK_NO_ROW = "  2. No, go back\n";
+const CACHE_MISS_TRAILING_BYTES = "\x1b[?25l\x1b[2m  2. No, go back\x1b[0m\x1b[?25h";
+const CLAUDE_MODEL_RECEIPT = "⎿ Set model to Sonnet 5 and saved as your default for new sessions";
+
+await check("B5: a chunk-split park reads its cursor from the snapshot, not from the scan", () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    // A staged Save (model + effort): the effort leg rides as the model switch's
+    // queued `next`, so a bogus failParked here would silently drop it too.
+    assert.equal(engine.startClaudeStagedSwitch("sonnet", "low").ok, true, "the staged Save started");
+    assert.deepEqual(host.writes, ["/model sonnet", "\r"], "the model leg is injected first");
+
+    // The dialog paints across chunks. The cursor row is in the FIRST chunk, which
+    // does not yet complete the forge-resistant recognizer (body + No row)…
+    engine.ingest(CACHE_MISS_CHUNK_HEAD);
+    assert.ok(!phasesOf(host.events).includes("parked"), "the half-painted dialog has not parked yet");
+    // …so the park — and with it the frame snapshot + scan reset — happens on the
+    // chunk that completes it. The cursor row is now ONLY in the snapshot.
+    engine.ingest(CACHE_MISS_CHUNK_NO_ROW);
+    const parked = lastEvent(host.events);
+    assert.equal(parked.phase, "parked", "the completed dialog parks the relay");
+    assert.equal(parked.dialog, "claude-cachemiss", "…as the claude cache-miss dialog");
+    // The paint's tail lands post-park: the fresh scan is NON-EMPTY and carries no
+    // cursor row. This is the whole defect — the old read preferred it blindly.
+    engine.ingest(CACHE_MISS_TRAILING_BYTES);
+
+    const writesBefore = host.writes.length;
+    engine.answerParkedControlConfirm(1); // the user chose `Yes, switch to Sonnet 5`
+    assert.deepEqual(
+      host.writes.slice(writesBefore),
+      ["\r"],
+      "the snapshot's cursor is already on the chosen row → confirm now (never strand the answer)",
+    );
+
+    engine.ingest(CLAUDE_MODEL_RECEIPT);
+    assert.deepEqual(
+      host.writes.slice(writesBefore),
+      ["\r", "/effort low", "\r"],
+      "the Yes settles the model leg and the staged effort leg runs — nothing was dropped",
+    );
+    assert.ok(!host.writes.includes(ESC), "no rollback Esc — the dialog was answered, not abandoned");
+    assert.ok(
+      !phasesOf(host.events).includes("needs-attention"),
+      "and the relay never times out into needs-attention",
     );
   } finally {
     engine.clear();

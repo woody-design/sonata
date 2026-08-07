@@ -1725,7 +1725,7 @@ export class ControlSwitchEngine {
    * is still a STREAM read — but a retained 4096-char window would keep stale
    * dialog text alive and defeat absence-based detection, so post-park frames must
    * dominate the fresh scan while `driveParkedNav`'s claude branch falls back to
-   * this snapshot for the first read.
+   * this snapshot whenever the fresh scan carries NO cursor row of its own.
    */
   private snapshotParkedFrame(): void {
     this.parkedFrame = this.controlSwitchScan;
@@ -1780,8 +1780,22 @@ export class ControlSwitchEngine {
    * — measured 0.146.0) and the parser returns null on a dialog that is on screen.
    * The grid also removes the need for a park-time snapshot: it still shows the
    * static dialog when the drawer answer arrives. The claude cache-miss cursor
-   * stays on the stream (scan, falling back to the park snapshot for the first
-   * read — review F2), which is measured-reliable for it.
+   * stays on the stream (scan, falling back to the park snapshot — review F2),
+   * which is measured-reliable for it.
+   *
+   * That claude fallback keys on a PARSE MISS, not on a byte-empty scan (B5): a
+   * dialog painted across chunks leaves the cursor row in the snapshot while the
+   * post-park scan holds only the paint's cursor-less trailing bytes. Preferring a
+   * non-empty scan there reads null on a dialog that IS on screen — and the parked
+   * dialog is static, so no repaint ever corrects it: the nav timeout fires and
+   * `failParked` Escs the dialog the user just answered (dropping a staged Save's
+   * queued effort leg with it). So: the scan when it actually carries a cursor,
+   * the snapshot otherwise. A stale snapshot cursor cannot mis-answer a later
+   * read: mid-navigation it is either `lastCursor` — which `applyParkedNav`
+   * treats as a pre-move repaint and waits on — or, when the user moved the
+   * cursor natively between park and answer, `awaitingCursor`, read as the
+   * landing; the Enter that follows is written BEHIND the arrow we just sent, so
+   * the CLI still processes the move first and Enters on the user's chosen row.
    */
   private driveParkedNav(): void {
     const pending = this.pendingControlSwitch;
@@ -1792,7 +1806,10 @@ export class ControlSwitchEngine {
       this.host.readScreen((screen) => this.applyParkedNav(parseCodexConsentCursor(screen)));
       return;
     }
-    this.applyParkedNav(parseClaudeCacheMissCursor(this.controlSwitchScan || this.parkedFrame));
+    this.applyParkedNav(
+      parseClaudeCacheMissCursor(this.controlSwitchScan) ??
+        parseClaudeCacheMissCursor(this.parkedFrame),
+    );
   }
 
   /** Act on the cursor row just read: validate the post-press position, then Enter
