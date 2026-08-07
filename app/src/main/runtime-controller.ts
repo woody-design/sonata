@@ -113,7 +113,11 @@ import type { ClaudeSettings } from "../shared/types/claude-settings";
 import type { CodexSettings } from "../shared/types/codex-settings";
 import type { SonataSettings } from "../shared/types/sonata-settings";
 import type { HookPayload, CliStateSnapshot } from "../shared/types/cli-signal";
-import type { OptionPrompt, OptionPromptSelection } from "../shared/types/option-prompt";
+import type {
+  OptionPrompt,
+  OptionPromptAnswers,
+  OptionPromptSelection,
+} from "../shared/types/option-prompt";
 import {
   RESUME_PROMPT_MIN_IDLE_MS,
   RESUME_PROMPT_MIN_TOKENS,
@@ -2058,15 +2062,12 @@ export class RuntimeController {
     }
 
     if (event.type === "pty:exit" && eventRuntime?.pendingOptionPrompt) {
-      // The PTY died with a question still open — clear the card (no receipt).
-      const toolUseId = eventRuntime.pendingOptionPrompt.toolUseId;
-      eventRuntime.pendingOptionPrompt = null;
-      eventRuntime.lastOptionPromptResolution = { toolUseId, answered: false };
-      this.sendEvent({
-        type: "option-prompt:resolved",
-        payload: { taskId: event.payload.taskId, toolUseId, answers: null },
-        ts: new Date().toISOString(),
-      });
+      // The PTY died with a question still open — clear the card (no receipt),
+      // and with it the delivery gate the form was holding: a dead terminal can
+      // swallow nothing, so a queue still held here would be a hold with no
+      // remaining reason. The runtime is retired a microtask later, but the
+      // release does not depend on that ordering staying as it is.
+      this.resolveOptionPrompt(eventRuntime, eventRuntime.pendingOptionPrompt.toolUseId, null);
     }
 
     if (event.type === "run:started") {
@@ -3022,11 +3023,19 @@ export class RuntimeController {
       // answered (probe P9f: the digit path mis-answers there).
       active.pendingOptionPrompt = prompt;
       active.lastOptionPromptResolution = null;
-      this.sendEvent({
+      const detected: RuntimeEvent = {
         type: "option-prompt:detected",
         payload: { taskId: active.task.id, toolUseId: prompt.toolUseId, questions: prompt.questions },
         ts: new Date().toISOString(),
-      });
+      };
+      this.sendEvent(detected);
+      // Gate delivery from here (B4): the form owns the composer, so a queued
+      // send would paste text + Enter into its option rows. The hand-off is
+      // explicit — main SYNTHESIZES this event from the hook sink, so unlike a
+      // terminal-host event it never passes the deliveryController fan-out in
+      // handleRuntimeEvent. Same pattern handleApprovalAsk uses for a broker
+      // ask, and the resolution side funnels through resolveOptionPrompt.
+      active.deliveryController.handleRuntimeEvent(detected);
       return;
     }
 
@@ -3035,34 +3044,43 @@ export class RuntimeController {
         typeof payload.tool_use_id === "string"
           ? payload.tool_use_id
           : active.pendingOptionPrompt?.toolUseId ?? "";
-      const answers = reconcileOptionPromptAnswers(payload.tool_response);
-      active.pendingOptionPrompt = null;
-      // answered=true ONLY with a real answers object — a PostToolUse without
-      // one (e.g. a decline reaching PostToolUse in some future CLI) must not
-      // corroborate a Send.
-      active.lastOptionPromptResolution = { toolUseId, answered: answers !== null };
-      this.sendEvent({
-        type: "option-prompt:resolved",
-        payload: {
-          taskId: active.task.id,
-          toolUseId,
-          answers,
-        },
-        ts: new Date().toISOString(),
-      });
+      this.resolveOptionPrompt(active, toolUseId, reconcileOptionPromptAnswers(payload.tool_response));
       return;
     }
 
     if (event === "Stop" && active.pendingOptionPrompt) {
-      const toolUseId = active.pendingOptionPrompt.toolUseId;
-      active.pendingOptionPrompt = null;
-      active.lastOptionPromptResolution = { toolUseId, answered: false };
-      this.sendEvent({
-        type: "option-prompt:resolved",
-        payload: { taskId: active.task.id, toolUseId, answers: null },
-        ts: new Date().toISOString(),
-      });
+      this.resolveOptionPrompt(active, active.pendingOptionPrompt.toolUseId, null);
     }
+  }
+
+  /**
+   * Retire a pending AskUserQuestion — the ONE way this controller publishes an
+   * `option-prompt:resolved`. Four paths reach it: the CLI's own PostToolUse,
+   * a `Stop` with the form still open, the dismiss window's local clear, and
+   * PTY death. Each has to reach BOTH consumers — the renderer (which drops the
+   * card) and the task's delivery controller (which was holding the queue for
+   * as long as the form owned the composer, B4). Funneled so a fifth path
+   * cannot ship with only half the wiring, which is precisely how all four
+   * shipped with only half of it.
+   *
+   * `answered` is true ONLY with a real answers object: a resolution without one
+   * (Stop, dismiss, PTY death — or a decline reaching PostToolUse in some future
+   * CLI) must not corroborate a Send.
+   */
+  private resolveOptionPrompt(
+    active: ActiveTaskRuntime,
+    toolUseId: string,
+    answers: OptionPromptAnswers | null,
+  ): void {
+    active.pendingOptionPrompt = null;
+    active.lastOptionPromptResolution = { toolUseId, answered: answers !== null };
+    const resolved: RuntimeEvent = {
+      type: "option-prompt:resolved",
+      payload: { taskId: active.task.id, toolUseId, answers },
+      ts: new Date().toISOString(),
+    };
+    this.sendEvent(resolved);
+    active.deliveryController.handleRuntimeEvent(resolved); // release the gate + re-pump
   }
 
   /**
@@ -3124,13 +3142,7 @@ export class RuntimeController {
     const outcome = await this.waitForOptionPromptClear(active, toolUseId, 45_000);
     if (outcome === "timeout") {
       if (active.pendingOptionPrompt?.toolUseId === toolUseId) {
-        active.pendingOptionPrompt = null;
-        active.lastOptionPromptResolution = { toolUseId, answered: false };
-        this.sendEvent({
-          type: "option-prompt:resolved",
-          payload: { taskId: active.task.id, toolUseId, answers: null },
-          ts: new Date().toISOString(),
-        });
+        this.resolveOptionPrompt(active, toolUseId, null);
       }
     }
   }

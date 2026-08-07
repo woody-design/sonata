@@ -209,6 +209,8 @@
     "smoke:packaged-app": "node tests/smoke/packaged-app-assert.mjs",
     "smoke:packaged-settings": "node tests/smoke/packaged-settings-paths.mjs",
     "smoke:delivery-control-switch-gate": "npm run build:main && node tests/smoke/delivery-control-switch-gate.mjs",
+    "smoke:delivery-option-prompt-gate": "npm run build:main && node tests/smoke/delivery-option-prompt-gate.mjs",
+    "smoke:option-prompt-delivery-wiring": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/option-prompt-delivery-wiring.mjs",
     "smoke:control-switch-engine": "npm run build:main && node tests/smoke/control-switch-engine.mjs",
     "smoke:codex-boot-update-prompt": "npm run build:main && node tests/smoke/codex-boot-update-prompt.mjs",
     "smoke:codex-trust-dialog": "npm run build:main && node tests/smoke/codex-trust-dialog.mjs",

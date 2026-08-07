@@ -146,6 +146,22 @@ export class DeliveryController {
   // that ask). The scrape flag (isApprovalActive) only sees rendered panels,
   // so it misses the whole broker-hold window — these keys are what cover it.
   private readonly pendingApprovalKeys = new Map<string, "asked" | "expired">();
+  // The OTHER question addressed to the human: claude's native AskUserQuestion
+  // form (`option-prompt:*`), detected structurally from the CLI's own
+  // PreToolUse hook. A delivery while it owns the composer pastes text + Enter
+  // into its option rows — the same digit/enter-swallow class as an approval
+  // panel (H1), and mid-turn write-through is what races a queued send onto an
+  // open form. ONE slot rather than a keyed map: main's `pendingOptionPrompt`
+  // is itself a single per-task slot that a newer PreToolUse overwrites, so a
+  // superseding detect replaces this key instead of leaking the old one. Kept
+  // OUT of pendingApprovalKeys deliberately — that map's id-less decision arm
+  // collects the oldest "expired" key by ownership transfer, semantics an
+  // option-prompt (no expiry, no panel to transfer) has no business inheriting.
+  // Cleared by ANY `option-prompt:resolved`, whatever toolUseId it names: every
+  // emitter of that event nulls main's slot in the same breath, so an
+  // id-guarded clear could only ever hold the gate shut over a form main has
+  // already forgotten — an invisible hold, the worse failure direction.
+  private pendingOptionPromptId: string | null = null;
   private receiptTimer: NodeJS.Timeout | null = null;
   private readonly pumpRetryIntervalMs: number;
   private pumpRetryTimer: NodeJS.Timeout | null = null;
@@ -277,9 +293,12 @@ export class DeliveryController {
    * still adopting would take a wasteful no-op rung-0 Enter (H2) — and, worse, if
    * the model raced an `AskUserQuestion` option-prompt onto the screen after the
    * submit, that Enter would answer a question addressed to the human (H1, the
-   * digit/enter-swallow class; `isApprovalActive`/`pendingApprovalKeys` do not
-   * cover option-prompt forms). A genuinely STUCK send fires no UPS, so nothing
-   * is corroborated and rung 0 still heals it.
+   * digit/enter-swallow class). `pendingOptionPromptId` now guards that form
+   * directly, but only from the moment its PreToolUse hook is OBSERVED — the CLI
+   * writes that hook to a file a watcher polls, so the form can be on screen
+   * before the key is set. This corroboration stays the belt to that brace. A
+   * genuinely STUCK send fires no UPS, so nothing is corroborated and rung 0
+   * still heals it.
    *
    * Suppresses BOTH nudge branches: it corroborates every matching echo backfill
    * AND a matching strict in-flight delivery (via `submissionCorroborated`). It
@@ -353,6 +372,10 @@ export class DeliveryController {
       if (event.payload.approvalId) {
         this.pendingApprovalKeys.set(event.payload.approvalId, "expired");
       }
+    } else if (event.type === "option-prompt:detected") {
+      this.pendingOptionPromptId = event.payload.toolUseId;
+    } else if (event.type === "option-prompt:resolved") {
+      this.pendingOptionPromptId = null;
     }
     this.pump();
   }
@@ -481,13 +504,22 @@ export class DeliveryController {
       // approval). `isApprovalActive` is the scrape flag (rendered panels
       // only); the keyed map also covers hook-broker approvals — where no
       // panel renders while the broker holds — PER ASK, so deciding one of
-      // two concurrent asks cannot reopen the gate (S6 review P1). This is
-      // the ONLY question-guard: slash-opened panels no longer hold delivery
-      // (S3, decision A) — a paste into a panel the user opened themselves is
-      // visible in the co-present terminal and recoverable, while a detector
-      // false-positive would be an invisible hold (the S1 wedge class).
+      // two concurrent asks cannot reopen the gate (S6 review P1). Slash-opened
+      // panels still do NOT hold delivery (S3, decision A) — a paste into a
+      // panel the user opened themselves is visible in the co-present terminal
+      // and recoverable, while a detector false-positive would be an invisible
+      // hold (the S1 wedge class).
       !this.terminalHost.isApprovalActive() &&
       this.pendingApprovalKeys.size === 0 &&
+      // The second question shape, same red line: an open AskUserQuestion form
+      // owns the composer, and a delivery there pastes text + Enter into its
+      // option rows. Admitted alongside approvals — and not under decision A's
+      // "user-opened panel" licence — because Sonata knows this one
+      // STRUCTURALLY (the CLI's PreToolUse hook, not a scrape), so it cannot
+      // false-positive into an invisible hold, and because nothing about it is
+      // user-initiated: the model raises it mid-turn, exactly when a queued
+      // send would write through. See pendingOptionPromptId for its lifetime.
+      this.pendingOptionPromptId === null &&
       // Rewind-panel guard (RED LINE, claude ≥2.1.216): an Esc pair at an idle
       // composer opens a restore picker over the composer, and its `Enter to
       // continue` RESTORES the conversation (and possibly the code) to the
@@ -944,11 +976,17 @@ export class DeliveryController {
       }
     }
 
-    // Never Enter into an approval — a stray submit would confirm the panel
-    // (the digit/enter-swallow class). isApprovalActive is the rendered-panel
-    // scrape; pendingApprovalKeys also covers the hook-broker hold, where no
-    // panel renders (mirrors the canDeliver question-guard).
-    if (this.terminalHost.isApprovalActive() || this.pendingApprovalKeys.size > 0) {
+    // Never Enter into a question addressed to the human — a stray submit would
+    // confirm the panel, or pick an option form's highlighted row (the
+    // digit/enter-swallow class). isApprovalActive is the rendered-panel scrape;
+    // pendingApprovalKeys also covers the hook-broker hold, where no panel
+    // renders; pendingOptionPromptId covers an open AskUserQuestion form
+    // (mirrors the canDeliver question-guards, one for one).
+    if (
+      this.terminalHost.isApprovalActive() ||
+      this.pendingApprovalKeys.size > 0 ||
+      this.pendingOptionPromptId !== null
+    ) {
       return;
     }
     // Don't auto-submit text a co-present human may be editing directly in the
