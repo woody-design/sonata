@@ -41,26 +41,87 @@ export function initQuitDialogView(stateRef: RendererState): void {
  */
 let mountedRequestId: number | null = null;
 
+/**
+ * The focus trap, armed for the mounted dialog's lifetime (review 1, minor 2).
+ *
+ * Claiming the caret at mount is not enough, because other surfaces claim it too
+ * and some of them do so AFTER this view has painted. The one that broke the
+ * modality promise: `updateDrawerActive` (view/approvals.ts) hands the caret to
+ * the composer whenever a blocking drawer resolves, and the drawer renderers run
+ * later in the render order than this one — so an approval answered (from the
+ * co-visible terminal, say) while the quit dialog was up put the caret in a
+ * composer the user could neither see nor click. Typing landed there, Return
+ * SUBMITTED A PROMPT behind the scrim, and Escape both cancelled the quit and
+ * fired stopRun.
+ *
+ * The fix is not to teach that one thief about this dialog. `focusin` bubbles
+ * from every focus change in the document, so ONE listener defends the invariant
+ * against every claimant — the ones that exist today, the ones that run after
+ * this view, and the ones nobody has written yet. A blacklist of known thieves
+ * would have to grow forever and would be wrong the first time it didn't
+ * (governing principle: no blacklists).
+ *
+ * Re-focusing lands inside the dialog, which fires `focusin` again with a target
+ * this guard accepts — so it settles in one hop, never loops.
+ */
+let focusTrap: ((event: FocusEvent) => void) | null = null;
+
+function mountedDialog(): HTMLElement | null {
+  return elements.quitConfirmRoot.querySelector<HTMLElement>(".quit-confirm-dialog");
+}
+
+function claimFocus(dialog: HTMLElement): void {
+  dialog.querySelector<HTMLButtonElement>(".quit-confirm-actions .primary")?.focus();
+}
+
+function unmountQuitConfirmDialog(): void {
+  if (focusTrap) {
+    document.removeEventListener("focusin", focusTrap, true);
+    focusTrap = null;
+  }
+  elements.quitConfirmRoot.replaceChildren();
+  mountedRequestId = null;
+}
+
 export function renderQuitConfirmDialog(): void {
   const request = state.quitConfirm;
   if (!request) {
     if (mountedRequestId !== null) {
-      elements.quitConfirmRoot.replaceChildren();
-      mountedRequestId = null;
+      unmountQuitConfirmDialog();
     }
     return;
   }
-  if (mountedRequestId === request.requestId) {
+
+  if (mountedRequestId !== request.requestId) {
+    const { scrim, primary } = buildQuitDialog(request);
+    elements.quitConfirmRoot.replaceChildren(scrim);
+    mountedRequestId = request.requestId;
+    focusTrap = (event: FocusEvent): void => {
+      const dialog = mountedDialog();
+      if (dialog && event.target instanceof Node && !dialog.contains(event.target)) {
+        claimFocus(dialog);
+      }
+    };
+    document.addEventListener("focusin", focusTrap, true);
+    // macOS alert semantics: the default button holds the caret when the sheet
+    // opens. Claimed once, at mount, on the surface the user's attention has
+    // just moved to — never on a re-render (see `mountedRequestId` above).
+    primary.focus();
     return;
   }
 
-  const { scrim, primary } = buildQuitDialog(request);
-  elements.quitConfirmRoot.replaceChildren(scrim);
-  mountedRequestId = request.requestId;
-  // macOS alert semantics: the default button holds the caret when the sheet
-  // opens. Claimed once, at mount, on the surface the user's attention has just
-  // moved to — never on a re-render (see above).
-  primary.focus();
+  // The belt the trap cannot provide: a thief that BLURS without focusing
+  // anything drops the caret on <body>, and `focusin` does not fire for that.
+  // Same shape as the Settings overlay's orphan reclaim (view/settings.ts), and
+  // same reason — reading `document.activeElement` here makes "orphaned" a fact
+  // about this paint rather than a prediction made before it.
+  const active = document.activeElement;
+  if (!active || active === document.body) {
+    const dialog = mountedDialog();
+    if (dialog) {
+      claimFocus(dialog);
+    }
+  }
 }
 
 function buildQuitDialog(request: QuitConfirmRequest): {

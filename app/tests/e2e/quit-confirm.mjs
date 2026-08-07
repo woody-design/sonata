@@ -22,7 +22,12 @@
 // its own — raises `dialog.showMessageBox` carrying the SAME words the renderer
 // drew in phase 1.
 //
-// Phase 3 guards the guard's OTHER half — the routes that deliberately do not
+// Phase 3 covers the second trigger of review 1's blocking finding: a window
+// whose RENDERER has already crashed still has a live BrowserWindow, so the
+// guard used to pick the branded dialog and push into a dead frame. It must fall
+// through to the native message box instead — and must not wedge afterwards.
+//
+// Phase 4 guards the guard's OTHER half — the routes that deliberately do not
 // pass it. `app.quit()` (a Dock quit, a macOS logout, `quitAndInstall()`, and
 // this harness's own `electronApp.close()`) must remain an honest "terminate
 // now" EVEN WITH the confirmation on screen. It regressed exactly once, during
@@ -31,6 +36,10 @@
 // hung with zero windows and no way out (MEASURED: `close()` still pending after
 // 30s; 138ms once fixed). A wedged quit is the worst failure a quit guard can
 // have, so it gets its own phase.
+//
+// Phase 1 also carries the two other review-1 findings: the ⌘R reload that used
+// to orphan the ask permanently (4c), and the focus trap that keeps the modal
+// modal (4b).
 //
 // Fixture provenance:
 //   - the fake CLI: COMPOSED — the session species from tests/e2e/helpers/
@@ -167,8 +176,77 @@ try {
   await main.locator(".quit-confirm-dialog").waitFor({ state: "detached" });
   checks.cancelButtonCancels = (await windowCount()) === 1;
 
+  // (4b) MODALITY: focus cannot rest outside the dialog across a render (review
+  // 1, minor 2). The real thief was `updateDrawerActive` handing the caret to the
+  // composer when a blocking drawer resolves — but the INVARIANT is what matters,
+  // so this steals the caret directly and then forces a full render (opening
+  // Settings is the harness's cheapest one, and it also re-focuses its own dialog
+  // AFTER render — a second, independent thief). Both must lose.
+  await clickQuitMenuItem();
+  await main.locator(".quit-confirm-dialog").waitFor({ state: "visible" });
+  // Two thefts, two mechanisms. The first is a bare `.focus()` on the composer —
+  // the shape `updateDrawerActive` uses — read back in the SAME tick, because the
+  // trap is `focusin` and therefore repels it synchronously rather than waiting
+  // for a render to repair it. The second rides a full render AND a post-render
+  // grab (openSettingsOverlay focuses its own dialog after render() returns), so
+  // it would defeat any render-time-only defense.
+  const afterDirectTheft = await main.evaluate(() => {
+    document.getElementById("prompt-input")?.focus();
+    const dialog = document.querySelector(".quit-confirm-dialog");
+    const active = document.activeElement;
+    if (!dialog || !active) {
+      return null;
+    }
+    if (!dialog.contains(active)) {
+      return `escaped:${active.id || active.className || active.tagName}`;
+    }
+    return active.classList.contains("primary") ? "primary" : "secondary";
+  });
+  await openSettingsFromMenu();
+  await main.locator(".settings-window").waitFor({ state: "visible" });
+  evidence.focusDefense = {
+    afterDirectTheft,
+    afterRenderTheft: await readDialogFocusOwner(main),
+  };
+  // Both must lose. Without the trap the first reads `escaped:prompt-input` and
+  // the second `escaped:settings-window` — which is what the bite proof shows.
+  checks.focusCannotRestOutsideTheModal =
+    afterDirectTheft === "primary" && evidence.focusDefense.afterRenderTheft === "primary";
+  await main.keyboard.press("Escape");
+  await main.locator(".quit-confirm-dialog").waitFor({ state: "detached" });
+  await main.keyboard.press("Escape");
+  await main.locator(".settings-window").waitFor({ state: "hidden" });
+
+  // (4c) THE WEDGE (review 1, blocking 1): ⌘R replaces the document under the
+  // dialog. That emits neither `closed` nor `render-process-gone`, so before the
+  // fix the ask never settled, `quitAskInFlight` stayed true for the life of the
+  // process, and from then on every ⌘Q was ignored and every last-window close
+  // was preventDefault'd — an app that cannot be quit or closed from inside.
+  // The guard must re-arm: the next ⌘Q has to ASK again.
+  await clickQuitMenuItem();
+  await main.locator(".quit-confirm-dialog").waitFor({ state: "visible" });
+  await reloadMainWindow();
+  await main.locator("#prompt-input").waitFor({ state: "visible" });
+  const dialogSurvivedReload = await main.locator(".quit-confirm-dialog").count();
+  await clickQuitMenuItem();
+  // The whole finding in one wait: on the broken build this dialog never comes.
+  const rearmed = await main
+    .locator(".quit-confirm-dialog")
+    .waitFor({ state: "visible", timeout: 8000 })
+    .then(() => true)
+    .catch(() => false);
+  evidence.rendererReload = { dialogSurvivedReload, rearmed };
+  checks.quitGuardRearmsAfterRendererReload = dialogSurvivedReload === 0 && rearmed;
+  if (rearmed) {
+    await main.locator(".quit-confirm-actions .secondary").click();
+    await main.locator(".quit-confirm-dialog").waitFor({ state: "detached" });
+  }
+
   // (5) Closing the LAST window asks the same question (D5) — that path kills
   // every PTY too. Cancelling keeps the window.
+  // It doubles as the other half of (4c): a wedged guard would preventDefault
+  // this close forever, so reaching the dialog at all proves the guard re-armed
+  // on BOTH paths, not just the quit one.
   await closeWindow("Sonata");
   await main.locator(".quit-confirm-dialog").waitFor({ state: "visible" });
   evidence.lastWindowDialog = await readDialog(main);
@@ -196,7 +274,11 @@ try {
   const exited = whenAppExits(app);
   await clickQuitMenuItem().catch(() => {});
   checks.zeroWindowQuitDoesNotAsk = await exited;
-  app = null;
+  // Only a handle whose app actually EXITED may be dropped. Nulling a live one
+  // orphans a running Electron whose child handle holds this process open long
+  // after the verdict prints — the S4-D18 defect, and this is the failure path
+  // where it would bite (the check being false means the app is still up).
+  await releaseApp(checks.zeroWindowQuitDoesNotAsk);
 
   // ══ Phase 2 — the native fallback, CLI window last ═════════════════════════
   const settingsDir2 = freshSettingsDir("phase2", { terminalOpen: true });
@@ -248,21 +330,62 @@ try {
   await app.close().catch(() => {});
   app = null;
 
-  // ══ Phase 3 — `app.quit()` still quits, with the dialog on screen ══════════
+  // ══ Phase 3 — a CRASHED renderer falls through to the native fallback ══════
+  // The second trigger of review 1's blocking finding: `mainWindowCanAsk` used
+  // to test only `isDestroyed()`, so a window whose renderer had already died
+  // still won the "draw it yourself" branch — and `webContents.send` into a dead
+  // frame is swallowed silently, wedging the guard exactly as the reload did.
+  // The main window is alive and IS the only window here, so the branded dialog
+  // is what the guard would pick if it could; it must pick native instead.
   const settingsDir3 = freshSettingsDir("phase3", { terminalOpen: false });
   app = await launch(settingsDir3);
   const main3 = await app.firstWindow();
   main3.setDefaultTimeout(20_000);
   await main3.locator(".task-entry-panel").waitFor({ state: "visible" });
+  await stubNativeDialog(SPEC.cancelId);
+  await crashMainRenderer();
+  await waitFor(async () => await mainRendererIsCrashed(), "the renderer to be crashed");
   await clickQuitMenuItem();
-  await main3.locator(".quit-confirm-dialog").waitFor({ state: "visible" });
+  const crashedAsk = await waitFor(
+    async () => (await nativeDialogCalls()).length === 1,
+    "the native fallback after a renderer crash",
+  ).then(
+    () => true,
+    () => false,
+  );
+  evidence.crashedRendererCall = (await nativeDialogCalls())[0] ?? null;
+  checks.crashedRendererFallsBackToNative =
+    crashedAsk &&
+    evidence.crashedRendererCall?.message === SPEC.title &&
+    evidence.crashedRendererCall?.detail === SPEC.body;
+  // Answered Cancel, so the app is still here — and the guard is NOT wedged: a
+  // second request must ask again rather than being swallowed as "already asking".
+  await clickQuitMenuItem();
+  checks.crashedRendererGuardDoesNotWedge = await waitFor(
+    async () => (await nativeDialogCalls()).length === 2,
+    "a second ask after the crashed-renderer cancel",
+  ).then(
+    () => true,
+    () => false,
+  );
+  await app.close().catch(() => {});
+  app = null;
+
+  // ══ Phase 4 — `app.quit()` still quits, with the dialog on screen ══════════
+  const settingsDir4 = freshSettingsDir("phase4", { terminalOpen: false });
+  app = await launch(settingsDir4);
+  const main4 = await app.firstWindow();
+  main4.setDefaultTimeout(20_000);
+  await main4.locator(".task-entry-panel").waitFor({ state: "visible" });
+  await clickQuitMenuItem();
+  await main4.locator(".quit-confirm-dialog").waitFor({ state: "visible" });
   const exitedWithDialogUp = whenAppExits(app);
   // NOT the menu item: the raw `app.quit()` every non-gesture route reaches.
   await app.evaluate(({ app: electronApp }) => {
     setTimeout(() => electronApp.quit(), 0);
   });
   checks.appQuitStillQuitsWithTheDialogUp = await exitedWithDialogUp;
-  app = null;
+  await releaseApp(checks.appQuitStillQuitsWithTheDialogUp);
 
   const success = Object.values(checks).every(Boolean);
   console.log(JSON.stringify({ success, checks, evidence }, null, 2));
@@ -373,6 +496,51 @@ function closeWindow(title) {
   }, title);
 }
 
+/** Which of the dialog's controls holds the caret, or where it escaped to. */
+function readDialogFocusOwner(page) {
+  return page.evaluate(() => {
+    const dialog = document.querySelector(".quit-confirm-dialog");
+    const active = document.activeElement;
+    if (!dialog || !active) {
+      return null;
+    }
+    if (!dialog.contains(active)) {
+      return `escaped:${active.id || active.className || active.tagName}`;
+    }
+    return active.classList.contains("primary") ? "primary" : "secondary";
+  });
+}
+
+/** View → Reload, the real menu path (⌘R via `{ role: "viewMenu" }`). */
+function reloadMainWindow() {
+  return app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .find((window) => window.getTitle() === "Sonata")
+      ?.webContents.reload();
+  });
+}
+
+function crashMainRenderer() {
+  return app
+    .evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((window) => window.getTitle() === "Sonata")
+        ?.webContents.forcefullyCrashRenderer();
+    })
+    .catch(() => {});
+}
+
+function mainRendererIsCrashed() {
+  return app
+    .evaluate(({ BrowserWindow }) => {
+      const target = BrowserWindow.getAllWindows().find(
+        (window) => window.getTitle() === "Sonata",
+      );
+      return Boolean(target && target.webContents.isCrashed());
+    })
+    .catch(() => false);
+}
+
 /** Everything the dialog is saying, plus where the caret is. */
 function readDialog(page) {
   return page.evaluate(() => {
@@ -424,6 +592,14 @@ function nativeDialogCalls() {
   return app.evaluate(() => globalThis.__quitDialogCalls ?? []);
 }
 
+/** Drop the handle — closing it first unless the app is already gone. */
+async function releaseApp(alreadyExited) {
+  if (!alreadyExited) {
+    await app?.close().catch(() => {});
+  }
+  app = null;
+}
+
 /** True when the app process actually goes away — the only honest evidence that
  *  a zero-window quit did not stop to ask. */
 function whenAppExits(handle) {
@@ -436,8 +612,8 @@ function whenAppExits(handle) {
   });
 }
 
-async function waitFor(predicate, label) {
-  const deadline = Date.now() + 20_000;
+async function waitFor(predicate, label, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (await predicate().catch(() => false)) {
       return;

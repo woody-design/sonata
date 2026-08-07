@@ -1036,6 +1036,21 @@ function openWindows(): BrowserWindow[] {
   return BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed());
 }
 
+/**
+ * Whether the main window can actually DRAW the branded dialog.
+ *
+ * Existing-and-not-destroyed is not enough (review 1): a CRASHED renderer still
+ * has a live BrowserWindow, and `webContents.send` into a dead frame is
+ * swallowed silently — the ask would never be answered and the guard would wedge
+ * for the life of the process. A crashed renderer therefore falls through to the
+ * native message box, which is exactly what that fallback exists for.
+ */
+function mainWindowCanDrawDialog(): boolean {
+  return Boolean(
+    mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isCrashed(),
+  );
+}
+
 /** The app's user-facing quit gesture: the Quit menu item, which owns ⌘Q. Zero
  *  windows quits outright (D5's one exception — the runtimes are already
  *  disposed, so there is nothing to protect). */
@@ -1043,7 +1058,7 @@ async function requestUserQuit(): Promise<void> {
   const decision = decideQuitRequest({
     asking: quitAskInFlight,
     openWindowCount: openWindows().length,
-    mainWindowCanAsk: Boolean(mainWindow && !mainWindow.isDestroyed()),
+    mainWindowCanAsk: mainWindowCanDrawDialog(),
   });
   if (decision.action === "ignore") {
     return;
@@ -1104,7 +1119,10 @@ async function askQuitConfirmation(
   const spec = buildQuitDialog();
   quitAskInFlight = true;
   try {
-    return host === "renderer" && mainWindow && !mainWindow.isDestroyed()
+    // The re-check matters on the window-close path too: `decideWindowClose`
+    // picks the renderer host from "is this the main window", which cannot know
+    // whether that window's renderer is still able to answer.
+    return host === "renderer" && mainWindow && mainWindowCanDrawDialog()
       ? await askQuitInMainWindow(mainWindow, spec)
       : await askQuitNatively(spec, owner);
   } finally {
@@ -1117,10 +1135,27 @@ async function askQuitConfirmation(
  * this push carries.
  *
  * Every way the question can DIE is settled as a cancel, because the failure
- * this protects against is a wedge — an ask that never resolves leaves
- * `quitAskInFlight` true forever and the app can never be quit again. Three
- * ways: the user answers, the window closes underneath the dialog, or the
- * renderer process goes away.
+ * this protects against is a wedge: an ask that never resolves leaves
+ * `quitAskInFlight` true forever, and from then on EVERY ⌘Q is ignored and every
+ * last-window close is preventDefault'd — an app that cannot be quit or closed
+ * from inside. FOUR ways, and the fourth cost review 1 a blocking finding:
+ *
+ *   1. the user answers;
+ *   2. the window closes underneath the dialog (`closed`);
+ *   3. the renderer process goes away (`render-process-gone`);
+ *   4. the DOCUMENT is replaced under it — View → Reload (⌘R, shipped by
+ *      `{ role: "viewMenu" }`) emits neither of the two above, and the fresh
+ *      document boots with no dialog and no memory of the question. A user
+ *      reflex-reloading a modal that "looks stuck" is the whole scenario.
+ *
+ * (4) settles as a CANCEL rather than re-pushing the ask into the new document,
+ * for three reasons. Cancel is the conservative answer whenever the question is
+ * lost — nothing is destroyed and ⌘Q is one keystroke away. Re-asking would
+ * resurrect a question the user has just navigated away from, and on the
+ * window-close path it is worse: that close is already `preventDefault`'d, so a
+ * re-ask would come back attached to an intent the user may well have abandoned,
+ * while a cancelled close simply leaves the window open — which is what they are
+ * already looking at. And it keeps ONE rule for all four deaths instead of two.
  */
 function askQuitInMainWindow(window: BrowserWindow, spec: QuitDialogSpec): Promise<boolean> {
   const requestId = nextQuitRequestId++;
@@ -1143,13 +1178,23 @@ function askQuitInMainWindow(window: BrowserWindow, spec: QuitDialogSpec): Promi
       if (!window.isDestroyed()) {
         window.off("closed", cancel);
         window.webContents.off("render-process-gone", cancel);
+        window.webContents.off("did-start-navigation", cancelOnNavigation);
       }
       resolve(confirmed);
     };
     const cancel = (): void => settle(false);
+    // Only a real document swap kills the ask. A same-document navigation (a
+    // fragment, a pushState) leaves the dialog and its listener standing, and a
+    // subframe navigation was never the ask's host.
+    const cancelOnNavigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>): void => {
+      if (details.isMainFrame && !details.isSameDocument) {
+        cancel();
+      }
+    };
     pendingQuitAsk = { requestId, settle };
     window.on("closed", cancel);
     window.webContents.on("render-process-gone", cancel);
+    window.webContents.on("did-start-navigation", cancelOnNavigation);
 
     if (window.isMinimized()) {
       window.restore();
