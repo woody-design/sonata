@@ -591,19 +591,39 @@ export function reduceRuntimeEvent(
     // So the renderer keeps its own defense, exactly as it does for the keyed
     // expiry (S6 review P2): main-process truth is the SOURCE, not the only guard.
     //
-    // No status copy. `view.status` has one reader — the composer's action-feedback
-    // line via `composerNotice` — which already suppresses both strings a drawer
-    // can leave behind ("Waiting for approval", "Waiting in the CLI") as
-    // lifecycle narration; a fresh sentence here would be a red notice raised over
-    // a session that just ended, which is the drawer's own voice, not the
-    // composer's.
+    // (4) An open AskUserQuestion form is the SAME shape and the same fix (S5
+    // addendum). `drawerIsBlocking` gives it the slot too, and on a Sonata-
+    // initiated exit main's own release — `resolveOptionPrompt(…, null)` on the
+    // turn-terminal funnel (S3) — is skipped by the very `eventRuntime` guard
+    // above. The form is then unreachable from every side: `dismissOptionPrompt`
+    // throws on the dead runtime (`requireTaskRuntime`), a reopen's FRESH runtime
+    // has no pending prompt so the same call early-returns, and the reducer's own
+    // other clearer is `run:started` — which cannot arrive, because the composer
+    // it would come from is the slot this form is holding. So the card sits there
+    // with no exit at all. The division that settles it: resolving a form on a
+    // LIVE session is main's (it owns the keys and the delivery gate); retiring
+    // one with its session is the renderer's, here.
+    //
+    // Cleared to exactly what an `option-prompt:resolved(answers: null)` clears —
+    // the live form and its in-flight latch. The RECEIPT stays: it is a passive
+    // trace of an answer that really happened, rendered above the returned
+    // composer and never blocking (approvals.ts), and the resolved-null branch
+    // keeps it for the same reason. Drafts and step stay too; a fresh prompt
+    // resets them on arrival.
+    //
+    // No status copy, for either of (3) and (4). `view.status` has one reader —
+    // the composer's action-feedback line via `composerNotice` — which already
+    // suppresses every string these two can leave behind ("Waiting for approval",
+    // "Waiting in the CLI", "<Provider> is asking") as lifecycle narration; a
+    // fresh sentence here would be a red notice raised over a session that just
+    // ended, which is the drawer's own voice, not the composer's.
     //
     // The paint rule follows what each mutation is actually read by. A switch
     // pointer is CONTENT-adjacent, so it keeps `viewChangedDirective` (and with it
-    // the background view's unread cue) exactly as before — and a retracted drawer
-    // joins it there, because that is the shape the decision path ALREADY painted
-    // for every shape main does cover: the two paths must not look different on
-    // screen for what is the same retraction. Liveness is not: no
+    // the background view's unread cue) exactly as before — and both retracted
+    // drawers join it there, because that is the shape their own resolution events
+    // ALREADY painted for every case main does cover: the two paths must not look
+    // different on screen for what is the same retraction. Liveness is not: no
     // SURFACE reads a background view's `view.live` (the sidebar's own live dot comes
     // from the session index), and marking a view unread because the user closed it
     // would invent an attention cue out of their own action. So the flip paints the
@@ -624,9 +644,12 @@ export function reduceRuntimeEvent(
     const hadApproval = view.pendingApproval !== null;
     view.pendingApproval = null;
     view.approvalExpired = false;
+    const hadOptionPrompt = view.pendingOptionPrompt !== null;
+    view.pendingOptionPrompt = null;
+    view.optionPromptBusy = false;
     const wasLive = view.live;
     view.live = false;
-    if (hadControlSwitch || hadApproval) {
+    if (hadControlSwitch || hadApproval || hadOptionPrompt) {
       return [viewChangedDirective(state, view, taskId)];
     }
     if (wasLive && isActiveView(state, view)) {
