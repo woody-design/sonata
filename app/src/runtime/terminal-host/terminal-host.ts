@@ -2189,6 +2189,68 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
+   * An Esc that Sonata wrote for a DIFFERENT purpose (the stop interrupt, or
+   * its one-shot resend) landed while a native approval panel owned the screen
+   * — so the CLI consumed it as a DENY. Settle the approval state to match what
+   * the key actually did.
+   *
+   * Mirrors `sendDeny`'s bookkeeping minus its two writes: NO second Esc (the
+   * caller's Esc already denied; a second one ≤700ms later is the documented
+   * Rewind-panel-opening pair) and NO `finishActiveRun` (the stop path owns the
+   * run's end, as "stopped" — the honest reason the run is over).
+   *
+   * Without this the stop paths clear nothing: `approvalActive` stays true with
+   * no clearer reachable from a stop, and the scrape's `SCRAPE_APPROVAL_KEY` in
+   * `DeliveryController.pendingApprovalKeys` — released ONLY by an
+   * `approval:decision` — is never freed. `canDeliver()` then reads false on two
+   * independent gates and every later send sits "Queued" until the user types in
+   * the Terminal (ask-flows review B1, 2026-08-07).
+   *
+   * `runId` is the CALLER's captured id, never `activeRunId()`: the retry path
+   * runs with no active run at all (its own guard), and the stop path's pointer
+   * is about to be nulled by `finishActiveRun`. An unassigned decision beside a
+   * run-attributed `approval:detected` is exactly the unbalanced audit trail the
+   * broker abort path already learned to avoid (runtime-controller.ts
+   * `abortPendingBrokerApprovals`).
+   *
+   * No settle re-check is armed (as in `sendDeny`): if the Esc did NOT take and
+   * the panel is still live, `detectApproval`'s suppression branch arms one
+   * itself off `lastApprovalDecisionAt` — "arming at the suppression site covers
+   * every decision source by construction" (review P2).
+   */
+  private settleApprovalAsEscDeny(runId: RunId | null): void {
+    if (!this.approvalActive) {
+      return;
+    }
+    const previousKind = this.lastApprovalKind;
+    this.taskReady = false;
+    this.approvalActive = false;
+    this.lastApprovalDecision = "deny";
+    this.lastApprovalDecisionAt = Date.now();
+    this.approvalSuppressedInSettleWindow = false;
+    this.clearApprovalSettleTimer();
+    // The native-answer recheck ladder exists only to reconcile THIS approval
+    // against a human's in-terminal keys; the decision above is that
+    // reconciliation, so the armed rungs are stale. A later ask re-arms its own
+    // ladder from `onHumanInputSettled`.
+    this.clearNativeAnswerRecheckTimers();
+    // Record the decision on the run while it is still open (a no-op on the
+    // retry path, which has none) — status is left alone deliberately: the
+    // caller's `finishActiveRun` writes the terminal one.
+    this.updateActiveRun({
+      approvalDecision: "deny",
+      approvalKind: previousKind ?? "unknown",
+    });
+    this.emitEvent("approval:decision", {
+      taskId: this.taskId,
+      runId,
+      decision: "deny",
+      encodedAs: "Esc",
+      previousKind,
+    });
+  }
+
+  /**
    * Answer a native AskUserQuestion (option-prompt) form by playing back a
    * verified key sequence built by `optionPromptAnswerSequence` /
    * `optionPromptDismissSequence` (2.1.212 grammar: digits select/toggle,
@@ -2239,6 +2301,13 @@ export class TerminalHost extends EventEmitter {
     // the aborted prompt had already pasted its text/paths into the composer.
     const promptReachedComposer = this.promptTextReachedComposer;
     this.writeRaw(ESC);
+    // That Esc is a DENY when a native approval panel owns the screen — settle
+    // the approval state to match, with the id captured above (the emit below
+    // reads it BEFORE `finishActiveRun` nulls the pointer). Ordered ahead of the
+    // stop's own events on purpose: the decision belongs to the still-open run,
+    // and `run:stopped` must land LAST so the surface reads "Stopped" — the
+    // honest reason — rather than "Approval denied" (reading-core reducer).
+    this.settleApprovalAsEscDeny(stoppedRunId);
     // Esc-interrupt restores the interrupted prompt into the CLI's own input
     // box when the turn had produced nothing yet (probe C1/X1, claude
     // 2.1.212 + codex 0.144.5) — and a canceled text write can likewise
@@ -2390,6 +2459,14 @@ export class TerminalHost extends EventEmitter {
     }
     retry.retried = true;
     this.writeRaw(ESC);
+    // Same Esc-is-a-deny settlement as `stopRun`, and reachable here for a
+    // different reason: the very tool this PreToolUse announces is what asks,
+    // so a native panel can be painted (and scraped → `approvalActive`) between
+    // the stop and this resend. The `activeRun` guard above does not exclude it
+    // — `surfaceApproval` sets the flag with no run open (its `updateActiveRun`
+    // simply no-ops), which is the ordinary take-over shape. `retry.runId` for
+    // the same recordability reason the stop events use it (review F4).
+    this.settleApprovalAsEscDeny(retry.runId);
     this.cliInputMaybeDirty = true;
     this.armCliInputClear();
     // The stopped run's id makes the resend recordable: run-index drops
