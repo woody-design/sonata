@@ -538,7 +538,7 @@ export function reduceRuntimeEvent(
   }
 
   if (event.type === "pty:exit") {
-    // The session died, and two things follow from that.
+    // The session died, and three things follow from that.
     //
     // (1) THIS VIEW IS NO LONGER LIVE. `view.live` mirrors the session index, and
     // nothing here used to clear it: the mirror caught up ~150ms later, when the
@@ -566,9 +566,44 @@ export function reduceRuntimeEvent(
     // timer + parked pointer are already cleared in onExit). Task status + run
     // completion ride their own events.
     //
+    // (3) An approval drawer is moot for the same reason, and costs more while it
+    // lingers: `drawerIsBlocking` (view/approvals.ts) hands it the composer slot
+    // for ANY `pendingApproval`, expired variant included, so the drawer holds
+    // send hostage on a session that can no longer answer anything — and its
+    // buttons re-enable the moment a reopen flips `live` back on, writing keys at
+    // a screen nobody asked from.
+    //
+    // Main's own turn-terminal releases already emit `approval:decision` on this
+    // very event for MOST shapes (`abortPendingBrokerApprovals` — deny/Esc for
+    // still-pending broker asks; `concludeExpiredBrokerApprovals` —
+    // answered-natively for expired CODEX asks), and the `approval:decision`
+    // branch above clears exactly these two fields when one arrives. Two shapes
+    // have no emitter at all (B6):
+    //   • a CLAUDE broker ask that EXPIRED — `handleApprovalExpired` deleted it
+    //     from `pendingBrokerApprovals` and, claude-side, remembers it nowhere
+    //     (the scrape's resurface was its only conclusion path), so pty death
+    //     emits nothing for it;
+    //   • ANY shape when the exit was Sonata-initiated — every Sonata teardown
+    //     removes the runtime from `taskRuntimes` BEFORE node-pty's asynchronous
+    //     onExit fires (the controller's own note on that ordering), so the
+    //     release block finds no runtime and none of them run, while `pty:exit`
+    //     itself is broadcast regardless.
+    // So the renderer keeps its own defense, exactly as it does for the keyed
+    // expiry (S6 review P2): main-process truth is the SOURCE, not the only guard.
+    //
+    // No status copy. `view.status` has one reader — the composer's action-feedback
+    // line via `composerNotice` — which already suppresses both strings a drawer
+    // can leave behind ("Waiting for approval", "Waiting in the CLI") as
+    // lifecycle narration; a fresh sentence here would be a red notice raised over
+    // a session that just ended, which is the drawer's own voice, not the
+    // composer's.
+    //
     // The paint rule follows what each mutation is actually read by. A switch
     // pointer is CONTENT-adjacent, so it keeps `viewChangedDirective` (and with it
-    // the background view's unread cue) exactly as before. Liveness is not: no
+    // the background view's unread cue) exactly as before — and a retracted drawer
+    // joins it there, because that is the shape the decision path ALREADY painted
+    // for every shape main does cover: the two paths must not look different on
+    // screen for what is the same retraction. Liveness is not: no
     // SURFACE reads a background view's `view.live` (the sidebar's own live dot comes
     // from the session index), and marking a view unread because the user closed it
     // would invent an attention cue out of their own action. So the flip paints the
@@ -586,9 +621,12 @@ export function reduceRuntimeEvent(
     // re-derive it.
     const hadControlSwitch = view.controlSwitch !== null;
     view.controlSwitch = null;
+    const hadApproval = view.pendingApproval !== null;
+    view.pendingApproval = null;
+    view.approvalExpired = false;
     const wasLive = view.live;
     view.live = false;
-    if (hadControlSwitch) {
+    if (hadControlSwitch || hadApproval) {
       return [viewChangedDirective(state, view, taskId)];
     }
     if (wasLive && isActiveView(state, view)) {

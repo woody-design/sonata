@@ -170,12 +170,14 @@ function expectedDirectives(state, event) {
       : [{ kind: "report-refresh", taskId }];
   }
   if (event.type === "pty:exit") {
-    // Two mutations with two different paint rules (F1 fix A). A pending control
-    // switch is content-adjacent and keeps the markViewChanged family's shape,
-    // including the background unread cue. Clearing `live` paints the ACTIVE view
+    // Three mutations with two different paint rules (F1 fix A; S5/B6). A pending
+    // control switch is content-adjacent and keeps the markViewChanged family's
+    // shape, including the background unread cue — and so does a retracted
+    // approval drawer, which is the shape an `approval:decision` would have
+    // painted for the same retraction. Clearing `live` paints the ACTIVE view
     // only: nothing on screen reads a background view's liveness, and marking one
     // unread because its session ended would invent an attention cue.
-    if (view.controlSwitch) {
+    if (view.controlSwitch || view.pendingApproval) {
       return [active ? { kind: "full", taskId } : { kind: "unread-only", taskId }];
     }
     return view.live && active ? [{ kind: "full", taskId }] : [{ kind: "none" }];
@@ -1562,6 +1564,116 @@ function workingStatus(liveness) {
       [{ kind: "report-refresh", taskId: "task-A" }],
       "absent runsChanged → refetch (legacy-compatible)",
     );
+  }
+}
+
+// 14) S5 / B6 — a dead pty retires the approval drawer, expired variant included.
+//
+//     COMPOSED events (the pinned corpus carries no approval-over-pty-exit
+//     sequence). Both shapes below are ones main emits NO `approval:decision`
+//     for, so this branch is their only clearer: a broker ask detected during a
+//     take-over turn carries `runId: null`, so the run-settle retraction can
+//     never match it (case 4 pins that: "a run-less (scrape) card survives too"),
+//     and a CLAUDE ask that EXPIRED was already deleted from the controller's
+//     `pendingBrokerApprovals` — claude remembers it nowhere — so pty death emits
+//     nothing for it at all. Left standing, the drawer keeps the composer slot on
+//     a session that can answer nothing, and its buttons re-enable on reopen.
+{
+  // The blocking rule, transcribed from `drawerIsBlocking` (renderer/view/
+  // approvals.ts) — the derivation that hands the drawer the composer slot.
+  // Restated here for the same reason the directive oracle is: an independent
+  // reading is the fence; importing the renderer would only echo it (and the
+  // renderer is not loadable from a pure-core smoke besides).
+  const drawerIsBlocking = (view) =>
+    Boolean(view.pendingApproval) ||
+    Boolean(view.pendingOptionPrompt) ||
+    Boolean(
+      view.controlSwitch && view.controlSwitch.phase === "parked" && view.controlSwitch.dialog,
+    );
+
+  const takeOverAsk = () => hookApproval({ runId: null, approvalId: "ask-takeover" });
+  const ptyExit = () =>
+    evt("pty:exit", {
+      taskId: "task-A",
+      generation: 1,
+      runId: null,
+      exitCode: 1,
+      signal: null,
+      elapsedMs: 4321,
+    });
+
+  // The B6 sequence verbatim: detected(runId:null) → expired(same id) → pty:exit.
+  {
+    const { state, view } = seedView();
+    R.reduceRuntimeEvent(state, evt("approval:detected", takeOverAsk()), NOW_MS);
+    R.reduceRuntimeEvent(
+      state,
+      evt("approval:expired", { taskId: "task-A", approvalId: "ask-takeover" }),
+      NOW_MS,
+    );
+    assert.equal(view.approvalExpired, true, "…the drawer is in its expired variant");
+    assert.equal(drawerIsBlocking(view), true, "…and it owns the composer slot");
+
+    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pty:exit over a drawer → full render");
+    assert.equal(view.pendingApproval, null, "pty:exit retires the expired ask");
+    assert.equal(view.approvalExpired, false, "…and its expired flag with it");
+    assert.equal(drawerIsBlocking(view), false, "…so the drawer stops blocking the composer");
+    assert.equal(view.live, false, "…on a view that is now dormant");
+    // The deliberate silence: no status copy is written here, and the one the
+    // drawer left behind is narration the composer's action-feedback line
+    // suppresses — so the retraction raises no red notice over a dead session.
+    assert.equal(view.status, "Waiting in the CLI", "the drawer's own status is left as it was");
+    assert.equal(C.composerNotice(view.status), "", "…and it renders as nothing");
+  }
+
+  // The non-expired variant: a still-PENDING ask when the pty dies. Main DOES
+  // emit a deny/Esc decision for this one — but only while the runtime is still
+  // registered, which a Sonata-initiated teardown has already undone by the time
+  // node-pty's async onExit fires. The renderer's own defense covers both.
+  {
+    const { state, view } = seedView();
+    R.reduceRuntimeEvent(state, evt("approval:detected", takeOverAsk()), NOW_MS);
+    assert.equal(drawerIsBlocking(view), true, "the live ask owns the slot");
+    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.deepEqual(d, [{ kind: "full", taskId: "task-A" }], "pty:exit over a live ask → full render");
+    assert.equal(view.pendingApproval, null, "pty:exit retires the pending ask too");
+    assert.equal(view.approvalExpired, false, "…with no expired flag left behind");
+    assert.equal(drawerIsBlocking(view), false, "…and the composer comes back");
+    assert.equal(C.composerNotice(view.status), "", '…quietly ("Waiting for approval" is narration)');
+  }
+
+  // Background variant: the retraction paints the SAME shape an `approval:decision`
+  // would have (markViewChanged family, unread cue included) — the covered and the
+  // uncovered shapes must not look different on screen. This is the one pty:exit
+  // mutation that CAN mark a background view unread; the bare exit (case 12b)
+  // still paints nothing.
+  {
+    const { state, view } = seedView({ active: false });
+    R.reduceRuntimeEvent(state, evt("approval:detected", takeOverAsk()), NOW_MS);
+    view.unread = false;
+    const d = R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.deepEqual(d, [{ kind: "unread-only", taskId: "task-A" }], "bg exit over a drawer → unread-only");
+    assert.equal(view.pendingApproval, null, "…and the drawer is retired there too");
+    assert.equal(view.unread, true, "…marked unread, as a decision would have");
+  }
+
+  // Boundary pin (NOT a hole this slice closes): an open AskUserQuestion form is
+  // NOT cleared here. Its release is main's — `resolveOptionPrompt(…, null)` on
+  // the same turn-terminal funnel (S3) — and the arriving `option-prompt:resolved`
+  // is what drops the form. Pinned so a later reader sees the split as a
+  // decision rather than as an omission.
+  {
+    const { state, view } = seedView({ pendingOptionPrompt: optionPrompt() });
+    R.reduceRuntimeEvent(state, ptyExit(), NOW_MS);
+    assert.notEqual(view.pendingOptionPrompt, null, "the form survives the reducer's pty:exit");
+    R.reduceRuntimeEvent(
+      state,
+      evt("option-prompt:resolved", { taskId: "task-A", toolUseId: "tu-1", answers: null }),
+      NOW_MS,
+    );
+    assert.equal(view.pendingOptionPrompt, null, "…and is dropped by main's own release");
+    assert.equal(drawerIsBlocking(view), false, "…leaving nothing on the slot");
   }
 }
 
