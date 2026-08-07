@@ -70,8 +70,23 @@ function mountedDialog(): HTMLElement | null {
   return elements.quitConfirmRoot.querySelector<HTMLElement>(".quit-confirm-dialog");
 }
 
+/**
+ * The caret rests on the DIALOG, never on a button (Woody's visual pass).
+ *
+ * A macOS default button says "Return does this" with its FILL, not with a focus
+ * ring — `NSAlert` draws no ring on it, and neither does the Ghostty dialog this
+ * layout references. Opening with the caret on the primary CTA put our neutral
+ * `:focus-visible` ring around it and made the button look like something the
+ * user had already tabbed to.
+ *
+ * Nothing is lost by moving it: Return and Tab are handled on the dialog element
+ * itself, so they fire with the container focused, and Escape belongs to the
+ * document-level ladder. The ring rule stays exactly as it is — when the user
+ * genuinely Tabs onto a button it SHOULD appear, and that is now the only way it
+ * ever does.
+ */
 function claimFocus(dialog: HTMLElement): void {
-  dialog.querySelector<HTMLButtonElement>(".quit-confirm-actions .primary")?.focus();
+  dialog.focus();
 }
 
 function unmountQuitConfirmDialog(): void {
@@ -93,7 +108,7 @@ export function renderQuitConfirmDialog(): void {
   }
 
   if (mountedRequestId !== request.requestId) {
-    const { scrim, primary } = buildQuitDialog(request);
+    const { scrim, dialog } = buildQuitDialog(request);
     elements.quitConfirmRoot.replaceChildren(scrim);
     mountedRequestId = request.requestId;
     focusTrap = (event: FocusEvent): void => {
@@ -103,10 +118,9 @@ export function renderQuitConfirmDialog(): void {
       }
     };
     document.addEventListener("focusin", focusTrap, true);
-    // macOS alert semantics: the default button holds the caret when the sheet
-    // opens. Claimed once, at mount, on the surface the user's attention has
-    // just moved to — never on a re-render (see `mountedRequestId` above).
-    primary.focus();
+    // Claimed once, at mount, on the surface the user's attention has just moved
+    // to — never on a re-render (see `mountedRequestId` above).
+    claimFocus(dialog);
     return;
   }
 
@@ -126,7 +140,7 @@ export function renderQuitConfirmDialog(): void {
 
 function buildQuitDialog(request: QuitConfirmRequest): {
   scrim: HTMLElement;
-  primary: HTMLButtonElement;
+  dialog: HTMLElement;
 } {
   const scrim = document.createElement("div");
   scrim.className = "quit-confirm-overlay";
@@ -149,6 +163,10 @@ function buildQuitDialog(request: QuitConfirmRequest): {
   dialog.setAttribute("role", "dialog");
   dialog.setAttribute("aria-modal", "true");
   dialog.setAttribute("aria-label", request.title);
+  // Programmatically focusable, never in the tab order — the Settings overlay's
+  // focus-handoff shape. `.quit-confirm-dialog` carries `outline: none`, so the
+  // container holding the caret shows nothing.
+  dialog.tabIndex = -1;
 
   const mark = sonataMark();
 
@@ -194,6 +212,8 @@ function buildQuitDialog(request: QuitConfirmRequest): {
     // see or click, and the caret disappears.
     if (event.key === "Tab") {
       event.preventDefault();
+      // From the container (the opening state) the first Tab lands on the
+      // primary — which is when the focus ring correctly appears.
       (document.activeElement === primary ? cancel : primary).focus();
     }
     // Escape is NOT handled here: it belongs to the Escape ladder in
@@ -203,5 +223,5 @@ function buildQuitDialog(request: QuitConfirmRequest): {
 
   dialog.append(mark, title, body, actionsRow);
   scrim.append(dialog);
-  return { scrim, primary };
+  return { scrim, dialog };
 }

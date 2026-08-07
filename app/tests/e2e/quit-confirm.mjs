@@ -131,8 +131,10 @@ try {
     evidence.dialog.actionOrder.join(",") === "primary,secondary" &&
     evidence.dialog.role === "dialog" &&
     evidence.dialog.ariaModal === "true";
-  // macOS alert semantics: the caret opens on the default button.
-  checks.focusLandsOnPrimary = evidence.dialog.focusIsPrimary;
+  // The caret opens on the DIALOG, not on a button (Woody's visual pass): a
+  // macOS default button says "Return does this" with its fill, and a focus ring
+  // around it at open reads as something the user already tabbed to.
+  checks.focusOpensOnDialogNotAButton = evidence.dialog.focusOwner === "dialog";
 
   // (2) Esc cancels, and the app is untouched underneath — the session is still
   // live and the composer still takes a keystroke.
@@ -200,6 +202,9 @@ try {
     if (!dialog.contains(active)) {
       return `escaped:${active.id || active.className || active.tagName}`;
     }
+    if (active === dialog) {
+      return "dialog";
+    }
     return active.classList.contains("primary") ? "primary" : "secondary";
   });
   await openSettingsFromMenu();
@@ -211,7 +216,7 @@ try {
   // Both must lose. Without the trap the first reads `escaped:prompt-input` and
   // the second `escaped:settings-window` — which is what the bite proof shows.
   checks.focusCannotRestOutsideTheModal =
-    afterDirectTheft === "primary" && evidence.focusDefense.afterRenderTheft === "primary";
+    afterDirectTheft === "dialog" && evidence.focusDefense.afterRenderTheft === "dialog";
   await main.keyboard.press("Escape");
   await main.locator(".quit-confirm-dialog").waitFor({ state: "detached" });
   await main.keyboard.press("Escape");
@@ -250,6 +255,11 @@ try {
   await closeWindow("Sonata");
   await main.locator(".quit-confirm-dialog").waitFor({ state: "visible" });
   evidence.lastWindowDialog = await readDialog(main);
+  // Tab is the ONLY way a focus ring should ever appear on these buttons, and it
+  // must still reach them from the container the dialog now opens on.
+  await main.keyboard.press("Tab");
+  evidence.tabRevealsTheRing = await readDialogFocusOwner(main);
+  checks.tabMovesFocusOntoTheButtons = evidence.tabRevealsTheRing === "primary";
   await main.locator(".quit-confirm-actions .secondary").click();
   await main.locator(".quit-confirm-dialog").waitFor({ state: "detached" });
   checks.lastWindowCloseAsksTheSameQuestion =
@@ -260,13 +270,37 @@ try {
 
   // (6) Confirming it closes the window and leaves the app ALIVE — macOS default
   // behavior, unchanged (D5): Sonata stays in the dock with no windows.
+  //
+  // Confirmed with RETURN, which is the path the visual pass made newly risky:
+  // the caret is on the container now, so Return only still works because the
+  // handler lives on the dialog rather than on the button it used to focus.
   await closeWindow("Sonata");
   await main.locator(".quit-confirm-dialog").waitFor({ state: "visible" });
-  await main.locator(".quit-confirm-actions .primary").click();
+  evidence.focusBeforeReturn = await readDialogFocusOwner(main);
+  // A SUCCESSFUL Return destroys the very page the keystroke was sent to, so the
+  // call's own round-trip loses its target. The window count below is the real
+  // assertion; the gesture landing is not something the transport can report.
+  await main.keyboard.press("Enter").catch(() => {});
   await waitFor(async () => (await windowCount()) === 0, "the confirmed last window to close");
   evidence.afterConfirmedClose = { windows: await windowCount(), appAlive: await appIsAlive() };
+  checks.returnConfirmsFromTheContainer =
+    evidence.focusBeforeReturn === "dialog" && evidence.afterConfirmedClose.windows === 0;
   checks.confirmedCloseLeavesAppInTheDock =
     evidence.afterConfirmedClose.windows === 0 && evidence.afterConfirmedClose.appAlive;
+
+  // (6b) The other half of D5's dock ruling, and the primary CTA's click path.
+  // `activate` is what a dock-icon click raises; the window comes back, and
+  // closing it asks again — confirmed this time by CLICKING "Close Sonata", so
+  // both confirm gestures are covered.
+  await raiseFromDock();
+  await waitFor(async () => (await windowCount()) === 1, "the dock click to reopen a window");
+  const reopened = await app.firstWindow();
+  reopened.setDefaultTimeout(20_000);
+  await closeWindow("Sonata");
+  await reopened.locator(".quit-confirm-dialog").waitFor({ state: "visible" });
+  await reopened.locator(".quit-confirm-actions .primary").click().catch(() => {});
+  await waitFor(async () => (await windowCount()) === 0, "the primary-click close");
+  checks.dockReopenAndPrimaryClickClose = (await windowCount()) === 0 && (await appIsAlive());
 
   // (7) …and NOW ⌘Q quits without asking: the runtimes are already disposed, so
   // D5's one exception applies. If it asked, nothing could answer and the app
@@ -507,7 +541,18 @@ function readDialogFocusOwner(page) {
     if (!dialog.contains(active)) {
       return `escaped:${active.id || active.className || active.tagName}`;
     }
+    if (active === dialog) {
+      return "dialog";
+    }
     return active.classList.contains("primary") ? "primary" : "secondary";
+  });
+}
+
+/** What a dock-icon click raises on macOS — `app.on("activate")` re-creates the
+ *  main window (main.ts). Emitted directly because the harness has no dock. */
+function raiseFromDock() {
+  return app.evaluate(({ app: electronApp }) => {
+    electronApp.emit("activate");
   });
 }
 
@@ -559,7 +604,19 @@ function readDialog(page) {
       actionOrder: [...(dialog?.querySelectorAll(".quit-confirm-actions button") ?? [])].map((node) =>
         node.classList.contains("primary") ? "primary" : "secondary",
       ),
-      focusIsPrimary: Boolean(primary) && document.activeElement === primary,
+      focusOwner: (() => {
+        const active = document.activeElement;
+        if (!dialog || !active) {
+          return null;
+        }
+        if (!dialog.contains(active)) {
+          return `escaped:${active.id || active.className || active.tagName}`;
+        }
+        if (active === dialog) {
+          return "dialog";
+        }
+        return active.classList.contains("primary") ? "primary" : "secondary";
+      })(),
     };
   });
 }
