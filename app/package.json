@@ -96,6 +96,7 @@
     "smoke:approval-trust-trail": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/approval-trust-trail.mjs",
     "smoke:submit-approval-guard": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/submit-approval-guard.mjs",
     "smoke:stop-over-approval": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/stop-over-approval.mjs",
+    "smoke:stop-hook-orphan-approval": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/stop-hook-orphan-approval.mjs",
     "smoke:delivery-receipts": "npm run build && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-receipts.mjs",
     "smoke:delivery-enter-retry": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/delivery-enter-retry.mjs",
     "smoke:attachment-submit-sequencing": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/attachment-submit-sequencing.mjs",

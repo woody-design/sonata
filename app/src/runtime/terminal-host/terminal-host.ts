@@ -635,6 +635,9 @@ export class TerminalHost extends EventEmitter {
   private hookSessionStarted = false;
   private persistReceiptTimers: NodeJS.Timeout[] = [];
   private nativeAnswerRecheckTimers: NodeJS.Timeout[] = [];
+  /** One-shot handoff for the ask a stale-approval clear silently drops —
+   *  consumed by the controller at turn-end. See `takeOrphanedScrapeApproval`. */
+  private orphanedScrapeApproval: { previousKind: ApprovalKind | null } | null = null;
   private startedAt: number | null = null;
   private activeRun: ActiveRun | null = null;
   private runSeq = 0;
@@ -3538,6 +3541,18 @@ export class TerminalHost extends EventEmitter {
     }
     if (staleApproval) {
       this.debugCompletion("stop hook while approval flagged — treating as stale scrape state");
+      // The scraped ask this flag stands for already emitted an
+      // `approval:detected`, and clearing the flag here is SILENT — so its
+      // decision never comes and the DeliveryController's SCRAPE_APPROVAL_KEY
+      // (released only by an `approval:decision`) gates every later send
+      // forever, while `isApprovalActive()` reads clean the whole time. Hand
+      // the orphan to the controller rather than emitting here; see
+      // `takeOrphanedScrapeApproval` for why this must not be an event.
+      // Gated on the FLAG, not on `staleApproval`: the status-only arm of that
+      // disjunct has no outstanding detection behind it.
+      if (this.approvalActive) {
+        this.orphanedScrapeApproval = { previousKind: this.lastApprovalKind };
+      }
       this.approvalActive = false;
       this.approvalSuppressedInSettleWindow = false;
       this.clearApprovalSettleTimer();
@@ -3565,6 +3580,31 @@ export class TerminalHost extends EventEmitter {
     }
     clearTimeout(this.completionTimer);
     this.completionTimer = null;
+  }
+
+  /**
+   * Take (once) the orphaned scraped approval that `completeRunFromTurnEnd`'s
+   * stale-approval clear left behind, or null when there is none.
+   *
+   * A HANDOFF, not an event, and deliberately so. The decision that releases
+   * this orphan has to reach the delivery gate, the renderer and the run-index
+   * WITHOUT passing through this host's event sink — that sink is the only feed
+   * into `CliStateModel.applyRuntimeEvent`, whose `approval:decision` → `busy`
+   * rule would overwrite the `turn-ended` the Stop hook set moments earlier
+   * (`RuntimeController.applyHookToTask` drives cli-state BEFORE it calls this
+   * method), and nothing downstream corrects it: cli-state's only other
+   * turn-enders are hooks and `task:ready`, which a hook-stop completion never
+   * fires. So `RuntimeController.releaseOrphanedScrapeApproval` builds the
+   * event and hands it to the three consumers explicitly — the same shape, for
+   * the same reason, as `concludeExpiredBrokerApprovals`.
+   *
+   * Read-and-clear, mirroring that method's delete-before-emit: a re-emitted or
+   * replayed turn-end can never fire a second decision for one ask.
+   */
+  takeOrphanedScrapeApproval(): { previousKind: ApprovalKind | null } | null {
+    const orphan = this.orphanedScrapeApproval;
+    this.orphanedScrapeApproval = null;
+    return orphan;
   }
 
   private clearApprovalSettleTimer(): void {

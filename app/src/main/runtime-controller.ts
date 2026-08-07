@@ -1595,6 +1595,60 @@ export class RuntimeController {
     }
   }
 
+  /**
+   * A Stop/StopFailure hook completed a run while the scrape still had a panel
+   * flagged. `TerminalHost.completeRunFromTurnEnd` rightly treats that flag as a
+   * stale artifact and clears it — but SILENTLY, so the `approval:detected` the
+   * scrape emitted for that panel never earns a decision. Its
+   * SCRAPE_APPROVAL_KEY then sits in `DeliveryController.pendingApprovalKeys`
+   * forever and `canDeliver()` reads false while `isApprovalActive()` reads
+   * clean: the wedge is invisible from the host flag alone (S1 review 3).
+   *
+   * `answered-natively` is the honest value by the same turn-end reasoning
+   * `concludeExpiredBrokerApprovals` uses: a native panel BLOCKS the tool call,
+   * so a turn that ended proves the panel was resolved — in the CLI, by the
+   * human, with keys Sonata never saw. (For a pure scrape false positive
+   * nothing was ever asked, so it mildly overclaims; every alternative is worse
+   * — `deny` would be an outright lie, no Esc was written, and a new value
+   * would change a wire vocabulary this phase freezes.)
+   *
+   * Dispatched to the three consumers EXPLICITLY, never through the terminal
+   * host's event sink: that sink is the only feed into
+   * `CliStateModel.applyRuntimeEvent`, and its `approval:decision` → `busy` rule
+   * would overwrite the `turn-ended` `applyHookToTask` set just before
+   * `completeRunFromTurnEnd` ran. Probed: busy would then STICK — cli-state's
+   * only other turn-enders are hooks and `task:ready`, and a hook-stop
+   * completion fires neither. This is exactly why the fix lives here and not in
+   * the host, and why the fence pins the cli-state activity.
+   */
+  private releaseOrphanedScrapeApproval(active: ActiveTaskRuntime, runId: RunId | null): void {
+    const orphan = active.terminalHost.takeOrphanedScrapeApproval();
+    if (!orphan) {
+      return;
+    }
+    const decisionEvent: RuntimeEvent = {
+      type: "approval:decision",
+      payload: {
+        taskId: active.task.id,
+        // The terminating event's runId — `activeRunId()` is already null here
+        // (finishActiveRun cleared it), the same lesson abortPendingBrokerApprovals
+        // records.
+        runId: runId ?? active.terminalHost.activeRunId(),
+        decision: "answered-natively",
+        encodedAs: "native-keys",
+        previousKind: orphan.previousKind,
+        // No `approvalId`: this IS the scraped panel, so the id-less arm is what
+        // clears its SCRAPE_APPROVAL_KEY sentinel.
+      },
+      ts: new Date().toISOString(),
+    };
+    active.deliveryController.handleRuntimeEvent(decisionEvent); // release the sentinel
+    this.sendEvent(decisionEvent); // reducer retracts the phantom card
+    // Critical event: consume flushes immediately (markCritical), and the
+    // flush's notify sink broadcasts report:updated — no explicit emit here.
+    active.runIndex.consume(decisionEvent);
+  }
+
   private surfaceNextBrokerApproval(active: ActiveTaskRuntime): void {
     if (this.shownBrokerApproval.has(active.task.id)) {
       return;
@@ -1884,6 +1938,12 @@ export class RuntimeController {
               ? event.payload.id
               : null;
         this.concludeExpiredBrokerApprovals(eventRuntime, terminalRunId);
+        // The SCRAPE's own orphan (S1 review 3), released AFTER the expired
+        // broker asks above on purpose: those are settled by id, so by the time
+        // the id-less decision below runs its ownership-transfer arm (a no-id
+        // decision also clears the oldest still-"expired" key) has nothing of
+        // theirs left to take.
+        this.releaseOrphanedScrapeApproval(eventRuntime, terminalRunId);
         if (isPendingTurnEnd) {
           this.abortPendingBrokerApprovals(eventRuntime, terminalRunId);
         }
