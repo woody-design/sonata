@@ -197,6 +197,7 @@ await check("3a: an unexpected landing fails loud (never read as the receipt)", 
 // the engine now reads and the second is what it used to read.
 const ESC = "\x1b";
 const ARROW_DOWN = "\x1b[B";
+const ARROW_UP = "\x1b[A";
 const PICKER_FOOTER = "Press enter to confirm or esc to go back";
 const pickerFrame = (cursorRow) => {
   const rows = ["1. Ask for approval (current)", "2. Approve for me", "3. Full Access"];
@@ -578,6 +579,92 @@ await check("B5: a chunk-split park reads its cursor from the snapshot, not from
     assert.ok(
       !phasesOf(host.events).includes("needs-attention"),
       "and the relay never times out into needs-attention",
+    );
+  } finally {
+    engine.clear();
+  }
+});
+
+// The user arrowed the parked dialog NATIVELY in the co-visible Terminal after
+// the park. ADAPTED from the MEASURED partial arrow-move repaint (claude 2.1.214,
+// pinned in tui-parsers-claude.ts and midsession-receipt.mjs): claude DROPS the
+// row digit in that repaint — `❯No, go back`, no `2.` — so the label anchors it.
+const NATIVE_MOVE_TO_NO = "  Yes, switch to Sonnet 5\n❯No, go back";
+// The dialog CLOSING: a native answer/Esc repaints the composer, and that chunk
+// carries no cursor row (the `❯` composer prompt is not followed by a row label,
+// which is exactly why the parser rejects it) and not yet the `Kept …` line.
+const CLOSE_REPAINT = "\x1b[2K\x1b[G❯ ";
+const CLAUDE_MODEL_CANCEL = "⎿ Kept model as Opus 4.6";
+
+/** Park a claude cache-miss model switch (cursor on row 1, in the SNAPSHOT only —
+ *  the chunk-split shape above), returning { host, engine }. */
+function driveToParkedCacheMiss() {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  assert.equal(engine.injectClaudeControlSwitch("model", "sonnet").ok, true, "the model switch started");
+  engine.ingest(CACHE_MISS_CHUNK_HEAD);
+  engine.ingest(CACHE_MISS_CHUNK_NO_ROW);
+  assert.equal(lastEvent(host.events).phase, "parked", "the cache-miss dialog parks the relay");
+  return { host, engine };
+}
+
+await check("B5: a native cursor move during the park outranks the snapshot", () => {
+  const { host, engine } = driveToParkedCacheMiss();
+  try {
+    // The snapshot's cursor is on row 1, but the user has since moved it to row 2
+    // in the Terminal. The scan is POST-PARK truth; the snapshot is a retained
+    // frame. Reading the snapshot first would press an arrow the screen does not
+    // need — and validate that press against a cursor that is already there.
+    engine.ingest(NATIVE_MOVE_TO_NO);
+    const writesBefore = host.writes.length;
+    engine.answerParkedControlConfirm(2); // the drawer's `No, go back`
+    assert.deepEqual(
+      host.writes.slice(writesBefore),
+      ["\r"],
+      "the cursor is ALREADY on the chosen row per the scan — confirm, never arrow off the snapshot",
+    );
+    engine.ingest(CLAUDE_MODEL_CANCEL);
+    const settled = lastEvent(host.events);
+    assert.equal(settled.phase, "settled", "the `Kept …` receipt settles the relay");
+    assert.equal(settled.cancelled, true, "…as cancelled — the user chose No");
+  } finally {
+    engine.clear();
+  }
+});
+
+await check("B5: after a press, a cursor-less frame WAITS — the snapshot never validates a landing", async () => {
+  const { host, engine } = driveToParkedCacheMiss();
+  try {
+    // The hazard the snapshot fallback must not reopen. Native move to row 2, then
+    // the user picks row 1 in the drawer: the relay presses ↑ AWAY from the row the
+    // snapshot still shows, so the stale snapshot cursor now equals `awaitingCursor`
+    // — it would be read as the landing by an ungated fallback.
+    engine.ingest(NATIVE_MOVE_TO_NO);
+    const writesBefore = host.writes.length;
+    engine.answerParkedControlConfirm(1); // `Yes, switch to Sonnet 5`
+    assert.deepEqual(
+      host.writes.slice(writesBefore),
+      [ARROW_UP],
+      "one arrow toward row 1, validated before any Enter",
+    );
+    // …and the next frame is the dialog CLOSING (the user answered natively in the
+    // gap): cursor-less, and the `Kept …` line has not printed yet. A blind Enter
+    // here lands on the COMPOSER and submits whatever the user typed into it.
+    engine.ingest(CLOSE_REPAINT);
+    assert.deepEqual(
+      host.writes.slice(writesBefore),
+      [ARROW_UP],
+      "a cursor-less post-press frame presses NOTHING — post-press positions need post-press evidence",
+    );
+    // The native answer's receipt still settles the relay honestly.
+    engine.ingest(CLAUDE_MODEL_CANCEL);
+    const settled = lastEvent(host.events);
+    assert.equal(settled.phase, "settled", "the native `Kept …` settles the relay");
+    assert.equal(settled.cancelled, true, "…as cancelled — nothing was applied");
+    assert.deepEqual(
+      host.writes.slice(writesBefore),
+      [ARROW_UP],
+      "the arrow is the ONLY byte the relay put on the wire — no blind Enter into the composer",
     );
   } finally {
     engine.clear();

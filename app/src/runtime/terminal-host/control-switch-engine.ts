@@ -456,8 +456,10 @@ export class ControlSwitchEngine {
   // which is ABSENCE-based (`!consentDialogOpen`): a small post-Esc repaint never
   // evicts the consent text, so the relay parked forever. So at park we snapshot
   // the frame HERE and RESET `controlSwitchScan` — post-park frames then dominate
-  // the scan (native-cancel/receipt detection see fresh content), while the first
-  // nav read falls back to this snapshot for the retained cursor.
+  // the scan (native-cancel/receipt detection see fresh content), while the nav
+  // read taken BEFORE the relay has pressed anything falls back to this snapshot
+  // for the retained cursor. Every read AFTER a press must come from post-press
+  // evidence, never from here (see `driveParkedNav`).
   private parkedFrame = "";
 
   constructor(private readonly host: ControlSwitchHost) {}
@@ -1789,13 +1791,22 @@ export class ControlSwitchEngine {
    * non-empty scan there reads null on a dialog that IS on screen — and the parked
    * dialog is static, so no repaint ever corrects it: the nav timeout fires and
    * `failParked` Escs the dialog the user just answered (dropping a staged Save's
-   * queued effort leg with it). So: the scan when it actually carries a cursor,
-   * the snapshot otherwise. A stale snapshot cursor cannot mis-answer a later
-   * read: mid-navigation it is either `lastCursor` — which `applyParkedNav`
-   * treats as a pre-move repaint and waits on — or, when the user moved the
-   * cursor natively between park and answer, `awaitingCursor`, read as the
-   * landing; the Enter that follows is written BEHIND the arrow we just sent, so
-   * the CLI still processes the move first and Enters on the user's chosen row.
+   * queued effort leg with it).
+   *
+   * The snapshot is consulted ONLY while `awaitingCursor` is null — i.e. before
+   * the relay has pressed anything — because that is the whole span in which it
+   * still describes the screen. This is the validate-each-press rule the engine
+   * already lives by (3a: a stale pre-press frame is never a press's receipt): a
+   * post-press position must be established by post-press evidence, so once an
+   * arrow is on the wire the scan is the only admissible source and a cursor-less
+   * frame means WAIT. Ungated, the stale snapshot could equal `awaitingCursor`
+   * (the user moved the cursor natively between park and answer, so the relay
+   * pressed AWAY from the snapshot's row) and be read as the landing on a frame
+   * that is actually the dialog CLOSING — a native answer in the co-visible
+   * Terminal, whose close repaint arrives cursor-less before its `Kept …` line.
+   * The Enter would then land on the composer and submit whatever sits there.
+   * The scan-first order matters for the same reason: a native move during the
+   * park is post-park truth and must outrank the snapshot's retained cursor.
    */
   private driveParkedNav(): void {
     const pending = this.pendingControlSwitch;
@@ -1806,9 +1817,10 @@ export class ControlSwitchEngine {
       this.host.readScreen((screen) => this.applyParkedNav(parseCodexConsentCursor(screen)));
       return;
     }
+    const scanCursor = parseClaudeCacheMissCursor(this.controlSwitchScan);
+    const prePress = pending.awaitingCursor == null;
     this.applyParkedNav(
-      parseClaudeCacheMissCursor(this.controlSwitchScan) ??
-        parseClaudeCacheMissCursor(this.parkedFrame),
+      scanCursor ?? (prePress ? parseClaudeCacheMissCursor(this.parkedFrame) : null),
     );
   }
 
