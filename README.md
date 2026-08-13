@@ -70,6 +70,16 @@ If the raw terminal works for you, keep using it. Sonata even build in a real
 terminal(xterm.js) - same session in terminal window, you can use it anytime. However, the terminal is built around a command stream.
 Long reading, natural input, session organization, and result browsing are all things it does grudgingly. 
 
+- **Why keep the TUI instead of running headless?**<br>
+The design principle is: translate, don’t interfere. The agent runs
+natively in the TUI, preserving the terminal as the source of truth.
+Users can always inspect the full context or interact with the terminal
+directly.
+
+  This also means Sonata doesn’t have to sync with the CLI updates. When
+Claude Code or Codex ships an update, the real CLI in the terminal gets
+it immediately. Sonata remains purely a UI surface on top.
+
 - **Do I need another subscription?**<br>
 No. Sonata is free. It runs on the Claude / Codex subscription you
 already have.
