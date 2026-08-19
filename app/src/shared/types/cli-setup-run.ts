@@ -13,11 +13,16 @@ import type { RuntimeProvider } from "./domain";
  *
  * - `install` — the provider's official install command (D7). Success is decided
  *   by a re-probe, never by parsing installer output (L7).
- * - `start` — the provider's CLI itself, so it lands on its own login / first-run
- *   screens. Sonata never reads or scripts those screens (D1/D2 red line) — which
- *   is precisely why this is NOT a `TerminalHost`: that engine exists to parse a
- *   provider TUI, and pointing it at a login flow would make Sonata a participant
- *   in an authentication ceremony it is forbidden to touch.
+ * - `start` — the provider's own LOGIN command (`claude auth login` /
+ *   `codex login`; login-run redesign 2026-08-19 — before that, a bare
+ *   interactive CLI the user had to know to type `/login` into, and to `/exit`
+ *   out of). The one exception: a Claude install whose first-run wizard never
+ *   completed gets the bare CLI, whose wizard covers theme and login together —
+ *   see `spawnInputFor`. Either way Sonata never reads or scripts the flow's
+ *   screens (D1/D2 red line) — which is precisely why this is NOT a
+ *   `TerminalHost`: that engine exists to parse a provider TUI, and pointing it
+ *   at a login flow would make Sonata a participant in an authentication
+ *   ceremony it is forbidden to touch.
  *
  * **At most one run exists at a time**, app-global rather than task-keyed: a setup
  * run is about the machine, not about a conversation, so it has no task, no
@@ -36,9 +41,13 @@ export type CliSetupRunKind = "install" | "start";
  * success around would create a second authority on the same question — one that
  * could disagree with the probe.
  *
- * A `start` run has no failure shape either. Sonata cannot tell "the user closed
- * the CLI without signing in" from "the CLI exited normally", so it says nothing:
- * the run clears and the re-probed facts speak for themselves.
+ * A `start` run has no failure shape either — kept through the login-run
+ * redesign, deliberately. `codex login` documents exit 1 on error, but
+ * `claude auth login`'s exit codes are unverified and the bare-CLI onboarding
+ * fallback has none at all, so a verdict built on exit codes would be a claim
+ * Sonata cannot back for two of the three commands this kind runs. The re-probed
+ * facts already answer the only question that matters ("is it logged in NOW"),
+ * and an aborted login simply puts the signed-out card back by itself.
  */
 export type CliSetupRunPhase = "running" | "failed";
 

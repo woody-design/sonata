@@ -1475,6 +1475,7 @@ app.whenReady().then(() => {
     showTerminalWindow: showTerminalWindowForSetupRun,
     reprobe: (options) => readiness.reprobe(options),
     isAbsent: (provider) => readiness.read()[provider].install === "absent",
+    authState: (provider) => readiness.read()[provider].auth,
   });
   if (!readingSettingsStore) {
     throw new Error("Reading settings store is not ready.");

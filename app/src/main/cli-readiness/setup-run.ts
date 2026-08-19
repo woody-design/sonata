@@ -1,5 +1,8 @@
+import * as fs from "node:fs";
 import * as os from "node:os";
+import * as path from "node:path";
 import * as pty from "node-pty";
+import type { CliAuthState } from "../../shared/types/cli-readiness";
 import type {
   CliSetupRun,
   CliSetupRunData,
@@ -65,6 +68,27 @@ export const CLI_INSTALL_COMMANDS: Readonly<Record<RuntimeProvider, string>> = {
   codex: "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
 };
 
+/**
+ * The vendors' dedicated login commands, as ARGS to the provider binary
+ * (login-run redesign, 2026-08-19; research:
+ * `private/research/2026-08-19-cli-login-embedding-patterns.md`).
+ *
+ * These replace the original `start` shape — a bare interactive CLI the user had
+ * to know to type `/login` into, whose pty then never exited, so the setup grid
+ * held the CLI window hostage over the live session indefinitely. Both commands
+ * are line-oriented (no TUI — the red line is untouched: Sonata still reads no
+ * screen and holds no credential), and both EXIT when the ceremony ends, which
+ * gives the run the same natural settle an installer has: process exit →
+ * re-probe → the facts speak.
+ *
+ * Pinned verbatim like the install commands, and for the same reason: this is
+ * the other command Sonata runs on the user's machine by its own choice.
+ */
+export const CLI_LOGIN_COMMAND_ARGS: Readonly<Record<RuntimeProvider, readonly string[]>> = {
+  claude: ["auth", "login"],
+  codex: ["login"],
+};
+
 /** Output kept for replay into a (re)opened CLI window. Sized for an installer's
  *  progress chatter with room for a verbose failure, not for a session
  *  transcript — a setup run is minutes long at worst and has no scrollback UI. */
@@ -99,6 +123,16 @@ export interface CliSetupRunOptions {
   /** Whether this provider still has nothing to spawn, read AFTER the re-probe —
    *  the other half of the L7 verdict. */
   readonly isAbsent: (provider: RuntimeProvider) => boolean;
+  /**
+   * The provider's live auth fact, read AFTER the gate's re-probe. A `start` run
+   * spawns the CLI's own login command, and `codex login` REVOKES the existing
+   * credential before it begins its flow (openai/codex#27674) — so "only over a
+   * confirmed `signedOut`" is a safety invariant, not a UX nicety, and `unknown`
+   * fails closed here even though it is permissive everywhere else in this
+   * subsystem: the one thing a login run can do to a signed-in machine is destroy
+   * its credential.
+   */
+  readonly authState: (provider: RuntimeProvider) => CliAuthState;
   readonly spawn?: (input: SetupRunSpawnInput) => SetupRunProcess;
   readonly log?: (message: string) => void;
 }
@@ -142,6 +176,9 @@ export class CliSetupRunController {
    *  and a second exit (pty + our own teardown) cannot decide the verdict twice. */
   private settling = false;
   private disposed = false;
+  /** True while a start() is between its first await and its `running` publish —
+   *  the reentrancy window the login gate opened. */
+  private startPending = false;
 
   constructor(options: CliSetupRunOptions) {
     this.options = options;
@@ -171,7 +208,65 @@ export class CliSetupRunController {
       await this.options.showTerminalWindow();
       return;
     }
+    // Single-flight across the GATE too. The running-check above is what kept a
+    // double-click to one pty when start() published `running` before its first
+    // await; the gate moves an await ahead of that publish, so without this flag a
+    // second click arriving mid-probe would race a second login run into a command
+    // that destroys credentials on entry. The flag covers EVERY kind, not just
+    // `start` — an install admitted mid-gate would be clobbered the moment the
+    // gate's launch published over it — so a request landing in this sub-second
+    // window is dropped under the same single-run discipline as the running
+    // branch, just logged rather than window-raising (there is nothing on screen
+    // yet to raise the window onto; review 2026-08-19 minor 2).
+    if (this.startPending) {
+      this.log(`ignored ${describe(request)}: another start request is mid-gate`);
+      return;
+    }
+    this.startPending = true;
+    try {
+      if (request.kind === "start" && !(await this.admitLoginRun(request.provider))) {
+        return;
+      }
+      await this.launch(request);
+    } finally {
+      this.startPending = false;
+    }
+  }
 
+  /**
+   * The signed-out gate (login-run redesign, 2026-08-19). Re-probe first, then
+   * admit only a CONFIRMED `signedOut` — see {@link CliSetupRunOptions.authState}
+   * for why `unknown` fails closed here. The re-probe is what makes the invariant
+   * independent of UI timing: the button was offered on facts captured at some
+   * earlier probe, and a login finished in the user's own terminal since then must
+   * not be revoked by a stale card. A refusal needs no surface of its own — the
+   * re-probe just refreshed the facts, so the card that offered the button
+   * re-decides itself on the broadcast.
+   */
+  private async admitLoginRun(provider: RuntimeProvider): Promise<boolean> {
+    try {
+      await this.options.reprobe({ bustPathCache: false });
+    } catch (error) {
+      // A refresh that failed leaves the facts stale, which is `unknown` with
+      // extra steps — refuse, the same direction the auth check fails. (The
+      // production seam swallows its own failures, so this arm is belt-and-braces
+      // — but a belt that fell through to a STALE `signedOut` would admit exactly
+      // the revocation the gate exists to prevent; review 2026-08-19 minor 1.)
+      this.log(`login-gate re-probe failed, refusing: ${describeError(error)}`);
+      return false;
+    }
+    if (this.disposed) {
+      return false;
+    }
+    const auth = this.options.authState(provider);
+    if (auth !== "signedOut") {
+      this.log(`refused start ${provider}: auth is ${auth}, a login run requires signedOut`);
+      return false;
+    }
+    return true;
+  }
+
+  private async launch(request: CliSetupRunRequest): Promise<void> {
     const id = this.nextId;
     this.nextId += 1;
     // Publish `running` and clear the previous run's output BEFORE the window
@@ -261,6 +356,16 @@ export class CliSetupRunController {
    * next launch's probe — which is exactly the card that offers to install it again.
    * The recovery path is retry, and it is the same path a failed install already
    * takes.
+   *
+   * Re-evaluated for LOGIN runs when `start` became a login command (2026-08-19),
+   * and the ruling holds there too: a real quit still reaps the child (same
+   * MEASUREMENT — the pty is not detached), and in the survivable case (all
+   * windows closed, app alive) the run's OAuth callback can still land, so a kill
+   * here would strand a user who is mid-flow in their browser. The cost accepted
+   * with eyes open: an abandoned `codex login` holds its fixed callback port
+   * (1455) until it exits or the app quits — bounded by the app's own lifetime,
+   * and the single-run discipline means clicking Log in again fronts the SAME
+   * pending run rather than colliding with it.
    */
   dispose(): void {
     this.disposed = true;
@@ -348,9 +453,20 @@ export class CliSetupRunController {
  *
  * `start` spawns the binary DIRECTLY — the same resolution the session spawn uses
  * (D2). A shell layer would sit between the user's keystrokes and the CLI's
- * first-run screens for no gain, and a `claude` that exists only as a shell alias
+ * login flow for no gain, and a `claude` that exists only as a shell alias
  * would have read as `absent` anyway, so there is nothing a shell would find that
  * the probe did not.
+ *
+ * What a `start` run RUNS (login-run redesign, 2026-08-19): the provider's
+ * dedicated login command ({@link CLI_LOGIN_COMMAND_ARGS}), not a bare
+ * interactive session. One exception, Claude-only: a machine whose first-run
+ * wizard has never completed gets the bare CLI, because `claude auth login`
+ * completes only the login — a fresh install would afterwards read `signedIn`
+ * while its next real session parks on the theme picker, the exact wound class
+ * this subsystem exists to close. The bare CLI's own wizard covers theme AND
+ * login in one visible pass (the pre-redesign behavior, kept for exactly the
+ * case it was designed around). Codex has no onboarding split, so it always
+ * gets `codex login`.
  *
  * Home is the cwd for both: setting up a CLI is not project work, and a
  * project-scoped cwd would invite the CLI's directory-trust dialog into a flow
@@ -363,7 +479,42 @@ export function spawnInputFor(request: CliSetupRunRequest): SetupRunSpawnInput {
     const shell = env.SHELL && env.SHELL.length > 0 ? env.SHELL : "/bin/sh";
     return { command: shell, args: ["-c", CLI_INSTALL_COMMANDS[request.provider]], ...shared };
   }
-  return { command: request.provider, args: [], ...shared };
+  return { command: request.provider, args: [...startRunArgs(request.provider, env)], ...shared };
+}
+
+function startRunArgs(provider: RuntimeProvider, env: NodeJS.ProcessEnv): readonly string[] {
+  if (provider === "claude" && !hasCompletedClaudeOnboarding(env)) {
+    return [];
+  }
+  return CLI_LOGIN_COMMAND_ARGS[provider];
+}
+
+/**
+ * Whether Claude Code's first-run wizard has ever completed on this machine —
+ * `hasCompletedOnboarding` in the CLI's own state file (`.claude.json`, under
+ * `CLAUDE_CONFIG_DIR` when set, else `$HOME`; flag MEASURED present on a live
+ * 2.1.234 install, 2026-08-19). Read-only, and not a credential: the file is CLI
+ * state, the token lives elsewhere (Keychain), so the red line is untouched.
+ *
+ * Every failure — missing file, unreadable, unparseable, flag absent — lands on
+ * `false`, i.e. the bare CLI, which is EXACTLY the pre-redesign behavior. So a
+ * wrong guess here degrades to the status quo, never past it: the permissive
+ * `unknown` philosophy (D3), applied to a config shape we do not control.
+ */
+export function hasCompletedClaudeOnboarding(env: NodeJS.ProcessEnv): boolean {
+  const dir = env.CLAUDE_CONFIG_DIR && env.CLAUDE_CONFIG_DIR.length > 0
+    ? env.CLAUDE_CONFIG_DIR
+    : os.homedir();
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, ".claude.json"), "utf8"));
+    return (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      (parsed as Record<string, unknown>).hasCompletedOnboarding === true
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**

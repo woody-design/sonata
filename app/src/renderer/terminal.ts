@@ -651,7 +651,8 @@ function applyActiveTask(next: TerminalActiveTaskState): void {
 //
 // A second kind of grid in this window: not a task's session but ONE command
 // Sonata was asked to run visibly — a provider's official installer, or the
-// provider's own CLI landing on its first-run/login screens. It has no task, no
+// provider's own login command (`claude auth login` / `codex login`; the bare
+// CLI's first-run wizard only for an unonboarded Claude). It has no task, no
 // generation, and no scrollback replay from a headless mirror; the main process
 // keeps its raw output in a buffer and hands it over on request, which is the only
 // way "follow along in the terminal window" can be true for a window that this
@@ -717,8 +718,12 @@ function setupRunOwnsWindow(): boolean {
 function renderBreadcrumb(): void {
   const run = setupRunOwnsWindow() ? setupRun : null;
   const project = run ? "Setup" : activeBinding?.projectName ?? "Tasks";
+  // "Log in to", matching the button that started the run (the card's
+  // LOGIN_ACTION_LABEL vocabulary) — since the login-run redesign a start run's
+  // command IS the CLI's login command. The one exception, an unonboarded
+  // Claude's bare-CLI wizard, still ends in that login, so the label holds.
   const title = run
-    ? `${run.kind === "install" ? "Install" : "Start"} ${
+    ? `${run.kind === "install" ? "Install" : "Log in to"} ${
         run.provider === "claude" ? "Claude Code" : "Codex"
       }`
     : activeBinding?.sessionTitle ?? "New task";

@@ -123,9 +123,12 @@ export function installActionLabel(provider: RuntimeProvider): string {
  * reason the sentence dropped its second clause.
  *
  * Note the deliberate divergence from the internals: the action kind stays `start`
- * and the seam member stays `startCliLogin`, because what Sonata DOES is start the
- * CLI — the login is what the CLI then asks for. The label names the user's goal,
- * the identifier names the mechanism; do not "fix" one to match the other.
+ * and the seam member stays `startCliLogin` — they name the mechanism (a
+ * start-kind setup run), the label names the user's goal. Since the login-run
+ * redesign (2026-08-19) the two finally agree in substance too: the run's command
+ * IS the CLI's own login command (`claude auth login` / `codex login`), with the
+ * bare CLI kept only for a Claude first-run wizard that never completed — see
+ * `main/cli-readiness/setup-run.ts: spawnInputFor`.
  */
 export const LOGIN_ACTION_LABEL = "Log in";
 

@@ -82,8 +82,9 @@ export interface Actions {
   // — New Chat readiness card (view/cli-readiness-card.ts). Both run a command
   //   VISIBLY in the CLI window and hand the rest to the CLI itself (D7/D1):
   //   `installCli` runs that vendor's official installer, `startCliLogin` runs
-  //   the CLI so it lands on its own first-run/login screens. Fire-and-forget —
-  //   main owns the run and pushes every phase back. —
+  //   the CLI's own login command (its bare first-run wizard only for an
+  //   unonboarded Claude — see setup-run.ts). Fire-and-forget — main owns the
+  //   run and pushes every phase back. —
   installCli(provider: RuntimeProvider): void;
   startCliLogin(provider: RuntimeProvider): void;
   // — Attention banners (view/banners.ts) dismiss mutations: bare

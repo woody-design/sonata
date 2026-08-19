@@ -195,7 +195,19 @@ function writeCliStub(binDir, provider, authFile, loginDoneFile) {
         `  echo '{"loggedIn":false,"authMethod":"none"}'; exit 1\n`
       : `  if [ "$state" = "in" ]; then echo 'Logged in using ChatGPT' >&2; exit 0; fi\n` +
         `  echo 'Not logged in' >&2; exit 1\n`;
-  const statusArgs = provider === "claude" ? `"auth" ]; then` : `"login" ]; then`;
+  // The STATUS query is `auth status` / `login status`; the LOGIN COMMAND is
+  // `auth login` / bare `login` (the login-run redesign, 2026-08-19). The status
+  // shapes are MEASURED; the login flow below is COMPOSED to the commands'
+  // documented shape — line-oriented, waits for its browser/paste ceremony, exits
+  // 0 when done. `loginDoneFile` stands in for that ceremony finishing, the same
+  // "the user finished the login that was on screen" signal the parked-session
+  // stub watches.
+  const statusCond =
+    provider === "claude"
+      ? `[ "$1" = "auth" ] && [ "$2" != "login" ]`
+      : `[ "$1" = "login" ] && [ "$2" = "status" ]`;
+  const loginCond =
+    provider === "claude" ? `[ "$1" = "auth" ] && [ "$2" = "login" ]` : `[ "$1" = "login" ]`;
   const version =
     provider === "claude" ? `echo '2.1.222 (Claude Code)'` : `echo 'codex-cli 0.146.0'`;
   fs.writeFileSync(
@@ -203,8 +215,15 @@ function writeCliStub(binDir, provider, authFile, loginDoneFile) {
     `#!/bin/sh
 state=$(cat ${shellQuote(authFile)} 2>/dev/null)
 if [ "$1" = "--version" ]; then ${version}; exit 0; fi
-if [ "$1" = ${statusArgs}
+if ${statusCond}; then
 ${answer}fi
+if ${loginCond}; then
+  echo "Open the URL to authorize, then return here:"
+  echo "https://example.invalid/oauth"
+  while [ ! -f ${shellQuote(loginDoneFile)} ]; do sleep 0.2; done
+  echo "Login successful"
+  exit 0
+fi
 # Any other invocation is the CLI itself being run: print a first-run screen and
 # stay alive, exactly as a real CLI waiting on its login flow would — until the test
 # says the user finished with it, at which point paint the composer prompt and keep
@@ -244,7 +263,16 @@ function cliStubScriptWriter(provider, signedIn) {
 function cliStubBody(provider) {
   const version =
     provider === "claude" ? `echo '2.1.222 (Claude Code)'` : `echo 'codex-cli 0.146.0'`;
-  const statusArgs = provider === "claude" ? `"auth" ]; then` : `"login" ]; then`;
+  // The same status/login split as `writeCliStub` above (the login-run redesign):
+  // an installer-written stub must also answer `auth login` / `login` as the
+  // LOGIN COMMAND, not fall into the status branch and exit — section E of the
+  // card e2e runs against THIS stub, since its claude arrived via the installer.
+  const statusCond =
+    provider === "claude"
+      ? `[ "$1" = "auth" ] && [ "$2" != "login" ]`
+      : `[ "$1" = "login" ] && [ "$2" = "status" ]`;
+  const loginCond =
+    provider === "claude" ? `[ "$1" = "auth" ] && [ "$2" = "login" ]` : `[ "$1" = "login" ]`;
   const answer =
     provider === "claude"
       ? `  if [ "$state" = "in" ]; then echo '{"loggedIn":true,"authMethod":"claude.ai"}'; exit 0; fi\n` +
@@ -254,8 +282,15 @@ function cliStubBody(provider) {
   return `#!/bin/sh
 state=$(cat "$SONATA_E2E_CONTROL/${provider}-auth" 2>/dev/null)
 if [ "$1" = "--version" ]; then ${version}; exit 0; fi
-if [ "$1" = ${statusArgs}
+if ${statusCond}; then
 ${answer}fi
+if ${loginCond}; then
+  echo "Open the URL to authorize, then return here:"
+  echo "https://example.invalid/oauth"
+  while [ ! -f "$SONATA_E2E_CONTROL/login-done" ]; do sleep 0.2; done
+  echo "Login successful"
+  exit 0
+fi
 echo "Welcome to ${provider === "claude" ? "Claude Code" : "Codex"}"
 while :; do sleep 0.2; done
 `;

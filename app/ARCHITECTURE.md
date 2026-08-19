@@ -687,10 +687,17 @@ runs is reasonable, and send re-arms itself when the re-probe turns green.
 
 **A setup run is one visible command, and it is a sibling of terminal-host rather
 than a change to it** (`main/cli-readiness/setup-run.ts`). Two kinds — the
-vendor's official install command, or the provider's CLI itself so it lands on its
-own first-run/login screens — hosted in a real pty whose grid the CLI window
-shows and whose keystrokes it forwards, so a sudo prompt or a login menu is
-answerable. `TerminalHost` was the wrong home for it on three counts, two of them
+vendor's official install command, or the provider's own login command
+(`claude auth login` / `codex login`; since the login-run redesign 2026-08-19 —
+the bare CLI's first-run wizard survives only for a Claude whose
+`hasCompletedOnboarding` flag is unset, because `auth login` completes the login
+but not the wizard). Both commands exit when their ceremony ends, so the run
+settles like an install does, and the login run is admitted only over a
+re-probe-confirmed `signedOut` (`codex login` revokes the existing credential
+before its flow begins, so `unknown` fails CLOSED at this one gate — the
+subsystem's sole deliberate inversion of permissive-unknown). Hosted in a real
+pty whose grid the CLI window shows and whose keystrokes it forwards, so a sudo
+prompt or a pasted authorization code is answerable. `TerminalHost` was the wrong home for it on three counts, two of them
 hard: it parses provider TUIs (an installer is not one, and a **login screen is
 the one surface Sonata is forbidden to read**), and it belongs to a Task (every
 install attempt would leave a phantom session in the sidebar). So the run is

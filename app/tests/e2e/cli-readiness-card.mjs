@@ -16,8 +16,9 @@
 //      removes it entirely when that provider is healthy (D6 — the card never
 //      switches for you, but it yields the moment you do);
 //   D. an install that fails shows the failure card, and Try again re-runs it;
-//   E. Start runs the CLI itself in the CLI window (its own login screen, which
-//      Sonata never reads), and finishing the login makes the card go on its own.
+//   E. Log in runs the CLI's OWN LOGIN COMMAND in the CLI window (whose flow
+//      Sonata never reads), and the ceremony completing closes the whole loop by
+//      itself — card gone, send re-armed, setup grid retired, zero keystrokes.
 //
 // Deterministic by construction: the app's PATH is a fixture bin dir plus the
 // system dirs, the CLIs in it are stubs answering MEASURED probe shapes, and
@@ -244,6 +245,14 @@ try {
   await app.close();
   app = null;
   fixture.setSignedIn("claude", false);
+  // An ONBOARDED machine — the scenario is a token that expired, not a fresh
+  // install — so the start run takes the login-command branch (`claude auth
+  // login`), not the bare-CLI wizard fallback. The flag is the CLI's own.
+  fs.writeFileSync(
+    path.join(fixture.homeDir, ".claude.json"),
+    `${JSON.stringify({ hasCompletedOnboarding: true }, null, 2)}\n`,
+    "utf8",
+  );
   fs.writeFileSync(
     path.join(fixture.settingsDir, "sonata-settings.json"),
     `${JSON.stringify({ lastUsedProvider: "claude" }, null, 2)}\n`,
@@ -268,17 +277,24 @@ try {
   const cli2 = await waitForWindow(app, (page) => page.url().endsWith("/terminal.html"));
   cli2.setDefaultTimeout(30_000);
   await main2.locator("#cli-readiness-login").click();
-  // The CLI itself, in the CLI window, on its own first-run screen. Sonata renders
-  // bytes and forwards keys; it parses none of this (D1/D2).
+  // The CLI's OWN LOGIN COMMAND, in the CLI window (login-run redesign,
+  // 2026-08-19): `claude auth login`, not a bare session the user has to know to
+  // type `/login` into. Sonata renders bytes and forwards keys; it parses none of
+  // this (D1/D2).
   await cli2.locator(".task-terminal[data-setup-run]").waitFor({ state: "visible" });
   await waitUntil(
     async () =>
       (
         (await cli2.locator(".task-terminal[data-setup-run] .xterm-rows").textContent()) ?? ""
-      ).includes("Welcome to Claude Code"),
-    "the CLI's own first-run screen to appear",
+      ).includes("Open the URL to authorize"),
+    "the login command's own flow to appear",
   );
-  assert.equal(await cli2.locator("#terminal-session-title").textContent(), "Start Claude Code");
+  // The breadcrumb matches the button that started the run ("Log in"), not the
+  // internal kind name.
+  assert.equal(
+    await cli2.locator("#terminal-session-title").textContent(),
+    "Log in to Claude Code",
+  );
   // While it runs, the sentence stands and the button is gone — starting a second
   // copy of a CLI that is waiting for input would only make a mess.
   assert.equal(
@@ -286,18 +302,26 @@ try {
     "Claude Code CLI isn't logged in.",
   );
   assert.equal(await main2.locator(".cli-readiness-action").count(), 0);
-  observed.startRunHostsTheCli = "Welcome to Claude Code, no button while it runs";
+  observed.startRunHostsTheCli = "auth login's own flow on screen, no button while it runs";
 
-  // Finish the login the only way Sonata allows: inside the CLI. The control file
-  // is what "signed in" means to the next probe, and Ctrl-C is the user closing the
-  // CLI once it is done — whose pty exit is what triggers that probe.
+  // Finish the login. The command EXITS on its own when the ceremony completes —
+  // that exit is what triggers the re-probe, and the whole loop closes with ZERO
+  // keystrokes in the CLI window: no `/login` to know, no `/exit` to know. (The
+  // control file is what "signed in" means to the probe; the done-signal is the
+  // browser ceremony completing.)
   fixture.setSignedIn("claude", true);
-  await cli2.locator(".task-terminal[data-setup-run]").click();
-  await cli2.keyboard.press("Control+C");
+  fixture.completeCliLogin();
   await card2.waitFor({ state: "detached" });
   await main2.locator("#prompt-input").fill("ready now");
   await main2.locator("#send-prompt:not([disabled])").waitFor();
-  observed.loginClosesTheLoop = "card gone and send re-armed after the CLI exits signed in";
+  // …and the setup grid hands the window back by itself — the pre-redesign shape
+  // held it hostage here until the user typed `/exit`.
+  await waitUntil(
+    async () => (await cli2.locator(".task-terminal[data-setup-run]").count()) === 0,
+    "the setup grid to retire with the finished login run",
+  );
+  observed.loginClosesTheLoop =
+    "card gone, send re-armed, setup grid retired — zero keystrokes in the CLI window";
 
   console.log(JSON.stringify({ ...observed, success: true }, null, 2));
 } catch (error) {

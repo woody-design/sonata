@@ -46,16 +46,20 @@ process.env.PATH = `${binDir}${path.delimiter}/usr/bin:/bin`;
 const {
   CliSetupRunController,
   CLI_INSTALL_COMMANDS,
+  CLI_LOGIN_COMMAND_ARGS,
   SETUP_RUN_OUTPUT_LIMIT_CHARS,
   spawnInputFor,
   setupRunEnv,
+  hasCompletedClaudeOnboarding,
 } = require("../../dist/main/cli-readiness/setup-run");
 const { CliReadiness } = require("../../dist/main/cli-readiness/cli-readiness");
 
 const results = {};
 
-/** A controller wired to record everything main would broadcast. */
-function harness({ reprobe, isAbsent, spawn }) {
+/** A controller wired to record everything main would broadcast. `authState`
+ *  defaults to `signedOut` — the state every pre-gate case in this file was
+ *  written for; the gate section overrides it. */
+function harness({ reprobe, isAbsent, spawn, authState }) {
   const states = [];
   const chunks = [];
   const windowShows = [];
@@ -68,6 +72,7 @@ function harness({ reprobe, isAbsent, spawn }) {
     },
     reprobe,
     isAbsent,
+    authState: authState ?? (() => "signedOut"),
     ...(spawn ? { spawn } : {}),
     log: (message) => logs.push(message),
   });
@@ -124,9 +129,47 @@ function delay(ms) {
   );
   // A `start` run spawns the BINARY, not a shell — the same resolution the session
   // spawn uses (D2), with nothing between the user's keys and the CLI's screens.
+  // Since the login-run redesign (2026-08-19) the command is the provider's own
+  // LOGIN command, pinned verbatim like the install strings: both are line-
+  // oriented, both EXIT when the ceremony ends, so the run settles by itself.
+  assert.deepEqual(CLI_LOGIN_COMMAND_ARGS, { claude: ["auth", "login"], codex: ["login"] });
   const start = spawnInputFor({ kind: "start", provider: "codex" });
   assert.equal(start.command, "codex");
-  assert.deepEqual(start.args, []);
+  assert.deepEqual(start.args, ["login"], "codex always gets its login command");
+
+  // The Claude exception: a machine whose first-run wizard never completed gets
+  // the BARE CLI (`auth login` completes only the login; the next session would
+  // park on the theme picker). The flag is `hasCompletedOnboarding` in the CLI's
+  // own `.claude.json` — HOME here is this test's temp dir, so both branches are
+  // drivable, and every read failure lands on the bare-CLI status quo.
+  assert.equal(hasCompletedClaudeOnboarding(process.env), false, "no .claude.json yet");
+  const freshClaude = spawnInputFor({ kind: "start", provider: "claude" });
+  assert.deepEqual(freshClaude.args, [], "unonboarded claude gets the bare CLI (the wizard)");
+  const claudeJson = path.join(process.env.HOME, ".claude.json");
+  fs.writeFileSync(claudeJson, JSON.stringify({ hasCompletedOnboarding: true }), "utf8");
+  const onboardedClaude = spawnInputFor({ kind: "start", provider: "claude" });
+  assert.equal(onboardedClaude.command, "claude");
+  assert.deepEqual(onboardedClaude.args, ["auth", "login"], "onboarded claude gets auth login");
+  fs.writeFileSync(claudeJson, "{ not json", "utf8");
+  assert.deepEqual(
+    spawnInputFor({ kind: "start", provider: "claude" }).args,
+    [],
+    "an unreadable flag degrades to the bare CLI, never past the status quo",
+  );
+  fs.writeFileSync(claudeJson, JSON.stringify({ hasCompletedOnboarding: true }), "utf8");
+  // CLAUDE_CONFIG_DIR moves the file, so the check must follow it — reading a HOME
+  // the CLI is not using would answer about the wrong machine.
+  const configDir = path.join(tempRoot, "claude-config");
+  fs.mkdirSync(configDir, { recursive: true });
+  process.env.CLAUDE_CONFIG_DIR = configDir;
+  assert.deepEqual(
+    spawnInputFor({ kind: "start", provider: "claude" }).args,
+    [],
+    "CLAUDE_CONFIG_DIR set and empty: the flag in HOME does not answer for it",
+  );
+  fs.writeFileSync(path.join(configDir, ".claude.json"), JSON.stringify({ hasCompletedOnboarding: true }), "utf8");
+  assert.deepEqual(spawnInputFor({ kind: "start", provider: "claude" }).args, ["auth", "login"]);
+  delete process.env.CLAUDE_CONFIG_DIR;
   // Home for both: setting up a CLI is not project work, and a project cwd would
   // drag the CLI's directory-trust dialog into a flow that has no directory.
   assert.equal(install.cwd, os.homedir());
@@ -148,11 +191,13 @@ function delay(ms) {
   delete process.env.CLAUDECODE;
   delete process.env.CLAUDE_CODE_ENTRYPOINT;
   delete process.env.ELECTRON_RUN_AS_NODE;
+  delete process.env.CLAUDE_CONFIG_DIR;
   results.commands = {
     claude: CLI_INSTALL_COMMANDS.claude,
     codex: CLI_INSTALL_COMMANDS.codex,
     installArgs: install.args,
     startCommand: start.command,
+    startArgs: { codex: start.args, claudeOnboarded: onboardedClaude.args, claudeFresh: [] },
     envScrub: "CLAUDECODE + CLAUDE_CODE_* + ELECTRON_RUN_AS_NODE dropped; CLAUDE_CONFIG_DIR kept",
   };
 }
@@ -345,7 +390,14 @@ function delay(ms) {
   await stillOut.controller.start({ kind: "start", provider: "claude" });
   await waitUntil(() => stillOut.states.length >= 2, "the start run to settle");
   assert.deepEqual(phases(stillOut.states), ["start:running", "cleared"]);
-  assert.deepEqual(captures, [{ bustPathCache: false }], "a start re-probes without a bust");
+  // TWO re-probes since the login gate: one BEFORE the spawn (the signed-out
+  // admission check) and one after the exit (the settle). Neither busts — nothing
+  // moved on disk.
+  assert.deepEqual(
+    captures,
+    [{ bustPathCache: false }, { bustPathCache: false }],
+    "a start re-probes at the gate and at the settle, without a bust",
+  );
 
   // Even a non-zero exit clears: there is no failure copy for a login (D8 has
   // none), and inventing one would be Sonata claiming to know why a CLI exited.
@@ -358,6 +410,117 @@ function delay(ms) {
   await waitUntil(() => crashed.states.length >= 2, "the interrupted start to settle");
   assert.deepEqual(phases(crashed.states), ["start:running", "cleared"]);
   results.startRun = { phases: phases(stillOut.states), reprobe: captures };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// D2. The signed-out gate (login-run redesign, 2026-08-19). A `start` run spawns
+//     the CLI's own login command, and `codex login` REVOKES the existing
+//     credential before its flow begins (openai/codex#27674) — so admission is a
+//     safety invariant: re-probe first, then only a CONFIRMED signedOut spawns.
+//     `unknown` fails CLOSED here, the one deliberate inversion of this
+//     subsystem's permissive-unknown rule: everywhere else a wrong guess costs a
+//     false alarm; here it can cost the user their credential.
+// ════════════════════════════════════════════════════════════════════════════
+{
+  // signedIn → refused: no run published, nothing spawned, no window shown.
+  const events = [];
+  const signedIn = harness({
+    reprobe: async () => {
+      events.push("reprobe");
+    },
+    isAbsent: () => false,
+    authState: () => "signedIn",
+    spawn: () => {
+      events.push("spawn");
+      throw new Error("must not spawn");
+    },
+  });
+  await signedIn.controller.start({ kind: "start", provider: "codex" });
+  assert.deepEqual(signedIn.states, [], "a signed-in machine gets no login run");
+  assert.deepEqual(events, ["reprobe"], "the gate re-probed, then refused before any spawn");
+  assert.equal(signedIn.windowShows.length, 0, "and no window opens for a refusal");
+  assert.ok(
+    signedIn.logs.some((line) => line.includes("refused start")),
+    "the refusal is logged",
+  );
+
+  // unknown → refused too (fail closed on the destructive door).
+  const unknown = harness({
+    reprobe: async () => {},
+    isAbsent: () => false,
+    authState: () => "unknown",
+    spawn: () => {
+      throw new Error("must not spawn");
+    },
+  });
+  await unknown.controller.start({ kind: "start", provider: "codex" });
+  assert.deepEqual(unknown.states, [], "unknown auth gets no login run either");
+
+  // A gate re-probe that THROWS refuses as well — belt and braces on the same
+  // rule. `authState` answers `signedOut` HERE on purpose (review 2026-08-19
+  // minor 1): a throw must refuse on its own, because falling through to a check
+  // over facts the failed refresh left STALE would admit exactly the revocation
+  // the gate exists to prevent. With `unknown` this case would pass for the
+  // wrong reason.
+  const throwing = harness({
+    reprobe: async () => {
+      throw new Error("probe wedged");
+    },
+    isAbsent: () => false,
+    authState: () => "signedOut",
+    spawn: () => {
+      throw new Error("must not spawn");
+    },
+  });
+  await throwing.controller.start({ kind: "start", provider: "claude" });
+  assert.deepEqual(
+    throwing.states,
+    [],
+    "a wedged gate probe refuses on the throw itself, not on the stale facts",
+  );
+
+  // The reentrancy window the gate opened: two clicks racing through a SLOW gate
+  // probe must still produce ONE run. Before the gate, publishing `running` before
+  // the first await was what kept this to one; the single-flight flag restores it.
+  let releaseProbe = () => {};
+  const probeHeld = new Promise((resolve) => {
+    releaseProbe = resolve;
+  });
+  let spawns = 0;
+  const raced = harness({
+    reprobe: () => probeHeld,
+    isAbsent: () => false,
+    spawn: () => {
+      spawns += 1;
+      return fakeInstaller(() => 0)();
+    },
+  });
+  const first = raced.controller.start({ kind: "start", provider: "codex" });
+  const second = raced.controller.start({ kind: "start", provider: "codex" });
+  releaseProbe();
+  await Promise.all([first, second]);
+  await waitUntil(() => raced.states.length >= 2, "the raced start to settle");
+  assert.equal(spawns, 1, "a double-click through the gate spawns exactly one login run");
+
+  // An INSTALL is not gated: a machine can be signed in and still missing the
+  // other CLI, and an installer destroys nothing.
+  const installUngated = harness({
+    reprobe: async () => {},
+    isAbsent: () => false,
+    authState: () => "signedIn",
+    spawn: fakeInstaller(() => 0),
+  });
+  await installUngated.controller.start({ kind: "install", provider: "claude" });
+  await waitUntil(() => installUngated.states.length >= 2, "the ungated install to settle");
+  assert.deepEqual(phases(installUngated.states), ["install:running", "cleared"]);
+
+  results.loginGate = {
+    signedIn: "refused before spawn",
+    unknown: "refused (fail closed)",
+    wedgedProbe: "refused",
+    doubleClick: `${spawns} spawn`,
+    install: "not gated",
+  };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -384,9 +547,13 @@ function delay(ms) {
   const runId = live.states[0].id;
   live.controller.resize(runId, 120, 40);
   live.controller.write(runId, "yes\r");
+  // Wait for BOTH lines: the script prints ANSWER and SIZE as separate echoes, and
+  // they can land as separate pty chunks — asserting on the transcript after only
+  // the first is a race (hit for real when the login gate shifted the event-loop
+  // timing ahead of the spawn).
   await waitUntil(
-    () => live.chunks.some((chunk) => chunk.data.includes("ANSWER=yes")),
-    "the pty to echo the answer",
+    () => live.chunks.some((chunk) => chunk.data.includes("SIZE=")),
+    "the pty to echo the answer and report its size",
   );
   const transcript = live.chunks.map((chunk) => chunk.data).join("");
   assert.match(transcript, /ANSWER=yes/, "keystrokes reach the pty");
