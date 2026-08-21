@@ -2,7 +2,7 @@
 
 Terminal(CLI) is where Claude Code and Codex work best. It just isn’t an ideal interface for people — reading long outputs, writing prompts, previewing results, and managing sessions.
 
-Sonata adds the experience layer. Your Claude Code & Codex agents run natively in the terminal, with full capabilities on your existing subscription. You read, write, and manage everything in a modern interface as familiar as ChatGPT.
+Sonata works like a UI layer on top of the terminal. Your Claude Code & Codex agents run natively in the terminal, with full capabilities on your existing subscription. You read, write, and manage everything in a modern interface as familiar as ChatGPT.
 
 Free and open source · macOS · No sign-up · No telemetry · No server · Works with your subscriptions on Claude Code & Codex
 
