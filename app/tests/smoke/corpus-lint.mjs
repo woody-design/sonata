@@ -17,10 +17,15 @@ import os from "node:os";
 // 2.1.252 boot banner prints), so it belongs under the same fence rather than
 // relying on the probe's own sanitizer having been run.
 const FIXTURES = dirname(fileURLToPath(import.meta.url)) + "/../fixtures";
+// FOURTH TREE (upstream sync 2026-09-01, SL-3): `claude-boot` pins rendered
+// grid frames captured from a live CLI's boot ceremony — same class, same
+// exposure (the frames carry the probe's cwd, and a boot banner can print the
+// Remote Control session URL).
 const ROOTS = [
   resolve(FIXTURES, "runtime-events"),
   resolve(FIXTURES, "reducer-goldens"),
   resolve(FIXTURES, "claude-idle"),
+  resolve(FIXTURES, "claude-boot"),
 ];
 const HOME = os.homedir();
 const USER = process.env.USER ?? "";

@@ -23,8 +23,29 @@ const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-native-image
 const results = [];
 
 try {
-  for (const provider of ["codex", "claude"]) {
-    results.push(await runProviderImageSmoke(provider));
+  // CLAUDE FIRST, and every case isolated — upstream sync 2026-09-01, SL-3.
+  //
+  // This file drives two real CLIs through real model turns, so it is the
+  // slowest smoke in the tree, and the aggregate runner SIGKILLs a test at
+  // SONATA_SMOKE_TIMEOUT_MS (300s default). Until now the file printed NOTHING
+  // until both providers had finished, and it ran codex first — so once codex
+  // started failing slowly at 0.152.0 (SL-6/7/8) the kill landed before claude
+  // ran at all, and the file reported an opaque `TIMED OUT` with an empty
+  // output block. That opacity produced a wrong diagnosis: SL-1 recorded this
+  // file as "never answers the new trust dialog", which q10 then MEASURED to be
+  // false — the listener below answers it through the committed grid-verified
+  // walk and reaches a composer in ~1.8s (the measurement and this whole
+  // diagnosis: spikes/upstream-sync-2026-09/claude/findings.md, F9).
+  //
+  // So: order the providers so the one under repair reports first, isolate each
+  // case so one failure cannot cancel the rest, and print each verdict AS IT
+  // LANDS. A kill mid-run then still leaves standing evidence of what passed.
+  // NOTHING is suppressed — codex's cases still run and still fail, and the
+  // file still exits non-zero for them.
+  for (const provider of ["claude", "codex"]) {
+    const result = await runProviderImageSmoke(provider);
+    results.push(result);
+    console.log(`${result.verified ? "PASS" : "FAIL"} ${provider} image attachments`);
   }
 
   const success = results.every((result) => result.verified);
@@ -36,20 +57,28 @@ try {
 }
 
 async function runProviderImageSmoke(provider) {
-  const nonImage = await runNonImageCheck(provider);
-  const delivery = await runImageDeliveryCheck(provider);
-  const multi = await runMultiImageConsecutiveCheck(provider);
-  const spacey = await runSpaceyImageDeliveryCheck(provider);
-  const reference = await runReferenceTextCheck(provider);
+  const cases = {};
+  for (const [name, run] of [
+    ["nonImage", runNonImageCheck],
+    ["delivery", runImageDeliveryCheck],
+    ["multi", runMultiImageConsecutiveCheck],
+    ["spacey", runSpaceyImageDeliveryCheck],
+    ["reference", runReferenceTextCheck],
+  ]) {
+    // A case that THROWS (a startHost readiness timeout, a CLI that exited) is a
+    // failed case, not a cancelled suite: the remaining cases still have
+    // something to say, and on the provider under repair they are the evidence.
+    try {
+      cases[name] = await run(provider);
+    } catch (error) {
+      cases[name] = { name: `${provider} ${name}`, verified: false, threw: String(error?.message ?? error) };
+    }
+    console.log(`  ${cases[name].verified ? "ok  " : "FAIL"} ${cases[name].name}`);
+  }
   return {
     provider,
-    verified:
-      nonImage.verified && delivery.verified && multi.verified && spacey.verified && reference.verified,
-    nonImage,
-    delivery,
-    multi,
-    spacey,
-    reference,
+    verified: Object.values(cases).every((entry) => entry.verified),
+    ...cases,
   };
 }
 
@@ -274,6 +303,13 @@ async function startHost(provider, name) {
       exited = true;
     }
     if (event.type === "approval:detected" && event.payload.kind === "workspace-trust") {
+      // Reachable at all because `startTask` below passes no `approvalBroker`,
+      // and the host's broker-ON gate requires an explicit `true` — so the
+      // native trust scrape is live here and this event fires. On claude the
+      // answer now goes through SL-1's grid-verified cursor walk (2.1.252 flipped
+      // the default row to "No, exit", and both former encodings exited the CLI);
+      // MEASURED reaching a composer in ~1.8s at 2.1.257 (findings.md F9).
+      //
       // Answer OUTSIDE this dispatch. A synchronous sendApprove() here made the
       // delivery controller (line below) see approval:decision BEFORE this very
       // approval:detected, wedging `approvalPending` true forever — a re-entrancy
@@ -317,37 +353,57 @@ async function startHost(provider, name) {
     enterRetryDelaysMs: [],
   });
 
-  const startedAt = new Date().toISOString();
-  // Codex: pre-trust the fresh temp dir via the throwaway smoke profile —
-  // otherwise the directory-trust dialog renders, and (pre-guard) its `›`
-  // option cursor satisfied the readiness scrape, so the first bracketed
-  // paste went INTO the dialog: text discarded, Enter silently answered
-  // "Yes, continue" (probed spikes/codex-boot-input-window, 2026-07-17).
-  if (provider === "codex") {
-    ensureSmokeTrustProfile(workspace);
-  }
-  host.startTask({
-    cwd: workspace,
-    rows: 42,
-    cols: 140,
-    ...(provider === "codex"
-      ? {
-          // Exact-version probes run while a newer package may exist; the
-          // update picker owns the composer and is unrelated to attachment IO.
-          args: codexArgs({
-            cwd: workspace,
-            permissionMode: "ask-for-approval",
-            profile: CODEX_SMOKE_PROFILE,
-          }).concat("-c", "check_for_update_on_startup=false"),
-        }
-      : { permissionMode: "default", model: "opus", reasoningEffort: "xhigh" }),
-  });
-  transcript.startDiscovery(startedAt);
-  // Boot readiness = the structural composer gate (task:ready no longer
-  // fires at boot — the between-runs poller was retired in S6).
-  await waitUntil(() => host.acceptsPromptInput() || exited, 180000, () => cleanTerminal(raw).slice(-3000));
-  if (exited) {
-    throw new Error(`${provider} exited before ready.\n\n${redact(cleanTerminal(raw).slice(-3000))}`);
+  // Declared BEFORE the boot can throw. Every case's happy path already ran this
+  // in its `finally`, but the two failure paths below (readiness timeout, a CLI
+  // that exited) used to escape with the pty still live AND the transcript's
+  // discovery `setInterval` still armed — it is not unref'd, so nothing else
+  // clears it. Since the per-case isolation above turns those throws into failed
+  // cases and keeps going, the leak became load-bearing: the file would print
+  // its report and then hang forever instead of exiting (review round 1, minor
+  // #2). Cleanup rather than a terminal `process.exit`, deliberately — an
+  // explicit exit would also hide the NEXT leak of this class.
+  const disposeAll = () => {
+    delivery.dispose();
+    transcript.dispose();
+    host.dispose();
+  };
+
+  try {
+    const startedAt = new Date().toISOString();
+    // Codex: pre-trust the fresh temp dir via the throwaway smoke profile —
+    // otherwise the directory-trust dialog renders, and (pre-guard) its `›`
+    // option cursor satisfied the readiness scrape, so the first bracketed
+    // paste went INTO the dialog: text discarded, Enter silently answered
+    // "Yes, continue" (probed spikes/codex-boot-input-window, 2026-07-17).
+    if (provider === "codex") {
+      ensureSmokeTrustProfile(workspace);
+    }
+    host.startTask({
+      cwd: workspace,
+      rows: 42,
+      cols: 140,
+      ...(provider === "codex"
+        ? {
+            // Exact-version probes run while a newer package may exist; the
+            // update picker owns the composer and is unrelated to attachment IO.
+            args: codexArgs({
+              cwd: workspace,
+              permissionMode: "ask-for-approval",
+              profile: CODEX_SMOKE_PROFILE,
+            }).concat("-c", "check_for_update_on_startup=false"),
+          }
+        : { permissionMode: "default", model: "opus", reasoningEffort: "xhigh" }),
+    });
+    transcript.startDiscovery(startedAt);
+    // Boot readiness = the structural composer gate (task:ready no longer
+    // fires at boot — the between-runs poller was retired in S6).
+    await waitUntil(() => host.acceptsPromptInput() || exited, 180000, () => cleanTerminal(raw).slice(-3000));
+    if (exited) {
+      throw new Error(`${provider} exited before ready.\n\n${redact(cleanTerminal(raw).slice(-3000))}`);
+    }
+  } catch (error) {
+    disposeAll();
+    throw error;
   }
 
   return {
@@ -357,11 +413,7 @@ async function startHost(provider, name) {
     transcript,
     deliveryEvents,
     cleanTail: () => cleanTerminal(raw),
-    dispose: () => {
-      delivery.dispose();
-      transcript.dispose();
-      host.dispose();
-    },
+    dispose: disposeAll,
   };
 }
 

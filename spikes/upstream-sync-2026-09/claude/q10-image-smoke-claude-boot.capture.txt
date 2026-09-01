@@ -1,0 +1,37 @@
+{
+  "version": "2.1.257 (Claude Code)",
+  "workspace": "<mkdtemp>/claude-image-delivery",
+  "reachedReady": true,
+  "readyAtMs": 1790,
+  "ptyExited": false,
+  "timeline": [
+    {
+      "atMs": 1,
+      "type": "file:watching",
+      "kind": null,
+      "decision": null
+    },
+    {
+      "atMs": 26,
+      "type": "task:started",
+      "kind": null,
+      "decision": null
+    },
+    {
+      "atMs": 327,
+      "type": "approval:detected",
+      "kind": "workspace-trust",
+      "decision": null
+    },
+    {
+      "atMs": 1034,
+      "type": "approval:decision",
+      "kind": null,
+      "decision": "approve"
+    }
+  ],
+  "approvalDetected": true,
+  "approvalDecision": "approve",
+  "brokerOn": false,
+  "tail": "78\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\nAccessingworkspace:\n\n\n\n/private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-jllnGZ/claude-image-delivery\n\n\n\nQuicksafetycheck:Isthisaprojectyoucreatedoroneyoutrust?(Likeyourowncode,awell-knownopensourceproject,orworkfrom\n\nyourteam).Ifnot,takeamomenttoreviewwhat'sinthisfolderfirst.\n\n\n\nClaudeCode'llbeabletoread,edit,andexecutefileshere.\n\n\n\nSecurityguide\n\n\n\n❯No,exit\n\nYes,Itrustthisfolder\n\n\n\nEntertoconfirm·Esctocancel\n\n\n No, exit\n❯Yes, I trust this folder\n\n\n\n\n❯No, exit\n Yes, I trust this folder\n\n\n\n\n No, exit\n❯Yes, I trust this folder\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n ▐▛███▛█Claude Codev2.1.257\n▝▜██████▀Opus 5 with xhigh effort · Claude Max\n  ▝▝ ▝▝  /private/var/folders/ly/gsssdfkd18dfnxrkw1rrg5mh0000gn/T/sonata-native-image-smoke-jllnGZ/claude-image-delivery\n◉ xhigh · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ Try \"how do I log an error?\"\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n/rc connecting…\n⏸ manual mode on · ← for agents\n"
+}

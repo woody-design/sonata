@@ -1,0 +1,40 @@
+{
+  "version": "2.1.257 (Claude Code)",
+  "cases": {
+    "B": {
+      "name": "a printable keypress at the offer",
+      "screenChanged": false,
+      "reachedComposer": false,
+      "keystrokeResurfacedInComposer": false,
+      "offerScreen": " ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/invisible-capture/workspace\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  Try the new fullscreen renderer?\n\n  · Flicker-free output — fixes the flashing you see during long responses\n  · Mouse support — click to move your cursor or expand results\n  · Selected text auto-copies to your clipboard\n\n  ❯ 1. Yes, try it\n    2. Not now\n\n  Enter to confirm · Esc to cancel",
+      "screenAfterKeypress": " ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/invisible-capture/workspace\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  Try the new fullscreen renderer?\n\n  · Flicker-free output — fixes the flashing you see during long responses\n  · Mouse support — click to move your cursor or expand results\n  · Selected text auto-copies to your clipboard\n\n  ❯ 1. Yes, try it\n    2. Not now\n\n  Enter to confirm · Esc to cancel",
+      "composerScreen": " ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/invisible-capture/workspace\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  ⏸ manual mode on · ← for agents                                                           Not logged in · Run /login"
+    },
+    "C": {
+      "name": "bracketed paste + CR at the offer (what delivery writes)",
+      "pid": 51619,
+      "argvBefore": "claude --permission-mode default --settings /private/tmp/sonata-sync-2026-09/fullscreen-offer/delivery-into-offer/runtime/claude-runtime-settings.json",
+      "argvAfter": "/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe --settings /private/tmp/sonata-sync-2026-09/fullscreen-offer/delivery-into-offer/runtime/claude-runtime-settings.json --permission-mode default",
+      "argvSurvived": false,
+      "processStillAlive": true,
+      "ptyExited": false,
+      "pasteVisibleOnOffer": false,
+      "offerAnsweredByTheEnter": true,
+      "payloadReachedAComposer": false,
+      "settingsAfter": null,
+      "offerScreen": " ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/delivery-into-offer/workspace\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  Try the new fullscreen renderer?\n\n  · Flicker-free output — fixes the flashing you see during long responses\n  · Mouse support — click to move your cursor or expand results\n  · Selected text auto-copies to your clipboard\n\n  ❯ 1. Yes, try it\n    2. Not now\n\n  Enter to confirm · Esc to cancel",
+      "screenAfterPaste": " ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/delivery-into-offer/workspace\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  Try the new fullscreen renderer?\n\n  · Flicker-free output — fixes the flashing you see during long responses\n  · Mouse support — click to move your cursor or expand results\n  · Selected text auto-copies to your clipboard\n\n  ❯ 1. Yes, try it\n    2. Not now\n\n  Enter to confirm · Esc to cancel",
+      "screenAfterEnter": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/delivery-into-offer/workspace\n\n  ✔ Using flicker-free rendering · if you want to go back, use /tui default\n    · Click to move your cursor in the text input\n    · Click to expand collapsed tool results\n    · By default, text auto-copies when you select it (/config to change)\n    · Hold Shift (Option in iTerm2, Fn in Terminal.app) while selecting to use your terminal's native copy instead\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents",
+      "finalScreen": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/delivery-into-offer/workspace\n\n  ✔ Using flicker-free rendering · if you want to go back, use /tui default\n    · Click to move your cursor in the text input\n    · Click to expand collapsed tool results\n    · By default, text auto-copies when you select it (/config to change)\n    · Hold Shift (Option in iTerm2, Fn in Terminal.app) while selecting to use your terminal's native copy instead\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents"
+    },
+    "D": {
+      "name": "answer `2. Not now` and reach the composer",
+      "digitMovedTheCursor": false,
+      "reachedComposer": false,
+      "readyAfter": true,
+      "settingsAfter": null,
+      "screenAfterDigit": " ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/safe-decline/workspace\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  ⏸ manual mode on · ← for agents                                                           Not logged in · Run /login\n                                                                                                    ◐ medium · /effort",
+      "finalScreen": " ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/safe-decline/workspace\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  ⏸ manual mode on · ← for agents                                                           Not logged in · Run /login"
+    }
+  }
+}

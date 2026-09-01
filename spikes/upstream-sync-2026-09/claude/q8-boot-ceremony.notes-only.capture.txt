@@ -1,0 +1,216 @@
+{
+  "arm": "notes-only",
+  "version": "2.1.257 (Claude Code)",
+  "workspace": "/private/tmp/sonata-sync-2026-09/boot-ceremony/notes-only/fresh-<ts>",
+  "configDir": "/private/tmp/sonata-sync-2026-09/boot-ceremony/notes-only/claude-config",
+  "rearmSpec": {
+    "why": "the PRODUCTION-REACHABLE case: every auto-update leaves lastReleaseNotesSeen stale, so this notice paints for a real user on the next launch. Renderer answer left INTACT so the notice is measured alone.",
+    "config": {
+      "lastReleaseNotesSeen": "2.1.100"
+    },
+    "deleteSettings": []
+  },
+  "frames": [
+    {
+      "atMs": 25,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": ""
+    },
+    {
+      "atMs": 177,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": "\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n Accessing workspace:\n\n /private/tmp/sonata-sync-2026-09/boot-ceremony/notes-only/fresh-1788290451900\n\n Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source\n project, or work from your team). If not, take a moment to review what's in this folder first.\n\n Claude Code'll be able to read, edit, and execute files here.\n\n Security guide\n\n ❯ No, exit\n   Yes, I trust this folder\n\n Enter to confirm · Esc to cancel"
+    },
+    {
+      "atMs": 481,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": "\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n Accessing workspace:\n\n /private/tmp/sonata-sync-2026-09/boot-ceremony/notes-only/fresh-1788290451900\n\n Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source\n project, or work from your team). If not, take a moment to review what's in this folder first.\n\n Claude Code'll be able to read, edit, and execute files here.\n\n Security guide\n\n   No, exit\n ❯ Yes, I trust this folder\n\n Enter to confirm · Esc to cancel"
+    },
+    {
+      "atMs": 937,
+      "altScreen": true,
+      "acceptsPromptInput": true,
+      "screen": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/boot-ceremony/notes-only/fresh-1788290451900\n\n  Updated to latest. Got 62 features, 379 bugfixes, and 211 other changes.\n  code.claude.com/docs/en/changelog for details\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "atMs": 10847,
+      "altScreen": true,
+      "acceptsPromptInput": true,
+      "screen": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/boot-ceremony/notes-only/fresh-1788290451900\n\n  Updated to latest. Got 62 features, 379 bugfixes, and 211 other changes.\n  code.claude.com/docs/en/changelog for details\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                            Not logged in · Run /login\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents"
+    }
+  ],
+  "candidateFirstSeen": {
+    "trust-dialog": {
+      "atMs": 176,
+      "why": "SL-1, handled — catalogued for its place in the sequence",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source",
+        "   Yes, I trust this folder"
+      ]
+    },
+    "shape:enter-to-confirm": {
+      "atMs": 177,
+      "why": "generic modal footer",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " Enter to confirm · Esc to cancel"
+      ]
+    },
+    "shape:esc-to-cancel": {
+      "atMs": 177,
+      "why": "generic modal footer",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " Enter to confirm · Esc to cancel"
+      ]
+    },
+    "shape:yes-no-rows": {
+      "atMs": 177,
+      "why": "generic two-row consent",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " ❯ No, exit"
+      ]
+    }
+  },
+  "readyTransitions": [
+    {
+      "atMs": 25,
+      "acceptsPromptInput": false,
+      "altScreen": false,
+      "rawScrape": {
+        "ready": false,
+        "confidence": "low",
+        "lastPromptIndex": -1,
+        "promptAfterApproval": false,
+        "hasModelOrCwdHint": false
+      },
+      "gridScrape": {
+        "ready": false,
+        "confidence": "low",
+        "lastPromptIndex": -1,
+        "promptAfterApproval": false,
+        "hasModelOrCwdHint": false
+      },
+      "screen": ""
+    },
+    {
+      "atMs": 936,
+      "acceptsPromptInput": true,
+      "altScreen": true,
+      "rawScrape": {
+        "ready": true,
+        "confidence": "medium",
+        "lastPromptIndex": 1023,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      },
+      "gridScrape": {
+        "ready": true,
+        "confidence": "medium",
+        "lastPromptIndex": 583,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      },
+      "screen": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/boot-ceremony/notes-only/fresh-1788290451900\n\n  Updated to latest. Got 62 features, 379 bugfixes, and 211 other changes.\n  code.claude.com/docs/en/changelog for details\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents"
+    }
+  ],
+  "stream": [
+    {
+      "atMs": 814,
+      "marker": "ALT-SCREEN ENTER (?1049h)"
+    }
+  ],
+  "events": [
+    {
+      "atMs": 1,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 24,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 287,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "workspace-trust"
+      }
+    },
+    {
+      "atMs": 683,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "approve",
+        "encodedAs": "grid-verified Arrow + CR",
+        "previousKind": "workspace-trust"
+      }
+    }
+  ],
+  "trustAnsweredAtMs": 329,
+  "reachedReady": true,
+  "readyAtMs": 936,
+  "ptyExited": false,
+  "exitInfo": null,
+  "composerArming": {
+    "marker": "SONATAARM",
+    "perChar": [
+      {
+        "ch": "S",
+        "echoedWithinMs": 123
+      },
+      {
+        "ch": "O",
+        "echoedWithinMs": 122
+      },
+      {
+        "ch": "N",
+        "echoedWithinMs": 122
+      },
+      {
+        "ch": "A",
+        "echoedWithinMs": 123
+      },
+      {
+        "ch": "T",
+        "echoedWithinMs": 123
+      },
+      {
+        "ch": "A",
+        "echoedWithinMs": 123
+      },
+      {
+        "ch": "A",
+        "echoedWithinMs": 123
+      },
+      {
+        "ch": "R",
+        "echoedWithinMs": 121
+      },
+      {
+        "ch": "M",
+        "echoedWithinMs": 122
+      }
+    ],
+    "allCharsLanded": true,
+    "firstCharEchoedInMs": 123,
+    "swallowedChars": 0,
+    "composerAfterErase": [
+      "❯"
+    ]
+  }
+}

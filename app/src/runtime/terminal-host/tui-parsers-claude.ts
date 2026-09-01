@@ -240,6 +240,145 @@ export function claudeRewindPanelOpen(screenText: string): boolean {
   );
 }
 
+// Claude FULLSCREEN-RENDERER OFFER — the boot interstitial (upstream sync
+// 2026-09-01, SL-3; claude 2.1.257). MEASURED verbatim — the catalog and the
+// numbers below are `spikes/upstream-sync-2026-09/claude/findings.md` F7/F8
+// (tracked; the probe captures it cites are not, per D6), and the frame itself
+// is the tracked fixture `tests/fixtures/claude-boot/fullscreen-offer-2.1.257.txt`:
+//
+//   Try the new fullscreen renderer?
+//
+//   · Flicker-free output — fixes the flashing you see during long responses
+//   · Mouse support — click to move your cursor or expand results
+//   · Selected text auto-copies to your clipboard
+//
+//   ❯ 1. Yes, try it
+//     2. Not now
+//
+//   Enter to confirm · Esc to cancel
+//
+// WHERE IT SITS IN THE CEREMONY. On the NORMAL screen, after the workspace-trust
+// grant and BEFORE the `?1049h` alternate-screen switch (F7: the switch never
+// happens while the offer is unanswered), and before the session starts — the
+// SessionStart hook did not arrive in 60s of the offer standing open. That last
+// fact is why a readiness guard can work at all: `acceptsPromptInput()`'s
+// hook short-circuit is not yet armed, so a screen-owner gate is reachable.
+//
+// WHY IT IS A RED LINE. MEASURED (F8a) — writing exactly what
+// DeliveryController writes at an open boot latch, a bracketed paste followed by
+// the submit CR:
+//   - the paste is DISCARDED (screen byte-identical; the payload never appears);
+//   - the CR answers the FOCUSED row, `1. Yes, try it`;
+//   - the CLI switches renderer and RE-EXECS IN PLACE (same pid, argv rewritten
+//     from `claude …` to `…/claude.exe …`);
+//   - the user's prompt is GONE — no text, no receipt, no error.
+// That is the codex silent-Yes lineage (terminal-host `bootDialogHints`,
+// field-hit 2026-07-17) on the claude side, with a config change the user never
+// asked for on top. (The changelog's "accepting drops the spawn flags" is
+// FALSIFIED at 2.1.257: `--settings` and `--permission-mode` both survived the
+// re-exec, reordered. The lost PROMPT is the harm, not lost flags.)
+//
+// WHY A GUARD IS ENOUGH — the offer does NOT capture input invisibly. A stray
+// printable key at this screen leaves it byte-identical AND does not resurface
+// in the composer once the offer is answered (F8b), so holding until the
+// human answers in the co-visible Terminal loses nothing. Sonata NEVER answers
+// it: `1. Yes, try it` restarts the CLI under a different renderer, which is a
+// configuration decision about the user's own tool.
+//
+// WHY THIS IS NOT `bootDialogHints`. Codex's boot guard works by ORDERING inside
+// `detectIdlePrompt` — its needles must paint AFTER the composer glyph so they
+// outrank it. Here the distinctive text paints BEFORE the `❯`: everything after
+// the cursor row is `2. Not now` and `Enter to confirm · Esc to cancel`, and the
+// footer is ALREADY in the needle list twice (CLAUDE_PANEL_END_MARKERS and the
+// workspace-trust hints), which is the incidental reason readiness happens to
+// hold today. Incidental is the problem: tool panels already dropped
+// `Enter to confirm` once, at 2.1.17x, and if this footer follows them the
+// composer scan opens onto a modal whose Enter re-execs the CLI. A screen-owner
+// predicate keys on the offer's OWN identity instead, which is also what D-1
+// asks for — "is a modal on screen" is a state query, so it reads the grid.
+//
+// ── RECOGNITION, and why a co-occurrence of two substrings is NOT enough here ──
+//
+// This predicate outranks the SessionStart short-circuit, and the boot latch it
+// gates is ONE-WAY (`DeliveryController.bootLatched` never re-closes, and
+// nothing re-reads the scrape afterwards). So a FALSE POSITIVE is not the mild
+// failure it is for the Rewind panel, whose own hold self-clears on the next
+// repaint: here it wedges the latch shut for the life of the session, with the
+// queue sitting at "Queued" over a static screen and no override left. The
+// forgery that reaches it is real and specific — claude ≥2.1.186 REPAINTS
+// TRANSCRIPT HISTORY on a resumed session (the documented reason the hook
+// short-circuit exists at all), so a session that once discussed this screen
+// brings its wording back onto the grid at boot. A pasted frame does the same.
+//
+// Three conditions, therefore, and the third is the one that does the work:
+//
+//   1. the QUESTION, LINE-SCOPED and anchored — the whole compacted line must BE
+//      the question, so prose that merely contains it ("the offer asks Try the
+//      new fullscreen renderer? before…") cannot match;
+//   2. the AFFIRM ROW, LINE-SCOPED and anchored, absorbing an optional cursor
+//      and an optional digit (`parseClaudeTrustDialogRows` below records what
+//      happened when 2.1.252 stripped the digits off the trust rows — the same
+//      hand can strip these);
+//   3. NO PERMISSION MODE LINE ON SCREEN. This is the structural discriminator,
+//      and it is what a needle count can never be. The real offer paints BEFORE
+//      the session starts: there is no composer on that screen and no permission
+//      mode to display, MEASURED absent in every captured offer frame. Every
+//      forgery, by construction, has a LIVE COMPOSER under it — a history
+//      repaint, a paste, model prose — and F6 measured that claude's composer
+//      footer carries a glyph-anchored mode line in ALL FOUR modes, never absent.
+//      So the negative separates "the offer owns the screen" from "the offer's
+//      words are on a screen the composer owns", which is exactly the question.
+//      `CLAUDE_MODE_LINE_ON_SCREEN_RE` is reused rather than restated (it is
+//      already S2's tested vocabulary, and already glyph-anchored precisely to
+//      keep prose out of a screen-state answer). Declared further down this
+//      file; read at call time, so the reference is fine.
+//
+// REJECTED — adding a third BODY needle from the offer's feature bullets
+// (`Flicker-free output`, `Mouse support`). It points the wrong way: every
+// additional REQUIRED needle makes the guard fire LESS, so a single reworded
+// marketing bullet fails the guard OPEN onto the modal whose Enter destroys the
+// prompt — the harmful direction. It also does not close the forgery it was
+// meant to close, because a repaint or paste of the frame carries the bullets
+// too. Condition 3 costs nothing on the fire-less axis (the real frame cannot
+// have a mode line) and closes the whole class.
+//
+// KNOWN BOUNDARY: the anchored question line assumes the offer's own line does
+// not WRAP, which holds for any viewport at least ~34 columns wide. Below that
+// the guard reads closed — the same viewport-too-narrow boundary `isCodexTrustDialog`
+// documents, and the same direction: a pane that small has bigger problems.
+const CLAUDE_FULLSCREEN_OFFER_QUESTION_LINE_RE = /^trythenewfullscreenrenderer\?$/i;
+const CLAUDE_FULLSCREEN_OFFER_AFFIRM_LINE_RE = /^❯?\d*\.?yes,tryit$/i;
+
+/** Claude's fullscreen-renderer boot offer owns the SCREEN — pass a rendered
+ *  viewport (`TaskScreenModel.viewportText()`), never a pty tail.
+ *
+ *  Treated as a screen owner by readiness: the boot latch must not open on it,
+ *  because the Enter that opens delivery answers the offer and destroys the
+ *  prompt (see above). Recognition + hold only; Sonata writes nothing here. */
+export function claudeFullscreenOfferOpen(screenText: string): boolean {
+  const cleaned = cleanTerminal(screenText);
+  // A composer is on screen, so whatever else is here is CONTENT, not a boot
+  // modal. Checked first: it is the cheap single test, and it is the one that
+  // makes a resumed session's history repaint safe.
+  if (CLAUDE_MODE_LINE_ON_SCREEN_RE.test(cleaned)) {
+    return false;
+  }
+  let question = false;
+  let affirm = false;
+  for (const line of cleaned.split("\n")) {
+    // Compacted per line (escapes + all whitespace removed), like every other
+    // claude row reader here: it absorbs word-position painting and makes the
+    // stream's collapsed spacing read the same as a laid-out grid row.
+    const compact = line.replace(/\s+/g, "");
+    if (CLAUDE_FULLSCREEN_OFFER_QUESTION_LINE_RE.test(compact)) {
+      question = true;
+    } else if (CLAUDE_FULLSCREEN_OFFER_AFFIRM_LINE_RE.test(compact)) {
+      affirm = true;
+    }
+  }
+  return question && affirm;
+}
+
 // Claude WORKSPACE-TRUST dialog rows (upstream sync 2026-09-01, claude 2.1.252).
 // The boot dialog that asks whether the workspace may be trusted. Two rows, one
 // `❯` cursor, answered ONLY by moving that cursor and pressing Enter.

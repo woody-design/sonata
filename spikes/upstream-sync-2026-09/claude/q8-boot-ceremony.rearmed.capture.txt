@@ -1,0 +1,156 @@
+{
+  "arm": "rearmed",
+  "version": "2.1.257 (Claude Code)",
+  "workspace": "/private/tmp/sonata-sync-2026-09/boot-ceremony/rearmed/fresh-<ts>",
+  "configDir": "/private/tmp/sonata-sync-2026-09/boot-ceremony/rearmed/claude-config",
+  "rearmedFlags": {
+    "config": {
+      "fullscreenUpsellSeenCount": 0,
+      "passesUpsellSeenCount": 0,
+      "hasResetAutoModeOptInForDefaultOffer": false,
+      "hasSeenAutoModeEntryWarning": false,
+      "lastReleaseNotesSeen": "2.1.100",
+      "announcementImpressions": {},
+      "seenNotifications": {}
+    },
+    "settingsDeleted": [
+      "tui"
+    ]
+  },
+  "frames": [
+    {
+      "atMs": 26,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": ""
+    },
+    {
+      "atMs": 329,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": "\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n Accessing workspace:\n\n /private/tmp/sonata-sync-2026-09/boot-ceremony/rearmed/fresh-1788290196699\n\n Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source\n project, or work from your team). If not, take a moment to review what's in this folder first.\n\n Claude Code'll be able to read, edit, and execute files here.\n\n Security guide\n\n ❯ No, exit\n   Yes, I trust this folder\n\n Enter to confirm · Esc to cancel"
+    },
+    {
+      "atMs": 482,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": "\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n Accessing workspace:\n\n /private/tmp/sonata-sync-2026-09/boot-ceremony/rearmed/fresh-1788290196699\n\n Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source\n project, or work from your team). If not, take a moment to review what's in this folder first.\n\n Claude Code'll be able to read, edit, and execute files here.\n\n Security guide\n\n   No, exit\n ❯ Yes, I trust this folder\n\n Enter to confirm · Esc to cancel"
+    },
+    {
+      "atMs": 938,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": " ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/boot-ceremony/rearmed/fresh-1788290196699\n\n  Updated to latest. Got 62 features, 379 bugfixes, and 211 other changes.\n  code.claude.com/docs/en/changelog for details\n\n  Fable 5.1 writes better code and reports progress on long tasks. Switch anytime with /model.\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  Try the new fullscreen renderer?\n\n  · Flicker-free output — fixes the flashing you see during long responses\n  · Mouse support — click to move your cursor or expand results\n  · Selected text auto-copies to your clipboard\n\n  ❯ 1. Yes, try it\n    2. Not now\n\n  Enter to confirm · Esc to cancel"
+    }
+  ],
+  "candidateFirstSeen": {
+    "trust-dialog": {
+      "atMs": 329,
+      "why": "SL-1, handled — catalogued for its place in the sequence",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source",
+        "   Yes, I trust this folder"
+      ]
+    },
+    "shape:enter-to-confirm": {
+      "atMs": 329,
+      "why": "generic modal footer",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " Enter to confirm · Esc to cancel"
+      ]
+    },
+    "shape:esc-to-cancel": {
+      "atMs": 329,
+      "why": "generic modal footer",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " Enter to confirm · Esc to cancel"
+      ]
+    },
+    "shape:yes-no-rows": {
+      "atMs": 329,
+      "why": "generic two-row consent",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " ❯ No, exit"
+      ]
+    },
+    "fullscreen-offer": {
+      "atMs": 938,
+      "why": "changelog: accepting RESTARTS the process and drops spawn flags",
+      "channel": "grid+stream",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        "  Try the new fullscreen renderer?",
+        "  ❯ 1. Yes, try it"
+      ]
+    }
+  },
+  "readyTransitions": [
+    {
+      "atMs": 26,
+      "acceptsPromptInput": false,
+      "altScreen": false,
+      "rawScrape": {
+        "ready": false,
+        "confidence": "low",
+        "lastPromptIndex": -1,
+        "promptAfterApproval": false,
+        "hasModelOrCwdHint": false
+      },
+      "gridScrape": {
+        "ready": false,
+        "confidence": "low",
+        "lastPromptIndex": -1,
+        "promptAfterApproval": false,
+        "hasModelOrCwdHint": false
+      },
+      "screen": ""
+    }
+  ],
+  "stream": [],
+  "events": [
+    {
+      "atMs": 1,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 25,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 293,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "workspace-trust"
+      }
+    },
+    {
+      "atMs": 683,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "approve",
+        "encodedAs": "grid-verified Arrow + CR",
+        "previousKind": "workspace-trust"
+      }
+    }
+  ],
+  "trustAnsweredAtMs": 329,
+  "reachedReady": false,
+  "readyAtMs": null,
+  "ptyExited": false,
+  "exitInfo": null
+}

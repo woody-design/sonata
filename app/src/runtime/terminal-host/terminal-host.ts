@@ -52,6 +52,7 @@ import { TaskScreenModel } from "./task-screen-model";
 import { ARROW_DOWN, ARROW_UP, cleanTerminal, ESC, KILL_LINE } from "./tui-parsers-common";
 import {
   CLAUDE_MODE_LINE_ON_SCREEN_RE,
+  claudeFullscreenOfferOpen,
   claudeRewindPanelOpen,
   compactRemoteControlScan,
   findRemoteControlUrl,
@@ -885,6 +886,13 @@ export class TerminalHost extends EventEmitter {
     if (this.isRewindPanelOpen()) {
       return false;
     }
+    // Claude's fullscreen-renderer BOOT offer owns the screen the same way — see
+    // isFullscreenOfferOpen. Ranked here for the same reason, even though the
+    // offer is measured painting BEFORE SessionStart could fire: the ordering
+    // that makes it safe today is upstream's, not ours.
+    if (this.isFullscreenOfferOpen()) {
+      return false;
+    }
     // Hook-first: SessionStart is the CLI declaring its composer is up — no
     // scrape can outrank that. Required for resumed sessions on claude
     // ≥2.1.186, whose history repaint (old ❯ lines + "✻ Baked for Ns"
@@ -954,6 +962,43 @@ export class TerminalHost extends EventEmitter {
       return false;
     }
     return claudeRewindPanelOpen(this.screenModel.viewportText());
+  }
+
+  /**
+   * Claude's fullscreen-renderer BOOT offer is on screen (claude 2.1.257;
+   * MEASURED frames + the delivery-into-the-offer experiment in
+   * `claudeFullscreenOfferOpen`). A screen owner for READINESS: the boot latch
+   * must not open on it, because the Enter that opens delivery answers the
+   * offer, destroys the queued prompt and re-execs the CLI under a different
+   * renderer.
+   *
+   * READINESS ONLY, and deliberately not the other three gates the Rewind panel
+   * feeds (`canDeliver`, `submitPrompt`, `nudgePromptSubmit`). Those are all
+   * POST-latch paths, and this offer is strictly PRE-latch: it paints between
+   * the trust grant and the alternate-screen switch, before the session starts,
+   * and the boot latch is what unlocks every one of them. Holding
+   * `acceptsPromptInput()` therefore holds all of them, and adding gates for a
+   * state that cannot exist behind them would be scaffolding, not safety. If a
+   * future sync moves an interstitial of this class past the latch, THAT is when
+   * it earns the Rewind panel's full treatment.
+   *
+   * Sonata NEVER answers it — same standing rule as the Rewind panel and the
+   * codex trust dialog. The two answers are a renderer choice for the user's own
+   * tool; the human answers in the co-visible Terminal and the hold clears by
+   * itself when the composer paints (the delivery pump re-polls this gate).
+   *
+   * SYNCHRONOUS `viewportText()` and grid-not-stream, for the reasons spelled
+   * out on `isRewindPanelOpen` above; the staleness asymmetry is the same, and
+   * the safe edge (reads open → holds) is the one this predicate can hit.
+   *
+   * Codex has no such offer; claude-only so a codex frame can never reach a
+   * claude-shaped needle.
+   */
+  isFullscreenOfferOpen(): boolean {
+    if (this.profile.provider !== "claude" || !this.screenModel) {
+      return false;
+    }
+    return claudeFullscreenOfferOpen(this.screenModel.viewportText());
   }
 
   /** The SessionStart hook arrived for this PTY's session (startup, resume,
@@ -4153,8 +4198,22 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
         workspaceTrust: CLAUDE_WORKSPACE_TRUST_APPROVAL_HINTS,
       },
       approvalEndMarkers: CLAUDE_PANEL_END_MARKERS,
-      // Claude's trust dialog already blocks readiness via the workspaceTrust
-      // approval needles above; no separate boot-dialog vocabulary needed.
+      // EMPTY ON PURPOSE, and re-decided against a measured catalog (upstream
+      // sync 2026-09-01, SL-3) rather than left as an assumption.
+      //
+      // The trust dialog is covered by the workspaceTrust needles above. The
+      // boot sweep found exactly one OTHER interstitial that can own the screen
+      // between spawn and the first idle composer — the fullscreen-renderer
+      // offer (the catalog is spikes/upstream-sync-2026-09/claude/findings.md
+      // F7) — and this vocabulary structurally cannot guard it. `bootDialogHints`
+      // works by ORDERING: a needle only holds readiness when it paints AFTER
+      // the composer glyph. The offer's identity paints BEFORE its `❯`; all
+      // that follows the cursor row is `2. Not now` (too generic to admit — it
+      // would let assistant prose forge a hold) and `Enter to confirm · Esc to
+      // cancel`, which is already in the needle list twice. The guard for that
+      // screen is therefore a grid screen-owner predicate, `isFullscreenOfferOpen`
+      // — keyed on the offer's own wording, ranked above the SessionStart
+      // short-circuit, and unaffected by paint order.
       bootDialogHints: [],
     };
   }

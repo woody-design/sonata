@@ -1,0 +1,16 @@
+ ▐▛███▛█   Claude Code v2.1.257
+▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer/invisible-capture/workspace
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Try the new fullscreen renderer?
+
+  · Flicker-free output — fixes the flashing you see during long responses
+  · Mouse support — click to move your cursor or expand results
+  · Selected text auto-copies to your clipboard
+
+  ❯ 1. Yes, try it
+    2. Not now
+
+  Enter to confirm · Esc to cancel

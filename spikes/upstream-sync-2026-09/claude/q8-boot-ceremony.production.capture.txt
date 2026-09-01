@@ -1,0 +1,228 @@
+{
+  "arm": "production",
+  "version": "2.1.257 (Claude Code)",
+  "workspace": "/private/tmp/sonata-sync-2026-09/boot-ceremony/production/fresh-<ts>",
+  "configDir": "<real ~/.claude>",
+  "rearmedFlags": null,
+  "frames": [
+    {
+      "atMs": 30,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": ""
+    },
+    {
+      "atMs": 336,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": "\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n Accessing workspace:\n\n /private/tmp/sonata-sync-2026-09/boot-ceremony/production/fresh-1788289968772\n\n Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source\n project, or work from your team). If not, take a moment to review what's in this folder first.\n\n Claude Code'll be able to read, edit, and execute files here.\n\n Security guide\n\n ❯ No, exit\n   Yes, I trust this folder\n\n Enter to confirm · Esc to cancel"
+    },
+    {
+      "atMs": 640,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": "\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n Accessing workspace:\n\n /private/tmp/sonata-sync-2026-09/boot-ceremony/production/fresh-1788289968772\n\n Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source\n project, or work from your team). If not, take a moment to review what's in this folder first.\n\n Claude Code'll be able to read, edit, and execute files here.\n\n Security guide\n\n   No, exit\n ❯ Yes, I trust this folder\n\n Enter to confirm · Esc to cancel"
+    },
+    {
+      "atMs": 944,
+      "altScreen": false,
+      "acceptsPromptInput": false,
+      "screen": ""
+    },
+    {
+      "atMs": 1399,
+      "altScreen": true,
+      "acceptsPromptInput": true,
+      "screen": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/boot-ceremony/production/fresh-1788289968772\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ Try \"how does <filepath> work?\"\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                       /rc connecting…\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "atMs": 1552,
+      "altScreen": true,
+      "acceptsPromptInput": true,
+      "screen": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/boot-ceremony/production/fresh-1788289968772\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                       /rc connecting…\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "atMs": 2161,
+      "altScreen": true,
+      "acceptsPromptInput": true,
+      "screen": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/boot-ceremony/production/fresh-1788289968772\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "atMs": 11459,
+      "altScreen": true,
+      "acceptsPromptInput": true,
+      "screen": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/boot-ceremony/production/fresh-1788289968772\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents"
+    }
+  ],
+  "candidateFirstSeen": {
+    "trust-dialog": {
+      "atMs": 335,
+      "why": "SL-1, handled — catalogued for its place in the sequence",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source",
+        "   Yes, I trust this folder"
+      ]
+    },
+    "shape:enter-to-confirm": {
+      "atMs": 336,
+      "why": "generic modal footer",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " Enter to confirm · Esc to cancel"
+      ]
+    },
+    "shape:esc-to-cancel": {
+      "atMs": 336,
+      "why": "generic modal footer",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " Enter to confirm · Esc to cancel"
+      ]
+    },
+    "shape:yes-no-rows": {
+      "atMs": 336,
+      "why": "generic two-row consent",
+      "channel": "grid",
+      "altScreen": false,
+      "sonataReadyWhileOnScreen": false,
+      "matchedLines": [
+        " ❯ No, exit"
+      ]
+    }
+  },
+  "readyTransitions": [
+    {
+      "atMs": 30,
+      "acceptsPromptInput": false,
+      "altScreen": false,
+      "rawScrape": {
+        "ready": false,
+        "confidence": "low",
+        "lastPromptIndex": -1,
+        "promptAfterApproval": false,
+        "hasModelOrCwdHint": false
+      },
+      "gridScrape": {
+        "ready": false,
+        "confidence": "low",
+        "lastPromptIndex": -1,
+        "promptAfterApproval": false,
+        "hasModelOrCwdHint": false
+      },
+      "screen": ""
+    },
+    {
+      "atMs": 1399,
+      "acceptsPromptInput": true,
+      "altScreen": true,
+      "rawScrape": {
+        "ready": true,
+        "confidence": "medium",
+        "lastPromptIndex": 939,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      },
+      "gridScrape": {
+        "ready": true,
+        "confidence": "medium",
+        "lastPromptIndex": 480,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      },
+      "screen": "\n ▐▛███▛█   Claude Code v2.1.257\n▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/boot-ceremony/production/fresh-1788289968772\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ Try \"how does <filepath> work?\"\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                       /rc connecting…\n  ⏸ manual mode on · ← for agents"
+    }
+  ],
+  "stream": [
+    {
+      "atMs": 1310,
+      "marker": "ALT-SCREEN ENTER (?1049h)"
+    }
+  ],
+  "events": [
+    {
+      "atMs": 1,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 29,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 336,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "workspace-trust"
+      }
+    },
+    {
+      "atMs": 843,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "approve",
+        "encodedAs": "grid-verified Arrow + CR",
+        "previousKind": "workspace-trust"
+      }
+    }
+  ],
+  "trustAnsweredAtMs": 488,
+  "reachedReady": true,
+  "readyAtMs": 1399,
+  "ptyExited": false,
+  "exitInfo": null,
+  "composerArming": {
+    "marker": "SONATAARM",
+    "perChar": [
+      {
+        "ch": "S",
+        "echoedWithinMs": 123
+      },
+      {
+        "ch": "O",
+        "echoedWithinMs": 122
+      },
+      {
+        "ch": "N",
+        "echoedWithinMs": 122
+      },
+      {
+        "ch": "A",
+        "echoedWithinMs": 122
+      },
+      {
+        "ch": "T",
+        "echoedWithinMs": 122
+      },
+      {
+        "ch": "A",
+        "echoedWithinMs": 122
+      },
+      {
+        "ch": "A",
+        "echoedWithinMs": 123
+      },
+      {
+        "ch": "R",
+        "echoedWithinMs": 123
+      },
+      {
+        "ch": "M",
+        "echoedWithinMs": 122
+      }
+    ],
+    "allCharsLanded": true,
+    "firstCharEchoedInMs": 123,
+    "swallowedChars": 0,
+    "composerAfterErase": [
+      "❯"
+    ]
+  }
+}

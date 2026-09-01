@@ -290,3 +290,249 @@ Terminal is a live, mouse-answerable approval surface today.
 
 NOT FIXED HERE — the brief scopes mouse to report-only and calls an actively
 answering channel an incident, not a slice.
+
+---
+
+# SL-3 — claude BOOT-CEREMONY sweep (probed 2026-09-01, binary 2.1.257)
+
+Binary re-pinned at probe start and again at the end: `2.1.257 (Claude Code)`
+(the auto-update from 2.1.252 landed at 14:57, before this slice began; the
+bundle's own `VERSION:"2.1.257"` string agrees). Probes `q8-boot-ceremony.mjs`,
+`q9-fullscreen-offer-input.mjs`, `q10-image-smoke-claude-boot.mjs`. All three
+drive a REAL `TerminalHost` from `dist/` with Sonata's own spawn args, because
+the question is about SONATA's readiness, not the CLI's screen —
+`acceptsPromptInput()` short-circuits on the SessionStart hook, which a bare
+spike spawn never delivers, so a bare-spawn sweep could not see the interesting
+failure at all.
+
+## F7 — the measured boot catalog: ONE guardable interstitial, and it is not the trust dialog
+
+Three arms, one variable (the config dir). Arm A is the field. Arms B/C copy
+`~/.claude.json` + `settings.json` into a scratch `CLAUDE_CONFIG_DIR`
+(`ptyEnvironment` strips every `CLAUDE_CODE_*` but deliberately KEEPS
+`CLAUDE_CONFIG_DIR`) and re-arm one-time bookkeeping there. The real `~/.claude`
+is never written.
+
+| interstitial | appears? | screen side | input behaviour | guard action |
+|---|---|---|---|---|
+| workspace-trust dialog | **YES**, every fresh cwd, `t≈330ms` | NORMAL (before `?1049h`) | armed ≤500ms after paint; digits INERT; Enter answers the focused row | already handled (SL-1 walk); no new guard |
+| **fullscreen-renderer offer** | **YES** when the account has not answered it (arm B, `t≈940ms`) | NORMAL — the alt-screen switch NEVER happens while it is open | printable keys DISCARDED (not buffered); **digits answer IMMEDIATELY, no Enter**; Enter answers the focused row | **NEW GUARD** — `claudeFullscreenOfferOpen` (F8) |
+| release-notes / "Updated to latest" banner | **YES** (arm C, in the welcome block) | ALT screen, above a live composer | none — it is a banner, not a modal; `ready` true at 937ms | measured NO-OP; pinned as a negative in the smoke |
+| "Fable 5.1 … Switch anytime with /model" tip | YES (arm B, same block) | NORMAL | none — a notice line | measured NO-OP |
+| `Plugin updated: <name> · Run /reload-plugins` | YES, but MID-SESSION (q5 post-turn tail, SL-2) — not at boot | ALT | none — prints AFTER the composer `❯`, so it cannot invert the ordering rule | measured NO-OP |
+| auto-mode default offer | **NOT SEEN** (arms A/B/C) | — | — | UNREPRODUCED — see the fidelity limit below; NOT guard-eligible |
+| managed-settings approval prompt | **NOT SEEN** | — | — | measured NO-OP with a mechanism (below) |
+| "Update installed · Restart to apply" | **NOT SEEN** in 90s past ready, ×3 arms | — | — | UNREPRODUCED (needs an update to land mid-run); NOT guard-eligible |
+| usage-credits / Fable first-use prompt | **NOT SEEN** | — | — | UNREPRODUCED + account-gated; NOT guard-eligible |
+| plugin-recommendation modal, API-spend notice, LSP suggestion | **NOT SEEN** | — | — | UNREPRODUCED; the plugin modal is command-triggered, not boot |
+| login ceremony | **NOT SEEN** — and arms B/C are LOGGED OUT, so this is a real negative: a logged-out 2.1.257 boots straight to a working composer with a `Not logged in · Run /login` footer, no modal | ALT | — | out of scope (SL-x login) |
+
+The production ceremony, MEASURED end to end (arm A,
+`q8-boot-ceremony.production.capture.txt`): `task:started` 26ms → trust dialog
+paints 336ms (NORMAL screen) → SL-1 walk answers 843ms → `?1049h` **1310ms** →
+composer + `acceptsPromptInput()` true **1399ms** → `/rc` pill goes green 2161ms
+→ the `◐ medium · /effort` line is erased when the statusline render lands
+11459ms → **nothing changes for the remaining 90s**. So F3's "boots into the
+alternate screen AFTER the trust grant" holds byte-for-byte at 2.1.257, and the
+alt-screen switch is a reliable "the ceremony is over" marker.
+
+**Composer input ARMING: there is none.** SL-1 measured a ≤500ms arming window
+on the trust dialog (a Down at +0ms swallowed). The composer has no counterpart
+— 9 characters written one at a time all echoed, first one within the 120ms
+sampling floor, zero swallowed, in both arm A and arm C. Sonata's
+`bootDeliveryGraceMs` is not load-bearing for claude at 2.1.257.
+
+**Why the managed-settings prompt is a NO-OP here, with a mechanism rather than
+an absence.** It needs a policy file, and this machine has neither
+`/Library/Application Support/ClaudeCode/` nor `/etc/claude-code/`. It also
+cannot be introduced through Sonata's spawn: the CLI reads an explicit path from
+`CLAUDE_CODE_MANAGED_SETTINGS_PATH`, and `ptyEnvironment` deletes every
+`CLAUDE_CODE_*` variable before spawning. A managed org COULD still deliver one
+remotely — untestable on a personal Max account, so this is scoped to "not for
+this account, on this machine", not "impossible".
+
+**FIDELITY LIMIT of arms B/C — they are LOGGED OUT, and it is measured, not
+assumed.** Credentials live in the macOS Keychain keyed to the DEFAULT config
+dir: `CLAUDE_CONFIG_DIR=<copy> claude auth status --json` returns
+`{"loggedIn":false,"authMethod":"none"}`, and the boot header duly reads
+`API Usage Billing` instead of `Claude Max`. Client-side interstitials (the
+renderer offer, the release-notes banner) are unaffected and their frames are
+real. Anything ACCOUNT-GATED is NOT validly measured there — so the auto-mode
+offer's and the credits prompt's NOT-SEEN in arms B/C is **not evidence of
+absence**. Copying a live OAuth token to /private/tmp to close that gap was
+considered and REJECTED: writing a credential to disk for a probe is not a
+trade this slice should make, and UNREPRODUCED is the honest verdict.
+
+**Why the renderer offer does not reproduce in arm A** (grep/config evidence,
+hypothesis-grade): `~/.claude.json` has `fullscreenUpsellSeenCount: 3` and the
+bundle's gate is `(fullscreenUpsellSeenCount ?? 0) >= l1e` with `l1e=3`, and
+`~/.claude/settings.json` already records the taken answer as `tui: "fullscreen"`.
+Arm B zeroes the counter and deletes that key; the offer paints. It is exhausted
+for THIS account on THIS machine — not for a Sonata user whose claude has not
+answered it yet, which is the population the guard is for.
+
+## F8 — the fullscreen-renderer offer is a RED LINE: a delivery there destroys the prompt
+
+The frame (MEASURED, `q9-fullscreen-offer-input.capture.txt` case B; the
+tracked fixture `app/tests/fixtures/claude-boot/fullscreen-offer-2.1.257.txt`):
+
+```
+  Try the new fullscreen renderer?
+
+  · Flicker-free output — fixes the flashing you see during long responses
+  · Mouse support — click to move your cursor or expand results
+  · Selected text auto-copies to your clipboard
+
+  ❯ 1. Yes, try it
+    2. Not now
+
+  Enter to confirm · Esc to cancel
+```
+
+**(a) What a Sonata delivery does here** (case C — bracketed paste + submit CR,
+byte-identical to what `DeliveryController` writes at an open boot latch):
+
+- the paste is **DISCARDED** — screen byte-identical, the payload never appears;
+- the CR answers the **focused** row, `1. Yes, try it`;
+- the CLI switches renderer and **re-execs IN PLACE**: same pid (51619), argv
+  rewritten `claude --permission-mode default --settings <p>` →
+  `…/bin/claude.exe --settings <p> --permission-mode default`;
+- the user's prompt is **GONE** — no text, no receipt, no error.
+
+This is the codex silent-Yes lineage (2026-07-17 field hit) on the claude side,
+with an unrequested configuration change on top.
+
+**CHANGELOG HYPOTHESIS FALSIFIED**: "accepting restarts the process and DROPS
+spawn flags". Both `--settings` and `--permission-mode` SURVIVED the re-exec
+(reordered). The lost PROMPT is the harm, not lost flags.
+
+**(b) It does NOT capture input invisibly** (case B). A printable `x` at the
+offer leaves the screen byte-identical AND does not resurface in the composer
+after the offer is answered. So a guard is SUFFICIENT — this screen does not
+force the policy question the brief reserved for Woody. (The managed-settings
+prompt, which the changelog describes that way, never appeared; if it ever does,
+that question is still open.)
+
+**(c) The digits are LIVE here — the opposite of the trust dialog.** `2` alone
+answered "Not now" with no Enter (measured: 300ms later the composer was already
+up, on the classic renderer). At the trust dialog a digit is inert. Two boot
+modals in the same ceremony, opposite input grammars — which is precisely why
+Sonata reads the grid instead of assuming a key.
+
+**(d) Readiness held BEFORE this slice — incidentally, and that is the problem.**
+`acceptsPromptInput()` reads false on the offer today because its footer is
+spelled `Enter to confirm · Esc to cancel`, and both halves are already in
+claude's needle list (`CLAUDE_WORKSPACE_TRUST_APPROVAL_HINTS` and
+`CLAUDE_PANEL_END_MARKERS`), so `detectIdlePrompt`'s ordering rule finds an
+"approval" after the `❯`. Nothing about that is a promise: tool panels ALREADY
+dropped `Enter to confirm` once, at 2.1.17x, which is why those end markers
+exist at all. Strip the footer from the measured frame and the scrape reads
+`ready: true` on a modal whose Enter re-execs the CLI — pinned as a discriminating
+case in `tests/smoke/claude-boot-interstitial.mjs`.
+
+**(e) Why the guard is NOT `bootDialogHints`.** Codex's boot guard works by
+ORDERING inside `detectIdlePrompt`: a needle only holds readiness when it paints
+AFTER the composer glyph. Here the offer's identity paints BEFORE its `❯`;
+everything after the cursor row is `2. Not now` (too generic to admit — it would
+let assistant prose forge a hold) and the shared footer (already in the list
+twice). The vocabulary structurally cannot carry this screen. The guard is
+therefore a grid screen-owner predicate, `claudeFullscreenOfferOpen` →
+`TerminalHost.isFullscreenOfferOpen()`, ranked with `isRewindPanelOpen()` ABOVE
+the SessionStart short-circuit, recognizing the question AND the affirm row on
+one frame (digit-agnostic, since 2.1.252 stripped the digits off the trust rows).
+
+Ranked above the hook even though the offer is measured painting BEFORE
+SessionStart (no hook arrived in 60s of it standing open): that ordering is
+upstream's, not ours.
+
+## F9 — `native-image-attachments.mjs`: the SL-1 residue claim was WRONG, and why nobody could see it
+
+SL-1's commit recorded this file as failing because it "never answers the new
+trust dialog — SL-3". **FALSIFIED, MEASURED** (`q10-image-smoke-claude-boot.mjs`,
+which mirrors the smoke's `startHost("claude", …)` byte for byte): the smoke's
+own `approval:detected` listener fires, `sendApprove()` runs SL-1's grid-verified
+walk (`approval:decision decision=approve` at 1034ms), and the host reaches
+`acceptsPromptInput()` at **1790ms**. The trust dialog has been answered here
+since SL-1 landed.
+
+What actually blocked the claude cases: the file ran **codex first** and printed
+NOTHING until both providers finished. Codex's half at 0.152.0 fails slowly
+(real model turns against 180s receipt waits), so the aggregate runner's
+300s SIGKILL landed before claude ran at all — and because the file's only
+output was a final JSON blob, the kill left an empty output block. The wrong
+diagnosis was an inference from that silence, not a measurement.
+
+Fixed by making the file stop hiding its own evidence: claude first, every case
+error-isolated (a throw is a failed case, not a cancelled suite), and each
+verdict printed as it lands. Codex's cases are untouched and still fail. With
+that, **all five claude cases PASS** against 2.1.257.
+
+## F8b — the guard hardened after review round 1 (forgery → one-way wedge)
+
+Review round 1 found the first cut of `claudeFullscreenOfferOpen` too weak, and
+the reasoning that had justified it was wrong in a way worth recording.
+
+**The mistake.** The first cut was a co-occurrence of two substrings matched
+anywhere in the compacted viewport (`trythenewfullscreenrenderer?` +
+`yes,tryit`). I had assessed a false positive as low-consequence on the grounds
+that the guard is pre-latch and prose cannot exist before the first prompt. That
+argument does not survive **resumed sessions**: claude ≥2.1.186 repaints
+transcript HISTORY at boot — which is the documented reason
+`acceptsPromptInput()` has a hook short-circuit in the first place — so a
+session that once displayed this screen (or a findings file quoting it, or a
+paste) brings its exact wording back onto the grid before the latch opens. And
+because the guard is ranked ABOVE that short-circuit, the hook can no longer
+override it: `DeliveryController.bootLatched` is ONE-WAY, so a forged match
+wedges the queue at "Queued" over a static screen for the life of the session,
+with nothing left to clear it. That is a worse failure than the one the guard
+prevents.
+
+**The fix, and why it is not "more needles".** Three conditions now:
+
+1. the QUESTION, line-scoped and anchored (`^trythenewfullscreenrenderer\?$`);
+2. the AFFIRM ROW, line-scoped and anchored (`^❯?\d*\.?yes,tryit$`, still
+   digit-agnostic);
+3. **no permission mode line anywhere on the frame** — reusing
+   `CLAUDE_MODE_LINE_ON_SCREEN_RE`.
+
+(3) is the one that does the work, and it is structural rather than statistical.
+The real offer paints BEFORE the session starts: no composer, and no permission
+mode to display — MEASURED absent in every captured offer frame, and impossible
+by construction. Every forgery in the class has a LIVE COMPOSER under it, and F6
+measured that claude's composer footer carries a glyph-anchored mode line in ALL
+FOUR modes, never absent. So the negative separates "the offer owns the screen"
+from "the offer's words are on a screen the composer owns" — which is exactly
+the question being asked.
+
+**REJECTED — the reviewer's other suggested direction, a third BODY needle from
+the feature bullets (`Flicker-free output` / `Mouse support`).** It points the
+wrong way on the failure axis: every additional REQUIRED needle makes the guard
+fire LESS, so one reworded marketing bullet fails it OPEN onto the modal whose
+Enter destroys the prompt — the harmful direction, and bullets are the likeliest
+copy to churn. It also does not close the forgery it was chosen for, since a
+repaint or a paste of the frame carries the bullets too. Condition 3 costs
+nothing on that axis (the real frame cannot have a mode line) and closes the
+whole class rather than lowering its probability.
+
+All three new negatives DISCRIMINATE: reverting to the two-substring signature
+and rebuilding fails exactly `prose QUOTING the question inline`, `a RESUMED
+SESSION repainting the offer verbatim`, and `the mode-line negative holds in
+EVERY permission mode`. Signature restored; 19/19 green.
+
+KNOWN BOUNDARY (accepted, documented in code): the anchored question line
+assumes the offer's line does not wrap — true for any viewport ≳34 columns. Below
+that the guard reads closed, the same viewport-too-narrow boundary
+`isCodexTrustDialog` already documents.
+
+## F9b — the image smoke's failure path leaked a pty and a timer
+
+Also review round 1. The per-case isolation added in F9 turned a `startHost`
+throw (readiness timeout, or a CLI that exited) into a failed case and kept
+going — but `startHost` had no failure-path cleanup, so the live pty and the
+`ProviderTranscript` discovery `setInterval` (not `unref`'d; only `dispose()`
+clears it) survived the throw. The file would print its report and then hang
+instead of exiting. Latent before the isolation change; load-bearing after it.
+
+Fixed by disposing host/transcript/delivery on the failure path and rethrowing,
+rather than ending the file with an explicit `process.exit` — an explicit exit
+would have masked the next leak of this class as well as this one.
