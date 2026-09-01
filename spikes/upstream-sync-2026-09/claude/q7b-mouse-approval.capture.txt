@@ -1,0 +1,153 @@
+# Q7b — can a mouse click answer a LIVE claude 2.1.252 approval panel? (SL-2 audit, report-only)
+# claude version: (see findings.md)  captured 2026-09-01T17:53:12.601Z
+
+===== claude --version =====
+2.1.252 (Claude Code)
+
+===== boot — composer reached? =====
+true
+
+===== C — approval panel painted? =====
+true
+
+===== C1 — approval panel before any mouse input =====
+[cursor] x=1 y=17
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.252
+▝▜██████▀  Opus 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/sl2-mouse-approval/ws
+
+
+❯ Create a file named hello.txt in this folder containing the word hi. Do it now.                                       
+
+⏺ Write(hello.txt)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Create file
+ hello.txt
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+  1 hi
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Do you want to create hello.txt?
+ ❯ 1. Yes
+   2. Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session (shift+tab)
+   3. No
+
+ Esc to cancel · Tab to amend
+
+===== C — mouse modes still armed at the panel =====
+?1000h: true
+?1002h: true
+?1003h: true
+?1006h: true
+?1049h: true
+
+===== C — row geometry (0-based) =====
+approve-ish row=17 " ❯ 1. Yes"
+deny row=19 "   3. No"
+
+===== C2 — screen changed by HOVER over the deny row? =====
+true
+
+===== C3 — approval panel after a left CLICK on the deny row =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.252
+▝▜██████▀  Opus 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/sl2-mouse-approval/ws
+
+
+❯ Create a file named hello.txt in this folder containing the word hi. Do it now.                                       
+
+⏺ Write(hello.txt)
+  ⎿  User rejected write to hello.txt
+      1 hi
+
+✻ Crunched for 2s · done 1:54 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  sonata-status-probe                                                                                              /rc
+  ⏸ manual mode on · ← for agents
+
+===== C — VERDICT: did the click answer or move the approval prompt? =====
+screen changed by hover: true
+screen changed by click: true
+cursor now on the deny row: false
+panel dismissed (answered): true
+bytes emitted by the CLI across the mouse window: 914
+pty exited: false
+
+===== C — raw emitted during the mouse window =====
+"\u001b[H\r\u001b[1C\u001b[19B\u001b[38;2;153;153;153m❯\u001b[39m\u001b[40;1H\u001b[18;2H\u001b[H\r\u001b[8B\u001b[38;2;255;107;128m⏺\r\u001b[1B\u001b[38;2;153;153;153m  ⎿  \u001b[38;2;80;80;80mUser rejected write to \u001b[1mhello.txt\r\u001b[1B\u001b[22m\u001b[39m     \u001b[38;2;248;248;242m\u001b[2m 1 hi\u001b[22m\u001b[39m\u001b[K\r\u001b[1C\u001b[1B\u001b[K\r\u001b[1B\u001b[38;2;153;153;153m✻\u001b[39m \u001b[38;2;153;153;153mCrunched for 2s · done 1:54 PM\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1C\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1C\u001b[1B\u001b[K\r\u001b[1C\u001b[1B\u001b[K\r\u001b[3C\u001b[1B\u001b[K\r\u001b[1C\u001b[1B\u001b[K\r\u001b[1C\u001b[2B\u001b[K\r\u001b[100C\u001b[13B\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153msonata-status-probe\u001b[116G\u001b[38;2;78;186;101m/rc\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== C4 — after Esc (panel closed by the keyboard) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.252
+▝▜██████▀  Opus 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/sl2-mouse-approval/ws
+
+
+❯ Create a file named hello.txt in this folder containing the word hi. Do it now.                                       
+
+⏺ Write(hello.txt)
+  ⎿  User rejected write to hello.txt
+      1 hi
+
+✻ Crunched for 2s · done 1:54 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  sonata-status-probe                                                                                              /rc
+  ⏸ manual mode on · ← for agents
+
+===== C — hello.txt created? =====
+false

@@ -171,3 +171,122 @@ Production consequences (Sonata injects statusLine on EVERY spawn):
   beacon rendered at a fixed footer position turns the readiness scrape from
   "upstream's rewordable copy" into "Sonata's own protocol". Evaluate against
   hook-based readiness before committing.
+
+## F5b — the readiness gap is the CHANNEL, not the tokens (q5, SL-2, DECISIVE)
+
+F5's own conclusion ("readiness survives on the `for agents` token alone") is
+too generous. Probe `q5-readiness-channel.mjs` (capture
+`q5-readiness-channel.capture.txt`) put BOTH channels — the raw pty tail and the
+reconstructed grid — through the SAME production function
+(`detectIdlePromptForProvider` from `dist/`) at three sampling moments of one
+production-shape session (`--permission-mode default --settings {statusLine}`).
+
+| moment | RAW tail | GRID |
+|---|---|---|
+| boot idle (×3 samples) | ready, **medium** (`for agents` + mode line) | ready, **medium** |
+| post-turn idle, 14 samples over 42s | ready, **low**, `hasModelOrCwdHint=false` | ready, **medium**, every sample |
+| each of the 4 permission modes | — | ready, **medium** |
+
+The post-turn raw `promptTail` is literally `"❯ "` (later `"❯ \nPlugin updated:
+…"`). Not a wording problem — **there is no footer in the window at all**, so no
+token, however many are added, can match. Cause: 2.1.252 paints inside the
+ALTERNATE SCREEN (F3) and repaints DIFFERENTIALLY. The boot paint is
+top-to-bottom, so the footer lands after the composer glyph in the stream (hence
+boot idle reads medium); every later repaint emits the changed regions and then
+homes the cursor to the composer, emitting a trailing `❯` with nothing after it.
+The stream stopped preserving the screen's layout. The grid — which is what
+`TaskScreenModel` already reconstructs — preserves it exactly.
+
+So `detectIdlePrompt` is scraping a STATE ("is the idle footer on screen") off an
+EVENT channel, which is precisely the channel-misuse D-1 names. Consequence
+TODAY: with the SessionStart handshake alive, `checkCompletionHeuristic` may only
+close a claude PROMPT run at MEDIUM confidence — that backstop (for the
+silent-tool-stop gap, anthropics/claude-code#29881) is dead under production
+spawns; the Stop hook is the only closer. Slash runs and hook-less sessions are
+unaffected. `ready` itself is unharmed throughout (the composer glyph is last),
+so delivery and the boot latch are fine.
+
+THREE candidate fixes, now a real choice for the design session — the beacon is
+no longer the only alternative:
+1. **Grid-sourced confidence** — feed the `hasModelOrCwdHint` leg from
+   `screenModel.viewportText()` while the ordering rule stays on the stream
+   (D-1's own split). Cheapest; claude-only asymmetry (codex spawns
+   `--no-alt-screen`, so its stream is unaffected); re-arms a medium path with a
+   documented field-misfire history, so it needs its own judgement.
+2. **Statusline beacon** — Sonata authors the suppressor, so it can author the
+   signal. Still a scrape, still on the broken channel unless combined with (1).
+3. **Hook-based readiness** — no scrape at all.
+
+Registered, NOT taken. SL-2 landed only what is correct under all three: the
+mode-line redundancy (it pays off in the grid channel, costs nothing in the
+stream one), the retirement of the falsified in-code comment, and a smoke that
+pins the gap so it cannot be forgotten.
+
+## F6 — production idle footer, all four permission modes (q5 section C, MEASURED)
+
+Shift+Tab walk under the statusLine spawn; all four reachable on this account:
+
+```
+⏸ manual mode on · ← for agents
+⏵⏵ accept edits on (shift+tab to cycle) · ← for agents
+⏸ plan mode on (shift+tab to cycle) · ← for agents
+⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+```
+
+Every mode carries BOTH a glyph-anchored mode line and the agents affordance, so
+readiness redundancy across the two is complete — the mode line is never absent
+in any mode. (Also re-confirms the S2 cycle order and that `auto` is live on this
+account.) These four lines are the MEASURED fixture the SL-2 smoke pins.
+
+## F3b — fullscreen substrate audit (SL-2 objective 3)
+
+**(a) `TaskScreenModel` reconstructs the alt-screen frame correctly at 2.1.252 —
+verified against PRODUCTION code, not the spike driver.** The real pty stream of
+a production-shape session (boot → trust walk → a live turn → post-turn idle;
+`CSI ?1049h` present) replayed through `dist/runtime/terminal-host/task-screen-model`
+yields a viewport carrying the composer row, the turn transcript
+(`✻ Churned for 1s · done`) and the full production footer, with `? for
+shortcuts` / `esc to interrupt` correctly absent. `buffer.active` follows the
+alt-screen switch as its doc claims. Pinned as a smoke (`task-ready-detection`,
+"TaskScreenModel reconstructs the 2.1.252 alt-screen idle frame") against the
+tracked fixture `app/tests/fixtures/claude-idle/production-idle-2.1.252.raw.json`.
+No substrate work needed.
+
+**(b) MOUSE — Sonata forwards mouse events to the pty, and at 2.1.252 a click
+ANSWERS an approval panel. INCIDENT-CLASS, report-only per the brief.**
+
+Forwarding path (code, not inference):
+- `app/src/renderer/terminal.ts:266` builds a stock `@xterm/xterm` Terminal for
+  every task pane; nothing disables mouse handling.
+- `app/src/renderer/terminal.ts:301-302` — `term.onData(...)` / `term.onBinary(...)`
+  → `forwardUserInput(taskId, data)` → the pty. These are the ONLY user-input
+  taps, and mouse reports arrive on them.
+- `@xterm/xterm@6.0.0` `src/common/services/CoreMouseService.ts:324-331` —
+  `triggerMouseEvent` encodes the report and calls
+  `_coreService.triggerDataEvent(report, true)` (or `triggerBinaryEvent` for the
+  DEFAULT encoding), i.e. the same channel as typing.
+- `src/browser/CoreBrowserTerminal.ts:727-800` binds `mousemove`/`mouseup`/
+  `wheel`/`mousedrag` from `coreMouseService.onProtocolChange` and always binds
+  `mousedown`, so whatever tracking mode the CLI requests is what gets sent.
+
+What the CLI does with them, MEASURED (`q7-mouse-reports.capture.txt`,
+`q7b-mouse-approval.capture.txt`):
+
+| surface | mouse tracking on? | hover | click |
+|---|---|---|---|
+| workspace-trust dialog | **no** (`?1000h`/`?1006h`/`?1049h` all absent — the trust screen paints on the NORMAL screen) | screen byte-identical | screen byte-identical, dialog not answered, no exit |
+| idle composer (alt screen, `?1000h ?1002h ?1003h ?1006h` on) | yes | byte-identical | byte-identical; wheel and a click on `← for agents` too — **0 bytes** emitted by the CLI across the whole window |
+| **live Write-approval panel** | yes | **moves the `❯` cursor to the hovered row** | **ANSWERS it** — `⎿ User rejected write to hello.txt`, panel dismissed, turn closed |
+
+So: mouse input is inert at the composer and at the trust screen, and is a full
+answering channel on an approval panel. A stray click in Sonata's Terminal pane
+while a panel waits approves or denies a tool call; with `?1003h` (ANY-MOTION)
+on, merely moving the pointer across the pane re-targets the selected row, which
+is also the row a subsequent Enter would confirm. Sonata's own answer paths are
+not currently defeated by this (the trust walk runs on a screen with no mouse
+tracking at all, and panel option keys are absolute digits — 2.1.252's approval
+rows still carry `1.`/`2.`/`3.`, unlike the trust rows), but the co-visible
+Terminal is a live, mouse-answerable approval surface today.
+
+NOT FIXED HERE — the brief scopes mouse to report-only and calls an actively
+answering channel an incident, not a slice.

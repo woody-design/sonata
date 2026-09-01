@@ -11,8 +11,17 @@ import os from "node:os";
 // Covers BOTH pinned-fixture trees (C2 review): the raw-event corpus and the
 // reducer goldens derived from it — a future golden regen from an unsanitized
 // capture fails here, not in a repo audit.
+// THIRD TREE (upstream sync 2026-09-01, SL-2): `claude-idle` pins whole real
+// pty streams from probe sessions against a live CLI — the same class of
+// capture, with the same exposure (cwd paths, the Remote Control session URL a
+// 2.1.252 boot banner prints), so it belongs under the same fence rather than
+// relying on the probe's own sanitizer having been run.
 const FIXTURES = dirname(fileURLToPath(import.meta.url)) + "/../fixtures";
-const ROOTS = [resolve(FIXTURES, "runtime-events"), resolve(FIXTURES, "reducer-goldens")];
+const ROOTS = [
+  resolve(FIXTURES, "runtime-events"),
+  resolve(FIXTURES, "reducer-goldens"),
+  resolve(FIXTURES, "claude-idle"),
+];
 const HOME = os.homedir();
 const USER = process.env.USER ?? "";
 

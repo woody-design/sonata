@@ -12,6 +12,8 @@
 //  - The structural idle-prompt detection (the boot-latch fence and the
 //    run-closer's composer evidence) keeps working.
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -20,7 +22,13 @@ const {
   claudeRewindPanelOpen,
   detectIdleComposerForProvider,
   detectIdlePromptForProvider,
+  normalizeTerminalDimensions,
 } = require("../../dist/runtime");
+// Deep import ON PURPOSE: `TaskScreenModel` is a TerminalHost-internal class and
+// the SL-2 alt-screen fence needs the production one, not a stand-in. Widening
+// the runtime barrel purely for a test would put test scaffolding in the
+// product; the same deep-require convention is already used by other smokes.
+const { TaskScreenModel } = require("../../dist/runtime/terminal-host/task-screen-model");
 
 const failures = [];
 
@@ -595,6 +603,233 @@ await check("submitPrompt refuses to write into an open Rewind panel", async () 
   } finally {
     host.dispose();
   }
+});
+
+// ── claude 2.1.252 PRODUCTION-SHAPE idle footer — upstream sync 2026-09, SL-2 ──
+//
+// Everything above pins BARE-spawn shapes. Sonata never spawns claude bare: it
+// injects a statusLine on every launch (claude-runtime-settings.ts), and the q1
+// strict A/B measured that config suppressing `? for shortcuts`, the
+// `◐ … · /effort` line and `esc to interrupt` outright (findings.md F5). What a
+// production idle footer actually paints is the fixture below.
+//
+// PROVENANCE — MEASURED. `tests/fixtures/claude-idle/production-idle-2.1.252.raw.json`
+// is the VERBATIM pty stream of a real claude 2.1.252 session spawned with
+// `--permission-mode default --settings {statusLine only}`, captured by
+// spikes/upstream-sync-2026-09/claude/q5-readiness-channel.mjs (capture
+// q5-readiness-channel.capture.txt) in a /private/tmp workspace: boot → trust
+// walk → one real turn ("Reply with exactly: OK") → 42s of post-turn idle. The
+// only edit is a TRUNCATION at a paint boundary (the `CSI ?25h` that ends the
+// last batch before the probe's Shift+Tab mode walk began), so the fixture ends
+// in the post-turn idle state the assertions are about. Nothing was reworded.
+//
+// It carries `CSI ?1049h` — 2.1.252 boots into the ALTERNATE SCREEN (F3), which
+// is why this is stored as a stream and replayed, not as a flat frame.
+const productionIdleRaw = JSON.parse(
+  fs.readFileSync(
+    path.resolve(
+      path.dirname(new URL(import.meta.url).pathname),
+      "../fixtures/claude-idle/production-idle-2.1.252.raw.json",
+    ),
+    "utf8",
+  ),
+);
+
+/** The production screen model, fed the fixture, settled, read. */
+async function productionGrid(raw) {
+  // 120×40 is the geometry the fixture was captured at; the PTY's own clamp is
+  // the only one allowed to touch it (terminal-grid-substrate's FENCE 1).
+  const model = new TaskScreenModel(normalizeTerminalDimensions(120, 40));
+  model.write(raw);
+  await new Promise((resolve) => model.whenSettled(resolve));
+  const view = model.viewportText();
+  model.dispose();
+  return view;
+}
+
+// FENCE for the fullscreen substrate (SL-2 objective 3). The alt-screen switch
+// is the 2.1.252 change with the widest blast radius, and the claim that Sonata
+// still sees the screen rests entirely on `buffer.active` following the switch.
+// This proves it with the PRODUCTION class, on a real alt-screen stream, rather
+// than on a spike driver's own emulator.
+await check("TaskScreenModel reconstructs the 2.1.252 alt-screen idle frame", async () => {
+  assert.ok(
+    productionIdleRaw.includes("[?1049h"),
+    "the fixture is an alt-screen stream (or it is not testing what this test says)",
+  );
+  const grid = await productionGrid(productionIdleRaw);
+  const rows = grid.split("\n").filter((row) => row.trim());
+  assert.ok(
+    rows.some((row) => row.trim() === "❯"),
+    `the composer row is on the reconstructed grid:\n${rows.slice(-6).join("\n")}`,
+  );
+  assert.ok(
+    rows.some((row) => /⏸ manual mode on · ← for agents/.test(row)),
+    "the production idle footer is on the reconstructed grid",
+  );
+  assert.ok(
+    rows.some((row) => /Churned for 1s/.test(row)),
+    "the turn transcript above the composer survives the differential repaints",
+  );
+  assert.ok(
+    !/\? for shortcuts/.test(grid) && !/esc to interrupt/i.test(grid),
+    "and the statusLine really has suppressed the pre-2.1.252 needles",
+  );
+});
+
+// The footer line as production paints it, lifted from the reconstructed grid —
+// the single row that has to keep carrying readiness confidence.
+const PRODUCTION_FOOTER = "  ⏸ manual mode on · ← for agents";
+
+await check("the production idle GRID is a medium-confidence idle prompt", async () => {
+  const grid = await productionGrid(productionIdleRaw);
+  const hint = detectIdlePromptForProvider(grid, "claude");
+  assert.equal(hint.ready, true, "the reconstructed idle composer is ready");
+  assert.equal(hint.hasModelOrCwdHint, true, "the production footer is inside the promptTail window");
+  assert.equal(hint.confidence, "medium");
+});
+
+// THE REDUNDANCY. Before SL-2, exactly one alternation of
+// `idlePromptModelHints` could match a production footer — `for agents` — and
+// that affordance is upstream-churned territory (2.1.232 moved `/tasks` and a
+// `← N done` pulse into it). Each half of the footer must now carry the signal
+// ALONE, so one reword cannot silently drop readiness to low.
+//
+// This buys single-token independence, NOT working production readiness: on the
+// channel `detectIdlePrompt` actually reads today there is no footer near the
+// composer at all — see the MEASURED GAP check at the end of this file, which is
+// the honest statement of what is still broken.
+await check("either half of the production footer carries confidence alone", async () => {
+  const grid = await productionGrid(productionIdleRaw);
+  assert.ok(grid.includes(PRODUCTION_FOOTER), "the fixture footer is byte-exact");
+
+  // (a) the agents affordance is REWORDED away (the churn this guards against).
+  const rewordedAgents = grid.replace("· ← for agents", "· ← 3 done");
+  assert.equal(
+    detectIdlePromptForProvider(rewordedAgents, "claude").confidence,
+    "medium",
+    "the mode line alone must hold medium when `for agents` is reworded",
+  );
+
+  // (b) the mode line is gone, the agents affordance remains.
+  const modeLineDropped = grid.replace(PRODUCTION_FOOTER, "  ← for agents");
+  assert.equal(
+    detectIdlePromptForProvider(modeLineDropped, "claude").confidence,
+    "medium",
+    "`for agents` alone must still hold medium (this is the pre-SL-2 behaviour)",
+  );
+
+  // (c) both gone → low. Without this the test above proves nothing: it would
+  // pass on any footer at all.
+  const bothDropped = grid.replace(PRODUCTION_FOOTER, "  ← 3 done");
+  assert.equal(
+    detectIdlePromptForProvider(bothDropped, "claude").confidence,
+    "low",
+    "with neither token the footer carries no confidence — the tokens are what do it",
+  );
+});
+
+// Redundancy has to cover every permission mode, not just the launch one — a
+// user on accept-edits or plan must not lose readiness confidence.
+//
+// PROVENANCE — the four mode lines are MEASURED, transcribed byte-for-byte from
+// q5-readiness-channel.capture.txt section C (a Shift+Tab walk through the full
+// native cycle under the same statusLine spawn; all four were reachable on this
+// account). ADAPTED: each is pasted into the fixture's own reconstructed frame
+// in place of the manual-mode line, because a capture per mode would pin four
+// nearly identical frames to test one row.
+const MEASURED_MODE_FOOTERS = {
+  manual: "  ⏸ manual mode on · ← for agents",
+  "accept edits": "  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+  plan: "  ⏸ plan mode on (shift+tab to cycle) · ← for agents",
+  auto: "  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+};
+for (const [mode, footer] of Object.entries(MEASURED_MODE_FOOTERS)) {
+  await check(`the ${mode} footer carries confidence with the agents token reworded`, async () => {
+    const grid = (await productionGrid(productionIdleRaw)).replace(PRODUCTION_FOOTER, footer);
+    const rewordedAgents = grid.replace("· ← for agents", "· ← 3 done");
+    const hint = detectIdlePromptForProvider(rewordedAgents, "claude");
+    assert.equal(hint.ready, true);
+    assert.equal(
+      hint.confidence,
+      "medium",
+      `the ${mode} mode line must be an independent readiness token`,
+    );
+  });
+}
+
+// The mode phrases are reused from the S2 receipt parser, glyph anchor included
+// (`CLAUDE_MODE_LINE_ON_SCREEN_RE`). Prose that merely contains a phrase is not
+// a footer — the same forgery the parser's anchor was added to reject, applied
+// to a screen-state answer. COMPOSED negative.
+await check("assistant prose about permission modes is not an idle footer", async () => {
+  const proseTail = '✻ Cooked for 2s\n────\n❯ \n────\n  I turned plan mode on, then auto mode on.\n';
+  const hint = detectIdlePromptForProvider(proseTail, "claude");
+  assert.equal(hint.hasModelOrCwdHint, false, "no glyph, no footer");
+  assert.equal(hint.confidence, "low");
+});
+
+// The claude activity vocabulary's OTHER measured casualty (SL-2 objective 2).
+// The statusLine suppresses `esc to interrupt` completely — it is absent from
+// this whole real session's bytes — so the 2.x spinner/summary glyphs are the
+// only thing left telling `detectIdleComposer` that work happened. If they ever
+// stop being activity hints, a production claude turn stops closing by
+// quiescence at all (not just at reduced confidence), so the dependency is
+// pinned rather than assumed.
+await check("claude activity evidence now rests entirely on the spinner glyphs", async () => {
+  assert.ok(
+    !/esc to interrupt/i.test(productionIdleRaw),
+    "the phrase really is absent from a real production session's stream",
+  );
+  assert.equal(
+    detectIdleComposerForProvider(productionIdleRaw, "claude").completed,
+    true,
+    "the turn closes on glyph evidence alone",
+  );
+  const glyphless = productionIdleRaw.replace(/[✢✳✶✻✽]/g, "•");
+  assert.equal(
+    detectIdleComposerForProvider(glyphless, "claude").completed,
+    false,
+    "and with the glyphs gone there is no activity evidence left at all",
+  );
+});
+
+// ── The measured DEGRADATION, pinned so it cannot be forgotten ──────────────
+//
+// This is NOT desired behaviour. `detectIdlePrompt` reads the pty STREAM, and
+// 2.1.252's alt-screen differential repaint emits the footer BEFORE the composer
+// glyph and then homes the cursor to the composer, so after a real turn the
+// forward-700 promptTail is literally `"❯ "` — no footer in it, so NO token can
+// match however many are added. MEASURED across 14 consecutive samples over 42s
+// of post-turn idle (q5 section B): raw channel `confidence=low` every time,
+// reconstructed grid `medium` every time.
+//
+// Consequence today: with the SessionStart handshake alive, the quiescence
+// scrape may only close a claude PROMPT run at MEDIUM confidence
+// (checkCompletionHeuristic) — so that backstop is dead under production spawns
+// and the Stop hook is the only closer. Slash runs and hook-less sessions are
+// unaffected (they never needed medium).
+//
+// The fix is a CHANNEL question (feed the confidence leg from the grid — D-1's
+// "grid for state, stream for events" — versus a Sonata-authored statusline
+// beacon versus hook-based readiness), registered for Woody's design session.
+// WHEN THAT LANDS, THIS ASSERTION MUST BE DELETED, not updated: its whole job is
+// to make the gap loud until then.
+await check("MEASURED GAP: the same session read from the STREAM is only low", async () => {
+  const hint = detectIdlePromptForProvider(productionIdleRaw, "claude");
+  assert.equal(hint.ready, true, "readiness itself survives — the composer glyph is last");
+  assert.equal(
+    hint.hasModelOrCwdHint,
+    false,
+    "the alt-screen repaint left no footer after the composer glyph in the stream",
+  );
+  assert.equal(hint.confidence, "low", "so the stream channel cannot reach medium at 2.1.252");
+  const grid = await productionGrid(productionIdleRaw);
+  assert.equal(
+    detectIdlePromptForProvider(grid, "claude").confidence,
+    "medium",
+    "same bytes, same detector, reconstructed screen — the gap is the CHANNEL, not the tokens",
+  );
 });
 
 if (failures.length > 0) {

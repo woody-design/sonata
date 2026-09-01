@@ -359,12 +359,48 @@ export function parseClaudeTrustDialogRows(screenText: string): ClaudeTrustDialo
 // before the exact phrase, so anchoring on it rejects the prose without
 // weakening the true positives (re-verified against a real stepping e2e).
 const MODE_LINE_GLYPH = "[\\u23f8\\u23f5]";
-const PERMISSION_MODE_LINE_RES: ReadonlyArray<readonly [RegExp, ClaudePermissionMode]> = [
-  [new RegExp(`${MODE_LINE_GLYPH}accepteditson`), "acceptEdits"],
-  [new RegExp(`${MODE_LINE_GLYPH}manualmodeon`), "default"],
-  [new RegExp(`${MODE_LINE_GLYPH}planmodeon`), "plan"],
-  [new RegExp(`${MODE_LINE_GLYPH}automodeon`), "auto"],
+/** The four mode-line phrases and the mode each names — the ONE source both the
+ *  S2 receipt parser below and the readiness footer needle (`terminal-host.ts`,
+ *  `idlePromptModelHints`) are built from. Readiness only asks "is a mode line
+ *  on screen", which is a strictly weaker question than "which mode did we land
+ *  in", so it reuses these phrases rather than restating them; the parser keeps
+ *  sole ownership of the mode SEMANTICS. Order is load-bearing here only as a
+ *  tie-break (first wins at an equal match index) and is unchanged. */
+const CLAUDE_MODE_LINE_PHRASES: ReadonlyArray<readonly [phrase: string, mode: ClaudePermissionMode]> = [
+  ["accept edits on", "acceptEdits"],
+  ["manual mode on", "default"],
+  ["plan mode on", "plan"],
+  ["auto mode on", "auto"],
 ];
+const PERMISSION_MODE_LINE_RES: ReadonlyArray<readonly [RegExp, ClaudePermissionMode]> =
+  CLAUDE_MODE_LINE_PHRASES.map(
+    ([phrase, mode]) => [new RegExp(`${MODE_LINE_GLYPH}${phrase.replace(/\s+/g, "")}`), mode] as const,
+  );
+
+/**
+ * "A permission mode line is on screen" — the readiness detector's footer
+ * needle, NOT a mode reader. `detectIdlePrompt` asks only whether the idle
+ * footer is present near the composer; which mode it names is none of its
+ * business, so this collapses all four phrases into one predicate and returns a
+ * boolean's worth of information. The mode SSOT stays the hook payload, with
+ * `parseClaudePermissionModeLine` as S2's choreography receipt.
+ *
+ * Two differences from the parser's patterns, both deliberate:
+ *  - whitespace-TOLERANT rather than compacted, because it is tested against
+ *    `cleanTerminal` output (escapes stripped, spacing intact) rather than the
+ *    parser's fully compacted tail. `\s*` between words absorbs a paint that
+ *    split the phrase across a cursor move.
+ *  - the same `⏸`/`⏵` glyph anchor. Readiness could afford a looser needle (a
+ *    false positive only raises a confidence label), but the anchor costs
+ *    nothing and keeps assistant prose about permission modes — the exact
+ *    sentence a session ABOUT this code prints — out of a screen-state answer.
+ */
+export const CLAUDE_MODE_LINE_ON_SCREEN_RE = new RegExp(
+  `${MODE_LINE_GLYPH}\\s*(?:${CLAUDE_MODE_LINE_PHRASES.map(([phrase]) =>
+    phrase.split(" ").join("\\s*"),
+  ).join("|")})`,
+  "i",
+);
 
 /** Parse the most recent TUI permission mode line out of the compacted RAW tail,
  *  or null if none is recognized yet (keep waiting until the per-step timeout).

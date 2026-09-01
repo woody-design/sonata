@@ -51,6 +51,7 @@ import { TerminalScrollback } from "./terminal-scrollback";
 import { TaskScreenModel } from "./task-screen-model";
 import { ARROW_DOWN, ARROW_UP, cleanTerminal, ESC, KILL_LINE } from "./tui-parsers-common";
 import {
+  CLAUDE_MODE_LINE_ON_SCREEN_RE,
   claudeRewindPanelOpen,
   compactRemoteControlScan,
   findRemoteControlUrl,
@@ -4024,6 +4025,25 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       approvalSource: "native Claude PTY approval screen",
       supportsSlashStop: false,
       activityHints: [
+        // DEAD UNDER PRODUCTION SPAWNS at 2.1.252, kept deliberately (upstream
+        // sync 2026-09-01, SL-2 audit). Sonata's injected statusLine suppresses
+        // this phrase completely — the q1 strict A/B found it absent from the
+        // ENTIRE raw stream through a live turn (findings.md F5), and the SL-2
+        // re-measurement saw the same (q5: a real turn's bytes carry
+        // `✢ Gesticulating…`, `✳/✶/✻/✽` and the closing `✻ Churned for 1s`, and
+        // no `esc to interrupt` anywhere). Both of this vocabulary's consumers
+        // survive on the GLYPHS below, which are in the stream throughout:
+        // `detectIdlePrompt`'s ordering anchor (composer must paint after work
+        // text) and `detectIdleComposer`'s "work happened" evidence — the
+        // end-of-turn summary line `✻ <verb> for Ns` reliably precedes the
+        // repainted composer, which is exactly the ordering both rules want.
+        // The phrase stays because it costs nothing, still appears on a spawn
+        // without our statusLine (a bare TerminalHost in a test, and any future
+        // spawn shape that drops it), and would come back the moment upstream
+        // stops suppressing it. Nothing else in Sonata depends on it for claude:
+        // StatusRegionTracker matches claude on glyphs (its `esc to interrupt`
+        // pattern is codex-only), and `shared/terminal-transcript.ts` only
+        // SUBTRACTS the phrase as chrome — an absent needle strips nothing.
         "esc to interrupt",
         "esctointerrupt",
         "thinking with",
@@ -4055,15 +4075,59 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
       // claude never paints it, so admitting it would only let a `»` in model
       // PROSE forge a prompt position in claude's stream.
       composerPromptGlyphs: [">", "›", "❯"],
-      // Verified against claude 2.1.209 idle layout (spikes/claude-idle-prompt-fable/):
-      // the model/effort/cwd line renders ABOVE the composer, outside the
-      // forward-700 promptTail window, so the model tokens never match there on
-      // 2.1.x. `shortcuts` (from the idle footer "? for shortcuts") is what
-      // actually lands post-glyph at a true idle composer and is absent while
-      // working ("esc to interrupt") — it, not the model name, restores the
-      // medium-confidence signal. Model/effort tokens kept as a harmless
-      // superset for other layouts; `fable` added for completeness.
-      idlePromptModelHints: /opus|sonnet|haiku|fable|xhigh|high|medium|low|effort|shortcuts|for agents|~/i,
+      // The idle-footer needle behind `hasModelOrCwdHint` (a CONFIDENCE label,
+      // never the `ready` verdict). Verified against claude 2.1.209
+      // (spikes/claude-idle-prompt-fable/): the model/effort/cwd line renders
+      // ABOVE the composer, outside the forward-700 promptTail window, so the
+      // model tokens never match there on 2.1.x — the FOOTER is what lands
+      // post-glyph at a true idle composer.
+      //
+      // STALE CLAIM RETIRED (upstream sync 2026-09-01, SL-2). The previous
+      // comment here said `shortcuts` is what restores medium confidence and is
+      // "absent while working (esc to interrupt)". Both halves are FALSIFIED for
+      // PRODUCTION spawns at 2.1.252 — Sonata injects a statusLine on every
+      // claude spawn (claude-runtime-settings.ts), and the q1 strict A/B
+      // measured that config suppressing `? for shortcuts` and
+      // `esc to interrupt` outright — absent at idle, absent through a live
+      // turn, absent from the entire raw stream. The `◐ … · /effort` line is
+      // suppressed on the SCREEN but not the stream: it is painted once in the
+      // boot sequence and then erased when the statusline render lands
+      // (spikes/upstream-sync-2026-09/claude/findings.md F5, capture q1a; the
+      // pinned production-idle fixture carries that boot paint verbatim).
+      //
+      // What a production idle footer actually paints, MEASURED at 2.1.252
+      // (q5-readiness-channel.capture.txt, all four permission modes walked):
+      //     <statusline output>                                          /rc
+      //     ⏸ manual mode on · ← for agents
+      // so exactly ONE alternation below could still match — `for agents` — and
+      // that affordance is upstream-churned territory (2.1.232 moved `/tasks`
+      // and a `← N done` pulse into it). ONE reword there and the signal dies
+      // silently. The mode line is the independent second token: it is present
+      // in ALL FOUR modes (measured `⏸ manual mode on` / `⏵⏵ accept edits on
+      // (shift+tab to cycle)` / `⏸ plan mode on (shift+tab to cycle)` /
+      // `⏵⏵ auto mode on (shift+tab to cycle)`), and it is the one footer string
+      // Sonata ALREADY depends on elsewhere — S2's permission-switch receipt
+      // reads it — so a reword breaks a loud, tested path instead of only this
+      // quiet one. The phrases are REUSED from that parser
+      // (`CLAUDE_MODE_LINE_ON_SCREEN_RE`), never restated here.
+      //
+      // HONEST LIMIT — this redundancy does not restore production readiness on
+      // its own, and SL-2 did not claim it does. `detectIdlePrompt` reads the
+      // pty STREAM, and 2.1.252 paints inside the alternate screen (F3): its
+      // differential repaint emits the footer BEFORE the composer glyph and then
+      // homes the cursor to the composer, so after a real turn the forward-700
+      // window is literally `"❯ "` — no footer, no token, whatever this regex
+      // says. MEASURED over 42s of post-turn idle, 14 consecutive samples, raw
+      // channel `confidence=low` every time while the reconstructed GRID read
+      // `medium` every time (q5, section B). Fixing that is a CHANNEL question
+      // (grid vs stream vs a Sonata-authored statusline beacon), registered for
+      // Woody's design session — not a token question. The tokens here pay off
+      // in the grid channel and cost nothing in the stream one.
+      // Model/effort tokens kept as a harmless superset for other layouts.
+      idlePromptModelHints: new RegExp(
+        `${CLAUDE_MODE_LINE_ON_SCREEN_RE.source}|opus|sonnet|haiku|fable|xhigh|high|medium|low|effort|shortcuts|for agents|~`,
+        "i",
+      ),
       buildArgs: (options) =>
         claudeArgs({
           permissionMode: options.permissionMode,
