@@ -1335,7 +1335,18 @@ export class RuntimeController {
     return results;
   }
 
-  decideApproval(taskId: TaskId, decision: ApprovalDecision, approvalId: string | null = null): void {
+  /** Async only for the native-key fallback's ONE screen that needs a
+   *  choreography rather than a key: claude's workspace-trust dialog, whose
+   *  approve walks a cursor and can honestly refuse (see
+   *  `TerminalHost.answerClaudeTrustByWalk`). Every other decision — the broker
+   *  reply, the digit answers, the deny — still completes synchronously before
+   *  this returns; awaiting only carries the walk's outcome back to the IPC
+   *  caller, which renders a refusal on the drawer instead of dropping it. */
+  async decideApproval(
+    taskId: TaskId,
+    decision: ApprovalDecision,
+    approvalId: string | null = null,
+  ): Promise<void> {
     const active = this.requireTaskRuntime(taskId);
     // Hook-broker card (S2, Claude): answer on the hook channel — write the
     // reply the broker is polling for. No native keys, no scrape.
@@ -1434,7 +1445,7 @@ export class RuntimeController {
       return;
     }
     if (decision === "approve" || decision === "approve-for-session" || decision === "approve-always") {
-      active.terminalHost.sendApprovalDecision(decision);
+      await active.terminalHost.sendApprovalDecision(decision);
       return;
     }
     active.terminalHost.sendDeny();

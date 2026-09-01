@@ -240,6 +240,96 @@ export function claudeRewindPanelOpen(screenText: string): boolean {
   );
 }
 
+// Claude WORKSPACE-TRUST dialog rows (upstream sync 2026-09-01, claude 2.1.252).
+// The boot dialog that asks whether the workspace may be trusted. Two rows, one
+// `❯` cursor, answered ONLY by moving that cursor and pressing Enter.
+//
+// WHY A ROW READER AT ALL. Through 2.1.220 the affirm row was BOTH first and the
+// default, and it carried a digit, so a bare Enter (or a `1`) answered it — a
+// static key sufficed. At 2.1.252 both of those facts are gone (MEASURED,
+// spikes/upstream-sync-2026-09/claude/q3-trust-variants.capture.txt):
+//
+//   2.1.176:  ❯ 1. Yes, I trust this folder      2.1.252:  ❯ No, exit
+//                2. No, exit                                 Yes, I trust this folder
+//
+// so the affirm row moved from first to second, lost its digit (a digit is now
+// inert — measured: `1` on the live dialog left the screen byte-identical), and
+// the default row became the DECLINE, whose Enter exits the CLI with status 1.
+// Both of Sonata's old approve encodings were measured killing the session on
+// this screen: plain `\r` and CSI-u Enter (`\x1b[13u`) each exited 1.
+//
+// Because the affirm row's POSITION is the thing that moved, the answer path
+// must not assume a direction: it reads both rows' screen positions here and
+// steps toward the affirm one. That keeps the same code correct on the 2.1.176
+// layout (affirm above) and on 2.1.252 (affirm below).
+//
+// READS THE SCREEN GRID, NOT THE STREAM — D-1's standing rule. "Which row holds
+// the cursor" is a STATE query, and claude repaints an arrow move as a per-line
+// cell diff (measured in the same capture: one Down emits only ` No, exit` +
+// `❯Yes, I trust this folder` fragments), so a stream tail carries every cursor
+// position the dialog ever had and cannot say which one is current. The grid
+// converges to the current screen, so it can.
+//
+// Row identity is the row LABEL, matched per line in compacted space (escapes +
+// all whitespace removed) so word-position painting and column wrapping cannot
+// break it, and so an optional leading `1.`/`2.` is absorbed. BOTH rows are
+// required (co-occurrence, as with the cache-miss and Rewind predicates): a
+// single label is forgeable by assistant prose, and a half-read dialog is
+// exactly the state in which a guessed keypress is destructive.
+const CLAUDE_TRUST_AFFIRM_ROW_RE = /yes,itrustthisfolder/i;
+const CLAUDE_TRUST_DECLINE_ROW_RE = /no,exit/i;
+const CLAUDE_TRUST_CURSOR = "❯";
+
+export interface ClaudeTrustDialogRows {
+  /** Screen-row index of `Yes, I trust this folder`. */
+  affirmIndex: number;
+  /** Screen-row index of `No, exit`. */
+  declineIndex: number;
+  /** Which row carries the `❯` cursor; null when neither does (mid-repaint —
+   *  the caller must WAIT, never guess). */
+  focused: "affirm" | "decline" | null;
+}
+
+/**
+ * The trust dialog's two rows and the cursor's position, read off a rendered
+ * viewport. Null when the screen does not show BOTH rows — i.e. this is not the
+ * trust dialog (or not all of it), so nothing may be pressed at it.
+ *
+ * The intended input is ONE screen (the grid). Last occurrence wins per row, so
+ * raw text still resolves to its most recent paint — but only the grid
+ * guarantees the rows and the cursor come from the SAME paint, which is why the
+ * answer path reads the grid (D-1) and not the pty tail.
+ */
+export function parseClaudeTrustDialogRows(screenText: string): ClaudeTrustDialogRows | null {
+  let affirmIndex = -1;
+  let declineIndex = -1;
+  let focused: "affirm" | "decline" | null = null;
+  const lines = cleanTerminal(screenText).split("\n");
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] ?? "";
+    const compact = line.replace(/\s+/g, "");
+    const isAffirm = CLAUDE_TRUST_AFFIRM_ROW_RE.test(compact);
+    const isDecline = !isAffirm && CLAUDE_TRUST_DECLINE_ROW_RE.test(compact);
+    if (!isAffirm && !isDecline) {
+      continue;
+    }
+    if (isAffirm) {
+      affirmIndex = index;
+    } else {
+      declineIndex = index;
+    }
+    // The cursor is read from the row it decorates, so the composer's own bare
+    // `❯ ` prompt (never followed by a row label) can never be mistaken for it.
+    if (compact.includes(CLAUDE_TRUST_CURSOR)) {
+      focused = isAffirm ? "affirm" : "decline";
+    }
+  }
+  if (affirmIndex < 0 || declineIndex < 0) {
+    return null;
+  }
+  return { affirmIndex, declineIndex, focused };
+}
+
 // Mid-session Claude PERMISSION switch (S2). Unlike model/effort (a typed
 // command with one printed receipt), permission has no arg form: Sonata drives
 // the native Shift+Tab (`\x1b[Z`) cycle one step at a time and reads the TUI's

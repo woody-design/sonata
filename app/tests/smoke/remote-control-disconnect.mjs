@@ -28,7 +28,9 @@ const host = new TerminalHost({
     }
     if (event.type === "approval:detected" && event.payload.kind === "workspace-trust") {
       trustApproved = true;
-      host.sendApprove();
+      // See claude-terminalhost.mjs: awaitable walk, sync dispatch — log, never
+      // leave an unhandled rejection.
+      void host.sendApprove().catch((error) => console.error("sendApprove failed:", error));
     }
     if (event.type === "remote-control:state") {
       rcStates.push({ active: event.payload.active, url: event.payload.url, at: Date.now() });

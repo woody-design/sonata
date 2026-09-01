@@ -132,7 +132,7 @@ async function runScenario(name, scenario) {
         `${name}: answered-natively decision from screen evidence`,
       );
     } else {
-      host.sendApprove();
+      await host.sendApprove();
       await waitUntil(
         () => events.some((e) => e.type === "approval:decision"),
         6000,

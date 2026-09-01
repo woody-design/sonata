@@ -48,7 +48,10 @@ const host = new TerminalHost({
     }
     if (event.type === "approval:detected" && event.payload.kind === "workspace-trust") {
       workspaceTrustApproved = true;
-      host.sendApprove();
+      // The trust approve is an awaitable cursor walk; this dispatch is sync, so
+      // log a refusal rather than leave an unhandled rejection (the downstream
+      // assertions fail on their own if trust was never granted).
+      void host.sendApprove().catch((error) => console.error("sendApprove failed:", error));
     }
   },
 });

@@ -314,6 +314,12 @@ export type ApprovalDecisionEncoding =
   | "digit 2"
   | "digit 3"
   | "CR"
+  /** The workspace-trust screen at claude ≥2.1.252: its affirm row is neither
+   *  the default nor digit-addressable, so the only channel is arrow-to-that-row
+   *  + CR — and the CR is written ONLY after the grid shows the affirm row holds
+   *  the cursor. A blind key on this screen exits the CLI (measured: both `\r`
+   *  and CSI-u Enter exit 1 from the default row). */
+  | "grid-verified Arrow + CR"
   | "Esc"
   | "native-keys"
   /** Hook-broker reply (S2): the decision went back on the hook channel —

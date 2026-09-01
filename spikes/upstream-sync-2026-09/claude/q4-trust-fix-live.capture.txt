@@ -1,0 +1,23 @@
+{
+  "version": "2.1.252 (Claude Code)",
+  "workspace": "/private/tmp/sonata-sync-2026-09/trust-fix-live/fresh-<ts>",
+  "detectedChoices": [
+    "approve:grid-verified Arrow + CR",
+    "deny:Esc"
+  ],
+  "virginRows": [
+    " ❯ No, exit",
+    "   Yes, I trust this folder"
+  ],
+  "approveResolvedInMs": 706,
+  "affirmRows": [
+    "   No, exit",
+    " ❯ Yes, I trust this folder"
+  ],
+  "decisionEncodedAs": "grid-verified Arrow + CR",
+  "reachedSession": true,
+  "ptyExited": false,
+  "trustRowsGone": true,
+  "finalScreen": "\n ▐▛███▛█   Claude Code v2.1.252\n▝▜██████▀  Opus 5 with medium effort · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/trust-fix-live/fresh-1788284122993\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "success": true
+}

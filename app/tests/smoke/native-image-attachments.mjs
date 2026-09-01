@@ -279,7 +279,9 @@ async function startHost(provider, name) {
       // approval:detected, wedging `approvalPending` true forever — a re-entrancy
       // that cannot happen in production, where answers arrive via async IPC
       // (s3-diags/image-smoke-gate-diag).
-      setTimeout(() => host.sendApprove(), 0);
+      setTimeout(() => {
+        void host.sendApprove().catch((error) => console.error("sendApprove failed:", error));
+      }, 0);
     }
     if (event.type === "run:started") {
       transcript.ensureDiscovery();

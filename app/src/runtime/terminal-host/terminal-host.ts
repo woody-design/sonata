@@ -49,12 +49,13 @@ import { normalizeTerminalDimensions, type TerminalDimensions } from "../termina
 import { loginShellPath, mergePath } from "./login-shell-path";
 import { TerminalScrollback } from "./terminal-scrollback";
 import { TaskScreenModel } from "./task-screen-model";
-import { ARROW_DOWN, cleanTerminal, ESC, KILL_LINE } from "./tui-parsers-common";
+import { ARROW_DOWN, ARROW_UP, cleanTerminal, ESC, KILL_LINE } from "./tui-parsers-common";
 import {
   claudeRewindPanelOpen,
   compactRemoteControlScan,
   findRemoteControlUrl,
   hasRemoteControlDisconnect,
+  parseClaudeTrustDialogRows,
   REMOTE_CONTROL_SCAN_LIMIT,
 } from "./tui-parsers-claude";
 import { isCodexTrustDialog, isCodexUpdatePrompt } from "./tui-parsers-codex";
@@ -182,6 +183,20 @@ const BROKER_EXPIRY_RESURFACE_MS = 5000;
  *  auto-advance (and the final Submit-tab render) settles before the next key.
  *  Phase 0 saw the advance repaint well under this; generous = robust. */
 const OPTION_PROMPT_KEY_DELAY_MS = 300;
+/** Presses the workspace-trust walk may spend before giving up (its two rows put
+ *  the affirm one ONE press away, so this is 6× the need). The margin exists for
+ *  the measured input-ARMING window after the dialog's paint, which silently
+ *  swallows an early press — the walk re-reads and presses again rather than
+ *  assuming the first one landed. Exhausting the bound aborts; it never guesses. */
+const CLAUDE_TRUST_WALK_MAX_STEPS = 6;
+/** Settle gap after each trust-walk press. The dialog repaints the cursor move on
+ *  the same frame as the key (measured), so this is generous; it is also the
+ *  re-read cadence while a swallowed press leaves the cursor put. */
+const CLAUDE_TRUST_WALK_STEP_MS = 350;
+/** Cap on ONE settled-grid read inside the walk. `whenSettled` drops its queued
+ *  callback if the model is disposed mid-await (teardown), so without this the
+ *  awaiting IPC call — and the drawer's disabled buttons — would hang forever. */
+const CLAUDE_TRUST_WALK_GRID_READ_MS = 2000;
 /** How long after the human's last terminal keystroke Sonata treats them as
  *  actively typing and holds delivery (S2). Bridges the gaps between keystrokes
  *  — and the pause-to-think over a half-typed line — that the idle-prompt
@@ -439,6 +454,18 @@ interface RecentAttributionRun {
   prompt: string;
 }
 
+/**
+ * A screen whose approve cannot be a key sequence at all (upstream sync
+ * 2026-09-01). `optionKeys` answers a panel whose affirm option is addressable
+ * — a digit, or an Enter on a row that is already focused. Claude's 2.1.252
+ * workspace-trust dialog is neither: its affirm row is second, carries no digit,
+ * and the default row's Enter EXITS the CLI. Answering it means moving a cursor
+ * — a choreography with a screen read between every press — so the candidate
+ * names the walk instead of a key, and `sendApprovalDecision` dispatches to it.
+ * One walk exists; the field is absent on every other candidate.
+ */
+type ApprovalAnswerWalk = "claude-workspace-trust";
+
 interface ApprovalCandidate {
   kind: ApprovalKind;
   fingerprint: string | null;
@@ -447,6 +474,10 @@ interface ApprovalCandidate {
   choices: ApprovalChoice[];
   /** v2-parsed panels carry their own decision→key map (digits / CR). */
   optionKeys?: Partial<Record<ApprovalDecision, string>>;
+  /** Set when `approve` is answered by a grid-verified cursor walk rather than
+   *  by `optionKeys` (see ApprovalAnswerWalk). Never set for other decisions:
+   *  deny stays Esc. */
+  optionWalk?: ApprovalAnswerWalk;
   grammar?: "v2" | "legacy";
 }
 
@@ -581,6 +612,15 @@ export class TerminalHost extends EventEmitter {
   /** decision → key bytes for the CURRENTLY surfaced panel (v2 grammar
    *  parses the panel's own numbered options; digits instant-select). */
   private activeApprovalOptionKeys: Partial<Record<ApprovalDecision, string>> | null = null;
+  /** The CURRENTLY surfaced panel's approve is a cursor walk, not a key (see
+   *  ApprovalAnswerWalk). Mirrors `activeApprovalOptionKeys`: written by
+   *  `surfaceApproval`, cleared with it on every spawn/teardown boundary. */
+  private activeApprovalWalk: ApprovalAnswerWalk | null = null;
+  /** A cursor walk is mid-flight. Approvals are single-answer by contract (the
+   *  drawer single-flights, and the FIRST answer consumes the panel), and a
+   *  second walk would press arrows against a screen the first is still moving —
+   *  so a concurrent request is refused loudly rather than interleaved. */
+  private approvalWalkInFlight = false;
   /** Per-task headless screen model (S4b). Reconstructs the CURRENT screen from
    *  the raw PTY stream so `detectApproval` reads the settled grid instead of the
    *  raw byte tail. Created/reset alongside `scrollback` in `startTask`, resized
@@ -937,6 +977,7 @@ export class TerminalHost extends EventEmitter {
     this.brokerExpiryResurfaceAt = null;
     this.approvalSuppressedInSettleWindow = false;
     this.activeApprovalOptionKeys = null;
+    this.activeApprovalWalk = null;
     this.brokerAnsweredFingerprint = null;
     // The broker-ON gate requires an EXPLICIT approvalBroker:true — production
     // sets it in buildStartOptions (the broker is always constructed), while a
@@ -2012,28 +2053,38 @@ export class TerminalHost extends EventEmitter {
     });
   }
 
-  sendApprove(): void {
-    this.sendApprovalDecision("approve");
+  sendApprove(): Promise<void> {
+    return this.sendApprovalDecision("approve");
   }
 
-  sendApproveForSession(): void {
-    this.sendApprovalDecision("approve-for-session");
+  sendApproveForSession(): Promise<void> {
+    return this.sendApprovalDecision("approve-for-session");
   }
 
-  sendApproveAlways(): void {
-    this.sendApprovalDecision("approve-always");
+  sendApproveAlways(): Promise<void> {
+    return this.sendApprovalDecision("approve-always");
   }
 
   /**
    * Answer the surfaced panel with the key its OWN parsed option list maps
-   * to (v2 grammar: digits instant-select; trust: plain CR). Legacy-grammar
-   * panels keep their historically verified encodings. `approve-always`
-   * exists only where the panel offered a native persistent option — there
-   * is no Sonata-invented persistence to fall back to.
+   * to (v2 grammar: digits instant-select). Legacy-grammar panels keep their
+   * historically verified encodings. `approve-always` exists only where the
+   * panel offered a native persistent option — there is no Sonata-invented
+   * persistence to fall back to.
+   *
+   * ASYNC because one screen — the workspace-trust dialog — cannot be answered
+   * by any key: its affirm row is not the default and carries no digit, so
+   * approving it means walking a cursor with a grid read between every press
+   * (`answerClaudeTrustByWalk`). Every other decision still writes its key
+   * SYNCHRONOUSLY, in this same tick, before the first await; the promise only
+   * lets the walk's outcome — including its refusal to guess — reach the caller,
+   * which surfaces it on the drawer and re-enables the button for a retry
+   * (`decideApproval`, session-flows.ts). Mirrors `sendOptionPromptAnswer`,
+   * the other multi-key answer relay.
    */
-  sendApprovalDecision(
+  async sendApprovalDecision(
     decision: Extract<ApprovalDecision, "approve" | "approve-for-session" | "approve-always">,
-  ): void {
+  ): Promise<void> {
     // CSI-u Enter / ArrowDown are Claude's native-panel grammar — WRONG for
     // codex's card (S4). Codex answers exclusively via the broker reply channel;
     // no code path should ever replay panel keys to a codex PTY. Fail loudly
@@ -2042,6 +2093,21 @@ export class TerminalHost extends EventEmitter {
       throw new Error(
         `Native approval-key replay is Claude-only; ${this.profile.provider} answers via the hook broker.`,
       );
+    }
+    // The walk owns `approve` on the screens that declare one, and it is checked
+    // BEFORE the key map on purpose: a trust candidate carries no approve key
+    // precisely so this branch is the only way to affirm it, and the legacy
+    // `CSI_U_ENTER` fallback below would otherwise exit the CLI.
+    if (this.activeApprovalWalk === "claude-workspace-trust") {
+      if (decision === "approve") {
+        await this.answerClaudeTrustByWalk();
+        return;
+      }
+      // The trust screen offers exactly two actions (`claudeTrustChoices`), so
+      // no other positive decision can be legitimate here — and letting one
+      // through would reach the legacy fallback and write `ArrowDown + CSI-u
+      // Enter` blind at a screen where a stray Enter exits the CLI.
+      throw new Error(`The trust screen offers no native option for "${decision}".`);
     }
     const panelKey = this.activeApprovalOptionKeys?.[decision];
     const legacyKey =
@@ -2089,6 +2155,120 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalDecisionAt = decisionAt;
     this.approvalSuppressedInSettleWindow = false;
     this.scheduleApprovalSettleCheck(decisionAt);
+  }
+
+  /**
+   * Affirm claude's workspace-trust dialog by MOVING ITS CURSOR onto the
+   * `Yes, I trust this folder` row and confirming there — the only channel that
+   * screen offers, and the only one that is safe.
+   *
+   * WHY NOT A KEY (all MEASURED at 2.1.252,
+   * spikes/upstream-sync-2026-09/claude/q3-trust-variants.capture.txt):
+   *   - the dialog boots with `❯ No, exit`; the affirm row is SECOND,
+   *   - its rows carry no digits, and a digit is inert (screen byte-identical),
+   *   - `\r` and CSI-u Enter — Sonata's two former approve encodings — each
+   *     answered the DEFAULT row and exited the CLI with status 1. A user
+   *     tapping Approve killed the session.
+   * The row order is what moved (2.1.176 had the affirm row FIRST, with a
+   * digit), so this walk takes its direction from the grid rather than assuming
+   * one: it is correct on both layouts and on whatever the next one is.
+   *
+   * WHY VERIFY-AND-RETRY RATHER THAN A FIXED SEQUENCE. An input-ARMING window
+   * follows the dialog's paint (measured, q2): a Down written at +0ms is
+   * swallowed — the screen stays byte-identical — while one at +500ms lands.
+   * A blind `ArrowDown + CR` therefore has a state in which the CR answers
+   * `No, exit`. In the field the window is long spent by the time a human taps
+   * Approve, but the co-visible Terminal makes the cursor's position genuinely
+   * unknown anyway (the user can move it themselves), which is the deeper
+   * reason the position is READ and never assumed.
+   *
+   * RED LINE: nothing is pressed at a screen this cannot read. A grid without
+   * BOTH rows, or with the cursor on neither, aborts — it never presses an arrow
+   * "to see what happens", and it never confirms except from a frame that shows
+   * the affirm row focused. Aborting is safe by construction: no decision is
+   * emitted, the panel stays live and answerable (drawer or Terminal), and the
+   * delivery gate stays shut. The thrown reason reaches the drawer's status line.
+   *
+   * The write-lock is held across the whole walk (as `sendOptionPromptAnswer`
+   * does) so a human keystroke buffers instead of interleaving between an arrow
+   * and the confirm — where it would land as an answer to the dialog.
+   */
+  private async answerClaudeTrustByWalk(): Promise<void> {
+    if (this.approvalWalkInFlight) {
+      throw new Error("The trust screen is already being answered.");
+    }
+    this.approvalWalkInFlight = true;
+    this.beginSonataWrite();
+    try {
+      for (let step = 0; ; step++) {
+        const screen = await this.readSettledGrid(CLAUDE_TRUST_WALK_GRID_READ_MS);
+        if (screen === null) {
+          throw new Error("Could not read the terminal screen to confirm the trust screen's cursor.");
+        }
+        const rows = parseClaudeTrustDialogRows(screen);
+        if (!rows) {
+          throw new Error("The trust screen's options are no longer on the terminal screen.");
+        }
+        if (rows.focused === "affirm") {
+          // The confirming CR runs the SAME bookkeeping every other positive
+          // answer does — emitted here, at the moment the key actually goes on
+          // the wire, rather than optimistically before a walk that may refuse.
+          this.sendPositiveApproval("approve", "\r", "grid-verified Arrow + CR");
+          return;
+        }
+        if (rows.focused === null) {
+          // Mid-repaint: the cursor belongs to neither row on this frame. Wait
+          // for the next settled grid rather than press into an unknown state.
+          if (step >= CLAUDE_TRUST_WALK_MAX_STEPS) {
+            throw new Error("The trust screen's cursor never settled on a row.");
+          }
+          await delay(CLAUDE_TRUST_WALK_STEP_MS);
+          continue;
+        }
+        if (step >= CLAUDE_TRUST_WALK_MAX_STEPS) {
+          throw new Error(
+            "Could not move the trust screen's cursor onto “Yes, I trust this folder”. Answer it in the Terminal.",
+          );
+        }
+        // Direction from the grid, never a constant. A press that the arming
+        // window swallows simply leaves the cursor where it was, and the next
+        // pass presses again — bounded by CLAUDE_TRUST_WALK_MAX_STEPS.
+        this.writeRaw(rows.affirmIndex > rows.declineIndex ? ARROW_DOWN : ARROW_UP);
+        await delay(CLAUDE_TRUST_WALK_STEP_MS);
+      }
+    } finally {
+      this.endSonataWrite();
+      this.approvalWalkInFlight = false;
+    }
+  }
+
+  /**
+   * The settled grid as a promise (the callback `readScreen` seam the
+   * ControlSwitchEngine gets, awaited). Resolves null when the screen cannot be
+   * read — no model, or `whenSettled` never calls back because the model was
+   * disposed mid-await (teardown drops queued waiters, by design). The timeout
+   * is what keeps that case from hanging the IPC call that is awaiting the walk,
+   * which would strand the drawer's buttons disabled.
+   */
+  private readSettledGrid(timeoutMs: number): Promise<string | null> {
+    const model = this.screenModel;
+    if (!model) {
+      return Promise.resolve(null);
+    }
+    return new Promise<string | null>((resolve) => {
+      let settled = false;
+      const finish = (value: string | null): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish(null), timeoutMs);
+      timer.unref?.();
+      model.whenSettled(() => finish(this.approvalScanGrid()));
+    });
   }
 
   /**
@@ -2937,6 +3117,7 @@ export class TerminalHost extends EventEmitter {
     this.lastApprovalKind = candidate.kind;
     this.lastApprovalFingerprint = candidate.fingerprint;
     this.activeApprovalOptionKeys = candidate.optionKeys ?? null;
+    this.activeApprovalWalk = candidate.optionWalk ?? null;
     // DESIGNED PROVIDER ASYMMETRY (S4): this is the only writer of run.status
     // "waiting-for-approval", and `detectApproval` gates it to Claude — so a
     // CODEX run.status NEVER becomes waiting-for-approval, even during a broker
@@ -4357,6 +4538,7 @@ function detectApprovalCandidate(rawText: string, profile: TerminalProviderProfi
         promptAfterApproval: detectIdlePrompt(rawText, profile).promptAfterApproval,
         choices: claudePanelChoices(panel),
         optionKeys: claudePanelOptionKeys(panel),
+        ...(panel.isTrust ? { optionWalk: "claude-workspace-trust" as const } : {}),
         grammar: "v2",
       };
     }
@@ -4381,12 +4563,22 @@ function detectApprovalCandidate(rawText: string, profile: TerminalProviderProfi
         ? "file-edit"
         : "workspace-trust";
   const fingerprint = approvalFingerprint(kind, compactRecent, profile);
+  // BACKSTOP (upstream sync 2026-09-01). The structured parser is the trust
+  // screen's normal route, but it is the part that upstream drift breaks first —
+  // 2.1.252's digit-less rows silently dropped this panel here, where the
+  // generic legacy choices answer approve with a CSI-u Enter that EXITS the CLI.
+  // So the walk is declared from the KIND too: whatever shape a future trust
+  // screen paints, its approve keeps a cursor read in front of the confirming
+  // Enter. Claude-only — codex's trust dialog is not scrape-answered at all
+  // (the hook broker owns it), and sendApprovalDecision refuses non-claude.
+  const trustWalk = profile.provider === "claude" && kind === "workspace-trust";
   return {
     kind,
     fingerprint,
     fingerprintHash: fingerprint ? sha256(fingerprint).slice(0, 16) : null,
     promptAfterApproval: detectIdlePrompt(rawText, profile).promptAfterApproval,
-    choices: approvalChoices(rawText, profile),
+    choices: trustWalk ? claudeTrustChoices() : approvalChoices(rawText, profile),
+    ...(trustWalk ? { optionWalk: "claude-workspace-trust" as const } : {}),
     grammar: "legacy",
   };
 }
@@ -4490,7 +4682,23 @@ function parseClaudePanelAtAnchor(
       lastOption.compact += compact;
     }
   }
-  if (footerIndex < 0 || options.length < 2) {
+  // The 2.1.252 workspace-trust dialog dropped the `1.`/`2.` digits from its
+  // rows (MEASURED — spikes/upstream-sync-2026-09/claude/q3-trust-variants.
+  // capture.txt; a digit is now inert on it), so the digit collector above finds
+  // NOTHING and the panel used to fall through to the legacy hint path — which
+  // answers approve with a CSI-u Enter that exits the CLI. The rows are still
+  // there, named by their labels, so trust is admitted on the AFFIRM ROW's
+  // presence instead of on a digit count. Evidence-based, not permissive: a
+  // trust anchor with a footer but no `Yes, I trust this folder` row is still
+  // refused. `options` stays empty for this shape and no consumer reads it —
+  // the trust branches of claudePanelChoices / claudePanelOptionKeys are
+  // option-blind, and the answer path re-reads the live grid rather than trust
+  // parse-time row positions (they go stale while the card waits for the user).
+  const trustAffirmRow =
+    isTrust &&
+    footerIndex > anchor &&
+    compactLines.slice(anchor + 1, footerIndex).some((line) => line.includes("yesitrustthisfolder"));
+  if (footerIndex < 0 || (options.length < 2 && !trustAffirmRow)) {
     return null;
   }
   for (const option of options) {
@@ -4582,21 +4790,7 @@ function claudePanelChoices(panel: ParsedClaudePanel): ApprovalChoice[] {
   }
 
   if (panel.isTrust) {
-    return [
-      {
-        decision: "approve",
-        label: "Trust this folder",
-        description:
-          "Choose the native “Yes, I trust this folder” option (plain Enter — this screen ignores CSI-u).",
-        encodedAs: "CR",
-      },
-      {
-        decision: "deny",
-        label: "Deny",
-        description: "Dismiss the native trust screen.",
-        encodedAs: "Esc",
-      },
-    ];
+    return claudeTrustChoices();
   }
 
   const choices: ApprovalChoice[] = [
@@ -4639,15 +4833,40 @@ function claudePanelChoices(panel: ParsedClaudePanel): ApprovalChoice[] {
   return choices;
 }
 
+/** The trust screen's two actions. Shared by the v2 and legacy detection paths
+ *  so a parser drift can never silently downgrade this card to the generic
+ *  "Approve once / CSI-u Enter" shape — the shape whose key exits the CLI. */
+function claudeTrustChoices(): ApprovalChoice[] {
+  return [
+    {
+      decision: "approve",
+      label: "Trust this folder",
+      description:
+        "Choose the native “Yes, I trust this folder” option (Sonata arrows onto that row and confirms " +
+        "only once the screen shows it highlighted — it is not the default here).",
+      encodedAs: "grid-verified Arrow + CR",
+    },
+    {
+      decision: "deny",
+      label: "Deny",
+      description: "Dismiss the native trust screen.",
+      encodedAs: "Esc",
+    },
+  ];
+}
+
 function claudePanelOptionKeys(panel: ParsedClaudePanel): Partial<Record<ApprovalDecision, string>> {
   if (panel.isBypass) {
     // "Yes, I accept" is option 2; deny falls through to Esc (sendDeny).
     return { approve: "2" };
   }
   if (panel.isTrust) {
-    // CSI-u Enter bounces off the trust screen (pre-kitty-negotiation);
-    // plain CR is probe-verified.
-    return { approve: "\r" };
+    // NO key: the trust screen's approve is a grid-verified cursor walk
+    // (optionWalk), because its affirm row is neither the default nor
+    // digit-addressable at 2.1.252 and every blind key exits the CLI. Returning
+    // {} rather than a key is load-bearing — sendApprovalDecision's legacy
+    // fallback would otherwise write the CSI-u Enter that kills the session.
+    return {};
   }
   const keys: Partial<Record<ApprovalDecision, string>> = { approve: "1" };
   const optionTwo = panel.options.find((option) => option.digit === "2");

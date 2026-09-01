@@ -206,9 +206,12 @@ export function registerIpcHandlers(
     return runtimeController.createReference(request.paths);
   });
   ipcMain.handle(IPC_CHANNELS.attachmentPick, () => windowController.pickReferences());
-  ipcMain.handle(IPC_CHANNELS.approvalDecide, (_event, request) => {
-    runtimeController.decideApproval(request.taskId, request.decision, request.approvalId ?? null);
-  });
+  ipcMain.handle(IPC_CHANNELS.approvalDecide, (_event, request) =>
+    // Returned, not fire-and-forget: the trust screen's approve is a cursor walk
+    // that can refuse, and the renderer's `decideApproval` renders that refusal
+    // on the drawer's status line (session-flows.ts).
+    runtimeController.decideApproval(request.taskId, request.decision, request.approvalId ?? null),
+  );
   ipcMain.handle(IPC_CHANNELS.optionPromptAnswer, (_event, request) =>
     runtimeController.answerOptionPrompt(request.taskId, request.toolUseId, request.selections),
   );

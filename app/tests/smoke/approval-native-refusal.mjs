@@ -240,9 +240,9 @@ try {
 
   // (a) a STALE approvalId — the shape a double-click takes once the first
   //     click has consumed the broker entry, and a reopened session's card.
-  controller.decideApproval(taskId, "approve", staleAskId);
+  await controller.decideApproval(taskId, "approve", staleAskId);
   // (b) approvalId null — the scrape-card shape, with no scraped card live.
-  controller.decideApproval(taskId, "deny", null);
+  await controller.decideApproval(taskId, "deny", null);
   await delay(600); // any write would be on the wire long before this
 
   const refusalWindow = readLog().slice(logBeforeRefusals.length);
@@ -300,7 +300,7 @@ try {
   // The expiry consumed the broker entry, so this deny takes the native
   // fallback — with a panel on screen, which is the case the guard must let
   // through untouched.
-  controller.decideApproval(taskId, "deny", null);
+  await controller.decideApproval(taskId, "deny", null);
   await delay(300);
 
   const decision = decisions()[0];
@@ -327,7 +327,7 @@ try {
   // `sendDeny` clears approvalActive synchronously, so the second click arrives
   // at an unowned screen. Without the guard this is the Esc PAIR ≤700ms apart.
   const logBeforeSecondClick = readLog();
-  controller.decideApproval(taskId, "deny", null);
+  await controller.decideApproval(taskId, "deny", null);
   await delay(600);
 
   const secondClickWindow = readLog().slice(logBeforeSecondClick.length);

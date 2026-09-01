@@ -116,7 +116,7 @@ try {
     "file read approval with session choice",
   );
 
-  host.sendApproveForSession();
+  await host.sendApproveForSession();
   await waitUntil(
     () =>
       events.some(

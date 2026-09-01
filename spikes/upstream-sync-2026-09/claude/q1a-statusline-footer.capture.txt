@@ -1,0 +1,476 @@
+# Q1-A — claude 2.1.252 footer WITH --settings {statusLine only}
+# claude version: (see findings.md)  captured 2026-09-01T15:07:03.426Z
+
+===== cwd =====
+/private/tmp/claude-501/-Users-$USER-Work-Workspace-Product-sonata-dev/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+
+===== settings =====
+{"statusLine":{"type":"command","command":"echo sonata-status-probe"}}
+
+===== boot — reached composer? =====
+false (trustDialogSeen=false)
+
+===== A frame 1 — idle, ~2.5s after composer =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.252
+▝▜██████▀  Opus 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+
+▎ Keep working from anywhere
+▎ Check progress or reply to any session from the mobile app, desktop app, or 
+▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  sonata-status-probe                                                                                              /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.252
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.252"
+  y= 2 | ▝▜██████▀  Opus 5 with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-49 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd"
+  y= 5 | ▎ Keep working from anywhere
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-28 inv=0 bg=- fg=- b=1 d=0 :: "Keep working from anywhere"
+  y= 6 | ▎ Check progress or reply to any session from the mobile app, desktop app, or 
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-78 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Check progress or reply to any session from the mobile app, desktop app, or "
+  y= 7 | ▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-57 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb"
+        cols 57-104 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: ". To keep a session in this terminal only, run "
+        cols 104-119 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "/remote-control"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |   sonata-status-probe                                                                                              /rc
+        cols 2-21 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "sonata-status-probe"
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== A frame 2 — idle, ~7s =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.252
+▝▜██████▀  Opus 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+
+▎ Keep working from anywhere
+▎ Check progress or reply to any session from the mobile app, desktop app, or 
+▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  sonata-status-probe                                                                                              /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.252
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.252"
+  y= 2 | ▝▜██████▀  Opus 5 with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-49 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd"
+  y= 5 | ▎ Keep working from anywhere
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-28 inv=0 bg=- fg=- b=1 d=0 :: "Keep working from anywhere"
+  y= 6 | ▎ Check progress or reply to any session from the mobile app, desktop app, or 
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-78 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Check progress or reply to any session from the mobile app, desktop app, or "
+  y= 7 | ▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-57 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb"
+        cols 57-104 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: ". To keep a session in this terminal only, run "
+        cols 104-119 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "/remote-control"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |   sonata-status-probe                                                                                              /rc
+        cols 2-21 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "sonata-status-probe"
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== A idle — footer-region lines (byte view) =====
+"  sonata-status-probe                                                                                              /rc"
+    codepoints:   sonata-status-probe                                                                                              /rc
+"  ⏸ manual mode on · ← for agents"
+    codepoints:   U+23F8 manual mode on U+B7 U+2190 for agents
+
+===== A idle — needle verdicts (on full screen) =====
+shortcuts: false
+escInterrupt: false
+statusline: true
+
+===== A working — busy signal seen within 20s? =====
+true
+
+===== A frame 3 — during turn (first busy sample) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.252
+▝▜██████▀  Opus 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+
+▎ Keep working from anywhere
+▎ Check progress or reply to any session from the mobile app, desktop app, or 
+▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+
+❯ Reply with exactly: OK                                                                                                
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+✢ Leavening… 
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  sonata-status-probe                                                                                              /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.252
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.252"
+  y= 2 | ▝▜██████▀  Opus 5 with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-49 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd"
+  y= 5 | ▎ Keep working from anywhere
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-28 inv=0 bg=- fg=- b=1 d=0 :: "Keep working from anywhere"
+  y= 6 | ▎ Check progress or reply to any session from the mobile app, desktop app, or 
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-78 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Check progress or reply to any session from the mobile app, desktop app, or "
+  y= 7 | ▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-57 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb"
+        cols 57-104 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: ". To keep a session in this terminal only, run "
+        cols 104-119 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "/remote-control"
+  y= 9 | ❯ Reply with exactly: OK                                                                                                
+        cols 0-2 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯ "
+        cols 2-24 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "Reply with exactly: OK"
+        cols 24-120 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: "                                                                                                "
+  y=33 | ✢ Leavening… 
+        cols 0-1 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "✢"
+        cols 2-3 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "L"
+        cols 3-6 inv=0 bg=- fg=rgb15441791 b=0 d=0 :: "eav"
+        cols 6-13 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "ening… "
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=36 | ❯ 
+        cols 0-2 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "❯ "
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |   sonata-status-probe                                                                                              /rc
+        cols 2-21 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "sonata-status-probe"
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== A frame 4 — during turn (+1.5s) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.252
+▝▜██████▀  Opus 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+
+▎ Keep working from anywhere
+▎ Check progress or reply to any session from the mobile app, desktop app, or 
+▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+
+❯ Reply with exactly: OK                                                                                                
+
+⏺
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+✻ Philosophising… 
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  sonata-status-probe                                                                                              /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.252
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.252"
+  y= 2 | ▝▜██████▀  Opus 5 with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-49 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd"
+  y= 5 | ▎ Keep working from anywhere
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-28 inv=0 bg=- fg=- b=1 d=0 :: "Keep working from anywhere"
+  y= 6 | ▎ Check progress or reply to any session from the mobile app, desktop app, or 
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-78 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Check progress or reply to any session from the mobile app, desktop app, or "
+  y= 7 | ▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-57 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb"
+        cols 57-104 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: ". To keep a session in this terminal only, run "
+        cols 104-119 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "/remote-control"
+  y= 9 | ❯ Reply with exactly: OK                                                                                                
+        cols 0-2 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯ "
+        cols 2-24 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "Reply with exactly: OK"
+        cols 24-120 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: "                                                                                                "
+  y=11 | ⏺
+        cols 0-1 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "⏺"
+  y=33 | ✻ Philosophising… 
+        cols 0-1 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "✻"
+        cols 2-18 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "Philosophising… "
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=36 | ❯ 
+        cols 0-2 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "❯ "
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |   sonata-status-probe                                                                                              /rc
+        cols 2-21 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "sonata-status-probe"
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== A working — footer-region lines (byte view) =====
+"  sonata-status-probe                                                                                              /rc"
+    codepoints:   sonata-status-probe                                                                                              /rc
+"  ⏸ manual mode on · ← for agents"
+    codepoints:   U+23F8 manual mode on U+B7 U+2190 for agents
+
+===== A working — needle verdicts (on full screen) =====
+shortcuts: false
+escInterrupt: false
+statusline: true
+
+===== A frame 5 — back to idle after turn =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.252
+▝▜██████▀  Opus 5 with medium effort · Claude Max
+  ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+
+▎ Keep working from anywhere
+▎ Check progress or reply to any session from the mobile app, desktop app, or 
+▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+
+❯ Reply with exactly: OK                                                                                                
+
+⏺ OK
+
+✻ Brewed for 1s · done 11:08 AM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  sonata-status-probe                                                                                              /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.252
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.252"
+  y= 2 | ▝▜██████▀  Opus 5 with medium effort · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-49 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Opus 5 with medium effort · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd"
+  y= 5 | ▎ Keep working from anywhere
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-28 inv=0 bg=- fg=- b=1 d=0 :: "Keep working from anywhere"
+  y= 6 | ▎ Check progress or reply to any session from the mobile app, desktop app, or 
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-78 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Check progress or reply to any session from the mobile app, desktop app, or "
+  y= 7 | ▎ https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb. To keep a session in this terminal only, run /remote-control
+        cols 0-1 inv=0 bg=- fg=- b=0 d=1 :: "▎"
+        cols 2-57 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "https://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb"
+        cols 57-104 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: ". To keep a session in this terminal only, run "
+        cols 104-119 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "/remote-control"
+  y= 9 | ❯ Reply with exactly: OK                                                                                                
+        cols 0-2 inv=0 bg=rgb3618615 fg=rgb5263440 b=0 d=0 :: "❯ "
+        cols 2-24 inv=0 bg=rgb3618615 fg=rgb16777215 b=0 d=0 :: "Reply with exactly: OK"
+        cols 24-120 inv=0 bg=rgb3618615 fg=- b=0 d=0 :: "                                                                                                "
+  y=11 | ⏺ OK
+        cols 0-1 inv=0 bg=- fg=rgb16777215 b=0 d=0 :: "⏺"
+  y=13 | ✻ Brewed for 1s · done 11:08 AM
+        cols 0-1 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "✻"
+        cols 2-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Brewed for 1s · done 11:08 AM"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |   sonata-status-probe                                                                                              /rc
+        cols 2-21 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "sonata-status-probe"
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== A idle-after-turn — footer-region lines (byte view) =====
+"  sonata-status-probe                                                                                              /rc"
+    codepoints:   sonata-status-probe                                                                                              /rc
+"  ⏸ manual mode on · ← for agents"
+    codepoints:   U+23F8 manual mode on U+B7 U+2190 for agents
+
+===== A idle-after-turn — needle verdicts (on full screen) =====
+shortcuts: false
+escInterrupt: false
+statusline: true
+
+===== A raw-stream needle verdicts (whole session) =====
+escInterruptInRaw: false
+shortcutsInRaw: false
+statuslineInRaw: true
+
+===== RAW pty stream (whole session) =====
+"\u001b7\u001b[r\u001b8\u001b[?25h\u001b[?25l\u001b[?2004h\u001b[?1004h\u001b[?2031h\u001b[>0q\u001b[c\u001b[?1049h\u001b[2J\u001b[H\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b]0;✳ Claude Code\u0007\u001b[H\r\u001b[1B\u001b[38;2;215;119;87m ▐\u001b[48;2;0;0;0m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude Code\u001b[24G\u001b[22m\u001b[38;2;153;153;153mv2.1.252\r\u001b[1B\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[12G\u001b[38;2;153;153;153mOpus 5 with medium effort · Claude Max\r\u001b[1B\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[12G\u001b[38;2;153;153;153m/…/c6c948b4-928a-4af1-a9aa-263965437313/scratchpad/probe-cwd\r\u001b[2B\u001b[39m\u001b[2m▎\u001b[3G\u001b[22m\u001b[1mKeep working from anywhere\r\u001b[1B\u001b[22m\u001b[2m▎\u001b[3G\u001b[22m\u001b[38;2;153;153;153mCheck progress or reply to any session from the mobile app, desktop app, or \u001b[38;2;255;255;255mhttps://claude.ai/code\u001b[38;2;153;153;153m. To keep a session \r\u001b[1B\u001b[39m\u001b[2m▎\u001b[3G\u001b[22m\u001b[38;2;153;153;153min this terminal only, run \u001b[38;2;255;255;255m/remote-control\r\u001b[100C\u001b[27B\u001b[38;2;153;153;153m◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[2mTry \"fix typecheck errors\"\r\u001b[1B\u001b[22m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[103C\u001b[1B\u001b[38;2;255;193;7m/rc connecting…\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[K\r\u001b[2C\u001b[2B\u001b[38;2;153;153;153msonata-status-probe\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[78C\u001b[6B\u001b[K\r\u001b[2C\u001b[1B\u001b[38;2;255;255;255mhttps://claude.ai/code/session_012tfDrwRXzeCYTBTMG5m4Vb\u001b[38;2;153;153;153m. To keep a session in this terminal only, run \u001b[38;2;255;255;255m/remote-control\r\u001b[103C\u001b[31B\u001b[39m            \u001b[38;2;78;186;101m/rc\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[100C\u001b[34B\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36BReply\u001b[9Gwith\u001b[14Gexactly:\u001b[23GOK\r\u001b[18C\u001b[3B\u001b[K\u001b[40;1H\u001b[37;25H\u001b[?25h\u001b]0;◐ Claude Code\u0007\u001b[?25l\u001b[H\r\u001b[9B\u001b[48;2;55;55;55m\u001b[38;2;80;80;80m❯ \u001b[38;2;255;255;255mReply with exactly: OK\u001b[39m                                                                                                \r\u001b[24B\u001b[49m\u001b[38;2;215;119;87m✢\u001b[3GL\u001b[38;2;235;159;127meav\u001b[38;2;215;119;87mening… \r\u001b[3B\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[K\r\u001b[18C\u001b[3B\u001b[38;2;153;153;153m · ← for agents\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;215;119;87m·\u001b[3G\u001b[38;2;235;159;127mL\u001b[6G\u001b[38;2;215;119;87mv\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[4C\u001b[33B\u001b[38;2;215;119;87ma\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;215;119;87m✢\u001b[4Ge\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;215;119;87m✳\u001b[3GL\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b]0;◐ OK\u0007\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;215;119;87m✶\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;215;119;87m✻\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b]0;◑ OK\u0007\u001b[?25l\u001b[H\r\u001b[2C\u001b[33B\u001b[38;2;215;119;87mPhilosophising… \u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;215;119;87m✽\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[11B\u001b[38;2;255;255;255m⏺\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;215;119;87m✻\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;215;119;87m✶\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[11BOK\r\u001b[18C\u001b[22B\u001b[38;2;153;153;153m(running stop hook)\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[33B\u001b[38;2;215;119;87m✳\u001b[37G\u001b[38;2;153;153;153m · 1s · ↓\u001b[47G2 tokens)\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b]0;✳ OK\u0007\u001b[?25l\u001b[H\r\u001b[13B\u001b[38;2;153;153;153m✻\u001b[3GBrewed for 1s · done 11:08 AM\r\u001b[20B\u001b[39m\u001b[K\r\u001b[3B❯ \u001b[40;1H\u001b[37;3H\u001b[?25h"

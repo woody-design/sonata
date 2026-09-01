@@ -94,7 +94,10 @@ try {
   while (Date.now() < deadline) {
     if (!trustHandled && host.isApprovalActive()) {
       try {
-        host.sendApprove();
+        // Awaited: the trust screen's approve is a grid-verified cursor walk
+        // now, so its refusal arrives as a rejection — an unawaited call would
+        // both skip this catch and become an unhandled rejection.
+        await host.sendApprove();
         trustHandled = true;
       } catch {
         // ignore — retry on the next tick

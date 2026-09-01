@@ -128,7 +128,7 @@ try {
     "command approval offering approve-always",
   );
 
-  host.sendApproveAlways();
+  await host.sendApproveAlways();
   await waitUntil(
     () =>
       events.some(
