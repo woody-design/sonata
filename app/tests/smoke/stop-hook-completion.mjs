@@ -246,6 +246,17 @@ await check("echo-swallow reads through [Image #N]: a settled run's image echo s
 // alive, Stop/StopFailure OWN a prompt turn's end; the scrape may only close it
 // at MEDIUM confidence (the true "? for shortcuts" idle footer). These frames
 // are byte-shaped after the field evidence + the 2.1.209 idle-footer probe.
+//
+// SL-2b (2026-09-01, claude 2.1.257) added a SECOND admitting arm beside medium,
+// so "only at MEDIUM" above is no longer the whole rule: a run that reads idle
+// CONTINUOUSLY for `stoplessTurnEndConfirmMs` while the GRID shows a composer
+// with no panel owning it also closes, at LOW confidence. It exists because the
+// medium gate is unreachable for the two turn endings that fire no hook at all —
+// a user Esc mid-turn and a native tool denial (q11, MEASURED). The checks below
+// keep their meaning: none of them supplies a screen model, and the default
+// window is 30s, so nothing here can reach that arm by accident. The trade-off
+// it introduces is pinned explicitly at the end of this file rather than left
+// implicit.
 
 // Activity glyph + "esc to interrupt", then a bare composer ❯ (NO footer) →
 // detectIdleComposer: ready + prompt-after-activity, hasModelOrCwdHint false →
@@ -383,8 +394,202 @@ await check(
   },
 );
 
+// ── SL-2b: the trade-off, pinned where the fence it touches lives ───────────
+//
+// The field-misfire frame above is the shape the medium gate was built to
+// refuse. The Stop-less arm admits a close on the ABSENCE of liveness evidence,
+// so that same frame IS closable once the sustained window elapses. That is a
+// deliberate, bounded cost — pinned here so it is a tested fact rather than a
+// surprise, and so a future change to either side fails loudly.
+//
+// What bounds it: the window resets on ANY fresh printable output, and a live
+// claude turn at 2.1.257 renders an animated spinner with a running
+// elapsed/token counter (measured repainting ~every second across a 91-second
+// tool call, q11 s7) — so reaching the window needs genuine continuous silence,
+// roughly 17x longer than the ~1.75s windows the misfires actually had.
+await check(
+  "SL-2b trade-off: the field-stall frame IS closable once the window elapses (bounded, deliberate)",
+  async () => {
+    const events = [];
+    const host = makeHost(events, { completionQuietMs: 250, stoplessTurnEndConfirmMs: 500 });
+    try {
+      host.ptyProcess = fakePty();
+      // The grid the arm reads: a composer with nothing owning the screen.
+      host.screenModel = idleComposerGrid();
+      host.noteHookSessionStart();
+      host.activeRun = activeRun();
+
+      host.handlePtyData(FIELD_LOW_CONFIDENCE_FRAME);
+      await delay(400);
+      assert.ok(host.activeRun, "still open at 400ms — the medium gate refuses it, exactly as before");
+
+      // Nothing further is printed: the silence the arm requires.
+      await delay(900);
+      const completed = events.filter(
+        (event) => event.type === "run:updated" && event.payload.status === "completed",
+      );
+      assert.equal(completed.length, 1, "and after the window it closes — the documented cost");
+      assert.equal(completed[0].payload.completionConfidence, "low");
+      assert.equal(completed[0].payload.statusReason, "sustained idle composer (Stop-less turn end)");
+    } finally {
+      host.dispose();
+    }
+  },
+);
+
+// THE PROPERTY THE FIRST VERSION GOT WRONG (SL-2b review, BLOCKING). The check
+// below and the one after it prove the window cannot BEGIN under output; this
+// one proves it RESTARTS. They are different claims, and only this one catches
+// the real bug: the judge never runs during dense output (every printable chunk
+// re-arms it to `now + completionQuietMs`), so a window armed by one early stall
+// used to survive an arbitrarily long live stretch and the next brief pause
+// closed a live run. The exposure this pins is not hypothetical — it is the
+// post-submit-stall-then-stream shape, and the approval shape too (the judge's
+// approval guard-exit returns before any bookkeeping, so a whole panel episode
+// is invisible to the run-side term; the panel's PAINT is what saves it).
+// The construction matters, and a weaker one gave a false pass first time: the
+// STREAMING stretch has to be denser than `completionQuietMs`, because that is
+// what makes the judge stop running entirely. That silence-of-the-judge — not
+// the output itself — is the mechanism, and it is why wall-clock kept
+// accumulating against a frozen `since`. Timings below are chosen so that under
+// the pre-fix code the first judge pass AFTER the stream is unambiguously past
+// the original deadline (armed ~150ms, fires ~1100ms, window 700ms).
+await check(
+  "SL-2b: a window armed before a live stream cannot close on the first pause after it",
+  async () => {
+    const events = [];
+    const host = makeHost(events, { completionQuietMs: 150, stoplessTurnEndConfirmMs: 700 });
+    try {
+      host.ptyProcess = fakePty();
+      host.screenModel = idleComposerGrid();
+      host.noteHookSessionStart();
+      host.activeRun = activeRun();
+
+      // (1) An early post-submit stall arms the window.
+      host.handlePtyData(FIELD_LOW_CONFIDENCE_FRAME);
+      await delay(400);
+      assert.equal(closedCount(events), 0, "the first window has not elapsed yet");
+
+      // (2) The turn was alive all along and streams for ~800ms — chunks every
+      // 80ms, denser than the 150ms quiet window, so NO judge pass runs at all
+      // and nothing on the run side can observe any of it.
+      for (let i = 0; i < 10; i++) {
+        host.handlePtyData(`⏺ still working (${i}s)\r\n❯ \r\n`);
+        await delay(80);
+      }
+
+      // (3) The first pause. Wall clock since arming is now ~1.2s, well past the
+      // 700ms window — closing here is the bug, and it is a LIVE turn.
+      await delay(400);
+      assert.equal(
+        closedCount(events),
+        0,
+        "wall-clock since arming is past the window, but the stretch was not idle — no close",
+      );
+
+      // (4) A genuinely full fresh window of silence, and it may close.
+      await delay(700);
+      assert.equal(closedCount(events), 1, "after a FULL fresh window of silence it closes");
+      assert.equal(
+        events.find((e) => e.type === "run:updated" && e.payload.status === "completed").payload
+          .statusReason,
+        "sustained idle composer (Stop-less turn end)",
+      );
+    } finally {
+      host.dispose();
+    }
+  },
+);
+
+// The same property stated on the OTHER term, so neither can silently carry the
+// test alone: with the run-side window deliberately pre-aged past the deadline,
+// recent printable output must still refuse the close on the stream term.
+await check(
+  "SL-2b: an aged run-side window cannot close while the STREAM is still noisy",
+  async () => {
+    const host = makeHost([], { completionQuietMs: 150, stoplessTurnEndConfirmMs: 700 });
+    try {
+      host.ptyProcess = fakePty();
+      host.screenModel = idleComposerGrid();
+      host.activeRun = activeRun();
+      host.sustainedIdleVerdict = { runId: host.activeRun.id, since: Date.now() - 60_000 };
+
+      host.lastPrintablePtyDataAt = Date.now();
+      assert.equal(
+        host.stoplessTurnEndConfirmed(),
+        false,
+        "printable output just landed — the stream term refuses however old the run-side window is",
+      );
+
+      host.lastPrintablePtyDataAt = Date.now() - 60_000;
+      assert.equal(
+        host.stoplessTurnEndConfirmed(),
+        true,
+        "and with the stream silent that long too, both terms are satisfied",
+      );
+    } finally {
+      host.dispose();
+    }
+  },
+);
+
+// The bound that makes the cost above acceptable, and the FIRST line of defence:
+// every printable chunk re-schedules the judge, so output arriving faster than
+// `completionQuietMs` means the judge never runs at all — the window cannot even
+// begin. This is the property the "a live claude turn animates its spinner"
+// argument actually cashes out to, so it is pinned rather than assumed. Written
+// at the production RATIO (paints ~7× faster than the quiet window: ~1s repaints
+// against the 1800ms default), not at production's absolute timings.
+await check(
+  "SL-2b: output faster than the quiet window never reaches the judge at all",
+  async () => {
+    const events = [];
+    const host = makeHost(events, { completionQuietMs: 700, stoplessTurnEndConfirmMs: 300 });
+    try {
+      host.ptyProcess = fakePty();
+      host.screenModel = idleComposerGrid();
+      host.noteHookSessionStart();
+      host.activeRun = activeRun();
+
+      // A spinner repainting on the measured cadence of a LIVE turn, for well
+      // past the (squeezed) confirm window.
+      for (let i = 0; i < 20; i++) {
+        host.handlePtyData(`✻ Levitating… (${i}s · ↓${i * 20} tokens)\r\n❯ \r\n`);
+        await delay(100);
+      }
+      assert.equal(
+        events.filter((event) => event.type === "run:updated" && event.payload.status === "completed").length,
+        0,
+        "2s of elapsed time, no continuous silence — the run is never even judged",
+      );
+      assert.ok(host.activeRun, "the live run is still open");
+    } finally {
+      host.dispose();
+    }
+  },
+);
+
 if (failures.length > 0) {
   process.exitCode = 1;
+}
+
+/** A stand-in `TaskScreenModel` showing a plain idle composer — the MOST
+ *  permissive grid the Stop-less arm can read, so a check that still refuses to
+ *  close is refusing on the stream/time terms, not on the screen. */
+function closedCount(events) {
+  return events.filter((event) => event.type === "run:updated" && event.payload.status === "completed")
+    .length;
+}
+
+function idleComposerGrid() {
+  const screen = "✻ Levitating…\n────────\n❯ \n────────\n  ⏸ manual mode on · ← for agents\n";
+  return {
+    write: () => {},
+    whenSettled: (fn) => fn(),
+    viewportText: () => screen,
+    resize: () => {},
+    dispose: () => {},
+  };
 }
 
 function makeHost(events, options = {}) {

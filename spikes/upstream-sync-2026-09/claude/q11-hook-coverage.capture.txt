@@ -1,0 +1,1793 @@
+# Q11 — claude hook COVERAGE MATRIX for turn completion (SL-2b)
+
+binary: 2.1.257 (Claude Code) (re-pinned at probe end)
+spawn: production TerminalHost from dist/, --permission-mode default, injected --settings,
+       approvalBroker:false (native-approval mode — the scrape is the trust/deny channel)
+candidate events injected (arms marked candidates:true): SessionEnd, PostToolUseFailure, PermissionDenied
+
+## matrix
+
+| scenario | hooks observed (in order) | run closed? | verdict |
+|---|---|---|---|
+| s1-normal-turn | SessionStart → UserPromptSubmit → Stop → Notification | yes | COVERED by Stop |
+| s2-tool-error | SessionStart → UserPromptSubmit → PreToolUse → PostToolUseFailure → Stop → SubagentStop | yes | COVERED by Stop |
+| s3-esc-mid-turn | SessionStart → UserPromptSubmit | NO (active) | NO HOOK after user Esc |
+| s4-kill-mid-turn | SessionStart → UserPromptSubmit | yes | pty:exit observed |
+| s5-self-exit | SessionStart → UserPromptSubmit → Stop → SessionEnd | yes | SessionEnd fires (reason=prompt_input_exit) |
+| s6-denied-tool | SessionStart → UserPromptSubmit → PreToolUse → PermissionRequest | yes | GAP |
+| s7-quiet-busy-turn | SessionStart → UserPromptSubmit → PreToolUse → PermissionRequest → PostToolUse → Stop → SubagentStop | yes | live turn held 91195ms with no false close and no mid-turn idle Notification |
+| s8-esc-mid-turn-fixed | SessionStart → UserPromptSubmit | yes | CLOSED 32519ms after Esc — sustained idle composer (Stop-less turn end) / low |
+
+## per-scenario detail
+
+### s1-normal-turn
+
+{
+  "scenario": "s1-normal-turn",
+  "version": "2.1.257 (Claude Code)",
+  "hooks": [
+    {
+      "atMs": 537,
+      "event": "SessionStart",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 2872,
+      "event": "UserPromptSubmit",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 6327,
+      "event": "Stop",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": false,
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 66413,
+      "event": "Notification",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": "idle_prompt",
+      "message": "Claude is waiting for your input",
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "message",
+        "notification_type",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    }
+  ],
+  "hookEvents": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "Stop",
+    "Notification"
+  ],
+  "events": [
+    {
+      "atMs": 3,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 28,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 2637,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 2637,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 634ms (SessionStart hook already consumed at that instant: true)",
+    "SessionStart consumed before the first turn: true"
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "activeRunAtEnd": null,
+  "channelsAtEnd": {
+    "stream": {
+      "ready": true,
+      "confidence": "low",
+      "lastPromptIndex": 878,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": false
+    },
+    "grid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 478,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "streamComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": false
+      }
+    },
+    "gridComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "medium",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    }
+  },
+  "screenTail": "\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawStreamTail": "\u001b7\u001b8\u001b[>0q\n ▐▛███▛█Claude Codev2.1.257\n▝▜██████▀Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝  /private/tmp/sonata-sync-2026-09/hook-coverage/s1-normal-turn/ws\n◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ Try \"edit <filepath> to...\"\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n/rc connecting…\n⏸ manual mode on · ← for agents\n\n            /rc\nReplywithexactly:OK\n\n❯ Reply with exactly: OK                                                                                                \n✳Wandering… \n❯ \n · ← for agents\n✶\n✻i…\n✽rg\nen\n✻di\n✶nr\n✳\n✢ae\n·Wd\nn\n✢a\n✳W\n✶\n✻\n✽\n✻\nCombobulating… \n✶\n⏺\n✳\n✢\n·\nOK\nCombobulating…(running stop hooks… 0/2)\nCombobulating… · 3s · ↓2 tokens)\n1\n✻Brewed for 3s · done 6:14 PM\n\n❯ \n",
+  "stopSeen": true,
+  "stopAtMs": 6327,
+  "runClosedAtStop": true,
+  "idleWatchStartedAtMs": 6424,
+  "postTurnHooks": [
+    {
+      "atMs": 66413,
+      "event": "Notification",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": "idle_prompt",
+      "message": "Claude is waiting for your input",
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "message",
+        "notification_type",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    }
+  ],
+  "verdict": "COVERED by Stop",
+  "ranAt": "2026-09-01T22:15:42.595Z"
+}
+
+run lifecycle (2 run:updated events, identical rows collapsed):
+```
+   2873  active · - · - · -
+   6327  completed · stop hook (turn ended) · hook-stop · high
+```
+
+### s2-tool-error
+
+{
+  "scenario": "s2-tool-error",
+  "version": "2.1.257 (Claude Code)",
+  "hooks": [
+    {
+      "atMs": 1846,
+      "event": "SessionStart",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 4066,
+      "event": "UserPromptSubmit",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 6487,
+      "event": "PreToolUse",
+      "reason": null,
+      "tool_name": "Read",
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 6487,
+      "event": "PostToolUseFailure",
+      "reason": null,
+      "tool_name": "Read",
+      "notification_type": null,
+      "message": null,
+      "error": "File does not exist. Note: your current working directory is /private/tmp/sonata-sync-2026-09/hook-coverage/s2-tool-error/ws.",
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "effort",
+        "error",
+        "hook_event_name",
+        "is_interrupt",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 8507,
+      "event": "Stop",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": false,
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 10425,
+      "event": "SubagentStop",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": false,
+      "keys": [
+        "agent_id",
+        "agent_transcript_path",
+        "agent_type",
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ]
+    }
+  ],
+  "hookEvents": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUseFailure",
+    "Stop",
+    "SubagentStop"
+  ],
+  "events": [
+    {
+      "atMs": 4,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 28,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 318,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "workspace-trust",
+        "source": "native Claude PTY approval screen"
+      }
+    },
+    {
+      "atMs": 1035,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "approve",
+        "encodedAs": "grid-verified Arrow + CR"
+      }
+    },
+    {
+      "atMs": 3847,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 3848,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    }
+  ],
+  "notes": [
+    "trust dialog answered at 331ms",
+    "ready=true at 1846ms (hookSessionStarted seen: false)"
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "activeRunAtEnd": null,
+  "channelsAtEnd": {
+    "stream": {
+      "ready": true,
+      "confidence": "low",
+      "lastPromptIndex": 2615,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": false
+    },
+    "grid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 731,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "streamComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": false
+      }
+    },
+    "gridComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "medium",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    }
+  },
+  "screenTail": "\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ now do the same for missing-two.txt\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "stopSeen": true,
+  "toolHooks": [
+    {
+      "atMs": 6487,
+      "event": "PreToolUse",
+      "reason": null,
+      "tool_name": "Read",
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 6487,
+      "event": "PostToolUseFailure",
+      "reason": null,
+      "tool_name": "Read",
+      "notification_type": null,
+      "message": null,
+      "error": "File does not exist. Note: your current working directory is /private/tmp/sonata-sync-2026-09/hook-coverage/s2-tool-error/ws.",
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "effort",
+        "error",
+        "hook_event_name",
+        "is_interrupt",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ]
+    }
+  ],
+  "runClosedAtStop": true,
+  "verdict": "COVERED by Stop",
+  "ranAt": "2026-09-01T20:54:23.613Z"
+}
+
+run lifecycle (2 run:updated events, identical rows collapsed):
+```
+   4067  active · - · - · -
+   8507  completed · stop hook (turn ended) · hook-stop · high
+```
+
+### s3-esc-mid-turn
+
+{
+  "scenario": "s3-esc-mid-turn",
+  "version": "2.1.257 (Claude Code)",
+  "hooks": [
+    {
+      "atMs": 543,
+      "event": "SessionStart",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 2881,
+      "event": "UserPromptSubmit",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    }
+  ],
+  "hookEvents": [
+    "SessionStart",
+    "UserPromptSubmit"
+  ],
+  "events": [
+    {
+      "atMs": 6,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 35,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 2648,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 2648,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 645ms (SessionStart hook already consumed at that instant: true)",
+    "SessionStart consumed before the first turn: true",
+    "user Esc written at 8956ms",
+    "interrupted run raw parked at /private/tmp/sonata-sync-2026-09/hook-coverage/s3-esc-interrupted-run-raw.json (5341 chars)"
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "activeRunAtEnd": {
+    "id": "run-1788297736119-1",
+    "kind": "prompt",
+    "status": "active",
+    "lifecyclePhase": "active"
+  },
+  "channelsAtEnd": {
+    "stream": {
+      "ready": true,
+      "confidence": "low",
+      "lastPromptIndex": 1754,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": false
+    },
+    "grid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 370,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "streamComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": false
+      }
+    },
+    "gridComposer": {
+      "completed": false,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    }
+  },
+  "screenTail": "  327\n  328\n  329\n  330\n  331\n  332\n  333\n  ⎿  Interrupted · What should Claude do instead?\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawStreamTail": "\u001b7\u001b8\u001b[>0q\n ▐▛███▛█Claude Codev2.1.257\n▝▜██████▀Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝  /private/tmp/sonata-sync-2026-09/hook-coverage/s3-esc-mid-turn/ws\n◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ Try \"write a test for <filepath>\"\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n/rc connecting…\n⏸ manual mode on · ← for agents\n\n            /rc\nWriteoutthenumbers1to400,oneperline,withnoothertext.Donotuseanytools.\n\n❯ Write out the numbers 1 to 400, one per line, with no other text. Do not use any tools.                               \n✳Kneading… \n❯ \n · ← for agents\n✶\n✻i…\n✽dg\nan\n✻ei\n✶nd\nZesting… \n✳\n⏺\n✢s\n·e\nZ\n✢\n(1s · ↓12 tokens)11\n  12\n  13\n  14\n15\n16\n  17\n18\n 19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\n31\n32\n33\n34\n35\n36\n37\n38\n39\n40\n41\n42\n43\n 4459\n60\n61\n62\n63\n64\n65\n66\n67\n68\n69\n70\n71\n72\n73\n74\n75\n76\n77\n78\n79\n80\n81\n82\n83\n84\n85\n86\n87\n88\n89\n90\n91\n92107\n18\n109\n110\n111\n112\n113\n114\n115\n116\n117\n118\n19\n10\n121\n122\n123\n124\n125\n126\n127\n128\n129\n130\n11\n132\n133\n134\n135\n136\n137\n138\n139\n14055\n56\n57\n58\n59\n60\n61\n62\n63\n64\n65\n66\n67\n68\n69\n70\n71\n72\n73\n74\n75\n76\n77\n78\n79\n80\n81\n82\n83\n84\n85\n86\n87\n88203\n204\n205\n206\n207\n208\n209\n210\n211\n212\n213\n214\n215\n216\n217\n218\n219\n220\n221\n222\n223\n224\n225\n226\n227\n228\n229\n230\n231\n232\n233\n234\n235\n23651\n52\n53\n54\n55\n56\n57\n58\n59\n60\n61\n62\n63\n64\n65\n66\n67\n68\n69\n70\n71\n72\n73\n74\n75\n76\n77\n78\n79\n80\n81\n82\n83\n8499\n300\n301\n302\n303\n304\n305\n306\n307\n308\n309\n310\n311\n312\n313\n314\n315\n316\n317\n318\n319\n320\n321\n322\n323\n324\n325\n326\n327\n328\n329\n330\n331\n332\u000f301\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n2\n3\n4\n5\n6\n7\n8\n9\n20\n21\n2\n3\n4\n5\n6\n7\n8\n9\n30\n31\n2\n3\n  ⎿  Interrupted · What should Claude do instead?\n❯ \n",
+  "turnStarted": true,
+  "runBeforeEsc": {
+    "id": "run-1788297736119-1",
+    "kind": "prompt",
+    "status": "active",
+    "lifecyclePhase": "active"
+  },
+  "escAtMs": 8956,
+  "hooksAfterEsc": [],
+  "runStillActive": true,
+  "verdict": "NO HOOK after user Esc",
+  "ranAt": "2026-09-01T21:24:02.477Z"
+}
+
+run lifecycle (56 run:updated events, identical rows collapsed):
+```
+   2881  active · - · - · -
+         … 54 identical row(s) …
+ 108161  active · - · - · -
+```
+
+busy samples (the turn genuinely running) (4; run | stream detectIdlePrompt | grid detectIdlePrompt | runRaw detectIdleComposer | grid detectIdleComposer | grid spinner/verb):
+```
+   4451  run=active               stream=F/low    grid=T/medium runRawComp=F/low    gridComp=F/low    spinner=F verb=T
+   5953  run=active               stream=F/low    grid=T/medium runRawComp=F/low    gridComp=F/low    spinner=F verb=F
+         … 1 identical row(s) …
+   8955  run=active               stream=F/low    grid=T/medium runRawComp=F/low    gridComp=F/low    spinner=F verb=F
+```
+
+samples after the event (20; run | stream detectIdlePrompt | grid detectIdlePrompt | runRaw detectIdleComposer | grid detectIdleComposer | grid spinner/verb):
+```
+  13959  run=active               stream=T/low    grid=T/medium runRawComp=T/low    gridComp=F/low    spinner=F verb=F
+         … 18 identical row(s) …
+ 109001  run=active               stream=T/low    grid=T/medium runRawComp=T/low    gridComp=F/low    spinner=F verb=F
+```
+
+### s4-kill-mid-turn
+
+{
+  "scenario": "s4-kill-mid-turn",
+  "version": "2.1.257 (Claude Code)",
+  "hooks": [
+    {
+      "atMs": 1216,
+      "event": "SessionStart",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 3434,
+      "event": "UserPromptSubmit",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    }
+  ],
+  "hookEvents": [
+    "SessionStart",
+    "UserPromptSubmit"
+  ],
+  "events": [
+    {
+      "atMs": 2,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 7,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 314,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "workspace-trust",
+        "source": "native Claude PTY approval screen"
+      }
+    },
+    {
+      "atMs": 813,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "approve",
+        "encodedAs": "grid-verified Arrow + CR"
+      }
+    },
+    {
+      "atMs": 3217,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 3217,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 8539,
+      "type": "pty:exit",
+      "payload": {
+        "exitCode": 0,
+        "signal": 9,
+        "sonataInitiated": false
+      }
+    }
+  ],
+  "notes": [
+    "trust dialog answered at 461ms",
+    "ready=true at 1216ms (hookSessionStarted seen: false)"
+  ],
+  "ptyExited": true,
+  "exitInfo": {
+    "taskId": "task-q11-s4-kill-mid-turn",
+    "generation": 3,
+    "runId": "run-1788296121356-1",
+    "exitCode": 0,
+    "signal": 9,
+    "elapsedMs": 8537,
+    "sonataInitiated": false
+  },
+  "activeRunAtEnd": null,
+  "channelsAtEnd": {
+    "stream": {
+      "ready": false,
+      "confidence": "low",
+      "lastPromptIndex": 1319,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "grid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 444,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "streamComposer": {
+      "completed": false,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": false,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    },
+    "gridComposer": {
+      "completed": false,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    }
+  },
+  "screenTail": "  226\n  227\n  228\n  229\n  230\n  231\n  232\n  233\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "submitted": true,
+  "pid": "<pid>",
+  "runBeforeKill": {
+    "id": "run-1788296121356-1",
+    "kind": "prompt",
+    "status": "active",
+    "lifecyclePhase": "active"
+  },
+  "killAtMs": 8519,
+  "hooksAfterKill": [],
+  "verdict": "pty:exit observed",
+  "ranAt": "2026-09-01T20:55:34.662Z"
+}
+
+run lifecycle (2 run:updated events, identical rows collapsed):
+```
+   3434  active · - · - · -
+   8539  pty-exited · PTY exited · pty-exit · high
+```
+
+### s5-self-exit
+
+{
+  "scenario": "s5-self-exit",
+  "version": "2.1.257 (Claude Code)",
+  "hooks": [
+    {
+      "atMs": 1345,
+      "event": "SessionStart",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 3465,
+      "event": "UserPromptSubmit",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 5076,
+      "event": "Stop",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": false,
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 7500,
+      "event": "SessionEnd",
+      "reason": "prompt_input_exit",
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "prompt_id",
+        "reason",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    }
+  ],
+  "hookEvents": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "Stop",
+    "SessionEnd"
+  ],
+  "events": [
+    {
+      "atMs": 4,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 33,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 342,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "workspace-trust",
+        "source": "native Claude PTY approval screen"
+      }
+    },
+    {
+      "atMs": 843,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "approve",
+        "encodedAs": "grid-verified Arrow + CR"
+      }
+    },
+    {
+      "atMs": 3245,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 3245,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 7764,
+      "type": "pty:exit",
+      "payload": {
+        "exitCode": 0,
+        "signal": 0,
+        "sonataInitiated": false
+      }
+    }
+  ],
+  "notes": [
+    "trust dialog answered at 490ms",
+    "ready=true at 1243ms (hookSessionStarted seen: false)",
+    "/exit written at 7210ms"
+  ],
+  "ptyExited": true,
+  "exitInfo": {
+    "taskId": "task-q11-s5-self-exit",
+    "generation": 1,
+    "runId": null,
+    "exitCode": 0,
+    "signal": 0,
+    "elapsedMs": 7762,
+    "sonataInitiated": false
+  },
+  "activeRunAtEnd": null,
+  "channelsAtEnd": {
+    "stream": {
+      "ready": true,
+      "confidence": "low",
+      "lastPromptIndex": 2243,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": false
+    },
+    "grid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 666,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "streamComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": false
+      }
+    },
+    "gridComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "medium",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    }
+  },
+  "screenTail": "❯ Reply with exactly: OK                                                                                                \n\n⏺ OK\n\n✻ Worked for 1s · done 4:56 PM\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  ⏸ manual mode on · ← for agents                                                                   ◐ medium · /effort\n                                                                                                                   /rc\n\nResume this session with:\nclaude --resume 49019d80-cd35-408b-b465-9e1a708ad322",
+  "exitAtMs": 7210,
+  "sessionEnd": [
+    {
+      "atMs": 7500,
+      "event": "SessionEnd",
+      "reason": "prompt_input_exit",
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "prompt_id",
+        "reason",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    }
+  ],
+  "hooksAfterExit": [
+    {
+      "atMs": 7500,
+      "event": "SessionEnd",
+      "reason": "prompt_input_exit",
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "prompt_id",
+        "reason",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    }
+  ],
+  "verdict": "SessionEnd fires (reason=prompt_input_exit)",
+  "ranAt": "2026-09-01T20:56:22.279Z"
+}
+
+run lifecycle (2 run:updated events, identical rows collapsed):
+```
+   3465  active · - · - · -
+   5077  completed · stop hook (turn ended) · hook-stop · high
+```
+
+### s6-denied-tool
+
+{
+  "scenario": "s6-denied-tool",
+  "version": "2.1.257 (Claude Code)",
+  "hooks": [
+    {
+      "atMs": 612,
+      "event": "SessionStart",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 2831,
+      "event": "UserPromptSubmit",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 5252,
+      "event": "PreToolUse",
+      "reason": null,
+      "tool_name": "Write",
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 5252,
+      "event": "PermissionRequest",
+      "reason": null,
+      "tool_name": "Write",
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "permission_suggestions",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "transcript_path"
+      ]
+    }
+  ],
+  "hookEvents": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PermissionRequest"
+  ],
+  "events": [
+    {
+      "atMs": 3,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 7,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 2613,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 2613,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 5319,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "file-edit",
+        "source": "native Claude PTY approval screen"
+      }
+    },
+    {
+      "atMs": 5353,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "answered-natively",
+        "encodedAs": "native-keys"
+      }
+    },
+    {
+      "atMs": 8802,
+      "type": "task:ready",
+      "payload": {
+        "source": "terminal-idle-composer-heuristic"
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 612ms (SessionStart hook already consumed at that instant: false)",
+    "SessionStart consumed before the first turn: true",
+    "deny row read from the grid: \"3. No\""
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "activeRunAtEnd": null,
+  "channelsAtEnd": {
+    "stream": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 1709,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "grid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 538,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "streamComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "medium",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    },
+    "gridComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "medium",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    }
+  },
+  "screenTail": "\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawStreamTail": "\u001b7\u001b8\u001b[>0q\n ▐▛███▛█Claude Codev2.1.257\n▝▜██████▀Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝  /private/tmp/sonata-sync-2026-09/hook-coverage/s6-denied-tool/ws\n◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ Try \"how do I log an error?\"\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n/rc connecting…\n⏸ manual mode on · ← for agents\n\n            /rc\nCreateafilenamedhello.txtinthecurrentdirectorycontainingthesinglewordhi.Thenreplywithexactly:DONE\n\n❯ Create a file named hello.txt in the current directory containing the single word hi. Then reply with exactly: DONE   \n✳Processing… \n❯ \n · ← for agents\n✶\n✻i…\n✽sg\nsn\n✻ei\n✶cs\n✳\n✢os\nComputing… \n·Cp\nm\n✢o\n✳C\n✶(1s · ↓7 tokens)\n✻28\n✽10 tokens)\n⏺Write(hello.txt)\nComputing…\nComputing…35\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\nCreate file\nhello.txt\n╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n 1 hi\n╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\nDoyouwanttocreatehello.txt?\n❯1. Yes\n2. Yes,andswitchtoaccept edits (auto-approve file edits and common file commands)forthissession(shift+tab)\n3. No\nEsc to cancel · Tab to amend\n\n⏺\n  ⎿  User rejected write to hello.txt\n      1 hi\n\n✻ Baked for 2s · done 5:14 PM\n\n◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n/rc\n⏸ manual mode on · ← for agents\n",
+  "panelSeen": true,
+  "panelAtMs": 5327,
+  "denyKey": "3",
+  "panelFrame": "❯ Create a file named hello.txt in the current directory containing the single word hi. Then reply with exactly: DONE   \n\n⏺ Write(hello.txt)\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n Create file\n hello.txt\n╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n  1 hi\n╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌\n Do you want to create hello.txt?\n ❯ 1. Yes\n   2. Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session (shift+tab)\n   3. No\n\n Esc to cancel · Tab to amend",
+  "frameAfterDeny": "\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "runAfterDeny": {
+    "id": "run-1788297277479-1",
+    "kind": "prompt",
+    "status": "active",
+    "lifecyclePhase": "resumed-after-approval"
+  },
+  "hooksAfterPanel": [],
+  "stopAfterDeny": false,
+  "runStillActive": false,
+  "verdict": "GAP",
+  "ranAt": "2026-09-01T21:16:23.234Z"
+}
+
+run lifecycle (4 run:updated events, identical rows collapsed):
+```
+   2831  active · - · - · -
+   5319  waiting-for-approval · - · - · -
+   5353  active · - · - · -
+   8802  completed · terminal idle/composer heuristic · terminal-idle-heuristic · medium
+```
+
+samples after the event (20; run | stream detectIdlePrompt | grid detectIdlePrompt | runRaw detectIdleComposer | grid detectIdleComposer | grid spinner/verb):
+```
+  13330  run=CLOSED               stream=T/medium grid=T/medium runRawComp=F/low    gridComp=T/medium spinner=T verb=F
+         … 18 identical row(s) …
+ 108365  run=CLOSED               stream=T/medium grid=T/medium runRawComp=F/low    gridComp=T/medium spinner=T verb=F
+```
+
+### s7-quiet-busy-turn
+
+{
+  "scenario": "s7-quiet-busy-turn",
+  "version": "2.1.257 (Claude Code)",
+  "hooks": [
+    {
+      "atMs": 734,
+      "event": "SessionStart",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 3058,
+      "event": "UserPromptSubmit",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 5175,
+      "event": "PreToolUse",
+      "reason": null,
+      "tool_name": "Bash",
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 5277,
+      "event": "PermissionRequest",
+      "reason": null,
+      "tool_name": "Bash",
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "permission_suggestions",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 96144,
+      "event": "PostToolUse",
+      "reason": null,
+      "tool_name": "Bash",
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 97050,
+      "event": "Stop",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": false,
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 98664,
+      "event": "SubagentStop",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": false,
+      "keys": [
+        "agent_id",
+        "agent_transcript_path",
+        "agent_type",
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ]
+    }
+  ],
+  "hookEvents": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PermissionRequest",
+    "PostToolUse",
+    "Stop",
+    "SubagentStop"
+  ],
+  "events": [
+    {
+      "atMs": 3,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 29,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 2788,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 2789,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 5220,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "command",
+        "source": "native Claude PTY approval screen"
+      }
+    },
+    {
+      "atMs": 5882,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "answered-natively",
+        "encodedAs": "native-keys"
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 786ms (SessionStart hook already consumed at that instant: true)",
+    "SessionStart consumed before the first turn: true",
+    "approve row read from the grid: \"❯ 1. Yes\""
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "activeRunAtEnd": null,
+  "channelsAtEnd": {
+    "stream": {
+      "ready": true,
+      "confidence": "low",
+      "lastPromptIndex": 7964,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": false
+    },
+    "grid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 850,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "streamComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": false
+      }
+    },
+    "gridComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "medium",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    }
+  },
+  "screenTail": "\n\n\n\n\n\n\n\n                                                                                                   \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ now run it again with 120 seconds\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawStreamTail": "ering…\n10s)\n·Considering…\nConsidering…\n⏺\nConsidering…3\nConsidering…\n✢Considering…\n✳Considering…\n 2\n✶\n✻Considering…\n1\n✽Considering…\nConsidering…4\nConsidering…\nConsidering…\n⏺\n✻Considering…\n✶Considering…\n✳\n3\n✢Considering…\n2\n \n·Considering…\nConsidering…5\nConsidering…\nConsidering…\n✢Considering…\n✳Considering…\n⏺\n✶\n4\n3\n✻Considering…\n✽Considering…\nConsidering…6\n \nConsidering…\nConsidering…\n✻Considering…\n✶Considering…\n✳\n5\n✢\n⏺\n4\nConsidering…\n·Considering…\nConsidering…7\nConsidering…\nConsidering…\n \n✢Considering…\n✳Considering…\n✶\n6\n✻\n5\nConsidering…\n⏺\n✽Considering…\nConsidering…8\nConsidering…\nConsidering…\n✻Considering…\n✶Considering…\n \n✳\n7\n✢\n6\nConsidering…\n·Considering…\nConsidering…9\n⏺\nConsidering…\n✢Considering…\nConsidering…\n✳Considering…\n✶\n8\n✻\n \n7\nConsidering…\n✽Considering…\nConsidering…20\nConsidering…\n✻Considering…\n⏺\n✶Considering…\n✳\n9\n✢Considering…\n8\n·Considering…\n \nConsidering…1\nConsidering…\n✢Considering…\n✳Considering…\n⏺\n✶\n20\n✻Considering…\n9\n✽Considering…\nConsidering…2\n \nConsidering…\n✻Considering…\nConsidering…\n✶\n✳\n1\n✢Considering…\n⏺\n20\nConsidering…\n·Considering…\nConsidering…3\nConsidering…\n✢Considering…\n \nConsidering…\n✳\n✶\n2\n✻Considering…\n1\n✽Considering…\nConsidering…\n⏺\nConsidering…4\nConsidering…\n✻Considering…\nConsidering…\n✶\n \n✳\n3\n✢Considering…\n2\n·Considering…\nConsidering…\nConsidering…5\nConsidering…\n⏺\n✢Considering…\nConsidering…\n✳\n✶\n4\n✻Considering…\n3\n \n✽Considering…\nConsidering…\nConsidering…6\nConsidering…\n✻Considering…\n⏺\n✶Considering…\n✳\n5\n✢Considering…\n4\n·Considering…\nConsidering…\n \nConsidering…7\nConsidering…\n✢Considering…\n✳Considering…\n⏺\n✶\n6\n✻Considering…\n5\n✽Considering…\nConsidering…\nConsidering…8\nConsidering…\n✻Considering…\n✶Considering…\n✳\n7\n✢Considering…\n6\n \n·Considering…\nConsidering…9\nConsidering…\nConsidering…\n✢Considering…\n✳Considering…\n⏺\n✶\n8\n✻Considering…\n7\n✽Considering…\nConsidering…30\n \nConsidering…\nConsidering…\n✻Considering…\n✶Considering…\n✳\n⏺\n✢\n9\n8\nConsidering…\n·Considering…\nConsidering…1\nConsidering…\nConsidering…\n \n✢Considering…\n✳Considering…\n✶\n✻\n30\n9\nConsidering…\n⏺\n✽Considering…\nConsidering…2\nConsidering…\nConsidering…\n✻Considering…\n✶Considering…\n \n✳\n✢\n\n1\nConsidering…\n\n✢Considering… (1m 32s · ↓123 tokens)\n  ⎿  Tip: Use /btwto ask a quick side question without interrupting Claude's current work\n·Considering…\nConsidering…3\n⏺\nConsidering…\n✢Considering…\nConsidering…\n✳Considering…\n✶\nConsidering…\n✻\n \n Ran 1 shell command \n\n⏺DONE\nConsidering…\nrunning stop hooks… 0/2 · 1m 33s · ↓123 tokens)\nConsidering…5\n1\n✻Sautéed for 1m 33s · done 5:12 PM\n\n❯ \nnow run it again with 120 seconds",
+  "panelSeen": true,
+  "approveKey": "1",
+  "toolStarted": true,
+  "runAtBusyStart": {
+    "id": "run-1788297067745-1",
+    "kind": "prompt",
+    "status": "waiting-for-approval",
+    "lifecyclePhase": "waiting-for-approval"
+  },
+  "busyStartedAtMs": 5855,
+  "falseCloseAtMs": null,
+  "stopAtMs": 97050,
+  "notifDuringBusy": [],
+  "verdict": "live turn held 91195ms with no false close and no mid-turn idle Notification",
+  "ranAt": "2026-09-01T21:12:45.895Z"
+}
+
+run lifecycle (4 run:updated events, identical rows collapsed):
+```
+   3058  active · - · - · -
+   5220  waiting-for-approval · - · - · -
+   5882  active · - · - · -
+  97050  completed · stop hook (turn ended) · hook-stop · high
+```
+
+samples (19; run | stream detectIdlePrompt | grid detectIdlePrompt | runRaw detectIdleComposer | grid detectIdleComposer | grid spinner/verb):
+```
+  10857  run=active               stream=F/low    grid=T/medium runRawComp=F/low    gridComp=T/medium spinner=T verb=T
+         … 16 identical row(s) …
+  95925  run=active               stream=F/low    grid=T/medium runRawComp=F/low    gridComp=T/medium spinner=T verb=T
+ 100930  run=CLOSED               stream=T/low    grid=T/medium runRawComp=F/low    gridComp=T/medium spinner=T verb=F
+```
+
+### s8-esc-mid-turn-fixed
+
+{
+  "scenario": "s8-esc-mid-turn-fixed",
+  "version": "2.1.257 (Claude Code)",
+  "hooks": [
+    {
+      "atMs": 542,
+      "event": "SessionStart",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ]
+    },
+    {
+      "atMs": 2882,
+      "event": "UserPromptSubmit",
+      "reason": null,
+      "tool_name": null,
+      "notification_type": null,
+      "message": null,
+      "error": null,
+      "stop_hook_active": null,
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ]
+    }
+  ],
+  "hookEvents": [
+    "SessionStart",
+    "UserPromptSubmit"
+  ],
+  "events": [
+    {
+      "atMs": 6,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 35,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 2645,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 2645,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 41467,
+      "type": "task:ready",
+      "payload": {
+        "source": "terminal-idle-composer-heuristic"
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 643ms (SessionStart hook already consumed at that instant: true)",
+    "SessionStart consumed before the first turn: true"
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "activeRunAtEnd": null,
+  "channelsAtEnd": {
+    "stream": {
+      "ready": true,
+      "confidence": "low",
+      "lastPromptIndex": 1770,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": false
+    },
+    "grid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 370,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "streamComposer": {
+      "completed": true,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": false
+      }
+    },
+    "gridComposer": {
+      "completed": false,
+      "source": "terminal-idle-heuristic",
+      "confidence": "low",
+      "signals": {
+        "promptAfterWorking": true,
+        "promptAfterApproval": true,
+        "hasModelOrCwdHint": true
+      }
+    }
+  },
+  "screenTail": "  327\n  328\n  329\n  330\n  331\n  332\n  333\n  ⎿  Interrupted · What should Claude do instead?\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawStreamTail": "\u001b7\u001b8\u001b[>0q\n ▐▛███▛█Claude Codev2.1.257\n▝▜██████▀Opus 5 (1M context) with medium effort · Claude Max\n  ▝▝ ▝▝  /private/tmp/sonata-sync-2026-09/hook-coverage/s8-esc-mid-turn-fixed/ws\n◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ Try \"fix typecheck errors\"\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n/rc connecting…\n⏸ manual mode on · ← for agents\n\n            /rc\nWriteoutthenumbers1to400,oneperline,withnoothertext.Donotuseanytools.\n\n❯ Write out the numbers 1 to 400, one per line, with no other text. Do not use any tools.                               \n✳Discombobulating… \n❯ \n · ← for agents\n✶\n✻i…\n✽tg\nan\n✻li\n✶ut\nGerminating… \n✳\n⏺\n✢ma\n·rn\nei\n✢Gm\n(1s · ↓12 tokens)11\n  12\n  13\n  14\n15\n16\n  17\n18\n 19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\n31\n32\n33\n34\n35\n36\n37\n38\n39\n40\n41\n42\n43\n 4459\n60\n61\n62\n63\n64\n65\n66\n67\n68\n69\n70\n71\n72\n73\n74\n75\n76\n77\n78\n79\n80\n81\n82\n83\n84\n85\n86\n87\n88\n89\n90\n91\n92107\n18\n109\n110\n111\n112\n113\n114\n115\n116\n117\n118\n19\n10\n121\n122\n123\n124\n125\n126\n127\n128\n129\n130\n11\n132\n133\n134\n135\n136\n137\n138\n139\n14055\n56\n57\n58\n59\n60\n61\n62\n63\n64\n65\n66\n67\n68\n69\n70\n71\n72\n73\n74\n75\n76\n77\n78\n79\n80\n81\n82\n83\n84\n85\n86\n87\n88203\n204\n205\n206\n207\n208\n209\n210\n211\n212\n213\n214\n215\n216\n217\n218\n219\n220\n221\n222\n223\n224\n225\n226\n227\n228\n229\n230\n231\n232\n233\n234\n235\n23651\n52\n53\n54\n55\n56\n57\n58\n59\n60\n61\n62\n63\n64\n65\n66\n67\n68\n69\n70\n71\n72\n73\n74\n75\n76\n77\n78\n79\n80\n81\n82\n83\n8499\n300\n301\n302\n303\n304\n305\n306\n307\n308\n309\n310\n311\n312\n313\n314\n315\n316\n317\n318\n319\n320\n321\n322\n323\n324\n325\n326\n327\n328\n329\n330\n331\n332\u000f301\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n2\n3\n4\n5\n6\n7\n8\n9\n20\n21\n2\n3\n4\n5\n6\n7\n8\n9\n30\n31\n2\n3\n  ⎿  Interrupted · What should Claude do instead?\n❯ \n",
+  "escAtMs": 8948,
+  "closed": true,
+  "close": {
+    "atMs": 41467,
+    "id": "run-1788300806421-1",
+    "kind": "prompt",
+    "status": "completed",
+    "statusReason": "sustained idle composer (Stop-less turn end)",
+    "completionSource": "terminal-idle-heuristic",
+    "completionConfidence": "low"
+  },
+  "msFromEscToClose": 32519,
+  "hooksAfterEsc": [],
+  "verdict": "CLOSED 32519ms after Esc — sustained idle composer (Stop-less turn end) / low",
+  "ranAt": "2026-09-01T22:14:07.342Z"
+}
+
+run lifecycle (19 run:updated events, identical rows collapsed):
+```
+   2883  active · - · - · -
+         … 16 identical row(s) …
+  39664  active · - · - · -
+  41467  completed · sustained idle composer (Stop-less turn end) · terminal-idle-heuristic · low
+```

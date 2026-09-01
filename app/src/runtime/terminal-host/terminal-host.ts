@@ -110,6 +110,23 @@ function needsCodexSkillMentionEnter(provider: RuntimeProvider, text: string): b
 
 const DEFAULT_SCROLLBACK_LIMIT = 64 * 1024;
 const DEFAULT_COMPLETION_QUIET_MS = 1800;
+/**
+ * How long a claude PROMPT run must read idle-composer-completed CONTINUOUSLY —
+ * on the stream AND on the grid — before the quiescence backstop may close it at
+ * LOW confidence in a session whose hooks are alive. See
+ * `stoplessTurnEndConfirmed` for the full measured argument; the number itself
+ * is set by the one documented misfire shape: a post-submit stall that leaves a
+ * >=1.75s printable-quiet window on a live run (claude 2.1.211, 5 field
+ * misfires). 30s is an order of magnitude past that, and past Sonata's 20s
+ * liveness rung — so a run reaching this window has ALREADY surfaced honestly as
+ * "still working" before it is closed, and nothing the user sees is skipped.
+ *
+ * NOT one of the quiescence/settle constants: those tune when the judge RUNS,
+ * this bounds how long a Stop-less ending stays un-closed. The cost it buys is
+ * paid only on the gap path — a turn that ends with a Stop closes immediately at
+ * high confidence and never reaches this window at all.
+ */
+const CLAUDE_STOPLESS_TURN_END_CONFIRM_MS = 30_000;
 const DEFAULT_POST_COMPLETION_ATTRIBUTION_MS = 5000;
 const DEFAULT_APPROVAL_SETTLE_MS = 1200;
 /** Trailing-edge throttle period for the approval scan. The panel is a
@@ -342,6 +359,9 @@ export interface TerminalHostOptions {
   eventSink?: (event: RuntimeEvent) => void;
   scrollbackLimit?: number;
   completionQuietMs?: number;
+  /** Test seam for CLAUDE_STOPLESS_TURN_END_CONFIRM_MS — a smoke cannot wait 30s
+   *  to prove a 30s window, and the window's LENGTH is not what it is testing. */
+  stoplessTurnEndConfirmMs?: number;
   postCompletionAttributionMs?: number;
 }
 
@@ -548,7 +568,12 @@ export class TerminalHost extends EventEmitter {
   private readonly eventSink: ((event: RuntimeEvent) => void) | null;
   private readonly scrollbackLimit: number;
   private readonly completionQuietMs: number;
+  private readonly stoplessTurnEndConfirmMs: number;
   private readonly postCompletionAttributionMs: number;
+  /** When the ACTIVE run's idle-composer verdict first became true, and which
+   *  run it belongs to — the sustained window `stoplessTurnEndConfirmed` reads.
+   *  Null whenever the last judge pass saw the run as not-idle. */
+  private sustainedIdleVerdict: { runId: RunId; since: number } | null = null;
   private ptyProcess: pty.IPty | null = null;
   /**
    * Teardown intent for the CURRENTLY live PTY (SL-6). `disposeProcess` flips it
@@ -796,6 +821,8 @@ export class TerminalHost extends EventEmitter {
     this.eventSink = options.eventSink ?? null;
     this.scrollbackLimit = options.scrollbackLimit ?? DEFAULT_SCROLLBACK_LIMIT;
     this.completionQuietMs = options.completionQuietMs ?? DEFAULT_COMPLETION_QUIET_MS;
+    this.stoplessTurnEndConfirmMs =
+      options.stoplessTurnEndConfirmMs ?? CLAUDE_STOPLESS_TURN_END_CONFIRM_MS;
     this.postCompletionAttributionMs =
       options.postCompletionAttributionMs ?? DEFAULT_POST_COMPLETION_ATTRIBUTION_MS;
     // The control-switch engine drives the session through a narrow seam: the
@@ -1038,6 +1065,7 @@ export class TerminalHost extends EventEmitter {
     this.activeRun = null;
     this.recentAttributionRun = null;
     this.activeRunRaw = "";
+    this.sustainedIdleVerdict = null;
     this.taskReady = false;
     this.clearCompletionTimer();
     this.clearApprovalSettleTimer();
@@ -3609,6 +3637,10 @@ export class TerminalHost extends EventEmitter {
 
     this.activeRun = null;
     this.activeRunRaw = "";
+    // The sustained-idle window belongs to the run that just ended; a later run
+    // must start its own (the runId check in `noteIdleVerdictForStoplessTurnEnd`
+    // covers this too — clearing here keeps the state honest between runs).
+    this.sustainedIdleVerdict = null;
     this.recentAttributionRun = {
       id: finished.id,
       expiresAt: Date.now() + this.postCompletionAttributionMs,
@@ -3662,6 +3694,16 @@ export class TerminalHost extends EventEmitter {
     // Quiet = no PRINTABLE output. Raw-byte recency lies: the idle TUI emits
     // control-only housekeeping every ~200ms, which would keep this guard
     // (and the schedule debounce) re-arming forever.
+    // NOTE (SL-2b review): this branch is effectively UNREACHABLE on the
+    // streaming path and must not be trusted to police the sustained-idle
+    // window. Every printable chunk both stamps `lastPrintablePtyDataAt` AND
+    // calls `scheduleCompletionCheck`, which clears and re-arms at
+    // `now + completionQuietMs` — so the judge can only ever fire at or after
+    // `lastPrintablePtyDataAt + completionQuietMs`, making this test false at
+    // every fire instant. A reset placed here would be dead code wearing a
+    // safety comment. The real consequence is stronger and is handled where it
+    // belongs (`stoplessTurnEndConfirmed`): during dense output NO judge pass
+    // runs at all, so nothing here observes the output in the first place.
     if (Date.now() - this.lastPrintablePtyDataAt < this.completionQuietMs - 50) {
       this.debugCompletion(
         `data-fresh printableAgeMs=${Date.now() - this.lastPrintablePtyDataAt} → re-arm`,
@@ -3705,11 +3747,41 @@ export class TerminalHost extends EventEmitter {
     // prefer a "still working" lie (liveness surfaces it honestly at 20s/60s)
     // over a "done" lie (actively misleading). Slash runs keep quiescence as
     // their honest completion — no Stop hook exists for them.
-    const heuristicMayClose =
-      this.activeRun.kind === "slash" ||
-      !this.hookSessionStarted ||
-      hint.confidence === "medium";
-    const completed = idleVerdict && heuristicMayClose;
+    //
+    // SL-2b (2026-09-01, claude 2.1.257) added the third arm below. The medium
+    // gate turned out to be a COIN FLIP at 2.1.257, not a test: whether the
+    // alt-screen differential repaint happens to re-emit the footer after the
+    // composer glyph decides it (q11 — a natively-denied tool reaches medium and
+    // closes in 3.5s; a user Esc leaves `"❯ "` alone and wedges the run active
+    // forever). `noteIdleVerdictForStoplessTurnEnd` is the honest replacement for
+    // the case medium cannot reach.
+    //
+    // Why the medium arm was KEPT rather than retired: it never fires for a turn
+    // the hooks cover. Those close on `Stop` at HIGH confidence in ~2s and never
+    // reach this function's closing branch at all. Every measured medium close
+    // was a STOP-LESS ending (q11 s6, a denied tool, closed 3.5s in) — i.e. the
+    // medium arm lives entirely inside the gap, where dropping it would remove
+    // coverage rather than remove a lie. It is also the SAFER of the two arms
+    // (the stream reached medium in 0 of 18 samples of a live turn), so where it
+    // does fire it earns a faster close than the confirm window would give.
+    this.noteIdleVerdictForStoplessTurnEnd(idleVerdict);
+    // Which arm admits this close — named once, so the gate and the reason it
+    // reports can never drift apart. Order is evidence-strength: the sustained
+    // window is only consulted when nothing stronger already admits the close
+    // (which also keeps its `viewportText()` read off the common path).
+    const closingArm = this.activeRun.kind === "slash" || !this.hookSessionStarted || hint.confidence === "medium"
+      ? "terminal idle/composer heuristic"
+      : this.stoplessTurnEndConfirmed()
+        ? "sustained idle composer (Stop-less turn end)"
+        : null;
+    const completed = idleVerdict && closingArm !== null;
+    // The sustained arm is the one a field triage will need to reason about
+    // (a run that "should have closed" is a question about this window), so the
+    // diag line carries its age — inert unless SONATA_DEBUG_COMPLETION is set.
+    this.debugCompletion(
+      `verdict idle=${idleVerdict} confidence=${hint.confidence} arm=${closingArm ?? "none"}` +
+        ` sustainedIdleMs=${this.sustainedIdleVerdict ? Date.now() - this.sustainedIdleVerdict.since : "-"}`,
+    );
     if (!completed) {
       this.updateActiveRun({
         lifecyclePhase: "active",
@@ -3717,23 +3789,165 @@ export class TerminalHost extends EventEmitter {
       });
       // A DEMOTED verdict — the scrape sees an idle composer but hooks own this
       // turn's end — must keep the run under judgment: re-arm so a later Stop,
-      // or a medium-confidence idle footer, still closes it. (The old
-      // not-completed branch returned without re-arming, relying on the next
-      // printable chunk to re-schedule; a demoted run can go byte-silent for
-      // minutes, so it needs its own poll.) No busy loop: scheduleCompletion
-      // check no-ops once the run leaves "active", and the printable-quiet
-      // guard debounces each re-arm to a completionQuietMs cadence.
-      if (idleVerdict && !heuristicMayClose) {
+      // a medium-confidence idle footer, or the sustained-idle confirmation
+      // still closes it. (The old not-completed branch returned without
+      // re-arming, relying on the next printable chunk to re-schedule; a demoted
+      // run can go byte-silent for minutes, so it needs its own poll.) This
+      // re-arm is also what MEASURES the sustained window: each pass calls
+      // `noteIdleVerdictForStoplessTurnEnd` again, so no separate timer is
+      // needed — the window simply runs from the first idle pass until a pass
+      // sees something else. No busy loop:
+      // scheduleCompletionCheck no-ops once the run leaves "active", and the
+      // printable-quiet guard debounces each re-arm to a completionQuietMs
+      // cadence.
+      if (idleVerdict && closingArm === null) {
         this.scheduleCompletionCheck();
       }
       return;
     }
 
-    this.finishActiveRun("completed", "terminal idle/composer heuristic", {
+    // The reason names WHICH backstop closed it — the two arms rest on very
+    // different evidence and a field triage should not have to guess.
+    this.finishActiveRun("completed", closingArm, {
       completionSource: "terminal-idle-heuristic",
       completionConfidence: this.activeRun.kind === "slash" ? "medium" : hint.confidence,
       completionHint: hint,
     });
+  }
+
+  /**
+   * Track how long the active run has read idle-composer-completed WITHOUT
+   * interruption. Called from every completion judge pass that actually judged
+   * (the closing ones and the demoted ones that re-arm). THREE things restart
+   * the window, which together are what make "continuously idle" a true claim
+   * rather than a wall-clock-since-arming one: a pass that reads the run as
+   * not-idle, printable output that landed after the window was armed, and a
+   * change of run — a new run never inherits a previous one's window.
+   */
+  private noteIdleVerdictForStoplessTurnEnd(idleVerdict: boolean): void {
+    if (!idleVerdict || !this.activeRun) {
+      this.sustainedIdleVerdict = null;
+      return;
+    }
+    if (
+      this.sustainedIdleVerdict?.runId !== this.activeRun.id ||
+      // Printable output landed AFTER this window was armed, so the stretch it
+      // claims to measure was interrupted — restart it. Judge passes do not run
+      // during dense output (see the caller's data-fresh note), so this
+      // timestamp comparison is the only thing that can notice; without it
+      // `since` would survive an arbitrarily long live stretch and the field
+      // would be measuring wall-clock-since-arming while claiming to measure
+      // continuous idleness.
+      this.lastPrintablePtyDataAt > this.sustainedIdleVerdict.since
+    ) {
+      this.sustainedIdleVerdict = { runId: this.activeRun.id, since: Date.now() };
+    }
+  }
+
+  /**
+   * The claude STOP-LESS turn-end backstop (SL-2b) — a SECOND admitting arm
+   * beside the medium gate, for the endings medium structurally cannot reach.
+   *
+   * MEASURED at 2.1.257 (q11, `spikes/upstream-sync-2026-09/claude`), which asked
+   * what the hook family actually covers for turn completion:
+   *   - a normal turn, a turn whose tool failed, a 91-second foreground tool
+   *     call, and `/exit` ALL end on `Stop` — hooks own them, high confidence.
+   *   - a user Esc mid-turn in the co-visible Terminal fires NO hook at all, and
+   *   - a user denying a tool on the CLI's native panel fires none either
+   *     (`PermissionDenied` is injected and does not fire for a UI deny).
+   * Those two are the whole residual gap, and neither is reachable by wiring a
+   * new event: of the 33 events 2.1.257 declares, `SessionEnd` fires only on
+   * process teardown (reason `prompt_input_exit`) and `Notification(idle_prompt)`
+   * — which DOES fire at this version, 60s after a turn ends, falsifying the
+   * Phase-0 note — is anchored on the same turn-end the Stop hook is: it never
+   * arrived in the 100s after either Stop-less ending. So the backstop stays a
+   * screen judgement, and the job here is to make it an honest one.
+   *
+   * Three independent terms, each on the channel that can answer it (D-1):
+   *  1. EVENT (stream, the caller's `idleVerdict`): did THIS RUN's own bytes go
+   *     activity → composer? This is the term that carries the real weight — over
+   *     18 samples spanning a genuinely live 91s tool call it read false every
+   *     time, while every grid-side reading said "idle".
+   *  2. STATE (grid, here): is a real composer on screen RIGHT NOW, with no panel
+   *     owning it? An approval/option panel's end marker outranks its row cursor,
+   *     so `detectIdlePrompt` reads a panel frame as not-ready — which is exactly
+   *     the state that must not be closed as "done". Deliberately NOT the grid's
+   *     CONFIDENCE: the idle footer is permanent chrome at 2.1.257 (present in
+   *     18/18 busy samples), so a grid-fed `hasModelOrCwdHint` would be a vacuous
+   *     gate — the measurement that falsified F5b's first candidate fix.
+   *  3. TIME (here), in two parts that must BOTH hold: (a) the STREAM has been
+   *     printable-silent for the whole window, and (b) a judge pass read the run
+   *     idle across that whole window. (a) is stated on raw timestamps so it
+   *     cannot be defeated by how the judge is scheduled — the first version of
+   *     this predicate had only (b) and was wrong, because no judge pass runs
+   *     during dense output, so an armed window survived arbitrary live
+   *     streaming. The documented misfire shape is a post-submit stall with a
+   *     >=1.75s printable-quiet window on a live run; requiring an order of
+   *     magnitude more SILENCE than that is what buys back the safety the medium
+   *     gate was standing in for.
+   *
+   * Claude-only by construction. Codex's stream is unaffected (it spawns
+   * `--no-alt-screen`, so its footer stays inside the promptTail window and the
+   * medium gate is a real test there), and its no-Stop turn-failure net is D6 —
+   * both stay byte-identical.
+   *
+   * No screen model means no grid, so term 2 cannot be answered: refuse rather
+   * than assume, matching every other grid predicate on this class.
+   *
+   * RESIDUAL RISK, stated rather than hidden. This admits a close on the ABSENCE
+   * of liveness evidence, not on positive proof the turn ended — so the 2.1.211
+   * field-misfire shape (a post-submit stall reading composer-after-activity at
+   * LOW confidence) becomes closable IF that stall stays printable-SILENT for 30
+   * continuous seconds. Two things bound it and one thing would remove it:
+   *  - bound: term (a) demands genuine continuous printable SILENCE for the
+   *    whole window, measured on the stream's own timestamps; the misfires it
+   *    was built against had ~1.75s windows.
+   *  - bound: a live claude turn at 2.1.257 renders an ANIMATED spinner with a
+   *    running elapsed/token counter — measured repainting ~every second across
+   *    a 91-second tool call (q11 s7), so a printable-silent live turn is
+   *    structurally hard to produce. This is the load-bearing assumption, and it
+   *    rests on ONE measured live-turn arm.
+   *  - the removal, if it ever bites: require POSITIVE turn-end evidence on the
+   *    grid instead — 2.1.257 paints `✻ <verb> for Ns · done` at every completed
+   *    turn and `⎿ Interrupted · What should Claude do instead?` at an interrupt
+   *    (both MEASURED under the production statusLine spawn, q11 s1/s3/s5/s6/s7).
+   *    Deliberately NOT built now: it is upstream copy, and its failure mode is
+   *    the SAFE one (a reword stops the close, i.e. reverts to today's wedge), so
+   *    it is the right thing to add on evidence and the wrong thing to add on
+   *    speculation. Registered in the sync findings (F13).
+   * The certain harm on the other side is not hypothetical: without this, EVERY
+   * user Esc mid-turn and EVERY native tool denial leaves a run "working"
+   * forever (q11 s3/s6, MEASURED).
+   */
+  private stoplessTurnEndConfirmed(): boolean {
+    if (this.profile.provider !== "claude" || !this.screenModel || !this.sustainedIdleVerdict) {
+      return false;
+    }
+    const now = Date.now();
+    // TIME (a) — THE STREAM has been printable-SILENT for the whole window.
+    // Stated directly on the timestamps and on nothing else, so it holds however
+    // the completion judge happens to be scheduled. This is the load-bearing
+    // term, and its absence was the review's blocking finding: judge passes do
+    // not run during dense output at all (every printable chunk re-arms the
+    // timer to `now + completionQuietMs`), so a window armed once could survive
+    // an arbitrarily long live stretch — an early post-submit stall arms it, a
+    // minute of real streaming goes unobserved, and the next >=1.8s pause closes
+    // a live run. It also covers the approval case for free with no
+    // approval-specific code: the guard-exit at the top of the judge returns
+    // before any bookkeeping, so an entire panel episode is invisible to (b) —
+    // but a panel PAINTS, and its paint is printable.
+    if (now - this.lastPrintablePtyDataAt < this.stoplessTurnEndConfirmMs) {
+      return false;
+    }
+    // TIME (b) — and a judge pass read the run idle across that whole window,
+    // never merely at this instant. Kept beside (a) rather than folded into it
+    // because it answers a different question (what the RUN's bytes said, not
+    // what the stream did), and because a field named `sustainedIdleVerdict`
+    // must actually mean sustained — see `noteIdleVerdictForStoplessTurnEnd`.
+    if (now - this.sustainedIdleVerdict.since < this.stoplessTurnEndConfirmMs) {
+      return false;
+    }
+    return detectIdlePrompt(this.screenModel.viewportText(), this.profile).ready;
   }
 
   /**

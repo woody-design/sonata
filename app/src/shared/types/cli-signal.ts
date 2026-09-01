@@ -17,7 +17,19 @@
  *    `Pre`/`PostToolUse` (activity). OSC 9;4 does NOT arrive (2.1.177 gates it
  *    behind a terminal-capability handshake node-pty never answers).
  *  - `Notification(idle_prompt|permission_prompt)` does NOT fire — so we lean on
- *    `Stop` and `PermissionRequest` instead.
+ *    `Stop` and `PermissionRequest` instead. **SUPERSEDED — see below.**
+ *
+ * That last one is NO LONGER TRUE and the correction matters (upstream sync
+ * 2026-09-01, SL-2b, claude 2.1.257, probe `spikes/upstream-sync-2026-09/claude/
+ * q11-hook-coverage.mjs`): `Notification` DOES fire now, with
+ * `notification_type: "idle_prompt"` and `message: "Claude is waiting for your
+ * input"`, measured twice at Stop+60.2s / Stop+60.1s (the bundle's default
+ * `messageIdleNotifThresholdMs` is 60000). Sonata already injects `Notification`,
+ * so it already arrives. It is deliberately NOT consumed as a turn-end or
+ * readiness signal: it is anchored on the SAME turn-end `Stop` is, and never
+ * arrived in the 100s following either of the two measured Stop-less endings (a
+ * user Esc mid-turn, a user denying a tool). A signal that only fires when Stop
+ * fired adds no coverage — see `stoplessTurnEndConfirmed` for what does.
  */
 
 import type { RuntimeProvider, TaskId } from "./domain";
@@ -52,6 +64,17 @@ import type { RuntimeProvider, TaskId } from "./domain";
  * the injection lists are policy — upstream-sync 2026-08-03). SessionEnd is
  * the registered UNLOCK candidate for discriminating a graceful codex quit
  * from a silent death (hypothesis UNVERIFIED — probe before wiring).
+ *
+ * SessionEnd, CLAUDE side, MEASURED (SL-2b, 2.1.257, q11 arm s5): it DOES fire
+ * under Sonata's `--settings` injection — `reason: "prompt_input_exit"` on
+ * `/exit`, ~300ms before the pty dies. Its reason enum in the 2.1.257 bundle is
+ * `clear|resume|logout|prompt_input_exit|other`, i.e. session TEARDOWN, not a
+ * turn boundary — so it is not a completion signal and stays unwired here.
+ *
+ * 2.1.257 declares 33 events (`var Hh=[…]` in the bundle). Two more are measured
+ * and unwired: `PostToolUseFailure` fires INSTEAD of `PostToolUse` when a tool
+ * errors (carrying the error text), and `PermissionDenied` does NOT fire for a
+ * native-UI denial. Both belong to SL-9's hooks audit, not to this union yet.
  */
 export type HookEventName =
   | "SessionStart"
@@ -104,7 +127,11 @@ export interface HookPayload {
   agent_transcript_path?: string;
   /** StopFailure — structured API error, e.g. "model_not_found" (probed S6). */
   error?: string;
-  /** Notification (observed absent on 2.1.177, kept for forward-compat) */
+  /** Notification. Absent on 2.1.177; LIVE at 2.1.257 — the measured values are
+   *  `idle_prompt` (60s after a turn end) with `message: "Claude is waiting for
+   *  your input"`. The bundle's full enum also carries `permission_prompt`,
+   *  `auth_success`, `elicitation_dialog`, `agent_needs_input`,
+   *  `agent_completed`, … (presence-only evidence, unprobed). */
   notification_type?: string;
   message?: string;
   [key: string]: unknown;

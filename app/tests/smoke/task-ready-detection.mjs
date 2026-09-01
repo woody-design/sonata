@@ -794,28 +794,22 @@ await check("claude activity evidence now rests entirely on the spinner glyphs",
   );
 });
 
-// ── The measured DEGRADATION, pinned so it cannot be forgotten ──────────────
+// ── The channel asymmetry — a standing FACT, no longer a pending gap ────────
 //
-// This is NOT desired behaviour. `detectIdlePrompt` reads the pty STREAM, and
-// 2.1.252's alt-screen differential repaint emits the footer BEFORE the composer
-// glyph and then homes the cursor to the composer, so after a real turn the
-// forward-700 promptTail is literally `"❯ "` — no footer in it, so NO token can
-// match however many are added. MEASURED across 14 consecutive samples over 42s
-// of post-turn idle (q5 section B): raw channel `confidence=low` every time,
-// reconstructed grid `medium` every time.
+// `detectIdlePrompt` reads the pty STREAM, and the alt-screen differential
+// repaint emits the footer BEFORE the composer glyph and then homes the cursor
+// to the composer, so after a real turn the forward-700 promptTail is literally
+// `"❯ "` — no footer in it, so NO token can match however many are added.
+// MEASURED across 14 consecutive samples over 42s of post-turn idle (q5 section
+// B, 2.1.252) and re-confirmed at 2.1.257 in every q11 arm: raw channel
+// `confidence=low`, reconstructed grid `medium`.
 //
-// Consequence today: with the SessionStart handshake alive, the quiescence
-// scrape may only close a claude PROMPT run at MEDIUM confidence
-// (checkCompletionHeuristic) — so that backstop is dead under production spawns
-// and the Stop hook is the only closer. Slash runs and hook-less sessions are
-// unaffected (they never needed medium).
-//
-// The fix is a CHANNEL question (feed the confidence leg from the grid — D-1's
-// "grid for state, stream for events" — versus a Sonata-authored statusline
-// beacon versus hook-based readiness), registered for Woody's design session.
-// WHEN THAT LANDS, THIS ASSERTION MUST BE DELETED, not updated: its whole job is
-// to make the gap loud until then.
-await check("MEASURED GAP: the same session read from the STREAM is only low", async () => {
+// SL-2 left this as an open gap ("the fix is a CHANNEL question"). SL-2b
+// measured the answer and it is NOT a channel swap — see the
+// `stoplessTurnEndConfirmed` block below and its doc comment in terminal-host.
+// This assertion stays as the pin on the asymmetry itself, which is what makes
+// the medium gate unreachable on the stream after a normal turn.
+await check("the same session read from the STREAM is only low (channel asymmetry)", async () => {
   const hint = detectIdlePromptForProvider(productionIdleRaw, "claude");
   assert.equal(hint.ready, true, "readiness itself survives — the composer glyph is last");
   assert.equal(
@@ -823,12 +817,312 @@ await check("MEASURED GAP: the same session read from the STREAM is only low", a
     false,
     "the alt-screen repaint left no footer after the composer glyph in the stream",
   );
-  assert.equal(hint.confidence, "low", "so the stream channel cannot reach medium at 2.1.252");
+  assert.equal(hint.confidence, "low", "so the stream channel cannot reach medium here");
   const grid = await productionGrid(productionIdleRaw);
   assert.equal(
     detectIdlePromptForProvider(grid, "claude").confidence,
     "medium",
-    "same bytes, same detector, reconstructed screen — the gap is the CHANNEL, not the tokens",
+    "same bytes, same detector, reconstructed screen — the asymmetry is the CHANNEL",
+  );
+});
+
+// ── SL-2b: the STOP-LESS turn end ───────────────────────────────────────────
+//
+// Claude turn completion is hook-primary (Stop / StopFailure). q11 measured what
+// that family actually covers at 2.1.257, driving a real TerminalHost + the
+// production HookWatcher through seven scenarios (an eighth arm re-measures the
+// Esc gap against this fix — 108s wedged before, closed at +32.5s after):
+//
+//   normal turn end ............ SessionStart→UserPromptSubmit→Stop   COVERED
+//   turn whose tool failed ..... +PreToolUse, PostToolUseFailure, Stop COVERED
+//   91s foreground tool call ... +PermissionRequest, PostToolUse, Stop COVERED
+//   `/exit` .................... Stop, then SessionEnd(prompt_input_exit)
+//   pty killed mid-turn ........ no hooks; Sonata's own pty:exit closes it
+//   user Esc mid-turn .......... NO HOOK AT ALL                        GAP
+//   user denies a tool natively. PreToolUse, PermissionRequest, then nothing GAP
+//
+// The two gaps are Stop-less turn ENDS, and no wiring closes them: `SessionEnd`
+// fires only on process teardown, `PermissionDenied` (injected for the probe)
+// does not fire for a native-UI deny, and `Notification(idle_prompt)` — which
+// DOES fire at 2.1.257, 60s after a turn ends, falsifying the Phase-0 note in
+// cli-signal.ts — is anchored on the same turn-end Stop is: it never arrived in
+// the 100s following either Stop-less ending.
+//
+// So the backstop stays a screen judgement. What changed is that it no longer
+// rests on the medium gate alone, which at 2.1.257 is a coin flip on repaint
+// order: the natively-denied turn happened to re-emit its footer after the
+// composer (stream medium → closed in 3.5s), the Esc'd turn did not (stream low
+// → the run sat `active` for the full 108s of the probe, re-judged every 1.8s).
+//
+// PROVENANCE — MEASURED. `tests/fixtures/claude-idle/esc-interrupted-2.1.257.raw.json`
+// is the VERBATIM `activeRunRaw` of a real claude 2.1.257 prompt run, captured by
+// spikes/upstream-sync-2026-09/claude/q11-hook-coverage.mjs (arm s3-esc-mid-turn)
+// under Sonata's own production spawn: the run was submitted through
+// `submitPrompt`, ran ~6s, and was interrupted by an Esc written through
+// `writeUserInput` — the co-visible-Terminal path a human takes. Nothing edited.
+// The grid below is reconstructed from these same bytes through the production
+// `TaskScreenModel`; the live session's own viewport read `ready/medium` in all
+// 20 post-Esc samples, so the reconstruction agrees with what was on screen.
+const escInterruptedRaw = JSON.parse(
+  fs.readFileSync(
+    path.resolve(
+      path.dirname(new URL(import.meta.url).pathname),
+      "../fixtures/claude-idle/esc-interrupted-2.1.257.raw.json",
+    ),
+    "utf8",
+  ),
+);
+
+await check("the Esc-interrupted run is the shape the medium gate cannot close", async () => {
+  assert.ok(/Interrupted · What should Claude do instead\?/.test(escInterruptedRaw), "the fixture is the interrupt frame");
+  const hint = detectIdleComposerForProvider(escInterruptedRaw, "claude");
+  assert.equal(hint.completed, true, "the run's own bytes went activity → composer: the turn IS over");
+  assert.equal(hint.confidence, "low", "and the stream carries no footer after the composer — medium is unreachable");
+  const grid = await productionGrid(escInterruptedRaw);
+  assert.equal(
+    detectIdlePromptForProvider(grid, "claude").ready,
+    true,
+    "while the GRID shows a real composer with nothing owning the screen",
+  );
+});
+
+/** Drive a claude prompt run through the completion judge with hooks alive, the
+ *  given run-raw bytes and the given screen, and report what closed it.
+ *  `stoplessTurnEndConfirmMs` is squeezed so a smoke can prove a window without
+ *  waiting one; the window's LENGTH is a product constant, not the mechanism. */
+async function judgeClaudeRun(runRaw, screen, options = {}) {
+  const events = [];
+  const host = makeHost(events, {
+    provider: "claude",
+    completionQuietMs: 150,
+    stoplessTurnEndConfirmMs: 600,
+    ...options.hostOptions,
+  });
+  try {
+    host.ptyProcess = fakePty();
+    host.startedAt = Date.now() - 60_000;
+    host.screenModel = screen === null ? null : stubScreenModel(screen);
+    // Hooks alive: SessionStart landed, so Stop OWNS this turn's end and the
+    // scrape is only the backstop — the exact production state under test.
+    host.noteHookSessionStart();
+    host.activeRun = claudePromptRun();
+    host.activeRunRaw = runRaw;
+    host.handlePtyData("."); // one printable byte arms the completion debounce
+    await delay(options.waitMs ?? 2400);
+    const completed = events.filter(
+      (event) => event.type === "run:updated" && event.payload.status === "completed",
+    );
+    // The host is disposed in `finally`, so it is deliberately NOT returned —
+    // only the events it emitted, which outlive it.
+    return { events, completed };
+  } finally {
+    host.dispose();
+  }
+}
+
+await check("SL-2b: a Stop-less claude turn closes once the idle verdict is SUSTAINED", async () => {
+  const grid = await productionGrid(escInterruptedRaw);
+  const { completed } = await judgeClaudeRun(escInterruptedRaw, grid);
+
+  assert.equal(completed.length, 1, "exactly one completed run:updated");
+  assert.equal(completed[0].payload.completionSource, "terminal-idle-heuristic");
+  assert.equal(
+    completed[0].payload.completionConfidence,
+    "low",
+    "LOW is the honest confidence — the evidence is sustained quiescence, not an idle footer",
+  );
+  assert.equal(
+    completed[0].payload.statusReason,
+    "sustained idle composer (Stop-less turn end)",
+    "the reason names WHICH backstop closed it (field triage must not have to guess)",
+  );
+});
+
+await check("SL-2b: it does NOT close before the window elapses", async () => {
+  const grid = await productionGrid(escInterruptedRaw);
+  const { completed } = await judgeClaudeRun(escInterruptedRaw, grid, {
+    hostOptions: { stoplessTurnEndConfirmMs: 60_000 },
+    waitMs: 1200,
+  });
+  assert.equal(completed.length, 0, "the run is still under judgment until the window is met");
+});
+
+// Term 2 (STATE, on the grid). The whole point of reading the screen is to
+// refuse when something OWNS it — an approval or option panel is a live turn
+// waiting for the human, and closing it as "done" is the lie this guards.
+//
+// Asserted on the PREDICATE, not on the absence of a completion event: a
+// panel-shaped grid also trips the host's own approval scrape (`approvalActive`
+// → `checkCompletionHeuristic` guard-exits), so an event-level assertion here
+// would pass for the wrong reason and prove nothing about term 2. Same host,
+// same aged window, two grids, one variable.
+await check("SL-2b: a panel owning the screen holds the sustained close", async () => {
+  const panelScreen =
+    "Do you want to create hello.txt?\n" +
+    "❯ 1. Yes\n  2. Yes, and switch to accept edits for this session (shift+tab)\n  3. No\n" +
+    "Esc to cancel · Tab to amend\n";
+  assert.equal(
+    detectIdlePromptForProvider(panelScreen, "claude").ready,
+    false,
+    "the panel frame is not an idle prompt (the premise this guard rests on)",
+  );
+
+  const grid = await productionGrid(escInterruptedRaw);
+  const host = makeHost([], { provider: "claude", stoplessTurnEndConfirmMs: 0 });
+  try {
+    host.ptyProcess = fakePty();
+    host.activeRun = claudePromptRun();
+    // The window is already satisfied — so the ONLY thing left to decide the
+    // verdict is which screen is on the grid.
+    host.sustainedIdleVerdict = { runId: host.activeRun.id, since: Date.now() - 60_000 };
+
+    host.screenModel = stubScreenModel(grid);
+    assert.equal(host.stoplessTurnEndConfirmed(), true, "an idle composer grid confirms");
+
+    host.screenModel = stubScreenModel(panelScreen);
+    assert.equal(host.stoplessTurnEndConfirmed(), false, "a panel owning the grid refuses");
+  } finally {
+    host.dispose();
+  }
+});
+
+// No grid, no claim — same rule every other screen predicate on this class
+// follows. A bare host in a test has no screen model, and must not inherit a
+// closure it cannot justify.
+await check("SL-2b: no screen model means no sustained close", async () => {
+  const { completed } = await judgeClaudeRun(escInterruptedRaw, null);
+  assert.equal(completed.length, 0, "the state term is unanswerable, so the gate refuses");
+
+  // …and the predicate itself refuses, so the check above cannot be passing on
+  // some other guard.
+  const host = makeHost([], { provider: "claude", stoplessTurnEndConfirmMs: 0 });
+  try {
+    host.ptyProcess = fakePty();
+    host.activeRun = claudePromptRun();
+    host.sustainedIdleVerdict = { runId: host.activeRun.id, since: Date.now() - 60_000 };
+    host.screenModel = null;
+    assert.equal(host.stoplessTurnEndConfirmed(), false, "no grid → no claim");
+  } finally {
+    host.dispose();
+  }
+});
+
+// Term 1 (EVENT, on the stream) is the one carrying the real weight: across 18
+// samples spanning a genuinely live 91-second foreground tool call (q11 s7) the
+// run-raw verdict read NOT-completed every time, while every grid-side reading
+// said "idle". A live turn must never reach the window at all.
+//
+// PROVENANCE — MEASURED/ADAPTED. The run-raw text below is the q11 s7 turn's own
+// shape: the echoed prompt, claude's `⏺ Running 1 shell command…` line and the
+// `⎿  $ python3 …` tool line, transcribed from that arm's captured stream. The
+// grid is the production idle frame — deliberately the MOST permissive screen
+// there is, so the assertion can only pass on the stream term.
+await check("SL-2b: a LIVE turn never reaches the window (the stream term holds it)", async () => {
+  const liveTurnRaw =
+    "❯ Run this exact bash command in the FOREGROUND and wait for it to finish\n" +
+    "⏺ Running 1 shell command…\n" +
+    "  ⎿  $ python3 -c \"import time; time.sleep(90); print('slept')\"\n" +
+    "✻ Honking… (2s · ↓25 tokens)\n";
+  assert.equal(
+    detectIdleComposerForProvider(liveTurnRaw, "claude").completed,
+    false,
+    "the run's own bytes end in activity, not a composer — the turn is not over",
+  );
+  const grid = await productionGrid(productionIdleRaw);
+  assert.equal(
+    detectIdlePromptForProvider(grid, "claude").confidence,
+    "medium",
+    "and the grid says `medium` anyway — which is why the grid's CONFIDENCE is not the gate",
+  );
+  const { completed } = await judgeClaudeRun(liveTurnRaw, grid);
+  assert.equal(completed.length, 0, "a live turn is never closed by the sustained path");
+});
+
+// A single non-idle pass RESTARTS the window: the run has to be continuously
+// idle, not idle-then-busy-then-idle. Without the reset a turn that stalled once
+// early would carry an aged window into its next quiet moment.
+await check("SL-2b: activity resets the sustained window", async () => {
+  const grid = await productionGrid(escInterruptedRaw);
+  const events = [];
+  const host = makeHost(events, {
+    provider: "claude",
+    completionQuietMs: 150,
+    stoplessTurnEndConfirmMs: 900,
+  });
+  try {
+    host.ptyProcess = fakePty();
+    host.startedAt = Date.now() - 60_000;
+    host.screenModel = stubScreenModel(grid);
+    host.noteHookSessionStart();
+    host.activeRun = claudePromptRun();
+
+    // Idle for most of the window…
+    host.activeRunRaw = escInterruptedRaw;
+    host.handlePtyData(".");
+    await delay(700);
+    // …then the model speaks again: the turn was NOT over.
+    host.activeRunRaw = `${escInterruptedRaw}\n✻ Honking… (2s · ↓25 tokens)\n`;
+    host.handlePtyData(".");
+    await delay(700);
+    assert.equal(
+      events.filter((e) => e.type === "run:updated" && e.payload.status === "completed").length,
+      0,
+      "the pre-activity idle time must not count toward the window",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+// Codex is UNTOUCHED by this slice. Its stream is fine (`--no-alt-screen` keeps
+// the footer inside the promptTail window), so the medium gate is a real test
+// there and the sustained path must never fire for it — a codex turn that reads
+// idle at LOW confidence with hooks alive stays under judgment exactly as before.
+await check("SL-2b: the sustained close is claude-only — codex is unchanged", async () => {
+  const grid = await productionGrid(escInterruptedRaw);
+  const events = [];
+  const host = makeHost(events, {
+    provider: "codex",
+    completionQuietMs: 150,
+    stoplessTurnEndConfirmMs: 600,
+  });
+  try {
+    host.ptyProcess = fakePty();
+    host.startedAt = Date.now() - 60_000;
+    host.screenModel = stubScreenModel(grid);
+    host.noteHookSessionStart();
+    host.activeRun = codexPromptRun();
+    // A codex idle composer with NO model/effort footer → ready at LOW.
+    host.activeRunRaw = "• Working (2s · esc to interrupt)\n• ok\n› \n";
+    assert.equal(detectIdleComposerForProvider(host.activeRunRaw, "codex").completed, true);
+    assert.equal(detectIdleComposerForProvider(host.activeRunRaw, "codex").confidence, "low");
+    host.handlePtyData(".");
+    await delay(2400);
+    assert.equal(
+      events.filter((e) => e.type === "run:updated" && e.payload.status === "completed").length,
+      0,
+      "codex keeps the medium-only gate — no sustained path",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+// The MEDIUM path is untouched and still closes promptly — this is the shape the
+// natively-denied turn takes (q11 s6: closed 3.5s after the deny, medium).
+await check("SL-2b: a medium-confidence idle footer still closes immediately", async () => {
+  const grid = await productionGrid(productionIdleRaw);
+  const { completed } = await judgeClaudeRun(grid, grid, {
+    hostOptions: { stoplessTurnEndConfirmMs: 60_000 },
+    waitMs: 1200,
+  });
+  assert.equal(detectIdleComposerForProvider(grid, "claude").confidence, "medium");
+  assert.equal(completed.length, 1, "medium closes on the first judge pass, no window involved");
+  assert.equal(completed[0].payload.completionConfidence, "medium");
+  assert.equal(
+    completed[0].payload.statusReason,
+    "terminal idle/composer heuristic",
+    "and it keeps the original reason string",
   );
 });
 
@@ -854,6 +1148,22 @@ function slashRun() {
     kind: "slash",
     prompt: "/zzz-not-a-command",
     title: "/zzz-not-a-command",
+    status: "active",
+    lifecyclePhase: "active",
+    startedAt: new Date(now).toISOString(),
+    endedAt: null,
+    elapsedMs: null,
+  };
+}
+
+function claudePromptRun() {
+  const now = Date.now();
+  return {
+    taskId: "task-ready-detection-smoke",
+    id: `run-${now}-1`,
+    kind: "prompt",
+    prompt: "Write out the numbers 1 to 400, one per line",
+    title: "Write out the numbers 1 to 400, one per line",
     status: "active",
     lifecyclePhase: "active",
     startedAt: new Date(now).toISOString(),

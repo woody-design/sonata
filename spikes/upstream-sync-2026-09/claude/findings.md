@@ -536,3 +536,269 @@ instead of exiting. Latent before the isolation change; load-bearing after it.
 Fixed by disposing host/transcript/delivery on the failure path and rethrowing,
 rather than ending the file with an explicit `process.exit` — an explicit exit
 would have masked the next leak of this class as well as this one.
+
+---
+
+# SL-2b — claude HOOK COVERAGE for turn completion (probed 2026-09-01, binary 2.1.257)
+
+Binary pinned `2.1.257 (Claude Code)` at every probe start AND at every probe
+end (the probe aborts on drift). Probe `q11-hook-coverage.mjs`, capture
+`q11-hook-coverage.capture.txt`. Eight arms, each its own real session driven
+through a REAL `TerminalHost` from `dist/` with Sonata's own spawn args, plus the
+production `HookWatcher` and the four completion-path dispatch edges
+`RuntimeController.handleHookPayload` applies (`SessionStart` →
+`noteHookSessionStart`, `UserPromptSubmit` → `beginRunFromHook`, `Stop` /
+`StopFailure` → `completeRunFromTurnEnd`). Without that plumbing the gate under
+test (`heuristicMayClose`) is never in its production shape at all, which is why
+a bare-spawn sweep could not have answered this.
+
+Deviation from production, deliberate and bounded: every arm spawns
+`approvalBroker:false` (native-approval mode), because broker-ON suppresses the
+grid approval scrape outright (`nativeApprovalSurfaceSuppressed`) and the probe
+needs it to answer the trust dialog and to see the deny panel. The completion
+path under test is broker-independent.
+
+## F10 — the coverage matrix (MEASURED, decisive)
+
+| # | scenario | hooks observed | turn actually over? | run closed? |
+|---|---|---|---|---|
+| s1 | normal turn end | SessionStart, UserPromptSubmit, **Stop**, (Notification `idle_prompt` at +60s) | yes | yes — `hook-stop` / high, 1.9s |
+| s2 | turn whose TOOL failed (Read on a missing path) | +PreToolUse, **PostToolUseFailure**, Stop, SubagentStop | yes | yes — `hook-stop` / high |
+| s7 | 91-second FOREGROUND tool call | +PermissionRequest, PostToolUse, **Stop** | yes, after 91s | yes — `hook-stop` / high, and **never closed early** |
+| s5 | CLI self-exit (`/exit`) | Stop, then **SessionEnd** (`reason:"prompt_input_exit"`) | yes | yes — `hook-stop` |
+| s4 | pty SIGKILLed mid-turn | none after the kill (a dead process fires nothing) | n/a | yes — Sonata's own `pty-exit` / high |
+| **s3** | **user Esc mid-turn** (co-visible Terminal) | **NONE** | **yes** (`⎿ Interrupted · What should Claude do instead?`) | **NO — `active` for the full 108s watch** |
+| **s6** | **user DENIES a tool** on the CLI's native panel | PreToolUse, PermissionRequest, then **nothing** | **yes** (`⎿ User rejected write…`, `✻ Crunched for 2s · done`) | yes, but **by luck** — `terminal-idle-heuristic` / medium |
+
+So: **`Stop` covers every turn that ends by the model finishing, tool error
+included, and a 91-second tool call does not fool anything.** The residual gap is
+exactly the two ways a turn ends WITHOUT the model finishing it — a user
+interrupt and a user denial. Both are ordinary, daily user actions.
+
+## F11 — the gap is not closable by wiring another hook (three measured negatives)
+
+2.1.257's bundle declares 33 hook events (`var Hh=[…]`, extracted from
+`bin/claude.exe`); Sonata injects 8 + `PermissionRequest`. The probe INJECTED the
+three completion-relevant unwired ones into the settings file the production
+writer had just written (never overriding a production entry, same sink command,
+same spawn shape) and measured them:
+
+- **`SessionEnd` DOES fire** under our `--settings` injection — `reason:
+  "prompt_input_exit"` on `/exit`, ~300ms before the pty dies. Its reason enum in
+  the bundle is `clear|resume|logout|prompt_input_exit|other`, i.e. it is a
+  SESSION teardown event, not a turn event. It cannot close a turn. (It answers
+  the standing "known, not wired" question in `cli-signal.ts` for claude: the
+  event is real and reachable; it is simply not this slice's signal.)
+- **`PostToolUseFailure` fires INSTEAD of `PostToolUse`** when a tool errors (s2:
+  `PreToolUse(Read)` → `PostToolUseFailure(Read)` with `error: "File does not
+  exist…"`, no `PostToolUse`). Consequence for the code as it stands:
+  `recordToolChangesFromHook` never sees a FAILED tool — which is correct (a
+  failed tool changed nothing), so this is documentation, not a bug. Registered
+  for SL-9.
+- **`PermissionDenied` does NOT fire** for a native-UI denial (s6: injected, and
+  absent). Whatever it is for, it is not the user pressing "No" on the panel.
+
+And the one that looked most promising:
+
+- **`Notification(idle_prompt)` DOES fire at 2.1.257** — `message: "Claude is
+  waiting for your input"`, twice measured at Stop+60.2s and Stop+60.1s. This
+  **falsifies the Phase-0 note** carried in `cli-signal.ts` ("`Notification(idle_
+  prompt|permission_prompt)` does NOT fire" — true at 2.1.177). The bundle's
+  default `messageIdleNotifThresholdMs` is 60000, which matches. It is ALREADY in
+  `INJECTED_HOOK_EVENTS`, so it costs nothing to receive.
+  **But it is not a backstop**: it is anchored on the same turn-end that `Stop`
+  is. In the 100 seconds following the Esc (s3) and following the deny (s6) it
+  NEVER arrived. A signal that only fires when Stop fired adds zero coverage.
+
+## F12 — the medium-confidence gate is a COIN FLIP at 2.1.257, and the grid cannot replace it
+
+F5b concluded the medium gate was simply DEAD under production spawns. Half
+right. It is dead when the alt-screen differential repaint leaves the post-turn
+promptTail as a bare `"❯ "` (s1, s3 — `confidence=low`), and ALIVE when the
+repaint happens to re-emit the footer after the composer glyph (s6, after a deny
+— `confidence=medium`, which is the only reason that arm closed at all, 3.5s in).
+Nothing about the turn distinguishes the two. Repaint order does.
+
+F5b's candidate fix #1 — "feed the `hasModelOrCwdHint` leg from the grid" — is
+**FALSIFIED by s7**. Over 18 samples spanning a genuinely live 91-second
+foreground tool call:
+
+```
+   run=active  stream=F/low  grid=T/medium  runRawComp=F/low  gridComp=T/medium   ×18
+```
+
+The idle footer (`⏸ manual mode on · ← for agents`) is PERMANENT CHROME at
+2.1.257 — on screen while busy exactly as at idle. So a grid-fed confidence leg
+would read `medium` throughout a live turn: not a stricter gate, a VACUOUS one.
+Worse, a grid-fed `detectIdleComposer` reads `completed=true` throughout (the
+composer is the bottom row of any frame, so "prompt after activity" is trivially
+true on a grid — the ordering rule is a STREAM rule and means nothing on a
+screen). Either grid swap would have re-armed the premature-completion class.
+
+The leg that actually works is the one on the run's OWN bytes: `runRawComp` read
+`completed=false` for all 91 seconds of the live turn, and `completed=true`
+immediately after the Esc. That is an EVENT question on the EVENT channel, and it
+is doing the real work.
+
+## F13 — what shipped: the Stop-less turn-end backstop
+
+`stoplessTurnEndConfirmed` (terminal-host.ts) — claude-only, hooks-alive,
+prompt-runs-only, ADDED beside the untouched medium gate. The brief's first
+branch ("where the matrix shows coverage, RETIRE the medium backstop") turned out
+to have no target: the medium arm never fires for a turn the hooks cover — those
+close on `Stop` at HIGH confidence in ~2s and never reach the heuristic's closing
+branch at all. Every measured medium close was itself a STOP-LESS ending (s6,
+3.5s). So the medium arm lives entirely INSIDE the gap, where retiring it removes
+coverage rather than a lie — and it is the safer of the two arms (the stream
+reached medium in 0 of 18 samples of a live turn). Kept, unchanged, and the
+second arm added beneath it.
+
+The new arm carries three terms, each on the channel that can answer it:
+
+1. EVENT (stream, the existing `idleVerdict`) — did THIS RUN's bytes go activity
+   → composer? The term F12 shows carries the weight.
+2. STATE (grid) — is a real composer on screen right now with NOTHING owning it?
+   `detectIdlePrompt` reads a panel frame as not-ready (its end markers outrank
+   the row cursor), so this is the term that refuses to call an approval/option
+   panel "done". Deliberately the grid's READY, never its CONFIDENCE — F12.
+3. TIME — has 1+2 held continuously for 30s? An order of magnitude past the one
+   documented misfire shape (a post-submit stall with a ≥1.75s printable-quiet
+   window on a live run, claude 2.1.211, 5 field misfires), and past Sonata's 20s
+   liveness rung, so a run reaching the window has already surfaced honestly as
+   "still working" first.
+
+Verified LIVE, before and after, on the same gap (arms s3 and s8, identical but
+for the `dist/` they ran against):
+
+```
+s3 (before)  Esc at  9.0s → run `active` at every one of 56 judge passes, 108s watch
+s8 (after)   Esc at  9.6s → run completed at +32.5s   (re-run against the FINAL
+             build after the data-fresh reset landed: +32.5s again)
+             statusReason "sustained idle composer (Stop-less turn end)"
+             completionSource terminal-idle-heuristic, confidence low
+```
+
+s1 re-run against the fixed build still closes on the hook at 1.9s
+(`hook-stop`/high) — the covered path never reaches the window.
+
+RESIDUAL RISK, stated rather than hidden. The arm admits a close on the ABSENCE
+of liveness evidence, not on positive proof the turn ended — so the 2.1.211
+field-misfire shape (a post-submit stall reading composer-after-activity at LOW
+confidence) becomes closable IF that stall stays printable-SILENT for 30
+continuous seconds. Two things bound it:
+
+- every printable chunk re-schedules the completion judge, so output arriving
+  faster than `completionQuietMs` means the judge never runs and the window
+  cannot even begin (pinned in `stop-hook-completion.mjs`);
+- a live claude turn at 2.1.257 renders an ANIMATED spinner with a running
+  elapsed/token counter — measured repainting ~every second across the whole
+  91-second tool call (s7) — so a printable-silent live turn is structurally hard
+  to produce. This is the load-bearing assumption and it rests on ONE measured
+  live-turn arm; it is stated in the code, and the cost is pinned as a TEST
+  ("SL-2b trade-off: the field-stall frame IS closable once the window elapses")
+  rather than left as a surprise.
+
+REGISTERED REFINEMENT, deliberately not built. If that risk ever materialises,
+the fix is to require POSITIVE turn-end evidence on the grid instead of absence
+of liveness. 2.1.257 paints one at every ending, MEASURED under the production
+statusLine spawn:
+
+| ending | marker painted |
+|---|---|
+| model finished (s1/s2/s5/s7) | `✻ <verb> for Ns · done <time>` |
+| tool denied (s6) | `⎿  User rejected write to hello.txt` + `✻ Crunched for 2s · done` |
+| user Esc (s3) | `⎿  Interrupted · What should Claude do instead?` |
+
+Not built now because it is upstream COPY, and the right time to spend fragility
+is on evidence, not speculation. Its failure mode is the safe one: a reword stops
+the close (reverting to today's wedge), it cannot manufacture one.
+
+## F13b — review round 1: the TIME term was measuring the wrong thing (BLOCKING, fixed)
+
+The first version of `stoplessTurnEndConfirmed` had ONE time term — "a judge pass
+read the run idle, and that was >= 30s ago" — and it did not mean what it said.
+
+MECHANISM (verified in the code, not inferred). Every printable chunk does two
+things in `handlePtyData`: stamps `lastPrintablePtyDataAt`, and calls
+`scheduleCompletionCheck`, which CLEARS the timer and re-arms at
+`now + completionQuietMs`. So the completion judge can only ever fire at or after
+`lastPrintablePtyDataAt + completionQuietMs`. Two consequences:
+
+1. The `data-fresh` guard is false at every fire instant, so the "fresh printable
+   output resets the window" branch I had added there was DEAD CODE wearing a
+   safety comment.
+2. Far worse: during dense output NO judge pass runs at all, so nothing on the
+   run side observes the output. `sustainedIdleVerdict.since` therefore survived
+   an arbitrarily long live stretch, and the term measured WALL-CLOCK SINCE
+   ARMING rather than continuous idleness.
+
+Exposure beyond the trade-off I had pinned — three shapes, all live turns:
+(A) an early post-submit stall arms the window, the turn then streams for a
+minute, and the next >=1.8s pause closes it; (B) the judge's approval guard-exit
+returns BEFORE any bookkeeping, so an entire approval episode is invisible to the
+window — arm early, panel up two minutes, approve, tool runs, first quiet moment
+closes mid-turn; (C) an Esc-with-queued-message repaint against an armed window.
+The harm chain is unattenuated: `task:ready` fires regardless of LOW confidence,
+so queued delivery lands into a live turn.
+
+FIX — both halves, because they answer different questions:
+
+- TIME (a), the load-bearing one: `now - lastPrintablePtyDataAt >= confirmMs` —
+  the STREAM itself must have been printable-silent for the whole window. Stated
+  on raw timestamps and on nothing else, so no future change to how the judge is
+  scheduled can defeat it. It also covers shape (B) with no approval-specific
+  code, because a panel PAINTS and its paint is printable.
+- TIME (b), unchanged in spirit but now honest: `since` restarts whenever
+  `lastPrintablePtyDataAt > since`, so a field named `sustainedIdleVerdict`
+  actually means sustained.
+
+The dead data-fresh reset was REMOVED and replaced by a note recording why a
+reset cannot live there, so it is not re-added by someone reading the old comment.
+
+REGRESSION COVERAGE — the review's point was that the existing tests proved the
+window cannot BEGIN under output, never that it RESTARTS. Two new checks in
+`stop-hook-completion.mjs`, both verified to FAIL against the pre-fix code and
+pass after (the fix was reverted in-tree, rebuilt, and re-run to prove it):
+
+| check | pre-fix | post-fix |
+|---|---|---|
+| a window armed before a live stream cannot close on the first pause after it | FAIL | ok |
+| an aged run-side window cannot close while the STREAM is still noisy | FAIL | ok |
+| SL-2b trade-off pin (field-stall frame IS closable after the window) | ok | ok |
+
+The first construction I wrote for the behavioural check PASSED against the
+pre-fix code — the margins made it a coin flip. Rebuilt around the actual
+mechanism: the streaming stretch must be DENSER than `completionQuietMs`, because
+the silence of the judge (not the output) is what froze the clock.
+
+LIVE RE-VERIFICATION against the rebuilt dist — the new silence term could have
+delayed or prevented the close it exists to allow, so it was re-measured, not
+argued:
+
+```
+s8  CLOSED 32519ms after Esc — sustained idle composer (Stop-less turn end) / low
+    (three consecutive runs: 32532 / 32509 / 32519ms)
+s1  completed at 6327ms — stop hook (turn ended) / hook-stop / high
+    idle Notification again at +60.1s
+```
+
+That the post-Esc stream satisfies a 30s printable-SILENCE requirement is itself
+new evidence for F13's load-bearing premise: an ended turn stops painting, a live
+one does not.
+
+## F14 — statusLine sink: the EMPTY footer row is BY DESIGN (SL-3 register item, closed)
+
+SL-3 (q8) observed Sonata's injected statusLine row rendering EMPTY in production
+boot frames and registered it as unverified. Verified: `claude-statusline-sink.ts`
+reads the payload on stdin, writes it to `<runtimeDir>/usage/claude-<session>.json`
+via tmp+rename, and **writes nothing to stdout**. Claude renders whatever the
+statusLine command prints, so an empty stdout renders an empty row. Sonata uses
+the statusLine hook purely as a USAGE PAYLOAD SOURCE, never to paint.
+
+No usage-parsing bug: the 2.1.257 payload captured live in this probe's own
+runtime dir carries every field `usage-adapters.ts` reads —
+`context_window.{used_percentage,context_window_size,current_usage.*}`,
+`cost.total_cost_usd`, `rate_limits.{five_hour,seven_day}.{used_percentage,resets_at}`,
+`model.display_name`. No code change. (Side note for the parked statusline-beacon
+idea: the row IS Sonata's to author — but F12 is the reason a beacon would not
+have helped here, since the footer's PRESENCE is not evidence of idleness.)
