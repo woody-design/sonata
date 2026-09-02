@@ -1,0 +1,100 @@
+# Z3 — usage-limit auto-continue: what is observable WITHOUT provoking a limit (SL-12 / D1)
+
+binary: 2.1.258 (Claude Code) (re-pinned at probe end)
+
+SCOPE. The FIRE path (armed → reset → the CLI submitting its own continuation)
+is NOT measured, by anyone, here: provoking it means exhausting this account's
+quota. Everything below is what can be observed without paying that, plus the
+static shapes recorded in findings.md.
+
+## the setting, read off the live `/config` panel
+
+- `/config` reached the composer verbatim: true
+- panel opened: true
+- row found: **true**
+- row as rendered: `Continue automatically at usage limit      true`
+- key present in `~/.claude/settings.json`: **false**
+- ROW READ — Continue automatically at usage limit      true
+
+## field evidence of a past episode
+
+- project dirs: 811; transcripts scanned: 981
+- self-excluded (this investigation's own transcripts): ["c6c948b4-928a-4af1-a9aa-263965437313","sonata-sync-2026-09"]
+- needles: 8 CLI-owned literals (continuation prompts + episode banners)
+- hits: []
+- **NO FIELD EVIDENCE — 981 transcripts hold none of the 8 episode literals**
+
+## user-settings guard
+
+```json
+{
+  "checked": true,
+  "mutatedByProbe": false,
+  "restored": true
+}
+```
+
+## per-arm detail
+
+### z3a-config-row
+
+```json
+{
+  "scenario": "z3a-config-row",
+  "version": "2.1.258 (Claude Code)",
+  "notes": [
+    "trust dialog answered via sendApprove at 331ms",
+    "ready=true at 1641ms"
+  ],
+  "slashOnComposer": true,
+  "panelOpen": true,
+  "settingRowFound": true,
+  "settingRow": "     Continue automatically at usage limit      true",
+  "settingsJsonHasKey": false,
+  "screenAfterEsc": "\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "frames": [
+    {
+      "step": 1,
+      "screen": "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/usage-limit/z3a-config-row/ws\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n   Settings  Status   Config   Usage   Stats\n\n   ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\n   │ ⌕ Search settings…                                                                                             │\n   ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\n\n     Auto-compact                               true\n     Continue automatically at usage limit      true\n     Switch models when a message is flagged    true\n     Show tips                                  true\n     Claude-drafted feedback                    notify\n     Reduce motion                              false\n     Thinking mode                              true\n     Prompt suggestions                         true\n     Session recap                              true\n     Rewind code (checkpoints)                  true\n     Dynamic workflows                          true\n     Ultracode keyword trigger                  true\n     Dynamic workflow size                      medium (default)\n     Artifacts                                  true\n     Verbose output                             false\n     Terminal progress bar                      true\n     Show turn duration                         true\n     Time format                                auto\n     Default permission mode                    Manual\n     Worktree base ref                          fresh\n     Use auto mode during plan                  true\n     Respect .gitignore in file picker          true\n     Skip the /copy picker                      false\n     Copy on select                             true\n     Auto-scroll                                true\n     Open agents view by default                false\n     ← opens agents                             true\n     Auto-update channel                        latest\n   ↓ 16 more below\n\n   Type to filter · Enter/↓ to select · ↑ to tabs · Esc to clear"
+    },
+    {
+      "step": 2,
+      "screen": "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/usage-limit/z3a-config-row/ws\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n   Settings  Status   Config   Usage   Stats\n\n   ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\n   │ ⌕ Search settings…                                                                                             │\n   ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\n\n   ❯ Auto-compact                               true\n     Continue automatically at usage limit      true\n     Switch models when a message is flagged    true\n     Show tips                                  true\n     Claude-drafted feedback                    notify\n     Reduce motion                              false\n     Thinking mode                              true\n     Prompt suggestions                         true\n     Session recap                              true\n     Rewind code (checkpoints)                  true\n     Dynamic workflows                          true\n     Ultracode keyword trigger                  true\n     Dynamic workflow size                      medium (default)\n     Artifacts                                  true\n     Verbose output                             false\n     Terminal progress bar                      true\n     Show turn duration                         true\n     Time format                                auto\n     Default permission mode                    Manual\n     Worktree base ref                          fresh\n     Use auto mode during plan                  true\n     Respect .gitignore in file picker          true\n     Skip the /copy picker                      false\n     Copy on select                             true\n     Auto-scroll                                true\n     Open agents view by default                false\n     ← opens agents                             true\n     Auto-update channel                        latest\n   ↓ 16 more below\n\n   Enter/Space to change · / to search · Esc to close"
+    },
+    {
+      "step": 3,
+      "screen": "  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/usage-limit/z3a-config-row/ws\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n   Settings  Status   Config   Usage   Stats\n\n   ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮\n   │ ⌕ Search settings…                                                                                             │\n   ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯\n\n     Auto-compact                               true\n   ❯ Continue automatically at usage limit      true\n     Switch models when a message is flagged    true\n     Show tips                                  true\n     Claude-drafted feedback                    notify\n     Reduce motion                              false\n     Thinking mode                              true\n     Prompt suggestions                         true\n     Session recap                              true\n     Rewind code (checkpoints)                  true\n     Dynamic workflows                          true\n     Ultracode keyword trigger                  true\n     Dynamic workflow size                      medium (default)\n     Artifacts                                  true\n     Verbose output                             false\n     Terminal progress bar                      true\n     Show turn duration                         true\n     Time format                                auto\n     Default permission mode                    Manual\n     Worktree base ref                          fresh\n     Use auto mode during plan                  true\n     Respect .gitignore in file picker          true\n     Skip the /copy picker                      false\n     Copy on select                             true\n     Auto-scroll                                true\n     Open agents view by default                false\n     ← opens agents                             true\n     Auto-update channel                        latest\n   ↓ 16 more below\n\n   Enter/Space to change · / to search · Esc to close"
+    }
+  ],
+  "verdict": "ROW READ — Continue automatically at usage limit      true",
+  "ranAt": "2026-09-02T07:38:31.502Z"
+}
+```
+
+### z3b-field-evidence
+
+```json
+{
+  "scenario": "z3b-field-evidence",
+  "version": "2.1.258 (Claude Code)",
+  "projectDirs": 811,
+  "filesScanned": 981,
+  "selfExcluded": [
+    "c6c948b4-928a-4af1-a9aa-263965437313",
+    "sonata-sync-2026-09"
+  ],
+  "needles": [
+    "Your claude.ai usage limit has reset. Continue the task you were working on",
+    "Your claude.ai usage is available again before the usage-limit reset",
+    "Usage limit available",
+    "Usage limit has reset",
+    "Automatic continue cancelled",
+    "Automatic continue was turned off",
+    "Automatic continue stopped",
+    "Automatic continue did not run"
+  ],
+  "hits": [],
+  "verdict": "NO FIELD EVIDENCE — 981 transcripts hold none of the 8 episode literals",
+  "ranAt": "2026-09-02T07:38:31.866Z"
+}
+```

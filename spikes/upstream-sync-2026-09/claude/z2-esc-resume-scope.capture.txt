@@ -1,0 +1,462 @@
+# Z2 — spontaneous resumption shape (b): the Esc auto-resume TRIGGER SCOPE (SL-12 / D1)
+
+binary: 2.1.258 (Claude Code) (re-pinned at probe end)
+z2a spawn: production TerminalHost from dist/. z2b/z2c: raw pty, `claude --continue`.
+
+## the live Esc (z2a) — production path, nothing written after the Esc
+
+- turn was streaming when Esc was sent: **true**
+- hooks in the 180s after the Esc: []
+- Sonata run events after the Esc: ["run:updated@+1890ms","run:updated@+3693ms","run:updated@+5495ms","run:updated@+7296ms","run:updated@+9098ms","run:updated@+10900ms","run:updated@+12703ms","run:updated@+14506ms","run:updated@+16309ms","run:updated@+18112ms","run:updated@+19914ms","run:updated@+21716ms","run:updated@+23519ms","run:updated@+25320ms","run:updated@+27123ms","run:updated@+28926ms","run:updated@+30729ms","run:updated@+32532ms"]
+- bytes painted after the Esc: 512
+- transcript interruption markers: 1
+- an auto-resume prompt in the transcript: **false**
+- **NO RESUME — 180s after a user Esc the CLI did nothing unprompted**
+
+## the restore contrast (z2b vs z2c) — one variable
+
+| | z2b `--continue` | z2c `--continue` + `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` |
+|---|---|---|
+| interruption markers in the restored transcript | 1 | 1 |
+| turns before restore | 3 | 3 |
+| turns after the watch | 3 | 3 |
+| the restore actually restored the history | true | true |
+| unprompted activity on screen | none | none |
+| **auto-resumed** | **false** | **false** |
+| verdict | NO AUTO-RESUME — the restored session sat at its composer for 90s | NO AUTO-RESUME — the restored session sat at its composer for 90s |
+
+## user-settings guard
+
+```json
+{
+  "checked": true,
+  "mutatedByProbe": false,
+  "restored": true
+}
+```
+
+## per-arm detail
+
+### z2a-live-esc
+
+```json
+{
+  "scenario": "z2a-live-esc",
+  "version": "2.1.258 (Claude Code)",
+  "hookOrder": [
+    "SessionStart@1656",
+    "UserPromptSubmit@3892"
+  ],
+  "hooks": [
+    {
+      "atMs": 1656,
+      "event": "SessionStart",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "notificationType": null,
+      "source": "startup"
+    },
+    {
+      "atMs": 3892,
+      "event": "UserPromptSubmit",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "notificationType": null,
+      "prompt": "Count from 1 to 400. Print one number per line, nothing else — no preamble, no commentary, no tools.",
+      "source": "<field absent>"
+    }
+  ],
+  "notes": [
+    "trust dialog answered via sendApprove at 333ms",
+    "ready=true at 1645ms"
+  ],
+  "events": [
+    {
+      "atMs": 4,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 28,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 319,
+      "type": "approval:detected",
+      "payload": {
+        "kind": "workspace-trust",
+        "source": "native Claude PTY approval screen"
+      }
+    },
+    {
+      "atMs": 1040,
+      "type": "approval:decision",
+      "payload": {
+        "decision": "approve"
+      }
+    },
+    {
+      "atMs": 3648,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 3648,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt"
+      }
+    },
+    {
+      "atMs": 3892,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 9055,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 10858,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 12660,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 14461,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 16263,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 18065,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 19868,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 21671,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 23474,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 25277,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 27079,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 28881,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 30684,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 32485,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 34288,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 36091,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 37894,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active"
+      }
+    },
+    {
+      "atMs": 39697,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed"
+      }
+    },
+    {
+      "atMs": 39697,
+      "type": "task:ready",
+      "payload": {
+        "source": "terminal-idle-composer-heuristic",
+        "confidence": "low"
+      }
+    }
+  ],
+  "ptyExited": false,
+  "screenTail": "  133\n  134\n  135\n  136\n  137\n  138\n  139\n  140\n  141\n  ⎿  Interrupted · What should Claude do instead?\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "streamingBeforeEsc": true,
+  "escAtMs": 7165,
+  "screenBeforeEsc": "  139\n  140\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "bytesPaintedAfterEsc": 512,
+  "hooksAfterEsc": [],
+  "runEventsAfterEsc": [
+    "run:updated@+1890ms",
+    "run:updated@+3693ms",
+    "run:updated@+5495ms",
+    "run:updated@+7296ms",
+    "run:updated@+9098ms",
+    "run:updated@+10900ms",
+    "run:updated@+12703ms",
+    "run:updated@+14506ms",
+    "run:updated@+16309ms",
+    "run:updated@+18112ms",
+    "run:updated@+19914ms",
+    "run:updated@+21716ms",
+    "run:updated@+23519ms",
+    "run:updated@+25320ms",
+    "run:updated@+27123ms",
+    "run:updated@+28926ms",
+    "run:updated@+30729ms",
+    "run:updated@+32532ms"
+  ],
+  "sonataClosedRunAtMs": 39697,
+  "transcriptTurns": [
+    {
+      "type": "user",
+      "promptSource": "typed",
+      "isMeta": false,
+      "text": "Count from 1 to 400. Print one number per line, nothing else — no preamble, no commentary, no tools."
+    },
+    {
+      "type": "assistant",
+      "promptSource": null,
+      "isMeta": false,
+      "text": "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 "
+    },
+    {
+      "type": "user",
+      "promptSource": null,
+      "isMeta": false,
+      "text": "[Request interrupted by user]"
+    }
+  ],
+  "transcriptInterruptionMarkers": 1,
+  "autoResumedInTranscript": false,
+  "verdict": "NO RESUME — 180s after a user Esc the CLI did nothing unprompted",
+  "ranAt": "2026-09-02T07:35:52.321Z"
+}
+```
+
+### z2d-env-plumbing
+
+```json
+{
+  "scenario": "z2d-env-plumbing",
+  "version": "2.1.258 (Claude Code)",
+  "envOverrides": {
+    "CLAUDE_CODE_RESUME_INTERRUPTED_TURN": "1"
+  },
+  "childEcho": "SEEN:[1]",
+  "verdict": "PLUMBING OK — the override reaches a child of this exact spawn path (child echoed SEEN:[1])",
+  "ranAt": "2026-09-02T07:26:50.015Z"
+}
+```
+
+### z2b-restore-plain
+
+```json
+{
+  "scenario": "z2b-restore-plain",
+  "version": "2.1.258 (Claude Code)",
+  "envOverrides": {},
+  "notes": [
+    "raw boot reached composer: true (trustDialogSeen=false)",
+    "interruptible turn reached streaming: true",
+    "user Esc sent to the raw session",
+    "interrupted transcript: 3 turns, 1 interruption marker(s)",
+    "raw boot reached composer: true (trustDialogSeen=false)"
+  ],
+  "booted": true,
+  "bytesPaintedAfterBoot": 0,
+  "busySightingMs": null,
+  "interruptionMarkersBefore": 1,
+  "turnsBefore": 3,
+  "turnsAfter": 3,
+  "sessionFilesBefore": 2,
+  "sessionFilesAfter": 2,
+  "restoredHistoryVisible": true,
+  "resumeTurn": null,
+  "autoResumed": false,
+  "transcriptTail": [
+    {
+      "type": "user",
+      "promptSource": "typed",
+      "isMeta": false,
+      "text": "Count from 1 to 400. Print one number per line, nothing else — no preamble, no commentary, no tools."
+    },
+    {
+      "type": "assistant",
+      "promptSource": null,
+      "isMeta": false,
+      "text": "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 "
+    },
+    {
+      "type": "user",
+      "promptSource": null,
+      "isMeta": false,
+      "text": "[Request interrupted by user]"
+    }
+  ],
+  "screenTail": "  134\n  135\n  136\n  137\n  138\n  139\n  140\n  141\n  ⎿  Interrupted · What should Claude do instead?\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  ⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc",
+  "verdict": "NO AUTO-RESUME — the restored session sat at its composer for 90s",
+  "ranAt": "2026-09-02T07:29:35.763Z"
+}
+```
+
+### z2c-restore-resume-env
+
+```json
+{
+  "scenario": "z2c-restore-resume-env",
+  "version": "2.1.258 (Claude Code)",
+  "envOverrides": {
+    "CLAUDE_CODE_RESUME_INTERRUPTED_TURN": "1"
+  },
+  "notes": [
+    "raw boot reached composer: true (trustDialogSeen=false)",
+    "interruptible turn reached streaming: true",
+    "user Esc sent to the raw session",
+    "interrupted transcript: 3 turns, 1 interruption marker(s)",
+    "raw boot reached composer: true (trustDialogSeen=false)"
+  ],
+  "booted": true,
+  "bytesPaintedAfterBoot": 0,
+  "busySightingMs": null,
+  "interruptionMarkersBefore": 1,
+  "turnsBefore": 3,
+  "turnsAfter": 3,
+  "sessionFilesBefore": 2,
+  "sessionFilesAfter": 2,
+  "restoredHistoryVisible": true,
+  "resumeTurn": null,
+  "autoResumed": false,
+  "transcriptTail": [
+    {
+      "type": "user",
+      "promptSource": "typed",
+      "isMeta": false,
+      "text": "Count from 1 to 400. Print one number per line, nothing else — no preamble, no commentary, no tools."
+    },
+    {
+      "type": "assistant",
+      "promptSource": null,
+      "isMeta": false,
+      "text": "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 "
+    },
+    {
+      "type": "user",
+      "promptSource": null,
+      "isMeta": false,
+      "text": "[Request interrupted by user]"
+    }
+  ],
+  "screenTail": "  134\n  135\n  136\n  137\n  138\n  139\n  140\n  141\n  ⎿  Interrupted · What should Claude do instead?\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  ⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc",
+  "verdict": "NO AUTO-RESUME — the restored session sat at its composer for 90s",
+  "ranAt": "2026-09-02T07:32:21.528Z"
+}
+```

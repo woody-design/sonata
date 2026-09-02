@@ -1,0 +1,2104 @@
+# Z1 — spontaneous resumption shape (a): a background shell wakes the CLI (SL-12 / D1)
+
+binary: 2.1.258 (Claude Code) (re-pinned at probe end)
+spawn: production TerminalHost from dist/, --permission-mode default, PRODUCTION hook injection (no census)
+background shell: sleep 70s; watch after Stop: 240s
+
+BUILD PROVENANCE: `dist/` was built from a tree carrying the SL-9 sibling's
+uncommitted work. This probe's measurement path is `TerminalHost` +
+`HookWatcher` + `claude-runtime-settings` + `hook-sink`; of those only
+`hook-sink.ts` is modified there, and its diff is COMMENT-ONLY (a doc block, 12
+insertions, 0 behavioural lines). The sibling's behavioural edits are to the
+approval BROKER (this probe runs `approvalBroker:false`), codex `Interrupt`
+handling, `cli-state` and `runtime-controller` — none of which this probe
+constructs. Recorded rather than assumed away.
+
+## every run, side by side
+
+The wake is REPRODUCIBLE but its ANNOUNCEMENT is not constant — see the
+`announced` column, which is the finding this table exists to keep honest.
+
+| run | turn reached Stop | `Stop.background_tasks` | `Stop.session_crons` | woke | announced (UPS fired) | UPS +ms | wake Stop +ms | `UserPromptSubmit.source` | bytes painted after Stop | Sonata run events after Stop |
+|---|---|---|---|---|---|---|---|---|---|---|
+| z1a-background-wake r1 | true | ["shell:running"] | [] | true | true | 68899 | 70729 | <field absent> | 2124 | ["run:started@+68899ms","run:updated@+70730ms"] |
+| z1a-background-wake r2 | true | ["shell:running"] | [] | true | true | 69011 | 70537 | <field absent> | 2314 | ["run:updated@+1ms","run:started@+69011ms","run:updated@+70537ms"] |
+| z1a-background-wake r3 | true | ["shell:running"] | [] | true | true | 68961 | 70688 | <field absent> | 2020 | ["run:started@+68961ms","run:updated@+70688ms"] |
+| z1a-background-wake r4 | true | ["shell:running"] | [] | true | true | 68547 | 71490 | <field absent> | 3027 | ["run:started@+68547ms","run:updated@+71490ms"] |
+| z1b-foreground-control r1 | true | [] | [] | false | false | — | — | — | 137 | ["run:updated@+1ms"] |
+
+## user-settings guard
+
+```json
+{
+  "checked": true,
+  "mutatedByProbe": false,
+  "restored": true
+}
+```
+
+## per-run detail
+
+### z1a-background-wake — run 1
+
+```json
+{
+  "scenario": "z1a-background-wake",
+  "version": "2.1.258 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@642",
+    "UserPromptSubmit@3391",
+    "PreToolUse@6833",
+    "PostToolUse@6933",
+    "Stop@8154",
+    "SubagentStop@9682",
+    "Notification@68326",
+    "UserPromptSubmit@77053",
+    "Stop@78883"
+  ],
+  "hooks": [
+    {
+      "atMs": 642,
+      "event": "SessionStart",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+        "hook_event_name": "SessionStart",
+        "source": "startup",
+        "model": "claude-opus-5[1m]"
+      }
+    },
+    {
+      "atMs": 3391,
+      "event": "UserPromptSubmit",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait for it, do NOT poll it, do NOT read its output, and do not run any other tool. As soon as the background shell is started, reply with exactly: STARTED"
+      }
+    },
+    {
+      "atMs": 6833,
+      "event": "PreToolUse",
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 70; echo BGDONE\",\"description\":\"Sleep 70 then echo\",\"run_in_background\":true}",
+        "tool_use_id": "<tool_use_id:30ch>"
+      }
+    },
+    {
+      "atMs": 6933,
+      "event": "PostToolUse",
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 70; echo BGDONE\",\"description\":\"Sleep 70 then echo\",\"run_in_background\":true}",
+        "tool_response": "{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false,\"isImage\":false,\"noOutputExpected\":false,\"backgroundTaskId\":\"b8ylzf16p\"}",
+        "tool_use_id": "<tool_use_id:30ch>",
+        "duration_ms": 42
+      }
+    },
+    {
+      "atMs": 8154,
+      "event": "Stop",
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "STARTED",
+        "background_tasks": [
+          {
+            "id": "b8ylzf16p",
+            "type": "shell",
+            "status": "running",
+            "description": "Sleep 70 then echo",
+            "command": "sleep 70; echo BGDONE"
+          }
+        ],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 9682,
+      "event": "SubagentStop",
+      "keys": [
+        "agent_id",
+        "agent_transcript_path",
+        "agent_type",
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "agent_id": "<agent_id:17ch>",
+        "agent_type": "",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "SubagentStop",
+        "stop_hook_active": false,
+        "agent_transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/subagents/agent-a7287b8d85d447a12.jsonl",
+        "last_assistant_message": "did it finish?",
+        "background_tasks": [
+          {
+            "id": "b8ylzf16p",
+            "type": "shell",
+            "status": "running",
+            "description": "Sleep 70 then echo",
+            "command": "sleep 70; echo BGDONE"
+          }
+        ],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 68326,
+      "event": "Notification",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "message",
+        "notification_type",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "Notification",
+        "message": "Claude is waiting for your input",
+        "notification_type": "idle_prompt"
+      }
+    },
+    {
+      "atMs": 77053,
+      "event": "UserPromptSubmit",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "<task-notification>\n<task-id>b8ylzf16p</task-id>\n<tool-use-id>toolu_01YQZk9e8YVWjhScZavoZBkd</tool-use-id>\n<output-file>/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/tasks/b8ylzf16p.output</output-file>\n<status>completed</status>\n<summary>Background command \"Sleep 70 then echo\" completed (exit code 0)</summary>\n…[420ch]"
+      }
+    },
+    {
+      "atMs": 78883,
+      "event": "Stop",
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "The background command finished (exit code 0).",
+        "background_tasks": [],
+        "session_crons": []
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 641ms"
+  ],
+  "events": [
+    {
+      "atMs": 4,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 29,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 3144,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 3145,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt",
+        "runId": "run-1788332869047-1"
+      }
+    },
+    {
+      "atMs": 3391,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 8154,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 77053,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "(background task returned)"
+      }
+    },
+    {
+      "atMs": 78884,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed",
+        "title": "(background task returned)"
+      }
+    }
+  ],
+  "ptyExited": false,
+  "screenTail": "\n\n\n\n\n\n\n\n\n     \n                                                                                                    \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ did it finish?\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawAfterStop": "did it finish?✶Inferring… (1m 14s)  ⎿  Tip: Use /btw to ask a quick side question without interrupting Claude's current work❯ ← for agents✻⏺Backgroundcommand\"Sleep70thenecho\"completed(exitcode0)✽✻✶✳✢·(1s · ↓1 tokens)⏺✢✳Thebackgroundcommandfinished(exitcode0).✳Inferring… (running stop hooks… 0/2 · 1s · ↓1 tokens)  ⎿  Tip: Dynamic workflws let Claude write a script that orchestrates many agents for you. Mention the keyword      ultracode or askClaude to use a workflow directly.✶31✻Sautéed for 1s · done 3:09 AM❯ did it finish?",
+  "turnOver": true,
+  "stopAtMs": 8154,
+  "stopPayload": {
+    "session_id": "<session_id:36ch>",
+    "transcript_path": "<transcript_path:146ch>",
+    "cwd": "<cwd:71ch>",
+    "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/scratchpad",
+    "prompt_id": "<prompt_id:36ch>",
+    "permission_mode": "default",
+    "effort": "{\"level\":\"medium\"}",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "STARTED",
+    "background_tasks": [
+      {
+        "id": "b8ylzf16p",
+        "type": "shell",
+        "status": "running",
+        "description": "Sleep 70 then echo",
+        "command": "sleep 70; echo BGDONE"
+      }
+    ],
+    "session_crons": []
+  },
+  "backgroundTasksAtStop": [
+    {
+      "id": "b8ylzf16p",
+      "type": "shell",
+      "status": "running",
+      "description": "Sleep 70 then echo",
+      "command": "sleep 70; echo BGDONE"
+    }
+  ],
+  "sessionCronsAtStop": [],
+  "runStateAtStop": [
+    "run:started@3144",
+    "run:updated@3391",
+    "run:updated@8154"
+  ],
+  "screenAtStop": "\n\n\n· Harmonizing… (running stop hooks… 1/2 · 4s · ↓ 109 tokens)\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · 1 shell · ← for agents",
+  "bytesPaintedAfterStop": 2124,
+  "woke": true,
+  "wakeAnnounced": true,
+  "wakeDelayMs": 68899,
+  "wakeStopDelayMs": 70729,
+  "wakePromptSource": "<field absent>",
+  "wakePromptText": "<task-notification>\n<task-id>b8ylzf16p</task-id>\n<tool-use-id>toolu_01YQZk9e8YVWjhScZavoZBkd</tool-use-id>\n<output-file>/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/baf272d5-55cd-4ef7-adae-271971cbc479/tasks/b8ylzf16p.output</output-file>\n<status>completed</status>\n<summary>Background command \"Sleep 70 then echo\" completed (exit code 0)</summary>\n…[420ch]",
+  "wakeStopLastAssistantMessage": "The background command finished (exit code 0).",
+  "wakeStopBackgroundTasks": [],
+  "hooksAfterStop": [
+    "SubagentStop@9682 (+1528ms)",
+    "Notification@68326 (+60172ms)",
+    "UserPromptSubmit@77053 (+68899ms)",
+    "Stop@78883 (+70729ms)"
+  ],
+  "runEventsAfterStop": [
+    "run:started@+68899ms",
+    "run:updated@+70730ms"
+  ],
+  "verdict": "WOKE, ANNOUNCED — self-submitted UserPromptSubmit +68899ms after Stop, source=<absent>",
+  "ranAt": "2026-09-02T07:09:04.935Z",
+  "run": 1
+}
+```
+
+### z1a-background-wake — run 2
+
+```json
+{
+  "scenario": "z1a-background-wake",
+  "version": "2.1.258 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@614",
+    "UserPromptSubmit@3364",
+    "PreToolUse@6411",
+    "PostToolUse@6513",
+    "Stop@7525",
+    "SubagentStop@9153",
+    "Notification@67698",
+    "UserPromptSubmit@76536",
+    "Stop@78062"
+  ],
+  "hooks": [
+    {
+      "atMs": 614,
+      "event": "SessionStart",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+        "hook_event_name": "SessionStart",
+        "source": "startup",
+        "model": "claude-opus-5[1m]"
+      }
+    },
+    {
+      "atMs": 3364,
+      "event": "UserPromptSubmit",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait for it, do NOT poll it, do NOT read its output, and do not run any other tool. As soon as the background shell is started, reply with exactly: STARTED"
+      }
+    },
+    {
+      "atMs": 6411,
+      "event": "PreToolUse",
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 70; echo BGDONE\",\"description\":\"Sleep 70 then echo\",\"run_in_background\":true}",
+        "tool_use_id": "<tool_use_id:30ch>"
+      }
+    },
+    {
+      "atMs": 6513,
+      "event": "PostToolUse",
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 70; echo BGDONE\",\"description\":\"Sleep 70 then echo\",\"run_in_background\":true}",
+        "tool_response": "{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false,\"isImage\":false,\"noOutputExpected\":false,\"backgroundTaskId\":\"b8gzb5ekb\"}",
+        "tool_use_id": "<tool_use_id:30ch>",
+        "duration_ms": 42
+      }
+    },
+    {
+      "atMs": 7525,
+      "event": "Stop",
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "STARTED",
+        "background_tasks": [
+          {
+            "id": "b8gzb5ekb",
+            "type": "shell",
+            "status": "running",
+            "description": "Sleep 70 then echo",
+            "command": "sleep 70; echo BGDONE"
+          }
+        ],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 9153,
+      "event": "SubagentStop",
+      "keys": [
+        "agent_id",
+        "agent_transcript_path",
+        "agent_type",
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "agent_id": "<agent_id:17ch>",
+        "agent_type": "",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "SubagentStop",
+        "stop_hook_active": false,
+        "agent_transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/subagents/agent-afb8c33a6225d3944.jsonl",
+        "last_assistant_message": "did it finish?",
+        "background_tasks": [
+          {
+            "id": "b8gzb5ekb",
+            "type": "shell",
+            "status": "running",
+            "description": "Sleep 70 then echo",
+            "command": "sleep 70; echo BGDONE"
+          }
+        ],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 67698,
+      "event": "Notification",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "message",
+        "notification_type",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "Notification",
+        "message": "Claude is waiting for your input",
+        "notification_type": "idle_prompt"
+      }
+    },
+    {
+      "atMs": 76536,
+      "event": "UserPromptSubmit",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "<task-notification>\n<task-id>b8gzb5ekb</task-id>\n<tool-use-id>toolu_01JNEUePkLRHZdQiUPyc3b8c</tool-use-id>\n<output-file>/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/tasks/b8gzb5ekb.output</output-file>\n<status>completed</status>\n<summary>Background command \"Sleep 70 then echo\" completed (exit code 0)</summary>\n…[420ch]"
+      }
+    },
+    {
+      "atMs": 78062,
+      "event": "Stop",
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "The background command finished (exit code 0).",
+        "background_tasks": [],
+        "session_crons": []
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 614ms"
+  ],
+  "events": [
+    {
+      "atMs": 2,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 4,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 3116,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 3117,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt",
+        "runId": "run-1788332948051-1"
+      }
+    },
+    {
+      "atMs": 3364,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 7526,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 76536,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "(background task returned)"
+      }
+    },
+    {
+      "atMs": 78062,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed",
+        "title": "(background task returned)"
+      }
+    }
+  ],
+  "ptyExited": false,
+  "screenTail": "\n\n\n\n\n\n\n\n\n\n                                                                                                    \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ did it finish?\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawAfterStop": "did it finish?·Caramelizing… (1m 13s)  ⎿  Tip: Use /btw to ask a quick side question without interrupting Claude's current work❯ ← for agents⏺Backgroundcommand\"Sleep70thenecho\"completed(exitcode0)✢mi✳al✶re✻✽amCa(0s · ↓1 tokens)⏺✻r1✶✳aCThebackgroundcommandfinished(exitcode0).running sp hooks… 0/2 · 1s · ↓1 tokens)Share Claude Codeand earn $10 in usage credits · /passes✢Caramelizing…31✻Sautéed for 1s · done 3:10 AM❯ did it finish?",
+  "turnOver": true,
+  "stopAtMs": 7525,
+  "stopPayload": {
+    "session_id": "<session_id:36ch>",
+    "transcript_path": "<transcript_path:146ch>",
+    "cwd": "<cwd:71ch>",
+    "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/scratchpad",
+    "prompt_id": "<prompt_id:36ch>",
+    "permission_mode": "default",
+    "effort": "{\"level\":\"medium\"}",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "STARTED",
+    "background_tasks": [
+      {
+        "id": "b8gzb5ekb",
+        "type": "shell",
+        "status": "running",
+        "description": "Sleep 70 then echo",
+        "command": "sleep 70; echo BGDONE"
+      }
+    ],
+    "session_crons": []
+  },
+  "backgroundTasksAtStop": [
+    {
+      "id": "b8gzb5ekb",
+      "type": "shell",
+      "status": "running",
+      "description": "Sleep 70 then echo",
+      "command": "sleep 70; echo BGDONE"
+    }
+  ],
+  "sessionCronsAtStop": [],
+  "runStateAtStop": [
+    "run:started@3116",
+    "run:updated@3364",
+    "run:updated@7526"
+  ],
+  "screenAtStop": "\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · 1 shell · ← for agents",
+  "bytesPaintedAfterStop": 2314,
+  "woke": true,
+  "wakeAnnounced": true,
+  "wakeDelayMs": 69011,
+  "wakeStopDelayMs": 70537,
+  "wakePromptSource": "<field absent>",
+  "wakePromptText": "<task-notification>\n<task-id>b8gzb5ekb</task-id>\n<tool-use-id>toolu_01JNEUePkLRHZdQiUPyc3b8c</tool-use-id>\n<output-file>/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7bef96-e5bd-415c-abe0-cfa4cdca21ae/tasks/b8gzb5ekb.output</output-file>\n<status>completed</status>\n<summary>Background command \"Sleep 70 then echo\" completed (exit code 0)</summary>\n…[420ch]",
+  "wakeStopLastAssistantMessage": "The background command finished (exit code 0).",
+  "wakeStopBackgroundTasks": [],
+  "hooksAfterStop": [
+    "SubagentStop@9153 (+1628ms)",
+    "Notification@67698 (+60173ms)",
+    "UserPromptSubmit@76536 (+69011ms)",
+    "Stop@78062 (+70537ms)"
+  ],
+  "runEventsAfterStop": [
+    "run:updated@+1ms",
+    "run:started@+69011ms",
+    "run:updated@+70537ms"
+  ],
+  "verdict": "WOKE, ANNOUNCED — self-submitted UserPromptSubmit +69011ms after Stop, source=<absent>",
+  "ranAt": "2026-09-02T07:10:23.099Z",
+  "run": 2
+}
+```
+
+### z1a-background-wake — run 3
+
+```json
+{
+  "scenario": "z1a-background-wake",
+  "version": "2.1.258 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@510",
+    "UserPromptSubmit@3360",
+    "PreToolUse@5591",
+    "PostToolUse@5692",
+    "Stop@6814",
+    "SubagentStop@8238",
+    "Notification@66841",
+    "UserPromptSubmit@75775",
+    "Stop@77502"
+  ],
+  "hooks": [
+    {
+      "atMs": 510,
+      "event": "SessionStart",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+        "hook_event_name": "SessionStart",
+        "source": "startup",
+        "model": "claude-opus-5[1m]"
+      }
+    },
+    {
+      "atMs": 3360,
+      "event": "UserPromptSubmit",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait for it, do NOT poll it, do NOT read its output, and do not run any other tool. As soon as the background shell is started, reply with exactly: STARTED"
+      }
+    },
+    {
+      "atMs": 5591,
+      "event": "PreToolUse",
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 70; echo BGDONE\",\"description\":\"Sleep 70 then echo\",\"run_in_background\":true}",
+        "tool_use_id": "<tool_use_id:30ch>"
+      }
+    },
+    {
+      "atMs": 5692,
+      "event": "PostToolUse",
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 70; echo BGDONE\",\"description\":\"Sleep 70 then echo\",\"run_in_background\":true}",
+        "tool_response": "{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false,\"isImage\":false,\"noOutputExpected\":false,\"backgroundTaskId\":\"br8y64o0f\"}",
+        "tool_use_id": "<tool_use_id:30ch>",
+        "duration_ms": 39
+      }
+    },
+    {
+      "atMs": 6814,
+      "event": "Stop",
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "STARTED",
+        "background_tasks": [
+          {
+            "id": "br8y64o0f",
+            "type": "shell",
+            "status": "running",
+            "description": "Sleep 70 then echo",
+            "command": "sleep 70; echo BGDONE"
+          }
+        ],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 8238,
+      "event": "SubagentStop",
+      "keys": [
+        "agent_id",
+        "agent_transcript_path",
+        "agent_type",
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "agent_id": "<agent_id:17ch>",
+        "agent_type": "",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "SubagentStop",
+        "stop_hook_active": false,
+        "agent_transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/subagents/agent-a07b664ab0a5805ad.jsonl",
+        "last_assistant_message": "did it finish?",
+        "background_tasks": [
+          {
+            "id": "br8y64o0f",
+            "type": "shell",
+            "status": "running",
+            "description": "Sleep 70 then echo",
+            "command": "sleep 70; echo BGDONE"
+          }
+        ],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 66841,
+      "event": "Notification",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "message",
+        "notification_type",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "Notification",
+        "message": "Claude is waiting for your input",
+        "notification_type": "idle_prompt"
+      }
+    },
+    {
+      "atMs": 75775,
+      "event": "UserPromptSubmit",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "<task-notification>\n<task-id>br8y64o0f</task-id>\n<tool-use-id>toolu_01ECAm7kDKZLrFjPbtnoGZCG</tool-use-id>\n<output-file>/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/tasks/br8y64o0f.output</output-file>\n<status>completed</status>\n<summary>Background command \"Sleep 70 then echo\" completed (exit code 0)</summary>\n…[420ch]"
+      }
+    },
+    {
+      "atMs": 77502,
+      "event": "Stop",
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "The background command completed (exit code 0).",
+        "background_tasks": [],
+        "session_crons": []
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 609ms"
+  ],
+  "events": [
+    {
+      "atMs": 1,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 3,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 3111,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 3111,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt",
+        "runId": "run-1788333026211-1"
+      }
+    },
+    {
+      "atMs": 3360,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 6814,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 75775,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "(background task returned)"
+      }
+    },
+    {
+      "atMs": 77502,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed",
+        "title": "(background task returned)"
+      }
+    }
+  ],
+  "ptyExited": false,
+  "screenTail": "\n\n\n\n\n\n\n\n\n\n                                                                                                    \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ did it finish?\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawAfterStop": "did it finish?✶Metamorphosing… (1m 12s)  ⎿  Tip: Use /btw to ask a quick side question without interrupting Claude's current work❯ ← for agents⏺Backgroundcommand\"Sleep70thenecho\"completed(exitcode0)M✳✢·✢✳✶(1s · ↓1 tokens)⏺✻✽Thebackgroundcommandcompleted(exitcode0).Metamorphosing…running sp hooks… 0/2 · 1s · ↓3 tokens)Running multiple Claudeessions? Use/colr and /ename to tell them aparat a glance.1✻Metamorphosing…5✻Worked for 1s · done 3:11 AM❯ did it finish?",
+  "turnOver": true,
+  "stopAtMs": 6814,
+  "stopPayload": {
+    "session_id": "<session_id:36ch>",
+    "transcript_path": "<transcript_path:146ch>",
+    "cwd": "<cwd:71ch>",
+    "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/scratchpad",
+    "prompt_id": "<prompt_id:36ch>",
+    "permission_mode": "default",
+    "effort": "{\"level\":\"medium\"}",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "STARTED",
+    "background_tasks": [
+      {
+        "id": "br8y64o0f",
+        "type": "shell",
+        "status": "running",
+        "description": "Sleep 70 then echo",
+        "command": "sleep 70; echo BGDONE"
+      }
+    ],
+    "session_crons": []
+  },
+  "backgroundTasksAtStop": [
+    {
+      "id": "br8y64o0f",
+      "type": "shell",
+      "status": "running",
+      "description": "Sleep 70 then echo",
+      "command": "sleep 70; echo BGDONE"
+    }
+  ],
+  "sessionCronsAtStop": [],
+  "runStateAtStop": [
+    "run:started@3111",
+    "run:updated@3360",
+    "run:updated@6814"
+  ],
+  "screenAtStop": "\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · 1 shell · ← for agents",
+  "bytesPaintedAfterStop": 2020,
+  "woke": true,
+  "wakeAnnounced": true,
+  "wakeDelayMs": 68961,
+  "wakeStopDelayMs": 70688,
+  "wakePromptSource": "<field absent>",
+  "wakePromptText": "<task-notification>\n<task-id>br8y64o0f</task-id>\n<tool-use-id>toolu_01ECAm7kDKZLrFjPbtnoGZCG</tool-use-id>\n<output-file>/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/6f96b163-a281-4c89-8be4-b53ed18bdb7e/tasks/br8y64o0f.output</output-file>\n<status>completed</status>\n<summary>Background command \"Sleep 70 then echo\" completed (exit code 0)</summary>\n…[420ch]",
+  "wakeStopLastAssistantMessage": "The background command completed (exit code 0).",
+  "wakeStopBackgroundTasks": [],
+  "hooksAfterStop": [
+    "SubagentStop@8238 (+1424ms)",
+    "Notification@66841 (+60027ms)",
+    "UserPromptSubmit@75775 (+68961ms)",
+    "Stop@77502 (+70688ms)"
+  ],
+  "runEventsAfterStop": [
+    "run:started@+68961ms",
+    "run:updated@+70688ms"
+  ],
+  "verdict": "WOKE, ANNOUNCED — self-submitted UserPromptSubmit +68961ms after Stop, source=<absent>",
+  "ranAt": "2026-09-02T07:11:40.681Z",
+  "run": 3
+}
+```
+
+### z1a-background-wake — run 4
+
+```json
+{
+  "scenario": "z1a-background-wake",
+  "version": "2.1.258 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@609",
+    "UserPromptSubmit@3356",
+    "PreToolUse@5587",
+    "PostToolUse@5791",
+    "Stop@7212",
+    "SubagentStop@8943",
+    "Notification@67328",
+    "UserPromptSubmit@75759",
+    "Stop@78702"
+  ],
+  "hooks": [
+    {
+      "atMs": 609,
+      "event": "SessionStart",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+        "hook_event_name": "SessionStart",
+        "source": "startup",
+        "model": "claude-opus-5[1m]"
+      }
+    },
+    {
+      "atMs": 3356,
+      "event": "UserPromptSubmit",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait for it, do NOT poll it, do NOT read its output, and do not run any other tool. As soon as the background shell is started, reply with exactly: STARTED"
+      }
+    },
+    {
+      "atMs": 5587,
+      "event": "PreToolUse",
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 70; echo BGDONE\",\"description\":\"Sleep 70 then echo\",\"run_in_background\":true}",
+        "tool_use_id": "<tool_use_id:30ch>"
+      }
+    },
+    {
+      "atMs": 5791,
+      "event": "PostToolUse",
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 70; echo BGDONE\",\"description\":\"Sleep 70 then echo\",\"run_in_background\":true}",
+        "tool_response": "{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false,\"isImage\":false,\"noOutputExpected\":false,\"backgroundTaskId\":\"btq7zv2r0\"}",
+        "tool_use_id": "<tool_use_id:30ch>",
+        "duration_ms": 40
+      }
+    },
+    {
+      "atMs": 7212,
+      "event": "Stop",
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "STARTED",
+        "background_tasks": [
+          {
+            "id": "btq7zv2r0",
+            "type": "shell",
+            "status": "running",
+            "description": "Sleep 70 then echo",
+            "command": "sleep 70; echo BGDONE"
+          }
+        ],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 8943,
+      "event": "SubagentStop",
+      "keys": [
+        "agent_id",
+        "agent_transcript_path",
+        "agent_type",
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "agent_id": "<agent_id:17ch>",
+        "agent_type": "",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "SubagentStop",
+        "stop_hook_active": false,
+        "agent_transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/subagents/agent-a872c9967897f4bcd.jsonl",
+        "last_assistant_message": "did the background command finish?",
+        "background_tasks": [
+          {
+            "id": "btq7zv2r0",
+            "type": "shell",
+            "status": "running",
+            "description": "Sleep 70 then echo",
+            "command": "sleep 70; echo BGDONE"
+          }
+        ],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 67328,
+      "event": "Notification",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "message",
+        "notification_type",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "Notification",
+        "message": "Claude is waiting for your input",
+        "notification_type": "idle_prompt"
+      }
+    },
+    {
+      "atMs": 75759,
+      "event": "UserPromptSubmit",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "permission_mode",
+        "prompt",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "<task-notification>\n<task-id>btq7zv2r0</task-id>\n<tool-use-id>toolu_01TrKCS9YtMZxnLJfNnqBAxt</tool-use-id>\n<output-file>/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/tasks/btq7zv2r0.output</output-file>\n<status>completed</status>\n<summary>Background command \"Sleep 70 then echo\" completed (exit code 0)</summary>\n…[420ch]"
+      }
+    },
+    {
+      "atMs": 78702,
+      "event": "Stop",
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:146ch>",
+        "cwd": "<cwd:71ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "The background command completed (exit code 0).",
+        "background_tasks": [],
+        "session_crons": []
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 609ms"
+  ],
+  "events": [
+    {
+      "atMs": 2,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 3,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 3112,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 3112,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt",
+        "runId": "run-1788333103793-1"
+      }
+    },
+    {
+      "atMs": 3356,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 7212,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed",
+        "title": "Use the Bash tool with run_in_background set to true to start exactly this command: sleep 70; echo BGDONE. Do NOT wait f"
+      }
+    },
+    {
+      "atMs": 75759,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "(background task returned)"
+      }
+    },
+    {
+      "atMs": 78702,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed",
+        "title": "(background task returned)"
+      }
+    }
+  ],
+  "ptyExited": false,
+  "screenTail": "\n\n\n\n\n\n\n\n\n\n                                                                                                    \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ did the background command finish?\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawAfterStop": "did the background command finish?✶Razzle-dazzling… (1m 12s)  ⎿  Tip: Use /btw to ask a quick side question without interrupting Claude's current work❯ ← for agentsal⏺Backgroundcommand\"Sleep70thenecho\"completed(exitcode0)✳dz✢·-zea✢ld✳z-✶ze✻✽alRz✻z✶✳aR(2s · ↓1 tokens)⏺✢·✢Thebackgroundcommandcompleted(exitcode0).Razzle-dazzling…running sp hooks… 0/2 · 2s · ↓1 tokens)memoryto view andmanage Claudememory✳Razzle-dazzling…31✻Crunched for 2s · done 3:12 AM❯ did the background command finish?",
+  "turnOver": true,
+  "stopAtMs": 7212,
+  "stopPayload": {
+    "session_id": "<session_id:36ch>",
+    "transcript_path": "<transcript_path:146ch>",
+    "cwd": "<cwd:71ch>",
+    "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/scratchpad",
+    "prompt_id": "<prompt_id:36ch>",
+    "permission_mode": "default",
+    "effort": "{\"level\":\"medium\"}",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "STARTED",
+    "background_tasks": [
+      {
+        "id": "btq7zv2r0",
+        "type": "shell",
+        "status": "running",
+        "description": "Sleep 70 then echo",
+        "command": "sleep 70; echo BGDONE"
+      }
+    ],
+    "session_crons": []
+  },
+  "backgroundTasksAtStop": [
+    {
+      "id": "btq7zv2r0",
+      "type": "shell",
+      "status": "running",
+      "description": "Sleep 70 then echo",
+      "command": "sleep 70; echo BGDONE"
+    }
+  ],
+  "sessionCronsAtStop": [],
+  "runStateAtStop": [
+    "run:started@3112",
+    "run:updated@3356",
+    "run:updated@7212"
+  ],
+  "screenAtStop": "\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · 1 shell · ← for agents",
+  "bytesPaintedAfterStop": 3027,
+  "woke": true,
+  "wakeAnnounced": true,
+  "wakeDelayMs": 68547,
+  "wakeStopDelayMs": 71490,
+  "wakePromptSource": "<field absent>",
+  "wakePromptText": "<task-notification>\n<task-id>btq7zv2r0</task-id>\n<tool-use-id>toolu_01TrKCS9YtMZxnLJfNnqBAxt</tool-use-id>\n<output-file>/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1a-background-wake-ws/0f7082cd-1d96-4101-9e26-13f0aa32cdd3/tasks/btq7zv2r0.output</output-file>\n<status>completed</status>\n<summary>Background command \"Sleep 70 then echo\" completed (exit code 0)</summary>\n…[420ch]",
+  "wakeStopLastAssistantMessage": "The background command completed (exit code 0).",
+  "wakeStopBackgroundTasks": [],
+  "hooksAfterStop": [
+    "SubagentStop@8943 (+1731ms)",
+    "Notification@67328 (+60116ms)",
+    "UserPromptSubmit@75759 (+68547ms)",
+    "Stop@78702 (+71490ms)"
+  ],
+  "runEventsAfterStop": [
+    "run:started@+68547ms",
+    "run:updated@+71490ms"
+  ],
+  "verdict": "WOKE, ANNOUNCED — self-submitted UserPromptSubmit +68547ms after Stop, source=<absent>",
+  "ranAt": "2026-09-02T07:12:59.453Z",
+  "run": 4
+}
+```
+
+### z1b-foreground-control — run 1
+
+```json
+{
+  "scenario": "z1b-foreground-control",
+  "version": "2.1.258 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@638",
+    "PreToolUse@5420",
+    "PostToolUse@8575",
+    "Stop@9590",
+    "SubagentStop@11215",
+    "Notification@69649"
+  ],
+  "hooks": [
+    {
+      "atMs": 638,
+      "event": "SessionStart",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:149ch>",
+        "cwd": "<cwd:74ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1b-foreground-control-ws/bf8fd240-0748-44d5-8813-903011f2dcf8/scratchpad",
+        "hook_event_name": "SessionStart",
+        "source": "startup",
+        "model": "claude-opus-5[1m]"
+      }
+    },
+    {
+      "atMs": 5420,
+      "event": "PreToolUse",
+      "keys": [
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:149ch>",
+        "cwd": "<cwd:74ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1b-foreground-control-ws/bf8fd240-0748-44d5-8813-903011f2dcf8/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 3; echo FGDONE\",\"description\":\"Sleep then echo\"}",
+        "tool_use_id": "<tool_use_id:30ch>"
+      }
+    },
+    {
+      "atMs": 8575,
+      "event": "PostToolUse",
+      "keys": [
+        "cwd",
+        "duration_ms",
+        "effort",
+        "hook_event_name",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:149ch>",
+        "cwd": "<cwd:74ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1b-foreground-control-ws/bf8fd240-0748-44d5-8813-903011f2dcf8/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": "{\"command\":\"sleep 3; echo FGDONE\",\"description\":\"Sleep then echo\"}",
+        "tool_response": "{\"stdout\":\"FGDONE\",\"stderr\":\"\",\"interrupted\":false,\"isImage\":false,\"noOutputExpected\":false}",
+        "tool_use_id": "<tool_use_id:30ch>",
+        "duration_ms": 3067
+      }
+    },
+    {
+      "atMs": 9590,
+      "event": "Stop",
+      "keys": [
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:149ch>",
+        "cwd": "<cwd:74ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1b-foreground-control-ws/bf8fd240-0748-44d5-8813-903011f2dcf8/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "Stop",
+        "stop_hook_active": false,
+        "last_assistant_message": "STARTED",
+        "background_tasks": [],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 11215,
+      "event": "SubagentStop",
+      "keys": [
+        "agent_id",
+        "agent_transcript_path",
+        "agent_type",
+        "background_tasks",
+        "cwd",
+        "effort",
+        "hook_event_name",
+        "last_assistant_message",
+        "permission_mode",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_crons",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:149ch>",
+        "cwd": "<cwd:74ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1b-foreground-control-ws/bf8fd240-0748-44d5-8813-903011f2dcf8/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "permission_mode": "default",
+        "agent_id": "<agent_id:17ch>",
+        "agent_type": "",
+        "effort": "{\"level\":\"medium\"}",
+        "hook_event_name": "SubagentStop",
+        "stop_hook_active": false,
+        "agent_transcript_path": "$HOME/.claude/projects/-private-tmp-sonata-sync-2026-09-background-wake-z1b-foreground-control-ws/bf8fd240-0748-44d5-8813-903011f2dcf8/subagents/agent-a6bb69382317cab58.jsonl",
+        "last_assistant_message": "now run it with run_in_background set to true",
+        "background_tasks": [],
+        "session_crons": []
+      }
+    },
+    {
+      "atMs": 69649,
+      "event": "Notification",
+      "keys": [
+        "cwd",
+        "hook_event_name",
+        "message",
+        "notification_type",
+        "prompt_id",
+        "scratchpad_dir",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload": {
+        "session_id": "<session_id:36ch>",
+        "transcript_path": "<transcript_path:149ch>",
+        "cwd": "<cwd:74ch>",
+        "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1b-foreground-control-ws/bf8fd240-0748-44d5-8813-903011f2dcf8/scratchpad",
+        "prompt_id": "<prompt_id:36ch>",
+        "hook_event_name": "Notification",
+        "message": "Claude is waiting for your input",
+        "notification_type": "idle_prompt"
+      }
+    }
+  ],
+  "notes": [
+    "ready=true at 637ms"
+  ],
+  "events": [
+    {
+      "atMs": 4,
+      "type": "file:watching",
+      "payload": {}
+    },
+    {
+      "atMs": 28,
+      "type": "task:started",
+      "payload": {}
+    },
+    {
+      "atMs": 3138,
+      "type": "run:started",
+      "payload": {
+        "kind": "prompt",
+        "status": "active",
+        "title": "Use the Bash tool (run_in_background NOT set) to run exactly this command: sleep 3; echo FGDONE. Wait for it to finish, "
+      }
+    },
+    {
+      "atMs": 3138,
+      "type": "prompt:submitted",
+      "payload": {
+        "kind": "prompt",
+        "runId": "run-1788333253545-1"
+      }
+    },
+    {
+      "atMs": 9591,
+      "type": "run:updated",
+      "payload": {
+        "kind": "prompt",
+        "status": "completed",
+        "title": "Use the Bash tool (run_in_background NOT set) to run exactly this command: sleep 3; echo FGDONE. Wait for it to finish, "
+      }
+    }
+  ],
+  "ptyExited": false,
+  "screenTail": "\n\n\n\n\n\n\n\n\n\n                                                                                                    \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ now run it with run_in_background set to true\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "rawAfterStop": "now run it with run_in_background set to true",
+  "turnOver": true,
+  "stopAtMs": 9590,
+  "stopPayload": {
+    "session_id": "<session_id:36ch>",
+    "transcript_path": "<transcript_path:149ch>",
+    "cwd": "<cwd:74ch>",
+    "scratchpad_dir": "/private/tmp/claude-501/-private-tmp-sonata-sync-2026-09-background-wake-z1b-foreground-control-ws/bf8fd240-0748-44d5-8813-903011f2dcf8/scratchpad",
+    "prompt_id": "<prompt_id:36ch>",
+    "permission_mode": "default",
+    "effort": "{\"level\":\"medium\"}",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "STARTED",
+    "background_tasks": [],
+    "session_crons": []
+  },
+  "backgroundTasksAtStop": [],
+  "sessionCronsAtStop": [],
+  "runStateAtStop": [
+    "run:started@3138",
+    "run:updated@9591"
+  ],
+  "screenAtStop": "\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n                                                                                                                   /rc\n  ⏸ manual mode on · ← for agents",
+  "bytesPaintedAfterStop": 137,
+  "woke": false,
+  "wakeAnnounced": false,
+  "wakeDelayMs": null,
+  "wakeStopDelayMs": null,
+  "wakePromptSource": null,
+  "wakePromptText": null,
+  "wakeStopLastAssistantMessage": null,
+  "wakeStopBackgroundTasks": null,
+  "hooksAfterStop": [
+    "SubagentStop@11215 (+1625ms)",
+    "Notification@69649 (+60059ms)"
+  ],
+  "runEventsAfterStop": [
+    "run:updated@+1ms"
+  ],
+  "verdict": "NO WAKE within 150s of Stop",
+  "ranAt": "2026-09-02T07:16:55.109Z",
+  "run": 1
+}
+```

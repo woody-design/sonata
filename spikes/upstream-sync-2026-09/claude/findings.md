@@ -2173,3 +2173,396 @@ it) + `h1-hook-census.capture.txt` ·
 `$HOME` and the munged `-Users-<user>-` form; probe cwds are under
 `/private/tmp/sonata-sync-2026-09/`. `spikes/` is gitignored by the code repo —
 these need `git add -f`.
+
+**BUILD PROVENANCE, stated because the worktree was shared.** These probes drive
+`app/dist/`, and the SL-9 sibling was editing the same tree throughout. What is
+established: all three captures were written at 03:16:55, 03:35:52 and 03:38:31,
+and `dist/` was rebuilt at **03:40:14** — *after* the last of them — so no capture
+here contains output from that build. The build in use was the one observed at
+02:46, whose modified files were `runtime-controller.ts`, `approval-broker.ts`,
+`cli-state.ts`, `hook-sink.ts`, `codex-runtime-settings.ts` and `cli-signal.ts`;
+of the four modules these probes actually construct (`TerminalHost`,
+`HookWatcher`, `claude-runtime-settings`, `hook-sink`) only `hook-sink.ts` was
+among them, and its diff was COMMENT-ONLY — a doc block, 12 insertions, zero
+behavioural lines. `terminal-host.ts` was NOT modified at that point (it is now).
+
+What is NOT established, and is recorded rather than smoothed over: `dist/` mtime
+was sampled twice, not continuously, so an intermediate rebuild between 02:46 and
+03:40 cannot be excluded retroactively. The one continuity check available is
+that z2a re-measured SL-2b's shipped stopless closer at **Esc+32532ms**, matching
+that slice's committed figure (32532/32509/32519) exactly — consistent with an
+unchanged terminal-host, though not proof of one. Any re-run of these probes
+should re-state its own build provenance rather than inherit this one.
+
+---
+
+# SL-12 — spontaneous resumption (decision D1)
+
+Probed 2026-09-02, binary pinned `2.1.258 (Claude Code)` at the start AND end of
+every run (no drift). Probes: `z1-background-wake.mjs`, `z2-esc-resume-scope.mjs`,
+`z3-usage-limit-continue.mjs`. Woody's D1 ruling is **model revival, do not
+suppress it**, so this slice is a MEASUREMENT slice: it establishes the signal
+shapes and ships no model. No production file was changed (see F47's closing
+note for why none of the measured shapes was a trivial fit).
+
+Evidence labels used below: **MEASURED** = observed in a run recorded in a
+capture; **STATIC** = read out of the 2.1.258 bundle; **UNREPRODUCED** = looked
+for and not produced.
+
+## F42 — shape (a) REPRODUCES ON DEMAND, and the closing `Stop` already announces it (MEASURED)
+
+SL-2b's field sighting is now a repeatable measurement. A turn that backgrounds a
+shell and then ends is revived by the shell's completion, with no user and no
+Sonata write:
+
+| run | `Stop.background_tasks` at turn end | woke | UPS after Stop | wake `Stop` after first |
+|---|---|---|---|---|
+| z1a r1 | `[{shell, running}]` | yes | +68899ms | +70729ms |
+| z1a r2 | `[{shell, running}]` | yes | +69011ms | +70537ms |
+| z1a r3 | `[{shell, running}]` | yes | +68961ms | +70688ms |
+| z1a r4 | `[{shell, running}]` | yes | +68547ms | +71490ms |
+| z1b (foreground control) | `[]` | **no** | — | — |
+
+The wake tracks the shell's own duration (a 70s sleep → ~69s), not a timer of the
+CLI's own, and the foreground control neither carries a background task nor wakes
+in 150s.
+
+**The finding that matters is not that it wakes — it is that the CLI SAYS SO IN
+ADVANCE.** `Stop` carries two fields Sonata does not read:
+
+```json
+"background_tasks": [
+  { "id": "b9jgkbotw", "type": "shell", "status": "running",
+    "description": "Sleep 70 then echo", "command": "sleep 70; echo BGDONE" }
+],
+"session_crons": []
+```
+
+and the binary's own schema states the intent verbatim (STATIC):
+
+> `background_tasks` — "In-flight background work (running/pending + backgrounded)
+> registered in this session. **Lets hooks distinguish 'session is done' from
+> 'session is paused waiting for background work to wake it'.** Empty array when
+> nothing is in flight."
+> `session_crons` — "Session-scoped cron tasks (CronCreate, ScheduleWakeup,
+> /loop) that will wake this session later. Empty array when none are scheduled."
+
+The discriminator is clean in both directions in the SAME arm: the closing `Stop`
+reads `[{…, "status":"running"}]` and the post-wake `Stop` reads `[]`. So the
+question "is this turn end final?" is ANSWERED on the payload Sonata already
+receives, at the moment it already acts — no new event, no scrape, no timer.
+
+`SubagentStop` carries both fields too (MEASURED, same keys).
+
+## F43 — the wake is NOT reliably ANNOUNCED: 1 of 9 revivals fired no `UserPromptSubmit` (MEASURED)
+
+Across 9 completed z1a watches, 8 revivals arrived as `UserPromptSubmit` → turn →
+`Stop`. One did not: the CLI ran the revived turn and closed it with a `Stop` carrying
+`last_assistant_message: "The background command completed (exit 0)."`, and no
+`UserPromptSubmit` hook reached the watcher at all. Its hook order:
+
+```
+SessionStart@638, UserPromptSubmit@3384, PreToolUse@6122, PostToolUse@6223,
+Stop@7334, SubagentStop@8862, Notification@67444, Stop@77814,
+SubagentStop@79342, Notification@137869
+```
+
+That run's transcript, read back from `~/.claude/projects`, shows the injected
+turn was there and was ordinary:
+
+```
+user      | promptSource: typed   | Use the Bash tool with run_in_background …
+assistant |                       | STARTED
+user      | promptSource: system  | <task-notification> <task-id>byls6yhty …
+assistant |                       | The background command completed (exit 0).
+```
+
+So the CLI **did** inject the turn; the hook is what went missing. Two candidate
+causes are EXCLUDED by measurement: a filename collision in the sink (names are
+`Date.now()`-base36 + `hrtime.bigint()` + pid, collision-free by construction) and
+a watcher read error (`onError` recorded nothing that run). Whether the CLI
+skipped the hook or the sink failed silently (it swallows every error by design)
+is **UNRESOLVED** — it did not recur in 7 subsequent runs.
+
+**Consequence for the modeling slice: a revival detector keyed on the wake is
+keyed on a channel with a measured miss.** A detector keyed on the CLOSING `Stop`
+(F42) has no such gap — the field is on the payload that already arrives, before
+the wake exists. Predict the revival; do not detect it.
+
+## F44 — `UserPromptSubmit.source` is specified and NOT EMITTED at 2.1.258 (STATIC + MEASURED)
+
+The binary's schema declares exactly the discriminator this slice went looking
+for (STATIC, verbatim):
+
+```
+source: enum(["user","sdk","system","loop_wakeup","schedule_wakeup","poll_event"]).optional()
+  "Who authored/injected the prompt: `user` = submitted from the interactive
+   composer, `sdk` = non-interactive entrypoint (`-p` / Agent SDK),
+   `loop_wakeup` = dynamic /loop wakeup, `schedule_wakeup` = scheduled-task fire
+   (CronCreate/routine), `system` = other machine-injected turns (peer/channel
+   messages, task notifications, auto-continuation), `poll_event` = …
+   Payloads may omit it while the field rolls out."
+```
+
+MEASURED at 2.1.258: **the field is absent.** Every `UserPromptSubmit` observed in
+this slice — human-submitted and self-submitted alike — carried exactly
+
+```
+cwd, hook_event_name, permission_mode, prompt, prompt_id, scratchpad_dir,
+session_id, transcript_path
+```
+
+with no `source` key. The schema's own "payloads may omit it while the field rolls
+out" is the CLI describing this state.
+
+Two things follow. First, **Sonata cannot key on `source` today**, and when it
+does arrive it must treat ABSENCE as unknown, never as `user` — the enum's roll-out
+clause makes the missing case indistinguishable from a human submit. Second, the
+value that will identify every revival shape in this dossier is the same one:
+`system` covers "task notifications" (F42) and "auto-continuation" (F46) in one
+label, which is upstream saying these are one family.
+
+The discriminator that DOES exist today is the prompt TEXT (`<task-notification>`)
+and the transcript's own `promptSource: "system"` — and Sonata already recognizes
+the former by prefix (`terminal-host.ts:2431`, run title "(background task
+returned)"), which is why the wake gets a name but not a different lifecycle.
+
+## F45 — shape (b): user Esc is EXEMPT from auto-resume, and the exemption is STRONGER than the hypothesis (MEASURED)
+
+Woody's D1 hypothesis — "user Esc is exempt; the CLI needs Esc to stick too" — is
+**CONFIRMED**, and the measurement bounds it more tightly than the hypothesis did.
+
+**z2a, live Esc through the production `TerminalHost`.** A streaming turn was
+Esc'd and then nothing was written for 180s:
+
+- hooks in the whole window after the Esc: **`[]`** (SL-2b's "Esc fires no hook"
+  re-confirmed at 2.1.258). Note what is missing besides a resume: no
+  `Notification(idle_prompt)` either, across the full 180s — where the z1 runs
+  saw one 60s after every ordinary `Stop`. That corroborates SL-2b's reading that
+  the idle notification is anchored to a turn END and never follows a Stop-less
+  ending, now with a 3× longer window than that slice used
+- bytes painted after the Esc: 512, all of it the interrupt's own repaint
+- transcript after the window: ends at `[Request interrupted by user]`, nothing
+  after it; no resume prompt anywhere
+- Sonata closed the run at **Esc+32532ms** via SL-2b's `stoplessTurnEndConfirmed`
+  — matching that slice's measured 32.5s exactly, on a live re-run
+
+**z2b / z2c, the restore contrast.** A session was driven to a genuine
+user-interrupted transcript (1 × `[Request interrupted by user]`, verified before
+each restore), killed, and reopened with `claude --continue` — twice, differing in
+one variable:
+
+| | z2b `--continue` | z2c `--continue` + `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` |
+|---|---|---|
+| interruption markers restored | 1 | 1 |
+| the restore actually restored the history | true | true |
+| unprompted activity in 90s | none | none |
+| bytes painted after boot | 0 | 0 |
+| **auto-resumed** | **false** | **false** |
+
+So it is not merely that Sonata never sets the flag: **forcing the crash-respawn
+flag onto a user-interrupted transcript still produces no resume.** The exemption
+is in what the CLI is willing to resume, not only in who sets the variable.
+
+`z2d` is the control that makes z2c's negative readable at all: macOS refuses to
+show another process's environment (`ps eww` returns the command line and no
+`KEY=value` pairs, MEASURED), so the override's arrival was demonstrated instead —
+a `/bin/sh` spawned through the identical `EnvProbe` path with the identical
+overrides echoed `SEEN:[1]`. This proves delivery to a child of that spawn; it
+cannot prove the CLI read the variable, so z2c's claim stays scoped to "set on the
+spawn", which is the only lever anything outside the CLI has.
+
+**Why the CLI behaves this way (STATIC, the map that z2 was built to test).**
+`CLAUDE_CODE_RESUME_INTERRUPTED_TURN` is not a user setting and not a default. It
+is set by the CLI on ITS OWN child at exactly two sites — the cloud-runner session
+spawner when the worker epoch is > 1, and the background-session PTY manager on a
+retry attempt (`this.attempt > 1`) — and it travels in `lme`, the `CLAUDE_BG_*`
+family the CLI scrubs out of what it spawns. It is read in one place, only while
+restoring a transcript into a fresh process, under a debug line that names the
+case: `[sessionRestore] Auto-resuming interrupted turn for bg crash-respawn`.
+
+**Consequence: shape (b) is not a risk on Sonata's path and needs no model.** The
+brief's premise that interrupted-turn auto-resume is "default on" is CORRECTED: it
+is default-on *for background/cloud crash respawn*, which is not a shape Sonata's
+interactive pty spawn can enter. D1's "only act if user-Esc turns out covered" is
+answered: it is not covered.
+
+## F46 — usage-limit auto-continue: ON for this account, and UNREPRODUCIBLE by design
+
+**The setting (MEASURED).** Read off the live `/config` panel through the
+production spawn, Down-and-Esc only (Left/Right cycle enums and Enter toggles, so
+neither was ever sent):
+
+```
+     Continue automatically at usage limit      true
+```
+
+**It is ON for the daily driver's account.** And it is not a file setting: the key
+`autoContinueAtUsageLimit` is **absent from `~/.claude/settings.json`** (MEASURED),
+because the value is account/storage-scoped — `/config`'s `onChange` awaits a
+remote write and can return an error, and the read falls back to
+`autoContinueKeyPresence === "absent"`, i.e. **default TRUE when unset** (STATIC).
+So Sonata cannot learn this setting's state from disk the way it reads `model`.
+
+**Field evidence: NONE.** 981 transcripts across 811 project directories hold none
+of the 8 episode literals (the two continuation prompts and six banner strings),
+with this investigation's own transcripts excluded — an exclusion that is
+load-bearing rather than tidy, since the first pass matched only this probe
+quoting the literals while writing them down. So: no past episode on this machine
+to mine, and the class is **dogfooding-watch only** until one occurs.
+
+**The fire path is NOT MEASURED, by anyone, here.** Provoking it means exhausting
+the account's quota to observe one banner. Per the brief's stop-and-report rule
+that cost was not paid. What follows is STATIC, from the 2.1.258 bundle.
+
+The episode is a three-phase state machine (`phase: "idle" | "armed" | "stale"`):
+
+- **arm** — on a rejected quota with a `resetsAt`, either from the dialog or
+  automatically (`origin: "auto"`) when the reset is inside a 24h horizon.
+- **fire** — at `resetsAt + jitter`, jitter uniform in **30–90s**; on a re-arm add
+  a 60s then 300s backoff, capped at **2 consecutive re-arms**. Firing calls one
+  function, and this is the whole revival:
+
+  ```js
+  QS({ mode: "prompt", value: L, uuid: n,
+       origin: { kind: "auto-continuation" }, isMeta: true,
+       skipSlashCommands: true, … })
+  ```
+
+  where `L` and the early-fire variant `Z` are fixed literals:
+
+  - `L` — "Your claude.ai usage limit has reset. Continue the task you were
+    working on when the limit was reached; do not repeat work that is already
+    complete."
+  - `Z` — "Your claude.ai usage is available again before the usage-limit reset.
+    Continue the task you were working on when the limit was reached; do not
+    repeat work that is already complete."
+
+- **stale** — if the machine slept through the reset, it does NOT fire; it paints
+  "Usage limit has reset · press enter to continue" and waits for the user.
+
+**Every phase transition also emits an OS notification through `Ov`, which is the
+same dispatcher `idle_prompt` uses** — and `idle_prompt` is MEASURED reaching
+Sonata's `Notification` hook this slice (F42's runs, `notification_type:
+"idle_prompt"` at Stop+60s). The `Notification` hook's schema is
+`{hook_event_name, message, title?, notification_type}`, and the notification-type
+enum includes three quota members (STATIC):
+
+```
+quota_auto_resume_fired, quota_auto_resume_stale, quota_auto_resume_disabled
+```
+
+with messages "Usage limit available — Claude is continuing your task",
+"Usage limit reset — press enter to continue", and the disabled/stopped family.
+
+**So the usage-limit revival is already on Sonata's wire.** `Notification` is in
+production's injected hook set (h1 MEASURED: `Notification, PermissionRequest,
+PostToolUse, PreToolUse, SessionStart, Stop, StopFailure, SubagentStop,
+UserPromptSubmit`), and `cli-state.ts:85-92` already reads `notification_type` —
+it branches on `permission_prompt` and `idle_prompt` and falls through on
+everything else. The three quota values would arrive today and be dropped. This
+is the cheapest signal in the dossier: **no injection change, no new channel, one
+unhandled enum**. It is STATIC-only until an episode occurs, which is precisely
+why it belongs in the modeling slice's design rather than in a patch now.
+
+Two smaller measured facts for SL-13's inventory:
+
+- **`/rate-limit-options` is not in the enumerated slash pool.** The CLI's own
+  banners tell the user to run it ("Automatic continue cancelled ·
+  /rate-limit-options to re-arm"), but SL-10's two enumerations (s1 pool, s4 help)
+  contain zero occurrences, so it is conditional/hidden — registered only while an
+  episode is live. Sonata's slash registry therefore cannot offer it, correctly.
+  `/usage-credits`, which the same banners reference, IS in both the CLI pool and
+  `app/src/shared/slash/builtins.ts:307`.
+- An armed episode is wired INTO the idle-notification machine
+  (`hasArmedQuotaAutoResume` is passed to the idle-notif state object, STATIC), so
+  the idle channel's behaviour during an episode is not the same as its behaviour
+  outside one. Relevant to SL-2b's `stoplessTurnEndConfirmed`, which consumes the
+  run-raw idle verdict.
+
+## F47 — THE DOSSIER: where Sonata's model lies today (design input for the modeling slice)
+
+One table per measured shape: the signal, the consumer it maps to, and the lie.
+Consumer locations are from a read-only survey of `app/src` at this commit;
+line numbers were re-verified after the survey and are stated for the tree as
+measured — the SL-9 sibling is editing `runtime-controller.ts` in the same
+worktree, so prefer the symbol names over the line numbers if they disagree.
+
+### Shape (a) — background-task revival · MEASURED, REPRODUCIBLE, LIVE TODAY
+
+| | |
+|---|---|
+| **Signal to key on** | `Stop.background_tasks` non-empty (and `session_crons` non-empty for the `/loop`/cron sibling) — present on the payload Sonata ALREADY receives, at the moment it already acts |
+| **Consumer** | the completion latch: `runtime-controller.ts:2770` → `terminalHost.completeRunFromTurnEnd()` (`terminal-host.ts:4359`) |
+| **Why it lies** | `completeRunFromTurnEnd()` **is handed no part of the `Stop` payload** — the controller calls it bare (`runtime-controller.ts:2770`). It finishes the run `"completed"` with `completionSource:"hook-stop"`, `completionConfidence:"high"` while the same payload says a shell is still running and will wake the session. The card reads done, at the highest confidence the system has, and then the transcript grows. |
+| **Second lie** | `NotificationPolicy.onCliState` (`notification-policy.ts:110-140`) fires `{kind:"complete"}` on the turn end, then the revival re-enters `busy` and **re-arms** it, so a single user request produces a second "task complete" notification 30s+ later |
+| **Third lie** | `beginRunFromHook` (`terminal-host.ts:2376`) never reopens a finished run: past its 5s text-identity echo window it mints a **brand-new run** (`run:started`, MEASURED at +69s in all four z1a runs), indistinguishable in the run index from a human typing in the pane |
+| **Partial credit** | Sonata already special-cases the prompt text `<task-notification>` (`terminal-host.ts:2380`) and gives the run the title "(background task returned)". So the revival is NAMED but not MODELLED — same lifecycle, same notification, same completion story |
+| **The honest fix's shape** | `Stop` needs to stop meaning one thing. A turn end with in-flight background work is not `completed`; it is a state the run model does not currently have. That is a lifecycle change, not a field read — which is why it is the modeling slice and not this one |
+
+### Shape (b) — interrupted-turn auto-resume · NOT A RISK
+
+Measured exempt in all three arms (F45). No consumer, no model, no change.
+Worth one inventory line so it is not re-raised: the mechanism is bg/cloud
+crash-respawn, and Sonata's interactive pty spawn cannot enter it.
+
+### Shape (c) — usage-limit auto-continue · STATIC ONLY, SETTING ON, UNOBSERVED
+
+| | |
+|---|---|
+| **Signal to key on** | `Notification.notification_type ∈ {quota_auto_resume_fired, quota_auto_resume_stale, quota_auto_resume_disabled}` — already injected, already parsed, currently dropped |
+| **Consumer** | `cli-state.ts:85-92`, the only reader of `notification_type`; it knows `permission_prompt` and `idle_prompt` and falls through on the rest. `applyHookToTask` has no `Notification` branch at all, so a Notification never reaches the run state machine |
+| **Why it would lie** | `_fired` means a turn is starting with no user input — the same third lie as shape (a) (a new run, a re-armed notification). `_stale` is the opposite failure and the more user-hostile one: the CLI is **waiting for the user to press Enter** and nothing in Sonata says so, so the task sits silently parked. `_disabled`/cancelled means the task will NOT resume — the user's mental model is "it will pick up at the reset", and nothing corrects it |
+| **Timing to design against** | fire is `resetsAt + 30–90s` jitter, re-arm backoff 60s then 300s, hard cap 2 re-arms, 24h horizon (STATIC) |
+| **Blocked on** | an actual episode. No field precedent on this machine (981 transcripts). Dogfooding-watch: the two continuation literals in F46 are exact and greppable |
+
+### The cross-cutting one
+
+**`UserPromptSubmit` is the wrong place to hang any of this.** It is the channel
+with the measured miss (F43, 1/8), its `source` discriminator is specified but not
+emitted (F44), and when `source` does ship, absence must read as unknown rather
+than `user`. Both revival families are better served by the signals that are
+already complete: `Stop.background_tasks` for shape (a), `Notification.
+notification_type` for shape (c).
+
+**Why no production code changed in this slice.** The brief allowed a change only
+where a measured shape fits an existing consumer trivially. The best candidate is
+F42's `background_tasks`, and it is not trivial: `completeRunFromTurnEnd()` is handed
+no part of the `Stop` payload, the controller passes none, and the useful behaviour is a run
+lifecycle that can express "ended, but expected to wake" — which the run model,
+the notification policy and the run index would all have to agree on. Wiring the
+field without that state would only move the lie. Reported, not built.
+
+## F48 — evidence files
+
+`z1-background-wake.mjs` + `z1-background-wake.capture.txt` (4 wake runs + the
+foreground control) · `z2-esc-resume-scope.mjs` + `z2-esc-resume-scope.capture.txt`
+(live Esc, the `--continue` contrast pair, the env-plumbing control) ·
+`z3-usage-limit-continue.mjs` + `z3-usage-limit-continue.capture.txt` (the live
+`/config` row, the field-evidence sweep). All three carry the F41 user-settings
+guard (snapshot + unconditional restore + signal handlers + `--self-test`); every
+run reported `mutatedByProbe: false`, and `~/.claude/settings.json` was verified
+unchanged after the slice (`model: opus[1m]`, 10 keys). Captures sanitize `$HOME`
+and the munged `-Users-<user>-` form; probe cwds are under
+`/private/tmp/sonata-sync-2026-09/`. `spikes/` is gitignored by the code repo —
+these need `git add -f`.
+
+**BUILD PROVENANCE, stated because the worktree was shared.** These probes drive
+`app/dist/`, and the SL-9 sibling was editing the same tree throughout. What is
+established: all three captures were written at 03:16:55, 03:35:52 and 03:38:31,
+and `dist/` was rebuilt at **03:40:14** — *after* the last of them — so no capture
+here contains output from that build. The build in use was the one observed at
+02:46, whose modified files were `runtime-controller.ts`, `approval-broker.ts`,
+`cli-state.ts`, `hook-sink.ts`, `codex-runtime-settings.ts` and `cli-signal.ts`;
+of the four modules these probes actually construct (`TerminalHost`,
+`HookWatcher`, `claude-runtime-settings`, `hook-sink`) only `hook-sink.ts` was
+among them, and its diff was COMMENT-ONLY — a doc block, 12 insertions, zero
+behavioural lines. `terminal-host.ts` was NOT modified at that point (it is now).
+
+What is NOT established, and is recorded rather than smoothed over: `dist/` mtime
+was sampled twice, not continuously, so an intermediate rebuild between 02:46 and
+03:40 cannot be excluded retroactively. The one continuity check available is
+that z2a re-measured SL-2b's shipped stopless closer at **Esc+32532ms**, matching
+that slice's committed figure (32532/32509/32519) exactly — consistent with an
+unchanged terminal-host, though not proof of one. Any re-run of these probes
+should re-state its own build provenance rather than inherit this one.
