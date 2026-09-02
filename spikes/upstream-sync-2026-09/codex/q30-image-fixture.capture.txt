@@ -1,0 +1,77 @@
+{
+  "probe": "q30-image-fixture",
+  "fixtureBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAC0lEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+  "bytes": 69,
+  "corruptHex": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000b49444154789c63f8cfc0000003010100c9fe92ef0000000049454e44ae426082",
+  "repairedHex": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc0000003010100c9fe92ef0000000049454e44ae426082",
+  "singleByteDiff": [
+    {
+      "offset": 36,
+      "corrupt": 11,
+      "repaired": 12
+    }
+  ],
+  "repairedBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+  "corruptChunks": [
+    {
+      "type": "IHDR",
+      "length": 13,
+      "storedCrc": "907753de",
+      "computedCrc": "907753de",
+      "verdict": "CRC OK",
+      "width": 1,
+      "height": 1,
+      "bitDepth": 8,
+      "colorType": 2
+    },
+    {
+      "type": "IDAT",
+      "length": 11,
+      "storedCrc": "00c9fe92",
+      "computedCrc": "fdd81955",
+      "verdict": "**CRC MISMATCH**",
+      "inflate": "**FAIL** unexpected end of file"
+    },
+    {
+      "type": "\u0000IEN",
+      "length": 4009754624,
+      "verdict": "TRUNCATED (needs 4009754692 bytes, file has 69)"
+    }
+  ],
+  "repairedChunks": [
+    {
+      "type": "IHDR",
+      "length": 13,
+      "storedCrc": "907753de",
+      "computedCrc": "907753de",
+      "verdict": "CRC OK",
+      "width": 1,
+      "height": 1,
+      "bitDepth": 8,
+      "colorType": 2
+    },
+    {
+      "type": "IDAT",
+      "length": 12,
+      "storedCrc": "c9fe92ef",
+      "computedCrc": "c9fe92ef",
+      "verdict": "CRC OK",
+      "inflate": "OK -> 00ff0000"
+    },
+    {
+      "type": "IEND",
+      "length": 0,
+      "storedCrc": "ae426082",
+      "computedCrc": "ae426082",
+      "verdict": "CRC OK"
+    }
+  ],
+  "carriersUnderApp": [
+    "tests/e2e/cli-lifecycle-races.mjs",
+    "tests/e2e/cli-resume-without-prompt.mjs",
+    "tests/e2e/cli-start-without-prompt.mjs",
+    "tests/e2e/composer-newchat-attachment.mjs",
+    "tests/e2e/composer-reference-attachment.mjs",
+    "tests/smoke/native-image-attachments.mjs"
+  ]
+}

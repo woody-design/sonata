@@ -1,0 +1,451 @@
+{
+  "probe": "q29-permissions-consent-walk",
+  "version": "codex-cli 0.152.1",
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null,
+  "sourceFact": {
+    "what": "#39873 permission-cycle default binding",
+    "file": "codex-rs/tui/src/keymap.rs (rust-v0.152.0 shallow clone)",
+    "finding": "next_permission_mode: default_bindings![] / previous_permission_mode: default_bindings![] — NO default binding; reachable only via tui.keymap.chat.next_permission_mode",
+    "cycleSet": "chatwidget/permission_shortcuts.rs keeps only presets read-only|auto, × reviewer User|AutoReview — a set that is NOT the picker's row set"
+  },
+  "arms": [
+    {
+      "arm": "production",
+      "steps": [
+        {
+          "step": "picker-structure",
+          "openedAtMs": 1366,
+          "headerGrid": true,
+          "headerStream": true,
+          "footerGrid": true,
+          "footerStream": true,
+          "cursorGrid": "ask-for-approval",
+          "cursorStream": "ask-for-approval",
+          "gridLines": [
+            "╭────────────────────────────────────────────────╮",
+            "│ >_ OpenAI Codex (v0.152.1)                     │",
+            "│                                                │",
+            "│ model:     gpt-5.6-sol high   /model to change │",
+            "│ directory: /private/tmp/…/production/cwd       │",
+            "╰────────────────────────────────────────────────╯",
+            "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+            "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+            "• You have 1 usage limit reset available. Run /usage to use one.",
+            "  Update Model Permissions",
+            "› 1. Ask for approval (current)  Codex can read and edit files in the current workspace, and run commands. Approval is",
+            "                                 required to access the internet or edit other files.",
+            "  2. Approve for me              Only ask for actions detected as potentially unsafe.",
+            "  3. Full Access                 Codex can edit files outside this workspace and access the internet without asking",
+            "                                 for approval. Exercise caution when using.",
+            "  Press enter to confirm or esc to go back                                                                              "
+          ]
+        },
+        {
+          "step": "exit-picker-esc",
+          "escs": [
+            {
+              "esc": 1,
+              "pickerHeaderGrid": false,
+              "pickerFooterGrid": false,
+              "pickerFooterStream": true,
+              "consentOpenGrid": false,
+              "acceptsPromptInput": true,
+              "tail": [
+                "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+                "• You have 1 usage limit reset available. Run /usage to use one.",
+                "› Ask Codex to do anything",
+                "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-permissions/production/cwd"
+              ]
+            }
+          ]
+        },
+        {
+          "step": "picker-reopen-for-consent",
+          "openedAtMs": 2826,
+          "headerGrid": true,
+          "headerStream": true,
+          "footerGrid": true,
+          "footerStream": true,
+          "cursorGrid": "ask-for-approval",
+          "cursorStream": "ask-for-approval",
+          "gridLines": [
+            "╭────────────────────────────────────────────────╮",
+            "│ >_ OpenAI Codex (v0.152.1)                     │",
+            "│                                                │",
+            "│ model:     gpt-5.6-sol high   /model to change │",
+            "│ directory: /private/tmp/…/production/cwd       │",
+            "╰────────────────────────────────────────────────╯",
+            "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+            "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+            "• You have 1 usage limit reset available. Run /usage to use one.",
+            "  Update Model Permissions",
+            "› 1. Ask for approval (current)  Codex can read and edit files in the current workspace, and run commands. Approval is",
+            "                                 required to access the internet or edit other files.",
+            "  2. Approve for me              Only ask for actions detected as potentially unsafe.",
+            "  3. Full Access                 Codex can edit files outside this workspace and access the internet without asking",
+            "                                 for approval. Exercise caution when using.",
+            "  Press enter to confirm or esc to go back                                                                              "
+          ]
+        },
+        {
+          "step": "walk-to-full-access",
+          "presses": [
+            {
+              "press": 1,
+              "from": "ask-for-approval",
+              "down": true,
+              "afterGrid": "approve-for-me",
+              "afterStream": "approve-for-me"
+            },
+            {
+              "press": 2,
+              "from": "approve-for-me",
+              "down": true,
+              "afterGrid": "full-access",
+              "afterStream": "full-access"
+            },
+            {
+              "press": 2,
+              "cursorGrid": "full-access",
+              "note": "already on target"
+            }
+          ],
+          "landedOn": "full-access"
+        },
+        {
+          "step": "confirm-into-consent",
+          "consentOpenGrid": true,
+          "consentOpenStream": false,
+          "consentCursorGrid": 1,
+          "consentCursorStream": null,
+          "receiptOnConfirm": null,
+          "pickerHeaderStillGrid": false,
+          "footerGrid": true,
+          "gridLines": [
+            "╭────────────────────────────────────────────────╮",
+            "│ >_ OpenAI Codex (v0.152.1)                     │",
+            "│                                                │",
+            "│ model:     gpt-5.6-sol high   /model to change │",
+            "│ directory: /private/tmp/…/production/cwd       │",
+            "╰────────────────────────────────────────────────╯",
+            "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+            "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+            "• You have 1 usage limit reset available. Run /usage to use one.",
+            "  Enable full access?",
+            "  When Codex runs with full access, it can edit any file on your computer and run commands with network, without your",
+            "  approval. Exercise caution when enabling full access. This significantly increases the risk of data loss, leaks, or",
+            "  unexpected behavior.",
+            "› 1. Yes, continue anyway  Apply full access for this session",
+            "  2. Cancel                Go back without enabling full access",
+            "  Press enter to confirm or esc to go back                                                                              "
+          ],
+          "streamTailCompact": "Enablfullaccess?WhenCodexrunswithfullaccess,itcaneditanyfileonyourcomputerandruncommandswithnetwork,withoutyourapproval.Exercisecautionwhenenablingfullaccess.Thissignificantlyincreasestheriskofdataloss,leaks,orunexpectedbehavior.1Yes,continueanywayApplyfullacessforthiseson2.CancelGobackwithoutenablingfullaccess"
+        },
+        {
+          "step": "exit-consent-esc",
+          "escs": [
+            {
+              "esc": 1,
+              "pickerHeaderGrid": false,
+              "pickerFooterGrid": false,
+              "pickerFooterStream": true,
+              "consentOpenGrid": false,
+              "acceptsPromptInput": true,
+              "tail": [
+                "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+                "• You have 1 usage limit reset available. Run /usage to use one.",
+                "› Ask Codex to do anything",
+                "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-permissions/production/cwd"
+              ]
+            }
+          ]
+        },
+        {
+          "step": "picker-reopen-for-cancel",
+          "openedAtMs": 6491,
+          "headerGrid": true,
+          "headerStream": true,
+          "footerGrid": true,
+          "footerStream": true,
+          "cursorGrid": "ask-for-approval",
+          "cursorStream": "ask-for-approval",
+          "gridLines": [
+            "╭────────────────────────────────────────────────╮",
+            "│ >_ OpenAI Codex (v0.152.1)                     │",
+            "│                                                │",
+            "│ model:     gpt-5.6-sol high   /model to change │",
+            "│ directory: /private/tmp/…/production/cwd       │",
+            "╰────────────────────────────────────────────────╯",
+            "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+            "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+            "• You have 1 usage limit reset available. Run /usage to use one.",
+            "  Update Model Permissions",
+            "› 1. Ask for approval (current)  Codex can read and edit files in the current workspace, and run commands. Approval is",
+            "                                 required to access the internet or edit other files.",
+            "  2. Approve for me              Only ask for actions detected as potentially unsafe.",
+            "  3. Full Access                 Codex can edit files outside this workspace and access the internet without asking",
+            "                                 for approval. Exercise caution when using.",
+            "  Press enter to confirm or esc to go back                                                                              "
+          ]
+        },
+        {
+          "step": "walk-to-full-access",
+          "presses": [
+            {
+              "press": 1,
+              "from": "ask-for-approval",
+              "down": true,
+              "afterGrid": "approve-for-me",
+              "afterStream": "approve-for-me"
+            },
+            {
+              "press": 2,
+              "from": "approve-for-me",
+              "down": true,
+              "afterGrid": "full-access",
+              "afterStream": "full-access"
+            },
+            {
+              "press": 2,
+              "cursorGrid": "full-access",
+              "note": "already on target"
+            }
+          ],
+          "landedOn": "full-access"
+        },
+        {
+          "step": "confirm-into-consent",
+          "consentOpenGrid": true,
+          "consentOpenStream": false,
+          "consentCursorGrid": 1,
+          "consentCursorStream": null,
+          "receiptOnConfirm": null,
+          "pickerHeaderStillGrid": false,
+          "footerGrid": true,
+          "gridLines": [
+            "╭────────────────────────────────────────────────╮",
+            "│ >_ OpenAI Codex (v0.152.1)                     │",
+            "│                                                │",
+            "│ model:     gpt-5.6-sol high   /model to change │",
+            "│ directory: /private/tmp/…/production/cwd       │",
+            "╰────────────────────────────────────────────────╯",
+            "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+            "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+            "• You have 1 usage limit reset available. Run /usage to use one.",
+            "  Enable full access?",
+            "  When Codex runs with full access, it can edit any file on your computer and run commands with network, without your",
+            "  approval. Exercise caution when enabling full access. This significantly increases the risk of data loss, leaks, or",
+            "  unexpected behavior.",
+            "› 1. Yes, continue anyway  Apply full access for this session",
+            "  2. Cancel                Go back without enabling full access",
+            "  Press enter to confirm or esc to go back                                                                              "
+          ],
+          "streamTailCompact": "Enablfullaccess?WhenCodexrunswithfullaccess,itcaneditanyfileonyourcomputerandruncommandswithnetwork,withoutyourapproval.Exercisecautionwhenenablingfullaccess.Thissignificantlyincreasestheriskofdataloss,leaks,orunexpectedbehavior.1Yes,continueanywayApplyfullacessforthiseson2.CancelGobackwithoutenablingfullaccess"
+        },
+        {
+          "step": "consent-cancel-row",
+          "presses": [
+            {
+              "press": 1,
+              "from": 1,
+              "after": 2
+            }
+          ],
+          "cursorBeforeEnter": 2,
+          "after": {
+            "consentOpenGrid": false,
+            "pickerHeaderGrid": true,
+            "pickerFooterGrid": true,
+            "pickerCursorGrid": "ask-for-approval",
+            "receipt": null,
+            "acceptsPromptInput": true,
+            "gridLines": [
+              "╭────────────────────────────────────────────────╮",
+              "│ >_ OpenAI Codex (v0.152.1)                     │",
+              "│                                                │",
+              "│ model:     gpt-5.6-sol high   /model to change │",
+              "│ directory: /private/tmp/…/production/cwd       │",
+              "╰────────────────────────────────────────────────╯",
+              "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+              "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+              "• You have 1 usage limit reset available. Run /usage to use one.",
+              "  Update Model Permissions",
+              "› 1. Ask for approval (current)  Codex can read and edit files in the current workspace, and run commands. Approval is",
+              "                                 required to access the internet or edit other files.",
+              "  2. Approve for me              Only ask for actions detected as potentially unsafe.",
+              "  3. Full Access                 Codex can edit files outside this workspace and access the internet without asking",
+              "                                 for approval. Exercise caution when using.",
+              "  Press enter to confirm or esc to go back                                                                              "
+            ]
+          }
+        },
+        {
+          "step": "exit-after-cancel",
+          "escs": [
+            {
+              "esc": 1,
+              "pickerHeaderGrid": false,
+              "pickerFooterGrid": false,
+              "pickerFooterStream": true,
+              "consentOpenGrid": false,
+              "acceptsPromptInput": true,
+              "tail": [
+                "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+                "• You have 1 usage limit reset available. Run /usage to use one.",
+                "› Ask Codex to do anything",
+                "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-permissions/production/cwd"
+              ]
+            }
+          ]
+        },
+        {
+          "step": "switch-to-approve-for-me",
+          "open": {
+            "step": "open-for-approve-for-me",
+            "openedAtMs": 12066,
+            "headerGrid": true,
+            "headerStream": true,
+            "footerGrid": true,
+            "footerStream": true,
+            "cursorGrid": "ask-for-approval",
+            "cursorStream": "ask-for-approval",
+            "gridLines": [
+              "╭────────────────────────────────────────────────╮",
+              "│ >_ OpenAI Codex (v0.152.1)                     │",
+              "│                                                │",
+              "│ model:     gpt-5.6-sol high   /model to change │",
+              "│ directory: /private/tmp/…/production/cwd       │",
+              "╰────────────────────────────────────────────────╯",
+              "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+              "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+              "• You have 1 usage limit reset available. Run /usage to use one.",
+              "  Update Model Permissions",
+              "› 1. Ask for approval (current)  Codex can read and edit files in the current workspace, and run commands. Approval is",
+              "                                 required to access the internet or edit other files.",
+              "  2. Approve for me              Only ask for actions detected as potentially unsafe.",
+              "  3. Full Access                 Codex can edit files outside this workspace and access the internet without asking",
+              "                                 for approval. Exercise caution when using.",
+              "  Press enter to confirm or esc to go back                                                                              "
+            ]
+          },
+          "walk": {
+            "step": "walk-to-approve-for-me",
+            "presses": [
+              {
+                "press": 1,
+                "from": "ask-for-approval",
+                "down": true,
+                "afterGrid": "approve-for-me",
+                "afterStream": "approve-for-me"
+              },
+              {
+                "press": 1,
+                "cursorGrid": "approve-for-me",
+                "note": "already on target"
+              }
+            ],
+            "landedOn": "approve-for-me"
+          },
+          "receipt": "approve-for-me",
+          "receiptWholeTail": "approve-for-me",
+          "receiptLines": [
+            "• Permissions updated to Approve for me  › Ask Codex to do anything   gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-permissions/production/cwd"
+          ],
+          "newBytesCompact": "•PermissionsupdatedtoApproveforme›AskCodextodoanythinggpt-5.6-solhigh·/private/tmp/sonata-sync-2026-09/codex-permissions/production/cwd",
+          "pickerClosedGrid": true,
+          "acceptsPromptInput": true,
+          "tail": [
+            "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+            "• You have 1 usage limit reset available. Run /usage to use one.",
+            "• Permissions updated to Approve for me",
+            "› Ask Codex to do anything",
+            "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-permissions/production/cwd"
+          ]
+        },
+        {
+          "step": "switch-to-ask-for-approval",
+          "open": {
+            "step": "open-for-ask-for-approval",
+            "openedAtMs": 15027,
+            "headerGrid": true,
+            "headerStream": true,
+            "footerGrid": true,
+            "footerStream": true,
+            "cursorGrid": "approve-for-me",
+            "cursorStream": "approve-for-me",
+            "gridLines": [
+              "╭────────────────────────────────────────────────╮",
+              "│ >_ OpenAI Codex (v0.152.1)                     │",
+              "│                                                │",
+              "│ model:     gpt-5.6-sol high   /model to change │",
+              "│ directory: /private/tmp/…/production/cwd       │",
+              "╰────────────────────────────────────────────────╯",
+              "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+              "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+              "• You have 1 usage limit reset available. Run /usage to use one.",
+              "• Permissions updated to Approve for me",
+              "  Update Model Permissions",
+              "  1. Ask for approval          Codex can read and edit files in the current workspace, and run commands. Approval is",
+              "                               required to access the internet or edit other files.",
+              "› 2. Approve for me (current)  Only ask for actions detected as potentially unsafe.",
+              "  3. Full Access               Codex can edit files outside this workspace and access the internet without asking for",
+              "                               approval. Exercise caution when using.",
+              "  Press enter to confirm or esc to go back                                                                              "
+            ]
+          },
+          "walk": {
+            "step": "walk-to-ask-for-approval",
+            "presses": [
+              {
+                "press": 1,
+                "from": "approve-for-me",
+                "down": false,
+                "afterGrid": "ask-for-approval",
+                "afterStream": "ask-for-approval"
+              },
+              {
+                "press": 1,
+                "cursorGrid": "ask-for-approval",
+                "note": "already on target"
+              }
+            ],
+            "landedOn": "ask-for-approval"
+          },
+          "receipt": "ask-for-approval",
+          "receiptWholeTail": "ask-for-approval",
+          "receiptLines": [
+            "• Permissions updated to Ask for approval"
+          ],
+          "newBytesCompact": "›AskCodextodoanythinggpt-5.6-solhigh·/private/tmp/sonata-sync-2026-09/codex-permissions/production/cwd•PermissionsupdatedtoAskforapproval",
+          "pickerClosedGrid": true,
+          "acceptsPromptInput": true,
+          "tail": [
+            "• You have 1 usage limit reset available. Run /usage to use one.",
+            "• Permissions updated to Approve for me",
+            "• Permissions updated to Ask for approval",
+            "› Ask Codex to do anything",
+            "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-permissions/production/cwd"
+          ]
+        }
+      ],
+      "readyAtMs": 146,
+      "handshakeAtMs": 349,
+      "idleTail": [
+        "• You have 1 usage limit reset available. Run /usage to use one.",
+        "• Starting MCP servers (3/4): codex_apps (0s • esc to interrupt)",
+        "› Ask Codex to do anything",
+        "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-permissions/production/cwd"
+      ]
+    },
+    {
+      "arm": "cycle-shortcut",
+      "binding": "ctrl+g",
+      "steps": [],
+      "configToml": "# q29 arm B: the #39873 permission cycle has NO default binding at 0.152.x.\n# Bind one so the shortcut can be driven at all.\n[tui.keymap.chat]\nnext_permission_mode = [\"ctrl+g\"]\n",
+      "readyAtMs": null,
+      "fatal": "composer never accepted input inside the boot budget",
+      "bootScreen": "╭───────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)            │\n│                                       │\n│ model:     loading   /model to change │\n│ directory: loading                    │\n╰───────────────────────────────────────╯\n \n \n› Error loading config.toml: data did not match any variant of untagged enum KeybindingsSpec\nin `tui.keymap.chat.next_permission_mode`\n  ? for shortcuts"
+    }
+  ]
+}

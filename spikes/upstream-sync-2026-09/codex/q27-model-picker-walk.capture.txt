@@ -1,0 +1,683 @@
+{
+  "probe": "q27-model-picker-walk",
+  "version": "codex-cli 0.152.1",
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null,
+  "workspace": "/private/tmp/sonata-sync-2026-09/codex-model-picker/cwd",
+  "args": [
+    "-p",
+    "sonata",
+    "--dangerously-bypass-hook-trust",
+    "--no-alt-screen",
+    "-C",
+    "/private/tmp/sonata-sync-2026-09/codex-model-picker/cwd",
+    "-s",
+    "workspace-write",
+    "-a",
+    "on-request",
+    "-c",
+    "approvals_reviewer=\"user\""
+  ],
+  "idle": {
+    "atMs": 348,
+    "tailLines": [
+      "╰──────────────────────────────────────────────────╯",
+      "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+      "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+      "• Starting MCP servers (0/4): codex_apps, node_repl, openaiDeveloperDocs, … (0s • esc to interrupt)",
+      "› Ask Codex to do anything",
+      "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-model-picker/cwd"
+    ],
+    "composerGlyphsSeen": [
+      ">",
+      "›"
+    ],
+    "idleScrapeGrid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 614,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "idleScrapeStream": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 1215,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "acceptsPromptInput": true
+  },
+  "steps": [
+    {
+      "step": "open-and-hold",
+      "why": "DEPTH + ROWS + REFRESH with no key pressed",
+      "frames": [
+        {
+          "atMs": 763,
+          "gridLines": [
+            "╭──────────────────────────────────────────────────╮",
+            "│ >_ OpenAI Codex (v0.152.1)                       │",
+            "│                                                  │",
+            "│ model:     gpt-5.6-sol high   /model to change   │",
+            "│ directory: /private/tmp/…/codex-model-picker/cwd │",
+            "╰──────────────────────────────────────────────────╯",
+            "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+            "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+            "• You have 1 usage limit reset available. Run /usage to use one.",
+            "  Select Model and Effort",
+            "  Access legacy models by running codex -m <model_name> or in your config.toml",
+            "› 1. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks.",
+            "  2. gpt-5.6-terra          Balanced agentic coding model for everyday work.",
+            "  3. gpt-5.6-luna           Fast and affordable agentic coding model.",
+            "  4. gpt-5.5                Proven previous-generation model for coding and general work.",
+            "  5. gpt-5.4                Strong model for everyday coding.",
+            "  6. gpt-5.4-mini           Small, fast, and cost-efficient model for simpler coding tasks.",
+            "  Press enter to confirm or esc to go back                                                                              "
+          ],
+          "gridCompact": "╭──────────────────────────────────────────────────╮│>_OpenAICodex(v0.152.1)││││model:gpt-5.6-solhigh/modeltochange││directory:/private/tmp/…/codex-model-picker/cwd│╰──────────────────────────────────────────────────╯Tip:NewUse/fasttoenableourfastestinferencewithincreasedplanusage.⚠`--dangerously-bypass-hook-trust`isenabled.Enabledhooksmayrunwithoutreviewforthisinvocation.•Youhave1usagelimitresetavailable.Run/usagetouseone.SelectModelandEffortAccesslegacymodelsbyrunningcodex-m<model_name>orinyourconfig.toml›1.gpt-5.6-sol(current)Reliableagenticworkhorseforeverydaytasks.2.gpt-5.6-terraBalancedagenticcodingmodelforeverydaywork.3.gpt-5.6-lunaFastandaffordableagenticcodingmodel.4.gpt-5.5Provenprevious-generationmodelforcodingandgeneralwork.5.gpt-5.4Strongmodelforeverydaycoding.6.gpt-5.4-miniSmall,fast,andcost-efficientmodelforsimplercodingtasks.Pressentertoconfirmoresctogoback",
+          "l1OpenGrid": true,
+          "l1OpenStream": true,
+          "footerGrid": true,
+          "footerStream": true,
+          "l1Grid": {
+            "cursor": "gpt-5.6-sol",
+            "current": "gpt-5.6-sol",
+            "order": {
+              "gpt-5.6-sol": 1,
+              "gpt-5.6-terra": 2,
+              "gpt-5.6-luna": 3,
+              "gpt-5.5": 4,
+              "gpt-5.4": 5,
+              "gpt-5.4-mini": 6
+            },
+            "byDigit": {
+              "1": "gpt-5.6-sol",
+              "2": "gpt-5.6-terra",
+              "3": "gpt-5.6-luna",
+              "4": "gpt-5.5",
+              "5": "gpt-5.4",
+              "6": "gpt-5.4-mini"
+            }
+          },
+          "l1Stream": {
+            "cursor": "gpt-5.6-sol",
+            "current": "gpt-5.6-sol",
+            "order": {
+              "gpt-5.6-sol": 1,
+              "gpt-5.6-terra": 2,
+              "gpt-5.6-luna": 3,
+              "gpt-5.5": 4,
+              "gpt-5.4": 5,
+              "gpt-5.4-mini": 6
+            },
+            "byDigit": {
+              "1": "gpt-5.6-sol",
+              "2": "gpt-5.6-terra",
+              "3": "gpt-5.6-luna",
+              "4": "gpt-5.5",
+              "5": "gpt-5.4",
+              "6": "gpt-5.4-mini"
+            }
+          },
+          "l2Grid": {
+            "cursor": null,
+            "current": null,
+            "order": {},
+            "byDigit": {}
+          },
+          "l2Stream": {
+            "cursor": null,
+            "current": null,
+            "order": {},
+            "byDigit": {}
+          }
+        }
+      ],
+      "open": {
+        "headerAt": 763,
+        "composerTailBefore": [
+          "• Starting MCP servers (3/4): codex_apps (0s • esc to interrupt)",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-model-picker/cwd"
+        ]
+      },
+      "distinctFrames": 1,
+      "rowSetChanged": false,
+      "cursorChanged": false,
+      "rollback": {
+        "escs": [
+          {
+            "esc": 1,
+            "footerBefore": true,
+            "footerAfterGrid": false,
+            "footerAfterStream": true,
+            "l1OpenGrid": false
+          }
+        ],
+        "composerBack": true,
+        "screenTail": [
+          "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-model-picker/cwd"
+        ]
+      }
+    },
+    {
+      "step": "fast-walk",
+      "why": "REFRESH (b): can a refresh land under an in-progress walk",
+      "presses": [
+        {
+          "press": 1,
+          "beforeCursorGrid": null,
+          "afterCursorGrid": "gpt-5.6-terra",
+          "beforeCursorStream": "gpt-5.6-sol",
+          "afterCursorStream": "gpt-5.6-terra",
+          "beforeOrder": {},
+          "afterOrder": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "moved": true,
+          "orderStable": false
+        },
+        {
+          "press": 2,
+          "beforeCursorGrid": "gpt-5.6-terra",
+          "afterCursorGrid": "gpt-5.6-luna",
+          "beforeCursorStream": "gpt-5.6-terra",
+          "afterCursorStream": "gpt-5.6-luna",
+          "beforeOrder": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "afterOrder": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "moved": true,
+          "orderStable": true
+        },
+        {
+          "press": 3,
+          "beforeCursorGrid": "gpt-5.6-luna",
+          "afterCursorGrid": "gpt-5.5",
+          "beforeCursorStream": "gpt-5.6-luna",
+          "afterCursorStream": "gpt-5.5",
+          "beforeOrder": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "afterOrder": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "moved": true,
+          "orderStable": true
+        },
+        {
+          "press": 4,
+          "beforeCursorGrid": "gpt-5.5",
+          "afterCursorGrid": "gpt-5.4",
+          "beforeCursorStream": "gpt-5.5",
+          "afterCursorStream": "gpt-5.4",
+          "beforeOrder": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "afterOrder": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "moved": true,
+          "orderStable": true
+        }
+      ],
+      "open": {
+        "headerAt": 22152,
+        "composerTailBefore": [
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-model-picker/cwd"
+        ]
+      },
+      "headerSeenAtMs": 22152,
+      "finalFrame": {
+        "atMs": 23770,
+        "gridLines": [
+          "╭──────────────────────────────────────────────────╮",
+          "│ >_ OpenAI Codex (v0.152.1)                       │",
+          "│                                                  │",
+          "│ model:     gpt-5.6-sol high   /model to change   │",
+          "│ directory: /private/tmp/…/codex-model-picker/cwd │",
+          "╰──────────────────────────────────────────────────╯",
+          "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+          "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "  Select Model and Effort",
+          "  Access legacy models by running codex -m <model_name> or in your config.toml",
+          "› 1. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks.",
+          "  2. gpt-5.6-terra          Balanced agentic coding model for everyday work.",
+          "  3. gpt-5.6-luna           Fast and affordable agentic coding model.",
+          "  4. gpt-5.5                Proven previous-generation model for coding and general work.",
+          "  5. gpt-5.4                Strong model for everyday coding.",
+          "  6. gpt-5.4-mini           Small, fast, and cost-efficient model for simpler coding tasks.",
+          "  Press enter to confirm or esc to go back                                                                              "
+        ],
+        "gridCompact": "╭──────────────────────────────────────────────────╮│>_OpenAICodex(v0.152.1)││││model:gpt-5.6-solhigh/modeltochange││directory:/private/tmp/…/codex-model-picker/cwd│╰──────────────────────────────────────────────────╯Tip:NewUse/fasttoenableourfastestinferencewithincreasedplanusage.⚠`--dangerously-bypass-hook-trust`isenabled.Enabledhooksmayrunwithoutreviewforthisinvocation.•Youhave1usagelimitresetavailable.Run/usagetouseone.SelectModelandEffortAccesslegacymodelsbyrunningcodex-m<model_name>orinyourconfig.toml›1.gpt-5.6-sol(current)Reliableagenticworkhorseforeverydaytasks.2.gpt-5.6-terraBalancedagenticcodingmodelforeverydaywork.3.gpt-5.6-lunaFastandaffordableagenticcodingmodel.4.gpt-5.5Provenprevious-generationmodelforcodingandgeneralwork.5.gpt-5.4Strongmodelforeverydaycoding.6.gpt-5.4-miniSmall,fast,andcost-efficientmodelforsimplercodingtasks.Pressentertoconfirmoresctogoback",
+        "l1OpenGrid": true,
+        "l1OpenStream": true,
+        "footerGrid": true,
+        "footerStream": true,
+        "l1Grid": {
+          "cursor": "gpt-5.6-sol",
+          "current": "gpt-5.6-sol",
+          "order": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "byDigit": {
+            "1": "gpt-5.6-sol",
+            "2": "gpt-5.6-terra",
+            "3": "gpt-5.6-luna",
+            "4": "gpt-5.5",
+            "5": "gpt-5.4",
+            "6": "gpt-5.4-mini"
+          }
+        },
+        "l1Stream": {
+          "cursor": "gpt-5.6-sol",
+          "current": "gpt-5.6-sol",
+          "order": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "byDigit": {
+            "1": "gpt-5.6-sol",
+            "2": "gpt-5.6-terra",
+            "3": "gpt-5.6-luna",
+            "4": "gpt-5.5",
+            "5": "gpt-5.4",
+            "6": "gpt-5.4-mini"
+          }
+        },
+        "l2Grid": {
+          "cursor": null,
+          "current": null,
+          "order": {},
+          "byDigit": {}
+        },
+        "l2Stream": {
+          "cursor": null,
+          "current": null,
+          "order": {},
+          "byDigit": {}
+        }
+      },
+      "rollback": {
+        "escs": [
+          {
+            "esc": 1,
+            "footerBefore": true,
+            "footerAfterGrid": false,
+            "footerAfterStream": true,
+            "l1OpenGrid": false
+          }
+        ],
+        "composerBack": true,
+        "screenTail": [
+          "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-model-picker/cwd"
+        ]
+      }
+    },
+    {
+      "step": "level-2",
+      "why": "DEPTH second half + level-2 rows and markers",
+      "open": {
+        "headerAt": 25029,
+        "composerTailBefore": [
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-model-picker/cwd"
+        ]
+      },
+      "l1": {
+        "atMs": 25029,
+        "gridLines": [
+          "╭──────────────────────────────────────────────────╮",
+          "│ >_ OpenAI Codex (v0.152.1)                       │",
+          "│                                                  │",
+          "│ model:     gpt-5.6-sol high   /model to change   │",
+          "│ directory: /private/tmp/…/codex-model-picker/cwd │",
+          "╰──────────────────────────────────────────────────╯",
+          "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+          "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "› /model",
+          "  /model  choose what model and reasoning effort to use"
+        ],
+        "gridCompact": "╭──────────────────────────────────────────────────╮│>_OpenAICodex(v0.152.1)││││model:gpt-5.6-solhigh/modeltochange││directory:/private/tmp/…/codex-model-picker/cwd│╰──────────────────────────────────────────────────╯Tip:NewUse/fasttoenableourfastestinferencewithincreasedplanusage.⚠`--dangerously-bypass-hook-trust`isenabled.Enabledhooksmayrunwithoutreviewforthisinvocation.•Youhave1usagelimitresetavailable.Run/usagetouseone.›/model/modelchoosewhatmodelandreasoningefforttouse",
+        "l1OpenGrid": false,
+        "l1OpenStream": true,
+        "footerGrid": false,
+        "footerStream": true,
+        "l1Grid": {
+          "cursor": null,
+          "current": null,
+          "order": {},
+          "byDigit": {}
+        },
+        "l1Stream": {
+          "cursor": "gpt-5.6-sol",
+          "current": "gpt-5.6-sol",
+          "order": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "byDigit": {
+            "1": "gpt-5.6-sol",
+            "2": "gpt-5.6-terra",
+            "3": "gpt-5.6-luna",
+            "4": "gpt-5.5",
+            "5": "gpt-5.4",
+            "6": "gpt-5.4-mini"
+          }
+        },
+        "l2Grid": {
+          "cursor": null,
+          "current": null,
+          "order": {},
+          "byDigit": {}
+        },
+        "l2Stream": {
+          "cursor": null,
+          "current": null,
+          "order": {},
+          "byDigit": {}
+        }
+      },
+      "l1CursorModel": null,
+      "afterEnter": {
+        "atMs": 26232,
+        "gridLines": [
+          "╭──────────────────────────────────────────────────╮",
+          "│ >_ OpenAI Codex (v0.152.1)                       │",
+          "│                                                  │",
+          "│ model:     gpt-5.6-sol high   /model to change   │",
+          "│ directory: /private/tmp/…/codex-model-picker/cwd │",
+          "╰──────────────────────────────────────────────────╯",
+          "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+          "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "  Select Reasoning Level for gpt-5.6-sol",
+          "  1. Low (default)    Fast responses with lighter reasoning",
+          "  2. Medium           Balances speed and reasoning depth for everyday tasks",
+          "› 3. High (current)   Greater reasoning depth for complex problems",
+          "  4. Extra high       Extra high reasoning depth for complex problems",
+          "  5. More reasoning…  Max and Ultra consume usage limits faster",
+          "  Press enter to confirm or esc to go back                                                                              "
+        ],
+        "gridCompact": "╭──────────────────────────────────────────────────╮│>_OpenAICodex(v0.152.1)││││model:gpt-5.6-solhigh/modeltochange││directory:/private/tmp/…/codex-model-picker/cwd│╰──────────────────────────────────────────────────╯Tip:NewUse/fasttoenableourfastestinferencewithincreasedplanusage.⚠`--dangerously-bypass-hook-trust`isenabled.Enabledhooksmayrunwithoutreviewforthisinvocation.•Youhave1usagelimitresetavailable.Run/usagetouseone.SelectReasoningLevelforgpt-5.6-sol1.Low(default)Fastresponseswithlighterreasoning2.MediumBalancesspeedandreasoningdepthforeverydaytasks›3.High(current)Greaterreasoningdepthforcomplexproblems4.ExtrahighExtrahighreasoningdepthforcomplexproblems5.Morereasoning…MaxandUltraconsumeusagelimitsfasterPressentertoconfirmoresctogoback",
+        "l1OpenGrid": false,
+        "l1OpenStream": true,
+        "footerGrid": true,
+        "footerStream": true,
+        "l1Grid": {
+          "cursor": null,
+          "current": null,
+          "order": {},
+          "byDigit": {}
+        },
+        "l1Stream": {
+          "cursor": "gpt-5.6-sol",
+          "current": "gpt-5.6-sol",
+          "order": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "byDigit": {
+            "1": "gpt-5.6-sol",
+            "2": "gpt-5.6-terra",
+            "3": "gpt-5.6-luna",
+            "4": "gpt-5.5",
+            "5": "gpt-5.4",
+            "6": "gpt-5.4-mini"
+          }
+        },
+        "l2Grid": {
+          "cursor": "high",
+          "current": "high",
+          "order": {
+            "low": 1,
+            "medium": 2,
+            "high": 3,
+            "xhigh": 4,
+            "more": 5
+          },
+          "byDigit": {
+            "1": "low",
+            "2": "medium",
+            "3": "high",
+            "4": "xhigh",
+            "5": "more"
+          }
+        },
+        "l2Stream": {
+          "cursor": "high",
+          "current": "high",
+          "order": {
+            "low": 1,
+            "medium": 2,
+            "high": 3,
+            "xhigh": 4,
+            "more": 5
+          },
+          "byDigit": {
+            "1": "low",
+            "2": "medium",
+            "3": "high",
+            "4": "xhigh",
+            "5": "more"
+          }
+        }
+      },
+      "level2OpenForCursorModel": null,
+      "level2OpenGeneric": true,
+      "level2OpenGrid": true,
+      "afterSettle": {
+        "atMs": 29236,
+        "gridLines": [
+          "╭──────────────────────────────────────────────────╮",
+          "│ >_ OpenAI Codex (v0.152.1)                       │",
+          "│                                                  │",
+          "│ model:     gpt-5.6-sol high   /model to change   │",
+          "│ directory: /private/tmp/…/codex-model-picker/cwd │",
+          "╰──────────────────────────────────────────────────╯",
+          "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+          "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "  Select Reasoning Level for gpt-5.6-sol",
+          "  1. Low (default)    Fast responses with lighter reasoning",
+          "  2. Medium           Balances speed and reasoning depth for everyday tasks",
+          "› 3. High (current)   Greater reasoning depth for complex problems",
+          "  4. Extra high       Extra high reasoning depth for complex problems",
+          "  5. More reasoning…  Max and Ultra consume usage limits faster",
+          "  Press enter to confirm or esc to go back                                                                              "
+        ],
+        "gridCompact": "╭──────────────────────────────────────────────────╮│>_OpenAICodex(v0.152.1)││││model:gpt-5.6-solhigh/modeltochange││directory:/private/tmp/…/codex-model-picker/cwd│╰──────────────────────────────────────────────────╯Tip:NewUse/fasttoenableourfastestinferencewithincreasedplanusage.⚠`--dangerously-bypass-hook-trust`isenabled.Enabledhooksmayrunwithoutreviewforthisinvocation.•Youhave1usagelimitresetavailable.Run/usagetouseone.SelectReasoningLevelforgpt-5.6-sol1.Low(default)Fastresponseswithlighterreasoning2.MediumBalancesspeedandreasoningdepthforeverydaytasks›3.High(current)Greaterreasoningdepthforcomplexproblems4.ExtrahighExtrahighreasoningdepthforcomplexproblems5.Morereasoning…MaxandUltraconsumeusagelimitsfasterPressentertoconfirmoresctogoback",
+        "l1OpenGrid": false,
+        "l1OpenStream": true,
+        "footerGrid": true,
+        "footerStream": true,
+        "l1Grid": {
+          "cursor": null,
+          "current": null,
+          "order": {},
+          "byDigit": {}
+        },
+        "l1Stream": {
+          "cursor": "gpt-5.6-sol",
+          "current": "gpt-5.6-sol",
+          "order": {
+            "gpt-5.6-sol": 1,
+            "gpt-5.6-terra": 2,
+            "gpt-5.6-luna": 3,
+            "gpt-5.5": 4,
+            "gpt-5.4": 5,
+            "gpt-5.4-mini": 6
+          },
+          "byDigit": {
+            "1": "gpt-5.6-sol",
+            "2": "gpt-5.6-terra",
+            "3": "gpt-5.6-luna",
+            "4": "gpt-5.5",
+            "5": "gpt-5.4",
+            "6": "gpt-5.4-mini"
+          }
+        },
+        "l2Grid": {
+          "cursor": "high",
+          "current": "high",
+          "order": {
+            "low": 1,
+            "medium": 2,
+            "high": 3,
+            "xhigh": 4,
+            "more": 5
+          },
+          "byDigit": {
+            "1": "low",
+            "2": "medium",
+            "3": "high",
+            "4": "xhigh",
+            "5": "more"
+          }
+        },
+        "l2Stream": {
+          "cursor": "high",
+          "current": "high",
+          "order": {
+            "low": 1,
+            "medium": 2,
+            "high": 3,
+            "xhigh": 4,
+            "more": 5
+          },
+          "byDigit": {
+            "1": "low",
+            "2": "medium",
+            "3": "high",
+            "4": "xhigh",
+            "5": "more"
+          }
+        }
+      },
+      "rollback": {
+        "escs": [
+          {
+            "esc": 1,
+            "footerBefore": true,
+            "footerAfterGrid": true,
+            "footerAfterStream": true,
+            "l1OpenGrid": true
+          },
+          {
+            "esc": 2,
+            "footerBefore": true,
+            "footerAfterGrid": false,
+            "footerAfterStream": true,
+            "l1OpenGrid": false
+          }
+        ],
+        "composerBack": true,
+        "screenTail": [
+          "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-model-picker/cwd"
+        ]
+      }
+    }
+  ],
+  "readyAtMs": 146,
+  "appServerHandshakeAtMs": 348,
+  "readyBeforeHandshakeByMs": 202,
+  "idleAfter": {
+    "atMs": 30646,
+    "tailLines": [
+      "╰──────────────────────────────────────────────────╯",
+      "  Tip: New Use /fast to enable our fastest inference with increased plan usage.",
+      "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+      "• You have 1 usage limit reset available. Run /usage to use one.",
+      "› Ask Codex to do anything",
+      "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-model-picker/cwd"
+    ],
+    "composerGlyphsSeen": [
+      ">",
+      "›"
+    ],
+    "idleScrapeGrid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 578,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "idleScrapeStream": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 6212,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "acceptsPromptInput": true
+  }
+}

@@ -626,6 +626,40 @@ assert.equal(
   "the bare composer is not the consent dialog",
 );
 
+// — The FOURTH permission mode, reachable only off the picker (#39873, MEASURED
+//   0.152.1 — SL-7 q29 arm B). The permission-CYCLE shortcut's set is not the
+//   picker's: it cycles Approve for me → Read Only → Ask for approval and prints
+//   `• Permissions updated to Read Only`, a mode with no picker row and no
+//   `CodexPermissionMode` member. Null here is the CORRECT answer, not a hole —
+//   Sonata can only ever confirm one of the three rows, so a null on someone
+//   else's native cycle is honest rather than a dropped receipt. Pinned so a
+//   future reader meeting that line in a capture finds the adjudication instead
+//   of assuming a bug. (The shortcut ships with NO default binding, so reaching
+//   this state at all takes a user-written `tui.keymap.chat.next_permission_mode`.)
+assert.equal(
+  parseCodexPermissionReceipt("• Permissions updated to Read Only"),
+  null,
+  "the cycle-only `Read Only` mode is deliberately unmapped — Sonata never confirms that row",
+);
+// …and the DRIVE survives that state: measured, the picker sitting in Read Only
+// still paints its three rows with NO `(current)` marker and the cursor on row 1,
+// so the cursor read (which is what navigation uses) still resolves.
+// PROVENANCE: ADAPTED. The header, the three row labels, the missing `(current)`
+// and the cursor position are MEASURED (q29 arm B, picker opened while the CLI
+// sat in Read Only); the row DESCRIPTIONS are truncated here — nothing reads
+// them, and the full text is already pinned verbatim in PICKER_OPEN above.
+assert.equal(
+  parseCodexPermissionPickerCursor(
+    "Update Model Permissions" +
+      "  › 1. Ask for approval  Codex can read and edit files in the current workspace, and run commands." +
+      "  2. Approve for me    Only ask for actions detected as potentially unsafe." +
+      "  3. Full Access       Codex can edit files outside this workspace and access the internet." +
+      "  Press enter to confirm or esc to go back",
+  ),
+  "ask-for-approval",
+  "a picker with NO (current) marker (the CLI is in Read Only) still yields a navigable cursor row",
+);
+
 // — Cross-vocabulary isolation: a claude mode line is not a codex cursor/receipt. —
 assert.equal(
   parseCodexPermissionPickerCursor("⏸ plan mode on"),
@@ -649,22 +683,39 @@ assert.equal(
 // ===========================================================================
 
 // Level 1 (models) — the opening frame, cursor + (current) on gpt-5.6-sol.
+//
+// PROVENANCE: row text MEASURED verbatim at codex 0.152.1 (upstream sync SL-7,
+// q27 — the rendered grid of a live `/model` open through the production
+// TerminalHost; spikes/upstream-sync-2026-09/codex/q27-model-picker-walk.capture.txt),
+// with the grid's line breaks collapsed into concatenation exactly as every other
+// fixture in this file does (the parsers whitespace-strip, so layout is inert).
+// The cursor position in MODEL_L1_ON_LUNA is COMPOSED — the `›` moved two rows
+// down on the same measured frame, which is what a down-arrow does. It
+// REPLACES a 0.146-era frame, and the replacement is the finding: the picker now
+// serves SIX rows and three of them are the "legacy" models the old fixture
+// asserted were unreachable (gpt-5.5 / gpt-5.4 / gpt-5.4-mini), while
+// gpt-5.3-codex-spark — a row the old fixture carried — is gone. The subtitle
+// still advertises `codex -m` as the way to reach legacy models even as they sit
+// in the list. This is watch-item W5 in the flesh: the catalog is SERVER-mutable,
+// so a row set is a MEASUREMENT with a date on it, never a fact about codex.
 const MODEL_L1 =
   "Select Model and Effort  Access legacy models by running codex -m <model_name> or in your config.toml" +
-  "  › 1. gpt-5.6-sol (current)  Latest frontier agentic coding model." +
-  "  2. gpt-5.6-terra  Balanced agentic coding model for everyday work." +
-  "  3. gpt-5.6-luna  Fast and affordable agentic coding model." +
-  "  4. gpt-5.5  Frontier model for complex coding, research, and real-world work." +
-  "  5. gpt-5.3-codex-spark  Ultra-fast coding model." +
+  "  › 1. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks." +
+  "  2. gpt-5.6-terra          Balanced agentic coding model for everyday work." +
+  "  3. gpt-5.6-luna           Fast and affordable agentic coding model." +
+  "  4. gpt-5.5                Proven previous-generation model for coding and general work." +
+  "  5. gpt-5.4                Strong model for everyday coding." +
+  "  6. gpt-5.4-mini           Small, fast, and cost-efficient model for simpler coding tasks." +
   "  Press enter to confirm or esc to go back";
 // The SAME frame after two arrow-downs (cursor now on gpt-5.6-luna).
 const MODEL_L1_ON_LUNA =
   "Select Model and Effort  Access legacy models by running codex -m <model_name> or in your config.toml" +
-  "  1. gpt-5.6-sol (current)  Latest frontier agentic coding model." +
-  "  2. gpt-5.6-terra  Balanced agentic coding model for everyday work." +
-  "  › 3. gpt-5.6-luna  Fast and affordable agentic coding model." +
-  "  4. gpt-5.5  Frontier model for complex coding, research, and real-world work." +
-  "  5. gpt-5.3-codex-spark  Ultra-fast coding model." +
+  "  1. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks." +
+  "  2. gpt-5.6-terra          Balanced agentic coding model for everyday work." +
+  "  › 3. gpt-5.6-luna         Fast and affordable agentic coding model." +
+  "  4. gpt-5.5                Proven previous-generation model for coding and general work." +
+  "  5. gpt-5.4                Strong model for everyday coding." +
+  "  6. gpt-5.4-mini           Small, fast, and cost-efficient model for simpler coding tasks." +
   "  Press enter to confirm or esc to go back";
 // Level 2 (reasoning) frame — rendered BELOW the level-1 frame (both present),
 // cursor + (current) on High, (default) on Low.
@@ -721,12 +772,23 @@ assert.equal(
   assert.equal(l1.order.get("gpt-5.6-terra"), 2, "digit order: terra = 2");
   assert.equal(l1.order.get("gpt-5.6-luna"), 3, "digit order: luna = 3");
   assert.equal(l1.order.get("gpt-5.5"), 4, "digit order: 5.5 = 4");
-  assert.equal(l1.order.get("gpt-5.3-codex-spark"), 5, "digit order: spark = 5");
+  assert.equal(l1.order.get("gpt-5.4"), 5, "digit order: 5.4 = 5 (a row now — see the fixture note)");
+  assert.equal(l1.order.get("gpt-5.4-mini"), 6, "digit order: 5.4-mini = 6");
   assert.equal(l1.byDigit.get(2), "gpt-5.6-terra", "the neighbor lookup (digit → slug) resolves");
-  // Legacy models (gpt-5.4 / gpt-5.4-mini) are NOT offered by this picker — a
-  // switch to one must be recognizable as absent (D5 → rollback).
-  assert.equal(l1.order.has("gpt-5.4"), false, "gpt-5.4 (legacy) is absent from the picker rows");
-  assert.equal(l1.order.has("gpt-5.4-mini"), false, "gpt-5.4-mini (legacy) is absent too");
+  assert.equal(l1.byDigit.get(6), "gpt-5.4-mini", "…and reaches the sixth row (the picker grew)");
+  // D5 — a target absent from the LIVE rows must be recognizable as absent so the
+  // choreography rolls back instead of navigating blind. The absence case is
+  // pinned on a SYNTHETIC slug on purpose: it used to be pinned on `gpt-5.4`,
+  // whose absence was a measured fact in 2026-08 and is a measured FALSEHOOD now
+  // (0.152.1 serves it at row 5). A drift-detection test whose premise the server
+  // can revoke tests the server, not the parser — so the premise has to be one no
+  // catalog can ever satisfy. (The real-CLI smoke made this same correction for
+  // its own rollback target; this is the unit half of it.)
+  assert.equal(
+    l1.order.has("gpt-0.0-sonata-smoke-never-served"),
+    false,
+    "a slug no catalog can serve is absent from the picker rows (D5 → rollback)",
+  );
 }
 {
   const l1 = parseCodexModelLevel1(MODEL_L1_ON_LUNA);
@@ -766,6 +828,44 @@ assert.equal(
   const l2 = parseCodexModelLevel2(frame);
   assert.equal(l2.cursor, "low", "cursor on Low");
   assert.equal(l2.current, "xhigh", "(current) on Extra high is read as xhigh regardless of the cursor");
+}
+
+// — The THIRD level, behind `More reasoning…` (MEASURED 0.152.1, SL-7 q28 — the
+//   one screen Sonata's choreography refuses to enter, so its shape had never
+//   been captured). Sonata cannot reach it on its own (D6 refuses the row), but a
+//   user can arrow onto that row inside a picker Sonata opened, and the rollback
+//   then has to SEE it. The four outcomes below are exactly what makes that work,
+//   and three of them are negatives: the level predicates must both say "not my
+//   level" and the level-2 row parse must come back EMPTY (so an accidental entry
+//   cannot look navigable and be driven blind), while the SHARED FOOTER must
+//   still say "a picker is on screen" — which is the term
+//   `rollbackCodexModelPicker` actually gates its Esc on. —
+{
+  // PROVENANCE: MEASURED verbatim (q28 capture), line breaks collapsed as above.
+  const ADVANCED_REASONING =
+    "Advanced Reasoning" +
+    "  ⚠ Consumes usage limits faster" +
+    "  › 1. Max    For difficult problems when quality matters more than speed · higher usage" +
+    "  2. Ultra  For demanding work using multiple agents · highest usage" +
+    "  Press enter to confirm or esc to go back";
+  assert.equal(
+    codexModelPickerLevel1Open(ADVANCED_REASONING),
+    false,
+    "the Max/Ultra submenu is NOT the level-1 model picker",
+  );
+  assert.equal(
+    codexModelPickerLevel2Open(ADVANCED_REASONING),
+    false,
+    "…nor the level-2 reasoning picker (no `Select Reasoning Level for …` header)",
+  );
+  const parsed = parseCodexModelLevel2(ADVANCED_REASONING);
+  assert.equal(parsed.cursor, null, "its `› 1. Max` row is not a reasoning-row cursor");
+  assert.equal(parsed.order.size, 0, "…and it yields NO navigable rows — an accidental entry cannot be driven");
+  assert.equal(
+    codexModelPickerFooterVisible(ADVANCED_REASONING),
+    true,
+    "but the SHARED footer keeps it visible to the rollback (the Esc gate) — measured 3 Escs deep from a composer",
+  );
 }
 
 // — Receipt parser (bullet-anchored; splits the glued model + reasoning). —
@@ -810,14 +910,14 @@ assert.equal(
 //   applied, and reading one as null would make the confirm phase time out and
 //   Esc-roll back a change that already landed.
 //   PROVENANCE (the method lesson — these labels are what future syncs trust):
-//   the Ultra line is MEASURED verbatim on codex 0.146.0 (spikes/upstream-sync-
-//   2026-08/codex/findings.md §Q2), and it is the form that carries the
-//   `for this conversation` suffix — the half a future end-anchor "tightening"
-//   would quietly break, so it is pinned as captured. The Max line is
-//   EXTRAPOLATED, NOT captured: no Max receipt was ever taken. It combines the
-//   tier set with the BARE receipt shape that IS measured (the medium control
-//   above, and the high/low/xhigh cases before it). Treat it as a tier-coverage
-//   case, not as evidence of what a Max confirm prints. —
+//   BOTH lines are now MEASURED. The Ultra form was captured on codex 0.146.0
+//   (spikes/upstream-sync-2026-08/codex/findings.md §Q2) and RE-DRIVEN on 0.152.1
+//   (SL-7, q28); the Max form was EXTRAPOLATED until 0.152.1, where q28 drove all
+//   six tiers through the live picker in one session and captured it. The
+//   extrapolation turned out to be right, and the thing it guessed right is the
+//   interesting part: the suffix is **Ultra-only**. Max prints BARE. So the two
+//   cases below are not one shape with a tolerated tail — they are two measured
+//   shapes, and an end-anchor "tightening" would break exactly one of them. —
 assert.deepEqual(
   parseCodexModelReceipt("• Model changed to gpt-5.6-sol ultra for this conversation"),
   { model: "gpt-5.6-sol", effort: "ultra" },
@@ -826,7 +926,7 @@ assert.deepEqual(
 assert.deepEqual(
   parseCodexModelReceipt("• Model changed to gpt-5.6-sol max"),
   { model: "gpt-5.6-sol", effort: "max" },
-  "…and the EXTRAPOLATED bare Max form (measured shape, uncaptured tier) parses as max",
+  "…and the MEASURED bare Max form (0.152.1 — no suffix, unlike Ultra) parses as max",
 );
 // The suffix is not a licence for prose: an unrecognized token after the model is
 // still null (the parser confirms a TIER, never an arbitrary word).

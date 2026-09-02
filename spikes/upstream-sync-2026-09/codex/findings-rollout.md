@@ -89,6 +89,18 @@ space+apostrophe paths). The paired `response_item` fills every image slot with
 `{"type":"input_text","text":"image content omitted because it could not be
 processed"}`. NOT an attach failure — chase the model-side shape.
 
+> **CORRECTED BY SL-7 (see findings.md D9).** The localization above is exactly
+> right and the conclusion drawn from it is wrong: "chase the model-side shape"
+> points at a phantom upstream defect. The cause is **Sonata's own test fixture**
+> — `redPngBytes()` was a 69-byte PNG whose IDAT chunk declared length 11 for a
+> 12-byte zlib stream, so the CRC mismatched and the deflate stream was truncated.
+> codex's placeholder is the correct response to bytes no decoder accepts
+> (`image_preparation.rs`, the `Processing(_)` catch-all). It is also NOT a 0.152
+> regression: all 100 `local_image` rollouts on this machine fail identically at
+> 0.147.0, 0.152.0 and 0.152.1. A/B'd across bare vs production spawn shapes —
+> spawn shape has zero effect, the image bytes have total effect. Fixture fixed
+> and guarded; the smoke is 10/10 green. No upstream issue to file.
+
 ## Registered (not fixed here)
 
 1. Tool-result previews render raw JSON arrays since 0.144.0 (output as

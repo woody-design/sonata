@@ -22,6 +22,10 @@ import { cleanTerminal } from "./tui-parsers-common";
 // LABELS are the match keys (never the row number — D5: match by TEXT, the digit
 // is only part of the cursor anchor):
 //   `›1.Askforapproval(current)…`  `2.Approveforme…`  `3.FullAccess…`
+// RE-DRIVEN at codex 0.152.1 (SL-7, q29): header, all three row labels, the
+// cursor grammar and the footer are UNCHANGED — the ratatui 0.30 bump moved
+// nothing this picker's parsers key on, and `CODEX_ROW_ORDER`'s 0/1/2 map still
+// matches the painted digits 1/2/3.
 // The `›` (U+203A) cursor marks the highlighted row; it also leads the composer
 // placeholder (`›Write tests…`), so the cursor anchor requires `›` + a DIGIT +
 // `.` to tell the picker cursor apart from composer prose. Footer while open:
@@ -48,6 +52,15 @@ const CODEX_PICKER_FOOTER_RE = /Pressentertoconfirmoresctogoback/;
 //   `  2. Cancel                Go back without enabling full access`
 //   `Press enter to confirm or esc to go back`   cursor `›` U+203A
 //
+// RE-DRIVEN at codex 0.152.1 (SL-7, q29): header, both rows and the footer are
+// BYTE-IDENTICAL. The dialog also carries an explanatory paragraph between the
+// header and row 1 ("When Codex runs with full access, it can edit any file on
+// your computer …") — NOT a 0.152 addition: it is in the 0.146.0 capture too and
+// has been pinned in midsession-receipt's `CONSENT_GRID` all along; it is quoted
+// here only because this block previously listed the rows without it, which read
+// as if the dialog were four lines. It is prose, not a row — no `\d.` anchor, and
+// the drawer relays ROWS — so it changes nothing the parsers do.
+//
 // CHANNEL — these two read the reconstructed SCREEN (TaskScreenModel grid text),
 // never the linear pty tail (D-1). Codex 0.146 repaints the consent as a CELL
 // DIFF over the `/permissions` picker that occupied the same rows: a cell already
@@ -59,6 +72,16 @@ const CODEX_PICKER_FOOTER_RE = /Pressentertoconfirmoresctogoback/;
 // SPATIAL query. Both parsers stay pure and compaction-based: `cleanTerminal` is
 // a near-noop on plain grid rows, and the whitespace-strip still buys tolerance
 // of the column padding the dialog lays its descriptions out with.
+//
+// THE CELL-DIFF STILL BITES at 0.152.1, and the elision is character-for-
+// character the same one (q29, both channels sampled in the same instant, twice):
+// `codexPermissionConsentDialogOpen` reads TRUE on the grid and FALSE on the
+// stream, whose bytes compact to `Enablfullaccess?…1Yes,continueanyway
+// Applyfullacessforthiseson2.CancelGoback…`. Note `2. Cancel` KEPT its dot while
+// row 1 lost both its `›` and its `.` — which is the whole argument in one frame:
+// what survives is a function of what the PREVIOUS screen happened to hold, so a
+// stream-side regex can be widened until it matches this capture and still be
+// wrong on the next terminal width. The grid is not a preference here.
 const CODEX_FULL_ACCESS_CONSENT_RE = /Enablefullaccess\?/;
 // Consent cursor rows: `›` + digit + `.` + the row LABEL. The LABEL anchor is the
 // red line — never a bare row number: it is what tells this cursor apart from any
@@ -97,7 +120,34 @@ const CODEX_PICKER_CURSOR_RES: ReadonlyArray<readonly [RegExp, CodexPermissionMo
   [/›\d+\.FullAccess/, "full-access"],
 ];
 /** Confirm-receipt patterns, anchored on the `•` codex event-line bullet so
- *  prose can't forge them (the S2 glyph-anchor discipline). */
+ *  prose can't forge them (the S2 glyph-anchor discipline).
+ *
+ *  RE-VERIFIED VERBATIM at codex 0.152.1 (SL-7, q29 — all three DRIVEN through
+ *  the live picker): `• Permissions updated to Ask for approval` /
+ *  `… Approve for me` / `… Full Access`, the last one after the consent grant.
+ *
+ *  A FOURTH mode exists and is deliberately absent from this table. #39873 added
+ *  a permission-CYCLE shortcut whose set is not the picker's: it enumerates the
+ *  `read-only` and `auto` presets (`chatwidget/permission_shortcuts.rs`) and
+ *  cycles Approve for me → **Read Only** → Ask for approval, printing
+ *  `• Permissions updated to Read Only` — a mode `CodexPermissionMode` cannot
+ *  name and the picker has no row for. Two facts bound the exposure, both
+ *  measured:
+ *    1. The shortcut has NO DEFAULT BINDING (`keymap.rs` @ rust-v0.152.0:
+ *       `next_permission_mode: default_bindings![]`). It is unreachable unless a
+ *       user writes `tui.keymap.chat.next_permission_mode` themselves.
+ *    2. While the CLI sits in Read Only the picker still paints its THREE rows
+ *       with NO `(current)` marker and the cursor on row 1 — so
+ *       `parseCodexPermissionPickerCursor` still reads a row and a Sonata-driven
+ *       switch still walks correctly. Only the MIRROR goes stale, and codex's
+ *       permission mirror has no hook feed to go stale from in the first place
+ *       (this receipt IS the confirmation channel).
+ *  So `parseCodexPermissionReceipt` returning null for a Read Only line is
+ *  CORRECT, not a hole: Sonata can only ever confirm one of the three rows, and
+ *  a null on someone else's native cycle is the honest answer. Adding a
+ *  `read-only` member would ripple through the settings list, `codexArgs`, the
+ *  session menu and the task record — a design fork, not a table edit (the same
+ *  adjudication `ultracode` got on the claude side). Registered for Woody. */
 const CODEX_PICKER_RECEIPT_RES: ReadonlyArray<readonly [RegExp, CodexPermissionMode]> = [
   [/•PermissionsupdatedtoAskforapproval/, "ask-for-approval"],
   [/•PermissionsupdatedtoApproveforme/, "approve-for-me"],
@@ -216,18 +266,36 @@ export function parseCodexPermissionReceipt(rawScan: string): CodexPermissionMod
 // capture; the compacted (whitespace-removed) forms are what the parsers key on:
 //
 //   Level 1 header:  `Select Model and Effort`      → `SelectModelandEffort`
-//   Level 1 rows:    `› 1. gpt-5.6-sol (current)  Latest frontier…`
-//                    `2. gpt-5.6-terra  Balanced…`  … (DYNAMIC set + order —
-//                    the picker shows the account's non-legacy models, which may
-//                    differ from Sonata's curated list; legacy models like
-//                    gpt-5.4 are NOT offered here, only via `codex -m`. D5: a
-//                    target model absent from the visible rows → Esc-rollback +
-//                    needs-attention, turning upstream/legacy drift into signal.)
+//   Level 1 subtitle: `Access legacy models by running codex -m <model_name> or
+//                    in your config.toml` — an unnumbered note between the header
+//                    and row 1. Inert to the row regex (no `\d.` + `gpt-` shape),
+//                    recorded so a future reader does not mistake it for a row.
+//   Level 1 rows:    `› 1. gpt-5.6-sol (current)  Reliable agentic workhorse…`
+//                    `2. gpt-5.6-terra  Balanced…`  … (DYNAMIC set + order — the
+//                    picker shows what THIS account is served, which may differ
+//                    from Sonata's curated list. D5: a target model absent from
+//                    the visible rows → Esc-rollback + needs-attention, turning
+//                    upstream drift into signal.)
+//                    RE-MEASURED 0.152.1 (SL-7, q27): SIX rows —
+//                    sol / terra / luna / **gpt-5.5 / gpt-5.4 / gpt-5.4-mini**.
+//                    The previous note here — "legacy models like gpt-5.4 are NOT
+//                    offered, only via `codex -m`" — is FALSIFIED: they are rows
+//                    now, even though the subtitle above still advertises `-m` as
+//                    the way to reach "legacy" ones. This is W5 in the flesh (the
+//                    catalog is SERVER-mutable with no CLI release), and it is why
+//                    the D5 rollback target in the real-CLI smoke had to become a
+//                    synthetic never-served slug rather than a real legacy one.
 //   Level 2 header:  `Select Reasoning Level for gpt-5.6-sol`
 //   Level 2 rows:    `1. Low (default)  Fast…`  `2. Medium…`
 //                    `› 3. High (current)  Greater…`  `4. Extra high…`
 //                    `5. More reasoning…  Max and Ultra…`  (v1 targets low→xhigh;
 //                    `More reasoning…` — Max/Ultra — is NEVER entered, D6.)
+//                    `(default)` marks the MODEL'S OWN default tier and moves with
+//                    the model (MEASURED 0.152.1: Low for gpt-5.6-sol, Medium for
+//                    gpt-5.6-luna) — it is NOT `(current)` and never identifies
+//                    the tier to preserve. Row 5's DESCRIPTION is model-dependent
+//                    too (`Max and Ultra consume…` on sol, `Max consumes…` on
+//                    luna); the row LABEL the parser keys on is unchanged.
 //   Shared footer:   `Press enter to confirm or esc to go back`
 //   Confirm receipt: `• Model changed to gpt-5.6-sol xhigh`  (`•` U+2022 anchor,
 //                    the model slug then the reasoning token, both glued after
@@ -271,7 +339,17 @@ const CODEX_MODEL_L2_ROW_RE =
 // 0.146.0: a Max/Ultra confirm prints `• Model changed to gpt-5.6-sol ultra for
 // this conversation`, which the four-token alternation read as NULL while a control
 // `• Model changed to gpt-5.6-sol medium` parsed fine — so the break was Ultra/Max
-// only, not format-wide. On a null the change HAS applied CLI-side while the confirm
+// only, not format-wide.
+//
+// F8 STANDING RE-VERIFY, codex 0.152.1 (SL-7, q28 — all six tiers DRIVEN through
+// the live picker in one session, each receipt read off that press's own stream
+// delta): low / medium / high / xhigh / max / ultra ALL parse. Two shapes, and the
+// split is not where a reader would guess — **Ultra alone carries the suffix**
+// (`• Model changed to gpt-5.6-sol ultra for this conversation`) while **Max is
+// BARE** (`• Model changed to gpt-5.6-sol max`), which upgrades the Max case from
+// EXTRAPOLATED to MEASURED. Both are pinned in midsession-receipt.
+//
+// On a null the change HAS applied CLI-side while the confirm
 // phase keeps waiting: it times out and rolls back from pickerLevel 2 (up to two
 // Escs into a composer whose picker is already closed), and reports a verdict that
 // misdescribes what happened. Parsing the receipt reaches the SAME needs-attention
@@ -287,6 +365,39 @@ const CODEX_MODEL_L2_ROW_RE =
 // them cannot shadow or be shadowed.
 const CODEX_MODEL_RECEIPT_RE = /•\s*Model changed to (gpt-\S+) (xhigh|high|medium|low|max|ultra)/;
 
+// ── What lies BEHIND `More reasoning…` — measured once, so the refusal is
+//    informed rather than superstitious (SL-7, q28, codex 0.152.1) ────────────
+//
+// Sonata never enters that row (D6), which meant nothing in this file knew what
+// entering it produces — and "we don't go there" is a weaker guarantee than "we
+// don't go there, and here is what it would be". Driven once:
+//
+//   `Advanced Reasoning`
+//   `⚠ Consumes usage limits faster`
+//   `› 1. Max    For difficult problems when quality matters more than speed · …`
+//   `  2. Ultra  For demanding work using multiple agents · highest usage`
+//   `Press enter to confirm or esc to go back`
+//
+// It is a THIRD picker level, and the three predicates here split on it exactly
+// the way the rollback needs:
+//   - `codexModelPickerLevel1Open` → false   (no `Select Model and Effort`)
+//   - `codexModelPickerLevel2Open` → false   (no `Select Reasoning Level for …`)
+//   - `parseCodexModelLevel2`      → EMPTY   (its rows are `Max`/`Ultra`, which
+//                                             are not reasoning-row labels — so an
+//                                             accidental entry cannot look
+//                                             navigable and be driven blind)
+//   - `codexModelPickerFooterVisible` → TRUE  (the footer is shared)
+//
+// That last line is the load-bearing one: `rollbackCodexModelPicker` decides
+// "is a picker still on screen" from `pickerLevel > 0 || footerVisible`, so a
+// stack that reached here — a user arrowing onto `More reasoning…` inside a
+// picker Sonata opened, then the choreography's cursor validation failing — is
+// still SEEN, and Esc'd rather than abandoned. MEASURED depth from this screen
+// back to a composer: THREE Escs (Advanced Reasoning → level 2 → level 1 →
+// composer), which is exactly `CODEX_MODEL_MAX_ROLLBACK_ESCS`. The bound covers
+// the deepest stack codex can build, with nothing to spare — a fourth level
+// upstream would silently strand one.
+//
 /** The five reasoning rows the level-2 picker can show. `more` is the
  *  `More reasoning…` submenu row (Max/Ultra) — recognized ONLY so the
  *  choreography can refuse to enter it (D6, out of scope v1). */

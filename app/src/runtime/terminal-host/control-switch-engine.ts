@@ -143,7 +143,19 @@ const CODEX_CONSENT_CANCEL_ROW = 2;
 const CODEX_CONSENT_CANCEL_ESC_DELAY_MS = 250;
 /** Rollback Esc bound: the picker is at most two levels deep, so two Escs return
  *  to the composer; a third is a safety cap against a screen whose footer never
- *  clears (then we conclude needs-attention regardless). */
+ *  clears (then we conclude needs-attention regardless).
+ *
+ *  0.152.1 CORRECTION to the premise, not the number (SL-7, q28): the picker is
+ *  THREE levels deep, not two. `More reasoning…` opens an `Advanced Reasoning`
+ *  submenu (Max / Ultra) whose shared footer keeps `pickerOnScreen` true, and the
+ *  MEASURED distance from it back to a composer is exactly three Escs. Sonata's
+ *  own choreography never confirms that row (D6), so it cannot build the stack
+ *  itself — but a user arrowing onto it inside a picker Sonata opened can, and
+ *  the cursor-validation failure that follows lands in this rollback. So 3 is no
+ *  longer one Esc of slack over a two-deep stack; it is the exact depth, with
+ *  nothing spare. A fourth upstream level would strand a picker open, which is
+ *  the state this whole path exists to prevent — treat the number as coupled to
+ *  the measured depth and re-check it when the picker's shape moves. */
 const CODEX_MODEL_MAX_ROLLBACK_ESCS = 3;
 
 /** The `control-switch:state` event payload the engine emits back through the
@@ -1953,7 +1965,17 @@ export class ControlSwitchEngine {
    *  the `/permissions` picker (MEASURED 0.146.0; only `esc` reaches the composer)
    *  — so its Enter is trailed by the one Esc that closes that picker, and the
    *  relay goes straight to the bounded exit watch. Everything else waits for its
-   *  receipt (grant / Yes) or `Kept …` (claude No). */
+   *  receipt (grant / Yes) or `Kept …` (claude No).
+   *
+   *  RE-DRIVEN at codex 0.152.1 (SL-7, q29 — both exits taken from their own
+   *  freshly opened picker). The ASYMMETRY this trailing Esc exists for still
+   *  holds exactly: `esc` on the consent lands on the idle COMPOSER (picker gone,
+   *  `acceptsPromptInput` true), while Enter on `2. Cancel` lands back on the
+   *  STILL-OPEN `/permissions` picker — header and footer up, no receipt printed,
+   *  and the cursor RESET to row 1 (`Ask for approval`) rather than left on the
+   *  Full Access row it came from. The reset is harmless here (this path Escs the
+   *  picker away rather than navigating it), but it is the kind of detail a
+   *  future "just re-confirm the row" shortcut would trip over. */
   private pressParkedConfirm(
     pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
   ): void {

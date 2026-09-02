@@ -586,6 +586,69 @@ await check("codex booting at Ultra is ready for the first delivery", async () =
   );
 });
 
+// ── 0.152.1 re-verification of everything above (upstream sync SL-7, q28) ────
+//
+// The three cases above were derived from a 0.146.0 capture. q28 drove all six
+// effort tiers through the live 0.152.1 picker in one session and re-measured the
+// composer region at each. Every claim held, and two got sharper:
+//
+//   - `»` is ULTRA-ONLY. Max keeps `›` (measured: the footer read
+//     `gpt-5.6-sol max · <cwd>` under a `› Ask Codex to do anything` composer,
+//     and `»` appeared only after the Ultra confirm). The section header says
+//     "Max/Ultra"; the glyph is Ultra's alone. The MAX confirm paints its own
+//     `M A X` banner in the same footer region, so the banner case above covers
+//     both tiers — but the glyph case does not, and never did.
+//   - The Ultra composer + footer are byte-shaped exactly as pinned:
+//     `» Ask Codex to do anything` over `  gpt-5.6-sol ultra · <cwd>`, with
+//     `detectIdlePromptForProvider` reading ready / medium on BOTH the grid and
+//     the stream at that instant.
+//
+// The two cases below pin what q28/q29 added: the Max tier's glyph (the negative
+// half of "Ultra-only") and the `default` effort token. PROVENANCE, same split as
+// the section above: the receipt lines, the composer glyphs and the footers are
+// MEASURED; the surrounding welcome box and transcript lines are COMPOSED scaffold
+// that only establishes the ordering the glyph rule needs (no assertion below
+// depends on any composed part being verbatim).
+await check("codex at MAX keeps `›` — the `»` glyph is Ultra's alone", async () => {
+  const maxTail =
+    CODEX_WELCOME_BOX("high") +
+    "• Model changed to gpt-5.6-sol max\n" +
+    "\n" +
+    "› Ask Codex to do anything\n" +
+    "\n" +
+    "  gpt-5.6-sol max · /private/tmp/s1-probe/ws\n";
+  const hint = detectIdlePromptForProvider(maxTail, "codex");
+
+  assert.equal(hint.ready, true, "the Max composer is an idle prompt on the ordinary `›`");
+  assert.equal(
+    hint.lastPromptIndex,
+    maxTail.lastIndexOf("›"),
+    "…anchored on that `›`, not on the welcome box's `>_`",
+  );
+  assert.equal(hint.hasModelOrCwdHint, true, "`max` is one of the effort tokens the footer can hold");
+});
+
+// A codex session with NO effort configured paints `default` where a tier would
+// be (MEASURED 0.152.1, q29 arm B — an isolated CODEX_HOME with no config.toml).
+// This is a DOCUMENTATION pin, not a differential one, and saying so matters: the
+// frame matches on the model slug alone, so it passed before `default` joined
+// `idlePromptModelHints` and passes after. What it fixes is the belief that the
+// effort position only ever holds one of the six ReasoningEffort tiers.
+await check("codex idle footer can read `default` where a tier would be", async () => {
+  const defaultTail =
+    CODEX_WELCOME_BOX("high") +
+    "• Permissions updated to Ask for approval\n" +
+    "\n" +
+    "› Ask Codex to do anything\n" +
+    "\n" +
+    "  gpt-5.6-sol default · /private/tmp/s1-probe/ws\n";
+  const hint = detectIdlePromptForProvider(defaultTail, "codex");
+
+  assert.equal(hint.ready, true, "the `default` footer is still an idle composer");
+  assert.equal(hint.hasModelOrCwdHint, true, "…and still carries a model/cwd hint");
+  assert.equal(hint.confidence, "medium");
+});
+
 // The glyph is codex-only ON PURPOSE (composerPromptGlyphs is per-provider):
 // claude never paints `»`, so admitting it there would let a `»` in model PROSE
 // forge a prompt position after the activity text and close a live run.

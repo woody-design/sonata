@@ -1,0 +1,878 @@
+{
+  "probe": "q28-model-receipt-tiers",
+  "version": "codex-cli 0.152.1",
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null,
+  "steps": [
+    {
+      "step": "effort-low",
+      "tier": "low",
+      "l1Cursor": "gpt-5.6-sol",
+      "l1Current": "gpt-5.6-sol",
+      "l2Before": {
+        "cursor": "high",
+        "current": "high",
+        "order": {
+          "low": 1,
+          "medium": 2,
+          "high": 3,
+          "xhigh": 4,
+          "more": 5
+        }
+      },
+      "walk": {
+        "presses": [
+          {
+            "from": "high",
+            "after": "medium"
+          },
+          {
+            "from": "medium",
+            "after": "low"
+          }
+        ],
+        "landedOn": "low"
+      },
+      "receiptFromPress": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptFromTail": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptVerbatim": [
+        "• Model changed to gpt-5.6-sol low  › Ask Codex to do anything   gpt-5.6-sol low · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+      ],
+      "newBytesCompact": "•Modelchangedtogpt-5.6-sollow›AskCodextodoanythinggpt-5.6-sollow·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd",
+      "pickerClosed": true,
+      "footer": {
+        "label": "after-low",
+        "atMs": 5449,
+        "tailLines": [
+          "  Tip: Try the Desktop app. Run 'codex app' or visit https://chatgpt.com/codex?app-landing-page=true",
+          "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "• Model changed to gpt-5.6-sol low",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol low · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+        ],
+        "glyphsOnScreen": [
+          ">",
+          "›"
+        ],
+        "composerGlyph": "› ",
+        "idleScrapeGrid": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 641,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "idleScrapeStream": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 3268,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "acceptsPromptInput": true
+      }
+    },
+    {
+      "step": "effort-medium",
+      "tier": "medium",
+      "l1Cursor": "gpt-5.6-sol",
+      "l1Current": "gpt-5.6-sol",
+      "l2Before": {
+        "cursor": "low",
+        "current": null,
+        "order": {
+          "low": 1,
+          "medium": 2,
+          "high": 3,
+          "xhigh": 4,
+          "more": 5
+        }
+      },
+      "walk": {
+        "presses": [
+          {
+            "from": "low",
+            "after": "medium"
+          }
+        ],
+        "landedOn": "medium"
+      },
+      "receiptFromPress": {
+        "model": "gpt-5.6-sol",
+        "effort": "medium"
+      },
+      "receiptFromTail": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptVerbatim": [
+        "• Model changed to gpt-5.6-sol medium"
+      ],
+      "newBytesCompact": "›AskCodextodoanythinggpt-5.6-solmedium·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd•Modelchangedtogpt-5.6-solmedium",
+      "pickerClosed": true,
+      "footer": {
+        "label": "after-medium",
+        "atMs": 9063,
+        "tailLines": [
+          "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "• Model changed to gpt-5.6-sol low",
+          "• Model changed to gpt-5.6-sol medium",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol medium · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+        ],
+        "glyphsOnScreen": [
+          ">",
+          "›"
+        ],
+        "composerGlyph": "› ",
+        "idleScrapeGrid": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 680,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "idleScrapeStream": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 4809,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "acceptsPromptInput": true
+      }
+    },
+    {
+      "step": "effort-xhigh",
+      "tier": "xhigh",
+      "l1Cursor": "gpt-5.6-sol",
+      "l1Current": "gpt-5.6-sol",
+      "l2Before": {
+        "cursor": "medium",
+        "current": "medium",
+        "order": {
+          "low": 1,
+          "medium": 2,
+          "high": 3,
+          "xhigh": 4,
+          "more": 5
+        }
+      },
+      "walk": {
+        "presses": [
+          {
+            "from": "medium",
+            "after": "high"
+          },
+          {
+            "from": "high",
+            "after": "xhigh"
+          }
+        ],
+        "landedOn": "xhigh"
+      },
+      "receiptFromPress": {
+        "model": "gpt-5.6-sol",
+        "effort": "xhigh"
+      },
+      "receiptFromTail": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptVerbatim": [
+        "• Model changed to gpt-5.6-sol xhigh"
+      ],
+      "newBytesCompact": "›AskCodextodoanythinggpt-5.6-solxhigh·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd•Modelchangedtogpt-5.6-solxhigh",
+      "pickerClosed": true,
+      "footer": {
+        "label": "after-xhigh",
+        "atMs": 13028,
+        "tailLines": [
+          "• You have 1 usage limit reset available. Run /usage to use one.",
+          "• Model changed to gpt-5.6-sol low",
+          "• Model changed to gpt-5.6-sol medium",
+          "• Model changed to gpt-5.6-sol xhigh",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol xhigh · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+        ],
+        "glyphsOnScreen": [
+          ">",
+          "›"
+        ],
+        "composerGlyph": "› ",
+        "idleScrapeGrid": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 718,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "idleScrapeStream": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 6487,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "acceptsPromptInput": true
+      }
+    },
+    {
+      "step": "effort-high",
+      "tier": "high",
+      "l1Cursor": "gpt-5.6-sol",
+      "l1Current": "gpt-5.6-sol",
+      "l2Before": {
+        "cursor": "xhigh",
+        "current": "xhigh",
+        "order": {
+          "low": 1,
+          "medium": 2,
+          "high": 3,
+          "xhigh": 4,
+          "more": 5
+        }
+      },
+      "walk": {
+        "presses": [
+          {
+            "from": "xhigh",
+            "after": "high"
+          }
+        ],
+        "landedOn": "high"
+      },
+      "receiptFromPress": {
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "receiptFromTail": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptVerbatim": [
+        "• Model changed to gpt-5.6-sol high"
+      ],
+      "newBytesCompact": "›AskCodextodoanythinggpt-5.6-solhigh·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd•Modelchangedtogpt-5.6-solhigh",
+      "pickerClosed": true,
+      "footer": {
+        "label": "after-high",
+        "atMs": 16643,
+        "tailLines": [
+          "• Model changed to gpt-5.6-sol low",
+          "• Model changed to gpt-5.6-sol medium",
+          "• Model changed to gpt-5.6-sol xhigh",
+          "• Model changed to gpt-5.6-sol high",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+        ],
+        "glyphsOnScreen": [
+          ">",
+          "›"
+        ],
+        "composerGlyph": "› ",
+        "idleScrapeGrid": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 755,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "idleScrapeStream": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 7857,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "acceptsPromptInput": true
+      }
+    },
+    {
+      "step": "more-reasoning-submenu",
+      "walk": {
+        "presses": [
+          {
+            "from": "high",
+            "after": "xhigh"
+          },
+          {
+            "from": "xhigh",
+            "after": "more"
+          }
+        ],
+        "landedOn": "more"
+      },
+      "gridLines": [
+        "╭───────────────────────────────────────────────────╮",
+        "│ >_ OpenAI Codex (v0.152.1)                        │",
+        "│                                                   │",
+        "│ model:     gpt-5.6-sol high   /model to change    │",
+        "│ directory: /private/tmp/…/codex-receipt-tiers/cwd │",
+        "╰───────────────────────────────────────────────────╯",
+        "  Tip: Try the Desktop app. Run 'codex app' or visit https://chatgpt.com/codex?app-landing-page=true",
+        "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+        "• You have 1 usage limit reset available. Run /usage to use one.",
+        "• Model changed to gpt-5.6-sol low",
+        "• Model changed to gpt-5.6-sol medium",
+        "• Model changed to gpt-5.6-sol xhigh",
+        "• Model changed to gpt-5.6-sol high",
+        "  Advanced Reasoning",
+        "  ⚠ Consumes usage limits faster",
+        "› 1. Max    For difficult problems when quality matters more than speed · higher usage",
+        "  2. Ultra  For demanding work using multiple agents · highest usage",
+        "  Press enter to confirm or esc to go back                                                                              "
+      ],
+      "compact": "pt.com/codex?app-landing-page=true⚠`--dangerously-bypass-hook-trust`isenabled.Enabledhooksmayrunwithoutreviewforthisinvocation.•Youhave1usagelimitresetavailable.Run/usagetouseone.•Modelchangedtogpt-5.6-sollow•Modelchangedtogpt-5.6-solmedium•Modelchangedtogpt-5.6-solxhigh•Modelchangedtogpt-5.6-solhighAdvancedReasoning⚠Consumesusagelimitsfaster›1.MaxFordifficultproblemswhenqualitymattersmorethanspeed·higherusage2.UltraFordemandingworkusingmultipleagents·highestusagePressentertoconfirmoresctogoback",
+      "parsedAsLevel2": {
+        "cursor": null,
+        "current": null,
+        "order": {}
+      },
+      "level2HeaderStillOpen": false,
+      "level1HeaderOpen": false,
+      "footerVisible": true,
+      "escsToComposer": {
+        "escs": 3,
+        "composerBack": true
+      }
+    },
+    {
+      "step": "effort-max",
+      "tier": "max",
+      "deep": true,
+      "walk": {
+        "presses": [
+          {
+            "from": "high",
+            "after": "xhigh"
+          },
+          {
+            "from": "xhigh",
+            "after": "more"
+          }
+        ],
+        "landedOn": "more"
+      },
+      "submenuLines": [
+        "• Model changed to gpt-5.6-sol medium",
+        "• Model changed to gpt-5.6-sol xhigh",
+        "• Model changed to gpt-5.6-sol high",
+        "  Advanced Reasoning",
+        "  ⚠ Consumes usage limits faster",
+        "› 1. Max    For difficult problems when quality matters more than speed · higher usage",
+        "  2. Ultra  For demanding work using multiple agents · highest usage",
+        "  Press enter to confirm or esc to go back                                                                              "
+      ],
+      "submenuWalk": {
+        "presses": [],
+        "landedOn": "› 1. Max    For difficult problems when quality matters more than speed · higher usage",
+        "rows": [
+          "› 1. Max    For difficult problems when quality matters more than speed · higher usage",
+          "2. Ultra  For demanding work using multiple agents · highest usage"
+        ]
+      },
+      "receiptFromPress": {
+        "model": "gpt-5.6-sol",
+        "effort": "max"
+      },
+      "receiptFromTail": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptVerbatim": [
+        "• Model changed to gpt-5.6-sol max    gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd   gpt-5.6-sol high· /private/tmp/sonta-sync-026-09/codex-rceip-tiers/cwd    gpt-5.6-sol igh · /privae/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd               gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd     gpt5.6-sol high · /privatetmp/sonata-sync-226-09/codx-receipt-tiers/cwd                         gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd         gpt-5.6-sol high · private/mp/sonata-sync-2026-09/odexreceipt-tiers/cwd          gpt-5.6-sol hgh · /private/tmp/sonata-sync-202609/codex-rceipt-tiers/cwd            gpt-5.6-sol high · /prive/tmp/sonata-sync-2026-09/codex-eceipt-ti            gpt-5.6-sol high · private/tmp/sonata-sync-2026-09/code              pt-5.6-sol high · /private/tmp/sonata-syn               gpt-5.6-sol high · /private                 gpt-5.6-s       M                                                     A                                                     X  MX  MX  MX  MX  MX  MX  MAX  MX  MX  MX  MX  MX  MX   MX                 MAX         gpt-5.6-sol max · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+      ],
+      "newBytesCompact": "›AskCodextodoanythinggpt-5.6-solhigh·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd•Modelchangedtogpt-5.6-solmaxgpt-5.6-solhigh·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwdgpt-5.6-solhigh·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwdgpt-5.6-solhigh·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwdgpt-5.6-solhigh·/private/tmp/sonta-sync-026-09/codex-rceip-tie",
+      "pickerClosed": true,
+      "footer": {
+        "label": "after-max",
+        "atMs": 27490,
+        "tailLines": [
+          "• Model changed to gpt-5.6-sol medium",
+          "• Model changed to gpt-5.6-sol xhigh",
+          "• Model changed to gpt-5.6-sol high",
+          "• Model changed to gpt-5.6-sol max",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol max · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+        ],
+        "glyphsOnScreen": [
+          ">",
+          "›"
+        ],
+        "composerGlyph": "› ",
+        "idleScrapeGrid": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 791,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "idleScrapeStream": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 6499,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "acceptsPromptInput": true
+      }
+    },
+    {
+      "step": "effort-ultra",
+      "tier": "ultra",
+      "deep": true,
+      "walk": {
+        "presses": [],
+        "landedOn": "more"
+      },
+      "submenuLines": [
+        "• Model changed to gpt-5.6-sol xhigh",
+        "• Model changed to gpt-5.6-sol high",
+        "• Model changed to gpt-5.6-sol max",
+        "  Advanced Reasoning",
+        "  ⚠ Consumes usage limits faster",
+        "› 1. Max (current)  For difficult problems when quality matters more than speed · higher usage",
+        "  2. Ultra          For demanding work using multiple agents · highest usage",
+        "  Press enter to confirm or esc to go back                                                                              "
+      ],
+      "submenuWalk": {
+        "presses": [
+          {
+            "from": "› 1. Max (current)  For difficult problems when quality matters more than speed · higher usage",
+            "after": "› 2. Ultra          For demanding work using multiple agents · highest usage"
+          }
+        ],
+        "landedOn": "› 2. Ultra          For demanding work using multiple agents · highest usage",
+        "rows": [
+          "1. Max (current)  For difficult problems when quality matters more than speed · higher usage",
+          "› 2. Ultra          For demanding work using multiple agents · highest usage"
+        ]
+      },
+      "receiptFromPress": {
+        "model": "gpt-5.6-sol",
+        "effort": "ultra"
+      },
+      "receiptFromTail": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptVerbatim": [
+        "• Model changed to gpt-5.6-sol ultra for this conversation    gpt-5.6-sol max · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd  gpt-5.6-sol max · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd  gpt-5.6-sol max · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd   gpt-5.6-sol max· /private/tmp/sonta-sync-026-09/codex-rceip-tiers/cwd    gpt-5.6-sol max · /privae/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd               gpt-5.6-sol max · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd      gpt-5.6-sol max · /private/tmp/sonatasync2026-09/codex-recept-tiers/cwd                          gpt-5.6-solmax · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd         gpt-5.6-sol max · private/mp/sonata-sync-2026-09/odexreceipt-tiers/cwd          gpt-5.6-sol max · /private/tmp/sonata-sync-202609/codex-rceipt-tiers/cwd            gpt-5.6-sol max · /prive/tmp/sonata-sync-2026-09/codex-eceipt-ti            gpt-5.6-sol max · private/tmp/sonata-sync-2026-09/code              gpt-5.6-sol max · /private/tmp/sonata-syn                gpt-5.6-sol max · /priva                 gpt-5         U                                 L                 T                 R                                 A  U LR A  U LR A  U LR A  U LR A  U LR A  U LR A  U LTR A  U LR A  U LR A  U LR A  UA  U LR A   UA                  ULTRA         gpt-5.6-sol ultra · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+      ],
+      "newBytesCompact": "»AskCodextodoanythinggpt-5.6-solmax·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd•Modelchangedtogpt-5.6-solultraforthisconversationgpt-5.6-solmax·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwdgpt-5.6-solmax·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwdgpt-5.6-solmax·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwdgpt-5.6-solmax·/private/tmp/sonta-sync-026-09",
+      "pickerClosed": true,
+      "footer": {
+        "label": "after-ultra",
+        "atMs": 32706,
+        "tailLines": [
+          "• Model changed to gpt-5.6-sol xhigh",
+          "• Model changed to gpt-5.6-sol high",
+          "• Model changed to gpt-5.6-sol max",
+          "• Model changed to gpt-5.6-sol ultra for this conversation",
+          "» Ask Codex to do anything",
+          "  gpt-5.6-sol ultra · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+        ],
+        "glyphsOnScreen": [
+          ">",
+          "»"
+        ],
+        "composerGlyph": "» ",
+        "idleScrapeGrid": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 851,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "idleScrapeStream": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 6447,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "acceptsPromptInput": true
+      }
+    },
+    {
+      "step": "model-gpt-5.6-luna",
+      "model": "gpt-5.6-luna",
+      "walk": {
+        "presses": [
+          {
+            "from": "gpt-5.6-sol",
+            "after": "gpt-5.6-terra"
+          },
+          {
+            "from": "gpt-5.6-terra",
+            "after": "gpt-5.6-luna"
+          }
+        ],
+        "landedOn": "gpt-5.6-luna"
+      },
+      "l2AfterModelChange": {
+        "cursor": "medium",
+        "current": null,
+        "order": {
+          "low": 1,
+          "medium": 2,
+          "high": 3,
+          "xhigh": 4,
+          "more": 5
+        },
+        "lines": [
+          "• Model changed to gpt-5.6-sol ultra for this conversation",
+          "  Select Reasoning Level for gpt-5.6-luna",
+          "  1. Low               Fast responses with lighter reasoning",
+          "› 2. Medium (default)  Balances speed and reasoning depth for everyday tasks",
+          "  3. High              Greater reasoning depth for complex problems",
+          "  4. Extra high        Extra high reasoning depth for complex problems",
+          "  5. More reasoning…   Max consumes usage limits faster",
+          "  Press enter to confirm or esc to go back                                                                              "
+        ]
+      },
+      "receiptFromPress": {
+        "model": "gpt-5.6-luna",
+        "effort": "medium"
+      },
+      "receiptFromTail": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptVerbatim": [
+        "• Model changed to gpt-5.6-luna medium"
+      ],
+      "newBytesCompact": "›AskCodextodoanythinggpt-5.6-lunamedium·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd•Modelchangedtogpt-5.6-lunamedium",
+      "pickerClosed": true,
+      "footer": {
+        "label": "after-gpt-5.6-luna",
+        "atMs": 37035,
+        "tailLines": [
+          "• Model changed to gpt-5.6-sol high",
+          "• Model changed to gpt-5.6-sol max",
+          "• Model changed to gpt-5.6-sol ultra for this conversation",
+          "• Model changed to gpt-5.6-luna medium",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-luna medium · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+        ],
+        "glyphsOnScreen": [
+          ">",
+          "›"
+        ],
+        "composerGlyph": "› ",
+        "idleScrapeGrid": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 891,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "idleScrapeStream": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 7851,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "acceptsPromptInput": true
+      }
+    },
+    {
+      "step": "model-gpt-5.6-sol",
+      "model": "gpt-5.6-sol",
+      "walk": {
+        "presses": [
+          {
+            "from": "gpt-5.6-luna",
+            "after": "gpt-5.6-terra"
+          },
+          {
+            "from": "gpt-5.6-terra",
+            "after": "gpt-5.6-sol"
+          }
+        ],
+        "landedOn": "gpt-5.6-sol"
+      },
+      "l2AfterModelChange": {
+        "cursor": "low",
+        "current": null,
+        "order": {
+          "low": 1,
+          "medium": 2,
+          "high": 3,
+          "xhigh": 4,
+          "more": 5
+        },
+        "lines": [
+          "• Model changed to gpt-5.6-luna medium",
+          "  Select Reasoning Level for gpt-5.6-sol",
+          "› 1. Low (default)    Fast responses with lighter reasoning",
+          "  2. Medium           Balances speed and reasoning depth for everyday tasks",
+          "  3. High             Greater reasoning depth for complex problems",
+          "  4. Extra high       Extra high reasoning depth for complex problems",
+          "  5. More reasoning…  Max and Ultra consume usage limits faster",
+          "  Press enter to confirm or esc to go back                                                                              "
+        ]
+      },
+      "receiptFromPress": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptFromTail": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptVerbatim": [
+        "• Model changed to gpt-5.6-sol low  › Ask Codex to do anything   gpt-5.6-sol low · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+      ],
+      "newBytesCompact": "•Modelchangedtogpt-5.6-sollow›AskCodextodoanythinggpt-5.6-sollow·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd",
+      "pickerClosed": true,
+      "footer": {
+        "label": "after-gpt-5.6-sol",
+        "atMs": 41303,
+        "tailLines": [
+          "• Model changed to gpt-5.6-sol max",
+          "• Model changed to gpt-5.6-sol ultra for this conversation",
+          "• Model changed to gpt-5.6-luna medium",
+          "• Model changed to gpt-5.6-sol low",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol low · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+        ],
+        "glyphsOnScreen": [
+          ">",
+          "›"
+        ],
+        "composerGlyph": "› ",
+        "idleScrapeGrid": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 926,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "idleScrapeStream": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 7895,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "acceptsPromptInput": true
+      }
+    },
+    {
+      "step": "effort-high",
+      "tier": "high",
+      "l1Cursor": "gpt-5.6-sol",
+      "l1Current": "gpt-5.6-sol",
+      "l2Before": {
+        "cursor": "low",
+        "current": null,
+        "order": {
+          "low": 1,
+          "medium": 2,
+          "high": 3,
+          "xhigh": 4,
+          "more": 5
+        }
+      },
+      "walk": {
+        "presses": [
+          {
+            "from": "low",
+            "after": "medium"
+          },
+          {
+            "from": "medium",
+            "after": "high"
+          }
+        ],
+        "landedOn": "high"
+      },
+      "receiptFromPress": {
+        "model": "gpt-5.6-sol",
+        "effort": "high"
+      },
+      "receiptFromTail": {
+        "model": "gpt-5.6-sol",
+        "effort": "low"
+      },
+      "receiptVerbatim": [
+        "• Model changed to gpt-5.6-sol high"
+      ],
+      "newBytesCompact": "›AskCodextodoanythinggpt-5.6-solhigh·/private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd•Modelchangedtogpt-5.6-solhigh",
+      "pickerClosed": true,
+      "footer": {
+        "label": "after-high",
+        "atMs": 45270,
+        "tailLines": [
+          "• Model changed to gpt-5.6-sol ultra for this conversation",
+          "• Model changed to gpt-5.6-luna medium",
+          "• Model changed to gpt-5.6-sol low",
+          "• Model changed to gpt-5.6-sol high",
+          "› Ask Codex to do anything",
+          "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+        ],
+        "glyphsOnScreen": [
+          ">",
+          "›"
+        ],
+        "composerGlyph": "› ",
+        "idleScrapeGrid": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 908,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "idleScrapeStream": {
+          "ready": true,
+          "confidence": "medium",
+          "lastPromptIndex": 7857,
+          "promptAfterApproval": true,
+          "hasModelOrCwdHint": true
+        },
+        "acceptsPromptInput": true
+      }
+    }
+  ],
+  "readyAtMs": 147,
+  "handshakeAtMs": 757,
+  "idleAtSpawn": {
+    "label": "at-spawn",
+    "atMs": 1358,
+    "tailLines": [
+      "  Tip: Try the Desktop app. Run 'codex app' or visit https://chatgpt.com/codex?app-landing-page=true",
+      "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.",
+      "• You have 1 usage limit reset available. Run /usage to use one.",
+      "• Starting MCP servers (3/4): codex_apps (0s • esc to interrupt)",
+      "› Ask Codex to do anything",
+      "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+    ],
+    "glyphsOnScreen": [
+      ">",
+      "›"
+    ],
+    "composerGlyph": "› ",
+    "idleScrapeGrid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 672,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "idleScrapeStream": {
+      "ready": false,
+      "confidence": "low",
+      "lastPromptIndex": 1251,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "acceptsPromptInput": false
+  },
+  "ultraIdle": {
+    "label": "while-ultra",
+    "atMs": 32707,
+    "tailLines": [
+      "• Model changed to gpt-5.6-sol xhigh",
+      "• Model changed to gpt-5.6-sol high",
+      "• Model changed to gpt-5.6-sol max",
+      "• Model changed to gpt-5.6-sol ultra for this conversation",
+      "» Ask Codex to do anything",
+      "  gpt-5.6-sol ultra · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+    ],
+    "glyphsOnScreen": [
+      ">",
+      "»"
+    ],
+    "composerGlyph": "» ",
+    "idleScrapeGrid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 851,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "idleScrapeStream": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 6447,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "acceptsPromptInput": true
+  },
+  "afterModelHop": {
+    "label": "after-model-hop",
+    "atMs": 37037,
+    "tailLines": [
+      "• Model changed to gpt-5.6-sol high",
+      "• Model changed to gpt-5.6-sol max",
+      "• Model changed to gpt-5.6-sol ultra for this conversation",
+      "• Model changed to gpt-5.6-luna medium",
+      "› Ask Codex to do anything",
+      "  gpt-5.6-luna medium · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+    ],
+    "glyphsOnScreen": [
+      ">",
+      "›"
+    ],
+    "composerGlyph": "› ",
+    "idleScrapeGrid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 891,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "idleScrapeStream": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 7851,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "acceptsPromptInput": true
+  },
+  "idleRestored": {
+    "label": "restored",
+    "atMs": 45271,
+    "tailLines": [
+      "• Model changed to gpt-5.6-sol ultra for this conversation",
+      "• Model changed to gpt-5.6-luna medium",
+      "• Model changed to gpt-5.6-sol low",
+      "• Model changed to gpt-5.6-sol high",
+      "› Ask Codex to do anything",
+      "  gpt-5.6-sol high · /private/tmp/sonata-sync-2026-09/codex-receipt-tiers/cwd"
+    ],
+    "glyphsOnScreen": [
+      ">",
+      "›"
+    ],
+    "composerGlyph": "› ",
+    "idleScrapeGrid": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 908,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "idleScrapeStream": {
+      "ready": true,
+      "confidence": "medium",
+      "lastPromptIndex": 7857,
+      "promptAfterApproval": true,
+      "hasModelOrCwdHint": true
+    },
+    "acceptsPromptInput": true
+  }
+}

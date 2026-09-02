@@ -1,0 +1,76 @@
+{
+  "probe": "q30-image-ab",
+  "version": "codex-cli 0.152.1",
+  "arms": {
+    "bare": {
+      "args": [
+        "--no-alt-screen",
+        "-C",
+        "/private/tmp/sonata-sync-2026-09/q30-ab/bare/workspace"
+      ],
+      "fixtureBytes": {
+        "corrupt": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000b49444154789c63f8cfc0000003010100c9fe92ef0000000049454e44ae426082",
+        "valid": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc0000003010100c9fe92ef0000000049454e44ae426082"
+      },
+      "rollout": "rollout-2026-09-02T00-01-54-01a06047-d2f6-7bd2-a088-2c00a34a1e49.jsonl",
+      "cliVersion": "0.152.1",
+      "slots": [
+        {
+          "label": "/private/tmp/sonata-sync-2026-09/q30-ab/bare/workspace/corrupt.png",
+          "verdict": "OMITTED",
+          "detail": "image content omitted because it could not be processed"
+        },
+        {
+          "label": "/private/tmp/sonata-sync-2026-09/q30-ab/bare/workspace/valid.png",
+          "verdict": "IMAGE",
+          "detail": "data:image/png;base64,iVBORw0KGgoAAAANSU… (114 chars, detail=high)"
+        }
+      ],
+      "localImages": [
+        "/private/tmp/sonata-sync-2026-09/q30-ab/bare/workspace/corrupt.png",
+        "/private/tmp/sonata-sync-2026-09/q30-ab/bare/workspace/valid.png"
+      ],
+      "tail": "[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b]0;⠏ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b]0;⠋ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b]0;⠙ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b]0;⠹ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b]0;⠸ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b]0;⠼ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[16;3H\u001b[1m\u001b[38;2;138;138;138;49mW\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b]0;⠴ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[15;1H\u001b[J\u001b[15;2H\u001b[0m\u001b[49m\u001b[K\u001b[16;2H\u001b[0m\u001b[49m\u001b[K\u001b[17;27H\u001b[0m\u001b[49m\u001b[K\u001b[18;2H\u001b[0m\u001b[49m\u001b[K\u001b[19;79H\u001b[0m\u001b[49m\u001b[K\u001b[15;1H \u001b[16;1H \u001b[17;1H\u001b[1m›\u001b[22m \u001b[2mAsk Codex to do anything\u001b[18;1H\u001b[22m \u001b[19;1H  \u001b[38;2;246;226;183;49mgpt-5.6-sol default\u001b[2m\u001b[39;49m · \u001b[22m\u001b[38;2;171;223;167;49m/private/tmp/sonata-sync-2026-09/q30-ab/bare/workspace\u001b[39m\u001b[49m\u001b[0m\u001b[15;1H\u001b[0 q\u001b[15;1H \u001b[39m\u001b[49m\u001b[0m\u001b[17;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[15;40r\u001b[15;1H\u001bM\u001bM\u001b[r\u001b[1;16r\u001b[14;1H\r\n\u001b[39;49m\u001b[K\u001b[39m\u001b[49m\u001b[0m\r\n\u001b[39;49m\u001b[K\u001b[2m• \u001b[22mQ30_BARE_OK\u001b[39m\u001b[49m\u001b[0m\u001b[r\u001b[17;3H\u001b[39m\u001b[49m\u001b[0m\u001b[17;1H\u001b[0 q\u001b[17;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[17;1H\u001b[0 q\u001b[17;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b]0;workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[17;1H\u001b[0 q\u001b[17;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[17;1H\u001b[0 q\u001b[17;1H \u001b[39m\u001b[49m\u001b[0m\u001b[19;3H\u001b[?25h\u001b[?2026l"
+    },
+    "prod": {
+      "args": [
+        "-p",
+        "sonata",
+        "--dangerously-bypass-hook-trust",
+        "--no-alt-screen",
+        "-C",
+        "/private/tmp/sonata-sync-2026-09/q30-ab/prod/workspace",
+        "-s",
+        "workspace-write",
+        "-a",
+        "on-request",
+        "-c",
+        "approvals_reviewer=\"user\""
+      ],
+      "fixtureBytes": {
+        "corrupt": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000b49444154789c63f8cfc0000003010100c9fe92ef0000000049454e44ae426082",
+        "valid": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc0000003010100c9fe92ef0000000049454e44ae426082"
+      },
+      "rollout": "rollout-2026-09-02T00-02-49-01a06048-a79b-71b3-8d8f-8558afd80656.jsonl",
+      "cliVersion": "0.152.1",
+      "slots": [
+        {
+          "label": "/private/tmp/sonata-sync-2026-09/q30-ab/prod/workspace/corrupt.png",
+          "verdict": "OMITTED",
+          "detail": "image content omitted because it could not be processed"
+        },
+        {
+          "label": "/private/tmp/sonata-sync-2026-09/q30-ab/prod/workspace/valid.png",
+          "verdict": "IMAGE",
+          "detail": "data:image/png;base64,iVBORw0KGgoAAAANSU… (114 chars, detail=high)"
+        }
+      ],
+      "localImages": [
+        "/private/tmp/sonata-sync-2026-09/q30-ab/prod/workspace/corrupt.png",
+        "/private/tmp/sonata-sync-2026-09/q30-ab/prod/workspace/valid.png"
+      ],
+      "tail": "[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b]0;⠋ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b]0;⠙ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b]0;⠹ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b]0;⠸ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b]0;⠼ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[20;3H\u001b[1m\u001b[38;2;138;138;138;49mW\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b]0;⠴ workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[19;1H\u001b[J\u001b[19;2H\u001b[0m\u001b[49m\u001b[K\u001b[20;2H\u001b[0m\u001b[49m\u001b[K\u001b[21;27H\u001b[0m\u001b[49m\u001b[K\u001b[22;2H\u001b[0m\u001b[49m\u001b[K\u001b[23;79H\u001b[0m\u001b[49m\u001b[K\u001b[19;1H \u001b[20;1H \u001b[21;1H\u001b[1m›\u001b[22m \u001b[2mAsk Codex to do anything\u001b[22;1H\u001b[22m \u001b[23;1H  \u001b[38;2;246;226;183;49mgpt-5.6-sol default\u001b[2m\u001b[39;49m · \u001b[22m\u001b[38;2;171;223;167;49m/private/tmp/sonata-sync-2026-09/q30-ab/prod/workspace\u001b[39m\u001b[49m\u001b[0m\u001b[19;1H\u001b[0 q\u001b[19;1H \u001b[39m\u001b[49m\u001b[0m\u001b[21;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[19;40r\u001b[19;1H\u001bM\u001bM\u001b[r\u001b[1;20r\u001b[18;1H\r\n\u001b[39;49m\u001b[K\u001b[39m\u001b[49m\u001b[0m\r\n\u001b[39;49m\u001b[K\u001b[2m• \u001b[22mQ30_PROD_OK\u001b[39m\u001b[49m\u001b[0m\u001b[r\u001b[21;3H\u001b[39m\u001b[49m\u001b[0m\u001b[21;1H\u001b[0 q\u001b[21;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[21;1H\u001b[0 q\u001b[21;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[21;1H\u001b[0 q\u001b[21;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b]0;workspace\u0007\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[21;1H\u001b[0 q\u001b[21;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[39m\u001b[49m\u001b[0m\u001b[21;1H\u001b[0 q\u001b[21;1H \u001b[39m\u001b[49m\u001b[0m\u001b[23;3H\u001b[?25h\u001b[?2026l"
+    }
+  },
+  "endVersion": "codex-cli 0.152.1"
+}

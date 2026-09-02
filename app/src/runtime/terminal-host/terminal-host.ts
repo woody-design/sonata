@@ -4665,7 +4665,25 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
     // parser records: this reads what codex IS, `asCodexReasoningTarget` fences
     // what Sonata may ASK for. Measured idle footer at Ultra:
     // `gpt-5.6-sol ultra · <cwd>` (same capture).
-    idlePromptModelHints: /gpt[-\w.]*|xhigh|high|medium|low|max|ultra|~/i,
+    //
+    // `default` joins them at 0.152.1 (SL-7, q29 arm B, MEASURED): a session with
+    // no effort configured paints `gpt-5.6-sol default · <cwd>` — a SEVENTH token
+    // in the effort position, and one that names the ABSENCE of a tier rather
+    // than a tier, which is why a list built from the tier enum could not have
+    // contained it.
+    //
+    // HONESTLY: adding it fixes no observed failure. That footer already matched
+    // on `gpt[-\w.]*`, and it would have matched with or without this change —
+    // there is no measured frame in which `default` is the only surviving needle
+    // (the post-switch banner animation truncates the footer from the TAIL, so it
+    // eats the effort token and the cwd while leaving the slug). It is added
+    // because the RULE this alternation follows should be stateable — "every
+    // token the effort position can display" — rather than "the six members of
+    // the ReasoningEffort union", which is now a description of Sonata's type
+    // instead of a description of codex's screen. Since C14 this predicate is
+    // load-bearing for the boot latch, and a list whose membership rule has drifted
+    // from its purpose is how a needle goes quietly missing.
+    idlePromptModelHints: /gpt[-\w.]*|xhigh|high|medium|low|max|ultra|default|~/i,
     buildArgs: (options) => {
       // Spawn-prep the injected hook profile + stable shims (write-if-changed).
       // Byte-stable and task-invariant: the SessionStart handshake then carries

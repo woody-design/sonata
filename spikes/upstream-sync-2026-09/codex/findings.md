@@ -754,3 +754,458 @@ capture · `q24-cli-readiness.mjs` + capture · `q25-boot-latch-vs-trust.mjs` +
 4 post-fix captures and one regenerated `…untrusted-forced.PRE-FIX.capture.txt` · `q26-unauthenticated-latch.mjs` + capture. All under `spikes/`, which the code repo gitignores — they need
 `git add -f`. Every capture is sanitized ($HOME, the munged `-Users-<user>-`
 form, the bare username, JWT/API-key/e-mail shapes) and re-scanned clean.
+
+---
+
+# SL-7 — codex picker / consent / receipt re-walk (D-series)
+
+A NEW LETTER on purpose. C1–C14 are one continuous argument about codex's BOOT
+(trust, latch, login, hooks review); SL-7 asks a disjoint question — what the
+mid-session pickers, their consent interstitial and their receipts look like at
+0.152.1 — and interleaving it into the C numbering would make both harder to
+read. D1–D10 below stand alone; where they touch a C item they say so.
+
+**Binary pin: `codex-cli 0.152.1` at the START and END of every probe, no
+drift.** Same version SL-6 ended on. Probes: `q27-model-picker-walk.mjs`,
+`q27b-picker-refresh-race.mjs`, `q28-model-receipt-tiers.mjs`,
+`q29-permissions-consent-walk.mjs`, plus `q30-image-ab.mjs` /
+`q30-image-fixture.mjs` for D9.
+
+## D1 — DEPTH: the `/model` picker is still two levels, and the row set grew
+
+`Select Model and Effort` → `Select Reasoning Level for <model>`. No auto-mode
+level 1, no catalog reshape: the whole S4 state machine's premise holds at
+0.152.1 on this account.
+
+Level 1, MEASURED (q27), SIX rows where the 2026-08 fixture had five:
+
+```
+  Select Model and Effort
+  Access legacy models by running codex -m <model_name> or in your config.toml
+› 1. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks.
+  2. gpt-5.6-terra          Balanced agentic coding model for everyday work.
+  3. gpt-5.6-luna           Fast and affordable agentic coding model.
+  4. gpt-5.5                Proven previous-generation model for coding and general work.
+  5. gpt-5.4                Strong model for everyday coding.
+  6. gpt-5.4-mini           Small, fast, and cost-efficient model for simpler coding tasks.
+  Press enter to confirm or esc to go back
+```
+
+**FALSIFIED:** `tui-parsers-codex.ts` said "legacy models like gpt-5.4 are NOT
+offered here, only via `codex -m`". They are rows 5 and 6 now — while the
+picker's own subtitle still advertises `-m` as the way to reach them. And
+`gpt-5.3-codex-spark`, a row the old fixture carried, is gone. W5 in the flesh:
+the catalog is SERVER-mutable with no CLI release, so a row set is a measurement
+with a date on it, never a fact about codex. The real-CLI smoke had already
+learned this (its D5 rollback target became a synthetic never-served slug); the
+UNIT fixture had not, and asserted `gpt-5.4` absent — a test whose premise the
+server had already revoked. Both halves now agree.
+
+Level 2, unchanged in every way the parser keys on: `Low (default)` / `Medium` /
+`High (current)` / `Extra high` / `More reasoning…`, same footer. Two details
+worth stamping: `(default)` marks the MODEL'S OWN default tier and MOVES with the
+model (Low on sol, Medium on luna) — it is not `(current)` and never identifies
+the tier to preserve; and row 5's DESCRIPTION is model-dependent (`Max and Ultra
+consume…` on sol, `Max consumes…` on luna) while its LABEL is not.
+
+## D2 — REFRESH (#41467): no observed reshuffle, measured two ways
+
+The worry was structural, not cosmetic: `captureCodexModelLevel` snapshots
+`order`/`byDigit` ONCE from the opening frame and navigates on that snapshot, so
+a post-capture reshuffle would make every later arrow a blind press against a
+stale map; and `advanceCodexModelNav` treats any cursor that is neither
+`awaitingCursor` nor `lastCursor` as an unexpected jump and rolls back.
+
+- **q27, warm session**: picker opened ~22s after boot and HELD for 20s with no
+  key pressed. **One** distinct frame. Row set identical, highlight identical.
+- **q27b, into the handshake**: this is the arm that could actually catch it. The
+  easy case proves little — by 22s the app server had long answered, so a refresh
+  would agree with the paint. So q27b fires `/model` + Enter at the instant
+  `acceptsPromptInput()` goes true (148ms, BEFORE the box's `model:`/`directory:`
+  rows stop reading `loading`) and samples at 50ms for 25s. The picker opened at
+  474ms with the COMPLETE six-row set already correct, and produced **one**
+  distinct open frame. The after-handshake control arm is identical.
+- **Walk under a fresh open** (q27 fast-walk): four Downs at 220ms intervals from
+  the moment the header hits the stream. Cursor advanced one row per press,
+  captured order stable across all four.
+
+**VERDICT: the walk-driving premise holds; the design fork named in the brief
+(event-driven picker read vs walk) is NOT triggered.** Stated with its bound: a
+refresh that AGREES with the paint is indistinguishable from no refresh, so this
+is "no observed divergence on this account across 45s of watching and one
+pre-handshake open", not "the refresh does not exist".
+
+One channel note: `codexModelPickerLevel1Open` goes true on the STREAM before the
+GRID has finished painting the rows (q27 fast-walk press 1 read a null grid
+cursor). Harmless — production waits for the footer before capturing the order,
+which is exactly the guard that makes this a non-event — but it is why a probe
+that gates on the stream and then reads the grid needs a beat between them.
+
+## D3 — F8 standing re-verify: all six receipt tiers, and the suffix is Ultra's alone
+
+q28 drove every tier through the live picker in one session, reading each receipt
+off THAT press's stream delta rather than the rolling tail:
+
+| tier | receipt, verbatim | shape |
+|---|---|---|
+| low | `• Model changed to gpt-5.6-sol low` | bare |
+| medium | `• Model changed to gpt-5.6-sol medium` | bare |
+| high | `• Model changed to gpt-5.6-sol high` | bare |
+| xhigh | `• Model changed to gpt-5.6-sol xhigh` | bare |
+| max | `• Model changed to gpt-5.6-sol max` | bare |
+| ultra | `• Model changed to gpt-5.6-sol ultra for this conversation` | **suffixed** |
+
+All six parse. The Max line was EXTRAPOLATED in the smoke since 2026-08 ("no Max
+receipt was ever taken"); it is now MEASURED, and the extrapolation was right.
+The interesting half is what it got right by luck: the `for this conversation`
+suffix is **Ultra's alone** — Max prints bare. The two are not one shape with a
+tolerated tail, and an end-anchor "tightening" would break exactly one of them.
+Provenance labels in `midsession-receipt.mjs` updated accordingly.
+
+A model switch also parses: `• Model changed to gpt-5.6-luna medium`.
+
+## D4 — the THIRD picker level, behind `More reasoning…`
+
+Sonata refuses that row (D6), so nothing in the tree knew what it opens — "we
+don't go there" is weaker than "we don't go there, and here is what it would
+be". Driven once (q28):
+
+```
+  Advanced Reasoning
+  ⚠ Consumes usage limits faster
+› 1. Max    For difficult problems when quality matters more than speed · higher usage
+  2. Ultra  For demanding work using multiple agents · highest usage
+  Press enter to confirm or esc to go back
+```
+
+How the production predicates split on it — three negatives and one positive, and
+the shape is exactly right:
+
+| predicate | verdict | why it matters |
+|---|---|---|
+| `codexModelPickerLevel1Open` | false | not the model picker |
+| `codexModelPickerLevel2Open` | false | no `Select Reasoning Level for …` |
+| `parseCodexModelLevel2` | **empty** | `Max`/`Ultra` are not reasoning labels → an accidental entry cannot LOOK navigable and be driven blind |
+| `codexModelPickerFooterVisible` | **true** | the shared footer, which is the term `rollbackCodexModelPicker` actually gates its Esc on → the stack is still SEEN |
+
+**MEASURED depth back to a composer from that screen: THREE Escs.**
+`CODEX_MODEL_MAX_ROLLBACK_ESCS` is 3. So that constant is no longer one Esc of
+slack over a two-deep stack — it is the exact depth of the deepest stack codex
+can build, with nothing spare. Sonata cannot build the stack itself, but a user
+arrowing onto `More reasoning…` inside a picker Sonata opened can, and the
+cursor-validation failure that follows lands in this rollback. Comment corrected
+from "at most two levels deep" to the measured truth; the number is unchanged and
+now declared as COUPLED to the measured depth.
+
+## D5 — `/permissions`: picker unchanged; the consent unchanged; the exits still asymmetric
+
+Picker (q29, production spawn): `Update Model Permissions` header, THREE rows
+(`Ask for approval (current)` / `Approve for me` / `Full Access`), cursor `›`,
+footer `Press enter to confirm or esc to go back`. Nothing the parsers key on
+moved, and `CODEX_ROW_ORDER`'s 0/1/2 still matches the painted 1/2/3. Receipts
+re-driven verbatim: `• Permissions updated to Ask for approval` /
+`… Approve for me` / `… Full Access`.
+
+Consent dialog: header, both rows and footer BYTE-IDENTICAL to 0.146.0. (The
+explanatory paragraph between them is NOT new — it is in the 2026-08 capture and
+has been pinned in `CONSENT_GRID` all along; the parser file's short comment just
+never quoted it, which read as if the dialog were four lines.)
+
+**The cell-diff still bites, character for character.** Sampled on both channels
+in the same instant, twice: `codexPermissionConsentDialogOpen` reads TRUE on the
+grid and FALSE on the stream, whose bytes compact to
+`Enablfullaccess?…1Yes,continueanywayApplyfullacessforthiseson2.CancelGoback…`.
+Note `2. Cancel` KEPT its dot while row 1 lost both its `›` and its `.` — the
+whole argument in one frame: what survives is a function of what the PREVIOUS
+screen held, so a stream-side regex can be widened until it matches this capture
+and still be wrong at the next terminal width. The grid is not a preference.
+
+**EXITS, each taken from its own freshly opened picker — the asymmetry the
+park+relay red line is built on HOLDS:**
+
+| exit | lands on | receipt |
+|---|---|---|
+| `Esc` on the consent | the idle COMPOSER (picker gone, `acceptsPromptInput` true) | none |
+| `Enter` on `2. Cancel` | the STILL-OPEN `/permissions` picker (header + footer up) | none |
+
+One new detail: the Cancel return RESETS the picker cursor to row 1 (`Ask for
+approval`) rather than leaving it on the Full Access row it came from. Harmless
+today — that path Escs the picker away rather than navigating it — but it is what
+a future "just re-confirm the row" shortcut would trip over. Stamped in
+`pressParkedConfirm`.
+
+## D6 — #39873: the permission cycle has NO default binding, and its set is not the picker's
+
+Two facts, and the order matters.
+
+**SOURCE (rust-v0.152.0):** `keymap.rs` ships
+`next_permission_mode: default_bindings![]` and
+`previous_permission_mode: default_bindings![]`. The cycle is **unreachable
+unless a user writes `tui.keymap.chat.next_permission_mode` themselves.** That is
+the answer to "find the binding": there isn't one.
+
+Getting a binding accepted took two measured rejections, each a small finding
+about how hard this is to reach at all: `ctrl+g` is refused at config load
+(`data did not match any variant of untagged enum KeybindingsSpec` — the accepted
+separator is a HYPHEN), and `ctrl-g` is refused by the conflict validator because
+it is already a default for another chat action. `ctrl-x` took.
+
+**DRIVEN (q29 arm B, isolated `CODEX_HOME`):** three presses, three receipts —
+
+```
+• Permissions updated to Approve for me
+• Permissions updated to Read Only      ← a FOURTH mode
+• Permissions updated to Ask for approval
+```
+
+`chatwidget/permission_shortcuts.rs` explains it: the cycle enumerates the
+`read-only` and `auto` presets × reviewer, a set that is **not** the picker's row
+set. `Full Access` is excluded from the cycle; `Read Only` is excluded from the
+picker.
+
+**Exposure, bounded by measurement rather than by hope.** With the CLI sitting in
+Read Only, the picker still paints its three rows with **NO `(current)` marker**
+and the cursor on row 1 — so `parseCodexPermissionPickerCursor` still resolves and
+a Sonata-driven switch still walks correctly. The DRIVE is unaffected; only the
+MIRROR is stale, and codex's permission mirror has no hook feed anyway (the picker
+receipt IS the confirmation channel — the asymmetry noted in `finishCodexPicker`).
+`parseCodexPermissionReceipt` returning null for a Read Only line is therefore
+CORRECT, not a hole: Sonata can only ever confirm one of the three rows.
+
+**NOT MODELLED, deliberately.** Adding a `read-only` member to
+`CodexPermissionMode` ripples through the settings list, `codexArgs`, the session
+menu and the task record — a design fork, not a table edit. Same adjudication
+`ultracode` got on the claude side (SL-4, F17). Registered for Woody; documented
+in the parser and pinned in the smoke so the next reader who meets that line in a
+capture finds the reasoning instead of assuming a dropped receipt.
+
+## D7 — glyphs and footer: `»` is ULTRA's alone, and the effort token can read `default`
+
+Objective 5, re-verified at 0.152.1 across the whole ladder and a model switch:
+
+- Idle footer shape `<model> <effort> · <cwd>` holds at every tier, and across a
+  model change (`gpt-5.6-luna medium · <cwd>`).
+- `»` (U+00BB) paints at **Ultra only**. **Max keeps `›`** — measured, the footer
+  read `gpt-5.6-sol max · <cwd>` under a `› Ask Codex to do anything` composer,
+  and `»` appeared only after the Ultra confirm. `task-ready-detection`'s section
+  header says "Max/Ultra"; the glyph is Ultra's. `detectIdlePromptForProvider`
+  reads ready / medium on BOTH channels at Ultra.
+- The MAX and ULTRA banners are ~2s ASCII-art animations that occupy the footer
+  region and are gone from the settled screen — the behaviour already pinned for
+  ULTRA, now observed for MAX too. They truncate the footer from the TAIL
+  (`gpt-5.6-sol high · /private/tmp/sonata-syn` → `… · /private` → `gpt-5.6-s`),
+  so they eat the effort token and the cwd while leaving the model slug. The
+  0.152 rate-limit/usage banners (`• You have 1 usage limit reset available…`)
+  sit in the TRANSCRIPT above the composer, not in the footer region, and were
+  present throughout every probe without ever displacing it.
+- **NEW: the effort position can read `default`.** A session with no effort
+  configured paints `gpt-5.6-sol default · <cwd>` (q29 arm B). A seventh token,
+  and one a list built from the `ReasoningEffort` enum could not have contained
+  because it names the ABSENCE of a tier. Added to `idlePromptModelHints` —
+  HONESTLY, fixing no observed failure (that footer already matched on
+  `gpt[-\w.]*`, and no measured frame has `default` as the only surviving needle;
+  the banner truncation eats the tail, not the head). It is added so the list's
+  membership rule is stateable — "every token the effort position can display"
+  rather than "the six members of the union" — because since C14 this predicate
+  is load-bearing for the boot latch, and a list whose rule has drifted from its
+  purpose is how a needle goes quietly missing. Pinned as a DOCUMENTATION case,
+  labelled as such, not dressed up as a differential test.
+
+## D8 — the receipt parser is first-match-wins, and only the scan reset saves it
+
+Measured incidentally and worth stamping, because it is the codex sibling of the
+claude F19 hazard. `parseCodexModelReceipt` takes the FIRST
+`• Model changed to …` in its input. Across q28's eight consecutive switches, a
+parse of the WHOLE session tail returned `{gpt-5.6-sol, low}` every single time —
+the first receipt of the run — while the per-press delta returned the true one.
+
+Production is safe, and for exactly one reason: `driveCodexModelNav` sets
+`this.controlSwitchScan = ""` immediately before writing the confirming `\r`, so
+the window a receipt is read from starts empty. That is the whole guarantee.
+NOT observed, and therefore only a hazard rather than a finding: a full-transcript
+redraw replaying older `• Model changed to …` lines INTO that fresh window would
+settle a switch on someone else's receipt — the shape F19 MEASURED on the claude
+side. Eight consecutive switches produced no such replay here (the MAX/ULTRA
+banner repaints redrew the footer many times and never a receipt line).
+Registered, not fixed: value-anchoring the codex needle is possible (unlike
+claude's `Kept …`, this line names the target) but it is a change to a path with
+no observed defect, which is the wrong trade inside this slice.
+
+## D9 — the image failure: NOT codex, NOT the spawn shape, NOT the account — a corrupt fixture
+
+SL-8 localized this precisely and its localization was right: delivery and
+rollout recording are perfect (`{type:"local_image", path}` at full fidelity)
+while the paired `response_item` fills every image slot with
+`{"type":"input_text","text":"image content omitted because it could not be
+processed"}`. Its conclusion — "chase the model-side shape" — pointed at a
+phantom upstream defect. **The cause is Sonata's own test fixture.**
+
+`redPngBytes()` in `native-image-attachments.mjs` was a 69-byte "1×1 red PNG"
+whose IDAT chunk declares length `0x0b` (11) for a 12-byte zlib stream.
+Independently verified here by walking the chunks: IDAT CRC stored `00c9fe92`
+against a computed `fdd81955`, the deflate stream truncated one byte short of its
+Adler-32 trailer, and IEND consequently parsing with a declared length of
+4,009,754,624. `file(1)` and `sips` still call it "PNG image data, 1 x 1" — they
+read IHDR and stop — which is how a hand-built fixture survives years of being
+eyeballed. Setting that byte to `0x0c` yields a file of the SAME 69 bytes whose
+IDAT and IEND CRCs both verify and which inflates to `00ff0000`.
+
+Code site: `codex-rs/core/src/image_preparation.rs` —
+`IMAGE_PROCESSING_ERROR_PLACEHOLDER` is the catch-all for
+`ImagePreparationError::Processing(_)`, reached when `image::guess_format` /
+`DynamicImage::from_decoder` reject the bytes. Not a size cap
+(`MAX_PROMPT_IMAGE_INPUT_BYTES` is 1 GiB), not a mime gate, not a model-capability
+gate (that path emits a different sentence). **No upstream issue to cite:
+rejecting a PNG with a truncated deflate stream is correct behaviour.**
+
+A/B, both arms identical except argv, each attaching two fixtures differing in
+one byte:
+
+| arm | fixture | rollout `response_item` image slot |
+|---|---|---|
+| bare (`--no-alt-screen -C <cwd>`) | corrupt | `input_text: "image content omitted…"` |
+| bare | valid | **`input_image: data:image/png;base64,…` (detail=high)** |
+| production (`-p sonata …`, full shape) | corrupt | `input_text: "image content omitted…"` |
+| production | valid | **`input_image: data:image/png;base64,…`** |
+
+Spawn shape: zero effect. Image bytes: total effect. A `codex exec` arm with no
+Sonata at all confirms the account and model accept images (a 64×64 PNG and a
+1,2,4,8,16,31,32,33-px sweep from a correct encoder all pass, including a 1×1 that
+differs from the smoke fixture only in that length byte).
+
+And it was never a 0.152 regression: of 1,568 local rollouts, exactly 100 contain
+`local_image`, all of them Sonata smoke runs, and **all 100 fail** — 39 at
+0.147.0, 55 at 0.152.0, 6 at 0.152.1. Zero user `input_image` successes in the
+entire history.
+
+**Two defects were adjacent and unrelated, which is why this one could hide.**
+The four red codex cases were failing on the boot/transcript problems SL-6 and
+SL-8 fixed; every assertion in this file reads the DELIVERY channel (receipt,
+chip, `userBlock.attachments.length`), which a corrupt file travels through
+perfectly. So the smoke went green on those commits WITHOUT the image ever having
+been decodable.
+
+**DISPOSITION: green, not skipped.** Fixture corrected in
+`native-image-attachments.mjs`, and a structural precondition
+(`assertDecodablePng`) added so the rot cannot return silently — it walks the
+chunks, checks every CRC and inflates the IDAT, and A/B'd it fails on the old
+literal in under a second with `IDAT CRC mismatch … its declared length of 11 is
+almost certainly wrong`. Full run: **10/10 PASS**, both providers. The check is
+deliberately STRUCTURAL and says so: it cannot prove the model sees pixels — only
+a rollout assertion on the prepared `response_item` could, and that was measured
+once, live, at 0.152.1 rather than wired in.
+
+## D10 — what SL-7 changed in the product
+
+Nothing behavioural in the choreography — the three named smokes
+(`midsession-codex-permission`, `midsession-codex-model`, `midsession-receipt`)
+PASSED against 0.152.1 **before** any edit, which is the headline: the ratatui
+0.30 bump moved nothing the codex pickers' parsers key on. The changes are
+therefore corrections of falsified claims, pins for newly-measured facts, and one
+vocabulary addition:
+
+1. `tui-parsers-codex.ts` — the falsified "legacy models are not offered" claim
+   replaced with the measured six-row set; the level-2 `(default)` semantics and
+   model-dependent row-5 description stamped; the `Advanced Reasoning` third level
+   documented with all four predicate verdicts and its measured 3-Esc depth; F8
+   re-stamped with the six measured tiers and the Ultra-only suffix; the `Read
+   Only` fourth mode documented with its bound; the consent block re-stamped with
+   the 0.152.1 cell-diff evidence and its over-claim about the paragraph removed.
+2. `control-switch-engine.ts` — `CODEX_MODEL_MAX_ROLLBACK_ESCS`'s premise
+   corrected (three levels, not two; the bound is exact, not slack);
+   `pressParkedConfirm`'s exit asymmetry re-driven and the cursor-reset detail
+   added.
+3. `terminal-host.ts` — `default` added to the codex `idlePromptModelHints`, with
+   an honest note that it fixes no observed failure and why it is added anyway.
+4. `midsession-receipt.mjs` — the level-1 fixture replaced with the measured
+   0.152.1 frame; the D5 absence case moved off `gpt-5.4` (a premise the server
+   revoked) onto a synthetic never-served slug; Max provenance EXTRAPOLATED →
+   MEASURED; new pins for the `Advanced Reasoning` submenu and the `Read Only`
+   receipt + no-`(current)` picker.
+5. `task-ready-detection.mjs` — 0.152.1 re-verification note; new pins for Max
+   keeping `›` (the negative half of "Ultra-only") and the `default` footer.
+6. `native-image-attachments.mjs` — fixture byte corrected + `assertDecodablePng`
+   precondition (D9).
+
+## D11 — deviation ledger (SL-7)
+
+1. **A new D-series rather than C15+.** The brief left the call open. C1–C14 are
+   one argument about boot; this is a disjoint question about mid-session
+   pickers, and interleaving would have made both harder to read.
+2. **Five probes, not the three the objectives imply.** q27 was split after RUN 1
+   (see 3) and q27b was added because q27's refresh answer came from a WARM
+   session, which is the case that cannot falsify. Recorded because a probe that
+   can only confirm is worth saying so about.
+3. **q27 RUN 1 is discarded, and why.** Its first `/model` Enter did not open the
+   picker; `/model` stayed in the composer and the next arm typed `/model/model`,
+   which reached the model as a chat line — a burned turn, on a probe explicitly
+   fenced against exactly that. Cause not established. The mitigation is the
+   production one (`clearComposerBeforeTypedCommand`'s Ctrl-U flood before every
+   typed command, plus waiting out the app-server handshake), and every later run
+   opened cleanly. The tempting story — "readiness leads the handshake by ~200ms,
+   so the Enter was swallowed in that window" — is NOT supported: q27b's
+   `at-ready` arm fires at 148ms, pre-handshake, and the picker opens at 474ms
+   with the full row set. Recorded as an unreproduced one-off with a hypothesis
+   (`• Starting MCP servers (0/4)` was live in RUN 1's frame and codex may queue
+   input while it is), not as a boot-latch finding. It does NOT stress C14.
+4. **The consent GRANT was taken in the isolated arm only.** Arm A (production
+   spawn, real `CODEX_HOME`) never confirms Full Access — it only Escs the
+   consent or answers Cancel. The grant, and therefore the third receipt string,
+   comes from arm B's isolated home against a scratch cwd. The red line is about
+   what SONATA may answer, not about what a probe may measure, but taking a
+   real-profile full-access grant to read one string is a worse trade than
+   arranging an isolated one.
+5. **`idlePromptModelHints` touched, and it is C14's registered predicate.** In
+   scope by objective 5 (the codex footer), and it is not SL-6's boot-latch gate —
+   but it is one input to it, so it is flagged here rather than buried. The change
+   is additive and the note says plainly that no measured frame needed it.
+6. **The image fixture fix is scoped to this smoke.** The same corrupt literal
+   lives in five e2e files
+  > **REVIEW ADDENDUM (SL-7 round-1 reviewer, orchestrator-recorded):** the
+  > carrier sweep searched only the RED literal, so this under-counts — a
+  > SECOND corrupt PNG literal (green 1×1, same defect class: IDAT declared
+  > length 11 where the structure requires 13) lives in
+  > `app/tests/e2e/preview-reader.mjs:31` and
+  > `app/tests/e2e/preview-reader-screenshots.mjs:14`. Seven carrier files
+  > across two literals. `assertDecodablePng` would catch both (IDAT CRC /
+  > offset misalignment). Chromium decodes the truncated row leniently, which
+  > is why preview-reader still passes — informational, not a live failure. (`cli-start-without-prompt`, `cli-resume-without-prompt`,
+   `cli-lifecycle-races`, `composer-newchat-attachment`,
+   `composer-reference-attachment`). They exercise attachment PLUMBING, not
+   model-side decoding, so they are unaffected — and they are outside this slice.
+   Registered, not touched.
+7. **No rollout `input_image` assertion was wired into the smoke**, though the
+   diagnosis argues for one. It would couple this file to rollout-file location
+   and add a failure mode, and the end-to-end property was measured live once.
+   The structural precondition covers the specific rot; the stronger assertion is
+   registered for the file's owner.
+8. **A `Q29_ARM` env filter was added to q29** mid-slice so a failed arm could be
+   re-run without re-driving the expensive one; a filtered run writes its own
+   capture file so it cannot clobber the full one the findings cite.
+
+## D12 — registered (not fixed here)
+
+1. **`Read Only` is a real codex permission mode Sonata cannot name** (D6).
+   Reachable only through a user-bound #39873 cycle. Drive unaffected, mirror
+   stale. Modelling it is a design fork → Woody.
+2. **The codex receipt needle is first-match-wins** (D8), safe today only because
+   the confirm resets the scan. Value-anchoring is possible and cheap; there is no
+   observed defect to justify it inside this slice.
+3. **`CODEX_MODEL_MAX_ROLLBACK_ESCS` is now exactly the measured picker depth**
+   (D4), not a bound with slack. Re-check it whenever the picker's shape moves.
+4. **The corrupt PNG literal in five e2e files** (D11.6).
+5. **A rollout `input_image` assertion for the image smoke** (D11.7) — the
+   assertion whose absence let D9 hide for years.
+6. **`gpt-5.3-codex-spark` left the catalog and three "legacy" models joined it**
+   (D1) — a row for SL-13's inventory re-stamp, and a standing reminder that any
+   model-row claim needs a date.
+
+## D13 — evidence files
+
+`q27-model-picker-walk.mjs` + capture · `q27b-picker-refresh-race.mjs` + capture ·
+`q28-model-receipt-tiers.mjs` + capture · `q29-permissions-consent-walk.mjs` +
+2 captures (full + `cycle-shortcut`) · `q30-image-ab.mjs` + capture ·
+`q30-image-fixture.mjs` + capture. All under `spikes/`, which the code repo
+gitignores — they need `git add -f`. Every capture is routed through
+`driver.mjs`'s `sanitize()` ($HOME, the munged `-Users-<user>-` form, the bare
+username, JWT/API-key/e-mail shapes).

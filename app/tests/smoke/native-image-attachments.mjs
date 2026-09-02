@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -21,6 +22,22 @@ const {
 
 const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "sonata-native-image-smoke-"));
 const results = [];
+
+// PRECONDITION, before a single CLI is spawned: the fixture must be a PNG a real
+// decoder accepts. Every case below feeds `redPngBytes()` to a live model, and
+// for years none of them could tell that the model was receiving
+// `"image content omitted because it could not be processed"` instead of an
+// image — because they all assert on the DELIVERY channel (receipt, chip,
+// attachment count), which a corrupt file travels through perfectly. See
+// `redPngBytes()` for the full diagnosis (upstream sync SL-7).
+//
+// This is deliberately a STRUCTURAL check and not an end-to-end one. It cannot
+// prove the model sees pixels — only a rollout assertion on the prepared
+// `response_item` could, and that was measured once, live, at 0.152.1 (SL-7 q30)
+// rather than wired in here. What it does is make the specific rot that happened
+// impossible to reintroduce silently: it fails instantly, offline, on exactly the
+// byte that was wrong, which is the property the old fixture lacked.
+assertDecodablePng(redPngBytes());
 
 try {
   // CLAUDE FIRST, and every case isolated — upstream sync 2026-09-01, SL-3.
@@ -468,9 +485,96 @@ function imageMarkerCount(value) {
   return value.match(/\[Image\s*#\d+\]/gi)?.length ?? 0;
 }
 
+/**
+ * Walk `bytes` as a PNG and throw unless every chunk's declared length and CRC
+ * agree with the file, and the image data actually inflates.
+ *
+ * The three checks are not redundant — they are the three ways the old fixture
+ * was broken, and each one alone would have caught it: the IDAT length was one
+ * short, its CRC therefore read from shifted bytes, and the truncated deflate
+ * stream lost its Adler-32 trailer. Chunk-walking also catches the downstream
+ * damage (IEND landed at the wrong offset and declared a 4 GB length), which is
+ * what makes the failure message point at the real byte instead of at "zlib said
+ * no".
+ */
+function assertDecodablePng(bytes) {
+  const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (!bytes.subarray(0, 8).equals(SIGNATURE)) {
+    throw new Error("image fixture is not a PNG (bad signature)");
+  }
+  const idat = [];
+  let offset = 8;
+  let sawEnd = false;
+  while (offset < bytes.length) {
+    if (offset + 12 > bytes.length) {
+      throw new Error(`image fixture: chunk header at ${offset} runs past the end of the file`);
+    }
+    const length = bytes.readUInt32BE(offset);
+    const type = bytes.toString("ascii", offset + 4, offset + 8);
+    const end = offset + 8 + length;
+    if (end + 4 > bytes.length) {
+      throw new Error(
+        `image fixture: ${type} declares ${length} bytes at offset ${offset}, which overruns the ${bytes.length}-byte file`,
+      );
+    }
+    const stored = bytes.readUInt32BE(end);
+    const computed = zlib.crc32(bytes.subarray(offset + 4, end));
+    if (stored !== computed) {
+      throw new Error(
+        `image fixture: ${type} CRC mismatch (stored ${stored.toString(16)}, computed ${computed.toString(16)}) ` +
+          `— its declared length of ${length} is almost certainly wrong`,
+      );
+    }
+    if (type === "IDAT") idat.push(bytes.subarray(offset + 8, end));
+    if (type === "IEND") sawEnd = true;
+    offset = end + 4;
+  }
+  if (!sawEnd) {
+    throw new Error("image fixture: no IEND chunk");
+  }
+  if (!idat.length) {
+    throw new Error("image fixture: no IDAT chunk");
+  }
+  zlib.inflateSync(Buffer.concat(idat)); // throws on a truncated deflate stream
+}
+
+/**
+ * A 1×1 red PNG — and, until upstream sync SL-7, a CORRUPT one.
+ *
+ * The previous literal ended `…AAAAC0lEQVR4…`. That `C0` is the base64 carrying
+ * the IDAT chunk's declared length: `0x0b` = 11, for a zlib stream that is 12
+ * bytes long. The consequences cascade — the deflate stream is truncated one byte
+ * short of its Adler-32 trailer, the four bytes read as the IDAT CRC are shifted
+ * (stored `00c9fe92` against a computed `fdd81955`), and IEND then parses with a
+ * declared length of 4,009,754,624. Every real decoder rejects it. `file(1)` and
+ * macOS `sips` do not, because they read IHDR and stop — which is exactly how a
+ * hand-built fixture survives years of being eyeballed.
+ *
+ * WHAT IT COST, and what it did NOT. codex accepted these bytes as an ATTACHMENT
+ * (the chip rendered, and the rollout recorded `{type:"local_image", path}` at
+ * full fidelity), then failed to turn them into a model payload and substituted
+ * `{"type":"input_text","text":"image content omitted because it could not be
+ * processed"}` into every image slot — codex-rs/core/src/image_preparation.rs,
+ * the catch-all placeholder for `ImagePreparationError::Processing(_)`. So the
+ * model never saw a pixel, in EVERY run of this smoke, at 0.147.0 / 0.152.0 /
+ * 0.152.1 alike. It was never a regression and never a codex defect; rejecting a
+ * PNG with a truncated deflate stream is correct behaviour.
+ *
+ * And it is not what made this file red: the assertions here all read the
+ * DELIVERY channel (receipt, chip, `userBlock.attachments.length`), which the
+ * corrupt bytes travelled through perfectly. The codex cases were failing on the
+ * boot/transcript problems SL-6 and SL-8 fixed. The two defects were adjacent and
+ * unrelated, which is why the fixture could hide behind the other one.
+ *
+ * `AAAADElEQVR4` is the same 69-byte file with that one byte set to `0x0c`: IDAT
+ * and IEND CRCs both verify and the stream inflates to `00ff0000` (filter byte 0,
+ * one red pixel). The literal appears in five e2e files too; those exercise
+ * attachment plumbing rather than model-side decoding, so they are unaffected and
+ * are left to their own owner (registered, SL-7).
+ */
 function redPngBytes() {
   return Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAC0lEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
     "base64",
   );
 }
