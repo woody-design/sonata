@@ -1,0 +1,265 @@
+# RC6 — grid link staleness across disconnect → reconnect (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-02T05:39:12.600Z
+
+===== 1 — connected at boot =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-reconnect/session
+
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_<A>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== 2 — RC panel open =====
+[cursor] x=3 y=37
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-reconnect/session
+
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_<A>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Remote Control
+
+   This session is available in the Claude mobile app and at https://claude.ai/code/session_<A>.
+
+     Disconnect this session
+     Show QR code  Scan with your phone to open this session
+   ❯ Continue
+                                                                                                                   
+   Enter to select · Esc to continue
+
+===== 3 — 'Disconnect this session' focused =====
+[cursor] x=3 y=35
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-reconnect/session
+
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_<A>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Remote Control
+
+   This session is available in the Claude mobile app and at https://claude.ai/code/session_<A>.
+
+   ❯ Disconnect this session
+     Show QR code  Scan with your phone to open this session
+     Continue
+                                                                                                                   
+   Enter to select · Esc to continue
+
+===== 4 — after disconnect =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-reconnect/session
+
+
+❯ /remote-control 
+  ⎿  Remote Control disconnected.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯    
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   
+  ⏸ manual mode on · ← for agents
+
+===== 5 — after reconnect =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-reconnect/session
+
+
+❯ /remote-control 
+  ⎿  Remote Control disconnected.
+
+❯ /remote-control 
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_<B>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== verdict =====
+{
+  "version": "2.1.258 (Claude Code)",
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-reconnect/runtime/claude-runtime-settings.json",
+    "--remote-control"
+  ],
+  "connect1": {
+    "count": 1,
+    "distinct": 1,
+    "firstFp": "1bede09473ff",
+    "lastFp": "1bede09473ff",
+    "rows": [
+      "https://claude.ai/code/session_<REDACTED>"
+    ]
+  },
+  "afterDisconnect": {
+    "count": 0,
+    "distinct": 0,
+    "firstFp": null,
+    "lastFp": null,
+    "rows": []
+  },
+  "disconnectLineStillOnGrid": true,
+  "connect2": {
+    "count": 1,
+    "distinct": 1,
+    "firstFp": "e4304b1d449d",
+    "lastFp": "e4304b1d449d",
+    "rows": [
+      "https://claude.ai/code/session_<REDACTED>"
+    ]
+  },
+  "reconnectMintsNewSessionId": true,
+  "firstDiffersFromLastAfterReconnect": false,
+  "staleDisconnectLineAfterReconnect": true,
+  "versionAtEnd": "2.1.258 (Claude Code)",
+  "versionDrift": false
+}

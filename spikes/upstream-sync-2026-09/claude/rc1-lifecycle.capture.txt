@@ -1,0 +1,1623 @@
+# RC1 — Remote Control surface recon, production spawn shape (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-02T05:08:21.734Z
+
+===== A — boot, NO --remote-control (production default) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A — spawn =====
+{
+  "ready": true,
+  "trust": true,
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag-runtime/claude-runtime-settings.json"
+  ]
+}
+
+===== A — grid at +1ms (RC rows changed) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A — channel series =====
+[
+  {
+    "atMs": 1,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 3004,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 6007,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 9010,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 12011,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 15013,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 18016,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 21018,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 24020,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 27021,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 30024,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 33027,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 36027,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 39030,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 42033,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 45035,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 48037,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 51040,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 54042,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 57044,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 60047,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 63049,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 66052,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 69054,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 72056,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAll": {
+      "url": null,
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null,
+      "offOnGrid": false
+    }
+  }
+]
+
+===== A — verdict =====
+{
+  "ready": true,
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag-runtime/claude-runtime-settings.json"
+  ],
+  "everConnectedOnGrid": false,
+  "gridUrlFirstSeenAtMs": null,
+  "productionRawTailSawUrl": false,
+  "rawTailUrlFirstSeenAtMs": null,
+  "unboundedRawSawUrl": false,
+  "unboundedRawUrlFirstSeenAtMs": null,
+  "distinctGridRows": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/a-noflag",
+    "/rc"
+  ]
+}
+
+===== A — RAW stream around the first session-link occurrence =====
+(no `claude.ai/code/session_` anywhere in the raw stream)
+
+===== A — RAW stream size =====
+2526
+
+===== B — boot WITH --remote-control (Sonata's armed path) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag
+
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_<A>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== B — spawn =====
+{
+  "ready": true,
+  "trust": true,
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag-runtime/claude-runtime-settings.json",
+    "--remote-control"
+  ]
+}
+
+===== B — grid at +0ms (RC rows changed) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag
+
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_<A>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== B — channel series =====
+[
+  {
+    "atMs": 0,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 3003,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 6006,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 9008,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 12010,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 15012,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 18014,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 21015,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 24018,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 27019,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 30020,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 33023,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 36025,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 39028,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 42029,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 45031,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 48034,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 51036,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 54037,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 57038,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 60041,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 63043,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 66046,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 69048,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  },
+  {
+    "atMs": 72050,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAll": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>",
+      "offOnGrid": false
+    }
+  }
+]
+
+===== B — verdict =====
+{
+  "ready": true,
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag-runtime/claude-runtime-settings.json",
+    "--remote-control"
+  ],
+  "everConnectedOnGrid": true,
+  "gridUrlFirstSeenAtMs": 0,
+  "productionRawTailSawUrl": true,
+  "rawTailUrlFirstSeenAtMs": 0,
+  "unboundedRawSawUrl": true,
+  "unboundedRawUrlFirstSeenAtMs": 0,
+  "distinctGridRows": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag",
+    "https://claude.ai/code/session_<REDACTED>",
+    "/rc"
+  ]
+}
+
+===== B — RAW stream around the first session-link occurrence =====
+"\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[K\r\u001b[16A\u001b[?1049h\u001b[2J\u001b[H\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b]0;✳ Claude Code\u0007\u001b[H\r\u001b[1B\u001b[38;2;215;119;87m ▐\u001b[48;2;0;0;0m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude Code\u001b[24G\u001b[22m\u001b[38;2;153;153;153mv2.1.258\r\u001b[1B\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[12G\u001b[38;2;153;153;153mOpus 5 (1M context) with medium effort · Claude Max\r\u001b[1B\u001b[38;2;215;119;87m  ▝▝ ▝▝  \u001b[12G\u001b[38;2;153;153;153m/private/tmp/sonata-sync-2026-09/rc-lifecycle/b-flag\r\u001b[100C\u001b[31B◐ medium · /effort\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[39m❯ \u001b[2mTry \"how do I log an error?\"\r\u001b[1B\u001b[22m\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[103C\u001b[1B\u001b[38;2;255;193;7m/rc connecting…\r\u001b[2C\u001b[1B\u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[36B\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[6B/remote-control\u001b[19Gis\u001b[22Gactive\u001b[38;2;153;153;153m · Continue here, on your phone, or at \r\u001b[2C\u001b[1Bhttps://claude.ai/code/session_<REDACTED>\r\u001b[103C\u001b[31B\u001b[39m            \u001b[38;2;78;186;101m/rc\u001b[39m\u001b[40;1H\u001b[37;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[100C\u001b[34B\u001b[K\u001b[40;1H\u001b[37;3H\u001b[?25h"
+
+===== B — RAW stream size =====
+2691
+
+===== fence =====
+{
+  "userSettingsUnchanged": true,
+  "endVersion": "2.1.258 (Claude Code)"
+}

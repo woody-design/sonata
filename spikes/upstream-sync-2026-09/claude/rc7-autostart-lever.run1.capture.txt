@@ -1,0 +1,54 @@
+# RC7 — RC auto-start: environment vs the --settings lever (claude 2.1.258 (Claude Code))
+# captured 2026-09-02T06:03:19.224Z
+
+{
+  "version": "2.1.258 (Claude Code)",
+  "legs": [
+    {
+      "leg": "A-prodenv-nokey",
+      "env": "production",
+      "remoteControlAtStartup": null,
+      "cobaltHarbor": true,
+      "trustDialog": true,
+      "reachedComposer": true,
+      "autoStartAttemptedAtMs": 0,
+      "autoStarted": true,
+      "linkOnGridAtMs": null,
+      "footerRow": "/rc",
+      "complaints": []
+    },
+    {
+      "leg": "B-prodenv-false",
+      "env": "production",
+      "remoteControlAtStartup": false,
+      "cobaltHarbor": true,
+      "trustDialog": true,
+      "reachedComposer": true,
+      "autoStartAttemptedAtMs": null,
+      "autoStarted": false,
+      "linkOnGridAtMs": null,
+      "footerRow": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-lever/B-prodenv-false",
+      "complaints": []
+    },
+    {
+      "leg": "C-scrubenv-nokey",
+      "env": "scrubbed",
+      "remoteControlAtStartup": null,
+      "cobaltHarbor": true,
+      "trustDialog": true,
+      "reachedComposer": true,
+      "autoStartAttemptedAtMs": 0,
+      "autoStarted": true,
+      "linkOnGridAtMs": null,
+      "footerRow": "/rc",
+      "complaints": []
+    }
+  ],
+  "verdicts": {
+    "environmentExplainsDiscrepancy": false,
+    "settingsFileCanDisableAutoStart": true
+  },
+  "userSettingsUnchanged": true,
+  "versionAtEnd": "2.1.258 (Claude Code)",
+  "versionDrift": false
+}

@@ -25,12 +25,21 @@ const FIXTURES = dirname(fileURLToPath(import.meta.url)) + "/../fixtures";
 // pty windows from a live mid-session `/model` switch — raw escape bytes, and
 // each one contains a full transcript redraw, so it carries the probe's cwd and
 // whatever the banner printed at that instant. Same class, same fence.
+// SIXTH TREE (upstream sync 2026-09-01, SL-11): `claude-remote-control` pins
+// verbatim pty windows from live Remote Control transitions. Same class and the
+// SHARPEST exposure of the six — an RC window is where the session link lives.
+// The pinned windows carry no real link (one was captured through the probe's
+// id redaction and re-seeded with a `session_REDACTED…` id; the other is trimmed
+// to start below the link row), but the tree is fenced because the next re-pin
+// will not remember that — and adding it exposed a hole the fence had all along,
+// see the scheme-independent rule below.
 const ROOTS = [
   resolve(FIXTURES, "runtime-events"),
   resolve(FIXTURES, "reducer-goldens"),
   resolve(FIXTURES, "claude-idle"),
   resolve(FIXTURES, "claude-boot"),
   resolve(FIXTURES, "claude-midsession"),
+  resolve(FIXTURES, "claude-remote-control"),
 ];
 const HOME = os.homedir();
 const USER = process.env.USER ?? "";
@@ -41,9 +50,28 @@ const FORBIDDEN = [
   ...(USER && USER !== "user"
     ? [{ name: "real username path", re: new RegExp(`/Users/${USER}\\b`) }]
     : []),
-  { name: "claude.ai session url", re: /https:\/\/claude\.ai\/(?!REDACTED)[A-Za-z0-9/_-]+/ },
+  { name: "claude.ai/.com url", re: /https:\/\/claude\.(?:ai|com)\/(?!REDACTED)[A-Za-z0-9/_-]+/ },
+  // SCHEME-INDEPENDENT, and that is the point (SL-11 review). The rule above
+  // needs a literal `https://`, which a pinned pty window can be missing through
+  // no sanitising at all: claude's differential repaint does not re-emit
+  // characters already correct on the grid, so a REAL link reaches a capture as
+  // `at https:\x1b[69G/claude.ai/code/session_…` — one slash, and stripping the
+  // escape does not restore the other. The identifying payload is the host and
+  // the id, so that is what this matches, with no scheme at all. Redacted or
+  // deliberately synthetic ids must say so in the id itself (`session_REDACTED…`),
+  // which is what makes a fixture's synthetic link distinguishable from a live
+  // one BY THE FENCE rather than by the author remembering.
+  {
+    name: "claude session link (any scheme)",
+    re: /claude\.(?:ai|com)\/code\/session_(?!REDACTED)[A-Za-z0-9_-]+/,
+  },
   { name: "secret-like token", re: /\bsk-(?!REDACTED)[A-Za-z0-9-]{10,}/ },
 ];
+
+/** Terminal escapes, matching `cleanTerminal`'s ANSI pattern (tui-parsers-common).
+ *  Inlined rather than imported: this lint is a governance fence and must run
+ *  against the fixture trees whether or not `dist/` has been built. */
+const ANSI_RE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[@-_]/g;
 
 function filesUnder(dir) {
   const out = [];
@@ -63,11 +91,22 @@ assert.ok(files.length > 0, "pinned fixtures exist");
 
 const hits = [];
 for (const file of files) {
-  const text = readFileSync(file, "utf8");
+  const raw = readFileSync(file, "utf8");
+  // Three of the five trees pin RAW pty bytes, where a marker can be split by a
+  // cursor move mid-word (`/Users/\x1b[12Gwoody/…`) and slip past a rule that
+  // only ever sees the literal text. Scan the escape-stripped form too, so the
+  // fence reads what the SCREEN would show as well as what the file holds.
+  const forms = [
+    ["raw", raw],
+    ["escape-stripped", raw.replace(ANSI_RE, "")],
+  ];
   for (const { name, re } of FORBIDDEN) {
-    const match = text.match(re);
-    if (match) {
-      hits.push(`${file}: ${name} → ${JSON.stringify(match[0].slice(0, 60))}`);
+    for (const [form, text] of forms) {
+      const match = text.match(re);
+      if (match) {
+        hits.push(`${file}: ${name} (${form}) → ${JSON.stringify(match[0].slice(0, 60))}`);
+        break; // one report per rule per file
+      }
     }
   }
 }

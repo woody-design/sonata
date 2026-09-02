@@ -9,10 +9,34 @@ import { cleanTerminal } from "./tui-parsers-common";
 // and tests/smoke/midsession-receipt.mjs. Provenance comments are preserved
 // intact — every anchor here is probe-measured, not assumed.
 
-// Remote Control stream detection (pure; unit-tested in
-// tests/smoke/remote-control-detect-units.mjs). See detectRemoteControlState.
+// ── Remote Control detection — TWO channels, one per SIGNAL KIND (D-1) ───────
+// Unit-pinned in tests/smoke/remote-control-detect-units.mjs; consumed by
+// TerminalHost.detectRemoteControlState. RE-MEASURED at claude 2.1.258 (upstream
+// sync 2026-09-01, SL-11 — probes rc3/rc5/rc6, findings F4b/F4c/F4d), and the
+// re-measurement MOVED one of the two channels:
+//
+//   OFF  → the raw pty STREAM. `Remote Control disconnected.` is a one-shot
+//          EVENT, and the grid is the wrong place to read it: rc6 measured the
+//          line STILL on screen after a reconnect had already succeeded, so a
+//          grid read would report a live session as dead.
+//   URL  → the reconstructed SCREEN. Was a stream read, and that is what broke.
+//          See findRemoteControlUrlOnScreen for the measured byte sequence.
 export const REMOTE_CONTROL_SCAN_LIMIT = 2048;
-const REMOTE_CONTROL_URL_RE = /https:\/\/claude\.(?:ai|com)\/code\/session_[A-Za-z0-9_-]+/;
+/** The session link, ANCHORED to the sentence claude wraps around it. Both
+ *  alternations are MEASURED verbatim at 2.1.258 and are the only two link-
+ *  bearing forms the probes ever rendered (rc1/rc3/rc5/rc6):
+ *
+ *    the native panel, link on the SAME line
+ *      This session is available in the Claude mobile app and at https://…
+ *    the boot / re-connect banner, link on the NEXT line
+ *      /remote-control is active · Continue here, on your phone, or at
+ *      https://…
+ *
+ *  `\s+` spans both cases (the grid joins rows with "\n"). See
+ *  findRemoteControlUrlOnScreen for why the anchor is load-bearing rather than
+ *  decorative. */
+const REMOTE_CONTROL_LINK_RE =
+  /(?:available in the Claude mobile app and at|Continue here, on your phone, or at)\s+(https:\/\/claude\.(?:ai|com)\/code\/session_[A-Za-z0-9_-]+)/;
 
 /** Strip CSI escapes and ALL whitespace. claude word-positions panel/result text
  *  with cursor moves (`\x1b[NG`) instead of spaces, so a positioned line glues
@@ -25,17 +49,72 @@ export function compactRemoteControlScan(raw: string): string {
 
 /** The OFF signal: claude's "Remote Control disconnected." Case kept (its own
  *  capitalization) so lowercase model prose can't trip it; the glued form also
- *  excludes the panel option "Disconnect this session" and the slash menu. */
+ *  excludes the panel option "Disconnect this session" and the slash menu.
+ *  STILL EXACT at 2.1.258 (rc3 arm B: the production 2048-char rolling tail
+ *  matched 504ms after the native panel's "Disconnect this session"). */
 export function hasRemoteControlDisconnect(compact: string): boolean {
   return compact.includes("RemoteControldisconnected");
 }
 
-/** The session link (for display), or null. Takes the RAW scan and strips ONLY
- *  escapes (whitespace preserved) so the id stops at the space/glyph after it —
- *  fully compacting would glue a trailing word onto the session id. The id char
- *  class includes `-`/`_` so a hyphenated/base64url id is never truncated. */
-export function findRemoteControlUrl(raw: string): string | null {
-  return raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").match(REMOTE_CONTROL_URL_RE)?.[0] ?? null;
+/**
+ * The session link (for display), or null — read off the RECONSTRUCTED SCREEN,
+ * never the pty stream.
+ *
+ * WHY NOT THE STREAM (rc5, DECISIVE — this is what moved). Since 2.1.252 claude
+ * paints in the alternate screen and repaints DIFFERENTIALLY, emitting only the
+ * cells that changed. When the RC panel's link line is repainted over text that
+ * already occupies those columns, the characters that are ALREADY CORRECT are
+ * not re-emitted. Measured verbatim, injecting at the composer edge:
+ *
+ *     at https:\x1b[69G/claude.ai/code/session_….
+ *
+ * Escapes stripped, that stream reads `at https:/claude.ai/…` — ONE slash. The
+ * `//` never enters the stream at all, so no amount of re-anchoring a stream
+ * regex can find it, and compacting whitespace (the trick that makes the OFF
+ * needle position-proof) cannot help either: the bytes are absent, not spaced.
+ * The same session, injected 3s later, painted the line contiguously and the old
+ * stream read worked — which is exactly why this was intermittent rather than
+ * simply broken, and why `remote-control-disconnect.mjs` failed while a hand
+ * run of the same steps passed.
+ *
+ * The grid has no such gap: it is the surface those positioned writes are
+ * addressing, so it holds the assembled line. rc5 measured all three injection
+ * moments finding the link on the grid within 150–760ms, including the one where
+ * the stream never produced it in 45 seconds.
+ *
+ * WHY IT IS ANCHORED TO THE SENTENCE, not just to the link shape. Moving to the
+ * grid WIDENED the false-positive surface, and pretending otherwise would be the
+ * dishonest half of this change. The retired stream reader could only ever see
+ * bytes that arrived AFTER activation — `remoteControlScan` is cleared on every
+ * transition — so a link printed earlier in the session was structurally out of
+ * reach. A whole-viewport read has no such fence: it sees everything on screen
+ * at the moment RC turns on, and because the value LATCHES (captured once, held
+ * for the whole connection) one wrong read is not self-correcting. Ordering
+ * cannot fix it either — the panel paints LOW (rows 33–39 of 40), so a
+ * model-quoted or user-pasted `claude.ai/code/session_…` above it would win on
+ * first-match, and the composer sits BELOW it, so last-match would lose to a
+ * pasted one. The discriminating signal is neither position nor shape but
+ * CONTEXT: claude's own sentence around the link.
+ *
+ * What that leaves. A bare link anywhere on screen is now ignored, which is the
+ * whole point. The residual is a model that reproduces one of claude's two
+ * sentences verbatim AND follows it with a link — narrower than a bare URL by a
+ * wide margin, and stated rather than denied. The failure direction is also the
+ * right one: an upstream reword makes the popover show "Connecting…" while RC
+ * works (visible, harmless, recoverable), where the unanchored version would
+ * hand the user someone else's session link and look correct doing it.
+ *
+ * FIRST match: rc6 measured the disconnect redraw clearing EVERY link row from
+ * the grid, and measured the banner and the open panel carrying the SAME id
+ * while both are visible — so among ANCHORED matches there has never been more
+ * than one session to choose between.
+ *
+ * Still guarded upstream by "activation is OUR signal" — see
+ * detectRemoteControlState. This function never turns RC on; it only fills in
+ * the link of a connection Sonata already asked for.
+ */
+export function findRemoteControlUrlOnScreen(screenText: string): string | null {
+  return cleanTerminal(screenText).match(REMOTE_CONTROL_LINK_RE)?.[1] ?? null;
 }
 // Mid-session Claude model/effort switch receipt detection (pure; unit-tested
 // in tests/smoke/midsession-receipt.mjs). Sonata injects `/model <id>` /

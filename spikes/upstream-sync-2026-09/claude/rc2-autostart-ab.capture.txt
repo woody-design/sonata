@@ -1,0 +1,3551 @@
+# RC2 — does RC auto-start at boot? --settings A/B + flagged control (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-02T05:25:58.664Z
+
+===== auto-start resolver inputs (before) =====
+{
+  "tengu_cobalt_harbor": true,
+  "growthBookCachedAt": "2026-09-02T05:24:48.744Z",
+  "userSettingsRemoteControlAtStartup": null,
+  "legacyGlobalRemoteControlAtStartup": null
+}
+
+===== noSettings — composer reached (trustDialog=false) =====
+[cursor] x=2 y=37
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Haiku 4.5 · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-67 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+  y=36 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=39 |   ⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc
+        cols 2-51 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ? for shortcuts · ← for agents"
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+
+===== noSettings — RC surface changed at +2ms =====
+[cursor] x=2 y=37
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Haiku 4.5 · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-67 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+  y=36 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=39 |   ⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc
+        cols 2-51 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ? for shortcuts · ← for agents"
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+
+===== noSettings — verdict =====
+{
+  "leg": "noSettings",
+  "args": [
+    "--permission-mode",
+    "default"
+  ],
+  "ready": true,
+  "trustDialog": false,
+  "connected": false,
+  "connectedAtMs": null,
+  "productionRawTailSawUrl": false,
+  "rawTailUrlAtMs": null,
+  "sawConnectingPill": false,
+  "distinctPills": [
+    {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  ],
+  "distinctGridRows": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+    "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+  ]
+}
+
+===== noSettings — channel series =====
+[
+  {
+    "atMs": 2,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 2507,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 5010,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 7512,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 10015,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 12518,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 15022,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 17524,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 20027,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 22530,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 25033,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 27534,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 30036,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 32538,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 35040,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 37543,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 40044,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 42546,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 45050,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 47553,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 50056,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 52558,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 55061,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  },
+  {
+    "atMs": 57564,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        },
+        {
+          "y": 39,
+          "text": "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+    }
+  }
+]
+
+===== statusLineOnly — composer reached (trustDialog=false) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  sonata-status-probe                                                                                              /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Haiku 4.5 · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |   sonata-status-probe                                                                                              /rc
+        cols 2-21 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "sonata-status-probe"
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== statusLineOnly — RC surface changed at +1ms =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  sonata-status-probe                                                                                              /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Haiku 4.5 · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-71 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |   sonata-status-probe                                                                                              /rc
+        cols 2-21 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "sonata-status-probe"
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== statusLineOnly — verdict =====
+{
+  "leg": "statusLineOnly",
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly-runtime/statusline-only-settings.json"
+  ],
+  "ready": true,
+  "trustDialog": false,
+  "connected": false,
+  "connectedAtMs": null,
+  "productionRawTailSawUrl": false,
+  "rawTailUrlAtMs": null,
+  "sawConnectingPill": false,
+  "distinctPills": [
+    {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  ],
+  "distinctGridRows": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+    "sonata-status-probe                                                                                              /rc"
+  ]
+}
+
+===== statusLineOnly — channel series =====
+[
+  {
+    "atMs": 1,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 2506,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 5009,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 7512,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 10014,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 12518,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 15021,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 17525,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 20028,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 22530,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 25030,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 27532,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 30035,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 32535,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 35038,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 37538,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 40041,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 42544,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 45046,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 47548,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 50050,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 52552,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 55055,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  },
+  {
+    "atMs": 57557,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        },
+        {
+          "y": 38,
+          "text": "sonata-status-probe                                                                                              /rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+    }
+  }
+]
+
+===== sonata — composer reached (trustDialog=false) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Haiku 4.5 · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-63 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |                                                                                                                    /rc
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== sonata — RC surface changed at +2ms =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Haiku 4.5 · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-63 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |                                                                                                                    /rc
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== sonata — verdict =====
+{
+  "leg": "sonata",
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata-runtime/claude-runtime-settings.json"
+  ],
+  "ready": true,
+  "trustDialog": false,
+  "connected": false,
+  "connectedAtMs": null,
+  "productionRawTailSawUrl": false,
+  "rawTailUrlAtMs": null,
+  "sawConnectingPill": false,
+  "distinctPills": [
+    {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  ],
+  "distinctGridRows": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+    "/rc"
+  ]
+}
+
+===== sonata — channel series =====
+[
+  {
+    "atMs": 2,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 2507,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 5010,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 7513,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 10015,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 12519,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 15021,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 17524,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 20027,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 22530,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 25033,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 27537,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 30039,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 32542,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 35043,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 37546,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 40048,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 42551,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 45054,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 47557,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 50059,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 52562,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 55065,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  },
+  {
+    "atMs": 57569,
+    "rawTail": {
+      "url": null,
+      "off": false
+    },
+    "rawAllUrl": null,
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": null
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+    }
+  }
+]
+
+===== flagged — composer reached (trustDialog=false) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged
+
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_<A>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Haiku 4.5 · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-64 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+  y= 6 |   /remote-control is active · Continue here, on your phone, or at 
+        cols 27-66 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " · Continue here, on your phone, or at "
+  y= 7 |   https://claude.ai/code/session_<A>
+        cols 2-57 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "https://claude.ai/code/session_<A>"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |                                                                                                                    /rc
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== flagged — RC surface changed at +2ms =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged
+
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_<A>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+--- styled cells ---
+  y= 1 |  ▐▛███▛█   Claude Code v2.1.258
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: " ▐"
+        cols 2-8 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "▛███▛█"
+        cols 11-22 inv=0 bg=- fg=- b=1 d=0 :: "Claude Code"
+        cols 23-31 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "v2.1.258"
+  y= 2 | ▝▜██████▀  Haiku 4.5 · Claude Max
+        cols 0-2 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "▝▜"
+        cols 2-7 inv=0 bg=rgb0 fg=rgb14120791 b=0 d=0 :: "█████"
+        cols 7-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "█▀"
+        cols 11-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "Haiku 4.5 · Claude Max"
+  y= 3 |   ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged
+        cols 0-9 inv=0 bg=- fg=rgb14120791 b=0 d=0 :: "  ▝▝ ▝▝  "
+        cols 11-64 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+  y= 6 |   /remote-control is active · Continue here, on your phone, or at 
+        cols 27-66 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: " · Continue here, on your phone, or at "
+  y= 7 |   https://claude.ai/code/session_<A>
+        cols 2-57 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "https://claude.ai/code/session_<A>"
+  y=35 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=37 | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        cols 0-120 inv=0 bg=- fg=rgb8947848 b=0 d=0 :: "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+  y=38 |                                                                                                                    /rc
+        cols 115-118 inv=0 bg=- fg=rgb5159525 b=0 d=0 :: "/rc"
+  y=39 |   ⏸ manual mode on · ← for agents
+        cols 2-33 inv=0 bg=- fg=rgb10066329 b=0 d=0 :: "⏸ manual mode on · ← for agents"
+
+===== flagged — verdict =====
+{
+  "leg": "flagged",
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged-runtime/claude-runtime-settings.json",
+    "--remote-control"
+  ],
+  "ready": true,
+  "trustDialog": false,
+  "connected": true,
+  "connectedAtMs": 2,
+  "productionRawTailSawUrl": true,
+  "rawTailUrlAtMs": 2,
+  "sawConnectingPill": false,
+  "distinctPills": [
+    {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  ],
+  "distinctGridRows": [
+    "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+    "https://claude.ai/code/session_<REDACTED>",
+    "/rc"
+  ]
+}
+
+===== flagged — channel series =====
+[
+  {
+    "atMs": 2,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 2509,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 5012,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 7515,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 10017,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 12520,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 15023,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 17525,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 20029,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 22531,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 25035,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 27537,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 30040,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 32542,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 35045,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 37547,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 40050,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 42552,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 45055,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 47556,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 50059,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 52562,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 55066,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  },
+  {
+    "atMs": 57568,
+    "rawTail": {
+      "url": "https://claude.ai/code/session_<REDACTED>",
+      "off": false
+    },
+    "rawAllUrl": "https://claude.ai/code/session_<REDACTED>",
+    "grid": {
+      "rows": [
+        {
+          "y": 3,
+          "text": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        },
+        {
+          "y": 7,
+          "text": "https://claude.ai/code/session_<REDACTED>"
+        },
+        {
+          "y": 38,
+          "text": "/rc"
+        }
+      ],
+      "urlOnGrid": "https://claude.ai/code/session_<REDACTED>"
+    },
+    "pill": {
+      "y": 3,
+      "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+      "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+      "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+    }
+  }
+]
+
+===== fence =====
+{
+  "version": "2.1.258 (Claude Code)",
+  "autoStartInputsBefore": {
+    "tengu_cobalt_harbor": true,
+    "growthBookCachedAt": "2026-09-02T05:24:48.744Z",
+    "userSettingsRemoteControlAtStartup": null,
+    "legacyGlobalRemoteControlAtStartup": null
+  },
+  "legs": [
+    {
+      "leg": "noSettings",
+      "args": [
+        "--permission-mode",
+        "default"
+      ],
+      "ready": true,
+      "trustDialog": false,
+      "connected": false,
+      "connectedAtMs": null,
+      "productionRawTailSawUrl": false,
+      "rawTailUrlAtMs": null,
+      "sawConnectingPill": false,
+      "distinctPills": [
+        {
+          "y": 3,
+          "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+          "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+          "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings"
+        }
+      ],
+      "distinctGridRows": [
+        "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/noSettings",
+        "⏸ manual mode on · ? for shortcuts · ← for agents                                                                /rc"
+      ],
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:24:48.744Z",
+        "userSettingsRemoteControlAtStartup": null,
+        "legacyGlobalRemoteControlAtStartup": null
+      }
+    },
+    {
+      "leg": "statusLineOnly",
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly-runtime/statusline-only-settings.json"
+      ],
+      "ready": true,
+      "trustDialog": false,
+      "connected": false,
+      "connectedAtMs": null,
+      "productionRawTailSawUrl": false,
+      "rawTailUrlAtMs": null,
+      "sawConnectingPill": false,
+      "distinctPills": [
+        {
+          "y": 3,
+          "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+          "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+          "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly"
+        }
+      ],
+      "distinctGridRows": [
+        "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/statusLineOnly",
+        "sonata-status-probe                                                                                              /rc"
+      ],
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:25:59.258Z",
+        "userSettingsRemoteControlAtStartup": null,
+        "legacyGlobalRemoteControlAtStartup": null
+      }
+    },
+    {
+      "leg": "sonata",
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata-runtime/claude-runtime-settings.json"
+      ],
+      "ready": true,
+      "trustDialog": false,
+      "connected": false,
+      "connectedAtMs": null,
+      "productionRawTailSawUrl": false,
+      "rawTailUrlAtMs": null,
+      "sawConnectingPill": false,
+      "distinctPills": [
+        {
+          "y": 3,
+          "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+          "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+          "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata"
+        }
+      ],
+      "distinctGridRows": [
+        "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/sonata",
+        "/rc"
+      ],
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:27:45.043Z",
+        "userSettingsRemoteControlAtStartup": null,
+        "legacyGlobalRemoteControlAtStartup": null
+      }
+    },
+    {
+      "leg": "flagged",
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged-runtime/claude-runtime-settings.json",
+        "--remote-control"
+      ],
+      "ready": true,
+      "trustDialog": false,
+      "connected": true,
+      "connectedAtMs": 2,
+      "productionRawTailSawUrl": true,
+      "rawTailUrlAtMs": 2,
+      "sawConnectingPill": false,
+      "distinctPills": [
+        {
+          "y": 3,
+          "chars": "/private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+          "key": "inv=0 bg=- fg=rgb10066329 b=0 d=0",
+          "rowText": "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged"
+        }
+      ],
+      "distinctGridRows": [
+        "▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-autostart/flagged",
+        "https://claude.ai/code/session_<REDACTED>",
+        "/rc"
+      ],
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:29:31.102Z",
+        "userSettingsRemoteControlAtStartup": null,
+        "legacyGlobalRemoteControlAtStartup": null
+      }
+    }
+  ],
+  "autoStartInputsAfter": {
+    "tengu_cobalt_harbor": true,
+    "growthBookCachedAt": "2026-09-02T05:31:17.156Z",
+    "userSettingsRemoteControlAtStartup": null,
+    "legacyGlobalRemoteControlAtStartup": null
+  },
+  "rcUserKeysBefore": {
+    "hasUsedRemoteControl": true,
+    "remoteDialogSeen": true,
+    "rcLongTurnNudgeSeenCount": 5,
+    "rcLongTurnNudgeSeenKey": "v1",
+    "remoteControlReadyPushCount": 5,
+    "remoteControlReadyPushKey": "v1",
+    "remoteControlSurfacesSeen": [
+      "mobile"
+    ]
+  },
+  "rcUserKeysAfter": {
+    "hasUsedRemoteControl": true,
+    "remoteDialogSeen": true,
+    "rcLongTurnNudgeSeenCount": 5,
+    "rcLongTurnNudgeSeenKey": "v1",
+    "remoteControlReadyPushCount": 5,
+    "remoteControlReadyPushKey": "v1",
+    "remoteControlSurfacesSeen": [
+      "mobile"
+    ]
+  },
+  "rcUserKeysUnchanged": true,
+  "userSettingsUnchanged": true,
+  "versionAtEnd": "2.1.258 (Claude Code)",
+  "versionDrift": false
+}

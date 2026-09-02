@@ -1,0 +1,759 @@
+# RC4 — remoteControlAtStartup via Sonata's --settings file (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-02T05:56:20.431Z
+
+===== 1-absent-noflag — composer reached =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== 1-absent-noflag — RC surface changed at +1ms =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== 1-absent-noflag — verdict =====
+{
+  "leg": "1-absent-noflag",
+  "settingsKeys": [
+    "statusLine",
+    "hooks",
+    "emojiCompletionEnabled"
+  ],
+  "remoteControlAtStartup": null,
+  "flag": false,
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/rc-probe-settings.json"
+  ],
+  "ready": true,
+  "connected": false,
+  "connectedAtMs": null,
+  "sawDisconnectOnStream": false,
+  "complaints": [],
+  "distinctRcRows": []
+}
+
+===== 1-absent-noflag — settings file =====
+{
+  "statusLine": {
+    "type": "command",
+    "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/usage/claude-statusline-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/usage'"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/approval-broker.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/approvals' 580000",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  },
+  "emojiCompletionEnabled": false
+}
+
+===== 2-true-noflag — composer reached =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== 2-true-noflag — RC surface changed at +1ms =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== 2-true-noflag — verdict =====
+{
+  "leg": "2-true-noflag",
+  "settingsKeys": [
+    "statusLine",
+    "hooks",
+    "emojiCompletionEnabled",
+    "remoteControlAtStartup"
+  ],
+  "remoteControlAtStartup": true,
+  "flag": false,
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/rc-probe-settings.json"
+  ],
+  "ready": true,
+  "connected": false,
+  "connectedAtMs": null,
+  "sawDisconnectOnStream": false,
+  "complaints": [],
+  "distinctRcRows": []
+}
+
+===== 2-true-noflag — settings file =====
+{
+  "statusLine": {
+    "type": "command",
+    "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/usage/claude-statusline-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/usage'"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/approval-broker.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/approvals' 580000",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  },
+  "emojiCompletionEnabled": false,
+  "remoteControlAtStartup": true
+}
+
+===== 3-false-withflag — composer reached =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag
+
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_01XkYUgqxtbgcR4g66NdeMEX
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== 3-false-withflag — RC surface changed at +0ms =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Haiku 4.5 · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag
+
+
+  /remote-control is active · Continue here, on your phone, or at 
+  https://claude.ai/code/session_01XkYUgqxtbgcR4g66NdeMEX
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== 3-false-withflag — verdict =====
+{
+  "leg": "3-false-withflag",
+  "settingsKeys": [
+    "statusLine",
+    "hooks",
+    "emojiCompletionEnabled",
+    "remoteControlAtStartup"
+  ],
+  "remoteControlAtStartup": false,
+  "flag": true,
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/rc-probe-settings.json",
+    "--remote-control"
+  ],
+  "ready": true,
+  "connected": true,
+  "connectedAtMs": 0,
+  "sawDisconnectOnStream": false,
+  "complaints": [],
+  "distinctRcRows": []
+}
+
+===== 3-false-withflag — settings file =====
+{
+  "statusLine": {
+    "type": "command",
+    "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/usage/claude-statusline-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/usage'"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/hook-sink.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/hooks'"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '$HOME/Work/Workspace/Product/sonata/dev/app/dist/runtime/cli-signal/approval-broker.js' '/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/approvals' 580000",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  },
+  "emojiCompletionEnabled": false,
+  "remoteControlAtStartup": false
+}
+
+===== fence =====
+{
+  "version": "2.1.258 (Claude Code)",
+  "legs": [
+    {
+      "leg": "1-absent-noflag",
+      "settingsKeys": [
+        "statusLine",
+        "hooks",
+        "emojiCompletionEnabled"
+      ],
+      "remoteControlAtStartup": null,
+      "flag": false,
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/rc-atstartup/1-absent-noflag-runtime/rc-probe-settings.json"
+      ],
+      "ready": true,
+      "connected": false,
+      "connectedAtMs": null,
+      "sawDisconnectOnStream": false,
+      "complaints": [],
+      "distinctRcRows": [],
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:55:37.659Z",
+        "userSettingsRemoteControlAtStartup": null,
+        "legacyGlobalRemoteControlAtStartup": null
+      }
+    },
+    {
+      "leg": "2-true-noflag",
+      "settingsKeys": [
+        "statusLine",
+        "hooks",
+        "emojiCompletionEnabled",
+        "remoteControlAtStartup"
+      ],
+      "remoteControlAtStartup": true,
+      "flag": false,
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/rc-atstartup/2-true-noflag-runtime/rc-probe-settings.json"
+      ],
+      "ready": true,
+      "connected": false,
+      "connectedAtMs": null,
+      "sawDisconnectOnStream": false,
+      "complaints": [],
+      "distinctRcRows": [],
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:56:20.746Z",
+        "userSettingsRemoteControlAtStartup": null,
+        "legacyGlobalRemoteControlAtStartup": null
+      }
+    },
+    {
+      "leg": "3-false-withflag",
+      "settingsKeys": [
+        "statusLine",
+        "hooks",
+        "emojiCompletionEnabled",
+        "remoteControlAtStartup"
+      ],
+      "remoteControlAtStartup": false,
+      "flag": true,
+      "args": [
+        "--permission-mode",
+        "default",
+        "--settings",
+        "/private/tmp/sonata-sync-2026-09/rc-atstartup/3-false-withflag-runtime/rc-probe-settings.json",
+        "--remote-control"
+      ],
+      "ready": true,
+      "connected": true,
+      "connectedAtMs": 0,
+      "sawDisconnectOnStream": false,
+      "complaints": [],
+      "distinctRcRows": [],
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:57:53.634Z",
+        "userSettingsRemoteControlAtStartup": null,
+        "legacyGlobalRemoteControlAtStartup": null
+      }
+    }
+  ],
+  "rcUserKeysUnchanged": true,
+  "userSettingsUnchanged": true,
+  "versionAtEnd": "2.1.258 (Claude Code)",
+  "versionDrift": false
+}

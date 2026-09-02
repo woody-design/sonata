@@ -1476,3 +1476,691 @@ The test case is now explicitly framed as pinning a KNOWN FALSE POSITIVE as
 expected behaviour, with a header saying a failure there means the boundary
 IMPROVED (delete the assertion) rather than that something regressed, and a third
 assertion proving the hold is transient on the same host.
+
+## F4b — the RC surface at 2.1.258: the OLD needles were RIGHT about the words and WRONG about the channel (rc3/rc5, DECISIVE — this is what shipped)
+
+F4 read the 2.1.252 sighting as "the banner + `/rc` pill replace the old URL-line
+form", and the slice was scoped to re-derive needles for a new surface. The
+re-measurement says the WORDS never moved. What moved is which channel carries
+them.
+
+**The vocabulary, MEASURED verbatim at 2.1.258 (rc1/rc3/rc5/rc6):**
+
+```
+  /remote-control is active · Continue here, on your phone, or at        ← --remote-control boot banner
+  https://claude.ai/code/session_…                                          (and re-connect)
+
+   Remote Control                                                       ← the native panel, which
+   This session is available in the Claude mobile app and at …             `/remote-control` now opens
+     Disconnect this session
+     Show QR code  Scan with your phone to open this session
+   ❯ Continue
+   Enter to select · Esc to continue
+
+  ⎿  Remote Control disconnected.                                       ← the OFF receipt, unchanged
+```
+
+`REMOTE_CONTROL_URL_RE` matches all three link forms; `RemoteControldisconnected`
+matches the receipt. Neither string needed re-deriving.
+
+**What the `/rc` pill actually is.** Not a state readout. The pill's TEXT is
+`/rc` whether RC is on or off — measured side by side in rc2's four legs, where
+three never connected and all four rendered the identical footer row. Only its
+COLOUR moves (`rgb(255,193,7)` while connecting → `rgb(78,186,101)` connected),
+and `TaskScreenModel.viewportText()` is text-only by construction. So there is no
+grid STATE needle for RC to build, and none was built. The brief's D-1 guess
+("the pill is persistent footer STATE → grid") does not survive contact: the pill
+carries no state a grid consumer can read.
+
+**Where the two signals belong, measured rather than reasoned:**
+
+| signal | kind | channel | why the other channel fails |
+|---|---|---|---|
+| session link | one-shot VALUE | **grid** | the stream never carries it whole (F4c) |
+| `Remote Control disconnected.` | one-shot EVENT | **stream** | the grid keeps showing it after a reconnect (rc6: `staleDisconnectLineAfterReconnect: true`, on a session that had already reconnected) |
+
+That is the shipped split. Note it is not the naive reading of D-1 in either
+direction — "value → grid, event → stream" is what the measurements force, and
+the reason is the same in both rows: the grid CONVERGES (so it assembles a value
+and forgets nothing), the stream is CUMULATIVE-then-differential (so it preserves
+an event's moment and mangles a value).
+
+## F4c — WHY the link stopped arriving: the differential repaint elides characters already on screen (rc5, DECISIVE)
+
+The verbatim bytes, from a `/remote-control` injected at the composer edge:
+
+```
+at https:\x1b[69G/claude.ai/code/session_….
+```
+
+Escapes stripped, the stream reads `at https:/claude.ai/…` — **one slash**. The
+second `/` is never sent, because the cell already held it. This is the same
+alternate-screen differential repaint F5b found for the footer, one level
+sharper: F5b's footer was ABSENT from the stream; here the text is present and
+CORRUPT, in a way no regex can repair, because the missing bytes were never
+transmitted. Compacting whitespace — the trick that makes the OFF needle
+position-proof — cannot help: the characters are absent, not spaced.
+
+It is also intermittent, which is why this read as "sometimes broken" rather than
+"broken". Same session, same command, three injection moments (rc5, N=2 runs):
+
+| injected | STREAM (`findRemoteControlUrl`) | GRID |
+|---|---|---|
+| at the `acceptsPromptInput()` edge | **never, through 45s** | +761ms |
+| +3s | +141ms | +152ms |
+| after the boot's RC settled (+17s) | +140ms | +152ms |
+
+The grid answered in all six leg-runs. The stream answered only when nothing else
+was repainting the same rows — i.e. the corruption is a COLLISION between the
+panel paint and the boot's own RC connect, so it reproduces exactly at the moment
+production injects and disappears a second later. `remote-control-disconnect.mjs`
+injects at that edge; a hand run three seconds later passed. That is the whole
+mystery of the last red smoke.
+
+**Shipped**: `findRemoteControlUrl(raw)` is retired for
+`findRemoteControlUrlOnScreen(screenText)`, read off `screenModel`, ANCHORED to
+claude's own sentence (F4c-b). `hasRemoteControlDisconnect` is unchanged and
+stays on the stream.
+
+**A second defect, found only because the fix was verified rather than reasoned
+about**: the first cut read the grid SYNCHRONOUSLY, on the precedent of
+`screenPermissionMode`. It failed identically. `@xterm`'s WriteBuffer can defer
+the parse past the synchronous return, so the read saw the PRE-write grid — and
+because the alt-screen goes quiet the instant the panel is painted, no later
+batch ever arrives to re-read on. Measured: the host reported no link 30s later
+while an independent grid fed the same bytes had it at +2.3s. The distinction the
+precedent hid is PULL vs PUSH: `screenPermissionMode` is asked at an arbitrary
+moment and a stale answer self-corrects on the next ask; this is triggered by the
+one batch that paints the value and has no next ask. It now reads inside
+`screenModel.whenSettled`, like `clearApprovalIfAnsweredNatively`.
+
+## F4c-b — the grid read WIDENED the false-positive surface; the fix is a context anchor (SL-11 review round 1, taken)
+
+The first cut of F4c claimed "the channel moved, that exposure did not". Review
+falsified it, and the reasoning is worth keeping because it is a general property
+of moving a needle from a stream to a grid:
+
+- the retired stream scan was **fenced by construction** — `remoteControlScan` is
+  cleared on every transition, so it could only ever see bytes that arrived AFTER
+  activation. A link printed earlier in the session was structurally unreachable.
+- a **whole-viewport read has no such fence**: it sees everything on screen at the
+  instant RC turns on. And the value **latches** (captured once, held for the
+  connection), so a single wrong read never self-corrects — the popover's
+  copy-link button would serve a foreign session for the whole time RC is on.
+
+Neither ordering rule rescues it, which is the part that makes the anchor
+necessary rather than merely tidy: the panel paints LOW (rows 33–39 of 40), so a
+model-quoted or user-pasted `claude.ai/code/session_…` in the transcript sits
+ABOVE it and beats first-match; the composer sits BELOW it, so a pasted link
+there beats last-match. Position carries no signal. **Context does.**
+
+Shipped: the link must be preceded by one of claude's own two sentences, both
+grepped verbatim out of every SL-11 capture (they are the complete link-bearing
+vocabulary at 2.1.258, not a sample):
+
+```
+This session is available in the Claude mobile app and at <LINK>      (panel, same line)
+… Continue here, on your phone, or at
+  <LINK>                                                              (banner, next line)
+```
+
+`\s+` between anchor and link spans both. A/B against the pre-anchor reader on
+the same inputs: 3 of the 4 new fences flip (`bare link` null vs foreign,
+`foreign ABOVE the panel`, `foreign above the banner`); the fourth (`foreign
+BELOW the panel`) agrees, which is precisely the case that proves last-match was
+not an alternative.
+
+Residual, PINNED as an expected-value assertion rather than hidden: a model that
+reproduces one of those sentences verbatim and follows it with a link is
+indistinguishable from claude printing it. Far narrower than a bare URL. The
+failure direction is also now the safe one — an upstream reword leaves the
+popover showing "Connecting…" while RC works (visible, recoverable) instead of
+confidently handing over the wrong link.
+
+UNMEASURED, registered: at narrow terminal widths the panel's link line could
+WRAP, and a link split across grid rows matches no channel. All SL-11 captures
+are 120 cols. Pre-existing for any grid reader; would need a width-sweep probe.
+
+## F4d — `/remote-control` is no longer idempotent: the second injection dismisses the panel and types into the composer (rc3/diag, MEASURED)
+
+At 2.1.195 the command connected, and a second invocation opened the panel — the
+behaviour `manageRemoteControl` and the disconnect smoke were both written
+against. At 2.1.258, MEASURED:
+
+- from OFF: **connects AND opens the panel in one move** (rc3 arm A, rc5 all
+  legs — `❯ Continue` focused, panel still up 60s later);
+- from that open panel, a second injection **closes it** and leaves
+  `/remote-control` sitting in the composer. Every keystroke after that goes to a
+  composer, not a menu — measured step by step: `❯ Continue` → (inject) → `❯` →
+  four Ups → `❯ /remote-control` → Enter → the panel opens again.
+
+So the old smoke's `inject, inject, Up, Up, Enter` was walking a composer. Fixed
+by injecting ONCE and verifying the panel on a real grid before pressing
+anything (the same verify-and-retry discipline as the SL-1 trust walk).
+
+**Production consequence, REGISTERED not taken** (outside this slice's file set):
+`enableRemoteControl` leaves claude's RC panel open over the composer and does
+NOT switch the user to the terminal view (only `manageRemoteControl` does), so
+the modal is invisible in Sonata. `acceptsPromptInput()` returns TRUE with the
+panel up (measured, rc5, all legs) — the panel is not an approval and nothing
+gates on it — so a prompt delivery in that window would be typed into the RC
+panel. Two candidate fixes, both outside SL-11: gate readiness on the panel (a
+readiness-surface change, SL-9's neighbourhood), or have `enableRemoteControl`
+follow `manageRemoteControl` into the terminal view (a renderer change).
+
+## F4e — RC AUTO-STARTS on Sonata's production spawn, and Sonata's setting cannot see it (rc2/rc5, objective 4, REPORT-ONLY)
+
+Woody's `defaultRemoteControl: false` is implemented as "do not pass
+`--remote-control`". MEASURED at 2.1.258: that is not what decides it.
+
+**Six for six**, every `TerminalHost` boot in rc5 (two runs × three legs), with no
+`--remote-control` anywhere, printed `/rc connecting…` and turned the pill green.
+Sonata's production spawn is phone-reachable while its own setting says OFF.
+
+The resolver, read verbatim out of the 2.1.258 binary and consistent with every
+measurement:
+
+```
+remoteControlAtStartup:
+  project/local settings === false           → false      (repo scope can only DISABLE;
+                                                           a repo-scoped `true` is logged
+                                                           and ignored — "set it at user
+                                                           scope (/config)")
+  else policySettings | flagSettings | userSettings       (first that defines it)
+  else legacy global config
+  else the DEFAULT:  remote env            → false
+                     persistent remote sess→ true
+                     org policy `remote_control_at_startup`
+                     else GrowthBook `tengu_cobalt_harbor`   (ships false)
+```
+
+On this account `tengu_cobalt_harbor` is **true**, no `remoteControlAtStartup`
+exists at any scope, and `disableRemoteControl` is a MANAGED-settings (org
+policy) key that a `--settings` file cannot reach. So RC auto-start here is
+decided by a server-side flag, cached in `~/.claude.json` and refreshed
+asynchronously — which is why F4 saw it at 2.1.252, rc1/rc2 did not an hour
+later, and rc5 saw it again after a cache refresh. **The switch moved twice
+during this slice with no local action.**
+
+What Sonata's spawn CAN and CANNOT control at 2.1.25x:
+
+- **CAN**: turn RC ON for a session (`--remote-control`) — measured, connects at
+  +0–2ms with the link in reach of both channels.
+- **CANNOT, today**: turn it OFF. Not passing the flag is not a decision; it
+  merely declines to override a default that is already ON.
+- **COULD**: `--settings` is the `flagSettings` source, which the resolver
+  accepts (unlike project/local scope, which may only disable). A
+  `remoteControlAtStartup` key in the file `ensureClaudeRuntimeSettings` already
+  writes on every spawn is the lever that would make the setting mean what it
+  says, in both directions. `rc4-atstartup-scope.mjs` measures whether that
+  reading holds on the live binary.
+
+Not taken here: the setting's semantics are Woody's design (objective 4 is
+REPORT-ONLY). What is taken is that the gap is now measured rather than assumed,
+and the mechanism is named rather than guessed at.
+
+There is a second-order consequence worth stating plainly, because it is the one
+that costs correctness rather than policy: when RC auto-starts, Sonata's
+`remoteControlActive` is FALSE, so `detectRemoteControlState` returns early and
+Sonata is blind to a session that is live on the user's phone — the header button
+reads OFF, and a CLI-side disconnect goes unnoticed. The "activation is OUR
+signal" invariant, which exists to stop a foreign link flipping RC on, is exactly
+what makes this blind spot. Also measured: an auto-started boot prints NO session
+link into the stream at all (`boot.sawSessionUrl: false`, 6/6), so even an
+unconditionally-armed stream detector would have had nothing to read — another
+reason the channel had to move to the grid before this could ever be closed.
+
+## F4f — the grid channel's own hazard, measured and found absent (rc6)
+
+A grid holds a transcript, so moving the link read there raises a question the
+stream never had: after disconnect → reconnect, can the screen show a DEAD link
+above the live one? A reconnect does mint a new session id (measured, ids
+compared by fingerprint), so a stale row would be a real wrong answer.
+
+MEASURED: it does not happen. The disconnect redraw clears **every** link row
+from the grid (`afterDisconnect.count: 0`), and while the boot banner and the
+open panel are both visible they carry the SAME id. One link on screen, ever. So
+`findRemoteControlUrlOnScreen` takes the first match with no ordering rule —
+there is nothing for one to disambiguate, and inventing one would be a guard
+against a case the measurement says is not there.
+
+The same probe re-confirmed the other direction: `Remote Control disconnected.`
+was still on the grid AFTER the reconnect had succeeded. That is the fact that
+keeps the OFF needle on the stream.
+
+## F4g — CLOSED (review round 1, taken): corpus-lint could not see the escape-split session link
+
+`corpus-lint.mjs` forbade `https://claude.ai/<not REDACTED>`. The 2.1.258 repaint
+splits that literal across a cursor move, so a fixture carrying a REAL session
+link in its measured form (`https:\x1b[69G/claude.ai/code/session_…`) passed the
+fence — defeating the stated reason the new tree was fenced at all.
+
+Note the trap in the obvious fix: **stripping escapes does not close it.** The
+repaint ELIDES the second slash (it was already on the grid), so the stripped
+text reads `https:/claude.ai/…` and a rule keyed on `https://` still misses. The
+scheme is not recoverable, so the rule must not depend on it. Three changes:
+
+1. a new **scheme-independent** rule — `claude\.(?:ai|com)/code/session_(?!REDACTED)…`
+   — matching the identifying payload (host + id) with no `https://` at all;
+2. every rule now scans the **escape-stripped** copy as well as the raw text, so a
+   marker split mid-word by a cursor move (`/Users/\x1b[12Gwoody/…`) is caught for
+   the other four marker classes too;
+3. the existing url rule widened `claude\.ai` → `claude\.(?:ai|com)` (Sonata's own
+   regex accepts `.com`, and the unit smoke pins a `.com` variant).
+
+This makes a fixture's synthetic id distinguishable from a live one BY THE FENCE
+rather than by the author remembering, so the pinned window's id was re-seeded to
+`session_REDACTEDprobeFixture0001` (same length, so the absolute-column paint
+still lays out inside 120 cols).
+
+Discrimination check, run: planting a fixture containing
+`at https:\x1b[69G/claude.ai/code/session_01RealLookingIdAbc123` fails the fence
+on the new rule and passes again once removed (`DISCRIMINATES: true`); the 63
+existing pinned files stay clean.
+
+## F4j — REGISTERED (measured premise, inferred trigger): the OFF channel is staleness-DELAYED, not staleness-free
+
+F4b puts the disconnect receipt on the stream because the GRID keeps showing it
+after a reconnect. That is right, and it is not the whole story: the stale row is
+still sitting in the CURRENT frame, so anything that makes claude re-emit that
+region — a scroll as output pushes it up, a SIGWINCH repaint — puts the receipt
+back into the STREAM, where `hasRemoteControlDisconnect` cannot tell a repaint of
+history from a live event. Consequence: a live, reconnected session reported OFF,
+and the header button goes stale in the direction Woody's 2026-06-28 bug was
+about.
+
+The rolling 2048-char window and the per-transition reset bound the exposure but
+do not remove it — a repaint that carries the row is a fresh arrival in a fresh
+window. This is the same class as F19's stale-receipt repaint on the model axis,
+which suggests the general shape: **no needle read off a repainting alternate
+screen can distinguish an event from its own echo without a recency anchor.**
+
+PREMISE MEASURED (rc6: `staleDisconnectLineAfterReconnect: true`); TRIGGER
+INFERRED — not reproduced. Falsification recipe for whoever takes it: connect,
+disconnect via the panel, reconnect, then push enough output to scroll the
+receipt row through the viewport, and watch for a spurious
+`remote-control:state {active:false}`. Not taken here: it is a choreography
+redesign (confirm against a recency-anchored or structured source), not a needle
+change, and SL-11's brief is the surface.
+
+## F4h — INCIDENT (cross-slice, not caused by this slice): `~/.claude/settings.json` `model` was rewritten mid-slice
+
+At 01:20 local, while SL-11's rc3 was running, the user's `~/.claude/settings.json`
+`"model"` changed from `"opus[1m]"` (the value read at slice start, and this
+account's daily-driver default) to `"haiku"`. rc3's own fence caught it
+(`userSettingsUnchanged: false`).
+
+Not this slice: no SL-11 probe writes settings, none sends `/model`, and no
+capture from rc1/rc2/rc3 contains the string `haiku` anywhere — every probe frame
+shows `Opus 5 (1M context)`. SL-9 and SL-10 were running concurrently in the same
+tree. Left in place rather than restored, because a sibling slice may be mid-A/B
+on it and a blind restore would corrupt that measurement; flagged for the
+orchestrator instead. If no sibling claims it, `"model": "opus[1m]"` is the value
+to put back.
+
+## F4i — the lever WORKS: `remoteControlAtStartup: false` in Sonata's own `--settings` file suppresses auto-start (rc7, MEASURED, N=2, objective 4 — REPORT-ONLY)
+
+F4e established that RC auto-start is decided somewhere Sonata does not look. rc7
+asks whether Sonata's spawn can reach the switch, with the one A/B that matters:
+the settings file `ensureClaudeRuntimeSettings` already writes on every spawn,
+with and without the key, plus an environment control.
+
+Three legs, spawned identically apart from the named variable, run twice
+(2026-09-02, claude 2.1.258, `tengu_cobalt_harbor` true throughout):
+
+| leg | env | `remoteControlAtStartup` | auto-started? |
+|---|---|---|---|
+| A | production (`ptyEnvironment`) | absent | **yes** (run 1 and 2) |
+| B | production | **`false`** | **no** (run 1 and 2) |
+| C | 2026-08 driver's scrubbed env | absent | **yes** (run 1 and 2) |
+
+6/6 consistent. Two conclusions, one of which corrects a hypothesis this slice
+was carrying:
+
+1. **The lever exists and is in Sonata's hands.** A `false` in the `--settings`
+   file — the `flagSettings` source, which the resolver accepts where repo-scoped
+   settings may only disable — stops the auto-start dead: no `/rc connecting…`,
+   no green pill, in a 45s window, sitting between two legs that auto-started
+   minutes either side of it. And it is SAFE with respect to the opt-in path:
+   rc4 leg 3 measured `remoteControlAtStartup: false` + `--remote-control`
+   connecting at +0ms, so writing `false` would disable the AUTO-start without
+   disabling the setting Woody's UI actually offers.
+2. **The environment hypothesis is FALSIFIED.** Leg C strips exactly what the
+   2026-08 driver strips and auto-started anyway, so the `Probe`-never /
+   `TerminalHost`-always split that rc2/rc4/rc5 showed is NOT about
+   `AI_AGENT`/`CLAUDE_PID`/`CLAUDE_*`. What is left is TIME: rc4's legs (05:55)
+   did not auto-start and rc7's identically-scrubbed leg C (~06:05) did, same
+   binary, same account, same cached flag value, no local change in between. So
+   **RC auto-start flaps on a timescale of minutes from Sonata's point of view**,
+   which is the strongest argument for taking a local lever rather than relying
+   on observed behaviour.
+
+What is NOT measured: whether `remoteControlAtStartup: true` in that file can
+ENABLE auto-start. rc4's leg 2 tried and read "no", but it ran inside one of the
+non-auto-starting windows, so it cannot separate "the source is not accepted for
+enabling" from "nothing was auto-starting then". Leg B proves the source is READ;
+the enabling direction stays open, and would need re-running against a window
+where the default is off. It is also the direction Sonata has no use for — it
+already has `--remote-control` for that.
+
+Nothing changed. `defaultRemoteControl`'s semantics are Woody's design; this is
+the measured fact a decision would rest on: **today the setting means "do not ask
+for RC", and one key in a file Sonata already writes would let it mean "RC off".**
+
+---
+
+# SL-9 — hooks re-verify, CLAUDE side (probed 2026-09-02, binary 2.1.258)
+
+Binary pinned `2.1.258 (Claude Code)` at every probe start and end. Two probes:
+`h1-hook-census.mjs` (production `TerminalHost` from `dist/`, production settings
+writer, production `HookWatcher`, with the remaining declared events layered onto
+the file production had just written) and `h2-hook-stdout-audit.mjs` (the real
+dist sink + broker over adversarial stdin, plus live `claude -p` arms whose
+SessionStart / PermissionRequest hook emits one adversarial class each).
+
+Captures: `h1-hook-census.capture.txt`, `h2-hook-stdout-audit.capture.txt`.
+
+## F33 — the hook-event census at 2.1.258 (MEASURED)
+
+The binary declares **33** events. Registering all 32 non-broker-owned ones on
+Sonata's own sink and driving one ordinary turn (a tool call that fails) plus a
+`/model` switch, **eleven fired**:
+
+| event | injected in production? | first-payload keys |
+|---|---|---|
+| `SessionStart` | yes | cwd, hook_event_name, **model**, **scratchpad_dir**, session_id, source, transcript_path |
+| `InstructionsLoaded` | no | + **file_path, memory_type, load_reason** |
+| `UserPromptSubmit` | yes | + permission_mode, prompt, prompt_id |
+| `PreToolUse` | yes | + **effort**, tool_input, tool_name, tool_use_id |
+| `PostToolUseFailure` | **no** | + **error, is_interrupt, duration_ms** |
+| `PostToolBatch` | **no** | + **tool_calls[]** (each with its `tool_response`) |
+| `MessageDisplay` | no | + **delta, index, final, message_id, turn_id** |
+| `Stop` | yes | + stop_hook_active, last_assistant_message, **background_tasks**, **session_crons** |
+| `SubagentStop` | yes | + agent_id, agent_type, agent_transcript_path |
+| `PreModelSwitch` | no | see F35 |
+| `PostModelSwitch` | no | see F35 |
+
+The 22 that did not fire: `PostToolUse` (see below), `Notification`,
+`UserPromptExpansion`, `SessionEnd`, `StopFailure`, `SubagentStart`,
+`PreCompact`, `PostCompact`, `PermissionRequest`, `PermissionDenied`, `Setup`,
+`TeammateIdle`, `TaskCreated`, `TaskCompleted`, `Elicitation`,
+`ElicitationResult`, `ConfigChange`, `WorktreeCreate`, `WorktreeRemove`,
+`CwdChanged`, `FileChanged`, `DirectoryAdded`.
+
+Two of those absences are ARM DESIGN, not evidence, and are labelled so rather
+than quietly counted:
+
+- **`PostToolUse`** did not fire in the census arm because its only tool call
+  FAILED (`PostToolUseFailure` replaces it — SL-2b's F11, re-confirmed at
+  2.1.258). The approval arm below ran a SUCCEEDING `Write` and `PostToolUse`
+  fired normally. It is alive; the census arm simply never gave it a chance.
+- **`Notification(idle_prompt)`** fires 60s after a turn end (SL-2b, 2.1.257).
+  The census arm kept typing `/model` commands after its turn, so the idle clock
+  restarted and the 60s window closed roughly when the arm did. This is NOT
+  counter-evidence to SL-2b; it is an arm that could not have seen it.
+
+`SessionEnd`, `PermissionDenied` and the rest were probed by SL-2b at 2.1.257 or
+are simply untriggered here.
+
+## F34 — `SessionStart` payload growth, and an SL-5 register correction
+
+`SessionStart` at 2.1.258 carries `{session_id, transcript_path, cwd,
+scratchpad_dir, hook_event_name, source:"startup", model:"claude-opus-5[1m]"}`.
+
+- **NEW: `model`** on `SessionStart` — and in fact on every event; the CLI now
+  stamps the active model into the envelope.
+- **NEW: `scratchpad_dir`** — a per-session scratch path, on every event.
+- **NO staleness / re-cache fields** appeared. The brief anticipated some; none
+  exist in the measured payload.
+- **CORRECTION to SL-5's F29**: that register item records `SessionStart` as
+  carrying `permission_mode: null`. At 2.1.258 the key is **absent entirely**.
+  The consequence is unchanged (`applyHookPermissionMode` reads it defensively,
+  and the first hook to move the permission mirror is still the first TURN's),
+  but the register's shape is wrong and SL-13 should re-stamp it.
+
+Also new and worth more than a line: **`effort: {"level":"medium"}` now rides the
+tool and `Stop` payloads**. The register item "the claude effort axis is OPTIONAL
+and Sonata models it as mandatory" (SL-4, F17/F20) is blocked on where a truthful
+current-effort value comes from; the hook channel now carries one per turn, which
+is a cheaper answer than the statusline payload. Recorded for that item's owner,
+not acted on.
+
+## F35 — `PreModelSwitch` / `PostModelSwitch` fire under production injection (MEASURED)
+
+Both fire, with an identical and rich key set:
+
+```
+from_model                 "claude-opus-5[1m]"            (the canonical id)
+to_model                   "claude-haiku-4-5-20251001"
+requested_model            "haiku"                        (the alias typed)
+source                     "command"
+context_tokens             46502
+prompt_cache_warm          true
+cache_ttl                  "1h"
+estimated_cache_write_usd  0.093
+pricing                    "catalog"
+```
+
+`Pre` landed at +0ms of the `/model haiku` submission, `Post` **9.3 seconds
+later** — the switch is not instantaneous and the pair brackets it.
+
+Two measured wrinkles for whoever takes the `PostModelSwitch` unlock (D2):
+
+1. **`PreModelSwitch` fired TWICE for one switch**, 103ms apart, byte-identical
+   payloads. A consumer must be idempotent.
+2. The second switch this arm attempted (`/model opus[1m]`) never reached the
+   composer — grid-verified false before its CR — so only ONE pair is on the
+   record. The duplicate-`Pre` observation is from a single switch and has not
+   been reproduced.
+
+DELIBERATELY NOT WIRED. This is the registered unlock's evidence (F19/F22:
+"confirm a mid-session switch against the MIRROR, not the stream"), and D2 puts
+the unlock in its own slice. The union documents the events; the injection list
+does not take them.
+
+## F36 — the strict-JSON stdout premise, corrected and pinned
+
+The brief carried "2.1.248 makes malformed hook stdout a HARD error". Measured at
+2.1.258, that is **half true, and the half matters**.
+
+The parse function (`I5e`, quoted verbatim in the h2 capture) classifies:
+
+| output | verdict |
+|---|---|
+| `""` / whitespace / anything not starting with `{` | plain text — benign |
+| `{`-leading that does NOT end with `}` | plain text — benign |
+| a valid JSON object | parsed |
+| `{`-leading, ends with `}`, does NOT parse | **`validationError`** |
+| several JSON documents | **`validationError`** |
+
+`validationError` has two consumers in the bundle: one yields a
+`hook_non_blocking_error`, the other **`throw`s**. So it is a hard error on one
+path and a loud non-blocking one on the other.
+
+LIVE, eight classes through `claude -p --output-format stream-json --verbose`,
+one per run, each emitted by a `SessionStart` hook. The CLI's own `hook_response`
+message is the verdict:
+
+| class emitted | `outcome` | session |
+|---|---|---|
+| `""` | success | ok |
+| `"  \n "` | success | ok |
+| `hello from a hook` | success | ok |
+| `{"hookSpecificOutput":{"hookEventName":"SessionStart"` | success | ok |
+| `{"hookSpecificOutput":{"hookEventName":"SessionStart"}` | **error** | ok |
+| `{"sonata":"observer","note":1}` | success | ok |
+| `{"continue":true,"suppressOutput":true}` | success | ok |
+| `{"continue":true}\n{"continue":true}` | **error** | ok |
+
+Both error arms carried the CLI's own message — *"Hook output looks like a JSON
+object but is not valid JSON — JSON Parse error… Emit the payload with a JSON
+encoder"* — and, on a fire-and-forget event, **the session still succeeded**
+(exit 0, result `OK`). So on the observation channel the failure is visible and
+non-fatal; the `throw` site belongs to the decision channel.
+
+One prediction of the static read was WRONG and the live arm caught it: the
+JSON-lines escape hatch (`wJo`) also requires each line to be schema-invalid or
+to validate to an EMPTY object, so two `{"continue":true}` lines are **not**
+excused. The classifier in the probe was corrected to match, and the live arm is
+recorded as the authority.
+
+## F37 — Sonata's own hook stdout: audited, one real defect found
+
+Every reachable path of the REAL dist scripts, run as real processes, under BOTH
+plain node and the production `ELECTRON_RUN_AS_NODE=1` shape:
+
+- **`hook-sink.js` writes ZERO stdout bytes on all nine paths** — normal payload,
+  empty stdin, whitespace-only stdin, malformed stdin, missing argv, ENOTDIR
+  target, EACCES parent, a 1 MB payload, invalid UTF-8. Immune by construction.
+  Neither interpreter greets stdout either.
+- **`approval-broker.js` writes stdout on exactly one path** (`answer()`), and
+  writes the reply file's bytes verbatim. All six silent paths — missing argv,
+  `AskUserQuestion`, empty stdin, malformed stdin, unwritable control dir,
+  timeout — measured at zero bytes, which is what makes the native-panel fallback
+  graceful.
+
+**THE DEFECT.** `process.stdout.write(decision); process.exit(0)` on macOS is an
+async pipe write followed by an immediate exit. A 4 MB decision was **truncated
+at exactly 65536 bytes — one pipe buffer — under both interpreters.** A
+truncation that lands mid-string is silently discarded as plain text and the
+user's answer is simply LOST; a truncation that happens to land on a `}` is
+2.1.258's hard `validationError` path.
+
+Reachability today is LOW and stated as such: production decisions are 91–229
+bytes (`allow`, `deny`, `approve-always` with `updatedPermissions`, all measured).
+But `updatedPermissions` is an unbounded list, the failure is silent, and the fix
+does not touch the protocol — so it was taken rather than registered.
+
+FIXED in `approval-broker.ts`: `answer()` sets `process.exitCode = 0` and lets the
+pending write drain (the poll interval is already cleared and stdin has ended, so
+nothing else holds the loop), both call sites `return`, and a `stdout` `error`
+handler exits 0 so a dead read end can never turn into stderr noise on a channel
+the broker promises never to write. Pinned by
+`app/tests/smoke/hook-stdout-contract.mjs`, whose 4 MB case was A/B-verified:
+**FAILS `65536 !== 4000102` against the pre-fix dist, passes after.**
+
+**NOT FIXED, OUT OF SLICE BOUNDARY**: the codex broker shim
+(`BROKER_SHIM_SOURCE` in `codex-runtime-settings.ts`) carries the byte-identical
+`process.stdout.write(decision); process.exit(0)` shape and the same latent
+truncation. SL-9's file boundary is the `SINK_EVENTS` region of that file. See
+the codex findings' C15 for the exact patch.
+
+## F38 — `updatedPermissions` still validates at 2.1.258 (MEASURED end-to-end)
+
+The other half of "is our stdout valid" is whether the CONSUMER accepts it, which
+only a real approval can answer. A production spawn with the **real broker**
+(`approvalBroker: true`), answering a `Write` permission request with Sonata's
+own `approve-always` JSON:
+
+```json
+{"hookSpecificOutput":{"hookEventName":"PermissionRequest",
+  "decision":{"behavior":"allow","updatedPermissions":[
+    {"type":"addRules","rules":[{"toolName":"Write"}],
+     "behavior":"allow","destination":"session"}]}}}
+```
+
+Ground truth is the FILE: `hello.txt` was written with contents `hi`, one
+`answered-<id>.json` audit marker, `PostToolUse` fired, the turn closed on `Stop`.
+**No schema drift.** (Method note: with the broker ON, production suppresses the
+native approval scrape, so `approval:detected` never arrives and `sendApprove`
+has nothing to answer — the arm has to walk the trust dialog off the grid itself.
+The first run of this arm timed out at the trust screen for exactly that reason.)
+
+## F39 — `additionalContext` is structurally unreachable for Sonata
+
+Brief objective 5. Measured, three ways:
+
+1. `grep -rn additionalContext app/src app/tests` → **zero hits**.
+2. The sink writes zero stdout bytes on every path (F37), so it cannot emit any
+   hook-output field at all.
+3. The broker's only stdout is `hookSpecificOutput.decision`; neither
+   `brokerDecisionJson` nor `codexBrokerDecisionJson` has an `additionalContext`
+   key.
+
+So the per-hook `additionalContext` budget cannot bind on anything Sonata emits.
+Incidentally: **`additionalContextLimit` does not exist in the claude 2.1.258
+binary at all** (needle absent) — only `hookSpecificOutput.additionalContext`, the
+output field. The config key by that name is CODEX's (see the codex findings).
+No action.
+
+## F41 — INCIDENT (owned): this probe changed the user's real default model
+
+**Cause: mine.** `h1-hook-census.mjs` arm `c1-census`. Not SL-11.
+
+The ModelSwitch pair has exactly one trigger, a real `/model` switch, and a
+`/model` switch PERSISTS the new default into `~/.claude/settings.json`. The arm
+drove `/model haiku` against the **REAL** config dir and left it there.
+
+**Correlation, to the second:**
+
+| | local time |
+|---|---|
+| arm `c1-census` t0 (derived: ranAt 05:21:58.543Z − last hook offset − trailing sleeps) | 01:20:28 |
+| `PreModelSwitch` @12319ms / @12422ms | ~01:20:41 |
+| `PostModelSwitch` @21581ms | **~01:20:50** |
+| `~/.claude/settings.json` mtime | **01:20:50** |
+
+**Real home, not isolated** — `grep CLAUDE_CONFIG_DIR h1-hook-census.mjs` → no
+matches, and the arm's own payloads name the real dir:
+`InstructionsLoaded.file_path = $HOME/.claude/CLAUDE.md`,
+`SubagentStop.agent_transcript_path = $HOME/.claude/projects/…`. The isolation
+was deliberate — an isolated `CLAUDE_CONFIG_DIR` is logged out (SL-3) and the
+census is about production behaviour — but the hazard that comes with it was not
+handled. `h2` never switched a model (`grep -c "/model"` → 0) and is not involved.
+
+**Was it bracketed? NO — and the near-miss is the real lesson.** SL-4's probes
+snapshot/restore; mine did not. The arm *did* attempt a UI restore
+(`await session.sendSlash("/model opus[1m]")`) and that restore **silently
+failed** — its own note reads `slash "/model opus[1m]" on the composer before CR:
+false`. I recorded that failure in the findings as *missing measurement data*
+("only ONE pair is on the record") and never asked the second question: the
+switch-back that did not land was also a user setting left unrestored. Evidence
+of a failed restore was sitting in my own capture, correctly transcribed, and
+read only for what it cost the measurement.
+
+**Restored** (2026-09-02 02:26:59 local):
+
+```
+before  sha256 418da051…f952e4  size 586  mtime 01:20:50   "model": "haiku"
+after   sha256 c46f0ab0…335a87  size 589  mtime 02:26:59   "model": "opus[1m]"
+diff    exactly one line: -  "model": "haiku",  +  "model": "opus[1m]",
+```
+
+`effortLevel` was already `"medium"` and was NOT touched (the census measured
+`effort:{"level":"medium"}` live during the same arm, so it never moved —
+consistent with SL-4's F20, which found the effort default does not persist here).
+Nothing else in the file differs. Pre-incident value corroborated independently by
+the arm's own `SessionStart` payload 24s before the switch:
+`model: "claude-opus-5[1m]"`.
+
+**Fixed in the probe, not just apologised for.** `h1` now snapshots
+`~/.claude/settings.json` before any arm and writes the bytes back in a `finally`
+(and on `SIGINT`/`SIGTERM`), then VERIFIES the bytes match and prints a loud
+`[settings guard]` line naming the changed keys. The slash switch-back is
+demoted in the code to "a second pair for the record", explicitly not the restore
+— a restore driven through a composer has a failure mode, a restore of a file
+does not. The guard is exercised end to end by `--self-test`
+(`SONATA_PROBE_SETTINGS_PATH` points it at a throwaway copy), which reproduces
+this exact mutation and reverses it:
+
+```
+[settings guard] the probe changed ~/.claude/settings.json (model: "opus[1m]" → "haiku") — restored: true
+{ "mutationLanded": true, "guard": { "mutatedByProbe": true, "restored": true,
+  "changedKeys": ["model: \"opus[1m]\" → \"haiku\""] },
+  "bytesBackToOriginal": true, "pass": true }
+```
+
+**For the program, not just this probe:** any arm that drives `/model`, `/effort`
+or a picker against the real config dir mutates the user's durable settings.
+SL-4 knew this and bracketed; the knowledge lived in a report rather than in the
+harness, so the next probe re-learned it the expensive way. The bracket belongs in
+the canonical `driver.mjs` at SL-13, not re-implemented per probe.
+
+## F40 — evidence files
+
+`h1-hook-census.mjs` (carries the F41 settings guard; `--self-test` exercises
+it) + `h1-hook-census.capture.txt` ·
+`h2-hook-stdout-audit.mjs` + `h2-hook-stdout-audit.capture.txt`. Both sanitize
+`$HOME` and the munged `-Users-<user>-` form; probe cwds are under
+`/private/tmp/sonata-sync-2026-09/`. `spikes/` is gitignored by the code repo —
+these need `git add -f`.

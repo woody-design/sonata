@@ -55,7 +55,7 @@ import {
   claudeFullscreenOfferOpen,
   claudeRewindPanelOpen,
   compactRemoteControlScan,
-  findRemoteControlUrl,
+  findRemoteControlUrlOnScreen,
   hasRemoteControlDisconnect,
   parseClaudePermissionModeLine,
   parseClaudeTrustDialogRows,
@@ -737,16 +737,24 @@ export class TerminalHost extends EventEmitter {
   private lastFinishedPrompt: { text: string; expiresAt: number } | null = null;
   private activeRunRaw = "";
   // Remote Control (phone access) — tracked optimistically; no hook/structured
-  // signal exists for it, and the footer "/rc active" is a volatile TUI scrape
-  // we refuse. `injectRemoteControl` flips us active; the scraped session URL
-  // confirms and carries the phone link.
+  // signal exists for it, and the footer `/rc` pill is not a state readout at all
+  // (SL-11 measured its TEXT identical connected and not — only its COLOUR moves,
+  // and the grid is text-only). `injectRemoteControl` flips us active; the
+  // scraped session URL confirms and carries the phone link.
+  // KNOWN BLIND SPOT, registered not fixed (SL-11 F4e): claude can auto-start RC
+  // at boot from org policy or a server-side default with no `--remote-control`
+  // flag, and "activation is OUR signal" means Sonata reports OFF for such a
+  // session. Closing it is a product decision on `defaultRemoteControl`, not a
+  // detection change.
   private remoteControlActive = false;
   private remoteControlUrl: string | null = null;
-  // Rolling RAW tail (capped). While active we compact it (escapes + whitespace
-  // removed) to detect the OFF line and to capture the URL — robust to claude's
-  // word-positioned redraw (glued words) AND to a split landing inside a word OR
-  // inside an escape sequence. Reset on every transition so a stale match can't
-  // fire after a reconnect.
+  // Rolling RAW tail (capped) — the OFF signal ONLY. While active we compact it
+  // (escapes + whitespace removed) to detect the disconnect line — robust to
+  // claude's word-positioned redraw (glued words) AND to a split landing inside a
+  // word OR inside an escape sequence. Reset on every transition so a stale match
+  // can't fire after a reconnect. The URL is NOT read here any more: since
+  // 2.1.252's differential repaint the stream stopped carrying the link whole
+  // (SL-11) — see detectRemoteControlState.
   private remoteControlScan = "";
   // The mid-session control-switch choreography (five axis state machines + the
   // S7 parked-confirm drawer relay). Owns the single in-flight switch and its
@@ -1540,12 +1548,21 @@ export class TerminalHost extends EventEmitter {
   /**
    * Inject `/remote-control` out-of-band (NOT via the delivery queue). claude
    * handles `/rc` as a client-side command in parallel with any active turn, so
-   * this works mid-stream (verified 2026-06-27, claude 2.1.195): when OFF it
-   * connects; when already ON it opens claude's native Remote Control panel
-   * (Disconnect / Show QR / Continue). Held under the write-lock so a human
-   * keystroke mid-inject buffers instead of splitting the paste. An open
-   * approval panel would swallow the command, so we refuse in that state
-   * and report it rather than flip to a false "on".
+   * this works mid-stream (verified 2026-06-27, claude 2.1.195). Held under the
+   * write-lock so a human keystroke mid-inject buffers instead of splitting the
+   * paste. An open approval panel would swallow the command, so we refuse in that
+   * state and report it rather than flip to a false "on".
+   *
+   * WHAT IT DOES, re-measured at 2.1.258 (SL-11, rc3/rc5): from OFF it connects
+   * AND opens claude's native Remote Control panel (Disconnect / Show QR /
+   * Continue, cursor on Continue) in the SAME move — the 2.1.195 note that a
+   * connect and a panel were two separate invocations no longer holds. A second
+   * injection while that panel is up DISMISSES it and leaves `/remote-control`
+   * in the composer, so this is not an idempotent "show me the panel" call.
+   * `manageRemoteControl` is still correct (it injects once, on a session whose
+   * panel is closed, and switches the user to the terminal); `enableRemoteControl`
+   * leaves that panel open behind Sonata's own UI — registered in SL-11's
+   * findings (F4d), not fixed here.
    */
   injectRemoteControl(): RemoteControlInjectResponse {
     if (!this.ptyProcess) {
@@ -1600,20 +1617,44 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
-   * Remote Control has NO hook/structured channel (confirmed), so we read its
-   * stream — but ONLY while we already believe RC is on. Activation is always OUR
+   * Remote Control has NO hook/structured channel (confirmed), so we read the
+   * TUI — but ONLY while we already believe RC is on. Activation is always OUR
    * own signal (`injectRemoteControl` or the `--remote-control` spawn flag), never
    * a scraped URL: a `claude.ai/code/session_…` link can appear in model output, a
    * file, or a RESUMED transcript, and must not flip RC on with a foreign link.
-   * Once active, the rolling RAW tail is compacted (escapes + ALL whitespace
-   * removed) so two things are robust against claude's word-POSITIONED redraw
-   * (`This\x1b[9Gsession\x1b[17Gis…` — words glue after stripping) AND against a
-   * PTY split landing inside a word or inside an escape sequence (we accumulate
-   * RAW and strip the whole tail, so a split escape reassembles first):
-   *   OFF → claude's `Remote Control disconnected.` line (whitespace-insensitive;
-   *         case kept so model prose "…remote control disconnected…" can't trip it).
-   *   URL → the session link, captured once for display.
-   * (verified 2026-06-27/28, claude 2.1.195 — re-validate on claude upgrades).
+   *
+   * The two signals ride DIFFERENT channels, because they are different kinds of
+   * thing (D-1). RE-MEASURED at claude 2.1.258 (SL-11; probes rc3/rc5/rc6):
+   *
+   *   OFF → the rolling RAW tail, compacted (escapes + ALL whitespace removed),
+   *         which survives claude's word-POSITIONED redraw
+   *         (`This\x1b[9Gsession\x1b[17Gis…` — words glue after stripping) and a
+   *         PTY split landing inside a word or an escape (we accumulate RAW and
+   *         strip the whole tail, so a split escape reassembles first). It stays
+   *         on the STREAM because it is a one-shot EVENT: rc6 measured
+   *         `Remote Control disconnected.` still on the GRID after a reconnect
+   *         had already succeeded, so a grid read would call a live session dead.
+   *   URL → `screenModel`'s reconstructed grid, NOT the stream. The stream stopped
+   *         carrying the link whole — the differential repaint elides characters
+   *         already correct on screen, so `https://` reaches the tail as
+   *         `https:` + a column jump + `/claude.ai/…`. Full rationale and the
+   *         measured bytes: findRemoteControlUrlOnScreen. Read under
+   *         `whenSettled`, NOT synchronously (see below).
+   *
+   * WHY THE URL READ IS DEFERRED, when `screenPermissionMode` reads the same grid
+   * synchronously: that one is a PULL — a caller asks at an arbitrary moment, and
+   * a stale-but-consistent answer is corrected by simply asking again. This is a
+   * PUSH, and one-shot: the only batch that paints the link is the one that
+   * triggers this call, and `@xterm`'s WriteBuffer can defer that parse past the
+   * synchronous return. MEASURED (SL-11): a naked read here saw the pre-write
+   * grid, the alt-screen went quiet immediately afterwards — no further batch,
+   * so no second chance — and the link was still unreported 30s later while an
+   * independent grid fed the same bytes had it. `whenSettled` runs the read after
+   * the batch has drained, which is the same reason
+   * `clearApprovalIfAnsweredNatively` is deferred.
+   *
+   * (channels re-derived 2026-09-01 at 2.1.258; the 2.1.195 form was a single
+   * stream read, and the URL half of it had gone intermittently blind.)
    */
   private detectRemoteControlState(data: string): void {
     if (!this.remoteControlActive) {
@@ -1625,10 +1666,18 @@ export class TerminalHost extends EventEmitter {
       return;
     }
     if (!this.remoteControlUrl) {
-      const url = findRemoteControlUrl(this.remoteControlScan);
-      if (url) {
-        this.setRemoteControlActive(true, url);
-      }
+      this.screenModel?.whenSettled(() => {
+        // Re-checked inside the deferral: between the write and the drain RC can
+        // have gone off, the link can have been captured by an earlier batch's
+        // callback, or the PTY can have been torn down.
+        if (!this.remoteControlActive || this.remoteControlUrl || !this.screenModel) {
+          return;
+        }
+        const url = findRemoteControlUrlOnScreen(this.screenModel.viewportText());
+        if (url) {
+          this.setRemoteControlActive(true, url);
+        }
+      });
     }
   }
 

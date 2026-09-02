@@ -1,0 +1,167 @@
+# RC5 — injection-moment A/B through TerminalHost (claude 2.1.258 (Claude Code))
+# captured 2026-09-02T05:38:26.156Z
+
+{
+  "version": "2.1.258 (Claude Code)",
+  "legs": [
+    {
+      "leg": "immediate",
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:34:46.245Z"
+      },
+      "reachedInput": true,
+      "acceptsInput": true,
+      "boot": {
+        "sawConnectingPill": true,
+        "sawSessionUrl": false,
+        "trustDialogSeen": false,
+        "rcStatesBeforeInject": 0,
+        "atMs": 641
+      },
+      "injectResult": {
+        "ok": true
+      },
+      "injectAtMs": 641,
+      "urlArrived": false,
+      "gridUrlFoundAfterInjectMs": 761,
+      "gridUrl": "https://claude.ai/code/session_<REDACTED>",
+      "gridRowsWithUrl": [
+        "This session is available in the Claude mobile app and at https://claude.ai/code/session_<REDACTED>."
+      ],
+      "rcStates": [
+        {
+          "active": true,
+          "url": null,
+          "atMs": 641
+        },
+        {
+          "active": false,
+          "url": null,
+          "atMs": 47725
+        }
+      ],
+      "acceptsInputAfterInject": true,
+      "afterInjectCleaned": " /remote-control Disconnect Remote Control /remote-control ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ Remote Control ThissessionisavailableintheClaudemobileappandclaude.ai/code. Disconnect this session Show QR code Scan with your phone to open this session ❯ Continue Enter to select · Esc to continue at https:/claude.ai/code/session_<REDACTED>.",
+      "afterInjectSignals": {
+        "panelOpened": true,
+        "sawIsActiveBanner": false,
+        "sawPanelAvailableLine": true,
+        "sawDisconnectLine": false,
+        "sawUrl": true
+      },
+      "rawTailAfter": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[32B\u001b[K\u001b[36;1H\u001b[33;3H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mremote-control\u001b[22m                      Disconnect Remote Control\r\u001b[2C\u001b[2B/remote-control\r\u001b[18C\u001b[3B\u001b[39m\u001b[K\u001b[36;1H\u001b[33;18H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[26B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mRemote Control\r\u001b[3C\u001b[2B\u001b[22m\u001b[39mThis\u001b[9Gsession\u001b[17Gis\u001b[20Gavailable\u001b[30Gin\u001b[33Gthe\u001b[37GClaude\u001b[44Gmobile\u001b[51Gapp\u001b[55Gand\u001b[59Gclaude.ai/code.\r\u001b[2C\u001b[1B\u001b[K\r\u001b[1B     Disconnect this session\u001b[K\r\u001b[1B     Show QR code\u001b[38;2;153;153;153m  Scan with your phone to open this session\r\u001b[1B\u001b[39m   \u001b[38;2;177;185;249m❯\u001b[39m \u001b[38;2;177;185;249mContinue\u001b[39m\u001b[K\r\u001b[103C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to select · Esc to continue\u001b[39m\u001b[36;1H\u001b[34;4H\u001b[H\r\u001b[58C\u001b[29Bat https:\u001b[69G/claude.ai/code/session_<REDACTED>.\u001b[36;1H\u001b[34;4H",
+      "finalScreen": "\n ▐▛███▛█   Claude Code v2.1.258\n▝▜██████▀  Haiku 4.5 · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-inject-timing/immediate\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n   Remote Control\n\n   This session is available in the Claude mobile app and at https://claude.ai/code/session_<REDACTED>.\n\n     Disconnect this session\n     Show QR code  Scan with your phone to open this session\n   ❯ Continue\n\n   Enter to select · Esc to continue"
+    },
+    {
+      "leg": "settled-3s",
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:37:10.103Z"
+      },
+      "reachedInput": true,
+      "acceptsInput": true,
+      "boot": {
+        "sawConnectingPill": true,
+        "sawSessionUrl": false,
+        "trustDialogSeen": false,
+        "rcStatesBeforeInject": 0,
+        "atMs": 3618
+      },
+      "injectResult": {
+        "ok": true
+      },
+      "injectAtMs": 3618,
+      "urlArrived": true,
+      "gridUrlFoundAfterInjectMs": 152,
+      "gridUrl": "https://claude.ai/code/session_<REDACTED>",
+      "gridRowsWithUrl": [
+        "This session is available in the Claude mobile app and at https://claude.ai/code/session_<REDACTED>."
+      ],
+      "rcStates": [
+        {
+          "active": true,
+          "url": null,
+          "atMs": 3619
+        },
+        {
+          "active": true,
+          "url": "https://claude.ai/code/session_<REDACTED>",
+          "atMs": 3760
+        },
+        {
+          "active": false,
+          "url": null,
+          "atMs": 5774
+        }
+      ],
+      "acceptsInputAfterInject": true,
+      "afterInjectCleaned": " /remote-control Disconnect Remote Control /remote-control ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ Remote Control ThissessionisavailableintheClaudemobileappandathttps://claude.ai/code/session_<REDACTED>. Disconnect this session Show QR code Scan with your phone to open this session ❯ Continue Enter to select · Esc to continue",
+      "afterInjectSignals": {
+        "panelOpened": true,
+        "sawIsActiveBanner": false,
+        "sawPanelAvailableLine": true,
+        "sawDisconnectLine": false,
+        "sawUrl": true
+      },
+      "rawTailAfter": "\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mremote-control\u001b[22m                      Disconnect Remote Control\r\u001b[2C\u001b[2B/remote-control\r\u001b[18C\u001b[3B\u001b[39m\u001b[K\u001b[36;1H\u001b[33;18H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[26B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mRemote Control\r\u001b[3C\u001b[2B\u001b[22m\u001b[39mThis\u001b[9Gsession\u001b[17Gis\u001b[20Gavailable\u001b[30Gin\u001b[33Gthe\u001b[37GClaude\u001b[44Gmobile\u001b[51Gapp\u001b[55Gand\u001b[59Gat\u001b[62Ghttps://claude.ai/code/session_<REDACTED>.\r\u001b[2C\u001b[1B\u001b[K\r\u001b[1B     Disconnect this session\u001b[K\r\u001b[1B     Show QR code\u001b[38;2;153;153;153m  Scan with your phone to open this session\r\u001b[1B\u001b[39m   \u001b[38;2;177;185;249m❯\u001b[39m \u001b[38;2;177;185;249mContinue\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to select · Esc to continue\u001b[39m\u001b[36;1H\u001b[34;4H",
+      "finalScreen": "\n ▐▛███▛█   Claude Code v2.1.258\n▝▜██████▀  Haiku 4.5 · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-inject-timing/settled-3s\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n   Remote Control\n\n   This session is available in the Claude mobile app and at https://claude.ai/code/session_<REDACTED>.\n\n     Disconnect this session\n     Show QR code  Scan with your phone to open this session\n   ❯ Continue\n                                                                                                                   \n   Enter to select · Esc to continue"
+    },
+    {
+      "leg": "rc-settled",
+      "autoStartInputs": {
+        "tengu_cobalt_harbor": true,
+        "growthBookCachedAt": "2026-09-02T05:37:58.973Z"
+      },
+      "reachedInput": true,
+      "acceptsInput": true,
+      "boot": {
+        "sawConnectingPill": true,
+        "sawSessionUrl": false,
+        "trustDialogSeen": false,
+        "rcStatesBeforeInject": 0,
+        "atMs": 17143
+      },
+      "injectResult": {
+        "ok": true
+      },
+      "injectAtMs": 17143,
+      "urlArrived": true,
+      "gridUrlFoundAfterInjectMs": 152,
+      "gridUrl": "https://claude.ai/code/session_<REDACTED>",
+      "gridRowsWithUrl": [
+        "This session is available in the Claude mobile app and at https://claude.ai/code/session_<REDACTED>."
+      ],
+      "rcStates": [
+        {
+          "active": true,
+          "url": null,
+          "atMs": 17143
+        },
+        {
+          "active": true,
+          "url": "https://claude.ai/code/session_<REDACTED>",
+          "atMs": 17283
+        },
+        {
+          "active": false,
+          "url": null,
+          "atMs": 19297
+        }
+      ],
+      "acceptsInputAfterInject": true,
+      "afterInjectCleaned": "\u001b(B\u000f /remote-control Disconnect Remote Control /remote-control ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ Remote Control ThissessionisavailableintheClaudemobileappandathttps://claude.ai/code/session_<REDACTED>. Disconnect this session Show QR code Scan with your phone to open this session ❯ Continue Enter to select · Esc to continue",
+      "afterInjectSignals": {
+        "panelOpened": true,
+        "sawIsActiveBanner": false,
+        "sawPanelAvailableLine": true,
+        "sawDisconnectLine": false,
+        "sawUrl": true
+      },
+      "rawTailAfter": "\u001b(B\u000f\u001b[?1000h\u001b[?1002h\u001b[?1003h\u001b[?1006h\u001b[?25l\u001b[H\r\u001b[2C\u001b[30B\u001b[38;2;177;185;249m/\u001b[1mremote-control\u001b[22m                      Disconnect Remote Control\r\u001b[2C\u001b[2B/remote-control\r\u001b[18C\u001b[3B\u001b[39m\u001b[K\u001b[36;1H\u001b[33;18H\u001b[?25h\u001b[?25l\u001b[H\r\u001b[26B\u001b[38;2;177;185;249m▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\r\u001b[3C\u001b[1B\u001b[1mRemote Control\r\u001b[3C\u001b[2B\u001b[22m\u001b[39mThis\u001b[9Gsession\u001b[17Gis\u001b[20Gavailable\u001b[30Gin\u001b[33Gthe\u001b[37GClaude\u001b[44Gmobile\u001b[51Gapp\u001b[55Gand\u001b[59Gat\u001b[62Ghttps://claude.ai/code/session_<REDACTED>.\r\u001b[2C\u001b[1B\u001b[K\r\u001b[1B     Disconnect this session\u001b[K\r\u001b[1B     Show QR code\u001b[38;2;153;153;153m  Scan with your phone to open this session\r\u001b[1B\u001b[39m   \u001b[38;2;177;185;249m❯\u001b[39m \u001b[38;2;177;185;249mContinue\u001b[39m\u001b[K\r\u001b[115C\u001b[1B\u001b[K\r\u001b[2C\u001b[1B \u001b[38;2;153;153;153mEnter to select · Esc to continue\u001b[39m\u001b[36;1H\u001b[34;4H",
+      "finalScreen": "\n ▐▛███▛█   Claude Code v2.1.258\n▝▜██████▀  Haiku 4.5 · Claude Max\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/rc-inject-timing/rc-settled\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n   Remote Control\n\n   This session is available in the Claude mobile app and at https://claude.ai/code/session_<REDACTED>.\n\n     Disconnect this session\n     Show QR code  Scan with your phone to open this session\n   ❯ Continue\n                                                                                                                   \n   Enter to select · Esc to continue"
+    }
+  ],
+  "versionAtEnd": "2.1.258 (Claude Code)",
+  "versionDrift": false
+}
