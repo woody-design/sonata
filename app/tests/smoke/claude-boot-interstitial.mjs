@@ -4,12 +4,13 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-// Claude BOOT-INTERSTITIAL guard (upstream sync 2026-09-01, SL-3). The boot
-// ceremony sweep found exactly one screen between spawn and the first idle
-// composer that Sonata could deliver into: the fullscreen-renderer offer. This
-// pins the guard that holds readiness on it.
+// Claude BOOT-INTERSTITIAL guard + banner (upstream sync 2026-09-01, SL-3; the
+// banner half added by SL-18). The boot ceremony sweep found exactly one screen
+// between spawn and the first idle composer that Sonata could deliver into: the
+// fullscreen-renderer offer. This pins the guard that holds readiness on it, and
+// the surface that tells the user WHY the boot is holding.
 //
-// Three fences, one subject:
+// Six fences, one subject:
 //
 //   1. SIGNATURE (`claudeFullscreenOfferOpen`) — fires on the real offer FRAME,
 //      read through a real `TaskScreenModel` so the test drives the same grid
@@ -22,12 +23,20 @@ import { fileURLToPath } from "node:url";
 //      screen, and it outranks the SessionStart hook short-circuit. That last
 //      case is the discriminating one: without the guard the gate reads TRUE
 //      there, the boot latch opens, and delivery writes into the offer.
+//   4. ARMING (SL-18) — the banner watchdog is WRITTEN one-shot, at the spawn
+//      window. Source-shape strength, and labelled as such where it runs.
+//   5. THE WATCHDOG (SL-18) — the offer's SCREEN surfaces needs-attention, the
+//      grid is the channel (a tail-reading regression fires on an answered
+//      offer), and no other screen raises it.
+//   6. CLEARING (SL-18) — the banner retires when the offer leaves the screen,
+//      once, and never without a raise.
 //
-// Plus the RED LINE: the guard writes ZERO bytes. MEASURED (q9 case C), a
-// delivery's paste is discarded at this screen and its submit CR answers
-// `1. Yes, try it` — the CLI re-execs under a new renderer and the user's prompt
-// is gone with no receipt and no error. Sonata holds; the human answers in the
-// co-visible Terminal.
+// Plus the RED LINE, asserted at the byte level in 3 and 5: the guard and the
+// watchdog write ZERO bytes. MEASURED (q9 case C), a delivery's paste is
+// discarded at this screen and its submit CR answers `1. Yes, try it` — the CLI
+// re-execs under a new renderer and the user's prompt is gone with no receipt and
+// no error. Sonata holds and SAYS SO; the human answers in the co-visible
+// Terminal.
 //
 // ── FIXTURE PROVENANCE ──────────────────────────────────────────────────────
 //
@@ -55,6 +64,32 @@ import { fileURLToPath } from "node:url";
 // (approval-panels/trust-2.1.252.txt), reused here as a negative.
 //
 // COMPOSED. Every prose negative below.
+//
+// ── LIVE BACKING FOR §4–6 (SL-18) ───────────────────────────────────────────
+//
+// Fixtures cannot pin a timing claim, and the banner rests on two: that the 4s
+// watchdog lands INSIDE a real offer window, and that the answering repaint
+// actually reaches the coalesced scan the clearing pass rides. Both were measured
+// against a live claude 2.1.258 through the production TerminalHost, with the
+// one-time offer re-armed in a scratch CLAUDE_CONFIG_DIR the way q8 arm B does
+// (probe q36; run twice, both runs tabulated in that spike's findings.md, F61 —
+// TRACKED, unlike the capture, which the probe overwrites per run. The figures
+// below are the SURVIVING capture's, i.e. run 2):
+//
+//   offer on the grid   837ms  ·  acceptsPromptInput() false (the SL-3 hold)
+//   detected           4028ms
+//   the human's Down   4073ms  ·  their Enter ("2. Not now")  4474ms
+//   cleared            4620ms  ·  146ms after the ANSWERING ENTER — the next tick
+//                                 of the 120ms APPROVAL_SCAN_CADENCE_MS the
+//                                 clearing pass rides (148ms on run 1)
+//
+// …and the RED LINE held live: between the offer owning the grid and the human's
+// own keystrokes, NOTHING reached the pty. Sonata's trust-dialog walk wrote at
+// 332/683ms — a different screen, before the offer existed.
+//
+// The cases below are the fixture-level fences on the same behaviour, and they
+// are what runs in CI; the probe is not part of this suite (it needs a live
+// binary, a real config to copy, and ~5s of wall clock).
 const require = createRequire(import.meta.url);
 const {
   TerminalHost,
@@ -413,22 +448,393 @@ await check("no screen model reads CLOSED, never a hold", async () => {
   }
 });
 
+// ── 4. ARMING: one-shot, at the spawn window (SL-18) ────────────────────────
+//
+// Pinned at SOURCE-SHAPE strength, and this section does not pretend otherwise:
+// it reads the product source and asserts on its text. It proves the arming is
+// WRITTEN one-shot; it does not execute a timer. (The same construction, and the
+// same honest limit, as the codex sibling in tests/smoke/codex-trust-dialog.mjs
+// — see that file's section 2b for why a behavioural version was rejected: a
+// >4s wall-clock PTY spawn for one boolean with no runtime inputs, or a
+// never-taken idempotence branch added to the product purely to be observed.)
+//
+// WHAT IT BUYS, honestly. The signature is FORGEABLE by a verbatim quotation —
+// nothing textual can separate a reproduction of the whole widget from the
+// widget, and section 2's "resumed session repainting the offer" case is exactly
+// that shape, held off only by the mode-line negative whose known occlusion
+// window is pinned above. What makes the forgery unreachable is STRUCTURAL: at
+// t+4s of a boot no prompt has been answered, so no model prose exists yet to
+// quote it. That argument survives only while this check is one-shot. Making it
+// periodic is not a hypothetical regression — the clearing pass rides a REPEATING
+// cadence (`scheduleApprovalScan`), the two live in the same file and read the
+// same grid, and unifying them is a natural-looking tidy-up. Nothing else in this
+// suite would notice.
+
+await check("arming: the offer watchdog is written one-shot, at the spawn window", () => {
+  const source = readProductSource("runtime/terminal-host/terminal-host.ts");
+
+  // The window, pinned by VALUE: the whole "no prose exists yet" argument is
+  // about this number being a BOOT window, so a silent widening must not pass.
+  assert.match(
+    source,
+    /const CLAUDE_BOOT_FULLSCREEN_OFFER_CHECK_MS = 4000;/,
+    "the offer watchdog's window is 4000ms",
+  );
+
+  // Exactly ONE arming site, and it is a setTimeout — never an interval.
+  const armings = source.match(/this\.claudeFullscreenOfferTimer = setTimeout\(/g) ?? [];
+  assert.equal(armings.length, 1, "the timer is armed in exactly one place");
+  assert.equal(
+    /claudeFullscreenOfferTimer\s*=\s*setInterval/.test(source),
+    false,
+    "and never from setInterval — a periodic offer check is the forgery regression",
+  );
+
+  // ONE-SHOT: the handle is nulled as the callback's FIRST act, so the callback
+  // has no live handle to re-arm and no second firing to schedule.
+  assert.match(
+    source,
+    /this\.claudeFullscreenOfferTimer = setTimeout\(\(\) => \{\s*this\.claudeFullscreenOfferTimer = null;/,
+    "the callback drops its own handle before doing anything else",
+  );
+
+  // Claude-only, and armed on the SPAWN path — not on a data or readiness path,
+  // which is what would make it re-triggerable within a session.
+  const spawnBlock = source.slice(
+    source.indexOf('if (this.profile.provider === "claude") {\n      this.claudeFullscreenOfferTimer'),
+    source.indexOf("this.claudeFullscreenOfferTimer.unref?.();"),
+  );
+  assert.ok(spawnBlock.length > 0, "the arming sits inside the claude provider branch");
+  assert.match(spawnBlock, /CLAUDE_BOOT_FULLSCREEN_OFFER_CHECK_MS/, "…using the boot window constant");
+
+  // Teardown clears it, so a dead/replaced session can never fire the watchdog it
+  // armed — the other half of "once per spawn".
+  assert.match(
+    source,
+    /if \(this\.claudeFullscreenOfferTimer\) \{\s*clearTimeout\(this\.claudeFullscreenOfferTimer\);\s*this\.claudeFullscreenOfferTimer = null;\s*\}/,
+    "disposeProcess clears the armed timer",
+  );
+
+  // ONE CALL SITE — the assertion that actually names the regression this section
+  // is about (SL-18 review, minor 1). Everything above pins the TIMER; none of it
+  // pins where the CHECK is invoked from, so the specific tidy-up the section
+  // header warns about — moving the detect check onto the repeating scan next to
+  // its own clearing pass, which reads like a simplification — passed every one of
+  // them. A periodic detect fires during a live turn, where model prose CAN quote
+  // the offer's wording onto the grid, and the whole forgery argument collapses.
+  const invocations = source.match(/this\.checkClaudeBootFullscreenOffer\(\)/g) ?? [];
+  assert.equal(invocations.length, 1, "the offer check is invoked from exactly one place");
+  assert.match(
+    settledApprovalScanBody(source),
+    /^(?!.*checkClaudeBootFullscreenOffer)/s,
+    "…and that place is NOT the repeating settled-grid scan",
+  );
+});
+
+// ── 5. THE WATCHDOG: surface, never answer (SL-18) ──────────────────────────
+//
+// SL-3 made readiness HOLD here. That hold is right and it is SILENT — the task
+// reads "starting", the queued prompt waits, and nothing tells the user the CLI
+// is parked on a question only the terminal pane can answer. These cases pin the
+// surface that ends the silence, and the red line it lives under.
+
+await check("watchdog: the offer SCREEN surfaces needs-attention with NO bytes written", async () => {
+  const writes = [];
+  const events = [];
+  const host = await hostShowing(OFFER_FRAME, { writes, events });
+  try {
+    host.checkClaudeBootFullscreenOffer();
+
+    const detected = events.filter((e) => e.type === "claude-fullscreen-offer:detected");
+    assert.equal(detected.length, 1, "exactly one claude-fullscreen-offer:detected emitted");
+    assert.equal(detected[0].payload.taskId, "claude-boot-interstitial-smoke");
+    assert.deepEqual(writes, [], "RED LINE: the watchdog writes NO keys to the pty");
+  } finally {
+    host.dispose();
+  }
+});
+
+await check("watchdog: reads the GRID, not the pty tail", async () => {
+  // The tail CONTRADICTS the screen, or this case would prove nothing: it still
+  // holds the offer — where the offer's bytes stay forever, which is the whole
+  // reason SL-3's signature moved off the stream — while the grid has repainted
+  // past it to the MEASURED answered composer. A watchdog that regressed to
+  // reading `rawTail` raises a banner here, over an offer already answered.
+  //
+  // The tail is the offer ALONE, and the reason is worth stating rather than
+  // hiding, because it BOUNDS what this case proves. On the ordinary production
+  // tail — offer bytes followed by the answered composer's — a tail read already
+  // returns false, because the signature's third condition (a composer's
+  // glyph-anchored mode line on the frame) is channel-agnostic and defuses it.
+  // So the channel choice is not what saves that everyday case; condition 3 is.
+  // What condition 3 canNOT defuse is a frame carrying the offer with no legible
+  // mode line under it — the measured Ctrl-C occlusion window pinned in section
+  // 2, and any stream window whose composer paint has not landed yet. Stripping
+  // the tail to the offer isolates exactly that residual, which is the class this
+  // watchdog's channel is load-bearing for.
+  const events = [];
+  const host = await hostShowing(ANSWERED_FRAME, { tail: OFFER_FRAME, events });
+  try {
+    assert.equal(
+      claudeFullscreenOfferOpen(host.rawTail),
+      true,
+      "premise: a tail-reading watchdog WOULD fire here",
+    );
+    assert.equal(
+      claudeFullscreenOfferOpen(host.screenModel.viewportText()),
+      false,
+      "…and the grid, which the watchdog actually reads, says the offer is gone",
+    );
+    host.checkClaudeBootFullscreenOffer();
+    assert.equal(
+      events.filter((e) => e.type === "claude-fullscreen-offer:detected").length,
+      0,
+      "an answered offer lingering in the tail must not raise the banner",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+await check("watchdog: an ordinary boot surfaces nothing — no banner flash", async () => {
+  // The release-notes boot screen from section 2: a banner over a LIVE composer,
+  // measured `ready` at 937ms. It is the state the overwhelming majority of boots
+  // are in when the watchdog elapses, and it must produce silence.
+  const events = [];
+  const notesFrame =
+    " ▐▛███▛█   Claude Code v2.1.257\n" +
+    "  Updated to latest. Got 62 features, 379 bugfixes, and 211 other changes.\n" +
+    "  code.claude.com/docs/en/changelog for details\n" +
+    "❯ \n" +
+    "  ⏸ manual mode on · ← for agents";
+  const host = await hostShowing(notesFrame, { events });
+  try {
+    assert.equal(host.acceptsPromptInput(), true, "premise: this is a healthy boot");
+    host.checkClaudeBootFullscreenOffer();
+    assert.equal(
+      events.filter((e) => e.type === "claude-fullscreen-offer:detected").length,
+      0,
+      "no banner without the offer signature",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+await check("watchdog: a codex session can never raise the claude banner", async () => {
+  // Provider scoping is carried by the predicate itself (`isFullscreenOfferOpen`
+  // is claude-only), so a codex host handed the offer's own frame stays silent.
+  // The claude and codex watchdogs share a settled-grid pass in production; this
+  // is what keeps that sharing from crossing the providers.
+  const events = [];
+  const host = await hostShowing(OFFER_FRAME, { provider: "codex", events });
+  try {
+    host.checkClaudeBootFullscreenOffer();
+    assert.equal(
+      events.filter((e) => e.type === "claude-fullscreen-offer:detected").length,
+      0,
+      "a claude-shaped needle cannot fire on a codex host",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+// ── 6. CLEARING (SL-18) ─────────────────────────────────────────────────────
+//
+// ONE leg, where the codex trust-dialog sibling has two, and the asymmetry is
+// structural. `isCodexTrustDialogOpen()` is ranked BELOW the SessionStart
+// short-circuit, so a hook-live codex session can read ready with the answered
+// dialog's cells still on the grid — hence that banner's second, readiness-shaped
+// disjunct. `isFullscreenOfferOpen()` is ranked ABOVE that short-circuit (pinned
+// in section 3), so while the offer owns the grid `acceptsPromptInput()` is false
+// BY CONSTRUCTION and a readiness disjunct could never be the one that fires. The
+// grid leaving the offer behind is the only operative signal, and the case below
+// isolates it: the tail is left holding the offer, so only the grid can tell.
+
+await check("clearing: the pass is WIRED into the repeating settled-grid scan", () => {
+  // THE GAP THIS CLOSES (SL-18 review, minor 1 — family-wide). Every behavioural
+  // case in this section calls `checkClaudeFullscreenOfferCleared()` by hand, so
+  // they pin what the method DOES and nothing at all about whether the product
+  // ever calls it. Delete the ride-along from `scheduleApprovalScan` and the whole
+  // suite stayed green while the banner became un-retirable short of `pty:exit` —
+  // a stale "answer it in the CLI" pointer standing over a live composer, which is
+  // precisely the pointer-at-nothing this family's copy is not allowed to be.
+  //
+  // The gap was inherited verbatim from the codex trust-dialog sibling, whose
+  // clearing cases call their method directly for the same reason. So the fence is
+  // written FAMILY-WIDE and duplicated into both smokes rather than living in one:
+  // the site is shared, and each member's own test must fail when that site loses
+  // EITHER call — a fence that lives only in the sibling's file is a fence the
+  // person deleting your call never runs.
+  //
+  // Source-shape strength, and scoped to the CALLBACK rather than the file: what
+  // matters is not that the name appears somewhere in terminal-host.ts but that it
+  // is invoked from the REPEATING scan, which is the thing that makes the banner
+  // retire promptly (MEASURED at 146ms after the answering Enter — see the live
+  // backing in this file's header).
+  const body = settledApprovalScanBody(readProductSource("runtime/terminal-host/terminal-host.ts"));
+  assert.match(
+    body,
+    /this\.checkClaudeFullscreenOfferCleared\(\);/,
+    "the claude offer banner's clearing pass rides the settled-grid scan",
+  );
+  assert.match(
+    body,
+    /this\.checkCodexTrustDialogCleared\(\);/,
+    "…and so does its codex sibling — one site, both members, neither droppable alone",
+  );
+});
+
+await check("clearing: the offer leaves the SCREEN → cleared, exactly once", async () => {
+  const events = [];
+  const host = await hostShowing(OFFER_FRAME, { events });
+  try {
+    host.checkClaudeBootFullscreenOffer();
+    assert.equal(
+      events.filter((e) => e.type === "claude-fullscreen-offer:detected").length,
+      1,
+      "banner raised",
+    );
+
+    // The human answered in the CLI; the screen repainted past the offer. The
+    // MEASURED answered frame, and the tail deliberately still carries the offer.
+    const answered = host.screenModel;
+    host.screenModel = await screenModelFor(ANSWERED_FRAME.replaceAll("\n", "\r\n"));
+    answered.dispose();
+    assert.equal(
+      claudeFullscreenOfferOpen(host.rawTail),
+      true,
+      "the offer is still in the tail — only the grid says it is gone",
+    );
+    host.checkClaudeFullscreenOfferCleared();
+
+    const cleared = events.filter((e) => e.type === "claude-fullscreen-offer:cleared");
+    assert.equal(cleared.length, 1, "exactly one claude-fullscreen-offer:cleared emitted");
+    assert.equal(cleared[0].payload.taskId, "claude-boot-interstitial-smoke");
+
+    // One-shot: a second pass over the same state says nothing more.
+    host.checkClaudeFullscreenOfferCleared();
+    assert.equal(
+      events.filter((e) => e.type === "claude-fullscreen-offer:cleared").length,
+      1,
+      "cleared is emitted at most once per detection",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+await check("clearing: a still-open offer keeps the banner up", async () => {
+  // The pass runs on every settled grid while the banner is raised, so the frames
+  // BEFORE the answer must say nothing — a `cleared` here would retire the banner
+  // over an offer that is still waiting for the human.
+  const events = [];
+  const host = await hostShowing(OFFER_FRAME, { events });
+  try {
+    host.checkClaudeBootFullscreenOffer();
+    host.checkClaudeFullscreenOfferCleared();
+    host.checkClaudeFullscreenOfferCleared();
+    assert.equal(
+      events.filter((e) => e.type === "claude-fullscreen-offer:cleared").length,
+      0,
+      "the offer still owns the grid",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+await check("clearing: a banner that was never raised is never 'cleared'", async () => {
+  const events = [];
+  const host = await hostShowing(ANSWERED_FRAME, { events });
+  try {
+    host.checkClaudeFullscreenOfferCleared();
+    assert.equal(
+      events.filter((e) => e.type === "claude-fullscreen-offer:cleared").length,
+      0,
+      "no cleared without a detected",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+await check("clearing: a dead PTY resets the flag instead of leaking a stale verdict", async () => {
+  // `disposeProcess` emits no `cleared` on the way out — the renderer retires the
+  // banner on the task's `pty:exit`. What the host owes is that the NEXT spawn
+  // starts from scratch: a surfaced flag inherited across a teardown would make
+  // the first post-answer repaint of the next session emit a `cleared` for a
+  // banner this session never raised.
+  const events = [];
+  const host = await hostShowing(OFFER_FRAME, { events });
+  try {
+    host.checkClaudeBootFullscreenOffer();
+    assert.equal(
+      events.filter((e) => e.type === "claude-fullscreen-offer:detected").length,
+      1,
+      "banner raised",
+    );
+    host.dispose();
+    events.length = 0;
+
+    // A fresh session on a screen with no offer: the flag must be down, so the
+    // clearing pass has nothing to retire.
+    host.ptyProcess = fakePty([]);
+    host.screenModel = await screenModelFor(ANSWERED_FRAME.replaceAll("\n", "\r\n"));
+    host.checkClaudeFullscreenOfferCleared();
+    assert.equal(
+      events.filter((e) => e.type === "claude-fullscreen-offer:cleared").length,
+      0,
+      "teardown reset the surfaced flag",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
 // ── harness ─────────────────────────────────────────────────────────────────
+
+/** Read a product source file for the source-shape fence in section 4 (the
+ *  tests/smoke/codex-trust-dialog.mjs and terminal-grid-substrate.mjs pattern).
+ *  Source, never dist: the fence is about what is WRITTEN, and a compiler could
+ *  legitimately reshape the emitted form. */
+function readProductSource(relative) {
+  return fs.readFileSync(path.resolve(FIXTURES, "../../src", relative), "utf8");
+}
+
+/** The body of `scheduleApprovalScan` — the REPEATING, throttled grid pass. Sliced
+ *  rather than grepped file-wide because both fences that use it are claims about
+ *  WHERE a call lives, not whether the name occurs: the clearing pass must be
+ *  inside this callback (so the banner retires on a repaint) and the detect check
+ *  must be outside it (so it stays one-shot at the boot window). The slice is
+ *  anchored on the method's own opening line and the cadence constant that closes
+ *  its setTimeout, both of which are pinned by name elsewhere in this family. */
+function settledApprovalScanBody(source) {
+  const start = source.indexOf("private scheduleApprovalScan(): void {");
+  assert.notEqual(start, -1, "premise: scheduleApprovalScan is still spelled that way");
+  const end = source.indexOf("}, APPROVAL_SCAN_CADENCE_MS);", start);
+  assert.notEqual(end, -1, "premise: the scan still closes on the cadence constant");
+  return source.slice(start, end);
+}
 
 /** A host parked on one screen, with BOTH channels populated: the grid the
  *  guard reads AND the pty tail the composer scrape reads. Setting the tail is
  *  not decoration — leaving it empty makes `detectIdlePrompt` fail on a
  *  degenerate `lastPromptIndex === -1`, so every gate case would "pass" without
  *  the scrape ever being open, and the guard would be pinned by nothing. */
-async function hostShowing(frame, { tail = frame, provider = "claude", writes = [] } = {}) {
+async function hostShowing(
+  frame,
+  { tail = frame, provider = "claude", writes = [], events = null } = {},
+) {
   const host =
     provider === "claude"
-      ? makeClaudeHost()
+      ? makeClaudeHost(events)
       : new TerminalHost({
           taskId: "claude-boot-interstitial-smoke-codex",
           provider,
           defaultWorkspace: process.cwd(),
-          eventSink: () => {},
+          eventSink: events ? (event) => events.push(event) : () => {},
         });
   host.ptyProcess = fakePty(writes);
   host.screenModel = await screenModelFor(frame.replaceAll("\n", "\r\n"));
@@ -465,12 +871,12 @@ function fakePty(writes) {
   };
 }
 
-function makeClaudeHost() {
+function makeClaudeHost(events = null) {
   return new TerminalHost({
     taskId: "claude-boot-interstitial-smoke",
     provider: "claude",
     defaultWorkspace: process.cwd(),
-    eventSink: () => {},
+    eventSink: events ? (event) => events.push(event) : () => {},
   });
 }
 

@@ -293,6 +293,22 @@ const CODEX_BOOT_UPDATE_CHECK_MS = 4000;
  *  constant rather than shared, so a future measurement can move one gate's
  *  window without silently moving the other's. One-shot; codex-only. */
 const CODEX_BOOT_TRUST_DIALOG_CHECK_MS = 4000;
+/** How long after a CLAUDE spawn to check for the fullscreen-renderer boot offer
+ *  (SL-18). The same 4000ms as its two codex siblings above, and — as with them —
+ *  the number only has to clear a HEALTHY boot, because the signature match is
+ *  the real discriminator. MEASURED at claude 2.1.257 (SL-3 F7, probe q8): the
+ *  production ceremony reaches `acceptsPromptInput()` at 1399ms, and on the arm
+ *  where the offer paints it paints at ~940ms and then STANDS — 60s open with no
+ *  SessionStart hook and no repaint. So t+4s lands well past a healthy boot and
+ *  well inside an offer that is genuinely waiting for a human.
+ *
+ *  ONE-SHOT, and that is load-bearing rather than an economy: at t+4s of a boot
+ *  no prompt has been answered, so no model prose exists that could quote the
+ *  offer's own wording back onto the grid. A periodic re-check would fire during
+ *  a live turn, where such prose IS reachable — the same forgery argument
+ *  `CODEX_BOOT_TRUST_DIALOG_CHECK_MS` carries, and the same regression the smoke
+ *  pins the arming shape against. Claude-only; codex has no such offer. */
+const CLAUDE_BOOT_FULLSCREEN_OFFER_CHECK_MS = 4000;
 /**
  * Terminal traffic that is NOT the human composing a line — emulator-generated
  * query replies AND mouse activity. xterm.js relays all of these through the
@@ -667,6 +683,18 @@ export class TerminalHost extends EventEmitter {
    *  emitted for a banner that was never raised. Reset on teardown, so the next
    *  spawn re-detects from scratch rather than inheriting a stale verdict. */
   private codexTrustDialogSurfaced = false;
+  // One-shot boot watchdog (claude only): fires the fullscreen-renderer offer's
+  // needs-attention banner if the SCREEN matches the offer signature when it
+  // elapses. Armed in startTask, cleared on teardown — the claude member of the
+  // same family as the two codex timers above.
+  private claudeFullscreenOfferTimer: NodeJS.Timeout | null = null;
+  /** The fullscreen-offer banner is currently raised for this session (SL-18).
+   *  Gates the clearing pass exactly as `codexTrustDialogSurfaced` does: it is
+   *  what makes that pass free on every session that never saw the offer (which,
+   *  the offer being one-time per account, is nearly all of them), and what keeps
+   *  `cleared` from ever being emitted for a banner that was never raised. Reset
+   *  on teardown. */
+  private claudeFullscreenOfferSurfaced = false;
   private fileSnapshot = new Map<string, SnapshotEntry>();
   /**
    * The workspace stat state captured at the START of the active run (OBS S6 /
@@ -1474,9 +1502,10 @@ export class TerminalHost extends EventEmitter {
       this.setRemoteControlActive(true);
     }
 
-    // Boot watchdogs: surface the two codex screens that can park a boot instead
-    // of the composer — the "Update available!" gate (S4) and the directory-trust
-    // dialog (codex-trust S2). Codex-only; one-shot; neither ever writes a key.
+    // Boot watchdogs: surface the screens that can park a boot instead of the
+    // composer. Codex has two — the "Update available!" gate (S4) and the
+    // directory-trust dialog (codex-trust S2); claude has one — the
+    // fullscreen-renderer offer (SL-18). One-shot each; none ever writes a key.
     if (this.profile.provider === "codex") {
       this.codexBootUpdateTimer = setTimeout(() => {
         this.codexBootUpdateTimer = null;
@@ -1493,6 +1522,18 @@ export class TerminalHost extends EventEmitter {
         this.screenModel?.whenSettled(() => this.checkCodexBootTrustDialog());
       }, CODEX_BOOT_TRUST_DIALOG_CHECK_MS);
       this.codexTrustDialogTimer.unref?.();
+    }
+    if (this.profile.provider === "claude") {
+      this.claudeFullscreenOfferTimer = setTimeout(() => {
+        this.claudeFullscreenOfferTimer = null;
+        // Same drain discipline as the trust watchdog above: read the grid only
+        // once every pending write has landed, so the check sees the COMPLETE
+        // boot frame. No screen model means no PTY and therefore no detection —
+        // the grid is the only substrate this signature has, so its absence
+        // reads "nothing on screen", never "hold".
+        this.screenModel?.whenSettled(() => this.checkClaudeBootFullscreenOffer());
+      }, CLAUDE_BOOT_FULLSCREEN_OFFER_CHECK_MS);
+      this.claudeFullscreenOfferTimer.unref?.();
     }
 
     return {
@@ -1627,6 +1668,95 @@ export class TerminalHost extends EventEmitter {
     }
     this.codexTrustDialogSurfaced = false;
     this.emitEvent("codex-trust-dialog:cleared", { taskId: this.taskId });
+  }
+
+  /**
+   * The claude boot watchdog elapsed. If the reconstructed SCREEN matches the
+   * fullscreen-renderer offer, surface a passive needs-attention banner so the
+   * user answers it in the CLI window (SL-18).
+   *
+   * THE GAP THIS CLOSES. SL-3 taught readiness to HOLD on this screen, and the
+   * hold is right: MEASURED (F8, claude 2.1.257), a delivery's paste is DISCARDED
+   * here and its submit CR answers the focused `1. Yes, try it`, after which the
+   * CLI re-execs under a new renderer and the user's prompt is gone with no
+   * receipt and no error. But the hold is SILENT — the task reads "starting", the
+   * queued prompt waits, and nothing tells the user the CLI is parked on a
+   * question only the terminal pane can answer. Codex's parked boots have said so
+   * since codex-trust S2; this is the same honesty for claude.
+   *
+   * RED LINE: Sonata NEVER answers this offer. Not a key, not an Enter, not ever
+   * — the standing rule the Rewind panel and the codex trust dialog carry, and
+   * here it is doubly earned, because the destructive answer is the DEFAULT
+   * focused row. This method emits an event and writes NOTHING to the pty.
+   *
+   * NO READINESS CONJUNCT, where `checkCodexBootTrustDialog` has one — and the
+   * omission is a fact about the ranking, not a relaxation. `isFullscreenOfferOpen()`
+   * is ranked ABOVE the SessionStart short-circuit inside `acceptsPromptInput()`
+   * (SL-3; pinned by "the guard OUTRANKS the SessionStart hook short-circuit" in
+   * tests/smoke/claude-boot-interstitial.mjs), so an open offer forces
+   * `acceptsPromptInput()` false with no path around it. `!acceptsPromptInput()`
+   * would therefore be a branch that can never be taken — defensive noise by this
+   * codebase's own standard. Its codex sibling's conjunct is load-bearing only
+   * because `isCodexTrustDialogOpen()` is ranked BELOW that short-circuit. If a
+   * future sync re-ranks this guard, this comment is the flag: the conjunct comes
+   * back, here and in `checkClaudeFullscreenOfferCleared`.
+   *
+   * What keeps the signature unforgeable is the OTHER guard, which is the
+   * load-bearing one for the codex pair too: this check is ONE-SHOT at
+   * `CLAUDE_BOOT_FULLSCREEN_OFFER_CHECK_MS` after the spawn, and at t+4s of a boot
+   * no prompt has been answered, so no model prose exists that could quote the
+   * offer's wording back onto the grid.
+   */
+  private checkClaudeBootFullscreenOffer(): void {
+    if (!this.ptyProcess || !this.isFullscreenOfferOpen()) {
+      return;
+    }
+    this.claudeFullscreenOfferSurfaced = true;
+    this.emitEvent("claude-fullscreen-offer:detected", { taskId: this.taskId });
+  }
+
+  /**
+   * The raised fullscreen-offer banner has nothing left to point at (SL-18).
+   * Rides the coalesced settled-grid scan while — and only while — the banner is
+   * up, so it retires the moment the human answers rather than waiting for
+   * `pty:exit`. The repaint that answers it is unmissably printable, which is
+   * exactly what arms that scan. MEASURED for the decline path end to end (SL-18
+   * F61 / probe q36 at claude 2.1.258, surviving capture: offer on the grid at
+   * 837ms, `detected` at 4028ms, the human's Down at 4073ms and Enter at 4474ms,
+   * `cleared` at 4620ms — i.e. **146ms after the answering Enter**, against a
+   * 120ms `APPROVAL_SCAN_CADENCE_MS`, so the banner retires on the very next scan
+   * tick after the repaint) and, for the row itself, in SL-3 F8 case (c), where
+   * the composer was up 300ms after the answer. Both runs' figures live in F61;
+   * the capture file is overwritten per run, the finding is not. The
+   * ACCEPT path is reasoned rather than banner-measured: F8 case C measured it
+   * re-exec'ing the CLI IN PLACE — same pid, so this pty and this grid survive —
+   * and a re-exec repaints the whole boot, which is both printable and offerless.
+   * Esc is in the widget's own footer (`Enter to confirm · Esc to cancel`) and is
+   * NOT measured; nothing here depends on it, since the pass is keyed on the
+   * offer's absence rather than on how it left.
+   *
+   * The retirement test is the exact NEGATION of what raised it, and the raise is
+   * a single term, so this is too: the offer left the SCREEN. No readiness
+   * disjunct, for the reason spelled out on `checkClaudeBootFullscreenOffer` —
+   * ranked above the hook short-circuit, `acceptsPromptInput()` cannot read true
+   * while the offer owns the grid, so such a disjunct could never be the one that
+   * fires. The grid is the right and only channel here: the offer's bytes never
+   * leave the pty tail, which is why SL-3's signature reads the grid at all (D-1).
+   *
+   * One-shot per detection, by the `claudeFullscreenOfferSurfaced` gate: no
+   * `cleared` without a `detected`, and no repeats. That gate is also why this
+   * costs nothing on the hot path — it is false for every session that never saw
+   * the offer, which (the offer being one-time per account) is nearly all of them.
+   */
+  private checkClaudeFullscreenOfferCleared(): void {
+    if (!this.claudeFullscreenOfferSurfaced) {
+      return;
+    }
+    if (this.isFullscreenOfferOpen()) {
+      return;
+    }
+    this.claudeFullscreenOfferSurfaced = false;
+    this.emitEvent("claude-fullscreen-offer:cleared", { taskId: this.taskId });
   }
 
   writeRaw(data: string): void {
@@ -3330,11 +3460,16 @@ export class TerminalHost extends EventEmitter {
       clearTimeout(this.codexTrustDialogTimer);
       this.codexTrustDialogTimer = null;
     }
-    // No `cleared` event on the way out: the renderer retires this banner on the
+    if (this.claudeFullscreenOfferTimer) {
+      clearTimeout(this.claudeFullscreenOfferTimer);
+      this.claudeFullscreenOfferTimer = null;
+    }
+    // No `cleared` event on the way out: the renderer retires these banners on the
     // task's `pty:exit`, exactly as it does the update-gate one. Resetting the
-    // flag is what lets the next spawn detect the dialog again from scratch
+    // flags is what lets the next spawn detect the dialog/offer again from scratch
     // instead of inheriting the dead session's verdict.
     this.codexTrustDialogSurfaced = false;
+    this.claudeFullscreenOfferSurfaced = false;
     if (!this.ptyProcess) {
       return;
     }
@@ -3531,6 +3666,13 @@ export class TerminalHost extends EventEmitter {
         // welcome box + composer) is unmissably printable, which is exactly what
         // arms this scan. Gated on a raised banner, so it is a no-op otherwise.
         this.checkCodexTrustDialogCleared();
+        // The claude member of the same pair (SL-18), riding the same cadence for
+        // the same reasons — same settled grid, same kind of question, and the
+        // repaint that answers the offer (a re-exec's whole boot, or the composer
+        // painting under `Not now`/Esc) is what arms the scan. Also gated on a
+        // raised banner. Both calls are provider-scoped by their own predicates,
+        // so neither can fire on the other's frames.
+        this.checkClaudeFullscreenOfferCleared();
       });
     }, APPROVAL_SCAN_CADENCE_MS);
   }

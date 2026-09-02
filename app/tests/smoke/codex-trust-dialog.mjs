@@ -420,6 +420,58 @@ await check("watchdog: a ready composer suppresses the banner even with the dial
 // which the short-circuit fires — while still avoiding a false hold on a
 // post-answer session the CLI has already declared started.
 
+await check("clearing: the pass is WIRED into the repeating settled-grid scan", () => {
+  // THE GAP THIS CLOSES (found in the SL-18 review, closed FAMILY-WIDE). Both legs
+  // below call `checkCodexTrustDialogCleared()` by hand, so they pin what the
+  // method DOES and nothing at all about whether the product ever calls it. Delete
+  // the ride-along from `scheduleApprovalScan` and this whole suite stayed green
+  // while the banner became un-retirable short of `pty:exit` — a stale "answer it
+  // in the CLI window" pointer standing over a live composer, i.e. exactly the
+  // plan-L2 improvement over the update-gate template silently reverted.
+  //
+  // SL-18 added a claude member to this same shared site, and inherited this gap
+  // verbatim. Hence a fence that names BOTH calls, duplicated into both smokes
+  // rather than living in one: the site is shared, and each member's own test must
+  // fail when it loses EITHER call — a fence that lives only in the sibling's file
+  // is a fence the person deleting your call never runs.
+  //
+  // Source-shape strength (the section 2b pattern and rationale), and scoped to
+  // the CALLBACK rather than the file: what matters is not that the name appears
+  // somewhere in terminal-host.ts but that it is invoked from the REPEATING scan,
+  // which is what makes the banner retire on the answering repaint instead of at
+  // the end of the session.
+  const source = readProductSource("runtime/terminal-host/terminal-host.ts");
+  const start = source.indexOf("private scheduleApprovalScan(): void {");
+  assert.notEqual(start, -1, "premise: scheduleApprovalScan is still spelled that way");
+  const end = source.indexOf("}, APPROVAL_SCAN_CADENCE_MS);", start);
+  assert.notEqual(end, -1, "premise: the scan still closes on the cadence constant");
+  const body = source.slice(start, end);
+
+  assert.match(
+    body,
+    /this\.checkCodexTrustDialogCleared\(\);/,
+    "the trust banner's clearing pass rides the settled-grid scan",
+  );
+  assert.match(
+    body,
+    /this\.checkClaudeFullscreenOfferCleared\(\);/,
+    "…and so does its claude sibling — one site, both members, neither droppable alone",
+  );
+
+  // The mirror of section 2b's one-shot claim, and the assertion that names the
+  // regression that section's header warns about: the DETECT check must stay OUT
+  // of this repeating callback. Nothing else in this file would notice it moving
+  // in, and a periodic trust check fires during a live turn — where model prose
+  // exists and a verbatim quotation of the dialog is reachable.
+  const invocations = source.match(/this\.checkCodexBootTrustDialog\(\)/g) ?? [];
+  assert.equal(invocations.length, 1, "the trust check is invoked from exactly one place");
+  assert.equal(
+    /checkCodexBootTrustDialog/.test(body),
+    false,
+    "…and that place is NOT the repeating settled-grid scan",
+  );
+});
+
 await check("clearing, leg 1: the dialog leaves the SCREEN → cleared", async () => {
   const events = [];
   const host = makeCodexHost(events);

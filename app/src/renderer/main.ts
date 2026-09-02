@@ -154,6 +154,7 @@ import {
   initBannersView,
   noteCliSessionStartDiagnosis,
   renderAttentionBanners,
+  setClaudeFullscreenOffer,
   setCodexHooksMissing,
   setCodexResumableExit,
   setCodexTrustDialog,
@@ -2225,13 +2226,31 @@ window.sonataRuntime.onRuntimeEvent((event) => {
     renderAttentionBanners();
     return;
   }
+  // Claude's fullscreen-renderer boot offer (SL-18) — the claude member of the
+  // same renderer-local boot-interstitial pair, wired identically because it has
+  // the same genuine clearing signal: the terminal-host watches the screen grid
+  // and says when the offer is gone, so the banner retires the moment the user
+  // answers. RED LINE: neither this route nor the banner it raises ever answers
+  // the offer — see `checkClaudeBootFullscreenOffer`.
+  if (event.type === "claude-fullscreen-offer:detected") {
+    setClaudeFullscreenOffer(event.payload.taskId, true);
+    renderAttentionBanners();
+    return;
+  }
+  if (event.type === "claude-fullscreen-offer:cleared") {
+    setClaudeFullscreenOffer(event.payload.taskId, false);
+    renderAttentionBanners();
+    return;
+  }
   if (event.type === "pty:exit") {
     setCodexUpdatePrompt(event.payload.taskId, false);
     // The belt to the grid-watch's braces: a session killed WHILE the dialog is
     // still up emits no `cleared` (the host resets its flag silently on
     // teardown), and a banner pointing into a dead CLI window is exactly the
-    // pointer-at-nothing the family's SL-6 exception was written about.
+    // pointer-at-nothing the family's SL-6 exception was written about. The
+    // fullscreen offer is the same shape and gets the same belt.
     setCodexTrustDialog(event.payload.taskId, false);
+    setClaudeFullscreenOffer(event.payload.taskId, false);
     renderAttentionBanners();
   }
   // A codex session ended outside Sonata's lifecycle, conversation intact (SL-6) — same

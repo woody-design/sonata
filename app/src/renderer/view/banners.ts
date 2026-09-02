@@ -113,6 +113,29 @@ export function setCodexTrustDialog(taskId: string, open: boolean): void {
 }
 
 /**
+ * Claude's fullscreen-renderer BOOT offer is on screen (SL-18). Renderer-LOCAL,
+ * same family as the three codex stores above and for the same reason: it is a
+ * terminal-homed interaction that owes Reading a passive banner, not a reading
+ * fact. Keyed by taskId so a background session's parked boot is remembered and
+ * shown when it becomes active.
+ *
+ * Fed by main.ts from `claude-fullscreen-offer:detected`, and retired the same
+ * three ways as its codex trust-dialog sibling: `claude-fullscreen-offer:cleared`
+ * (the human answered — the terminal-host watches the grid and says so), that
+ * task's `pty:exit` (for the session killed while the offer is still up), and a
+ * dismissal. `clearTaskBanners` sweeps it with the rest.
+ */
+const claudeFullscreenOffer = new Set<string>();
+
+export function setClaudeFullscreenOffer(taskId: string, open: boolean): void {
+  if (open) {
+    claudeFullscreenOffer.add(taskId);
+  } else {
+    claudeFullscreenOffer.delete(taskId);
+  }
+}
+
+/**
  * A codex session died without Sonata killing it and its conversation can be
  * resumed (SL-6 — the openai/codex #36005 silent-exit class). Renderer-LOCAL,
  * same family as the two above. The value is the honest detail the copy needs:
@@ -176,12 +199,13 @@ export function clearTaskBanners(taskId: string): void {
   codexHooksMissing.delete(taskId);
   codexUpdatePrompt.delete(taskId);
   codexTrustDialog.delete(taskId);
+  claudeFullscreenOffer.delete(taskId);
   codexResumableExit.delete(taskId);
   cliSessionStartDismissed.delete(taskId);
   // The S4 diagnosis lives in the state atom rather than a store up here (see the
   // field's own note: the composer reads it too), but it is task-keyed banner state
   // like the others and belongs to the same sweep — one function, so a removed task
-  // cannot leave any of the six behind.
+  // cannot leave any of the seven behind.
   clearCliSessionStartBlocked(state, taskId);
 }
 
@@ -292,6 +316,37 @@ export function renderAttentionBanners(view = activeTaskView(state)): void {
           "Codex is asking whether to trust this folder — answer in the CLI window",
           () => {
             codexTrustDialog.delete(taskId);
+            renderAttentionBanners();
+          },
+        ),
+      );
+    }
+    // Claude's fullscreen-renderer boot offer is on screen and the composer never
+    // came up (SL-18). The claude member of the boot-interstitial pair above, and
+    // it exists because SL-3's readiness hold — correct, and the reason nothing is
+    // lost here — is otherwise SILENT: the task reads "starting" and the user is
+    // never told the CLI is waiting on an answer only the terminal pane can give.
+    //
+    // RED LINE: Sonata NEVER answers this offer — not from here, not from the
+    // watchdog that raised it (see `checkClaudeBootFullscreenOffer`). MEASURED at
+    // 2.1.257, a delivery's Enter answers the DEFAULT focused row and the queued
+    // prompt is destroyed with no receipt; the choice of renderer is the user's
+    // own, about their own tool. So this banner does the one honest thing left:
+    // name what is happening and point at the window where it is visible. Dismiss
+    // clears the renderer-local flag; the banner also retires by itself the moment
+    // the offer leaves the screen.
+    //
+    // COPY: PENDING WOODY (SL-18). Implemented behind the proposed string and
+    // pinned in tests/smoke/ui-vocabulary-corpus.mjs with the same PENDING marker
+    // — see that pin's note for the alternates that were put up with it.
+    if (claudeFullscreenOffer.has(view.task.id)) {
+      const taskId = view.task.id;
+      banners.push(
+        attentionBanner(
+          "claude-fullscreen-offer",
+          "Claude is asking about its new fullscreen display — answer in the CLI window",
+          () => {
+            claudeFullscreenOffer.delete(taskId);
             renderAttentionBanners();
           },
         ),

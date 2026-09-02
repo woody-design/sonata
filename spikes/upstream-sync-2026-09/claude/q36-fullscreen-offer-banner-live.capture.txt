@@ -1,0 +1,78 @@
+{
+  "probe": "q36-fullscreen-offer-banner-live",
+  "version": "2.1.258 (Claude Code)",
+  "fixtureVersion": "2.1.257",
+  "events": [
+    {
+      "atMs": 1,
+      "type": "file:watching"
+    },
+    {
+      "atMs": 25,
+      "type": "task:started"
+    },
+    {
+      "atMs": 290,
+      "type": "approval:detected"
+    },
+    {
+      "atMs": 684,
+      "type": "approval:decision"
+    },
+    {
+      "atMs": 4028,
+      "type": "claude-fullscreen-offer:detected"
+    },
+    {
+      "atMs": 4620,
+      "type": "claude-fullscreen-offer:cleared"
+    }
+  ],
+  "writes": [
+    {
+      "atMs": 332,
+      "bytes": "\"\\u001b[B\""
+    },
+    {
+      "atMs": 683,
+      "bytes": "\"\\r\""
+    },
+    {
+      "atMs": 4073,
+      "bytes": "\"\\u001b[B\""
+    },
+    {
+      "atMs": 4474,
+      "bytes": "\"\\r\""
+    },
+    {
+      "atMs": 4677,
+      "bytes": "\"\\u0004\""
+    }
+  ],
+  "timeline": {
+    "trustAnsweredAtMs": 331,
+    "offerFirstSeenAtMs": 837,
+    "detectedAtMs": 4028,
+    "answerAtMs": 4072,
+    "clearedAtMs": 4620
+  },
+  "verdicts": {
+    "offerReproduced": true,
+    "latchHeldOnOffer": true,
+    "detectedExactlyOnce": true,
+    "clearedExactlyOnce": true,
+    "clearedAfterAnswer": true,
+    "noSonataWriteWhileOfferOpen": true,
+    "offerGoneAfterAnswer": true
+  },
+  "configDir": "/private/tmp/sonata-sync-2026-09/fullscreen-offer-banner/rearmed/claude-config",
+  "offerFrame": " ▐▛███▛█   Claude Code v2.1.258\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer-banner/rearmed/fresh-1788369802000\n\n  Fable 5.1 writes better code and reports progress on long tasks. Switch anytime with /model.\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  Try the new fullscreen renderer?\n\n  · Flicker-free output — fixes the flashing you see during long responses\n  · Mouse support — click to move your cursor or expand results\n  · Selected text auto-copies to your clipboard\n\n  ❯ 1. Yes, try it\n    2. Not now\n\n  Enter to confirm · Esc to cancel",
+  "readyWhileOfferOpen": false,
+  "answerWrites": [
+    "\"\\u001b[B\"",
+    "\"\\r\""
+  ],
+  "postAnswerFrame": " ▐▛███▛█   Claude Code v2.1.258\n▝▜██████▀  Opus 5 (1M context) with medium effort · API Usage Billing\n  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/fullscreen-offer-banner/rearmed/fresh-1788369802000\n\n  Fable 5.1 writes better code and reports progress on long tasks. Switch anytime with /model.\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n  ⏸ manual mode on · ← for agents                                                           Not logged in · Run /login\n                                                                                                    ◐ medium · /effort",
+  "success": true
+}

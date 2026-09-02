@@ -20,6 +20,7 @@ const paths = {
   runs: "src/reading-core/selectors/runs.ts",
   formatters: "src/reading-core/selectors/formatters.ts",
   settings: "src/renderer/view/settings.ts",
+  banners: "src/renderer/view/banners.ts",
   main: "src/main/main.ts",
   updateButton: "src/renderer/view/update-button.ts",
   updaterInteractive: "src/main/updater/updater-interactive.ts",
@@ -77,6 +78,17 @@ assert.match(source.formatters, /"ask-for-approval": "Ask for approval"/, "codex
 assert.match(source.formatters, /"approve-for-me": "Approve for me"/, "codex approve label");
 assert.match(source.formatters, /"full-access": "Full Access"/, "codex full-access label");
 assert.match(source.formatters, /"read-only": "Read Only"/, "codex read-only label (the CLI's own phrase)");
+
+// Claude fullscreen-offer banner (SL-18) — Woody-approved VERBATIM 2026-09-02.
+// Voice mirrors the codex trust-dialog sibling ("<CLI> is asking <what> — answer
+// in the CLI window"); "fullscreen" is claude's own word (SL-17 principle);
+// 75 chars sits inside the nowrap/ellipsis truncation bound that would otherwise
+// eat the load-bearing "answer in the CLI window" tail (codex sibling: 70).
+assert.match(
+  source.banners,
+  /"Claude is asking about its new fullscreen display — answer in the CLI window"/,
+  "claude fullscreen-offer banner copy (Woody-approved verbatim, 2026-09-02)",
+);
 
 // Auto-update menu + dialog vocabulary (S3). The manual affordance's label and
 // the eight result-dialog title/body strings are the agreed, Woody-approved

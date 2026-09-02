@@ -221,6 +221,61 @@ export type CodexTrustDialogClearedEvent = BaseRuntimeEvent<
 >;
 
 /**
+ * Claude's fullscreen-renderer BOOT offer is on screen and holding composer
+ * readiness (SL-18). The claude sibling of `codex-trust-dialog:detected`, and it
+ * exists for the same reason: SL-3 taught Sonata to HOLD the boot latch here
+ * (`claudeFullscreenOfferOpen` → `isFullscreenOfferOpen()` inside
+ * `acceptsPromptInput()`), which is correct and silent — the task reads
+ * "starting", the queued prompt waits, and nothing tells the user the CLI is
+ * parked on a question only they can answer.
+ *
+ * Sonata cannot (and must NEVER) auto-answer it. MEASURED (SL-3 F8, claude
+ * 2.1.257): a delivery's paste is DISCARDED at this screen and its submit CR
+ * answers the focused `1. Yes, try it`, so the CLI re-execs under a new renderer
+ * and the user's prompt is gone with no receipt and no error. The two answers
+ * are a choice about the user's own tool; the human answers in the co-visible
+ * Terminal and this event is Sonata SAYING so.
+ *
+ * Display-only shell chrome (a renderer-local banner store, like its three codex
+ * siblings), never a reading-core view field.
+ */
+export type ClaudeFullscreenOfferDetectedEvent = BaseRuntimeEvent<
+  "claude-fullscreen-offer:detected",
+  {
+    taskId: TaskId;
+  }
+>;
+
+/**
+ * The offer above left the screen — the human answered it in the CLI, so the
+ * banner has nothing left to point at and retires.
+ *
+ * ONE leg, where its codex sibling needs two, and the asymmetry is structural
+ * rather than an economy. `isCodexTrustDialogOpen()` is ranked BELOW the
+ * SessionStart short-circuit inside `acceptsPromptInput()`, so a hook-live codex
+ * session can read ready with the answered dialog's cells still on the grid —
+ * hence that pair's second, readiness-shaped disjunct. `isFullscreenOfferOpen()`
+ * is ranked ABOVE that short-circuit (SL-3, pinned in
+ * tests/smoke/claude-boot-interstitial.mjs), so while the offer owns the grid
+ * `acceptsPromptInput()` is false BY CONSTRUCTION and a readiness disjunct could
+ * never fire before the grid one. The grid's absence is as trustworthy as its
+ * presence (D-1), and the test is keyed on that absence rather than on HOW the
+ * offer left, so it is indifferent to which row the human took. MEASURED end to
+ * end on the decline path (SL-18 F61 / probe q36 at claude 2.1.258): `cleared`
+ * landed 146ms after the ANSWERING ENTER reached the pty — the next tick of the
+ * 120ms scan the clearing pass rides, not a wait on `pty:exit`.
+ *
+ * Only ever emitted after a `detected` for the same task, and at most once per
+ * detection — a banner that was never raised is not "cleared".
+ */
+export type ClaudeFullscreenOfferClearedEvent = BaseRuntimeEvent<
+  "claude-fullscreen-offer:cleared",
+  {
+    taskId: TaskId;
+  }
+>;
+
+/**
  * A session start could not happen, and the readiness probe says WHY (CLI
  * readiness S4; plan D10, L5). Raised for exactly two diagnosable shapes, both
  * observed by the runtime controller and then confirmed by a fresh probe:
@@ -825,6 +880,8 @@ export type ProductRuntimeEvent =
   | CodexUpdatePromptEvent
   | CodexTrustDialogDetectedEvent
   | CodexTrustDialogClearedEvent
+  | ClaudeFullscreenOfferDetectedEvent
+  | ClaudeFullscreenOfferClearedEvent
   | CodexSessionResumableExitEvent
   | CliSessionStartBlockedEvent
   | SessionsUpdatedEvent;
@@ -851,6 +908,8 @@ export type RunIndexEvent = Exclude<
   | CodexUpdatePromptEvent
   | CodexTrustDialogDetectedEvent
   | CodexTrustDialogClearedEvent
+  | ClaudeFullscreenOfferDetectedEvent
+  | ClaudeFullscreenOfferClearedEvent
   | CodexSessionResumableExitEvent
   | CliSessionStartBlockedEvent
   | DeliveryStateEvent

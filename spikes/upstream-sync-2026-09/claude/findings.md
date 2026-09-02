@@ -2893,3 +2893,85 @@ does not empty between turns. z4a re-confirms the revival arc unchanged (wake at
 z4b is the B1 regression, reproduced and fixed, against the real binary. Binary
 pinned `2.1.258` at start AND end; settings guard `mutatedByProbe: false` with
 its `--self-test` exercised first.
+
+---
+
+# SL-18 — the claude fullscreen-offer BANNER, verified live (built 2026-09-02, binary 2.1.258)
+
+## F61 — q36: the banner's two TIMING claims, measured end to end (PASS ×2)
+
+SL-3 (F7/F8) established the guard: `claudeFullscreenOfferOpen` →
+`isFullscreenOfferOpen()` inside `acceptsPromptInput()`, holding the boot latch on
+the fullscreen-renderer offer because a delivery there DESTROYS the prompt. SL-18
+adds the surface that says so — a passive "answer it in the CLI window" banner,
+the claude sibling of codex's trust-dialog banner.
+
+The smoke pins the surface on MEASURED frames. What a fixture structurally cannot
+pin is the two TIMING claims the banner rests on:
+
+1. the one-shot 4s watchdog lands INSIDE a real offer window — not before the
+   offer paints, and not after a healthy boot has already reached its composer;
+2. the repaint that ANSWERS the offer actually reaches the coalesced settled-grid
+   scan (`scheduleApprovalScan`, 120ms cadence) that the clearing pass rides.
+
+**Probe** `q36-fullscreen-offer-banner-live.mjs` — a real `TerminalHost` from
+`dist/` with Sonata's production spawn shape, the one-time offer re-armed in a
+scratch `CLAUDE_CONFIG_DIR` exactly as q8 arm B does (counter zeroed, the recorded
+`tui` answer dropped; the real `~/.claude` is read, never written). Run TWICE, on
+the same binary, to establish the numbers are not a one-off.
+
+| moment | run 1 | run 2 (the surviving capture) |
+|---|---|---|
+| Sonata's SL-1 trust walk writes (Down, Enter) | 332 / 684ms | 332 / 683ms |
+| offer owns the grid (`isFullscreenOfferOpen()`) | 839ms | **837ms** |
+| `acceptsPromptInput()` at that instant | false | **false** — the SL-3 hold |
+| `claude-fullscreen-offer:detected` | 4029ms | **4028ms** |
+| the HUMAN's Down reaches the pty (`writeUserInput`) | 4101ms | **4073ms** |
+| the HUMAN's Enter reaches the pty | 4504ms | **4474ms** |
+| `claude-fullscreen-offer:cleared` | 4652ms | **4620ms** |
+| **answering Enter → cleared** | **148ms** | **146ms** |
+
+Claim 1 holds with margin in both directions: the watchdog fires ~3.2s after the
+offer paints, and a HEALTHY boot reaches its composer at 1399ms (F7), so t+4s is
+past the one and well inside the other.
+
+Claim 2 holds tightly, and the number is the interesting one: **146/148ms from the
+answering Enter to the event**, against an `APPROVAL_SCAN_CADENCE_MS` of 120ms.
+The banner retires on the very next scan tick after the repaint — the ride-along
+is not merely wired, it is prompt.
+
+**The RED LINE held LIVE, not only on fixtures.** The probe wraps
+`ptyProcess.write` and records every byte with a timestamp, whoever writes it.
+Between the offer owning the grid and the human's own keystrokes, **nothing**
+reached the pty. Sonata's only writes were the SL-1 workspace-trust walk at
+332/683ms — a different screen, before the offer existed — and the teardown EOT
+at 4677ms. `noSonataWriteWhileOfferOpen: true` in both runs.
+
+**The answer path is the DECLINE row** (`Down` then `Enter` → `2. Not now`),
+delivered through `writeUserInput` — the host method the CLI window's xterm
+`onData` calls for a keystroke, i.e. the user's own channel, never a Sonata write
+path. The decline row was chosen over the affirm row deliberately: the affirm row
+re-execs the CLI in place (F8 case C), which would confound the very timing this
+probe exists to read. The affirm and Esc paths are therefore NOT banner-measured
+here; nothing depends on them, because the clearing pass is keyed on the offer's
+ABSENCE rather than on how it left.
+
+**FIDELITY LIMIT, inherited from q8 arm B and restated rather than glossed**: the
+re-armed config boots LOGGED OUT (credentials live in the macOS Keychain keyed to
+the DEFAULT config dir), so the header reads `API Usage Billing`. The renderer
+offer is a CLIENT-SIDE choice and is unaffected — which is exactly why this arm is
+valid for THIS question and would not be for an account-gated one.
+
+**VERSION DRIFT, recorded not hidden**: the tracked fixtures are 2.1.257; this ran
+at **2.1.258**. The offer frame is byte-shape identical across the move (the
+capture's `offerFrame` carries the same question line, the same three feature
+bullets, the same two rows and the same `Enter to confirm · Esc to cancel`
+footer), so the signature needed no re-pinning.
+
+**The capture file is a SINGLE file the probe overwrites per run**
+(`q36-fullscreen-offer-banner-live.capture.txt`, gitignored with every other
+capture, D6) and it currently holds RUN 2. That is why both runs' numbers are
+recorded in the table above: this findings entry is the durable citation, and the
+tracked comments in `terminal-host.ts`, `events.ts` and
+`tests/smoke/claude-boot-interstitial.mjs` quote the surviving run's figures and
+point here.
