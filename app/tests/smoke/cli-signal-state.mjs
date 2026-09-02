@@ -64,6 +64,35 @@ function newModel() {
   assert.equal(model.current().source, "hook:Interrupt", "the transition names its source");
 }
 
+// 2d) `PostModelSwitch` (claude, INJECTED since D2 U3) is a VERIFIED no-op here.
+// Adding an event to the production injection list adds a payload this model sees
+// on every mid-session model switch, so "it falls through the default branch" is
+// a claim that has to be pinned rather than assumed. Two directions, because a
+// no-op has two ways to be wrong: it must not move an IDLE composer (a switch
+// happens at idle by construction — the engine refuses to start one while a run
+// is live), and it must not end a turn that is genuinely running.
+{
+  const { model, changes } = newModel();
+  const before = changes.length;
+  model.applyHook({
+    hook_event_name: "PostModelSwitch",
+    requested_model: "haiku",
+    to_model: "claude-haiku-4-5-20251001",
+    from_model: "claude-fable-5-1",
+    source: "command",
+  });
+  assert.equal(model.current().activity, "idle", "PostModelSwitch leaves an idle session idle");
+  assert.equal(changes.length, before, "…and emits no change at all");
+
+  model.applyHook({ hook_event_name: "UserPromptSubmit" });
+  assert.equal(model.current().activity, "busy", "a turn is running");
+  const duringTurn = changes.length;
+  model.applyHook({ hook_event_name: "PostModelSwitch", requested_model: "sonnet" });
+  assert.equal(model.current().activity, "busy", "…and PostModelSwitch does not end it");
+  assert.equal(changes.length, duringTurn, "…nor emit");
+  assert.equal(model.current().source, "hook:UserPromptSubmit", "the last mover is still the turn start");
+}
+
 // 3) Idempotency: re-applying the same activity does not emit.
 {
   const { model, changes } = newModel();

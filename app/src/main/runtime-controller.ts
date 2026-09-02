@@ -2741,6 +2741,27 @@ export class RuntimeController {
       this.recordToolChangesFromHook(active, payload);
     }
 
+    // The mid-session MODEL switch confirm (D2 U3). `PostModelSwitch` is the CLI
+    // declaring a model switch complete, and `requested_model` is the alias it was
+    // asked for — the anchor the pty stream could never provide, which is why this
+    // replaces the `Set model to …` scrape rather than corroborating it. Same
+    // dispatch shape as the `PreToolUse` nudge above: a hook fact handed to the
+    // terminal host's choreography through one named method.
+    //
+    // No provider gate, for the same reason `PostToolUse` above has none: the
+    // event is claude-only capability (codex declares no model-switch hook at
+    // 0.152.1 — SL-9's census), so the name IS the gate. The payload guard is not
+    // decoration either: `requested_model` is the only field consumed, so a
+    // payload that does not carry it as a non-empty string says nothing this can
+    // act on, and the permissive-boundary rule says validate exactly what you read.
+    if (event === "PostModelSwitch") {
+      const requestedModel =
+        typeof payload.requested_model === "string" ? payload.requested_model.trim() : "";
+      if (requestedModel) {
+        active.terminalHost.noteModelSwitchConfirmed(requestedModel);
+      }
+    }
+
     // Plan §4's "capability-driven, not provider-name-driven" applies to the
     // DISPATCH/watch gates (now `isHookCapable`). The three edges below are a
     // different class: each encodes a SPECIFIC Claude-only capability — a

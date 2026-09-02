@@ -40,10 +40,15 @@ const APPROVAL_HOOK_TIMEOUT_S = 600;
 
 /**
  * Fire-and-forget hook events sonata injects (the sink). UserPromptSubmit/
- * PreToolUse drive busy, Stop drives turn-end. The rest corroborate.
+ * PreToolUse drive busy, Stop drives turn-end, PostModelSwitch confirms a
+ * mid-session model switch. The rest corroborate.
  * `PermissionRequest` is DELIBERATELY absent — it is owned by the approval
  * BROKER (S2), which holds the CLI and answers from the Reading card; a second
  * fire-and-forget sink on it would double-write the payload.
+ *
+ * Every entry names its CONSUMER (SL-9's rule): an injected event with no reader
+ * is a line item nobody can retire, and this list is what the CLI executes on the
+ * user's machine on every turn.
  */
 const INJECTED_HOOK_EVENTS: HookEventName[] = [
   "SessionStart",
@@ -57,6 +62,22 @@ const INJECTED_HOOK_EVENTS: HookEventName[] = [
   // s6-diags/stopfailure-probe). Completes the run + ends cli-state busy.
   "StopFailure",
   "SubagentStop",
+  // The mid-session MODEL switch confirm (D2 U3). CONSUMER:
+  // `RuntimeController.applyHookToTask` → `TerminalHost.noteModelSwitchConfirmed`
+  // → `ControlSwitchEngine.noteModelSwitchConfirmed`, which SETTLES the pending
+  // model switch when the payload's `requested_model` equals the alias Sonata
+  // typed. It replaces the `Set model to …` pty scrape, whose needle could not be
+  // anchored on the pending value and settled switches it did not belong to
+  // (F19/F82–F90; probe `h4-model-switch-hooks`).
+  //
+  // `PreModelSwitch` is DELIBERATELY NOT INJECTED, and the reason is measured
+  // rather than economical: it fires on every switch ATTEMPT, including the ones
+  // the user then cancels (h4 arms b1/b2 — one `Pre`, no `Post`, `Kept model as`),
+  // so on its own it confirms nothing. Injecting an event is not free either — the
+  // CLI paints `Running <Event> hooks…` on the co-visible Terminal while it runs
+  // them — so the list carries the event that decides something and not its
+  // bracket-mate.
+  "PostModelSwitch",
 ];
 
 /** Events scoped by a tool/notification matcher; the rest take a bare entry. */

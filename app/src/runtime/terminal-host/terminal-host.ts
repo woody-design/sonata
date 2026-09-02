@@ -1959,6 +1959,21 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
+   * A `PostModelSwitch` hook arrived for this task (claude, D2 U3): the CLI has
+   * declared a model switch complete, naming the alias it was asked for. The
+   * controller routes it here from `applyHookToTask`, the same shape as the
+   * `PreToolUse` → `noteToolActivityAfterStop` nudge — a hook fact reaching the
+   * terminal host's choreography through one named method rather than the host
+   * subscribing to hooks itself.
+   *
+   * This is the model axis's SETTLE, not a corroboration: see
+   * `ControlSwitchEngine.noteModelSwitchConfirmed`.
+   */
+  noteModelSwitchConfirmed(requestedModel: string): void {
+    this.controlSwitch.noteModelSwitchConfirmed(requestedModel);
+  }
+
+  /**
    * The human's keystrokes into the terminal. The human may type anytime;
    * delivery is never held on "the human is typing" (send-is-send). The one
    * invariant kept here is byte-level atomicity: a keystroke that arrives mid

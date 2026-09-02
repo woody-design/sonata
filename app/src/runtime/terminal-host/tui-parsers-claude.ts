@@ -174,34 +174,46 @@ export function findRemoteControlUrlOnScreen(screenText: string): string | null 
 // which is the correct direction to fail in. Claiming a rejection that did not
 // happen is not.
 //
-// RESIDUAL, and why it is not fixed here. The SUCCESS needle cannot be anchored
-// the same way: the receipt names the model's DISPLAY name ("Sonnet 5"), not the
-// alias we sent ("sonnet"), and mapping one to the other means trusting exactly
-// the label table this sync had to correct — a needle that fails CLOSED on every
-// upstream rename would turn a working switch into needs-attention, which is
-// worse than what it fixes.
+// ── THE MODEL-AXIS SUCCESS NEEDLE IS RETIRED (D2 U3, 2026-09-02) ────────────
 //
-// So a replayed `Set model to …` can still settle a switch it does not belong
-// to. Be precise about the size of that, because the fixture that proves the
-// failure fix also demonstrates this: in the MEASURED window pinned as
-// `stale-failure-repaint-2.1.258.txt` there is NO `Set model to Haiku` at all —
-// the succeeding switch's own receipt is outside the slice — and the parser
-// settles on a replayed `Set model to Opus 5`. It would settle the same way for
-// a pending `fable`, whose receipt is nowhere in that window either. So this is
-// not merely "a beat early" (q13 arm B5, settled on chunk 3 on a window whose
-// only success line was a repaint); it is "settled on someone else's receipt".
+// It used to be `/Setmodelto/`, and it was the KNOWN RESIDUAL this comment block
+// spent four paragraphs apologising for: the success receipt names the model's
+// DISPLAY name ("Sonnet 5"), not the alias we sent ("sonnet"), so it could not be
+// anchored on the pending value the way the failure needles are. A replayed
+// `Set model to …` therefore settled switches it did not belong to.
 //
-// It is accepted anyway, on the harm direction: the CLI DID apply the switch in
-// every measured instance, the statusline mirror — not this scrape — is the
-// state SSOT and corrects the display on the next tick, and the early settle
-// only releases the pending affordance sooner. The alternative fails the other
-// way, and a false "Claude rejected it" is the mistake worth spending a
-// signature change on. The structural fix is to confirm a switch against the
-// MIRROR rather than the stream (D-1: a "did the model change" question is a
-// STATE query), which is a redesign of the choreography and is registered, not
-// taken here. Both shapes are pinned in tests/smoke/midsession-receipt.mjs.
+// That residual is not an argument about a regex; it is reproducible, and h4
+// reproduced it on this binary rather than inheriting the claim: each leg's own
+// settle window, replayed through this parser with a pending value the session
+// NEVER asked for (`a-value-never-asked-for`), still returned `settled` — 9 of 12
+// legs, which is every leg that had a success receipt at all; the other three are
+// the two cancels and the rejection, whose windows carry no success line to be
+// fooled by (`h4-model-switch-hooks.capture.txt`, §"THE UNANCHORED SUCCESS
+// NEEDLE").
+//
+// WHAT REPLACED IT: the `PostModelSwitch` hook, whose `requested_model` is the
+// ALIAS Sonata typed — measured byte-for-byte equal to `pending.value` across the
+// whole alias set including the bracketed `opus[1m]`, and identical whether the
+// switch came from the slash command (`source: "command"`) or the picker
+// (`source: "picker"`). That is the anchor the stream could never provide, so the
+// registered structural fix ("confirm against the MIRROR, not the stream") is
+// TAKEN: `ControlSwitchEngine.noteModelSwitchConfirmed` settles the model axis,
+// and this parser is left with the two verdicts the stream can still state
+// honestly.
+//
+// SO, DELIBERATELY, `parseClaudeControlReceipt(scan, "model", …)` NEVER RETURNS
+// "settled". Not "the caller stopped reading it" — the needle is gone, because a
+// needle that exists is a needle a future caller re-reads. What stays on the model
+// axis is the anchored FAILURE needle, and it stays because it has to: a rejected
+// alias fires NO hook at all (h4 arm c — `/model bogus-model-name` produced the
+// `Model '…' not found` receipt and zero ModelSwitch events), so the stream is the
+// only witness a rejection has.
+//
+// The EFFORT axis keeps BOTH needles, and that is measurement rather than
+// symmetry: `/effort low` fires no hook of any kind (h4 arm d — zero hook payloads
+// of any event between the command and its receipt), so there is nothing to move
+// it to. Effort is now the last stream-confirmed switch axis on the claude side.
 export const CONTROL_SWITCH_SCAN_LIMIT = 4096;
-const CONTROL_SWITCH_MODEL_OK_RE = /Setmodelto/;
 const CONTROL_SWITCH_EFFORT_OK_RE = /Seteffortlevelto/;
 
 /** Prepare a pending value for embedding in a needle.
@@ -226,6 +238,11 @@ function valueNeedle(value: string): string {
  * accumulated RAW tail. `value` is the value the pending switch ASKED FOR — it
  * is what makes a failure receipt attributable to this switch rather than to a
  * repaint of an older one (see the block comment above).
+ *
+ * ASYMMETRIC BY MEASUREMENT since D2 U3: the MODEL axis can only ever answer
+ * `"failed"` or `null` here — its success is confirmed by the `PostModelSwitch`
+ * hook, not by this stream. The EFFORT axis answers all three, because no hook
+ * exists for it. See the block comment above for the evidence on both halves.
  */
 export function parseClaudeControlReceipt(
   rawScan: string,
@@ -250,7 +267,9 @@ export function parseClaudeControlReceipt(
   if (new RegExp(`Model'${valueNeedle(value)}'notfound`).test(compact)) {
     return "failed";
   }
-  return CONTROL_SWITCH_MODEL_OK_RE.test(compact) ? "settled" : null;
+  // No success needle on this axis — the retirement, not an omission. The hook
+  // settles a model switch; the stream can only reject one.
+  return null;
 }
 
 // Mid-session Claude cache-miss confirm dialog (S7). On a session WITH history —
@@ -291,9 +310,19 @@ const CLAUDE_CACHE_MISS_CURSOR_RES: ReadonlyArray<readonly [RegExp, 1 | 2]> = [
 const CLAUDE_CACHE_MISS_CANCEL_MODEL_RE = /Keptmodelas/;
 const CLAUDE_CACHE_MISS_CANCEL_EFFORT_RE = /Kepteffortlevelas/;
 
-/** The claude cache-miss confirm dialog is on screen (a recognized RED-LINE
- *  interstitial S7 PARKS on and relays through the drawer). Requires BOTH the
- *  distinctive body phrase and the `2. No, go back` row so prose can't forge it. */
+/**
+ * The claude cache-miss confirm dialog is on screen (a recognized RED-LINE
+ * interstitial S7 PARKS on and relays through the drawer). Requires BOTH the
+ * distinctive body phrase and the `2. No, go back` row so prose can't forge it.
+ *
+ * TWO SUBSTRATES, deliberately, and the same compaction serves both. Over the pty
+ * SCAN it is the PARK trigger — "a dialog appeared" is an event, and the stream is
+ * where events live. Over the rendered GRID it is the cancel gate's absence test
+ * (see `claudeCacheMissCancelled`) — "is the dialog still up" is a state, and only
+ * the grid can answer a state truthfully, because the stream keeps the dialog's
+ * bytes long after the screen has moved on. h4 measured the grid direction live:
+ * true while parked, false the instant it closed, on every arm that raised one.
+ */
 export function claudeCacheMissDialogOpen(rawScan: string): boolean {
   const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
   return CLAUDE_CACHE_MISS_BODY_RE.test(compact) && CLAUDE_CACHE_MISS_NO_ROW_RE.test(compact);
@@ -321,8 +350,30 @@ export function parseClaudeCacheMissCursor(rawScan: string): 1 | 2 | null {
   return best;
 }
 
-/** The cache-miss dialog closed with a `Kept <model|effort> as …` line — a clean
- *  cancel (No/Esc), nothing changed CLI-side. Axis-scoped. */
+/**
+ * The cache-miss dialog closed with a `Kept <model|effort> as …` line — a clean
+ * cancel (No/Esc), nothing changed CLI-side. Axis-scoped.
+ *
+ * STILL UNANCHORED, and now GATED at the one call site rather than fixed here
+ * (F22, narrowed by D2 U3). It cannot be anchored: the line names the model that
+ * was KEPT — the one being switched AWAY from — not the pending target, so the
+ * only value the engine holds is the wrong one to match on. What made that
+ * dangerous was that a REPLAYED `Kept …` could fire it while the dialog was still
+ * open and unanswered, reporting a cancel the user never chose (and dropping a
+ * staged Save's queued effort leg with it).
+ *
+ * So the MODEL axis now requires a second, structural term before believing this
+ * line: the dialog must be GONE FROM THE GRID (`claudeCacheMissDialogOpen` over
+ * the viewport). That is a state query answered on the substrate D-1 reserves for
+ * state, and h4 measured both directions of it live — the predicate reads TRUE off
+ * the grid while the dialog is parked, and FALSE the moment it closes, on every
+ * arm that raised one. A replay can put the phrase back in the stream; it cannot
+ * put the dialog back on the screen.
+ *
+ * The EFFORT axis keeps the bare needle, because it has no second witness of any
+ * kind (no hook — h4 arm d) and adding a grid term there without the hook to
+ * settle the Yes side would only make an effort cancel harder to see, not safer.
+ */
 export function claudeCacheMissCancelled(rawScan: string, kind: "model" | "effort"): boolean {
   const compact = cleanTerminal(rawScan).replace(/\s+/g, "");
   return (

@@ -132,6 +132,15 @@ export class CliStateModel {
       // session is WORKING, and "paused waiting for background work" is not true
       // of a live turn. The pause is a property of the MAIN turn's ending, so
       // `Stop` is its only honest carrier. Deliberate no-op, not an oversight.
+      //
+      // PostModelSwitch (claude, INJECTED since D2 U3): also a deliberate no-op,
+      // and it has to be. A mid-session model switch happens at an IDLE composer —
+      // the engine refuses to start one while a run is live — so it is not the
+      // beginning or the end of a turn, and moving this model off `idle` because a
+      // model changed would make the composer's send gate lie about whether the CLI
+      // is working. The switch's own state lives on the control-switch event
+      // stream, which is a different question with a different SSOT. Pinned by
+      // `tests/smoke/cli-signal-state.mjs`.
       default:
         break;
     }

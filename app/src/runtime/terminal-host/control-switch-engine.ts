@@ -431,12 +431,19 @@ type PendingControlSwitch =
       //                  validating each arrow press.
       //   confirming   — pressed Enter on the target row; waiting for the settle
       //                  signal (receipt for a grant/Yes, `Kept …` for a claude No).
-      //   cancel-exit  — codex ONLY: the consent left the screen without our grant
-      //                  confirm — either we Enter'd its Cancel row (its closing
-      //                  Esc already queued) or the user answered natively.
-      //                  Bounded wait: a grant receipt still settles Yes (a native
-      //                  Yes closes the dialog a beat before it prints), otherwise
-      //                  the verify timer settles cancelled.
+      //   cancel-exit  — the dialog left the screen without our own confirm, and
+      //                  the deciding evidence is one bounded beat away. BOTH
+      //                  dialogs use it now, for the same ambiguity. codex: the
+      //                  consent closed (we Enter'd its Cancel row, its closing Esc
+      //                  already queued, or the user answered natively) and a
+      //                  native Yes's grant receipt can still arrive a beat later.
+      //                  claude (since D2 U3): a `Kept …` line AND the dialog's
+      //                  absence from the grid have both gone true, and a
+      //                  `PostModelSwitch` for a Yes can still arrive — because a
+      //                  Yes's own banner repaint is what may have replayed that
+      //                  `Kept …` line into the window in the first place. Either
+      //                  way the verify timer settles cancelled only if nothing
+      //                  came.
       //   closing      — an active-phase timeout fired the Esc rollback; verifying,
       //                  then needs-attention.
       axis: "parked-confirm";
@@ -519,6 +526,103 @@ export class ControlSwitchEngine {
    *  Closes an abandoned codex picker first so it can't swallow the next keystroke. */
   clear(): void {
     this.clearPendingControlSwitch();
+  }
+
+  /**
+   * A `PostModelSwitch` hook arrived for this task: the CLI is declaring, in a
+   * structured payload, that a model switch COMPLETED. `requestedModel` is the
+   * payload's `requested_model` — the alias the switch asked for.
+   *
+   * THIS IS THE MODEL AXIS'S CONFIRM (D2 U3). It replaces the `Set model to …`
+   * stream needle, which could not be anchored on the pending value and therefore
+   * settled switches it did not belong to (the KNOWN RESIDUAL, F19 — reproduced on
+   * 2.1.258 in `h4-model-switch-hooks.capture.txt`). The hook can be anchored:
+   * `requested_model` is measured byte-for-byte equal to the alias Sonata typed,
+   * across the whole `MODEL_OPTIONS` set INCLUDING the bracketed `opus[1m]`, and
+   * identical whether the switch was driven by the slash command (`source:
+   * "command"`) or by the CLI's own picker (`source: "picker"`).
+   *
+   * MATCHED ON `requested_model` AND NOTHING ELSE, which is a measured choice, not
+   * a preference. `to_model` looks like the stronger key and is not: h4 measured a
+   * SECOND `PreModelSwitch` firing 62–64ms behind the first for the same switch,
+   * same session, same prompt, carrying a DIFFERENT `to_model`
+   * (`claude-sonnet-5` while `requested_model` stayed `haiku`) and double the cost
+   * estimate — 6 of 6 legs whose target was `haiku`, 0 of the 4 legs that targeted
+   * a different model and fired a `Pre` at all. Across every one of those the
+   * requested alias never moved. So the alias is the invariant and
+   * the canonical id is not, which also corrects F35's "byte-identical duplicate".
+   *
+   * BOTH PHASES, because a model switch can be waiting in either. In the VALUE
+   * phase (no dialog — a session with no history, or a second switch in a row) this
+   * is the whole confirm. In the PARKED phase it is the honest settle for a Yes,
+   * INCLUDING a Yes the user pressed themselves in the co-visible Terminal: the
+   * hook fires off the CLI's own decision, not off our keystroke (measured — a
+   * parked Post lands 66–92ms after the dialog is answered, whoever answered it).
+   *
+   * IDEMPOTENT BY CONSTRUCTION rather than by a flag. Every settle path clears
+   * `pendingControlSwitch` first, so a duplicate Post finds nothing pending and
+   * returns; a Post naming a different alias fails the equality test; a Post for a
+   * model while the pending switch is the EFFORT leg of a staged Save fails the
+   * axis test. None of those needs remembered state.
+   */
+  noteModelSwitchConfirmed(requestedModel: string): void {
+    const pending = this.pendingControlSwitch;
+    if (!pending) {
+      return; // no switch in flight — a native switch we did not drive; nothing to settle
+    }
+    if (pending.axis === "value") {
+      if (pending.kind !== "model") {
+        return; // the EFFORT leg of a staged Save — a model hook cannot settle it
+      }
+      if (pending.value !== requestedModel) {
+        this.debugForeignModelSwitch(requestedModel, pending.value);
+        return;
+      }
+      this.settleValueSwitch(pending);
+      return;
+    }
+    if (
+      pending.axis !== "parked-confirm" ||
+      pending.dialog !== "claude-cachemiss" ||
+      pending.originKind !== "model"
+    ) {
+      return;
+    }
+    if (pending.value !== requestedModel) {
+      this.debugForeignModelSwitch(requestedModel, pending.value);
+      return;
+    }
+    if (
+      // The three phases the receipt watcher accepts a settle in, PLUS
+      // `cancel-exit` — the bounded beat opened when both cancel terms went true,
+      // which exists precisely so a Post still in flight can win it
+      // (`beginParkedModelCancelExit`). `closing` stays excluded for the same
+      // reason it always was: a rollback Esc is in flight and the relay has
+      // committed to needs-attention.
+      pending.phase === "waiting-user" ||
+      pending.phase === "navigating" ||
+      pending.phase === "confirming" ||
+      pending.phase === "cancel-exit"
+    ) {
+      this.settleParkedClaudeYes(pending);
+    }
+  }
+
+  /**
+   * A `PostModelSwitch` named an alias that is not the one in flight. Ignored —
+   * never guess — but worth a diag line, because it is the fingerprint of a real
+   * situation rather than noise: someone switched the model to something else
+   * while Sonata's own switch was still pending (most plausibly the user, in the
+   * co-visible Terminal). Env-gated and inert by default, the same discipline as
+   * `TerminalHost.debugCompletion`, so it costs a shipped session nothing and a
+   * unit test no output.
+   */
+  private debugForeignModelSwitch(requested: string, pending: string): void {
+    if (process.env.SONATA_DEBUG_COMPLETION) {
+      console.log(
+        `[control-switch] ${new Date().toISOString()} task=${this.host.taskId} PostModelSwitch requested="${requested}" ignored — pending switch asked for "${pending}"`,
+      );
+    }
   }
 
   injectClaudeControlSwitch(
@@ -1708,6 +1812,13 @@ export class ControlSwitchEngine {
     // target: since 2.1.252 a switch that reshapes the banner forces a full
     // transcript redraw, which replays every older receipt through this very
     // window (measured — see parseClaudeControlReceipt's block comment).
+    //
+    // ASYMMETRIC SINCE D2 U3, and the asymmetry is in the PARSER rather than here:
+    // on the model axis this call can only return `failed` or null, because the
+    // model success needle is retired and `noteModelSwitchConfirmed` settles that
+    // axis off the `PostModelSwitch` hook. The `settled` branch below is therefore
+    // reached only by the EFFORT axis, which has no hook to move to. Both branches
+    // are kept axis-agnostic so the shape stays one flow rather than two.
     const verdict = parseClaudeControlReceipt(this.controlSwitchScan, pending.kind, pending.value);
     if (verdict === "settled") {
       this.settleValueSwitch(pending);
@@ -2032,12 +2143,35 @@ export class ControlSwitchEngine {
         pending.phase === "navigating" ||
         pending.phase === "confirming"
       ) {
+        // The Yes side. On the EFFORT axis this is the only settle there is; on the
+        // MODEL axis the parser returns null by construction (D2 U3) and
+        // `noteModelSwitchConfirmed` carries the Yes instead — so this call is
+        // effort's, and the shared line is the flow, not a shared claim.
         if (parseClaudeControlReceipt(scan, axis, pending.value) === "settled") {
           this.settleParkedClaudeYes(pending);
           return;
         }
         if (claudeCacheMissCancelled(scan, axis)) {
-          this.settleParkedCancel(pending);
+          if (axis === "effort") {
+            this.settleParkedCancel(pending);
+            return;
+          }
+          // MODEL axis: the `Kept …` line is necessary but no longer sufficient
+          // (F22, narrowed). It carries no value anchor and the alternate-screen
+          // redraw replays it, so a stale one could report a cancel while the
+          // dialog was still open and unanswered — and with the model success
+          // needle retired there is no longer a competing receipt to beat it. So
+          // the line must be corroborated by the dialog's ABSENCE from the GRID,
+          // which is the substrate D-1 reserves for state and the one a replay
+          // cannot forge. Async, and re-guarded like every other grid read here:
+          // it may land after the relay has moved on. If the dialog is still up we
+          // simply do nothing — the phrase stays in the scan, so the next frame
+          // re-asks the same question, and a genuine cancel answers it.
+          //
+          // …and even both terms together do not CONCLUDE. They open the bounded
+          // exit beat, so a `PostModelSwitch` still in flight wins — see
+          // `beginParkedModelCancelExit` for the race that makes that necessary.
+          this.verifyParkedModelCancelOnGrid();
           return;
         }
       }
@@ -2100,6 +2234,70 @@ export class ControlSwitchEngine {
   }
 
   /**
+   * The MODEL-axis cancel gate: a `Kept model as …` line was seen in the scan, so
+   * ask the GRID whether the dialog has actually left the screen before believing
+   * it. Only then is it a cancel the user chose rather than a replayed line.
+   *
+   * Re-guards everything the async read could have outlived (the relay may have
+   * settled, been cleared, or moved to `closing` in the meantime) and re-asserts
+   * the model axis, so this can never conclude on behalf of an effort switch.
+   */
+  private verifyParkedModelCancelOnGrid(): void {
+    this.host.readScreen((screen) => {
+      const current = this.pendingControlSwitch;
+      if (
+        !current ||
+        current.axis !== "parked-confirm" ||
+        current.dialog !== "claude-cachemiss" ||
+        current.originKind !== "model" ||
+        (current.phase !== "waiting-user" &&
+          current.phase !== "navigating" &&
+          current.phase !== "confirming")
+      ) {
+        return;
+      }
+      if (claudeCacheMissDialogOpen(screen)) {
+        return; // still parked on the dialog — the `Kept …` line was a replay
+      }
+      this.beginParkedModelCancelExit(current);
+    });
+  }
+
+  /**
+   * Both cancel terms are satisfied — the `Kept …` line is in the scan and the
+   * dialog has left the grid — and this STILL does not conclude for a bounded
+   * beat, because there is one shape in which both terms are true of a Yes.
+   *
+   * THE RACE, and it is the retirement's own doing. A Yes reshapes the banner,
+   * which is F19's full-transcript redraw condition, which replays this session's
+   * older receipts into the freshly-reset post-park scan. If the session ever
+   * cancelled a switch before (or Esc'd the plain `/model` picker — F15 measured
+   * that printing the same phrase), the replay can carry a `Kept model as …` into
+   * the window at the exact moment the dialog leaves the screen for a Yes. Before
+   * D2 U3 the success receipt was checked first and beat it; with the model
+   * success needle retired there is nothing left in the STREAM to beat it, and the
+   * thing that can — the `PostModelSwitch` hook — lands 66–92ms behind the answer
+   * (MEASURED, h4). Concluding "cancelled" inside that window would report a lie
+   * AND drop a staged Save's queued effort leg, which is exactly the harm class
+   * this gate exists to close.
+   *
+   * So: adopt the shape the codex consent already uses for the same ambiguity —
+   * park in `cancel-exit`, let the evidence arrive, and let the verify timer
+   * conclude only if nothing did. `PARKED_CONFIRM_CANCEL_VERIFY_MS` (900ms) is ~10x
+   * the measured hook latency. `noteModelSwitchConfirmed` accepts `cancel-exit`
+   * for this reason and no other.
+   */
+  private beginParkedModelCancelExit(
+    pending: Extract<PendingControlSwitch, { axis: "parked-confirm" }>,
+  ): void {
+    this.clearParkedTimer(pending);
+    pending.phase = "cancel-exit";
+    const timer = setTimeout(() => this.onParkedCancelExitVerify(), PARKED_CONFIRM_CANCEL_VERIFY_MS);
+    timer.unref?.();
+    pending.timer = timer;
+  }
+
+  /**
    * The codex consent is leaving the screen without our grant confirm — either we
    * just Enter'd its Cancel row or the user answered NATIVELY in the co-visible
    * Terminal. Wait one bounded beat and let the evidence decide: a grant receipt
@@ -2137,15 +2335,24 @@ export class ControlSwitchEngine {
     pending.timer = timer;
   }
 
-  /** The bounded exit beat elapsed with no grant receipt: the consent closed
-   *  without granting, so conclude cancelled — the user chose Cancel (or Esc'd)
-   *  and the Terminal is theirs to reconcile either way. */
+  /** The bounded exit beat elapsed with no settle signal: the dialog closed
+   *  without applying, so conclude cancelled — the user chose Cancel (or Esc'd)
+   *  and the Terminal is theirs to reconcile either way. Serves BOTH parked
+   *  dialogs, because the ambiguity is the same one: codex waits out a grant
+   *  receipt that a native Yes prints a beat after closing the consent
+   *  (`beginParkedConsentExit`), claude waits out the `PostModelSwitch` a Yes
+   *  fires a beat after the dialog leaves the screen (`beginParkedModelCancelExit`).
+   *  Only the settle they conclude with differs. */
   private onParkedCancelExitVerify(): void {
     const pending = this.pendingControlSwitch;
     if (!pending || pending.axis !== "parked-confirm") {
       return;
     }
     pending.timer = null;
+    if (pending.dialog === "claude-cachemiss") {
+      this.settleParkedCancel(pending);
+      return;
+    }
     this.settleParkedCodexCancel(pending);
   }
 

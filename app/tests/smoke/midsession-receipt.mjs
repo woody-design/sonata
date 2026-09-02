@@ -36,31 +36,42 @@ const {
   parseCodexConsentCursor,
 } = require("../../dist/runtime");
 
-// — Success: model. Both receipt tails are MEASURED — 2.1.214 had no
-//   "for new sessions", 2.1.258 does. —
+// ── THE MODEL-AXIS SUCCESS NEEDLE IS RETIRED (D2 U3) ───────────────────────
+//
+// Every MEASURED success receipt below used to settle a model switch and now
+// answers `null`, on purpose: `PostModelSwitch` settles that axis (matched on
+// `requested_model`, the alias Sonata typed) because this needle could not be
+// anchored on the pending value and settled switches it did not belong to.
+//
+// They are kept — as the RETIREMENT's pins rather than deleted — for two reasons.
+// They are the four MEASURED receipt shapes across two binaries, so if a future
+// reader re-introduces `/Setmodelto/` these lines fail loudly instead of silently
+// re-opening the residual. And the picker's session-only shape among them is the
+// receipt candidate slice U4 would drive, so its wording stays on the record.
 assert.equal(
   parseClaudeControlReceipt(
     "⎿ Set model to Sonnet 5 and saved as your default for new sessions",
     "model",
     "sonnet",
   ),
-  "settled",
-  "the `Set model to …` receipt settles a model switch",
+  null,
+  "RETIRED: the `Set model to …` receipt no longer settles a model switch (the hook does)",
 );
 
 // The REAL rendered receipt is WORD-POSITIONED — claude lays it out with cursor
 // moves, so once ANSI is stripped the words glue ("SetmodeltoSonnet 5andsaved").
 // This is the exact string captured from the pty (spikes/midsession-switch-probe
-// inject-probe) — the parser MUST still settle it (regression pin for the
-// space-bearing-regex bug).
+// inject-probe). It is now a NON-settle like every other model success shape; the
+// glued form still matters because the FAILURE needle below reads the same
+// compaction.
 assert.equal(
   parseClaudeControlReceipt(
     "  ⎿  SetmodeltoSonnet 5andsavedasyourdefaultfornewsessions",
     "model",
     "sonnet",
   ),
-  "settled",
-  "the word-positioned (glued) model receipt still settles",
+  null,
+  "RETIRED: the word-positioned (glued) model receipt does not settle either",
 );
 assert.equal(
   parseClaudeControlReceipt(
@@ -72,18 +83,19 @@ assert.equal(
   "the word-positioned (glued) effort receipt still settles",
 );
 
-// MEASURED at 2.1.258 (q13 arm C2): choosing a picker row with `s` (session-only)
-// prints a receipt with NO "saved as your default" tail at all. It is still a
-// settle — the model DID change — and the anchor is unchanged, so this pins that
-// the needle never depended on the tail.
+// MEASURED at 2.1.258, twice and by two probes (q13 arm C2; h4 arm g, whose
+// verbatim line is `⎿ Set model to Haiku 4.5 for this session only`): choosing a
+// picker row with `s` (session-only) prints a receipt with NO "saved as your
+// default" tail at all — and h4 measured that this is the path that leaves
+// `~/.claude/settings.json` untouched. Kept as the wording U4 would drive against.
 assert.equal(
   parseClaudeControlReceipt(
     "⎿  Set model to Opus 5 (1M context) for this session only",
     "model",
     "opus[1m]",
   ),
-  "settled",
-  "the picker's session-only receipt (no default tail) still settles",
+  null,
+  "RETIRED: the picker's session-only receipt does not settle a model switch either",
 );
 // MEASURED at 2.1.258 (q13 arm C1): the picker's `Default (recommended)` row adds
 // a parenthesised `(default)` between the name and the tail.
@@ -93,8 +105,8 @@ assert.equal(
     "model",
     "opus[1m]",
   ),
-  "settled",
-  "the picker's Default-row receipt settles",
+  null,
+  "RETIRED: the picker's Default-row receipt does not settle a model switch either",
 );
 
 // — Success: effort. 2.1.258 appends a description after a colon, and `max`
@@ -236,20 +248,33 @@ assert.equal(
 
 // — Robustness: ANSI escapes + word-positioned redraw + whitespace noise. The
 //   parser strips ANSI and collapses whitespace, so a split/positioned receipt
-//   still matches (the RAW tail is accumulated before parsing). —
+//   still matches (the RAW tail is accumulated before parsing). Driven on the
+//   EFFORT axis since D2 U3 — it is the axis that still has a success needle, so
+//   it is the one on which "a settle survives the redraw" can still be asserted.
+//   The model axis's own compaction is covered by its FAILURE cases above and by
+//   the ANSI-decorated model line below, which must now read `null`. —
+assert.equal(
+  parseClaudeControlReceipt(
+    "\x1b[2m\x1b[38;5;244m⎿ Set effort\x1b[0m\x1b[24Glevel\x1b[0m\x1b[32G to  low\x1b[0m",
+    "effort",
+    "low",
+  ),
+  "settled",
+  "ANSI-decorated + cursor-positioned receipt still settles",
+);
+assert.equal(
+  parseClaudeControlReceipt("⎿   Set    effort\n   level  to   high", "effort", "high"),
+  "settled",
+  "collapsed whitespace bridges a wrapped receipt",
+);
 assert.equal(
   parseClaudeControlReceipt(
     "\x1b[2m\x1b[38;5;244m⎿ Set model to\x1b[0m\x1b[32G Fable 5.1\x1b[0m",
     "model",
     "fable",
   ),
-  "settled",
-  "ANSI-decorated + cursor-positioned receipt still settles",
-);
-assert.equal(
-  parseClaudeControlReceipt("⎿   Set    model\n   to   Opus 4.8", "model", "opus"),
-  "settled",
-  "collapsed whitespace bridges a wrapped receipt",
+  null,
+  "RETIRED: the same decorated shape on the MODEL axis reads null, not settled",
 );
 
 // — Failure wins over success in the same scan (safe ordering): a screen that
@@ -295,7 +320,7 @@ assert.doesNotMatch(
 );
 assert.equal(
   parseClaudeControlReceipt(STALE_FAILURE_WINDOW, "model", "haiku"),
-  "settled",
+  null,
   "a repaint of an EARLIER switch's rejection must not FAIL the switch in flight",
 );
 // The same window, for the switch that actually failed, still fails.
@@ -305,27 +330,63 @@ assert.equal(
   "…while the switch that DID ask for the rejected value still reads failed",
 );
 
-// ── KNOWN RESIDUAL, pinned as what it is rather than hidden ────────────────
-// The SUCCESS needle is NOT value-anchored, deliberately: the receipt names the
-// model's DISPLAY name ("Sonnet 5"), not the alias we sent ("sonnet"), so
-// anchoring it would mean trusting the label table this very sync had to correct
-// and would fail CLOSED into needs-attention on every upstream rename — worse
-// than what it fixes. Two shapes of the consequence, both on MEASURED windows:
+// ── THE KNOWN RESIDUAL IS CLOSED (D2 U3) ──────────────────────────────────
+// It was: the success needle is not value-anchored — the receipt names the
+// model's DISPLAY name ("Sonnet 5"), not the alias we sent ("sonnet") — so a
+// replayed `Set model to …` settled switches it did not belong to. Anchoring it
+// was never the answer (it would mean trusting the label table this sync had to
+// correct, and failing CLOSED on every upstream rename). Retiring it was, once a
+// channel existed that carries the alias: `PostModelSwitch.requested_model`.
+//
+// The two MEASURED windows that used to demonstrate the residual now demonstrate
+// its absence, which is the strongest pin available — the same bytes, the same
+// parser, the opposite verdict.
 //
 // (a) the sharpest one — `fable` was never switched to in the session this
 //     window came from, so no `Set model to Fable 5.1` exists anywhere in it, and
-//     the parser settles anyway on a replayed `Set model to Opus 5`.
+//     the parser used to settle anyway on a replayed `Set model to Opus 5`.
 assert.equal(
   parseClaudeControlReceipt(STALE_FAILURE_WINDOW, "model", "fable"),
-  "settled",
-  "RESIDUAL: a replayed success line for ANOTHER model settles a switch whose own receipt is absent",
+  null,
+  "CLOSED: a replayed success line for ANOTHER model no longer settles anything",
 );
 // (b) the same-value shape: this window's only `Set model to` is a repaint, and
-//     it settles the switch a beat early (measured settling on chunk 3, live).
+//     it used to settle the switch a beat early (measured settling on chunk 3).
 assert.equal(
   parseClaudeControlReceipt(STALE_SUCCESS_WINDOW, "model", "sonnet"),
-  "settled",
-  "RESIDUAL: a repainted success line can settle a switch early (mirror is the SSOT)",
+  null,
+  "CLOSED: a repainted success line no longer settles a switch early",
+);
+
+// (c) A window in which the switch GENUINELY succeeded — so the retirement is
+//     shown to be a retirement and not merely a fixture that happens to lack the
+//     line. MEASURED: the verbatim 4096-char window `detectControlSwitchReceipt`
+//     held at the moment it reached a verdict, from a live `/model haiku` at
+//     2.1.258 that applied (probe h4 arm h leg2 —
+//     spikes/upstream-sync-2026-09/claude/h4-model-switch-hooks.capture.txt).
+//     In the same run the hook channel carried `requested_model: "haiku"` 48ms
+//     later, which is what settles it now.
+const MODEL_SUCCESS_WINDOW = readFixture("claude-midsession/model-success-window-2.1.258.txt");
+assert.match(
+  MODEL_SUCCESS_WINDOW.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/\s+/g, ""),
+  /SetmodeltoHaiku4\.5/,
+  "fixture sanity: this window really does carry the switch's OWN success receipt",
+);
+assert.equal(
+  parseClaudeControlReceipt(MODEL_SUCCESS_WINDOW, "model", "haiku"),
+  null,
+  "CLOSED: even the switch's OWN success receipt no longer settles — the hook does",
+);
+// …and the same window still rejects, which is what keeps arm c's path alive: a
+// bad alias fires NO hook, so the stream is a rejection's only witness.
+assert.equal(
+  parseClaudeControlReceipt(
+    `${MODEL_SUCCESS_WINDOW}\n⎿ Model 'bogus-model-name' not found`,
+    "model",
+    "bogus-model-name",
+  ),
+  "failed",
+  "…while a rejection in the same window still fails the switch that asked for it",
 );
 
 // ===========================================================================

@@ -179,6 +179,26 @@ const success =
   !("remoteControlAtStartup" in rcOnSettings) &&
   Boolean(rcOnSettings.statusLine) &&
   Boolean(rcOnSettings.hooks) &&
+  // D2 U3: `PostModelSwitch` is INJECTED — it is the mid-session model switch's
+  // confirm, consumed by `RuntimeController.applyHookToTask` →
+  // `TerminalHost.noteModelSwitchConfirmed`. Asserted on every spawn shape,
+  // because a switch is available from any of them, and pointed at the SAME sink
+  // command the other fire-and-forget events use (an entry pointing somewhere
+  // else would write payloads no watcher reads).
+  [fastSettings, standardSettings, rcOffSettings, rcOnSettings].every(
+    (settings) =>
+      Array.isArray(settings.hooks.PostModelSwitch) &&
+      settings.hooks.PostModelSwitch.length === 1 &&
+      // Session-scoped, so a BARE entry — no `matcher`, which is for tool-scoped
+      // events only.
+      !("matcher" in settings.hooks.PostModelSwitch[0]) &&
+      settings.hooks.PostModelSwitch[0].hooks[0].command === settings.hooks.Stop[0].hooks[0].command &&
+      // …and `PreModelSwitch` is NOT injected. Measured to fire on every switch
+      // ATTEMPT including cancelled ones (h4 arms b1/b2), so it confirms nothing
+      // on its own — and injecting an event is not free, since the CLI paints
+      // `Running <Event> hooks…` on the co-visible Terminal while it runs them.
+      !("PreModelSwitch" in settings.hooks),
+  ) &&
   claudeRemoteControl.includes("--remote-control") &&
   claudeRemoteControl[claudeRemoteControl.length - 1] === "--remote-control" &&
   // Repeat spawns of either shape: same bytes, no rewrite.

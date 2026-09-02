@@ -1,0 +1,823 @@
+H4 SPOT-CHECK at 2.1.259 — NOT the slice record (the record is the 2.1.258 capture)
+claude 2.1.259 (Claude Code) (start pin 2.1.259 (Claude Code), end pin 2.1.259 (Claude Code))
+assembled 2026-09-02T23:11:17.990Z
+arms on record: a1-yes-haiku, e-fresh-no-history
+
+METHOD
+  spawn        production TerminalHost from dist/, production argv, production
+               ensureClaudeRuntimeSettings + hook-sink.js command.
+  injection    the probe-local wrapper LAYERED: PreModelSwitch
+               already written by PRODUCTION: PostModelSwitch
+               The production INJECTED_HOOK_EVENTS list is never EDITED by this probe —
+               the wrapper only adds what production did not already write, so once a
+               patch takes an event into that list, this line records the handover.
+  hook time    read off the sink FILENAME (hook-<Date.now() base36>-…), i.e. the
+               instant the CLI's hook fired. The probe polls at 25ms with the same
+               read-then-delete protocol HookWatcher uses. PRODUCTION's watcher polls
+               at 250ms, so production DELIVERY = the figures below + [0, 250]ms.
+  receipt time taken by replaying the arm's own pty chunks through the SHIPPED
+               parseClaudeControlReceipt over the SHIPPED 4096-char window, one
+               chunk at a time, first verdict wins — production's arming shape. So
+               it is "when the engine would have settled", not "when a string appeared".
+  zero         the CR that submitted the command (or, for f/g, the confirm key).
+  guard        settings-guard.mjs, closing PER ARM. Self-test against a throwaway
+               file before the first spawn: pass=true.
+
+==============================================================================
+TIMINGS — Pre / Post / receipt, all relative to the CR
+==============================================================================
+arm | PreModelSwitch | PostModelSwitch | engine receipt | cache-miss dialog | settings.json
+---
+a1-yes-haiku | +65ms, +128ms | +275ms | none | yes +142ms (row-1) | model: "fable" → "haiku"
+e-fresh-no-history | +89ms | +159ms | none | no | model: "fable" → "sonnet"
+
+==============================================================================
+THE UNANCHORED SUCCESS NEEDLE, replayed against a value the leg never asked for
+==============================================================================
+Each row re-runs the SAME window through the SAME shipped parser with a pending
+value the session never used. A `settled` verdict means the needle decided the
+switch without reading the value at all — the KNOWN RESIDUAL, reproduced on this
+binary in these bytes rather than argued from the regex.
+
+a1-yes-haiku | asked for: /model haiku | replayed as "a-value-never-asked-for" → no verdict —
+e-fresh-no-history | asked for: /model sonnet | replayed as "a-value-never-asked-for" → no verdict —
+
+==============================================================================
+WHAT THE INJECTION COSTS ON SCREEN — the CLI's own hook-runner line
+==============================================================================
+2.1.258 paints `Running <Event> hooks…` while it executes them. Sonata's
+Terminal pane is co-visible, so adding an event to the production injection
+list adds this line to what the user sees during a switch. Measured per leg:
+
+a1-yes-haiku | ["Running PreModelSwitch hooks… (Esc to cancel) ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"]
+e-fresh-no-history | ["Running PreModelSwitch hooks… (Esc to cancel) Sonnt 5 with low effort"]
+
+==============================================================================
+ARM g vs ARM f — the F68 ruling's decisive cell (U4 design input)
+==============================================================================
+(one of the picker arms is not on record)
+
+==============================================================================
+SETTINGS GUARD — every bracket this run performed
+==============================================================================
+guard-history-1788390467181.json :: e: mutatedByProbe=true restored=true model: "fable" → "sonnet"
+guard-history-1788390467181.json :: a1: mutatedByProbe=true restored=true model: "fable" → "haiku"
+guard-history-1788390467181.json :: final: mutatedByProbe=false restored=true 
+guard-history-1788390568359.json :: final: mutatedByProbe=false restored=true 
+guard-history-1788390610656.json :: e: mutatedByProbe=true restored=true model: "fable" → "sonnet"
+guard-history-1788390610656.json :: a1: mutatedByProbe=true restored=true model: "fable" → "haiku"
+guard-history-1788390610656.json :: final: mutatedByProbe=false restored=true 
+
+==============================================================================
+ARM a1-yes-haiku — Pre/Post timing; is the double-Pre reproducible; payload byte-stable; hook vs receipt
+==============================================================================
+{
+  "arm": "a1-yes-haiku",
+  "version": "2.1.259 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostModelSwitch",
+    "PostToolUse",
+    "PreModelSwitch",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@559",
+    "UserPromptSubmit@3354",
+    "Stop@6234",
+    "PreModelSwitch@10298",
+    "PreModelSwitch@10361",
+    "PostModelSwitch@10508"
+  ],
+  "notes": [
+    "ready=true at 638ms",
+    "warm-up turn completed=true at 6278ms",
+    "slash \"/model haiku\" on the composer before CR (attempt 1): true"
+  ],
+  "hostEvents": [
+    "file:watching@34",
+    "task:started@36",
+    "run:started(prompt)@3141",
+    "prompt:submitted(prompt)@3141"
+  ],
+  "ptyExited": false,
+  "frames": [
+    {
+      "atMs": 3140,
+      "label": "boot — composer ready",
+      "screen": "\n▗ ▗   ▖ ▖  Claude Code v2.1.259\n           Fable 5.1 with medium effort · Claude Max\n  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/a1-yes-haiku/ws\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "atMs": 10436,
+      "label": "a1-yes-haiku — after CR (dialog on grid? true)",
+      "screen": "\n▗ ▗   ▖ ▖  Claude Code v2.1.259\n           Fable 5.1 with medium effort · Claude Max\n  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/a1-yes-haiku/ws\n\n\n❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       \n\n⏺ A terminal emulator is a program that mimics a physical text terminal, letting you type commands to a shell and see\n  its text output in a window.\n\n✻ Baked for 2s · done 7:10 PM\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n   Switch model?\n   Your next response will be slower and use more tokens\n\n   This conversation is cached for the current model. Switching to Haiku 4.5 means the full history gets re-read on\n   your next message.\n\n   ❯ 1. Yes, switch to Haiku 4.5\n     2. No, go back"
+    },
+    {
+      "atMs": 10436,
+      "label": "a1-yes-haiku — cursor on row 1, pressing Enter",
+      "screen": "\n▗ ▗   ▖ ▖  Claude Code v2.1.259\n           Fable 5.1 with medium effort · Claude Max\n  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/a1-yes-haiku/ws\n\n\n❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       \n\n⏺ A terminal emulator is a program that mimics a physical text terminal, letting you type commands to a shell and see\n  its text output in a window.\n\n✻ Baked for 2s · done 7:10 PM\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n   Switch model?\n   Your next response will be slower and use more tokens\n\n   This conversation is cached for the current model. Switching to Haiku 4.5 means the full history gets re-read on\n   your next message.\n\n   ❯ 1. Yes, switch to Haiku 4.5\n     2. No, go back"
+    },
+    {
+      "atMs": 30438,
+      "label": "a1-yes-haiku — settled",
+      "screen": "\n▗ ▗   ▖ ▖  Claude Code v2.1.259\n           Haiku 4.5 · Claude Max\n  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/a1-yes-haiku/ws\n\n\n❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       \n\n⏺ A terminal emulator is a program that mimics a physical text terminal, letting you type commands to a shell and see\n  its text output in a window.\n\n✻ Baked for 2s · done 7:10 PM\n\n❯ /model haiku                                                                                                          \n  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n     \n  ⏸ manual mode on · ← for agents"
+    }
+  ],
+  "screenTail": "\n\n\n\n\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n     \n  ⏸ manual mode on · ← for agents",
+  "question": "Pre/Post timing; is the double-Pre reproducible; payload byte-stable; hook vs receipt",
+  "pinAtSpawn": "fable",
+  "warmupTurn": true,
+  "slash": {
+    "text": "/model haiku",
+    "onScreen": true,
+    "attempts": 1,
+    "crAtMs": 10233
+  },
+  "dialogSeen": true,
+  "answered": {
+    "answered": true,
+    "row": 1,
+    "crAtMs": 10436,
+    "armIndex": 40,
+    "via": "row-1"
+  },
+  "unanchoredResidual": {
+    "foreignValue": "a-value-never-asked-for",
+    "verdict": null,
+    "afterCrMs": null,
+    "note": "no settle for a foreign value in this window"
+  },
+  "engine": {
+    "receipt": null,
+    "dialog": {
+      "atMs": 10375,
+      "chunk": 3,
+      "cursor": 1,
+      "afterCrMs": 142
+    },
+    "cancelled": null
+  },
+  "postAnswerEngine": {
+    "receipt": null,
+    "cancelled": null
+  },
+  "receiptLines": [
+    "⎿ Set model to Haiku 4.5 and saved as your default for new sessions"
+  ],
+  "hookRunnerLines": [
+    "Running PreModelSwitch hooks… (Esc to cancel) ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"
+  ],
+  "modelSwitchHooks": [
+    {
+      "event": "PreModelSwitch",
+      "atMs": 10298,
+      "observedAtMs": 10300,
+      "sinkStamped": true,
+      "keys": [
+        "cache_ttl",
+        "context_tokens",
+        "cwd",
+        "estimated_cache_write_usd",
+        "from_model",
+        "hook_event_name",
+        "pricing",
+        "prompt_cache_warm",
+        "prompt_id",
+        "requested_model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "to_model",
+        "transcript_path"
+      ],
+      "identity": "{\"cache_ttl\":\"1h\",\"context_tokens\":47048,\"estimated_cache_write_usd\":0.0941,\"from_model\":\"claude-fable-5-1\",\"hook_event_name\":\"PreModelSwitch\",\"pricing\":\"catalog\",\"prompt_cache_warm\":true,\"prompt_id\":\"383ba3c2\",\"requested_model\":\"haiku\",\"session_id\":\"2d03ddf8\",\"source\":\"command\",\"to_model\":\"claude-haiku-4-5-20251001\"}",
+      "payload": {
+        "session_id": "<session_id:sha8 2d03ddf8>",
+        "transcript_path": "<transcript_path:142ch>",
+        "cwd": "<cwd:67ch>",
+        "scratchpad_dir": "<scratchpad_dir:139ch>",
+        "prompt_id": "<prompt_id:sha8 383ba3c2>",
+        "hook_event_name": "PreModelSwitch",
+        "from_model": "claude-fable-5-1",
+        "to_model": "claude-haiku-4-5-20251001",
+        "requested_model": "haiku",
+        "source": "command",
+        "context_tokens": 47048,
+        "prompt_cache_warm": true,
+        "cache_ttl": "1h",
+        "estimated_cache_write_usd": 0.0941,
+        "pricing": "catalog"
+      },
+      "afterCrMs": 65
+    },
+    {
+      "event": "PreModelSwitch",
+      "atMs": 10361,
+      "observedAtMs": 10379,
+      "sinkStamped": true,
+      "keys": [
+        "cache_ttl",
+        "context_tokens",
+        "cwd",
+        "estimated_cache_write_usd",
+        "from_model",
+        "hook_event_name",
+        "pricing",
+        "prompt_cache_warm",
+        "prompt_id",
+        "requested_model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "to_model",
+        "transcript_path"
+      ],
+      "identity": "{\"cache_ttl\":\"1h\",\"context_tokens\":47048,\"estimated_cache_write_usd\":0.1882,\"from_model\":\"claude-fable-5-1\",\"hook_event_name\":\"PreModelSwitch\",\"pricing\":\"catalog\",\"prompt_cache_warm\":true,\"prompt_id\":\"383ba3c2\",\"requested_model\":\"haiku\",\"session_id\":\"2d03ddf8\",\"source\":\"command\",\"to_model\":\"claude-sonnet-5\"}",
+      "payload": {
+        "session_id": "<session_id:sha8 2d03ddf8>",
+        "transcript_path": "<transcript_path:142ch>",
+        "cwd": "<cwd:67ch>",
+        "scratchpad_dir": "<scratchpad_dir:139ch>",
+        "prompt_id": "<prompt_id:sha8 383ba3c2>",
+        "hook_event_name": "PreModelSwitch",
+        "from_model": "claude-fable-5-1",
+        "to_model": "claude-sonnet-5",
+        "requested_model": "haiku",
+        "source": "command",
+        "context_tokens": 47048,
+        "prompt_cache_warm": true,
+        "cache_ttl": "1h",
+        "estimated_cache_write_usd": 0.1882,
+        "pricing": "catalog"
+      },
+      "afterCrMs": 128
+    },
+    {
+      "event": "PostModelSwitch",
+      "atMs": 10508,
+      "observedAtMs": 10513,
+      "sinkStamped": true,
+      "keys": [
+        "cache_ttl",
+        "context_tokens",
+        "cwd",
+        "estimated_cache_write_usd",
+        "from_model",
+        "hook_event_name",
+        "pricing",
+        "prompt_cache_warm",
+        "prompt_id",
+        "requested_model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "to_model",
+        "transcript_path"
+      ],
+      "identity": "{\"cache_ttl\":\"1h\",\"context_tokens\":47048,\"estimated_cache_write_usd\":0.0941,\"from_model\":\"claude-fable-5-1\",\"hook_event_name\":\"PostModelSwitch\",\"pricing\":\"catalog\",\"prompt_cache_warm\":true,\"prompt_id\":\"383ba3c2\",\"requested_model\":\"haiku\",\"session_id\":\"2d03ddf8\",\"source\":\"command\",\"to_model\":\"claude-haiku-4-5-20251001\"}",
+      "payload": {
+        "session_id": "<session_id:sha8 2d03ddf8>",
+        "transcript_path": "<transcript_path:142ch>",
+        "cwd": "<cwd:67ch>",
+        "scratchpad_dir": "<scratchpad_dir:139ch>",
+        "prompt_id": "<prompt_id:sha8 383ba3c2>",
+        "hook_event_name": "PostModelSwitch",
+        "from_model": "claude-fable-5-1",
+        "to_model": "claude-haiku-4-5-20251001",
+        "requested_model": "haiku",
+        "source": "command",
+        "context_tokens": 47048,
+        "prompt_cache_warm": true,
+        "cache_ttl": "1h",
+        "estimated_cache_write_usd": 0.0941,
+        "pricing": "catalog"
+      },
+      "afterCrMs": 275
+    }
+  ],
+  "allHooksAfterCr": [
+    "PreModelSwitch@+65ms",
+    "PreModelSwitch@+128ms",
+    "PostModelSwitch@+275ms"
+  ],
+  "modelSwitchHooksAfterAnswer": [
+    "PostModelSwitch@+72ms"
+  ],
+  "settingsWhileLive": {
+    "checked": true,
+    "changed": true,
+    "changedKeys": [
+      "model: \"fable\" → \"haiku\""
+    ]
+  },
+  "settingsRestore": {
+    "label": "a1",
+    "mutatedByProbe": true,
+    "restored": true,
+    "changedKeys": [
+      "model: \"fable\" → \"haiku\""
+    ]
+  },
+  "ranAt": "2026-09-02T23:11:17.971Z"
+}
+
+==============================================================================
+ARM e-fresh-no-history — clean path: Post without a dialog; timing
+==============================================================================
+{
+  "arm": "e-fresh-no-history",
+  "version": "2.1.259 (Claude Code)",
+  "injectedEvents": [
+    "Notification",
+    "PermissionRequest",
+    "PostModelSwitch",
+    "PostToolUse",
+    "PreModelSwitch",
+    "PreToolUse",
+    "SessionStart",
+    "Stop",
+    "StopFailure",
+    "SubagentStop",
+    "UserPromptSubmit"
+  ],
+  "hookOrder": [
+    "SessionStart@773",
+    "PreModelSwitch@4914",
+    "PostModelSwitch@4984"
+  ],
+  "notes": [
+    "ready=true at 870ms",
+    "slash \"/model sonnet\" on the composer before CR (attempt 1): true"
+  ],
+  "hostEvents": [
+    "file:watching@20",
+    "task:started@64"
+  ],
+  "ptyExited": false,
+  "frames": [
+    {
+      "atMs": 3373,
+      "label": "boot — composer ready",
+      "screen": "\n▗ ▗   ▖ ▖  Claude Code v2.1.259\n           Fable 5.1 with medium effort · Claude Max\n  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/e-fresh-no-history/ws\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n                                                                                                    ◐ medium · /effort\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "atMs": 16861,
+      "label": "e-fresh-no-history — after CR (dialog on grid? false)",
+      "screen": "\n▗ ▗   ▖ ▖  Claude Code v2.1.259\n           Sonnet 5 with low effort · Claude Max\n  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/e-fresh-no-history/ws\n\n\n❯ /model sonnet                                                                                                         \n  ⎿  Set model to Sonnet 5 and saved as your default for new sessions\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents"
+    },
+    {
+      "atMs": 36864,
+      "label": "e-fresh-no-history — settled",
+      "screen": "\n▗ ▗   ▖ ▖  Claude Code v2.1.259\n           Sonnet 5 with low effort · Claude Max\n  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/e-fresh-no-history/ws\n\n\n❯ /model sonnet                                                                                                         \n  ⎿  Set model to Sonnet 5 and saved as your default for new sessions\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents"
+    }
+  ],
+  "screenTail": "\n\n\n\n\n\n\n\n\n\n\n\n\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n❯ \n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏸ manual mode on · ← for agents",
+  "question": "clean path: Post without a dialog; timing",
+  "pinAtSpawn": "fable",
+  "warmupTurn": false,
+  "slash": {
+    "text": "/model sonnet",
+    "onScreen": true,
+    "attempts": 1,
+    "crAtMs": 4825
+  },
+  "dialogSeen": false,
+  "answered": null,
+  "unanchoredResidual": {
+    "foreignValue": "a-value-never-asked-for",
+    "verdict": null,
+    "afterCrMs": null,
+    "note": "no settle for a foreign value in this window"
+  },
+  "engine": {
+    "receipt": null,
+    "dialog": null,
+    "cancelled": null
+  },
+  "postAnswerEngine": null,
+  "receiptLines": [
+    "⎿ Set model to Sonnet 5 and saved as your default for new sessions"
+  ],
+  "hookRunnerLines": [
+    "Running PreModelSwitch hooks… (Esc to cancel) Sonnt 5 with low effort"
+  ],
+  "modelSwitchHooks": [
+    {
+      "event": "PreModelSwitch",
+      "atMs": 4914,
+      "observedAtMs": 4928,
+      "sinkStamped": true,
+      "keys": [
+        "cache_ttl",
+        "context_tokens",
+        "cwd",
+        "estimated_cache_write_usd",
+        "from_model",
+        "hook_event_name",
+        "pricing",
+        "prompt_cache_warm",
+        "prompt_id",
+        "requested_model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "to_model",
+        "transcript_path"
+      ],
+      "identity": "{\"cache_ttl\":\"1h\",\"context_tokens\":0,\"estimated_cache_write_usd\":0,\"from_model\":\"claude-fable-5-1\",\"hook_event_name\":\"PreModelSwitch\",\"pricing\":\"catalog\",\"prompt_cache_warm\":false,\"prompt_id\":\"47fa7bb9\",\"requested_model\":\"sonnet\",\"session_id\":\"2499d637\",\"source\":\"command\",\"to_model\":\"claude-sonnet-5\"}",
+      "payload": {
+        "session_id": "<session_id:sha8 2499d637>",
+        "transcript_path": "<transcript_path:148ch>",
+        "cwd": "<cwd:73ch>",
+        "scratchpad_dir": "<scratchpad_dir:145ch>",
+        "prompt_id": "<prompt_id:sha8 47fa7bb9>",
+        "hook_event_name": "PreModelSwitch",
+        "from_model": "claude-fable-5-1",
+        "to_model": "claude-sonnet-5",
+        "requested_model": "sonnet",
+        "source": "command",
+        "context_tokens": 0,
+        "prompt_cache_warm": false,
+        "cache_ttl": "1h",
+        "estimated_cache_write_usd": 0,
+        "pricing": "catalog"
+      },
+      "afterCrMs": 89
+    },
+    {
+      "event": "PostModelSwitch",
+      "atMs": 4984,
+      "observedAtMs": 5009,
+      "sinkStamped": true,
+      "keys": [
+        "cache_ttl",
+        "context_tokens",
+        "cwd",
+        "estimated_cache_write_usd",
+        "from_model",
+        "hook_event_name",
+        "pricing",
+        "prompt_cache_warm",
+        "prompt_id",
+        "requested_model",
+        "scratchpad_dir",
+        "session_id",
+        "source",
+        "to_model",
+        "transcript_path"
+      ],
+      "identity": "{\"cache_ttl\":\"1h\",\"context_tokens\":0,\"estimated_cache_write_usd\":0,\"from_model\":\"claude-fable-5-1\",\"hook_event_name\":\"PostModelSwitch\",\"pricing\":\"catalog\",\"prompt_cache_warm\":false,\"prompt_id\":\"47fa7bb9\",\"requested_model\":\"sonnet\",\"session_id\":\"2499d637\",\"source\":\"command\",\"to_model\":\"claude-sonnet-5\"}",
+      "payload": {
+        "session_id": "<session_id:sha8 2499d637>",
+        "transcript_path": "<transcript_path:148ch>",
+        "cwd": "<cwd:73ch>",
+        "scratchpad_dir": "<scratchpad_dir:145ch>",
+        "prompt_id": "<prompt_id:sha8 47fa7bb9>",
+        "hook_event_name": "PostModelSwitch",
+        "from_model": "claude-fable-5-1",
+        "to_model": "claude-sonnet-5",
+        "requested_model": "sonnet",
+        "source": "command",
+        "context_tokens": 0,
+        "prompt_cache_warm": false,
+        "cache_ttl": "1h",
+        "estimated_cache_write_usd": 0,
+        "pricing": "catalog"
+      },
+      "afterCrMs": 159
+    }
+  ],
+  "allHooksAfterCr": [
+    "PreModelSwitch@+89ms",
+    "PostModelSwitch@+159ms"
+  ],
+  "modelSwitchHooksAfterAnswer": null,
+  "settingsWhileLive": {
+    "checked": true,
+    "changed": true,
+    "changedKeys": [
+      "model: \"fable\" → \"sonnet\""
+    ]
+  },
+  "settingsRestore": {
+    "label": "e",
+    "mutatedByProbe": true,
+    "restored": true,
+    "changedKeys": [
+      "model: \"fable\" → \"sonnet\""
+    ]
+  },
+  "ranAt": "2026-09-02T23:10:47.527Z"
+}
+
+==============================================================================
+FRAME · a1-yes-haiku @3140ms · boot — composer ready
+==============================================================================
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/a1-yes-haiku/ws
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+==============================================================================
+FRAME · a1-yes-haiku @10436ms · a1-yes-haiku — after CR (dialog on grid? true)
+==============================================================================
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/a1-yes-haiku/ws
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that mimics a physical text terminal, letting you type commands to a shell and see
+  its text output in a window.
+
+✻ Baked for 2s · done 7:10 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Switch model?
+   Your next response will be slower and use more tokens
+
+   This conversation is cached for the current model. Switching to Haiku 4.5 means the full history gets re-read on
+   your next message.
+
+   ❯ 1. Yes, switch to Haiku 4.5
+     2. No, go back
+
+==============================================================================
+FRAME · a1-yes-haiku @10436ms · a1-yes-haiku — cursor on row 1, pressing Enter
+==============================================================================
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/a1-yes-haiku/ws
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that mimics a physical text terminal, letting you type commands to a shell and see
+  its text output in a window.
+
+✻ Baked for 2s · done 7:10 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Switch model?
+   Your next response will be slower and use more tokens
+
+   This conversation is cached for the current model. Switching to Haiku 4.5 means the full history gets re-read on
+   your next message.
+
+   ❯ 1. Yes, switch to Haiku 4.5
+     2. No, go back
+
+==============================================================================
+FRAME · a1-yes-haiku @30438ms · a1-yes-haiku — settled
+==============================================================================
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Haiku 4.5 · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/a1-yes-haiku/ws
+
+
+❯ In one short sentence, say what a terminal emulator does. Do not use any tools.                                       
+
+⏺ A terminal emulator is a program that mimics a physical text terminal, letting you type commands to a shell and see
+  its text output in a window.
+
+✻ Baked for 2s · done 7:10 PM
+
+❯ /model haiku                                                                                                          
+  ⎿  Set model to Haiku 4.5 and saved as your default for new sessions
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+     
+  ⏸ manual mode on · ← for agents
+
+==============================================================================
+FRAME · e-fresh-no-history @3373ms · boot — composer ready
+==============================================================================
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Fable 5.1 with medium effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/e-fresh-no-history/ws
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+==============================================================================
+FRAME · e-fresh-no-history @16861ms · e-fresh-no-history — after CR (dialog on grid? false)
+==============================================================================
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Sonnet 5 with low effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/e-fresh-no-history/ws
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents
+
+==============================================================================
+FRAME · e-fresh-no-history @36864ms · e-fresh-no-history — settled
+==============================================================================
+
+▗ ▗   ▖ ▖  Claude Code v2.1.259
+           Sonnet 5 with low effort · Claude Max
+  ▘▘ ▝▝    /private/tmp/sonata-sync-2026-09/model-switch-hooks/e-fresh-no-history/ws
+
+
+❯ /model sonnet                                                                                                         
+  ⎿  Set model to Sonnet 5 and saved as your default for new sessions
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agents

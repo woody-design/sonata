@@ -3720,3 +3720,567 @@ the memory that actually exists.
   source). Read-only: no spawn, no writes outside its own capture, hence the one
   probe in this program that legitimately needs no settings guard.
 - `settings-guard.mjs` — the shared bracket, reused unchanged from U1 (F70).
+
+---
+
+# D2 U3 — PostModelSwitch confirm + the picker-`s` path (probed 2026-09-02, binary 2.1.258)
+
+Probe `h4-model-switch-hooks.mjs` → `h4-model-switch-hooks.capture.txt`.
+**11 arms / 12 measured switch legs, every one a fresh spawn**, all reproduced in
+ONE pass of the committed harness between 18:17:48 and 18:24:03 local. Version
+pinned `2.1.258` at the start and end of every batch, no drift inside any leg.
+
+Each arm runs the production `TerminalHost` from `dist/` with production argv, the
+production `ensureClaudeRuntimeSettings` writer and the production `hook-sink.js`
+command; the ONLY variable is a probe-local wrapper that LAYERS
+`PreModelSwitch`/`PostModelSwitch` onto the file the production writer just wrote
+(h1's pattern). The production injection list was not edited to measure it —
+editing it is the patch, and a probe that needed the patch to exist could not have
+judged the patch.
+
+**Two clocks, both taken from the same zero (the CR that submitted the command, or
+the confirm key for the picker arms):**
+
+- the HOOK clock is read off the sink's own FILENAME
+  (`hook-<Date.now() base36>-…`, `hook-sink.ts`), i.e. the instant the CLI fired
+  the hook rather than the instant a poll noticed. The probe polls at 25ms with
+  the same read-then-delete protocol `HookWatcher` uses. **Production's watcher
+  polls at 250ms (`DEFAULT_POLL_MS`), so production DELIVERY is every figure below
+  plus [0, 250]ms** — stated rather than folded in, because they are two facts.
+- the RECEIPT clock is taken by replaying each leg's own pty chunks through the
+  SHIPPED `parseClaudeControlReceipt` over the SHIPPED 4096-char window, one chunk
+  at a time, first verdict wins — production's exact arming shape. So "the receipt
+  arrived at +N ms" means "the engine would have SETTLED at +N ms", not "a string
+  appeared somewhere in the stream".
+
+Settings guard (`settings-guard.mjs`, shared since U1) self-tested against a
+throwaway file before the first spawn and closed PER ARM. Across the whole slice
+**8 arms moved `~/.claude/settings.json`; all 8 restored and byte-verified**; final
+state `model: "fable"`, byte-identical to the snapshot.
+
+**VERDICT: PATCHED.** The model axis now settles on `PostModelSwitch`; the
+retired needle is deleted rather than merely unread; the cancel needle is narrowed
+by a grid term; the effort axis is registered as the remaining stream-confirm.
+
+## F82 — the pair across the four outcomes: a CENSUS, not a sample (MEASURED)
+
+The question the slice turns on is not "does the hook fire" (F35 knew that) but
+"does it fire exactly when a switch completes, and never otherwise". Twelve legs,
+four outcomes:
+
+| outcome | arms | `PreModelSwitch` | `PostModelSwitch` | engine receipt |
+|---|---|---|---|---|
+| **applied** (dialog → Yes) | a1, a2, a3, f, g, h-leg1 | 1 or 2 | **1**, 6/6 | settled |
+| **applied** (no dialog) | e, h-leg2 | 1 or 2 | **1**, 2/2 | settled |
+| **cancelled** (Esc / `No` row) | b1, b2 | 1 | **0**, 2/2 — and still 0 after a further 15s of watching | none (only `Kept model as …`) |
+| **rejected** (bogus alias) | c | **0** | **0** | failed |
+| **effort** (`/effort low`) | d | **0** | **0** — and ZERO hook payloads of ANY event between the command and its receipt | settled |
+
+So `PostModelSwitch` is exactly coextensive with "a model switch completed":
+8/8 where one did, 0/4 where one did not. That is what licenses it as a SETTLE
+rather than a corroborator — a signal that also fired on cancels or rejections
+could only ever have been a second opinion.
+
+The cancel row is the one worth reading twice. `Pre` fires on the ATTEMPT, so it
+says a switch was proposed, not that one happened; b1 and b2 each produced exactly
+one `Pre` and then nothing, through a further 15 seconds of watching, while the
+CLI printed `⎿ Kept model as Fable 5.1` and `~/.claude/settings.json` stayed
+byte-identical. This is why the patch injects `PostModelSwitch` and NOT its
+bracket-mate: an event that fires on both outcomes discriminates neither.
+
+## F83 — `requested_model` is the alias Sonata typed, and it is the ONLY stable field (MEASURED)
+
+S4's premise, confirmed and then sharpened into a warning about its sibling.
+
+`requested_model` came back byte-for-byte equal to the string Sonata typed on
+every leg, across the alias vocabulary that matters:
+
+| leg | typed | `requested_model` | `source` |
+|---|---|---|---|
+| a1/a2/a3, h-leg2 | `/model haiku` | `haiku` | `command` |
+| b1/b2, e | `/model sonnet` | `sonnet` | `command` |
+| h-leg1 | `/model opus[1m]` | **`opus[1m]`** | `command` |
+| f | picker row + Enter | `haiku` | **`picker`** |
+| g | picker row + `s` | `haiku` | **`picker`** |
+
+Three consequences, in order of weight:
+
+1. **The bracketed alias round-trips.** `opus[1m]` is the alias whose brackets
+   forced `valueNeedle` to escape regex metacharacters on the failure path (F19).
+   Here it is a plain string equality, so the brackets are inert — but the smoke
+   pins both directions (`opus[1m]` matches, `opus1m` does not) so a future
+   "match with a RegExp instead" cannot quietly reintroduce the character class.
+2. **The PICKER speaks the same vocabulary.** A row chosen with the arrow keys
+   reports `requested_model: "haiku"` — the ALIAS, not the row's display label
+   (`5. Haiku  Haiku 4.5 · Fastest for quick answers`). This matters twice over:
+   it means a native switch a user makes in the co-visible Terminal is legible on
+   the same key, and it means candidate slice U4 can change the DRIVE from slash
+   to picker without changing the confirm.
+3. **`source` distinguishes the two drives** (`command` vs `picker`) with an
+   otherwise identical key set. Not consumed today; recorded because U4 would be
+   the first thing that could want it.
+
+**And the field that looks stronger is the one that moves — see F84.**
+
+## F84 — the double `PreModelSwitch` REPRODUCED, and F35's reading of it CORRECTED (MEASURED)
+
+SL-9 recorded: "`PreModelSwitch` fired TWICE for one switch, 103ms apart,
+**byte-identical payloads**. A consumer must be idempotent." — from a single
+observation, and it says so.
+
+Reproduced here, and the payloads are **not** byte-identical:
+
+| leg | `Pre` #1 | `Pre` #2 | what differs |
+|---|---|---|---|
+| a1 | +68ms · `to_model: claude-haiku-4-5-20251001` · $0.0941 | +132ms · **`to_model: claude-sonnet-5`** · **$0.1882** | `to_model`, `estimated_cache_write_usd` |
+| a2 | +95ms | +157ms | the same two fields, the same two values |
+| a3 | +65ms | +127ms | the same two fields, the same two values |
+| f | +85ms | +148ms | the same |
+| g | +85ms | +148ms | the same |
+| h-leg2 | +112ms | +174ms | the same |
+
+Same session (digest-compared), same `prompt_id`, same `requested_model`, **62–64ms
+apart** (64 / 62 / 62 / 63 / 63 / 62 across the six). Everything else in the
+payload is identical.
+
+**When it happens.** The second `Pre` appeared on **6 of 6 legs whose target was
+`haiku`** (a1, a2, a3, f, g, h-leg2) and on **0 of the 4 legs that targeted a
+different model and fired a `Pre` at all** (b1, b2, e → `sonnet`; h-leg1 →
+`opus[1m]`). The other two legs sit outside the comparison rather than inside it,
+and are named so they are not silently counted as evidence: c's rejected alias
+fired no `Pre` of any kind (F87), and d is the effort axis, which fires nothing at
+all (F88). The
+mechanism is NOT located and is not guessed at here — the second event evaluates
+`claude-sonnet-5` at twice the cache-write cost while the user asked for haiku,
+which is consistent with the CLI pricing some companion or fallback model, and
+consistent is not measured. What is measured is the correlation and the invariant.
+
+**Why this is the finding that fixes the design rather than a curiosity.**
+`to_model` is the canonical API id — the field a reasonable engineer would reach
+for as the strongest key, and the brief explicitly allowed it as a secondary
+match. It is the field that moves. `requested_model` is the alias — the field that
+looks weaker because it is user input — and it is the invariant, on every leg, in
+both drives, across the double fire. **So the consumer matches on
+`requested_model` and nothing else**, and the union's block comment now says so
+where the next reader will look.
+
+Idempotence is still required, and is unchanged as a requirement — but for the
+recorded reason rather than the assumed one: the pair is not "a duplicate event",
+it is "two events that agree about the request and disagree about the target".
+Since Sonata consumes only `Post`, the double `Pre` never reaches the engine at
+all; the engine's idempotence covers a duplicate `Post`, which was not observed
+but is free to be safe about (every settle path clears the pending switch first,
+so a repeat finds nothing).
+
+## F85 — the LATENCY question, answered — and F35's 9.3-second figure explained (MEASURED)
+
+This is the number the slice's go/no-go was gated on: if the hook were slower than
+the receipt by a margin the switching chip would show, the confirm could not move
+to it and the answer was BLOCKED-to-Woody.
+
+Measured at the sink, from the CR, on the legs that raise no dialog:
+
+| leg | `Pre` | engine RECEIPT | `Post` | Post − receipt |
+|---|---|---|---|---|
+| e (fresh, no history) | +88ms | +111ms | +159ms | **+48ms** |
+| h-leg2 (second switch in a session) | +112ms | +195ms | +243ms | **+48ms** |
+
+And on the legs where a dialog stands between the command and the switch, measured
+from the moment the dialog is ANSWERED — which is when the switch actually happens:
+
+| leg | receipt after answer | `Post` after answer | Post − receipt |
+|---|---|---|---|
+| a1 | +20ms | +71ms | +51ms |
+| a2 | +17ms | +66ms | +49ms |
+| a3 | +17ms | +68ms | +51ms |
+| h-leg1 | +19ms | +72ms | +53ms |
+| f (picker, Enter) | — | +91ms | — |
+| g (picker, `s`) | — | +92ms | — |
+
+**The hook is 48–53ms behind the receipt, every time.** Add production's
+`HookWatcher` poll (`DEFAULT_POLL_MS = 250`, so [0, 250]ms) and the worst case for
+a production settle is ~300ms later than today's scrape, against a pending
+affordance that already lives ~200ms and a needs-attention timeout of 5000ms —
+18× headroom. Not a perception call, and therefore not one to take to Woody.
+
+**F35's "`Post` 9.3 seconds later" is not a hook latency, and this closes it.**
+That arm (h1's `c1-census`) typed `/model haiku`, waited 8 seconds, then typed
+`/model opus[1m]` — which its own note records as never reaching the composer.
+h4 measures why: a `/model` on a session with history raises the cache-miss
+dialog, which is exactly why the second command could not reach a composer, and
+the probe's own trailing `\r` then answered that dialog. The switch completed when
+the dialog was answered, and `Post` followed it by the ordinary 66–92ms. So the
+9.3 seconds was the PROBE's latency to answer a dialog it did not know was there —
+which also explains F41's incident: the user's default became `haiku` because that
+stray Enter applied the switch. The union's block comment carries this correction.
+
+## F86 — the CANCEL axis: no hook, but a clean STRUCTURAL second witness (MEASURED)
+
+Arms b1 (Esc) and b2 (the `No, go back` row), and this is what decides F22.
+
+What fires on a cancel: one `PreModelSwitch` (+67ms / +77ms), then nothing —
+verified by continuing to watch for a further 15 seconds after the settle window.
+`~/.claude/settings.json` is byte-unchanged both ways. The CLI prints
+`⎿ Kept model as Fable 5.1` (the model KEPT, not the one asked for — F22's
+un-anchorable field).
+
+So "Pre without Post" is real but not usable on its own: distinguishing it from
+"Post has not arrived yet" needs a timeout, and a timeout on this path would turn
+a slow Yes into a reported cancel — the same class of lie in the other direction.
+
+**What IS usable, and is new here: `claudeCacheMissDialogOpen` works on the
+GRID.** Every arm's dialog detection in this probe ran the SHIPPED predicate over
+the rendered viewport rather than the pty scan, and it answered correctly in both
+directions on every arm that raised a dialog — TRUE while parked (a1/a2/a3 at
++144/+173/+142ms, f/g at +160ms, d at +27ms, h-leg1 at +105ms, b1/b2 at
++80/+90ms), FALSE the moment it closed (b1/b2 both recorded
+`dialogStillOnGrid: false` after answering). That is the D-1 substrate for a state
+question, and a replayed line cannot forge it.
+
+**Taken:** on the MODEL axis the `Kept …` needle now requires the dialog to be
+GONE FROM THE GRID before it settles a cancel. F22's stated harm — "Sonata reports
+the switch settled-as-cancelled while the CLI's dialog is still open and
+unanswered, and `settleParkedCancel` drops the staged effort leg" — is exactly the
+case that second term refuses. The needle is not anchored (it still cannot be) but
+it is no longer alone, and the harm F22 registered is closed.
+
+**AND THE TWO TERMS TOGETHER STILL DO NOT CONCLUDE — a hazard the retirement
+itself creates, found in self-review rather than in the probe.** There is one
+shape in which both terms are true of a YES. A Yes reshapes the banner, which is
+F19's full-transcript redraw, which replays this session's older receipts into the
+freshly-reset post-park scan; if the session ever cancelled a switch before — or
+Esc'd a plain `/model` picker, which F15 measured printing the same phrase — that
+replay can carry a `Kept model as …` into the window at the exact moment the
+dialog leaves the screen FOR A YES. Before this slice the success receipt was
+checked first and beat it. With the model success needle retired, nothing in the
+stream can, and the thing that can (`PostModelSwitch`) is 66–92ms behind the
+answer. Concluding inside that window would report a cancel that did not happen
+AND drop the staged effort leg — F22's harm, reintroduced by its own fix, on the
+opposite input.
+
+So the model-axis cancel does not conclude on the two terms; it OPENS the bounded
+`cancel-exit` beat the codex consent already uses for the identical ambiguity
+(`PARKED_CONFIRM_CANCEL_VERIFY_MS`, 900ms — ~10x the measured hook latency), and a
+`PostModelSwitch` arriving inside it settles a Yes instead. Only an elapsed beat
+with nothing in it concludes cancelled. The cost is ≤900ms before the chip clears
+on a genuine cancel, which is what the codex path has always paid; the phase's
+doc comment now covers both dialogs, because it turned out to be one mechanism
+with two witnesses rather than a codex peculiarity.
+
+**Not taken on the EFFORT axis**, deliberately: effort has no hook (F82), so its
+Yes side still rides the receipt, and gating its cancel on a grid term would make
+an effort cancel harder to see without a second witness to pair it with. Both
+halves are pinned in the engine smoke so the asymmetry reads as a decision.
+
+## F87 — a REJECTED alias fires no hook, so the anchored failure needle stays (MEASURED)
+
+Arm c, `/model bogus-model-name` on a session with history:
+`⎿ Model 'bogus-model-name' not found`, no cache-miss dialog, the engine's replay
+reaches `failed` at +225ms — and **zero ModelSwitch hook payloads of any kind**,
+not even a `Pre`.
+
+The stream is therefore a rejection's only witness at 2.1.258, and the
+value-anchored failure needle F19 shipped is load-bearing exactly as it was. It is
+kept unchanged, and the smoke now asserts it against the h4 success window with a
+rejection appended, so "the model axis still rejects" is pinned on MEASURED bytes
+rather than on a composed line.
+
+## F88 — the EFFORT axis has no hook at all — and where `/effort` actually persists (MEASURED)
+
+Arm d, `/effort low` on a session with history. It raises its own cache-miss
+dialog (`Change effort level?`, +27ms), the receipt is
+`⎿ Set effort level to low (saved as your default for new sessions): Quick,
+straightforward implementation with…`, the engine settles at +149ms — and **not
+one hook payload of any event** arrives between the command and its receipt.
+
+So the effort axis stays on the stream, and after this slice it is **the last
+stream-confirmed switch axis on the claude side**. Registered as such rather than
+left implicit: if upstream ever ships an effort-switch hook, this is the finding
+that says what to do with it.
+
+**A REGISTER ITEM CLOSED IN PASSING.** SL-4's F20 recorded: *"`settings.json`'s
+`effortLevel` did NOT move for any `/effort` command even though the receipts say
+'saved as your default for new sessions' … Where the CLI persists the effort
+default at 2.1.258 is unlocated — noted, not chased."* The settings guard caught it
+here without being asked to, because it diffs KEYS rather than watching one:
+
+```
+modelSettings: {"claude-sonnet-5":{"effortLevel":"low"}}
+             → {"claude-sonnet-5":{"effortLevel":"low"},"claude-fable-5-1":{"effortLevel":"low"}}
+```
+
+`/effort low` on a session running Fable wrote **`modelSettings["claude-fable-5-1"]
+.effortLevel`** — a PER-MODEL effort default, keyed by canonical model id, which is
+why F20 found the top-level `effortLevel` key unmoved. Reproduced on both runs of
+arm d, restored both times.
+
+Two notes for whoever owns that register item. This is persistence, so `/effort`
+pollutes the user's durable configuration the same way `/model` does (F68) — a
+narrower blast radius (one model's entry rather than the global default) but the
+same class, and the F68 ruling's "session-scoped switch" direction has an effort
+sibling nobody has looked for. And it does NOT contradict F20's other half: F20
+measured that the LIVE effort carries across a model switch, which is a fact about
+the session; this is a fact about the file.
+
+## F89 — ARM g: the picker's `s` key, measured end to end (the F68 ruling's decisive cell)
+
+This is U4's design input, written so U4 can be planned from it alone. Arms f and
+g are the SAME key sequence up to the final keystroke, run back to back against
+the same pin, so the difference is attributable.
+
+**The exact sequence, both arms** (every step grid-verified, never a blind key):
+
+```
+type "/model"  →  grid-verify the composer holds it  →  CR
+   →  grid-verify the picker is open (title row `Select model`)
+   →  read the focused row bottom-up; it starts on the CURRENT model
+      (`3. Fable ✔ Fable 5.1 · Most capable for your hardest and longest-running tasks`)
+   →  Down, re-read, Down, re-read   (2 steps to `5. Haiku Haiku 4.5 · Fastest for quick answers`)
+   →  Enter   (arm f)      OR      's'   (arm g)
+   →  the cache-miss dialog appears in BOTH arms  →  answer row 1 (`Yes, switch to …`)
+```
+
+**What differs, and it is only the last keystroke:**
+
+| | arm f — `Enter` | arm g — **`s`** |
+|---|---|---|
+| receipt | `⎿ Set model to Haiku 4.5 and saved as your default for new sessions` | **`⎿ Set model to Haiku 4.5 for this session only`** |
+| `~/.claude/settings.json` | `model: "fable" → "haiku"` | **UNCHANGED** (guard: `mutatedByProbe: false`) |
+| cache-miss dialog | raised, +160ms | **raised, +160ms** — the `s` path does NOT skip it |
+| `PreModelSwitch` | +85ms, +148ms (the F84 double) | +85ms, +148ms — identical |
+| `PostModelSwitch` | +3094ms (= +91ms after the dialog answer) | +3093ms (= +92ms after the dialog answer) |
+| payload keys | identical to the slash form | identical |
+| `source` | `picker` | `picker` |
+| `requested_model` | `haiku` | `haiku` |
+
+**So the F68 ruling is executable.** The CLI's own session-scoped affordance does
+exactly what the ruling assumed: it applies the switch to the live session and
+writes nothing to the user's durable default. Sonata's mid-session model switch
+could stop polluting `~/.claude/settings.json` without suppressing any upstream
+capability — it would be adopting one the CLI offers and Sonata has never used.
+
+**Five things U4 must plan around, all measured here:**
+
+1. **The dialog is still in the way.** `s` does not bypass the cache-miss confirm
+   on a session with history, so U4 inherits the whole S7 parked-relay
+   choreography unchanged. It is not a simpler path, only a differently-scoped one.
+2. **The confirm channel does not change.** `requested_model` is the same alias
+   with the same value and the same `Post` timing, so U3's hook confirm settles a
+   picker-driven switch with no modification. This is why U3's design was told not
+   to assume the slash, and it holds.
+3. **The drive is a NAVIGATION, not an argument.** The slash form types one line;
+   `s` requires opening the picker, walking rows by TEXT with a cursor read
+   between every press, and recognising the target row — the codex-model
+   choreography's shape, on a screen where a stray Enter is a model change. The
+   picker's own footer (`Enter to set as default · s to use this session only ·
+   Esc to cancel`, F15) is the row-count-independent proof the key still exists.
+4. **The row label is not the alias.** The focused row reads
+   `5. Haiku Haiku 4.5 · Fastest for quick answers` — digit, then label, then
+   description. h4's own first run of this arm anchored on `/^Haiku/` and walked
+   the list twice without matching. Whatever U4 navigates by, it is the label
+   inside that string, and it comes from the same table SL-4 had to correct.
+5. **UNMEASURED, and U4 must measure it: what `requested_model` is for a picker
+   row whose alias is NOT its label.** Arm g used Haiku, where alias and row name
+   coincide. Whether choosing `Opus (1M context)` reports `opus[1m]` or something
+   else is not on this record, and it is the one cell that could complicate (2).
+
+## F90 — the KNOWN RESIDUAL, reproduced on this binary before being retired (MEASURED)
+
+The residual was inherited as an argument about a regex — the success needle
+`/Setmodelto/` has no value anchor, so a replayed line can settle a switch it does
+not belong to. h4 turned it into an observation: each leg's own settle window,
+replayed through the SHIPPED parser with a pending value the session NEVER asked
+for (`a-value-never-asked-for`), still returns `settled`.
+
+**9 of 12 legs — every leg that produced a success receipt at all:**
+a1 +223ms, a2 +221ms, a3 +220ms, d +149ms (the effort axis has the same property),
+e +111ms, f +3037ms, g +3032ms, h-leg1 +222ms, h-leg2 +195ms.
+
+The other THREE are the control, and they are exactly the legs whose window holds
+no success line to be fooled by: b1 and b2 (cancelled) and c (rejected). So the
+needle settles on any window carrying any success line, for any pending value,
+which is precisely what "unanchored" means and now what it has been seen doing.
+
+**What made retirement possible rather than merely desirable.** F19 rejected
+anchoring the success needle for a good reason that has not changed: the receipt
+names the model's DISPLAY name, so anchoring it means trusting the label table
+this sync had to correct, and failing CLOSED on every upstream rename. The hook
+carries the ALIAS (F83), which is the anchor the stream never had. So the fix is
+not a better needle; it is a different channel, which is what the register item
+("confirm against the MIRROR, not the stream") always said.
+
+**Shipped:** `CONTROL_SWITCH_MODEL_OK_RE` is DELETED, and
+`parseClaudeControlReceipt(scan, "model", …)` can now only return `"failed"` or
+`null`. Deleted rather than left unread, because a needle that exists is a needle
+a future caller re-reads. The two MEASURED windows that used to demonstrate the
+residual (`stale-failure-repaint-2.1.258.txt`, `stale-success-repaint-2.1.258.txt`)
+now assert its ABSENCE on the same bytes, and a third — h4's own — asserts that
+even a switch's OWN correct receipt no longer settles it.
+
+## F91 — what injecting the event COSTS, on screen (MEASURED)
+
+Not a data question. 2.1.258 paints `Running <Event> hooks… (Esc to cancel)` while
+it executes them, and Sonata's Terminal pane is co-visible, so every event added to
+the production list adds a line the user sees. Captured on 8 of 12 legs
+(`Running PreModelSwitch hooks… (Esc to cancel)`); its absence on the others is
+NOT evidence of absence, because claude repaints as a cell diff and a line already
+on screen is never retransmitted — the stream scan can miss what the grid shows.
+
+Two consequences, both taken:
+
+- it is a reason the patch injects `PostModelSwitch` ALONE rather than the pair —
+  the bracket-mate would double a visible cost while confirming nothing (F82);
+- the line names the event, so a user reading their own terminal can see what
+  Sonata registered. That is a property worth keeping honest rather than hiding,
+  and it is recorded here so the next slice that wants to add an event knows the
+  list has a per-entry cost on screen and not only on disk.
+
+## F92 — what shipped, and how the production path itself was verified
+
+- **`INJECTED_HOOK_EVENTS` += `PostModelSwitch`** (consumer named in the comment,
+  SL-9's rule). `PreModelSwitch` deliberately absent — F82.
+- **`ControlSwitchEngine.noteModelSwitchConfirmed(requestedModel)`** settles the
+  pending MODEL switch in BOTH phases (value and parked-confirm), matching
+  `requested_model` against `pending.value`. Idempotent by construction: every
+  settle clears the pending switch first, so a duplicate finds nothing; a foreign
+  alias fails the equality; a model hook against a pending EFFORT leg fails the
+  axis test. Routed `applyHookToTask` → `TerminalHost.noteModelSwitchConfirmed` →
+  the engine, the shape `noteToolActivityAfterStop` set.
+- **The model-axis success needle DELETED** (F90). **The failure needle kept**,
+  because a rejection fires no hook (F87). **The effort axis untouched**, because
+  it has no hook at all (F88).
+- **The model-axis cancel needle GATED** on the dialog's absence from the GRID
+  (F86); the effort-axis cancel needle unchanged.
+- `cli-state.applyHook`: a VERIFIED no-op for the new event, asserted in both
+  directions (an idle session stays idle and emits nothing; a running turn is not
+  ended).
+
+**THE COMPOSITION GAP — opened, then CLOSED by a live run** (see F93 for why it
+existed for an hour). Every arm of the pinned capture measured the hook firing
+from a settings file whose `PostModelSwitch` entry the PROBE's wrapper wrote,
+because at that point production did not write one. The patch makes the PRODUCTION
+writer emit it. The two entries are byte-identical modulo the per-task runtime
+dir:
+
+```
+production, from the patched dist/:
+  "PostModelSwitch": [{"hooks":[{"type":"command",
+    "command":"ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '…/dist/runtime/cli-signal/hook-sink.js' '$RUNTIME/hooks'"}]}]
+
+the entry h4 arm a1 measured firing (a1-yes-haiku/runtime/claude-runtime-settings.json):
+  "PostModelSwitch": [{"hooks":[{"type":"command",
+    "command":"ELECTRON_RUN_AS_NODE=1 \"${SONATA_NODE:-node}\" '…/dist/runtime/cli-signal/hook-sink.js' '…/a1-yes-haiku/runtime/hooks'"}]}]
+```
+
+Byte-identical modulo the runtime dir, which is per-task by construction, and
+`provider-launch-settings` asserts that shape on all four spawn shapes (bare entry,
+no matcher, the same sink command `Stop` uses, `PreModelSwitch` absent).
+
+**And it is no longer only a composition.** The 2.1.259 spot-check (F93) ran
+against the PATCHED `dist/`, and the probe's wrapper only adds what production did
+not already write — so on those two arms **`PostModelSwitch` came from PRODUCTION**
+and only `PreModelSwitch` was layered. The spot-check capture records the handover
+in its own METHOD block (`the probe-local wrapper LAYERED: PreModelSwitch / already
+written by PRODUCTION: PostModelSwitch`), and the hook arrived on both arms, at
++166 ms and +275 ms. Production's own settings entry is therefore MEASURED
+delivering, end to end, on a live session.
+
+Two things that run confirms in passing, each worth more than the line it costs:
+the engine-replay column reads `none` for both arms — the model-axis success needle
+is retired in the SHIPPED `dist/`, not only in the source — and the settings guard
+restored cleanly across a run that moved the file twice.
+
+## F93 — ENVIRONMENT: the binary MOVED to 2.1.259 mid-session, and the patch was spot-checked against it (MEASURED)
+
+**What happened, in order.** At **18:34:28 local** — four minutes after arm g
+(18:24:03) and after the capture was assembled — the claude CLI auto-updated
+**2.1.258 → 2.1.259** and left itself BROKEN for ~28 minutes:
+`bin/claude.exe` was the 500-byte *"Error: claude native binary not installed"*
+stub while the real 145 MB binary sat downloaded next to it
+(`node_modules/@anthropic-ai/claude-code-darwin-arm64/claude`, same timestamp), and
+`/opt/homebrew/bin/claude` had been renamed to `.claude-WV2akNWU` (npm's staging
+rename), so **`claude` was not on `PATH` at all**. The updater completed on its own
+at **19:02** and the symlink came back, pointing at 2.1.259.
+
+**No arm of the record is affected.** Every leg carries `version: "2.1.258"`, every
+batch pinned start AND end with no drift, and the last ran ten minutes before the
+break. The capture is evidence about 2.1.258 and its own header says so.
+
+**One full-suite run was taken inside the broken window and is superseded.** Its
+`npm run build` finished at 18:34:41 — 13 seconds after the break — so all three of
+its failures were one mechanism: `claude-terminalhost` and
+`remote-control-disconnect` timed out "waiting for Claude startup" with an EMPTY
+raw tail, and `native-image-attachments` failed its five CLAUDE arms with `claude
+exited before ready` while all five of its CODEX arms verified true in the same
+run. Recorded rather than deleted, because the diagnosis is the useful part: the
+failing set was exactly "the tests that spawn a real claude", the failure point was
+the spawn — upstream of every line this slice changed — and `which claude` returning
+nothing is a mechanism, not a plausible story. **The re-run after the self-heal is
+148/148 PASS**, those three included, now against 2.1.259.
+
+**THE SPOT-CHECK, and why it was worth a live spawn.** This patch rests on ONE
+payload field. Shipping it without checking that field still exists on the version
+the user's machine now runs would have left an unverified assumption in the
+load-bearing place — the exact failure this program keeps naming. So two arms were
+re-run at 2.1.259 through a deliberate, single-switch spot-check mode
+(`SONATA_PROBE_SPOTCHECK_VERSION`, which re-points the pin AND redirects both
+artifacts, so the 2.1.258 record cannot be overwritten by a run that is not about
+2.1.258):
+
+| | 2.1.258 (record) | **2.1.259 (spot-check)** |
+|---|---|---|
+| payload key set | 15 keys | **identical, 15 keys** |
+| `requested_model` (fresh, `/model sonnet`) | `sonnet` | `sonnet` |
+| `requested_model` (dialog, `/model haiku`) | `haiku` | `haiku` |
+| `source` | `command` | `command` |
+| `Post` after CR (no dialog) | +159 ms | +166 ms |
+| `Post` after CR (dialog answered) | +274 ms | +275 ms |
+| the double `Pre` on a haiku target | yes, 2nd `to_model` = `claude-sonnet-5` | **yes, same** |
+| receipt wording | unchanged | unchanged |
+| `settings.json` moved by `/model` | yes | yes |
+
+Nothing moved. The confirm channel, the match key, the timing and the double-`Pre`
+wrinkle all hold at 2.1.259, which is what makes shipping this at the current
+binary a verified act rather than an assumption. It also closed F92's composition
+gap by accident of good ordering — see there.
+
+**The watermark question is NOT settled by this and is not this slice's to
+settle.** The program's inventory says 2.1.258 and every other surface row is
+stamped against it; the machine now runs 2.1.259. Two arms of one probe are a
+spot-check on one surface, not a sync. The changelog delta 2.1.258 → 2.1.259 is
+unread, and re-stamping the watermark is the `upstream-sync` ritual's job. Recorded
+here so the next session starts from a fact rather than from a surprise.
+
+## F94 — evidence files
+
+- `h4-model-switch-hooks.mjs` — the probe: 11 arms, batch-runnable
+  (`node h4-model-switch-hooks.mjs <arm>…`), `--capture-only` re-renders the
+  capture from the per-arm results plus every batch's merged guard history.
+  **Every arm on record was produced by ONE pass of the committed file** (U1's
+  reproducibility rule, applied literally: three fields were added to the harness
+  mid-slice — the grid-based receipt read, comparable id digests, and the
+  unanchored-residual replay — and rather than leave earlier arms unable to
+  reproduce their own records, all eleven were re-run under the final harness).
+- `h4-model-switch-hooks.capture.txt` — the capture: the two-clock timing table,
+  the unanchored-needle replay table, the on-screen hook-runner cost, the f-vs-g
+  comparison, the guard's full per-arm history, per-arm JSON and every grid frame.
+  Sanitized for `$HOME`, the munged `-Users-…-` form and `claude.ai` links. Ids are
+  redacted to 8-char digests rather than to lengths, so two payloads can be
+  compared for same-session/same-prompt without any id reaching the file — which
+  is what made F84 answerable.
+- `app/tests/fixtures/claude-midsession/model-success-window-2.1.258.txt` — the
+  verbatim 4096-char window `detectControlSwitchReceipt` held at the moment it
+  reached a verdict, from arm h leg2's live `/model haiku`. **MEASURED**
+  (h4 arm h leg2, this capture). It is the fixture that proves the retirement is a
+  retirement: the switch's OWN correct receipt is in it, and the parser now
+  returns null.
+- `h4-model-switch-hooks.spotcheck-2.1.259.capture.txt` — the 2.1.259 spot-check
+  (F93), two arms, written by the SAME committed harness under
+  `SONATA_PROBE_SPOTCHECK_VERSION=2.1.259`. Deliberately a separate file with a
+  header that says what it is NOT: one switch re-points the version pin and
+  redirects both the results dir and the capture name, so a run about another
+  binary cannot overwrite the record about this one. The harness also now REFUSES
+  a `--capture-only` re-render when the binary has moved off the pinned version —
+  a capture is evidence, and a re-render that stamped a 2.1.258 record with a
+  2.1.259 pin would quietly make it lie.
+- `settings-guard.mjs` — the shared bracket, reused unchanged from U1 (F70).
