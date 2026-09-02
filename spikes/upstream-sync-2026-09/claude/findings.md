@@ -3049,3 +3049,351 @@ Settings guard clean (`mutatedByProbe: false`) on both runs, self-test run first
 Captures: `rc8-startup-lever-live.run1.capture.txt`, `…run2.capture.txt` —
 run-numbered like rc7, because the background this measures against flaps and a
 replicate is evidence in its own right.
+
+# D2 U1 — default-model launch channel (probed 2026-09-02, binary 2.1.258)
+
+Probe `m1-default-model-channel.mjs` → `m1-default-model-channel.capture.txt`.
+**35 legs on record, one fresh spawn each** (45 spawns in total: ten runs were
+superseded — legs re-run after the harness gained a field or an arm was
+restructured — and the record keeps the later run), every one through the
+production `TerminalHost` from `dist/`
+with production argv, production `--settings`, production statusline sink; model
+read off TWO independent channels per leg (the boot banner on the reconstructed
+grid AND the `model.display_name`/`model.id` the CLI's own statusline payload
+carries) and, where the SOURCE was the question, off the `/model` picker's
+attribution row. Version pinned `2.1.258` at start and end, no drift.
+
+The user's real `~/.claude/settings.json` was the hazard, not an input: the
+bracket is now a shared module (`settings-guard.mjs`, lifted from h1 after F41)
+and it closes **per arm**, not per run. **53 brackets are merged in the capture;
+23 found the file moved; all 23 restored and byte-verified** — 18 distinct legs,
+of which 16 moved it because the PROBE deliberately set or removed a control pin
+for that leg and 3 because the CLI itself persisted a mid-session `/model` (F68);
+one leg, `f2`, is in both groups. Final state `model: "fable"`, byte-identical to
+the snapshot.
+
+**VERDICT: NO-OP.** No product change. The incumbent `--model` flag wins on all
+five decision axes and outranks every alternative channel; the pollution the
+slice went looking for is not on the launch path at all. Details in F69.
+
+## F63 — S3 FALSIFIED: NO launch channel writes the user's durable default (MEASURED)
+
+The slice's first question was whether `--model <alias>` — the flag Sonata passes
+on every claude spawn — persists into `~/.claude/settings.json`. It does not, and
+neither does any other launch channel tested:
+
+Counting only the **32 legs that launched and did nothing else** (the three that
+drove a mid-session `/model` are F68's, not this finding's — a leg that switches
+mid-session is no longer measuring its launch channel). A leg carrying two
+channels is counted under the one that WON:
+
+| channel | legs | `settings.json` changed after the session exits |
+|---|---|---|
+| `--model <alias>` | a, c, h3, j-am-haiku-flag-sonnet, k, n | **no**, 6/6 |
+| `ANTHROPIC_DEFAULT_MODEL` | b, d×5, e×2, h1 | **no**, 9/9 |
+| `ANTHROPIC_MODEL` | i×2, j×6, m-am-fable-vs-haiku-pin | **no**, 9/9 |
+| `--settings` `model` key | g, h2, m×5 | **no**, 7/7 |
+| nothing at all (baseline) | d0 | **no**, 1/1 |
+
+MEASURED (`m1-default-model-channel.capture.txt`, the per-leg table's
+`settings.json changed` column; each cell is a key-level diff of the file bytes
+taken TWICE, once while the session was live and once after the pty exited, so a
+flush-on-exit could not hide). Every leg that moved the file is a leg that drove
+`/model` — three of them, all in F68, none of them a launch channel.
+
+So the premise the slice was built to test is dead, and with it the "Sonata is
+polluting the user's default at launch" hypothesis. The launch path was never the
+polluter.
+
+## F64 — the incumbent `--model` flag wins on all five axes, and outranks every rival (MEASURED)
+
+| axis | evidence |
+|---|---|
+| (i) selects the model at boot | `--model haiku` under a user pin of `fable` → banner row `Haiku 4.5 · Claude Max` (Haiku carries no effort segment — F70), statusline `claude-haiku-4-5-20251001` (arm a, replicated byte-for-byte at arm h3) |
+| (ii) leaves `settings.json` untouched | F63 (which owns the per-channel counts; they are not restated here) |
+| (iii) accepts every `MODEL_OPTIONS` alias | **5/5, all MEASURED on the LAUNCH FLAG specifically**: `haiku` (a, h3), `sonnet` (c, k, j-am-haiku-flag-sonnet), `fable` (n — against a control pin of `haiku`, because this account's own pin is `fable` and the reading would otherwise be unattributable), `opus` and `opus[1m]` (F18/q15, whose four arms are `--model` spawns). **NOT** F16/q13 or s2: q13 measured the mid-session SLASH channel — a different code path, and the one F68 shows is the polluter — and s2 is a slash-command-NAME probe with nothing to say about model aliases. The earlier draft of this row cited both; the citation was wrong and `n` was run to close the one cell (`fable`) that then had no measurement on this channel at all |
+| (iv) outranks the user's own pin | arm a / h3: file says `fable`, session runs Haiku. The picker confirms it structurally — `❯ 5. Haiku ✔` with the `Default (recommended)` row NOT marked |
+| (v) does not disturb `fastMode` | F18 (q15) at this binary, unchanged |
+
+**And it beats all three rivals head to head**, each measured as its own leg with
+the two channels deliberately disagreeing:
+
+| leg | flag says | rival says | session ran |
+|---|---|---|---|
+| c-env-haiku-flag-sonnet | `sonnet` | `ANTHROPIC_DEFAULT_MODEL=haiku` | **Sonnet 5** |
+| j-am-haiku-flag-sonnet | `sonnet` | `ANTHROPIC_MODEL=haiku` | **Sonnet 5** |
+| k-settings-haiku-flag-sonnet | `sonnet` | `--settings` `model: haiku` | **Sonnet 5** |
+
+The flag is the top of the ladder for every channel Sonata could reach.
+
+## F65 — `ANTHROPIC_DEFAULT_MODEL` LOSES to the user's pin, and silently drops `haiku` (MEASURED — this closes S2 and kills the plan's named candidate)
+
+Two independent failures, either one disqualifying.
+
+**It loses to `~/.claude/settings.json`'s `model`.** With the user's real pin
+(`fable`) in place, `ANTHROPIC_DEFAULT_MODEL=haiku` and `=opus[1m]` both produced
+a `Fable 5.1` session — banner and statusline agreeing, `claude-fable-5-1` (arms
+b, h1, e1). That is the exact correctness failure the plan feared for the FLAG,
+found instead in the channel the plan proposed to replace it with.
+
+**It drops `haiku` outright.** With the pin REMOVED (a guard-bracketed control
+leg, because under a pin every reading is the pin and the sweep answers nothing),
+the alias sweep separates cleanly against a measured baseline:
+
+| leg | `ANTHROPIC_DEFAULT_MODEL` | statusline id | picker attribution row |
+|---|---|---|---|
+| d0-nopin-baseline | (unset) | `claude-opus-5[1m]` | n/a — the picker was not opened on this leg |
+| d-nopin-env-fable | `fable` | `claude-fable-5-1` | `❯ 1. Default (recommended) ✔  Fable 5.1 · Set by ANTHROPIC_DEFAULT_MODEL` |
+| d-nopin-env-opus-1m- | `opus[1m]` | `claude-opus-5[1m]` | `… ✔  Opus 5 · Set by ANTHROPIC_DEFAULT_MODEL` |
+| d-nopin-env-opus | `opus` | `claude-opus-5` | `… ✔  Opus 5 · Set by ANTHROPIC_DEFAULT_MODEL` |
+| d-nopin-env-sonnet | `sonnet` | `claude-sonnet-5` | `… ✔  Sonnet 5 · Set by ANTHROPIC_DEFAULT_MODEL` |
+| **d-nopin-env-haiku** | `haiku` | **`claude-opus-5[1m]`** | **none — row 1 reads `Opus 5 with 1M context · Best for everyday, complex tasks`, i.e. the tier default** |
+
+`haiku` is not merely overridden, it is REFUSED: on the `d-nopin-env-haiku` leg
+the attribution row is absent altogether and row 1 reads the plain tier
+description (`Opus 5 with 1M context · Best for everyday, complex tasks`), so the
+resolver never adopted the value and fell through to the tier default — the same
+id `d0` reaches with nothing set at all. Four of Sonata's five aliases work, the fifth does not — axis (iii) fails.
+
+**S2 is CONFIRMED live.** The static hypothesis was that the picker renders
+`" · Set by ANTHROPIC_DEFAULT_MODEL"` when the model came from env. It does,
+verbatim, on the `Default (recommended)` row. Recorded as a MEASURED footprint,
+not a static one. Two reading notes for whoever uses it next:
+- the attribution row is row 1 (`Default (recommended)`), NOT the model's own row
+  — an env-selected session marks `✔` on row 1 and leaves rows 2–5 unmarked,
+  which is a DIFFERENT picker shape from a flag-selected session (arm a marks
+  `❯ 5. Haiku ✔`);
+- the row's description **abbreviates**: `opus[1m]` renders as `Opus 5`, not
+  `Opus 5 (1M context)`, while the statusline for the same leg says
+  `claude-opus-5[1m]`. The attribution row is evidence of the SOURCE, never of
+  the exact model — read the id.
+
+STATIC corroboration, not load-bearing (`grep -a` over the 2.1.258 bundle): the
+2.1.236 changelog entry reads "Added `ANTHROPIC_DEFAULT_MODEL` environment
+variable: sets the model new sessions start on, while a `/model` pick still
+overrides it and persists across restarts (unlike `ANTHROPIC_MODEL`)" — i.e.
+losing to a persisted `/model` pick is the DOCUMENTED design, not a bug. The
+resolver ladder `Cj()`/`lL()` places the env read (`rie()`) behind a chain of
+guards any one of which returns null; which guard rejects `haiku` was not
+determined and does not need to be — the behaviour is measured.
+
+## F66 — `ANTHROPIC_MODEL` is the STRONG env channel, and still loses to the flag (MEASURED)
+
+Because `ANTHROPIC_DEFAULT_MODEL` failed, the slice's fact ("the measured better
+channel") required measuring the sibling variable the changelog contrasts by name.
+It is materially stronger — every leg run against the user's REAL pin of `fable`:
+
+| leg | `ANTHROPIC_MODEL` | statusline id | picker |
+|---|---|---|---|
+| j-am-fable | `fable` | `claude-fable-5-1` | — |
+| m-am-fable-vs-haiku-pin | `fable` (pin control-set to `haiku`) | `claude-fable-5-1` | — |
+| j-am-opus-1m- | `opus[1m]` | `claude-opus-5[1m]` | — |
+| j-am-opus | `opus` | `claude-opus-5` | — |
+| j-am-sonnet | `sonnet` | `claude-sonnet-5` | — |
+| j-am-haiku / i1 | `haiku` | `claude-haiku-4-5-20251001` | `❯ 5. Haiku ✔`, no attribution row |
+
+**5/5 aliases including `haiku`; outranks the user's pin; leaves `settings.json`
+untouched; `fastMode` intact** (`j-am-opus1m-fast` → the F18 needle
+`Fast mode requires usage credits · /usage-credits to turn them on` present on the
+boot frame, against the same-alias no-fastMode control `j-am-opus-1m-` where it is
+absent). The `m-am-fable-vs-haiku-pin` leg exists so the `fable` cell is not an
+artefact of this account's pin also being `fable`: with the pin control-set to
+`haiku`, `ANTHROPIC_MODEL=fable` still produced Fable.
+
+It renders NO attribution row — from the picker it is indistinguishable from a
+flag-selected session — and it does **not** lock the picker: all five rows are
+present and navigable.
+
+**But it loses to `--model`** (`j-am-haiku-flag-sonnet` → Sonnet 5), and it does
+not stop `/model` from persisting (F68). So it buys nothing the flag does not
+already provide, at the cost of moving a shipped, tested channel onto an
+undocumented-for-this-purpose env var. Recorded as the strongest ALTERNATIVE on
+file, adopted nowhere.
+
+## F67 — the `--settings` `model` key: a real third channel, also strictly below the flag (MEASURED)
+
+Written by wrapping the PRODUCTION writer (`ensureClaudeRuntimeSettings` from
+`dist/`) and adding one key to the file it had just written — so the arm measures
+production's file plus the channel, never a hand-built substitute.
+
+- **(i)+(iii)** all five aliases: `haiku` (g, h2), and `fable` / `opus[1m]` /
+  `opus` / `sonnet` (m legs, run against a control pin of `haiku` so no reading
+  can be explained by the pin) — statusline id correct on 5/5.
+- **(ii)** `settings.json` untouched, 8/8 (F63).
+- **(iv)** outranks the user's pin: g/h2 (pin `fable` → Haiku 4.5) and the four m
+  legs (pin `haiku` → each leg's own alias).
+- **(v)** `fastMode` intact: `m-settings-opus1m-fast` carries the F18 needle with
+  `model: "opus[1m]"` and `fastMode: true` in the same injected file.
+- **loses to `--model`**: `k-settings-haiku-flag-sonnet` → Sonnet 5.
+
+This is the one alternative that ties the flag on all five axes. It ties; it does
+not win; and it converts an explicit, greppable argv token into a key inside a
+JSON file, which is a legibility loss for no measured gain.
+
+## F68 — REGISTER: the polluter is the mid-session `/model` drive, and no channel disarms it (MEASURED 3/3)
+
+The plan's fork asked whether an env channel makes `/model` stop writing the
+user's default ("if env makes `/model` non-persisting, that IS the pollution fix
+and U1 takes it"). It does not — under either env variable, and with or without a
+user pin:
+
+| leg | channel in effect at boot | drive | receipt | `settings.json` |
+|---|---|---|---|---|
+| f1-env-haiku-then-slash-sonnet | none (`ANTHROPIC_DEFAULT_MODEL=haiku` inert, F65) → user pin `fable` | `/model sonnet` | `⎿  Set model to Sonnet 5 and saved as your default for new sessions` | **`model: "fable" → "sonnet"`** |
+| f2-nopin-env-sonnet-then-slash-haiku | `ANTHROPIC_DEFAULT_MODEL=sonnet` genuinely in effect (pin removed) | `/model haiku` | `⎿  Set model to Haiku 4.5 and saved as your default for new sessions` | **`model: undefined → "haiku"`** (key CREATED) |
+| j-am-haiku-then-slash-sonnet | `ANTHROPIC_MODEL=haiku` in effect | `/model sonnet` | `⎿  Set model to Sonnet 5 and saved as your default for new sessions` | **`model: "fable" → "sonnet"`** |
+
+f1 is the plan's literal leg; f2 exists because f1's env value is MEASURED inert,
+so f1 alone could only report what `/model` does under an ordinary pin and not
+what the plan actually asked. Every slash carried a grid-verified composer read
+before CR (the F41 failure mode), and all three landed.
+
+So the durable-default pollution is real, is 3/3 reproducible, and lives entirely
+in the mid-session switch path — the same path F41's incident rode. **Not fixed
+here**: out of this slice's boundary by explicit instruction, registered for the
+program. Note for whoever takes it: the receipt's own wording
+(`and saved as your default for new sessions`) is the CLI telling the user what it
+did, so any fix has to decide whether Sonata's mid-session switch should be a
+session-scoped switch instead — the picker's `s` key (`for this session only`,
+F16) is the CLI's own affordance for exactly that, and it is currently unused by
+Sonata.
+
+## F69 — THE DECISION MATRIX, and why U1 ships nothing
+
+MEASURED, all cells, `m1-default-model-channel.capture.txt`:
+
+| axis | `--model` flag (incumbent) | `ANTHROPIC_DEFAULT_MODEL` | `ANTHROPIC_MODEL` | `--settings` `model` |
+|---|---|---|---|---|
+| (i) selects at boot | **YES** (a, h3) | **NO** under a user pin; yes only with no pin (b/h1/e1 vs d) | **YES** (i1, j×5) | **YES** (g, h2, m×4) |
+| (ii) `settings.json` untouched | **YES** | **YES** | **YES** | **YES** |
+| (iii) every `MODEL_OPTIONS` alias | **YES** 5/5 (a, c, k, n + F18/q15 — F64) | **NO** — `haiku` refused (d) | **YES** 5/5 (j, m) | **YES** 5/5 (g, m) |
+| (iv) outranks the user's pin | **YES** (a, h3) | **NO** (b, h1, e1) | **YES** (i1, j, m) | **YES** (g, h2, m) |
+| (v) `fastMode` intact | **YES** (F18) | yes when in effect (e2 vs d control) | **YES** (j-am-opus1m-fast) | **YES** (m-settings-opus1m-fast) |
+| precedence vs the flag | — | **loses** (c) | **loses** (j-am-haiku-flag-sonnet) | **loses** (k) |
+
+Axis (ii) deliberately carries NO per-channel tally here: **F63 is the single
+place those counts live** (6/6 · 9/9 · 9/9 · 7/7 over the 32 launch-only legs,
+under its stated rule that a leg carrying two channels counts under the one that
+WON). An earlier draft restated them in this row, they were not kept in step with
+F63's own correction, and the stale copy could be read as contradicting F68 —
+which is exactly the failure mode a duplicated tally invites. The three legs that
+DID move the file are `/model` legs and belong to F68, not to any launch channel.
+
+**Applying the plan's rule literally.** §U1's "Fork if S3 falsifies" is the outer
+conditional and its antecedent is MEASURED true (F63: the flag does not persist).
+The fork then says U1 ships an alternative channel *only if it wins on (iv)* —
+"a real correctness gain: today a user whose `settings.json` says `fable` may or
+may not get Sonata's chosen model — **unmeasured**". That unknown is now measured
+and it resolves in the incumbent's favour: the flag already outranks the user's
+pin (arm a, arm h3 — file `fable`, session Haiku). There is no correctness gain
+left for any channel to deliver, and no channel outranks the flag on any axis.
+**Therefore: no-op + register entry**, which is exactly what the fork prescribes.
+
+The general decision rule's STOP clause ("env and `--settings model` split → bring
+the matrix to Woody") reads as satisfied on its face — they do split, comprehensively
+— but that clause exists to stop a one-way-door CHOICE between two candidate
+channels. No channel is being adopted, so no door is being walked through: the
+matrix is surfaced here rather than as a block. If Woody wants the choice made
+anyway, F66/F67 are the two viable options and F67 is the one that ties on all
+five axes.
+
+**What Sonata should keep doing, now for a measured reason rather than an
+inherited one:** pass `--model <alias>`. It is the only channel at the top of the
+resolver ladder, it is the only one whose selection is visible in argv (which is
+what `task:started` records and what every launch e2e fixture asserts), and it
+costs the user's durable configuration nothing.
+
+## F70 — method notes and one out-of-scope leak
+
+**The settings guard is now a shared module.** `settings-guard.mjs` exports
+`snapshotUserSettings` / `restoreUserSettings` / `diffJsonKeys` /
+`createSettingsGuard` (with `installSignalRestore`, per-arm `restoreNow`, a
+`readKey` for stating what a leg races, and a `setKeyForArm` control lever) plus
+`runSettingsGuardSelfTest`, runnable standalone
+(`SONATA_PROBE_SETTINGS_PATH=/tmp/x.json node settings-guard.mjs --self-test`).
+m1 runs the self-test against a throwaway file BEFORE its first spawn and refuses
+to proceed unless it passes. U3's `h4` reuses it. `h1-hook-census.mjs` is
+deliberately left on its own inlined copy: its capture is committed evidence and
+the file is that capture's provenance.
+
+The guard closes **per arm**, which is not a refinement but a requirement: arm f
+persists a model mid-run, and an unrestored pin would silently become the next
+arm's user default — turning the very variable the probe controls into noise.
+Across the run 53 brackets are merged in the capture, 23 of them found the file
+moved, and all 23 restored it and byte-verified the result; final state
+`model: "fable"`, byte-identical to the snapshot.
+
+**Control legs and honest diffs.** Fifteen legs across arms d, e, f, i and m
+deliberately changed the user's pin — removed it, or set it to a control value chosen to appear in no
+leg under test. For those legs the axis-(ii) diff is taken against the file **as
+the CLI found it**, not against the guard's snapshot; diffing a control leg
+against the snapshot would score the probe's own deliberate change as CLI
+pollution. The guard's own restore stays snapshot-anchored.
+
+**OUT OF SCOPE, registered: `ptyEnvironment` does not scrub `CLAUDE_EFFORT`.**
+The scrub deletes `CLAUDECODE` and every `CLAUDE_CODE_*` key, but this probe's own
+parent process (a Claude Code session) also exports `CLAUDE_EFFORT=high`,
+`CLAUDE_PID` and `CLAUDE_PLUGIN_DATA`, and all three survive into the child. The
+binary reads `CLAUDE_EFFORT` — **STATIC** (`grep -ac CLAUDE_EFFORT
+/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe` → 9
+matching lines at 2.1.258; the variable's EFFECT on a session is not measured
+here and is not claimed). m1 deletes them from its own `process.env` before
+the first spawn — that makes the spawn MORE production-shaped, since a
+Dock-launched Sonata has none of them — and records having done so in the capture
+header. Production impact is confined to Sonata launched from inside a Claude Code
+session (a dev-only shape today), which is why this is a register item and not a
+fix in this slice.
+
+**REGISTER, program-wide and PRE-EXISTING (not a defect of this slice, and
+deliberately NOT fixed here): the guard brackets `~/.claude/settings.json` and
+nothing else.** Every leg answers a workspace-trust dialog for a fresh
+`/private/tmp/...` cwd, and the CLI records that answer in the user's
+`~/.claude.json` project map, where it stays. MEASURED after this run: **35
+entries under `/private/tmp/sonata-sync-2026-09/default-model/`**, each carrying
+`hasTrustDialogAccepted: true`, in a file that holds **3,544** project entries in
+total — so every probe generation in this program has been silently adding to it.
+The capture shows the same fact from the other side: a re-run leg boots with no
+trust dialog at all (`readyMs` ~666ms) while a first-run leg gets one.
+
+Whether the bracket should WIDEN to `~/.claude.json` is a real question and NOT a
+trivial yes. That file is not static configuration: it carries live per-project
+accounting the CLI rewrites continuously (`lastCost`, `lastSessionId`,
+`lastModelUsage`, `lastAPIDuration`, …), so a snapshot-and-byte-restore of it
+would clobber whatever the user's own concurrently-running CLI sessions wrote
+during the probe — trading a cosmetic leak for real data loss. A surgical
+restore (delete only the project keys the probe created, leave every other key
+untouched) is the shape that could work. Registered for the program to decide;
+the harm today is stale entries in a map, not changed behaviour.
+
+**Non-obvious reading hazards this probe hit**, worth pinning for the next one:
+- the picker's env-attribution row is `Default (recommended)`, and its
+  description ABBREVIATES `opus[1m]` to `Opus 5` (F65) — the statusline `model.id`
+  is the only unambiguous read;
+- `Haiku 4.5`'s banner row drops the effort segment, so a banner parse must take
+  whichever of ` with <effort> effort` / ` · ` comes first;
+- an alias sweep run under a user pin measures the pin, not the channel. Every
+  sweep here either removed the pin or set it to a value appearing in no leg.
+
+## F71 — evidence files
+
+- `m1-default-model-channel.mjs` — the probe: 13 arms, 35 legs, batch-runnable
+  (`node m1-default-model-channel.mjs <arm>…`) with `--capture-only` assembling
+  the capture from every batch's results plus their merged guard histories.
+
+  PROVENANCE, since the results are assembled across batches rather than written
+  by one process: review of this slice found legs `a-flag-haiku` and
+  `g-settings-model-haiku` missing the `userPinOverriddenByProbe` field every
+  other leg carries — they had been produced by an earlier revision of the
+  harness. Neither uses a pin override, so the readings were never in doubt, but
+  a result set that cannot be reproduced from the committed file is not evidence.
+  **Both were re-run under the committed harness**; every leg on record now
+  carries the full field set. The merged guard history covers every batch except
+  the very first trial run (one leg, `a`, since superseded), which predates the
+  batch/assembly split — that run's bracket lives in its own per-arm
+  `settingsRestore` record and the capture's guard section says so rather than
+  claiming completeness it does not have.
+- `m1-default-model-channel.capture.txt` — the capture: per-leg table, the guard's
+  full per-arm history, per-arm JSON, and every frame (boot frames, trust dialogs,
+  `/model` picker reads, post-switch frames). Sanitized for `$HOME`, the munged
+  `-Users-…-` slug form, and `claude.ai` session ids.
+- `settings-guard.mjs` — the shared bracket (F70), self-testable.
