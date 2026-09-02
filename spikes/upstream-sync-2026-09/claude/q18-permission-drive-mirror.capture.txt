@@ -1,0 +1,1050 @@
+# Q18 — off-cycle origins, the production permission drive, the mirror under an undriven flip (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-02T00:33:44.823Z
+
+===== E — boot --permission-mode dontAsk =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-drive/e-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ don't ask on (shift+tab to cycle) · ← for agents
+
+===== E — dontAsk press 1 =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-drive/e-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== E — dontAsk press 2 =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-drive/e-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents
+
+===== E — dontAsk press 3 =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-drive/e-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ plan mode on (shift+tab to cycle) · ← for agents
+
+===== E — dontAsk press 4 =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-drive/e-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== E — dontAsk press 5 =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-drive/e-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== E — dontAsk press 6 =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-drive/e-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents
+
+===== E — dontAsk press 7 =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-drive/e-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ plan mode on (shift+tab to cycle) · ← for agents
+
+===== E — dontAsk press 8 =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-drive/e-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== E — dontAsk verdict =====
+{
+  "origin": "dontAsk",
+  "boot": {
+    "gridRow": "⏵⏵ don't ask on (shift+tab to cycle) · ← for agents",
+    "parser": null,
+    "readinessNeedle": false
+  },
+  "walk": [
+    {
+      "press": 1,
+      "gridRow": "⏸ manual mode on · ← for agents",
+      "parser": "default",
+      "readinessNeedle": true
+    },
+    {
+      "press": 2,
+      "gridRow": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+      "parser": "acceptEdits",
+      "readinessNeedle": true
+    },
+    {
+      "press": 3,
+      "gridRow": "⏸ plan mode on (shift+tab to cycle) · ← for agents",
+      "parser": "plan",
+      "readinessNeedle": true
+    },
+    {
+      "press": 4,
+      "gridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+      "parser": "auto",
+      "readinessNeedle": true
+    },
+    {
+      "press": 5,
+      "gridRow": "⏸ manual mode on · ← for agents",
+      "parser": "default",
+      "readinessNeedle": true
+    },
+    {
+      "press": 6,
+      "gridRow": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+      "parser": "acceptEdits",
+      "readinessNeedle": true
+    },
+    {
+      "press": 7,
+      "gridRow": "⏸ plan mode on (shift+tab to cycle) · ← for agents",
+      "parser": "plan",
+      "readinessNeedle": true
+    },
+    {
+      "press": 8,
+      "gridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+      "parser": "auto",
+      "readinessNeedle": true
+    }
+  ],
+  "reEntersOrigin": false,
+  "parserBlindAtOrigin": true
+}
+
+===== E — boot --permission-mode bypassPermissions =====
+[cursor] x=2 y=13
+--- screen ---
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  WARNING: Claude Code running in Bypass Permissions mode
+
+  In Bypass Permissions mode, Claude Code will not ask for your approval before running potentially dangerous
+  commands.
+  This mode should only be used in a sandboxed container/VM that has restricted internet access and can easily be
+  restored if damaged.
+
+  By proceeding, you accept all responsibility for actions taken while running in Bypass Permissions mode.
+
+  https://code.claude.com/docs/en/security
+
+  ❯ No, exit
+    Yes, I accept
+
+  Enter to confirm · Esc to cancel
+
+===== E — bypassPermissions press 1 =====
+[cursor] x=2 y=13
+--- screen ---
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  WARNING: Claude Code running in Bypass Permissions mode
+
+  In Bypass Permissions mode, Claude Code will not ask for your approval before running potentially dangerous
+  commands.
+  This mode should only be used in a sandboxed container/VM that has restricted internet access and can easily be
+  restored if damaged.
+
+  By proceeding, you accept all responsibility for actions taken while running in Bypass Permissions mode.
+
+  https://code.claude.com/docs/en/security
+
+  ❯ No, exit
+    Yes, I accept
+
+  Enter to confirm · Esc to cancel
+
+===== E — bypassPermissions press 2 =====
+[cursor] x=2 y=13
+--- screen ---
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  WARNING: Claude Code running in Bypass Permissions mode
+
+  In Bypass Permissions mode, Claude Code will not ask for your approval before running potentially dangerous
+  commands.
+  This mode should only be used in a sandboxed container/VM that has restricted internet access and can easily be
+  restored if damaged.
+
+  By proceeding, you accept all responsibility for actions taken while running in Bypass Permissions mode.
+
+  https://code.claude.com/docs/en/security
+
+  ❯ No, exit
+    Yes, I accept
+
+  Enter to confirm · Esc to cancel
+
+===== E — bypassPermissions press 3 =====
+[cursor] x=2 y=13
+--- screen ---
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  WARNING: Claude Code running in Bypass Permissions mode
+
+  In Bypass Permissions mode, Claude Code will not ask for your approval before running potentially dangerous
+  commands.
+  This mode should only be used in a sandboxed container/VM that has restricted internet access and can easily be
+  restored if damaged.
+
+  By proceeding, you accept all responsibility for actions taken while running in Bypass Permissions mode.
+
+  https://code.claude.com/docs/en/security
+
+  ❯ No, exit
+    Yes, I accept
+
+  Enter to confirm · Esc to cancel
+
+===== E — bypassPermissions press 4 =====
+[cursor] x=2 y=13
+--- screen ---
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  WARNING: Claude Code running in Bypass Permissions mode
+
+  In Bypass Permissions mode, Claude Code will not ask for your approval before running potentially dangerous
+  commands.
+  This mode should only be used in a sandboxed container/VM that has restricted internet access and can easily be
+  restored if damaged.
+
+  By proceeding, you accept all responsibility for actions taken while running in Bypass Permissions mode.
+
+  https://code.claude.com/docs/en/security
+
+  ❯ No, exit
+    Yes, I accept
+
+  Enter to confirm · Esc to cancel
+
+===== E — bypassPermissions press 5 =====
+[cursor] x=2 y=13
+--- screen ---
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  WARNING: Claude Code running in Bypass Permissions mode
+
+  In Bypass Permissions mode, Claude Code will not ask for your approval before running potentially dangerous
+  commands.
+  This mode should only be used in a sandboxed container/VM that has restricted internet access and can easily be
+  restored if damaged.
+
+  By proceeding, you accept all responsibility for actions taken while running in Bypass Permissions mode.
+
+  https://code.claude.com/docs/en/security
+
+  ❯ No, exit
+    Yes, I accept
+
+  Enter to confirm · Esc to cancel
+
+===== E — bypassPermissions press 6 =====
+[cursor] x=2 y=13
+--- screen ---
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  WARNING: Claude Code running in Bypass Permissions mode
+
+  In Bypass Permissions mode, Claude Code will not ask for your approval before running potentially dangerous
+  commands.
+  This mode should only be used in a sandboxed container/VM that has restricted internet access and can easily be
+  restored if damaged.
+
+  By proceeding, you accept all responsibility for actions taken while running in Bypass Permissions mode.
+
+  https://code.claude.com/docs/en/security
+
+  ❯ No, exit
+    Yes, I accept
+
+  Enter to confirm · Esc to cancel
+
+===== E — bypassPermissions press 7 =====
+[cursor] x=2 y=13
+--- screen ---
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  WARNING: Claude Code running in Bypass Permissions mode
+
+  In Bypass Permissions mode, Claude Code will not ask for your approval before running potentially dangerous
+  commands.
+  This mode should only be used in a sandboxed container/VM that has restricted internet access and can easily be
+  restored if damaged.
+
+  By proceeding, you accept all responsibility for actions taken while running in Bypass Permissions mode.
+
+  https://code.claude.com/docs/en/security
+
+  ❯ No, exit
+    Yes, I accept
+
+  Enter to confirm · Esc to cancel
+
+===== E — bypassPermissions press 8 =====
+[cursor] x=2 y=13
+--- screen ---
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  WARNING: Claude Code running in Bypass Permissions mode
+
+  In Bypass Permissions mode, Claude Code will not ask for your approval before running potentially dangerous
+  commands.
+  This mode should only be used in a sandboxed container/VM that has restricted internet access and can easily be
+  restored if damaged.
+
+  By proceeding, you accept all responsibility for actions taken while running in Bypass Permissions mode.
+
+  https://code.claude.com/docs/en/security
+
+  ❯ No, exit
+    Yes, I accept
+
+  Enter to confirm · Esc to cancel
+
+===== E — bypassPermissions verdict =====
+{
+  "origin": "bypassPermissions",
+  "boot": {
+    "gridRow": null,
+    "parser": null,
+    "readinessNeedle": false
+  },
+  "walk": [
+    {
+      "press": 1,
+      "gridRow": null,
+      "parser": null,
+      "readinessNeedle": false
+    },
+    {
+      "press": 2,
+      "gridRow": null,
+      "parser": null,
+      "readinessNeedle": false
+    },
+    {
+      "press": 3,
+      "gridRow": null,
+      "parser": null,
+      "readinessNeedle": false
+    },
+    {
+      "press": 4,
+      "gridRow": null,
+      "parser": null,
+      "readinessNeedle": false
+    },
+    {
+      "press": 5,
+      "gridRow": null,
+      "parser": null,
+      "readinessNeedle": false
+    },
+    {
+      "press": 6,
+      "gridRow": null,
+      "parser": null,
+      "readinessNeedle": false
+    },
+    {
+      "press": 7,
+      "gridRow": null,
+      "parser": null,
+      "readinessNeedle": false
+    },
+    {
+      "press": 8,
+      "gridRow": null,
+      "parser": null,
+      "readinessNeedle": false
+    }
+  ],
+  "reEntersOrigin": false,
+  "parserBlindAtOrigin": true
+}
+
+===== F — boot =====
+{
+  "ready": true,
+  "notes": [
+    "approval:detected workspace-trust at 344ms",
+    "ready=true at 1568ms"
+  ],
+  "hooks": [
+    {
+      "atMs": 1470,
+      "event": "SessionStart",
+      "permission_mode": null
+    }
+  ],
+  "mirror": null
+}
+
+===== F — drive default → acceptEdits =====
+{
+  "target": "acceptEdits",
+  "from": "default",
+  "response": {
+    "ok": true
+  },
+  "elapsedMs": 153,
+  "phases": [
+    "pending",
+    "settled"
+  ],
+  "terminalPhase": "settled",
+  "observedModes": [
+    "default",
+    "acceptEdits"
+  ],
+  "gridAfter": {
+    "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+    "parsed": "acceptEdits"
+  },
+  "mirrorAfter": null
+}
+
+===== F — drive acceptEdits → auto =====
+{
+  "target": "auto",
+  "from": "acceptEdits",
+  "response": {
+    "ok": true
+  },
+  "elapsedMs": 151,
+  "phases": [
+    "pending",
+    "settled"
+  ],
+  "terminalPhase": "settled",
+  "observedModes": [
+    "acceptEdits",
+    "plan",
+    "auto"
+  ],
+  "gridAfter": {
+    "row": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+    "parsed": "auto"
+  },
+  "mirrorAfter": null
+}
+
+===== F — drive auto → plan =====
+{
+  "target": "plan",
+  "from": "auto",
+  "response": {
+    "ok": true
+  },
+  "elapsedMs": 154,
+  "phases": [
+    "pending",
+    "settled"
+  ],
+  "terminalPhase": "settled",
+  "observedModes": [
+    "auto",
+    "default",
+    "acceptEdits",
+    "plan"
+  ],
+  "gridAfter": {
+    "row": "⏸ plan mode on (shift+tab to cycle) · ← for agents",
+    "parsed": "plan"
+  },
+  "mirrorAfter": null
+}
+
+===== F — drive plan → default =====
+{
+  "target": "default",
+  "from": "plan",
+  "response": {
+    "ok": true
+  },
+  "elapsedMs": 151,
+  "phases": [
+    "pending",
+    "settled"
+  ],
+  "terminalPhase": "settled",
+  "observedModes": [
+    "plan",
+    "auto",
+    "default"
+  ],
+  "gridAfter": {
+    "row": "⏸ manual mode on · ← for agents",
+    "parsed": "default"
+  },
+  "mirrorAfter": null
+}
+
+===== F — verdict =====
+{
+  "ready": true,
+  "drives": [
+    {
+      "target": "acceptEdits",
+      "from": "default",
+      "response": {
+        "ok": true
+      },
+      "elapsedMs": 153,
+      "phases": [
+        "pending",
+        "settled"
+      ],
+      "terminalPhase": "settled",
+      "observedModes": [
+        "default",
+        "acceptEdits"
+      ],
+      "gridAfter": {
+        "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+        "parsed": "acceptEdits"
+      },
+      "mirrorAfter": null
+    },
+    {
+      "target": "auto",
+      "from": "acceptEdits",
+      "response": {
+        "ok": true
+      },
+      "elapsedMs": 151,
+      "phases": [
+        "pending",
+        "settled"
+      ],
+      "terminalPhase": "settled",
+      "observedModes": [
+        "acceptEdits",
+        "plan",
+        "auto"
+      ],
+      "gridAfter": {
+        "row": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+        "parsed": "auto"
+      },
+      "mirrorAfter": null
+    },
+    {
+      "target": "plan",
+      "from": "auto",
+      "response": {
+        "ok": true
+      },
+      "elapsedMs": 154,
+      "phases": [
+        "pending",
+        "settled"
+      ],
+      "terminalPhase": "settled",
+      "observedModes": [
+        "auto",
+        "default",
+        "acceptEdits",
+        "plan"
+      ],
+      "gridAfter": {
+        "row": "⏸ plan mode on (shift+tab to cycle) · ← for agents",
+        "parsed": "plan"
+      },
+      "mirrorAfter": null
+    },
+    {
+      "target": "default",
+      "from": "plan",
+      "response": {
+        "ok": true
+      },
+      "elapsedMs": 151,
+      "phases": [
+        "pending",
+        "settled"
+      ],
+      "terminalPhase": "settled",
+      "observedModes": [
+        "plan",
+        "auto",
+        "default"
+      ],
+      "gridAfter": {
+        "row": "⏸ manual mode on · ← for agents",
+        "parsed": "default"
+      },
+      "mirrorAfter": null
+    }
+  ],
+  "hooks": [
+    {
+      "atMs": 1470,
+      "event": "SessionStart",
+      "permission_mode": null
+    }
+  ],
+  "mirrorHistory": [],
+  "allSettled": true
+}
+
+===== G — immediately after an undriven Shift+Tab =====
+{
+  "atMs": 5880,
+  "grid": {
+    "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+    "parsed": "acceptEdits"
+  },
+  "mirror": null,
+  "hooksSinceBoot": 1
+}
+
+===== G — 65s watch after the flip (any self-firing hook?) =====
+{
+  "watchedMs": 65095,
+  "newHooks": [],
+  "mirror": null,
+  "grid": {
+    "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+    "parsed": "acceptEdits"
+  }
+}
+
+===== G — the correcting hook =====
+{
+  "msFromPromptToFirstHook": 304,
+  "hook": {
+    "atMs": 71230,
+    "event": "UserPromptSubmit",
+    "permission_mode": "acceptEdits"
+  },
+  "mirror": "acceptEdits",
+  "grid": {
+    "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+    "parsed": "acceptEdits"
+  }
+}
+
+===== G — verdict =====
+{
+  "ready": true,
+  "mirrorAtBoot": null,
+  "gridAtBoot": {
+    "row": "⏸ manual mode on · ← for agents",
+    "parsed": "default"
+  },
+  "afterFlip": {
+    "atMs": 5880,
+    "grid": {
+      "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+      "parsed": "acceptEdits"
+    },
+    "mirror": null,
+    "hooksSinceBoot": 1
+  },
+  "quietWindow": {
+    "watchedMs": 65095,
+    "newHooks": [],
+    "mirror": null,
+    "grid": {
+      "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+      "parsed": "acceptEdits"
+    }
+  },
+  "correction": {
+    "msFromPromptToFirstHook": 304,
+    "hook": {
+      "atMs": 71230,
+      "event": "UserPromptSubmit",
+      "permission_mode": "acceptEdits"
+    },
+    "mirror": "acceptEdits",
+    "grid": {
+      "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+      "parsed": "acceptEdits"
+    }
+  },
+  "mirrorHistory": [
+    {
+      "atMs": 71230,
+      "via": "UserPromptSubmit",
+      "mode": "acceptEdits"
+    }
+  ],
+  "hooks": [
+    {
+      "atMs": 1223,
+      "event": "SessionStart",
+      "permission_mode": null
+    },
+    {
+      "atMs": 71230,
+      "event": "UserPromptSubmit",
+      "permission_mode": "acceptEdits"
+    },
+    {
+      "atMs": 73057,
+      "event": "Stop",
+      "permission_mode": "acceptEdits"
+    }
+  ],
+  "notes": [
+    "approval:detected workspace-trust at 324ms",
+    "ready=true at 1374ms"
+  ],
+  "flipFiredNoHook": true,
+  "mirrorWentStale": true
+}
+
+===== fence =====
+{
+  "userSettingsUnchanged": true,
+  "endVersion": "2.1.258 (Claude Code)"
+}

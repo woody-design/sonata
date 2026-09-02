@@ -182,9 +182,15 @@ await check("a RESUMED SESSION repainting the offer verbatim does NOT hold readi
   // life of the session with nothing left to override it.
   //
   // Every needle of the real frame is present, on its own line, unmangled. What
-  // separates them is that a composer is UNDER them — and a composer always
-  // carries a glyph-anchored mode line (F6: present in all four modes, never
-  // absent), while the real offer paints before any session exists and cannot.
+  // separates them is that a composer is UNDER them — and a composer carries a
+  // glyph-anchored mode line (F6, in every mode), while the real offer paints
+  // before any session exists and cannot.
+  //
+  // "NEVER absent" was over-stated and SL-5 falsified it (F28, q17 arm D at
+  // 2.1.258): a single Ctrl-C at an idle composer REPLACES the mode-line row
+  // with `Press Ctrl-C again to exit` for ~1–2s, so this negative fails OPEN for
+  // that window. The guard survives on its two POSITIVE needles — see the
+  // occlusion case at the end of this block.
   //
   // COMPOSED — the repaint layout; the offer block inside it is the MEASURED
   // fixture verbatim, which is the whole point.
@@ -210,19 +216,94 @@ await check("a RESUMED SESSION repainting the offer verbatim does NOT hold readi
 });
 
 await check("the mode-line negative holds in EVERY permission mode", async () => {
-  // The negative leans on one vocabulary, so it has to be true for all four
-  // modes, not just the one the fixture happens to show (F6 measured all four).
+  // The negative leans on one vocabulary, so it has to be true for every mode a
+  // session can be in, not just the one the fixture happens to show. Rows are
+  // MEASURED at 2.1.258 (SL-5 q17 arms A/C), byte-exact from the capture's
+  // rendered rows — 2-space indent included, trailing padding trimmed by the
+  // grid reader exactly as it is here.
+  //
+  // `dontAsk` joined this list in SL-5, and it is the reason the list is worth
+  // looping: the shared phrase table did not carry its row, so a live `dontAsk`
+  // composer read as "no mode line on screen" and this negative failed OPEN for
+  // the entire life of such a session. A test that only knew the cycle's four
+  // members could not have caught that — the fifth mode is not in the cycle, it
+  // is spawn-only (`--permission-mode dontAsk`, reachable via the local API).
   for (const modeLine of [
     "  ⏸ manual mode on · ← for agents",
     "  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
     "  ⏸ plan mode on (shift+tab to cycle) · ← for agents",
     "  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+    "  ⏵⏵ don't ask on (shift+tab to cycle) · ← for agents",
   ]) {
     assert.equal(
       claudeFullscreenOfferOpen(`${OFFER_FRAME}\n❯ \n${modeLine}`),
       false,
       `a composer in ${modeLine.trim()} must defuse the signature`,
     );
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THIS CASE PINS A KNOWN FALSE POSITIVE AS EXPECTED BEHAVIOUR.
+//
+// It is not a guard-correctness test. The first assertion asserts the WRONG
+// answer on purpose, because that wrong answer is the measured truth at 2.1.258
+// and leaving it unpinned would let it drift silently. Read a failure here as
+// the BOUNDARY MOVING, not as a regression — most likely someone narrowed the
+// occlusion window or added a second composer-presence signal, in which case the
+// correct response is to delete this assertion and say so, never to "fix" the
+// code back into firing. The second assertion is the one that must never fail:
+// it is what keeps the false positive harmless in practice.
+// ─────────────────────────────────────────────────────────────────────────────
+await check("KNOWN BOUNDARY: the Ctrl-C hint occludes the mode line (pinned false positive)", async () => {
+  // MEASURED (SL-5, F28 / q17 arm D at 2.1.258): one Ctrl-C at an idle composer
+  // replaces the footer's mode-line row with this hint for ~1–2s. Row is
+  // byte-exact from the capture — 2-space indent, 87 spaces, `/rc`, 118 cols.
+  const occludedFooter =
+    "  Press Ctrl-C again to exit                                                                                       /rc";
+
+  // The negative genuinely fails, and for the resumed-repaint forgery class the
+  // discriminator is the only thing standing between that screen and a true
+  // verdict — so the surface is OPEN for the hint's lifetime, not merely wider.
+  assert.equal(
+    claudeFullscreenOfferOpen(`${OFFER_FRAME}\n❯ \n${occludedFooter}`),
+    true,
+    "KNOWN FALSE POSITIVE (expected): with the mode line occluded, condition 3 cannot defuse the signature",
+  );
+
+  // What keeps it harmless: the two POSITIVE needles are what a real screen has
+  // to carry. An ORDINARY idle composer under the hint — the state a user
+  // actually reaches by pressing Ctrl-C once — has neither, so the guard reads
+  // closed and readiness is never held on it. THIS assertion is load-bearing.
+  const idleUnderHint =
+    "❯ \n" +
+    "────────────────────────────────────────────\n" +
+    `${occludedFooter}`;
+  assert.equal(
+    claudeFullscreenOfferOpen(idleUnderHint),
+    false,
+    "an idle composer under the Ctrl-C hint is not the boot offer",
+  );
+
+  // …and the hold that the false positive can produce is transient by
+  // construction: the predicate re-evaluates per call (no latch of its own), so
+  // the same host reads ready again the moment the mode line is back.
+  const host = await hostShowing(`${OFFER_FRAME}\n❯ \n${occludedFooter}`);
+  try {
+    assert.equal(host.isFullscreenOfferOpen(), true, "premise: the host holds during the window");
+    // Repaint the SAME host with the post-hint screen (the mode line is back).
+    const occluded = host.screenModel;
+    host.screenModel = await screenModelFor(
+      `${OFFER_FRAME}\n❯ \n  ⏸ manual mode on · ← for agents`.replaceAll("\n", "\r\n"),
+    );
+    occluded.dispose();
+    assert.equal(
+      host.isFullscreenOfferOpen(),
+      false,
+      "the hold lifts as soon as the hint expires — bounded by the hint, not by the session",
+    );
+  } finally {
+    host.dispose();
   }
 });
 

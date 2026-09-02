@@ -1,0 +1,367 @@
+# Q19 (pre-fix) — the production permission drive under a STALE `from` (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-02T00:41:26.959Z
+
+===== h1-stale — after 1 undriven Shift+Tab =====
+{
+  "gridAtBoot": {
+    "row": "⏸ manual mode on · ← for agents",
+    "parsed": "default"
+  },
+  "gridAfterFlip": {
+    "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+    "parsed": "acceptEdits"
+  }
+}
+
+===== h1-stale — screen after the drive =====
+[cursor] x=0 y=0
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/stale-origin-pre/h1-stale/ws
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== h1-stale — verdict =====
+{
+  "name": "h1-stale",
+  "why": "the bug shape: the mirror still says `default`, the CLI is in `acceptEdits`",
+  "ready": true,
+  "target": "plan",
+  "fromPassed": "default",
+  "trueModeOnScreenAtDriveStart": "acceptEdits",
+  "fromWasStale": true,
+  "response": {
+    "ok": true
+  },
+  "resolved": true,
+  "elapsedMs": 2827,
+  "terminalPhase": "needs-attention",
+  "observedModes": [
+    "default",
+    "acceptEdits",
+    "plan",
+    "auto"
+  ],
+  "modeChangesDuringDrive": 6,
+  "rawModeLinePrints": 7,
+  "modeTrail": [
+    {
+      "atMs": 4442,
+      "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 4473,
+      "row": "⏸ plan mode on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 4489,
+      "row": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 4504,
+      "row": "⏸ manual mode on · ← for agents"
+    },
+    {
+      "atMs": 6013,
+      "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 6028,
+      "row": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 6060,
+      "row": "⏸ manual mode on · ← for agents"
+    }
+  ],
+  "gridAfterDrive": {
+    "row": "⏸ manual mode on · ← for agents",
+    "parsed": "default"
+  },
+  "landedOnTarget": false,
+  "hooks": [
+    {
+      "atMs": 536,
+      "event": "SessionStart",
+      "permission_mode": null
+    }
+  ],
+  "notes": [
+    "ready=true at 536ms"
+  ]
+}
+
+===== h2-true — after 1 undriven Shift+Tab =====
+{
+  "gridAtBoot": {
+    "row": "⏸ manual mode on · ← for agents",
+    "parsed": "default"
+  },
+  "gridAfterFlip": {
+    "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+    "parsed": "acceptEdits"
+  }
+}
+
+===== h2-true — screen after the drive =====
+[cursor] x=0 y=0
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/stale-origin-pre/h2-true/ws
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ plan mode on (shift+tab to cycle) · ← for agents
+
+===== h2-true — verdict =====
+{
+  "name": "h2-true",
+  "why": "control: the identical drive with a TRUE `from` — isolates staleness",
+  "ready": true,
+  "target": "plan",
+  "fromPassed": "acceptEdits",
+  "trueModeOnScreenAtDriveStart": "acceptEdits",
+  "fromWasStale": false,
+  "response": {
+    "ok": true
+  },
+  "resolved": true,
+  "elapsedMs": 1302,
+  "terminalPhase": "settled",
+  "observedModes": [
+    "acceptEdits",
+    "plan"
+  ],
+  "modeChangesDuringDrive": 1,
+  "rawModeLinePrints": 1,
+  "modeTrail": [
+    {
+      "atMs": 4423,
+      "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 4456,
+      "row": "⏸ plan mode on (shift+tab to cycle) · ← for agents"
+    }
+  ],
+  "gridAfterDrive": {
+    "row": "⏸ plan mode on (shift+tab to cycle) · ← for agents",
+    "parsed": "plan"
+  },
+  "landedOnTarget": true,
+  "hooks": [
+    {
+      "atMs": 517,
+      "event": "SessionStart",
+      "permission_mode": null
+    }
+  ],
+  "notes": [
+    "ready=true at 517ms"
+  ]
+}
+
+===== h3-stale-already-there — after 1 undriven Shift+Tab =====
+{
+  "gridAtBoot": {
+    "row": "⏸ manual mode on · ← for agents",
+    "parsed": "default"
+  },
+  "gridAfterFlip": {
+    "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+    "parsed": "acceptEdits"
+  }
+}
+
+===== h3-stale-already-there — screen after the drive =====
+[cursor] x=0 y=0
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/stale-origin-pre/h3-stale-already-there/ws
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== h3-stale-already-there — verdict =====
+{
+  "name": "h3-stale-already-there",
+  "why": "the flip already reached the target; the `target === origin` no-op check compares against the stale value",
+  "ready": true,
+  "target": "acceptEdits",
+  "fromPassed": "default",
+  "trueModeOnScreenAtDriveStart": "acceptEdits",
+  "fromWasStale": true,
+  "response": {
+    "ok": true
+  },
+  "resolved": true,
+  "elapsedMs": 2822,
+  "terminalPhase": "needs-attention",
+  "observedModes": [
+    "default",
+    "acceptEdits",
+    "plan",
+    "auto"
+  ],
+  "modeChangesDuringDrive": 7,
+  "rawModeLinePrints": 7,
+  "modeTrail": [
+    {
+      "atMs": 4522,
+      "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 4553,
+      "row": "⏸ plan mode on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 4568,
+      "row": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 4585,
+      "row": "⏸ manual mode on · ← for agents"
+    },
+    {
+      "atMs": 6091,
+      "row": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 6107,
+      "row": "⏸ plan mode on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 6123,
+      "row": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
+    },
+    {
+      "atMs": 6140,
+      "row": "⏸ manual mode on · ← for agents"
+    }
+  ],
+  "gridAfterDrive": {
+    "row": "⏸ manual mode on · ← for agents",
+    "parsed": "default"
+  },
+  "landedOnTarget": false,
+  "hooks": [
+    {
+      "atMs": 618,
+      "event": "SessionStart",
+      "permission_mode": null
+    }
+  ],
+  "notes": [
+    "ready=true at 618ms"
+  ]
+}
+
+===== fence =====
+{
+  "endVersion": "2.1.258 (Claude Code)"
+}

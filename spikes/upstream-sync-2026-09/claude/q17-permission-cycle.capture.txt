@@ -1,0 +1,1686 @@
+# Q17 — claude Shift+Tab permission cycle, spawn determinism, occlusion (claude 2.1.258 (Claude Code))
+# claude version: (see findings.md)  captured 2026-09-02T00:27:41.380Z
+
+===== A — boot (--permission-mode default) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A — boot channels =====
+{
+  "ready": true,
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle-runtime/claude-runtime-settings.json"
+  ],
+  "boot": {
+    "parser": "default",
+    "readinessNeedle": true,
+    "gridRow": "⏸ manual mode on · ← for agents",
+    "gridGlyphs": [
+      "U+23F8"
+    ]
+  }
+}
+
+===== A — after press 1 (default → acceptEdits) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents
+
+===== A — after press 2 (acceptEdits → plan) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ plan mode on (shift+tab to cycle) · ← for agents
+
+===== A — after press 3 (plan → auto) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== A — after press 4 (auto → default) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A — after press 5 (default → acceptEdits) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents
+
+===== A — after press 6 (acceptEdits → plan) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ plan mode on (shift+tab to cycle) · ← for agents
+
+===== A — after press 7 (plan → auto) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== A — after press 8 (auto → default) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A — after press 9 (default → acceptEdits) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents
+
+===== A — after press 10 (acceptEdits → plan) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ plan mode on (shift+tab to cycle) · ← for agents
+
+===== A — after press 11 (plan → auto) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== A — after press 12 (auto → default) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/a-cycle
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== A — cycle verdict =====
+{
+  "ready": true,
+  "boot": {
+    "parser": "default",
+    "readinessNeedle": true,
+    "gridRow": "⏸ manual mode on · ← for agents",
+    "gridGlyphs": [
+      "U+23F8"
+    ]
+  },
+  "walk": [
+    {
+      "press": 1,
+      "from": "default",
+      "landed": "acceptEdits",
+      "landedAtMs": 27,
+      "gridRow": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F5",
+        "U+23F5"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 2,
+      "from": "acceptEdits",
+      "landed": "plan",
+      "landedAtMs": 28,
+      "gridRow": "⏸ plan mode on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F8"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 3,
+      "from": "plan",
+      "landed": "auto",
+      "landedAtMs": 28,
+      "gridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F5",
+        "U+23F5"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 4,
+      "from": "auto",
+      "landed": "default",
+      "landedAtMs": 27,
+      "gridRow": "⏸ manual mode on · ← for agents",
+      "gridGlyphs": [
+        "U+23F8"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 5,
+      "from": "default",
+      "landed": "acceptEdits",
+      "landedAtMs": 27,
+      "gridRow": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F5",
+        "U+23F5"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 6,
+      "from": "acceptEdits",
+      "landed": "plan",
+      "landedAtMs": 27,
+      "gridRow": "⏸ plan mode on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F8"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 7,
+      "from": "plan",
+      "landed": "auto",
+      "landedAtMs": 25,
+      "gridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F5",
+        "U+23F5"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 8,
+      "from": "auto",
+      "landed": "default",
+      "landedAtMs": 27,
+      "gridRow": "⏸ manual mode on · ← for agents",
+      "gridGlyphs": [
+        "U+23F8"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 9,
+      "from": "default",
+      "landed": "acceptEdits",
+      "landedAtMs": 28,
+      "gridRow": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F5",
+        "U+23F5"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 10,
+      "from": "acceptEdits",
+      "landed": "plan",
+      "landedAtMs": 27,
+      "gridRow": "⏸ plan mode on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F8"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 11,
+      "from": "plan",
+      "landed": "auto",
+      "landedAtMs": 27,
+      "gridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F5",
+        "U+23F5"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    },
+    {
+      "press": 12,
+      "from": "auto",
+      "landed": "default",
+      "landedAtMs": 27,
+      "gridRow": "⏸ manual mode on · ← for agents",
+      "gridGlyphs": [
+        "U+23F8"
+      ],
+      "readinessNeedle": true,
+      "acceptedByExpectedLandings": true
+    }
+  ],
+  "observedOrder": [
+    "acceptEdits",
+    "plan",
+    "auto",
+    "default"
+  ],
+  "sawBypass": false,
+  "unparsedSteps": 0,
+  "rejectedByValidator": 0
+}
+
+===== B — 3 presses at 300ms spacing =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/b-gap300
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== B — gap 300ms verdict =====
+{
+  "gapMs": 300,
+  "ready": true,
+  "presses": 3,
+  "before": "default",
+  "after": "auto",
+  "afterGridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
+}
+
+===== B — 3 presses at 120ms spacing =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/b-gap120
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== B — gap 120ms verdict =====
+{
+  "gapMs": 120,
+  "ready": true,
+  "presses": 3,
+  "before": "default",
+  "after": "auto",
+  "afterGridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
+}
+
+===== B — 3 presses at 40ms spacing =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/b-gap40
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== B — gap 40ms verdict =====
+{
+  "gapMs": 40,
+  "ready": true,
+  "presses": 3,
+  "before": "default",
+  "after": "auto",
+  "afterGridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"
+}
+
+===== B — 3 presses at 0ms spacing =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/b-gap0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents
+
+===== B — gap 0ms verdict =====
+{
+  "gapMs": 0,
+  "ready": true,
+  "presses": 3,
+  "before": "default",
+  "after": "acceptEdits",
+  "afterGridRow": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents"
+}
+
+===== C — spawn (no --permission-mode flag) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/c-noflag
+
+▎ Auto mode is now Claude Code's default permission mode.
+▎ Auto mode lets Claude handle permission prompts automatically. Claude checks each tool call for risky actions and 
+▎ prompt injection before executing, runs the ones it assesses as lower-risk, and blocks the rest.
+▎ https://code.claude.com/docs/en/permission-modes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== C — c-noflag verdict =====
+{
+  "requested": null,
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bootMode": "auto",
+  "bootGridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+  "flagWon": null,
+  "args": [
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/permission-cycle/c-noflag-runtime/claude-runtime-settings.json"
+  ],
+  "complaintLines": []
+}
+
+===== C — spawn default =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/c-default
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== C — c-default verdict =====
+{
+  "requested": "default",
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bootMode": "default",
+  "bootGridRow": "⏸ manual mode on · ← for agents",
+  "flagWon": true,
+  "args": [
+    "--permission-mode",
+    "default",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/permission-cycle/c-default-runtime/claude-runtime-settings.json"
+  ],
+  "complaintLines": []
+}
+
+===== C — spawn acceptEdits =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/c-acceptEdits
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents
+
+===== C — c-acceptEdits verdict =====
+{
+  "requested": "acceptEdits",
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bootMode": "acceptEdits",
+  "bootGridRow": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+  "flagWon": true,
+  "args": [
+    "--permission-mode",
+    "acceptEdits",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/permission-cycle/c-acceptEdits-runtime/claude-runtime-settings.json"
+  ],
+  "complaintLines": []
+}
+
+===== C — spawn plan =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/c-plan
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ plan mode on (shift+tab to cycle) · ← for agents
+
+===== C — c-plan verdict =====
+{
+  "requested": "plan",
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bootMode": "plan",
+  "bootGridRow": "⏸ plan mode on (shift+tab to cycle) · ← for agents",
+  "flagWon": true,
+  "args": [
+    "--permission-mode",
+    "plan",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/permission-cycle/c-plan-runtime/claude-runtime-settings.json"
+  ],
+  "complaintLines": []
+}
+
+===== C — spawn auto =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/c-auto
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+
+===== C — c-auto verdict =====
+{
+  "requested": "auto",
+  "ready": true,
+  "exited": false,
+  "exitInfo": null,
+  "bootMode": "auto",
+  "bootGridRow": "⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+  "flagWon": true,
+  "args": [
+    "--permission-mode",
+    "auto",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/permission-cycle/c-auto-runtime/claude-runtime-settings.json"
+  ],
+  "complaintLines": []
+}
+
+===== C — spawn dontAsk =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/c-dontAsk
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ don't ask on (shift+tab to cycle) · ← for agents
+
+===== C — c-dontAsk verdict =====
+{
+  "requested": "dontAsk",
+  "ready": false,
+  "exited": false,
+  "exitInfo": null,
+  "bootMode": null,
+  "bootGridRow": "⏵⏵ don't ask on (shift+tab to cycle) · ← for agents",
+  "flagWon": false,
+  "args": [
+    "--permission-mode",
+    "dontAsk",
+    "--settings",
+    "/private/tmp/sonata-sync-2026-09/permission-cycle/c-dontAsk-runtime/claude-runtime-settings.json"
+  ],
+  "complaintLines": []
+}
+
+===== D — idle, before Ctrl-C =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/d-occlusion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== D — idle + 400ms after one Ctrl-C =====
+[cursor] x=2 y=37
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/d-occlusion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Press Ctrl-C again to exit                                                                                       /rc
+
+===== D — idle + 2.0s after one Ctrl-C =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/d-occlusion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== D — idle + 6.0s after one Ctrl-C (hint expired?) =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/d-occlusion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    ◐ medium · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏸ manual mode on · ← for agents
+
+===== D — Shift+Tab then Ctrl-C 60ms later (step receipt window) =====
+[cursor] x=2 y=37
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/d-occlusion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                    
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Press Ctrl-C again to exit                                                                                       /rc
+
+===== D — 6s after the raced pair =====
+[cursor] x=2 y=36
+--- screen ---
+
+ ▐▛███▛█   Claude Code v2.1.258
+▝▜██████▀  Opus 5 (1M context) with medium effort · Claude Max
+  ▝▝ ▝▝    /private/tmp/sonata-sync-2026-09/permission-cycle/d-occlusion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                                   /rc
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents
+
+===== D — occlusion verdict =====
+{
+  "ready": true,
+  "from": "default",
+  "racedStepParsed": "acceptEdits",
+  "racedStepReadinessNeedle": false,
+  "samples": [
+    {
+      "label": "idle, before Ctrl-C",
+      "parser": "default",
+      "readinessNeedle": true,
+      "gridRow": "⏸ manual mode on · ← for agents",
+      "gridGlyphs": [
+        "U+23F8"
+      ]
+    },
+    {
+      "label": "idle + 400ms after one Ctrl-C",
+      "parser": "default",
+      "readinessNeedle": false,
+      "gridRow": null,
+      "gridGlyphs": null
+    },
+    {
+      "label": "idle + 2.0s after one Ctrl-C",
+      "parser": "default",
+      "readinessNeedle": true,
+      "gridRow": "⏸ manual mode on · ← for agents",
+      "gridGlyphs": [
+        "U+23F8"
+      ]
+    },
+    {
+      "label": "idle + 6.0s after one Ctrl-C (hint expired?)",
+      "parser": "default",
+      "readinessNeedle": true,
+      "gridRow": "⏸ manual mode on · ← for agents",
+      "gridGlyphs": [
+        "U+23F8"
+      ]
+    },
+    {
+      "label": "Shift+Tab then Ctrl-C 60ms later (step receipt window)",
+      "parser": "acceptEdits",
+      "readinessNeedle": false,
+      "gridRow": null,
+      "gridGlyphs": null
+    },
+    {
+      "label": "6s after the raced pair",
+      "parser": "acceptEdits",
+      "readinessNeedle": true,
+      "gridRow": "⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+      "gridGlyphs": [
+        "U+23F5",
+        "U+23F5"
+      ]
+    }
+  ],
+  "receiptLostUnderOcclusion": false,
+  "readinessLostUnderOcclusion": true
+}
+
+===== fence =====
+{
+  "userSettingsUnchanged": true,
+  "endVersion": "2.1.258 (Claude Code)"
+}

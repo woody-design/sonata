@@ -17,6 +17,7 @@ import {
   claudeCacheMissDialogOpen,
   CONTROL_SWITCH_SCAN_LIMIT,
   expectedPermissionLandings,
+  isClaudePermissionCycleMode,
   parseClaudeCacheMissCursor,
   parseClaudeControlReceipt,
   parseClaudePermissionModeLine,
@@ -176,6 +177,26 @@ export interface ControlSwitchHost {
    *  also serves the codex axes; the host's implementation is claude-only, so
    *  this reads permanently false there and the codex paths are unchanged. */
   isRewindPanelOpen(): boolean;
+  /**
+   * The permission mode the SCREEN is currently showing (claude only; null on
+   * codex, and null whenever the footer mode line is not legible).
+   *
+   * SYNCHRONOUS, unlike `readScreen` below, because its one caller —
+   * `startPermissionSwitch` — is a synchronous predicate that must answer
+   * "where do I start pressing" before it returns. Sound for the same reason
+   * `isRewindPanelOpen` is: per `TaskScreenModel`'s contract a naked read is
+   * stale-but-consistent (a complete byte-stream PREFIX, never torn), and the
+   * staleness this answer has to survive is a HUMAN's — a mode the user flipped
+   * seconds to minutes ago — not one write-drain's worth. The only race left is
+   * a native Shift+Tab landing inside the same microtask as the menu click,
+   * which degrades to exactly the pre-SL-5 behaviour.
+   *
+   * Null is a real answer, not an error: the mode-line row is absent for ~1–2s
+   * after a Ctrl-C at an idle composer (the hint replaces it — MEASURED, SL-5
+   * q17 arm D), and there is no screen model before the pty exists. The caller
+   * falls back to its `from` argument there.
+   */
+  screenPermissionMode(): ClaudePermissionMode | null;
   /** A run is in flight — refuse to start a switch (idle only). */
   hasActiveRun(): boolean;
   /** An automation write sequence is mid-flight (the AtomicWriter depth > 0). */
@@ -638,8 +659,40 @@ export class ControlSwitchEngine {
    * until the target is confirmed. `origin` is where we return to if the target
    * proves unreachable: a Shift+Tab abort is a STATE CHANGE (unlike Esc, you
    * cannot back out of it), so we must land the session somewhere honest, not
-   * strand it. Falls back to `default` (Manual — the cycle anchor, always a
-   * member) when the caller's current mode is unknown.
+   * strand it.
+   *
+   * THE ORIGIN COMES OFF THE SCREEN, not off the caller's `from` (SL-5). `from`
+   * is `task.permissionMode` (renderer/main.ts) — the hook-payload mirror, which
+   * `applyHookPermissionMode` reconciles LAZILY. SL-5 q18 arm G measured how
+   * lazily: a mode change Sonata did not drive (the user's own Shift+Tab in the
+   * Terminal pane; a server-side or Remote-Control flip) fires NO hook at all —
+   * 65s of watched silence, corrected only by the next turn's
+   * `UserPromptSubmit`. A user who flips natively and then picks a mode from the
+   * access chip hands us a `from` the CLI left minutes ago.
+   *
+   * What that cost, MEASURED on this engine before the fix (q19, pre): a stale
+   * `from` anchors `pressedFrom` on a mode the CLI is not in, so the FIRST real
+   * landing is a non-successor and fails loud; return-home re-anchors on the
+   * same stale value and fails again; the walk only terminates when the cycle
+   * happens to deliver the stale origin back. Ground truth for
+   * `default`-while-actually-`acceptEdits`, target `plan`: **7 mode changes**,
+   * `needs-attention`, and the session left in `default` — neither the target
+   * nor where it started. Asking for the mode you are ALREADY in (q19 h3) had
+   * the same 7-press shape and moved the session OFF it.
+   *
+   * "Which mode am I in" is a STATE query, and D-1's standing rule puts state on
+   * the GRID. `screenPermissionMode()` reads the footer mode line off the
+   * settled viewport with the same shared parser the step receipts use. When it
+   * cannot answer — no screen model, or the ~1–2s window where a Ctrl-C hint
+   * REPLACES the mode-line row (q17 arm D) — we fall back to the caller's `from`
+   * exactly as before, so the degradation is today's behaviour, not a new one.
+   * Falls back to `default` (Manual — the cycle anchor, always a member) when
+   * neither channel knows.
+   *
+   * This does NOT move the permission SSOT (contract §2): the mirror is still
+   * the hook payload, and a settled switch still writes nothing to
+   * `task.permissionMode`. The screen read decides only where THIS choreography
+   * starts pressing — a receipt-side question, which is the mode line's job.
    */
   private startPermissionSwitch(value: string, from?: string): ClaudeControlSwitchResponse {
     const target = asClaudePermissionMode(value);
@@ -648,10 +701,14 @@ export class ControlSwitchEngine {
       // value is a caller bug, not a screen state — refuse without touching the pty.
       return { ok: false, reason: "invalid" };
     }
-    const origin = asClaudePermissionMode(from) ?? "default";
+    const origin = this.host.screenPermissionMode() ?? asClaudePermissionMode(from) ?? "default";
     if (target === origin) {
       // Already there — nothing to step. Report settled so the pending affordance
-      // never appears (defensive; the menu marks the current mode, so this is rare).
+      // never appears. No longer merely defensive now that `origin` comes off the
+      // screen: q19 arm h3 measured this exact shape (a native flip landed on the
+      // very mode the user then picked) driving SEVEN presses off the target and
+      // reporting needs-attention, because the old check compared the target
+      // against a stale mirror value instead of against the session.
       this.emitControlSwitchState("settled", { kind: "permission", value: target });
       return { ok: true };
     }
@@ -820,12 +877,29 @@ export class ControlSwitchEngine {
   }
 
   /** Enter the return-home phase: if we already know we're at origin, stop and
-   *  raise needs-attention; otherwise keep stepping toward it. */
+   *  raise needs-attention; otherwise keep stepping toward it.
+   *
+   *  An origin the CYCLE CANNOT REACH is a third case, and the honest answer
+   *  there is to stop pressing (SL-5). `dontAsk` was MEASURED unreachable at
+   *  2.1.258 — eight presses from a `dontAsk` session walk the four cycle
+   *  members twice and never return (q18 arm E) — and `bypassPermissions` never
+   *  paints a composer to step from at all. Walking the return cap for one of
+   *  those is `PERMISSION_MAX_RETURN_STEPS` further mode changes that provably
+   *  cannot arrive, which is the blind-press ladder this engine's RED LINE
+   *  exists to forbid; it also ends the session in an arbitrary cycle mode
+   *  rather than a bounded one. So: stop where we are and raise needs-attention
+   *  immediately. The session is left somewhere the user can see (the CLI's own
+   *  footer names it) and the hook SSOT reconciles the display on the next turn
+   *  — the same reconcile every other terminal phase relies on. */
   private beginPermissionReturn(
     pending: Extract<PendingControlSwitch, { axis: "permission" }>,
   ): void {
     pending.phase = "returning";
     if (pending.landed === pending.origin) {
+      this.finishPermissionSwitch("needs-attention", pending);
+      return;
+    }
+    if (!isClaudePermissionCycleMode(pending.origin)) {
       this.finishPermissionSwitch("needs-attention", pending);
       return;
     }

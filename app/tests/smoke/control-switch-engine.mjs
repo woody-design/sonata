@@ -21,11 +21,21 @@ import { fileURLToPath } from "node:url";
 //   SL-4 — a value-axis switch must not be FAILED by a repaint of an earlier
 //        switch's rejection (upstream sync 2026-09-01), driven off the verbatim
 //        pty window that produced the wrong verdict against a live 2.1.258.
+//   SL-5 — the permission drive's ORIGIN comes off the SCREEN, not off the
+//        caller's `from` (upstream sync 2026-09-01). The `from` is
+//        `task.permissionMode`, the hook-fed mirror, and q18 arm G measured that
+//        an undriven flip fires NO hook — so the mirror can be arbitrarily
+//        stale, and q19 measured what a stale one then costs on the live CLI:
+//        seven mode changes and needs-attention. Also: an origin the cycle
+//        cannot reach is not walked toward (q18 arm E measured `dontAsk`
+//        unreachable by stepping).
 const require = createRequire(import.meta.url);
 const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), "../fixtures");
 const {
   ControlSwitchEngine,
   expectedPermissionLandings,
+  isClaudePermissionCycleMode,
+  parseClaudePermissionModeLine,
   CLAUDE_PERMISSION_CYCLE,
 } = require("../../dist/runtime");
 
@@ -70,6 +80,14 @@ function makeHost(provider, { deferReads = false } = {}) {
     // entry points (upstream sync 2026-08-03): a claude switch ends in a deferred
     // `\r`, which on that panel is `Enter to continue` — a RESTORE.
     isRewindPanelOpen: () => flags.rewindPanel ?? false,
+    // The SL-5 origin read, faked the way the real host implements it: the SAME
+    // shared parser, run over the SAME fixture viewport `readScreen` serves.
+    // Deliberately not a settable enum — a fake that could answer a mode the
+    // fixture screen does not show would let a test pass on a screen the parser
+    // cannot actually read (exactly the `don't ask on` blindness SL-5 found).
+    // An empty `host.screen` therefore answers null, which is what every
+    // pre-SL-5 test in this file wants: fall back to the caller's `from`.
+    screenPermissionMode: () => (provider === "claude" ? parseClaudePermissionModeLine(host.screen) : null),
     hasActiveRun: () => flags.activeRun,
     isSonataWriting: () => flags.sonataWriting,
     beginSonataWrite: () => {},
@@ -189,6 +207,191 @@ await check("3a: an unexpected landing fails loud (never read as the receipt)", 
       "an unexpected landing never settles the switch",
     );
     assert.equal(host.writes.length, 2, "fail-loud return-home presses toward origin (never blind-settle)");
+  } finally {
+    engine.clear();
+  }
+});
+
+// ── SL-5: the origin comes off the SCREEN (upstream sync 2026-09-01) ─────────
+//
+// MEASURED footer rows, VERBATIM from claude 2.1.258 under Sonata's production
+// spawn shape (spikes/upstream-sync-2026-09/claude/q17-permission-cycle.capture.txt
+// arms A/C/D and q18 arm E) — byte-exact, 2-space indent included; the grid
+// reader trims trailing padding, so the rows end where they end. Sonata reads
+// the mode off this row on two channels — the S2 step receipt and the readiness
+// needle — so the fixtures are the whole rendered row, trailing chrome
+// included, not a hand-written phrase.
+//
+// `default`'s row is the one WITHOUT the `(shift+tab to cycle)` tail; that
+// asymmetry is upstream's and is preserved here deliberately. `dontAsk` is the
+// row the phrase table was blind to before this slice. `OCCLUDED` is the row
+// that REPLACES the mode line for ~1–2s after a single Ctrl-C at an idle
+// composer (q17 arm D) — a live composer with no readable mode; 2-space indent,
+// 87 spaces, `/rc`, 118 columns.
+const FOOTER = {
+  default: "  ⏸ manual mode on · ← for agents",
+  acceptEdits: "  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents",
+  plan: "  ⏸ plan mode on (shift+tab to cycle) · ← for agents",
+  auto: "  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents",
+  dontAsk: "  ⏵⏵ don't ask on (shift+tab to cycle) · ← for agents",
+  OCCLUDED:
+    "  Press Ctrl-C again to exit                                                                                       /rc",
+};
+
+await check("SL-5: the measured 2.1.258 footer rows all read back as their mode", () => {
+  for (const [mode, row] of Object.entries(FOOTER)) {
+    if (mode === "OCCLUDED") continue;
+    assert.equal(
+      parseClaudePermissionModeLine(row),
+      mode,
+      `the verbatim ${mode} footer row parses as ${mode}`,
+    );
+  }
+  // The Ctrl-C hint frame is not a mode line — it must read as "no answer", so
+  // the origin read falls back rather than inventing a mode.
+  assert.equal(
+    parseClaudePermissionModeLine(FOOTER.OCCLUDED),
+    null,
+    "the Ctrl-C hint that replaces the mode line answers null, never a mode",
+  );
+});
+
+await check("SL-5: both off-cycle origins KEEP the blanket exemption (n=1 does not earn a rule)", () => {
+  // q18 arm E observed `dontAsk`'s successor exactly ONCE (`default`); the seven
+  // presses after it were cycle-internal and corroborate the CYCLE, not that
+  // transition. A one-member expectation that is right buys nothing the
+  // stale-repaint filter does not already give, while one that upstream later
+  // makes wrong turns a working drive into a guaranteed failure — with no second
+  // chance, since SL-5 also removed the walking recovery for non-cycle origins.
+  // So the measurement is recorded in the parser's doc as knowledge and NOT
+  // encoded as a rule. This pin is what makes that a decision rather than a gap.
+  assert.deepEqual(
+    new Set(expectedPermissionLandings("dontAsk")),
+    new Set(CLAUDE_PERMISSION_CYCLE),
+    "dontAsk keeps the blanket exemption (successor observed n=1)",
+  );
+  // bypassPermissions never paints a composer to step from (its spawn parks on
+  // an unanswered consent screen), so its successor is unmeasured outright.
+  assert.deepEqual(
+    new Set(expectedPermissionLandings("bypassPermissions")),
+    new Set(CLAUDE_PERMISSION_CYCLE),
+  );
+  // What IS encoded, and what the return-home early stop keys on: neither is a
+  // cycle member, so neither can ever be arrived at by stepping (MEASURED).
+  assert.equal(isClaudePermissionCycleMode("dontAsk"), false);
+  assert.equal(isClaudePermissionCycleMode("bypassPermissions"), false);
+  for (const mode of CLAUDE_PERMISSION_CYCLE) {
+    assert.equal(isClaudePermissionCycleMode(mode), true, `${mode} is a cycle member`);
+  }
+});
+
+// The regression this slice exists for. MEASURED pre-fix on the live CLI (q19
+// arm h1, claude 2.1.258): mirror says `default`, the CLI is in `acceptEdits`,
+// the user asks for `plan` → SEVEN mode changes, `needs-attention`, and the
+// session left in `default` — neither the target nor where it actually started.
+await check("SL-5: a STALE `from` no longer misanchors the drive — the screen wins", () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    // The session is in acceptEdits (the user flipped it natively; no hook fired,
+    // so the mirror still says `default` — q18 arm G).
+    host.screen = FOOTER.acceptEdits;
+    const res = engine.injectClaudeControlSwitch("permission", "plan", "default");
+    assert.equal(res.ok, true, "the switch started");
+    assert.equal(host.writes.length, 1, "one Shift+Tab for the first step");
+
+    // acceptEdits → plan is ONE step, and it is the target.
+    engine.ingest(FOOTER.plan);
+    assert.equal(
+      host.writes.length,
+      1,
+      "the real landing is accepted as this step's receipt — no fail-loud, no extra press",
+    );
+    assert.equal(lastEvent(host.events).phase, "settled", "and the switch settles");
+    assert.equal(lastEvent(host.events).value, "plan");
+    // The seven-press walk pre-fix visited every mode; a correct drive sees two.
+    assert.deepEqual(
+      new Set(lastEvent(host.events).observedModes),
+      new Set(["acceptEdits", "plan"]),
+      "observedModes names the two modes actually visited, not the whole cycle",
+    );
+  } finally {
+    engine.clear();
+  }
+});
+
+await check("SL-5: asking for the mode the SESSION is already in presses nothing", () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    // q19 arm h3: the native flip landed on the very mode the user then picked.
+    // Pre-fix the no-op check compared `acceptEdits` against the stale `default`
+    // and drove seven presses OFF the target.
+    host.screen = FOOTER.acceptEdits;
+    const res = engine.injectClaudeControlSwitch("permission", "acceptEdits", "default");
+    assert.equal(res.ok, true);
+    assert.equal(host.writes.length, 0, "nothing is written — the session is already there");
+    assert.equal(lastEvent(host.events).phase, "settled", "and it reports settled, not pending");
+  } finally {
+    engine.clear();
+  }
+});
+
+await check("SL-5: an origin the cycle cannot reach is not walked toward", () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    // Origin `dontAsk` (read off the screen), seeking `auto` — two steps away
+    // via the cycle it enters at `default`.
+    host.screen = FOOTER.dontAsk;
+    engine.injectClaudeControlSwitch("permission", "auto", "dontAsk");
+    assert.equal(host.writes.length, 1, "one Shift+Tab for the first step");
+
+    // Press 1 lands in the cycle. The blanket exemption accepts it (we do not
+    // claim to know dontAsk's successor — see the n=1 pin above), so the seek
+    // continues normally.
+    engine.ingest(FOOTER.default);
+    assert.equal(host.writes.length, 2, "the seek continues from the cycle member it entered on");
+
+    // Press 2 lands on a NON-successor of `default` — an unexpected screen, so
+    // the engine fails loud and flips to return-home. Home is `dontAsk`, which
+    // is NOT reachable by stepping (MEASURED, q18 arm E), so the walk could
+    // never arrive: pre-SL-5 it burned PERMISSION_MAX_RETURN_STEPS more mode
+    // changes proving that, which is the blind-press ladder the RED LINE
+    // forbids. It must now stop dead instead.
+    engine.ingest(FOOTER.auto);
+    assert.equal(
+      host.writes.length,
+      2,
+      "no return-home presses toward an origin the cycle cannot reach",
+    );
+    assert.equal(
+      lastEvent(host.events).phase,
+      "needs-attention",
+      "it stops where it is and says so",
+    );
+  } finally {
+    engine.clear();
+  }
+});
+
+await check("SL-5: an OCCLUDED mode line falls back to the caller's `from`", () => {
+  const host = makeHost("claude");
+  const engine = new ControlSwitchEngine(host);
+  try {
+    // The ~1–2s Ctrl-C hint window: the screen has no readable mode, so the
+    // origin read must decline rather than guess, leaving pre-SL-5 behaviour.
+    host.screen = FOOTER.OCCLUDED;
+    engine.injectClaudeControlSwitch("permission", "plan", "default");
+    assert.equal(host.writes.length, 1, "the switch still starts");
+    engine.ingest(FOOTER.acceptEdits);
+    assert.equal(
+      host.writes.length,
+      2,
+      "and validates against `from` exactly as it did before — default → acceptEdits advances",
+    );
+    engine.ingest(FOOTER.plan);
+    assert.equal(lastEvent(host.events).phase, "settled", "reaching the target normally");
   } finally {
     engine.clear();
   }

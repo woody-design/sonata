@@ -423,13 +423,42 @@ export function claudeRewindPanelOpen(screenText: string): boolean {
 //      mode to display, MEASURED absent in every captured offer frame. Every
 //      forgery, by construction, has a LIVE COMPOSER under it — a history
 //      repaint, a paste, model prose — and F6 measured that claude's composer
-//      footer carries a glyph-anchored mode line in ALL FOUR modes, never absent.
+//      footer carries a glyph-anchored mode line in every mode.
 //      So the negative separates "the offer owns the screen" from "the offer's
 //      words are on a screen the composer owns", which is exactly the question.
 //      `CLAUDE_MODE_LINE_ON_SCREEN_RE` is reused rather than restated (it is
 //      already S2's tested vocabulary, and already glyph-anchored precisely to
 //      keep prose out of a screen-state answer). Declared further down this
 //      file; read at call time, so the reference is fine.
+//      MEASURED BOUNDARY (SL-5, q17 arm D at 2.1.258): the footer mode line is
+//      not unconditional. A single Ctrl-C at an idle composer REPLACES that row
+//      with `Press Ctrl-C again to exit` for ~1–2s, so for that window a live
+//      composer has no mode line. F6's "never absent" was over-stated and is
+//      corrected here rather than relied on.
+//
+//      Be exact about what that costs: for the RESUMED-REPAINT forgery class —
+//      a screen carrying the offer's question line and affirm row over a live
+//      composer — the discriminator is the ONLY thing standing between them and
+//      a true verdict, so during that window the guard genuinely fires on a
+//      screen it should not. The surface is open, not merely wider, and
+//      `claude-boot-interstitial.mjs` pins that false positive as expected
+//      behaviour so it stays visible.
+//
+//      What makes it survivable is the SHAPE of the consequence, not its
+//      absence. (a) The guard's only effect is a readiness HOLD; recognition
+//      writes nothing to the pty (RED LINE), so a false hold costs latency,
+//      never an action. (b) It is not a latch: `acceptsPromptInput()`
+//      re-evaluates on every call and the delivery pump re-polls it about every
+//      500ms, so the hold lifts on the first poll after the hint clears —
+//      bounded by the hint's own ~1–2s lifetime, not by the session's. The
+//      one-way boot latch is what would have made a false hold permanent, and
+//      this hold expires before it can be the thing that keeps the latch shut.
+//      (c) POST-latch it costs nothing at all: this guard feeds readiness ONLY
+//      (see `isFullscreenOfferOpen`), and readiness stops gating delivery once
+//      the latch opens.
+//
+//      Narrowing it further would mean a second composer-presence signal, which
+//      is a readiness question, not this one.
 //
 // REJECTED — adding a third BODY needle from the offer's feature bullets
 // (`Flicker-free output`, `Mouse support`). It points the wrong way: every
@@ -571,11 +600,21 @@ export function parseClaudeTrustDialogRows(screenText: string): ClaudeTrustDialo
 // command with one printed receipt), permission has no arg form: Sonata drives
 // the native Shift+Tab (`\x1b[Z`) cycle one step at a time and reads the TUI's
 // mode line as the per-step *choreography receipt* to learn which mode it just
-// landed in. Probe-verified cycle + strings (claude 2.1.214, this account —
-// spikes/midsession-switch-probe/findings.md §S0):
+// landed in. RE-MEASURED at claude 2.1.258 (upstream sync 2026-09-01, SL-5 —
+// spikes/upstream-sync-2026-09/claude/q17, 12 presses = 3 full cycles, plus q18
+// arm E for the off-cycle origins). The cycle and all four phrases are
+// UNCHANGED from the 2.1.214 stamp this block used to carry:
 //   default (Manual) ↔ `⏸ manual mode on`    acceptEdits ↔ `⏵⏵ accept edits on`
 //   plan             ↔ `⏸ plan mode on`      auto        ↔ `⏵⏵ auto mode on`
-//   cycle: manual → accept edits → plan → auto → manual (auto is account-gated).
+//   cycle: manual → accept edits → plan → auto → manual — 4 members, no more.
+// `auto` was measured PRESENT on this account (and is now this account's own
+// startup default: an unflagged spawn boots into it — q17 arm C, the 8/14
+// server-side rollout landing here). `bypassPermissions` is NOT in the cycle
+// (12 presses never reached it), so Sonata cannot step into it unattended.
+// Step latency is ~27ms and one press advances exactly one mode at any spacing
+// down to 40ms; only three presses written in the SAME tick coalesce into one
+// advance (q17 arm B). The engine's one-press-per-receipt shape never bursts,
+// so that coalescing is unreachable from here.
 // The line is receipt-only — the hook payload's `permission_mode` stays the
 // state SSOT (lazy reconcile). Compacted match (escapes + ALL whitespace
 // removed) on the RAW tail, like the model/effort receipt and the Remote Control
@@ -596,18 +635,35 @@ export function parseClaudeTrustDialogRows(screenText: string): ClaudeTrustDialo
 // before the exact phrase, so anchoring on it rejects the prose without
 // weakening the true positives (re-verified against a real stepping e2e).
 const MODE_LINE_GLYPH = "[\\u23f8\\u23f5]";
-/** The four mode-line phrases and the mode each names — the ONE source both the
- *  S2 receipt parser below and the readiness footer needle (`terminal-host.ts`,
- *  `idlePromptModelHints`) are built from. Readiness only asks "is a mode line
- *  on screen", which is a strictly weaker question than "which mode did we land
- *  in", so it reuses these phrases rather than restating them; the parser keeps
- *  sole ownership of the mode SEMANTICS. Order is load-bearing here only as a
- *  tie-break (first wins at an equal match index) and is unchanged. */
+/** The mode-line phrases and the mode each names — the ONE source the S2 receipt
+ *  parser below, the readiness footer needle (`terminal-host.ts`,
+ *  `idlePromptModelHints`) and the fullscreen-offer discriminator
+ *  (`claudeFullscreenOfferOpen` condition 3) are all built from. Readiness and
+ *  the offer guard only ask "is a mode line on screen", which is a strictly
+ *  weaker question than "which mode did we land in", so they reuse these
+ *  phrases rather than restating them; the parser keeps sole ownership of the
+ *  mode SEMANTICS. Order is load-bearing here only as a tie-break (first wins at
+ *  an equal match index) and is unchanged.
+ *
+ *  `dontAsk` ADDED 2026-09-01 (SL-5, MEASURED at 2.1.258 — q17 arm C spawns
+ *  `--permission-mode dontAsk` and the footer paints `⏵⏵ don't ask on
+ *  (shift+tab to cycle) · ← for agents`, ASCII apostrophe U+0027). It is not a
+ *  cycle member — no Shift+Tab press ever lands on it (q18 arm E) — but it IS a
+ *  reachable session state: `ClaudePermissionMode` includes it, `claudeArgs`
+ *  maps it to `--permission-mode dontAsk`, and `parseCreateTaskRequest` accepts
+ *  it, so a task created through the local API can spawn straight into it. Until
+ *  this entry existed all three consumers went BLIND on such a session: the S2
+ *  parser could not read its origin, readiness lost its mode-line redundancy
+ *  leg, and `claudeFullscreenOfferOpen`'s "a composer is on screen" negative —
+ *  the structural discriminator that keeps a repaint from being read as the boot
+ *  offer — failed OPEN. Adding the phrase closes all three at once, which is
+ *  exactly why the table is shared. */
 const CLAUDE_MODE_LINE_PHRASES: ReadonlyArray<readonly [phrase: string, mode: ClaudePermissionMode]> = [
   ["accept edits on", "acceptEdits"],
   ["manual mode on", "default"],
   ["plan mode on", "plan"],
   ["auto mode on", "auto"],
+  ["don't ask on", "dontAsk"],
 ];
 const PERMISSION_MODE_LINE_RES: ReadonlyArray<readonly [RegExp, ClaudePermissionMode]> =
   CLAUDE_MODE_LINE_PHRASES.map(
@@ -688,16 +744,27 @@ export function asClaudePermissionMode(value: string | undefined): ClaudePermiss
 }
 
 /** The Shift+Tab permission cycle order, probe-measured (claude 2.1.214 — see
- *  spikes/midsession-switch-probe §S0 and re-observed 2026-07-23 in the
- *  midsession-permission-switch e2e's `observedModes`):
+ *  spikes/midsession-switch-probe §S0; re-observed 2026-07-23 in the
+ *  midsession-permission-switch e2e's `observedModes`; RE-MEASURED UNCHANGED at
+ *  2.1.258, SL-5 q17 arm A — 12 consecutive presses traced this exact order
+ *  three times over, with no fifth member and no `bypassPermissions`):
  *  manual (default) → accept edits → plan → auto → manual. `auto` is
- *  account-gated. */
+ *  account-gated and IS granted on this account. */
 export const CLAUDE_PERMISSION_CYCLE: readonly ClaudePermissionMode[] = [
   "default",
   "acceptEdits",
   "plan",
   "auto",
 ];
+
+/** Is `mode` a member of the Shift+Tab cycle — i.e. can stepping ever LAND on
+ *  it? `dontAsk` and `bypassPermissions` are the two that cannot (MEASURED,
+ *  SL-5 q18 arm E: eight presses from a `dontAsk` session walk the four cycle
+ *  members twice and never come back), which is what makes them unreachable
+ *  return-home destinations for the stepping engine. */
+export function isClaudePermissionCycleMode(mode: ClaudePermissionMode): boolean {
+  return CLAUDE_PERMISSION_CYCLE.includes(mode);
+}
 
 /**
  * The mode(s) a single Shift+Tab press from `from` may legitimately land on. For
@@ -710,11 +777,32 @@ export const CLAUDE_PERMISSION_CYCLE: readonly ClaudePermissionMode[] = [
  * frame read as "landed on the same mode", double-pressed, and could strand the
  * session on neither the target nor the origin).
  *
- * An OFF-cycle origin (`bypassPermissions` / `dontAsk`, set outside the Shift+Tab
- * cycle) has no predictable successor, so any cycle member is accepted — the
- * stale-repaint filter (landing === `from`) still rejects a redraw of `from`
- * itself. This preserves the blind-seek the engine used before landing
- * validation for that rare off-cycle case.
+ * An OFF-cycle origin is one the cycle cannot reach (`isClaudePermissionCycleMode`
+ * is false): `bypassPermissions` and `dontAsk`. Both keep the blanket exemption —
+ * any cycle member is accepted — and the stale-repaint filter (landing === `from`)
+ * still rejects a redraw of `from` itself. This preserves the blind-seek the
+ * engine used before landing validation for those two rare cases.
+ *
+ * WHAT IS KNOWN ABOUT EACH, and why neither is encoded (SL-5):
+ *
+ *  - `bypassPermissions` — successor UNMEASURED and not measurable from Sonata.
+ *    A `--permission-mode bypassPermissions` spawn parks on an unanswered
+ *    "WARNING: … Bypass Permissions mode" consent screen and never paints a
+ *    composer (q18 arm E), so there is no mode line to step away from.
+ *  - `dontAsk` — successor OBSERVED ONCE, at 2.1.258: the single press taken
+ *    from a `--permission-mode dontAsk` composer landed on `default` (q18 arm E;
+ *    the seven presses after it were cycle-internal, so they corroborate the
+ *    CYCLE, not this transition). **n=1 does not earn a one-member expectation
+ *    here**, and the asymmetry is what decides it: a one-member set that is
+ *    RIGHT buys nothing the stale-repaint filter does not already give, while a
+ *    one-member set that upstream later makes WRONG turns a drive that would
+ *    have worked into a guaranteed failure — and since SL-5 also removed the
+ *    walking recovery for non-cycle origins (`beginPermissionReturn` stops
+ *    immediately rather than pressing toward an unreachable home), that failure
+ *    now resolves on press 1 with no second chance. Fail-loud is the right
+ *    contract for a transition we have MODELLED; it is the wrong contract for
+ *    one we have SAMPLED once. Recorded here as knowledge rather than encoded as
+ *    a rule; a second independent observation would change the calculus.
  */
 export function expectedPermissionLandings(
   from: ClaudePermissionMode,

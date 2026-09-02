@@ -331,9 +331,71 @@ assert.equal(
 // ===========================================================================
 // Permission Shift+Tab stepping engine — mode-line receipt parser (S2). The
 // engine presses `\x1b[Z` and reads the TUI mode line to learn which mode it
-// landed in. Strings are the probe-verified cycle receipts (claude 2.1.214 —
-// spikes/midsession-switch-probe/findings.md §S0).
+// landed in.
+//
+// The cases below the divider are COMPOSED minimal forms (the phrase and its
+// glyph, nothing else) exercising the parser's tolerances — ANSI, wrapping,
+// case, the glyph anchor. They were written against claude 2.1.214
+// (spikes/midsession-switch-probe/findings.md §S0) and are kept as the
+// tolerance suite, not as evidence of what the CLI renders.
+//
+// The MEASURED rows the CLI actually paints at 2.1.258 are pinned first, added
+// by upstream sync SL-5 (spikes/upstream-sync-2026-09/claude/q17 arms A/C/D,
+// q18 arm E). The distinction matters: a composed `"⏸ plan mode on"` cannot
+// catch a chrome change, and SL-5 found one the composed suite was blind to —
+// a fifth mode (`dontAsk`) whose row the phrase table did not carry at all.
 // ===========================================================================
+
+// — MEASURED, VERBATIM footer rows at claude 2.1.258 under Sonata's production
+//   spawn shape — byte-exact from the capture's rendered rows, 2-space indent
+//   included (the grid reader trims trailing padding, so there is none to
+//   carry). Note `default`'s row alone has no `(shift+tab to cycle)` tail; that
+//   asymmetry is upstream's and is reproduced here rather than tidied. —
+assert.equal(
+  parseClaudePermissionModeLine("  ⏸ manual mode on · ← for agents"),
+  "default",
+  "MEASURED 2.1.258 default footer row",
+);
+assert.equal(
+  parseClaudePermissionModeLine("  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents"),
+  "acceptEdits",
+  "MEASURED 2.1.258 acceptEdits footer row",
+);
+assert.equal(
+  parseClaudePermissionModeLine("  ⏸ plan mode on (shift+tab to cycle) · ← for agents"),
+  "plan",
+  "MEASURED 2.1.258 plan footer row",
+);
+assert.equal(
+  parseClaudePermissionModeLine("  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents"),
+  "auto",
+  "MEASURED 2.1.258 auto footer row",
+);
+// The row SL-5 added the table entry for. `dontAsk` is not a Shift+Tab cycle
+// member — no press ever lands on it (q18 arm E) — but a session can SPAWN into
+// it (`claudeArgs` maps `--permission-mode dontAsk`), and until this entry
+// existed the parser, the readiness footer needle and the fullscreen-offer
+// discriminator were all blind to such a session's composer. ASCII apostrophe
+// U+0027, verified on the captured bytes.
+assert.equal(
+  parseClaudePermissionModeLine("  ⏵⏵ don't ask on (shift+tab to cycle) · ← for agents"),
+  "dontAsk",
+  "MEASURED 2.1.258 dontAsk footer row",
+);
+// OCCLUSION (q17 arm D): a single Ctrl-C at an idle composer REPLACES the
+// mode-line row with this hint for ~1–2s. It must read as "no mode line", so
+// the engine's origin read declines instead of inventing a mode — and so the
+// readiness needle's absence is an honest absence, not a misparse. Byte-exact:
+// 2-space indent, 87 spaces, `/rc`, 118 columns.
+assert.equal(
+  parseClaudePermissionModeLine(
+    "  Press Ctrl-C again to exit                                                                                       /rc",
+  ),
+  null,
+  "MEASURED 2.1.258 Ctrl-C hint row (which occludes the mode line) is not a mode",
+);
+
+// ── COMPOSED tolerance suite (below) ────────────────────────────────────────
 
 // — Each cyclable mode's line maps to its ClaudePermissionMode id. —
 assert.equal(parseClaudePermissionModeLine("⏸ manual mode on"), "default", "`manual mode on` → default");

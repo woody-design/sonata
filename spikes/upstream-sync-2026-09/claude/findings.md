@@ -1137,3 +1137,342 @@ outgoing display name (that is the label table again). A recency rule is likewis
 not obviously sound against a slice boundary. The mirror-based confirmation
 registered for F19 covers this class too, which is the argument for doing that
 once rather than three needles separately.
+
+---
+
+# SL-5 — Claude permission-mode drive re-verify (claude 2.1.258)
+
+Probes: `q17-permission-cycle.mjs` (arms A cycle walk / B pacing / C spawn
+determinism / D occlusion), `q18-permission-drive-mirror.mjs` (E off-cycle
+origins / F production drive / G the mirror under an undriven flip),
+`q19-stale-origin-drive.mjs` (the pre/post A/B fixture). Binary pinned 2.1.258 at
+the start and end of every run — **no drift this slice** (the first slice in this
+program where the binary held still).
+
+## F23 — the Shift+Tab cycle is UNCHANGED at 2.1.258 (q17 arm A, MEASURED)
+
+Twelve consecutive presses from a `--permission-mode default` spawn, reading the
+grid row, its glyph codepoints and the production parser's verdict after every
+one:
+
+```
+default → acceptEdits → plan → auto → default → …   (three full laps, no drift)
+```
+
+- **Four members, no fifth.** Both `plan` and `auto` are present on this account.
+- **`bypassPermissions` never appeared.** The SL-5 brief named an in-cycle
+  bypass as a design-fork trigger; it is not in the cycle, so there is no fork.
+  Sonata cannot step into it unattended.
+- **0 unparsed steps, 0 landings rejected** by the production
+  `expectedPermissionLandings` validator across all 12 transitions. The
+  `CLAUDE_PERMISSION_CYCLE` table's 2.1.214 stamp was stale; its CONTENT was not.
+- Per-step latency **25–28ms** press→mode-line (n=12), against a
+  `PERMISSION_STEP_RECEIPT_TIMEOUT_MS` of 1500. Two orders of margin.
+- Verbatim rows, and note the asymmetry — `default` alone has no cycle hint:
+
+```
+⏸ manual mode on · ← for agents                                U+23F8
+⏵⏵ accept edits on (shift+tab to cycle) · ← for agents         U+23F5 U+23F5
+⏸ plan mode on (shift+tab to cycle) · ← for agents             U+23F8
+⏵⏵ auto mode on (shift+tab to cycle) · ← for agents            U+23F5 U+23F5
+```
+
+## F24 — a FIFTH mode line exists that no table carried: `dontAsk` (q17 arm C / q18 arm E, MEASURED)
+
+`--permission-mode dontAsk` boots to a working composer whose footer reads
+
+```
+⏵⏵ don't ask on (shift+tab to cycle) · ← for agents      (ASCII apostrophe U+0027)
+```
+
+and `parseClaudePermissionModeLine` returned **null** on it, as did
+`CLAUDE_MODE_LINE_ON_SCREEN_RE`. `dontAsk` is not a menu option — but it is a
+`ClaudePermissionMode`, `claudeArgs` maps it to `--permission-mode dontAsk`, and
+`parseCreateTaskRequest` accepts it, so a task created through the local API
+spawns straight into it. Three consumers went blind on such a session at once,
+because they share one table:
+
+1. the S2 step parser (could not read the session's mode);
+2. SL-2a's readiness footer redundancy leg;
+3. **`claudeFullscreenOfferOpen` condition 3** — "a composer is on screen ⇒ this
+   is not the boot offer", the structural discriminator SL-3 added. It failed
+   OPEN for the whole life of a `dontAsk` session.
+
+FIXED by extending the shared phrase table by one entry (the brief's sanctioned
+"EXTEND, never reshape"), which closes all three — the argument for the table
+being shared, demonstrated.
+
+**Off-cycle behaviour, measured (q18 arm E, 8 presses):** the single press taken
+from a `dontAsk` composer landed on `default`, and the seven presses after it ran
+the ordinary four-mode loop, **never returning to `dontAsk`**.
+
+Be precise about what each half of that is worth, because review round 1 was
+right that the first write-up blurred them:
+
+- The `dontAsk → default` transition was observed **n=1**. The seven later
+  presses corroborate the CYCLE, not that transition.
+- "`dontAsk` is never a landing" is the strong claim, and it holds across all
+  eight presses. That is what the return-home early stop keys on
+  (`isClaudePermissionCycleMode`), and it is the claim that needed to be robust.
+
+So `expectedPermissionLandings("dontAsk")` **keeps its blanket exemption** — see
+F30's ledger note for the reasoning. The successor is recorded in the parser's
+doc as knowledge, not encoded as a rule.
+
+## F25 — `--permission-mode bypassPermissions` never reaches a composer (q18 arm E, MEASURED)
+
+The spawn parks on an unanswered consent screen and stays there — 8 Shift+Tabs
+changed nothing, no mode line ever painted:
+
+```
+  WARNING: Claude Code running in Bypass Permissions mode
+  … By proceeding, you accept all responsibility …
+  ❯ No, exit
+    Yes, I accept
+  Enter to confirm · Esc to cancel
+```
+
+Two consequences. (a) `bypassPermissions` keeps its blanket landing exemption
+honestly — its successor is not merely unmeasured, it is UNMEASURABLE from
+Sonata. (b) A `bypassPermissions` task created via the local API would hang on a
+boot interstitial nothing recognises. That is an SL-3-class boot-ceremony gap,
+outside SL-5's boundary — **registered, not fixed**. Note the row order matches
+the trust dialog's post-2.1.252 shape (`❯ No, exit` first), so a blind Enter
+would decline, not accept.
+
+## F26 — spawn determinism holds; this account's own default is now `auto` (q17 arm C, MEASURED)
+
+| spawn | boot mode | flag won? |
+|---|---|---|
+| **no `--permission-mode` flag** | **`auto`** | (control) |
+| `--permission-mode default` | `default` | yes |
+| `--permission-mode acceptEdits` | `acceptEdits` | yes |
+| `--permission-mode plan` | `plan` | yes |
+| `--permission-mode auto` | `auto` | yes |
+| `--permission-mode dontAsk` | `dontAsk` | yes |
+
+The 8/14 server-side rollout **did** land on this account — an unflagged claude
+boots into `auto`. Sonata always passes the flag and the flag still wins in every
+mode, so Sonata's spawn is deterministic and **no code change is needed**. Worth
+keeping: this is exactly the drift a future sync would otherwise discover as a
+mystery, and the control arm is what makes "the flag wins" a measurement rather
+than an assumption.
+
+## F27 — pacing: one press = one mode down to 40ms; only same-tick writes coalesce (q17 arm B, MEASURED)
+
+Three presses from `default`, varying the spacing:
+
+| spacing | landed | advanced |
+|---|---|---|
+| 300ms | `auto` | 3 ✓ |
+| 120ms | `auto` | 3 ✓ |
+| 40ms | `auto` | 3 ✓ |
+| **0ms** (three writes, same tick) | **`acceptEdits`** | **1 ✗** |
+
+Upstream's fast-key fixes in the 2.1.22x–2.1.25x range do not affect Sonata: the
+engine writes ONE `\x1b[Z` and waits for that step's receipt before the next, so
+it can never produce the same-tick burst that coalesces. NO-OP, with a mechanism
+— which is the useful form, because it says *why* it is a no-op and what would
+break it (any future "press N times at once" optimisation).
+
+## F28 — occlusion: the Ctrl-C hint replaces the mode line on the GRID, not in the STREAM (q17 arm D, MEASURED)
+
+The 2.1.248 changelog hazard is real and its shape is specific. One Ctrl-C at an
+idle composer replaces the footer's mode-line row with
+`Press Ctrl-C again to exit` for ~1–2s (measured back at +2.0s, still absent at
++400ms), the composer `❯` still present:
+
+| channel | before | +400ms | +2.0s |
+|---|---|---|---|
+| grid mode-line row | present | **absent** | present |
+| `CLAUDE_MODE_LINE_ON_SCREEN_RE` (grid) | true | **false** | true |
+| `parseClaudePermissionModeLine` (raw tail) | `default` | `default` | `default` |
+
+The STREAM channel is untouched, because the parser reads a cumulative tail that
+still holds the last mode line. So the S2 **step receipt is not at risk** — the
+raced case (Shift+Tab, then Ctrl-C 60ms later, inside the step's receipt window)
+still parsed the correct landing `acceptEdits`.
+
+Two real consequences, both handled:
+
+1. **SL-2a readiness** loses its mode-line redundancy leg for that window. It
+   does not lose readiness: the same occluded frame still carries `medium` and
+   `/effort` for `idlePromptModelHints`. The redundancy did its job — this is the
+   first field evidence that the SL-2a leg was worth building as redundancy
+   rather than as the needle.
+2. **`claudeFullscreenOfferOpen` condition 3** fails OPEN for that window, and
+   F6's "the composer footer carries a mode line, never absent" is thereby
+   **falsified as an absolute**. The guard survives because both POSITIVE needles
+   must still match and an idle composer under a Ctrl-C hint has neither. Comment
+   corrected in place rather than left standing.
+3. The engine's ORIGIN read (F30) can return null here — which is why it falls
+   back to the caller's `from` instead of guessing.
+
+## F29 — the permission mirror does not follow an undriven flip (q18 arm G, MEASURED — DECISIVE)
+
+Objective 3's question, answered on the production `HookWatcher` +
+`applyHookPermissionMode` path. The reproducible stand-in for every flip Sonata
+did not perform (a user's own Shift+Tab in the Terminal pane; a server-side
+`disableAutoMode`; a Remote-Control change from a phone) is a `writeUserInput`
+Shift+Tab — from the mirror's point of view all of them are identical: nobody
+told it.
+
+- `SessionStart` carries **`permission_mode: null`** — the mirror is not seeded
+  from the hook at all (the task record's spawn value covers boot, so this is
+  not itself a bug, but it means the FIRST hook to move the mirror is the first
+  turn's).
+- After the flip the grid read `acceptEdits` and the mirror still read
+  `default`. **65 seconds of watching produced ZERO hooks** — not even the
+  `Notification(idle_prompt)` SL-2b found at 60s.
+- The correction arrived only with the next turn: `UserPromptSubmit`, 304ms
+  after submit, carrying `permission_mode: acceptEdits`.
+
+So the staleness window is **"until the user's next turn" — unbounded**, and a
+user who flips natively and then reaches for Sonata's access chip is inside it by
+construction.
+
+**Server-side `disableAutoMode` and a Remote-Control mode change from another
+device: UNREPRODUCED.** Neither is triggerable from this harness. They are not
+separate risks though — they are the same undriven-flip shape measured above,
+and any of them would land in exactly this window.
+
+## F30 — what a stale `from` cost, and what shipped (q19, MEASURED A/B on the live CLI)
+
+`renderer/main.ts:508` passes `view.task.permissionMode` — the F29 mirror — as
+the switch's `from`, and `writePermissionStep` seeds `pressedFrom` from it. So
+the landing validator is anchored on a mode the CLI may have left minutes ago.
+Measured on the real engine + real CLI, mirror says `default` / CLI is in
+`acceptEdits`:
+
+| arm | pre-fix | post-fix |
+|---|---|---|
+| **h1** target `plan`, stale `from` | **needs-attention**, **7 mode changes**, final `default` | **settled**, **1 change**, final `plan` |
+| **h2** target `plan`, TRUE `from` (control) | settled, 1 change, `plan` | settled, 1 change, `plan` |
+| **h3** target `acceptEdits` — the mode it is ALREADY in | **needs-attention**, **7 mode changes**, final `default` | **settled**, **0 changes**, stays `acceptEdits` |
+
+The seven-press walk is not noise, it is the state machine working as written:
+press 1 lands `plan`, which is not `default`'s successor → fail loud →
+return-home re-anchors on the SAME stale `default` → presses 2–3 fail the same
+way (press 3 lands on `default` itself and burns the full 1500ms window as a
+"stale pre-press repaint") → from press 4 the anchor finally tracks reality and
+the walk runs the cycle until `default` comes round. `observedModes` came back as
+all four modes, which is the tell. h3 is the sharpest: **asking for the mode you
+are already in moved the session off it.**
+
+SHIPPED — the origin comes off the SCREEN, not off the mirror:
+
+- `TerminalHost.screenPermissionMode()` — a synchronous grid read (sibling of
+  `isRewindPanelOpen`, same staleness argument) parsing the footer with the
+  SAME shared parser. Grid, not stream, and here that is required rather than
+  preferred: the pty tail is cumulative and "last match wins" cannot tell the
+  current footer from a scrolled-past one.
+- `startPermissionSwitch` uses it, falling back to the caller's `from` when the
+  screen cannot answer (F28's occlusion window; no screen model) — so the
+  degradation is exactly the old behaviour, never worse.
+- `beginPermissionReturn` stops instead of walking toward an origin the cycle
+  **cannot reach** (F24: `dontAsk` is never a landing; F25: `bypassPermissions`
+  has no composer). Walking the 12-step return cap there is a blind-press ladder
+  that provably cannot arrive.
+- `expectedPermissionLandings("dontAsk")` **deliberately NOT tightened** — see
+  the review note below; both off-cycle origins keep the blanket exemption, now
+  each for a stated reason rather than by default.
+
+This does **not** move the permission SSOT (contract §2). The mirror is still the
+hook payload; a settled switch still writes nothing to `task.permissionMode`. The
+screen read decides only where the choreography starts pressing — a receipt-side
+question, which is the mode line's job.
+
+## F31 — REGISTERED: a settled permission switch still leaves the chip stale until the next turn
+
+Not fixed here; it is the F29 mirror lag seen from the other end. After a
+successful drive the CLI is in the target mode and Sonata's access chip still
+shows the old one, because `control-switch:state settled` deliberately does not
+write `task.permissionMode` — the hook payload does, on the next turn. Today that
+is bounded and honest (the pending affordance clears, the CLI's own footer is
+visible in the Terminal pane, and one turn corrects it).
+
+It is the same shape as F19's "confirm a mid-session switch against the MIRROR,
+not the stream" register item, with the axes reversed: model/effort has a fast
+state mirror (the statusline payload) and a noisy receipt; permission has a clean
+receipt and a mirror that only ticks on turns. Both point at the same unlock —
+`PostModelSwitch` / a state-query confirmation channel (D2) — which is where this
+belongs, not in a table edit.
+
+## F32 — the offered-mode sets already agree with the measured cycle (NO CHANGE, with the reasoning)
+
+Objective 4 asked whether Sonata's offered modes still match reality. They do,
+and the reasons are worth stating so they are not re-litigated:
+
+- `CLAUDE_DEFAULT_PERMISSION_MODE_OPTIONS` (Settings, new-session default) =
+  `default / acceptEdits / auto`. All three are measured cycle members and all
+  three were measured to spawn deterministically under the flag (F26). `plan` is
+  excluded by an unchanged product judgement (a momentary mode is an odd standing
+  default), not by a capability claim, so the measurement does not touch it.
+- `PERMISSION_MENU_BASE` (the live session's access chip) =
+  `default / acceptEdits / plan / auto` — exactly the measured cycle, in order.
+  `bypassPermissions` stays observation-gated, and F23 now shows it is not merely
+  a policy choice: it is **not reachable by stepping at all**, so offering it to
+  a session that did not spawn into it would be a dead step by construction.
+
+**`dontAsk` is deliberately NOT added to either set, and the new table entry does
+not change that.** SL-5 taught the PARSER to read a `dontAsk` session; it did not
+make `dontAsk` reachable. q18 arm E measured that no Shift+Tab press ever lands
+on it, so a menu entry for it would be precisely the dead step D4 forbids — the
+drive would seek the whole cycle, never find it, and return home with
+needs-attention. Reading a mode and offering a mode are different questions; this
+slice answered only the first.
+
+
+## F30b — review round 1: the `dontAsk` successor was an n=1 tightening, reverted
+
+Round 1 (0 blocking, 4 minor) found the first cut of F30 encoding
+`expectedPermissionLandings("dontAsk") = {default}` off a **single** observation
+while the comment claimed "enters the cycle at `default` every time". Two things
+were wrong: the prose overclaimed the sample, and the rule itself was a bad trade.
+
+The asymmetry decides it. A one-member expectation that is RIGHT buys nothing —
+the stale-repaint filter (`landed === from`) already rejects the only thing a
+first press from `dontAsk` could plausibly misread. A one-member expectation that
+upstream later makes WRONG converts a drive that would have worked into a
+guaranteed failure. And SL-5 **compounds** that in the same slice: because
+`beginPermissionReturn` now stops dead for a non-cycle origin instead of walking,
+the rejection resolves on press 1 with no recovery path. Bounded and loud, yes —
+but bounded-and-loud is the right contract for a transition we have MODELLED, not
+for one we have SAMPLED once.
+
+REVERTED to the blanket exemption. The measurement is preserved as knowledge in
+the parser's doc (with its n stated), and a smoke pins the blanket so the choice
+reads as a decision rather than a gap. A second independent observation of the
+transition would change the calculus; one would not.
+
+What SURVIVES from the same probe is the stronger claim, and it is the one the
+code actually leans on: `dontAsk` is never a LANDING (0 of 8 presses), so it is
+unreachable as a return-home destination. That is `isClaudePermissionCycleMode`,
+and it is unaffected.
+
+## F28b — review round 1: the occlusion window opens the surface, it does not merely widen it
+
+The first cut of the corrected condition-3 comment said the Ctrl-C window "widens
+the forgery surface without opening it". Round 1 pointed out that this is
+contradicted by the slice's own new test, which asserts
+`claudeFullscreenOfferOpen(OFFER_FRAME + composer + occludedFooter) === true`.
+For the RESUMED-REPAINT class the discriminator is the only thing between that
+screen and a true verdict, so during the window the surface is genuinely OPEN.
+
+Prose rewritten to the honest mitigation, which is about the SHAPE of the
+consequence rather than its absence:
+
+1. the guard's only effect is a readiness HOLD — recognition writes nothing to
+   the pty (RED LINE), so a false hold costs latency, never an action;
+2. it is not a latch of its own: `acceptsPromptInput()` re-evaluates per call and
+   the delivery pump re-polls ~every 500ms, so the hold lifts on the first poll
+   after the hint clears — **bounded by the hint's ~1–2s lifetime, not by the
+   session's**. The one-way BOOT latch is what would have made a false hold
+   permanent, and this hold expires before it can be what keeps that latch shut;
+3. post-latch it costs nothing at all — the guard feeds readiness only, and
+   readiness stops gating delivery once the latch opens.
+
+The test case is now explicitly framed as pinning a KNOWN FALSE POSITIVE as
+expected behaviour, with a header saying a failure there means the boundary
+IMPROVED (delete the assertion) rather than that something regressed, and a third
+assertion proving the hold is transient on the same host.

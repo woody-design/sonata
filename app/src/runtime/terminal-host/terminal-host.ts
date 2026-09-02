@@ -57,6 +57,7 @@ import {
   compactRemoteControlScan,
   findRemoteControlUrl,
   hasRemoteControlDisconnect,
+  parseClaudePermissionModeLine,
   parseClaudeTrustDialogRows,
   REMOTE_CONTROL_SCAN_LIMIT,
 } from "./tui-parsers-claude";
@@ -837,6 +838,7 @@ export class TerminalHost extends EventEmitter {
       },
       isApprovalActive: () => this.approvalActive,
       isRewindPanelOpen: () => this.isRewindPanelOpen(),
+      screenPermissionMode: () => this.screenPermissionMode(),
       hasActiveRun: () => this.activeRun !== null,
       isSonataWriting: () => this.sonataWriting,
       beginSonataWrite: () => this.beginSonataWrite(),
@@ -989,6 +991,41 @@ export class TerminalHost extends EventEmitter {
       return false;
     }
     return claudeRewindPanelOpen(this.screenModel.viewportText());
+  }
+
+  /**
+   * The permission mode claude's composer footer is currently showing, or null
+   * if the screen cannot answer (codex; no screen model; the mode-line row not
+   * legible right now).
+   *
+   * The stepping engine's ORIGIN read (SL-5). The engine's per-step receipts
+   * already come off the mode line; this asks the same parser the same question
+   * one beat earlier — "which mode am I in BEFORE the first press" — so the
+   * landing validator is anchored on the session rather than on
+   * `task.permissionMode`, whose hook-fed reconcile was MEASURED to lag an
+   * undriven flip indefinitely (q18 arm G: no hook fires for a native
+   * Shift+Tab; the next turn corrects it). See `startPermissionSwitch` for the
+   * seven-press failure that lag caused.
+   *
+   * Reads the SCREEN GRID, per D-1's standing rule that a state query belongs
+   * on the grid — and here the grid is not merely preferred but required: the
+   * pty tail is CUMULATIVE, so it still holds every mode line the session ever
+   * printed, and "most recent match wins" on a tail that survived a repaint
+   * cannot distinguish the current footer from a scrolled-past one. The grid
+   * converges to what is displayed.
+   *
+   * SYNCHRONOUS `viewportText()` for the same reason `isRewindPanelOpen` is —
+   * the caller is a synchronous predicate and a naked read is
+   * stale-but-consistent. Both staleness edges are benign here: the value it
+   * answers with is one the user set seconds ago at the earliest, and a read
+   * that lands mid-repaint returns null (no legible row) rather than a wrong
+   * mode, because the parser is glyph-anchored.
+   */
+  screenPermissionMode(): ClaudePermissionMode | null {
+    if (this.profile.provider !== "claude" || !this.screenModel) {
+      return null;
+    }
+    return parseClaudePermissionModeLine(this.screenModel.viewportText());
   }
 
   /**
