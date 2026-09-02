@@ -12,6 +12,7 @@ import type {
   RunId,
   RunKind,
   RunStatus,
+  StopInterruptEncoding,
   TaskId,
   RuntimeProvider,
 } from "../types/domain";
@@ -121,7 +122,11 @@ export interface RuntimeStopReport {
    *  one-shot Esc resend fired when post-stop tool activity proved the first
    *  Esc was swallowed. Absent/`interrupt` semantics are unchanged. */
   phase?: "interrupt" | "interrupt-retry";
-  encodedAs?: "Esc";
+  /** Widened in place (still v1) from the `"Esc"` literal: codex's stop writes
+   *  Ctrl+C while a turn is live (its interrupt key moved at 0.152.x). Older
+   *  reports carry `"Esc"` and read unchanged; the field stays optional because
+   *  a `stopped` row has never carried one. */
+  encodedAs?: StopInterruptEncoding;
   interruptSent?: boolean;
   slashStopSent?: boolean;
   slashStopReason?: string;

@@ -1,0 +1,179 @@
+{
+  "arm": "s1-midturn",
+  "version": "codex-cli 0.152.1",
+  "hookOrder": [
+    "SessionStart@2766",
+    "UserPromptSubmit@2766",
+    "Stop@4488",
+    "UserPromptSubmit@4792",
+    "Interrupt@12904"
+  ],
+  "notes": [
+    "ready=true at 147ms",
+    "submit retry 1 at 2149ms",
+    "warm-up \"Reply with exactly: OK\" submitted=true (1 retries)",
+    "warm-up closed=true at 4515ms",
+    "live turn: started=true grew=true stoppedAlready=false"
+  ],
+  "frames": [
+    {
+      "label": "before Ctrl+C (turn live)",
+      "atMs": 6769,
+      "ptyExited": false,
+      "hostReady": false,
+      "activeRun": "run-1788333850568-2",
+      "quitHint": null,
+      "composer": {
+        "line": "› Ask Codex to do anything",
+        "empty": true,
+        "placeholder": true
+      },
+      "tail": "\n\n• OK\n\n\n› Count from 1 to 900, one number per line, nothing else.\n\n \n• Working (2s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s1-midturn/ws"
+    },
+    {
+      "label": "after Ctrl+C",
+      "atMs": 15296,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "composer": {
+        "line": "› Ask Codex to do anything",
+        "empty": true,
+        "placeholder": true
+      },
+      "tail": "  56\n  57\n  58\n  59\n  60\n  61\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s1-midturn/ws"
+    }
+  ],
+  "ptyExited": true,
+  "exitInfo": {
+    "taskId": "task-q31-s1-midturn",
+    "generation": 1,
+    "runId": null,
+    "exitCode": 0,
+    "signal": 0,
+    "elapsedMs": 15520,
+    "sonataInitiated": false
+  },
+  "pressedAt": 12795,
+  "interruptHookAtMs": 109,
+  "stopHookAfterPress": false,
+  "interruptedBanner": true,
+  "reachedEnd": false,
+  "composerAfterInterrupt": {
+    "line": "› Ask Codex to do anything",
+    "empty": true,
+    "placeholder": true
+  },
+  "promptRestoredToComposer": false,
+  "liveTurnIdleReads": [
+    {
+      "ready": false,
+      "confidence": "low",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": false,
+      "confidence": "low",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": false,
+      "confidence": "low",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": false,
+      "confidence": "low",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": false,
+      "confidence": "low",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": false,
+      "confidence": "low",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    },
+    {
+      "ready": true,
+      "confidence": "medium",
+      "hasModelOrCwdHint": true
+    }
+  ],
+  "postInterruptIdleRead": {
+    "ready": true,
+    "confidence": "medium",
+    "hasModelOrCwdHint": true
+  },
+  "secondPressExitedMs": 304,
+  "secondPressQuit": true,
+  "verdict": "INTERRUPTED (hook fired)"
+}

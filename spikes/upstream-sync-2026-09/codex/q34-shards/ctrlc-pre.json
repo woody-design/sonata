@@ -1,0 +1,68 @@
+{
+  "cell": "ctrlc-pre",
+  "key": "Ctrl+C",
+  "keyLabel": "Ctrl+C",
+  "phase": "pre-output",
+  "runs": [
+    {
+      "arm": "ctrlc-pre-r1",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2864",
+        "UserPromptSubmit@2965",
+        "Stop@4472",
+        "UserPromptSubmit@4776",
+        "Interrupt@7610"
+      ],
+      "notes": [
+        "ready=true at 147ms",
+        "warm-up closed=true at 4479ms"
+      ],
+      "ptyExited": false,
+      "screenTail": "› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/ctrlc-pre-r1/ws",
+      "key": "Ctrl+C",
+      "intendedPhase": "pre-output",
+      "observedPhase": "pre-output",
+      "phaseAsIntended": true,
+      "stoppedBeforePress": false,
+      "msIntoTurn": 2707,
+      "countAtPress": 0,
+      "settledAtMs": 7685,
+      "interruptAfterMs": 127,
+      "stopAfterMs": null,
+      "interruptedBanner": true,
+      "reachedEnd": false,
+      "verdict": "Ctrl+C INTERRUPTED at pre-output (+127ms)"
+    },
+    {
+      "arm": "ctrlc-pre-r2",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2738",
+        "UserPromptSubmit@2839",
+        "Stop@4250",
+        "UserPromptSubmit@4657",
+        "Interrupt@7491"
+      ],
+      "notes": [
+        "ready=true at 124ms",
+        "warm-up closed=true at 4346ms"
+      ],
+      "ptyExited": false,
+      "screenTail": "› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/ctrlc-pre-r2/ws",
+      "key": "Ctrl+C",
+      "intendedPhase": "pre-output",
+      "observedPhase": "pre-output",
+      "phaseAsIntended": true,
+      "stoppedBeforePress": false,
+      "msIntoTurn": 2690,
+      "countAtPress": 0,
+      "settledAtMs": 7551,
+      "interruptAfterMs": 144,
+      "stopAfterMs": null,
+      "interruptedBanner": true,
+      "reachedEnd": false,
+      "verdict": "Ctrl+C INTERRUPTED at pre-output (+144ms)"
+    }
+  ]
+}

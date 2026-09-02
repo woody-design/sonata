@@ -1,0 +1,68 @@
+{
+  "cell": "ctrlc-stream",
+  "key": "Ctrl+C",
+  "keyLabel": "Ctrl+C",
+  "phase": "streaming",
+  "runs": [
+    {
+      "arm": "ctrlc-stream-r1",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2838",
+        "UserPromptSubmit@2838",
+        "Stop@4250",
+        "UserPromptSubmit@4655",
+        "Interrupt@9609"
+      ],
+      "notes": [
+        "ready=true at 124ms",
+        "warm-up closed=true at 4342ms"
+      ],
+      "ptyExited": false,
+      "screenTail": "  15\n  16\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/ctrlc-stream-r1/ws",
+      "key": "Ctrl+C",
+      "intendedPhase": "streaming",
+      "observedPhase": "streaming",
+      "phaseAsIntended": true,
+      "stoppedBeforePress": false,
+      "msIntoTurn": 4836,
+      "countAtPress": 16,
+      "settledAtMs": 9695,
+      "interruptAfterMs": 118,
+      "stopAfterMs": null,
+      "interruptedBanner": true,
+      "reachedEnd": false,
+      "verdict": "Ctrl+C INTERRUPTED at streaming (+118ms)"
+    },
+    {
+      "arm": "ctrlc-stream-r2",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2738",
+        "UserPromptSubmit@2840",
+        "Stop@4249",
+        "UserPromptSubmit@4652",
+        "Interrupt@9731"
+      ],
+      "notes": [
+        "ready=true at 122ms",
+        "warm-up closed=true at 4344ms"
+      ],
+      "ptyExited": false,
+      "screenTail": "  20\n  21\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/ctrlc-stream-r2/ws",
+      "key": "Ctrl+C",
+      "intendedPhase": "streaming",
+      "observedPhase": "streaming",
+      "phaseAsIntended": true,
+      "stoppedBeforePress": false,
+      "msIntoTurn": 4928,
+      "countAtPress": 20,
+      "settledAtMs": 9781,
+      "interruptAfterMs": 151,
+      "stopAfterMs": null,
+      "interruptedBanner": true,
+      "reachedEnd": false,
+      "verdict": "Ctrl+C INTERRUPTED at streaming (+151ms)"
+    }
+  ]
+}

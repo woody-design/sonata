@@ -149,9 +149,16 @@ export function runOutcome(run: RuntimeRunReport, providerName: string): string 
     return `Resumed after ${approvalKindLabel(run.approvalKind)} approval`;
   }
   if (run.status === "stopped") {
+    // The key is READ from the report, not assumed. Codex's interrupt moved to
+    // Ctrl+C at 0.152.x and Sonata's stop writes whichever key that stop actually
+    // used, so a hard-coded "by Esc" would misreport half the stops in the
+    // durable record. `interrupt` is the stop's own press; the fallback covers
+    // reports written before the field existed, which were all Esc.
+    const encodedAs =
+      run.stopEvents.find((event) => event.action === "interrupt" && event.encodedAs)?.encodedAs ?? "Esc";
     return run.stopEvents.some((event) => event.action === "stopped" && event.slashStopSent)
-      ? "Stopped by Esc + /stop"
-      : "Stopped by Esc";
+      ? `Stopped by ${encodedAs} + /stop`
+      : `Stopped by ${encodedAs}`;
   }
   if (run.status === "approval-denied") {
     return `${approvalKindLabel(run.approvalKind)} approval denied`;

@@ -1,0 +1,282 @@
+{
+  "probe": "q34-esc-vs-ctrlc-phase",
+  "question": "Does Esc interrupt a codex turn, and does the answer depend on whether output has started?",
+  "version": "codex-cli 0.152.1",
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null,
+  "repeats": 2,
+  "results": {
+    "esc-pre": {
+      "cell": "esc-pre",
+      "key": "Esc",
+      "keyLabel": "Esc",
+      "phase": "pre-output",
+      "runs": [
+        {
+          "arm": "esc-pre-r1",
+          "version": "codex-cli 0.152.1",
+          "hookOrder": [
+            "SessionStart@2755",
+            "UserPromptSubmit@2755",
+            "Stop@4481",
+            "UserPromptSubmit@4684",
+            "Interrupt@7624"
+          ],
+          "notes": [
+            "ready=true at 147ms",
+            "warm-up closed=true at 4482ms"
+          ],
+          "ptyExited": false,
+          "screenTail": "› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/esc-pre-r1/ws",
+          "key": "Esc",
+          "intendedPhase": "pre-output",
+          "observedPhase": "pre-output",
+          "phaseAsIntended": true,
+          "stoppedBeforePress": false,
+          "msIntoTurn": 2802,
+          "countAtPress": 0,
+          "settledAtMs": 7690,
+          "interruptAfterMs": 138,
+          "stopAfterMs": null,
+          "interruptedBanner": true,
+          "reachedEnd": false,
+          "verdict": "Esc INTERRUPTED at pre-output (+138ms)"
+        },
+        {
+          "arm": "esc-pre-r2",
+          "version": "codex-cli 0.152.1",
+          "hookOrder": [
+            "SessionStart@2832",
+            "UserPromptSubmit@2832",
+            "Stop@4864",
+            "UserPromptSubmit@5168",
+            "Interrupt@8092"
+          ],
+          "notes": [
+            "ready=true at 246ms",
+            "warm-up closed=true at 4950ms"
+          ],
+          "ptyExited": false,
+          "screenTail": "› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/esc-pre-r2/ws",
+          "key": "Esc",
+          "intendedPhase": "pre-output",
+          "observedPhase": "pre-output",
+          "phaseAsIntended": true,
+          "stoppedBeforePress": false,
+          "msIntoTurn": 2783,
+          "countAtPress": 0,
+          "settledAtMs": 8155,
+          "interruptAfterMs": 141,
+          "stopAfterMs": null,
+          "interruptedBanner": true,
+          "reachedEnd": false,
+          "verdict": "Esc INTERRUPTED at pre-output (+141ms)"
+        }
+      ]
+    },
+    "esc-stream": {
+      "cell": "esc-stream",
+      "key": "Esc",
+      "keyLabel": "Esc",
+      "phase": "streaming",
+      "runs": [
+        {
+          "arm": "esc-stream-r1",
+          "version": "codex-cli 0.152.1",
+          "hookOrder": [
+            "SessionStart@2642",
+            "UserPromptSubmit@2642",
+            "Stop@4063",
+            "UserPromptSubmit@4365",
+            "Stop@73309"
+          ],
+          "notes": [
+            "ready=true at 125ms",
+            "warm-up closed=true at 4100ms"
+          ],
+          "ptyExited": false,
+          "screenTail": "  896\n  897\n  898\n  899\n  900\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/esc-stream-r1/ws",
+          "key": "Esc",
+          "intendedPhase": "streaming",
+          "observedPhase": "streaming",
+          "phaseAsIntended": true,
+          "stoppedBeforePress": false,
+          "msIntoTurn": 5078,
+          "countAtPress": 19,
+          "settledAtMs": 73371,
+          "interruptAfterMs": null,
+          "stopAfterMs": 63866,
+          "interruptedBanner": false,
+          "reachedEnd": true,
+          "verdict": "Esc did NOT interrupt at streaming — the turn ran to its own Stop"
+        },
+        {
+          "arm": "esc-stream-r2",
+          "version": "codex-cli 0.152.1",
+          "hookOrder": [
+            "SessionStart@3851",
+            "UserPromptSubmit@3951",
+            "Stop@5970",
+            "UserPromptSubmit@6374",
+            "Stop@74557"
+          ],
+          "notes": [
+            "ready=true at 246ms",
+            "warm-up closed=true at 6086ms"
+          ],
+          "ptyExited": false,
+          "screenTail": "  896\n  897\n  898\n  899\n  900\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/esc-stream-r2/ws",
+          "key": "Esc",
+          "intendedPhase": "streaming",
+          "observedPhase": "streaming",
+          "phaseAsIntended": true,
+          "stoppedBeforePress": false,
+          "msIntoTurn": 4549,
+          "countAtPress": 20,
+          "settledAtMs": 74659,
+          "interruptAfterMs": null,
+          "stopAfterMs": 63634,
+          "interruptedBanner": false,
+          "reachedEnd": true,
+          "verdict": "Esc did NOT interrupt at streaming — the turn ran to its own Stop"
+        }
+      ]
+    },
+    "ctrlc-pre": {
+      "cell": "ctrlc-pre",
+      "key": "Ctrl+C",
+      "keyLabel": "Ctrl+C",
+      "phase": "pre-output",
+      "runs": [
+        {
+          "arm": "ctrlc-pre-r1",
+          "version": "codex-cli 0.152.1",
+          "hookOrder": [
+            "SessionStart@2864",
+            "UserPromptSubmit@2965",
+            "Stop@4472",
+            "UserPromptSubmit@4776",
+            "Interrupt@7610"
+          ],
+          "notes": [
+            "ready=true at 147ms",
+            "warm-up closed=true at 4479ms"
+          ],
+          "ptyExited": false,
+          "screenTail": "› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/ctrlc-pre-r1/ws",
+          "key": "Ctrl+C",
+          "intendedPhase": "pre-output",
+          "observedPhase": "pre-output",
+          "phaseAsIntended": true,
+          "stoppedBeforePress": false,
+          "msIntoTurn": 2707,
+          "countAtPress": 0,
+          "settledAtMs": 7685,
+          "interruptAfterMs": 127,
+          "stopAfterMs": null,
+          "interruptedBanner": true,
+          "reachedEnd": false,
+          "verdict": "Ctrl+C INTERRUPTED at pre-output (+127ms)"
+        },
+        {
+          "arm": "ctrlc-pre-r2",
+          "version": "codex-cli 0.152.1",
+          "hookOrder": [
+            "SessionStart@2738",
+            "UserPromptSubmit@2839",
+            "Stop@4250",
+            "UserPromptSubmit@4657",
+            "Interrupt@7491"
+          ],
+          "notes": [
+            "ready=true at 124ms",
+            "warm-up closed=true at 4346ms"
+          ],
+          "ptyExited": false,
+          "screenTail": "› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/ctrlc-pre-r2/ws",
+          "key": "Ctrl+C",
+          "intendedPhase": "pre-output",
+          "observedPhase": "pre-output",
+          "phaseAsIntended": true,
+          "stoppedBeforePress": false,
+          "msIntoTurn": 2690,
+          "countAtPress": 0,
+          "settledAtMs": 7551,
+          "interruptAfterMs": 144,
+          "stopAfterMs": null,
+          "interruptedBanner": true,
+          "reachedEnd": false,
+          "verdict": "Ctrl+C INTERRUPTED at pre-output (+144ms)"
+        }
+      ]
+    },
+    "ctrlc-stream": {
+      "cell": "ctrlc-stream",
+      "key": "Ctrl+C",
+      "keyLabel": "Ctrl+C",
+      "phase": "streaming",
+      "runs": [
+        {
+          "arm": "ctrlc-stream-r1",
+          "version": "codex-cli 0.152.1",
+          "hookOrder": [
+            "SessionStart@2838",
+            "UserPromptSubmit@2838",
+            "Stop@4250",
+            "UserPromptSubmit@4655",
+            "Interrupt@9609"
+          ],
+          "notes": [
+            "ready=true at 124ms",
+            "warm-up closed=true at 4342ms"
+          ],
+          "ptyExited": false,
+          "screenTail": "  15\n  16\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/ctrlc-stream-r1/ws",
+          "key": "Ctrl+C",
+          "intendedPhase": "streaming",
+          "observedPhase": "streaming",
+          "phaseAsIntended": true,
+          "stoppedBeforePress": false,
+          "msIntoTurn": 4836,
+          "countAtPress": 16,
+          "settledAtMs": 9695,
+          "interruptAfterMs": 118,
+          "stopAfterMs": null,
+          "interruptedBanner": true,
+          "reachedEnd": false,
+          "verdict": "Ctrl+C INTERRUPTED at streaming (+118ms)"
+        },
+        {
+          "arm": "ctrlc-stream-r2",
+          "version": "codex-cli 0.152.1",
+          "hookOrder": [
+            "SessionStart@2738",
+            "UserPromptSubmit@2840",
+            "Stop@4249",
+            "UserPromptSubmit@4652",
+            "Interrupt@9731"
+          ],
+          "notes": [
+            "ready=true at 122ms",
+            "warm-up closed=true at 4344ms"
+          ],
+          "ptyExited": false,
+          "screenTail": "  20\n  21\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/ctrlc-stream-r2/ws",
+          "key": "Ctrl+C",
+          "intendedPhase": "streaming",
+          "observedPhase": "streaming",
+          "phaseAsIntended": true,
+          "stoppedBeforePress": false,
+          "msIntoTurn": 4928,
+          "countAtPress": 20,
+          "settledAtMs": 9781,
+          "interruptAfterMs": 151,
+          "stopAfterMs": null,
+          "interruptedBanner": true,
+          "reachedEnd": false,
+          "verdict": "Ctrl+C INTERRUPTED at streaming (+151ms)"
+        }
+      ]
+    }
+  }
+}

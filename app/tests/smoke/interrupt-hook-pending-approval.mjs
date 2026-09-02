@@ -1,13 +1,22 @@
 // A codex `Interrupt` hook that ends a turn must RELEASE every broker ask still
 // pending for that task — on the REAL RuntimeController (SL-9 review round 1, B1).
 //
-// THE DEFECT THIS PINS. `Interrupt` completes the run through
-// `TerminalHost.completeRunFromTurnEnd`, which stamps `completionSource:
-// "hook-stop"` — and `isPendingTurnEnd` deliberately EXCLUDES hook-stop
-// completions, on the invariant "a live holding hook blocks the turn, so a
-// hook-Stop cannot coexist with a pending broker ask". That invariant belongs to
-// `Stop`. It is FALSE for an interrupt, which KILLS the holding PermissionRequest
-// hook — the very reason `abortPendingBrokerApprovals` exists.
+// THE DEFECT THIS PINS, as it stood when the test was written. `Interrupt`
+// completed the run through `TerminalHost.completeRunFromTurnEnd`, which stamped
+// `completionSource: "hook-stop"` — and `isPendingTurnEnd` deliberately EXCLUDES
+// hook-stop completions, on the invariant "a live holding hook blocks the turn,
+// so a hook-Stop cannot coexist with a pending broker ask". That invariant
+// belongs to `Stop`. It is FALSE for an interrupt, which KILLS the holding
+// PermissionRequest hook — the very reason `abortPendingBrokerApprovals` exists.
+//
+// HOW IT IS ANSWERED TODAY (SL-9 shipped one mechanism, SL-15 replaced it; this
+// test pinned BEHAVIOUR and is byte-unchanged across both). SL-9 could not touch
+// terminal-host, so it marked the interrupted run's id in an
+// `interruptDrivenRunIds` set on the controller and read it at the gate. SL-15
+// stamps the ending at the source instead: `completeRunFromTurnEnd({ ending:
+// "interrupt" })` → `completionSource: "hook-interrupt"`, which
+// `isPendingTurnEnd` admits directly, and the side channel is deleted. The
+// assertions below name neither mechanism, which is the point of them.
 //
 // MEASURED at codex 0.152.1 (probe h3 arm `d4-interrupt-under-hold`): with the
 // production broker holding a real ask, Ctrl+C fires `Interrupt` at +131ms, NO
@@ -248,7 +257,11 @@ try {
   );
 
   // A SECOND interrupt for a run that is already closed must not re-fire a
-  // decision — the run-id marker is read-and-delete, and this is what proves it.
+  // decision. Idempotence is now STRUCTURAL rather than bookkept: with no active
+  // run, `completeRunFromTurnEnd` returns null and emits nothing at all, so the
+  // gate is never reached a second time. (Under SL-9's earlier shape this check
+  // proved the read-and-delete of the run-id marker; the marker is gone and the
+  // check holds for a simpler reason — which is why it was left standing.)
   fireHook(taskId, {
     hook_event_name: "Interrupt",
     cwd: workspace,

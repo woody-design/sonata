@@ -95,7 +95,21 @@ try {
   // The stopped state survives the footer retirement as the outcome note;
   // completion provenance moved to the card's data attributes (the report
   // checks below assert native-control/high durably).
-  await page.locator(".turn-outcome-note", { hasText: "Stopped by Esc" }).waitFor({
+  //
+  // THE KEY IS PART OF THE FENCE (SL-15), not incidental copy. This fixture is
+  // the only LIVE-CLI stop we run, and it drives CODEX with a turn that is
+  // provably in flight (its command's pid is alive two lines above) — so the
+  // stop writes Ctrl+C, not Esc: at codex 0.152.x Esc stops interrupting once
+  // the turn is past its thinking phase, which is what made the stop button a
+  // no-op (findings C17/C26). The string travels
+  // `stopRun` → `run:stop-requested.encodedAs` → run-index `stopEvents` →
+  // `runOutcome`, so asserting it here is the live half of the unit pin in
+  // `tests/smoke/codex-stop-interrupt-key.mjs` (which pins the BYTE and the
+  // state that selects it, against a fake pty) and
+  // `tests/smoke/reading-composer-selectors.mjs` (which pins this rendering off
+  // a recorded report). A claude stop still reads "Stopped by Esc"; if this
+  // fixture is ever pointed at claude, this locator moves with it.
+  await page.locator(".turn-outcome-note", { hasText: "Stopped by Ctrl+C" }).waitFor({
     state: "visible",
   });
   await page

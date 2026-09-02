@@ -1,0 +1,120 @@
+{
+  "arm": "v1-production-stop",
+  "version": "codex-cli 0.152.1",
+  "hookOrder": [
+    "SessionStart@2968",
+    "UserPromptSubmit@2969",
+    "Stop@4990",
+    "UserPromptSubmit@5192",
+    "Interrupt@10759"
+  ],
+  "notes": [
+    "ready=true at 145ms",
+    "warm-up \"Reply with exactly: OK\" closed=true at 4999ms",
+    "streaming=true (count 2 → 19, first output at 9440ms)"
+  ],
+  "frames": [
+    {
+      "label": "turn streaming",
+      "atMs": 10642,
+      "ptyExited": false,
+      "hostReady": false,
+      "activeRun": "run-1788335344929-2",
+      "tail": "  13\n  14\n  15\n  16\n  17\n  18\n  19\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v1-production-stop/ws"
+    },
+    {
+      "label": "after the production stop",
+      "atMs": 16148,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "tail": "  17\n  18\n  19\n  20\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v1-production-stop/ws"
+    }
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "msIntoTurn": 5452,
+  "countAtStop": 19,
+  "countAfterStop": 20,
+  "countLater": 20,
+  "countStoppedClimbing": true,
+  "stopResult": {
+    "canceledPendingPromptWrite": false,
+    "promptReachedComposer": true
+  },
+  "interruptHookAtMs": 115,
+  "stopHookAfterStop": false,
+  "interruptedBanner": true,
+  "reachedEnd": false,
+  "ptyAlive": true,
+  "runLifecycle": [
+    {
+      "atMs": 145,
+      "type": "run:started",
+      "kind": "prompt",
+      "id": "run-1788335340075-1",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 2969,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788335340075-1",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 4990,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788335340075-1",
+      "status": "completed",
+      "statusReason": "stop hook (turn ended)",
+      "completionSource": "hook-stop",
+      "completionConfidence": "high"
+    },
+    {
+      "atMs": 4999,
+      "type": "run:started",
+      "kind": "prompt",
+      "id": "run-1788335344929-2",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 5192,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788335344929-2",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 10645,
+      "type": "run:stop-requested",
+      "encodedAs": "Ctrl+C",
+      "runId": "run-1788335344929-2"
+    },
+    {
+      "atMs": 10645,
+      "type": "run:stopped",
+      "runId": "run-1788335344929-2"
+    },
+    {
+      "atMs": 10645,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788335344929-2",
+      "status": "stopped",
+      "statusReason": "Ctrl+C interrupt sent",
+      "completionSource": "native-control",
+      "completionConfidence": "high"
+    }
+  ],
+  "verdict": "FIXED — the production stop interrupted a STREAMING turn (Interrupt +115ms, count froze at 20/900)"
+}

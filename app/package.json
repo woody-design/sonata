@@ -219,6 +219,7 @@
     "smoke:claude-boot-interstitial": "npm run build:main && node tests/smoke/claude-boot-interstitial.mjs",
     "smoke:codex-resumable-exit": "npm run build:main && ELECTRON_RUN_AS_NODE=1 electron tests/smoke/codex-resumable-exit.mjs",
     "smoke:stop-interrupt-hygiene": "npm run build:main && node tests/smoke/stop-interrupt-hygiene.mjs",
+    "smoke:codex-stop-interrupt-key": "npm run build:main && node tests/smoke/codex-stop-interrupt-key.mjs",
     "smoke:tags-set-session-validate": "npm run build:main && node tests/smoke/tags-set-session-validate.mjs",
     "smoke:updater-state": "npm run build:main && node tests/smoke/updater-state.mjs",
     "smoke:updater-gating": "npm run build:main && node tests/smoke/updater-gating.mjs",

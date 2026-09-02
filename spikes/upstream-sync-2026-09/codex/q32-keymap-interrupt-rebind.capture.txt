@@ -1,0 +1,47 @@
+{
+  "probe": "q32-keymap-interrupt-rebind",
+  "question": "Can Sonata bind codex's rebindable `chat.interrupt_turn` from its OWN profile, and is that key free of Ctrl+C's quit semantics?",
+  "version": "codex-cli 0.152.1",
+  "candidateKey": "alt-i",
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null,
+  "result": {
+    "arm": "k1-rebind-alt-i",
+    "version": "codex-cli 0.152.1",
+    "profileTail": "# deterministically — same inputs, same bytes.\n\n[projects.\"/private/tmp/sonata-sync-2026-09/codex-keymap-rebind/k1-rebind-alt-i/ws\"]\ntrust_level = \"trusted\"\n\n[tui.keymap.chat]\ninterrupt_turn = \"alt-i\"\n",
+    "hookOrder": [
+      "SessionStart@2764",
+      "UserPromptSubmit@2864",
+      "Stop@4585",
+      "UserPromptSubmit@4889",
+      "Interrupt@7009"
+    ],
+    "configLog": [
+      "<no log dir>"
+    ],
+    "screenTail": "\n› Reply with exactly: OK\n\n\n• OK\n\n\n› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\nToken usage: total=4,922 input=4,917 (+ 10,880 cached) output=5\nTo continue this session, run codex resume, then select Reply OK (01a06107-ae36-7a72-83a7-a5605ca0fb64)",
+    "scrollback": "╭──────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.152.1)                   │\n│                                              │\n│ model:     gpt-5.6-sol   /model to change    │\n│ directory: /private/tmp/…/k1-rebind-alt-i/ws │\n╰──────────────────────────────────────────────╯\n  Tip: New Use /fast to enable our fastest inference with increased plan usage.\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n• You have 1 usage limit reset available. Run /usage to use one.\n› Reply with exactly: OK\n• OK\n› Count from 1 to 900, one number per line, nothing else.\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\nToken usage: total=4,922 input=4,917 (+ 10,880 cached) output=5\nTo continue this session, run codex resume, then select Reply OK (01a06107-ae36-7a72-83a7-a5605ca0fb64)",
+    "ptyExited": true,
+    "exitInfo": {
+      "taskId": "task-q32-k1-rebind-alt-i",
+      "generation": 1,
+      "runId": null,
+      "exitCode": 0,
+      "signal": 0,
+      "elapsedMs": 14132,
+      "sonataInitiated": false
+    },
+    "notes": [
+      "ready=true at 147ms",
+      "warm-up closed=true at 4637ms"
+    ],
+    "profileCarriesBlock": true,
+    "boundKey": "alt-i",
+    "interruptHookAtMs": 121,
+    "boundKeyInterrupted": true,
+    "boundKeyQuitAtIdle": false,
+    "idleScreenChanged": false,
+    "ctrlCStillQuits": true,
+    "verdict": "alt-i interrupts a live turn and is INERT at an idle composer"
+  }
+}

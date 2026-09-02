@@ -342,8 +342,11 @@ await check("slashStopSent reports the OUTCOME when the /stop write is refused",
     assert.equal(started.ok, true, "precondition: a codex switch is pending");
     await delay(700);
 
-    // stopRun emits the immediate "Esc sent, inspection running" report; the one
-    // under test is the INSPECTION's, which lands last.
+    // stopRun emits the immediate "<key> sent, inspection running" report — here
+    // `Ctrl+C`, since `submitPrompt` above opened a live run on a CODEX host
+    // (SL-15: the key follows the run pointer). The one under test is the
+    // INSPECTION's report, which lands last; neither its `slashStopSent` nor its
+    // reason depends on which key the interrupt used.
     const stopped = events.filter((event) => event.type === "run:stopped");
     assert.equal(stopped.length, 2, "the immediate report plus the inspection's");
     assert.equal(

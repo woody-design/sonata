@@ -1,0 +1,68 @@
+{
+  "cell": "esc-stream",
+  "key": "Esc",
+  "keyLabel": "Esc",
+  "phase": "streaming",
+  "runs": [
+    {
+      "arm": "esc-stream-r1",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2642",
+        "UserPromptSubmit@2642",
+        "Stop@4063",
+        "UserPromptSubmit@4365",
+        "Stop@73309"
+      ],
+      "notes": [
+        "ready=true at 125ms",
+        "warm-up closed=true at 4100ms"
+      ],
+      "ptyExited": false,
+      "screenTail": "  896\n  897\n  898\n  899\n  900\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/esc-stream-r1/ws",
+      "key": "Esc",
+      "intendedPhase": "streaming",
+      "observedPhase": "streaming",
+      "phaseAsIntended": true,
+      "stoppedBeforePress": false,
+      "msIntoTurn": 5078,
+      "countAtPress": 19,
+      "settledAtMs": 73371,
+      "interruptAfterMs": null,
+      "stopAfterMs": 63866,
+      "interruptedBanner": false,
+      "reachedEnd": true,
+      "verdict": "Esc did NOT interrupt at streaming — the turn ran to its own Stop"
+    },
+    {
+      "arm": "esc-stream-r2",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@3851",
+        "UserPromptSubmit@3951",
+        "Stop@5970",
+        "UserPromptSubmit@6374",
+        "Stop@74557"
+      ],
+      "notes": [
+        "ready=true at 246ms",
+        "warm-up closed=true at 6086ms"
+      ],
+      "ptyExited": false,
+      "screenTail": "  896\n  897\n  898\n  899\n  900\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/esc-stream-r2/ws",
+      "key": "Esc",
+      "intendedPhase": "streaming",
+      "observedPhase": "streaming",
+      "phaseAsIntended": true,
+      "stoppedBeforePress": false,
+      "msIntoTurn": 4549,
+      "countAtPress": 20,
+      "settledAtMs": 74659,
+      "interruptAfterMs": null,
+      "stopAfterMs": 63634,
+      "interruptedBanner": false,
+      "reachedEnd": true,
+      "verdict": "Esc did NOT interrupt at streaming — the turn ran to its own Stop"
+    }
+  ]
+}

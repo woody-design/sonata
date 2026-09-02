@@ -34,6 +34,54 @@ await check("Stop hook completes an active run as hook-stop / high confidence", 
   }
 });
 
+// SL-15: the typed turn-end source. `Interrupt` is codex's OTHER honest ending
+// and it is NOT a flavour of Stop — `RuntimeController.isPendingTurnEnd` admits
+// `hook-interrupt` and excludes `hook-stop`, because an interrupt kills the
+// holding PermissionRequest hook and orphans its ask (SL-9 B1, measured). SL-9
+// carried that distinction in a run-id side channel on the controller because
+// terminal-host was fenced out of it; this pins the source at the stamp, which
+// is what let the side channel be deleted.
+await check("an Interrupt-driven turn end completes the run as hook-interrupt", async () => {
+  const events = [];
+  const host = makeHost(events);
+  try {
+    host.ptyProcess = fakePty();
+    host.activeRun = activeRun();
+
+    const finished = host.completeRunFromTurnEnd({ ending: "interrupt" });
+
+    assert.ok(finished, "expected the interrupted run to be completed");
+    assert.equal(finished.status, "completed");
+    assert.equal(finished.completionSource, "hook-interrupt");
+    assert.equal(finished.completionConfidence, "high");
+    assert.equal(finished.statusReason, "interrupt hook (turn interrupted)");
+
+    const completedEvents = events.filter(
+      (event) => event.type === "run:updated" && event.payload.status === "completed",
+    );
+    assert.equal(completedEvents.length, 1, "exactly one completed run:updated");
+    assert.equal(
+      completedEvents[0].payload.completionSource,
+      "hook-interrupt",
+      "the source has to reach the EVENT — the delivery gate reads it off there, not off the return value",
+    );
+  } finally {
+    host.dispose();
+  }
+});
+
+// The default is unchanged by the option object: an omitted `ending` is a Stop.
+await check("an omitted ending still completes as hook-stop", async () => {
+  const host = makeHost([]);
+  try {
+    host.ptyProcess = fakePty();
+    host.activeRun = activeRun();
+    assert.equal(host.completeRunFromTurnEnd({}).completionSource, "hook-stop");
+  } finally {
+    host.dispose();
+  }
+});
+
 await check("StopFailure completes the run carrying the structured error", async () => {
   const events = [];
   const host = makeHost(events);

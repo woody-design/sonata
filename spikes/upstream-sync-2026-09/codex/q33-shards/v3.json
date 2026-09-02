@@ -1,0 +1,69 @@
+{
+  "arm": "v3-idle-stop",
+  "version": "codex-cli 0.152.1",
+  "hookOrder": [
+    "SessionStart@16025",
+    "UserPromptSubmit@16025",
+    "Stop@17946",
+    "UserPromptSubmit@25164",
+    "Stop@26685"
+  ],
+  "notes": [
+    "ready=true at 250ms",
+    "warm-up \"Reply with exactly: OK\" closed=true at 17961ms",
+    "warm-up \"Reply with exactly: ST\" closed=true at 26900ms"
+  ],
+  "frames": [
+    {
+      "label": "idle, empty, before the stop",
+      "atMs": 19462,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "tail": "• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+    },
+    {
+      "label": "after the stop at an empty idle composer",
+      "atMs": 21966,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "tail": "• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+    },
+    {
+      "label": "draft typed at an idle composer",
+      "atMs": 23394,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "tail": "• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› DRAFTKEEP\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+    },
+    {
+      "label": "after the stop with a draft on the line",
+      "atMs": 24897,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "tail": "• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› DRAFTKEEP\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+    },
+    {
+      "label": "after the proof turn",
+      "atMs": 26900,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "tail": "• OK\n\n\n› Reply with exactly: STILL_ALIVE\n\n\n• STILL_ALIVE\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+    }
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "emptyStopAt": 19463,
+  "emptyStopThrew": null,
+  "survivedEmptyStop": true,
+  "draftBefore": true,
+  "draftAfter": true,
+  "afterEmptyReady": true,
+  "sessionStillWorks": true,
+  "stillAliveSaid": true,
+  "verdict": "SAFE — the idle stop is inert and the session still answers"
+}

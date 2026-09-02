@@ -1,0 +1,891 @@
+{
+  "probe": "q31-ctrlc-state-map",
+  "question": "What does Ctrl+C mean in every state Sonata's stop button can reach at codex 0.152.1 — and is it quit-capable anywhere?",
+  "version": "codex-cli 0.152.1",
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null,
+  "armsRunThisInvocation": [
+    "s8"
+  ],
+  "s1History": [
+    {
+      "ts": "2026-09-02T07:23:48.620Z",
+      "verdict": "INTERRUPTED (hook fired)",
+      "liveTurnIdleReads": [
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        }
+      ],
+      "secondPressQuit": true
+    },
+    {
+      "ts": "2026-09-02T07:24:05.686Z",
+      "verdict": "INTERRUPTED (hook fired)",
+      "liveTurnIdleReads": [
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        }
+      ],
+      "secondPressQuit": true
+    },
+    {
+      "ts": "2026-09-02T07:24:21.657Z",
+      "verdict": "INTERRUPTED (hook fired)",
+      "liveTurnIdleReads": [
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        }
+      ],
+      "secondPressQuit": true
+    }
+  ],
+  "binaryFacts": {
+    "keymapActions": [
+      "approval.approve_for_prefixtui",
+      "approval.approve_for_session",
+      "approval.approve_for_sessiontui",
+      "approval.approvetui",
+      "approval.canceltui",
+      "approval.declinetui",
+      "approval.deny",
+      "approval.denytui",
+      "approval.open_fullscreen",
+      "chat.decrease_reasoning_effort",
+      "chat.edit_queued_message",
+      "chat.previous_permission_mode",
+      "composer.history_search_previous",
+      "composer.queue",
+      "editor.delete_forward",
+      "editor.delete_forward_word",
+      "editor.insert_newline",
+      "editor.kill_whole_line",
+      "editor.move_line_end",
+      "editor.move_up",
+      "editor.move_word_right",
+      "fixed.backtrack",
+      "fixed.connector_mentions",
+      "fixed.cycle_collaboration_mode",
+      "fixed.quit",
+      "fixed.slash_command",
+      "list.accept",
+      "list.accepttui",
+      "list.canceltui",
+      "list.jump_bottom",
+      "list.jump_toptui",
+      "list.move_down",
+      "list.move_downtui",
+      "list.move_lefttui",
+      "list.move_right",
+      "list.move_righttui",
+      "list.move_uptui",
+      "list.page_down",
+      "list.page_downtui",
+      "list.page_uptui"
+    ],
+    "quitVocabulary": {
+      "againToQuit": true,
+      "ctrlCClearedDraft": true,
+      "interruptOrQuitAction": true,
+      "fixedQuitAction": true
+    }
+  },
+  "results": {
+    "s1": {
+      "arm": "s1-midturn",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2766",
+        "UserPromptSubmit@2766",
+        "Stop@4488",
+        "UserPromptSubmit@4792",
+        "Interrupt@12904"
+      ],
+      "notes": [
+        "ready=true at 147ms",
+        "submit retry 1 at 2149ms",
+        "warm-up \"Reply with exactly: OK\" submitted=true (1 retries)",
+        "warm-up closed=true at 4515ms",
+        "live turn: started=true grew=true stoppedAlready=false"
+      ],
+      "frames": [
+        {
+          "label": "before Ctrl+C (turn live)",
+          "atMs": 6769,
+          "ptyExited": false,
+          "hostReady": false,
+          "activeRun": "run-1788333850568-2",
+          "quitHint": null,
+          "composer": {
+            "line": "› Ask Codex to do anything",
+            "empty": true,
+            "placeholder": true
+          },
+          "tail": "\n\n• OK\n\n\n› Count from 1 to 900, one number per line, nothing else.\n\n \n• Working (2s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s1-midturn/ws"
+        },
+        {
+          "label": "after Ctrl+C",
+          "atMs": 15296,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› Ask Codex to do anything",
+            "empty": true,
+            "placeholder": true
+          },
+          "tail": "  56\n  57\n  58\n  59\n  60\n  61\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s1-midturn/ws"
+        }
+      ],
+      "ptyExited": true,
+      "exitInfo": {
+        "taskId": "task-q31-s1-midturn",
+        "generation": 1,
+        "runId": null,
+        "exitCode": 0,
+        "signal": 0,
+        "elapsedMs": 15520,
+        "sonataInitiated": false
+      },
+      "pressedAt": 12795,
+      "interruptHookAtMs": 109,
+      "stopHookAfterPress": false,
+      "interruptedBanner": true,
+      "reachedEnd": false,
+      "composerAfterInterrupt": {
+        "line": "› Ask Codex to do anything",
+        "empty": true,
+        "placeholder": true
+      },
+      "promptRestoredToComposer": false,
+      "liveTurnIdleReads": [
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": false,
+          "confidence": "low",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        },
+        {
+          "ready": true,
+          "confidence": "medium",
+          "hasModelOrCwdHint": true
+        }
+      ],
+      "postInterruptIdleRead": {
+        "ready": true,
+        "confidence": "medium",
+        "hasModelOrCwdHint": true
+      },
+      "secondPressExitedMs": 304,
+      "secondPressQuit": true,
+      "verdict": "INTERRUPTED (hook fired)"
+    },
+    "s2": {
+      "arm": "s2-idle-empty",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2972",
+        "UserPromptSubmit@2972",
+        "Stop@4387"
+      ],
+      "notes": [
+        "ready=true at 147ms",
+        "submit retry 1 at 2151ms",
+        "warm-up \"Reply with exactly: OK\" submitted=true (1 retries)",
+        "warm-up closed=true at 4392ms",
+        "quit hint cleared after NEVER (60s watch)ms",
+        "warm-up \"Reply with exactly: STIL\" submitted=false (0 retries)"
+      ],
+      "frames": [
+        {
+          "label": "idle composer, empty, before Ctrl+C",
+          "atMs": 5895,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s2-idle-empty/ws"
+        },
+        {
+          "label": "+400ms after one Ctrl+C",
+          "atMs": 6298,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "tail": "  Tip: Paste an image with Ctrl+V to attach it to your next message.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Shutting down..."
+        },
+        {
+          "label": "after hint watch",
+          "atMs": 6299,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "tail": "  Tip: Paste an image with Ctrl+V to attach it to your next message.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Shutting down..."
+        },
+        {
+          "label": "after the proof turn",
+          "atMs": 12306,
+          "ptyExited": true,
+          "hostReady": null,
+          "activeRun": null,
+          "quitHint": null,
+          "tail": "\n  Tip: Paste an image with Ctrl+V to attach it to your next message.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\nToken usage: total=5,818 input=5,813 (+ 9,984 cached) output=5\nTo continue this session, run codex resume, then select Reply OK (01a060fa-d111-7d23-adc3-093531042de8)"
+        }
+      ],
+      "ptyExited": true,
+      "exitInfo": {
+        "taskId": "task-q31-s2-idle-empty",
+        "generation": 1,
+        "runId": "run-1788333450973-2",
+        "exitCode": 0,
+        "signal": 0,
+        "elapsedMs": 11131,
+        "sonataInitiated": false
+      },
+      "pressedAt": 5896,
+      "quitHintBefore": null,
+      "quitHintAfter": null,
+      "hintGoneAtMs": null,
+      "exitedOnSinglePress": true,
+      "sessionStillWorks": false,
+      "verdict": "SINGLE PRESS QUIT THE CLI"
+    },
+    "s3": {
+      "arm": "s3-idle-draft",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2846",
+        "UserPromptSubmit@2846",
+        "Stop@4761"
+      ],
+      "notes": [
+        "ready=true at 124ms",
+        "submit retry 1 at 2125ms",
+        "warm-up \"Reply with exactly: OK\" submitted=true (1 retries)",
+        "warm-up closed=true at 4851ms"
+      ],
+      "frames": [
+        {
+          "label": "draft typed, before Ctrl+C",
+          "atMs": 7974,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› DRAFTKEEP",
+            "empty": false,
+            "placeholder": false
+          },
+          "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› DRAFTKEEP\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s3-idle-draft/ws"
+        },
+        {
+          "label": "+1.2s after Ctrl+C on a draft",
+          "atMs": 9176,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› Ask Codex to do anything",
+            "empty": true,
+            "placeholder": true
+          },
+          "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s3-idle-draft/ws"
+        }
+      ],
+      "ptyExited": true,
+      "exitInfo": {
+        "taskId": "task-q31-s3-idle-draft",
+        "generation": 2,
+        "runId": null,
+        "exitCode": 0,
+        "signal": 0,
+        "elapsedMs": 11051,
+        "sonataInitiated": false
+      },
+      "draftOnScreenBefore": true,
+      "draftOnScreenAfter": false,
+      "quitHintWithDraft": null,
+      "quitHintAfter": null,
+      "exitedOnFirstPress": false,
+      "secondPressExitedMs": 1932,
+      "secondPressQuit": true,
+      "pressedAt": 7974,
+      "verdict": "DRAFT CLEARED; second press QUIT"
+    },
+    "s7": {
+      "arm": "s7-picker",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2757",
+        "UserPromptSubmit@2859",
+        "Stop@4280"
+      ],
+      "notes": [
+        "ready=true at 146ms",
+        "submit retry 1 at 2149ms",
+        "warm-up \"Reply with exactly: OK\" submitted=true (1 retries)",
+        "warm-up closed=true at 4395ms",
+        "picker open (Esc leg): level-1 header at 6310ms",
+        "picker open (Ctrl+C leg): level-1 header at 8770ms"
+      ],
+      "frames": [
+        {
+          "label": "picker open (Esc leg)",
+          "atMs": 6311,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› 1. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks.",
+            "empty": false,
+            "placeholder": false
+          },
+          "tail": "• OK\n \n \n  Select Model and Effort\n  Access legacy models by running codex -m <model_name> or in your config.toml\n \n› 1. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks.\n  2. gpt-5.6-terra          Balanced agentic coding model for everyday work.\n  3. gpt-5.6-luna           Fast and affordable agentic coding model.\n  4. gpt-5.5                Proven previous-generation model for coding and general work.\n  5. gpt-5.4                Strong model for everyday coding.\n  6. gpt-5.4-mini           Small, fast, and cost-efficient model for simpler coding tasks.\n \n  Press enter to confirm or esc to go back                                                                              "
+        },
+        {
+          "label": "after one Esc on the picker",
+          "atMs": 7214,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› Ask Codex to do anything",
+            "empty": true,
+            "placeholder": true
+          },
+          "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s7-picker/ws"
+        },
+        {
+          "label": "picker open (Ctrl+C leg)",
+          "atMs": 8771,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› /model",
+            "empty": false,
+            "placeholder": false
+          },
+          "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› /model\n \n  /model  choose what model and reasoning effort to use"
+        },
+        {
+          "label": "after Ctrl+C on the picker",
+          "atMs": 15054,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› Ask Codex to do anything",
+            "empty": true,
+            "placeholder": true
+          },
+          "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s7-picker/ws"
+        }
+      ],
+      "ptyExited": false,
+      "exitInfo": null,
+      "escLeg": {
+        "headerAt": 6310,
+        "level1": true,
+        "afterEsc": {
+          "label": "after one Esc on the picker",
+          "atMs": 7214,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› Ask Codex to do anything",
+            "empty": true,
+            "placeholder": true
+          },
+          "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s7-picker/ws"
+        },
+        "escClosedPicker": true
+      },
+      "ctrlLeg": {
+        "headerAt": 8770,
+        "level1": false,
+        "pickerAtPressStream": true,
+        "pickerAtPressGrid": false,
+        "afterCtrl": {
+          "label": "after Ctrl+C on the picker",
+          "atMs": 15054,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› Ask Codex to do anything",
+            "empty": true,
+            "placeholder": true
+          },
+          "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s7-picker/ws"
+        },
+        "ctrlClosedPicker": true,
+        "exitedMs": null
+      },
+      "verdict": "Esc closed the picker: true; Ctrl+C closed it: true"
+    },
+    "s8": {
+      "arm": "s8-approval",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@3470",
+        "UserPromptSubmit@3570",
+        "Stop@4888",
+        "UserPromptSubmit@6816",
+        "PreToolUse@11576",
+        "PostToolUse@11676",
+        "PreToolUse@18360",
+        "Interrupt@18564"
+      ],
+      "notes": [
+        "ready=true at 147ms",
+        "submit retry 1 at 2150ms",
+        "warm-up \"Reply with exactly: OK\" submitted=true (1 retries)",
+        "warm-up closed=true at 5004ms",
+        "panel detected=true at 18444ms"
+      ],
+      "frames": [
+        {
+          "label": "approval panel (or timeout)",
+          "atMs": 18444,
+          "ptyExited": false,
+          "hostReady": false,
+          "activeRun": "run-1788334022391-2",
+          "quitHint": null,
+          "composer": {
+            "line": "› 1. Yes, proceed (y)",
+            "empty": false,
+            "placeholder": false
+          },
+          "tail": "  Would you like to run the following command?\n \n  Environment: local\n \n  Reason: The exact curl command failed because restricted network access prevented DNS resolution. Do you want to\n  allow it to run with external network access?\n \n  $ curl -sS -m 5 https://example.com/\n \n› 1. Yes, proceed (y)\n  2. Yes, and don't ask again for commands that start with `curl` (p)\n  3. No, and tell Codex what to do differently (esc)\n \n  Press enter to confirm or esc to cancel                                                                               "
+        },
+        {
+          "label": "after Ctrl+C on the approval panel",
+          "atMs": 26042,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "quitHint": null,
+          "composer": {
+            "line": "› Ask Codex to do anything",
+            "empty": true,
+            "placeholder": true
+          },
+          "tail": "  └ curl: (6) Could not resolve host: example.com\n\n✗ You canceled the request to run curl -sS -m 5 https://example.com/\n\n• Ran curl -sS -m 5 https://example.com/\n  └ (no output)\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s8-approval/ws"
+        }
+      ],
+      "ptyExited": false,
+      "exitInfo": null,
+      "panelFrame": {
+        "label": "approval panel (or timeout)",
+        "atMs": 18444,
+        "ptyExited": false,
+        "hostReady": false,
+        "activeRun": "run-1788334022391-2",
+        "quitHint": null,
+        "composer": {
+          "line": "› 1. Yes, proceed (y)",
+          "empty": false,
+          "placeholder": false
+        },
+        "tail": "  Would you like to run the following command?\n \n  Environment: local\n \n  Reason: The exact curl command failed because restricted network access prevented DNS resolution. Do you want to\n  allow it to run with external network access?\n \n  $ curl -sS -m 5 https://example.com/\n \n› 1. Yes, proceed (y)\n  2. Yes, and don't ask again for commands that start with `curl` (p)\n  3. No, and tell Codex what to do differently (esc)\n \n  Press enter to confirm or esc to cancel                                                                               "
+      },
+      "interruptHookAtMs": 120,
+      "stopHookAfterPress": null,
+      "exitedMs": null,
+      "hostReadyAfter": true,
+      "verdict": "Ctrl+C interrupted the turn from the approval panel"
+    }
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "arm": "v4-hold-interrupt",
+  "version": "codex-cli 0.152.1",
+  "hookOrder": [
+    "SessionStart@3178",
+    "UserPromptSubmit@3178",
+    "Stop@4485",
+    "UserPromptSubmit@6825",
+    "PreToolUse@11486",
+    "PostToolUse@11586",
+    "PreToolUse@19485",
+    "Interrupt@21204"
+  ],
+  "notes": [
+    "ready=true at 146ms",
+    "warm-up \"Reply with exactly: OK\" closed=true at 4514ms",
+    "ask surfaced=true at 19595ms — [\"answering-enabled\",\"ask-mtjtaup6-210tuu4dw0-72059.json\"]"
+  ],
+  "frames": [
+    {
+      "label": "broker holding a real ask",
+      "atMs": 21097,
+      "ptyExited": false,
+      "hostReady": false,
+      "activeRun": "run-1788336357440-2",
+      "tail": "\n• Ran curl -sS https://example.com\n  └ curl: (6) Could not resolve host: example.com\n \n• Running PermissionRequest hook\n \n• Working (14s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v4-hold-interrupt/ws"
+    },
+    {
+      "label": "20s after the interrupt",
+      "atMs": 41101,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "tail": "\n\n• Ran curl -sS https://example.com\n  └ curl: (6) Could not resolve host: example.com\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v4-hold-interrupt/ws"
+    }
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "approvalsAtHold": [
+    "answering-enabled",
+    "ask-mtjtaup6-210tuu4dw0-72059.json"
+  ],
+  "approvalsAfterInterrupt": [
+    "answering-enabled",
+    "ask-mtjtaup6-210tuu4dw0-72059.json"
+  ],
+  "askOrphaned": true,
+  "interruptAfterMs": 106,
+  "stopAfterPress": false,
+  "completionSource": "hook-interrupt",
+  "statusReason": "interrupt hook (turn interrupted)",
+  "runLifecycle": [
+    {
+      "atMs": 146,
+      "type": "run:started",
+      "kind": "prompt",
+      "id": "run-1788336351071-1",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 3178,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788336351071-1",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 4485,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788336351071-1",
+      "status": "completed",
+      "statusReason": "stop hook (turn ended)",
+      "completionSource": "hook-stop",
+      "completionConfidence": "high"
+    },
+    {
+      "atMs": 6516,
+      "type": "run:started",
+      "kind": "prompt",
+      "id": "run-1788336357440-2",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 6825,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788336357440-2",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 21204,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788336357440-2",
+      "status": "completed",
+      "statusReason": "interrupt hook (turn interrupted)",
+      "completionSource": "hook-interrupt",
+      "completionConfidence": "high"
+    }
+  ],
+  "verdict": "C25 RE-RUN — the ask is orphaned exactly as measured, and the run now closes as hook-interrupt (the pending-turn-end the release reads)"
+}

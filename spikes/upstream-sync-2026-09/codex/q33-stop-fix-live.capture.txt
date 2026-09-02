@@ -1,0 +1,413 @@
+{
+  "probe": "q33-stop-fix-live",
+  "question": "Does Sonata's production stop button stop a codex turn now — and is it inert at an idle composer?",
+  "version": "codex-cli 0.152.1",
+  "endVersion": "codex-cli 0.152.1",
+  "versionDrift": null,
+  "armsRunThisInvocation": [
+    "v4"
+  ],
+  "results": {
+    "v1": {
+      "arm": "v1-production-stop",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2968",
+        "UserPromptSubmit@2969",
+        "Stop@4990",
+        "UserPromptSubmit@5192",
+        "Interrupt@10759"
+      ],
+      "notes": [
+        "ready=true at 145ms",
+        "warm-up \"Reply with exactly: OK\" closed=true at 4999ms",
+        "streaming=true (count 2 → 19, first output at 9440ms)"
+      ],
+      "frames": [
+        {
+          "label": "turn streaming",
+          "atMs": 10642,
+          "ptyExited": false,
+          "hostReady": false,
+          "activeRun": "run-1788335344929-2",
+          "tail": "  13\n  14\n  15\n  16\n  17\n  18\n  19\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v1-production-stop/ws"
+        },
+        {
+          "label": "after the production stop",
+          "atMs": 16148,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "tail": "  17\n  18\n  19\n  20\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v1-production-stop/ws"
+        }
+      ],
+      "ptyExited": false,
+      "exitInfo": null,
+      "msIntoTurn": 5452,
+      "countAtStop": 19,
+      "countAfterStop": 20,
+      "countLater": 20,
+      "countStoppedClimbing": true,
+      "stopResult": {
+        "canceledPendingPromptWrite": false,
+        "promptReachedComposer": true
+      },
+      "interruptHookAtMs": 115,
+      "stopHookAfterStop": false,
+      "interruptedBanner": true,
+      "reachedEnd": false,
+      "ptyAlive": true,
+      "runLifecycle": [
+        {
+          "atMs": 145,
+          "type": "run:started",
+          "kind": "prompt",
+          "id": "run-1788335340075-1",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 2969,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788335340075-1",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 4990,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788335340075-1",
+          "status": "completed",
+          "statusReason": "stop hook (turn ended)",
+          "completionSource": "hook-stop",
+          "completionConfidence": "high"
+        },
+        {
+          "atMs": 4999,
+          "type": "run:started",
+          "kind": "prompt",
+          "id": "run-1788335344929-2",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 5192,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788335344929-2",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 10645,
+          "type": "run:stop-requested",
+          "encodedAs": "Ctrl+C",
+          "runId": "run-1788335344929-2"
+        },
+        {
+          "atMs": 10645,
+          "type": "run:stopped",
+          "runId": "run-1788335344929-2"
+        },
+        {
+          "atMs": 10645,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788335344929-2",
+          "status": "stopped",
+          "statusReason": "Ctrl+C interrupt sent",
+          "completionSource": "native-control",
+          "completionConfidence": "high"
+        }
+      ],
+      "verdict": "FIXED — the production stop interrupted a STREAMING turn (Interrupt +115ms, count froze at 20/900)"
+    },
+    "v2": {
+      "arm": "v2-interrupt-source",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2662",
+        "UserPromptSubmit@2763",
+        "Stop@4493",
+        "UserPromptSubmit@4799",
+        "Interrupt@6936"
+      ],
+      "notes": [
+        "ready=true at 146ms",
+        "warm-up \"Reply with exactly: OK\" closed=true at 4513ms",
+        "live turn: started=true grew=true"
+      ],
+      "frames": [
+        {
+          "label": "after the human Ctrl+C",
+          "atMs": 9769,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "tail": "\n\n› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v2-interrupt-source/ws"
+        }
+      ],
+      "ptyExited": false,
+      "exitInfo": null,
+      "interruptHookAtMs": 170,
+      "stopHookAfterPress": false,
+      "closingEvent": {
+        "atMs": 6936,
+        "type": "run:updated",
+        "kind": "prompt",
+        "id": "run-1788335364981-2",
+        "status": "completed",
+        "statusReason": "interrupt hook (turn interrupted)",
+        "completionSource": "hook-interrupt",
+        "completionConfidence": "high"
+      },
+      "completionSource": "hook-interrupt",
+      "statusReason": "interrupt hook (turn interrupted)",
+      "runLifecycle": [
+        {
+          "atMs": 147,
+          "type": "run:started",
+          "kind": "prompt",
+          "id": "run-1788335360614-1",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 2764,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788335360614-1",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 4493,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788335360614-1",
+          "status": "completed",
+          "statusReason": "stop hook (turn ended)",
+          "completionSource": "hook-stop",
+          "completionConfidence": "high"
+        },
+        {
+          "atMs": 4514,
+          "type": "run:started",
+          "kind": "prompt",
+          "id": "run-1788335364981-2",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 4799,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788335364981-2",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 6936,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788335364981-2",
+          "status": "completed",
+          "statusReason": "interrupt hook (turn interrupted)",
+          "completionSource": "hook-interrupt",
+          "completionConfidence": "high"
+        }
+      ],
+      "verdict": "TYPED — the live interrupt closes the run as hook-interrupt"
+    },
+    "v3": {
+      "arm": "v3-idle-stop",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@16025",
+        "UserPromptSubmit@16025",
+        "Stop@17946",
+        "UserPromptSubmit@25164",
+        "Stop@26685"
+      ],
+      "notes": [
+        "ready=true at 250ms",
+        "warm-up \"Reply with exactly: OK\" closed=true at 17961ms",
+        "warm-up \"Reply with exactly: ST\" closed=true at 26900ms"
+      ],
+      "frames": [
+        {
+          "label": "idle, empty, before the stop",
+          "atMs": 19462,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "tail": "• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+        },
+        {
+          "label": "after the stop at an empty idle composer",
+          "atMs": 21966,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "tail": "• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+        },
+        {
+          "label": "draft typed at an idle composer",
+          "atMs": 23394,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "tail": "• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› DRAFTKEEP\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+        },
+        {
+          "label": "after the stop with a draft on the line",
+          "atMs": 24897,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "tail": "• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› DRAFTKEEP\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+        },
+        {
+          "label": "after the proof turn",
+          "atMs": 26900,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "tail": "• OK\n\n\n› Reply with exactly: STILL_ALIVE\n\n\n• STILL_ALIVE\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v3-idle-stop/ws"
+        }
+      ],
+      "ptyExited": false,
+      "exitInfo": null,
+      "emptyStopAt": 19463,
+      "emptyStopThrew": null,
+      "survivedEmptyStop": true,
+      "draftBefore": true,
+      "draftAfter": true,
+      "afterEmptyReady": true,
+      "sessionStillWorks": true,
+      "stillAliveSaid": true,
+      "verdict": "SAFE — the idle stop is inert and the session still answers"
+    },
+    "v4": {
+      "arm": "v4-hold-interrupt",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@3178",
+        "UserPromptSubmit@3178",
+        "Stop@4485",
+        "UserPromptSubmit@6825",
+        "PreToolUse@11486",
+        "PostToolUse@11586",
+        "PreToolUse@19485",
+        "Interrupt@21204"
+      ],
+      "notes": [
+        "ready=true at 146ms",
+        "warm-up \"Reply with exactly: OK\" closed=true at 4514ms",
+        "ask surfaced=true at 19595ms — [\"answering-enabled\",\"ask-mtjtaup6-210tuu4dw0-72059.json\"]"
+      ],
+      "frames": [
+        {
+          "label": "broker holding a real ask",
+          "atMs": 21097,
+          "ptyExited": false,
+          "hostReady": false,
+          "activeRun": "run-1788336357440-2",
+          "tail": "\n• Ran curl -sS https://example.com\n  └ curl: (6) Could not resolve host: example.com\n \n• Running PermissionRequest hook\n \n• Working (14s • esc to interrupt)\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v4-hold-interrupt/ws"
+        },
+        {
+          "label": "20s after the interrupt",
+          "atMs": 41101,
+          "ptyExited": false,
+          "hostReady": true,
+          "activeRun": null,
+          "tail": "\n\n• Ran curl -sS https://example.com\n  └ curl: (6) Could not resolve host: example.com\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v4-hold-interrupt/ws"
+        }
+      ],
+      "ptyExited": false,
+      "exitInfo": null,
+      "approvalsAtHold": [
+        "answering-enabled",
+        "ask-mtjtaup6-210tuu4dw0-72059.json"
+      ],
+      "approvalsAfterInterrupt": [
+        "answering-enabled",
+        "ask-mtjtaup6-210tuu4dw0-72059.json"
+      ],
+      "askOrphaned": true,
+      "interruptAfterMs": 106,
+      "stopAfterPress": false,
+      "completionSource": "hook-interrupt",
+      "statusReason": "interrupt hook (turn interrupted)",
+      "runLifecycle": [
+        {
+          "atMs": 146,
+          "type": "run:started",
+          "kind": "prompt",
+          "id": "run-1788336351071-1",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 3178,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788336351071-1",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 4485,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788336351071-1",
+          "status": "completed",
+          "statusReason": "stop hook (turn ended)",
+          "completionSource": "hook-stop",
+          "completionConfidence": "high"
+        },
+        {
+          "atMs": 6516,
+          "type": "run:started",
+          "kind": "prompt",
+          "id": "run-1788336357440-2",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 6825,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788336357440-2",
+          "status": "active",
+          "completionSource": null,
+          "completionConfidence": null
+        },
+        {
+          "atMs": 21204,
+          "type": "run:updated",
+          "kind": "prompt",
+          "id": "run-1788336357440-2",
+          "status": "completed",
+          "statusReason": "interrupt hook (turn interrupted)",
+          "completionSource": "hook-interrupt",
+          "completionConfidence": "high"
+        }
+      ],
+      "verdict": "C25 RE-RUN — the ask is orphaned exactly as measured, and the run now closes as hook-interrupt (the pending-turn-end the release reads)"
+    }
+  }
+}

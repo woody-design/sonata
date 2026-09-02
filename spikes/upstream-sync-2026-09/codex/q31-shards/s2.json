@@ -1,0 +1,72 @@
+{
+  "arm": "s2-idle-empty",
+  "version": "codex-cli 0.152.1",
+  "hookOrder": [
+    "SessionStart@2972",
+    "UserPromptSubmit@2972",
+    "Stop@4387"
+  ],
+  "notes": [
+    "ready=true at 147ms",
+    "submit retry 1 at 2151ms",
+    "warm-up \"Reply with exactly: OK\" submitted=true (1 retries)",
+    "warm-up closed=true at 4392ms",
+    "quit hint cleared after NEVER (60s watch)ms",
+    "warm-up \"Reply with exactly: STIL\" submitted=false (0 retries)"
+  ],
+  "frames": [
+    {
+      "label": "idle composer, empty, before Ctrl+C",
+      "atMs": 5895,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s2-idle-empty/ws"
+    },
+    {
+      "label": "+400ms after one Ctrl+C",
+      "atMs": 6298,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "tail": "  Tip: Paste an image with Ctrl+V to attach it to your next message.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Shutting down..."
+    },
+    {
+      "label": "after hint watch",
+      "atMs": 6299,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "tail": "  Tip: Paste an image with Ctrl+V to attach it to your next message.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Shutting down..."
+    },
+    {
+      "label": "after the proof turn",
+      "atMs": 12306,
+      "ptyExited": true,
+      "hostReady": null,
+      "activeRun": null,
+      "quitHint": null,
+      "tail": "\n  Tip: Paste an image with Ctrl+V to attach it to your next message.\n\n⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\nToken usage: total=5,818 input=5,813 (+ 9,984 cached) output=5\nTo continue this session, run codex resume, then select Reply OK (01a060fa-d111-7d23-adc3-093531042de8)"
+    }
+  ],
+  "ptyExited": true,
+  "exitInfo": {
+    "taskId": "task-q31-s2-idle-empty",
+    "generation": 1,
+    "runId": "run-1788333450973-2",
+    "exitCode": 0,
+    "signal": 0,
+    "elapsedMs": 11131,
+    "sonataInitiated": false
+  },
+  "pressedAt": 5896,
+  "quitHintBefore": null,
+  "quitHintAfter": null,
+  "hintGoneAtMs": null,
+  "exitedOnSinglePress": true,
+  "sessionStillWorks": false,
+  "verdict": "SINGLE PRESS QUIT THE CLI"
+}

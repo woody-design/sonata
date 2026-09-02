@@ -1,0 +1,72 @@
+{
+  "arm": "s8-approval",
+  "version": "codex-cli 0.152.1",
+  "hookOrder": [
+    "SessionStart@3470",
+    "UserPromptSubmit@3570",
+    "Stop@4888",
+    "UserPromptSubmit@6816",
+    "PreToolUse@11576",
+    "PostToolUse@11676",
+    "PreToolUse@18360",
+    "Interrupt@18564"
+  ],
+  "notes": [
+    "ready=true at 147ms",
+    "submit retry 1 at 2150ms",
+    "warm-up \"Reply with exactly: OK\" submitted=true (1 retries)",
+    "warm-up closed=true at 5004ms",
+    "panel detected=true at 18444ms"
+  ],
+  "frames": [
+    {
+      "label": "approval panel (or timeout)",
+      "atMs": 18444,
+      "ptyExited": false,
+      "hostReady": false,
+      "activeRun": "run-1788334022391-2",
+      "quitHint": null,
+      "composer": {
+        "line": "› 1. Yes, proceed (y)",
+        "empty": false,
+        "placeholder": false
+      },
+      "tail": "  Would you like to run the following command?\n \n  Environment: local\n \n  Reason: The exact curl command failed because restricted network access prevented DNS resolution. Do you want to\n  allow it to run with external network access?\n \n  $ curl -sS -m 5 https://example.com/\n \n› 1. Yes, proceed (y)\n  2. Yes, and don't ask again for commands that start with `curl` (p)\n  3. No, and tell Codex what to do differently (esc)\n \n  Press enter to confirm or esc to cancel                                                                               "
+    },
+    {
+      "label": "after Ctrl+C on the approval panel",
+      "atMs": 26042,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "composer": {
+        "line": "› Ask Codex to do anything",
+        "empty": true,
+        "placeholder": true
+      },
+      "tail": "  └ curl: (6) Could not resolve host: example.com\n\n✗ You canceled the request to run curl -sS -m 5 https://example.com/\n\n• Ran curl -sS -m 5 https://example.com/\n  └ (no output)\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s8-approval/ws"
+    }
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "panelFrame": {
+    "label": "approval panel (or timeout)",
+    "atMs": 18444,
+    "ptyExited": false,
+    "hostReady": false,
+    "activeRun": "run-1788334022391-2",
+    "quitHint": null,
+    "composer": {
+      "line": "› 1. Yes, proceed (y)",
+      "empty": false,
+      "placeholder": false
+    },
+    "tail": "  Would you like to run the following command?\n \n  Environment: local\n \n  Reason: The exact curl command failed because restricted network access prevented DNS resolution. Do you want to\n  allow it to run with external network access?\n \n  $ curl -sS -m 5 https://example.com/\n \n› 1. Yes, proceed (y)\n  2. Yes, and don't ask again for commands that start with `curl` (p)\n  3. No, and tell Codex what to do differently (esc)\n \n  Press enter to confirm or esc to cancel                                                                               "
+  },
+  "interruptHookAtMs": 120,
+  "stopHookAfterPress": null,
+  "exitedMs": null,
+  "hostReadyAfter": true,
+  "verdict": "Ctrl+C interrupted the turn from the approval panel"
+}

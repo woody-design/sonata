@@ -20,6 +20,7 @@ import type {
   RunId,
   RunKind,
   RunStatus,
+  StopInterruptEncoding,
   TaskId,
   Task,
   RuntimeProvider,
@@ -354,11 +355,12 @@ export type RunStopRequestedEvent = BaseRuntimeEvent<
   {
     taskId: TaskId;
     runId: RunId | null;
-    /** `interrupt` = the stop click's own Esc; `interrupt-retry` = the
-     *  one-shot resend after post-stop tool activity proved the first Esc
-     *  was swallowed. */
+    /** `interrupt` = the stop click's own interrupt key; `interrupt-retry` = the
+     *  one-shot Esc resend after post-stop tool activity proved the first Esc
+     *  was swallowed (claude-shaped by construction — the resend is armed only
+     *  behind an Esc stop). */
     phase: "interrupt" | "interrupt-retry";
-    encodedAs: "Esc";
+    encodedAs: StopInterruptEncoding;
   }
 >;
 

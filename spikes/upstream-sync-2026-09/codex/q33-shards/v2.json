@@ -1,0 +1,101 @@
+{
+  "arm": "v2-interrupt-source",
+  "version": "codex-cli 0.152.1",
+  "hookOrder": [
+    "SessionStart@2662",
+    "UserPromptSubmit@2763",
+    "Stop@4493",
+    "UserPromptSubmit@4799",
+    "Interrupt@6936"
+  ],
+  "notes": [
+    "ready=true at 146ms",
+    "warm-up \"Reply with exactly: OK\" closed=true at 4513ms",
+    "live turn: started=true grew=true"
+  ],
+  "frames": [
+    {
+      "label": "after the human Ctrl+C",
+      "atMs": 9769,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "tail": "\n\n› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-stop-fix-live/v2-interrupt-source/ws"
+    }
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "interruptHookAtMs": 170,
+  "stopHookAfterPress": false,
+  "closingEvent": {
+    "atMs": 6936,
+    "type": "run:updated",
+    "kind": "prompt",
+    "id": "run-1788335364981-2",
+    "status": "completed",
+    "statusReason": "interrupt hook (turn interrupted)",
+    "completionSource": "hook-interrupt",
+    "completionConfidence": "high"
+  },
+  "completionSource": "hook-interrupt",
+  "statusReason": "interrupt hook (turn interrupted)",
+  "runLifecycle": [
+    {
+      "atMs": 147,
+      "type": "run:started",
+      "kind": "prompt",
+      "id": "run-1788335360614-1",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 2764,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788335360614-1",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 4493,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788335360614-1",
+      "status": "completed",
+      "statusReason": "stop hook (turn ended)",
+      "completionSource": "hook-stop",
+      "completionConfidence": "high"
+    },
+    {
+      "atMs": 4514,
+      "type": "run:started",
+      "kind": "prompt",
+      "id": "run-1788335364981-2",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 4799,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788335364981-2",
+      "status": "active",
+      "completionSource": null,
+      "completionConfidence": null
+    },
+    {
+      "atMs": 6936,
+      "type": "run:updated",
+      "kind": "prompt",
+      "id": "run-1788335364981-2",
+      "status": "completed",
+      "statusReason": "interrupt hook (turn interrupted)",
+      "completionSource": "hook-interrupt",
+      "completionConfidence": "high"
+    }
+  ],
+  "verdict": "TYPED — the live interrupt closes the run as hook-interrupt"
+}

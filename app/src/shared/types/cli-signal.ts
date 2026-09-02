@@ -92,12 +92,22 @@ import type { RuntimeProvider, TaskId } from "./domain";
  * that side.
  *
  * MEASURED, and it belongs to Sonata's own stop button rather than to this union:
- * at codex 0.152.1 the interrupt is bound to **Ctrl+C, not Esc**. Three Esc paths
- * (a human `writeUserInput`, a raw `writeRaw`, and production `stopRun()`) each
- * left the turn running to completion with an ordinary `Stop`; only Ctrl+C
- * interrupted, and only Ctrl+C fired `Interrupt`. 0.152.1 ships a configurable
- * keymap with `interrupt_turn` as a named action, so the binding is now a
- * variable. Flagged, not fixed here — the stop encoding lives in terminal-host.
+ * at codex 0.152.1 the interrupt Sonata can rely on is **Ctrl+C, not Esc**. Three
+ * Esc paths (a human `writeUserInput`, a raw `writeRaw`, and production
+ * `stopRun()`) each left the turn running to completion with an ordinary `Stop`;
+ * only Ctrl+C interrupted, and only Ctrl+C fired `Interrupt`.
+ *
+ * NARROWED by SL-15 (probe q34, two keys × two turn phases, each cell repeated),
+ * because the original claim was wider than the evidence and a later control leg
+ * caught it: Esc DOES still interrupt while the model is thinking (+138/141ms),
+ * and does nothing once tokens are streaming (2/2) — which is where all three of
+ * C17's rounds pressed. Ctrl+C interrupts in both phases (+118…151ms), so it is
+ * the only key that works whenever a stop is actually pressed. Codex's own footer
+ * still reads `esc to interrupt` throughout, which is upstream copy this program
+ * has now measured to be true only in the first phase — do not re-derive the
+ * binding from that string. FIXED in SL-15: `TerminalHost.stopInterruptKey`
+ * writes Ctrl+C only while Sonata's run pointer says a turn is live, because the
+ * same key QUITS the CLI at an idle empty composer.
  *
  * THE CENSUS (SL-9, upstream sync 2026-09; claude 2.1.258 / codex 0.152.1). Both
  * providers were driven through PRODUCTION injection with every event their own

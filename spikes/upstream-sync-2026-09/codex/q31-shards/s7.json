@@ -1,0 +1,119 @@
+{
+  "arm": "s7-picker",
+  "version": "codex-cli 0.152.1",
+  "hookOrder": [
+    "SessionStart@2757",
+    "UserPromptSubmit@2859",
+    "Stop@4280"
+  ],
+  "notes": [
+    "ready=true at 146ms",
+    "submit retry 1 at 2149ms",
+    "warm-up \"Reply with exactly: OK\" submitted=true (1 retries)",
+    "warm-up closed=true at 4395ms",
+    "picker open (Esc leg): level-1 header at 6310ms",
+    "picker open (Ctrl+C leg): level-1 header at 8770ms"
+  ],
+  "frames": [
+    {
+      "label": "picker open (Esc leg)",
+      "atMs": 6311,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "composer": {
+        "line": "› 1. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks.",
+        "empty": false,
+        "placeholder": false
+      },
+      "tail": "• OK\n \n \n  Select Model and Effort\n  Access legacy models by running codex -m <model_name> or in your config.toml\n \n› 1. gpt-5.6-sol (current)  Reliable agentic workhorse for everyday tasks.\n  2. gpt-5.6-terra          Balanced agentic coding model for everyday work.\n  3. gpt-5.6-luna           Fast and affordable agentic coding model.\n  4. gpt-5.5                Proven previous-generation model for coding and general work.\n  5. gpt-5.4                Strong model for everyday coding.\n  6. gpt-5.4-mini           Small, fast, and cost-efficient model for simpler coding tasks.\n \n  Press enter to confirm or esc to go back                                                                              "
+    },
+    {
+      "label": "after one Esc on the picker",
+      "atMs": 7214,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "composer": {
+        "line": "› Ask Codex to do anything",
+        "empty": true,
+        "placeholder": true
+      },
+      "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s7-picker/ws"
+    },
+    {
+      "label": "picker open (Ctrl+C leg)",
+      "atMs": 8771,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "composer": {
+        "line": "› /model",
+        "empty": false,
+        "placeholder": false
+      },
+      "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› /model\n \n  /model  choose what model and reasoning effort to use"
+    },
+    {
+      "label": "after Ctrl+C on the picker",
+      "atMs": 15054,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "composer": {
+        "line": "› Ask Codex to do anything",
+        "empty": true,
+        "placeholder": true
+      },
+      "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s7-picker/ws"
+    }
+  ],
+  "ptyExited": false,
+  "exitInfo": null,
+  "escLeg": {
+    "headerAt": 6310,
+    "level1": true,
+    "afterEsc": {
+      "label": "after one Esc on the picker",
+      "atMs": 7214,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "composer": {
+        "line": "› Ask Codex to do anything",
+        "empty": true,
+        "placeholder": true
+      },
+      "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s7-picker/ws"
+    },
+    "escClosedPicker": true
+  },
+  "ctrlLeg": {
+    "headerAt": 8770,
+    "level1": false,
+    "pickerAtPressStream": true,
+    "pickerAtPressGrid": false,
+    "afterCtrl": {
+      "label": "after Ctrl+C on the picker",
+      "atMs": 15054,
+      "ptyExited": false,
+      "hostReady": true,
+      "activeRun": null,
+      "quitHint": null,
+      "composer": {
+        "line": "› Ask Codex to do anything",
+        "empty": true,
+        "placeholder": true
+      },
+      "tail": "⚠ `--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.\n\n• You have 1 usage limit reset available. Run /usage to use one.\n\n\n› Reply with exactly: OK\n\n\n• OK\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-ctrlc-state-map/s7-picker/ws"
+    },
+    "ctrlClosedPicker": true,
+    "exitedMs": null
+  },
+  "verdict": "Esc closed the picker: true; Ctrl+C closed it: true"
+}

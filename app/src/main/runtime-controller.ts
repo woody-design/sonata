@@ -300,27 +300,6 @@ export class RuntimeController {
     string,
     { taskId: TaskId; payload: HookPayload; event: RuntimeEvent }
   >();
-  /**
-   * Runs whose completion is being driven by a codex `Interrupt` hook (SL-9,
-   * review round 1 / B1). Read-and-DELETE at the turn-terminal gate below, so an
-   * entry is consumed exactly once by the `run:updated` it belongs to.
-   *
-   * WHY A SIDE CHANNEL AND NOT THE EVENT'S OWN `completionSource`. The honest
-   * shape is a distinct `"hook-interrupt"` source stamped by
-   * `TerminalHost.completeRunFromTurnEnd`, which needs `CompletionSource`
-   * (shared/types/domain.ts) and terminal-host.ts — both outside SL-9's declared
-   * file boundary. Not a technical obstacle: a process one, and it is recorded
-   * as such rather than dressed up as a design preference.
-   *
-   * This latch reaches the SAME invariant by the property that actually matters:
-   * the gate's release list stays SINGLE-SOURCED, so a fourth release added to
-   * that block is picked up by interrupts for free. It is keyed by run IDENTITY
-   * rather than by timing, so it does not depend on `emitEvent` being
-   * synchronous, and it is read-and-delete, so exactly one completion can claim
-   * it. **Registered follow-up for whoever owns terminal-host next: stamp the
-   * typed source, add it to `isPendingTurnEnd`, and delete this map.**
-   */
-  private readonly interruptDrivenRunIds = new Set<RunId>();
   /** Per task, the broker approvalId whose card is currently shown — enforces
    *  one card at a time; the rest queue (P3). */
   private readonly shownBrokerApproval = new Map<TaskId, string>();
@@ -1445,9 +1424,11 @@ export class RuntimeController {
     //
     // Read the guard off what actually clears the flag: a DECISION that consumed
     // the panel — Sonata's own (sendPositiveApproval / sendDeny /
-    // noteHookApprovalDecision), a stop's Esc (settleApprovalAsEscDeny), or the
-    // human's own answer in the CLI as proved by a Stop hook
-    // (completeRunFromTurnEnd's stale clear) — plus the submit/spawn boundaries.
+    // noteHookApprovalDecision), a stop's interrupt key
+    // (settleApprovalAsStopKeyDeny — Esc on claude, Ctrl+C on a codex turn that
+    // is live, both MEASURED to deny the panel), or the human's own answer in the
+    // CLI as proved by a Stop hook (completeRunFromTurnEnd's stale clear) — plus
+    // the submit/spawn boundaries.
     // So this refuses exactly the decision that arrives after the ask was
     // ALREADY answered: the double-click whose first click consumed the broker
     // entry, and the stale card. That class is worth refusing — two Escs ≤700ms
@@ -1983,24 +1964,20 @@ export class RuntimeController {
     // scrape was these asks' only clearer — S4 event-flow gap).
     if (eventRuntime) {
       // A codex `Interrupt`-driven completion is the THIRD pending-turn-end shape
-      // (SL-9 B1). It arrives stamped `hook-stop` — the host has one completion
-      // path and terminal-host is fenced out of this slice — so the gate cannot
-      // read it off the event and instead consumes the run-id marker the
-      // Interrupt branch set. Read-and-delete: exactly one completion can claim
-      // it. See `interruptDrivenRunIds` for why this is a side channel and what
-      // replaces it.
-      const interruptDriven =
-        event.type === "run:updated" &&
-        event.payload.status === "completed" &&
-        this.interruptDrivenRunIds.delete(event.payload.id);
+      // (SL-9 B1), and it is read straight off the event's own
+      // `completionSource` — see `CompletionSource["hook-interrupt"]` for why an
+      // interrupt is a PENDING turn end while a `Stop` is not. SL-9 could not do
+      // this (terminal-host was fenced out of that slice) and shipped a run-id
+      // side channel on the controller instead, with a registered follow-up;
+      // SL-15 stamps the typed source and the side channel is gone.
       const isPendingTurnEnd =
         event.type === "run:stopped" ||
         event.type === "pty:exit" ||
-        interruptDriven ||
         (event.type === "run:updated" &&
           (event.payload.status === "stopped" ||
             (event.payload.status === "completed" &&
-              event.payload.completionSource === "terminal-idle-heuristic")));
+              (event.payload.completionSource === "terminal-idle-heuristic" ||
+                event.payload.completionSource === "hook-interrupt"))));
       const isExpiredTurnEnd =
         isPendingTurnEnd ||
         (event.type === "run:updated" &&
@@ -2815,7 +2792,7 @@ export class RuntimeController {
     // Claude has no counterpart (a claude user-Esc fires NOTHING, SL-2b), so
     // `stoplessTurnEndConfirmed` still carries that side and is untouched here.
     if (provider === "codex" && event === "Interrupt") {
-      // B1 (review round 1, MEASURED — probe h3 arm `d4-interrupt-under-hold`).
+      // B1 (SL-9 review round 1, MEASURED — probe h3 arm `d4-interrupt-under-hold`).
       // An interrupt is a PENDING turn end, not a `Stop`-shaped one, and the
       // difference is load-bearing. `isPendingTurnEnd` excludes hook-stop
       // completions on the invariant "a live holding hook blocks the turn, so a
@@ -2829,19 +2806,14 @@ export class RuntimeController {
       // `canDeliver()` would read false until the pty died — an invisible
       // permanent hold, and one the pre-SL-9 scrape closer (a
       // `terminal-idle-heuristic` completion, which IS a pending turn end) used
-      // to release at ~+2s. Marking the run here is what keeps this slice from
-      // preempting that release.
-      const interruptedRunId = active.terminalHost.activeRunId();
-      if (interruptedRunId) {
-        this.interruptDrivenRunIds.add(interruptedRunId);
-      }
-      const finished = active.terminalHost.completeRunFromTurnEnd();
-      if (interruptedRunId && !finished) {
-        // No run was actually completed (already closed, or a status the host
-        // guards): consume the marker now so it can never be claimed by some
-        // later completion of a re-used id.
-        this.interruptDrivenRunIds.delete(interruptedRunId);
-      }
+      // to release at ~+2s.
+      //
+      // The ending is now NAMED at the completion instead of marked beside it
+      // (SL-15): the run closes as `hook-interrupt`, which the gate reads off the
+      // event. The run-id side channel SL-9 shipped in its place — and registered
+      // for replacement — is deleted, so there is no second place a turn ending
+      // has to be recorded and nothing to keep in sync.
+      active.terminalHost.completeRunFromTurnEnd({ ending: "interrupt" });
       // Same straggler cleanup `Stop` does, for the same reason: codex subagents
       // are awaited WITHIN their launch turn, so none can legitimately outlive a
       // turn that just ended — and an interrupt is precisely when a `SubagentStop`

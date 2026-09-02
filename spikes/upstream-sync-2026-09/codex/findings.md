@@ -1,4 +1,4 @@
-# Upstream-sync 2026-09 — codex probe findings (target: 0.152.0)
+# Upstream-sync 2026-09 — codex probe findings (target: 0.152.0; later series measured at 0.152.1 after a mid-program patch drift)
 
 Probed 2026-09-01. `codex-cli 0.152.0`. Blob-checks ran against a shallow clone
 of `openai/codex` at tag `rust-v0.152.0` (scratchpad; tag-pinned source is
@@ -1536,3 +1536,399 @@ is ALSO false because the run is live, so it isolates nothing; and
 queue no fresh `delivery:state` is emitted at all. The release is proved instead
 by a real send LEAVING the queue once the run is closed — at which point a
 still-held approval key is the only thing that could have pinned it.
+
+---
+
+# SL-15 — codex stop repair + typed interrupt completion
+
+## C26 — PREMISE CORRECTION to C17: Esc's interrupt is PHASE-dependent, not dead
+
+C17 measured three Esc paths leaving a live codex turn to run to completion and
+concluded "the interrupt key MOVED to Ctrl+C". SL-15's first end-to-end probe
+(q33 v1) ran an Esc leg as an expected-inert CONTROL — and the control
+interrupted, `Interrupt` hook at +128ms. Two measurements of the same binary
+disagreeing means one of them is answering a different question, so the arm was
+stopped and the question was re-asked properly.
+
+The one variable that differs is HOW FAR INTO THE TURN the key landed, read off
+the two captures rather than guessed:
+
+| capture | UserPromptSubmit | key at | into the turn | outcome |
+|---|---|---|---|---|
+| h3 round 0 (human Esc) | 8655 | 13400 | +4.7s | `Stop`, reached 400 |
+| h3 round 1 (`stopRun()`) | 42670 | 47407 | +4.7s | `Stop`, reached 400 |
+| h3 round 2 (human Esc) | 76681 | 79716 | +3.0s | `Stop`, reached 400 |
+| q33 v1 draft (raw Esc) | 6416 | 8409 | +2.0s | **`Interrupt` +128ms** |
+
+Both probes gated on "the screen is still growing", and that gate cannot tell the
+phases apart: codex's `• Working (2s • esc to interrupt)` row TICKS ITS TIMER
+once a second, so the screen grows during the model's thinking phase exactly as
+it does mid-stream. **The gate was measuring the clock, not the model.**
+
+`q34-esc-vs-ctrlc-phase` re-asks it with the phase judged from the count's own
+output — a screen line that is a bare number — and re-verified at the instant of
+the press. Two keys × two phases, each cell its own spawn, each cell run twice:
+
+| | before the model emits anything | once tokens are streaming |
+|---|---|---|
+| **Esc** | interrupts (+138ms, +141ms) | **NOTHING** — the turn runs on to its own `Stop`, 2/2 |
+| **Ctrl+C** | interrupts (+127ms, +144ms) | interrupts (+118ms, +151ms) |
+
+So C17's cell was measured correctly three times and generalised one step too
+far. The narrower claim does not soften the consequence — output arriving is
+exactly WHY a stop gets pressed, so the failing cell is the user-facing one — and
+it sharpens the fix: **Ctrl+C is the only key that interrupts in every phase of a
+live turn.**
+
+Kept as a standing warning: codex's own footer reads `esc to interrupt`
+throughout both phases. That string is in Sonata's codex `activityHints` as
+fence-only ordering vocabulary and is still measured present; it is NOT evidence
+about the binding, and the profile now says so where it sits.
+
+## C27 — q31: the Ctrl+C state map, and the cell that makes this a guard
+
+Before wiring a key whose action the binary literally names
+`fixed.interrupt_or_quit`, every state Sonata's stop can reach was measured. The
+trust-flip lesson (SL-1: a dialog's default row moved and Sonata's approve began
+EXITING the CLI) is this exact shape.
+
+| state at the press | what Ctrl+C does |
+|---|---|
+| live turn (either phase) | interrupts; `Interrupt` +115…151ms; no `Stop`; composer left EMPTY — the prompt is NOT restored, unlike an Esc interrupt |
+| live turn, native approval panel up | DENIES the request (`✗ You canceled the request to run curl …`) **and** interrupts (`Interrupt` +120ms) |
+| `/model` picker open | closes the picker; no quit (picker presence confirmed on the stream at press time) |
+| idle composer holding a draft | clears the draft |
+| **idle composer, EMPTY** | **QUITS THE CLI — `exit 0`, one press, no confirmation** |
+
+The binary carries a `" again to quit"` footer fragment and a
+`fixed.interrupt_or_quit` action name, which together suggested a
+press-again-to-confirm step. **There is none at this binary.** The probe's first
+draft carried four more arms built on that assumption — a fast Ctrl+C pair, a
+pair at the measured arming window, a "does typing disarm it" arm, and an "arm the
+quit at idle, then run a turn, then interrupt" trap — and all four collapsed the
+moment s2 measured the single press quitting outright. They are recorded in the
+probe header rather than deleted silently: "we looked for a confirmation step and
+there is none" is the finding.
+
+An empty composer is not an exotic state. It is what an interrupt itself leaves
+behind (s1: a second Ctrl+C 2.5s after the interrupt quit, 3/3 runs) and what
+clearing a draft leaves behind (s3: draft cleared, second press quit). **On codex
+a stop's key and its resend are not two tries at the same thing — they are two
+different actions.**
+
+## C28 — the guard is the run pointer, and the screen is falsified as a belt
+
+Twice over, which is why the guard has exactly one term.
+
+**Empirically.** Sampled through genuinely live turns, the PRODUCTION idle-prompt
+detector (`detectIdlePromptForProvider`, the predicate `acceptsPromptInput`
+falls through to) read `ready:true` in **12/20, 12/20 and 14/20** samples across
+three runs — the codex counterpart of F12's coin flip on claude. A "refuse the
+interrupt if the screen looks idle" belt would refuse the majority of real
+interrupts and re-open C17.
+
+**Architecturally.** The scrape that DOES track codex's working row
+(`StatusRegionTracker`, `CODEX_STATUS_PATTERN = /esc to interrupt/i`) is contract
+§3.1 fence #1 — display-only, permanent citizen, nothing derives state from it.
+
+And `acceptsPromptInput()` is not an independent second signal either: it returns
+false whenever `activeRun` is set, so it restates the run pointer rather than
+standing beside it.
+
+**Residual, and it is bigger than the first draft of this section said.** That
+draft framed it as a fault case ("if a `Stop` hook is ever DROPPED"). Review
+corrected it, and the correction is right: the pointer trails codex by the length
+of the turn-end hook round trip, so the window opens after **every codex turn**.
+
+```
+model emits its last token; codex repaints an idle EMPTY composer   <-- hazard opens
+  -> the Stop shim writes hook-*.json          ~110-170ms   (latency measured on
+                                                             this channel for
+                                                             Interrupt: +106/+115/
+                                                             +120/+141/+170ms)
+  -> HookWatcher's next tick                   0-250ms      (production runs the
+                                                             250ms default; no
+                                                             override at the
+                                                             construction site)
+  -> dispatch closes the run                                (SL-9 end-to-end:
+                                                             hook +141ms, run
+                                                             closed +253ms)
+                                                            <-- hazard closes
+```
+
+**~250-400ms, once per turn end** — and a click as the last token lands is
+exactly the click a user makes. A dropped `Stop` widens the same window to
+`stoplessTurnEndConfirmed`; that is the tail of this distribution, not the whole
+of it.
+
+Two things that are NOT part of the hazard, checked rather than assumed:
+
+- **The renderer's stop button.** The run report rides a 1000ms trailing debounce,
+  so the button outlives the pointer — and a click in that tail reads an
+  already-closed pointer and writes Esc. It fails safe.
+- **A live turn's own quiet stretches.** The pointer is live and codex is
+  genuinely mid-turn; Ctrl+C interrupts. Correct in both phases (q34).
+
+**A recency belt was considered and REJECTED on existing evidence.** "Only send
+Ctrl+C if printable output landed within the last N ms" would close most of this
+window. It would also refuse exactly the interrupt a user most wants: a codex turn
+can be printable-silent for minutes while the model works — SL-2b's F13b measured
+that directly, and it is why the quiescence judge had to be restated on raw
+timestamps. Refusing a stalled turn's stop is the failure this slice exists to
+fix; buying a fraction of a second against it is a bad trade. Not shipped, and
+not rejected on a guess either: if anyone wants it, it needs its own measurement
+of how long a live codex turn stays silent in the field.
+
+The root fix retires the window rather than guarding it — see C29.
+
+## C29 — REGISTERED, MEASURED, NOT ADOPTED: an interrupt key that cannot quit
+
+0.152.1 ships a configurable keymap. Beside the unrebindable
+`fixed.interrupt_or_quit` sits **`chat.interrupt_turn`** — a named action scoped
+to `chat`, i.e. to a running turn. `q32-keymap-interrupt-rebind` asked the three
+questions that decide whether it is a real option:
+
+1. **Does it load from SONATA'S OWN profile?** YES. `[tui.keymap.chat]
+   interrupt_turn = "…"` appended to `$CODEX_HOME/sonata.config.toml` (layered by
+   `-p sonata`) is honored. A root-config binding would have meant mutating the
+   user's own keymap for every codex session they run, Sonata-launched or not —
+   which this program does not do. It does not come to that.
+2. **Does the bound key interrupt?** YES — bound to `alt-i`, `Interrupt` at +121ms.
+3. **Is it inert at an idle empty composer?** YES — screen unchanged, no quit.
+   Ctrl+C still quits there on the same session, so the rebind ADDS a key rather
+   than disarming the fixed chord.
+
+**The hazard that comes with it, and it is sharp.** A binding that collides with
+any default is not a warning — it is a hard `exit(1)` at boot, i.e. an
+unlaunchable CLI:
+
+```
+Error: Invalid `tui.keymap` configuration: Ambiguous `tui.keymap.main` bindings:
+`chat.interrupt_turn` shadows `editor.move_left` with the same key.
+Fix the config and retry.
+```
+
+That was the first candidate, `ctrl-b` (emacs `editor.move_left`). So adopting
+this means owning a key whose collision surface is upstream's default map and can
+change under us on any release — the failure mode being "codex will not start".
+
+**The trade, with the numbers on both sides.**
+
+- Do nothing: a **~250-400ms quit window at every codex turn end** (C28), whose
+  failure is `exit 0` with no confirmation — the session is gone, and the user's
+  own last action caused it. Plus a longer tail on a dropped `Stop`.
+- Adopt the rebind: that window disappears entirely (the bound key is inert at an
+  idle composer, measured). The new failure is a **boot failure** — a binding that
+  collides with an upstream default makes codex refuse to start until the profile
+  is fixed — on a collision surface upstream owns and can change on any release.
+
+The second failure is louder, earlier, and recoverable (it happens at spawn, says
+exactly what is wrong, and Sonata writes the profile so it can stop writing it);
+the first is silent, mid-session, and destroys work. That is an argument, not a
+decision: adopting it means Sonata takes ongoing responsibility for a key staying
+un-collided across codex releases, which is a standing maintenance cost this
+program should choose deliberately.
+
+Reported, not adopted: SL-15's brief reserves an alternative interrupt channel for
+a decision — Woody's call, not the slice's. If it IS taken, the collision surface
+wants a spawn-time check (codex exits 1 with the offending action named, so the
+failure is detectable and attributable) rather than a hand-picked key trusted
+forever.
+
+## C30 — what SL-15 changed in the product
+
+**1. `TerminalHost.stopInterruptKey()` — the key is chosen per stop.** Claude is
+Esc and byte-identical. Codex writes Ctrl+C when `activeRun` is non-null and in a
+live status (`active` / `waiting-for-approval` / `resumed-after-approval`), and
+Esc otherwise — the byte that path already wrote in that state, unchanged rather
+than re-decided on an unmeasured basis.
+
+**2. The one-shot stop resend is not armed behind a Ctrl+C.** Two independent
+reasons, either sufficient. It would be UNSAFE: the resend's only guard is a
+PreToolUse hook after the stop — it cannot gate on the run pointer, because
+`stopRun` has already closed the run (its own guard reads `!this.activeRun`), so
+a blind resend of a quit-capable key has nothing structural behind it. And there
+is nothing to recover: Ctrl+C interrupted in 3/3 measured presses, and the codex
+Esc it would otherwise resend is measured inert against a streaming turn.
+
+**3. `encodedAs` tells the truth.** `StopInterruptEncoding = "Esc" | "Ctrl+C"`
+(a subset of `ApprovalDecisionEncoding` by construction, since a stop key landing
+on a native panel denies it and the same value travels on `approval:decision`).
+It rides `run:stop-requested`, the durable `RuntimeStopReport`, the run's
+`statusReason`, and the run outcome the reader renders — which now READS the key
+instead of hard-coding "Stopped by Esc".
+
+**4. The typed turn-end source.** `CompletionSource` gains `"hook-interrupt"`;
+`completeRunFromTurnEnd({ ending: "interrupt" })` stamps it;
+`RuntimeController.isPendingTurnEnd` reads it off the event; SL-9's
+`interruptDrivenRunIds` side channel and all of its bookkeeping are DELETED. SL-9
+registered exactly this follow-up. `isExpiredTurnEnd` needed no change (it is
+`isPendingTurnEnd || hook-stop`, and the first disjunct widened). The two named
+consumers were checked: `gui-walking-skeleton.mjs:52` matches
+`hook-stop|terminal-idle-heuristic` on a claude walking skeleton that produces no
+interrupt, and `reading-turns.mjs:392` only asserts that `completionSource`
+participates in the turn signature. `transcript.ts` and
+`reading-core/selectors/runs.ts` each branch on `terminal-idle-heuristic` alone.
+
+## C31 — verification
+
+**q33, live codex 0.152.1 through the production `TerminalHost`.**
+
+- `v1` — production `stopRun()` on a turn verifiably STREAMING (5.4s in, the
+  count at 19 and climbing): `Interrupt` at **+115ms**, the count **froze at
+  20/900**, `■ Conversation interrupted`, pty ALIVE, `run:stop-requested` carrying
+  `encodedAs: "Ctrl+C"`, run closed `stopped` / `native-control` /
+  `"Ctrl+C interrupt sent"`. The A/B is q34's own streaming cell — the same key
+  at the same phase, twice, not interrupting — rather than an in-turn control leg
+  whose phase is uncontrolled (that draft is what produced C26).
+- `v2` — a human Ctrl+C in the co-visible Terminal: `Interrupt` at +170ms, no
+  `Stop`, run closed with `completionSource: "hook-interrupt"` and
+  `statusReason: "interrupt hook (turn interrupted)"`.
+- `v3` — the stop pressed at an IDLE composer, the cell where one Ctrl+C quits:
+  pty ALIVE after an empty-composer stop; a typed draft still on the line after a
+  stop with a draft (`DRAFTKEEP` before and after); the session still answers
+  (`STILL_ALIVE` in the scrollback).
+- `v4` — **C25 itself, re-run through the fix.** The PRODUCTION broker holding a
+  real ask (`ask-mtjtaup6-…json` on disk, answering marker armed, network
+  escalation so the sandbox cannot satisfy it), interrupted mid-hold:
+
+  ```
+  ask surfaced         19595ms   ["answering-enabled","ask-mtjtaup6-…json"]
+  Ctrl+C               (hold live, ask never replied)
+  Interrupt hook       +106ms    Stop: never
+  approvals dir 20s later:  ["answering-enabled","ask-mtjtaup6-…json"]   ← still there
+  run closed:          completionSource "hook-interrupt"
+                       statusReason "interrupt hook (turn interrupted)"
+  ```
+
+  Both halves matter, and the second is what makes the first mean anything: the
+  ask is STILL orphaned (no `reply-`, no `expired-` sibling) — upstream behaviour
+  is unchanged, the wedge ingredient is real — and the run now closes carrying the
+  value `isPendingTurnEnd` reads, instead of the `hook-stop` that the predicate
+  deliberately excludes.
+
+**Why v1 cannot assert `hook-interrupt`, and why the chain is closed.** A
+Sonata-initiated stop closes the run LOCALLY inside `stopRun`
+(`finishActiveRun("stopped", …)`, `native-control` — the honest source, since
+Sonata ended it); the `Interrupt` hook lands ~130ms later on a closed run and is a
+no-op by design. `hook-interrupt` is the shape of an interrupt Sonata did NOT
+initiate — v2, and under a live broker hold, v4. The release ITSELF lives in
+`RuntimeController` and is pinned on the REAL controller (real ApprovalWatcher,
+real HookWatcher, real dispatch) by
+`tests/smoke/interrupt-hook-pending-approval.mjs` — SL-9's pin, which passes
+UNCHANGED across this slice because it pins behaviour, not mechanism. Live CLI in
+the exact wedge state → typed event (v4); typed event → release (that smoke).
+
+**e2e `stop-continue` — the only LIVE-CLI stop fence, and a review BLOCKER.** It
+drives codex, stops a turn whose shell command is provably running, and waited on
+the rendered outcome note `"Stopped by Esc"`. That string is now `"Stopped by
+Ctrl+C"` (`stopRun` → `run:stop-requested.encodedAs` → run-index `stopEvents` →
+`runOutcome`), so the fixture would have burned its 240s locator timeout. Locator
+updated with a header note recording that the KEY is part of the fence, not
+incidental copy — this is the live half of the byte pin in
+`codex-stop-interrupt-key.mjs`. RUN FOREGROUND, `success: true`, and its durable
+report carries the whole chain:
+
+```
+commandAliveBeforeStop  true          commandStopped  true      endFileSeen  false
+stoppedRunStatus  "stopped"           completionSource "native-control" / high
+stopEvents[0]  action "interrupt"  phase "interrupt"  encodedAs "Ctrl+C"
+stopEvents[1]  "Ctrl+C sent immediately; /stop inspection is running in the background"
+stopEvents[2]  slashStopSent true   "background terminal hint detected…"
+composerRefilledWithStoppedPrompt  true      runCount 2 (recovery turn created)
+```
+
+The running `python3 … time.sleep(120)` was actually killed and its end-flag never
+written — so the stop reached the process, not just the screen.
+
+**Tests.** `npm run smoke` — **146 / 146 PASS / 0 FAIL / 0 SKIP** (the SL-4
+baseline's two reds are both green since SL-7/SL-11). New:
+`tests/smoke/codex-stop-interrupt-key.mjs`, 14 checks, A/B'd — with only the key
+choice reverted in-tree and rebuilt, **6** of them FAIL and all 14 pass after:
+
+```
+not ok - codex + a LIVE turn: the stop writes Ctrl+C, and records that it did
+not ok - codex + a live turn: the one-shot resend is NOT armed behind a Ctrl+C
+not ok - codex + a run in "active": the stop writes Ctrl+C
+not ok - codex + a run in "waiting-for-approval": the stop writes Ctrl+C
+not ok - codex + a run in "resumed-after-approval": the stop writes Ctrl+C
+not ok - codex + a live turn under an approval panel: the deny is recorded as Ctrl+C
+```
+
+Recorded as a method note because the first report said FIVE: that count was read
+off a `tail`-truncated run whose top line — the first failure — had scrolled off.
+Re-run with `grep -c "^not ok"` rather than by eye. A claimed artifact that is not
+read in full is not a verified artifact. Extended:
+`stop-hook-completion.mjs` (the `hook-interrupt` stamp and the unchanged
+default), `reading-composer-selectors.mjs` (the outcome copy reads the recorded
+key; the pre-field fallback and a retry row are pinned too).
+
+## C32 — evidence files
+
+- `q31-ctrlc-state-map.mjs` + `.capture.txt` + `q31-shards/` (per-arm shards and
+  `s1.history.jsonl`, an append-only record added after a re-run overwrote the
+  run that held the interesting reading).
+- `q32-keymap-interrupt-rebind.mjs` + `.capture.txt`.
+- `q33-stop-fix-live.mjs` + `.capture.txt` + `q33-shards/`.
+- `q34-esc-vs-ctrlc-phase.mjs` + `.capture.txt` + `q34-shards/`.
+
+## C33 — deviation ledger (SL-15)
+
+Decisions the brief did not specify.
+
+1. **`CTRL_C` is defined in terminal-host.ts, not beside `ESC`/`KILL_LINE` in
+   `tui-parsers-common.ts`.** Those are inert primitives any module may reach for;
+   this byte is not safe to write without `stopInterruptKey`'s state check. The
+   byte and the reason it is dangerous should not be separable.
+2. **`completeRunFromTurnEnd(failure?)` became
+   `completeRunFromTurnEnd(options?: { errorExcerpt?; ending? })`.** `ending` is a
+   closed two-member union rather than a raw `CompletionSource`: this method may
+   only ever stamp a hook-driven ending. Every existing call site type-checks
+   unchanged.
+3. **`settleApprovalAsEscDeny` → `settleApprovalAsStopKeyDeny(runId, encodedAs)`.**
+   The old name would have been false for half its calls. The deny bookkeeping
+   itself is unchanged and was re-measured for the new key (q31 s8).
+4. **Files touched outside the declared set, and why.**
+   `shared/types/events.ts` + `shared/schemas/runtime-report.ts`: `encodedAs` was
+   the literal type `"Esc"`, so recording a Ctrl+C stop was not merely mislabelled
+   but untypeable. `reading-core/selectors/runs.ts`: `runOutcome` hard-coded
+   "Stopped by Esc" and would have misreported every codex stop in the durable
+   record. `shared/types/cli-signal.ts`: comment-only — it carried C17's
+   over-general Esc claim, which C26 falsified; leaving a measured-false claim in
+   place is worse than the edit. `spikes/.../driver.mjs`: the probe event
+   projection was widened additively (run id/status/completionSource) so q33 could
+   assert on the completion source.
+5. **The stop's `cliInputMaybeDirty` flag stays unconditional** even though a
+   codex Ctrl+C interrupt leaves the composer empty (q31 s1). Its other producer
+   is the canceled text write, which is key-independent; the cost when wrong is a
+   kill-line flood into an empty composer — the designed harmless no-op.
+6. **q31's arm set was cut from nine to five mid-probe**, and the four dropped
+   arms are recorded in the probe header with the measurement that collapsed them
+   (C27).
+7. **NOT taken: the `chat.interrupt_turn` rebind** (C29) — measured, hazard
+   included, left as a decision.
+8. **NOT taken: a printable-output recency belt on the Ctrl+C choice.** It would
+   close most of C28's per-turn window, and it would refuse the interrupt of a
+   silently-working turn — the exact failure this slice fixes (SL-2b F13b). A
+   timing heuristic is not shippable here without its own measurement, and the
+   existing measurements argue against it rather than for it. Recorded so it is
+   not re-proposed as an obvious win.
+9. **The residual was RESIZED in review, not discovered then.** The first draft of
+   C28 called it a dropped-hook fault case; it is a per-turn latency window. The
+   sizing is now derived from the production poll interval and this program's own
+   measured hook latencies rather than from a description.
+
+## C34 — out of scope, noticed
+
+- **A codex stop at an idle composer still writes Esc, which is `fixed.backtrack`
+  ("step back and edit your last message").** Unchanged by this slice by design —
+  it is the byte that path already wrote, and re-deciding it would be an
+  unmeasured second change. q33 v3 measured it as harmless in both idle cases
+  (empty composer survived; a typed draft survived intact), but "harmless" is not
+  the same as "right": there is nothing to interrupt in that state, and writing
+  nothing at all may be the better answer. Needs its own measurement, not a guess.
+- **`acceptsPromptInput()` reads `true` for ~60% of samples during a live codex
+  turn** at the raw-tail detector underneath it (C28). Nothing in this slice
+  depends on it — the run pointer short-circuits it — but it is the same coin-flip
+  class F12 registered on claude, now measured on codex, and any future
+  screen-derived liveness claim should start from that number.

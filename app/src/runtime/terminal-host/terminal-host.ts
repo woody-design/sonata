@@ -23,6 +23,7 @@ import type {
   RunId,
   RunKind,
   RunStatus,
+  StopInterruptEncoding,
   TaskId,
 } from "../../shared/types/domain";
 import type {
@@ -178,6 +179,58 @@ const CLI_INPUT_CLEAR_DELAY_MS = 900;
  *  proof that the turn survived. */
 const STOP_ESC_RETRY_MIN_MS = 1200;
 const STOP_ESC_RETRY_WINDOW_MS = 45_000;
+/**
+ * Ctrl+C — codex's turn interrupt since 0.152.x, and a LOADED BYTE. Defined here
+ * rather than beside `ESC`/`KILL_LINE` in tui-parsers-common deliberately: those
+ * are inert parsing/editing primitives that any module may reach for, and this
+ * one is not safe to write without the state check `stopInterruptKey()` performs.
+ * The byte and the reason it is dangerous should not be separable.
+ *
+ * MEASURED at codex 0.152.1 (spikes/upstream-sync-2026-09/codex, probe q31 —
+ * every cell of the state space Sonata's stop can reach):
+ *
+ *  | state at the press                  | what Ctrl+C does                     |
+ *  |-------------------------------------|--------------------------------------|
+ *  | live turn (either phase — `stopInterruptKey`) | interrupts; `Interrupt` hook +115…151ms; no `Stop`; composer left EMPTY (the prompt is NOT restored, unlike an Esc interrupt) |
+ *  | live turn, native approval panel up  | DENIES the request (`✗ You canceled the request to run …`) AND interrupts (`Interrupt` +120ms) |
+ *  | `/model` picker open                | closes the picker; no quit           |
+ *  | idle composer holding a draft       | clears the draft                     |
+ *  | **idle composer, EMPTY**            | **QUITS THE CLI — exit 0, one press, no confirmation** |
+ *
+ * The last row is the whole reason this is not a straight byte swap. The binary
+ * calls the action `fixed.interrupt_or_quit` (unrebindable, unlike the
+ * `chat.interrupt_turn` action beside it) and carries a `" again to quit"`
+ * footer fragment that suggested a confirmation step — there is none at this
+ * binary. And an empty composer is not a rare state: it is what an interrupt
+ * itself leaves behind, so a stop and its resend are two DIFFERENT actions
+ * (q31 s1 — a second press 2.5s after the interrupt quit; q31 s3 — clearing a
+ * draft then pressing again quit).
+ */
+const CTRL_C = "\x03";
+/**
+ * The run statuses under which a codex turn is genuinely in flight — the whole
+ * guard on `CTRL_C`. `stopped`/`completed`/`failed`/`pty-exited`/`approval-denied`
+ * are turns already over.
+ *
+ * DELIBERATELY NOT `isActiveRunStatus` (reading-core/selectors/runs.ts), which
+ * carries the same three plus `stopping`. The two answer different questions and
+ * must be allowed to differ: that one asks "should the surface show this run as
+ * in flight" — where a stop already requested still reads busy — while this one
+ * asks "may we write a key that QUITS the CLI if we are wrong". A run mid-stop
+ * has already had its interrupt written; a second one is the resend hazard
+ * `stopEscRetry` exists to avoid, not a stop.
+ *
+ * (No run is ever actually SET to `stopping` today — `stopRun` goes straight to
+ * `stopped` via `finishActiveRun`, and the status survives in the union for the
+ * task-level mapping. So excluding it costs nothing now and stays the safe
+ * direction if that ever changes. A status added to `RunStatus` later defaults to
+ * NOT-live here, which is the same safe direction by construction.)
+ */
+const LIVE_TURN_STATUSES: ReadonlySet<RunStatus> = new Set<RunStatus>([
+  "active",
+  "waiting-for-approval",
+  "resumed-after-approval",
+]);
 /** Flood bounds. The floor blankets visually-WRAPPED long lines (kill
  *  granularity for wrapped lines is unprobed — review F2) and any small
  *  restore regardless of bookkeeping; the cap only bounds pathological
@@ -815,6 +868,21 @@ export class TerminalHost extends EventEmitter {
   // idle: a repeated Esc there opens Claude's rewind menu / prefills Codex's
   // edit-previous buffer (probe C6/X2). Carries the stopped run's id so the
   // retry is recordable in the durable report (review F4).
+  //
+  // ARMED ONLY WHEN THE STOP WROTE Esc — i.e. never on a codex stop that wrote
+  // Ctrl+C (SL-15). Two independent reasons, either sufficient:
+  //   - Resending Ctrl+C is UNSAFE. The retry's only guard is the PreToolUse
+  //     evidence; it cannot gate on the run pointer, because `stopRun` has
+  //     already closed the run by the time this could fire (`activeRun` is null
+  //     for every retry, which is also why its own guard reads `!this.activeRun`).
+  //     A Ctrl+C that lands on an idle codex composer QUITS the CLI outright
+  //     (q31 s2 — exit 0, one press, no confirmation), so a blind resend trades
+  //     a swallowed interrupt for a killed session.
+  //   - There is nothing to recover. The retry exists for a SWALLOWED Esc on
+  //     claude. A codex Ctrl+C interrupted on EVERY measured press — q34's four
+  //     cells across both turn phases (+118…151ms) and q33's production
+  //     `stopRun()` on a streaming turn (+115ms) — and the codex Esc this would
+  //     otherwise resend is measured INERT against a streaming turn (q34, 2/2).
   private stopEscRetry: {
     requestedAt: number;
     retried: boolean;
@@ -2701,15 +2769,24 @@ export class TerminalHost extends EventEmitter {
   }
 
   /**
-   * An Esc that Sonata wrote for a DIFFERENT purpose (the stop interrupt, or
+   * A stop key that Sonata wrote for a DIFFERENT purpose (the stop interrupt, or
    * its one-shot resend) landed while a native approval panel owned the screen
    * — so the CLI consumed it as a DENY. Settle the approval state to match what
    * the key actually did.
    *
-   * Mirrors `sendDeny`'s bookkeeping minus its two writes: NO second Esc (the
-   * caller's Esc already denied; a second one ≤700ms later is the documented
-   * Rewind-panel-opening pair) and NO `finishActiveRun` (the stop path owns the
-   * run's end, as "stopped" — the honest reason the run is over).
+   * TRUE FOR BOTH STOP KEYS, and measured for each rather than carried over.
+   * Claude's Esc denies the panel (the long-standing measurement this method was
+   * written for). Codex's Ctrl+C denies it too and says so on screen — q31 s8,
+   * a real command-approval panel: the press printed `✗ You canceled the request
+   * to run curl …` AND `■ Conversation interrupted`, with `Interrupt` at +120ms.
+   * So the deny bookkeeping below is honest for either key; only the `encodedAs`
+   * label differs, which is why the caller passes it.
+   *
+   * Mirrors `sendDeny`'s bookkeeping minus its two writes: NO second key (the
+   * caller's key already denied; a second Esc ≤700ms later is the documented
+   * Rewind-panel-opening pair, and a second Ctrl+C is quit-capable — see
+   * `CTRL_C`) and NO `finishActiveRun` (the stop path owns the run's end, as
+   * "stopped" — the honest reason the run is over).
    *
    * Without this the stop paths clear nothing: `approvalActive` stays true with
    * no clearer reachable from a stop, and the scrape's `SCRAPE_APPROVAL_KEY` in
@@ -2725,12 +2802,12 @@ export class TerminalHost extends EventEmitter {
    * broker abort path already learned to avoid (runtime-controller.ts
    * `abortPendingBrokerApprovals`).
    *
-   * No settle re-check is armed (as in `sendDeny`): if the Esc did NOT take and
+   * No settle re-check is armed (as in `sendDeny`): if the key did NOT take and
    * the panel is still live, `detectApproval`'s suppression branch arms one
    * itself off `lastApprovalDecisionAt` — "arming at the suppression site covers
    * every decision source by construction" (review P2).
    */
-  private settleApprovalAsEscDeny(runId: RunId | null): void {
+  private settleApprovalAsStopKeyDeny(runId: RunId | null, encodedAs: StopInterruptEncoding): void {
     if (!this.approvalActive) {
       return;
     }
@@ -2757,9 +2834,102 @@ export class TerminalHost extends EventEmitter {
       taskId: this.taskId,
       runId,
       decision: "deny",
-      encodedAs: "Esc",
+      encodedAs,
       previousKind,
     });
+  }
+
+  /**
+   * Which key a stop writes, and what to call it in the record.
+   *
+   * CLAUDE is Esc and stays Esc — its stop choreography is measured-correct
+   * (SL-2b s3/s8 re-measured the Esc semantics this program depends on) and is
+   * untouched by SL-15.
+   *
+   * CODEX moved: at 0.152.1 Ctrl+C is the only key that interrupts a live turn in
+   * EVERY phase of it. Esc — the key production `stopRun()` used to write — is
+   * phase-dependent, and the phase it fails in is the one that matters (probe
+   * q34, two keys × two phases, each cell run twice):
+   *
+   *   |        | before the model emits anything | once tokens are streaming |
+   *   |--------|---------------------------------|---------------------------|
+   *   | Esc    | interrupts (+138/141ms)         | NOTHING — the turn runs on to its own `Stop` (2/2) |
+   *   | Ctrl+C | interrupts (+127/144ms)         | interrupts (+118/151ms)   |
+   *
+   * The streaming cell is the user-facing bug, because output arriving is WHY a
+   * stop gets pressed. C17 measured that cell three times (three Esc paths, three
+   * turns finished, no `Interrupt` hook) and generalised it to "Esc no longer
+   * interrupts"; q34 narrowed the claim without softening the consequence.
+   *
+   * THE GUARD IS THE RUN POINTER, and it is structural on purpose. Ctrl+C is
+   * `fixed.interrupt_or_quit`: at an idle EMPTY composer one press QUITS the CLI
+   * (q31 s2 — exit 0, no confirmation). The key may therefore only be written
+   * when a turn is genuinely in flight, and "genuinely in flight" has to be
+   * decided from something structural rather than from a clock or a screen read:
+   *
+   *  - a SCREEN belt is FALSIFIED, twice over. Empirically: sampled through
+   *    genuinely live turns, the production idle-prompt detector read `ready:true`
+   *    in 12/20, 12/20 and 14/20 samples (q31 s1, three runs) — the codex
+   *    counterpart of F12's coin flip, so a "refuse if the screen looks idle"
+   *    belt would refuse the majority of real interrupts and re-open C17.
+   *    Architecturally: the status scrape that DOES track codex's working row is
+   *    contract §3.1 fence #1, display-only, and nothing may derive state from it.
+   *  - `acceptsPromptInput()` is not a second signal either — it returns false
+   *    whenever `activeRun` is set, so it restates this pointer rather than
+   *    standing beside it.
+   *
+   * WHAT THE GUARD DOES NOT COVER, sized honestly rather than described as a
+   * fault case. This pointer trails codex by the length of the turn-end hook
+   * round trip, so there is a window after EVERY codex turn in which the pointer
+   * still says "live" and codex is already sitting at an idle EMPTY composer —
+   * the one state where a single Ctrl+C quits:
+   *
+   *   model emits its last token, codex repaints an idle composer
+   *     → the `Stop` shim writes its `hook-*.json`   (~110–170ms, the latency
+   *       measured on this channel for `Interrupt`, which shares it)
+   *     → `HookWatcher` picks it up on its next tick (0–250ms; production runs
+   *       the 250ms default, no override)
+   *     → dispatch closes the run                    (SL-9 end-to-end: hook at
+   *       +141ms, run closed at +253ms)
+   *
+   * i.e. roughly a QUARTER TO HALF A SECOND, once per turn end, and a click at
+   * the moment the last token lands is exactly the click a user makes. A dropped
+   * `Stop` hook widens the same window to the quiescence closer
+   * (`stoplessTurnEndConfirmed`), but it is the tail of this distribution, not
+   * the whole of it.
+   *
+   * The renderer's ■ is NOT part of the hazard: the run report rides a 1000ms
+   * trailing debounce, so the button outlives the pointer — and a click in that
+   * tail reads a pointer that is already closed and writes Esc. It fails safe in
+   * the direction that matters.
+   *
+   * NOT NARROWED BY A RECENCY BELT, and that is a decision rather than an
+   * oversight. "Only send Ctrl+C if printable output landed within the last N ms"
+   * would close most of this window — and would refuse exactly the interrupt the
+   * user most wants, because a codex turn can be printable-silent for minutes
+   * while the model works (SL-2b F13b measured that directly, and it is why the
+   * quiescence judge had to be restated on raw timestamps). Refusing a stalled
+   * turn's stop is the failure this slice exists to fix; a belt that reintroduces
+   * it for a fraction of a second's protection is a bad trade. Not shipped, and
+   * not shipped on a guess either way — it would need its own measurement.
+   *
+   * The root fix retires the window instead of guarding it: a key that is not
+   * quit-capable in ANY state. Codex offers one — `tui.keymap.chat.interrupt_turn`
+   * is rebindable and loads from Sonata's own profile (MEASURED in q32: bound to
+   * `alt-i` it interrupted a live turn at +121ms and was completely inert at an
+   * idle composer). Adopting it is a decision this slice reports rather than
+   * takes; see findings C29 for the hazard that comes with it.
+   *
+   * With no live run there is nothing to interrupt, so the key stays Esc — the
+   * byte this path already wrote in that state, unchanged rather than
+   * re-decided on an unmeasured basis.
+   */
+  private stopInterruptKey(): { key: string; encodedAs: StopInterruptEncoding } {
+    if (this.profile.provider !== "codex") {
+      return { key: ESC, encodedAs: "Esc" };
+    }
+    const live = this.activeRun !== null && LIVE_TURN_STATUSES.has(this.activeRun.status);
+    return live ? { key: CTRL_C, encodedAs: "Ctrl+C" } : { key: ESC, encodedAs: "Esc" };
   }
 
   /**
@@ -2812,29 +2982,43 @@ export class TerminalHost extends EventEmitter {
     // Capture BEFORE any control write (the deferred /stop) can touch it: whether
     // the aborted prompt had already pasted its text/paths into the composer.
     const promptReachedComposer = this.promptTextReachedComposer;
-    this.writeRaw(ESC);
-    // Esc-interrupt restores the interrupted prompt into the CLI's own input
+    // WHICH key, decided from the run pointer read in this same breath — see
+    // `stopInterruptKey`. Read BEFORE `finishActiveRun` below nulls the pointer.
+    const interrupt = this.stopInterruptKey();
+    this.writeRaw(interrupt.key);
+    // An Esc interrupt restores the interrupted prompt into the CLI's own input
     // box when the turn had produced nothing yet (probe C1/X1, claude
     // 2.1.212 + codex 0.144.5) — and a canceled text write can likewise
     // strand a pasted prompt there. Either way the next injection would
     // concatenate onto it: mark the line dirty, clear it once the TUI
     // settles (belt), and let the next submission's prefix flood cover a
     // straggler (suspenders).
+    //
+    // Kept unconditional even though a codex Ctrl+C interrupt leaves the composer
+    // EMPTY (q31 s1: the composer read `› Ask Codex to do anything` after the
+    // press — codex's own placeholder — while the prompt stayed in the transcript
+    // as history). The flag's other producer is the canceled text write above,
+    // which is key-independent, and its cost when wrong is a kill-line flood into
+    // an already-empty composer — the designed harmless no-op (probe C2/C6/X2).
+    // Deriving it from the key would trade that no-op for a concatenation bug.
     this.cliInputMaybeDirty = true;
     this.armCliInputClear();
-    // Arm the one-shot Esc resend: if a PreToolUse hook lands after this
-    // stop, the turn provably survived the Esc (swallowed key) — resend once.
-    this.stopEscRetry = { requestedAt: Date.now(), retried: false, runId: stoppedRunId };
+    // Arm the one-shot resend ONLY when the key written was Esc: if a PreToolUse
+    // hook lands after this stop, the turn provably survived it (swallowed key) —
+    // resend once. Never armed behind a Ctrl+C; see `stopEscRetry` for the two
+    // independent reasons.
+    this.stopEscRetry =
+      interrupt.encodedAs === "Esc" ? { requestedAt: Date.now(), retried: false, runId: stoppedRunId } : null;
     this.taskReady = false;
-    // The Esc written above is a DENY when a native approval panel owns the
+    // The key written above is a DENY when a native approval panel owns the
     // screen — settle the approval state to match, with the id captured at the
     // top (this still runs BEFORE `finishActiveRun` nulls the pointer, so the
     // decision lands on the still-open run, and still BEFORE `run:stopped` so
     // the surface ends on "Stopped" rather than "Approval denied").
     //
-    // POSITIONED HERE, NOT NEXT TO THE Esc (review 1): the emit is synchronously
-    // RE-ENTRANT — eventSink → RuntimeController.handleRuntimeEvent →
-    // DeliveryController.pump → deliver → submitPrompt, all on this stack. A
+    // POSITIONED HERE, NOT NEXT TO THE INTERRUPT KEY (review 1): the emit is
+    // synchronously RE-ENTRANT — eventSink → RuntimeController.handleRuntimeEvent
+    // → DeliveryController.pump → deliver → submitPrompt, all on this stack. A
     // queued item released by this very decision therefore submits from inside
     // stopRun, so every piece of stop state it reads must already be written:
     //   - `cliInputMaybeDirty` (above) or its pre-submit kill-line flood is
@@ -2842,21 +3026,21 @@ export class TerminalHost extends EventEmitter {
     //   - `stopEscRetry` (above) or that submit's own `stopEscRetry = null`
     //     is clobbered by this method's re-arm, leaving a 45s Esc retry armed
     //     behind a send that already went out.
-    this.settleApprovalAsEscDeny(stoppedRunId);
+    this.settleApprovalAsStopKeyDeny(stoppedRunId, interrupt.encodedAs);
     this.emitEvent("run:stop-requested", {
       taskId: this.taskId,
       runId: stoppedRunId,
       phase: "interrupt",
-      encodedAs: "Esc",
+      encodedAs: interrupt.encodedAs,
     });
     this.emitEvent("run:stopped", {
       taskId: this.taskId,
       runId: stoppedRunId,
       interruptSent: true,
       slashStopSent: false,
-      slashStopReason: "Esc sent immediately; /stop inspection is running in the background",
+      slashStopReason: `${interrupt.encodedAs} sent immediately; /stop inspection is running in the background`,
     });
-    this.finishActiveRun("stopped", "Esc interrupt sent", {
+    this.finishActiveRun("stopped", `${interrupt.encodedAs} interrupt sent`, {
       completionSource: "native-control",
       completionConfidence: "high",
     });
@@ -2969,6 +3153,10 @@ export class TerminalHost extends EventEmitter {
    * Esc into an idle TUI — which opens Claude's rewind menu / prefills
    * Codex's edit-previous buffer (probe C6/X2). A new run (activeRun) means
    * the user moved on: never retry into it.
+   *
+   * ESC-ONLY BY CONSTRUCTION (SL-15). `stopEscRetry` is armed only by a stop that
+   * WROTE Esc, so this method can never resend a codex Ctrl+C — see that field
+   * and `CTRL_C` for why a blind resend of that key is not an option.
    */
   noteToolActivityAfterStop(): void {
     const retry = this.stopEscRetry;
@@ -2988,7 +3176,7 @@ export class TerminalHost extends EventEmitter {
     // — `surfaceApproval` sets the flag with no run open (its `updateActiveRun`
     // simply no-ops), which is the ordinary take-over shape. `retry.runId` for
     // the same recordability reason the stop events use it (review F4).
-    this.settleApprovalAsEscDeny(retry.runId);
+    this.settleApprovalAsStopKeyDeny(retry.runId, "Esc");
     this.cliInputMaybeDirty = true;
     this.armCliInputClear();
     // The stopped run's id makes the resend recordable: run-index drops
@@ -4218,8 +4406,15 @@ export class TerminalHost extends EventEmitter {
    * a genuinely pending ask holds its turn open, so Stop arriving while we
    * think an approval is waiting proves that state stale — see the guard
    * comment in the body (2026-07-03 phantom-resurface wedge).
+   *
+   * `ending` names WHICH turn ending fired, and the completion is stamped with
+   * it. `"interrupt"` (codex's `Interrupt` hook) is NOT a flavour of `"stop"`:
+   * see `CompletionSource["hook-interrupt"]` for the invariant that separates
+   * them and the consumer that depends on the separation. A closed two-member
+   * union rather than a raw `CompletionSource` — this method may only ever stamp
+   * a hook-driven ending, and the type should say so.
    */
-  completeRunFromTurnEnd(failure?: { errorExcerpt: string }): ActiveRun | null {
+  completeRunFromTurnEnd(options?: { errorExcerpt?: string; ending?: "stop" | "interrupt" }): ActiveRun | null {
     if (!this.activeRun) {
       return null;
     }
@@ -4257,11 +4452,18 @@ export class TerminalHost extends EventEmitter {
     // `error` field, while Stop stays silent) rides the same completion
     // path — the turn ENDED; the hint carries the structured error, so the
     // scrape-side excerpt extraction is now the fallback, not the primary.
-    if (failure) {
+    // Claude-only, so it can never coexist with the codex interrupt ending.
+    if (options?.errorExcerpt) {
       return this.finishActiveRun("completed", "stop-failure hook (turn failed)", {
         completionSource: "hook-stop",
         completionConfidence: "high",
-        completionHint: withCompletionErrorExcerpt(undefined, failure.errorExcerpt),
+        completionHint: withCompletionErrorExcerpt(undefined, options.errorExcerpt),
+      });
+    }
+    if (options?.ending === "interrupt") {
+      return this.finishActiveRun("completed", "interrupt hook (turn interrupted)", {
+        completionSource: "hook-interrupt",
+        completionConfidence: "high",
       });
     }
     return this.finishActiveRun("completed", "stop hook (turn ended)", {
@@ -4692,6 +4894,12 @@ function terminalProviderProfile(provider: RuntimeProvider): TerminalProviderPro
     defaultCommand: "codex",
     approvalSource: "native Codex PTY approval screen",
     supportsSlashStop: true,
+    // Fence-only ordering vocabulary, and both needles are still MEASURED present
+    // in a live 0.152.1 turn's footer (`• Working (2s • esc to interrupt)`, q31
+    // s1) — which is all this list needs them for. NOT a statement about the
+    // interrupt key: `esc to interrupt` is upstream copy that SL-15 measured to
+    // hold only before the model starts emitting (q34). The stop's key is chosen
+    // in `stopInterruptKey`, never read off this line.
     activityHints: ["working", "esc to interrupt"],
     // `»` (U+00BB) is the SAME composer prompt as `›` (U+203A), rendered at the
     // Max/Ultra tiers. MEASURED byte-exact on codex 0.146.0

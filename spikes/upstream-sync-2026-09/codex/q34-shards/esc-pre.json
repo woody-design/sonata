@@ -1,0 +1,68 @@
+{
+  "cell": "esc-pre",
+  "key": "Esc",
+  "keyLabel": "Esc",
+  "phase": "pre-output",
+  "runs": [
+    {
+      "arm": "esc-pre-r1",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2755",
+        "UserPromptSubmit@2755",
+        "Stop@4481",
+        "UserPromptSubmit@4684",
+        "Interrupt@7624"
+      ],
+      "notes": [
+        "ready=true at 147ms",
+        "warm-up closed=true at 4482ms"
+      ],
+      "ptyExited": false,
+      "screenTail": "› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/esc-pre-r1/ws",
+      "key": "Esc",
+      "intendedPhase": "pre-output",
+      "observedPhase": "pre-output",
+      "phaseAsIntended": true,
+      "stoppedBeforePress": false,
+      "msIntoTurn": 2802,
+      "countAtPress": 0,
+      "settledAtMs": 7690,
+      "interruptAfterMs": 138,
+      "stopAfterMs": null,
+      "interruptedBanner": true,
+      "reachedEnd": false,
+      "verdict": "Esc INTERRUPTED at pre-output (+138ms)"
+    },
+    {
+      "arm": "esc-pre-r2",
+      "version": "codex-cli 0.152.1",
+      "hookOrder": [
+        "SessionStart@2832",
+        "UserPromptSubmit@2832",
+        "Stop@4864",
+        "UserPromptSubmit@5168",
+        "Interrupt@8092"
+      ],
+      "notes": [
+        "ready=true at 246ms",
+        "warm-up closed=true at 4950ms"
+      ],
+      "ptyExited": false,
+      "screenTail": "› Count from 1 to 900, one number per line, nothing else.\n\n\n■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the\nissue.\n \n \n› Ask Codex to do anything\n \n  gpt-5.6-sol default · /private/tmp/sonata-sync-2026-09/codex-esc-phase/esc-pre-r2/ws",
+      "key": "Esc",
+      "intendedPhase": "pre-output",
+      "observedPhase": "pre-output",
+      "phaseAsIntended": true,
+      "stoppedBeforePress": false,
+      "msIntoTurn": 2783,
+      "countAtPress": 0,
+      "settledAtMs": 8155,
+      "interruptAfterMs": 141,
+      "stopAfterMs": null,
+      "interruptedBanner": true,
+      "reachedEnd": false,
+      "verdict": "Esc INTERRUPTED at pre-output (+141ms)"
+    }
+  ]
+}

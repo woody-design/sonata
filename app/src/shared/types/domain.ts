@@ -146,6 +146,19 @@ export type CompletionSource =
   | "native-control"
   | "pty-exit"
   | "hook-stop"
+  /**
+   * The turn ended because it was INTERRUPTED — codex's `Interrupt` hook, which
+   * replaces `Stop` for that turn (MEASURED at 0.152.1: the hook lands ~130ms
+   * after the key and no `Stop` ever follows). Distinct from `hook-stop`, and the
+   * distinction is load-bearing rather than descriptive: `hook-stop` carries the
+   * invariant "a live holding hook blocks the turn, so a hook-driven completion
+   * cannot coexist with a pending broker ask", which is TRUE for `Stop` and FALSE
+   * here — an interrupt KILLS the holding PermissionRequest hook, orphaning its
+   * ask (SL-9 B1, probe h3 `d4-interrupt-under-hold`). Consumers that release
+   * PENDING work at a turn end must therefore treat this as a pending turn end
+   * (`RuntimeController.isPendingTurnEnd`), not as a Stop.
+   */
+  | "hook-interrupt"
   | "terminal-idle-heuristic"
   | "unknown";
 
@@ -321,10 +334,30 @@ export type ApprovalDecisionEncoding =
    *  and CSI-u Enter exit 1 from the default row). */
   | "grid-verified Arrow + CR"
   | "Esc"
+  /** The codex stop's interrupt key at 0.152.x, landing on a native approval
+   *  panel. MEASURED (q31 s8, a real command-approval panel): the press printed
+   *  `✗ You canceled the request to run …` alongside `■ Conversation
+   *  interrupted` — a genuine deny, so it belongs in this vocabulary rather than
+   *  being recorded as the Esc it is not. */
+  | "Ctrl+C"
   | "native-keys"
   /** Hook-broker reply (S2): the decision went back on the hook channel —
    *  no bytes ever touched the PTY. */
   | "reply-file";
+
+/**
+ * The key a stop actually wrote to the PTY. NOT cosmetic: it is recorded in the
+ * durable run report and rendered in the run outcome, so it has to name the byte
+ * that was sent rather than the byte this path used to send. Claude's stop is
+ * Esc; codex's is Ctrl+C while a turn is live and Esc otherwise — the interrupt
+ * key moved at codex 0.152.x and Ctrl+C is quit-capable at an idle composer, so
+ * the key is chosen per stop (`TerminalHost.stopInterruptKey`).
+ *
+ * A SUBSET of `ApprovalDecisionEncoding` by construction: a stop key that lands
+ * on a native approval panel denies it, and the same value then travels on the
+ * `approval:decision` event.
+ */
+export type StopInterruptEncoding = Extract<ApprovalDecisionEncoding, "Esc" | "Ctrl+C">;
 
 export interface ApprovalChoice {
   decision: ApprovalDecision;

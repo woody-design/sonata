@@ -775,6 +775,46 @@ const run = (status, extra = {}) => ({
     "slash-stop wording",
   );
   assert.equal(R.runOutcome(run("stopped"), "Claude"), "Stopped by Esc", "plain stop");
+  // SL-15: the key is READ from the report, not assumed. Codex's stop writes
+  // Ctrl+C while a turn is live (its interrupt key moved at 0.152.x), so the two
+  // cases above are now the FALLBACK — a report with no recorded encoding, which
+  // is every report written before the field existed, and all of those were Esc.
+  assert.equal(
+    R.runOutcome(
+      run("stopped", { stopEvents: [{ action: "interrupt", phase: "interrupt", encodedAs: "Ctrl+C" }] }),
+      "Codex",
+    ),
+    "Stopped by Ctrl+C",
+    "a codex stop names the key it actually wrote",
+  );
+  assert.equal(
+    R.runOutcome(
+      run("stopped", {
+        stopEvents: [
+          { action: "interrupt", phase: "interrupt", encodedAs: "Ctrl+C" },
+          { action: "stopped", slashStopSent: true },
+        ],
+      }),
+      "Codex",
+    ),
+    "Stopped by Ctrl+C + /stop",
+    "and keeps the slash-stop wording",
+  );
+  assert.equal(
+    R.runOutcome(
+      run("stopped", {
+        stopEvents: [
+          { action: "interrupt", phase: "interrupt", encodedAs: "Esc" },
+          // A RETRY row is not the stop's own press; the first `interrupt` row is
+          // the one that names the key the stop wrote.
+          { action: "interrupt", phase: "interrupt-retry", encodedAs: "Esc" },
+        ],
+      }),
+      "Claude",
+    ),
+    "Stopped by Esc",
+    "a retry row does not change the reported key",
+  );
   assert.equal(
     R.runOutcome(run("approval-denied", { approvalKind: "file-edit" }), "Claude"),
     "File edit approval denied",
